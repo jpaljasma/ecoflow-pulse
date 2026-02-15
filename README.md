@@ -37,6 +37,7 @@ Telemetry capabilities:
 - battery pack telemetry (up to 5 packs): SOC, temp, power, remain, max cell delta, serial, energy, SOH, voltage, target SOC, limits, delta SOC, capacity, board temperature,
 - heuristic + ML-based ETA estimate rows with confidence scoring,
 - minute-by-minute history (default 10-minute window): solar generated, AC input, AC output, DC output, battery charge, total input/output, net,
+- minute-by-minute history values are energy buckets (Wh per minute), not instantaneous power (W),
 - durable logging to `logs/mqtt.log` (cleared each run), including raw payloads and parsed `energy_summary`,
 - resilient ingestion: reconnect with jitter backoff, idle-time reconnect, drop-oldest ring-buffer behavior, graceful quit (`q` or `Ctrl+C`).
 
