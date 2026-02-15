@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -859,6 +860,137 @@ func TestMinuteTelemetryHistorySortAndLimit(t *testing.T) {
 	}
 }
 
+func TestMinuteTelemetryStoreRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "telemetry_history.jsonl")
+	store, err := newMinuteTelemetryStore(path)
+	if err != nil {
+		t.Fatalf("new minute telemetry store: %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	minuteA := minuteTelemetryBucket{
+		MinuteStartUnix:       time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local).Unix(),
+		SolarSumWatts:         1000,
+		SolarSamples:          4,
+		ACInSumWatts:          3600,
+		ACInSamples:           4,
+		ACOutSumWatts:         480,
+		ACOutSamples:          4,
+		DCOutSumWatts:         120,
+		DCOutSamples:          4,
+		BatteryChargeSumWatts: 3000,
+		BatteryChargeSamples:  4,
+	}
+	minuteAUpdated := minuteA
+	minuteAUpdated.SolarSumWatts = 1200
+	minuteAUpdated.SolarSamples = 5
+
+	minuteB := minuteTelemetryBucket{
+		MinuteStartUnix:       time.Date(2026, time.February, 15, 10, 1, 0, 0, time.Local).Unix(),
+		SolarSumWatts:         800,
+		SolarSamples:          4,
+		ACInSumWatts:          2400,
+		ACInSamples:           4,
+		ACOutSumWatts:         360,
+		ACOutSamples:          4,
+		DCOutSumWatts:         60,
+		DCOutSamples:          4,
+		BatteryChargeSumWatts: 2000,
+		BatteryChargeSamples:  4,
+	}
+
+	if err := store.AppendBucket("SN-1", minuteA); err != nil {
+		t.Fatalf("append minuteA: %v", err)
+	}
+	if err := store.AppendBucket("SN-1", minuteAUpdated); err != nil {
+		t.Fatalf("append minuteAUpdated: %v", err)
+	}
+	if err := store.AppendBucket("SN-1", minuteB); err != nil {
+		t.Fatalf("append minuteB: %v", err)
+	}
+	if err := store.AppendBucket("SN-2", minuteB); err != nil {
+		t.Fatalf("append minuteB SN-2: %v", err)
+	}
+
+	loaded := newMinuteTelemetryHistory(32)
+	loadedCount, err := store.LoadInto("SN-1", loaded)
+	if err != nil {
+		t.Fatalf("load history SN-1: %v", err)
+	}
+	if loadedCount != 2 {
+		t.Fatalf("loadedCount mismatch: got=%d want=2", loadedCount)
+	}
+	if len(loaded.buckets) != 2 {
+		t.Fatalf("loaded bucket count mismatch: got=%d want=2", len(loaded.buckets))
+	}
+
+	gotMinuteA, ok := loaded.Bucket(minuteA.MinuteStartUnix)
+	if !ok {
+		t.Fatalf("missing minuteA bucket")
+	}
+	if gotMinuteA.SolarSumWatts != minuteAUpdated.SolarSumWatts || gotMinuteA.SolarSamples != minuteAUpdated.SolarSamples {
+		t.Fatalf("minuteA upsert mismatch: got=%+v want=%+v", gotMinuteA, minuteAUpdated)
+	}
+
+	other := newMinuteTelemetryHistory(32)
+	otherCount, err := store.LoadInto("SN-2", other)
+	if err != nil {
+		t.Fatalf("load history SN-2: %v", err)
+	}
+	if otherCount != 1 || len(other.buckets) != 1 {
+		t.Fatalf("SN-2 filtering mismatch: count=%d buckets=%d", otherCount, len(other.buckets))
+	}
+}
+
+func TestMinuteTelemetryStoreLoadWindowFiltersOlderBuckets(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "telemetry_history_window.jsonl")
+	store, err := newMinuteTelemetryStore(path)
+	if err != nil {
+		t.Fatalf("new minute telemetry store: %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	oldMinute := time.Date(2026, time.February, 15, 9, 0, 0, 0, time.Local).Unix()
+	newMinute := time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local).Unix()
+
+	if err := store.AppendBucket("SN-1", minuteTelemetryBucket{
+		MinuteStartUnix: oldMinute,
+		SolarSumWatts:   100,
+		SolarSamples:    2,
+	}); err != nil {
+		t.Fatalf("append old minute: %v", err)
+	}
+	if err := store.AppendBucket("SN-1", minuteTelemetryBucket{
+		MinuteStartUnix: newMinute,
+		SolarSumWatts:   200,
+		SolarSamples:    2,
+	}); err != nil {
+		t.Fatalf("append new minute: %v", err)
+	}
+
+	loaded := newMinuteTelemetryHistory(32)
+	loadedCount, err := store.LoadIntoWindow("SN-1", loaded, newMinute)
+	if err != nil {
+		t.Fatalf("load history with window: %v", err)
+	}
+	if loadedCount != 1 {
+		t.Fatalf("loadedCount mismatch: got=%d want=1", loadedCount)
+	}
+	if len(loaded.buckets) != 1 {
+		t.Fatalf("loaded bucket count mismatch: got=%d want=1", len(loaded.buckets))
+	}
+	if _, ok := loaded.Bucket(oldMinute); ok {
+		t.Fatalf("old bucket should be filtered out")
+	}
+	if _, ok := loaded.Bucket(newMinute); !ok {
+		t.Fatalf("new bucket should be loaded")
+	}
+}
+
 func TestEnergySnapshotDerivesDashboardStatusFlags(t *testing.T) {
 	snapshot := newEnergySnapshot()
 
@@ -1145,6 +1277,23 @@ func TestEnergySnapshotParsesScaledMPPTStatusUnits(t *testing.T) {
 	}
 	if derived.InPVValue != "93.6W" {
 		t.Fatalf("in_pv total mismatch: got=%s want=93.6W", derived.InPVValue)
+	}
+}
+
+func TestEnergySnapshotParsesSubThousandMPPTMilliVolts(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	payload := []byte(`{"moduleType":5,"needAck":0,"id":10588604,"time":94061552,"params":{"inVol":785,"pv2InVol":1070},"version":"1.0","typeCode":"mpptStatus"}`)
+	envelope, quota, err := parseTelemetryPayload(payload)
+	if err != nil {
+		t.Fatalf("parse mpptStatus payload: %v", err)
+	}
+	snapshot.Update(envelope, quota, nil, false, pdStatusSummary{}, false)
+
+	if !snapshot.HasSolarLVVolts || snapshot.SolarLVVolts < 0.78 || snapshot.SolarLVVolts > 0.79 {
+		t.Fatalf("lv volts normalization mismatch: has=%v value=%f", snapshot.HasSolarLVVolts, snapshot.SolarLVVolts)
+	}
+	if !snapshot.HasSolarHVVolts || snapshot.SolarHVVolts < 1.06 || snapshot.SolarHVVolts > 1.08 {
+		t.Fatalf("hv volts normalization mismatch: has=%v value=%f", snapshot.HasSolarHVVolts, snapshot.SolarHVVolts)
 	}
 }
 
@@ -1551,6 +1700,28 @@ func TestEnergySnapshotRemainPrefersChargeRemainWhenCharging(t *testing.T) {
 	}
 	if derived.RemainValue != "charging: 320min (~5h 20m)" {
 		t.Fatalf("remain mismatch: got=%s want=%s", derived.RemainValue, "charging: 320min (~5h 20m)")
+	}
+}
+
+func TestEnergySnapshotStateSmoothingPrefersPackDischargeDirection(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.configureStateSmoothing(6)
+	snapshot.Packs[1] = &packSnapshot{PowerW: -22.1, HasPower: true}
+	snapshot.Packs[2] = &packSnapshot{PowerW: -29.0, HasPower: true}
+	for i := 0; i < 6; i++ {
+		snapshot.pushStateSmoothingSample()
+	}
+
+	// Simulate a stale frame where aggregate in/out briefly looks like charging.
+	state := snapshot.detectSystemState(58, true, 29, true, 0, 0)
+	if state != systemStateDischarging {
+		t.Fatalf("state mismatch with discharge smoothing: got=%s want=%s", state, systemStateDischarging)
+	}
+
+	// Strong explicit pack charging should still override smoothed discharge trend.
+	state = snapshot.detectSystemState(10, true, 90, true, 70, 0)
+	if state != systemStateCharging {
+		t.Fatalf("state mismatch with explicit pack charge: got=%s want=%s", state, systemStateCharging)
 	}
 }
 
@@ -2061,6 +2232,41 @@ func TestRenderDashboardShowsMQTTQueueRow(t *testing.T) {
 	)
 	if !strings.Contains(output, "mqtt") || !strings.Contains(output, "queue: 3/128") || !strings.Contains(output, "drop-oldest: 2") || !strings.Contains(output, "last: pdStatus") {
 		t.Fatalf("dashboard missing mqtt queue row, got=%q", output)
+	}
+}
+
+func TestFormatMQTTStatusDegradedFallback(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.MQTTDegraded = true
+	snapshot.MQTTDegradedReason = "MQTT auth degraded (broker reject code 5)"
+	snapshot.MQTTFallbackActive = true
+
+	got := formatMQTTStatus(snapshot)
+	want := "MQTT auth degraded (broker reject code 5) + REST fallback"
+	if got != want {
+		t.Fatalf("mqtt degraded status mismatch: got=%q want=%q", got, want)
+	}
+}
+
+func TestRenderDashboardShowsMQTTDegradedStatus(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.MQTTQueueDepth = 0
+	snapshot.MQTTQueueCapacity = 128
+	snapshot.MQTTQueueDroppedOldest = 0
+	snapshot.MQTTDegraded = true
+	snapshot.MQTTDegradedReason = "MQTT auth degraded (broker reject code 5)"
+	snapshot.MQTTFallbackActive = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "n/a"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if !strings.Contains(output, "status: MQTT auth degraded (broker reject code 5) + REST fallback") {
+		t.Fatalf("dashboard missing mqtt degraded status row, got=%q", output)
 	}
 }
 

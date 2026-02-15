@@ -38,8 +38,16 @@ Telemetry capabilities:
 - heuristic + ML-based ETA estimate rows with confidence scoring,
 - minute-by-minute history (default 10-minute window): solar generated, AC input, AC output, DC output, battery charge, total input/output, net,
 - minute-by-minute history values are energy buckets (Wh per minute), not instantaneous power (W),
+- persistent minute telemetry history at `logs/telemetry_history.jsonl` (append-only) to preload ML/minute history on startup,
 - durable logging to `logs/mqtt.log` (cleared each run), including raw payloads and parsed `energy_summary`,
 - resilient ingestion: reconnect with jitter backoff, idle-time reconnect, drop-oldest ring-buffer behavior, graceful quit (`q` or `Ctrl+C`).
+- refactored ETA/ML estimation engine into dedicated code paths for easier tuning and future model iteration.
+
+Recent improvements:
+
+- ML confidence warmup tuned to ramp faster on stable streams,
+- MPPT/PV voltage normalization hardened for low-light raw payload scaling edge cases,
+- startup + persisted minute-history preload used to warm ETA/ML context after restart.
 
 ## Environment Variables
 
@@ -67,6 +75,11 @@ Shared fallback:
 - `ECOFLOW_MQTT_CONNECT_TIMEOUT` (optional duration; default `10s`)
 - `ECOFLOW_MQTT_READ_TIMEOUT` (optional duration; default `30s`)
 - `ECOFLOW_MQTT_PRINT_PAYLOAD` (optional bool; default `false`)
+- `ECOFLOW_MQTT_HISTORY_PATH` (optional; default `logs/telemetry_history.jsonl`)
+- `ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES` (optional int; default `180`; on startup load only recent minute history for this many minutes)
+- `ECOFLOW_MQTT_AUTH_REJECT_THRESHOLD` (optional int; default `3`; repeated MQTT code=5 threshold before fallback polling)
+- `ECOFLOW_MQTT_FALLBACK_POLL_INTERVAL` (optional duration; default `15s`; REST `GetDeviceAllQuota` poll interval while degraded)
+- `ECOFLOW_MQTT_FALLBACK_POLL_TIMEOUT` (optional duration; default `12s`; timeout per REST fallback poll)
 
 Environment-specific (preferred):
 

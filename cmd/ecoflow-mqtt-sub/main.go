@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -39,13 +40,20 @@ const (
 	solarPowerEstimateMaxWatts   = 20000.0
 	idleDrawNoiseFloorWatts      = 1.0
 	systemStateNetThresholdWatts = 8.0
+	systemStateSmoothThreshold   = 10.0
 	appShowFlagACOnMask          = int64(0x4)
 	appShowFlagDCOnMask          = int64(0x2)
 	defaultMinuteTableRows       = 10
 	defaultMinuteHistoryBuckets  = 24 * 60
+	defaultMinuteHistoryPath     = "logs/telemetry_history.jsonl"
+	defaultHistoryLoadWindowMins = 180
 	defaultPVSmoothingSamples    = 6
 	defaultPowerSmoothingSamples = 6
+	defaultStateSmoothingSamples = 6
 	defaultMQTTQueueCapacity     = 128
+	defaultMQTTAuthRejectThresh  = 3
+	defaultMQTTFallbackPollEvery = 15 * time.Second
+	defaultMQTTFallbackPollTO    = 12 * time.Second
 	passthroughMinWatts          = 20.0
 	passthroughAbsToleranceWatts = 15.0
 	passthroughRelTolerance      = 0.12
@@ -287,6 +295,15 @@ type energySnapshot struct {
 	MQTTQueueDepth         int
 	MQTTQueueCapacity      int
 	MQTTQueueDroppedOldest uint64
+	MQTTConnected          bool
+	MQTTDegraded           bool
+	MQTTDegradedReason     string
+	MQTTAuthRejectStreak   int
+	MQTTFallbackActive     bool
+	MQTTFallbackPollCount  uint64
+	MQTTLastError          string
+	MQTTLastMessageAt      time.Time
+	HasMQTTLastMessage     bool
 
 	Packs        map[int]*packSnapshot
 	PackSNToNo   map[string]int
@@ -334,6 +351,7 @@ type energySnapshot struct {
 	acInSmoother     *rollingAverage
 	totalInSmoother  *rollingAverage
 	totalOutSmoother *rollingAverage
+	stateNetSmoother *rollingAverage
 }
 
 type snapshotDerived struct {
@@ -420,6 +438,28 @@ type minuteTelemetryHistory struct {
 	initialized bool
 }
 
+type minuteTelemetryRecord struct {
+	Version               int     `json:"version"`
+	DeviceSN              string  `json:"device_sn"`
+	MinuteStartUnix       int64   `json:"minute_start_unix"`
+	SolarSumWatts         float64 `json:"solar_sum_watts"`
+	SolarSamples          int     `json:"solar_samples"`
+	ACInSumWatts          float64 `json:"ac_in_sum_watts"`
+	ACInSamples           int     `json:"ac_in_samples"`
+	ACOutSumWatts         float64 `json:"ac_out_sum_watts"`
+	ACOutSamples          int     `json:"ac_out_samples"`
+	DCOutSumWatts         float64 `json:"dc_out_sum_watts"`
+	DCOutSamples          int     `json:"dc_out_samples"`
+	BatteryChargeSumWatts float64 `json:"battery_charge_sum_watts"`
+	BatteryChargeSamples  int     `json:"battery_charge_samples"`
+}
+
+type minuteTelemetryStore struct {
+	mu   sync.Mutex
+	path string
+	file *os.File
+}
+
 type rollingAverage struct {
 	window int
 	values []float64
@@ -445,6 +485,35 @@ type reconnectAttemptState struct {
 	maxBackoff     time.Duration
 	currentBackoff time.Duration
 	failureCount   int
+}
+
+type mqttConnectRetryEvent struct {
+	Connected    bool
+	AuthRejected bool
+	Attempt      int
+	RetryIn      time.Duration
+	Error        error
+	Topic        string
+	Broker       string
+}
+
+type mqttSessionEventKind int
+
+const (
+	mqttSessionEventConnectFailure mqttSessionEventKind = iota + 1
+	mqttSessionEventConnected
+	mqttSessionEventDisconnected
+	mqttSessionEventFatal
+)
+
+type mqttSessionEvent struct {
+	Kind         mqttSessionEventKind
+	AuthRejected bool
+	Attempt      int
+	RetryIn      time.Duration
+	Error        error
+	Topic        string
+	Broker       string
 }
 
 type mqttQueueStats struct {
@@ -608,6 +677,13 @@ func (s *energySnapshot) configurePowerSmoothing(window int) {
 	s.totalOutSmoother = newRollingAverage(window)
 }
 
+func (s *energySnapshot) configureStateSmoothing(window int) {
+	if s == nil {
+		return
+	}
+	s.stateNetSmoother = newRollingAverage(window)
+}
+
 func newMinuteTelemetryHistory(maxBuckets int) *minuteTelemetryHistory {
 	if maxBuckets <= 0 {
 		maxBuckets = defaultMinuteHistoryBuckets
@@ -616,6 +692,148 @@ func newMinuteTelemetryHistory(maxBuckets int) *minuteTelemetryHistory {
 		buckets:    make(map[int64]*minuteTelemetryBucket),
 		maxBuckets: maxBuckets,
 	}
+}
+
+func newMinuteTelemetryStore(path string) (*minuteTelemetryStore, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, errors.New("minute telemetry history path is empty")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("create minute telemetry history directory: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open minute telemetry history file: %w", err)
+	}
+	return &minuteTelemetryStore{
+		path: path,
+		file: file,
+	}, nil
+}
+
+func (s *minuteTelemetryStore) Path() string {
+	if s == nil {
+		return ""
+	}
+	return s.path
+}
+
+func (s *minuteTelemetryStore) Close() error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.file == nil {
+		return nil
+	}
+	err := s.file.Close()
+	s.file = nil
+	return err
+}
+
+func (s *minuteTelemetryStore) AppendBucket(deviceSN string, bucket minuteTelemetryBucket) error {
+	if s == nil {
+		return nil
+	}
+	if bucket.MinuteStartUnix <= 0 {
+		return nil
+	}
+	record := minuteTelemetryRecord{
+		Version:               1,
+		DeviceSN:              strings.TrimSpace(deviceSN),
+		MinuteStartUnix:       bucket.MinuteStartUnix,
+		SolarSumWatts:         bucket.SolarSumWatts,
+		SolarSamples:          bucket.SolarSamples,
+		ACInSumWatts:          bucket.ACInSumWatts,
+		ACInSamples:           bucket.ACInSamples,
+		ACOutSumWatts:         bucket.ACOutSumWatts,
+		ACOutSamples:          bucket.ACOutSamples,
+		DCOutSumWatts:         bucket.DCOutSumWatts,
+		DCOutSamples:          bucket.DCOutSamples,
+		BatteryChargeSumWatts: bucket.BatteryChargeSumWatts,
+		BatteryChargeSamples:  bucket.BatteryChargeSamples,
+	}
+	payload, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("marshal minute telemetry record: %w", err)
+	}
+	payload = append(payload, '\n')
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.file == nil {
+		return errors.New("minute telemetry history file is closed")
+	}
+	if _, err := s.file.Write(payload); err != nil {
+		return fmt.Errorf("append minute telemetry record: %w", err)
+	}
+	return nil
+}
+
+func (s *minuteTelemetryStore) LoadInto(deviceSN string, history *minuteTelemetryHistory) (int, error) {
+	return s.LoadIntoWindow(deviceSN, history, 0)
+}
+
+func (s *minuteTelemetryStore) LoadIntoWindow(deviceSN string, history *minuteTelemetryHistory, notBeforeMinuteStartUnix int64) (int, error) {
+	if s == nil || history == nil {
+		return 0, nil
+	}
+	deviceSN = strings.TrimSpace(deviceSN)
+
+	file, err := os.Open(s.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("open minute telemetry history for read: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	seenMinutes := make(map[int64]struct{})
+	scanner := bufio.NewScanner(file)
+	buffer := make([]byte, 0, 64*1024)
+	scanner.Buffer(buffer, 4*1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var record minuteTelemetryRecord
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			continue
+		}
+		if record.MinuteStartUnix <= 0 {
+			continue
+		}
+		if notBeforeMinuteStartUnix > 0 && record.MinuteStartUnix < notBeforeMinuteStartUnix {
+			continue
+		}
+		if deviceSN != "" && strings.TrimSpace(record.DeviceSN) != deviceSN {
+			continue
+		}
+		history.UpsertBucket(minuteTelemetryBucket{
+			MinuteStartUnix:       record.MinuteStartUnix,
+			SolarSumWatts:         record.SolarSumWatts,
+			SolarSamples:          record.SolarSamples,
+			ACInSumWatts:          record.ACInSumWatts,
+			ACInSamples:           record.ACInSamples,
+			ACOutSumWatts:         record.ACOutSumWatts,
+			ACOutSamples:          record.ACOutSamples,
+			DCOutSumWatts:         record.DCOutSumWatts,
+			DCOutSamples:          record.DCOutSamples,
+			BatteryChargeSumWatts: record.BatteryChargeSumWatts,
+			BatteryChargeSamples:  record.BatteryChargeSamples,
+		})
+		seenMinutes[record.MinuteStartUnix] = struct{}{}
+	}
+	if err := scanner.Err(); err != nil {
+		return len(seenMinutes), fmt.Errorf("scan minute telemetry history: %w", err)
+	}
+	return len(seenMinutes), nil
 }
 
 func (h *minuteTelemetryHistory) AddSample(at time.Time, snapshot *energySnapshot) {
@@ -654,6 +872,29 @@ func (h *minuteTelemetryHistory) AddSample(at time.Time, snapshot *energySnapsho
 	}
 
 	h.pruneOldest()
+}
+
+func (h *minuteTelemetryHistory) UpsertBucket(bucket minuteTelemetryBucket) {
+	if h == nil || bucket.MinuteStartUnix <= 0 {
+		return
+	}
+	if h.buckets == nil {
+		h.buckets = make(map[int64]*minuteTelemetryBucket)
+	}
+	copyBucket := bucket
+	h.buckets[bucket.MinuteStartUnix] = &copyBucket
+	h.pruneOldest()
+}
+
+func (h *minuteTelemetryHistory) Bucket(minuteStartUnix int64) (minuteTelemetryBucket, bool) {
+	if h == nil || minuteStartUnix <= 0 {
+		return minuteTelemetryBucket{}, false
+	}
+	bucket, ok := h.buckets[minuteStartUnix]
+	if !ok || bucket == nil {
+		return minuteTelemetryBucket{}, false
+	}
+	return *bucket, true
 }
 
 func (h *minuteTelemetryHistory) pruneOldest() {
@@ -755,15 +996,108 @@ func main() {
 		NewestFirst:     parseSortNewestFirstEnv("ECOFLOW_MQTT_MINUTE_SORT", true),
 		HistoryCapacity: parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_HISTORY_BUCKETS", defaultMinuteHistoryBuckets),
 	}
+	minuteHistoryPath := envOrDefault("ECOFLOW_MQTT_HISTORY_PATH", defaultMinuteHistoryPath)
+	historyLoadWindowMins := parsePositiveIntEnv("ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES", defaultHistoryLoadWindowMins)
 	snapshot := newEnergySnapshot()
 	pvSmoothingSamples := parsePositiveIntEnv("ECOFLOW_MQTT_PV_SMOOTH_SAMPLES", defaultPVSmoothingSamples)
 	powerSmoothingSamples := parsePositiveIntEnv("ECOFLOW_MQTT_POWER_SMOOTH_SAMPLES", pvSmoothingSamples)
 	if powerSmoothingSamples <= 0 {
 		powerSmoothingSamples = defaultPowerSmoothingSamples
 	}
+	stateSmoothingSamples := parsePositiveIntEnv("ECOFLOW_MQTT_STATE_SMOOTH_SAMPLES", powerSmoothingSamples)
+	if stateSmoothingSamples <= 0 {
+		stateSmoothingSamples = defaultStateSmoothingSamples
+	}
 	snapshot.configurePVSmoothing(pvSmoothingSamples)
 	snapshot.configurePowerSmoothing(powerSmoothingSamples)
+	snapshot.configureStateSmoothing(stateSmoothingSamples)
 	minuteHistory := newMinuteTelemetryHistory(minuteTableConfig.HistoryCapacity)
+	minuteHistoryStore, err := newMinuteTelemetryStore(minuteHistoryPath)
+	if err != nil {
+		fatalf("init minute telemetry history store: %v", err)
+	}
+	defer func() {
+		_ = minuteHistoryStore.Close()
+	}()
+	loadNotBeforeUnix := int64(0)
+	if historyLoadWindowMins > 0 {
+		loadNotBeforeUnix = time.Now().Add(-time.Duration(historyLoadWindowMins) * time.Minute).Truncate(time.Minute).Unix()
+	}
+	loadedMinuteBuckets, err := minuteHistoryStore.LoadIntoWindow(targetDevice.SN, minuteHistory, loadNotBeforeUnix)
+	if err != nil {
+		logger.Warn(
+			"load minute telemetry history failed",
+			slog.String("path", minuteHistoryPath),
+			slog.String("device_sn", targetDevice.SN),
+			slog.String("error", err.Error()),
+		)
+		runLog.Printf(
+			"minute_history_load_error path=%s device_sn=%s window_minutes=%d not_before_unix=%d error=%q",
+			minuteHistoryPath,
+			targetDevice.SN,
+			historyLoadWindowMins,
+			loadNotBeforeUnix,
+			err.Error(),
+		)
+	} else {
+		logger.Debug(
+			"minute telemetry history loaded",
+			slog.String("path", minuteHistoryPath),
+			slog.String("device_sn", targetDevice.SN),
+			slog.Int("window_minutes", historyLoadWindowMins),
+			slog.Int("loaded_buckets", loadedMinuteBuckets),
+		)
+		runLog.Printf(
+			"minute_history_loaded path=%s device_sn=%s window_minutes=%d not_before_unix=%d loaded_buckets=%d",
+			minuteHistoryPath,
+			targetDevice.SN,
+			historyLoadWindowMins,
+			loadNotBeforeUnix,
+			loadedMinuteBuckets,
+		)
+	}
+
+	lastSampleMinute := int64(-1)
+	persistMinuteBucket := func(minuteStartUnix int64) {
+		if minuteStartUnix <= 0 {
+			return
+		}
+		bucket, ok := minuteHistory.Bucket(minuteStartUnix)
+		if !ok {
+			return
+		}
+		if err := minuteHistoryStore.AppendBucket(targetDevice.SN, bucket); err != nil {
+			logger.Warn(
+				"persist minute telemetry history failed",
+				slog.String("path", minuteHistoryPath),
+				slog.String("device_sn", targetDevice.SN),
+				slog.Int64("minute_start_unix", minuteStartUnix),
+				slog.String("error", err.Error()),
+			)
+			runLog.Printf(
+				"minute_history_append_error path=%s device_sn=%s minute_start_unix=%d error=%q",
+				minuteHistoryPath,
+				targetDevice.SN,
+				minuteStartUnix,
+				err.Error(),
+			)
+		}
+	}
+	recordMinuteSample := func(at time.Time) {
+		minuteHistory.AddSample(at, snapshot)
+		minuteStartUnix := at.Truncate(time.Minute).Unix()
+		if lastSampleMinute < 0 {
+			lastSampleMinute = minuteStartUnix
+			return
+		}
+		if minuteStartUnix != lastSampleMinute {
+			persistMinuteBucket(lastSampleMinute)
+			lastSampleMinute = minuteStartUnix
+		}
+	}
+	defer func() {
+		persistMinuteBucket(lastSampleMinute)
+	}()
 
 	bootstrap, err := bootstrapSnapshotFromDeviceQuota(ctx, httpClient.GeneralInfo(), targetDevice.SN, snapshot, runLog, logBootstrapRaw)
 	if err != nil {
@@ -784,67 +1118,39 @@ func main() {
 		)
 	}
 
-	cert, _, err := httpClient.GeneralInfo().GetMQTTCertification(ctx)
-	if err != nil {
-		fatalf("get mqtt certification: %v", err)
-	}
-	if cert.URL == "" || cert.Port == "" {
-		fatalf("mqtt certification missing url/port")
+	topicOverride := strings.TrimSpace(os.Getenv("ECOFLOW_MQTT_TOPIC"))
+	keepAlive := mustDuration("ECOFLOW_MQTT_KEEPALIVE", 60*time.Second)
+	connectTimeout := mustDuration("ECOFLOW_MQTT_CONNECT_TIMEOUT", 10*time.Second)
+	readTimeout := mustDuration("ECOFLOW_MQTT_READ_TIMEOUT", 30*time.Second)
+	fallbackPollEvery := mustDuration("ECOFLOW_MQTT_FALLBACK_POLL_INTERVAL", defaultMQTTFallbackPollEvery)
+	fallbackPollTimeout := mustDuration("ECOFLOW_MQTT_FALLBACK_POLL_TIMEOUT", defaultMQTTFallbackPollTO)
+	authRejectThreshold := parsePositiveIntEnv("ECOFLOW_MQTT_AUTH_REJECT_THRESHOLD", defaultMQTTAuthRejectThresh)
+	currentTopic := topicOverride
+	if currentTopic == "" {
+		currentTopic = fmt.Sprintf("/open/<account>/%s/quota", targetDevice.SN)
 	}
 
-	topic := strings.TrimSpace(os.Getenv("ECOFLOW_MQTT_TOPIC"))
-	if topic == "" {
-		topic = fmt.Sprintf("/open/%s/%s/quota", cert.CertificateAccount, targetDevice.SN)
-	}
-	address := fmt.Sprintf("%s:%s", cert.URL, cert.Port)
-
-	subscriber, err := ecoflowmqtt.NewSubscriber(ecoflowmqtt.Config{
-		Address:        address,
-		Username:       cert.CertificateAccount,
-		Password:       cert.CertificatePassword,
-		ClientID:       buildClientID(targetDevice.SN),
-		KeepAlive:      mustDuration("ECOFLOW_MQTT_KEEPALIVE", 60*time.Second),
-		ConnectTimeout: mustDuration("ECOFLOW_MQTT_CONNECT_TIMEOUT", 10*time.Second),
-		ReadTimeout:    mustDuration("ECOFLOW_MQTT_READ_TIMEOUT", 30*time.Second),
-	})
-	if err != nil {
-		fatalf("init mqtt subscriber: %v", err)
-	}
-	defer func() {
-		_ = subscriber.Close()
-	}()
-
-	if err := subscriber.Connect(ctx); err != nil {
-		fatalf("connect mqtt: %v", err)
-	}
-	if err := subscriber.Subscribe(ctx, topic, 0); err != nil {
-		fatalf("subscribe mqtt topic: %v", err)
-	}
-	go func() {
-		<-ctx.Done()
-		_ = subscriber.Close()
-	}()
-	runLog.Printf("mqtt_subscription_started device_sn=%s topic=%s broker=%s", targetDevice.SN, topic, address)
-
-	logger.Debug(
-		"ecoflow mqtt subscription started",
-		slog.String("device_sn", targetDevice.SN),
-		slog.String("device_name", targetDevice.DeviceName),
-		slog.String("product_name", targetDevice.ProductName),
-		slog.String("broker", address),
-		slog.String("topic", topic),
-	)
 	mqttQueueCapacity := parsePositiveIntEnv("ECOFLOW_MQTT_QUEUE_CAPACITY", defaultMQTTQueueCapacity)
 	mqttIngressQueue := make(chan ecoflowmqtt.Message, mqttQueueCapacity)
 	mqttIngressStats := &mqttQueueStats{}
+	mqttEventCh := make(chan mqttSessionEvent, 64)
 	snapshot.MQTTQueueCapacity = cap(mqttIngressQueue)
 	snapshot.MQTTQueueDepth = 0
 	snapshot.MQTTQueueDroppedOldest = 0
+	snapshot.MQTTConnected = false
+	snapshot.MQTTDegraded = false
+	snapshot.MQTTDegradedReason = ""
+	snapshot.MQTTAuthRejectStreak = 0
+	snapshot.MQTTFallbackActive = false
+	snapshot.MQTTFallbackPollCount = 0
+	snapshot.MQTTLastError = ""
+
+	lastEnvelope := telemetryEnvelope{TypeCode: "n/a"}
 	if bootstrap.QuotaKeys > 0 {
-		initialEnvelope := telemetryEnvelope{TypeCode: "quotaBootstrap"}
-		minuteHistory.AddSample(time.Now(), snapshot)
+		lastEnvelope = telemetryEnvelope{TypeCode: "quotaBootstrap"}
+		recordMinuteSample(time.Now())
 		if tableView {
-			fmt.Print(renderDashboard(targetDevice, topic, initialEnvelope, snapshot, minuteHistory, minuteTableConfig))
+			fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
 		} else {
 			summary := snapshot.String()
 			fmt.Printf("energy_summary %s\n", summary)
@@ -859,28 +1165,26 @@ func main() {
 		)
 	}
 
-	reconnectState := newReconnectAttemptState(500*time.Millisecond, 15*time.Second)
-	readerErrCh := make(chan error, 1)
 	go func() {
-		defer close(mqttIngressQueue)
-		err := readMQTTIntoQueue(
+		runMQTTSessionLoop(
 			ctx,
-			subscriber,
-			topic,
+			httpClient.GeneralInfo(),
+			targetDevice.SN,
+			topicOverride,
+			keepAlive,
+			connectTimeout,
+			readTimeout,
+			idleReconnectAfter,
 			logger,
 			runLog,
-			reconnectState,
 			mqttIngressQueue,
 			mqttIngressStats,
-			idleReconnectAfter,
+			mqttEventCh,
 		)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			select {
-			case readerErrCh <- err:
-			default:
-			}
-		}
 	}()
+	fallbackTicker := time.NewTicker(fallbackPollEvery)
+	defer fallbackTicker.Stop()
+	authRejectStreak := 0
 
 	for {
 		select {
@@ -888,29 +1192,118 @@ func main() {
 			logger.Debug("ecoflow mqtt subscriber stopped")
 			runLog.Printf("session_stop reason=context_canceled")
 			return
-		case err := <-readerErrCh:
-			if err == nil {
+		case event := <-mqttEventCh:
+			if event.Topic != "" {
+				currentTopic = event.Topic
+			}
+			switch event.Kind {
+			case mqttSessionEventConnectFailure:
+				snapshot.MQTTConnected = false
+				snapshot.MQTTLastError = formatErrorString(event.Error)
+				if event.AuthRejected {
+					authRejectStreak++
+					snapshot.MQTTAuthRejectStreak = authRejectStreak
+					if authRejectStreak >= authRejectThreshold {
+						if !snapshot.MQTTFallbackActive {
+							runLog.Printf(
+								"mqtt_fallback_enabled reason=auth_rejected streak=%d threshold=%d poll_every=%s",
+								authRejectStreak,
+								authRejectThreshold,
+								fallbackPollEvery.String(),
+							)
+						}
+						snapshot.MQTTDegraded = true
+						snapshot.MQTTDegradedReason = "MQTT auth degraded (broker reject code 5)"
+						snapshot.MQTTFallbackActive = true
+					}
+				} else {
+					authRejectStreak = 0
+					snapshot.MQTTAuthRejectStreak = 0
+				}
+			case mqttSessionEventConnected:
+				authRejectStreak = 0
+				snapshot.MQTTConnected = true
+				snapshot.MQTTDegraded = false
+				snapshot.MQTTDegradedReason = ""
+				snapshot.MQTTAuthRejectStreak = 0
+				snapshot.MQTTFallbackActive = false
+				snapshot.MQTTLastError = ""
+				runLog.Printf("mqtt_subscription_started device_sn=%s topic=%s broker=%s", targetDevice.SN, currentTopic, event.Broker)
+				logger.Debug(
+					"ecoflow mqtt subscription started",
+					slog.String("device_sn", targetDevice.SN),
+					slog.String("device_name", targetDevice.DeviceName),
+					slog.String("product_name", targetDevice.ProductName),
+					slog.String("broker", event.Broker),
+					slog.String("topic", currentTopic),
+				)
+			case mqttSessionEventDisconnected:
+				snapshot.MQTTConnected = false
+				snapshot.MQTTLastError = formatErrorString(event.Error)
+				if event.AuthRejected {
+					authRejectStreak++
+					snapshot.MQTTAuthRejectStreak = authRejectStreak
+					if authRejectStreak >= authRejectThreshold {
+						if !snapshot.MQTTFallbackActive {
+							runLog.Printf(
+								"mqtt_fallback_enabled reason=auth_rejected_after_disconnect streak=%d threshold=%d poll_every=%s",
+								authRejectStreak,
+								authRejectThreshold,
+								fallbackPollEvery.String(),
+							)
+						}
+						snapshot.MQTTDegraded = true
+						snapshot.MQTTDegradedReason = "MQTT auth degraded (broker reject code 5)"
+						snapshot.MQTTFallbackActive = true
+					}
+				}
+			case mqttSessionEventFatal:
+				if event.Error != nil {
+					runLog.Printf("fatal_reader_error error=%q", event.Error.Error())
+					fatalf("%v", event.Error)
+				}
+			}
+			if tableView {
+				fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
+			}
+		case <-fallbackTicker.C:
+			if !snapshot.MQTTFallbackActive {
 				continue
 			}
-			runLog.Printf("fatal_reader_error error=%q", err.Error())
-			fatalf("%v", err)
-		case msg, ok := <-mqttIngressQueue:
-			if !ok {
-				select {
-				case err := <-readerErrCh:
-					if err != nil {
-						runLog.Printf("fatal_reader_error error=%q", err.Error())
-						fatalf("%v", err)
-					}
-				default:
+			pollCtx, pollCancel := context.WithTimeout(ctx, fallbackPollTimeout)
+			pollReport, pollErr := bootstrapSnapshotFromDeviceQuota(pollCtx, httpClient.GeneralInfo(), targetDevice.SN, snapshot, runLog, false)
+			pollCancel()
+			if pollErr != nil {
+				snapshot.MQTTLastError = pollErr.Error()
+				logger.Warn(
+					"fallback GetDeviceAllQuota poll failed",
+					slog.String("device_sn", targetDevice.SN),
+					slog.String("error", pollErr.Error()),
+				)
+				runLog.Printf("fallback_quota_poll_failed error=%q", pollErr.Error())
+				continue
+			}
+			snapshot.MQTTFallbackPollCount++
+			recordMinuteSample(time.Now())
+			runLog.Printf(
+				"fallback_quota_poll_ok polls=%d quota_keys=%d mapped_packs=%d",
+				snapshot.MQTTFallbackPollCount,
+				pollReport.QuotaKeys,
+				pollReport.MappedPacks,
+			)
+			if tableView {
+				fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
+			} else {
+				summary := snapshot.String()
+				fmt.Printf("energy_summary %s\n", summary)
+				runLog.Printf("energy_summary %s", summary)
+			}
+		case msg := <-mqttIngressQueue:
+			if len(msg.Payload) == 0 {
+				if ctx.Err() != nil {
+					return
 				}
-				if errors.Is(ctx.Err(), context.Canceled) {
-					logger.Debug("ecoflow mqtt subscriber stopped")
-					runLog.Printf("session_stop reason=context_canceled")
-				} else {
-					runLog.Printf("session_stop reason=mqtt_ingress_closed")
-				}
-				return
+				continue
 			}
 
 			runLog.Printf("payload_raw=%s", string(msg.Payload))
@@ -943,7 +1336,11 @@ func main() {
 			snapshot.MQTTQueueDepth = len(mqttIngressQueue)
 			snapshot.MQTTQueueCapacity = cap(mqttIngressQueue)
 			snapshot.MQTTQueueDroppedOldest = mqttIngressStats.droppedOldest.Load()
-			minuteHistory.AddSample(time.Now(), snapshot)
+			snapshot.MQTTConnected = true
+			snapshot.MQTTLastMessageAt = time.Now()
+			snapshot.HasMQTTLastMessage = true
+			recordMinuteSample(time.Now())
+			lastEnvelope = envelope
 
 			logger.Debug(
 				"ecoflow quota telemetry",
@@ -966,7 +1363,7 @@ func main() {
 			)
 
 			if tableView {
-				fmt.Print(renderDashboard(targetDevice, topic, envelope, snapshot, minuteHistory, minuteTableConfig))
+				fmt.Print(renderDashboard(targetDevice, currentTopic, envelope, snapshot, minuteHistory, minuteTableConfig))
 			} else {
 				summary := snapshot.String()
 				fmt.Printf("energy_summary %s\n", summary)
@@ -1418,6 +1815,250 @@ func collectQuotaByPrefix(quota map[string]any, prefix string) map[string]any {
 	return out
 }
 
+func connectMQTTSessionWithRetry(
+	ctx context.Context,
+	service *ecoflow.GeneralInfoService,
+	deviceSN string,
+	topicOverride string,
+	keepAlive time.Duration,
+	connectTimeout time.Duration,
+	readTimeout time.Duration,
+	logger *slog.Logger,
+	runLog *mqttOutputLogger,
+	onRetryEvent func(mqttConnectRetryEvent),
+) (*ecoflowmqtt.Subscriber, string, string, error) {
+	if service == nil {
+		return nil, "", "", errors.New("general info service is nil")
+	}
+	state := newReconnectAttemptState(500*time.Millisecond, 15*time.Second)
+	const jitterFactor = 0.25
+
+	for {
+		if ctx.Err() != nil {
+			return nil, "", "", ctx.Err()
+		}
+
+		cert, _, err := service.GetMQTTCertification(ctx)
+		if err != nil {
+			attempt, wait := state.registerFailure(jitterFactor)
+			logger.Warn(
+				"get mqtt certification failed; retrying",
+				slog.Int("attempt", attempt),
+				slog.String("error", err.Error()),
+				slog.Duration("retry_in", wait),
+			)
+			runLog.Printf("mqtt_cert_fetch_failed attempt=%d error=%q retry_in=%s", attempt, err.Error(), wait.String())
+			if sleepErr := sleepContext(ctx, wait); sleepErr != nil {
+				return nil, "", "", sleepErr
+			}
+			continue
+		}
+		if strings.TrimSpace(cert.URL) == "" || strings.TrimSpace(cert.Port) == "" {
+			attempt, wait := state.registerFailure(jitterFactor)
+			err := errors.New("mqtt certification missing url/port")
+			logger.Warn(
+				"mqtt certification invalid; retrying",
+				slog.Int("attempt", attempt),
+				slog.String("error", err.Error()),
+				slog.Duration("retry_in", wait),
+			)
+			runLog.Printf("mqtt_cert_invalid attempt=%d error=%q retry_in=%s", attempt, err.Error(), wait.String())
+			if sleepErr := sleepContext(ctx, wait); sleepErr != nil {
+				return nil, "", "", sleepErr
+			}
+			continue
+		}
+
+		topic := topicOverride
+		if topic == "" {
+			topic = fmt.Sprintf("/open/%s/%s/quota", cert.CertificateAccount, deviceSN)
+		}
+		address := fmt.Sprintf("%s:%s", cert.URL, cert.Port)
+
+		subscriber, err := ecoflowmqtt.NewSubscriber(ecoflowmqtt.Config{
+			Address:        address,
+			Username:       cert.CertificateAccount,
+			Password:       cert.CertificatePassword,
+			ClientID:       buildClientID(deviceSN),
+			KeepAlive:      keepAlive,
+			ConnectTimeout: connectTimeout,
+			ReadTimeout:    readTimeout,
+		})
+		if err != nil {
+			// Configuration error is not recoverable by retrying.
+			return nil, "", "", fmt.Errorf("init mqtt subscriber: %w", err)
+		}
+
+		connectErr := subscriber.Connect(ctx)
+		if connectErr == nil {
+			subscribeErr := subscriber.Subscribe(ctx, topic, 0)
+			if subscribeErr == nil {
+				state.reset()
+				if onRetryEvent != nil {
+					onRetryEvent(mqttConnectRetryEvent{
+						Connected: true,
+						Topic:     topic,
+						Broker:    address,
+					})
+				}
+				return subscriber, topic, address, nil
+			}
+			connectErr = fmt.Errorf("subscribe mqtt topic: %w", subscribeErr)
+		}
+		_ = subscriber.Close()
+
+		attempt, wait := state.registerFailure(jitterFactor)
+		authRejected := isMQTTConnectRejected(connectErr)
+		if onRetryEvent != nil {
+			onRetryEvent(mqttConnectRetryEvent{
+				Connected:    false,
+				AuthRejected: authRejected,
+				Attempt:      attempt,
+				RetryIn:      wait,
+				Error:        connectErr,
+				Topic:        topic,
+				Broker:       address,
+			})
+		}
+		if authRejected {
+			logger.Warn(
+				"mqtt connect rejected by broker; refreshing certification and retrying",
+				slog.Int("attempt", attempt),
+				slog.String("error", connectErr.Error()),
+				slog.Duration("retry_in", wait),
+			)
+			runLog.Printf(
+				"mqtt_connect_rejected_retrying attempt=%d error=%q retry_in=%s",
+				attempt,
+				connectErr.Error(),
+				wait.String(),
+			)
+		} else {
+			logger.Warn(
+				"mqtt connect/subscribe failed; retrying",
+				slog.Int("attempt", attempt),
+				slog.String("error", connectErr.Error()),
+				slog.Duration("retry_in", wait),
+			)
+			runLog.Printf(
+				"mqtt_connect_failed_retrying attempt=%d error=%q retry_in=%s",
+				attempt,
+				connectErr.Error(),
+				wait.String(),
+			)
+		}
+		if sleepErr := sleepContext(ctx, wait); sleepErr != nil {
+			return nil, "", "", sleepErr
+		}
+	}
+}
+
+func isMQTTConnectRejected(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "connect rejected") ||
+		strings.Contains(lower, "return code=5") ||
+		strings.Contains(lower, "not authorized")
+}
+
+func emitMQTTSessionEvent(events chan<- mqttSessionEvent, event mqttSessionEvent) {
+	if events == nil {
+		return
+	}
+	select {
+	case events <- event:
+	default:
+	}
+}
+
+func runMQTTSessionLoop(
+	ctx context.Context,
+	service *ecoflow.GeneralInfoService,
+	deviceSN string,
+	topicOverride string,
+	keepAlive time.Duration,
+	connectTimeout time.Duration,
+	readTimeout time.Duration,
+	idleReconnectAfter time.Duration,
+	logger *slog.Logger,
+	runLog *mqttOutputLogger,
+	queue chan ecoflowmqtt.Message,
+	queueStats *mqttQueueStats,
+	events chan<- mqttSessionEvent,
+) {
+	for {
+		subscriber, topic, _, err := connectMQTTSessionWithRetry(
+			ctx,
+			service,
+			deviceSN,
+			topicOverride,
+			keepAlive,
+			connectTimeout,
+			readTimeout,
+			logger,
+			runLog,
+			func(retryEvent mqttConnectRetryEvent) {
+				if retryEvent.Connected {
+					emitMQTTSessionEvent(events, mqttSessionEvent{
+						Kind:   mqttSessionEventConnected,
+						Topic:  retryEvent.Topic,
+						Broker: retryEvent.Broker,
+					})
+					return
+				}
+				emitMQTTSessionEvent(events, mqttSessionEvent{
+					Kind:         mqttSessionEventConnectFailure,
+					AuthRejected: retryEvent.AuthRejected,
+					Attempt:      retryEvent.Attempt,
+					RetryIn:      retryEvent.RetryIn,
+					Error:        retryEvent.Error,
+					Topic:        retryEvent.Topic,
+					Broker:       retryEvent.Broker,
+				})
+			},
+		)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			emitMQTTSessionEvent(events, mqttSessionEvent{
+				Kind:  mqttSessionEventFatal,
+				Error: err,
+			})
+			return
+		}
+
+		reconnectState := newReconnectAttemptState(500*time.Millisecond, 15*time.Second)
+		readErr := readMQTTIntoQueue(
+			ctx,
+			subscriber,
+			topic,
+			logger,
+			runLog,
+			reconnectState,
+			queue,
+			queueStats,
+			idleReconnectAfter,
+		)
+		_ = subscriber.Close()
+		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(readErr, context.Canceled) {
+			return
+		}
+		if readErr != nil {
+			emitMQTTSessionEvent(events, mqttSessionEvent{
+				Kind:         mqttSessionEventDisconnected,
+				AuthRejected: isMQTTConnectRejected(readErr),
+				Error:        readErr,
+				Topic:        topic,
+			})
+			runLog.Printf("mqtt_session_disconnected error=%q", readErr.Error())
+			continue
+		}
+	}
+}
+
 func reconnectSubscriber(
 	ctx context.Context,
 	subscriber *ecoflowmqtt.Subscriber,
@@ -1452,6 +2093,16 @@ func reconnectSubscriber(
 				return nil
 			}
 			connectErr = fmt.Errorf("subscribe: %w", subscribeErr)
+		}
+
+		if isMQTTConnectRejected(connectErr) {
+			logger.Warn(
+				"ecoflow mqtt reconnect auth rejected; restarting session with fresh certification",
+				slog.Int("attempt", attempt),
+				slog.String("error", connectErr.Error()),
+			)
+			runLog.Printf("mqtt_reconnect_auth_rejected attempt=%d error=%q", attempt, connectErr.Error())
+			return fmt.Errorf("reconnect auth rejected: %w", connectErr)
 		}
 
 		attempt, wait := state.registerFailure(jitterFactor)
@@ -1687,6 +2338,13 @@ func applyJitter(base time.Duration, factor float64) time.Duration {
 func fatalf(format string, args ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, format+"\n", args...)
 	os.Exit(1)
+}
+
+func formatErrorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func envOrDefault(key, fallback string) string {
@@ -3054,7 +3712,7 @@ func (s *energySnapshot) Update(
 			s.HasInPVHigh = true
 		}
 		if value, ok := firstNumberFromKeys(quota, "inVol"); ok {
-			s.SolarLVVolts = normalizeVoltageVolts(value)
+			s.SolarLVVolts = normalizeMPPTVoltageVolts(value)
 			s.HasSolarLVVolts = true
 		}
 		if value, ok := firstNumberFromKeys(quota, "inAmp"); ok {
@@ -3062,7 +3720,7 @@ func (s *energySnapshot) Update(
 			s.HasSolarLVAmp = true
 		}
 		if value, ok := firstNumberFromKeys(quota, "pv2InVol"); ok {
-			s.SolarHVVolts = normalizeVoltageVolts(value)
+			s.SolarHVVolts = normalizeMPPTVoltageVolts(value)
 			s.HasSolarHVVolts = true
 		}
 		if value, ok := firstNumberFromKeys(quota, "pv2InAmp"); ok {
@@ -3128,6 +3786,7 @@ func (s *energySnapshot) Update(
 	}
 	s.pushPVSmoothingSample()
 	s.pushPowerSmoothingSample()
+	s.pushStateSmoothingSample()
 	if !s.HasDeviceSOC {
 		if avgSOC, ok := averagePackSOC(s.Packs); ok {
 			s.DeviceSOC = avgSOC
@@ -3518,6 +4177,8 @@ func renderDashboard(
 		mqttQueueValue = fmt.Sprintf("%d/%d", snapshot.MQTTQueueDepth, snapshot.MQTTQueueCapacity)
 		mqttDropsValue = fmt.Sprintf("drop-oldest: %d", snapshot.MQTTQueueDroppedOldest)
 	}
+	mqttStatusValue := formatMQTTStatus(snapshot)
+	lastMessageValue := formatMQTTLastMessageAge(snapshot)
 	pvLowLabel := formatPVInputRowLabel("low", device, snapshot)
 	pvHighLabel := formatPVInputRowLabel("high", device, snapshot)
 
@@ -3616,8 +4277,8 @@ func renderDashboard(
 			"mqtt",
 			fmt.Sprintf("queue: %s", mqttQueueValue),
 			mqttDropsValue,
-			fmt.Sprintf("last: %s", lastTypeState),
-			lastMQTTMeta,
+			fmt.Sprintf("status: %s", mqttStatusValue),
+			fmt.Sprintf("last: %s %s %s", lastTypeState, lastMQTTMeta, lastMessageValue),
 		},
 	}
 
@@ -3999,6 +4660,69 @@ func formatLastMQTTMeta(envelope telemetryEnvelope) string {
 		return "meta: n/a"
 	}
 	return strings.Join(parts, " ")
+}
+
+func formatMQTTStatus(snapshot *energySnapshot) string {
+	if snapshot == nil {
+		return "n/a"
+	}
+	if snapshot.MQTTDegraded {
+		base := snapshot.MQTTDegradedReason
+		if strings.TrimSpace(base) == "" {
+			base = "MQTT degraded"
+		}
+		if snapshot.MQTTFallbackActive {
+			return base + " + REST fallback"
+		}
+		return base
+	}
+	if snapshot.MQTTConnected {
+		return "MQTT live"
+	}
+	if snapshot.MQTTFallbackActive {
+		return "MQTT reconnecting + REST fallback"
+	}
+	return "MQTT reconnecting"
+}
+
+func formatMQTTLastMessageAge(snapshot *energySnapshot) string {
+	if snapshot == nil || !snapshot.HasMQTTLastMessage || snapshot.MQTTLastMessageAt.IsZero() {
+		return "last_msg: n/a"
+	}
+	age := time.Since(snapshot.MQTTLastMessageAt)
+	if age < 0 {
+		age = 0
+	}
+	if age < time.Second {
+		return "last_msg: now"
+	}
+	return fmt.Sprintf("last_msg: %s ago", formatShortDuration(age))
+}
+
+func formatShortDuration(value time.Duration) string {
+	if value < 0 {
+		value = -value
+	}
+	if value < time.Second {
+		return "0s"
+	}
+	if value < time.Minute {
+		return fmt.Sprintf("%ds", int(value/time.Second))
+	}
+	if value < time.Hour {
+		minutes := int(value / time.Minute)
+		seconds := int((value % time.Minute) / time.Second)
+		if seconds == 0 {
+			return fmt.Sprintf("%dm", minutes)
+		}
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	}
+	hours := int(value / time.Hour)
+	minutes := int((value % time.Hour) / time.Minute)
+	if minutes == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, minutes)
 }
 
 func packStateLabel(pack *packSnapshot) string {
@@ -4610,521 +5334,6 @@ func formatTemperatureSummary(temps map[string]float64, limit int) string {
 	return strings.Join(parts, ",")
 }
 
-func estimatedWhLeft(packs map[int]*packSnapshot) float64 {
-	total := 0.0
-	for _, pack := range packs {
-		if !pack.HasEnergy || !pack.HasSOC {
-			continue
-		}
-		total += pack.EnergyWh * (pack.SOC / 100.0)
-	}
-	return total
-}
-
-type batteryETAEstimates struct {
-	ChargeValue     string
-	DischargeValue  string
-	ActiveValue     string
-	PowerValue      string
-	ConfidenceValue string
-}
-
-func (s *energySnapshot) estimateBatteryETAs(
-	state systemStateKind,
-	batteryInWatts float64,
-	hasBatteryIn bool,
-	batteryOutWatts float64,
-	hasBatteryOut bool,
-	effectiveIn float64,
-	hasEffectiveIn bool,
-	effectiveOut float64,
-	hasEffectiveOut bool,
-) batteryETAEstimates {
-	estimates := batteryETAEstimates{
-		ChargeValue:     "n/a",
-		DischargeValue:  "n/a",
-		ActiveValue:     "n/a",
-		PowerValue:      "power: n/a",
-		ConfidenceValue: "n/a",
-	}
-
-	energyToChargeWh, energyToDischargeWh, ok := s.energyToTargetsWh()
-	if !ok {
-		return estimates
-	}
-
-	// Prefer net system power when available; raw battery amp/vol telemetry can be scaled
-	// inconsistently on some payloads and produce impossible ETA rates.
-	chargePowerW := 0.0
-	hasChargePower := false
-	chargePowerSource := ""
-	if hasEffectiveIn && hasEffectiveOut {
-		netPowerW := effectiveIn - effectiveOut
-		if netPowerW > systemStateNetThresholdWatts {
-			chargePowerW = netPowerW
-			hasChargePower = true
-			chargePowerSource = "net"
-		}
-	}
-	if packChargeW, _ := packPowerTotals(s.Packs); packChargeW > idleDrawNoiseFloorWatts {
-		if sanitized, ok := s.sanitizeBatteryFlowHintWatts(packChargeW); ok {
-			if !hasChargePower || sanitized > chargePowerW {
-				chargePowerW = sanitized
-				hasChargePower = true
-				chargePowerSource = "pack"
-			}
-		}
-	}
-	if !hasChargePower && hasBatteryIn && batteryInWatts > idleDrawNoiseFloorWatts {
-		if sanitized, ok := s.sanitizeBatteryFlowHintWatts(batteryInWatts); ok {
-			chargePowerW = sanitized
-			hasChargePower = true
-			chargePowerSource = "hint"
-		}
-	}
-
-	dischargePowerW := 0.0
-	hasDischargePower := false
-	dischargePowerSource := ""
-	if hasEffectiveIn && hasEffectiveOut {
-		netPowerW := effectiveOut - effectiveIn
-		if netPowerW > systemStateNetThresholdWatts {
-			dischargePowerW = netPowerW
-			hasDischargePower = true
-			dischargePowerSource = "net"
-		}
-	}
-	if _, packDischargeW := packPowerTotals(s.Packs); packDischargeW > idleDrawNoiseFloorWatts {
-		if sanitized, ok := s.sanitizeBatteryFlowHintWatts(packDischargeW); ok {
-			if !hasDischargePower || sanitized > dischargePowerW {
-				dischargePowerW = sanitized
-				hasDischargePower = true
-				dischargePowerSource = "pack"
-			}
-		}
-	}
-	if !hasDischargePower && hasBatteryOut && batteryOutWatts > idleDrawNoiseFloorWatts {
-		if sanitized, ok := s.sanitizeBatteryFlowHintWatts(batteryOutWatts); ok {
-			dischargePowerW = sanitized
-			hasDischargePower = true
-			dischargePowerSource = "hint"
-		}
-	}
-
-	if hasChargePower {
-		if energyToChargeWh <= 0 {
-			estimates.ChargeValue = "0min (~0m)"
-		} else {
-			etaChargeMin := energyToChargeWh * 60.0 / chargePowerW
-			estimates.ChargeValue = formatETAMinutes(etaChargeMin)
-		}
-	}
-	if hasDischargePower {
-		if energyToDischargeWh <= 0 {
-			estimates.DischargeValue = "0min (~0m)"
-		} else {
-			etaDischargeMin := energyToDischargeWh * 60.0 / dischargePowerW
-			estimates.DischargeValue = formatETAMinutes(etaDischargeMin)
-		}
-	}
-
-	switch {
-	case hasChargePower && hasDischargePower:
-		estimates.PowerValue = fmt.Sprintf("power: chg@%s dsg@%s", formatWatts(chargePowerW), formatWatts(dischargePowerW))
-	case hasChargePower:
-		estimates.PowerValue = fmt.Sprintf("power: chg@%s", formatWatts(chargePowerW))
-	case hasDischargePower:
-		estimates.PowerValue = fmt.Sprintf("power: dsg@%s", formatWatts(dischargePowerW))
-	}
-
-	switch state {
-	case systemStateCharging:
-		estimates.ActiveValue = estimates.ChargeValue
-	case systemStateDischarging:
-		estimates.ActiveValue = estimates.DischargeValue
-	default:
-		estimates.ActiveValue = "n/a"
-	}
-
-	confidenceScore := 0.0
-	hasConfidence := false
-	switch state {
-	case systemStateCharging:
-		if hasChargePower {
-			confidenceScore = etaConfidenceScoreForSource(chargePowerSource)
-			hasConfidence = true
-			if hasEffectiveIn && hasEffectiveOut {
-				confidenceScore += 0.08
-			}
-			if chargePowerW <= 20 {
-				confidenceScore -= 0.08
-			}
-		}
-	case systemStateDischarging:
-		if hasDischargePower {
-			confidenceScore = etaConfidenceScoreForSource(dischargePowerSource)
-			hasConfidence = true
-			if hasEffectiveIn && hasEffectiveOut {
-				confidenceScore += 0.08
-			}
-			if dischargePowerW <= 20 {
-				confidenceScore -= 0.08
-			}
-		}
-	default:
-		// When state is unknown, confidence is inherently lower even if we have power.
-		if hasChargePower || hasDischargePower {
-			confidenceScore = 0.45
-			hasConfidence = true
-		}
-	}
-	estimates.ConfidenceValue = formatConfidenceValue(confidenceScore, hasConfidence)
-
-	return estimates
-}
-
-func (s *energySnapshot) energyToTargetsWh() (energyToChargeWh, energyToDischargeWh float64, ok bool) {
-	if s == nil {
-		return 0, 0, false
-	}
-	capacityWh, hasCapacity := s.estimatedTotalCapacityWh()
-	if !hasCapacity || capacityWh <= 0 {
-		return 0, 0, false
-	}
-	remainingWh, hasRemaining := s.estimatedRemainingEnergyWh()
-	if !hasRemaining || remainingWh < 0 {
-		return 0, 0, false
-	}
-
-	minSOC, maxSOC := 0.0, 100.0
-	if s.HasMinDischarge {
-		minSOC = clampPercent(s.MinDischargeSOC)
-	}
-	if s.HasMaxChargeSOC {
-		maxSOC = clampPercent(s.MaxChargeSOC)
-	}
-	if maxSOC < minSOC {
-		minSOC, maxSOC = 0, 100
-	}
-
-	targetChargeWh := capacityWh * (maxSOC / 100.0)
-	targetDischargeWh := capacityWh * (minSOC / 100.0)
-
-	energyToChargeWh = targetChargeWh - remainingWh
-	if energyToChargeWh < 0 {
-		energyToChargeWh = 0
-	}
-	energyToDischargeWh = remainingWh - targetDischargeWh
-	if energyToDischargeWh < 0 {
-		energyToDischargeWh = 0
-	}
-	return energyToChargeWh, energyToDischargeWh, true
-}
-
-func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHistory, state systemStateKind) batteryETAEstimates {
-	estimates := batteryETAEstimates{
-		ChargeValue:     "n/a",
-		DischargeValue:  "n/a",
-		ActiveValue:     "n/a",
-		PowerValue:      "power: n/a",
-		ConfidenceValue: "n/a",
-	}
-	if snapshot == nil {
-		return estimates
-	}
-	energyToChargeWh, energyToDischargeWh, ok := snapshot.energyToTargetsWh()
-	if !ok {
-		return estimates
-	}
-
-	samples := netPowerSamplesFromMinuteHistory(history, 24)
-	if len(samples) < 3 {
-		return estimates
-	}
-	predNetW, meanNetW, stdNetW, ok := predictNetPowerEWMATrend(samples)
-	if !ok {
-		return estimates
-	}
-
-	chargePowerW := 0.0
-	hasChargePower := false
-	if predNetW > systemStateNetThresholdWatts {
-		chargePowerW = predNetW
-		hasChargePower = true
-	} else if state == systemStateCharging && meanNetW > systemStateNetThresholdWatts {
-		chargePowerW = meanNetW
-		hasChargePower = true
-	}
-	if hasChargePower {
-		if sanitized, ok := snapshot.sanitizeBatteryFlowHintWatts(chargePowerW); ok {
-			chargePowerW = sanitized
-		} else {
-			hasChargePower = false
-		}
-	}
-
-	dischargePowerW := 0.0
-	hasDischargePower := false
-	if predNetW < -systemStateNetThresholdWatts {
-		dischargePowerW = -predNetW
-		hasDischargePower = true
-	} else if state == systemStateDischarging && meanNetW < -systemStateNetThresholdWatts {
-		dischargePowerW = -meanNetW
-		hasDischargePower = true
-	}
-	if hasDischargePower {
-		if sanitized, ok := snapshot.sanitizeBatteryFlowHintWatts(dischargePowerW); ok {
-			dischargePowerW = sanitized
-		} else {
-			hasDischargePower = false
-		}
-	}
-
-	if hasChargePower {
-		if energyToChargeWh <= 0 {
-			estimates.ChargeValue = "0min (~0m)"
-		} else {
-			etaChargeMin := energyToChargeWh * 60.0 / chargePowerW
-			estimates.ChargeValue = formatETAMinutes(etaChargeMin)
-		}
-	}
-	if hasDischargePower {
-		if energyToDischargeWh <= 0 {
-			estimates.DischargeValue = "0min (~0m)"
-		} else {
-			etaDischargeMin := energyToDischargeWh * 60.0 / dischargePowerW
-			estimates.DischargeValue = formatETAMinutes(etaDischargeMin)
-		}
-	}
-
-	switch {
-	case hasChargePower && hasDischargePower:
-		estimates.PowerValue = fmt.Sprintf("power: chg@%s dsg@%s (ewma+trend)", formatWatts(chargePowerW), formatWatts(dischargePowerW))
-	case hasChargePower:
-		estimates.PowerValue = fmt.Sprintf("power: chg@%s (ewma+trend)", formatWatts(chargePowerW))
-	case hasDischargePower:
-		estimates.PowerValue = fmt.Sprintf("power: dsg@%s (ewma+trend)", formatWatts(dischargePowerW))
-	}
-
-	switch state {
-	case systemStateCharging:
-		estimates.ActiveValue = estimates.ChargeValue
-	case systemStateDischarging:
-		estimates.ActiveValue = estimates.DischargeValue
-	default:
-		estimates.ActiveValue = "n/a"
-	}
-
-	signMatchRatio := 0.0
-	switch state {
-	case systemStateCharging:
-		signMatchRatio = signDirectionMatchRatio(samples, true)
-	case systemStateDischarging:
-		signMatchRatio = signDirectionMatchRatio(samples, false)
-	default:
-		signMatchRatio = 0.5
-	}
-	sampleScore := math.Min(float64(len(samples))/12.0, 1.0) * 0.35
-	stabilityScore := 0.0
-	if math.Abs(meanNetW) > systemStateNetThresholdWatts {
-		cv := stdNetW / math.Abs(meanNetW)
-		if cv < 0 {
-			cv = 0
-		}
-		if cv > 1 {
-			cv = 1
-		}
-		stabilityScore = (1 - cv) * 0.3
-	}
-	confidenceScore := 0.2 + sampleScore + (signMatchRatio * 0.25) + stabilityScore
-	if !hasChargePower && !hasDischargePower {
-		confidenceScore -= 0.2
-	}
-	if state == systemStateUnknown {
-		confidenceScore -= 0.1
-	}
-	estimates.ConfidenceValue = formatConfidenceValue(confidenceScore, true)
-
-	return estimates
-}
-
-func netPowerSamplesFromMinuteHistory(history *minuteTelemetryHistory, limit int) []float64 {
-	if history == nil {
-		return nil
-	}
-	buckets := history.SortedBuckets(false, limit)
-	if len(buckets) == 0 {
-		return nil
-	}
-	out := make([]float64, 0, len(buckets))
-	for _, bucket := range buckets {
-		inW := 0.0
-		hasIn := false
-		if bucket.SolarSamples > 0 {
-			inW += bucket.SolarSumWatts / float64(bucket.SolarSamples)
-			hasIn = true
-		}
-		if bucket.ACInSamples > 0 {
-			inW += bucket.ACInSumWatts / float64(bucket.ACInSamples)
-			hasIn = true
-		}
-
-		outW := 0.0
-		hasOut := false
-		if bucket.ACOutSamples > 0 {
-			outW += bucket.ACOutSumWatts / float64(bucket.ACOutSamples)
-			hasOut = true
-		}
-		if bucket.DCOutSamples > 0 {
-			outW += bucket.DCOutSumWatts / float64(bucket.DCOutSamples)
-			hasOut = true
-		}
-		if !hasIn && !hasOut {
-			continue
-		}
-		out = append(out, inW-outW)
-	}
-	return out
-}
-
-func predictNetPowerEWMATrend(samples []float64) (pred float64, mean float64, std float64, ok bool) {
-	if len(samples) < 2 {
-		return 0, 0, 0, false
-	}
-	const alpha = 0.35
-	ewma := samples[0]
-	for i := 1; i < len(samples); i++ {
-		ewma = (alpha * samples[i]) + ((1 - alpha) * ewma)
-	}
-
-	n := float64(len(samples))
-	xMean := (n - 1) / 2
-	yMean := 0.0
-	for _, sample := range samples {
-		yMean += sample
-	}
-	yMean /= n
-
-	num := 0.0
-	den := 0.0
-	for i, sample := range samples {
-		x := float64(i) - xMean
-		y := sample - yMean
-		num += x * y
-		den += x * x
-	}
-	slope := 0.0
-	if den > 0 {
-		slope = num / den
-	}
-	pred = ewma + slope
-	if math.Abs(pred) < systemStateNetThresholdWatts && math.Abs(ewma) >= systemStateNetThresholdWatts {
-		pred = ewma
-	}
-
-	variance := 0.0
-	for _, sample := range samples {
-		delta := sample - yMean
-		variance += delta * delta
-	}
-	variance /= n
-	std = math.Sqrt(variance)
-	return pred, yMean, std, true
-}
-
-func signDirectionMatchRatio(samples []float64, charging bool) float64 {
-	if len(samples) == 0 {
-		return 0
-	}
-	match := 0
-	for _, sample := range samples {
-		if charging {
-			if sample > systemStateNetThresholdWatts {
-				match++
-			}
-		} else if sample < -systemStateNetThresholdWatts {
-			match++
-		}
-	}
-	return float64(match) / float64(len(samples))
-}
-
-func (s *energySnapshot) estimatedTotalCapacityWh() (float64, bool) {
-	if s == nil {
-		return 0, false
-	}
-	if s.HasFullEnergy && s.FullEnergyWh > 0 {
-		return s.FullEnergyWh, true
-	}
-	total := 0.0
-	count := 0
-	for _, pack := range s.Packs {
-		if packWh, ok := estimatedPackCapacityWh(pack); ok {
-			total += packWh
-			count++
-		}
-	}
-	if count == 0 || total <= 0 {
-		return 0, false
-	}
-	return total, true
-}
-
-func (s *energySnapshot) estimatedRemainingEnergyWh() (float64, bool) {
-	if s == nil {
-		return 0, false
-	}
-	total := 0.0
-	count := 0
-	for _, pack := range s.Packs {
-		if packWh, ok := estimatedPackRemainingWh(pack); ok {
-			total += packWh
-			count++
-		}
-	}
-	if count > 0 && total >= 0 {
-		return total, true
-	}
-
-	capacityWh, hasCapacity := s.estimatedTotalCapacityWh()
-	if !hasCapacity || capacityWh <= 0 {
-		return 0, false
-	}
-	if soc, ok := s.displaySOC(); ok {
-		return capacityWh * (clampPercent(soc) / 100.0), true
-	}
-	return 0, false
-}
-
-func estimatedPackCapacityWh(pack *packSnapshot) (float64, bool) {
-	if pack == nil {
-		return 0, false
-	}
-	if pack.HasEnergy && pack.EnergyWh > 0 {
-		return pack.EnergyWh, true
-	}
-	if wh, ok := capacityToWh(pack.FullCap, pack.HasFullCap, pack.VoltageV, pack.HasVoltage); ok {
-		return wh, true
-	}
-	if wh, ok := capacityToWh(pack.DesignCap, pack.HasDesignCap, pack.VoltageV, pack.HasVoltage); ok {
-		return wh, true
-	}
-	return 0, false
-}
-
-func estimatedPackRemainingWh(pack *packSnapshot) (float64, bool) {
-	if pack == nil {
-		return 0, false
-	}
-	if wh, ok := capacityToWh(pack.RemainCap, pack.HasRemainCap, pack.VoltageV, pack.HasVoltage); ok {
-		return wh, true
-	}
-	if capWh, ok := estimatedPackCapacityWh(pack); ok && pack.HasSOC {
-		return capWh * (clampPercent(pack.SOC) / 100.0), true
-	}
-	return 0, false
-}
-
 func capacityToWh(capacity float64, hasCapacity bool, voltage float64, hasVoltage bool) (float64, bool) {
 	if !hasCapacity || !hasVoltage || capacity <= 0 || voltage <= 0 {
 		return 0, false
@@ -5195,53 +5404,6 @@ func (s *energySnapshot) sanitizeBatteryFlowHintWatts(value float64) (float64, b
 	return value, true
 }
 
-func etaConfidenceScoreForSource(source string) float64 {
-	switch source {
-	case "net":
-		return 0.88
-	case "pack":
-		return 0.8
-	case "hint":
-		return 0.65
-	default:
-		return 0
-	}
-}
-
-func formatConfidenceValue(score float64, ok bool) string {
-	if !ok || math.IsNaN(score) || math.IsInf(score, 0) {
-		return "n/a"
-	}
-	if score < 0 {
-		score = 0
-	}
-	if score > 0.99 {
-		score = 0.99
-	}
-	return fmt.Sprintf("%.2f (%s)", score, confidenceTier(score))
-}
-
-func confidenceTier(score float64) string {
-	switch {
-	case score >= 0.8:
-		return "high"
-	case score >= 0.6:
-		return "medium"
-	default:
-		return "low"
-	}
-}
-
-func clampPercent(value float64) float64 {
-	if value < 0 {
-		return 0
-	}
-	if value > 100 {
-		return 100
-	}
-	return value
-}
-
 func formatETAMinutes(minutes float64) string {
 	if minutes <= 0 || math.IsNaN(minutes) || math.IsInf(minutes, 0) {
 		return "n/a"
@@ -5299,6 +5461,66 @@ func (s *energySnapshot) detectSystemState(
 	packChargeW float64,
 	packDischargeW float64,
 ) systemStateKind {
+	rawState := s.detectSystemStateRaw(effectiveIn, hasEffectiveIn, effectiveOut, hasEffectiveOut, packChargeW, packDischargeW)
+	smoothedState, smoothedNet, hasSmoothed := s.smoothedSystemState()
+	if !hasSmoothed || smoothedState == systemStateUnknown {
+		return rawState
+	}
+
+	// No strong instantaneous signal yet; rely on smoothed direction.
+	if rawState == systemStateUnknown || rawState == systemStateIdle {
+		return smoothedState
+	}
+	if rawState == smoothedState {
+		return rawState
+	}
+
+	// Preserve explicit pack direction when packs actively report a strong flow.
+	if rawState == systemStateDischarging && packDischargeW > packChargeW+systemStateNetThresholdWatts {
+		return rawState
+	}
+	if rawState == systemStateCharging && packChargeW > packDischargeW+systemStateNetThresholdWatts {
+		return rawState
+	}
+
+	// When both packs are discharging, avoid temporary flips to charging from stale total in/out counters.
+	if smoothedState == systemStateDischarging && packDischargeW > idleDrawNoiseFloorWatts && packChargeW <= idleDrawNoiseFloorWatts {
+		return systemStateDischarging
+	}
+	if smoothedState == systemStateCharging && packChargeW > idleDrawNoiseFloorWatts && packDischargeW <= idleDrawNoiseFloorWatts {
+		return systemStateCharging
+	}
+
+	// For remaining conflicts, trust smoothed trend if it is directional enough.
+	if math.Abs(smoothedNet) >= systemStateNetThresholdWatts {
+		return smoothedState
+	}
+	return rawState
+}
+
+func (s *energySnapshot) detectSystemStateRaw(
+	effectiveIn float64,
+	hasEffectiveIn bool,
+	effectiveOut float64,
+	hasEffectiveOut bool,
+	packChargeW float64,
+	packDischargeW float64,
+) systemStateKind {
+	// Pack net power is usually the most reliable indicator of true battery direction,
+	// especially when aggregate in/out counters are stale in incremental MQTT frames.
+	packNet := packChargeW - packDischargeW
+	if packNet > systemStateNetThresholdWatts {
+		return systemStateCharging
+	}
+	if packNet < -systemStateNetThresholdWatts {
+		return systemStateDischarging
+	}
+	if (packChargeW > 0 || packDischargeW > 0) &&
+		packChargeW <= systemStateNetThresholdWatts &&
+		packDischargeW <= systemStateNetThresholdWatts {
+		return systemStateIdle
+	}
+
 	if hasEffectiveIn && hasEffectiveOut {
 		net := effectiveIn - effectiveOut
 		switch {
@@ -5496,9 +5718,22 @@ func effectivePVInputWatts(
 		if effectiveHasInputWatts && effectiveInputWatts > 0 && estimatedInputWatts > effectiveInputWatts*5 {
 			estimatedInputWatts = 0
 		}
-		if estimatedInputWatts >= solarPowerEstimateMinWatts && (!effectiveHasInputWatts || effectiveInputWatts < estimatedInputWatts) {
-			effectiveInputWatts = estimatedInputWatts
-			effectiveHasInputWatts = true
+		// Prefer direct channel power (appshow/d_addr) when present.
+		// Use V*I as a fallback when channel watts are missing/near-zero.
+		// If both exist, only allow a small correction when they are close to avoid stale
+		// backend V*I samples pinning PV high after clouds reduce real-time power.
+		if estimatedInputWatts >= solarPowerEstimateMinWatts {
+			switch {
+			case !effectiveHasInputWatts || math.Abs(effectiveInputWatts) < solarPowerEstimateMinWatts:
+				effectiveInputWatts = estimatedInputWatts
+				effectiveHasInputWatts = true
+			default:
+				diff := math.Abs(estimatedInputWatts - effectiveInputWatts)
+				tolerance := math.Max(3.0, effectiveInputWatts*0.10)
+				if diff <= tolerance {
+					effectiveInputWatts = estimatedInputWatts
+				}
+			}
 		}
 	}
 	if effectiveHasInputWatts && math.Abs(effectiveInputWatts) < solarPowerEstimateMinWatts {
@@ -5603,6 +5838,72 @@ func (s *energySnapshot) pushPowerSmoothingSample() {
 	}
 	if hasOut && s.totalOutSmoother != nil {
 		s.totalOutSmoother.Add(effectiveOut)
+	}
+}
+
+func (s *energySnapshot) pushStateSmoothingSample() {
+	if s == nil || s.stateNetSmoother == nil {
+		return
+	}
+	netWatts, ok := s.stateNetForSmoothingSample()
+	if !ok {
+		return
+	}
+	s.stateNetSmoother.Add(netWatts)
+}
+
+func (s *energySnapshot) stateNetForSmoothingSample() (float64, bool) {
+	if s == nil {
+		return 0, false
+	}
+	packChargeW, packDischargeW := packPowerTotals(s.Packs)
+	// Prefer pack-derived direction when available; this is the most stable signal.
+	if packChargeW > idleDrawNoiseFloorWatts || packDischargeW > idleDrawNoiseFloorWatts {
+		return packChargeW - packDischargeW, true
+	}
+	if s.HasBatteryIn || s.HasBatteryOut {
+		batteryIn := 0.0
+		if s.HasBatteryIn {
+			batteryIn = s.BatteryInWatts
+		}
+		batteryOut := 0.0
+		if s.HasBatteryOut {
+			batteryOut = s.BatteryOutWatts
+		}
+		if batteryIn > idleDrawNoiseFloorWatts || batteryOut > idleDrawNoiseFloorWatts {
+			return batteryIn - batteryOut, true
+		}
+	}
+	effectiveIn, hasIn, effectiveOut, hasOut := s.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	switch {
+	case hasIn && hasOut:
+		return effectiveIn - effectiveOut, true
+	case hasIn:
+		return effectiveIn, true
+	case hasOut:
+		return -effectiveOut, true
+	default:
+		return 0, false
+	}
+}
+
+func (s *energySnapshot) smoothedSystemState() (state systemStateKind, netWatts float64, ok bool) {
+	if s == nil || s.stateNetSmoother == nil {
+		return systemStateUnknown, 0, false
+	}
+	netWatts, ok = s.stateNetSmoother.Average()
+	if !ok {
+		return systemStateUnknown, 0, false
+	}
+	switch {
+	case netWatts > systemStateSmoothThreshold:
+		return systemStateCharging, netWatts, true
+	case netWatts < -systemStateSmoothThreshold:
+		return systemStateDischarging, netWatts, true
+	case math.Abs(netWatts) <= idleDrawNoiseFloorWatts:
+		return systemStateIdle, netWatts, true
+	default:
+		return systemStateUnknown, netWatts, true
 	}
 }
 
@@ -5777,6 +6078,16 @@ func normalizeVoltageVolts(value float64) float64 {
 		return value / 1000.0
 	}
 	return value
+}
+
+func normalizeMPPTVoltageVolts(value float64) float64 {
+	abs := math.Abs(value)
+	// mpptStatus often reports PV voltages as integer millivolts (including sub-1000 values).
+	// Keep explicit decimal values (e.g. 35.8) untouched.
+	if abs >= 100 && value == math.Trunc(value) {
+		return value / 1000.0
+	}
+	return normalizeVoltageVolts(value)
 }
 
 func normalizeCurrentAmps(value float64) float64 {
