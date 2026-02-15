@@ -18,6 +18,28 @@ Production-focused EcoFlow HTTP client foundation with:
 
 This structure keeps feature work parallel-friendly: endpoint-specific services can be added in `pkg/ecoflow/<domain>_service.go` without touching core transport/signing code.
 
+## MQTT Telemetry Dashboard
+
+`cmd/ecoflow-mqtt-sub` provides a live terminal dashboard for EcoFlow MQTT device-to-app telemetry (`/open/{certificateAccount}/{sn}/quota`).
+
+Supported models (actively tested):
+
+- DELTA 2 Max (D2M)
+- DELTA Pro Ultra (DPU)
+
+Telemetry capabilities:
+
+- startup bootstrap from `GetDeviceAllQuota()` for initial state mapping,
+- live summary table (SOC, AC input, solar generated, output, net, state, updated time),
+- per-device status flags (capability-dependent): AC, DC/USB, USB, 12V DC, EV charging, UPS passthrough, solar passthrough, grounded estimate,
+- PV channel telemetry (low/high): watts, volts, amps, and state (`active` / `locked` / `idle`),
+- channel breakdown: AC in, PV in (low/high + total), AC out, DC out, XT150 in/out,
+- battery pack telemetry (up to 5 packs): SOC, temp, power, remain, max cell delta, serial, energy, SOH, voltage, target SOC, limits, delta SOC, capacity, board temperature,
+- heuristic + ML-based ETA estimate rows with confidence scoring,
+- minute-by-minute history (default 10-minute window): solar generated, AC input, AC output, DC output, battery charge, total input/output, net,
+- durable logging to `logs/mqtt.log` (cleared each run), including raw payloads and parsed `energy_summary`,
+- resilient ingestion: reconnect with jitter backoff, idle-time reconnect, drop-oldest ring-buffer behavior, graceful quit (`q` or `Ctrl+C`).
+
 ## Environment Variables
 
 Shared fallback:
