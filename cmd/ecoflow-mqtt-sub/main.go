@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/jpaljasma/ecoflow-api-playground/pkg/ecoflow"
 	"github.com/jpaljasma/ecoflow-api-playground/pkg/ecoflowmqtt"
@@ -3389,7 +3390,8 @@ func (s *energySnapshot) derived() snapshotDerived {
 	derived.BatteryOutValue = formatOptionalWatts(hasBatteryOut, batteryOutWatts)
 	derived.BatteryNetValue = "n/a"
 	if hasBatteryIn || hasBatteryOut {
-		derived.BatteryNetValue = formatWatts(batteryOutWatts - batteryInWatts)
+		// Positive when charging, negative when discharging.
+		derived.BatteryNetValue = formatWatts(batteryInWatts - batteryOutWatts)
 	}
 	solarPassthroughOn := isLikelySolarPassthrough(s, batteryInWatts, hasBatteryIn, batteryOutWatts, hasBatteryOut)
 	derived.StatusSolarPassValue = checkboxStatus(solarPassthroughOn)
@@ -3520,7 +3522,7 @@ func renderDashboard(
 	pvHighLabel := formatPVInputRowLabel("high", device, snapshot)
 
 	updatedAt := time.Now().Format("2006-01-02 15:04:05")
-	deviceHeaders := []string{"Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Updated"}
+	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Updated"}
 	summaryHeaders := []string{
 		"Details",
 		"In",
@@ -3545,8 +3547,13 @@ func renderDashboard(
 			ConfidenceValue: derived.EstimateConfidenceValue,
 		},
 	)
+	topStateValue = sanitizeStateColumnValue(topStateValue)
+	topStateIcon := topStateDisplayIcon(systemStateKind(derived.SystemStateValue), topStateValue)
+	iconCell := firstNonEmpty(topStateIcon, "·")
+	deviceLabel := chooseDeviceLabel(device)
 	deviceRows := [][]string{{
-		chooseDeviceLabel(device),
+		iconCell,
+		deviceLabel,
 		derived.SOCValue,
 		acInDisplay,
 		pvTotalDisplay,
@@ -3789,6 +3796,41 @@ func selectTopStateValue(
 		return value
 	}
 	return deviceReported
+}
+
+func topStateDisplayIcon(state systemStateKind, value string) string {
+	displayState := state
+	if displayState == systemStateUnknown {
+		lower := strings.ToLower(strings.TrimSpace(value))
+		switch {
+		case strings.HasPrefix(lower, "charging:"):
+			displayState = systemStateCharging
+		case strings.HasPrefix(lower, "discharging:"):
+			displayState = systemStateDischarging
+		case strings.HasPrefix(lower, "idle:"):
+			displayState = systemStateIdle
+		}
+	}
+	switch displayState {
+	case systemStateCharging:
+		return "⚡"
+	case systemStateDischarging:
+		return "↓"
+	case systemStateIdle:
+		return "⏸"
+	default:
+		return ""
+	}
+}
+
+func sanitizeStateColumnValue(value string) string {
+	value = strings.TrimSpace(value)
+	for _, prefix := range []string{"⚡ ", "↓ ", "⏸ "} {
+		if strings.HasPrefix(value, prefix) {
+			value = strings.TrimSpace(strings.TrimPrefix(value, prefix))
+		}
+	}
+	return value
 }
 
 func formatStateETAForDisplay(state systemStateKind, activeETA string) string {
@@ -4119,12 +4161,12 @@ func formatPackBoardTemp(pack *packSnapshot) string {
 func renderASCIITable(headers []string, rows [][]string) string {
 	widths := make([]int, len(headers))
 	for i, header := range headers {
-		widths[i] = len(header)
+		widths[i] = displayCellWidth(header)
 	}
 	for _, row := range rows {
 		for i := 0; i < len(headers) && i < len(row); i++ {
-			if len(row[i]) > widths[i] {
-				widths[i] = len(row[i])
+			if cellWidth := displayCellWidth(row[i]); cellWidth > widths[i] {
+				widths[i] = cellWidth
 			}
 		}
 	}
@@ -4164,13 +4206,74 @@ func renderTableRow(cells []string, widths []int) string {
 		}
 		builder.WriteByte(' ')
 		builder.WriteString(cell)
-		if pad := width - len(cell); pad > 0 {
+		if pad := width - displayCellWidth(cell); pad > 0 {
 			builder.WriteString(strings.Repeat(" ", pad))
 		}
 		builder.WriteByte(' ')
 		builder.WriteByte('|')
 	}
 	return builder.String()
+}
+
+func displayCellWidth(value string) int {
+	width := 0
+	for _, r := range value {
+		width += runeDisplayWidth(r)
+	}
+	return width
+}
+
+func runeDisplayWidth(r rune) int {
+	switch {
+	case r == 0:
+		return 0
+	case r < 0x20:
+		return 0
+	case r >= 0x7f && r < 0xa0:
+		return 0
+	case r == 0x200d || r == 0xfe0f:
+		return 0 // zero-width joiner / variation selector
+	case unicode.Is(unicode.Mn, r):
+		return 0 // combining mark
+	case isWideRune(r):
+		return 2
+	default:
+		return 1
+	}
+}
+
+func isWideRune(r rune) bool {
+	switch {
+	// East Asian wide / fullwidth ranges.
+	case r >= 0x1100 && (r <= 0x115f || r == 0x2329 || r == 0x232a):
+		return true
+	case r >= 0x2e80 && r <= 0xa4cf && r != 0x303f:
+		return true
+	case r >= 0xac00 && r <= 0xd7a3:
+		return true
+	case r >= 0xf900 && r <= 0xfaff:
+		return true
+	case r >= 0xfe10 && r <= 0xfe19:
+		return true
+	case r >= 0xfe30 && r <= 0xfe6f:
+		return true
+	case r >= 0xff00 && r <= 0xff60:
+		return true
+	case r >= 0xffe0 && r <= 0xffe6:
+		return true
+	case r >= 0x20000 && r <= 0x2fffd:
+		return true
+	case r >= 0x30000 && r <= 0x3fffd:
+		return true
+
+	// Emoji / symbols commonly rendered as wide in terminals.
+	case r >= 0x1f300 && r <= 0x1faff:
+		return true
+	case r >= 0x2600 && r <= 0x27bf:
+		return true
+	default:
+		return false
+	}
 }
 
 func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableConfig) [][]string {
@@ -5147,7 +5250,7 @@ func formatETAMinutes(minutes float64) string {
 	if rounded < 1 {
 		rounded = 1
 	}
-	return fmt.Sprintf("%dmin (~%s)", rounded, formatMinutesHuman(rounded))
+	return fmt.Sprintf("%dmin (~%s)", rounded, formatMinutesHumanETA(rounded))
 }
 
 func packPowerTotals(packs map[int]*packSnapshot) (chargeW float64, dischargeW float64) {
@@ -5840,17 +5943,39 @@ func (s *energySnapshot) refreshPVTotalFromChannels() bool {
 }
 
 func splitPVChannels(values map[string]float64) (low float64, hasLow bool, high float64, hasHigh bool) {
+	seen := make(map[string]struct{}, len(values))
 	for key, value := range values {
+		canonical := canonicalQuotaMetricKey(key)
+		if _, exists := seen[canonical]; exists {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		normalized := normalizeInputChannelWatts(value)
 		switch classifyPVInputChannelKey(key) {
 		case "low":
-			low += normalizeInputChannelWatts(value)
+			if !hasLow || normalized > low {
+				low = normalized
+			}
 			hasLow = true
 		case "high":
-			high += normalizeInputChannelWatts(value)
+			if !hasHigh || normalized > high {
+				high = normalized
+			}
 			hasHigh = true
 		}
 	}
 	return low, hasLow, high, hasHigh
+}
+
+func canonicalQuotaMetricKey(key string) string {
+	lower := strings.ToLower(strings.TrimSpace(key))
+	if lower == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(lower, "."); idx >= 0 && idx+1 < len(lower) {
+		return lower[idx+1:]
+	}
+	return lower
 }
 
 func classifyPVInputChannelKey(key string) string {
@@ -5884,20 +6009,31 @@ func splitPVChannelTypes(values map[string]int64) (low int64, hasLow bool, high 
 }
 
 func sumPVInputChannelsFromQuota(quota map[string]any) (low float64, hasLow bool, high float64, hasHigh bool) {
+	seen := make(map[string]struct{}, len(quota))
 	for key, raw := range quota {
 		if !isPVInputKey(key) {
 			continue
 		}
+		canonical := canonicalQuotaMetricKey(key)
+		if _, exists := seen[canonical]; exists {
+			continue
+		}
+		seen[canonical] = struct{}{}
 		value, ok := numberFromAny(raw)
 		if !ok {
 			continue
 		}
+		normalized := normalizeInputChannelWatts(value)
 		switch classifyPVInputChannelKey(key) {
 		case "low":
-			low += normalizeInputChannelWatts(value)
+			if !hasLow || normalized > low {
+				low = normalized
+			}
 			hasLow = true
 		case "high":
-			high += normalizeInputChannelWatts(value)
+			if !hasHigh || normalized > high {
+				high = normalized
+			}
 			hasHigh = true
 		}
 	}
@@ -5907,10 +6043,16 @@ func sumPVInputChannelsFromQuota(quota map[string]any) (low float64, hasLow bool
 func sumPVInputFromQuota(quota map[string]any) (float64, bool) {
 	total := 0.0
 	found := false
+	seen := make(map[string]struct{}, len(quota))
 	for key, raw := range quota {
 		if !isPVInputKey(key) {
 			continue
 		}
+		canonical := canonicalQuotaMetricKey(key)
+		if _, exists := seen[canonical]; exists {
+			continue
+		}
+		seen[canonical] = struct{}{}
 		value, ok := numberFromAny(raw)
 		if !ok {
 			continue
@@ -6269,6 +6411,28 @@ func formatMinutesHuman(totalMinutes int64) string {
 
 	if days > 0 {
 		return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
+	}
+	if hours > 0 {
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	}
+	return fmt.Sprintf("%dm", minutes)
+}
+
+func formatMinutesHumanETA(totalMinutes int64) string {
+	if totalMinutes <= 0 {
+		return "0m"
+	}
+	const minutesPerHour = int64(60)
+	const minutesPerDay = int64(24) * minutesPerHour
+
+	days := totalMinutes / minutesPerDay
+	remaining := totalMinutes % minutesPerDay
+	hours := remaining / minutesPerHour
+	minutes := remaining % minutesPerHour
+
+	// For long ETAs, keep a compact day/hour representation.
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh", days, hours)
 	}
 	if hours > 0 {
 		return fmt.Sprintf("%dh %dm", hours, minutes)

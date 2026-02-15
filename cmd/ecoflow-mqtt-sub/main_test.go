@@ -1046,6 +1046,53 @@ func TestEnergySnapshotParsesACDCAndPVChannels(t *testing.T) {
 	}
 }
 
+func TestSumPVInputChannelsFromQuotaAvoidsAliasDoubleCount(t *testing.T) {
+	quota := map[string]any{
+		"inLvMpptPwr":                              190.0,
+		"hs_yj751_pd_appshow_addr.inLvMpptPwr":    190.0,
+		"powGetPvL":                                190.0,
+		"d_addr.powGetPvL":                         190.0,
+		"inHvMpptPwr":                              33.0,
+		"hs_yj751_pd_appshow_addr.inHvMpptPwr":    33.0,
+		"powGetPvH":                                33.0,
+		"d_addr.powGetPvH":                         33.0,
+	}
+
+	low, hasLow, high, hasHigh := sumPVInputChannelsFromQuota(quota)
+	if !hasLow || low != 190 {
+		t.Fatalf("low pv mismatch: has=%v value=%f", hasLow, low)
+	}
+	if !hasHigh || high != 33 {
+		t.Fatalf("high pv mismatch: has=%v value=%f", hasHigh, high)
+	}
+}
+
+func TestEnergySnapshotDoesNotDoubleCountPVAliasKeys(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	appshowPayload := []byte(`{"cmdId":1,"cmdFunc":2,"addr":"hs_yj751_pd_appshow_addr","params":{"inLvMpptPwr":190,"wattsInSum":190}}`)
+	appshowEnvelope, appshowQuota, err := parseTelemetryPayload(appshowPayload)
+	if err != nil {
+		t.Fatalf("parse appshow payload: %v", err)
+	}
+	snapshot.Update(appshowEnvelope, appshowQuota, nil, false, pdStatusSummary{}, false)
+	derived := snapshot.derived()
+	if derived.InPVLowValue != "190.0W" || derived.InPVValue != "190.0W" {
+		t.Fatalf("appshow pv mismatch: low=%s total=%s", derived.InPVLowValue, derived.InPVValue)
+	}
+
+	dAddrPayload := []byte(`{"cmdId":21,"cmdFunc":254,"addr":"d_addr","param":{"powGetPvL":190},"params":{}}`)
+	dAddrEnvelope, dAddrQuota, err := parseTelemetryPayload(dAddrPayload)
+	if err != nil {
+		t.Fatalf("parse d_addr payload: %v", err)
+	}
+	snapshot.Update(dAddrEnvelope, dAddrQuota, nil, false, pdStatusSummary{}, false)
+	derived = snapshot.derived()
+	if derived.InPVLowValue != "190.0W" || derived.InPVValue != "190.0W" {
+		t.Fatalf("d_addr pv mismatch: low=%s total=%s", derived.InPVLowValue, derived.InPVValue)
+	}
+}
+
 func TestEnergySnapshotParsesPVLowHighFromMPPTStatus(t *testing.T) {
 	snapshot := newEnergySnapshot()
 	payload := []byte(`{"moduleType":5,"needAck":0,"id":10297946,"time":17087042,"params":{"inWatts":23,"pv2InWatts":0,"inVol":35.8,"pv2InVol":0},"version":"1.0","typeCode":"mpptStatus"}`)
@@ -1213,8 +1260,8 @@ func TestEnergySnapshotDerivesBatteryFlowFromPackTotals(t *testing.T) {
 	if derived.BatteryOutValue != "0.0W" {
 		t.Fatalf("battery out mismatch: got=%s want=0.0W", derived.BatteryOutValue)
 	}
-	if derived.BatteryNetValue != "-172.0W" {
-		t.Fatalf("battery net mismatch: got=%s want=-172.0W", derived.BatteryNetValue)
+	if derived.BatteryNetValue != "172.0W" {
+		t.Fatalf("battery net mismatch: got=%s want=172.0W", derived.BatteryNetValue)
 	}
 }
 
@@ -1665,6 +1712,49 @@ func TestSelectTopStateValueUsesDeviceWhenBothLowConfidence(t *testing.T) {
 	got := selectTopStateValue(deviceState, systemStateDischarging, ml, heuristic)
 	if got != deviceState {
 		t.Fatalf("top state should use device when both ML and heuristic confidence are low: got=%q want=%q", got, deviceState)
+	}
+}
+
+func TestTopStateDisplayIcon(t *testing.T) {
+	tests := []struct {
+		name  string
+		state systemStateKind
+		value string
+		want  string
+	}{
+		{name: "charging", state: systemStateCharging, value: "charging: 1", want: "⚡"},
+		{name: "discharging", state: systemStateDischarging, value: "discharging: 1", want: "↓"},
+		{name: "idle", state: systemStateIdle, value: "idle: 1", want: "⏸"},
+		{name: "infer charging", state: systemStateUnknown, value: "charging: 1", want: "⚡"},
+		{name: "infer discharging", state: systemStateUnknown, value: "discharging: 1", want: "↓"},
+		{name: "infer idle", state: systemStateUnknown, value: "idle: 1", want: "⏸"},
+		{name: "unknown", state: systemStateUnknown, value: "n/a", want: ""},
+	}
+
+	for _, tc := range tests {
+		got := topStateDisplayIcon(tc.state, tc.value)
+		if got != tc.want {
+			t.Fatalf("%s: icon mismatch got=%q want=%q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestSanitizeStateColumnValue(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{in: "⚡ charging: 320min (~5h 20m)", want: "charging: 320min (~5h 20m)"},
+		{in: "↓ discharging: 455min (~7h 35m)", want: "discharging: 455min (~7h 35m)"},
+		{in: "⏸ idle: 30min (~30m)", want: "idle: 30min (~30m)"},
+		{in: "charging: 120min (~2h 0m)", want: "charging: 120min (~2h 0m)"},
+	}
+
+	for _, tc := range tests {
+		got := sanitizeStateColumnValue(tc.in)
+		if got != tc.want {
+			t.Fatalf("sanitize state mismatch: in=%q got=%q want=%q", tc.in, got, tc.want)
+		}
 	}
 }
 
