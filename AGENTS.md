@@ -23,6 +23,9 @@ Always use a branch -> pull request -> merge workflow.
 2. Include test results for the change.
 3. Update documentation when behavior or configuration changes.
 4. Resolve review feedback before merge.
+5. PR body formatting must use real newlines (no literal `\n`).
+6. When using GitHub CLI, prefer `gh pr create --body-file <file>` or `gh pr edit --body-file <file>` for multiline Markdown.
+7. After creating/updating a PR, verify rendered body with `gh pr view --json body` and fix immediately if escaped newlines appear.
 
 ## Merge Rules
 1. Merge only after CI and required checks are green.
