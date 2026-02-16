@@ -26,56 +26,63 @@ import (
 )
 
 const (
-	defaultDeviceMatch           = "delta pro ultra"
-	dcResidualInferenceMinWatts  = 3.0
-	dcResidualXT150DeductRatio   = 0.7
-	solarLockVoltageMinVolts     = 8.0
-	solarLockCurrentMaxAmps      = 0.05
-	solarLockInputMaxWatts       = 1.5
-	solarPowerEstimateMinWatts   = 0.5
-	solarPowerEstimateMaxWatts   = 20000.0
-	idleDrawNoiseFloorWatts      = 1.0
-	systemStateNetThresholdWatts = 8.0
-	systemStateSmoothThreshold   = 10.0
-	appShowFlagACOnMask          = int64(0x4)
-	appShowFlagDCOnMask          = int64(0x2)
-	defaultMinuteTableRows       = 10
-	defaultMinuteHistoryBuckets  = 24 * 60
-	defaultMinuteHistoryPath     = "logs/telemetry_history.jsonl"
-	defaultTrainingCSVPath       = "logs/telemetry_training.csv"
-	defaultTrainingCSVInterval   = 10 * time.Second
-	defaultTrainingCSVJitter     = 0.2
-	defaultHistoryLoadWindowMins = 180
-	defaultMLBucketSeconds       = 10
-	defaultMLHistoryBuckets      = 180
-	defaultPVSmoothingSamples    = 6
-	defaultPowerSmoothingSamples = 6
-	defaultStateSmoothingSamples = 6
-	defaultMQTTQueueCapacity     = 64
-	defaultMQTTLogQueueCapacity  = 2048
-	defaultMQTTAuthRejectThresh  = 3
-	defaultMQTTFallbackPollEvery = 15 * time.Second
-	defaultMQTTFallbackPollTO    = 12 * time.Second
-	defaultMQTTReconcileEvery    = 1 * time.Minute
-	defaultMQTTReconcileTO       = 12 * time.Second
-	defaultUIRefreshEvery        = 1 * time.Second
-	defaultUIQueueCapacity       = 8
-	passthroughMinWatts          = 20.0
-	passthroughAbsToleranceWatts = 15.0
-	passthroughRelTolerance      = 0.12
-	solarPassthroughMinOutWatts  = 5.0
-	solarPassthroughMinPVWatts   = 5.0
-	solarPassthroughMaxACInWatts = 10.0
-	solarPassthroughSlackWatts   = 20.0
-	solarChargePVMinWattsD2M     = 5.0
-	solarChargePVMinWattsDPU     = 56.0
-	solarChargePVHoldWattsD2M    = 5.0
-	solarChargePVHoldWattsDPU    = 54.0
-	solarChargeBatteryMinWatts   = 8.0
-	acInputStaleClearToleranceW  = 12.0
-	acInputStaleClearAfter       = 12 * time.Second
-	wattsInReconcileToleranceW   = 25.0
-	packPowerStaleAfter          = 75 * time.Second
+	defaultDeviceMatch            = "delta pro ultra"
+	dcResidualInferenceMinWatts   = 3.0
+	dcResidualXT150DeductRatio    = 0.7
+	solarLockVoltageMinVolts      = 8.0
+	solarLockCurrentMaxAmps       = 0.05
+	solarLockInputMaxWatts        = 1.5
+	solarPowerEstimateMinWatts    = 0.5
+	solarPowerEstimateMaxWatts    = 20000.0
+	idleDrawNoiseFloorWatts       = 1.0
+	systemStateNetThresholdWatts  = 8.0
+	systemStateSmoothThreshold    = 10.0
+	appShowFlagACOnMask           = int64(0x4)
+	appShowFlagDCOnMask           = int64(0x2)
+	defaultMinuteTableRows        = 10
+	defaultMinuteHistoryBuckets   = 24 * 60
+	defaultMinuteHistoryPath      = "logs/telemetry_history.jsonl"
+	defaultTrainingCSVPath        = "logs/telemetry_training.csv"
+	defaultTrainingCSVInterval    = 10 * time.Second
+	defaultTrainingCSVJitter      = 0.2
+	defaultHistoryQueueCapacity   = 1024
+	defaultTrainingQueueCapacity  = 4096
+	defaultHistoryLoadWindowMins  = 180
+	defaultMLBucketSeconds        = 10
+	defaultMLHistoryBuckets       = 180
+	defaultPVSmoothingSamples     = 6
+	defaultPowerSmoothingSamples  = 6
+	defaultStateSmoothingSamples  = 6
+	defaultMQTTQueueCapacity      = 64
+	defaultMQTTLogQueueCapacity   = 2048
+	defaultMQTTAuthRejectThresh   = 3
+	defaultMQTTFallbackPollEvery  = 15 * time.Second
+	defaultMQTTFallbackPollTO     = 12 * time.Second
+	defaultMQTTReconcileEvery     = 1 * time.Minute
+	defaultMQTTReconcileTO        = 12 * time.Second
+	defaultMQTTStaleAfter         = 30 * time.Second
+	defaultMQTTLivenessPollAfter  = 90 * time.Second
+	defaultMQTTLivenessCheckEvery = 10 * time.Second
+	defaultMQTTLivenessPollTO     = 12 * time.Second
+	defaultMQTTLivenessMinIntvl   = 60 * time.Second
+	defaultUIRefreshEvery         = 1 * time.Second
+	defaultUIQueueCapacity        = 8
+	passthroughMinWatts           = 20.0
+	passthroughAbsToleranceWatts  = 15.0
+	passthroughRelTolerance       = 0.12
+	solarPassthroughMinOutWatts   = 5.0
+	solarPassthroughMinPVWatts    = 5.0
+	solarPassthroughMaxACInWatts  = 10.0
+	solarPassthroughSlackWatts    = 20.0
+	solarChargePVMinWattsD2M      = 5.0
+	solarChargePVMinWattsDPU      = 56.0
+	solarChargePVHoldWattsD2M     = 5.0
+	solarChargePVHoldWattsDPU     = 54.0
+	solarChargeBatteryMinWatts    = 8.0
+	acInputStaleClearToleranceW   = 12.0
+	acInputStaleClearAfter        = 12 * time.Second
+	wattsInReconcileToleranceW    = 25.0
+	packPowerStaleAfter           = 75 * time.Second
 )
 
 type systemStateKind string
@@ -332,6 +339,7 @@ type energySnapshot struct {
 	HasMQTTLastMessage     bool
 	MQTTConnectedSince     time.Time
 	HasMQTTConnectedSince  bool
+	MQTTStaleAfter         time.Duration
 	DataUpdatedAt          time.Time
 	HasDataUpdatedAt       bool
 
@@ -547,8 +555,9 @@ type minuteTelemetryRecord struct {
 }
 
 type minuteTelemetryStore struct {
-	path string
-	sink *fileAppendSink
+	path  string
+	sink  *fileAppendSink
+	queue *asyncChunkQueue
 }
 
 type rollingAverage struct {
@@ -830,9 +839,12 @@ func newMinuteTelemetryStore(path string) (*minuteTelemetryStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init minute telemetry append sink: %w", err)
 	}
+	queueCapacity := parsePositiveIntEnv("ECOFLOW_MQTT_HISTORY_QUEUE_CAPACITY", defaultHistoryQueueCapacity)
+	queue := newAsyncChunkQueue(queueCapacity, sink.WriteChunk)
 	return &minuteTelemetryStore{
-		path: sink.Path(),
-		sink: sink,
+		path:  sink.Path(),
+		sink:  sink,
+		queue: queue,
 	}, nil
 }
 
@@ -847,12 +859,40 @@ func (s *minuteTelemetryStore) Close() error {
 	if s == nil {
 		return nil
 	}
+	var queueErr error
+	if s.queue != nil {
+		queueErr = s.queue.Close()
+		s.queue = nil
+	}
 	if s.sink == nil {
+		if queueErr != nil {
+			return queueErr
+		}
 		return nil
 	}
 	err := s.sink.Close()
 	s.sink = nil
+	if queueErr != nil {
+		if err != nil {
+			return fmt.Errorf("%v; %w", queueErr, err)
+		}
+		return queueErr
+	}
 	return err
+}
+
+func (s *minuteTelemetryStore) Flush() error {
+	if s == nil || s.queue == nil {
+		return nil
+	}
+	return s.queue.Flush()
+}
+
+func (s *minuteTelemetryStore) DroppedCount() uint64 {
+	if s == nil || s.queue == nil {
+		return 0
+	}
+	return s.queue.DroppedCount()
 }
 
 func (s *minuteTelemetryStore) AppendBucket(deviceSN string, bucket minuteTelemetryBucket) error {
@@ -887,11 +927,12 @@ func (s *minuteTelemetryStore) AppendBucket(deviceSN string, bucket minuteTeleme
 	}
 	payload = append(payload, '\n')
 
-	if s.sink == nil {
+	if s.sink == nil || s.queue == nil {
 		return errors.New("minute telemetry history file is closed")
 	}
-	if err := s.sink.WriteChunk(payload); err != nil {
-		return fmt.Errorf("append minute telemetry record: %w", err)
+	enqueued, _ := s.queue.EnqueueDropOldest(payload)
+	if !enqueued {
+		return errors.New("append minute telemetry record: queue saturated")
 	}
 	return nil
 }
@@ -903,6 +944,9 @@ func (s *minuteTelemetryStore) LoadInto(deviceSN string, history *minuteTelemetr
 func (s *minuteTelemetryStore) LoadIntoWindow(deviceSN string, history *minuteTelemetryHistory, notBeforeMinuteStartUnix int64) (int, error) {
 	if s == nil || history == nil {
 		return 0, nil
+	}
+	if err := s.Flush(); err != nil {
+		return 0, fmt.Errorf("flush minute telemetry queue before read: %w", err)
 	}
 	deviceSN = strings.TrimSpace(deviceSN)
 
@@ -1288,7 +1332,12 @@ func main() {
 		}()
 	}
 	logBootstrapRaw := parseBoolEnv("ECOFLOW_MQTT_LOG_BOOTSTRAP_RAW", true)
-	idleReconnectAfter := durationAllowZero("ECOFLOW_MQTT_IDLE_RECONNECT_AFTER", 0)
+	idleReconnectAfter := durationAllowZero("ECOFLOW_MQTT_IDLE_RECONNECT_AFTER", 120*time.Second)
+	mqttStaleAfter := durationAllowZero("ECOFLOW_MQTT_STALE_AFTER", defaultMQTTStaleAfter)
+	mqttLivenessPollAfter := durationAllowZero("ECOFLOW_MQTT_LIVENESS_POLL_AFTER", defaultMQTTLivenessPollAfter)
+	mqttLivenessCheckEvery := durationAllowZero("ECOFLOW_MQTT_LIVENESS_CHECK_INTERVAL", defaultMQTTLivenessCheckEvery)
+	mqttLivenessPollTimeout := mustDuration("ECOFLOW_MQTT_LIVENESS_POLL_TIMEOUT", defaultMQTTLivenessPollTO)
+	mqttLivenessPollMinInterval := mustDuration("ECOFLOW_MQTT_LIVENESS_POLL_MIN_INTERVAL", defaultMQTTLivenessMinIntvl)
 	minuteTableConfig := minuteTableConfig{
 		Rows:            parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_ROWS", defaultMinuteTableRows),
 		NewestFirst:     parseSortNewestFirstEnv("ECOFLOW_MQTT_MINUTE_SORT", true),
@@ -1323,6 +1372,10 @@ func main() {
 		fatalf("init minute telemetry history store: %v", err)
 	}
 	defer func() {
+		dropped := minuteHistoryStore.DroppedCount()
+		if dropped > 0 {
+			logger.Warn("minute telemetry history dropped queued records", slog.Uint64("dropped_records", dropped))
+		}
 		if closeErr := minuteHistoryStore.Close(); closeErr != nil {
 			logger.Warn("flush/close minute telemetry history store failed", slog.String("error", closeErr.Error()))
 		}
@@ -1335,6 +1388,10 @@ func main() {
 			runLog.Printf("training_csv_init_error path=%s error=%q", trainingCSVPath, err.Error())
 		} else {
 			defer func() {
+				dropped := trainingCSVStore.DroppedCount()
+				if dropped > 0 {
+					logger.Warn("training telemetry csv dropped queued rows", slog.Uint64("dropped_rows", dropped))
+				}
 				if closeErr := trainingCSVStore.Close(); closeErr != nil {
 					logger.Warn("flush/close training telemetry csv store failed", slog.String("error", closeErr.Error()))
 				}
@@ -1480,6 +1537,7 @@ func main() {
 	snapshot.MQTTFallbackActive = false
 	snapshot.MQTTFallbackPollCount = 0
 	snapshot.MQTTLastError = ""
+	snapshot.MQTTStaleAfter = mqttStaleAfter
 
 	lastEnvelope := telemetryEnvelope{TypeCode: "n/a"}
 	emitDashboard := func(envelope telemetryEnvelope) {
@@ -1555,8 +1613,38 @@ func main() {
 			mqttEventCh,
 		)
 	}()
+	quotaPollReqCh := make(chan quotaPollRequest, 1)
+	quotaPollResCh := make(chan quotaPollResult, 1)
+	go runQuotaPollWorker(ctx, httpClient.GeneralInfo(), targetDevice.SN, quotaPollReqCh, quotaPollResCh)
+	quotaPollInFlight := false
+	scheduleQuotaPoll := func(kind quotaPollKind, timeout time.Duration, silenceAge time.Duration) bool {
+		if quotaPollInFlight {
+			return false
+		}
+		req := quotaPollRequest{
+			Kind:       kind,
+			Timeout:    timeout,
+			Requested:  time.Now(),
+			SilenceAge: silenceAge,
+		}
+		select {
+		case quotaPollReqCh <- req:
+			quotaPollInFlight = true
+			return true
+		default:
+			return false
+		}
+	}
 	fallbackTicker := time.NewTicker(fallbackPollEvery)
 	defer fallbackTicker.Stop()
+	var livenessTicker *time.Ticker
+	var livenessCh <-chan time.Time
+	if mqttLivenessCheckEvery > 0 && mqttLivenessPollAfter > 0 {
+		livenessTicker = time.NewTicker(mqttLivenessCheckEvery)
+		livenessCh = livenessTicker.C
+		defer livenessTicker.Stop()
+	}
+	lastLivenessPollAt := time.Time{}
 	var reconcileTicker *time.Ticker
 	var reconcileCh <-chan time.Time
 	if reconcileEvery > 0 {
@@ -1660,63 +1748,114 @@ func main() {
 			if !snapshot.MQTTFallbackActive {
 				continue
 			}
-			pollCtx, pollCancel := context.WithTimeout(ctx, fallbackPollTimeout)
-			pollReport, pollErr := bootstrapSnapshotFromDeviceQuota(pollCtx, httpClient.GeneralInfo(), targetDevice.SN, snapshot, runLog, false)
-			pollCancel()
-			if pollErr != nil {
-				snapshot.MQTTLastError = pollErr.Error()
-				logger.Warn(
-					"fallback GetDeviceAllQuota poll failed",
-					slog.String("device_sn", targetDevice.SN),
-					slog.String("error", pollErr.Error()),
-				)
-				runLog.Printf("fallback_quota_poll_failed error=%q", pollErr.Error())
+			if scheduled := scheduleQuotaPoll(quotaPollKindFallback, fallbackPollTimeout, 0); !scheduled {
+				logger.Debug("fallback poll skipped; quota poll already in flight")
+			}
+		case <-livenessCh:
+			if snapshot.MQTTFallbackActive || !snapshot.MQTTConnected || !snapshot.HasMQTTLastMessage {
 				continue
 			}
-			snapshot.MQTTFallbackPollCount++
-			now := time.Now()
-			recordMinuteSample(now)
-			captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "fallbackQuotaPoll"}, nil)
-			runLog.Printf(
-				"fallback_quota_poll_ok polls=%d quota_keys=%d mapped_packs=%d",
-				snapshot.MQTTFallbackPollCount,
-				pollReport.QuotaKeys,
-				pollReport.MappedPacks,
-			)
-			if tableView {
-				emitDashboard(lastEnvelope)
+			if snapshot.MQTTLastMessageAt.IsZero() {
+				continue
+			}
+			silenceAge := time.Since(snapshot.MQTTLastMessageAt)
+			if silenceAge < mqttLivenessPollAfter {
+				continue
+			}
+			if !lastLivenessPollAt.IsZero() && time.Since(lastLivenessPollAt) < mqttLivenessPollMinInterval {
+				continue
+			}
+			if scheduleQuotaPoll(quotaPollKindLiveness, mqttLivenessPollTimeout, silenceAge) {
+				lastLivenessPollAt = time.Now()
 			} else {
-				summary := snapshot.String()
-				fmt.Printf("energy_summary %s\n", summary)
-				runLog.Printf("energy_summary %s", summary)
+				logger.Debug("liveness poll skipped; quota poll already in flight")
 			}
 		case <-reconcileCh:
 			if snapshot.MQTTFallbackActive {
 				continue
 			}
-			reconcileCtx, reconcileCancel := context.WithTimeout(ctx, reconcileTimeout)
-			reconcileReport, reconcileErr := bootstrapSnapshotFromDeviceQuota(reconcileCtx, httpClient.GeneralInfo(), targetDevice.SN, snapshot, runLog, false)
-			reconcileCancel()
-			if reconcileErr != nil {
-				logger.Debug(
-					"periodic GetDeviceAllQuota reconcile failed",
-					slog.String("device_sn", targetDevice.SN),
-					slog.String("error", reconcileErr.Error()),
-				)
-				runLog.Printf("quota_reconcile_failed error=%q", reconcileErr.Error())
+			if scheduled := scheduleQuotaPoll(quotaPollKindReconcile, reconcileTimeout, 0); !scheduled {
+				logger.Debug("reconcile poll skipped; quota poll already in flight")
+			}
+		case pollResult := <-quotaPollResCh:
+			quotaPollInFlight = false
+			if pollResult.Error != nil {
+				snapshot.MQTTLastError = pollResult.Error.Error()
+				switch pollResult.Request.Kind {
+				case quotaPollKindFallback:
+					logger.Warn(
+						"fallback GetDeviceAllQuota poll failed",
+						slog.String("device_sn", targetDevice.SN),
+						slog.String("error", pollResult.Error.Error()),
+					)
+					runLog.Printf("fallback_quota_poll_failed error=%q", pollResult.Error.Error())
+				case quotaPollKindLiveness:
+					logger.Warn(
+						"mqtt liveness poll failed",
+						slog.String("device_sn", targetDevice.SN),
+						slog.String("error", pollResult.Error.Error()),
+						slog.Duration("silence_age", pollResult.Request.SilenceAge.Round(time.Second)),
+					)
+					runLog.Printf(
+						"mqtt_liveness_poll_failed silence_age=%s error=%q",
+						pollResult.Request.SilenceAge.Round(time.Second).String(),
+						pollResult.Error.Error(),
+					)
+				case quotaPollKindReconcile:
+					logger.Debug(
+						"periodic GetDeviceAllQuota reconcile failed",
+						slog.String("device_sn", targetDevice.SN),
+						slog.String("error", pollResult.Error.Error()),
+					)
+					runLog.Printf("quota_reconcile_failed error=%q", pollResult.Error.Error())
+				}
 				continue
 			}
+			snapshot.MQTTLastError = ""
+			report := applyDeviceQuotaToSnapshot(snapshot, pollResult.Quota)
 			now := time.Now()
-			recordMinuteSample(now)
-			captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "quotaReconcile"}, nil)
-			runLog.Printf(
-				"quota_reconcile_ok interval=%s quota_keys=%d mapped_packs=%d",
-				reconcileEvery.String(),
-				reconcileReport.QuotaKeys,
-				reconcileReport.MappedPacks,
-			)
-			if tableView {
-				emitDashboard(lastEnvelope)
+			switch pollResult.Request.Kind {
+			case quotaPollKindFallback:
+				snapshot.MQTTFallbackPollCount++
+				recordMinuteSample(now)
+				captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "fallbackQuotaPoll"}, nil)
+				runLog.Printf(
+					"fallback_quota_poll_ok polls=%d quota_keys=%d mapped_packs=%d",
+					snapshot.MQTTFallbackPollCount,
+					report.QuotaKeys,
+					report.MappedPacks,
+				)
+				if tableView {
+					emitDashboard(lastEnvelope)
+				} else {
+					summary := snapshot.String()
+					fmt.Printf("energy_summary %s\n", summary)
+					runLog.Printf("energy_summary %s", summary)
+				}
+			case quotaPollKindLiveness:
+				recordMinuteSample(now)
+				captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "livenessQuotaPoll"}, nil)
+				runLog.Printf(
+					"mqtt_liveness_poll_ok silence_age=%s quota_keys=%d mapped_packs=%d",
+					pollResult.Request.SilenceAge.Round(time.Second).String(),
+					report.QuotaKeys,
+					report.MappedPacks,
+				)
+				if tableView {
+					emitDashboard(lastEnvelope)
+				}
+			case quotaPollKindReconcile:
+				recordMinuteSample(now)
+				captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "quotaReconcile"}, nil)
+				runLog.Printf(
+					"quota_reconcile_ok interval=%s quota_keys=%d mapped_packs=%d",
+					reconcileEvery.String(),
+					report.QuotaKeys,
+					report.MappedPacks,
+				)
+				if tableView {
+					emitDashboard(lastEnvelope)
+				}
 			}
 		case <-uiRefreshCh:
 			if tableView {

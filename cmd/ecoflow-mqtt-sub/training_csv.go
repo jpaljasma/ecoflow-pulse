@@ -84,8 +84,9 @@ var trainingTelemetryCSVHeaders = []string{
 }
 
 type trainingTelemetryCSVStore struct {
-	path string
-	sink *fileAppendSink
+	path  string
+	sink  *fileAppendSink
+	queue *asyncChunkQueue
 }
 
 func newTrainingTelemetryCSVStore(path string) (*trainingTelemetryCSVStore, error) {
@@ -108,6 +109,8 @@ func newTrainingTelemetryCSVStore(path string) (*trainingTelemetryCSVStore, erro
 		_ = sink.Close()
 		return nil, err
 	}
+	queueCapacity := parsePositiveIntEnv("ECOFLOW_MQTT_TRAINING_CSV_QUEUE_CAPACITY", defaultTrainingQueueCapacity)
+	store.queue = newAsyncChunkQueue(queueCapacity, sink.WriteChunk)
 	return store, nil
 }
 
@@ -150,12 +153,40 @@ func (s *trainingTelemetryCSVStore) Close() error {
 	if s == nil {
 		return nil
 	}
+	var queueErr error
+	if s.queue != nil {
+		queueErr = s.queue.Close()
+		s.queue = nil
+	}
 	if s.sink == nil {
+		if queueErr != nil {
+			return queueErr
+		}
 		return nil
 	}
 	err := s.sink.Close()
 	s.sink = nil
+	if queueErr != nil {
+		if err != nil {
+			return fmt.Errorf("%v; %w", queueErr, err)
+		}
+		return queueErr
+	}
 	return err
+}
+
+func (s *trainingTelemetryCSVStore) Flush() error {
+	if s == nil || s.queue == nil {
+		return nil
+	}
+	return s.queue.Flush()
+}
+
+func (s *trainingTelemetryCSVStore) DroppedCount() uint64 {
+	if s == nil || s.queue == nil {
+		return 0
+	}
+	return s.queue.DroppedCount()
 }
 
 func (s *trainingTelemetryCSVStore) AppendRow(row []string) error {
@@ -165,7 +196,7 @@ func (s *trainingTelemetryCSVStore) AppendRow(row []string) error {
 	if len(row) != len(trainingTelemetryCSVHeaders) {
 		return fmt.Errorf("training telemetry csv row width mismatch: got=%d want=%d", len(row), len(trainingTelemetryCSVHeaders))
 	}
-	if s.sink == nil {
+	if s.sink == nil || s.queue == nil {
 		return errors.New("training telemetry csv file is closed")
 	}
 	var payload bytes.Buffer
@@ -177,8 +208,9 @@ func (s *trainingTelemetryCSVStore) AppendRow(row []string) error {
 	if err := writer.Error(); err != nil {
 		return fmt.Errorf("flush encoded training telemetry csv row: %w", err)
 	}
-	if err := s.sink.WriteChunk(payload.Bytes()); err != nil {
-		return fmt.Errorf("append training telemetry csv row: %w", err)
+	enqueued, _ := s.queue.EnqueueDropOldest(payload.Bytes())
+	if !enqueued {
+		return errors.New("append training telemetry csv row: queue saturated")
 	}
 	return nil
 }

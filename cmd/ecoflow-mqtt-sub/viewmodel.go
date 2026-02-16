@@ -1102,12 +1102,26 @@ func formatMQTTStatus(snapshot *energySnapshot) string {
 		return base
 	}
 	if snapshot.MQTTConnected {
+		if isMQTTStale(snapshot) {
+			return "MQTT stale (no data)"
+		}
 		return "MQTT live"
 	}
 	if snapshot.MQTTFallbackActive {
 		return "MQTT reconnecting + REST fallback"
 	}
 	return "MQTT reconnecting"
+}
+
+func isMQTTStale(snapshot *energySnapshot) bool {
+	if snapshot == nil || !snapshot.MQTTConnected || !snapshot.HasMQTTLastMessage || snapshot.MQTTLastMessageAt.IsZero() {
+		return false
+	}
+	threshold := snapshot.MQTTStaleAfter
+	if threshold <= 0 {
+		threshold = defaultMQTTStaleAfter
+	}
+	return time.Since(snapshot.MQTTLastMessageAt) >= threshold
 }
 
 func formatMQTTUptime(snapshot *energySnapshot) string {
