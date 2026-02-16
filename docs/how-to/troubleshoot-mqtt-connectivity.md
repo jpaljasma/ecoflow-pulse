@@ -31,11 +31,6 @@ Actions:
 1. verify queue is not saturated (`MQTT` row in dashboard),
 1. inspect `logs/mqtt.log` for raw payload presence.
 
-## Symptom: Push/SSH confusion is unrelated to MQTT
-
-If Git push fails with `Permission denied (publickey)`, fix local GitHub SSH
-setup separately.
-
 ## Checklist
 
 - smoke test passes,
