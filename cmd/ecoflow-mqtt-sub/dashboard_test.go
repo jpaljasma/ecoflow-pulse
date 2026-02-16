@@ -127,6 +127,17 @@ func TestFormatPVInputRowLabelUsesCapacityHints(t *testing.T) {
 	}
 }
 
+func TestFormatPVUtilizationGaugeSupportsOverflowPercent(t *testing.T) {
+	device := ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max"}
+	got := formatPVUtilizationGauge("low", device, newEnergySnapshot(), true, 525, false, 0)
+	if !strings.Contains(got, "105.0%") {
+		t.Fatalf("expected overflow percentage in gauge, got=%q", got)
+	}
+	if !strings.Contains(got, "[██████████]") {
+		t.Fatalf("expected capped full-width gauge on overflow, got=%q", got)
+	}
+}
+
 func TestIsLikelyACPassthrough(t *testing.T) {
 	if !isLikelyACPassthrough(true, 900, true, 890) {
 		t.Fatalf("expected passthrough when ac in/out are equivalent")
@@ -171,13 +182,15 @@ func TestIsLikelySolarPassthrough(t *testing.T) {
 
 func TestInferBatteryChargeSource(t *testing.T) {
 	tests := []struct {
-		name    string
-		state   systemStateKind
-		acInW   float64
-		hasACIn bool
-		pvInW   float64
-		hasPVIn bool
-		want    string
+		name     string
+		state    systemStateKind
+		acInW    float64
+		hasACIn  bool
+		acOutW   float64
+		hasACOut bool
+		pvInW    float64
+		hasPVIn  bool
+		want     string
 	}{
 		{
 			name:    "charging from ac",
@@ -194,13 +207,26 @@ func TestInferBatteryChargeSource(t *testing.T) {
 			want:    "solar",
 		},
 		{
-			name:    "charging hybrid",
-			state:   systemStateCharging,
-			acInW:   350,
-			hasACIn: true,
-			pvInW:   210,
-			hasPVIn: true,
-			want:    "hybrid(ac+solar)",
+			name:     "charging hybrid",
+			state:    systemStateCharging,
+			acInW:    350,
+			hasACIn:  true,
+			acOutW:   120,
+			hasACOut: true,
+			pvInW:    210,
+			hasPVIn:  true,
+			want:     "hybrid(ac+solar)",
+		},
+		{
+			name:     "charging solar when ac passthrough dominates",
+			state:    systemStateCharging,
+			acInW:    61,
+			hasACIn:  true,
+			acOutW:   60,
+			hasACOut: true,
+			pvInW:    55,
+			hasPVIn:  true,
+			want:     "solar",
 		},
 		{
 			name:  "idle no source",
@@ -226,6 +252,8 @@ func TestInferBatteryChargeSource(t *testing.T) {
 			snapshot := newEnergySnapshot()
 			snapshot.InACWatts = tt.acInW
 			snapshot.HasInAC = tt.hasACIn
+			snapshot.OutACWatts = tt.acOutW
+			snapshot.HasOutAC = tt.hasACOut
 			snapshot.InPVWatts = tt.pvInW
 			snapshot.HasInPV = tt.hasPVIn
 
@@ -377,16 +405,18 @@ func TestTopStateDisplayIcon(t *testing.T) {
 		source string
 		want   string
 	}{
-		{name: "charging ac source", state: systemStateCharging, value: "charging: 1", source: "ac", want: "⚡"},
-		{name: "charging solar source", state: systemStateCharging, value: "charging: 1", source: "solar", want: "🔆"},
-		{name: "charging hybrid source", state: systemStateCharging, value: "charging: 1", source: "hybrid(ac+solar)", want: "🌤"},
+		{name: "charging ac source", state: systemStateCharging, value: "charging: 1", source: "ac", want: "🌩"},
+		{name: "charging solar source", state: systemStateCharging, value: "charging: 1", source: "solar", want: "🌞"},
+		{name: "charging hybrid source", state: systemStateCharging, value: "charging: 1", source: "hybrid(ac+solar)", want: "🔆"},
 		{name: "discharging", state: systemStateDischarging, value: "discharging: 1", source: "battery", want: "🔻"},
 		{name: "idle", state: systemStateIdle, value: "idle: 1", source: "none", want: "🟢"},
-		{name: "infer charging", state: systemStateUnknown, value: "charging: 1", source: "ac", want: "⚡"},
-		{name: "infer charging solar source", state: systemStateUnknown, value: "charging: 1", source: "solar", want: "🔆"},
-		{name: "infer charging hybrid source", state: systemStateUnknown, value: "charging: 1", source: "hybrid(ac+solar)", want: "🌤"},
+		{name: "infer charging", state: systemStateUnknown, value: "charging: 1", source: "ac", want: "🌩"},
+		{name: "infer charging solar source", state: systemStateUnknown, value: "charging: 1", source: "solar", want: "🌞"},
+		{name: "infer charging hybrid source", state: systemStateUnknown, value: "charging: 1", source: "hybrid(ac+solar)", want: "🔆"},
 		{name: "infer discharging", state: systemStateUnknown, value: "discharging: 1", source: "battery", want: "🔻"},
 		{name: "infer idle", state: systemStateUnknown, value: "idle: 1", source: "none", want: "🟢"},
+		{name: "value charging overrides stale idle state", state: systemStateIdle, value: "charging: 1", source: "solar", want: "🌞"},
+		{name: "value discharging overrides stale charging state", state: systemStateCharging, value: "discharging: 1", source: "battery", want: "🔻"},
 		{name: "unknown", state: systemStateUnknown, value: "n/a", source: "n/a", want: ""},
 	}
 

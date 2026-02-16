@@ -54,4 +54,3 @@ func setupTerminalForSingleKeyInput(file *os.File) (func(), error) {
 	}
 	return restore, nil
 }
-

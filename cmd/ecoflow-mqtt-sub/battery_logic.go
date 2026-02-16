@@ -281,6 +281,118 @@ func (s *energySnapshot) aggregateBatteryNetWatts() (float64, bool) {
 	return net, true
 }
 
+type displayBatteryFlow struct {
+	inWatts   float64
+	hasIn     bool
+	outWatts  float64
+	hasOut    bool
+	netWatts  float64
+	hasNet    bool
+	fromNetIO bool
+}
+
+// batteryFlowForDisplay derives battery in/out/net from the same signal path
+// used by the details table battery row so UI and telemetry stay consistent.
+func (s *energySnapshot) batteryFlowForDisplay(
+	effectiveIn float64,
+	hasEffectiveIn bool,
+	effectiveOut float64,
+	hasEffectiveOut bool,
+	packChargeW float64,
+	packDischargeW float64,
+) displayBatteryFlow {
+	flow := displayBatteryFlow{}
+	if s == nil {
+		return flow
+	}
+
+	if s.HasBatteryIn {
+		flow.inWatts = s.BatteryInWatts
+		flow.hasIn = true
+	}
+	if s.HasBatteryOut {
+		flow.outWatts = s.BatteryOutWatts
+		flow.hasOut = true
+	}
+
+	if (!flow.hasIn || !flow.hasOut) && s.HasBatteryAmp && s.HasBatteryVolts {
+		busWatts := normalizeCurrentAmps(s.BatteryAmp) * normalizeVoltageVolts(s.BatteryVolts)
+		if math.Abs(busWatts) >= idleDrawNoiseFloorWatts {
+			if busWatts > 0 && !flow.hasIn {
+				flow.inWatts = busWatts
+				flow.hasIn = true
+			}
+			if busWatts < 0 && !flow.hasOut {
+				flow.outWatts = -busWatts
+				flow.hasOut = true
+			}
+		}
+	}
+
+	if !flow.hasIn && packChargeW > idleDrawNoiseFloorWatts {
+		flow.inWatts = packChargeW
+		flow.hasIn = true
+	}
+	if !flow.hasOut && packDischargeW > idleDrawNoiseFloorWatts {
+		flow.outWatts = packDischargeW
+		flow.hasOut = true
+	}
+
+	if hasEffectiveIn && hasEffectiveOut {
+		netWatts := effectiveIn - effectiveOut
+		switch {
+		case netWatts > systemStateNetThresholdWatts:
+			flow.inWatts = netWatts
+			flow.hasIn = true
+			flow.outWatts = 0
+			flow.hasOut = true
+			flow.fromNetIO = true
+		case netWatts < -systemStateNetThresholdWatts:
+			flow.outWatts = -netWatts
+			flow.hasOut = true
+			flow.inWatts = 0
+			flow.hasIn = true
+			flow.fromNetIO = true
+		}
+	}
+
+	if !flow.fromNetIO {
+		if flow.hasIn {
+			if sanitized, ok := s.sanitizeBatteryFlowHintWatts(flow.inWatts); ok {
+				flow.inWatts = sanitized
+			} else {
+				flow.hasIn = false
+			}
+		}
+		if flow.hasOut {
+			if sanitized, ok := s.sanitizeBatteryFlowHintWatts(flow.outWatts); ok {
+				flow.outWatts = sanitized
+			} else {
+				flow.hasOut = false
+			}
+		}
+	}
+
+	if flow.hasIn && !flow.hasOut {
+		flow.outWatts = 0
+		flow.hasOut = true
+	}
+	if flow.hasOut && !flow.hasIn {
+		flow.inWatts = 0
+		flow.hasIn = true
+	}
+
+	if flow.hasIn || flow.hasOut {
+		flow.netWatts = flow.inWatts - flow.outWatts
+		if math.Abs(flow.netWatts) <= idleDrawNoiseFloorWatts {
+			flow.netWatts = 0
+		}
+		flow.hasNet = true
+	}
+
+	return flow
+}
+
 func extractBatteryPacks(quota map[string]any) map[int]packSnapshot {
 	out := make(map[int]packSnapshot)
 	for key, raw := range quota {

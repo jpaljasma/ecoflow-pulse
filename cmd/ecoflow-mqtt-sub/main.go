@@ -324,6 +324,10 @@ type energySnapshot struct {
 	DataUpdatedAt          time.Time
 	HasDataUpdatedAt       bool
 
+	sensorUpdates   []sensorUpdateEvent
+	sensorStateLast map[string]bool
+	sensorStateSeen map[string]bool
+
 	Packs        map[int]*packSnapshot
 	PackSNToNo   map[string]int
 	KitSOC       map[string]float64
@@ -382,6 +386,12 @@ type energySnapshot struct {
 	mlConfidenceEWMA float64
 	hasMLConfEWMA    bool
 	mlTopStateUse    bool
+}
+
+type sensorUpdateEvent struct {
+	At     time.Time
+	Sensor string
+	Status string
 }
 
 type snapshotDerived struct {
@@ -636,10 +646,12 @@ func (l *mqttOutputLogger) Printf(format string, args ...any) {
 
 func newEnergySnapshot() *energySnapshot {
 	return &energySnapshot{
-		Packs:        make(map[int]*packSnapshot),
-		PackSNToNo:   make(map[string]int),
-		KitSOC:       make(map[string]float64),
-		Temperatures: make(map[string]float64),
+		Packs:           make(map[int]*packSnapshot),
+		PackSNToNo:      make(map[string]int),
+		KitSOC:          make(map[string]float64),
+		Temperatures:    make(map[string]float64),
+		sensorStateLast: make(map[string]bool),
+		sensorStateSeen: make(map[string]bool),
 	}
 }
 
@@ -911,13 +923,26 @@ func (h *minuteTelemetryHistory) AddSample(at time.Time, snapshot *energySnapsho
 		bucket.DCOutSumWatts += snapshot.OutDCWatts
 		bucket.DCOutSamples++
 	}
-	if batteryChargeWatts, hasBatteryCharge := snapshot.effectiveBatteryChargeWatts(); hasBatteryCharge {
-		bucket.BatteryChargeSumWatts += batteryChargeWatts
-		bucket.BatteryChargeSamples++
-	}
-	if batteryNetWatts, hasBatteryNet := snapshot.effectiveBatteryNetWatts(); hasBatteryNet {
-		bucket.BatteryNetSumWatts += batteryNetWatts
+	packChargeW, packDischargeW := packPowerTotals(snapshot.Packs)
+	effectiveIn, hasEffectiveIn, effectiveOut, hasEffectiveOut :=
+		snapshot.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	batteryFlow := snapshot.batteryFlowForDisplay(
+		effectiveIn,
+		hasEffectiveIn,
+		effectiveOut,
+		hasEffectiveOut,
+		packChargeW,
+		packDischargeW,
+	)
+	if batteryFlow.hasNet {
+		bucket.BatteryNetSumWatts += batteryFlow.netWatts
 		bucket.BatteryNetSamples++
+		chargeWatts := 0.0
+		if batteryFlow.netWatts > 0 {
+			chargeWatts = batteryFlow.netWatts
+		}
+		bucket.BatteryChargeSumWatts += chargeWatts
+		bucket.BatteryChargeSamples++
 	}
 
 	h.pruneOldest()
@@ -957,13 +982,26 @@ func (h *powerTelemetryHistory) AddSample(at time.Time, snapshot *energySnapshot
 		bucket.DCOutSumWatts += snapshot.OutDCWatts
 		bucket.DCOutSamples++
 	}
-	if batteryChargeWatts, hasBatteryCharge := snapshot.effectiveBatteryChargeWatts(); hasBatteryCharge {
-		bucket.BatteryChargeSumWatts += batteryChargeWatts
-		bucket.BatteryChargeSamples++
-	}
-	if batteryNetWatts, hasBatteryNet := snapshot.effectiveBatteryNetWatts(); hasBatteryNet {
-		bucket.BatteryNetSumWatts += batteryNetWatts
+	packChargeW, packDischargeW := packPowerTotals(snapshot.Packs)
+	effectiveIn, hasEffectiveIn, effectiveOut, hasEffectiveOut :=
+		snapshot.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	batteryFlow := snapshot.batteryFlowForDisplay(
+		effectiveIn,
+		hasEffectiveIn,
+		effectiveOut,
+		hasEffectiveOut,
+		packChargeW,
+		packDischargeW,
+	)
+	if batteryFlow.hasNet {
+		bucket.BatteryNetSumWatts += batteryFlow.netWatts
 		bucket.BatteryNetSamples++
+		chargeWatts := 0.0
+		if batteryFlow.netWatts > 0 {
+			chargeWatts = batteryFlow.netWatts
+		}
+		bucket.BatteryChargeSumWatts += chargeWatts
+		bucket.BatteryChargeSamples++
 	}
 
 	h.pruneOldest()
@@ -2841,6 +2879,11 @@ func (s *energySnapshot) Update(
 		}
 	}
 
+	var fanStateValue int64
+	hasFanStateInQuota := false
+	var fanLevelValue int64
+	hasFanLevelInQuota := false
+
 	for key, value := range quota {
 		if strings.Contains(key, ".") {
 			continue
@@ -3068,15 +3111,13 @@ func (s *energySnapshot) Update(
 			}
 		case "fanstate":
 			if state, ok := numberFromAny(value); ok {
-				s.FanOn = int64(state) > 0
-				s.HasFanOn = true
+				fanStateValue = int64(state)
+				hasFanStateInQuota = true
 			}
 		case "fanlevel":
 			if level, ok := numberFromAny(value); ok {
-				s.FanLevelRaw = int64(level)
-				s.HasFanLevel = true
-				s.FanOn = s.FanLevelRaw > 0
-				s.HasFanOn = true
+				fanLevelValue = int64(level)
+				hasFanLevelInQuota = true
 			}
 		case "inputwatts":
 			if !s.HasWattsIn || s.WattsIn == 0 {
@@ -3106,6 +3147,21 @@ func (s *energySnapshot) Update(
 				s.Temperatures[normalizeTempKey(key)+".max"] = maxValue
 			}
 		}
+	}
+
+	// Resolve fan fields deterministically. If both keys exist in one payload,
+	// explicit fanState is authoritative and must not be overridden by fanLevel.
+	if hasFanLevelInQuota {
+		s.FanLevelRaw = fanLevelValue
+		s.HasFanLevel = true
+	}
+	if hasFanStateInQuota {
+		s.FanOn = fanStateValue > 0
+		s.HasFanOn = true
+	} else if hasFanLevelInQuota {
+		// Use fanLevel as fallback only when fanState is absent in this update.
+		s.FanOn = fanLevelValue > 0
+		s.HasFanOn = true
 	}
 
 	for packNo, pack := range extractBatteryPacks(quota) {
@@ -3417,7 +3473,9 @@ func (s *energySnapshot) Update(
 			s.HasDeviceSOC = true
 		}
 	}
-	s.DataUpdatedAt = time.Now()
+	now := time.Now()
+	s.recordSensorStatusTransitions(now)
+	s.DataUpdatedAt = now
 	s.HasDataUpdatedAt = true
 }
 
@@ -3604,88 +3662,24 @@ func (s *energySnapshot) derived() snapshotDerived {
 		derived.SocGuardrail = minSoc + " .. " + maxSoc
 	}
 
-	batteryInWatts := 0.0
-	hasBatteryIn := false
-	batteryFlowFromNet := false
-	if s.HasBatteryIn {
-		batteryInWatts = s.BatteryInWatts
-		hasBatteryIn = true
-	}
-	batteryOutWatts := 0.0
-	hasBatteryOut := false
-	if s.HasBatteryOut {
-		batteryOutWatts = s.BatteryOutWatts
-		hasBatteryOut = true
-	}
-	if (!hasBatteryIn || !hasBatteryOut) && s.HasBatteryAmp && s.HasBatteryVolts {
-		busWatts := normalizeCurrentAmps(s.BatteryAmp) * normalizeVoltageVolts(s.BatteryVolts)
-		if math.Abs(busWatts) >= idleDrawNoiseFloorWatts {
-			if busWatts > 0 && !hasBatteryIn {
-				batteryInWatts = busWatts
-				hasBatteryIn = true
-			}
-			if busWatts < 0 && !hasBatteryOut {
-				batteryOutWatts = -busWatts
-				hasBatteryOut = true
-			}
-		}
-	}
-	if !hasBatteryIn && packChargeW > idleDrawNoiseFloorWatts {
-		batteryInWatts = packChargeW
-		hasBatteryIn = true
-	}
-	if !hasBatteryOut && packDischargeW > idleDrawNoiseFloorWatts {
-		batteryOutWatts = packDischargeW
-		hasBatteryOut = true
-	}
-	if derived.HasEffectiveIn && derived.HasEffectiveOut {
-		netWatts := derived.EffectiveIn - derived.EffectiveOut
-		switch {
-		case netWatts > systemStateNetThresholdWatts:
-			// Total in/out is the most reliable battery direction signal.
-			batteryInWatts = netWatts
-			hasBatteryIn = true
-			batteryOutWatts = 0
-			hasBatteryOut = true
-			batteryFlowFromNet = true
-		case netWatts < -systemStateNetThresholdWatts:
-			batteryOutWatts = -netWatts
-			hasBatteryOut = true
-			batteryInWatts = 0
-			hasBatteryIn = true
-			batteryFlowFromNet = true
-		}
-	}
-	if !batteryFlowFromNet {
-		if hasBatteryIn {
-			if sanitized, ok := s.sanitizeBatteryFlowHintWatts(batteryInWatts); ok {
-				batteryInWatts = sanitized
-			} else {
-				hasBatteryIn = false
-			}
-		}
-		if hasBatteryOut {
-			if sanitized, ok := s.sanitizeBatteryFlowHintWatts(batteryOutWatts); ok {
-				batteryOutWatts = sanitized
-			} else {
-				hasBatteryOut = false
-			}
-		}
-	}
-	if hasBatteryIn && !hasBatteryOut {
-		batteryOutWatts = 0
-		hasBatteryOut = true
-	}
-	if hasBatteryOut && !hasBatteryIn {
-		batteryInWatts = 0
-		hasBatteryIn = true
-	}
+	flow := s.batteryFlowForDisplay(
+		derived.EffectiveIn,
+		derived.HasEffectiveIn,
+		derived.EffectiveOut,
+		derived.HasEffectiveOut,
+		packChargeW,
+		packDischargeW,
+	)
+	batteryInWatts := flow.inWatts
+	batteryOutWatts := flow.outWatts
+	hasBatteryIn := flow.hasIn
+	hasBatteryOut := flow.hasOut
 	derived.BatteryInValue = formatOptionalWatts(hasBatteryIn, batteryInWatts)
 	derived.BatteryOutValue = formatOptionalWatts(hasBatteryOut, batteryOutWatts)
 	derived.BatteryNetValue = "n/a"
-	if hasBatteryIn || hasBatteryOut {
+	if flow.hasNet {
 		// Positive when charging, negative when discharging.
-		derived.BatteryNetValue = formatWatts(batteryInWatts - batteryOutWatts)
+		derived.BatteryNetValue = formatWatts(flow.netWatts)
 	}
 	solarPassthroughOn := isLikelySolarPassthrough(s, batteryInWatts, hasBatteryIn, batteryOutWatts, hasBatteryOut)
 	derived.StatusSolarPassValue = checkboxStatus(solarPassthroughOn)
@@ -3805,6 +3799,7 @@ func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableCo
 		acOutWh, hasACOutWh := averageWh(bucket.ACOutSumWatts, bucket.ACOutSamples)
 		dcOutWh, hasDCOutWh := averageWh(bucket.DCOutSumWatts, bucket.DCOutSamples)
 		batteryChargeWh, hasBatteryChargeWh := averageWh(bucket.BatteryChargeSumWatts, bucket.BatteryChargeSamples)
+		batteryNetWh, hasBatteryNetWh := averageWh(bucket.BatteryNetSumWatts, bucket.BatteryNetSamples)
 
 		totalInWh := 0.0
 		hasTotalInWh := false
@@ -3827,8 +3822,8 @@ func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableCo
 			totalOutWh += dcOutWh
 			hasTotalOutWh = true
 		}
-		netWh := totalInWh - totalOutWh
-		hasNetWh := hasTotalInWh || hasTotalOutWh
+		netWh := batteryNetWh
+		hasNetWh := hasBatteryNetWh
 
 		out = append(out, []string{
 			time.Unix(bucket.MinuteStartUnix, 0).Local().Format("2006-01-02 15:04"),

@@ -29,6 +29,9 @@ type dashboardViewModel struct {
 	minuteHeaders []string
 	minuteRows    [][]string
 
+	sensorHeaders []string
+	sensorRows    [][]string
+
 	statusLines []string
 }
 
@@ -70,6 +73,8 @@ func buildDashboardViewModel(
 	pvHighLabel := formatPVInputRowLabel("high", device, snapshot)
 	pvLowCapability := formatPVInputCapability("low", device, snapshot)
 	pvHighCapability := formatPVInputCapability("high", device, snapshot)
+	pvLowUtilization := formatPVUtilizationGauge("low", device, snapshot, hasPVLowRaw, pvLowRaw, hasPVLowSmooth, pvLowSmooth)
+	pvHighUtilization := formatPVUtilizationGauge("high", device, snapshot, hasPVHighRaw, pvHighRaw, hasPVHighSmooth, pvHighSmooth)
 	showXT150 := shouldShowXT150Channels(device, snapshot, derived)
 
 	channelsInValue := fmt.Sprintf("ac: %s pv_total: %s", derived.InACValue, pvTotalDisplay)
@@ -86,7 +91,7 @@ func buildDashboardViewModel(
 		"In",
 		"Out",
 		"Net",
-		"Remain",
+		"Details",
 	}
 	mlEstimates := estimateBatteryETAsML(snapshot, minuteHistory, systemStateKind(derived.SystemStateValue))
 	primaryEstimateCharge := firstNonEmpty(strings.TrimSpace(mlEstimates.ChargeValue), "n/a")
@@ -141,14 +146,14 @@ func buildDashboardViewModel(
 			pvLowCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVLowVoltsValue, derived.PVLowAmpsValue, pvLowDisplay),
 			formatSolarNetSummary(derived.PVLowStateValue, pvLowDisplay),
-			"-",
+			pvLowUtilization,
 		},
 		{
 			pvHighLabel,
 			pvHighCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVHighVoltsValue, derived.PVHighAmpsValue, pvHighDisplay),
 			formatSolarNetSummary(derived.PVHighStateValue, pvHighDisplay),
-			"-",
+			pvHighUtilization,
 		},
 		{
 			"battery",
@@ -257,6 +262,11 @@ func buildDashboardViewModel(
 	if len(minuteRows) == 0 {
 		minuteRows = append(minuteRows, []string{"n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a"})
 	}
+	sensorHeaders := []string{"Time", "Notification", "Status"}
+	sensorRows := buildSensorUpdateRows(snapshot, sensorUpdateHistorySize)
+	if len(sensorRows) == 0 {
+		sensorRows = append(sensorRows, []string{"n/a", "n/a", "n/a"})
+	}
 
 	statusLines := make([]string, 0, 8)
 	showSeparateUSBAndDC := shouldShowSeparateUSBAndDC(device, snapshot)
@@ -301,6 +311,9 @@ func buildDashboardViewModel(
 
 		minuteHeaders: minuteHeaders,
 		minuteRows:    minuteRows,
+
+		sensorHeaders: sensorHeaders,
+		sensorRows:    sensorRows,
 
 		statusLines: statusLines,
 	}
@@ -375,28 +388,26 @@ func selectTopStateValue(
 
 func topStateDisplayIcon(state systemStateKind, value string, source string) string {
 	displayState := state
-	if displayState == systemStateUnknown {
-		lower := strings.ToLower(strings.TrimSpace(value))
-		switch {
-		case strings.HasPrefix(lower, "charging:"):
-			displayState = systemStateCharging
-		case strings.HasPrefix(lower, "discharging:"):
-			displayState = systemStateDischarging
-		case strings.HasPrefix(lower, "idle:"):
-			displayState = systemStateIdle
-		}
+	lower := strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.HasPrefix(lower, "charging:"):
+		displayState = systemStateCharging
+	case strings.HasPrefix(lower, "discharging:"):
+		displayState = systemStateDischarging
+	case strings.HasPrefix(lower, "idle:"):
+		displayState = systemStateIdle
 	}
 	source = strings.ToLower(strings.TrimSpace(source))
 	if displayState == systemStateCharging {
 		switch source {
 		case "solar":
-			return "🔆"
+			return "🌞"
 		case "hybrid(ac+solar)":
-			return "🌤"
+			return "🔆"
 		case "ac":
-			return "⚡"
+			return "🌩"
 		default:
-			return "⚡"
+			return "🌩"
 		}
 	}
 	switch displayState {
@@ -496,6 +507,19 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 		acInWatts = math.Abs(snapshot.InACWatts)
 		hasACIn = true
 	}
+	acOutWatts := 0.0
+	hasACOut := false
+	if snapshot.HasOutAC {
+		acOutWatts = math.Abs(snapshot.OutACWatts)
+		hasACOut = true
+	}
+	if snapshot.HasOutACL14 {
+		l14 := math.Abs(snapshot.OutACL14Watts)
+		if !hasACOut || l14 > acOutWatts {
+			acOutWatts = l14
+			hasACOut = true
+		}
+	}
 
 	pvInWatts := 0.0
 	hasPVIn := false
@@ -504,7 +528,19 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 		hasPVIn = true
 	}
 
-	acActive := hasACIn && acInWatts > sourceMinWatts
+	// Do not count AC passthrough load as charging source; only residual AC input
+	// above load should be attributed to battery charging.
+	acChargeWatts := acInWatts
+	if hasACIn && hasACOut {
+		residual := acInWatts - acOutWatts
+		switch {
+		case residual > sourceMinWatts:
+			acChargeWatts = residual
+		case isLikelyACPassthrough(true, acInWatts, true, acOutWatts):
+			acChargeWatts = 0
+		}
+	}
+	acActive := hasACIn && acChargeWatts > sourceMinWatts
 	pvActive := hasPVIn && pvInWatts > sourceMinWatts
 
 	switch state {
@@ -697,6 +733,55 @@ func formatPVInputCapability(channel string, device ecoflow.GeneralInfoDevice, s
 		formatAmpsLimit(capability.maxAmps),
 		formatPVCapacityWatts(capability.maxWatts),
 	)
+}
+
+func formatPVUtilizationGauge(
+	channel string,
+	device ecoflow.GeneralInfoDevice,
+	snapshot *energySnapshot,
+	hasRaw bool,
+	rawWatts float64,
+	hasSmooth bool,
+	smoothWatts float64,
+) string {
+	maxWatts, ok := estimatePVInputMaxWatts(channel, device, snapshot)
+	if !ok || maxWatts <= 0 {
+		return "n/a"
+	}
+
+	watts := 0.0
+	hasWatts := false
+	switch {
+	case hasRaw:
+		watts = math.Abs(rawWatts)
+		hasWatts = true
+	case hasSmooth:
+		watts = math.Abs(smoothWatts)
+		hasWatts = true
+	}
+	if !hasWatts {
+		return "n/a"
+	}
+
+	percent := (watts / maxWatts) * 100.0
+	if percent < 0 {
+		percent = 0
+	}
+	return fmt.Sprintf("%7.1f%% %s", percent, formatUtilizationGauge(percent, 10))
+}
+
+func formatUtilizationGauge(percent float64, width int) string {
+	if width <= 0 {
+		width = 10
+	}
+	filled := int(math.Round((math.Max(0, percent) / 100.0) * float64(width)))
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", width-filled) + "]"
 }
 
 func estimatePVInputCapability(channel string, device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) (pvInputCapability, bool) {
