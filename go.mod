@@ -1,4 +1,4 @@
-module github.com/jpaljasma/ecoflow-api-playground
+module github.com/jpaljasma/ecoflow-pulse
 
 go 1.26
 

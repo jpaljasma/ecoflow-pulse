@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jpaljasma/ecoflow-api-playground/pkg/ecoflow"
-	"github.com/jpaljasma/ecoflow-api-playground/pkg/ecoflowmqtt"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 )
 
 func newReconnectAttemptState(initialBackoff, maxBackoff time.Duration) *reconnectAttemptState {

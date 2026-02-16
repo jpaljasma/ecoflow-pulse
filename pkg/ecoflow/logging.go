@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jpaljasma/ecoflow-api-playground/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
 
 // LoggingOptions controls client-side structured logging behavior.

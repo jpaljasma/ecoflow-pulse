@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/jpaljasma/ecoflow-api-playground/pkg/ecoflowserver"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowserver"
 )
 
 func main() {

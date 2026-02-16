@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jpaljasma/ecoflow-api-playground/pkg/ecoflow"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 )
 
 func TestEnergySnapshotETAEstimatesRow(t *testing.T) {

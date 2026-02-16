@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jpaljasma/ecoflow-api-playground/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
 
 func TestClient_Do_LogsOutgoingRequestWhenDebugEnabled(t *testing.T) {

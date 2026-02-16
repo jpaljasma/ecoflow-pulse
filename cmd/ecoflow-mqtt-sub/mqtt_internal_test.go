@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jpaljasma/ecoflow-api-playground/pkg/ecoflowmqtt"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 )
 
 func TestReconnectAttemptStateBackoffAndReset(t *testing.T) {
