@@ -12,7 +12,6 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -53,12 +52,14 @@ const (
 	defaultPowerSmoothingSamples = 6
 	defaultStateSmoothingSamples = 6
 	defaultMQTTQueueCapacity     = 64
+	defaultMQTTLogQueueCapacity  = 2048
 	defaultMQTTAuthRejectThresh  = 3
 	defaultMQTTFallbackPollEvery = 15 * time.Second
 	defaultMQTTFallbackPollTO    = 12 * time.Second
 	defaultMQTTReconcileEvery    = 1 * time.Minute
 	defaultMQTTReconcileTO       = 12 * time.Second
 	defaultUIRefreshEvery        = 1 * time.Second
+	defaultUIQueueCapacity       = 8
 	passthroughMinWatts          = 20.0
 	passthroughAbsToleranceWatts = 15.0
 	passthroughRelTolerance      = 0.12
@@ -546,9 +547,8 @@ type minuteTelemetryRecord struct {
 }
 
 type minuteTelemetryStore struct {
-	mu   sync.Mutex
 	path string
-	file *os.File
+	sink *fileAppendSink
 }
 
 type rollingAverage struct {
@@ -612,23 +612,39 @@ type mqttQueueStats struct {
 }
 
 type mqttOutputLogger struct {
-	mu   sync.Mutex
-	file *os.File
+	mu      sync.RWMutex
+	sink    *fileAppendSink
+	queue   chan []byte
+	wg      sync.WaitGroup
+	closed  bool
+	dropped atomic.Uint64
 }
 
-func newMQTTOutputLogger(path string) (*mqttOutputLogger, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil, errors.New("mqtt log path is empty")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("create mqtt log directory: %w", err)
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+func newMQTTOutputLogger(path string, queueCapacity int) (*mqttOutputLogger, error) {
+	sink, err := newFileAppendSink(path, defaultAppendChunkBytes)
 	if err != nil {
-		return nil, fmt.Errorf("open mqtt log file: %w", err)
+		return nil, fmt.Errorf("init mqtt log append sink: %w", err)
 	}
-	return &mqttOutputLogger{file: file}, nil
+	if queueCapacity <= 0 {
+		queueCapacity = defaultMQTTLogQueueCapacity
+	}
+	logger := &mqttOutputLogger{
+		sink:  sink,
+		queue: make(chan []byte, queueCapacity),
+	}
+	logger.wg.Add(1)
+	go logger.runWriter()
+	return logger, nil
+}
+
+func (l *mqttOutputLogger) runWriter() {
+	defer l.wg.Done()
+	for payload := range l.queue {
+		if l.sink == nil || len(payload) == 0 {
+			continue
+		}
+		_ = l.sink.WriteChunk(payload)
+	}
 }
 
 func (l *mqttOutputLogger) Close() error {
@@ -636,12 +652,27 @@ func (l *mqttOutputLogger) Close() error {
 		return nil
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.file == nil {
+	if l.closed {
+		l.mu.Unlock()
 		return nil
 	}
-	err := l.file.Close()
-	l.file = nil
+	l.closed = true
+	queue := l.queue
+	l.mu.Unlock()
+
+	if queue != nil {
+		close(queue)
+	}
+	l.wg.Wait()
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.sink == nil {
+		return nil
+	}
+	err := l.sink.Close()
+	l.sink = nil
+	l.queue = nil
 	return err
 }
 
@@ -654,12 +685,50 @@ func (l *mqttOutputLogger) Printf(format string, args ...any) {
 		line += "\n"
 	}
 	ts := time.Now().Format(time.RFC3339Nano)
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.file == nil {
+	payload := []byte(ts + " " + line)
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if l.closed || l.queue == nil {
 		return
 	}
-	_, _ = l.file.WriteString(ts + " " + line)
+	_, dropped := enqueueLoggerChunkDropOldest(l.queue, payload, &l.dropped)
+	if dropped {
+		// Intentionally silent to avoid recursive logging on logger pressure.
+	}
+}
+
+func (l *mqttOutputLogger) DroppedCount() uint64 {
+	if l == nil {
+		return 0
+	}
+	return l.dropped.Load()
+}
+
+func enqueueLoggerChunkDropOldest(queue chan []byte, payload []byte, counter *atomic.Uint64) (enqueued bool, droppedOldest bool) {
+	if queue == nil {
+		return false, false
+	}
+	select {
+	case queue <- payload:
+		return true, false
+	default:
+	}
+	select {
+	case <-queue:
+		droppedOldest = true
+		if counter != nil {
+			counter.Add(1)
+		}
+	default:
+	}
+	select {
+	case queue <- payload:
+		return true, droppedOldest
+	default:
+		// If we still can't enqueue under contention, keep the old queue content.
+		return false, droppedOldest
+	}
 }
 
 func newEnergySnapshot() *energySnapshot {
@@ -757,20 +826,13 @@ func newPowerTelemetryHistory(bucketWindow time.Duration, maxBuckets int) *power
 }
 
 func newMinuteTelemetryStore(path string) (*minuteTelemetryStore, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil, errors.New("minute telemetry history path is empty")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("create minute telemetry history directory: %w", err)
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	sink, err := newFileAppendSink(path, defaultAppendChunkBytes)
 	if err != nil {
-		return nil, fmt.Errorf("open minute telemetry history file: %w", err)
+		return nil, fmt.Errorf("init minute telemetry append sink: %w", err)
 	}
 	return &minuteTelemetryStore{
-		path: path,
-		file: file,
+		path: sink.Path(),
+		sink: sink,
 	}, nil
 }
 
@@ -785,13 +847,11 @@ func (s *minuteTelemetryStore) Close() error {
 	if s == nil {
 		return nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.file == nil {
+	if s.sink == nil {
 		return nil
 	}
-	err := s.file.Close()
-	s.file = nil
+	err := s.sink.Close()
+	s.sink = nil
 	return err
 }
 
@@ -827,12 +887,10 @@ func (s *minuteTelemetryStore) AppendBucket(deviceSN string, bucket minuteTeleme
 	}
 	payload = append(payload, '\n')
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.file == nil {
+	if s.sink == nil {
 		return errors.New("minute telemetry history file is closed")
 	}
-	if _, err := s.file.Write(payload); err != nil {
+	if err := s.sink.WriteChunk(payload); err != nil {
 		return fmt.Errorf("append minute telemetry record: %w", err)
 	}
 	return nil
@@ -1148,13 +1206,20 @@ func main() {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	mqttLogQueueCapacity := parsePositiveIntEnv("ECOFLOW_MQTT_LOG_QUEUE_CAPACITY", defaultMQTTLogQueueCapacity)
 	mqttLogPath := envOrDefault("ECOFLOW_MQTT_LOG_PATH", "logs/mqtt.log")
-	runLog, err := newMQTTOutputLogger(mqttLogPath)
+	runLog, err := newMQTTOutputLogger(mqttLogPath, mqttLogQueueCapacity)
 	if err != nil {
 		fatalf("init mqtt run log: %v", err)
 	}
 	defer func() {
-		_ = runLog.Close()
+		dropped := runLog.DroppedCount()
+		if dropped > 0 {
+			logger.Warn("mqtt run log dropped queued chunks", slog.Uint64("dropped_chunks", dropped))
+		}
+		if closeErr := runLog.Close(); closeErr != nil {
+			logger.Warn("flush/close mqtt run log failed", slog.String("error", closeErr.Error()))
+		}
 	}()
 	runLog.Printf("session_start")
 
@@ -1184,8 +1249,44 @@ func main() {
 	if err != nil {
 		fatalf("select target device: %v", err)
 	}
+	lockDir := envOrDefault("ECOFLOW_MQTT_LOCK_DIR", defaultDeviceLockDir)
+	if err := cleanupStaleDeviceLocks(lockDir); err != nil {
+		logger.Warn("stale device lock cleanup skipped", slog.String("error", err.Error()))
+	}
+	instanceLock, err := acquireDeviceInstanceLock(lockDir, targetDevice.SN, targetDevice.ProductName)
+	if err != nil {
+		fatalf("acquire device serial lock: %v", err)
+	}
+	defer func() {
+		if closeErr := instanceLock.Close(); closeErr != nil {
+			logger.Warn("release device instance lock failed", slog.String("error", closeErr.Error()))
+		}
+	}()
+	runLog.Printf("instance_lock_acquired sn=%s path=%s", targetDevice.SN, instanceLock.Path())
+	logger.Info(
+		"device instance lock acquired",
+		slog.String("device_sn", targetDevice.SN),
+		slog.String("path", instanceLock.Path()),
+	)
 	printPayload := parseBoolEnv("ECOFLOW_MQTT_PRINT_PAYLOAD", false)
 	tableView := parseBoolEnv("ECOFLOW_MQTT_TABLE_VIEW", true) && !printPayload
+	var uiWriter *asyncUIWriter
+	if tableView {
+		uiQueueCapacity := parsePositiveIntEnv("ECOFLOW_MQTT_UI_QUEUE_CAPACITY", defaultUIQueueCapacity)
+		uiWriter = newAsyncUIWriter(os.Stdout, uiQueueCapacity)
+		defer func() {
+			if uiWriter == nil {
+				return
+			}
+			dropped := uiWriter.DroppedCount()
+			if dropped > 0 {
+				logger.Warn("ui frames dropped queued updates", slog.Uint64("dropped_frames", dropped))
+			}
+			if closeErr := uiWriter.Close(); closeErr != nil {
+				logger.Warn("flush/close ui writer failed", slog.String("error", closeErr.Error()))
+			}
+		}()
+	}
 	logBootstrapRaw := parseBoolEnv("ECOFLOW_MQTT_LOG_BOOTSTRAP_RAW", true)
 	idleReconnectAfter := durationAllowZero("ECOFLOW_MQTT_IDLE_RECONNECT_AFTER", 0)
 	minuteTableConfig := minuteTableConfig{
@@ -1222,7 +1323,9 @@ func main() {
 		fatalf("init minute telemetry history store: %v", err)
 	}
 	defer func() {
-		_ = minuteHistoryStore.Close()
+		if closeErr := minuteHistoryStore.Close(); closeErr != nil {
+			logger.Warn("flush/close minute telemetry history store failed", slog.String("error", closeErr.Error()))
+		}
 	}()
 	var trainingCSVStore *trainingTelemetryCSVStore
 	if trainingCSVEnabled {
@@ -1232,7 +1335,9 @@ func main() {
 			runLog.Printf("training_csv_init_error path=%s error=%q", trainingCSVPath, err.Error())
 		} else {
 			defer func() {
-				_ = trainingCSVStore.Close()
+				if closeErr := trainingCSVStore.Close(); closeErr != nil {
+					logger.Warn("flush/close training telemetry csv store failed", slog.String("error", closeErr.Error()))
+				}
 			}()
 			runLog.Printf(
 				"training_csv_enabled path=%s interval=%s jitter=%.3f",
@@ -1377,6 +1482,17 @@ func main() {
 	snapshot.MQTTLastError = ""
 
 	lastEnvelope := telemetryEnvelope{TypeCode: "n/a"}
+	emitDashboard := func(envelope telemetryEnvelope) {
+		if !tableView {
+			return
+		}
+		frame := renderDashboard(targetDevice, currentTopic, envelope, snapshot, minuteHistory, minuteTableConfig)
+		if uiWriter != nil {
+			uiWriter.Enqueue(frame)
+			return
+		}
+		fmt.Print(frame)
+	}
 	debugTelemetry := logger.Enabled(ctx, slog.LevelDebug)
 	captureTrainingTelemetry := func(at time.Time, topic string, envelope telemetryEnvelope, quota map[string]any) {
 		if trainingCSVStore == nil {
@@ -1406,7 +1522,7 @@ func main() {
 		recordMinuteSample(now)
 		captureTrainingTelemetry(now, currentTopic, lastEnvelope, nil)
 		if tableView {
-			fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
+			emitDashboard(lastEnvelope)
 		} else {
 			summary := snapshot.String()
 			fmt.Printf("energy_summary %s\n", summary)
@@ -1538,7 +1654,7 @@ func main() {
 				}
 			}
 			if tableView {
-				fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
+				emitDashboard(lastEnvelope)
 			}
 		case <-fallbackTicker.C:
 			if !snapshot.MQTTFallbackActive {
@@ -1568,7 +1684,7 @@ func main() {
 				pollReport.MappedPacks,
 			)
 			if tableView {
-				fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
+				emitDashboard(lastEnvelope)
 			} else {
 				summary := snapshot.String()
 				fmt.Printf("energy_summary %s\n", summary)
@@ -1600,11 +1716,11 @@ func main() {
 				reconcileReport.MappedPacks,
 			)
 			if tableView {
-				fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
+				emitDashboard(lastEnvelope)
 			}
 		case <-uiRefreshCh:
 			if tableView {
-				fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
+				emitDashboard(lastEnvelope)
 			}
 		case msg := <-mqttIngressQueue:
 			if len(msg.Payload) == 0 {
@@ -1679,7 +1795,7 @@ func main() {
 			}
 
 			if tableView {
-				fmt.Print(renderDashboard(targetDevice, currentTopic, envelope, snapshot, minuteHistory, minuteTableConfig))
+				emitDashboard(lastEnvelope)
 			} else {
 				summary := snapshot.String()
 				fmt.Printf("energy_summary %s\n", summary)
@@ -2102,6 +2218,146 @@ func shouldSeedBootstrapChannel(key string, value any) bool {
 		return true
 	}
 	return false
+}
+
+var updateQuotaLookupCandidateSuffixes = []string{
+	"chgremaintime",
+	"dsgremaintime",
+	"invoutwatts",
+	"outacttpwr",
+	"outprpwr",
+	"outacl14pwr",
+	"cfgacenabled",
+	"inv.cfgacenabled",
+	"invinwatts",
+	"wattsoutsum",
+	"wattsinsum",
+	"dcoutstate",
+}
+
+var updateQuotaLookupSumSuffixes = []string{
+	"outacttpwr",
+	"outac5p8pwr",
+	"outacl11pwr",
+	"outacl12pwr",
+	"outacl14pwr",
+	"outacl21pwr",
+	"outacl22pwr",
+	"outprpwr",
+	"invoutwatts",
+	"outusb1pwr",
+	"outusb2pwr",
+	"outtypec1pwr",
+	"outtypec2pwr",
+	"outadspwr",
+	"usb1watts",
+	"usb2watts",
+	"qcusb1watts",
+	"qcusb2watts",
+	"typec1watts",
+	"typec2watts",
+	"carwatts",
+	"wirewatts",
+	"inac5p8pwr",
+	"inacc20pwr",
+}
+
+type updateQuotaLookup struct {
+	byLower       map[string]any
+	firstBySuffix map[string]any
+	sumBySuffix   map[string]float64
+	hasBySuffix   map[string]bool
+	hasXT150      bool
+	xt150Total    float64
+}
+
+func newUpdateQuotaLookup(quota map[string]any) *updateQuotaLookup {
+	lookup := &updateQuotaLookup{
+		byLower:       make(map[string]any, len(quota)),
+		firstBySuffix: make(map[string]any, len(updateQuotaLookupCandidateSuffixes)),
+		sumBySuffix:   make(map[string]float64, len(updateQuotaLookupSumSuffixes)),
+		hasBySuffix:   make(map[string]bool, len(updateQuotaLookupSumSuffixes)),
+	}
+	for key, value := range quota {
+		lowerKey := strings.ToLower(strings.TrimSpace(key))
+		if lowerKey == "" {
+			continue
+		}
+		if _, ok := lookup.byLower[lowerKey]; !ok {
+			lookup.byLower[lowerKey] = value
+		}
+		for _, suffix := range updateQuotaLookupCandidateSuffixes {
+			if strings.HasSuffix(lowerKey, suffix) {
+				if _, exists := lookup.firstBySuffix[suffix]; !exists {
+					lookup.firstBySuffix[suffix] = value
+				}
+			}
+		}
+		if number, ok := numberFromAny(value); ok {
+			normalized := normalizeOutputChannelWatts(number)
+			for _, suffix := range updateQuotaLookupSumSuffixes {
+				if strings.HasSuffix(lowerKey, suffix) {
+					lookup.sumBySuffix[suffix] += normalized
+					lookup.hasBySuffix[suffix] = true
+				}
+			}
+			if strings.Contains(lowerKey, "xt150watts") {
+				lookup.hasXT150 = true
+				lookup.xt150Total += number
+			}
+		}
+	}
+	return lookup
+}
+
+func (q *updateQuotaLookup) findAny(candidates ...string) (any, bool) {
+	if q == nil {
+		return nil, false
+	}
+	for _, candidate := range candidates {
+		lowerCandidate := strings.ToLower(strings.TrimSpace(candidate))
+		if lowerCandidate == "" {
+			continue
+		}
+		if value, ok := q.byLower[lowerCandidate]; ok {
+			return value, true
+		}
+	}
+	for _, candidate := range candidates {
+		lowerCandidate := strings.ToLower(strings.TrimSpace(candidate))
+		if lowerCandidate == "" {
+			continue
+		}
+		if value, ok := q.firstBySuffix[lowerCandidate]; ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func (q *updateQuotaLookup) hasAny(candidates ...string) bool {
+	_, ok := q.findAny(candidates...)
+	return ok
+}
+
+func (q *updateQuotaLookup) sumAbsBySuffixes(suffixes ...string) (float64, bool) {
+	if q == nil {
+		return 0, false
+	}
+	total := 0.0
+	found := false
+	for _, suffix := range suffixes {
+		lowerSuffix := strings.ToLower(strings.TrimSpace(suffix))
+		if lowerSuffix == "" {
+			continue
+		}
+		if !q.hasBySuffix[lowerSuffix] {
+			continue
+		}
+		total += q.sumBySuffix[lowerSuffix]
+		found = true
+	}
+	return total, found
 }
 
 func findQuotaValueByCandidates(quota map[string]any, candidates ...string) (any, bool) {
@@ -2814,6 +3070,7 @@ func (s *energySnapshot) Update(
 	hasPDStatus bool,
 ) {
 	updateNow := time.Now()
+	scan := newUpdateQuotaLookup(quota)
 	acInputUpdated := false
 	wattsInUpdated := false
 
@@ -2826,34 +3083,34 @@ func (s *energySnapshot) Update(
 			s.ChgDsgStateRaw = pdStatus.ChgDsgState
 			s.HasChgDsgState = true
 		}
-		if rawChargeRemain, ok := findQuotaValueByCandidates(quota, "chgRemainTime"); ok {
+		if rawChargeRemain, ok := scan.findAny("chgRemainTime"); ok {
 			s.applyChargeRemain(toInt64(rawChargeRemain))
 		}
-		if rawDischargeRemain, ok := findQuotaValueByCandidates(quota, "dsgRemainTime"); ok {
+		if rawDischargeRemain, ok := scan.findAny("dsgRemainTime"); ok {
 			s.applyDischargeRemain(toInt64(rawDischargeRemain))
 		}
-		if hasQuotaKey(quota, "wattsInSum") || pdStatus.WattsInSum != 0 {
+		if scan.hasAny("wattsInSum") || pdStatus.WattsInSum != 0 {
 			s.WattsIn = pdStatus.WattsInSum
 			s.HasWattsIn = true
 			wattsInUpdated = true
 		}
-		if hasQuotaKey(quota, "wattsOutSum") || pdStatus.WattsOutSum != 0 {
+		if scan.hasAny("wattsOutSum") || pdStatus.WattsOutSum != 0 {
 			s.WattsOut = pdStatus.WattsOutSum
 			s.HasWattsOut = true
 		}
-		if rawOutAC, ok := findQuotaValueByCandidates(quota, "invOutWatts", "outAcTtPwr", "outPrPwr"); ok {
+		if rawOutAC, ok := scan.findAny("invOutWatts", "outAcTtPwr", "outPrPwr"); ok {
 			if outACWatts, ok := numberFromAny(rawOutAC); ok && outACWatts >= 0 {
 				s.OutACWatts = normalizeOutputChannelWatts(outACWatts)
 				s.HasOutAC = true
 			}
 		}
-		if rawOutACL14, ok := findQuotaValueByCandidates(quota, "outAcL14Pwr"); ok {
+		if rawOutACL14, ok := scan.findAny("outAcL14Pwr"); ok {
 			if outACL14Watts, ok := numberFromAny(rawOutACL14); ok && outACL14Watts >= 0 {
 				s.OutACL14Watts = normalizeOutputChannelWatts(outACL14Watts)
 				s.HasOutACL14 = true
 			}
 		}
-		if rawACOn, ok := findQuotaValueByCandidates(quota, "cfgAcEnabled", "inv.cfgAcEnabled"); ok {
+		if rawACOn, ok := scan.findAny("cfgAcEnabled", "inv.cfgAcEnabled"); ok {
 			if on, ok := boolFromAny(rawACOn); ok {
 				s.ACOn = on
 				s.HasACOn = true
@@ -2890,18 +3147,18 @@ func (s *energySnapshot) Update(
 			s.HasXT150 = true
 		}
 		// Accept explicit zero AC input updates so stale non-zero values do not linger.
-		if acIn, ok := sumByKeySuffix(quota, "inAc5p8Pwr", "inAcC20Pwr"); ok {
+		if acIn, ok := scan.sumAbsBySuffixes("inAc5p8Pwr", "inAcC20Pwr"); ok {
 			s.InACWatts = normalizeInputChannelWatts(acIn)
 			s.HasInAC = true
 			acInputUpdated = true
-		} else if rawInvIn, ok := findQuotaValueByCandidates(quota, "invInWatts"); ok {
+		} else if rawInvIn, ok := scan.findAny("invInWatts"); ok {
 			if invInWatts, ok := numberFromAny(rawInvIn); ok && invInWatts >= 0 {
 				s.InACWatts = normalizeInputChannelWatts(invInWatts)
 				s.HasInAC = true
 				acInputUpdated = true
 			}
 		}
-		if dcOut, hasDCChannels := sumByKeySuffix(quota, dcOutputSuffixes...); hasDCChannels {
+		if dcOut, hasDCChannels := scan.sumAbsBySuffixes(dcOutputSuffixes...); hasDCChannels {
 			s.OutDCWatts = normalizeOutputChannelWatts(dcOut)
 			s.HasOutDC = true
 			s.HasOutDCExplicit = true
@@ -2922,7 +3179,7 @@ func (s *energySnapshot) Update(
 					s.HasOutDC = true
 				}
 				s.HasOutDCExplicit = true
-			case shouldInferDCOutputFromResidual(pdStatus, quota) && s.HasWattsOut && s.HasOutAC && (!s.HasOutDC || !s.HasOutDCExplicit):
+			case shouldInferDCOutputFromResidual(pdStatus, quota, scan) && s.HasWattsOut && s.HasOutAC && (!s.HasOutDC || !s.HasOutDCExplicit):
 				// Some firmware streams omit per-port DC watt keys but still provide total and AC output.
 				residual := s.WattsOut - s.OutACWatts
 				residual = deductXT150BatteryLinkFromResidual(residual, xt150ForResidualInference(pdStatus, s))
@@ -3528,24 +3785,25 @@ func (s *energySnapshot) Update(
 		s.InPVWatts = inPV
 		s.HasInPV = true
 	}
-	if xt150, ok := sumXT150FromQuota(quota); ok {
+	if scan.hasXT150 {
+		xt150 := scan.xt150Total
 		s.XT150Watts = xt150
 		s.HasXT150 = true
 	}
-	if outAC, ok := sumByKeySuffix(quota, acOutputSuffixes...); ok {
+	if outAC, ok := scan.sumAbsBySuffixes(acOutputSuffixes...); ok {
 		s.OutACWatts = normalizeOutputChannelWatts(outAC)
 		s.HasOutAC = true
 	}
-	if outACL14, ok := sumByKeySuffix(quota, "outAcL14Pwr"); ok {
+	if outACL14, ok := scan.sumAbsBySuffixes("outAcL14Pwr"); ok {
 		s.OutACL14Watts = normalizeOutputChannelWatts(outACL14)
 		s.HasOutACL14 = true
 	}
-	if outDC, ok := sumByKeySuffix(quota, dcOutputSuffixes...); ok {
+	if outDC, ok := scan.sumAbsBySuffixes(dcOutputSuffixes...); ok {
 		s.OutDCWatts = normalizeOutputChannelWatts(outDC)
 		s.HasOutDC = true
 		s.HasOutDCExplicit = true
 	}
-	if inAC, ok := sumByKeySuffix(quota, acInputSuffixes...); ok {
+	if inAC, ok := scan.sumAbsBySuffixes(acInputSuffixes...); ok {
 		s.InACWatts = normalizeInputChannelWatts(inAC)
 		s.HasInAC = true
 		acInputUpdated = true
@@ -4590,18 +4848,26 @@ func dcOutStateFromQuota(quota map[string]any) (present bool, on bool) {
 	return true, toInt64(raw) > 0
 }
 
-func shouldInferDCOutputFromResidual(pdStatus pdStatusSummary, quota map[string]any) bool {
+func shouldInferDCOutputFromResidual(pdStatus pdStatusSummary, quota map[string]any, lookup *updateQuotaLookup) bool {
+	hasAny := func(candidates ...string) bool {
+		if lookup != nil {
+			return lookup.hasAny(candidates...)
+		}
+		_, ok := findQuotaValueByCandidates(quota, candidates...)
+		return ok
+	}
+
 	// Prefer direct same-message totals when present:
 	// out_dc ~= wattsOutSum - invOutWatts.
-	if _, hasWattsOut := findQuotaValueByCandidates(quota, "wattsOutSum"); hasWattsOut {
-		if _, hasInvOut := findQuotaValueByCandidates(quota, "invOutWatts"); hasInvOut {
+	if hasAny("wattsOutSum") {
+		if hasAny("invOutWatts") {
 			return true
 		}
 	}
 
 	// Some devices expose AC output under appshow keys instead of invOutWatts.
-	if _, hasWattsOut := findQuotaValueByCandidates(quota, "wattsOutSum"); hasWattsOut {
-		if _, hasAppshowAC := findQuotaValueByCandidates(quota, "outAcTtPwr", "outPrPwr"); hasAppshowAC {
+	if hasAny("wattsOutSum") {
+		if hasAny("outAcTtPwr", "outPrPwr") {
 			return true
 		}
 	}

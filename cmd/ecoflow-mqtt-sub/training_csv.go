@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
@@ -84,10 +84,8 @@ var trainingTelemetryCSVHeaders = []string{
 }
 
 type trainingTelemetryCSVStore struct {
-	mu     sync.Mutex
-	path   string
-	file   *os.File
-	writer *csv.Writer
+	path string
+	sink *fileAppendSink
 }
 
 func newTrainingTelemetryCSVStore(path string) (*trainingTelemetryCSVStore, error) {
@@ -98,31 +96,47 @@ func newTrainingTelemetryCSVStore(path string) (*trainingTelemetryCSVStore, erro
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("create training telemetry csv directory: %w", err)
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	sink, err := newFileAppendSink(path, defaultAppendChunkBytes)
 	if err != nil {
 		return nil, fmt.Errorf("open training telemetry csv file: %w", err)
 	}
 	store := &trainingTelemetryCSVStore{
-		path:   path,
-		file:   file,
-		writer: csv.NewWriter(file),
+		path: sink.Path(),
+		sink: sink,
 	}
-	shouldWriteHeader := true
-	if info, statErr := file.Stat(); statErr == nil && info.Size() > 0 {
-		shouldWriteHeader = false
-	}
-	if shouldWriteHeader {
-		if err := store.writer.Write(trainingTelemetryCSVHeaders); err != nil {
-			_ = file.Close()
-			return nil, fmt.Errorf("write training telemetry csv header: %w", err)
-		}
-		store.writer.Flush()
-		if err := store.writer.Error(); err != nil {
-			_ = file.Close()
-			return nil, fmt.Errorf("flush training telemetry csv header: %w", err)
-		}
+	if err := store.ensureHeader(); err != nil {
+		_ = sink.Close()
+		return nil, err
 	}
 	return store, nil
+}
+
+func (s *trainingTelemetryCSVStore) ensureHeader() error {
+	if s == nil || s.sink == nil {
+		return nil
+	}
+	return s.sink.withExclusiveLock(func(file *os.File) error {
+		info, err := file.Stat()
+		if err != nil {
+			return fmt.Errorf("stat training telemetry csv file: %w", err)
+		}
+		if info.Size() > 0 {
+			return nil
+		}
+		var payload bytes.Buffer
+		writer := csv.NewWriter(&payload)
+		if err := writer.Write(trainingTelemetryCSVHeaders); err != nil {
+			return fmt.Errorf("write training telemetry csv header: %w", err)
+		}
+		writer.Flush()
+		if err := writer.Error(); err != nil {
+			return fmt.Errorf("flush training telemetry csv header: %w", err)
+		}
+		if err := writeChunked(file, payload.Bytes(), defaultAppendChunkBytes); err != nil {
+			return fmt.Errorf("append training telemetry csv header: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *trainingTelemetryCSVStore) Path() string {
@@ -136,17 +150,11 @@ func (s *trainingTelemetryCSVStore) Close() error {
 	if s == nil {
 		return nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.writer != nil {
-		s.writer.Flush()
-	}
-	if s.file == nil {
+	if s.sink == nil {
 		return nil
 	}
-	err := s.file.Close()
-	s.file = nil
-	s.writer = nil
+	err := s.sink.Close()
+	s.sink = nil
 	return err
 }
 
@@ -157,17 +165,20 @@ func (s *trainingTelemetryCSVStore) AppendRow(row []string) error {
 	if len(row) != len(trainingTelemetryCSVHeaders) {
 		return fmt.Errorf("training telemetry csv row width mismatch: got=%d want=%d", len(row), len(trainingTelemetryCSVHeaders))
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.file == nil || s.writer == nil {
+	if s.sink == nil {
 		return errors.New("training telemetry csv file is closed")
 	}
-	if err := s.writer.Write(row); err != nil {
-		return fmt.Errorf("append training telemetry csv row: %w", err)
+	var payload bytes.Buffer
+	writer := csv.NewWriter(&payload)
+	if err := writer.Write(row); err != nil {
+		return fmt.Errorf("encode training telemetry csv row: %w", err)
 	}
-	s.writer.Flush()
-	if err := s.writer.Error(); err != nil {
-		return fmt.Errorf("flush training telemetry csv row: %w", err)
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return fmt.Errorf("flush encoded training telemetry csv row: %w", err)
+	}
+	if err := s.sink.WriteChunk(payload.Bytes()); err != nil {
+		return fmt.Errorf("append training telemetry csv row: %w", err)
 	}
 	return nil
 }

@@ -11,22 +11,29 @@ This project uses the Diataxis framework for documentation structure.
 
 ### Tutorials
 
-- `tutorials/getting-started-local.md`
+- [`tutorials/getting-started-local.md`](tutorials/getting-started-local.md)
 
 ### How-to Guides
 
-- `how-to/configure-environment.md`
-- `how-to/run-mqtt-dashboard.md`
-- `how-to/troubleshoot-mqtt-connectivity.md`
+- [`how-to/configure-environment.md`](how-to/configure-environment.md)
+- [`how-to/run-mqtt-dashboard.md`](how-to/run-mqtt-dashboard.md)
+- [`how-to/troubleshoot-mqtt-connectivity.md`](how-to/troubleshoot-mqtt-connectivity.md)
 
 ### Reference
 
-- `reference/repository-layout.md`
-- `reference/commands.md`
-- `reference/configuration.md`
-- `reference/telemetry-model.md`
+- [`reference/repository-layout.md`](reference/repository-layout.md)
+- [`reference/commands.md`](reference/commands.md)
+- [`reference/configuration.md`](reference/configuration.md)
+- [`reference/telemetry-model.md`](reference/telemetry-model.md)
 
 ### Explanation
 
-- `explanation/architecture.md`
-- `explanation/telemetry-and-estimation.md`
+- [`explanation/architecture.md`](explanation/architecture.md)
+- [`explanation/telemetry-and-estimation.md`](explanation/telemetry-and-estimation.md)
+
+## Recommended Reading Order
+
+- [`tutorials/getting-started-local.md`](tutorials/getting-started-local.md)
+- [`how-to/run-mqtt-dashboard.md`](how-to/run-mqtt-dashboard.md)
+- [`reference/configuration.md`](reference/configuration.md)
+- [`explanation/architecture.md`](explanation/architecture.md)

@@ -5,38 +5,30 @@ derivation, and UI projection.
 
 ## Layers
 
-1. Ingestion
+- Ingestion
+  HTTP API via `pkg/ecoflow` and MQTT transport via `pkg/ecoflowmqtt`.
 
-- HTTP API via `pkg/ecoflow`
-- MQTT transport via `pkg/ecoflowmqtt`
+- Runtime orchestration
+  Connection lifecycle, retry/backoff, bounded ingress queue, read loop, and graceful shutdown.
+  Implemented in `cmd/ecoflow-mqtt-sub/mqtt_runtime.go` and `cmd/ecoflow-mqtt-sub/main.go`.
 
-1. Runtime orchestration
+- Mapping and state derivation
+  Raw payload parsing + typed mapping, split by telemetry domains:
+  `battery_logic.go`, `pv_logic.go`, `mppt_logic.go`.
 
-- connection lifecycle, retries, queueing, read loop, graceful shutdown
-- implemented in `cmd/ecoflow-mqtt-sub/mqtt_runtime.go`
+- Projection and rendering
+  View-model projection in `viewmodel.go` and table rendering in `renderer.go`.
+  Dashboard writes are asynchronous through `ui_async.go` (bounded queue, drop-oldest)
+  so UI output does not block telemetry processing.
 
-1. Mapping and state derivation
-
-- raw payload parsing and typed mapping
-- domain logic split by telemetry area:
-  - `battery_logic.go`
-  - `pv_logic.go`
-  - `mppt_logic.go`
-
-1. Projection and rendering
-
-- derived dashboard values, status flags, and formatting
-- view projection in `viewmodel.go`
-- formatting in `formatters.go`
-
-1. Persistence and estimates
-
-- minute-bucket telemetry persistence
-- heuristic and ML-based ETA estimation
-- implemented in `estimates.go`
+- Persistence and estimates
+  File-safe append sinks in `file_locking.go` are used for concurrent-safe process/thread writes.
+  Minute-bucket history + training telemetry capture + ETA models are implemented across
+  `training_csv.go`, `estimates.go`, and `estimates_profiled.go`.
 
 ## Why this shape
 
 - minimizes coupling between transport and business mapping,
 - allows per-domain telemetry improvements without changing runtime plumbing,
-- keeps test coverage granular by domain and by behavior class.
+- keeps UI output decoupled from ingestion hot paths,
+- keeps test coverage granular by domain and behavior class.

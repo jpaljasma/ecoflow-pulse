@@ -33,6 +33,10 @@ Smoothing layers reduce UI oscillation:
 
 This improves readability and avoids rapid mode flapping on small transient deltas.
 
+UI output is also decoupled from telemetry ingestion through an asynchronous
+bounded render queue. This keeps telemetry processing responsive when terminal
+output is slow.
+
 ## ETA Modeling
 
 ETA rows combine:

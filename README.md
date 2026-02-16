@@ -27,14 +27,14 @@ make mqtt
 
 Developer documentation is organized under `docs/` using the Diataxis framework:
 
-- Tutorials: `docs/tutorials/`
-- How-to guides: `docs/how-to/`
-- Reference: `docs/reference/`
-- Explanation: `docs/explanation/`
+- Tutorials: [`docs/tutorials/`](docs/tutorials/)
+- How-to guides: [`docs/how-to/`](docs/how-to/)
+- Reference: [`docs/reference/`](docs/reference/)
+- Explanation: [`docs/explanation/`](docs/explanation/)
 
 Start here:
 
-- `docs/README.md`
+- [Developer Documentation](docs/README.md)
 
 ## Repository Layout
 

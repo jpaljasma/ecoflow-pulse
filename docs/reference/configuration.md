@@ -29,6 +29,9 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_IDLE_RECONNECT_AFTER` (default `0s`, disabled)
 - `ECOFLOW_MQTT_QUEUE_CAPACITY` (default `64`)
 - `ECOFLOW_MQTT_PRINT_PAYLOAD` (default `false`)
+- `ECOFLOW_MQTT_TABLE_VIEW` (default `true` when payload print mode is disabled)
+- `ECOFLOW_MQTT_UI_REFRESH_INTERVAL` (default `1s`)
+- `ECOFLOW_MQTT_UI_QUEUE_CAPACITY` (default `8`)
 
 ## Telemetry History and Fallback
 
@@ -37,6 +40,18 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_AUTH_REJECT_THRESHOLD` (default `3`)
 - `ECOFLOW_MQTT_FALLBACK_POLL_INTERVAL` (default `15s`)
 - `ECOFLOW_MQTT_FALLBACK_POLL_TIMEOUT` (default `12s`)
+- `ECOFLOW_MQTT_RECONCILE_INTERVAL` (default `1m`)
+- `ECOFLOW_MQTT_RECONCILE_TIMEOUT` (default `12s`)
+
+## Logging and Process Safety
+
+- `ECOFLOW_MQTT_LOG_PATH` (default `logs/mqtt.log`, file truncated on startup)
+- `ECOFLOW_MQTT_LOG_QUEUE_CAPACITY` (default `2048`)
+- `ECOFLOW_MQTT_LOCK_DIR` (default `logs/locks`, per-device serial instance lock files)
+- `ECOFLOW_MQTT_TRAINING_CSV` (default `true`)
+- `ECOFLOW_MQTT_TRAINING_CSV_PATH` (default `logs/telemetry_training.csv`)
+- `ECOFLOW_MQTT_TRAINING_CSV_INTERVAL` (default `10s`)
+- `ECOFLOW_MQTT_TRAINING_CSV_JITTER` (default `0.2`)
 
 ## Server Runtime
 
