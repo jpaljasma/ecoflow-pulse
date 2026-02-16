@@ -50,7 +50,7 @@ const (
 	defaultPVSmoothingSamples    = 6
 	defaultPowerSmoothingSamples = 6
 	defaultStateSmoothingSamples = 6
-	defaultMQTTQueueCapacity     = 128
+	defaultMQTTQueueCapacity     = 64
 	defaultMQTTAuthRejectThresh  = 3
 	defaultMQTTFallbackPollEvery = 15 * time.Second
 	defaultMQTTFallbackPollTO    = 12 * time.Second
@@ -1154,6 +1154,7 @@ func main() {
 	snapshot.MQTTLastError = ""
 
 	lastEnvelope := telemetryEnvelope{TypeCode: "n/a"}
+	debugTelemetry := logger.Enabled(ctx, slog.LevelDebug)
 	if bootstrap.QuotaKeys > 0 {
 		lastEnvelope = telemetryEnvelope{TypeCode: "quotaBootstrap"}
 		recordMinuteSample(time.Now())
@@ -1335,8 +1336,12 @@ func main() {
 				continue
 			}
 
-			socValues := extractBatterySOC(quota)
-			pvInputs := extractPVInput(quota)
+			batterySOCCount := 0
+			pvInputCount := 0
+			if debugTelemetry {
+				batterySOCCount = len(extractBatterySOC(quota))
+				pvInputCount = len(extractPVInput(quota))
+			}
 			kitEntries, hasKit := extractKitInfoWatts(quota)
 			pdStatus := pdStatusSummary{}
 			hasPDStatus := false
@@ -1354,25 +1359,27 @@ func main() {
 			recordMinuteSample(time.Now())
 			lastEnvelope = envelope
 
-			logger.Debug(
-				"ecoflow quota telemetry",
-				slog.String("topic", msg.Topic),
-				slog.Int("payload_bytes", len(msg.Payload)),
-				slog.String("type_code", envelope.TypeCode),
-				slog.String("addr", envelope.Addr),
-				slog.Int64("cmd_id", envelope.CmdID),
-				slog.Int64("cmd_func", envelope.CmdFunc),
-				slog.Int64("message_id", envelope.ID),
-				slog.Int64("message_time", envelope.Time),
-				slog.Int("quota_keys", len(quota)),
-				slog.Int("battery_soc_count", len(socValues)),
-				slog.Int("pv_input_count", len(pvInputs)),
-				slog.Bool("has_kitinfo_watts", hasKit),
-				slog.Bool("has_pd_status", hasPDStatus),
-				slog.Int("queue_depth", snapshot.MQTTQueueDepth),
-				slog.Int("queue_capacity", snapshot.MQTTQueueCapacity),
-				slog.Uint64("queue_dropped_oldest", snapshot.MQTTQueueDroppedOldest),
-			)
+			if debugTelemetry {
+				logger.Debug(
+					"ecoflow quota telemetry",
+					slog.String("topic", msg.Topic),
+					slog.Int("payload_bytes", len(msg.Payload)),
+					slog.String("type_code", envelope.TypeCode),
+					slog.String("addr", envelope.Addr),
+					slog.Int64("cmd_id", envelope.CmdID),
+					slog.Int64("cmd_func", envelope.CmdFunc),
+					slog.Int64("message_id", envelope.ID),
+					slog.Int64("message_time", envelope.Time),
+					slog.Int("quota_keys", len(quota)),
+					slog.Int("battery_soc_count", batterySOCCount),
+					slog.Int("pv_input_count", pvInputCount),
+					slog.Bool("has_kitinfo_watts", hasKit),
+					slog.Bool("has_pd_status", hasPDStatus),
+					slog.Int("queue_depth", snapshot.MQTTQueueDepth),
+					slog.Int("queue_capacity", snapshot.MQTTQueueCapacity),
+					slog.Uint64("queue_dropped_oldest", snapshot.MQTTQueueDroppedOldest),
+				)
+			}
 
 			if tableView {
 				fmt.Print(renderDashboard(targetDevice, currentTopic, envelope, snapshot, minuteHistory, minuteTableConfig))
@@ -2512,51 +2519,34 @@ func selectTargetDevice(
 }
 
 func parseTelemetryPayload(payload []byte) (telemetryEnvelope, map[string]any, error) {
-	var root any
+	var root telemetryPayloadWire
 	if err := json.Unmarshal(payload, &root); err != nil {
 		return telemetryEnvelope{}, nil, err
 	}
 
-	object, ok := root.(map[string]any)
-	if !ok {
-		return telemetryEnvelope{}, nil, errors.New("payload is not a JSON object")
-	}
-
 	envelope := telemetryEnvelope{
-		ModuleType: toInt64(object["moduleType"]),
-		NeedAck:    toInt64(object["needAck"]),
-		ID:         toInt64(object["id"]),
-		Time:       toInt64(object["time"]),
-		CmdID:      toInt64(object["cmdId"]),
-		CmdFunc:    toInt64(object["cmdFunc"]),
-		Addr:       toString(object["addr"]),
-		Version:    toString(object["version"]),
-		TypeCode:   toString(object["typeCode"]),
+		ModuleType: root.ModuleType,
+		NeedAck:    root.NeedAck,
+		ID:         root.ID,
+		Time:       root.Time,
+		CmdID:      root.CmdID,
+		CmdFunc:    root.CmdFunc,
+		Addr:       strings.TrimSpace(root.Addr),
+		Version:    strings.TrimSpace(root.Version),
+		TypeCode:   strings.TrimSpace(root.TypeCode),
 	}
 
-	params := mapFromAny(object["params"])
-	param := mapFromAny(object["param"])
-	data := mapFromAny(object["data"])
-	quota := mapFromAny(object["quota"])
-
-	merged := make(map[string]any, len(params)+len(param)+len(data)+len(quota))
-	mergeAnyMap(merged, params)
-	mergeAnyMap(merged, param)
-	mergeAnyMap(merged, data)
-	mergeAnyMap(merged, quota)
+	merged := mergeTelemetryMaps(root.Params, root.Param, root.Data, root.Quota)
 
 	if envelope.Addr != "" {
-		baseKeys := make([]string, 0, len(merged))
-		for key := range merged {
-			baseKeys = append(baseKeys, key)
-		}
-		for _, key := range baseKeys {
-			if strings.HasPrefix(key, envelope.Addr+".") {
+		prefix := envelope.Addr + "."
+		for key, value := range merged {
+			if strings.HasPrefix(key, prefix) {
 				continue
 			}
-			prefixed := envelope.Addr + "." + key
+			prefixed := prefix + key
 			if _, exists := merged[prefixed]; !exists {
-				merged[prefixed] = merged[key]
+				merged[prefixed] = value
 			}
 		}
 	}
@@ -2569,6 +2559,53 @@ func parseTelemetryPayload(payload []byte) (telemetryEnvelope, map[string]any, e
 		return envelope, map[string]any{}, nil
 	}
 	return envelope, merged, nil
+}
+
+type telemetryPayloadWire struct {
+	ModuleType int64          `json:"moduleType"`
+	NeedAck    int64          `json:"needAck"`
+	ID         int64          `json:"id"`
+	Time       int64          `json:"time"`
+	CmdID      int64          `json:"cmdId"`
+	CmdFunc    int64          `json:"cmdFunc"`
+	Addr       string         `json:"addr"`
+	Version    string         `json:"version"`
+	TypeCode   string         `json:"typeCode"`
+	Params     map[string]any `json:"params"`
+	Param      map[string]any `json:"param"`
+	Data       map[string]any `json:"data"`
+	Quota      map[string]any `json:"quota"`
+}
+
+func mergeTelemetryMaps(maps ...map[string]any) map[string]any {
+	total := 0
+	var single map[string]any
+	singleCount := 0
+	for _, entry := range maps {
+		if len(entry) == 0 {
+			continue
+		}
+		total += len(entry)
+		single = entry
+		singleCount++
+	}
+	switch singleCount {
+	case 0:
+		return map[string]any{}
+	case 1:
+		return single
+	}
+
+	merged := make(map[string]any, total)
+	for _, entry := range maps {
+		if len(entry) == 0 {
+			continue
+		}
+		for key, value := range entry {
+			merged[key] = value
+		}
+	}
+	return merged
 }
 
 func extractBatterySOC(quota map[string]any) []batterySOC {

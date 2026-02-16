@@ -80,6 +80,7 @@ Shared fallback:
 - `ECOFLOW_MQTT_READ_TIMEOUT` (optional duration; default `30s`)
 - `ECOFLOW_MQTT_WRITE_TIMEOUT` (optional duration; default `15s`)
 - `ECOFLOW_MQTT_IDLE_RECONNECT_AFTER` (optional duration; default `0s` disabled; set positive duration to enable idle-triggered reconnects)
+- `ECOFLOW_MQTT_QUEUE_CAPACITY` (optional int; default `64`; ingress queue with drop-oldest behavior when full)
 - `ECOFLOW_MQTT_PRINT_PAYLOAD` (optional bool; default `false`)
 - `ECOFLOW_MQTT_HISTORY_PATH` (optional; default `logs/telemetry_history.jsonl`)
 - `ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES` (optional int; default `180`; on startup load only recent minute history for this many minutes)
