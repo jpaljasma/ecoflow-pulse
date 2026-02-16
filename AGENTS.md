@@ -27,6 +27,12 @@ Always use a branch -> pull request -> merge workflow.
 6. When using GitHub CLI, prefer `gh pr create --body-file <file>` or `gh pr edit --body-file <file>` for multiline Markdown.
 7. After creating/updating a PR, verify rendered body with `gh pr view --json body` and fix immediately if escaped newlines appear.
 
+## Documentation Hygiene Rules
+1. Before committing code changes, update developer documentation under `docs/` if any runtime behavior, architecture, telemetry mapping, UI behavior, or configuration changed.
+2. Keep the root `README.md` and `docs/README.md` links/navigation accurate when docs structure or key capabilities change.
+3. Treat documentation updates as part of the same feature branch and commit series; do not defer doc sync to later cleanup commits.
+4. When available, run markdown lint checks before pushing docs-heavy changes.
+
 ## Merge Rules
 1. Merge only after CI and required checks are green.
 2. Prefer squash merge unless the repository maintainers request otherwise.

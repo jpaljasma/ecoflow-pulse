@@ -35,6 +35,15 @@ Persistence file:
 
 - `logs/telemetry_history.jsonl`
 
+## Training Telemetry Capture
+
+ML training data is persisted as CSV for offline model tuning.
+
+- file: `logs/telemetry_training.csv`
+- capture cadence: every power-related MQTT update, plus periodic sampled rows
+  using `ECOFLOW_MQTT_TRAINING_CSV_INTERVAL` + jitter.
+- writes are append-safe across processes and threads.
+
 ## Units
 
 - Instantaneous dashboard channel values are watts (`W` or `kW`).

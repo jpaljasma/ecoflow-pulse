@@ -18,6 +18,9 @@ go run ./cmd/ecoflow-mqtt-sub
 
 - subscribes to `/open/{certificateAccount}/{sn}/quota`,
 - initializes from `GetDeviceAllQuota()` at startup,
+- periodically reconciles with `GetDeviceAllQuota()` while running,
+- uses a bounded MQTT ingress queue (drop-oldest when full),
+- renders dashboard output through an asynchronous UI writer queue (drop-oldest when full),
 - continuously renders:
   - summary values (SOC, AC in, solar generated, out, net, state, updated),
   - detailed channel and battery tables,
@@ -40,6 +43,9 @@ go run ./cmd/ecoflow-mqtt-sub
 ```bash
 ECOFLOW_MQTT_SN=R351ZABAPH331057 \
 ECOFLOW_MQTT_QUEUE_CAPACITY=64 \
+ECOFLOW_MQTT_UI_QUEUE_CAPACITY=8 \
+ECOFLOW_MQTT_UI_REFRESH_INTERVAL=1s \
+ECOFLOW_MQTT_LOG_QUEUE_CAPACITY=2048 \
 ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES=180 \
 make mqtt
 ```
