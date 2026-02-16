@@ -23,7 +23,7 @@ func renderDashboardViewModel(vm dashboardViewModel) string {
 	var builder strings.Builder
 	builder.WriteString("\033[H\033[2J")
 	builder.WriteString("EcoFlow Live Telemetry\n")
-	builder.WriteString("Topic: " + vm.topic + "\n\n")
+	builder.WriteByte('\n')
 	builder.WriteString(renderASCIITable(vm.deviceHeaders, vm.deviceRows))
 	builder.WriteString("\n")
 	builder.WriteString(renderASCIITable(vm.packHeaders, vm.packRows))
