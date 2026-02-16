@@ -267,6 +267,10 @@ type energySnapshot struct {
 	HasDC12VOn       bool
 	EVChargingOn     bool
 	HasEVChargingOn  bool
+	FanOn            bool
+	HasFanOn         bool
+	FanLevelRaw      int64
+	HasFanLevel      bool
 	AppShowFlagRaw   int64
 	HasAppShowFlag   bool
 	AppShowBatteryNo int
@@ -304,6 +308,8 @@ type energySnapshot struct {
 	MQTTLastError          string
 	MQTTLastMessageAt      time.Time
 	HasMQTTLastMessage     bool
+	MQTTConnectedSince     time.Time
+	HasMQTTConnectedSince  bool
 
 	Packs        map[int]*packSnapshot
 	PackSNToNo   map[string]int
@@ -394,6 +400,7 @@ type snapshotDerived struct {
 	StatusUSBValue          string
 	StatusDC12VValue        string
 	StatusEVValue           string
+	StatusFanValue          string
 	StatusPassthroughValue  string
 	StatusGroundedValue     string
 	StatusSolarPassValue    string
@@ -990,7 +997,7 @@ func main() {
 	printPayload := parseBoolEnv("ECOFLOW_MQTT_PRINT_PAYLOAD", false)
 	tableView := parseBoolEnv("ECOFLOW_MQTT_TABLE_VIEW", true) && !printPayload
 	logBootstrapRaw := parseBoolEnv("ECOFLOW_MQTT_LOG_BOOTSTRAP_RAW", true)
-	idleReconnectAfter := mustDuration("ECOFLOW_MQTT_IDLE_RECONNECT_AFTER", 30*time.Second)
+	idleReconnectAfter := durationAllowZero("ECOFLOW_MQTT_IDLE_RECONNECT_AFTER", 0)
 	minuteTableConfig := minuteTableConfig{
 		Rows:            parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_ROWS", defaultMinuteTableRows),
 		NewestFirst:     parseSortNewestFirstEnv("ECOFLOW_MQTT_MINUTE_SORT", true),
@@ -1122,6 +1129,7 @@ func main() {
 	keepAlive := mustDuration("ECOFLOW_MQTT_KEEPALIVE", 60*time.Second)
 	connectTimeout := mustDuration("ECOFLOW_MQTT_CONNECT_TIMEOUT", 10*time.Second)
 	readTimeout := mustDuration("ECOFLOW_MQTT_READ_TIMEOUT", 30*time.Second)
+	writeTimeout := mustDuration("ECOFLOW_MQTT_WRITE_TIMEOUT", 15*time.Second)
 	fallbackPollEvery := mustDuration("ECOFLOW_MQTT_FALLBACK_POLL_INTERVAL", defaultMQTTFallbackPollEvery)
 	fallbackPollTimeout := mustDuration("ECOFLOW_MQTT_FALLBACK_POLL_TIMEOUT", defaultMQTTFallbackPollTO)
 	authRejectThreshold := parsePositiveIntEnv("ECOFLOW_MQTT_AUTH_REJECT_THRESHOLD", defaultMQTTAuthRejectThresh)
@@ -1174,6 +1182,7 @@ func main() {
 			keepAlive,
 			connectTimeout,
 			readTimeout,
+			writeTimeout,
 			idleReconnectAfter,
 			logger,
 			runLog,
@@ -1223,6 +1232,8 @@ func main() {
 			case mqttSessionEventConnected:
 				authRejectStreak = 0
 				snapshot.MQTTConnected = true
+				snapshot.MQTTConnectedSince = time.Now()
+				snapshot.HasMQTTConnectedSince = true
 				snapshot.MQTTDegraded = false
 				snapshot.MQTTDegradedReason = ""
 				snapshot.MQTTAuthRejectStreak = 0
@@ -1239,6 +1250,7 @@ func main() {
 				)
 			case mqttSessionEventDisconnected:
 				snapshot.MQTTConnected = false
+				snapshot.HasMQTTConnectedSince = false
 				snapshot.MQTTLastError = formatErrorString(event.Error)
 				if event.AuthRejected {
 					authRejectStreak++
@@ -1387,9 +1399,18 @@ func bootstrapSnapshotFromDeviceQuota(
 	runLog *mqttOutputLogger,
 	logRaw bool,
 ) (startupQuotaBootstrap, error) {
+	if runLog != nil {
+		runLog.Printf("quota_bootstrap_fetch_start sn=%s", sn)
+	}
 	quota, _, err := service.GetDeviceAllQuota(ctx, sn)
 	if err != nil {
+		if runLog != nil {
+			runLog.Printf("quota_bootstrap_fetch_error sn=%s error=%q", sn, err.Error())
+		}
 		return startupQuotaBootstrap{}, err
+	}
+	if runLog != nil {
+		runLog.Printf("quota_bootstrap_fetch_ok sn=%s keys=%d", sn, len(quota))
 	}
 	if logRaw {
 		logDeviceQuotaRaw(runLog, sn, quota)
@@ -1601,6 +1622,16 @@ func applyDeviceQuotaToSnapshot(snapshot *energySnapshot, quota map[string]strin
 	copyNumberFromQuotaCandidates(seed, "plugInInfoAcpRunState", parsed,
 		"plugInInfoAcpRunState",
 		"d_addr.plugInInfoAcpRunState",
+	)
+	copyNumberFromQuotaCandidates(seed, "fanState", parsed,
+		"fanState",
+		"inv.fanState",
+		"hs_yj751_inv_addr.fanState",
+	)
+	copyNumberFromQuotaCandidates(seed, "fanLevel", parsed,
+		"fanLevel",
+		"bms_emsStatus.fanLevel",
+		"hs_yj751_bms_ems_status_addr.fanLevel",
 	)
 	copyBootstrapChannelsFromQuota(seed, parsed)
 	if len(seed) > 0 {
@@ -1823,6 +1854,7 @@ func connectMQTTSessionWithRetry(
 	keepAlive time.Duration,
 	connectTimeout time.Duration,
 	readTimeout time.Duration,
+	writeTimeout time.Duration,
 	logger *slog.Logger,
 	runLog *mqttOutputLogger,
 	onRetryEvent func(mqttConnectRetryEvent),
@@ -1883,6 +1915,7 @@ func connectMQTTSessionWithRetry(
 			KeepAlive:      keepAlive,
 			ConnectTimeout: connectTimeout,
 			ReadTimeout:    readTimeout,
+			WriteTimeout:   writeTimeout,
 		})
 		if err != nil {
 			// Configuration error is not recoverable by retrying.
@@ -1981,6 +2014,7 @@ func runMQTTSessionLoop(
 	keepAlive time.Duration,
 	connectTimeout time.Duration,
 	readTimeout time.Duration,
+	writeTimeout time.Duration,
 	idleReconnectAfter time.Duration,
 	logger *slog.Logger,
 	runLog *mqttOutputLogger,
@@ -1997,6 +2031,7 @@ func runMQTTSessionLoop(
 			keepAlive,
 			connectTimeout,
 			readTimeout,
+			writeTimeout,
 			logger,
 			runLog,
 			func(retryEvent mqttConnectRetryEvent) {
@@ -2166,19 +2201,21 @@ func readMQTTIntoQueue(
 	queueStats *mqttQueueStats,
 	idleReconnectAfter time.Duration,
 ) error {
-	if idleReconnectAfter <= 0 {
-		idleReconnectAfter = 30 * time.Second
-	}
-
 	for {
-		readCtx, readCancel := context.WithTimeout(ctx, idleReconnectAfter)
+		readCtx := ctx
+		var readCancel context.CancelFunc
+		if idleReconnectAfter > 0 {
+			readCtx, readCancel = context.WithTimeout(ctx, idleReconnectAfter)
+		}
 		msg, err := subscriber.ReadMessage(readCtx)
-		readCancel()
+		if readCancel != nil {
+			readCancel()
+		}
 		if err != nil {
 			if errors.Is(ctx.Err(), context.Canceled) || errors.Is(err, context.Canceled) {
 				return ctx.Err()
 			}
-			if errors.Is(err, context.DeadlineExceeded) {
+			if idleReconnectAfter > 0 && errors.Is(err, context.DeadlineExceeded) {
 				logger.Warn(
 					"mqtt idle timeout; reconnecting",
 					slog.Duration("idle_timeout", idleReconnectAfter),
@@ -2363,6 +2400,18 @@ func mustDuration(key string, fallback time.Duration) time.Duration {
 	value, err := time.ParseDuration(raw)
 	if err != nil || value <= 0 {
 		fatalf("invalid %s=%q: expected positive duration", key, raw)
+	}
+	return value
+}
+
+func durationAllowZero(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := time.ParseDuration(raw)
+	if err != nil || value < 0 {
+		fatalf("invalid %s=%q: expected non-negative duration", key, raw)
 	}
 	return value
 }
@@ -3428,6 +3477,18 @@ func (s *energySnapshot) Update(
 				s.EVChargingOn = runState > 0
 				s.HasEVChargingOn = true
 			}
+		case "fanstate":
+			if state, ok := numberFromAny(value); ok {
+				s.FanOn = int64(state) > 0
+				s.HasFanOn = true
+			}
+		case "fanlevel":
+			if level, ok := numberFromAny(value); ok {
+				s.FanLevelRaw = int64(level)
+				s.HasFanLevel = true
+				s.FanOn = s.FanLevelRaw > 0
+				s.HasFanOn = true
+			}
 		case "inputwatts":
 			if !s.HasWattsIn || s.WattsIn == 0 {
 				if watts, ok := numberFromAny(value); ok {
@@ -3904,6 +3965,10 @@ func (s *energySnapshot) derived() snapshotDerived {
 	derived.StatusUSBValue = checkboxStatus(usbOn)
 	derived.StatusDC12VValue = checkboxStatus(dc12VOn)
 	derived.StatusEVValue = checkboxStatus(evOn)
+	derived.StatusFanValue = "[ ]"
+	if s.HasFanOn {
+		derived.StatusFanValue = checkboxStatus(s.FanOn)
+	}
 	derived.StatusPassthroughValue = checkboxStatus(passthroughOn)
 	// Grounded estimate is inferred from AC passthrough behavior.
 	derived.StatusGroundedValue = checkboxStatus(passthroughOn)
@@ -4278,7 +4343,7 @@ func renderDashboard(
 			fmt.Sprintf("queue: %s", mqttQueueValue),
 			mqttDropsValue,
 			fmt.Sprintf("status: %s", mqttStatusValue),
-			fmt.Sprintf("last: %s %s %s", lastTypeState, lastMQTTMeta, lastMessageValue),
+			fmt.Sprintf("last: %s %s %s uptime: %s", lastTypeState, lastMQTTMeta, lastMessageValue, formatMQTTUptime(snapshot)),
 		},
 	}
 
@@ -4365,6 +4430,7 @@ func renderDashboard(
 	var builder strings.Builder
 	showSeparateUSBAndDC := shouldShowSeparateUSBAndDC(device, snapshot)
 	showEVStatus := shouldShowEVStatus(device, snapshot)
+	showFanStatus := shouldShowFanStatus(device, snapshot)
 	showPreconditioningStatus := shouldShowPreconditioningStatus(device, snapshot)
 	builder.WriteString("\033[H\033[2J")
 	builder.WriteString("EcoFlow Live Telemetry\n")
@@ -4380,6 +4446,9 @@ func renderDashboard(
 	}
 	if showEVStatus {
 		builder.WriteString(fmt.Sprintf("%s EV Charging On\n", derived.StatusEVValue))
+	}
+	if showFanStatus {
+		builder.WriteString(fmt.Sprintf("%s Fan On\n", derived.StatusFanValue))
 	}
 	builder.WriteString(fmt.Sprintf("%s UPS Passthrough\n", derived.StatusPassthroughValue))
 	builder.WriteString(fmt.Sprintf("%s Solar Passthrough\n", derived.StatusSolarPassValue))
@@ -4683,6 +4752,33 @@ func formatMQTTStatus(snapshot *energySnapshot) string {
 		return "MQTT reconnecting + REST fallback"
 	}
 	return "MQTT reconnecting"
+}
+
+func formatMQTTUptime(snapshot *energySnapshot) string {
+	if snapshot == nil || !snapshot.MQTTConnected || !snapshot.HasMQTTConnectedSince {
+		return "n/a"
+	}
+	uptime := time.Since(snapshot.MQTTConnectedSince)
+	if uptime < 0 {
+		return "n/a"
+	}
+	seconds := int64(uptime.Round(time.Second) / time.Second)
+	if seconds < 60 {
+		return fmt.Sprintf("%ds", seconds)
+	}
+	minutes := seconds / 60
+	remSeconds := seconds % 60
+	if minutes < 60 {
+		return fmt.Sprintf("%dm%02ds", minutes, remSeconds)
+	}
+	hours := minutes / 60
+	remMinutes := minutes % 60
+	if hours < 24 {
+		return fmt.Sprintf("%dh%02dm", hours, remMinutes)
+	}
+	days := hours / 24
+	remHours := hours % 24
+	return fmt.Sprintf("%dd%02dh", days, remHours)
 }
 
 func formatMQTTLastMessageAge(snapshot *energySnapshot) string {
@@ -6021,6 +6117,14 @@ func shouldShowEVStatus(device ecoflow.GeneralInfoDevice, snapshot *energySnapsh
 	}
 	name := strings.ToLower(strings.TrimSpace(device.DeviceName + " " + device.ProductName))
 	return strings.Contains(name, "delta pro ultra") || strings.Contains(name, "dpu")
+}
+
+func shouldShowFanStatus(device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) bool {
+	if snapshot != nil && (snapshot.HasFanOn || snapshot.HasFanLevel) {
+		return true
+	}
+	name := strings.ToLower(strings.TrimSpace(device.DeviceName + " " + device.ProductName))
+	return strings.Contains(name, "delta 2 max")
 }
 
 func shouldShowPreconditioningStatus(device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) bool {

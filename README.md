@@ -32,6 +32,7 @@ Telemetry capabilities:
 - startup bootstrap from `GetDeviceAllQuota()` for initial state mapping,
 - live summary table (SOC, AC input, solar generated, output, net, state, updated time),
 - per-device status flags (capability-dependent): AC, DC/USB, USB, 12V DC, EV charging, UPS passthrough, solar passthrough, grounded estimate,
+- fan/cooling status indicator (`Fan On`) when device telemetry provides `fanState`/`fanLevel`,
 - PV channel telemetry (low/high): watts, volts, amps, and state (`active` / `locked` / `idle`),
 - channel breakdown: AC in, PV in (low/high + total), AC out, DC out, XT150 in/out,
 - battery pack telemetry (up to 5 packs): SOC, temp, power, remain, max cell delta, serial, energy, SOH, voltage, target SOC, limits, delta SOC, capacity, board temperature,
@@ -41,6 +42,7 @@ Telemetry capabilities:
 - persistent minute telemetry history at `logs/telemetry_history.jsonl` (append-only) to preload ML/minute history on startup,
 - durable logging to `logs/mqtt.log` (cleared each run), including raw payloads and parsed `energy_summary`,
 - resilient ingestion: reconnect with jitter backoff, idle-time reconnect, drop-oldest ring-buffer behavior, graceful quit (`q` or `Ctrl+C`).
+- MQTT connection diagnostics in dashboard (queue/degraded/last message metadata + connection uptime).
 - refactored ETA/ML estimation engine into dedicated code paths for easier tuning and future model iteration.
 
 Recent improvements:
@@ -48,6 +50,8 @@ Recent improvements:
 - ML confidence warmup tuned to ramp faster on stable streams,
 - MPPT/PV voltage normalization hardened for low-light raw payload scaling edge cases,
 - startup + persisted minute-history preload used to warm ETA/ML context after restart.
+- bootstrap logging now explicitly reports `GetDeviceAllQuota` start/success/failure in `logs/mqtt.log`.
+- MQTT write timeout became configurable and idle-forced reconnects are disabled by default (`ECOFLOW_MQTT_IDLE_RECONNECT_AFTER=0s`).
 
 ## Environment Variables
 
@@ -74,6 +78,8 @@ Shared fallback:
 - `ECOFLOW_MQTT_KEEPALIVE` (optional duration; default `60s`)
 - `ECOFLOW_MQTT_CONNECT_TIMEOUT` (optional duration; default `10s`)
 - `ECOFLOW_MQTT_READ_TIMEOUT` (optional duration; default `30s`)
+- `ECOFLOW_MQTT_WRITE_TIMEOUT` (optional duration; default `15s`)
+- `ECOFLOW_MQTT_IDLE_RECONNECT_AFTER` (optional duration; default `0s` disabled; set positive duration to enable idle-triggered reconnects)
 - `ECOFLOW_MQTT_PRINT_PAYLOAD` (optional bool; default `false`)
 - `ECOFLOW_MQTT_HISTORY_PATH` (optional; default `logs/telemetry_history.jsonl`)
 - `ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES` (optional int; default `180`; on startup load only recent minute history for this many minutes)

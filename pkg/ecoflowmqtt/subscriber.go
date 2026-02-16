@@ -41,6 +41,8 @@ type Config struct {
 	ConnectTimeout time.Duration
 	// ReadTimeout is applied for packet reads; timeout triggers a ping.
 	ReadTimeout time.Duration
+	// WriteTimeout is applied for packet writes.
+	WriteTimeout time.Duration
 	// TLSConfig controls TLS settings; when nil, secure defaults are used.
 	TLSConfig *tls.Config
 }
@@ -93,6 +95,9 @@ func NewSubscriber(cfg Config) (*Subscriber, error) {
 	if cfg.ReadTimeout <= 0 {
 		cfg.ReadTimeout = 30 * time.Second
 	}
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = 15 * time.Second
+	}
 	return &Subscriber{cfg: cfg}, nil
 }
 
@@ -114,7 +119,7 @@ func (s *Subscriber) Connect(ctx context.Context) error {
 	}
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
-	if err := writePacket(conn, writer, ctx, byte(packetTypeConnect<<4), buildConnectPacket(s.cfg)); err != nil {
+	if err := writePacket(conn, writer, ctx, s.cfg.WriteTimeout, byte(packetTypeConnect<<4), buildConnectPacket(s.cfg)); err != nil {
 		_ = conn.Close()
 		return fmt.Errorf("send CONNECT: %w", err)
 	}
@@ -188,7 +193,7 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string, qos byte) erro
 	packet = appendMQTTString(packet, topic)
 	packet = append(packet, qos)
 
-	if err := writePacket(s.conn, s.writer, ctx, byte(packetTypeSubscribe<<4|0x02), packet); err != nil {
+	if err := writePacket(s.conn, s.writer, ctx, s.cfg.WriteTimeout, byte(packetTypeSubscribe<<4|0x02), packet); err != nil {
 		return fmt.Errorf("send SUBSCRIBE: %w", err)
 	}
 
@@ -235,7 +240,17 @@ func (s *Subscriber) ReadMessage(ctx context.Context) (Message, error) {
 		ptype, flags, body, err := readPacket(conn, reader, ctx, s.cfg.ReadTimeout)
 		if err != nil {
 			if isTimeout(err) {
-				if pingErr := writePacket(conn, writer, ctx, byte(packetTypePingReq<<4), nil); pingErr != nil {
+				if pingErr := writePacket(conn, writer, ctx, s.cfg.WriteTimeout, byte(packetTypePingReq<<4), nil); pingErr != nil {
+					if isTimeout(pingErr) {
+						select {
+						case <-ctx.Done():
+							return Message{}, ctx.Err()
+						case <-time.After(250 * time.Millisecond):
+						}
+						if retryErr := writePacket(conn, writer, ctx, s.cfg.WriteTimeout, byte(packetTypePingReq<<4), nil); retryErr == nil {
+							continue
+						}
+					}
 					return Message{}, fmt.Errorf("send PINGREQ: %w", pingErr)
 				}
 				continue
@@ -254,7 +269,7 @@ func (s *Subscriber) ReadMessage(ctx context.Context) (Message, error) {
 			if message.QoS == 1 {
 				ack := make([]byte, 0, 2)
 				ack = appendPacketID(ack, packetID)
-				if err := writePacket(conn, writer, ctx, byte(packetTypePubAck<<4), ack); err != nil {
+				if err := writePacket(conn, writer, ctx, s.cfg.WriteTimeout, byte(packetTypePubAck<<4), ack); err != nil {
 					return Message{}, fmt.Errorf("send PUBACK: %w", err)
 				}
 			}
@@ -349,8 +364,11 @@ func parsePublish(flags byte, body []byte) (Message, uint16, error) {
 	}, packetID, nil
 }
 
-func writePacket(conn net.Conn, writer *bufio.Writer, ctx context.Context, header byte, body []byte) error {
-	if err := applyWriteDeadline(conn, ctx, 10*time.Second); err != nil {
+func writePacket(conn net.Conn, writer *bufio.Writer, ctx context.Context, writeTimeout time.Duration, header byte, body []byte) error {
+	if writeTimeout <= 0 {
+		writeTimeout = 10 * time.Second
+	}
+	if err := applyWriteDeadline(conn, ctx, writeTimeout); err != nil {
 		return err
 	}
 	defer clearWriteDeadline(conn)
