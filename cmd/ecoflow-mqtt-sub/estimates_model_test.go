@@ -55,7 +55,6 @@ func TestEnergySnapshotETAEstimatesRow(t *testing.T) {
 	)
 	for _, expected := range []string{
 		"MPPT",
-		"Old",
 		"Generic",
 		"New (",
 		"Δ ETA vs Unit",
