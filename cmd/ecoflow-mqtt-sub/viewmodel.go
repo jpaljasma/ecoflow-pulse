@@ -97,7 +97,6 @@ func buildDashboardViewModel(
 		"Details",
 	}
 	stateKind := systemStateKind(derived.SystemStateValue)
-	originalMLEstimates := estimateBatteryETAsML(snapshot, minuteHistory, stateKind)
 	genericMLEstimates := estimateBatteryETAsMLGeneric(snapshot, minuteHistory, stateKind)
 	newMLEstimates, newMLProfile := estimateBatteryETAsMLProfiled(snapshot, minuteHistory, stateKind)
 	unitEstimates := estimateBatteryETAsUnitSpecific(snapshot, stateKind)
@@ -197,13 +196,13 @@ func buildDashboardViewModel(
 			"-",
 		},
 		{
-			"Old",
-			firstNonEmpty(strings.TrimSpace(originalMLEstimates.ChargeValue), "n/a"),
-			firstNonEmpty(strings.TrimSpace(originalMLEstimates.DischargeValue), "n/a"),
-			firstNonEmpty(strings.TrimSpace(originalMLEstimates.PowerValue), "power: n/a"),
-			firstNonEmpty(strings.TrimSpace(originalMLEstimates.ConfidenceValue), "n/a"),
-			estimateDeltaMinutesDisplay(unitEstimates, originalMLEstimates, stateKind),
-			estimateDeltaPowerDisplay(unitEstimates, originalMLEstimates, stateKind),
+			fmt.Sprintf("New (%s)", strings.ToUpper(string(newMLProfile))),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.ConfidenceValue), "n/a"),
+			estimateDeltaMinutesDisplay(unitEstimates, newMLEstimates, stateKind),
+			estimateDeltaPowerDisplay(unitEstimates, newMLEstimates, stateKind),
 		},
 		{
 			"Generic",
@@ -213,15 +212,6 @@ func buildDashboardViewModel(
 			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ConfidenceValue), "n/a"),
 			estimateDeltaMinutesDisplay(unitEstimates, genericMLEstimates, stateKind),
 			estimateDeltaPowerDisplay(unitEstimates, genericMLEstimates, stateKind),
-		},
-		{
-			fmt.Sprintf("New (%s)", strings.ToUpper(string(newMLProfile))),
-			firstNonEmpty(strings.TrimSpace(newMLEstimates.ChargeValue), "n/a"),
-			firstNonEmpty(strings.TrimSpace(newMLEstimates.DischargeValue), "n/a"),
-			firstNonEmpty(strings.TrimSpace(newMLEstimates.PowerValue), "power: n/a"),
-			firstNonEmpty(strings.TrimSpace(newMLEstimates.ConfidenceValue), "n/a"),
-			estimateDeltaMinutesDisplay(unitEstimates, newMLEstimates, stateKind),
-			estimateDeltaPowerDisplay(unitEstimates, newMLEstimates, stateKind),
 		},
 	}
 
@@ -454,17 +444,17 @@ func topStateDisplayIcon(state systemStateKind, value string, source string) str
 		displayState = systemStateIdle
 	}
 	source = strings.ToLower(strings.TrimSpace(source))
+	// Source is fresher than ETA/state text during transitional windows.
+	switch source {
+	case "solar":
+		return "🌞"
+	case "hybrid(ac+solar)":
+		return "🔆"
+	case "ac":
+		return "🌩"
+	}
 	if displayState == systemStateCharging {
-		switch source {
-		case "solar":
-			return "🌞"
-		case "hybrid(ac+solar)":
-			return "🔆"
-		case "ac":
-			return "🌩"
-		default:
-			return "🌩"
-		}
+		return "🌩"
 	}
 	switch displayState {
 	case systemStateDischarging:
@@ -563,6 +553,12 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 		acInWatts = math.Abs(snapshot.InACWatts)
 		hasACIn = true
 	}
+	if !hasACIn {
+		if smoothedACIn, ok := snapshot.smoothedACInput(); ok && smoothedACIn > sourceMinWatts {
+			acInWatts = math.Abs(smoothedACIn)
+			hasACIn = true
+		}
+	}
 	acOutWatts := 0.0
 	hasACOut := false
 	if snapshot.HasOutAC {
@@ -582,6 +578,12 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 	if watts, ok := snapshot.effectivePVInputWatts(); ok {
 		pvInWatts = math.Abs(watts)
 		hasPVIn = true
+	}
+	if !hasPVIn {
+		if smoothedPVTotal, ok, _, _, _, _ := snapshot.smoothedPVChannels(); ok && smoothedPVTotal > sourceMinWatts {
+			pvInWatts = math.Abs(smoothedPVTotal)
+			hasPVIn = true
+		}
 	}
 	// Some D2M streams may intermittently omit direct AC-in while totals remain valid.
 	// In that case, infer AC input from total in minus PV so source icon can reflect hybrid charging.
@@ -607,6 +609,33 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 	}
 	acActive := hasACIn && acChargeWatts > sourceMinWatts
 	pvActive := hasPVIn && pvInWatts > sourceMinWatts
+
+	batteryChargeWatts := 0.0
+	hasBatteryCharge := false
+	if snapshot.HasBatteryIn && snapshot.BatteryInWatts > sourceMinWatts {
+		batteryChargeWatts = math.Abs(snapshot.BatteryInWatts)
+		hasBatteryCharge = true
+	}
+
+	netChargeWatts := 0.0
+	hasNetCharge := false
+	if derived.HasEffectiveIn && derived.HasEffectiveOut {
+		netChargeWatts = derived.EffectiveIn - derived.EffectiveOut
+		if netChargeWatts > sourceMinWatts {
+			hasNetCharge = true
+		}
+	}
+
+	// If both AC and PV are present while charging, AC can still contribute even when
+	// AC in/out appears as passthrough. Use charging-flow evidence to classify hybrid.
+	if state == systemStateCharging && hasACIn && acInWatts > sourceMinWatts && hasPVIn && !acActive {
+		switch {
+		case hasBatteryCharge && batteryChargeWatts > pvInWatts+sourceMinWatts:
+			acActive = true
+		case hasNetCharge && netChargeWatts > pvInWatts+sourceMinWatts:
+			acActive = true
+		}
+	}
 
 	switch state {
 	case systemStateCharging:

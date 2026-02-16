@@ -53,7 +53,6 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 		"[ ] Solar Passthrough",
 		"[ ] Solar Charging",
 		"Device",
-		"Old",
 		"New (",
 		"Δ ETA vs Unit",
 		"| Pack",
@@ -183,15 +182,21 @@ func TestIsLikelySolarPassthrough(t *testing.T) {
 
 func TestInferBatteryChargeSource(t *testing.T) {
 	tests := []struct {
-		name     string
-		state    systemStateKind
-		acInW    float64
-		hasACIn  bool
-		acOutW   float64
-		hasACOut bool
-		pvInW    float64
-		hasPVIn  bool
-		want     string
+		name            string
+		state           systemStateKind
+		acInW           float64
+		hasACIn         bool
+		acOutW          float64
+		hasACOut        bool
+		pvInW           float64
+		hasPVIn         bool
+		batteryInW      float64
+		hasBatteryIn    bool
+		effectiveInW    float64
+		hasEffectiveIn  bool
+		effectiveOutW   float64
+		hasEffectiveOut bool
+		want            string
 	}{
 		{
 			name:    "charging from ac",
@@ -230,6 +235,34 @@ func TestInferBatteryChargeSource(t *testing.T) {
 			want:     "solar",
 		},
 		{
+			name:         "charging hybrid when ac passthrough-like but battery charge exceeds pv",
+			state:        systemStateCharging,
+			acInW:        61,
+			hasACIn:      true,
+			acOutW:       60,
+			hasACOut:     true,
+			pvInW:        55,
+			hasPVIn:      true,
+			batteryInW:   90,
+			hasBatteryIn: true,
+			want:         "hybrid(ac+solar)",
+		},
+		{
+			name:            "charging hybrid inferred from net charge when battery flow unavailable",
+			state:           systemStateCharging,
+			acInW:           61,
+			hasACIn:         true,
+			acOutW:          60,
+			hasACOut:        true,
+			pvInW:           55,
+			hasPVIn:         true,
+			effectiveInW:    220,
+			hasEffectiveIn:  true,
+			effectiveOutW:   120,
+			hasEffectiveOut: true,
+			want:            "hybrid(ac+solar)",
+		},
+		{
 			name:  "idle no source",
 			state: systemStateIdle,
 			want:  "none",
@@ -257,9 +290,15 @@ func TestInferBatteryChargeSource(t *testing.T) {
 			snapshot.HasOutAC = tt.hasACOut
 			snapshot.InPVWatts = tt.pvInW
 			snapshot.HasInPV = tt.hasPVIn
+			snapshot.BatteryInWatts = tt.batteryInW
+			snapshot.HasBatteryIn = tt.hasBatteryIn
 
 			derived := snapshotDerived{
 				SystemStateValue: string(tt.state),
+				EffectiveIn:      tt.effectiveInW,
+				HasEffectiveIn:   tt.hasEffectiveIn,
+				EffectiveOut:     tt.effectiveOutW,
+				HasEffectiveOut:  tt.hasEffectiveOut,
 			}
 			if got := inferBatteryChargeSource(snapshot, derived); got != tt.want {
 				t.Fatalf("source mismatch: got=%q want=%q", got, tt.want)
@@ -418,6 +457,8 @@ func TestTopStateDisplayIcon(t *testing.T) {
 		{name: "infer idle", state: systemStateUnknown, value: "idle: 1", source: "none", want: "🟢"},
 		{name: "value charging overrides stale idle state", state: systemStateIdle, value: "charging: 1", source: "solar", want: "🌞"},
 		{name: "value discharging overrides stale charging state", state: systemStateCharging, value: "discharging: 1", source: "battery", want: "🔻"},
+		{name: "source solar overrides stale discharging value", state: systemStateDischarging, value: "discharging: 1", source: "solar", want: "🌞"},
+		{name: "source hybrid overrides stale discharging value", state: systemStateDischarging, value: "discharging: 1", source: "hybrid(ac+solar)", want: "🔆"},
 		{name: "unknown", state: systemStateUnknown, value: "n/a", source: "n/a", want: ""},
 	}
 

@@ -71,6 +71,9 @@ const (
 	solarChargePVHoldWattsD2M    = 5.0
 	solarChargePVHoldWattsDPU    = 54.0
 	solarChargeBatteryMinWatts   = 8.0
+	acInputStaleClearToleranceW  = 12.0
+	acInputStaleClearAfter       = 12 * time.Second
+	wattsInReconcileToleranceW   = 25.0
 	packPowerStaleAfter          = 75 * time.Second
 )
 
@@ -249,13 +252,17 @@ type energySnapshot struct {
 	FullEnergyWh  float64
 	HasFullEnergy bool
 
-	WattsIn     float64
-	HasWattsIn  bool
-	WattsOut    float64
-	HasWattsOut bool
+	WattsIn      float64
+	HasWattsIn   bool
+	WattsOut     float64
+	HasWattsOut  bool
+	WattsInAt    time.Time
+	HasWattsInAt bool
 
 	InACWatts        float64
 	HasInAC          bool
+	InACAt           time.Time
+	HasInACAt        bool
 	InPVWatts        float64
 	HasInPV          bool
 	InPVLowWatts     float64
@@ -2797,6 +2804,10 @@ func (s *energySnapshot) Update(
 	pdStatus pdStatusSummary,
 	hasPDStatus bool,
 ) {
+	updateNow := time.Now()
+	acInputUpdated := false
+	wattsInUpdated := false
+
 	if hasPDStatus {
 		if pdStatus.Soc > 0 {
 			s.DeviceSOC = float64(pdStatus.Soc)
@@ -2815,6 +2826,7 @@ func (s *energySnapshot) Update(
 		if hasQuotaKey(quota, "wattsInSum") || pdStatus.WattsInSum != 0 {
 			s.WattsIn = pdStatus.WattsInSum
 			s.HasWattsIn = true
+			wattsInUpdated = true
 		}
 		if hasQuotaKey(quota, "wattsOutSum") || pdStatus.WattsOutSum != 0 {
 			s.WattsOut = pdStatus.WattsOutSum
@@ -2872,6 +2884,13 @@ func (s *energySnapshot) Update(
 		if acIn, ok := sumByKeySuffix(quota, "inAc5p8Pwr", "inAcC20Pwr"); ok {
 			s.InACWatts = normalizeInputChannelWatts(acIn)
 			s.HasInAC = true
+			acInputUpdated = true
+		} else if rawInvIn, ok := findQuotaValueByCandidates(quota, "invInWatts"); ok {
+			if invInWatts, ok := numberFromAny(rawInvIn); ok && invInWatts >= 0 {
+				s.InACWatts = normalizeInputChannelWatts(invInWatts)
+				s.HasInAC = true
+				acInputUpdated = true
+			}
 		}
 		if dcOut, hasDCChannels := sumByKeySuffix(quota, dcOutputSuffixes...); hasDCChannels {
 			s.OutDCWatts = normalizeOutputChannelWatts(dcOut)
@@ -3001,6 +3020,7 @@ func (s *energySnapshot) Update(
 			if watts, ok := numberFromAny(value); ok {
 				s.WattsIn = watts
 				s.HasWattsIn = true
+				wattsInUpdated = true
 			}
 		case "wattsoutsum":
 			if watts, ok := numberFromAny(value); ok {
@@ -3198,6 +3218,7 @@ func (s *energySnapshot) Update(
 				if watts, ok := numberFromAny(value); ok {
 					s.WattsIn = watts
 					s.HasWattsIn = true
+					wattsInUpdated = true
 				}
 			}
 		case "outputwatts":
@@ -3478,6 +3499,7 @@ func (s *energySnapshot) Update(
 		if inputWatts, ok := firstNumberFromKeys(quota, "inputWatts"); ok && inputWatts >= 0 {
 			s.InACWatts = normalizeInputChannelWatts(inputWatts)
 			s.HasInAC = true
+			acInputUpdated = true
 		}
 	}
 	if isMPPTStatusEnvelope(envelope) {
@@ -3517,6 +3539,64 @@ func (s *energySnapshot) Update(
 	if inAC, ok := sumByKeySuffix(quota, acInputSuffixes...); ok {
 		s.InACWatts = normalizeInputChannelWatts(inAC)
 		s.HasInAC = true
+		acInputUpdated = true
+	}
+	if acInputUpdated {
+		s.InACAt = updateNow
+		s.HasInACAt = true
+	}
+	if wattsInUpdated {
+		s.WattsInAt = updateNow
+		s.HasWattsInAt = true
+	}
+
+	// AC input can become stale when streams omit explicit AC-in keys.
+	// If current totals are fully explained by non-AC inputs (PV + XT150-in) or near zero,
+	// clear lingering AC-in so UI/state reflects reality faster.
+	if !acInputUpdated && s.HasInAC && s.InACWatts > 0 && s.HasWattsIn {
+		inTotal := math.Abs(s.WattsIn)
+		nonACIn := 0.0
+		hasNonACSignal := false
+		if pvIn, ok := s.effectivePVInputWatts(); ok {
+			nonACIn += math.Abs(pvIn)
+			hasNonACSignal = true
+		}
+		if s.HasXT150 && s.XT150Watts < 0 {
+			nonACIn += math.Abs(s.XT150Watts)
+			hasNonACSignal = true
+		}
+		tolerance := math.Max(acInputStaleClearToleranceW, inTotal*0.08)
+		if inTotal <= tolerance || (hasNonACSignal && inTotal <= nonACIn+tolerance) {
+			s.InACWatts = 0
+			s.HasInAC = true
+		}
+	}
+	// Fallback: when both AC-input and total-input signals are stale, clear lingering AC input.
+	// This addresses sparse streams that only emit status bytes while power keys are absent.
+	if !acInputUpdated && s.HasInAC && s.InACWatts > 0 {
+		acStale := s.HasInACAt && updateNow.Sub(s.InACAt) >= acInputStaleClearAfter
+		totalStale := !s.HasWattsInAt || updateNow.Sub(s.WattsInAt) >= acInputStaleClearAfter
+		if acStale && totalStale {
+			s.InACWatts = 0
+			s.HasInAC = true
+		}
+	}
+
+	// Keep total input aligned with channel truth when AC toggles off but wattsInSum lags behind.
+	if !wattsInUpdated && s.HasWattsIn {
+		if inferredIn, hasInferredIn := s.estimatedInputFromChannels(); hasInferredIn {
+			mismatch := math.Abs(s.WattsIn - inferredIn)
+			tolerance := math.Max(wattsInReconcileToleranceW, math.Max(math.Abs(s.WattsIn), inferredIn)*0.18)
+			forceFromACToggle := acInputUpdated && s.HasInAC && s.InACWatts <= acInputStaleClearToleranceW
+			totalStale := s.HasWattsInAt && updateNow.Sub(s.WattsInAt) >= acInputStaleClearAfter/2
+			if mismatch > tolerance && (forceFromACToggle || totalStale) {
+				s.WattsIn = inferredIn
+				s.HasWattsIn = true
+				s.WattsInAt = updateNow
+				s.HasWattsInAt = true
+				wattsInUpdated = true
+			}
+		}
 	}
 
 	// applyPrimaryPackFallbacks(s, quota)
@@ -3547,9 +3627,8 @@ func (s *energySnapshot) Update(
 			s.HasDeviceSOC = true
 		}
 	}
-	now := time.Now()
-	s.recordSensorStatusTransitions(now)
-	s.DataUpdatedAt = now
+	s.recordSensorStatusTransitions(updateNow)
+	s.DataUpdatedAt = updateNow
 	s.HasDataUpdatedAt = true
 }
 
@@ -3846,6 +3925,26 @@ func (s *energySnapshot) derived() snapshotDerived {
 	derived.EstimateConfidenceValue = etaEstimates.ConfidenceValue
 
 	return derived
+}
+
+func (s *energySnapshot) estimatedInputFromChannels() (float64, bool) {
+	if s == nil {
+		return 0, false
+	}
+	total := 0.0
+	hasTotal := false
+	if s.HasInAC {
+		total += math.Abs(s.InACWatts)
+		hasTotal = true
+	}
+	if pvIn, hasPVIn := s.effectivePVInputWatts(); hasPVIn {
+		total += math.Abs(pvIn)
+		hasTotal = true
+	}
+	if !hasTotal {
+		return 0, false
+	}
+	return total, true
 }
 
 func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableConfig) [][]string {

@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEnergySnapshotUsesDAddrSOCAndFullEnergy(t *testing.T) {
@@ -794,6 +795,60 @@ func TestEnergySnapshotKeepsExplicitDCAndZeroPVAcrossSparseUpdates(t *testing.T)
 	snapshot.Update(invZeroEnvelope, invZeroQuota, nil, false, pdStatusSummary{}, false)
 	if !snapshot.HasInAC || snapshot.InACWatts != 0 {
 		t.Fatalf("in_ac should be explicitly zero after zero inputWatts update, got has=%v value=%f", snapshot.HasInAC, snapshot.InACWatts)
+	}
+}
+
+func TestEnergySnapshotClearsStaleACInputFromTotalsWithoutACKeys(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	// Seed a non-zero AC input from invStatus.
+	invPayload := []byte(`{"moduleType":3,"needAck":0,"id":32520001,"time":20830001,"params":{"inputWatts":56,"outputWatts":15},"version":"1.0","typeCode":"invStatus"}`)
+	invEnvelope, invQuota, err := parseTelemetryPayload(invPayload)
+	if err != nil {
+		t.Fatalf("parse invStatus payload: %v", err)
+	}
+	snapshot.Update(invEnvelope, invQuota, nil, false, pdStatusSummary{}, false)
+	if !snapshot.HasInAC || snapshot.InACWatts != 56 {
+		t.Fatalf("seed in_ac mismatch: has=%v value=%f", snapshot.HasInAC, snapshot.InACWatts)
+	}
+
+	// Next sparse pdStatus has no AC keys; wattsIn is fully explained by XT150 input.
+	// Stale AC input should be cleared to 0.
+	pdPayload := []byte(`{"moduleType":1,"needAck":0,"id":82360001,"time":20830002,"params":{"XT150Watts2":-99,"wattsInSum":99,"wattsOutSum":140,"invOutWatts":138},"version":"1.0","typeCode":"pdStatus"}`)
+	pdEnvelope, pdQuota, err := parseTelemetryPayload(pdPayload)
+	if err != nil {
+		t.Fatalf("parse pdStatus payload: %v", err)
+	}
+	pd, hasPD := extractPDStatus(pdQuota)
+	snapshot.Update(pdEnvelope, pdQuota, nil, false, pd, hasPD)
+
+	if !snapshot.HasInAC || snapshot.InACWatts != 0 {
+		t.Fatalf("stale in_ac should clear to zero, got has=%v value=%f", snapshot.HasInAC, snapshot.InACWatts)
+	}
+}
+
+func TestEnergySnapshotClearsStaleACInputWhenSparseFramesPersist(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasInAC = true
+	snapshot.InACWatts = 922
+	snapshot.HasInACAt = true
+	snapshot.InACAt = time.Now().Add(-30 * time.Second)
+	snapshot.HasWattsIn = true
+	snapshot.WattsIn = 1490
+	snapshot.HasWattsInAt = true
+	snapshot.WattsInAt = time.Now().Add(-30 * time.Second)
+
+	// Sparse frame with no power keys should trigger stale clear fallback.
+	payload := []byte(`{"moduleType":1,"needAck":0,"id":82360010,"time":20830010,"params":{"icoBytes":[8,8,8,0,128,0,0,0,0,0,0,0,0,0]},"version":"1.0","typeCode":"pdStatus"}`)
+	envelope, quota, err := parseTelemetryPayload(payload)
+	if err != nil {
+		t.Fatalf("parse sparse pdStatus payload: %v", err)
+	}
+	pd, hasPD := extractPDStatus(quota)
+	snapshot.Update(envelope, quota, nil, false, pd, hasPD)
+
+	if !snapshot.HasInAC || snapshot.InACWatts != 0 {
+		t.Fatalf("stale in_ac should clear on sparse frames, got has=%v value=%f", snapshot.HasInAC, snapshot.InACWatts)
 	}
 }
 
