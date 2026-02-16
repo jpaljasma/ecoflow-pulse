@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -576,7 +577,7 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 		"[ ] UPS Passthrough",
 		"[ ] Grounded (Estimated)",
 		"[ ] Solar Passthrough",
-		"estimates",
+		"est ML",
 		"charge: n/a",
 		"discharge: n/a",
 		"| Pack",
@@ -1180,14 +1181,14 @@ func TestEnergySnapshotParsesACDCAndPVChannels(t *testing.T) {
 
 func TestSumPVInputChannelsFromQuotaAvoidsAliasDoubleCount(t *testing.T) {
 	quota := map[string]any{
-		"inLvMpptPwr":                              190.0,
-		"hs_yj751_pd_appshow_addr.inLvMpptPwr":    190.0,
-		"powGetPvL":                                190.0,
-		"d_addr.powGetPvL":                         190.0,
-		"inHvMpptPwr":                              33.0,
-		"hs_yj751_pd_appshow_addr.inHvMpptPwr":    33.0,
-		"powGetPvH":                                33.0,
-		"d_addr.powGetPvH":                         33.0,
+		"inLvMpptPwr":                          190.0,
+		"hs_yj751_pd_appshow_addr.inLvMpptPwr": 190.0,
+		"powGetPvL":                            190.0,
+		"d_addr.powGetPvL":                     190.0,
+		"inHvMpptPwr":                          33.0,
+		"hs_yj751_pd_appshow_addr.inHvMpptPwr": 33.0,
+		"powGetPvH":                            33.0,
+		"d_addr.powGetPvH":                     33.0,
 	}
 
 	low, hasLow, high, hasHigh := sumPVInputChannelsFromQuota(quota)
@@ -1769,7 +1770,12 @@ func TestEnergySnapshotETAEstimatesRow(t *testing.T) {
 		nil,
 		minuteTableConfig{},
 	)
-	for _, expected := range []string{"estimates", "charge: 540min (~9h 0m)", "active: 540min (~9h 0m)", "conf: 0.96 (high)", "heuristic"} {
+	for _, expected := range []string{
+		"est ML",
+		"charge: n/a",
+		"active: n/a",
+		"conf: n/a",
+	} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("dashboard missing %q in estimates row; output=%q", expected, output)
 		}
@@ -1812,6 +1818,268 @@ func TestEstimateBatteryETAsML(t *testing.T) {
 	}
 }
 
+func TestEstimateBatteryETAsMLConvergesFasterOnStableSignal(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasFullEnergy = true
+	snapshot.FullEnergyWh = 4000
+	snapshot.HasDeviceSOC = true
+	snapshot.DeviceSOC = 50
+	snapshot.HasMaxChargeSOC = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMinDischarge = true
+	snapshot.MinDischargeSOC = 5
+
+	history := newMinuteTelemetryHistory(16)
+	base := time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local)
+	for i := 0; i < 4; i++ {
+		snapshot.HasInPV = true
+		snapshot.InPVWatts = 185 + float64(i%2)
+		snapshot.HasInAC = false
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 42
+		snapshot.HasOutDC = true
+		snapshot.OutDCWatts = 8
+		history.AddSample(base.Add(time.Duration(i)*time.Minute), snapshot)
+	}
+
+	estimates := estimateBatteryETAsML(snapshot, history, systemStateCharging)
+	if estimates.ConfidenceValue == "n/a" {
+		t.Fatalf("ml confidence should be available, got=%s", estimates.ConfidenceValue)
+	}
+	parts := strings.Fields(estimates.ConfidenceValue)
+	if len(parts) == 0 {
+		t.Fatalf("unexpected ml confidence format: %q", estimates.ConfidenceValue)
+	}
+	score, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil {
+		t.Fatalf("parse ml confidence score: %v (value=%q)", err, estimates.ConfidenceValue)
+	}
+	if score < 0.90 {
+		t.Fatalf("expected faster ML convergence confidence >= 0.90 on stable signal, got=%s", estimates.ConfidenceValue)
+	}
+}
+
+func TestEstimateBatteryETAsMLPrefersFastTenSecondBuckets(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasFullEnergy = true
+	snapshot.FullEnergyWh = 4000
+	snapshot.HasDeviceSOC = true
+	snapshot.DeviceSOC = 60
+	snapshot.HasMaxChargeSOC = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMinDischarge = true
+	snapshot.MinDischargeSOC = 5
+
+	minuteHistory := newMinuteTelemetryHistory(16)
+	base := time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local)
+	for i := 0; i < 6; i++ {
+		snapshot.HasInPV = false
+		snapshot.HasInAC = false
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 70
+		snapshot.HasOutDC = false
+		minuteHistory.AddSample(base.Add(time.Duration(i)*time.Minute), snapshot)
+	}
+
+	fastHistory := newPowerTelemetryHistory(10*time.Second, 180)
+	snapshot.mlFastHistory = fastHistory
+	for i := 0; i < 12; i++ {
+		snapshot.HasInPV = false
+		snapshot.HasInAC = false
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 140
+		snapshot.HasOutDC = false
+		fastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), snapshot)
+	}
+
+	estimates := estimateBatteryETAsML(snapshot, minuteHistory, systemStateDischarging)
+	if !strings.Contains(estimates.PowerValue, "dsg@140.0W") {
+		t.Fatalf("expected ML estimator to prefer fast 10s buckets, got power=%s", estimates.PowerValue)
+	}
+}
+
+func TestAdaptMLPredictionSamplesShrinksOnStepChange(t *testing.T) {
+	samples := make([]float64, 0, 80)
+	for i := 0; i < 74; i++ {
+		samples = append(samples, 42)
+	}
+	for i := 0; i < 6; i++ {
+		samples = append(samples, -88)
+	}
+
+	adapted := adaptMLPredictionSamples(samples)
+	if len(adapted) >= len(samples) {
+		t.Fatalf("expected adaptive window to shrink on step change, got len=%d original=%d", len(adapted), len(samples))
+	}
+	if len(adapted) > 24 {
+		t.Fatalf("expected fast window (<=24), got len=%d", len(adapted))
+	}
+	if adapted[len(adapted)-1] != samples[len(samples)-1] {
+		t.Fatalf("expected latest sample to be preserved, got=%f want=%f", adapted[len(adapted)-1], samples[len(samples)-1])
+	}
+}
+
+func TestEstimateBatteryETAsMLRespondsToAbruptRamp(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasFullEnergy = true
+	snapshot.FullEnergyWh = 6000
+	snapshot.HasDeviceSOC = true
+	snapshot.DeviceSOC = 55
+	snapshot.HasMaxChargeSOC = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMinDischarge = true
+	snapshot.MinDischargeSOC = 5
+
+	history := newMinuteTelemetryHistory(16)
+	fastHistory := newPowerTelemetryHistory(10*time.Second, 180)
+	snapshot.mlFastHistory = fastHistory
+	base := time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local)
+
+	for i := 0; i < 30; i++ {
+		snapshot.HasInPV = false
+		snapshot.HasInAC = false
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 40
+		snapshot.HasOutDC = false
+		fastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), snapshot)
+	}
+	for i := 30; i < 36; i++ {
+		snapshot.HasInPV = false
+		snapshot.HasInAC = false
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 150
+		snapshot.HasOutDC = false
+		fastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), snapshot)
+	}
+
+	estimates := estimateBatteryETAsML(snapshot, history, systemStateDischarging)
+	idx := strings.Index(estimates.PowerValue, "dsg@")
+	if idx < 0 {
+		t.Fatalf("expected discharge power in ML output, got=%s", estimates.PowerValue)
+	}
+	start := idx + len("dsg@")
+	end := strings.Index(estimates.PowerValue[start:], "W")
+	if end <= 0 {
+		t.Fatalf("failed to parse ML power value: %s", estimates.PowerValue)
+	}
+	watts, err := strconv.ParseFloat(estimates.PowerValue[start:start+end], 64)
+	if err != nil {
+		t.Fatalf("parse ML watts: %v (value=%q)", err, estimates.PowerValue)
+	}
+	if watts < 95 {
+		t.Fatalf("expected faster convergence toward ramped discharge (>95W), got=%fW (%s)", watts, estimates.PowerValue)
+	}
+}
+
+func TestEstimateBatteryETAsMLCorrectsAgainstDeviceRemain(t *testing.T) {
+	base := time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local)
+	history := newMinuteTelemetryHistory(16)
+	fastHistory := newPowerTelemetryHistory(10*time.Second, 180)
+
+	buildSnapshot := func(withDeviceRemain bool) *energySnapshot {
+		snapshot := newEnergySnapshot()
+		snapshot.HasFullEnergy = true
+		snapshot.FullEnergyWh = 8000
+		snapshot.HasDeviceSOC = true
+		snapshot.DeviceSOC = 55
+		snapshot.HasMaxChargeSOC = true
+		snapshot.MaxChargeSOC = 95
+		snapshot.HasMinDischarge = true
+		snapshot.MinDischargeSOC = 5
+		if withDeviceRemain {
+			snapshot.applyDischargeRemain(420)
+		}
+		snapshot.mlFastHistory = fastHistory
+		return snapshot
+	}
+
+	seed := buildSnapshot(false)
+	for i := 0; i < 36; i++ {
+		seed.HasInPV = false
+		seed.HasInAC = false
+		seed.HasOutAC = true
+		seed.OutACWatts = 85
+		seed.HasOutDC = false
+		fastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), seed)
+	}
+
+	parseMinutes := func(value string) float64 {
+		idx := strings.Index(value, "min")
+		if idx <= 0 {
+			t.Fatalf("invalid ETA format: %q", value)
+		}
+		minutes, err := strconv.ParseFloat(strings.TrimSpace(value[:idx]), 64)
+		if err != nil {
+			t.Fatalf("parse ETA minutes: %v (value=%q)", err, value)
+		}
+		return minutes
+	}
+	parseConfidence := func(value string) float64 {
+		parts := strings.Fields(value)
+		if len(parts) == 0 {
+			t.Fatalf("invalid confidence format: %q", value)
+		}
+		score, err := strconv.ParseFloat(parts[0], 64)
+		if err != nil {
+			t.Fatalf("parse confidence score: %v (value=%q)", err, value)
+		}
+		return score
+	}
+
+	noDeviceRemain := estimateBatteryETAsML(buildSnapshot(false), history, systemStateDischarging)
+	withDeviceRemain := estimateBatteryETAsML(buildSnapshot(true), history, systemStateDischarging)
+
+	minNoDevice := parseMinutes(noDeviceRemain.ActiveValue)
+	minWithDevice := parseMinutes(withDeviceRemain.ActiveValue)
+	if minWithDevice >= minNoDevice*0.8 {
+		t.Fatalf("expected ML ETA to move materially toward device remain; without=%s with=%s", noDeviceRemain.ActiveValue, withDeviceRemain.ActiveValue)
+	}
+
+	confNoDevice := parseConfidence(noDeviceRemain.ConfidenceValue)
+	confWithDevice := parseConfidence(withDeviceRemain.ConfidenceValue)
+	if confWithDevice >= confNoDevice {
+		t.Fatalf("expected confidence penalty on large ML/device divergence; without=%s with=%s", noDeviceRemain.ConfidenceValue, withDeviceRemain.ConfidenceValue)
+	}
+}
+
+func TestNetPowerSamplesPreferBatteryNetSignalMinute(t *testing.T) {
+	history := newMinuteTelemetryHistory(4)
+	snapshot := newEnergySnapshot()
+	snapshot.HasInPV = true
+	snapshot.InPVWatts = 120
+	snapshot.HasOutAC = true
+	snapshot.OutACWatts = 20
+	snapshot.Packs[1] = &packSnapshot{HasPower: true, PowerW: -35}
+	history.AddSample(time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local), snapshot)
+
+	samples := netPowerSamplesFromMinuteHistory(history, 10)
+	if len(samples) != 1 {
+		t.Fatalf("sample count mismatch: got=%d want=1", len(samples))
+	}
+	if samples[0] > -34 || samples[0] < -36 {
+		t.Fatalf("expected battery-net sample around -35W, got=%f", samples[0])
+	}
+}
+
+func TestNetPowerSamplesPreferBatteryNetSignalFast(t *testing.T) {
+	history := newPowerTelemetryHistory(10*time.Second, 4)
+	snapshot := newEnergySnapshot()
+	snapshot.HasInPV = true
+	snapshot.InPVWatts = 120
+	snapshot.HasOutAC = true
+	snapshot.OutACWatts = 20
+	snapshot.Packs[1] = &packSnapshot{HasPower: true, PowerW: -42}
+	history.AddSample(time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local), snapshot)
+
+	samples := netPowerSamplesFromPowerHistory(history, 10)
+	if len(samples) != 1 {
+		t.Fatalf("sample count mismatch: got=%d want=1", len(samples))
+	}
+	if samples[0] > -41 || samples[0] < -43 {
+		t.Fatalf("expected battery-net sample around -42W, got=%f", samples[0])
+	}
+}
+
 func TestSelectTopStateValueUsesDeviceUntilMLReady(t *testing.T) {
 	deviceState := "charging: 320min (~5h 20m)"
 	ml := batteryETAEstimates{
@@ -1819,12 +2087,8 @@ func TestSelectTopStateValueUsesDeviceUntilMLReady(t *testing.T) {
 		PowerValue:      "power: chg@180.0W",
 		ConfidenceValue: "0.95 (high)",
 	}
-	heuristic := batteryETAEstimates{
-		ActiveValue:     "540min (~9h 0m)",
-		ConfidenceValue: "0.96 (high)",
-	}
 
-	got := selectTopStateValue(deviceState, systemStateCharging, ml, heuristic)
+	got := selectTopStateValue(deviceState, systemStateCharging, ml)
 	if got != deviceState {
 		t.Fatalf("top state should use device until ML is ready: got=%q want=%q", got, deviceState)
 	}
@@ -1837,34 +2101,25 @@ func TestSelectTopStateValueUsesMLWhenReadyAndHighConfidence(t *testing.T) {
 		PowerValue:      "power: chg@180.0W (ewma+trend)",
 		ConfidenceValue: "0.92 (high)",
 	}
-	heuristic := batteryETAEstimates{
-		ActiveValue:     "540min (~9h 0m)",
-		ConfidenceValue: "0.96 (high)",
-	}
 
-	got := selectTopStateValue(deviceState, systemStateCharging, ml, heuristic)
+	got := selectTopStateValue(deviceState, systemStateCharging, ml)
 	want := "charging: 120min (~2h 0m)"
 	if got != want {
 		t.Fatalf("top state should use ML when ready and high confidence: got=%q want=%q", got, want)
 	}
 }
 
-func TestSelectTopStateValueUsesHeuristicWhenMLNotHigh(t *testing.T) {
+func TestSelectTopStateValueUsesDeviceWhenMLNotHigh(t *testing.T) {
 	deviceState := "discharging: 455min (~7h 35m)"
 	ml := batteryETAEstimates{
 		ActiveValue:     "300min (~5h 0m)",
 		PowerValue:      "power: dsg@250.0W (ewma+trend)",
 		ConfidenceValue: "0.68 (medium)",
 	}
-	heuristic := batteryETAEstimates{
-		ActiveValue:     "360min (~6h 0m)",
-		ConfidenceValue: "0.85 (high)",
-	}
 
-	got := selectTopStateValue(deviceState, systemStateDischarging, ml, heuristic)
-	want := "discharging: 360min (~6h 0m)"
-	if got != want {
-		t.Fatalf("top state should use heuristic when ML is not high confidence: got=%q want=%q", got, want)
+	got := selectTopStateValue(deviceState, systemStateDischarging, ml)
+	if got != deviceState {
+		t.Fatalf("top state should use device remain when ML confidence is not high: got=%q want=%q", got, deviceState)
 	}
 }
 
@@ -1875,14 +2130,9 @@ func TestSelectTopStateValueUsesDeviceWhenBothLowConfidence(t *testing.T) {
 		PowerValue:      "power: dsg@250.0W (ewma+trend)",
 		ConfidenceValue: "0.40 (low)",
 	}
-	heuristic := batteryETAEstimates{
-		ActiveValue:     "360min (~6h 0m)",
-		ConfidenceValue: "0.55 (low)",
-	}
-
-	got := selectTopStateValue(deviceState, systemStateDischarging, ml, heuristic)
+	got := selectTopStateValue(deviceState, systemStateDischarging, ml)
 	if got != deviceState {
-		t.Fatalf("top state should use device when both ML and heuristic confidence are low: got=%q want=%q", got, deviceState)
+		t.Fatalf("top state should use device when ML confidence is low: got=%q want=%q", got, deviceState)
 	}
 }
 
