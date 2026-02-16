@@ -39,7 +39,7 @@ func renderDashboardViewModel(vm dashboardViewModel) string {
 	builder.WriteString("\n\n")
 	builder.WriteString(renderASCIITable(vm.minuteHeaders, vm.minuteRows))
 	builder.WriteString("\n\n")
-	builder.WriteString(renderASCIITable(vm.sensorHeaders, vm.sensorRows))
+	builder.WriteString(renderASCIITable(vm.estimateHeaders, vm.estimateRows))
 	builder.WriteString("\n")
 	return builder.String()
 }

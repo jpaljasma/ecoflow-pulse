@@ -31,3 +31,42 @@ Always use a branch -> pull request -> merge workflow.
 
 ## Exceptions
 Direct commits to `main` are allowed only if explicitly requested by a maintainer for an urgent reason.
+
+## ML Training Workflow (ETA Models)
+Use the built-in trainer at `cmd/ecoflow-ml-train` for fast, repeatable tuning.
+
+### Models to train
+1. `d2m` (DELTA 2 Max specific)
+2. `dpu` (DELTA Pro Ultra specific)
+3. `generic` (cross-device fallback)
+
+### Efficiency requirements
+Always use all three optimization techniques together:
+1. Stratified sampling: preserve `profile x mode x transition` coverage.
+2. Successive halving: evaluate many candidates on partial data, keep top subset for full data.
+3. Feature precompute cache: rely on cached rolling features in trainer (prefix sums + window caches).
+
+### Standard training commands
+Use full telemetry CSV unless explicitly testing subsets.
+
+```bash
+go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile d2m -candidates 4000 -stages 0.15,0.4,1.0 -seed 88
+go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile dpu -candidates 4000 -stages 0.15,0.4,1.0 -seed 88
+go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile generic -candidates 4000 -stages 0.15,0.4,1.0 -seed 808
+```
+
+### Selection and reproducibility
+1. Compare `best_score` first, then `best_coverage`.
+2. Keep and record the exact seed used for final params.
+3. If quality is close, prefer the simpler/stabler window configuration.
+
+### Applying trained params
+1. Update profile constants in `cmd/ecoflow-mqtt-sub/estimates_profiled.go`.
+2. Keep model selection priority:
+   - device-specific profile
+   - generic profile
+   - unit (MPPT/device) estimate fallback
+3. Run:
+   - `go test ./cmd/ecoflow-mqtt-sub`
+   - `go test ./cmd/ecoflow-ml-train`
+   - `go test ./...`

@@ -29,6 +29,9 @@ type dashboardViewModel struct {
 	minuteHeaders []string
 	minuteRows    [][]string
 
+	estimateHeaders []string
+	estimateRows    [][]string
+
 	sensorHeaders []string
 	sensorRows    [][]string
 
@@ -85,7 +88,7 @@ func buildDashboardViewModel(
 	}
 
 	updatedAt := formatSnapshotUpdatedRelative(snapshot)
-	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Updated"}
+	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Model", "Updated"}
 	summaryHeaders := []string{
 		"Details",
 		"In",
@@ -93,22 +96,32 @@ func buildDashboardViewModel(
 		"Net",
 		"Details",
 	}
-	mlEstimates := estimateBatteryETAsML(snapshot, minuteHistory, systemStateKind(derived.SystemStateValue))
-	primaryEstimateCharge := firstNonEmpty(strings.TrimSpace(mlEstimates.ChargeValue), "n/a")
-	primaryEstimateDischarge := firstNonEmpty(strings.TrimSpace(mlEstimates.DischargeValue), "n/a")
-	primaryEstimateActive := firstNonEmpty(strings.TrimSpace(mlEstimates.ActiveValue), "n/a")
-	primaryEstimatePower := firstNonEmpty(strings.TrimSpace(mlEstimates.PowerValue), "power: n/a")
-	primaryEstimateConfidence := firstNonEmpty(strings.TrimSpace(mlEstimates.ConfidenceValue), "n/a")
+	stateKind := systemStateKind(derived.SystemStateValue)
+	originalMLEstimates := estimateBatteryETAsML(snapshot, minuteHistory, stateKind)
+	genericMLEstimates := estimateBatteryETAsMLGeneric(snapshot, minuteHistory, stateKind)
+	newMLEstimates, newMLProfile := estimateBatteryETAsMLProfiled(snapshot, minuteHistory, stateKind)
+	unitEstimates := estimateBatteryETAsUnitSpecific(snapshot, stateKind)
+
+	topStateEstimate, topStateEstimateModel := pickPreferredMLForTopState(
+		unitEstimates,
+		genericMLEstimates,
+		newMLEstimates,
+		stateKind,
+	)
 	batterySource := inferBatteryChargeSource(snapshot, derived)
-	topStateValue := selectTopStateValue(
+	topStateValue, topStateUsedML := selectTopStateValueWithSource(
 		snapshot,
 		derived.RemainValue,
-		systemStateKind(derived.SystemStateValue),
-		mlEstimates,
+		stateKind,
+		topStateEstimate,
 	)
+	topStateModel := "MPPT"
+	if topStateUsedML {
+		topStateModel = topStateEstimateModel
+	}
 	topStateValue = sanitizeStateColumnValue(topStateValue)
-	topStateValue = annotateIdleStateWithIncoming(topStateValue, systemStateKind(derived.SystemStateValue), totalInDisplay)
-	topStateIcon := topStateDisplayIcon(systemStateKind(derived.SystemStateValue), topStateValue, batterySource)
+	topStateValue = annotateIdleStateWithIncoming(topStateValue, stateKind, totalInDisplay)
+	topStateIcon := topStateDisplayIcon(stateKind, topStateValue, batterySource)
 	iconCell := firstNonEmpty(topStateIcon, "·")
 	deviceLabel := chooseDeviceLabel(device)
 	topSOCDisplay := formatSOCUnavailableWithGauge(10)
@@ -124,6 +137,7 @@ func buildDashboardViewModel(
 		totalOutDisplay,
 		totalNetDisplay,
 		topStateValue,
+		topStateModel,
 		updatedAt,
 	}}
 	summaryRows := [][]string{
@@ -163,22 +177,51 @@ func buildDashboardViewModel(
 			"-",
 		},
 		{
-			"est ML",
-			fmt.Sprintf("charge: %s", primaryEstimateCharge),
-			fmt.Sprintf("discharge: %s", primaryEstimateDischarge),
-			primaryEstimatePower,
-			fmt.Sprintf(
-				"active: %s conf: %s",
-				primaryEstimateActive,
-				primaryEstimateConfidence,
-			),
-		},
-		{
 			"mqtt",
 			fmt.Sprintf("queue: %s", mqttQueueValue),
 			mqttDropsValue,
 			fmt.Sprintf("status: %s", mqttStatusValue),
 			"-",
+		},
+	}
+
+	estimateHeaders := []string{"Model", "Charge", "Discharge", "Power", "Confidence", "Δ ETA vs Unit", "Δ Power vs Unit"}
+	estimateRows := [][]string{
+		{
+			"MPPT",
+			firstNonEmpty(strings.TrimSpace(unitEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(unitEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(unitEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(unitEstimates.ConfidenceValue), "n/a"),
+			"-",
+			"-",
+		},
+		{
+			"Old",
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.ConfidenceValue), "n/a"),
+			estimateDeltaMinutesDisplay(unitEstimates, originalMLEstimates, stateKind),
+			estimateDeltaPowerDisplay(unitEstimates, originalMLEstimates, stateKind),
+		},
+		{
+			"Generic",
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ConfidenceValue), "n/a"),
+			estimateDeltaMinutesDisplay(unitEstimates, genericMLEstimates, stateKind),
+			estimateDeltaPowerDisplay(unitEstimates, genericMLEstimates, stateKind),
+		},
+		{
+			fmt.Sprintf("New (%s)", strings.ToUpper(string(newMLProfile))),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.ConfidenceValue), "n/a"),
+			estimateDeltaMinutesDisplay(unitEstimates, newMLEstimates, stateKind),
+			estimateDeltaPowerDisplay(unitEstimates, newMLEstimates, stateKind),
 		},
 	}
 
@@ -312,6 +355,9 @@ func buildDashboardViewModel(
 		minuteHeaders: minuteHeaders,
 		minuteRows:    minuteRows,
 
+		estimateHeaders: estimateHeaders,
+		estimateRows:    estimateRows,
+
 		sensorHeaders: sensorHeaders,
 		sensorRows:    sensorRows,
 
@@ -340,6 +386,16 @@ func selectTopStateValue(
 	state systemStateKind,
 	ml batteryETAEstimates,
 ) string {
+	value, _ := selectTopStateValueWithSource(snapshot, deviceReported, state, ml)
+	return value
+}
+
+func selectTopStateValueWithSource(
+	snapshot *energySnapshot,
+	deviceReported string,
+	state systemStateKind,
+	ml batteryETAEstimates,
+) (string, bool) {
 	deviceReported = strings.TrimSpace(deviceReported)
 	if deviceReported == "" {
 		deviceReported = "n/a"
@@ -372,18 +428,18 @@ func selectTopStateValue(
 			snapshot.mlTopStateUse = true
 		}
 		if snapshot.mlTopStateUse {
-			return mlValue
+			return mlValue, true
 		}
 	} else if mlReady && confidenceTierFromValue(ml.ConfidenceValue) == "high" {
-		return mlValue
+		return mlValue, true
 	}
 	if deviceReported != "n/a" {
-		return deviceReported
+		return deviceReported, false
 	}
 	if mlReady {
-		return mlValue
+		return mlValue, true
 	}
-	return "n/a"
+	return "n/a", false
 }
 
 func topStateDisplayIcon(state systemStateKind, value string, source string) string {
@@ -632,7 +688,81 @@ func isMLEstimateReady(ml batteryETAEstimates) bool {
 	if active == "" || active == "n/a" {
 		return false
 	}
-	return strings.Contains(strings.ToLower(strings.TrimSpace(ml.PowerValue)), "ewma+trend")
+	powerValue := strings.ToLower(strings.TrimSpace(ml.PowerValue))
+	return strings.Contains(powerValue, "ewma+trend") || strings.Contains(powerValue, "profile:")
+}
+
+func pickPreferredMLForTopState(
+	unit batteryETAEstimates,
+	generic batteryETAEstimates,
+	new batteryETAEstimates,
+	state systemStateKind,
+) (batteryETAEstimates, string) {
+	genericReady := isMLEstimateReady(generic)
+	newReady := isMLEstimateReady(new)
+	genericTier := confidenceTierFromValue(generic.ConfidenceValue)
+	newTier := confidenceTierFromValue(new.ConfidenceValue)
+	genericConf, _ := parseConfidenceScore(generic.ConfidenceValue)
+	newConf, _ := parseConfidenceScore(new.ConfidenceValue)
+
+	const modelSelectConfidenceFloor = 0.70
+	switch {
+	case newReady && newTier == "high":
+		return new, "New"
+	case genericReady && genericTier == "high":
+		return generic, "Generic"
+	case newReady && newConf >= modelSelectConfidenceFloor:
+		return new, "New"
+	case genericReady && genericConf >= modelSelectConfidenceFloor:
+		return generic, "Generic"
+	}
+
+	newCloseness, newHasCloseness := estimateClosenessToUnit(unit, new, state)
+	genericCloseness, genericHasCloseness := estimateClosenessToUnit(unit, generic, state)
+	switch {
+	case newHasCloseness && !genericHasCloseness:
+		return new, "New"
+	case genericHasCloseness && !newHasCloseness:
+		return generic, "Generic"
+	case newHasCloseness && genericHasCloseness && newCloseness+1e-6 < genericCloseness:
+		return new, "New"
+	case genericHasCloseness && newHasCloseness && genericCloseness+1e-6 < newCloseness:
+		return generic, "Generic"
+	case newReady:
+		return new, "New"
+	case genericReady:
+		return generic, "Generic"
+	}
+
+	return unit, "MPPT"
+}
+
+func estimateClosenessToUnit(
+	unit batteryETAEstimates,
+	candidate batteryETAEstimates,
+	state systemStateKind,
+) (float64, bool) {
+	score := 0.0
+	hasSignal := false
+
+	if unitMinutes, ok := estimateActiveMinutes(unit, state); ok {
+		if candMinutes, ok := estimateActiveMinutes(candidate, state); ok {
+			score += math.Abs(candMinutes - unitMinutes)
+		} else {
+			score += 1e6
+		}
+		hasSignal = true
+	}
+	if unitPower, ok := estimateSignedPower(unit, state); ok {
+		if candPower, ok := estimateSignedPower(candidate, state); ok {
+			// Keep power contribution smaller than ETA contribution.
+			score += math.Abs(candPower-unitPower) * 0.2
+		} else {
+			score += 1e6
+		}
+		hasSignal = true
+	}
+	return score, hasSignal
 }
 
 func confidenceTierFromValue(value string) string {

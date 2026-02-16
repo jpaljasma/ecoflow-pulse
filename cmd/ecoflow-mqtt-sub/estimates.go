@@ -18,11 +18,15 @@ func estimatedWhLeft(packs map[int]*packSnapshot) float64 {
 }
 
 type batteryETAEstimates struct {
-	ChargeValue     string
-	DischargeValue  string
-	ActiveValue     string
-	PowerValue      string
-	ConfidenceValue string
+	ChargeValue       string
+	DischargeValue    string
+	ActiveValue       string
+	PowerValue        string
+	ConfidenceValue   string
+	chargeWatts       float64
+	hasChargeWatts    bool
+	dischargeWatts    float64
+	hasDischargeWatts bool
 }
 
 func (s *energySnapshot) estimateBatteryETAs(
@@ -114,6 +118,8 @@ func (s *energySnapshot) estimateBatteryETAs(
 			etaChargeMin := energyToChargeWh * 60.0 / chargePowerW
 			estimates.ChargeValue = formatETAMinutes(etaChargeMin)
 		}
+		estimates.chargeWatts = chargePowerW
+		estimates.hasChargeWatts = true
 	}
 	if hasDischargePower {
 		if energyToDischargeWh <= 0 {
@@ -122,6 +128,8 @@ func (s *energySnapshot) estimateBatteryETAs(
 			etaDischargeMin := energyToDischargeWh * 60.0 / dischargePowerW
 			estimates.DischargeValue = formatETAMinutes(etaDischargeMin)
 		}
+		estimates.dischargeWatts = dischargePowerW
+		estimates.hasDischargeWatts = true
 	}
 
 	switch {
@@ -303,6 +311,8 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 			hasChargeETA = true
 			estimates.ChargeValue = formatETAMinutes(etaChargeMin)
 		}
+		estimates.chargeWatts = chargePowerW
+		estimates.hasChargeWatts = true
 	}
 	if hasDischargePower {
 		if energyToDischargeWh <= 0 {
@@ -315,6 +325,8 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 			hasDischargeETA = true
 			estimates.DischargeValue = formatETAMinutes(etaDischargeMin)
 		}
+		estimates.dischargeWatts = dischargePowerW
+		estimates.hasDischargeWatts = true
 	}
 
 	switch stateForML {
@@ -512,6 +524,10 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 								if energyToChargeWh > 0 {
 									chargePowerW = energyToChargeWh * 60.0 / corrected
 									hasChargePower = chargePowerW > systemStateNetThresholdWatts
+									if hasChargePower {
+										estimates.chargeWatts = chargePowerW
+										estimates.hasChargeWatts = true
+									}
 								}
 							case systemStateDischarging:
 								dischargeEtaMinutes = corrected
@@ -520,6 +536,10 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 								if energyToDischargeWh > 0 {
 									dischargePowerW = energyToDischargeWh * 60.0 / corrected
 									hasDischargePower = dischargePowerW > systemStateNetThresholdWatts
+									if hasDischargePower {
+										estimates.dischargeWatts = dischargePowerW
+										estimates.hasDischargeWatts = true
+									}
 								}
 							}
 						}

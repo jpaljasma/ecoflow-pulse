@@ -43,6 +43,9 @@ const (
 	defaultMinuteTableRows       = 10
 	defaultMinuteHistoryBuckets  = 24 * 60
 	defaultMinuteHistoryPath     = "logs/telemetry_history.jsonl"
+	defaultTrainingCSVPath       = "logs/telemetry_training.csv"
+	defaultTrainingCSVInterval   = 10 * time.Second
+	defaultTrainingCSVJitter     = 0.2
 	defaultHistoryLoadWindowMins = 180
 	defaultMLBucketSeconds       = 10
 	defaultMLHistoryBuckets      = 180
@@ -375,17 +378,21 @@ type energySnapshot struct {
 	EMSParaVolMax          float64
 	HasEMSParaVolMax       bool
 
-	pvLowSmoother    *rollingAverage
-	pvHighSmoother   *rollingAverage
-	pvTotalSmoother  *rollingAverage
-	acInSmoother     *rollingAverage
-	totalInSmoother  *rollingAverage
-	totalOutSmoother *rollingAverage
-	stateNetSmoother *rollingAverage
-	mlFastHistory    *powerTelemetryHistory
-	mlConfidenceEWMA float64
-	hasMLConfEWMA    bool
-	mlTopStateUse    bool
+	pvLowSmoother             *rollingAverage
+	pvHighSmoother            *rollingAverage
+	pvTotalSmoother           *rollingAverage
+	acInSmoother              *rollingAverage
+	totalInSmoother           *rollingAverage
+	totalOutSmoother          *rollingAverage
+	stateNetSmoother          *rollingAverage
+	mlFastHistory             *powerTelemetryHistory
+	mlConfidenceEWMA          float64
+	hasMLConfEWMA             bool
+	mlTopStateUse             bool
+	mlProfileChargeBias       float64
+	hasMLProfileChargeBias    bool
+	mlProfileDischargeBias    float64
+	hasMLProfileDischargeBias bool
 }
 
 type sensorUpdateEvent struct {
@@ -1171,6 +1178,10 @@ func main() {
 		HistoryCapacity: parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_HISTORY_BUCKETS", defaultMinuteHistoryBuckets),
 	}
 	minuteHistoryPath := envOrDefault("ECOFLOW_MQTT_HISTORY_PATH", defaultMinuteHistoryPath)
+	trainingCSVPath := envOrDefault("ECOFLOW_MQTT_TRAINING_CSV_PATH", defaultTrainingCSVPath)
+	trainingCSVEnabled := parseBoolEnv("ECOFLOW_MQTT_TRAINING_CSV", true)
+	trainingCSVInterval := durationAllowZero("ECOFLOW_MQTT_TRAINING_CSV_INTERVAL", defaultTrainingCSVInterval)
+	trainingCSVJitter := parseNonNegativeFloatEnv("ECOFLOW_MQTT_TRAINING_CSV_JITTER", defaultTrainingCSVJitter)
 	historyLoadWindowMins := parsePositiveIntEnv("ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES", defaultHistoryLoadWindowMins)
 	mlBucketSeconds := parsePositiveIntEnv("ECOFLOW_ML_BUCKET_SECONDS", defaultMLBucketSeconds)
 	mlHistoryBuckets := parsePositiveIntEnv("ECOFLOW_ML_HISTORY_BUCKETS", defaultMLHistoryBuckets)
@@ -1197,6 +1208,27 @@ func main() {
 	defer func() {
 		_ = minuteHistoryStore.Close()
 	}()
+	var trainingCSVStore *trainingTelemetryCSVStore
+	if trainingCSVEnabled {
+		trainingCSVStore, err = newTrainingTelemetryCSVStore(trainingCSVPath)
+		if err != nil {
+			logger.Warn("init training telemetry csv store failed", slog.String("error", err.Error()))
+			runLog.Printf("training_csv_init_error path=%s error=%q", trainingCSVPath, err.Error())
+		} else {
+			defer func() {
+				_ = trainingCSVStore.Close()
+			}()
+			runLog.Printf(
+				"training_csv_enabled path=%s interval=%s jitter=%.3f",
+				trainingCSVStore.Path(),
+				trainingCSVInterval.String(),
+				trainingCSVJitter,
+			)
+		}
+	} else {
+		runLog.Printf("training_csv_disabled")
+	}
+	trainingCaptureScheduler := newTelemetryCaptureScheduler(trainingCSVInterval, trainingCSVJitter)
 	loadNotBeforeUnix := int64(0)
 	if historyLoadWindowMins > 0 {
 		loadNotBeforeUnix = time.Now().Add(-time.Duration(historyLoadWindowMins) * time.Minute).Truncate(time.Minute).Unix()
@@ -1330,9 +1362,33 @@ func main() {
 
 	lastEnvelope := telemetryEnvelope{TypeCode: "n/a"}
 	debugTelemetry := logger.Enabled(ctx, slog.LevelDebug)
+	captureTrainingTelemetry := func(at time.Time, topic string, envelope telemetryEnvelope, quota map[string]any) {
+		if trainingCSVStore == nil {
+			return
+		}
+		shouldCaptureNow := isPowerRelatedTelemetry(envelope, quota)
+		if !shouldCaptureNow && trainingCaptureScheduler != nil && !trainingCaptureScheduler.ShouldCapture(at) {
+			return
+		}
+		row := buildTrainingTelemetryCSVRow(at, targetDevice, topic, envelope, snapshot)
+		if err := trainingCSVStore.AppendRow(row); err != nil {
+			logger.Warn(
+				"append training telemetry csv row failed",
+				slog.String("path", trainingCSVStore.Path()),
+				slog.String("error", err.Error()),
+			)
+			runLog.Printf(
+				"training_csv_append_error path=%s error=%q",
+				trainingCSVStore.Path(),
+				err.Error(),
+			)
+		}
+	}
 	if bootstrap.QuotaKeys > 0 {
 		lastEnvelope = telemetryEnvelope{TypeCode: "quotaBootstrap"}
-		recordMinuteSample(time.Now())
+		now := time.Now()
+		recordMinuteSample(now)
+		captureTrainingTelemetry(now, currentTopic, lastEnvelope, nil)
 		if tableView {
 			fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
 		} else {
@@ -1486,7 +1542,9 @@ func main() {
 				continue
 			}
 			snapshot.MQTTFallbackPollCount++
-			recordMinuteSample(time.Now())
+			now := time.Now()
+			recordMinuteSample(now)
+			captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "fallbackQuotaPoll"}, nil)
 			runLog.Printf(
 				"fallback_quota_poll_ok polls=%d quota_keys=%d mapped_packs=%d",
 				snapshot.MQTTFallbackPollCount,
@@ -1516,7 +1574,9 @@ func main() {
 				runLog.Printf("quota_reconcile_failed error=%q", reconcileErr.Error())
 				continue
 			}
-			recordMinuteSample(time.Now())
+			now := time.Now()
+			recordMinuteSample(now)
+			captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "quotaReconcile"}, nil)
 			runLog.Printf(
 				"quota_reconcile_ok interval=%s quota_keys=%d mapped_packs=%d",
 				reconcileEvery.String(),
@@ -1575,8 +1635,10 @@ func main() {
 			snapshot.MQTTConnected = true
 			snapshot.MQTTLastMessageAt = time.Now()
 			snapshot.HasMQTTLastMessage = true
-			recordMinuteSample(time.Now())
+			now := time.Now()
+			recordMinuteSample(now)
 			lastEnvelope = envelope
+			captureTrainingTelemetry(now, msg.Topic, envelope, quota)
 
 			if debugTelemetry {
 				logger.Debug(
@@ -2138,6 +2200,18 @@ func parsePositiveIntEnv(key string, fallback int) int {
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func parseNonNegativeFloatEnv(key string, fallback float64) float64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
 		return fallback
 	}
 	return value
