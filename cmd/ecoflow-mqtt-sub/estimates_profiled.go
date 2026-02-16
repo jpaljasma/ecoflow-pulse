@@ -18,6 +18,7 @@ const (
 
 type mlEstimateProfileConfig struct {
 	name                 mlEstimateProfile
+	historySampleLimit   int
 	fastWindow           int
 	stableWindow         int
 	recentWindow         int
@@ -32,6 +33,8 @@ type mlEstimateProfileConfig struct {
 	confidenceSignalGain float64
 	confidenceStateGain  float64
 	remainBlendWeight    float64
+	ioSignalBlend        float64
+	packSignalBlend      float64
 	earlyHighSamples     int
 	earlyHighDirection   float64
 	earlyHighRecentCVMax float64
@@ -40,20 +43,23 @@ type mlEstimateProfileConfig struct {
 
 var mlEstimateDefaultProfileConfig = mlEstimateProfileConfig{
 	name:                 mlEstimateProfileGeneric,
-	fastWindow:           14,
-	stableWindow:         48,
+	historySampleLimit:   180,
+	fastWindow:           25,
+	stableWindow:         52,
 	recentWindow:         3,
-	mediumWindow:         16,
-	trendWindow:          12,
-	latestWeight:         0.805335181192606,
-	recentWeight:         0.153512799544190,
-	mediumWeight:         0.041152019263204,
-	trendWeight:          0.221544188091400,
-	netThresholdScale:    1.051656760004609,
+	mediumWindow:         13,
+	trendWindow:          7,
+	latestWeight:         0.887823187849583,
+	recentWeight:         0.069210837718650,
+	mediumWeight:         0.042965974431767,
+	trendWeight:          0.147042937396007,
+	netThresholdScale:    0.808012840677693,
 	confidenceBase:       0.22,
 	confidenceSignalGain: 0.14,
 	confidenceStateGain:  0.09,
 	remainBlendWeight:    0.34,
+	ioSignalBlend:        0.18,
+	packSignalBlend:      0.32,
 	earlyHighSamples:     10,
 	earlyHighDirection:   0.90,
 	earlyHighRecentCVMax: 0.50,
@@ -65,20 +71,23 @@ var mlEstimateProfileConfigs = map[mlEstimateProfile]mlEstimateProfileConfig{
 	mlEstimateProfileGeneric: mlEstimateDefaultProfileConfig,
 	mlEstimateProfileD2M: {
 		name:                 mlEstimateProfileD2M,
+		historySampleLimit:   180,
 		fastWindow:           27,
-		stableWindow:         30,
+		stableWindow:         51,
 		recentWindow:         3,
-		mediumWindow:         10,
-		trendWindow:          6,
-		latestWeight:         0.786829119625947,
-		recentWeight:         0.148453296278556,
-		mediumWeight:         0.064717584095497,
-		trendWeight:          0.113446462914328,
-		netThresholdScale:    1.067483833161554,
+		mediumWindow:         16,
+		trendWindow:          11,
+		latestWeight:         0.833357565429723,
+		recentWeight:         0.132474766598163,
+		mediumWeight:         0.034167667972115,
+		trendWeight:          0.102838914609788,
+		netThresholdScale:    1.025692552889228,
 		confidenceBase:       0.24,
 		confidenceSignalGain: 0.18,
 		confidenceStateGain:  0.12,
 		remainBlendWeight:    0.72109583356051,
+		ioSignalBlend:        0.26,
+		packSignalBlend:      0.40,
 		earlyHighSamples:     8,
 		earlyHighDirection:   0.88,
 		earlyHighRecentCVMax: 0.58,
@@ -86,20 +95,23 @@ var mlEstimateProfileConfigs = map[mlEstimateProfile]mlEstimateProfileConfig{
 	},
 	mlEstimateProfileDPU: {
 		name:                 mlEstimateProfileDPU,
-		fastWindow:           13,
-		stableWindow:         29,
-		recentWindow:         8,
-		mediumWindow:         20,
-		trendWindow:          3,
-		latestWeight:         0.463261399215132,
-		recentWeight:         0.305012377404102,
-		mediumWeight:         0.231726223380766,
-		trendWeight:          0.263488956398342,
-		netThresholdScale:    0.813874424922922,
+		historySampleLimit:   210,
+		fastWindow:           14,
+		stableWindow:         51,
+		recentWindow:         6,
+		mediumWindow:         14,
+		trendWindow:          4,
+		latestWeight:         0.554812961667180,
+		recentWeight:         0.319217743269122,
+		mediumWeight:         0.125969295063698,
+		trendWeight:          0.211583648947247,
+		netThresholdScale:    1.175203222439996,
 		confidenceBase:       0.26,
 		confidenceSignalGain: 0.19,
 		confidenceStateGain:  0.13,
 		remainBlendWeight:    0.8688152910285984,
+		ioSignalBlend:        0.14,
+		packSignalBlend:      0.34,
 		earlyHighSamples:     6,
 		earlyHighDirection:   0.84,
 		earlyHighRecentCVMax: 0.65,
@@ -168,9 +180,13 @@ func estimateBatteryETAsMLWithProfile(
 		return estimates
 	}
 
-	samples := netPowerSamplesFromPowerHistory(snapshot.mlFastHistory, 120)
+	sampleLimit := cfg.historySampleLimit
+	if sampleLimit < 120 {
+		sampleLimit = 120
+	}
+	samples := netPowerSamplesFromPowerHistory(snapshot.mlFastHistory, sampleLimit)
 	if len(samples) < 2 {
-		samples = netPowerSamplesFromMinuteHistory(history, 24)
+		samples = netPowerSamplesFromMinuteHistory(history, 36)
 	}
 	if len(samples) < 2 {
 		return estimates
@@ -181,19 +197,48 @@ func estimateBatteryETAsMLWithProfile(
 	if !ok {
 		return estimates
 	}
+	if ioSamples := ioNetPowerSamplesFromPowerHistory(snapshot.mlFastHistory, sampleLimit); len(ioSamples) >= 2 {
+		ioSamples = adaptProfilePredictionSamples(ioSamples, cfg)
+		if ioPredW, ioMeanW, _, ioOK := predictNetPowerProfiled(ioSamples, cfg); ioOK {
+			predNetW = blendAuxNetPrediction(predNetW, ioPredW, cfg.ioSignalBlend)
+			meanNetW = blendAuxNetPrediction(meanNetW, ioMeanW, cfg.ioSignalBlend*0.85)
+		}
+	}
+	if packSamples := packNetPowerSamplesFromPowerHistory(snapshot.mlFastHistory, sampleLimit); len(packSamples) >= 2 {
+		packSamples = adaptProfilePredictionSamples(packSamples, cfg)
+		if packPredW, packMeanW, _, packOK := predictNetPowerProfiled(packSamples, cfg); packOK {
+			predNetW = blendAuxNetPrediction(predNetW, packPredW, cfg.packSignalBlend)
+			meanNetW = blendAuxNetPrediction(meanNetW, packMeanW, cfg.packSignalBlend*0.85)
+		}
+	}
 	threshold := systemStateNetThresholdWatts * cfg.netThresholdScale
 	if threshold < 3 {
 		threshold = 3
 	}
+	directionThreshold := threshold
+	if profile == mlEstimateProfileD2M {
+		// D2M low-PV operation can be noisy around zero net; widen directional deadband
+		// using short-term volatility so we don't flip state on tiny oscillations.
+		noisePad := stdNetW * 0.45
+		maxPad := threshold * 2.0
+		if noisePad > maxPad {
+			noisePad = maxPad
+		}
+		directionThreshold += noisePad
+		minDirection := math.Max(threshold*1.8, 14.0)
+		if directionThreshold < minDirection {
+			directionThreshold = minDirection
+		}
+	}
 
 	chargePowerW := 0.0
 	hasChargePower := false
-	if predNetW > threshold {
+	if predNetW > directionThreshold {
 		chargePowerW = predNetW
 		hasChargePower = true
 	} else {
 		recent := average(lastNSamples(samples, cfg.recentWindow))
-		if state == systemStateCharging && recent > threshold*0.9 {
+		if state == systemStateCharging && recent > directionThreshold*0.9 {
 			chargePowerW = recent
 			hasChargePower = true
 		}
@@ -208,14 +253,111 @@ func estimateBatteryETAsMLWithProfile(
 
 	dischargePowerW := 0.0
 	hasDischargePower := false
-	if predNetW < -threshold {
+	if predNetW < -directionThreshold {
 		dischargePowerW = -predNetW
 		hasDischargePower = true
 	} else {
 		recent := average(lastNSamples(samples, cfg.recentWindow))
-		if state == systemStateDischarging && recent < -threshold*0.9 {
+		if state == systemStateDischarging && recent < -directionThreshold*0.9 {
 			dischargePowerW = -recent
 			hasDischargePower = true
+		}
+	}
+	if hasDischargePower {
+		if sanitized, ok := snapshot.sanitizeBatteryFlowHintWatts(dischargePowerW); ok {
+			dischargePowerW = sanitized
+		} else {
+			hasDischargePower = false
+		}
+	}
+
+	// Low-power steady-state fallback: when prediction hovers near threshold but
+	// samples are directionally consistent, still emit a usable direction.
+	if !hasChargePower && !hasDischargePower && state != systemStateIdle {
+		recentSamples := lastNSamples(samples, cfg.recentWindow)
+		if len(recentSamples) < 4 {
+			recentSamples = lastNSamples(samples, 4)
+		}
+		if len(recentSamples) > 0 {
+			recentMean := average(recentSamples)
+			signDeadband := adaptiveDirectionDeadband(stdNetW)
+			minDeadband := directionThreshold * 0.55
+			if signDeadband < minDeadband {
+				signDeadband = minDeadband
+			}
+			const lowPowerDirectionFloor = 0.55
+			const lowPowerAgreementMin = 0.62
+			switch state {
+			case systemStateCharging:
+				agree := signDirectionMatchRatio(recentSamples, true, signDeadband)
+				if agree >= lowPowerAgreementMin &&
+					(predNetW > directionThreshold*lowPowerDirectionFloor ||
+						meanNetW > directionThreshold*lowPowerDirectionFloor ||
+						recentMean > directionThreshold*lowPowerDirectionFloor) {
+					chargePowerW = math.Max(math.Max(predNetW, meanNetW), recentMean)
+					hasChargePower = chargePowerW > 0
+				}
+			case systemStateDischarging:
+				agree := signDirectionMatchRatio(recentSamples, false, signDeadband)
+				if agree >= lowPowerAgreementMin &&
+					(predNetW < -directionThreshold*lowPowerDirectionFloor ||
+						meanNetW < -directionThreshold*lowPowerDirectionFloor ||
+						recentMean < -directionThreshold*lowPowerDirectionFloor) {
+					dischargePowerW = math.Max(math.Max(-predNetW, -meanNetW), -recentMean)
+					hasDischargePower = dischargePowerW > 0
+				}
+			}
+		}
+	}
+
+	packChargeW, packDischargeW := packPowerTotals(snapshot.Packs)
+	effectiveIn, hasEffectiveIn, effectiveOut, hasEffectiveOut := snapshot.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	flow := snapshot.batteryFlowForDisplay(
+		effectiveIn,
+		hasEffectiveIn,
+		effectiveOut,
+		hasEffectiveOut,
+		packChargeW,
+		packDischargeW,
+	)
+	flowNetW := 0.0
+	hasFlowNet := flow.hasNet
+	if hasFlowNet {
+		flowNetW = flow.netWatts
+	}
+
+	// Favor pack/battery flow direction when net model is ambiguous. Keep D2M
+	// conservative near zero; let DPU recover direction a bit faster.
+	if hasFlowNet {
+		flowStrongMul := 1.1
+		modelAmbiguousMul := 2.0
+		if profile == mlEstimateProfileD2M {
+			flowStrongMul = 1.4
+			modelAmbiguousMul = 2.4
+		}
+		flowStrong := math.Abs(flowNetW) > directionThreshold*flowStrongMul
+		modelAmbiguous := math.Abs(predNetW) <= directionThreshold*modelAmbiguousMul
+		noModelDirection := !hasChargePower && !hasDischargePower
+		if flowStrong && (modelAmbiguous || noModelDirection) {
+			if flowNetW > 0 {
+				chargePowerW = math.Abs(flowNetW)
+				hasChargePower = true
+				dischargePowerW = 0
+				hasDischargePower = false
+			} else if flowNetW < 0 {
+				dischargePowerW = math.Abs(flowNetW)
+				hasDischargePower = true
+				chargePowerW = 0
+				hasChargePower = false
+			}
+		}
+	}
+
+	if hasChargePower {
+		if sanitized, ok := snapshot.sanitizeBatteryFlowHintWatts(chargePowerW); ok {
+			chargePowerW = sanitized
+		} else {
+			hasChargePower = false
 		}
 	}
 	if hasDischargePower {
@@ -370,6 +512,34 @@ func estimateBatteryETAsMLWithProfile(
 	recentStabilityScore := (1 - (recentCV / 2.0)) * 0.12
 	directionAgreement := (signMatch * 0.45) + (recentSignMatch * 0.55)
 	stateScore := directionAgreement * cfg.confidenceStateGain
+	if hasFlowNet && math.Abs(flowNetW) > directionThreshold*1.2 {
+		flowAgreeBonus := 0.0
+		flowDisagreePenalty := 0.0
+		switch profile {
+		case mlEstimateProfileD2M:
+			flowAgreeBonus = 0.07
+			flowDisagreePenalty = 0.08
+		case mlEstimateProfileDPU:
+			flowAgreeBonus = 0.05
+			flowDisagreePenalty = 0.06
+		}
+		if flowAgreeBonus > 0 && flowDisagreePenalty > 0 {
+			switch stateForModel {
+			case systemStateCharging:
+				if flowNetW > 0 {
+					stateScore += flowAgreeBonus
+				} else {
+					stateScore -= flowDisagreePenalty
+				}
+			case systemStateDischarging:
+				if flowNetW < 0 {
+					stateScore += flowAgreeBonus
+				} else {
+					stateScore -= flowDisagreePenalty
+				}
+			}
+		}
+	}
 	confidenceScore := cfg.confidenceBase + sampleScore + signalScore + stabilityScore + recentStabilityScore + stateScore
 	if !hasChargePower && !hasDischargePower {
 		if stateForModel == systemStateIdle {
@@ -419,6 +589,30 @@ func estimateBatteryETAsMLWithProfile(
 			confidenceScore < cfg.earlyHighFloor {
 			confidenceScore = cfg.earlyHighFloor
 		}
+		// DPU trickle-state warmup: steady low-power direction should converge
+		// faster even when absolute signal is small.
+		if profile == mlEstimateProfileDPU &&
+			len(samples) >= cfg.recentWindow+2 &&
+			signalPower >= directionThreshold*0.65 &&
+			signalPower <= directionThreshold*3.5 &&
+			directionAgreement >= 0.78 &&
+			recentSignMatch >= 0.78 &&
+			recentCV <= 0.55 &&
+			confidenceScore < 0.86 {
+			confidenceScore = 0.86
+		}
+		// D2M low-PV steady windows can have tiny sign jitter around net-zero;
+		// promote confidence earlier when recent behavior is still directionally stable.
+		if profile == mlEstimateProfileD2M &&
+			len(samples) >= 6 &&
+			directionAgreement >= 0.74 &&
+			recentSignMatch >= 0.76 &&
+			recentCV <= 0.95 &&
+			signalPower >= directionThreshold*1.6 &&
+			signalPower <= 170 &&
+			confidenceScore < 0.92 {
+			confidenceScore = 0.92
+		}
 	}
 	estimates.ConfidenceValue = formatConfidenceValue(confidenceScore, true)
 
@@ -434,6 +628,24 @@ func estimateBatteryETAsMLWithProfile(
 		estimates.PowerValue = fmt.Sprintf("power: chg@%s (profile:%s)", formatWatts(estimates.chargeWatts), cfg.name)
 	case estimates.hasDischargeWatts:
 		estimates.PowerValue = fmt.Sprintf("power: dsg@%s (profile:%s)", formatWatts(estimates.dischargeWatts), cfg.name)
+	case stateForModel == systemStateIdle:
+		estimates.PowerValue = fmt.Sprintf("power: idle@0.0W (profile:%s)", cfg.name)
+	default:
+		estimates.PowerValue = fmt.Sprintf("power: warmup (profile:%s)", cfg.name)
+	}
+
+	if strings.TrimSpace(estimates.ActiveValue) == "n/a" {
+		if remainMin, _, ok := snapshot.selectRemainForState(stateForModel); ok && remainMin > 0 {
+			estimates.ActiveValue = formatETAMinutes(float64(remainMin))
+		} else if remainMin, _, ok := snapshot.selectRemainForState(state); ok && remainMin > 0 {
+			estimates.ActiveValue = formatETAMinutes(float64(remainMin))
+		}
+	}
+	if stateForModel == systemStateCharging && strings.TrimSpace(estimates.ChargeValue) == "n/a" {
+		estimates.ChargeValue = estimates.ActiveValue
+	}
+	if stateForModel == systemStateDischarging && strings.TrimSpace(estimates.DischargeValue) == "n/a" {
+		estimates.DischargeValue = estimates.ActiveValue
 	}
 
 	return estimates
@@ -490,6 +702,96 @@ func predictNetPowerProfiled(samples []float64, cfg mlEstimateProfileConfig) (pr
 	variance /= float64(len(samples))
 	std = math.Sqrt(variance)
 	return pred, mean, std, true
+}
+
+func blendAuxNetPrediction(base float64, aux float64, weight float64) float64 {
+	if weight <= 0 {
+		return base
+	}
+	if weight > 0.90 {
+		weight = 0.90
+	}
+	baseAbs := math.Abs(base)
+	auxAbs := math.Abs(aux)
+	if base*aux < 0 {
+		switch {
+		case auxAbs < baseAbs*0.8:
+			weight *= 0.15
+		case auxAbs < baseAbs*1.2:
+			weight *= 0.30
+		default:
+			weight *= 0.45
+		}
+	} else if auxAbs < 4.0 {
+		weight *= 0.25
+	}
+	return ((1.0 - weight) * base) + (weight * aux)
+}
+
+func ioNetPowerSamplesFromPowerHistory(history *powerTelemetryHistory, limit int) []float64 {
+	if history == nil {
+		return nil
+	}
+	buckets := history.SortedBuckets(false, limit)
+	if len(buckets) == 0 {
+		return nil
+	}
+	out := make([]float64, 0, len(buckets))
+	for _, bucket := range buckets {
+		inW := 0.0
+		hasIn := false
+		if bucket.SolarSamples > 0 {
+			inW += bucket.SolarSumWatts / float64(bucket.SolarSamples)
+			hasIn = true
+		}
+		if bucket.ACInSamples > 0 {
+			inW += bucket.ACInSumWatts / float64(bucket.ACInSamples)
+			hasIn = true
+		}
+		outW := 0.0
+		hasOut := false
+		if bucket.ACOutSamples > 0 {
+			outW += bucket.ACOutSumWatts / float64(bucket.ACOutSamples)
+			hasOut = true
+		}
+		if bucket.DCOutSamples > 0 {
+			outW += bucket.DCOutSumWatts / float64(bucket.DCOutSamples)
+			hasOut = true
+		}
+		if !hasIn && !hasOut {
+			continue
+		}
+		out = append(out, inW-outW)
+	}
+	return out
+}
+
+func packNetPowerSamplesFromPowerHistory(history *powerTelemetryHistory, limit int) []float64 {
+	if history == nil {
+		return nil
+	}
+	buckets := history.SortedBuckets(false, limit)
+	if len(buckets) == 0 {
+		return nil
+	}
+	out := make([]float64, 0, len(buckets))
+	for _, bucket := range buckets {
+		hasCharge := bucket.PackChargeSamples > 0
+		hasDischarge := bucket.PackDischargeSamples > 0
+		if !hasCharge && !hasDischarge {
+			continue
+		}
+		charge := 0.0
+		discharge := 0.0
+		if hasCharge {
+			charge = bucket.PackChargeSumWatts / float64(bucket.PackChargeSamples)
+		}
+		if hasDischarge {
+			discharge = bucket.PackDischargeSumWatts / float64(bucket.PackDischargeSamples)
+		}
+		out = append(out, charge-discharge)
+	}
+	return out
 }
 
 func adaptiveProfileRemainBlend(

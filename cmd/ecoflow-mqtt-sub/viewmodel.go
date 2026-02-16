@@ -184,12 +184,13 @@ func buildDashboardViewModel(
 		},
 	}
 
-	estimateHeaders := []string{"Model", "Charge", "Discharge", "Power", "Confidence", "Δ ETA vs Unit", "Δ Power vs Unit"}
+	estimateHeaders := []string{"Model", "Charge", "Discharge", "Active", "Power", "Confidence", "Δ ETA vs Unit", "Δ Power vs Unit"}
 	estimateRows := [][]string{
 		{
 			"MPPT",
 			firstNonEmpty(strings.TrimSpace(unitEstimates.ChargeValue), "n/a"),
 			firstNonEmpty(strings.TrimSpace(unitEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(unitEstimates.ActiveValue), "n/a"),
 			firstNonEmpty(strings.TrimSpace(unitEstimates.PowerValue), "power: n/a"),
 			firstNonEmpty(strings.TrimSpace(unitEstimates.ConfidenceValue), "n/a"),
 			"-",
@@ -199,6 +200,7 @@ func buildDashboardViewModel(
 			fmt.Sprintf("New (%s)", strings.ToUpper(string(newMLProfile))),
 			firstNonEmpty(strings.TrimSpace(newMLEstimates.ChargeValue), "n/a"),
 			firstNonEmpty(strings.TrimSpace(newMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.ActiveValue), "n/a"),
 			firstNonEmpty(strings.TrimSpace(newMLEstimates.PowerValue), "power: n/a"),
 			firstNonEmpty(strings.TrimSpace(newMLEstimates.ConfidenceValue), "n/a"),
 			estimateDeltaMinutesDisplay(unitEstimates, newMLEstimates, stateKind),
@@ -208,6 +210,7 @@ func buildDashboardViewModel(
 			"Generic",
 			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ChargeValue), "n/a"),
 			firstNonEmpty(strings.TrimSpace(genericMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ActiveValue), "n/a"),
 			firstNonEmpty(strings.TrimSpace(genericMLEstimates.PowerValue), "power: n/a"),
 			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ConfidenceValue), "n/a"),
 			estimateDeltaMinutesDisplay(unitEstimates, genericMLEstimates, stateKind),
@@ -736,40 +739,21 @@ func pickPreferredMLForTopState(
 	new batteryETAEstimates,
 	state systemStateKind,
 ) (batteryETAEstimates, string) {
-	genericReady := isMLEstimateReady(generic)
+	_ = generic
 	newReady := isMLEstimateReady(new)
-	genericTier := confidenceTierFromValue(generic.ConfidenceValue)
 	newTier := confidenceTierFromValue(new.ConfidenceValue)
-	genericConf, _ := parseConfidenceScore(generic.ConfidenceValue)
 	newConf, _ := parseConfidenceScore(new.ConfidenceValue)
 
 	const modelSelectConfidenceFloor = 0.70
 	switch {
 	case newReady && newTier == "high":
 		return new, "New"
-	case genericReady && genericTier == "high":
-		return generic, "Generic"
 	case newReady && newConf >= modelSelectConfidenceFloor:
 		return new, "New"
-	case genericReady && genericConf >= modelSelectConfidenceFloor:
-		return generic, "Generic"
 	}
 
-	newCloseness, newHasCloseness := estimateClosenessToUnit(unit, new, state)
-	genericCloseness, genericHasCloseness := estimateClosenessToUnit(unit, generic, state)
-	switch {
-	case newHasCloseness && !genericHasCloseness:
+	if newReady {
 		return new, "New"
-	case genericHasCloseness && !newHasCloseness:
-		return generic, "Generic"
-	case newHasCloseness && genericHasCloseness && newCloseness+1e-6 < genericCloseness:
-		return new, "New"
-	case genericHasCloseness && newHasCloseness && genericCloseness+1e-6 < newCloseness:
-		return generic, "Generic"
-	case newReady:
-		return new, "New"
-	case genericReady:
-		return generic, "Generic"
 	}
 
 	return unit, "MPPT"

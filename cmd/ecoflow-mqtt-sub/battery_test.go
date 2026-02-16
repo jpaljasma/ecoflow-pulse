@@ -193,6 +193,28 @@ func TestEnergySnapshotStateSmoothingPrefersPackDischargeDirection(t *testing.T)
 	}
 }
 
+func TestEnergySnapshotStatePrefersRawDirectionWhenNetAndFlowAgreeOnD2M(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.configureStateSmoothing(6)
+	snapshot.HasXT150 = true
+
+	// Seed smoothed trend as discharging.
+	snapshot.HasWattsIn = true
+	snapshot.WattsIn = 24
+	snapshot.HasWattsOut = true
+	snapshot.WattsOut = 46
+	for i := 0; i < 6; i++ {
+		snapshot.pushStateSmoothingSample()
+	}
+
+	// Fresh frame indicates charging (raw net +10W). Even with stale discharging
+	// smoother, raw+flow agreement should win.
+	state := snapshot.detectSystemState(56, true, 46, true, 0, 0)
+	if state != systemStateCharging {
+		t.Fatalf("state mismatch with agreeing raw/flow direction: got=%s want=%s", state, systemStateCharging)
+	}
+}
+
 func TestEnergySnapshotIgnoresUnrealisticBatteryHintWhenNetKnown(t *testing.T) {
 	snapshot := newEnergySnapshot()
 	snapshot.HasWattsIn = true

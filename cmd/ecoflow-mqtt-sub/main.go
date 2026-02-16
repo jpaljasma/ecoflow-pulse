@@ -513,6 +513,10 @@ type powerTelemetryBucket struct {
 	BatteryChargeSamples  int
 	BatteryNetSumWatts    float64
 	BatteryNetSamples     int
+	PackChargeSumWatts    float64
+	PackChargeSamples     int
+	PackDischargeSumWatts float64
+	PackDischargeSamples  int
 }
 
 type powerTelemetryHistory struct {
@@ -958,7 +962,6 @@ func (h *minuteTelemetryHistory) AddSample(at time.Time, snapshot *energySnapsho
 		bucket.BatteryChargeSumWatts += chargeWatts
 		bucket.BatteryChargeSamples++
 	}
-
 	h.pruneOldest()
 }
 
@@ -1016,6 +1019,12 @@ func (h *powerTelemetryHistory) AddSample(at time.Time, snapshot *energySnapshot
 		}
 		bucket.BatteryChargeSumWatts += chargeWatts
 		bucket.BatteryChargeSamples++
+	}
+	if len(snapshot.Packs) > 0 || packChargeW > 0 || packDischargeW > 0 {
+		bucket.PackChargeSumWatts += packChargeW
+		bucket.PackChargeSamples++
+		bucket.PackDischargeSumWatts += packDischargeW
+		bucket.PackDischargeSamples++
 	}
 
 	h.pruneOldest()
@@ -4084,6 +4093,12 @@ func (s *energySnapshot) detectSystemState(
 	if !hasSmoothed || smoothedState == systemStateUnknown {
 		return rawState
 	}
+	rawNet := 0.0
+	hasRawNet := false
+	if hasEffectiveIn && hasEffectiveOut {
+		rawNet = effectiveIn - effectiveOut
+		hasRawNet = true
+	}
 
 	// No strong instantaneous signal yet; rely on smoothed direction.
 	if rawState == systemStateUnknown || rawState == systemStateIdle {
@@ -4093,14 +4108,35 @@ func (s *energySnapshot) detectSystemState(
 	// Allow strong, fresh pack direction to break ties when aggregate channels lag.
 	// Require a high margin to avoid overreacting to sparse/noisy pack updates.
 	packOverrideMargin := systemStateNetThresholdWatts * 4.0
-	if rawState == systemStateDischarging && packChargeW > packDischargeW+packOverrideMargin {
+	strongBatteryChargeHint := s.HasBatteryIn && (!s.HasBatteryOut || s.BatteryInWatts > s.BatteryOutWatts+packOverrideMargin)
+	strongBatteryDischargeHint := s.HasBatteryOut && (!s.HasBatteryIn || s.BatteryOutWatts > s.BatteryInWatts+packOverrideMargin)
+	if rawState == systemStateDischarging && packChargeW > packDischargeW+packOverrideMargin && !strongBatteryDischargeHint {
 		return systemStateCharging
 	}
-	if rawState == systemStateCharging && packDischargeW > packChargeW+packOverrideMargin {
+	if rawState == systemStateCharging && packDischargeW > packChargeW+packOverrideMargin && !strongBatteryChargeHint {
 		return systemStateDischarging
 	}
 	if rawState == smoothedState {
 		return rawState
+	}
+
+	// Delta 2 style trickle windows can disagree between stale smoothed trend and
+	// fresh raw samples. If raw aggregate net and battery-flow net agree, trust
+	// that direction to avoid charging<->discharging flap.
+	if s.HasXT150 && hasRawNet {
+		flow := s.batteryFlowForDisplay(
+			effectiveIn,
+			hasEffectiveIn,
+			effectiveOut,
+			hasEffectiveOut,
+			packChargeW,
+			packDischargeW,
+		)
+		agreeCharging := rawState == systemStateCharging && rawNet > systemStateNetThresholdWatts && flow.hasNet && flow.netWatts > systemStateNetThresholdWatts
+		agreeDischarging := rawState == systemStateDischarging && rawNet < -systemStateNetThresholdWatts && flow.hasNet && flow.netWatts < -systemStateNetThresholdWatts
+		if agreeCharging || agreeDischarging {
+			return rawState
+		}
 	}
 
 	// Preserve explicit pack direction only when aggregate in/out is missing.

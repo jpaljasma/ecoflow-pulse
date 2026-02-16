@@ -808,7 +808,7 @@ func TestPickPreferredMLForTopStatePrefersNewWhenBothHighAndNewCloserToUnit(t *t
 	}
 }
 
-func TestPickPreferredMLForTopStateFallsBackToGenericWhenNewNotReady(t *testing.T) {
+func TestPickPreferredMLForTopStateFallsBackToMPPTWhenNewNotReady(t *testing.T) {
 	unit := batteryETAEstimates{
 		ActiveValue:     "charging: 420min (~7h 0m)",
 		PowerValue:      "power: chg@110.0W",
@@ -829,11 +829,40 @@ func TestPickPreferredMLForTopStateFallsBackToGenericWhenNewNotReady(t *testing.
 	}
 
 	picked, label := pickPreferredMLForTopState(unit, generic, new, systemStateCharging)
-	if label != "Generic" {
-		t.Fatalf("expected Generic to be selected when New is not ready, got=%s", label)
+	if label != "MPPT" {
+		t.Fatalf("expected MPPT to be selected when New is not ready, got=%s", label)
 	}
-	if picked.PowerValue != generic.PowerValue {
-		t.Fatalf("expected Generic estimate payload, got=%q", picked.PowerValue)
+	if picked.PowerValue != unit.PowerValue {
+		t.Fatalf("expected MPPT estimate payload, got=%q", picked.PowerValue)
+	}
+}
+
+func TestPickPreferredMLForTopStateSkipsGenericWhenDivergenceIsLarge(t *testing.T) {
+	unit := batteryETAEstimates{
+		ActiveValue:     "discharging: 420min (~7h 0m)",
+		PowerValue:      "power: dsg@95.0W",
+		ConfidenceValue: "0.95 (high)",
+		DischargeValue:  "420min (~7h 0m)",
+	}
+	generic := batteryETAEstimates{
+		ActiveValue:     "discharging: 980min (~16h 20m)",
+		PowerValue:      "power: dsg@18.0W (profile:generic)",
+		ConfidenceValue: "0.99 (high)",
+		DischargeValue:  "980min (~16h 20m)",
+	}
+	new := batteryETAEstimates{
+		ActiveValue:     "n/a",
+		PowerValue:      "power: n/a",
+		ConfidenceValue: "n/a",
+		DischargeValue:  "n/a",
+	}
+
+	picked, label := pickPreferredMLForTopState(unit, generic, new, systemStateDischarging)
+	if label != "MPPT" {
+		t.Fatalf("expected MPPT when generic diverges too far, got=%s", label)
+	}
+	if picked.PowerValue != unit.PowerValue {
+		t.Fatalf("expected MPPT estimate payload, got=%q", picked.PowerValue)
 	}
 }
 
