@@ -26,6 +26,8 @@ Always use a branch -> pull request -> merge workflow.
 5. PR body formatting must use real newlines (no literal `\n`).
 6. When using GitHub CLI, prefer `gh pr create --body-file <file>` or `gh pr edit --body-file <file>` for multiline Markdown.
 7. After creating/updating a PR, verify rendered body with `gh pr view --json body` and fix immediately if escaped newlines appear.
+8. PR creation workflow is mandatory: push branch, run `gh pr create`, then verify with `gh pr view <number> --json url,title,body`.
+9. If PR creation fails due to branch/rules ambiguity, push to a fresh `codex/*` branch and retry PR creation there.
 
 ## Documentation Hygiene Rules
 1. Before committing code changes, update developer documentation under `docs/` if any runtime behavior, architecture, telemetry mapping, UI behavior, or configuration changed.
