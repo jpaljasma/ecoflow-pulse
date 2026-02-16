@@ -68,6 +68,16 @@ func buildDashboardViewModel(
 	mqttStatusValue := formatMQTTStatus(snapshot)
 	pvLowLabel := formatPVInputRowLabel("low", device, snapshot)
 	pvHighLabel := formatPVInputRowLabel("high", device, snapshot)
+	pvLowCapability := formatPVInputCapability("low", device, snapshot)
+	pvHighCapability := formatPVInputCapability("high", device, snapshot)
+	showXT150 := shouldShowXT150Channels(device, snapshot, derived)
+
+	channelsInValue := fmt.Sprintf("ac: %s pv_total: %s", derived.InACValue, pvTotalDisplay)
+	channelsOutValue := fmt.Sprintf("ac: %s (l14: %s) dc: %s", derived.OutACValue, derived.OutACL14Value, derived.OutDCValue)
+	if showXT150 {
+		channelsInValue = fmt.Sprintf("%s xt150_in: %s", channelsInValue, derived.XT150InValue)
+		channelsOutValue = fmt.Sprintf("%s xt150_out: %s", channelsOutValue, derived.XT150OutValue)
+	}
 
 	updatedAt := formatSnapshotUpdatedRelative(snapshot)
 	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Updated"}
@@ -114,8 +124,8 @@ func buildDashboardViewModel(
 	summaryRows := [][]string{
 		{
 			"channels",
-			fmt.Sprintf("ac: %s pv_total: %s xt150_in: %s", derived.InACValue, pvTotalDisplay, derived.XT150InValue),
-			fmt.Sprintf("ac: %s (l14: %s) dc: %s xt150_out: %s", derived.OutACValue, derived.OutACL14Value, derived.OutDCValue, derived.XT150OutValue),
+			channelsInValue,
+			channelsOutValue,
 			derived.ChannelsNetValue,
 			"-",
 		},
@@ -128,14 +138,14 @@ func buildDashboardViewModel(
 		},
 		{
 			pvLowLabel,
-			"-",
+			pvLowCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVLowVoltsValue, derived.PVLowAmpsValue, pvLowDisplay),
 			formatSolarNetSummary(derived.PVLowStateValue, pvLowDisplay),
 			"-",
 		},
 		{
 			pvHighLabel,
-			"-",
+			pvHighCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVHighVoltsValue, derived.PVHighAmpsValue, pvHighDisplay),
 			formatSolarNetSummary(derived.PVHighStateValue, pvHighDisplay),
 			"-",
@@ -376,16 +386,24 @@ func topStateDisplayIcon(state systemStateKind, value string, source string) str
 			displayState = systemStateIdle
 		}
 	}
-	if displayState == systemStateCharging && strings.EqualFold(strings.TrimSpace(source), "solar") {
-		return "☀️"
+	source = strings.ToLower(strings.TrimSpace(source))
+	if displayState == systemStateCharging {
+		switch source {
+		case "solar":
+			return "🔆"
+		case "hybrid(ac+solar)":
+			return "🌤"
+		case "ac":
+			return "⚡"
+		default:
+			return "⚡"
+		}
 	}
 	switch displayState {
-	case systemStateCharging:
-		return "⚡"
 	case systemStateDischarging:
-		return "↓"
+		return "🔻"
 	case systemStateIdle:
-		return "⏸"
+		return "🟢"
 	default:
 		return ""
 	}
@@ -658,6 +676,84 @@ func formatPVInputRowLabel(channel string, device ecoflow.GeneralInfoDevice, sna
 	return fmt.Sprintf("solar [%s]", capLabel)
 }
 
+type pvInputCapability struct {
+	minVolts float64
+	maxVolts float64
+	maxAmps  float64
+	maxWatts float64
+}
+
+func formatPVInputCapability(channel string, device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) string {
+	capability, ok := estimatePVInputCapability(channel, device, snapshot)
+	if !ok {
+		if watts, wattsOK := estimatePVInputMaxWatts(channel, device, snapshot); wattsOK {
+			return fmt.Sprintf("max: n/aV n/aA %s", formatPVCapacityWatts(watts))
+		}
+		return "max: n/a"
+	}
+	return fmt.Sprintf(
+		"max: %s %s %s",
+		formatVoltageRange(capability.minVolts, capability.maxVolts),
+		formatAmpsLimit(capability.maxAmps),
+		formatPVCapacityWatts(capability.maxWatts),
+	)
+}
+
+func estimatePVInputCapability(channel string, device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) (pvInputCapability, bool) {
+	channel = strings.ToLower(strings.TrimSpace(channel))
+	if channel != "high" {
+		channel = "low"
+	}
+	deviceName := strings.ToLower(strings.TrimSpace(device.DeviceName + " " + device.ProductName))
+	isD2M := strings.Contains(deviceName, "delta 2 max")
+	isDPU := strings.Contains(deviceName, "delta pro ultra") || strings.Contains(deviceName, "dpu")
+
+	if isD2M {
+		return pvInputCapability{minVolts: 11, maxVolts: 60, maxAmps: 15, maxWatts: 500}, true
+	}
+	if isDPU {
+		if channel == "high" {
+			return pvInputCapability{minVolts: 80, maxVolts: 450, maxAmps: 15, maxWatts: 4000}, true
+		}
+		return pvInputCapability{minVolts: 30, maxVolts: 150, maxAmps: 15, maxWatts: 1600}, true
+	}
+
+	if snapshot != nil && snapshot.HasPVLowType && snapshot.HasPVHighType {
+		// Delta 2 Max style dual-LV MPPT.
+		if snapshot.PVLowType == 2 && snapshot.PVHighType == 2 {
+			return pvInputCapability{minVolts: 11, maxVolts: 60, maxAmps: 15, maxWatts: 500}, true
+		}
+		// Delta Pro Ultra style mixed PV ports.
+		if snapshot.PVLowType == 2 && snapshot.PVHighType == 0 {
+			if channel == "high" {
+				return pvInputCapability{minVolts: 80, maxVolts: 450, maxAmps: 15, maxWatts: 4000}, true
+			}
+			return pvInputCapability{minVolts: 30, maxVolts: 150, maxAmps: 15, maxWatts: 1600}, true
+		}
+	}
+
+	if snapshot != nil {
+		var typeCode int64
+		var hasType bool
+		if channel == "high" {
+			typeCode, hasType = snapshot.PVHighType, snapshot.HasPVHighType
+		} else {
+			typeCode, hasType = snapshot.PVLowType, snapshot.HasPVLowType
+		}
+		if hasType {
+			if typeCode == 2 {
+				// Generic LV MPPT profile.
+				return pvInputCapability{minVolts: 11, maxVolts: 60, maxAmps: 15, maxWatts: 500}, true
+			}
+			if channel == "high" && typeCode == 0 {
+				// Generic HV MPPT profile.
+				return pvInputCapability{minVolts: 80, maxVolts: 450, maxAmps: 15, maxWatts: 4000}, true
+			}
+		}
+	}
+	return pvInputCapability{}, false
+}
+
 func estimatePVInputMaxWatts(channel string, device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) (float64, bool) {
 	channel = strings.ToLower(strings.TrimSpace(channel))
 	if channel != "high" {
@@ -717,6 +813,21 @@ func formatPVCapacityWatts(watts float64) string {
 		return fmt.Sprintf("%.1fkW", kw)
 	}
 	return fmt.Sprintf("%.0fW", watts)
+}
+
+func formatVoltageRange(minVolts, maxVolts float64) string {
+	return fmt.Sprintf("%s-%sV", trimFloatForRange(minVolts), trimFloatForRange(maxVolts))
+}
+
+func formatAmpsLimit(amps float64) string {
+	return fmt.Sprintf("%sA", trimFloatForRange(amps))
+}
+
+func trimFloatForRange(value float64) string {
+	if math.Abs(value-math.Round(value)) <= 0.05 {
+		return fmt.Sprintf("%.0f", math.Round(value))
+	}
+	return fmt.Sprintf("%.1f", value)
 }
 
 func formatLastMQTTMeta(envelope telemetryEnvelope) string {

@@ -4287,6 +4287,26 @@ func shouldShowPreconditioningStatus(device ecoflow.GeneralInfoDevice, snapshot 
 	return false
 }
 
+func shouldShowXT150Channels(device ecoflow.GeneralInfoDevice, snapshot *energySnapshot, derived snapshotDerived) bool {
+	name := strings.ToLower(strings.TrimSpace(device.DeviceName + " " + device.ProductName))
+	if strings.Contains(name, "delta pro ultra") || strings.Contains(name, "dpu") {
+		return false
+	}
+	if strings.Contains(name, "delta 2 max") {
+		return true
+	}
+	if snapshot != nil && snapshot.HasXT150 {
+		return true
+	}
+	if strings.TrimSpace(derived.XT150InValue) != "" && !strings.EqualFold(strings.TrimSpace(derived.XT150InValue), "n/a") {
+		return true
+	}
+	if strings.TrimSpace(derived.XT150OutValue) != "" && !strings.EqualFold(strings.TrimSpace(derived.XT150OutValue), "n/a") {
+		return true
+	}
+	return false
+}
+
 func isLikelyACPassthrough(hasIn bool, inWatts float64, hasOut bool, outWatts float64) bool {
 	if !hasIn || !hasOut {
 		return false
