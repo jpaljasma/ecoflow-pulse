@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,7 +69,7 @@ func buildDashboardViewModel(
 	pvLowLabel := formatPVInputRowLabel("low", device, snapshot)
 	pvHighLabel := formatPVInputRowLabel("high", device, snapshot)
 
-	updatedAt := time.Now().Format("2006-01-02 15:04:05")
+	updatedAt := formatSnapshotUpdatedRelative(snapshot)
 	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Updated"}
 	summaryHeaders := []string{
 		"Details",
@@ -86,6 +87,7 @@ func buildDashboardViewModel(
 	primaryEstimatePower := firstNonEmpty(strings.TrimSpace(mlEstimates.PowerValue), "power: n/a")
 	primaryEstimateConfidence := firstNonEmpty(strings.TrimSpace(mlEstimates.ConfidenceValue), "n/a")
 	topStateValue := selectTopStateValue(
+		snapshot,
 		derived.RemainValue,
 		systemStateKind(derived.SystemStateValue),
 		mlEstimates,
@@ -183,7 +185,7 @@ func buildDashboardViewModel(
 			temp = fmt.Sprintf("%.1fC", pack.TempC)
 		}
 		power := "n/a"
-		if pack.HasPower {
+		if isPackPowerFresh(pack) {
 			power = formatWatts(pack.PowerW)
 		}
 		remain := "n/a"
@@ -231,6 +233,7 @@ func buildDashboardViewModel(
 
 	minuteHeaders := []string{
 		"Time",
+		"Battery SOC (%)",
 		"Solar Generated (Wh)",
 		"AC Input (Wh)",
 		"AC Output (Wh)",
@@ -242,7 +245,7 @@ func buildDashboardViewModel(
 	}
 	minuteRows := buildMinuteTelemetryRows(minuteHistory, minuteCfg)
 	if len(minuteRows) == 0 {
-		minuteRows = append(minuteRows, []string{"n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a"})
+		minuteRows = append(minuteRows, []string{"n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a"})
 	}
 
 	statusLines := make([]string, 0, 8)
@@ -308,6 +311,7 @@ func firstNonEmpty(value, fallback string) string {
 }
 
 func selectTopStateValue(
+	snapshot *energySnapshot,
 	deviceReported string,
 	state systemStateKind,
 	ml batteryETAEstimates,
@@ -316,13 +320,44 @@ func selectTopStateValue(
 	if deviceReported == "" {
 		deviceReported = "n/a"
 	}
-	if isMLEstimateReady(ml) && confidenceTierFromValue(ml.ConfidenceValue) == "high" {
-		if value := formatStateETAForDisplay(state, ml.ActiveValue); value != "n/a" {
-			return value
+
+	mlValue := formatStateETAForDisplay(state, ml.ActiveValue)
+	mlReady := isMLEstimateReady(ml) && mlValue != "n/a"
+	score, hasScore := parseConfidenceScore(ml.ConfidenceValue)
+	effectiveScore := score
+	if snapshot != nil && hasScore {
+		if !snapshot.hasMLConfEWMA {
+			snapshot.mlConfidenceEWMA = score
+			snapshot.hasMLConfEWMA = true
+		} else {
+			const alpha = 0.35
+			snapshot.mlConfidenceEWMA = alpha*score + (1-alpha)*snapshot.mlConfidenceEWMA
 		}
+		effectiveScore = snapshot.mlConfidenceEWMA
+	}
+	if snapshot != nil {
+		const enableThreshold = 0.84
+		const disableThreshold = 0.72
+		if !mlReady {
+			snapshot.mlTopStateUse = false
+		} else if snapshot.mlTopStateUse {
+			if hasScore && effectiveScore < disableThreshold {
+				snapshot.mlTopStateUse = false
+			}
+		} else if hasScore && effectiveScore >= enableThreshold {
+			snapshot.mlTopStateUse = true
+		}
+		if snapshot.mlTopStateUse {
+			return mlValue
+		}
+	} else if mlReady && confidenceTierFromValue(ml.ConfidenceValue) == "high" {
+		return mlValue
 	}
 	if deviceReported != "n/a" {
 		return deviceReported
+	}
+	if mlReady {
+		return mlValue
 	}
 	return "n/a"
 }
@@ -405,6 +440,28 @@ func confidenceTierFromValue(value string) string {
 	default:
 		return "low"
 	}
+}
+
+func parseConfidenceScore(value string) (float64, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "n/a" {
+		return 0, false
+	}
+	parts := strings.Fields(value)
+	if len(parts) == 0 {
+		return 0, false
+	}
+	score, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil || math.IsNaN(score) || math.IsInf(score, 0) {
+		return 0, false
+	}
+	if score < 0 {
+		score = 0
+	}
+	if score > 1 {
+		score = 1
+	}
+	return score, true
 }
 
 func formatTypeWithState(typeCode string, systemState string) string {
@@ -629,6 +686,58 @@ func formatMQTTLastMessageAge(snapshot *energySnapshot) string {
 	return fmt.Sprintf("last_msg: %s ago", formatShortDuration(age))
 }
 
+func formatSnapshotUpdatedRelative(snapshot *energySnapshot) string {
+	if snapshot == nil {
+		return "n/a"
+	}
+	if snapshot.HasDataUpdatedAt && !snapshot.DataUpdatedAt.IsZero() {
+		return formatRelativeTimeAgo(snapshot.DataUpdatedAt)
+	}
+	if snapshot.HasMQTTLastMessage && !snapshot.MQTTLastMessageAt.IsZero() {
+		return formatRelativeTimeAgo(snapshot.MQTTLastMessageAt)
+	}
+	return "n/a"
+}
+
+func formatRelativeTimeAgo(ts time.Time) string {
+	if ts.IsZero() {
+		return "n/a"
+	}
+	age := time.Since(ts)
+	if age < 0 {
+		age = 0
+	}
+	if age < time.Second {
+		return "< 1 second ago"
+	}
+	seconds := int(age / time.Second)
+	if seconds < 60 {
+		if seconds == 1 {
+			return "1 second ago"
+		}
+		return fmt.Sprintf("%d seconds ago", seconds)
+	}
+	minutes := int(age / time.Minute)
+	if minutes < 60 {
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	}
+	hours := int(age / time.Hour)
+	if hours < 24 {
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	}
+	days := hours / 24
+	if days == 1 {
+		return "1 day ago"
+	}
+	return fmt.Sprintf("%d days ago", days)
+}
+
 func formatShortDuration(value time.Duration) string {
 	if value < 0 {
 		value = -value
@@ -656,7 +765,7 @@ func formatShortDuration(value time.Duration) string {
 }
 
 func packStateLabel(pack *packSnapshot) string {
-	if !pack.HasPower {
+	if !isPackPowerFresh(pack) {
 		return "unknown"
 	}
 	if pack.PowerW > 0 {

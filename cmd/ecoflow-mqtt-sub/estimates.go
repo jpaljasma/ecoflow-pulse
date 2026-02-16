@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"strings"
 )
 
 func estimatedWhLeft(packs map[int]*packSnapshot) float64 {
@@ -138,7 +139,14 @@ func (s *energySnapshot) estimateBatteryETAs(
 	case systemStateDischarging:
 		estimates.ActiveValue = estimates.DischargeValue
 	default:
-		estimates.ActiveValue = "n/a"
+		estimates.ActiveValue = selectDominantETAValue(
+			estimates.ChargeValue,
+			hasChargePower,
+			chargePowerW,
+			estimates.DischargeValue,
+			hasDischargePower,
+			dischargePowerW,
+		)
 	}
 
 	confidenceScore := 0.0
@@ -282,6 +290,7 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 			hasDischargePower = false
 		}
 	}
+	stateForML := resolveMLScoringState(state, hasChargePower, hasDischargePower, predNetW, meanNetW)
 
 	if hasChargePower {
 		if energyToChargeWh <= 0 {
@@ -308,20 +317,36 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 		}
 	}
 
-	switch state {
+	switch stateForML {
 	case systemStateCharging:
 		estimates.ActiveValue = estimates.ChargeValue
 	case systemStateDischarging:
 		estimates.ActiveValue = estimates.DischargeValue
 	default:
-		estimates.ActiveValue = "n/a"
+		estimates.ActiveValue = selectDominantETAValue(
+			estimates.ChargeValue,
+			hasChargePower,
+			chargePowerW,
+			estimates.DischargeValue,
+			hasDischargePower,
+			dischargePowerW,
+		)
 	}
 
 	signMatchRatio := 0.5
 	recentSignMatchRatio := 0.5
 	directionDeadband := adaptiveDirectionDeadband(stdNetW)
 	recentSamples := lastNSamples(samples, 6)
-	switch state {
+	recentAbsMean := averageAbs(recentSamples)
+	overallAbsMean := averageAbs(samples)
+	idleDeadband := math.Max(directionDeadband, systemStateNetThresholdWatts*1.1)
+	idleSampleRatio := nearZeroSampleRatio(samples, idleDeadband)
+	recentIdleSampleRatio := nearZeroSampleRatio(recentSamples, idleDeadband)
+	latestNearIdle := false
+	if len(samples) > 0 {
+		latestNearIdle = math.Abs(samples[len(samples)-1]) <= idleDeadband
+	}
+	switch stateForML {
 	case systemStateCharging:
 		signMatchRatio = signDirectionMatchRatio(samples, true, directionDeadband)
 		recentSignMatchRatio = signDirectionMatchRatio(recentSamples, true, directionDeadband)
@@ -352,24 +377,88 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 	}
 	recentDirectionScore := recentSignMatchRatio * 0.10
 	confidenceScore := 0.22 + sampleScore + (signMatchRatio * 0.20) + stabilityScore + recentDirectionScore
+	confidenceScore += mlSparseStabilityBoost(samples, stateForML, meanNetW, stdNetW, signMatchRatio, recentSignMatchRatio)
+	transitionDirectional := false
+	strongDirectionalEvidence := false
+	if stateForML == systemStateCharging || stateForML == systemStateDischarging {
+		directionAgreement := (signMatchRatio * 0.45) + (recentSignMatchRatio * 0.55)
+		strongDirectionalEvidence = recentSignMatchRatio >= 0.82 &&
+			directionAgreement >= 0.76 &&
+			recentAbsMean >= (systemStateNetThresholdWatts*2.0)
+		strongRecentDirection := recentSignMatchRatio >= 0.85 &&
+			recentAbsMean >= (systemStateNetThresholdWatts*2.5)
+		historyLagging := signMatchRatio+0.12 < recentSignMatchRatio
+		recentDominates := overallAbsMean <= 0 || recentAbsMean > (overallAbsMean*1.35)
+		transitionDirectional = strongRecentDirection && (historyLagging || recentDominates)
+		if transitionDirectional {
+			confidenceScore += 0.06
+			if recentAbsMean >= (systemStateNetThresholdWatts * 6.0) {
+				confidenceScore += 0.05
+			}
+		}
+	}
+	if stateForML == systemStateIdle {
+		// Idle ETA confidence should converge quickly once recent samples collapse near zero.
+		// This avoids prolonged medium confidence after a sudden load drop.
+		confidenceScore += (idleSampleRatio * 0.18) + (recentIdleSampleRatio * 0.14)
+		if idleSampleRatio >= 0.78 && recentIdleSampleRatio >= 0.85 {
+			confidenceScore += 0.06
+		}
+	}
 	if predNetW*meanNetW < 0 && math.Abs(predNetW) > systemStateNetThresholdWatts && math.Abs(meanNetW) > systemStateNetThresholdWatts {
 		confidenceScore -= 0.06
 	}
-	if !hasChargePower && !hasDischargePower {
-		confidenceScore -= 0.16
+	nearIdleNet := math.Abs(predNetW) <= systemStateNetThresholdWatts &&
+		math.Abs(meanNetW) <= (systemStateNetThresholdWatts*1.2)
+	if !nearIdleNet && stateForML == systemStateIdle && recentIdleSampleRatio >= 0.75 && latestNearIdle {
+		nearIdleNet = true
 	}
-	if state == systemStateUnknown {
+	if !hasChargePower && !hasDischargePower {
+		switch stateForML {
+		case systemStateIdle:
+			// In steady idle windows no directional ETA is expected; missing charge/discharge
+			// power is normal and should not suppress confidence.
+			if nearIdleNet {
+				confidenceScore += 0.07
+				if stdNetW <= systemStateNetThresholdWatts*0.45 {
+					confidenceScore += 0.06
+				} else if stdNetW <= systemStateNetThresholdWatts*0.8 {
+					confidenceScore += 0.03
+				}
+			} else if recentIdleSampleRatio >= 0.8 && latestNearIdle {
+				// During a transition to idle, recent behavior is a better signal than trailing mean.
+				confidenceScore += 0.05
+			} else {
+				confidenceScore -= 0.04
+			}
+		case systemStateCharging, systemStateDischarging:
+			// When directional state is requested but net is near idle, treat it as a transition.
+			// Keep a mild penalty; harsh penalty is reserved for genuinely contradictory signals.
+			if nearIdleNet {
+				confidenceScore -= 0.07
+			} else {
+				confidenceScore -= 0.16
+			}
+		default:
+			if nearIdleNet {
+				confidenceScore -= 0.06
+			} else {
+				confidenceScore -= 0.16
+			}
+		}
+	}
+	if stateForML == systemStateUnknown {
 		confidenceScore -= 0.03
 	}
 
 	// Cross-check ML ETA against device-reported remain time and pull the ML ETA
 	// closer if it diverges too far for the current state.
-	if snapshot != nil && state != systemStateUnknown {
-		if deviceRemainMin, _, hasDeviceRemain := snapshot.selectRemainForState(state); hasDeviceRemain && deviceRemainMin > 0 {
+	if snapshot != nil && stateForML != systemStateUnknown {
+		if deviceRemainMin, remainSource, hasDeviceRemain := snapshot.selectRemainForState(stateForML); hasDeviceRemain && deviceRemainMin > 0 {
 			deviceRemainFloat := float64(deviceRemainMin)
 			mlActiveMinutes := 0.0
 			hasMLActiveMinutes := false
-			switch state {
+			switch stateForML {
 			case systemStateCharging:
 				if hasChargeETA {
 					mlActiveMinutes = chargeEtaMinutes
@@ -386,43 +475,96 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 				if ratio < 1 {
 					ratio = 1 / ratio
 				}
+				// Directional remain (charge/discharge) is generally reliable for total-system ETA.
+				// Global remain often represents only one segment on some models (for example D2M),
+				// so treat it as lower trust to avoid suppressing ML confidence on stable streams.
+				directionalRemain := remainSource == "charge" || remainSource == "discharge"
 
-				// Correct severe divergence by blending toward device ETA.
-				if ratio > 1.35 {
-					blend := math.Min((ratio-1.35)/1.65, 0.75)
-					corrected := (1.0-blend)*mlActiveMinutes + blend*deviceRemainFloat
-					if corrected > 0 {
-						switch state {
-						case systemStateCharging:
-							chargeEtaMinutes = corrected
-							estimates.ChargeValue = formatETAMinutes(corrected)
-							estimates.ActiveValue = estimates.ChargeValue
-							if energyToChargeWh > 0 {
-								chargePowerW = energyToChargeWh * 60.0 / corrected
-								hasChargePower = chargePowerW > systemStateNetThresholdWatts
-							}
-						case systemStateDischarging:
-							dischargeEtaMinutes = corrected
-							estimates.DischargeValue = formatETAMinutes(corrected)
-							estimates.ActiveValue = estimates.DischargeValue
-							if energyToDischargeWh > 0 {
-								dischargePowerW = energyToDischargeWh * 60.0 / corrected
-								hasDischargePower = dischargePowerW > systemStateNetThresholdWatts
+				if directionalRemain {
+					penaltyScale := 1.0
+					if transitionDirectional {
+						penaltyScale *= 0.50
+					}
+					if strongDirectionalEvidence {
+						penaltyScale *= 0.45
+					}
+					if len(samples) < 18 {
+						penaltyScale *= 0.85
+					}
+					if penaltyScale < 0.22 {
+						penaltyScale = 0.22
+					}
+
+					// Correct severe divergence by blending toward device ETA.
+					allowBlend := !transitionDirectional
+					if strongDirectionalEvidence && ratio < 2.1 {
+						allowBlend = false
+					}
+					if ratio > 1.35 && allowBlend {
+						blend := math.Min((ratio-1.35)/1.65, 0.75)
+						corrected := (1.0-blend)*mlActiveMinutes + blend*deviceRemainFloat
+						if corrected > 0 {
+							switch stateForML {
+							case systemStateCharging:
+								chargeEtaMinutes = corrected
+								estimates.ChargeValue = formatETAMinutes(corrected)
+								estimates.ActiveValue = estimates.ChargeValue
+								if energyToChargeWh > 0 {
+									chargePowerW = energyToChargeWh * 60.0 / corrected
+									hasChargePower = chargePowerW > systemStateNetThresholdWatts
+								}
+							case systemStateDischarging:
+								dischargeEtaMinutes = corrected
+								estimates.DischargeValue = formatETAMinutes(corrected)
+								estimates.ActiveValue = estimates.DischargeValue
+								if energyToDischargeWh > 0 {
+									dischargePowerW = energyToDischargeWh * 60.0 / corrected
+									hasDischargePower = dischargePowerW > systemStateNetThresholdWatts
+								}
 							}
 						}
 					}
-				}
 
-				switch {
-				case ratio > 3.0:
-					confidenceScore -= 0.30
-				case ratio > 2.2:
-					confidenceScore -= 0.20
-				case ratio > 1.6:
-					confidenceScore -= 0.11
-				case ratio < 1.2:
-					confidenceScore += 0.03
+					switch {
+					case ratio > 3.0:
+						confidenceScore -= 0.30 * penaltyScale
+					case ratio > 2.2:
+						confidenceScore -= 0.20 * penaltyScale
+					case ratio > 1.6:
+						confidenceScore -= 0.11 * penaltyScale
+					case ratio < 1.2:
+						confidenceScore += 0.03
+					case ratio < 1.45:
+						confidenceScore += 0.015
+					}
+				} else {
+					// Low-trust global remain: only apply a soft nudge.
+					switch {
+					case ratio > 6.0:
+						confidenceScore -= 0.06
+					case ratio > 3.5:
+						confidenceScore -= 0.03
+					case ratio < 1.25:
+						confidenceScore += 0.02
+					case ratio < 1.5:
+						confidenceScore += 0.01
+					}
 				}
+			}
+		}
+	}
+
+	if stateForML == systemStateCharging || stateForML == systemStateDischarging {
+		if strongDirectionalEvidence {
+			floor := 0.68
+			if recentSignMatchRatio >= 0.90 && len(samples) >= 10 {
+				floor = 0.74
+			}
+			if transitionDirectional {
+				floor += 0.03
+			}
+			if confidenceScore < floor {
+				confidenceScore = floor
 			}
 		}
 	}
@@ -703,6 +845,73 @@ func adaptiveDirectionDeadband(stdNetW float64) float64 {
 	return base
 }
 
+func mlSparseStabilityBoost(
+	samples []float64,
+	state systemStateKind,
+	meanNetW float64,
+	stdNetW float64,
+	signMatchRatio float64,
+	recentSignMatchRatio float64,
+) float64 {
+	if state != systemStateCharging && state != systemStateDischarging {
+		return 0
+	}
+	if len(samples) < 3 {
+		return 0
+	}
+	// Prefer sparse-stream boost only while warming up. Mature sample windows already have
+	// sufficient evidence through sampleScore and direction ratios.
+	const sparseWindow = 18
+	if len(samples) >= sparseWindow {
+		return 0
+	}
+	activity := math.Abs(meanNetW)
+	// If net activity is near idle, do not inflate confidence.
+	if activity < systemStateNetThresholdWatts*0.8 {
+		return 0
+	}
+	deadband := adaptiveDirectionDeadband(stdNetW)
+	directionalSamples := 0
+	directionalAligned := 0
+	for _, sample := range samples {
+		if math.Abs(sample) <= deadband {
+			continue
+		}
+		directionalSamples++
+		if state == systemStateCharging && sample > deadband {
+			directionalAligned++
+		}
+		if state == systemStateDischarging && sample < -deadband {
+			directionalAligned++
+		}
+	}
+	if directionalSamples == 0 {
+		return 0
+	}
+	directionalRatio := float64(directionalAligned) / float64(directionalSamples)
+	if directionalRatio < 0.75 || signMatchRatio < 0.72 || recentSignMatchRatio < 0.72 {
+		return 0
+	}
+
+	cvDenom := math.Max(activity, systemStateNetThresholdWatts*2.0)
+	cv := math.Abs(stdNetW) / cvDenom
+	if cv > 0.9 {
+		return 0
+	}
+
+	scarcity := 1.0 - math.Min(float64(len(samples))/sparseWindow, 1.0)
+	stability := 1.0 - math.Min(cv/0.9, 1.0)
+	directionAgreement := (directionalRatio + signMatchRatio + recentSignMatchRatio) / 3.0
+	boost := (0.05 + 0.10*scarcity) * stability * directionAgreement
+	if boost > 0.12 {
+		boost = 0.12
+	}
+	if boost < 0 {
+		return 0
+	}
+	return boost
+}
+
 func lastNSamples(samples []float64, n int) []float64 {
 	if n <= 0 || len(samples) <= n {
 		return samples
@@ -853,4 +1062,96 @@ func clampPercent(value float64) float64 {
 		return 100
 	}
 	return value
+}
+
+func nearZeroSampleRatio(samples []float64, deadband float64) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	if deadband < 0 {
+		deadband = -deadband
+	}
+	score := 0.0
+	for _, sample := range samples {
+		if math.Abs(sample) <= deadband {
+			score += 1.0
+		}
+	}
+	return score / float64(len(samples))
+}
+
+func selectDominantETAValue(
+	chargeValue string,
+	hasChargePower bool,
+	chargePowerW float64,
+	dischargeValue string,
+	hasDischargePower bool,
+	dischargePowerW float64,
+) string {
+	chargeReady := hasChargePower && strings.TrimSpace(chargeValue) != "" && strings.TrimSpace(chargeValue) != "n/a"
+	dischargeReady := hasDischargePower && strings.TrimSpace(dischargeValue) != "" && strings.TrimSpace(dischargeValue) != "n/a"
+	switch {
+	case chargeReady && !dischargeReady:
+		return chargeValue
+	case dischargeReady && !chargeReady:
+		return dischargeValue
+	case chargeReady && dischargeReady:
+		if chargePowerW >= dischargePowerW {
+			return chargeValue
+		}
+		return dischargeValue
+	default:
+		return "n/a"
+	}
+}
+
+func resolveMLScoringState(
+	reported systemStateKind,
+	hasChargePower bool,
+	hasDischargePower bool,
+	predNetW float64,
+	meanNetW float64,
+) systemStateKind {
+	inferred := systemStateUnknown
+	switch {
+	case hasChargePower && !hasDischargePower:
+		inferred = systemStateCharging
+	case hasDischargePower && !hasChargePower:
+		inferred = systemStateDischarging
+	case !hasChargePower && !hasDischargePower:
+		nearIdle := math.Abs(predNetW) <= (systemStateNetThresholdWatts*1.2) &&
+			math.Abs(meanNetW) <= (systemStateNetThresholdWatts*1.5)
+		if nearIdle {
+			inferred = systemStateIdle
+		}
+	}
+	if inferred == systemStateUnknown {
+		return reported
+	}
+	switch reported {
+	case systemStateUnknown:
+		return inferred
+	case systemStateCharging:
+		if inferred == systemStateDischarging {
+			return inferred
+		}
+		if inferred == systemStateIdle && math.Abs(predNetW) <= systemStateNetThresholdWatts {
+			return inferred
+		}
+		return reported
+	case systemStateDischarging:
+		if inferred == systemStateCharging {
+			return inferred
+		}
+		if inferred == systemStateIdle && math.Abs(predNetW) <= systemStateNetThresholdWatts {
+			return inferred
+		}
+		return reported
+	case systemStateIdle:
+		// When reported idle but modeled direction is clear, prefer modeled direction to avoid
+		// rapid idle<->direction flicker during transition windows.
+		return inferred
+	default:
+		return inferred
+	}
 }
