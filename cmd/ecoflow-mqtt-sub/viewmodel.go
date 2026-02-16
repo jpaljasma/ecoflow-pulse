@@ -583,6 +583,15 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 		pvInWatts = math.Abs(watts)
 		hasPVIn = true
 	}
+	// Some D2M streams may intermittently omit direct AC-in while totals remain valid.
+	// In that case, infer AC input from total in minus PV so source icon can reflect hybrid charging.
+	if !hasACIn && derived.HasEffectiveIn && hasPVIn {
+		inferredACIn := derived.EffectiveIn - pvInWatts
+		if inferredACIn > sourceMinWatts {
+			acInWatts = inferredACIn
+			hasACIn = true
+		}
+	}
 
 	// Do not count AC passthrough load as charging source; only residual AC input
 	// above load should be attributed to battery charging.
