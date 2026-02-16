@@ -97,7 +97,7 @@ func TestEnergySnapshotDoesNotDoubleCountPVAliasKeys(t *testing.T) {
 
 func TestEnergySnapshotInfersPVLowWattsFromVoltsAndAmps(t *testing.T) {
 	snapshot := newEnergySnapshot()
-	payload := []byte(`{"cmdId":2,"cmdFunc":2,"addr":"hs_yj751_pd_backend_addr","params":{"inLvMpptVol":33.8,"inLvMpptAmp":0.78,"inLvMpptPwr":0}}`)
+	payload := []byte(`{"cmdId":2,"cmdFunc":2,"addr":"hs_yj751_pd_backend_addr","params":{"inLvMpptVol":33.8,"inLvMpptAmp":0.78}}`)
 	envelope, quota, err := parseTelemetryPayload(payload)
 	if err != nil {
 		t.Fatalf("parse backend payload: %v", err)

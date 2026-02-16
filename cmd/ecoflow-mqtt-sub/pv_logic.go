@@ -53,6 +53,11 @@ func effectivePVInputWatts(
 	if hasActiveHint && !activeHint && (!effectiveHasInputWatts || math.Abs(effectiveInputWatts) < solarPowerEstimateMinWatts) {
 		return 0, true
 	}
+	// When a direct PV watts channel explicitly reports ~0W, treat it as
+	// authoritative and avoid stale V*I fallback from backend voltage/current.
+	if effectiveHasInputWatts && math.Abs(effectiveInputWatts) < solarPowerEstimateMinWatts {
+		return 0, true
+	}
 	if hasVolts && hasAmps {
 		estimatedInputWatts := math.Abs(volts * amps)
 		if estimatedInputWatts > solarPowerEstimateMaxWatts {

@@ -63,6 +63,11 @@ const (
 	solarPassthroughMinPVWatts   = 5.0
 	solarPassthroughMaxACInWatts = 10.0
 	solarPassthroughSlackWatts   = 20.0
+	solarChargePVMinWattsD2M     = 5.0
+	solarChargePVMinWattsDPU     = 56.0
+	solarChargePVHoldWattsD2M    = 5.0
+	solarChargePVHoldWattsDPU    = 54.0
+	solarChargeBatteryMinWatts   = 8.0
 	packPowerStaleAfter          = 75 * time.Second
 )
 
@@ -223,6 +228,8 @@ type packSnapshot struct {
 	MaxVolDiff              float64
 	HasMaxVolDiff           bool
 	Serial                  string
+	ChargeStateRaw          int64
+	HasChargeState          bool
 	PreconditioningOn       bool
 	HasPreconditioning      bool
 	PreconditioningStateRaw int64
@@ -356,10 +363,13 @@ type energySnapshot struct {
 	HasPVLowType        bool
 	PVHighType          int64
 	HasPVHighType       bool
-	EMSParaVolMin       float64
-	HasEMSParaVolMin    bool
-	EMSParaVolMax       float64
-	HasEMSParaVolMax    bool
+
+	solarChargingSticky    bool
+	hasSolarChargingSticky bool
+	EMSParaVolMin          float64
+	HasEMSParaVolMin       bool
+	EMSParaVolMax          float64
+	HasEMSParaVolMax       bool
 
 	pvLowSmoother    *rollingAverage
 	pvHighSmoother   *rollingAverage
@@ -375,62 +385,63 @@ type energySnapshot struct {
 }
 
 type snapshotDerived struct {
-	SOCValue                string
-	PacksValue              string
-	TempsValue              string
-	InputValue              string
-	OutputValue             string
-	NetValue                string
-	SystemStateValue        string
-	RemainValue             string
-	ChargeLeftValue         string
-	EstimateChargeValue     string
-	EstimateDischargeValue  string
-	EstimateActiveValue     string
-	EstimatePowerValue      string
-	EstimateConfidenceValue string
-	InACValue               string
-	InPVValue               string
-	InPVLowValue            string
-	InPVHighValue           string
-	XT150InValue            string
-	XT150OutValue           string
-	OutACValue              string
-	OutACL14Value           string
-	OutDCValue              string
-	BatteryInValue          string
-	BatteryOutValue         string
-	BatteryNetValue         string
-	IdleDrawValue           string
-	PVStateValue            string
-	PVLowStateValue         string
-	PVHighStateValue        string
-	PVLowVoltsValue         string
-	PVHighVoltsValue        string
-	PVLowAmpsValue          string
-	PVHighAmpsValue         string
-	StatusACValue           string
-	StatusDCValue           string
-	StatusUSBValue          string
-	StatusDC12VValue        string
-	StatusEVValue           string
-	StatusFanValue          string
-	StatusPassthroughValue  string
-	StatusGroundedValue     string
-	StatusSolarPassValue    string
-	StatusPrecondValue      string
-	ChannelsNetValue        string
-	ShowFlagValue           string
-	BatteryCount            string
-	ComboValue              string
-	C20LimitValue           string
-	ParaLimitValue          string
-	EMSWindowValue          string
-	SocGuardrail            string
-	EffectiveIn             float64
-	HasEffectiveIn          bool
-	EffectiveOut            float64
-	HasEffectiveOut         bool
+	SOCValue                 string
+	PacksValue               string
+	TempsValue               string
+	InputValue               string
+	OutputValue              string
+	NetValue                 string
+	SystemStateValue         string
+	RemainValue              string
+	ChargeLeftValue          string
+	EstimateChargeValue      string
+	EstimateDischargeValue   string
+	EstimateActiveValue      string
+	EstimatePowerValue       string
+	EstimateConfidenceValue  string
+	InACValue                string
+	InPVValue                string
+	InPVLowValue             string
+	InPVHighValue            string
+	XT150InValue             string
+	XT150OutValue            string
+	OutACValue               string
+	OutACL14Value            string
+	OutDCValue               string
+	BatteryInValue           string
+	BatteryOutValue          string
+	BatteryNetValue          string
+	IdleDrawValue            string
+	PVStateValue             string
+	PVLowStateValue          string
+	PVHighStateValue         string
+	PVLowVoltsValue          string
+	PVHighVoltsValue         string
+	PVLowAmpsValue           string
+	PVHighAmpsValue          string
+	StatusACValue            string
+	StatusDCValue            string
+	StatusUSBValue           string
+	StatusDC12VValue         string
+	StatusEVValue            string
+	StatusFanValue           string
+	StatusPassthroughValue   string
+	StatusGroundedValue      string
+	StatusSolarPassValue     string
+	StatusSolarChargingValue string
+	StatusPrecondValue       string
+	ChannelsNetValue         string
+	ShowFlagValue            string
+	BatteryCount             string
+	ComboValue               string
+	C20LimitValue            string
+	ParaLimitValue           string
+	EMSWindowValue           string
+	SocGuardrail             string
+	EffectiveIn              float64
+	HasEffectiveIn           bool
+	EffectiveOut             float64
+	HasEffectiveOut          bool
 }
 
 type minuteTableConfig struct {
@@ -2921,7 +2932,7 @@ func (s *energySnapshot) Update(
 				s.SolarLVAmp = normalizeCurrentAmps(amps)
 				s.HasSolarLVAmp = true
 			}
-		case "inlvmpptpwr", "pv1chargewatts":
+		case "inlvmpptpwr", "pv1chargewatts", "powgetpvl":
 			if watts, ok := numberFromAny(value); ok {
 				s.InPVLowWatts = normalizeInputChannelWatts(watts)
 				s.HasInPVLow = true
@@ -2936,7 +2947,7 @@ func (s *energySnapshot) Update(
 				s.SolarHVAmp = normalizeCurrentAmps(amps)
 				s.HasSolarHVAmp = true
 			}
-		case "inhvmpptpwr", "pv2chargewatts":
+		case "inhvmpptpwr", "pv2chargewatts", "powgetpvh":
 			if watts, ok := numberFromAny(value); ok {
 				s.InPVHighWatts = normalizeInputChannelWatts(watts)
 				s.HasInPVHigh = true
@@ -3169,6 +3180,10 @@ func (s *energySnapshot) Update(
 			existing.MaxVolDiff = pack.MaxVolDiff
 			existing.HasMaxVolDiff = true
 		}
+		if pack.HasChargeState {
+			existing.ChargeStateRaw = pack.ChargeStateRaw
+			existing.HasChargeState = true
+		}
 		if pack.HasPreconditioning {
 			existing.PreconditioningOn = pack.PreconditioningOn
 			existing.HasPreconditioning = true
@@ -3249,6 +3264,10 @@ func (s *energySnapshot) Update(
 		if maxVolDiff, ok := firstNumberFromKeys(quota, "maxVolDiff", envelope.Addr+".maxVolDiff"); ok && maxVolDiff >= 0 {
 			pack.MaxVolDiff = maxVolDiff
 			pack.HasMaxVolDiff = true
+		}
+		if chargeStateRaw, ok := firstNumberFromKeys(quota, "bpChgSta", envelope.Addr+".bpChgSta"); ok {
+			pack.ChargeStateRaw = int64(chargeStateRaw)
+			pack.HasChargeState = true
 		}
 		if soh, ok := firstNumberFromKeys(quota, "soh", envelope.Addr+".soh"); ok && soh >= 0 {
 			pack.SOH = soh
@@ -3519,6 +3538,11 @@ func (s *energySnapshot) derived() snapshotDerived {
 	// Grounded estimate is inferred from AC passthrough behavior.
 	derived.StatusGroundedValue = checkboxStatus(passthroughOn)
 	derived.StatusSolarPassValue = "[ ]"
+	derived.StatusSolarChargingValue = "[ ]"
+	solarChargingKnown, solarChargingOn := s.solarChargingStatus()
+	if solarChargingKnown {
+		derived.StatusSolarChargingValue = checkboxStatus(solarChargingOn)
+	}
 	knownPreconditioning, anyPreconditioningOn := overallPreconditioningStatus(s.Packs)
 	if knownPreconditioning {
 		derived.StatusPrecondValue = checkboxStatus(anyPreconditioningOn)
@@ -3897,15 +3921,25 @@ func (s *energySnapshot) detectSystemState(
 	if rawState == systemStateUnknown || rawState == systemStateIdle {
 		return smoothedState
 	}
+
+	// Allow strong, fresh pack direction to break ties when aggregate channels lag.
+	// Require a high margin to avoid overreacting to sparse/noisy pack updates.
+	packOverrideMargin := systemStateNetThresholdWatts * 4.0
+	if rawState == systemStateDischarging && packChargeW > packDischargeW+packOverrideMargin {
+		return systemStateCharging
+	}
+	if rawState == systemStateCharging && packDischargeW > packChargeW+packOverrideMargin {
+		return systemStateDischarging
+	}
 	if rawState == smoothedState {
 		return rawState
 	}
 
-	// Preserve explicit pack direction when packs actively report a strong flow.
-	if rawState == systemStateDischarging && packDischargeW > packChargeW+systemStateNetThresholdWatts {
+	// Preserve explicit pack direction only when aggregate in/out is missing.
+	if (!hasEffectiveIn || !hasEffectiveOut) && rawState == systemStateDischarging && packDischargeW > packChargeW+systemStateNetThresholdWatts {
 		return rawState
 	}
-	if rawState == systemStateCharging && packChargeW > packDischargeW+systemStateNetThresholdWatts {
+	if (!hasEffectiveIn || !hasEffectiveOut) && rawState == systemStateCharging && packChargeW > packDischargeW+systemStateNetThresholdWatts {
 		return rawState
 	}
 
@@ -3932,21 +3966,8 @@ func (s *energySnapshot) detectSystemStateRaw(
 	packChargeW float64,
 	packDischargeW float64,
 ) systemStateKind {
-	// Pack net power is usually the most reliable indicator of true battery direction,
-	// especially when aggregate in/out counters are stale in incremental MQTT frames.
-	packNet := packChargeW - packDischargeW
-	if packNet > systemStateNetThresholdWatts {
-		return systemStateCharging
-	}
-	if packNet < -systemStateNetThresholdWatts {
-		return systemStateDischarging
-	}
-	if (packChargeW > 0 || packDischargeW > 0) &&
-		packChargeW <= systemStateNetThresholdWatts &&
-		packDischargeW <= systemStateNetThresholdWatts {
-		return systemStateIdle
-	}
-
+	// Prefer aggregate channels first. Pack-level telemetry can arrive slower and
+	// should be treated as fallback direction hints.
 	if hasEffectiveIn && hasEffectiveOut {
 		net := effectiveIn - effectiveOut
 		switch {
@@ -3976,6 +3997,13 @@ func (s *energySnapshot) detectSystemStateRaw(
 		return systemStateDischarging
 	}
 
+	packNet := packChargeW - packDischargeW
+	if packNet > systemStateNetThresholdWatts {
+		return systemStateCharging
+	}
+	if packNet < -systemStateNetThresholdWatts {
+		return systemStateDischarging
+	}
 	switch {
 	case packChargeW > packDischargeW+systemStateNetThresholdWatts:
 		return systemStateCharging
@@ -4122,7 +4150,16 @@ func (s *energySnapshot) stateNetForSmoothingSample() (float64, bool) {
 		return 0, false
 	}
 	packChargeW, packDischargeW := packPowerTotals(s.Packs)
-	// Prefer pack-derived direction when available; this is the most stable signal.
+	effectiveIn, hasIn, effectiveOut, hasOut := s.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	switch {
+	case hasIn && hasOut:
+		return effectiveIn - effectiveOut, true
+	case hasIn:
+		return effectiveIn, true
+	case hasOut:
+		return -effectiveOut, true
+	}
+	// Fallback to pack direction when aggregate channels are unavailable.
 	if packChargeW > idleDrawNoiseFloorWatts || packDischargeW > idleDrawNoiseFloorWatts {
 		return packChargeW - packDischargeW, true
 	}
@@ -4139,17 +4176,7 @@ func (s *energySnapshot) stateNetForSmoothingSample() (float64, bool) {
 			return batteryIn - batteryOut, true
 		}
 	}
-	effectiveIn, hasIn, effectiveOut, hasOut := s.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
-	switch {
-	case hasIn && hasOut:
-		return effectiveIn - effectiveOut, true
-	case hasIn:
-		return effectiveIn, true
-	case hasOut:
-		return -effectiveOut, true
-	default:
-		return 0, false
-	}
+	return 0, false
 }
 
 func (s *energySnapshot) smoothedSystemState() (state systemStateKind, netWatts float64, ok bool) {
@@ -4362,6 +4389,109 @@ func shouldInferDCOutputFromResidual(pdStatus pdStatusSummary, quota map[string]
 		return true
 	}
 	return false
+}
+
+func (s *energySnapshot) solarChargingStatus() (known bool, on bool) {
+	if s == nil {
+		return false, false
+	}
+	profile := s.solarChargingProfile()
+	returnWithMemory := func(k bool, value bool) (bool, bool) {
+		if k {
+			s.solarChargingSticky = value
+			s.hasSolarChargingSticky = true
+		}
+		return k, value
+	}
+
+	pvThreshold := profile.PVActiveMinWatts
+	if s.hasSolarChargingSticky && s.solarChargingSticky && profile.PVHoldMinWatts > 0 {
+		pvThreshold = profile.PVHoldMinWatts
+	}
+
+	anyPackCharging := false
+	for _, pack := range s.Packs {
+		if pack == nil || !pack.HasChargeState {
+			continue
+		}
+		known = true
+		if pack.ChargeStateRaw > 0 {
+			anyPackCharging = true
+		}
+	}
+	// Restrict to solar-driven charging (not AC-only charging).
+	pvActive := false
+	if s.HasPVLowChgState && isMPPTChargeStateActive(s.PVLowChgStateRaw) {
+		pvActive = true
+	}
+	if s.HasPVHighChgState && isMPPTChargeStateActive(s.PVHighChgStateRaw) {
+		pvActive = true
+	}
+	if !pvActive {
+		// Prefer direct PV power channels when present, because V*I inferred power can
+		// stay non-zero from stale volt/amp updates after appshow/d_addr reports 0W.
+		directPVKnown := false
+		directPVActive := false
+		if s.HasInPVLow {
+			directPVKnown = true
+			if s.InPVLowWatts > pvThreshold {
+				directPVActive = true
+			}
+		}
+		if s.HasInPVHigh {
+			directPVKnown = true
+			if s.InPVHighWatts > pvThreshold {
+				directPVActive = true
+			}
+		}
+		if !directPVKnown && s.HasInPV {
+			directPVKnown = true
+			if s.InPVWatts > pvThreshold {
+				directPVActive = true
+			}
+		}
+		if directPVKnown {
+			pvActive = directPVActive
+		} else if pvWatts, hasPV := s.effectivePVInputWatts(); hasPV && pvWatts > pvThreshold {
+			pvActive = true
+		}
+	}
+
+	// Preferred signal path: explicit pack charge-state flags for models where
+	// bpChgSta is known to be reliable.
+	if known && profile.PreferPackChargeState {
+		return returnWithMemory(true, anyPackCharging && pvActive)
+	}
+	if known && anyPackCharging {
+		return returnWithMemory(true, pvActive)
+	}
+
+	if !profile.AllowFallbackInference {
+		if known {
+			return returnWithMemory(true, false)
+		}
+		return returnWithMemory(false, false)
+	}
+
+	if profile.PreferAggregateNetForFallback {
+		if batteryNetWatts, hasBatteryNet := s.aggregateBatteryNetWatts(); hasBatteryNet {
+			isCharging := batteryNetWatts > profile.BatteryChargeMinWatts
+			return returnWithMemory(true, pvActive && isCharging)
+		}
+	}
+
+	// Fallback path for models like Delta 2 Max where bpChgSta is often absent:
+	// infer direction from effective battery net.
+	if batteryNetWatts, hasBatteryNet := s.effectiveBatteryNetWatts(); hasBatteryNet {
+		isCharging := batteryNetWatts > profile.BatteryChargeMinWatts
+		return returnWithMemory(true, pvActive && isCharging)
+	}
+	if batteryChargeWatts, hasBatteryCharge := s.effectiveBatteryChargeWatts(); hasBatteryCharge {
+		isCharging := batteryChargeWatts > profile.BatteryChargeMinWatts
+		return returnWithMemory(true, pvActive && isCharging)
+	}
+
+	return returnWithMemory(false, false)
 }
 
 func xt150ForResidualInference(pdStatus pdStatusSummary, snapshot *energySnapshot) float64 {

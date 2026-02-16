@@ -112,3 +112,13 @@ func TestEnergySnapshotRejectsAbsurdPVEstimateFromScaledValues(t *testing.T) {
 		t.Fatalf("expected absurd estimate clamp to zero watts, got=%f", gotWatts)
 	}
 }
+
+func TestEffectivePVInputWattsExplicitZeroSuppressesVIFallback(t *testing.T) {
+	gotWatts, got := effectivePVInputWatts(true, 0, true, 65.0, true, 1.0, false, false)
+	if !got {
+		t.Fatalf("expected explicit 0W PV reading to be considered known")
+	}
+	if gotWatts != 0 {
+		t.Fatalf("expected explicit 0W to suppress V*I fallback, got=%f", gotWatts)
+	}
+}

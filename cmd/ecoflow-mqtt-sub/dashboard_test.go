@@ -41,8 +41,8 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 		"ac: n/a pv_total: n/a xt150_in: n/a",
 		"ac: n/a (l14: n/a) dc: n/a xt150_out: n/a",
 		"solar #1 [500W]",
-		"in: n/a",
-		"state: n/a",
+		"watts: n/a",
+		"idle",
 		"solar #2 [500W]",
 		"[ ] AC On",
 		"[ ] USB On",
@@ -50,6 +50,7 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 		"[ ] UPS Passthrough",
 		"[ ] Grounded (Estimated)",
 		"[ ] Solar Passthrough",
+		"[ ] Solar Charging",
 		"est ML",
 		"charge: n/a",
 		"discharge: n/a",
@@ -152,6 +153,90 @@ func TestIsLikelySolarPassthrough(t *testing.T) {
 	}
 }
 
+func TestInferBatteryChargeSource(t *testing.T) {
+	tests := []struct {
+		name    string
+		state   systemStateKind
+		acInW   float64
+		hasACIn bool
+		pvInW   float64
+		hasPVIn bool
+		want    string
+	}{
+		{
+			name:    "charging from ac",
+			state:   systemStateCharging,
+			acInW:   900,
+			hasACIn: true,
+			want:    "ac",
+		},
+		{
+			name:    "charging from solar",
+			state:   systemStateCharging,
+			pvInW:   240,
+			hasPVIn: true,
+			want:    "solar",
+		},
+		{
+			name:    "charging hybrid",
+			state:   systemStateCharging,
+			acInW:   350,
+			hasACIn: true,
+			pvInW:   210,
+			hasPVIn: true,
+			want:    "hybrid(ac+solar)",
+		},
+		{
+			name:  "idle no source",
+			state: systemStateIdle,
+			want:  "none",
+		},
+		{
+			name:    "discharging with solar assist",
+			state:   systemStateDischarging,
+			pvInW:   120,
+			hasPVIn: true,
+			want:    "battery+solar",
+		},
+		{
+			name:  "discharging battery only",
+			state: systemStateDischarging,
+			want:  "battery",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot := newEnergySnapshot()
+			snapshot.InACWatts = tt.acInW
+			snapshot.HasInAC = tt.hasACIn
+			snapshot.InPVWatts = tt.pvInW
+			snapshot.HasInPV = tt.hasPVIn
+
+			derived := snapshotDerived{
+				SystemStateValue: string(tt.state),
+			}
+			if got := inferBatteryChargeSource(snapshot, derived); got != tt.want {
+				t.Fatalf("source mismatch: got=%q want=%q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatSolarNetSummaryIncludesSmoothedAverageWhenActive(t *testing.T) {
+	got := formatSolarNetSummary("active(92.5W)", "92.5W (~96.3W avg)")
+	want := "active: 92.5W (~96.3W avg)"
+	if got != want {
+		t.Fatalf("solar net summary mismatch: got=%q want=%q", got, want)
+	}
+
+	got = formatSolarNetSummary("active(92.5W)", "n/a")
+	want = "active: 92.5W"
+	if got != want {
+		t.Fatalf("solar net summary fallback mismatch: got=%q want=%q", got, want)
+	}
+}
+
 func TestRenderDashboardShowsSmoothedPVButSummaryStaysRaw(t *testing.T) {
 	snapshot := newEnergySnapshot()
 	snapshot.configurePVSmoothing(3)
@@ -180,10 +265,10 @@ func TestRenderDashboardShowsSmoothedPVButSummaryStaysRaw(t *testing.T) {
 	if !strings.Contains(output, "pv_total: 130.0W (~110.0W avg)") {
 		t.Fatalf("expected smoothed pv total in dashboard, got=%q", output)
 	}
-	if !strings.Contains(output, "in: 50.0W (~40.0W avg)") {
+	if !strings.Contains(output, "watts: 50.0W (~40.0W avg)") {
 		t.Fatalf("expected smoothed pv low in dashboard, got=%q", output)
 	}
-	if !strings.Contains(output, "in: 80.0W (~70.0W avg)") {
+	if !strings.Contains(output, "watts: 80.0W (~70.0W avg)") {
 		t.Fatalf("expected smoothed pv high in dashboard, got=%q", output)
 	}
 
@@ -270,22 +355,25 @@ func TestRenderDashboardShowsPreconditioningForDPU(t *testing.T) {
 
 func TestTopStateDisplayIcon(t *testing.T) {
 	tests := []struct {
-		name  string
-		state systemStateKind
-		value string
-		want  string
+		name   string
+		state  systemStateKind
+		value  string
+		source string
+		want   string
 	}{
-		{name: "charging", state: systemStateCharging, value: "charging: 1", want: "⚡"},
-		{name: "discharging", state: systemStateDischarging, value: "discharging: 1", want: "↓"},
-		{name: "idle", state: systemStateIdle, value: "idle: 1", want: "⏸"},
-		{name: "infer charging", state: systemStateUnknown, value: "charging: 1", want: "⚡"},
-		{name: "infer discharging", state: systemStateUnknown, value: "discharging: 1", want: "↓"},
-		{name: "infer idle", state: systemStateUnknown, value: "idle: 1", want: "⏸"},
-		{name: "unknown", state: systemStateUnknown, value: "n/a", want: ""},
+		{name: "charging", state: systemStateCharging, value: "charging: 1", source: "ac", want: "⚡"},
+		{name: "charging solar source", state: systemStateCharging, value: "charging: 1", source: "solar", want: "☀️"},
+		{name: "discharging", state: systemStateDischarging, value: "discharging: 1", source: "battery", want: "↓"},
+		{name: "idle", state: systemStateIdle, value: "idle: 1", source: "none", want: "⏸"},
+		{name: "infer charging", state: systemStateUnknown, value: "charging: 1", source: "ac", want: "⚡"},
+		{name: "infer charging solar source", state: systemStateUnknown, value: "charging: 1", source: "solar", want: "☀️"},
+		{name: "infer discharging", state: systemStateUnknown, value: "discharging: 1", source: "battery", want: "↓"},
+		{name: "infer idle", state: systemStateUnknown, value: "idle: 1", source: "none", want: "⏸"},
+		{name: "unknown", state: systemStateUnknown, value: "n/a", source: "n/a", want: ""},
 	}
 
 	for _, tc := range tests {
-		got := topStateDisplayIcon(tc.state, tc.value)
+		got := topStateDisplayIcon(tc.state, tc.value, tc.source)
 		if got != tc.want {
 			t.Fatalf("%s: icon mismatch got=%q want=%q", tc.name, got, tc.want)
 		}
@@ -325,7 +413,7 @@ func TestRenderDashboardShowsMQTTQueueRow(t *testing.T) {
 		nil,
 		minuteTableConfig{},
 	)
-	if !strings.Contains(output, "mqtt") || !strings.Contains(output, "queue: 3/128") || !strings.Contains(output, "drop-oldest: 2") || !strings.Contains(output, "last: pdStatus") {
+	if !strings.Contains(output, "mqtt") || !strings.Contains(output, "queue: 3/128") || !strings.Contains(output, "drop-oldest: 2") || !strings.Contains(output, "status: MQTT reconnecting") {
 		t.Fatalf("dashboard missing mqtt queue row, got=%q", output)
 	}
 }

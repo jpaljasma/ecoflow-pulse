@@ -26,14 +26,14 @@ func renderDashboardViewModel(vm dashboardViewModel) string {
 	builder.WriteString("Topic: " + vm.topic + "\n\n")
 	builder.WriteString(renderASCIITable(vm.deviceHeaders, vm.deviceRows))
 	builder.WriteString("\n")
+	builder.WriteString(renderASCIITable(vm.packHeaders, vm.packRows))
+	builder.WriteString("\n")
 	for _, line := range vm.statusLines {
 		builder.WriteString(line)
 		builder.WriteByte('\n')
 	}
 	builder.WriteByte('\n')
 	builder.WriteString(renderASCIITable(vm.summaryHeaders, vm.summaryRows))
-	builder.WriteString("\n")
-	builder.WriteString(renderASCIITable(vm.packHeaders, vm.packRows))
 	builder.WriteString("\n\n")
 	builder.WriteString(renderASCIITable(vm.packDiagHeaders, vm.packDiagRows))
 	builder.WriteString("\n\n")

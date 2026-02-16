@@ -221,6 +221,66 @@ func (s *energySnapshot) effectiveBatteryNetWatts() (float64, bool) {
 	return 0, false
 }
 
+func (s *energySnapshot) aggregateBatteryNetWatts() (float64, bool) {
+	if s == nil {
+		return 0, false
+	}
+
+	// Prefer direct aggregate counters, which are more stable for pack-based
+	// systems where bpChgSta/bpPwr can be sparse or delayed.
+	if s.HasWattsIn && s.HasWattsOut {
+		net := s.WattsIn - s.WattsOut
+		if math.Abs(net) <= idleDrawNoiseFloorWatts {
+			return 0, true
+		}
+		return net, true
+	}
+
+	if s.HasBatteryIn || s.HasBatteryOut {
+		net := 0.0
+		if s.HasBatteryIn {
+			net += s.BatteryInWatts
+		}
+		if s.HasBatteryOut {
+			net -= s.BatteryOutWatts
+		}
+		if math.Abs(net) <= idleDrawNoiseFloorWatts {
+			return 0, true
+		}
+		return net, true
+	}
+
+	totalInputWatts := 0.0
+	hasInput := false
+	if s.HasInAC {
+		totalInputWatts += s.InACWatts
+		hasInput = true
+	}
+	if pvInputWatts, hasPVInput := s.effectivePVInputWatts(); hasPVInput {
+		totalInputWatts += pvInputWatts
+		hasInput = true
+	}
+
+	totalOutputWatts := 0.0
+	hasOutput := false
+	if s.HasOutAC {
+		totalOutputWatts += s.OutACWatts
+		hasOutput = true
+	}
+	if s.HasOutDC {
+		totalOutputWatts += s.OutDCWatts
+		hasOutput = true
+	}
+	if !hasInput && !hasOutput {
+		return 0, false
+	}
+	net := totalInputWatts - totalOutputWatts
+	if math.Abs(net) <= idleDrawNoiseFloorWatts {
+		return 0, true
+	}
+	return net, true
+}
+
 func extractBatteryPacks(quota map[string]any) map[int]packSnapshot {
 	out := make(map[int]packSnapshot)
 	for key, raw := range quota {
@@ -272,6 +332,10 @@ func extractBatteryPacks(quota map[string]any) map[int]packSnapshot {
 			if maxVolDiff, ok := numberFromAny(entry["maxVolDiff"]); ok && maxVolDiff >= 0 {
 				pack.MaxVolDiff = maxVolDiff
 				pack.HasMaxVolDiff = true
+			}
+			if chargeState, ok := numberFromAny(entry["bpChgSta"]); ok {
+				pack.ChargeStateRaw = int64(chargeState)
+				pack.HasChargeState = true
 			}
 			if heat := toInt64(entry["heatTime"]); heat >= 0 {
 				pack.PreconditioningHeatTime = heat

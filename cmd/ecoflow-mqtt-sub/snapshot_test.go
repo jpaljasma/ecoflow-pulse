@@ -341,6 +341,188 @@ func TestEnergySnapshotDerivesDashboardStatusFlags(t *testing.T) {
 	}
 }
 
+func TestEnergySnapshotDerivesSolarChargingFromPackChargeStateAndPV(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	bpPayload := []byte(`{"cmdId":4,"cmdFunc":2,"addr":"hs_yj751_pd_bp_addr","param":{"bpInfo":[{"bpNo":1,"bpSoc":14,"bpChgSta":1,"bpPwr":12}]},"params":{}}`)
+	bpEnvelope, bpQuota, err := parseTelemetryPayload(bpPayload)
+	if err != nil {
+		t.Fatalf("parse bpInfo payload: %v", err)
+	}
+	snapshot.Update(bpEnvelope, bpQuota, nil, false, pdStatusSummary{}, false)
+
+	mpptActivePayload := []byte(`{"moduleType":5,"needAck":0,"id":10759557,"time":139347912,"params":{"chgState":1,"inWatts":65},"version":"1.0","typeCode":"mpptStatus"}`)
+	mpptActiveEnvelope, mpptActiveQuota, err := parseTelemetryPayload(mpptActivePayload)
+	if err != nil {
+		t.Fatalf("parse mppt active payload: %v", err)
+	}
+	snapshot.Update(mpptActiveEnvelope, mpptActiveQuota, nil, false, pdStatusSummary{}, false)
+
+	derived := snapshot.derived()
+	if derived.StatusSolarChargingValue != "[x]" {
+		t.Fatalf("solar charging status mismatch when active: got=%s want=[x]", derived.StatusSolarChargingValue)
+	}
+
+	mpptIdlePayload := []byte(`{"moduleType":5,"needAck":0,"id":10759558,"time":139347913,"params":{"chgState":0,"inWatts":0},"version":"1.0","typeCode":"mpptStatus"}`)
+	mpptIdleEnvelope, mpptIdleQuota, err := parseTelemetryPayload(mpptIdlePayload)
+	if err != nil {
+		t.Fatalf("parse mppt idle payload: %v", err)
+	}
+	snapshot.Update(mpptIdleEnvelope, mpptIdleQuota, nil, false, pdStatusSummary{}, false)
+
+	derived = snapshot.derived()
+	if derived.StatusSolarChargingValue != "[ ]" {
+		t.Fatalf("solar charging status mismatch when mppt inactive: got=%s want=[ ]", derived.StatusSolarChargingValue)
+	}
+}
+
+func TestEnergySnapshotDerivesSolarChargingFromBatteryNetFallback(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	mpptPayload := []byte(`{"moduleType":5,"needAck":0,"id":10759557,"time":139347912,"params":{"chgState":1,"pv2ChgState":1,"inWatts":11,"pv2InWatts":24},"version":"1.0","typeCode":"mpptStatus"}`)
+	mpptEnvelope, mpptQuota, err := parseTelemetryPayload(mpptPayload)
+	if err != nil {
+		t.Fatalf("parse mppt payload: %v", err)
+	}
+	snapshot.Update(mpptEnvelope, mpptQuota, nil, false, pdStatusSummary{}, false)
+
+	// Delta 2 style fallback: no bpChgSta, but net battery direction is charging.
+	chargingPDPayload := []byte(`{"moduleType":1,"needAck":0,"id":8220266,"time":16239852,"params":{"wattsInSum":35,"wattsOutSum":0,"invOutWatts":0},"version":"1.0","typeCode":"pdStatus"}`)
+	chargingPDEnvelope, chargingPDQuota, err := parseTelemetryPayload(chargingPDPayload)
+	if err != nil {
+		t.Fatalf("parse charging pd payload: %v", err)
+	}
+	chargingPD, hasChargingPD := extractPDStatus(chargingPDQuota)
+	snapshot.Update(chargingPDEnvelope, chargingPDQuota, nil, false, chargingPD, hasChargingPD)
+
+	derived := snapshot.derived()
+	if derived.StatusSolarChargingValue != "[x]" {
+		t.Fatalf("solar charging fallback mismatch when charging: got=%s want=[x]", derived.StatusSolarChargingValue)
+	}
+
+	// If battery flow flips to discharge while PV remains active, solar charging should turn off.
+	dischargingPDPayload := []byte(`{"moduleType":1,"needAck":0,"id":8220267,"time":16239853,"params":{"wattsInSum":11,"wattsOutSum":60,"invOutWatts":0},"version":"1.0","typeCode":"pdStatus"}`)
+	dischargingPDEnvelope, dischargingPDQuota, err := parseTelemetryPayload(dischargingPDPayload)
+	if err != nil {
+		t.Fatalf("parse discharging pd payload: %v", err)
+	}
+	dischargingPD, hasDischargingPD := extractPDStatus(dischargingPDQuota)
+	snapshot.Update(dischargingPDEnvelope, dischargingPDQuota, nil, false, dischargingPD, hasDischargingPD)
+
+	derived = snapshot.derived()
+	if derived.StatusSolarChargingValue != "[ ]" {
+		t.Fatalf("solar charging fallback mismatch when discharging: got=%s want=[ ]", derived.StatusSolarChargingValue)
+	}
+}
+
+func TestEnergySnapshotInfersSolarChargingForPackBasedSnapshotFromMetadata(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	// DPU-style pack snapshot with SOC/power but missing bpChgSta.
+	packPayload := []byte(`{"cmdId":28,"cmdFunc":3,"addr":"hs_yj751_bms_slave_addr_1","params":{"bpNo":1,"soc":14,"inputWatts":52,"outputWatts":0}}`)
+	packEnvelope, packQuota, err := parseTelemetryPayload(packPayload)
+	if err != nil {
+		t.Fatalf("parse pack payload: %v", err)
+	}
+	snapshot.Update(packEnvelope, packQuota, nil, false, pdStatusSummary{}, false)
+
+	appshowPayload := []byte(`{"cmdId":1,"cmdFunc":2,"addr":"hs_yj751_pd_appshow_addr","params":{"inLvMpptPwr":59,"wattsInSum":59}}`)
+	appshowEnvelope, appshowQuota, err := parseTelemetryPayload(appshowPayload)
+	if err != nil {
+		t.Fatalf("parse appshow payload: %v", err)
+	}
+	snapshot.Update(appshowEnvelope, appshowQuota, nil, false, pdStatusSummary{}, false)
+
+	chargingPDPayload := []byte(`{"moduleType":1,"needAck":0,"id":8220266,"time":16239852,"params":{"wattsInSum":59,"wattsOutSum":0},"version":"1.0","typeCode":"pdStatus"}`)
+	chargingPDEnvelope, chargingPDQuota, err := parseTelemetryPayload(chargingPDPayload)
+	if err != nil {
+		t.Fatalf("parse charging pd payload: %v", err)
+	}
+	chargingPD, hasChargingPD := extractPDStatus(chargingPDQuota)
+	snapshot.Update(chargingPDEnvelope, chargingPDQuota, nil, false, chargingPD, hasChargingPD)
+
+	derived := snapshot.derived()
+	if derived.StatusSolarChargingValue != "[x]" {
+		t.Fatalf("solar charging should be on with metadata gate and positive net charge: got=%s want=[x]", derived.StatusSolarChargingValue)
+	}
+
+	holdPDPayload := []byte(`{"moduleType":1,"needAck":0,"id":8220267,"time":16239853,"params":{"inLvMpptPwr":58,"wattsInSum":58,"wattsOutSum":0},"version":"1.0","typeCode":"pdStatus"}`)
+	holdPDEnvelope, holdPDQuota, err := parseTelemetryPayload(holdPDPayload)
+	if err != nil {
+		t.Fatalf("parse hold pd payload: %v", err)
+	}
+	holdPD, hasHoldPD := extractPDStatus(holdPDQuota)
+	snapshot.Update(holdPDEnvelope, holdPDQuota, nil, false, holdPD, hasHoldPD)
+
+	derived = snapshot.derived()
+	if derived.StatusSolarChargingValue != "[x]" {
+		t.Fatalf("solar charging should remain on in hold band near 58W: got=%s want=[x]", derived.StatusSolarChargingValue)
+	}
+
+	offPDPayload := []byte(`{"moduleType":1,"needAck":0,"id":8220268,"time":16239854,"params":{"inLvMpptPwr":54,"wattsInSum":54,"wattsOutSum":0},"version":"1.0","typeCode":"pdStatus"}`)
+	offPDEnvelope, offPDQuota, err := parseTelemetryPayload(offPDPayload)
+	if err != nil {
+		t.Fatalf("parse off pd payload: %v", err)
+	}
+	offPD, hasOffPD := extractPDStatus(offPDQuota)
+	snapshot.Update(offPDEnvelope, offPDQuota, nil, false, offPD, hasOffPD)
+
+	derived = snapshot.derived()
+	if derived.StatusSolarChargingValue != "[ ]" {
+		t.Fatalf("solar charging should turn off below hold threshold: got=%s want=[ ]", derived.StatusSolarChargingValue)
+	}
+}
+
+func TestEnergySnapshotSolarChargingTurnsOffOnExplicitZeroPVForDPU(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	packPayload := []byte(`{"cmdId":28,"cmdFunc":3,"addr":"hs_yj751_bms_slave_addr_1","params":{"bpNo":1,"soc":14,"inputWatts":45,"outputWatts":0}}`)
+	packEnvelope, packQuota, err := parseTelemetryPayload(packPayload)
+	if err != nil {
+		t.Fatalf("parse pack payload: %v", err)
+	}
+	snapshot.Update(packEnvelope, packQuota, nil, false, pdStatusSummary{}, false)
+
+	onPayload := []byte(`{"cmdId":1,"cmdFunc":2,"addr":"hs_yj751_pd_appshow_addr","params":{"inLvMpptPwr":57,"wattsInSum":57}}`)
+	onEnvelope, onQuota, err := parseTelemetryPayload(onPayload)
+	if err != nil {
+		t.Fatalf("parse on payload: %v", err)
+	}
+	snapshot.Update(onEnvelope, onQuota, nil, false, pdStatusSummary{}, false)
+
+	chargingPDPayload := []byte(`{"moduleType":1,"needAck":0,"id":8220266,"time":16239852,"params":{"wattsInSum":57,"wattsOutSum":0},"version":"1.0","typeCode":"pdStatus"}`)
+	chargingPDEnvelope, chargingPDQuota, err := parseTelemetryPayload(chargingPDPayload)
+	if err != nil {
+		t.Fatalf("parse charging pd payload: %v", err)
+	}
+	chargingPD, hasChargingPD := extractPDStatus(chargingPDQuota)
+	snapshot.Update(chargingPDEnvelope, chargingPDQuota, nil, false, chargingPD, hasChargingPD)
+
+	derived := snapshot.derived()
+	if derived.StatusSolarChargingValue != "[x]" {
+		t.Fatalf("solar charging should be on around 57W with positive net charge: got=%s want=[x]", derived.StatusSolarChargingValue)
+	}
+
+	offPayload := []byte(`{"cmdId":1,"cmdFunc":2,"addr":"hs_yj751_pd_appshow_addr","params":{"inLvMpptPwr":0,"wattsInSum":0}}`)
+	offEnvelope, offQuota, err := parseTelemetryPayload(offPayload)
+	if err != nil {
+		t.Fatalf("parse off payload: %v", err)
+	}
+	snapshot.Update(offEnvelope, offQuota, nil, false, pdStatusSummary{}, false)
+
+	offDAddrPayload := []byte(`{"cmdId":21,"cmdFunc":254,"addr":"d_addr","param":{"powGetPvL":0},"params":{}}`)
+	offDAddrEnvelope, offDAddrQuota, err := parseTelemetryPayload(offDAddrPayload)
+	if err != nil {
+		t.Fatalf("parse off d_addr payload: %v", err)
+	}
+	snapshot.Update(offDAddrEnvelope, offDAddrQuota, nil, false, pdStatusSummary{}, false)
+
+	derived = snapshot.derived()
+	if derived.StatusSolarChargingValue != "[ ]" {
+		t.Fatalf("solar charging should turn off on explicit 0W PV: got=%s want=[ ]", derived.StatusSolarChargingValue)
+	}
+}
+
 func TestEnergySnapshotUpdatesStatusFromShowFlag(t *testing.T) {
 	snapshot := newEnergySnapshot()
 

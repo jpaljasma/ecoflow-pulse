@@ -35,7 +35,7 @@ type dashboardViewModel struct {
 func buildDashboardViewModel(
 	device ecoflow.GeneralInfoDevice,
 	topic string,
-	envelope telemetryEnvelope,
+	_ telemetryEnvelope,
 	snapshot *energySnapshot,
 	minuteHistory *minuteTelemetryHistory,
 	minuteCfg minuteTableConfig,
@@ -49,6 +49,7 @@ func buildDashboardViewModel(
 	pvLowDisplay := formatSmoothedWattsValue(derived.InPVLowValue, hasPVLowRaw, pvLowRaw, hasPVLowSmooth, pvLowSmooth)
 	pvHighDisplay := formatSmoothedWattsValue(derived.InPVHighValue, hasPVHighRaw, pvHighRaw, hasPVHighSmooth, pvHighSmooth)
 	acInDisplay := formatSmoothedWattsValue(derived.InACValue, snapshot.HasInAC, snapshot.InACWatts, hasACInSmooth, acInSmooth)
+	totalInDisplay := formatSmoothedWattsValue(derived.InputValue, derived.HasEffectiveIn, derived.EffectiveIn, hasTotalInSmooth, totalInSmooth)
 	totalOutDisplay := formatSmoothedWattsValue(derived.OutputValue, derived.HasEffectiveOut, derived.EffectiveOut, hasTotalOutSmooth, totalOutSmooth)
 	totalNetDisplay := derived.NetValue
 	hasRawNet := derived.HasEffectiveIn && derived.HasEffectiveOut
@@ -65,7 +66,6 @@ func buildDashboardViewModel(
 		mqttDropsValue = fmt.Sprintf("drop-oldest: %d", snapshot.MQTTQueueDroppedOldest)
 	}
 	mqttStatusValue := formatMQTTStatus(snapshot)
-	lastMessageValue := formatMQTTLastMessageAge(snapshot)
 	pvLowLabel := formatPVInputRowLabel("low", device, snapshot)
 	pvHighLabel := formatPVInputRowLabel("high", device, snapshot)
 
@@ -78,14 +78,13 @@ func buildDashboardViewModel(
 		"Net",
 		"Remain",
 	}
-	lastTypeState := formatTypeWithState(firstNonEmpty(envelope.TypeCode, "n/a"), derived.SystemStateValue)
-	lastMQTTMeta := formatLastMQTTMeta(envelope)
 	mlEstimates := estimateBatteryETAsML(snapshot, minuteHistory, systemStateKind(derived.SystemStateValue))
 	primaryEstimateCharge := firstNonEmpty(strings.TrimSpace(mlEstimates.ChargeValue), "n/a")
 	primaryEstimateDischarge := firstNonEmpty(strings.TrimSpace(mlEstimates.DischargeValue), "n/a")
 	primaryEstimateActive := firstNonEmpty(strings.TrimSpace(mlEstimates.ActiveValue), "n/a")
 	primaryEstimatePower := firstNonEmpty(strings.TrimSpace(mlEstimates.PowerValue), "power: n/a")
 	primaryEstimateConfidence := firstNonEmpty(strings.TrimSpace(mlEstimates.ConfidenceValue), "n/a")
+	batterySource := inferBatteryChargeSource(snapshot, derived)
 	topStateValue := selectTopStateValue(
 		snapshot,
 		derived.RemainValue,
@@ -93,7 +92,8 @@ func buildDashboardViewModel(
 		mlEstimates,
 	)
 	topStateValue = sanitizeStateColumnValue(topStateValue)
-	topStateIcon := topStateDisplayIcon(systemStateKind(derived.SystemStateValue), topStateValue)
+	topStateValue = annotateIdleStateWithIncoming(topStateValue, systemStateKind(derived.SystemStateValue), totalInDisplay)
+	topStateIcon := topStateDisplayIcon(systemStateKind(derived.SystemStateValue), topStateValue, batterySource)
 	iconCell := firstNonEmpty(topStateIcon, "·")
 	deviceLabel := chooseDeviceLabel(device)
 	topSOCDisplay := formatSOCUnavailableWithGauge(10)
@@ -128,23 +128,23 @@ func buildDashboardViewModel(
 		},
 		{
 			pvLowLabel,
-			fmt.Sprintf("in: %s", pvLowDisplay),
-			fmt.Sprintf("volts: %s amps: %s", derived.PVLowVoltsValue, derived.PVLowAmpsValue),
-			fmt.Sprintf("state: %s", derived.PVLowStateValue),
+			"-",
+			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVLowVoltsValue, derived.PVLowAmpsValue, pvLowDisplay),
+			formatSolarNetSummary(derived.PVLowStateValue, pvLowDisplay),
 			"-",
 		},
 		{
 			pvHighLabel,
-			fmt.Sprintf("in: %s", pvHighDisplay),
-			fmt.Sprintf("volts: %s amps: %s", derived.PVHighVoltsValue, derived.PVHighAmpsValue),
-			fmt.Sprintf("state: %s", derived.PVHighStateValue),
+			"-",
+			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVHighVoltsValue, derived.PVHighAmpsValue, pvHighDisplay),
+			formatSolarNetSummary(derived.PVHighStateValue, pvHighDisplay),
 			"-",
 		},
 		{
 			"battery",
 			fmt.Sprintf("in: %s", derived.BatteryInValue),
 			fmt.Sprintf("out: %s idle: %s", derived.BatteryOutValue, derived.IdleDrawValue),
-			derived.BatteryNetValue,
+			fmt.Sprintf("%s source: %s", derived.BatteryNetValue, batterySource),
 			"-",
 		},
 		{
@@ -163,7 +163,7 @@ func buildDashboardViewModel(
 			fmt.Sprintf("queue: %s", mqttQueueValue),
 			mqttDropsValue,
 			fmt.Sprintf("status: %s", mqttStatusValue),
-			fmt.Sprintf("last: %s %s %s uptime: %s", lastTypeState, lastMQTTMeta, lastMessageValue, formatMQTTUptime(snapshot)),
+			"-",
 		},
 	}
 
@@ -268,6 +268,7 @@ func buildDashboardViewModel(
 	}
 	statusLines = append(statusLines, fmt.Sprintf("%s UPS Passthrough", derived.StatusPassthroughValue))
 	statusLines = append(statusLines, fmt.Sprintf("%s Solar Passthrough", derived.StatusSolarPassValue))
+	statusLines = append(statusLines, fmt.Sprintf("%s Solar Charging", derived.StatusSolarChargingValue))
 	statusLines = append(statusLines, fmt.Sprintf("%s Grounded (Estimated)", derived.StatusGroundedValue))
 	if showPreconditioningStatus {
 		statusLines = append(statusLines, fmt.Sprintf("%s Battery Preconditioning On", derived.StatusPrecondValue))
@@ -362,7 +363,7 @@ func selectTopStateValue(
 	return "n/a"
 }
 
-func topStateDisplayIcon(state systemStateKind, value string) string {
+func topStateDisplayIcon(state systemStateKind, value string, source string) string {
 	displayState := state
 	if displayState == systemStateUnknown {
 		lower := strings.ToLower(strings.TrimSpace(value))
@@ -374,6 +375,9 @@ func topStateDisplayIcon(state systemStateKind, value string) string {
 		case strings.HasPrefix(lower, "idle:"):
 			displayState = systemStateIdle
 		}
+	}
+	if displayState == systemStateCharging && strings.EqualFold(strings.TrimSpace(source), "solar") {
+		return "☀️"
 	}
 	switch displayState {
 	case systemStateCharging:
@@ -392,6 +396,158 @@ func sanitizeStateColumnValue(value string) string {
 	for _, prefix := range []string{"⚡ ", "↓ ", "⏸ "} {
 		if strings.HasPrefix(value, prefix) {
 			value = strings.TrimSpace(strings.TrimPrefix(value, prefix))
+		}
+	}
+	return value
+}
+
+func annotateIdleStateWithIncoming(value string, state systemStateKind, incomingWatts string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "n/a" {
+		return value
+	}
+	lower := strings.ToLower(value)
+	if state != systemStateIdle && !strings.HasPrefix(lower, "idle") {
+		return value
+	}
+	if incomingWatts == "" || incomingWatts == "n/a" {
+		return value
+	}
+	if strings.Contains(lower, "in:") {
+		return value
+	}
+	return fmt.Sprintf("%s (in: %s)", value, incomingWatts)
+}
+
+func formatSolarNetSummary(stateValue string, wattsDisplay string) string {
+	trimmedState := strings.TrimSpace(stateValue)
+	lowerState := strings.ToLower(trimmedState)
+	switch {
+	case strings.HasPrefix(lowerState, "active"):
+		watts := extractDisplayWattsWithAvg(wattsDisplay)
+		if watts == "" {
+			watts = extractPVWattsFromState(trimmedState)
+		}
+		if watts == "" {
+			return "active"
+		}
+		return fmt.Sprintf("active: %s", watts)
+	case strings.HasPrefix(lowerState, "locked"):
+		return trimmedState
+	case strings.HasPrefix(lowerState, "idle"):
+		return "idle"
+	case trimmedState == "" || strings.EqualFold(trimmedState, "n/a"):
+		return "idle"
+	default:
+		return trimmedState
+	}
+}
+
+func extractDisplayWattsWithAvg(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.EqualFold(value, "n/a") {
+		return ""
+	}
+	return value
+}
+
+func extractPVWattsFromState(value string) string {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(strings.ToLower(value), "active(") || !strings.HasSuffix(value, ")") {
+		return ""
+	}
+	openIdx := strings.Index(value, "(")
+	closeIdx := strings.LastIndex(value, ")")
+	if openIdx < 0 || closeIdx <= openIdx+1 {
+		return ""
+	}
+	return strings.TrimSpace(value[openIdx+1 : closeIdx])
+}
+
+func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived) string {
+	if snapshot == nil {
+		return "n/a"
+	}
+
+	const sourceMinWatts = systemStateNetThresholdWatts
+	state := systemStateKind(strings.TrimSpace(derived.SystemStateValue))
+
+	acInWatts := 0.0
+	hasACIn := false
+	if snapshot.HasInAC {
+		acInWatts = math.Abs(snapshot.InACWatts)
+		hasACIn = true
+	}
+
+	pvInWatts := 0.0
+	hasPVIn := false
+	if watts, ok := snapshot.effectivePVInputWatts(); ok {
+		pvInWatts = math.Abs(watts)
+		hasPVIn = true
+	}
+
+	acActive := hasACIn && acInWatts > sourceMinWatts
+	pvActive := hasPVIn && pvInWatts > sourceMinWatts
+
+	switch state {
+	case systemStateCharging:
+		switch {
+		case acActive && pvActive:
+			return "hybrid(ac+solar)"
+		case acActive:
+			return "ac"
+		case pvActive:
+			return "solar"
+		case hasACIn || hasPVIn:
+			return "unknown"
+		default:
+			return "n/a"
+		}
+	case systemStateDischarging:
+		if pvActive && !acActive {
+			return "battery+solar"
+		}
+		return "battery"
+	case systemStateIdle:
+		switch {
+		case acActive && pvActive:
+			return "hybrid(ac+solar)"
+		case acActive:
+			return "ac"
+		case pvActive:
+			return "solar"
+		default:
+			return "none"
+		}
+	default:
+		switch {
+		case acActive && pvActive:
+			return "hybrid(ac+solar)"
+		case acActive:
+			return "ac"
+		case pvActive:
+			return "solar"
+		default:
+			return "n/a"
+		}
+	}
+}
+
+func extractPrimaryWattsDisplay(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "n/a" {
+		return ""
+	}
+	if idx := strings.Index(value, " (~"); idx >= 0 {
+		value = strings.TrimSpace(value[:idx])
+	}
+	value = strings.TrimSpace(value)
+	if !strings.HasSuffix(value, "W") || strings.HasSuffix(value, "kW") {
+		return value
+	}
+	if n, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(value, "W")), 64); err == nil {
+		if math.Abs(n) <= 0.05 {
+			return ""
 		}
 	}
 	return value
