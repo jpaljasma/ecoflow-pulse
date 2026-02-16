@@ -26,7 +26,12 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_CONNECT_TIMEOUT` (default `10s`)
 - `ECOFLOW_MQTT_READ_TIMEOUT` (default `30s`)
 - `ECOFLOW_MQTT_WRITE_TIMEOUT` (default `15s`)
-- `ECOFLOW_MQTT_IDLE_RECONNECT_AFTER` (default `0s`, disabled)
+- `ECOFLOW_MQTT_IDLE_RECONNECT_AFTER` (default `120s`)
+- `ECOFLOW_MQTT_STALE_AFTER` (default `30s`)
+- `ECOFLOW_MQTT_LIVENESS_POLL_AFTER` (default `90s`)
+- `ECOFLOW_MQTT_LIVENESS_CHECK_INTERVAL` (default `10s`)
+- `ECOFLOW_MQTT_LIVENESS_POLL_TIMEOUT` (default `12s`)
+- `ECOFLOW_MQTT_LIVENESS_POLL_MIN_INTERVAL` (default `60s`)
 - `ECOFLOW_MQTT_QUEUE_CAPACITY` (default `64`)
 - `ECOFLOW_MQTT_PRINT_PAYLOAD` (default `false`)
 - `ECOFLOW_MQTT_TABLE_VIEW` (default `true` when payload print mode is disabled)
@@ -37,6 +42,7 @@ Environment-specific credential keys (preferred):
 
 - `ECOFLOW_MQTT_HISTORY_PATH` (default `logs/telemetry_history.jsonl`)
 - `ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES` (default `180`)
+- `ECOFLOW_MQTT_HISTORY_QUEUE_CAPACITY` (default `1024`)
 - `ECOFLOW_MQTT_AUTH_REJECT_THRESHOLD` (default `3`)
 - `ECOFLOW_MQTT_FALLBACK_POLL_INTERVAL` (default `15s`)
 - `ECOFLOW_MQTT_FALLBACK_POLL_TIMEOUT` (default `12s`)
@@ -52,6 +58,7 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_TRAINING_CSV_PATH` (default `logs/telemetry_training.csv`)
 - `ECOFLOW_MQTT_TRAINING_CSV_INTERVAL` (default `10s`)
 - `ECOFLOW_MQTT_TRAINING_CSV_JITTER` (default `0.2`)
+- `ECOFLOW_MQTT_TRAINING_CSV_QUEUE_CAPACITY` (default `4096`)
 
 ## Server Runtime
 

@@ -23,6 +23,8 @@ derivation, and UI projection.
 
 - Persistence and estimates
   File-safe append sinks in `file_locking.go` are used for concurrent-safe process/thread writes.
+  History/training file writes use asynchronous bounded queues so telemetry processing does
+  not block on disk I/O.
   Minute-bucket history + training telemetry capture + ETA models are implemented across
   `training_csv.go`, `estimates.go`, and `estimates_profiled.go`.
 

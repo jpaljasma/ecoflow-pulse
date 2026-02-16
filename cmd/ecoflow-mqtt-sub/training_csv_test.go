@@ -33,6 +33,9 @@ func TestTrainingTelemetryCSVStoreWritesHeaderAndRows(t *testing.T) {
 	if err := store.AppendRow(rowB); err != nil {
 		t.Fatalf("append rowB: %v", err)
 	}
+	if err := store.Flush(); err != nil {
+		t.Fatalf("flush rows: %v", err)
+	}
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
