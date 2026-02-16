@@ -29,6 +29,12 @@ type dashboardViewModel struct {
 	minuteHeaders []string
 	minuteRows    [][]string
 
+	estimateHeaders []string
+	estimateRows    [][]string
+
+	sensorHeaders []string
+	sensorRows    [][]string
+
 	statusLines []string
 }
 
@@ -68,32 +74,54 @@ func buildDashboardViewModel(
 	mqttStatusValue := formatMQTTStatus(snapshot)
 	pvLowLabel := formatPVInputRowLabel("low", device, snapshot)
 	pvHighLabel := formatPVInputRowLabel("high", device, snapshot)
+	pvLowCapability := formatPVInputCapability("low", device, snapshot)
+	pvHighCapability := formatPVInputCapability("high", device, snapshot)
+	pvLowUtilization := formatPVUtilizationGauge("low", device, snapshot, hasPVLowRaw, pvLowRaw, hasPVLowSmooth, pvLowSmooth)
+	pvHighUtilization := formatPVUtilizationGauge("high", device, snapshot, hasPVHighRaw, pvHighRaw, hasPVHighSmooth, pvHighSmooth)
+	showXT150 := shouldShowXT150Channels(device, snapshot, derived)
+
+	channelsInValue := fmt.Sprintf("ac: %s pv_total: %s", derived.InACValue, pvTotalDisplay)
+	channelsOutValue := fmt.Sprintf("ac: %s (l14: %s) dc: %s", derived.OutACValue, derived.OutACL14Value, derived.OutDCValue)
+	if showXT150 {
+		channelsInValue = fmt.Sprintf("%s xt150_in: %s", channelsInValue, derived.XT150InValue)
+		channelsOutValue = fmt.Sprintf("%s xt150_out: %s", channelsOutValue, derived.XT150OutValue)
+	}
 
 	updatedAt := formatSnapshotUpdatedRelative(snapshot)
-	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Updated"}
+	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Model", "Updated"}
 	summaryHeaders := []string{
 		"Details",
 		"In",
 		"Out",
 		"Net",
-		"Remain",
+		"Details",
 	}
-	mlEstimates := estimateBatteryETAsML(snapshot, minuteHistory, systemStateKind(derived.SystemStateValue))
-	primaryEstimateCharge := firstNonEmpty(strings.TrimSpace(mlEstimates.ChargeValue), "n/a")
-	primaryEstimateDischarge := firstNonEmpty(strings.TrimSpace(mlEstimates.DischargeValue), "n/a")
-	primaryEstimateActive := firstNonEmpty(strings.TrimSpace(mlEstimates.ActiveValue), "n/a")
-	primaryEstimatePower := firstNonEmpty(strings.TrimSpace(mlEstimates.PowerValue), "power: n/a")
-	primaryEstimateConfidence := firstNonEmpty(strings.TrimSpace(mlEstimates.ConfidenceValue), "n/a")
+	stateKind := systemStateKind(derived.SystemStateValue)
+	originalMLEstimates := estimateBatteryETAsML(snapshot, minuteHistory, stateKind)
+	genericMLEstimates := estimateBatteryETAsMLGeneric(snapshot, minuteHistory, stateKind)
+	newMLEstimates, newMLProfile := estimateBatteryETAsMLProfiled(snapshot, minuteHistory, stateKind)
+	unitEstimates := estimateBatteryETAsUnitSpecific(snapshot, stateKind)
+
+	topStateEstimate, topStateEstimateModel := pickPreferredMLForTopState(
+		unitEstimates,
+		genericMLEstimates,
+		newMLEstimates,
+		stateKind,
+	)
 	batterySource := inferBatteryChargeSource(snapshot, derived)
-	topStateValue := selectTopStateValue(
+	topStateValue, topStateUsedML := selectTopStateValueWithSource(
 		snapshot,
 		derived.RemainValue,
-		systemStateKind(derived.SystemStateValue),
-		mlEstimates,
+		stateKind,
+		topStateEstimate,
 	)
+	topStateModel := "MPPT"
+	if topStateUsedML {
+		topStateModel = topStateEstimateModel
+	}
 	topStateValue = sanitizeStateColumnValue(topStateValue)
-	topStateValue = annotateIdleStateWithIncoming(topStateValue, systemStateKind(derived.SystemStateValue), totalInDisplay)
-	topStateIcon := topStateDisplayIcon(systemStateKind(derived.SystemStateValue), topStateValue, batterySource)
+	topStateValue = annotateIdleStateWithIncoming(topStateValue, stateKind, totalInDisplay)
+	topStateIcon := topStateDisplayIcon(stateKind, topStateValue, batterySource)
 	iconCell := firstNonEmpty(topStateIcon, "·")
 	deviceLabel := chooseDeviceLabel(device)
 	topSOCDisplay := formatSOCUnavailableWithGauge(10)
@@ -109,13 +137,14 @@ func buildDashboardViewModel(
 		totalOutDisplay,
 		totalNetDisplay,
 		topStateValue,
+		topStateModel,
 		updatedAt,
 	}}
 	summaryRows := [][]string{
 		{
 			"channels",
-			fmt.Sprintf("ac: %s pv_total: %s xt150_in: %s", derived.InACValue, pvTotalDisplay, derived.XT150InValue),
-			fmt.Sprintf("ac: %s (l14: %s) dc: %s xt150_out: %s", derived.OutACValue, derived.OutACL14Value, derived.OutDCValue, derived.XT150OutValue),
+			channelsInValue,
+			channelsOutValue,
 			derived.ChannelsNetValue,
 			"-",
 		},
@@ -128,17 +157,17 @@ func buildDashboardViewModel(
 		},
 		{
 			pvLowLabel,
-			"-",
+			pvLowCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVLowVoltsValue, derived.PVLowAmpsValue, pvLowDisplay),
 			formatSolarNetSummary(derived.PVLowStateValue, pvLowDisplay),
-			"-",
+			pvLowUtilization,
 		},
 		{
 			pvHighLabel,
-			"-",
+			pvHighCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVHighVoltsValue, derived.PVHighAmpsValue, pvHighDisplay),
 			formatSolarNetSummary(derived.PVHighStateValue, pvHighDisplay),
-			"-",
+			pvHighUtilization,
 		},
 		{
 			"battery",
@@ -148,22 +177,51 @@ func buildDashboardViewModel(
 			"-",
 		},
 		{
-			"est ML",
-			fmt.Sprintf("charge: %s", primaryEstimateCharge),
-			fmt.Sprintf("discharge: %s", primaryEstimateDischarge),
-			primaryEstimatePower,
-			fmt.Sprintf(
-				"active: %s conf: %s",
-				primaryEstimateActive,
-				primaryEstimateConfidence,
-			),
-		},
-		{
 			"mqtt",
 			fmt.Sprintf("queue: %s", mqttQueueValue),
 			mqttDropsValue,
 			fmt.Sprintf("status: %s", mqttStatusValue),
 			"-",
+		},
+	}
+
+	estimateHeaders := []string{"Model", "Charge", "Discharge", "Power", "Confidence", "Δ ETA vs Unit", "Δ Power vs Unit"}
+	estimateRows := [][]string{
+		{
+			"MPPT",
+			firstNonEmpty(strings.TrimSpace(unitEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(unitEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(unitEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(unitEstimates.ConfidenceValue), "n/a"),
+			"-",
+			"-",
+		},
+		{
+			"Old",
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(originalMLEstimates.ConfidenceValue), "n/a"),
+			estimateDeltaMinutesDisplay(unitEstimates, originalMLEstimates, stateKind),
+			estimateDeltaPowerDisplay(unitEstimates, originalMLEstimates, stateKind),
+		},
+		{
+			"Generic",
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(genericMLEstimates.ConfidenceValue), "n/a"),
+			estimateDeltaMinutesDisplay(unitEstimates, genericMLEstimates, stateKind),
+			estimateDeltaPowerDisplay(unitEstimates, genericMLEstimates, stateKind),
+		},
+		{
+			fmt.Sprintf("New (%s)", strings.ToUpper(string(newMLProfile))),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.ChargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.DischargeValue), "n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.PowerValue), "power: n/a"),
+			firstNonEmpty(strings.TrimSpace(newMLEstimates.ConfidenceValue), "n/a"),
+			estimateDeltaMinutesDisplay(unitEstimates, newMLEstimates, stateKind),
+			estimateDeltaPowerDisplay(unitEstimates, newMLEstimates, stateKind),
 		},
 	}
 
@@ -247,6 +305,11 @@ func buildDashboardViewModel(
 	if len(minuteRows) == 0 {
 		minuteRows = append(minuteRows, []string{"n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a", "n/a"})
 	}
+	sensorHeaders := []string{"Time", "Notification", "Status"}
+	sensorRows := buildSensorUpdateRows(snapshot, sensorUpdateHistorySize)
+	if len(sensorRows) == 0 {
+		sensorRows = append(sensorRows, []string{"n/a", "n/a", "n/a"})
+	}
 
 	statusLines := make([]string, 0, 8)
 	showSeparateUSBAndDC := shouldShowSeparateUSBAndDC(device, snapshot)
@@ -292,6 +355,12 @@ func buildDashboardViewModel(
 		minuteHeaders: minuteHeaders,
 		minuteRows:    minuteRows,
 
+		estimateHeaders: estimateHeaders,
+		estimateRows:    estimateRows,
+
+		sensorHeaders: sensorHeaders,
+		sensorRows:    sensorRows,
+
 		statusLines: statusLines,
 	}
 }
@@ -317,6 +386,16 @@ func selectTopStateValue(
 	state systemStateKind,
 	ml batteryETAEstimates,
 ) string {
+	value, _ := selectTopStateValueWithSource(snapshot, deviceReported, state, ml)
+	return value
+}
+
+func selectTopStateValueWithSource(
+	snapshot *energySnapshot,
+	deviceReported string,
+	state systemStateKind,
+	ml batteryETAEstimates,
+) (string, bool) {
 	deviceReported = strings.TrimSpace(deviceReported)
 	if deviceReported == "" {
 		deviceReported = "n/a"
@@ -349,43 +428,49 @@ func selectTopStateValue(
 			snapshot.mlTopStateUse = true
 		}
 		if snapshot.mlTopStateUse {
-			return mlValue
+			return mlValue, true
 		}
 	} else if mlReady && confidenceTierFromValue(ml.ConfidenceValue) == "high" {
-		return mlValue
+		return mlValue, true
 	}
 	if deviceReported != "n/a" {
-		return deviceReported
+		return deviceReported, false
 	}
 	if mlReady {
-		return mlValue
+		return mlValue, true
 	}
-	return "n/a"
+	return "n/a", false
 }
 
 func topStateDisplayIcon(state systemStateKind, value string, source string) string {
 	displayState := state
-	if displayState == systemStateUnknown {
-		lower := strings.ToLower(strings.TrimSpace(value))
-		switch {
-		case strings.HasPrefix(lower, "charging:"):
-			displayState = systemStateCharging
-		case strings.HasPrefix(lower, "discharging:"):
-			displayState = systemStateDischarging
-		case strings.HasPrefix(lower, "idle:"):
-			displayState = systemStateIdle
+	lower := strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.HasPrefix(lower, "charging:"):
+		displayState = systemStateCharging
+	case strings.HasPrefix(lower, "discharging:"):
+		displayState = systemStateDischarging
+	case strings.HasPrefix(lower, "idle:"):
+		displayState = systemStateIdle
+	}
+	source = strings.ToLower(strings.TrimSpace(source))
+	if displayState == systemStateCharging {
+		switch source {
+		case "solar":
+			return "🌞"
+		case "hybrid(ac+solar)":
+			return "🔆"
+		case "ac":
+			return "🌩"
+		default:
+			return "🌩"
 		}
 	}
-	if displayState == systemStateCharging && strings.EqualFold(strings.TrimSpace(source), "solar") {
-		return "☀️"
-	}
 	switch displayState {
-	case systemStateCharging:
-		return "⚡"
 	case systemStateDischarging:
-		return "↓"
+		return "🔻"
 	case systemStateIdle:
-		return "⏸"
+		return "🟢"
 	default:
 		return ""
 	}
@@ -478,6 +563,19 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 		acInWatts = math.Abs(snapshot.InACWatts)
 		hasACIn = true
 	}
+	acOutWatts := 0.0
+	hasACOut := false
+	if snapshot.HasOutAC {
+		acOutWatts = math.Abs(snapshot.OutACWatts)
+		hasACOut = true
+	}
+	if snapshot.HasOutACL14 {
+		l14 := math.Abs(snapshot.OutACL14Watts)
+		if !hasACOut || l14 > acOutWatts {
+			acOutWatts = l14
+			hasACOut = true
+		}
+	}
 
 	pvInWatts := 0.0
 	hasPVIn := false
@@ -486,7 +584,19 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 		hasPVIn = true
 	}
 
-	acActive := hasACIn && acInWatts > sourceMinWatts
+	// Do not count AC passthrough load as charging source; only residual AC input
+	// above load should be attributed to battery charging.
+	acChargeWatts := acInWatts
+	if hasACIn && hasACOut {
+		residual := acInWatts - acOutWatts
+		switch {
+		case residual > sourceMinWatts:
+			acChargeWatts = residual
+		case isLikelyACPassthrough(true, acInWatts, true, acOutWatts):
+			acChargeWatts = 0
+		}
+	}
+	acActive := hasACIn && acChargeWatts > sourceMinWatts
 	pvActive := hasPVIn && pvInWatts > sourceMinWatts
 
 	switch state {
@@ -578,7 +688,81 @@ func isMLEstimateReady(ml batteryETAEstimates) bool {
 	if active == "" || active == "n/a" {
 		return false
 	}
-	return strings.Contains(strings.ToLower(strings.TrimSpace(ml.PowerValue)), "ewma+trend")
+	powerValue := strings.ToLower(strings.TrimSpace(ml.PowerValue))
+	return strings.Contains(powerValue, "ewma+trend") || strings.Contains(powerValue, "profile:")
+}
+
+func pickPreferredMLForTopState(
+	unit batteryETAEstimates,
+	generic batteryETAEstimates,
+	new batteryETAEstimates,
+	state systemStateKind,
+) (batteryETAEstimates, string) {
+	genericReady := isMLEstimateReady(generic)
+	newReady := isMLEstimateReady(new)
+	genericTier := confidenceTierFromValue(generic.ConfidenceValue)
+	newTier := confidenceTierFromValue(new.ConfidenceValue)
+	genericConf, _ := parseConfidenceScore(generic.ConfidenceValue)
+	newConf, _ := parseConfidenceScore(new.ConfidenceValue)
+
+	const modelSelectConfidenceFloor = 0.70
+	switch {
+	case newReady && newTier == "high":
+		return new, "New"
+	case genericReady && genericTier == "high":
+		return generic, "Generic"
+	case newReady && newConf >= modelSelectConfidenceFloor:
+		return new, "New"
+	case genericReady && genericConf >= modelSelectConfidenceFloor:
+		return generic, "Generic"
+	}
+
+	newCloseness, newHasCloseness := estimateClosenessToUnit(unit, new, state)
+	genericCloseness, genericHasCloseness := estimateClosenessToUnit(unit, generic, state)
+	switch {
+	case newHasCloseness && !genericHasCloseness:
+		return new, "New"
+	case genericHasCloseness && !newHasCloseness:
+		return generic, "Generic"
+	case newHasCloseness && genericHasCloseness && newCloseness+1e-6 < genericCloseness:
+		return new, "New"
+	case genericHasCloseness && newHasCloseness && genericCloseness+1e-6 < newCloseness:
+		return generic, "Generic"
+	case newReady:
+		return new, "New"
+	case genericReady:
+		return generic, "Generic"
+	}
+
+	return unit, "MPPT"
+}
+
+func estimateClosenessToUnit(
+	unit batteryETAEstimates,
+	candidate batteryETAEstimates,
+	state systemStateKind,
+) (float64, bool) {
+	score := 0.0
+	hasSignal := false
+
+	if unitMinutes, ok := estimateActiveMinutes(unit, state); ok {
+		if candMinutes, ok := estimateActiveMinutes(candidate, state); ok {
+			score += math.Abs(candMinutes - unitMinutes)
+		} else {
+			score += 1e6
+		}
+		hasSignal = true
+	}
+	if unitPower, ok := estimateSignedPower(unit, state); ok {
+		if candPower, ok := estimateSignedPower(candidate, state); ok {
+			// Keep power contribution smaller than ETA contribution.
+			score += math.Abs(candPower-unitPower) * 0.2
+		} else {
+			score += 1e6
+		}
+		hasSignal = true
+	}
+	return score, hasSignal
 }
 
 func confidenceTierFromValue(value string) string {
@@ -658,6 +842,133 @@ func formatPVInputRowLabel(channel string, device ecoflow.GeneralInfoDevice, sna
 	return fmt.Sprintf("solar [%s]", capLabel)
 }
 
+type pvInputCapability struct {
+	minVolts float64
+	maxVolts float64
+	maxAmps  float64
+	maxWatts float64
+}
+
+func formatPVInputCapability(channel string, device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) string {
+	capability, ok := estimatePVInputCapability(channel, device, snapshot)
+	if !ok {
+		if watts, wattsOK := estimatePVInputMaxWatts(channel, device, snapshot); wattsOK {
+			return fmt.Sprintf("max: n/aV n/aA %s", formatPVCapacityWatts(watts))
+		}
+		return "max: n/a"
+	}
+	return fmt.Sprintf(
+		"max: %s %s %s",
+		formatVoltageRange(capability.minVolts, capability.maxVolts),
+		formatAmpsLimit(capability.maxAmps),
+		formatPVCapacityWatts(capability.maxWatts),
+	)
+}
+
+func formatPVUtilizationGauge(
+	channel string,
+	device ecoflow.GeneralInfoDevice,
+	snapshot *energySnapshot,
+	hasRaw bool,
+	rawWatts float64,
+	hasSmooth bool,
+	smoothWatts float64,
+) string {
+	maxWatts, ok := estimatePVInputMaxWatts(channel, device, snapshot)
+	if !ok || maxWatts <= 0 {
+		return "n/a"
+	}
+
+	watts := 0.0
+	hasWatts := false
+	switch {
+	case hasRaw:
+		watts = math.Abs(rawWatts)
+		hasWatts = true
+	case hasSmooth:
+		watts = math.Abs(smoothWatts)
+		hasWatts = true
+	}
+	if !hasWatts {
+		return "n/a"
+	}
+
+	percent := (watts / maxWatts) * 100.0
+	if percent < 0 {
+		percent = 0
+	}
+	return fmt.Sprintf("%7.1f%% %s", percent, formatUtilizationGauge(percent, 10))
+}
+
+func formatUtilizationGauge(percent float64, width int) string {
+	if width <= 0 {
+		width = 10
+	}
+	filled := int(math.Round((math.Max(0, percent) / 100.0) * float64(width)))
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > width {
+		filled = width
+	}
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", width-filled) + "]"
+}
+
+func estimatePVInputCapability(channel string, device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) (pvInputCapability, bool) {
+	channel = strings.ToLower(strings.TrimSpace(channel))
+	if channel != "high" {
+		channel = "low"
+	}
+	deviceName := strings.ToLower(strings.TrimSpace(device.DeviceName + " " + device.ProductName))
+	isD2M := strings.Contains(deviceName, "delta 2 max")
+	isDPU := strings.Contains(deviceName, "delta pro ultra") || strings.Contains(deviceName, "dpu")
+
+	if isD2M {
+		return pvInputCapability{minVolts: 11, maxVolts: 60, maxAmps: 15, maxWatts: 500}, true
+	}
+	if isDPU {
+		if channel == "high" {
+			return pvInputCapability{minVolts: 80, maxVolts: 450, maxAmps: 15, maxWatts: 4000}, true
+		}
+		return pvInputCapability{minVolts: 30, maxVolts: 150, maxAmps: 15, maxWatts: 1600}, true
+	}
+
+	if snapshot != nil && snapshot.HasPVLowType && snapshot.HasPVHighType {
+		// Delta 2 Max style dual-LV MPPT.
+		if snapshot.PVLowType == 2 && snapshot.PVHighType == 2 {
+			return pvInputCapability{minVolts: 11, maxVolts: 60, maxAmps: 15, maxWatts: 500}, true
+		}
+		// Delta Pro Ultra style mixed PV ports.
+		if snapshot.PVLowType == 2 && snapshot.PVHighType == 0 {
+			if channel == "high" {
+				return pvInputCapability{minVolts: 80, maxVolts: 450, maxAmps: 15, maxWatts: 4000}, true
+			}
+			return pvInputCapability{minVolts: 30, maxVolts: 150, maxAmps: 15, maxWatts: 1600}, true
+		}
+	}
+
+	if snapshot != nil {
+		var typeCode int64
+		var hasType bool
+		if channel == "high" {
+			typeCode, hasType = snapshot.PVHighType, snapshot.HasPVHighType
+		} else {
+			typeCode, hasType = snapshot.PVLowType, snapshot.HasPVLowType
+		}
+		if hasType {
+			if typeCode == 2 {
+				// Generic LV MPPT profile.
+				return pvInputCapability{minVolts: 11, maxVolts: 60, maxAmps: 15, maxWatts: 500}, true
+			}
+			if channel == "high" && typeCode == 0 {
+				// Generic HV MPPT profile.
+				return pvInputCapability{minVolts: 80, maxVolts: 450, maxAmps: 15, maxWatts: 4000}, true
+			}
+		}
+	}
+	return pvInputCapability{}, false
+}
+
 func estimatePVInputMaxWatts(channel string, device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) (float64, bool) {
 	channel = strings.ToLower(strings.TrimSpace(channel))
 	if channel != "high" {
@@ -717,6 +1028,21 @@ func formatPVCapacityWatts(watts float64) string {
 		return fmt.Sprintf("%.1fkW", kw)
 	}
 	return fmt.Sprintf("%.0fW", watts)
+}
+
+func formatVoltageRange(minVolts, maxVolts float64) string {
+	return fmt.Sprintf("%s-%sV", trimFloatForRange(minVolts), trimFloatForRange(maxVolts))
+}
+
+func formatAmpsLimit(amps float64) string {
+	return fmt.Sprintf("%sA", trimFloatForRange(amps))
+}
+
+func trimFloatForRange(value float64) string {
+	if math.Abs(value-math.Round(value)) <= 0.05 {
+		return fmt.Sprintf("%.0f", math.Round(value))
+	}
+	return fmt.Sprintf("%.1f", value)
 }
 
 func formatLastMQTTMeta(envelope telemetryEnvelope) string {

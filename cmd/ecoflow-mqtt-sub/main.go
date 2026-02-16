@@ -43,6 +43,9 @@ const (
 	defaultMinuteTableRows       = 10
 	defaultMinuteHistoryBuckets  = 24 * 60
 	defaultMinuteHistoryPath     = "logs/telemetry_history.jsonl"
+	defaultTrainingCSVPath       = "logs/telemetry_training.csv"
+	defaultTrainingCSVInterval   = 10 * time.Second
+	defaultTrainingCSVJitter     = 0.2
 	defaultHistoryLoadWindowMins = 180
 	defaultMLBucketSeconds       = 10
 	defaultMLHistoryBuckets      = 180
@@ -324,6 +327,10 @@ type energySnapshot struct {
 	DataUpdatedAt          time.Time
 	HasDataUpdatedAt       bool
 
+	sensorUpdates   []sensorUpdateEvent
+	sensorStateLast map[string]bool
+	sensorStateSeen map[string]bool
+
 	Packs        map[int]*packSnapshot
 	PackSNToNo   map[string]int
 	KitSOC       map[string]float64
@@ -371,17 +378,27 @@ type energySnapshot struct {
 	EMSParaVolMax          float64
 	HasEMSParaVolMax       bool
 
-	pvLowSmoother    *rollingAverage
-	pvHighSmoother   *rollingAverage
-	pvTotalSmoother  *rollingAverage
-	acInSmoother     *rollingAverage
-	totalInSmoother  *rollingAverage
-	totalOutSmoother *rollingAverage
-	stateNetSmoother *rollingAverage
-	mlFastHistory    *powerTelemetryHistory
-	mlConfidenceEWMA float64
-	hasMLConfEWMA    bool
-	mlTopStateUse    bool
+	pvLowSmoother             *rollingAverage
+	pvHighSmoother            *rollingAverage
+	pvTotalSmoother           *rollingAverage
+	acInSmoother              *rollingAverage
+	totalInSmoother           *rollingAverage
+	totalOutSmoother          *rollingAverage
+	stateNetSmoother          *rollingAverage
+	mlFastHistory             *powerTelemetryHistory
+	mlConfidenceEWMA          float64
+	hasMLConfEWMA             bool
+	mlTopStateUse             bool
+	mlProfileChargeBias       float64
+	hasMLProfileChargeBias    bool
+	mlProfileDischargeBias    float64
+	hasMLProfileDischargeBias bool
+}
+
+type sensorUpdateEvent struct {
+	At     time.Time
+	Sensor string
+	Status string
 }
 
 type snapshotDerived struct {
@@ -636,10 +653,12 @@ func (l *mqttOutputLogger) Printf(format string, args ...any) {
 
 func newEnergySnapshot() *energySnapshot {
 	return &energySnapshot{
-		Packs:        make(map[int]*packSnapshot),
-		PackSNToNo:   make(map[string]int),
-		KitSOC:       make(map[string]float64),
-		Temperatures: make(map[string]float64),
+		Packs:           make(map[int]*packSnapshot),
+		PackSNToNo:      make(map[string]int),
+		KitSOC:          make(map[string]float64),
+		Temperatures:    make(map[string]float64),
+		sensorStateLast: make(map[string]bool),
+		sensorStateSeen: make(map[string]bool),
 	}
 }
 
@@ -911,13 +930,26 @@ func (h *minuteTelemetryHistory) AddSample(at time.Time, snapshot *energySnapsho
 		bucket.DCOutSumWatts += snapshot.OutDCWatts
 		bucket.DCOutSamples++
 	}
-	if batteryChargeWatts, hasBatteryCharge := snapshot.effectiveBatteryChargeWatts(); hasBatteryCharge {
-		bucket.BatteryChargeSumWatts += batteryChargeWatts
-		bucket.BatteryChargeSamples++
-	}
-	if batteryNetWatts, hasBatteryNet := snapshot.effectiveBatteryNetWatts(); hasBatteryNet {
-		bucket.BatteryNetSumWatts += batteryNetWatts
+	packChargeW, packDischargeW := packPowerTotals(snapshot.Packs)
+	effectiveIn, hasEffectiveIn, effectiveOut, hasEffectiveOut :=
+		snapshot.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	batteryFlow := snapshot.batteryFlowForDisplay(
+		effectiveIn,
+		hasEffectiveIn,
+		effectiveOut,
+		hasEffectiveOut,
+		packChargeW,
+		packDischargeW,
+	)
+	if batteryFlow.hasNet {
+		bucket.BatteryNetSumWatts += batteryFlow.netWatts
 		bucket.BatteryNetSamples++
+		chargeWatts := 0.0
+		if batteryFlow.netWatts > 0 {
+			chargeWatts = batteryFlow.netWatts
+		}
+		bucket.BatteryChargeSumWatts += chargeWatts
+		bucket.BatteryChargeSamples++
 	}
 
 	h.pruneOldest()
@@ -957,13 +989,26 @@ func (h *powerTelemetryHistory) AddSample(at time.Time, snapshot *energySnapshot
 		bucket.DCOutSumWatts += snapshot.OutDCWatts
 		bucket.DCOutSamples++
 	}
-	if batteryChargeWatts, hasBatteryCharge := snapshot.effectiveBatteryChargeWatts(); hasBatteryCharge {
-		bucket.BatteryChargeSumWatts += batteryChargeWatts
-		bucket.BatteryChargeSamples++
-	}
-	if batteryNetWatts, hasBatteryNet := snapshot.effectiveBatteryNetWatts(); hasBatteryNet {
-		bucket.BatteryNetSumWatts += batteryNetWatts
+	packChargeW, packDischargeW := packPowerTotals(snapshot.Packs)
+	effectiveIn, hasEffectiveIn, effectiveOut, hasEffectiveOut :=
+		snapshot.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	batteryFlow := snapshot.batteryFlowForDisplay(
+		effectiveIn,
+		hasEffectiveIn,
+		effectiveOut,
+		hasEffectiveOut,
+		packChargeW,
+		packDischargeW,
+	)
+	if batteryFlow.hasNet {
+		bucket.BatteryNetSumWatts += batteryFlow.netWatts
 		bucket.BatteryNetSamples++
+		chargeWatts := 0.0
+		if batteryFlow.netWatts > 0 {
+			chargeWatts = batteryFlow.netWatts
+		}
+		bucket.BatteryChargeSumWatts += chargeWatts
+		bucket.BatteryChargeSamples++
 	}
 
 	h.pruneOldest()
@@ -1133,6 +1178,10 @@ func main() {
 		HistoryCapacity: parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_HISTORY_BUCKETS", defaultMinuteHistoryBuckets),
 	}
 	minuteHistoryPath := envOrDefault("ECOFLOW_MQTT_HISTORY_PATH", defaultMinuteHistoryPath)
+	trainingCSVPath := envOrDefault("ECOFLOW_MQTT_TRAINING_CSV_PATH", defaultTrainingCSVPath)
+	trainingCSVEnabled := parseBoolEnv("ECOFLOW_MQTT_TRAINING_CSV", true)
+	trainingCSVInterval := durationAllowZero("ECOFLOW_MQTT_TRAINING_CSV_INTERVAL", defaultTrainingCSVInterval)
+	trainingCSVJitter := parseNonNegativeFloatEnv("ECOFLOW_MQTT_TRAINING_CSV_JITTER", defaultTrainingCSVJitter)
 	historyLoadWindowMins := parsePositiveIntEnv("ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES", defaultHistoryLoadWindowMins)
 	mlBucketSeconds := parsePositiveIntEnv("ECOFLOW_ML_BUCKET_SECONDS", defaultMLBucketSeconds)
 	mlHistoryBuckets := parsePositiveIntEnv("ECOFLOW_ML_HISTORY_BUCKETS", defaultMLHistoryBuckets)
@@ -1159,6 +1208,27 @@ func main() {
 	defer func() {
 		_ = minuteHistoryStore.Close()
 	}()
+	var trainingCSVStore *trainingTelemetryCSVStore
+	if trainingCSVEnabled {
+		trainingCSVStore, err = newTrainingTelemetryCSVStore(trainingCSVPath)
+		if err != nil {
+			logger.Warn("init training telemetry csv store failed", slog.String("error", err.Error()))
+			runLog.Printf("training_csv_init_error path=%s error=%q", trainingCSVPath, err.Error())
+		} else {
+			defer func() {
+				_ = trainingCSVStore.Close()
+			}()
+			runLog.Printf(
+				"training_csv_enabled path=%s interval=%s jitter=%.3f",
+				trainingCSVStore.Path(),
+				trainingCSVInterval.String(),
+				trainingCSVJitter,
+			)
+		}
+	} else {
+		runLog.Printf("training_csv_disabled")
+	}
+	trainingCaptureScheduler := newTelemetryCaptureScheduler(trainingCSVInterval, trainingCSVJitter)
 	loadNotBeforeUnix := int64(0)
 	if historyLoadWindowMins > 0 {
 		loadNotBeforeUnix = time.Now().Add(-time.Duration(historyLoadWindowMins) * time.Minute).Truncate(time.Minute).Unix()
@@ -1292,9 +1362,33 @@ func main() {
 
 	lastEnvelope := telemetryEnvelope{TypeCode: "n/a"}
 	debugTelemetry := logger.Enabled(ctx, slog.LevelDebug)
+	captureTrainingTelemetry := func(at time.Time, topic string, envelope telemetryEnvelope, quota map[string]any) {
+		if trainingCSVStore == nil {
+			return
+		}
+		shouldCaptureNow := isPowerRelatedTelemetry(envelope, quota)
+		if !shouldCaptureNow && trainingCaptureScheduler != nil && !trainingCaptureScheduler.ShouldCapture(at) {
+			return
+		}
+		row := buildTrainingTelemetryCSVRow(at, targetDevice, topic, envelope, snapshot)
+		if err := trainingCSVStore.AppendRow(row); err != nil {
+			logger.Warn(
+				"append training telemetry csv row failed",
+				slog.String("path", trainingCSVStore.Path()),
+				slog.String("error", err.Error()),
+			)
+			runLog.Printf(
+				"training_csv_append_error path=%s error=%q",
+				trainingCSVStore.Path(),
+				err.Error(),
+			)
+		}
+	}
 	if bootstrap.QuotaKeys > 0 {
 		lastEnvelope = telemetryEnvelope{TypeCode: "quotaBootstrap"}
-		recordMinuteSample(time.Now())
+		now := time.Now()
+		recordMinuteSample(now)
+		captureTrainingTelemetry(now, currentTopic, lastEnvelope, nil)
 		if tableView {
 			fmt.Print(renderDashboard(targetDevice, currentTopic, lastEnvelope, snapshot, minuteHistory, minuteTableConfig))
 		} else {
@@ -1448,7 +1542,9 @@ func main() {
 				continue
 			}
 			snapshot.MQTTFallbackPollCount++
-			recordMinuteSample(time.Now())
+			now := time.Now()
+			recordMinuteSample(now)
+			captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "fallbackQuotaPoll"}, nil)
 			runLog.Printf(
 				"fallback_quota_poll_ok polls=%d quota_keys=%d mapped_packs=%d",
 				snapshot.MQTTFallbackPollCount,
@@ -1478,7 +1574,9 @@ func main() {
 				runLog.Printf("quota_reconcile_failed error=%q", reconcileErr.Error())
 				continue
 			}
-			recordMinuteSample(time.Now())
+			now := time.Now()
+			recordMinuteSample(now)
+			captureTrainingTelemetry(now, currentTopic, telemetryEnvelope{TypeCode: "quotaReconcile"}, nil)
 			runLog.Printf(
 				"quota_reconcile_ok interval=%s quota_keys=%d mapped_packs=%d",
 				reconcileEvery.String(),
@@ -1537,8 +1635,10 @@ func main() {
 			snapshot.MQTTConnected = true
 			snapshot.MQTTLastMessageAt = time.Now()
 			snapshot.HasMQTTLastMessage = true
-			recordMinuteSample(time.Now())
+			now := time.Now()
+			recordMinuteSample(now)
 			lastEnvelope = envelope
+			captureTrainingTelemetry(now, msg.Topic, envelope, quota)
 
 			if debugTelemetry {
 				logger.Debug(
@@ -2100,6 +2200,18 @@ func parsePositiveIntEnv(key string, fallback int) int {
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func parseNonNegativeFloatEnv(key string, fallback float64) float64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
 		return fallback
 	}
 	return value
@@ -2841,6 +2953,11 @@ func (s *energySnapshot) Update(
 		}
 	}
 
+	var fanStateValue int64
+	hasFanStateInQuota := false
+	var fanLevelValue int64
+	hasFanLevelInQuota := false
+
 	for key, value := range quota {
 		if strings.Contains(key, ".") {
 			continue
@@ -3068,15 +3185,13 @@ func (s *energySnapshot) Update(
 			}
 		case "fanstate":
 			if state, ok := numberFromAny(value); ok {
-				s.FanOn = int64(state) > 0
-				s.HasFanOn = true
+				fanStateValue = int64(state)
+				hasFanStateInQuota = true
 			}
 		case "fanlevel":
 			if level, ok := numberFromAny(value); ok {
-				s.FanLevelRaw = int64(level)
-				s.HasFanLevel = true
-				s.FanOn = s.FanLevelRaw > 0
-				s.HasFanOn = true
+				fanLevelValue = int64(level)
+				hasFanLevelInQuota = true
 			}
 		case "inputwatts":
 			if !s.HasWattsIn || s.WattsIn == 0 {
@@ -3106,6 +3221,21 @@ func (s *energySnapshot) Update(
 				s.Temperatures[normalizeTempKey(key)+".max"] = maxValue
 			}
 		}
+	}
+
+	// Resolve fan fields deterministically. If both keys exist in one payload,
+	// explicit fanState is authoritative and must not be overridden by fanLevel.
+	if hasFanLevelInQuota {
+		s.FanLevelRaw = fanLevelValue
+		s.HasFanLevel = true
+	}
+	if hasFanStateInQuota {
+		s.FanOn = fanStateValue > 0
+		s.HasFanOn = true
+	} else if hasFanLevelInQuota {
+		// Use fanLevel as fallback only when fanState is absent in this update.
+		s.FanOn = fanLevelValue > 0
+		s.HasFanOn = true
 	}
 
 	for packNo, pack := range extractBatteryPacks(quota) {
@@ -3417,7 +3547,9 @@ func (s *energySnapshot) Update(
 			s.HasDeviceSOC = true
 		}
 	}
-	s.DataUpdatedAt = time.Now()
+	now := time.Now()
+	s.recordSensorStatusTransitions(now)
+	s.DataUpdatedAt = now
 	s.HasDataUpdatedAt = true
 }
 
@@ -3604,88 +3736,24 @@ func (s *energySnapshot) derived() snapshotDerived {
 		derived.SocGuardrail = minSoc + " .. " + maxSoc
 	}
 
-	batteryInWatts := 0.0
-	hasBatteryIn := false
-	batteryFlowFromNet := false
-	if s.HasBatteryIn {
-		batteryInWatts = s.BatteryInWatts
-		hasBatteryIn = true
-	}
-	batteryOutWatts := 0.0
-	hasBatteryOut := false
-	if s.HasBatteryOut {
-		batteryOutWatts = s.BatteryOutWatts
-		hasBatteryOut = true
-	}
-	if (!hasBatteryIn || !hasBatteryOut) && s.HasBatteryAmp && s.HasBatteryVolts {
-		busWatts := normalizeCurrentAmps(s.BatteryAmp) * normalizeVoltageVolts(s.BatteryVolts)
-		if math.Abs(busWatts) >= idleDrawNoiseFloorWatts {
-			if busWatts > 0 && !hasBatteryIn {
-				batteryInWatts = busWatts
-				hasBatteryIn = true
-			}
-			if busWatts < 0 && !hasBatteryOut {
-				batteryOutWatts = -busWatts
-				hasBatteryOut = true
-			}
-		}
-	}
-	if !hasBatteryIn && packChargeW > idleDrawNoiseFloorWatts {
-		batteryInWatts = packChargeW
-		hasBatteryIn = true
-	}
-	if !hasBatteryOut && packDischargeW > idleDrawNoiseFloorWatts {
-		batteryOutWatts = packDischargeW
-		hasBatteryOut = true
-	}
-	if derived.HasEffectiveIn && derived.HasEffectiveOut {
-		netWatts := derived.EffectiveIn - derived.EffectiveOut
-		switch {
-		case netWatts > systemStateNetThresholdWatts:
-			// Total in/out is the most reliable battery direction signal.
-			batteryInWatts = netWatts
-			hasBatteryIn = true
-			batteryOutWatts = 0
-			hasBatteryOut = true
-			batteryFlowFromNet = true
-		case netWatts < -systemStateNetThresholdWatts:
-			batteryOutWatts = -netWatts
-			hasBatteryOut = true
-			batteryInWatts = 0
-			hasBatteryIn = true
-			batteryFlowFromNet = true
-		}
-	}
-	if !batteryFlowFromNet {
-		if hasBatteryIn {
-			if sanitized, ok := s.sanitizeBatteryFlowHintWatts(batteryInWatts); ok {
-				batteryInWatts = sanitized
-			} else {
-				hasBatteryIn = false
-			}
-		}
-		if hasBatteryOut {
-			if sanitized, ok := s.sanitizeBatteryFlowHintWatts(batteryOutWatts); ok {
-				batteryOutWatts = sanitized
-			} else {
-				hasBatteryOut = false
-			}
-		}
-	}
-	if hasBatteryIn && !hasBatteryOut {
-		batteryOutWatts = 0
-		hasBatteryOut = true
-	}
-	if hasBatteryOut && !hasBatteryIn {
-		batteryInWatts = 0
-		hasBatteryIn = true
-	}
+	flow := s.batteryFlowForDisplay(
+		derived.EffectiveIn,
+		derived.HasEffectiveIn,
+		derived.EffectiveOut,
+		derived.HasEffectiveOut,
+		packChargeW,
+		packDischargeW,
+	)
+	batteryInWatts := flow.inWatts
+	batteryOutWatts := flow.outWatts
+	hasBatteryIn := flow.hasIn
+	hasBatteryOut := flow.hasOut
 	derived.BatteryInValue = formatOptionalWatts(hasBatteryIn, batteryInWatts)
 	derived.BatteryOutValue = formatOptionalWatts(hasBatteryOut, batteryOutWatts)
 	derived.BatteryNetValue = "n/a"
-	if hasBatteryIn || hasBatteryOut {
+	if flow.hasNet {
 		// Positive when charging, negative when discharging.
-		derived.BatteryNetValue = formatWatts(batteryInWatts - batteryOutWatts)
+		derived.BatteryNetValue = formatWatts(flow.netWatts)
 	}
 	solarPassthroughOn := isLikelySolarPassthrough(s, batteryInWatts, hasBatteryIn, batteryOutWatts, hasBatteryOut)
 	derived.StatusSolarPassValue = checkboxStatus(solarPassthroughOn)
@@ -3805,6 +3873,7 @@ func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableCo
 		acOutWh, hasACOutWh := averageWh(bucket.ACOutSumWatts, bucket.ACOutSamples)
 		dcOutWh, hasDCOutWh := averageWh(bucket.DCOutSumWatts, bucket.DCOutSamples)
 		batteryChargeWh, hasBatteryChargeWh := averageWh(bucket.BatteryChargeSumWatts, bucket.BatteryChargeSamples)
+		batteryNetWh, hasBatteryNetWh := averageWh(bucket.BatteryNetSumWatts, bucket.BatteryNetSamples)
 
 		totalInWh := 0.0
 		hasTotalInWh := false
@@ -3827,8 +3896,8 @@ func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableCo
 			totalOutWh += dcOutWh
 			hasTotalOutWh = true
 		}
-		netWh := totalInWh - totalOutWh
-		hasNetWh := hasTotalInWh || hasTotalOutWh
+		netWh := batteryNetWh
+		hasNetWh := hasBatteryNetWh
 
 		out = append(out, []string{
 			time.Unix(bucket.MinuteStartUnix, 0).Local().Format("2006-01-02 15:04"),
@@ -4283,6 +4352,26 @@ func shouldShowPreconditioningStatus(device ecoflow.GeneralInfoDevice, snapshot 
 		if pack.HasPreconditioning || pack.HasPreconditioningState || pack.HasPreconditioningHeat || pack.HasPreconditioningEvent {
 			return true
 		}
+	}
+	return false
+}
+
+func shouldShowXT150Channels(device ecoflow.GeneralInfoDevice, snapshot *energySnapshot, derived snapshotDerived) bool {
+	name := strings.ToLower(strings.TrimSpace(device.DeviceName + " " + device.ProductName))
+	if strings.Contains(name, "delta pro ultra") || strings.Contains(name, "dpu") {
+		return false
+	}
+	if strings.Contains(name, "delta 2 max") {
+		return true
+	}
+	if snapshot != nil && snapshot.HasXT150 {
+		return true
+	}
+	if strings.TrimSpace(derived.XT150InValue) != "" && !strings.EqualFold(strings.TrimSpace(derived.XT150InValue), "n/a") {
+		return true
+	}
+	if strings.TrimSpace(derived.XT150OutValue) != "" && !strings.EqualFold(strings.TrimSpace(derived.XT150OutValue), "n/a") {
+		return true
 	}
 	return false
 }

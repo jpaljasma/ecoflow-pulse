@@ -41,6 +41,7 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 		"ac: n/a pv_total: n/a xt150_in: n/a",
 		"ac: n/a (l14: n/a) dc: n/a xt150_out: n/a",
 		"solar #1 [500W]",
+		"max: 11-60V 15A 500W",
 		"watts: n/a",
 		"idle",
 		"solar #2 [500W]",
@@ -51,9 +52,10 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 		"[ ] Grounded (Estimated)",
 		"[ ] Solar Passthrough",
 		"[ ] Solar Charging",
-		"est ML",
-		"charge: n/a",
-		"discharge: n/a",
+		"Device",
+		"Old",
+		"New (",
+		"Δ ETA vs Unit",
 		"| Pack",
 		"bp2",
 		"discharging",
@@ -91,6 +93,9 @@ func TestRenderDashboardShowsPassthroughAndGroundedWhenACInOutEquivalent(t *test
 	if !strings.Contains(output, "[ ] Solar Passthrough") {
 		t.Fatalf("expected solar passthrough checkbox off during AC passthrough, got=%q", output)
 	}
+	if strings.Contains(output, "xt150_in:") || strings.Contains(output, "xt150_out:") {
+		t.Fatalf("dpu dashboard should hide xt150 channels, got=%q", output)
+	}
 }
 
 func TestFormatPVInputRowLabelUsesCapacityHints(t *testing.T) {
@@ -101,6 +106,12 @@ func TestFormatPVInputRowLabelUsesCapacityHints(t *testing.T) {
 	if got := formatPVInputRowLabel("high", d2m, newEnergySnapshot()); got != "solar #2 [500W]" {
 		t.Fatalf("d2m high label mismatch: got=%q want=%q", got, "solar #2 [500W]")
 	}
+	if got := formatPVInputCapability("low", d2m, newEnergySnapshot()); got != "max: 11-60V 15A 500W" {
+		t.Fatalf("d2m low capability mismatch: got=%q want=%q", got, "max: 11-60V 15A 500W")
+	}
+	if got := formatPVInputCapability("high", d2m, newEnergySnapshot()); got != "max: 11-60V 15A 500W" {
+		t.Fatalf("d2m high capability mismatch: got=%q want=%q", got, "max: 11-60V 15A 500W")
+	}
 
 	dpu := ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra"}
 	if got := formatPVInputRowLabel("low", dpu, newEnergySnapshot()); got != "solar [1.6kW]" {
@@ -108,6 +119,23 @@ func TestFormatPVInputRowLabelUsesCapacityHints(t *testing.T) {
 	}
 	if got := formatPVInputRowLabel("high", dpu, newEnergySnapshot()); got != "solar [4kW]" {
 		t.Fatalf("dpu high label mismatch: got=%q want=%q", got, "solar [4kW]")
+	}
+	if got := formatPVInputCapability("low", dpu, newEnergySnapshot()); got != "max: 30-150V 15A 1.6kW" {
+		t.Fatalf("dpu low capability mismatch: got=%q want=%q", got, "max: 30-150V 15A 1.6kW")
+	}
+	if got := formatPVInputCapability("high", dpu, newEnergySnapshot()); got != "max: 80-450V 15A 4kW" {
+		t.Fatalf("dpu high capability mismatch: got=%q want=%q", got, "max: 80-450V 15A 4kW")
+	}
+}
+
+func TestFormatPVUtilizationGaugeSupportsOverflowPercent(t *testing.T) {
+	device := ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max"}
+	got := formatPVUtilizationGauge("low", device, newEnergySnapshot(), true, 525, false, 0)
+	if !strings.Contains(got, "105.0%") {
+		t.Fatalf("expected overflow percentage in gauge, got=%q", got)
+	}
+	if !strings.Contains(got, "[██████████]") {
+		t.Fatalf("expected capped full-width gauge on overflow, got=%q", got)
 	}
 }
 
@@ -155,13 +183,15 @@ func TestIsLikelySolarPassthrough(t *testing.T) {
 
 func TestInferBatteryChargeSource(t *testing.T) {
 	tests := []struct {
-		name    string
-		state   systemStateKind
-		acInW   float64
-		hasACIn bool
-		pvInW   float64
-		hasPVIn bool
-		want    string
+		name     string
+		state    systemStateKind
+		acInW    float64
+		hasACIn  bool
+		acOutW   float64
+		hasACOut bool
+		pvInW    float64
+		hasPVIn  bool
+		want     string
 	}{
 		{
 			name:    "charging from ac",
@@ -178,13 +208,26 @@ func TestInferBatteryChargeSource(t *testing.T) {
 			want:    "solar",
 		},
 		{
-			name:    "charging hybrid",
-			state:   systemStateCharging,
-			acInW:   350,
-			hasACIn: true,
-			pvInW:   210,
-			hasPVIn: true,
-			want:    "hybrid(ac+solar)",
+			name:     "charging hybrid",
+			state:    systemStateCharging,
+			acInW:    350,
+			hasACIn:  true,
+			acOutW:   120,
+			hasACOut: true,
+			pvInW:    210,
+			hasPVIn:  true,
+			want:     "hybrid(ac+solar)",
+		},
+		{
+			name:     "charging solar when ac passthrough dominates",
+			state:    systemStateCharging,
+			acInW:    61,
+			hasACIn:  true,
+			acOutW:   60,
+			hasACOut: true,
+			pvInW:    55,
+			hasPVIn:  true,
+			want:     "solar",
 		},
 		{
 			name:  "idle no source",
@@ -210,6 +253,8 @@ func TestInferBatteryChargeSource(t *testing.T) {
 			snapshot := newEnergySnapshot()
 			snapshot.InACWatts = tt.acInW
 			snapshot.HasInAC = tt.hasACIn
+			snapshot.OutACWatts = tt.acOutW
+			snapshot.HasOutAC = tt.hasACOut
 			snapshot.InPVWatts = tt.pvInW
 			snapshot.HasInPV = tt.hasPVIn
 
@@ -361,14 +406,18 @@ func TestTopStateDisplayIcon(t *testing.T) {
 		source string
 		want   string
 	}{
-		{name: "charging", state: systemStateCharging, value: "charging: 1", source: "ac", want: "⚡"},
-		{name: "charging solar source", state: systemStateCharging, value: "charging: 1", source: "solar", want: "☀️"},
-		{name: "discharging", state: systemStateDischarging, value: "discharging: 1", source: "battery", want: "↓"},
-		{name: "idle", state: systemStateIdle, value: "idle: 1", source: "none", want: "⏸"},
-		{name: "infer charging", state: systemStateUnknown, value: "charging: 1", source: "ac", want: "⚡"},
-		{name: "infer charging solar source", state: systemStateUnknown, value: "charging: 1", source: "solar", want: "☀️"},
-		{name: "infer discharging", state: systemStateUnknown, value: "discharging: 1", source: "battery", want: "↓"},
-		{name: "infer idle", state: systemStateUnknown, value: "idle: 1", source: "none", want: "⏸"},
+		{name: "charging ac source", state: systemStateCharging, value: "charging: 1", source: "ac", want: "🌩"},
+		{name: "charging solar source", state: systemStateCharging, value: "charging: 1", source: "solar", want: "🌞"},
+		{name: "charging hybrid source", state: systemStateCharging, value: "charging: 1", source: "hybrid(ac+solar)", want: "🔆"},
+		{name: "discharging", state: systemStateDischarging, value: "discharging: 1", source: "battery", want: "🔻"},
+		{name: "idle", state: systemStateIdle, value: "idle: 1", source: "none", want: "🟢"},
+		{name: "infer charging", state: systemStateUnknown, value: "charging: 1", source: "ac", want: "🌩"},
+		{name: "infer charging solar source", state: systemStateUnknown, value: "charging: 1", source: "solar", want: "🌞"},
+		{name: "infer charging hybrid source", state: systemStateUnknown, value: "charging: 1", source: "hybrid(ac+solar)", want: "🔆"},
+		{name: "infer discharging", state: systemStateUnknown, value: "discharging: 1", source: "battery", want: "🔻"},
+		{name: "infer idle", state: systemStateUnknown, value: "idle: 1", source: "none", want: "🟢"},
+		{name: "value charging overrides stale idle state", state: systemStateIdle, value: "charging: 1", source: "solar", want: "🌞"},
+		{name: "value discharging overrides stale charging state", state: systemStateCharging, value: "discharging: 1", source: "battery", want: "🔻"},
 		{name: "unknown", state: systemStateUnknown, value: "n/a", source: "n/a", want: ""},
 	}
 

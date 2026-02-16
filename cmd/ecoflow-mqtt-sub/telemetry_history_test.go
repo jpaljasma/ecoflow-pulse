@@ -40,13 +40,13 @@ func TestMinuteTelemetryHistoryAggregatesByMinute(t *testing.T) {
 	if rows[0][0] != "2026-02-15 10:02" {
 		t.Fatalf("newest row time mismatch: got=%q want=%q", rows[0][0], "2026-02-15 10:02")
 	}
-	if rows[0][1] != "n/a" || rows[0][2] != "0.5" || rows[0][3] != "11.7" || rows[0][4] != "1.5" || rows[0][5] != "0.2" || rows[0][6] != "10.5" || rows[0][7] != "12.2" || rows[0][8] != "1.7" || rows[0][9] != "10.5" {
+	if rows[0][1] != "n/a" || rows[0][2] != "0.5" || rows[0][3] != "11.7" || rows[0][4] != "1.5" || rows[0][5] != "0.2" || rows[0][6] != "n/a" || rows[0][7] != "12.2" || rows[0][8] != "1.7" || rows[0][9] != "n/a" {
 		t.Fatalf("newest row metrics mismatch: got=%v", rows[0])
 	}
 	if rows[1][0] != "2026-02-15 10:01" {
 		t.Fatalf("older row time mismatch: got=%q want=%q", rows[1][0], "2026-02-15 10:01")
 	}
-	if rows[1][1] != "n/a" || rows[1][2] != "1.0" || rows[1][3] != "14.2" || rows[1][4] != "1.8" || rows[1][5] != "0.5" || rows[1][6] != "12.8" || rows[1][7] != "15.2" || rows[1][8] != "2.3" || rows[1][9] != "12.8" {
+	if rows[1][1] != "n/a" || rows[1][2] != "1.0" || rows[1][3] != "14.2" || rows[1][4] != "1.8" || rows[1][5] != "0.5" || rows[1][6] != "n/a" || rows[1][7] != "15.2" || rows[1][8] != "2.3" || rows[1][9] != "n/a" {
 		t.Fatalf("older row averages mismatch: got=%v", rows[1])
 	}
 }
@@ -69,6 +69,30 @@ func TestMinuteTelemetryHistorySortAndLimit(t *testing.T) {
 	}
 	if rows[0][0] != "2026-02-15 10:00" || rows[1][0] != "2026-02-15 10:01" {
 		t.Fatalf("oldest-first ordering mismatch: got=%v", rows)
+	}
+}
+
+func TestMinuteTelemetryRowsUseBatteryNetForChargeAndNetWh(t *testing.T) {
+	history := newMinuteTelemetryHistory(32)
+	snapshot := newEnergySnapshot()
+
+	at := time.Date(2026, time.February, 15, 12, 34, 10, 0, time.Local)
+	snapshot.HasBatteryIn = true
+	snapshot.BatteryInWatts = 120
+	snapshot.HasBatteryOut = true
+	snapshot.BatteryOutWatts = 20
+	history.AddSample(at, snapshot)
+
+	rows := buildMinuteTelemetryRows(history, minuteTableConfig{Rows: 1, NewestFirst: true})
+	if len(rows) != 1 {
+		t.Fatalf("row count mismatch: got=%d want=1", len(rows))
+	}
+	// Battery net is +100W => 100/60 = 1.666...Wh -> 1.7 in display.
+	if rows[0][6] != "1.7" {
+		t.Fatalf("battery charge wh mismatch: got=%s want=1.7 row=%v", rows[0][6], rows[0])
+	}
+	if rows[0][9] != "1.7" {
+		t.Fatalf("net wh mismatch: got=%s want=1.7 row=%v", rows[0][9], rows[0])
 	}
 }
 

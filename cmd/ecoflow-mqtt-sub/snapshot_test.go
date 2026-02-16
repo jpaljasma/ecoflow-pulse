@@ -811,3 +811,59 @@ func TestEnergySnapshotInfersResidualDCAfterXT150Deduction(t *testing.T) {
 		t.Fatalf("out_dc mismatch after xt150 deduction: has=%v value=%f", snapshot.HasOutDC, snapshot.OutDCWatts)
 	}
 }
+
+func TestEnergySnapshotFanStateOverridesFanLevelWhenBothPresent(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	envelope := telemetryEnvelope{TypeCode: "quotaBootstrap"}
+	quota := map[string]any{
+		"fanState": 1,
+		"fanLevel": 0,
+	}
+
+	snapshot.Update(envelope, quota, nil, false, pdStatusSummary{}, false)
+
+	if !snapshot.HasFanOn {
+		t.Fatalf("expected fan on signal to be present")
+	}
+	if !snapshot.FanOn {
+		t.Fatalf("expected fan to be on when fanState=1 even with fanLevel=0")
+	}
+	if !snapshot.HasFanLevel || snapshot.FanLevelRaw != 0 {
+		t.Fatalf("expected fan level tracked as zero, got has=%v level=%d", snapshot.HasFanLevel, snapshot.FanLevelRaw)
+	}
+}
+
+func TestEnergySnapshotRecordsSensorStatusTransitions(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	onQuota := map[string]any{
+		"cfgAcEnabled": 1,
+		"fanState":     1,
+	}
+	snapshot.Update(telemetryEnvelope{TypeCode: "pdStatus"}, onQuota, nil, false, pdStatusSummary{}, false)
+
+	offQuota := map[string]any{
+		"cfgAcEnabled": 0,
+		"fanState":     0,
+	}
+	snapshot.Update(telemetryEnvelope{TypeCode: "pdStatus"}, offQuota, nil, false, pdStatusSummary{}, false)
+
+	updates := snapshot.recentSensorUpdates(10)
+	if len(updates) < 4 {
+		t.Fatalf("expected at least 4 sensor updates, got=%d", len(updates))
+	}
+	joined := ""
+	for _, update := range updates {
+		joined += update.Sensor + " " + update.Status + "\n"
+	}
+	for _, expected := range []string{
+		"AC charging turned On",
+		"Fan turned On",
+		"AC charging turned Off",
+		"Fan turned Off",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("missing expected sensor transition %q in updates:\n%s", expected, joined)
+		}
+	}
+}

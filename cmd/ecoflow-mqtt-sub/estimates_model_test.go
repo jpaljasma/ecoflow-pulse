@@ -54,10 +54,11 @@ func TestEnergySnapshotETAEstimatesRow(t *testing.T) {
 		minuteTableConfig{},
 	)
 	for _, expected := range []string{
-		"est ML",
-		"charge: n/a",
-		"active: n/a",
-		"conf: n/a",
+		"MPPT",
+		"Old",
+		"Generic",
+		"New (",
+		"Δ ETA vs Unit",
 	} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("dashboard missing %q in estimates row; output=%q", expected, output)
@@ -98,6 +99,112 @@ func TestEstimateBatteryETAsML(t *testing.T) {
 	}
 	if estimates.ConfidenceValue == "n/a" {
 		t.Fatalf("ml confidence should be available, got=%s", estimates.ConfidenceValue)
+	}
+}
+
+func TestEstimateBatteryETAsMLProfiledDetectsD2MProfile(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasXT150 = true
+	snapshot.HasFullEnergy = true
+	snapshot.FullEnergyWh = 4000
+	snapshot.HasDeviceSOC = true
+	snapshot.DeviceSOC = 50
+	snapshot.HasMaxChargeSOC = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMinDischarge = true
+	snapshot.MinDischargeSOC = 5
+	snapshot.mlFastHistory = newPowerTelemetryHistory(10*time.Second, 180)
+
+	base := time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local)
+	for i := 0; i < 16; i++ {
+		snapshot.HasInPV = true
+		snapshot.InPVWatts = 190 + float64(i%3)
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 40 + float64(i%2)
+		snapshot.HasOutDC = true
+		snapshot.OutDCWatts = 8
+		snapshot.mlFastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), snapshot)
+	}
+
+	estimates, profile := estimateBatteryETAsMLProfiled(snapshot, nil, systemStateCharging)
+	if profile != mlEstimateProfileD2M {
+		t.Fatalf("expected d2m profile, got=%s", profile)
+	}
+	if !strings.Contains(estimates.PowerValue, "profile:d2m") {
+		t.Fatalf("expected d2m profile marker in power value, got=%s", estimates.PowerValue)
+	}
+}
+
+func TestEstimateBatteryETAsMLProfiledDetectsDPUProfile(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasFullEnergy = true
+	snapshot.FullEnergyWh = 12288
+	snapshot.HasDeviceSOC = true
+	snapshot.DeviceSOC = 40
+	snapshot.HasMaxChargeSOC = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMinDischarge = true
+	snapshot.MinDischargeSOC = 5
+	snapshot.mlFastHistory = newPowerTelemetryHistory(10*time.Second, 180)
+	pack := snapshot.ensurePack(1)
+	pack.SOC = 40
+	pack.HasSOC = true
+
+	base := time.Date(2026, time.February, 15, 10, 0, 0, 0, time.Local)
+	for i := 0; i < 18; i++ {
+		snapshot.HasInPV = true
+		snapshot.InPVWatts = 260 + float64(i%4)
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 120 + float64(i%3)
+		snapshot.HasOutDC = true
+		snapshot.OutDCWatts = 12
+		snapshot.mlFastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), snapshot)
+	}
+
+	estimates, profile := estimateBatteryETAsMLProfiled(snapshot, nil, systemStateCharging)
+	if profile != mlEstimateProfileDPU {
+		t.Fatalf("expected dpu profile, got=%s", profile)
+	}
+	if !strings.Contains(estimates.PowerValue, "profile:dpu") {
+		t.Fatalf("expected dpu profile marker in power value, got=%s", estimates.PowerValue)
+	}
+}
+
+func TestEstimateBatteryETAsMLProfiledConvergesHighOnStableSignal(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasXT150 = true
+	snapshot.HasFullEnergy = true
+	snapshot.FullEnergyWh = 4096
+	snapshot.HasDeviceSOC = true
+	snapshot.DeviceSOC = 46
+	snapshot.HasMaxChargeSOC = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMinDischarge = true
+	snapshot.MinDischargeSOC = 5
+	snapshot.mlFastHistory = newPowerTelemetryHistory(10*time.Second, 180)
+
+	base := time.Date(2026, time.February, 15, 11, 0, 0, 0, time.Local)
+	for i := 0; i < 8; i++ {
+		snapshot.HasInPV = true
+		snapshot.InPVWatts = 190 + float64(i%2)
+		snapshot.HasInAC = false
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = 33 + float64(i%2)
+		snapshot.HasOutDC = true
+		snapshot.OutDCWatts = 8
+		snapshot.mlFastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), snapshot)
+	}
+
+	estimates, profile := estimateBatteryETAsMLProfiled(snapshot, nil, systemStateCharging)
+	if profile != mlEstimateProfileD2M {
+		t.Fatalf("expected d2m profile, got=%s", profile)
+	}
+	score, ok := parseConfidenceScore(estimates.ConfidenceValue)
+	if !ok {
+		t.Fatalf("expected confidence score, got=%q", estimates.ConfidenceValue)
+	}
+	if score < 0.90 {
+		t.Fatalf("expected profiled ML confidence >= 0.90 on early stable signal, got=%s", estimates.ConfidenceValue)
 	}
 }
 
@@ -670,5 +777,111 @@ func TestSelectTopStateValueAppliesConfidenceHysteresis(t *testing.T) {
 	}
 	if got != deviceState {
 		t.Fatalf("expected fallback to device once confidence drops below hysteresis floor, got=%q", got)
+	}
+}
+
+func TestPickPreferredMLForTopStatePrefersNewWhenBothHighAndNewCloserToUnit(t *testing.T) {
+	unit := batteryETAEstimates{
+		ActiveValue:     "charging: 420min (~7h 0m)",
+		PowerValue:      "power: chg@110.0W",
+		ConfidenceValue: "0.95 (high)",
+		ChargeValue:     "420min (~7h 0m)",
+	}
+	generic := batteryETAEstimates{
+		ActiveValue:     "415min (~6h 55m)",
+		PowerValue:      "power: chg@150.0W (profile:generic)",
+		ConfidenceValue: "0.99 (high)",
+		ChargeValue:     "415min (~6h 55m)",
+	}
+	new := batteryETAEstimates{
+		ActiveValue:     "421min (~7h 1m)",
+		PowerValue:      "power: chg@112.0W (profile:dpu)",
+		ConfidenceValue: "0.99 (high)",
+		ChargeValue:     "421min (~7h 1m)",
+	}
+
+	picked, label := pickPreferredMLForTopState(unit, generic, new, systemStateCharging)
+	if label != "New" {
+		t.Fatalf("expected New to be selected on equal confidence but better unit closeness, got=%s", label)
+	}
+	if picked.PowerValue != new.PowerValue {
+		t.Fatalf("expected New estimate payload, got=%q", picked.PowerValue)
+	}
+}
+
+func TestPickPreferredMLForTopStateFallsBackToGenericWhenNewNotReady(t *testing.T) {
+	unit := batteryETAEstimates{
+		ActiveValue:     "charging: 420min (~7h 0m)",
+		PowerValue:      "power: chg@110.0W",
+		ConfidenceValue: "0.95 (high)",
+		ChargeValue:     "420min (~7h 0m)",
+	}
+	generic := batteryETAEstimates{
+		ActiveValue:     "415min (~6h 55m)",
+		PowerValue:      "power: chg@112.0W (profile:generic)",
+		ConfidenceValue: "0.97 (high)",
+		ChargeValue:     "415min (~6h 55m)",
+	}
+	new := batteryETAEstimates{
+		ActiveValue:     "n/a",
+		PowerValue:      "power: n/a",
+		ConfidenceValue: "n/a",
+		ChargeValue:     "n/a",
+	}
+
+	picked, label := pickPreferredMLForTopState(unit, generic, new, systemStateCharging)
+	if label != "Generic" {
+		t.Fatalf("expected Generic to be selected when New is not ready, got=%s", label)
+	}
+	if picked.PowerValue != generic.PowerValue {
+		t.Fatalf("expected Generic estimate payload, got=%q", picked.PowerValue)
+	}
+}
+
+func TestPickPreferredMLForTopStateFallsBackToMPPTWhenNoMLReady(t *testing.T) {
+	unit := batteryETAEstimates{
+		ActiveValue:     "charging: 420min (~7h 0m)",
+		PowerValue:      "power: chg@110.0W",
+		ConfidenceValue: "0.95 (high)",
+		ChargeValue:     "420min (~7h 0m)",
+	}
+	generic := batteryETAEstimates{
+		ActiveValue:     "n/a",
+		PowerValue:      "power: n/a",
+		ConfidenceValue: "n/a",
+	}
+	new := batteryETAEstimates{
+		ActiveValue:     "n/a",
+		PowerValue:      "power: n/a",
+		ConfidenceValue: "n/a",
+	}
+
+	picked, label := pickPreferredMLForTopState(unit, generic, new, systemStateCharging)
+	if label != "MPPT" {
+		t.Fatalf("expected MPPT fallback when ML models are not ready, got=%s", label)
+	}
+	if picked.PowerValue != unit.PowerValue {
+		t.Fatalf("expected MPPT estimate payload, got=%q", picked.PowerValue)
+	}
+}
+
+func TestAdaptiveProfileRemainBlendIncreasesWithDivergence(t *testing.T) {
+	base := 0.72
+	lowDiv := adaptiveProfileRemainBlend(base, mlEstimateProfileD2M, 520, 500, "charge")
+	highDiv := adaptiveProfileRemainBlend(base, mlEstimateProfileD2M, 900, 500, "charge")
+	if highDiv <= lowDiv {
+		t.Fatalf("expected higher blend for larger divergence, low=%f high=%f", lowDiv, highDiv)
+	}
+}
+
+func TestApplyProfileEtaBiasD2MReducesPersistentOffset(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	eta := 900.0
+	device := 600.0
+	for i := 0; i < 5; i++ {
+		eta = applyProfileEtaBias(snapshot, mlEstimateProfileD2M, systemStateCharging, eta, device, "charge")
+	}
+	if eta >= 900 {
+		t.Fatalf("expected D2M eta bias correction to reduce eta, got=%f", eta)
 	}
 }
