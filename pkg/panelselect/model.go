@@ -68,6 +68,7 @@ type Class struct {
 type Prediction struct {
 	ClassID      string
 	PanelSetup   string
+	PanelCount   int
 	Confidence   float64
 	Distance     float64
 	SampleCount  int
@@ -218,6 +219,7 @@ func Predict(model *Model, profile, port string, features []float64, sampleCount
 	return Prediction{
 		ClassID:      bestClass.ID,
 		PanelSetup:   bestClass.PanelSetup,
+		PanelCount:   bestClass.PanelCount,
 		Confidence:   confidence,
 		Distance:     bestDistance,
 		SampleCount:  sampleCount,

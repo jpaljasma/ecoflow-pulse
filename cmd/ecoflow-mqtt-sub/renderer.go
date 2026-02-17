@@ -7,6 +7,8 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 )
 
+const tableColspanPrefix = "__COLSPAN__:"
+
 func renderDashboard(
 	device ecoflow.GeneralInfoDevice,
 	topic string,
@@ -35,6 +37,12 @@ func renderDashboardViewModel(vm dashboardViewModel) string {
 	builder.WriteByte('\n')
 	builder.WriteString(renderASCIITable(vm.summaryHeaders, vm.summaryRows))
 	builder.WriteString("\n\n")
+	builder.WriteString(renderASCIITable(vm.solarRecHeaders, vm.solarRecRows))
+	builder.WriteString("\n\n")
+	if len(vm.solarCandHeaders) > 0 && len(vm.solarCandRows) > 0 {
+		builder.WriteString(renderASCIITable(vm.solarCandHeaders, vm.solarCandRows))
+		builder.WriteString("\n\n")
+	}
 	builder.WriteString(renderASCIITable(vm.packDiagHeaders, vm.packDiagRows))
 	builder.WriteString("\n\n")
 	builder.WriteString(renderASCIITable(vm.minuteHeaders, vm.minuteRows))
@@ -85,9 +93,24 @@ func renderTableBorder(widths []int) string {
 func renderTableRow(cells []string, widths []int) string {
 	var builder strings.Builder
 	builder.WriteByte('|')
-	for i, width := range widths {
+	for i := 0; i < len(widths); i++ {
+		width := widths[i]
 		cell := ""
-		if i < len(cells) {
+		if i < len(cells) && i >= 0 {
+			if value, ok := decodeColspanCell(cells[i]); ok {
+				mergedWidth := width
+				for j := i + 1; j < len(widths); j++ {
+					mergedWidth += widths[j] + 3
+				}
+				builder.WriteByte(' ')
+				builder.WriteString(value)
+				if pad := mergedWidth - displayCellWidth(value); pad > 0 {
+					builder.WriteString(strings.Repeat(" ", pad))
+				}
+				builder.WriteByte(' ')
+				builder.WriteByte('|')
+				break
+			}
 			cell = cells[i]
 		}
 		builder.WriteByte(' ')
@@ -99,6 +122,17 @@ func renderTableRow(cells []string, widths []int) string {
 		builder.WriteByte('|')
 	}
 	return builder.String()
+}
+
+func makeColspanCell(value string) string {
+	return tableColspanPrefix + value
+}
+
+func decodeColspanCell(value string) (string, bool) {
+	if !strings.HasPrefix(value, tableColspanPrefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(value, tableColspanPrefix), true
 }
 
 func displayCellWidth(value string) int {
