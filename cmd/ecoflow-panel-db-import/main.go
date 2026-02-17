@@ -479,33 +479,41 @@ func asString(value any) string {
 }
 
 func asInt(value any) int {
-	minInt, maxInt := intBounds()
 	switch typed := value.(type) {
 	case int:
 		return typed
 	case int64:
-		if typed < minInt || typed > maxInt {
+		converted, ok := safeIntFromInt64(typed)
+		if !ok {
 			return 0
 		}
-		return int(typed)
+		return converted
 	case float64:
 		if math.IsNaN(typed) || math.IsInf(typed, 0) {
 			return 0
 		}
 		truncated := math.Trunc(typed)
-		if truncated < float64(minInt) || truncated > float64(maxInt) {
+		if truncated < math.MinInt64 || truncated > math.MaxInt64 {
 			return 0
 		}
-		return int(typed)
+		converted, ok := safeIntFromInt64(int64(truncated))
+		if !ok {
+			return 0
+		}
+		return converted
 	default:
 		return 0
 	}
 }
 
-func intBounds() (int64, int64) {
-	maxInt := int64(^uint(0) >> 1)
-	minInt := -maxInt - 1
-	return minInt, maxInt
+func safeIntFromInt64(value int64) (int, bool) {
+	if strconv.IntSize == 32 {
+		if value < math.MinInt32 || value > math.MaxInt32 {
+			return 0, false
+		}
+		return int(value), true
+	}
+	return int(value), true
 }
 
 func asFloat64(value any) float64 {
