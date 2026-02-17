@@ -26,6 +26,9 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_CONNECT_TIMEOUT` (default `10s`)
 - `ECOFLOW_MQTT_READ_TIMEOUT` (default `30s`)
 - `ECOFLOW_MQTT_WRITE_TIMEOUT` (default `15s`)
+- MQTT `client_id` is deterministic and static per serial number:
+  - format: `ecoflow-pulse-<crc32(sn)>`
+  - this avoids exhausting EcoFlow broker limits on unique client IDs during reconnect/test cycles
 - `ECOFLOW_MQTT_IDLE_RECONNECT_AFTER` (default `120s`)
 - `ECOFLOW_MQTT_STALE_AFTER` (default `30s`)
 - `ECOFLOW_MQTT_LIVENESS_POLL_AFTER` (default `90s`)
