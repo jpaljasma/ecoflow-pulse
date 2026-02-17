@@ -207,6 +207,45 @@ func TestEstimateBatteryETAsMLProfiledConvergesHighOnStableSignal(t *testing.T) 
 	}
 }
 
+func TestEstimateBatteryETAsMLProfiledConvergesHighOnStableIdleD2M(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasXT150 = true
+	snapshot.HasFullEnergy = true
+	snapshot.FullEnergyWh = 4096
+	snapshot.HasDeviceSOC = true
+	snapshot.DeviceSOC = 46
+	snapshot.HasMaxChargeSOC = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMinDischarge = true
+	snapshot.MinDischargeSOC = 5
+	snapshot.mlFastHistory = newPowerTelemetryHistory(10*time.Second, 180)
+
+	base := time.Date(2026, time.February, 15, 11, 10, 0, 0, time.Local)
+	for i := 0; i < 10; i++ {
+		snapshot.HasInPV = false
+		snapshot.HasInAC = false
+		snapshot.HasOutAC = true
+		snapshot.OutACWatts = float64(i % 2)
+		snapshot.HasOutDC = false
+		snapshot.mlFastHistory.AddSample(base.Add(time.Duration(i)*10*time.Second), snapshot)
+	}
+
+	estimates, profile := estimateBatteryETAsMLProfiled(snapshot, nil, systemStateIdle)
+	if profile != mlEstimateProfileD2M {
+		t.Fatalf("expected d2m profile, got=%s", profile)
+	}
+	score, ok := parseConfidenceScore(estimates.ConfidenceValue)
+	if !ok {
+		t.Fatalf("expected confidence score, got=%q", estimates.ConfidenceValue)
+	}
+	if score < 0.90 {
+		t.Fatalf("expected profiled ML idle confidence >= 0.90 on stable idle signal, got=%s", estimates.ConfidenceValue)
+	}
+	if !strings.Contains(estimates.PowerValue, "idle@0.0W (profile:d2m)") {
+		t.Fatalf("expected idle power marker for d2m profile, got=%s", estimates.PowerValue)
+	}
+}
+
 func TestEstimateBatteryETAsMLConvergesFasterOnStableSignal(t *testing.T) {
 	snapshot := newEnergySnapshot()
 	snapshot.HasFullEnergy = true

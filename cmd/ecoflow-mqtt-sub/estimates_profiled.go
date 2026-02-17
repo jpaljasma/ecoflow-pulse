@@ -45,15 +45,15 @@ var mlEstimateDefaultProfileConfig = mlEstimateProfileConfig{
 	name:                 mlEstimateProfileGeneric,
 	historySampleLimit:   180,
 	fastWindow:           25,
-	stableWindow:         52,
-	recentWindow:         3,
-	mediumWindow:         13,
-	trendWindow:          7,
-	latestWeight:         0.887823187849583,
-	recentWeight:         0.069210837718650,
-	mediumWeight:         0.042965974431767,
-	trendWeight:          0.147042937396007,
-	netThresholdScale:    0.808012840677693,
+	stableWindow:         57,
+	recentWindow:         5,
+	mediumWindow:         10,
+	trendWindow:          5,
+	latestWeight:         0.849153664350560,
+	recentWeight:         0.069875156022922,
+	mediumWeight:         0.080971179626517,
+	trendWeight:          0.123684536251569,
+	netThresholdScale:    0.850373272053634,
 	confidenceBase:       0.22,
 	confidenceSignalGain: 0.14,
 	confidenceStateGain:  0.09,
@@ -72,16 +72,16 @@ var mlEstimateProfileConfigs = map[mlEstimateProfile]mlEstimateProfileConfig{
 	mlEstimateProfileD2M: {
 		name:                 mlEstimateProfileD2M,
 		historySampleLimit:   180,
-		fastWindow:           27,
-		stableWindow:         51,
-		recentWindow:         3,
-		mediumWindow:         16,
-		trendWindow:          11,
-		latestWeight:         0.833357565429723,
-		recentWeight:         0.132474766598163,
-		mediumWeight:         0.034167667972115,
-		trendWeight:          0.102838914609788,
-		netThresholdScale:    1.025692552889228,
+		fastWindow:           13,
+		stableWindow:         56,
+		recentWindow:         5,
+		mediumWindow:         10,
+		trendWindow:          4,
+		latestWeight:         0.807097623579115,
+		recentWeight:         0.060103464051422,
+		mediumWeight:         0.132798912369463,
+		trendWeight:          0.131669747457649,
+		netThresholdScale:    0.865958841104081,
 		confidenceBase:       0.24,
 		confidenceSignalGain: 0.18,
 		confidenceStateGain:  0.12,
@@ -96,16 +96,16 @@ var mlEstimateProfileConfigs = map[mlEstimateProfile]mlEstimateProfileConfig{
 	mlEstimateProfileDPU: {
 		name:                 mlEstimateProfileDPU,
 		historySampleLimit:   210,
-		fastWindow:           14,
-		stableWindow:         51,
-		recentWindow:         6,
-		mediumWindow:         14,
-		trendWindow:          4,
-		latestWeight:         0.554812961667180,
-		recentWeight:         0.319217743269122,
-		mediumWeight:         0.125969295063698,
-		trendWeight:          0.211583648947247,
-		netThresholdScale:    1.175203222439996,
+		fastWindow:           23,
+		stableWindow:         26,
+		recentWindow:         8,
+		mediumWindow:         12,
+		trendWindow:          12,
+		latestWeight:         0.458513200661261,
+		recentWeight:         0.291254766220818,
+		mediumWeight:         0.250232033117921,
+		trendWeight:          0.101370431965229,
+		netThresholdScale:    0.887205709622095,
 		confidenceBase:       0.26,
 		confidenceSignalGain: 0.19,
 		confidenceStateGain:  0.13,
@@ -512,6 +512,10 @@ func estimateBatteryETAsMLWithProfile(
 	recentStabilityScore := (1 - (recentCV / 2.0)) * 0.12
 	directionAgreement := (signMatch * 0.45) + (recentSignMatch * 0.55)
 	stateScore := directionAgreement * cfg.confidenceStateGain
+	idleAgreement := 0.0
+	if stateForModel == systemStateIdle {
+		idleAgreement = directionAgreement
+	}
 	if hasFlowNet && math.Abs(flowNetW) > directionThreshold*1.2 {
 		flowAgreeBonus := 0.0
 		flowDisagreePenalty := 0.0
@@ -612,6 +616,21 @@ func estimateBatteryETAsMLWithProfile(
 			signalPower <= 170 &&
 			confidenceScore < 0.92 {
 			confidenceScore = 0.92
+		}
+	} else if stateForModel == systemStateIdle {
+		idleWindow := cfg.recentWindow + 2
+		if idleWindow < 6 {
+			idleWindow = 6
+		}
+		if len(samples) >= idleWindow && idleAgreement >= 0.80 && recentCV <= 0.75 {
+			confidenceScore += 0.05
+		}
+		if profile == mlEstimateProfileD2M &&
+			len(samples) >= 6 &&
+			idleAgreement >= 0.86 &&
+			recentCV <= 0.62 &&
+			confidenceScore < 0.90 {
+			confidenceScore = 0.90
 		}
 	}
 	estimates.ConfidenceValue = formatConfidenceValue(confidenceScore, true)
