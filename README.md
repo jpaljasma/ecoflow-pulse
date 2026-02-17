@@ -1,20 +1,23 @@
 # Ecoflow-Pulse
 
-Ecoflow-Pulse is the official package name.
-A real-time pulse monitor for EcoFlow devices - telemetry, history, and
-integrations built on the official API.
+Ecoflow-Pulse is a real-time pulse monitor for EcoFlow devices, built on the
+official API and MQTT telemetry streams.
 
-## What This Project Provides
+## Supported Devices
 
-- A production-oriented Go client for EcoFlow HTTP APIs (signing, retries,
-  transport tuning, observability hooks).
-- A real-time MQTT telemetry subscriber and terminal dashboard for supported devices.
-- Persistent minute telemetry history for trend analysis and ML-assisted ETA estimation.
-
-Supported and actively validated devices:
+Actively validated:
 
 - DELTA 2 Max (D2M)
 - DELTA Pro Ultra (DPU)
+
+## Core Capabilities
+
+- Live terminal dashboard for power, SOC, states, and per-pack battery telemetry.
+- Persistent telemetry history (minute buckets + training CSV) for analysis.
+- ETA estimation with MPPT, profile-specific ML, and generic ML model fallback.
+- Solar telemetry and MPPT visibility (low/high inputs, volts/amps/watts, state).
+- Solar panel detection and upgrade recommendations using panel database + model.
+- Safe runtime behavior for reconnects, bounded queues, and multi-instance lock handling.
 
 ## Quick Start
 
@@ -25,25 +28,21 @@ make mqtt
 
 ## Documentation
 
-Developer documentation is organized under `docs/` using the Diataxis framework:
+Developer docs follow Diataxis under `/docs`:
 
-- Tutorials: [`docs/tutorials/`](docs/tutorials/)
-- How-to guides: [`docs/how-to/`](docs/how-to/)
-- Reference: [`docs/reference/`](docs/reference/)
-- Explanation: [`docs/explanation/`](docs/explanation/)
-
-Start here:
-
-- [Developer Documentation](docs/README.md)
+- [Developer Documentation Index](docs/README.md)
+- [Run MQTT Dashboard](docs/how-to/run-mqtt-dashboard.md)
+- [Configuration Reference](docs/reference/configuration.md)
+- [Telemetry Model](docs/reference/telemetry-model.md)
+- [Commands Reference](docs/reference/commands.md)
 
 ## Repository Layout
 
-- `pkg/ecoflow`: reusable EcoFlow API client
-- `pkg/ecoflowserver`: HTTP server utilities and middleware
-- `pkg/ecoflowmqtt`: MQTT subscriber primitives
-- `pkg/panelselect`: solar panel selection model + runtime predictor utilities
-- `cmd/ecoflow-server`: API server entrypoint
-- `cmd/ecoflow-smoke`: manual API smoke checks
 - `cmd/ecoflow-mqtt-sub`: real-time MQTT telemetry dashboard
-- `cmd/ecoflow-pv-fingerprint`: PV fingerprint feature extraction for panel modeling
-- `cmd/ecoflow-panel-select-train`: train/replay panel selection model from telemetry CSV
+- `cmd/ecoflow-panel-db-import`: solar panel DB importer/generator
+- `cmd/ecoflow-panel-select-train`: panel detection model trainer/replay
+- `cmd/ecoflow-ml-train`: ETA model trainer
+- `cmd/ecoflow-pv-fingerprint`: PV feature extraction
+- `pkg/ecoflow`: API client
+- `pkg/ecoflowmqtt`: MQTT primitives
+- `pkg/panelselect`: panel selection model + runtime predictor
