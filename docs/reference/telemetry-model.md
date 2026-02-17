@@ -119,6 +119,9 @@ When loaded by `cmd/ecoflow-mqtt-sub`, PV low/high rows include:
 - Runtime model updates are gated by per-port PV voltage presence. When PV voltage
   is absent, the dashboard keeps the last known panel detection/recommendation
   instead of re-running prediction on no-input samples.
+- Trainer-side panel hint inference uses an irradiance-aware fit (volts/amps +
+  shoulder-hours weighting + MPPT clipping/safety constraints) to reduce
+  low-sun misclassification into undersized panel classes.
 
 The dashboard recommendation table combines runtime panel predictions with
 device PV capability limits and panel DB compatibility metadata loaded at startup.

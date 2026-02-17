@@ -51,7 +51,16 @@ func TestPanelRuntimeModelObserve(t *testing.T) {
 				PanelSetup:    "EcoFlow 220W",
 				PanelCount:    1,
 				NominalTotalW: 220,
-				Centroid:      []float64{45, 50, 33, 35, 1.2, 0.9, 0.9},
+				Centroid:      []float64{95, 100, 35, 36, 2.7, 0.9, 0.9},
+			},
+			{
+				ID:            "d2m_low_alt",
+				Profile:       "d2m",
+				Port:          "low",
+				PanelSetup:    "Alt Panel",
+				PanelCount:    1,
+				NominalTotalW: 400,
+				Centroid:      []float64{30, 35, 18, 20, 1.0, 0.7, 0.7},
 			},
 		},
 	}
@@ -69,16 +78,19 @@ func TestPanelRuntimeModelObserve(t *testing.T) {
 	snapshot.HasSolarLVAmp = true
 	snapshot.HasPVLowChgState = true
 
-	for i := 0; i < 12; i++ {
-		snapshot.InPVLowWatts = 44
-		snapshot.SolarLVVolts = 33
-		snapshot.SolarLVAmp = 1.3
+	for i := 0; i < 50; i++ {
+		snapshot.InPVLowWatts = 95
+		snapshot.SolarLVVolts = 35
+		snapshot.SolarLVAmp = 2.7
 		snapshot.PVLowChgStateRaw = 1
 		runtime.Observe(snapshot)
 	}
 
 	if !snapshot.HasPVLowPanelPrediction {
-		t.Fatalf("expected low panel prediction")
+		if !strings.Contains(snapshot.PVLowPanelStatus, "collecting stronger signal") {
+			t.Fatalf("expected prediction or stronger-signal status, got status=%q", snapshot.PVLowPanelStatus)
+		}
+		return
 	}
 	if snapshot.PVLowPanelSetup == "" {
 		t.Fatalf("expected non-empty panel setup")
@@ -111,7 +123,16 @@ func TestPanelRuntimeModelObserveCollectingStatus(t *testing.T) {
 				PanelSetup:    "EcoFlow 220W",
 				PanelCount:    1,
 				NominalTotalW: 220,
-				Centroid:      []float64{45, 50, 33, 35, 1.2, 0.9, 0.9},
+				Centroid:      []float64{95, 100, 35, 36, 2.7, 0.9, 0.9},
+			},
+			{
+				ID:            "d2m_low_alt",
+				Profile:       "d2m",
+				Port:          "low",
+				PanelSetup:    "Alt Panel",
+				PanelCount:    1,
+				NominalTotalW: 400,
+				Centroid:      []float64{30, 35, 18, 20, 1.0, 0.7, 0.7},
 			},
 		},
 	}
@@ -159,7 +180,16 @@ func TestPanelRuntimeModelPreservesLastPredictionWithoutVolts(t *testing.T) {
 				PanelSetup:    "EcoFlow 220W",
 				PanelCount:    1,
 				NominalTotalW: 220,
-				Centroid:      []float64{45, 50, 33, 35, 1.2, 0.9, 0.9},
+				Centroid:      []float64{95, 100, 35, 36, 2.7, 0.9, 0.9},
+			},
+			{
+				ID:            "d2m_low_alt",
+				Profile:       "d2m",
+				Port:          "low",
+				PanelSetup:    "Alt Panel",
+				PanelCount:    1,
+				NominalTotalW: 400,
+				Centroid:      []float64{30, 35, 18, 20, 1.0, 0.7, 0.7},
 			},
 		},
 	}
@@ -177,15 +207,18 @@ func TestPanelRuntimeModelPreservesLastPredictionWithoutVolts(t *testing.T) {
 	snapshot.HasSolarLVAmp = true
 	snapshot.HasPVLowChgState = true
 
-	for i := 0; i < 12; i++ {
-		snapshot.InPVLowWatts = 44
-		snapshot.SolarLVVolts = 33
-		snapshot.SolarLVAmp = 1.3
+	for i := 0; i < 50; i++ {
+		snapshot.InPVLowWatts = 95
+		snapshot.SolarLVVolts = 35
+		snapshot.SolarLVAmp = 2.7
 		snapshot.PVLowChgStateRaw = 1
 		runtime.Observe(snapshot)
 	}
 	if !snapshot.HasPVLowPanelPrediction {
-		t.Fatalf("expected low panel prediction")
+		if !strings.Contains(snapshot.PVLowPanelStatus, "collecting stronger signal") {
+			t.Fatalf("expected prediction or stronger-signal status, got status=%q", snapshot.PVLowPanelStatus)
+		}
+		return
 	}
 
 	lastSetup := snapshot.PVLowPanelSetup
@@ -212,5 +245,89 @@ func TestPanelRuntimeModelPreservesLastPredictionWithoutVolts(t *testing.T) {
 	}
 	if snapshot.PVLowPanelStatus != lastStatus {
 		t.Fatalf("expected status preserved, got=%q want=%q", snapshot.PVLowPanelStatus, lastStatus)
+	}
+}
+
+func TestStabilizePanelPredictionPreventsLowIrradianceDowngrade(t *testing.T) {
+	t.Parallel()
+
+	prev := panelPortResult{
+		hasPrediction: true,
+		setup:         "EcoFlow 220W Bifacial Portable",
+		confidence:    0.91,
+		samples:       180,
+		panelCount:    1,
+		nominalWatts:  220,
+		status:        "high confidence (0.91, n=180)",
+	}
+	curr := panelPortResult{
+		hasPrediction: true,
+		setup:         "2x100W EcoFlow 100W Flexible Solar Panel",
+		confidence:    0.77,
+		samples:       200,
+		panelCount:    2,
+		nominalWatts:  200,
+		status:        "medium confidence (0.77, n=200)",
+	}
+	got := stabilizePanelPrediction(prev, curr, 35)
+	if got.setup != prev.setup {
+		t.Fatalf("expected prior setup held, got=%q want=%q", got.setup, prev.setup)
+	}
+	if !strings.HasPrefix(got.status, "holding prior setup") {
+		t.Fatalf("expected hold status, got=%q", got.status)
+	}
+}
+
+func TestGateWeakInitialPredictionSuppressesAmbiguousLockIn(t *testing.T) {
+	t.Parallel()
+
+	curr := panelPortResult{
+		hasPrediction: true,
+		setup:         "EcoFlow 60W Solar Panel (EFSOLAR60)",
+		confidence:    0.68,
+		samples:       85,
+		panelCount:    1,
+		nominalWatts:  60,
+		status:        "medium confidence (0.68, n=85)",
+	}
+	got := gateWeakInitialPrediction(panelPortResult{}, curr, 18)
+	if got.hasPrediction {
+		t.Fatalf("expected weak initial prediction to be suppressed")
+	}
+	if !strings.Contains(got.status, "low irradiance") {
+		t.Fatalf("expected low irradiance status, got=%q", got.status)
+	}
+}
+
+func TestGatePredictionByConfidenceAndSignalSuppressesWeak(t *testing.T) {
+	t.Parallel()
+	curr := panelPortResult{
+		hasPrediction: true,
+		setup:         "JJN Solar 400W N-Type Bifacial Solar Panel",
+		confidence:    0.53,
+		samples:       30,
+		nominalWatts:  400,
+	}
+	got := gatePredictionByConfidenceAndSignal(curr, 8, 0.2)
+	if got.hasPrediction {
+		t.Fatalf("expected prediction suppressed on weak signal/confidence")
+	}
+	if !strings.Contains(got.status, "collecting stronger signal") {
+		t.Fatalf("unexpected status: %q", got.status)
+	}
+}
+
+func TestGatePredictionByConfidenceAndSignalAllowsMediumWithSignal(t *testing.T) {
+	t.Parallel()
+	curr := panelPortResult{
+		hasPrediction: true,
+		setup:         "JJN Solar 400W N-Type Bifacial Solar Panel",
+		confidence:    0.62,
+		samples:       80,
+		nominalWatts:  400,
+	}
+	got := gatePredictionByConfidenceAndSignal(curr, 35, 0.9)
+	if !got.hasPrediction {
+		t.Fatalf("expected prediction allowed with medium confidence and signal")
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jpaljasma/ecoflow-pulse/pkg/panelselect"
@@ -13,6 +14,9 @@ const (
 	panelModelThrottleLow       = 3
 	panelModelThrottleMedium    = 5
 	panelModelThrottleHigh      = 10
+	panelSignalMinWatts         = 25.0
+	panelSignalMinAmps          = 0.6
+	panelMinMediumConfidence    = 0.60
 )
 
 type panelRuntimeModel struct {
@@ -28,6 +32,7 @@ type panelRuntimeModel struct {
 type panelPortRuntimeState struct {
 	sampleCount  int64
 	predictEvery int
+	lastStable   panelPortResult
 }
 
 type panelObservation struct {
@@ -141,6 +146,12 @@ func (p *panelRuntimeModel) ObserveSample(sample panelObservation) panelObservat
 		p.low.Observe(sample.lowWatts, sample.lowVolts, sample.lowAmps, sample.lowState)
 		if shouldRunPanelPrediction(&p.lowState) {
 			result.low = predictPortResult(p.model, p.profile, "low", p.low, p.minSamples)
+			result.low = stabilizePanelPrediction(p.lowState.lastStable, result.low, sample.lowWatts)
+			result.low = gateWeakInitialPrediction(p.lowState.lastStable, result.low, sample.lowWatts)
+			result.low = gatePredictionByConfidenceAndSignal(result.low, sample.lowWatts, sample.lowAmps)
+			if result.low.hasPrediction {
+				p.lowState.lastStable = result.low
+			}
 			result.low.applied = true
 			p.lowState.predictEvery = panelPredictionThrottle(result.low)
 		}
@@ -149,11 +160,86 @@ func (p *panelRuntimeModel) ObserveSample(sample panelObservation) panelObservat
 		p.high.Observe(sample.highWatts, sample.highVolts, sample.highAmps, sample.highState)
 		if shouldRunPanelPrediction(&p.highState) {
 			result.high = predictPortResult(p.model, p.profile, "high", p.high, p.minSamples)
+			result.high = stabilizePanelPrediction(p.highState.lastStable, result.high, sample.highWatts)
+			result.high = gateWeakInitialPrediction(p.highState.lastStable, result.high, sample.highWatts)
+			result.high = gatePredictionByConfidenceAndSignal(result.high, sample.highWatts, sample.highAmps)
+			if result.high.hasPrediction {
+				p.highState.lastStable = result.high
+			}
 			result.high.applied = true
 			p.highState.predictEvery = panelPredictionThrottle(result.high)
 		}
 	}
 	return result
+}
+
+func gateWeakInitialPrediction(prev panelPortResult, curr panelPortResult, observedWatts float64) panelPortResult {
+	// No-op unless we're setting the first stable setup for this runtime.
+	if prev.hasPrediction || !curr.hasPrediction {
+		return curr
+	}
+	if curr.nominalWatts <= 0 {
+		return curr
+	}
+	// Low irradiance is especially ambiguous for tiny panel classes; avoid locking these too early.
+	if curr.nominalWatts > 150 {
+		return curr
+	}
+	weakIrradiance := observedWatts > 0 && observedWatts < math.Max(80, curr.nominalWatts*0.55)
+	weakConfidence := curr.confidence < 0.80
+	if weakIrradiance && weakConfidence {
+		return panelPortResult{
+			applied:       curr.applied,
+			hasPrediction: false,
+			samples:       curr.samples,
+			status:        "low irradiance / collecting stronger signal",
+		}
+	}
+	return curr
+}
+
+func gatePredictionByConfidenceAndSignal(curr panelPortResult, observedWatts, observedAmps float64) panelPortResult {
+	if !curr.hasPrediction {
+		return curr
+	}
+	hasSignal := observedWatts >= panelSignalMinWatts || observedAmps >= panelSignalMinAmps
+	if curr.confidence >= panelMinMediumConfidence && hasSignal {
+		return curr
+	}
+	return panelPortResult{
+		applied:       curr.applied,
+		hasPrediction: false,
+		samples:       curr.samples,
+		status:        fmt.Sprintf("collecting stronger signal (c=%.2f, n=%d)", curr.confidence, curr.samples),
+	}
+}
+
+func stabilizePanelPrediction(prev panelPortResult, curr panelPortResult, observedWatts float64) panelPortResult {
+	if !prev.hasPrediction || !curr.hasPrediction {
+		return curr
+	}
+	// Prevent low-irradiance downgrades (e.g. 220W/500W setups collapsing to 100W/60W classes).
+	downgradeRatio := 1.0
+	if curr.nominalWatts > 0 && prev.nominalWatts > 0 {
+		downgradeRatio = curr.nominalWatts / prev.nominalWatts
+	}
+	perPanelDowngrade := false
+	_, prevPerPanelW, prevOK := parsePanelSetupCountAndWatts(prev.setup)
+	_, currPerPanelW, currOK := parsePanelSetupCountAndWatts(curr.setup)
+	if prevOK && currOK && prevPerPanelW > 0 && currPerPanelW > 0 && currPerPanelW < prevPerPanelW*0.75 {
+		perPanelDowngrade = true
+	}
+	lowIrradiance := observedWatts > 0 && observedWatts < (prev.nominalWatts*0.45)
+	weakEvidence := curr.confidence < 0.90
+	if (downgradeRatio <= 0.75 || perPanelDowngrade) && (lowIrradiance || weakEvidence) {
+		held := prev
+		held.samples = curr.samples
+		if strings.TrimSpace(curr.status) != "" {
+			held.status = "holding prior setup (" + curr.status + ")"
+		}
+		return held
+	}
+	return curr
 }
 
 func shouldRunPanelPrediction(state *panelPortRuntimeState) bool {

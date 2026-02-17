@@ -161,3 +161,31 @@ Use this when panel metadata/schema changes (for example new fields like `purcha
    - `/docs/reference/repository-layout.md`,
    - `/docs/reference/commands.md`,
    - `/docs/reference/telemetry-model.md` when runtime behavior changes.
+
+## Solar Panel Detection Model Workflow (Irradiance-Aware)
+Use this when panel detection starts misclassifying under low sun, clipping, or mixed D2M/DPU patterns.
+
+1. Use repo-local CSV as canonical source:
+   - `data/solar_panels/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv`
+   - avoid ad-hoc absolute paths outside the repo.
+
+2. Always regenerate DB artifacts before retraining detection:
+   - `./scripts/regenerate_solar_panel_db.sh`
+   - `./scripts/train_panel_select_model.sh`
+
+3. Keep trainer scoring irradiance-aware:
+   - fit on robust envelope stats (`p95` + `max`) for watts/volts/amps,
+   - apply MPPT safety constraints (voltage/current/watts + cold Voc margin),
+   - include clipping penalty so over-cap layouts do not dominate,
+   - use a shoulder-hours irradiance curve so low-sun windows do not collapse into tiny-panel classes.
+
+4. Validate with replay after each retrain:
+   - verify expected dominant classes by SN/profile/port from `logs/telemetry_training.csv`,
+   - specifically check known ground truth setups:
+     - D2M low: EcoFlow 220W bifacial portable
+     - D2M high: 4x125W EcoFlow bifacial modular
+     - DPU low: 2x400W JJN bifacial
+   - require model/test gates:
+     - `make lint`
+     - `make test`
+     - `make build`

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultCSVPath = "/Users/jpaljasma/Downloads/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv"
+	defaultCSVPath = "data/solar_panels/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv"
 	defaultOutJSON = "data/solar_panels/solar_panel_specs_v13.json"
 	defaultSummary = "data/solar_panels/solar_panel_specs_v13.summary.json"
 	defaultIndex   = "data/solar_panels/solar_panel_specs_v13.index.json"

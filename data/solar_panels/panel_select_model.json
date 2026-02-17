@@ -1,69 +1,3469 @@
 {
   "version": 1,
-  "generated_at_utc": "2026-02-17T18:34:40Z",
-  "source_csv": "/Users/jpaljasma/Projects/ecoflow-api-playground/logs/telemetry_training.csv",
+  "generated_at_utc": "2026-02-17T22:06:47Z",
+  "source_csv": "/Users/jpaljasma/Library/Mobile Documents/com~apple~CloudDocs/Projects/ecoflow-api-playground/logs/telemetry_training.csv",
   "classes": [
     {
-      "id": "d2m_high_4x125w_ecoflow_bifacial_modular",
+      "id": "d2m_high_4x125w_ecoflow_125w_bifacial_modular_solar_panel",
       "profile": "d2m",
       "port": "high",
-      "panel_setup": "4x125W EcoFlow Bifacial Modular",
+      "panel_setup": "4x125W EcoFlow 125W Bifacial Modular Solar Panel",
       "panel_count": 4,
       "nominal_total_w": 500,
-      "sample_count": 42950,
+      "sample_count": 49315,
       "device_sns": [
         "R351ZABAPH331057"
       ],
       "centroid": [
-        69.1086,
-        442.197693,
-        41.079,
-        42.232,
-        1.669,
-        0.7251920838183935,
-        0.5325727590221188
+        69.472125,
+        438.165045,
+        41.028,
+        42.331,
+        1.676,
+        0.7606610564736895,
+        0.5502990976376356
       ]
     },
     {
-      "id": "d2m_low_ecoflow_220w_bifacial_portable",
+      "id": "d2m_high_aptos_solar_dna_144_bf10_550w_dg",
       "profile": "d2m",
-      "port": "low",
-      "panel_setup": "EcoFlow 220W Bifacial Portable",
+      "port": "high",
+      "panel_setup": "Aptos Solar DNA-144-BF10-550W-DG",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.11,
+        43.21,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Axitec AC-550MBT/144US (AXIworldbipremium XXL HC MT 550W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Axitec AC-580TGB/144TS (AXIbiperfect GXXL TS 580W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        43.58,
+        45.8,
+        9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_canadian_solar_csi_solar_cs6.1_54tm_465h_tophiku6_all_black",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Canadian Solar (CSI Solar) CS6.1-54TM-465H (TOPHiKu6 All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 465,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        362.7,
+        455.7,
+        32.93,
+        34.61,
+        10.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Canadian Solar (CSI Solar) CS7N-695TB-AG (TOPBiHiKu7)",
+      "panel_count": 1,
+      "nominal_total_w": 695,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        542.1,
+        681.1,
+        39,
+        40.99,
+        12.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_canadian_solar_cs6.1_54tm_450h_tophiku6_all_black",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Canadian Solar CS6.1-54TM-450H (TOPHiKu6, All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        32.34,
+        33.99,
+        10.11,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_canadian_solar_cs6r_395ms_hl",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Canadian Solar CS6R-395MS-HL",
+      "panel_count": 1,
+      "nominal_total_w": 395,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        308.1,
+        387.1,
+        29.99,
+        31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_100w_flexible_solar_panel_zms330",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 100W Flexible Solar Panel (ZMS330)",
+      "panel_count": 1,
+      "nominal_total_w": 100,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        78,
+        98,
+        16.76,
+        17.61,
+        4.37,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 100W Rigid Solar Panel (ZMS331 / LA-200WSP-Rigi kit)",
+      "panel_count": 1,
+      "nominal_total_w": 100,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        78,
+        98,
+        16.76,
+        17.61,
+        4.37,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_110w_portable_solar_panel_efsolar110n",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 110W Portable Solar Panel (EFSOLAR110N)",
+      "panel_count": 1,
+      "nominal_total_w": 110,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        85.8,
+        107.8,
+        18.03,
+        18.95,
+        4.44,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_125w_bifacial_modular_solar_panel",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 125W Bifacial Modular Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 125,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        97.5,
+        122.5,
+        42.14,
+        44.29,
+        2.22,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_175w_rigid_solar_panel",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 175W Rigid Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        24.89,
+        26.16,
+        5.81,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_200w_portable_solar_panel",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 200W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        18.23,
+        19.16,
+        7.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_200w_rigid_solar_panel",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 200W Rigid Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        19.99,
+        21.01,
+        7.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_220w_bifacial_portable_solar_panel_efsolar220w_nextgen_220w",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 220W Bifacial Portable Solar Panel (EFSOLAR220W / NextGen 220W)",
       "panel_count": 1,
       "nominal_total_w": 220,
-      "sample_count": 42950,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        171.6,
+        215.6,
+        18.03,
+        18.95,
+        8.81,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_400w_portable_solar_panel_efsolar400w",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 400W Portable Solar Panel (EFSOLAR400W)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        40.18,
+        42.23,
+        7.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_400w_rigid_solar_panel_zptsp300",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 400W Rigid Solar Panel (ZPTSP300)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_450w_rigid_solar_panel_ef_sg_m450_04_efsolar450w_2",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 450W Rigid Solar Panel (EF-SG-M450-04 / EFSOLAR450W-2)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        35.57,
+        37.39,
+        9.18,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_45w_portable_solar_panel",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 45W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 45,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        35.1,
+        44.1,
+        21.56,
+        22.66,
+        1.47,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_60w_solar_panel_efsolar60",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow 60W Solar Panel (EFSOLAR60)",
+      "panel_count": 1,
+      "nominal_total_w": 60,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        46.8,
+        58.8,
+        17.84,
+        18.75,
+        2.44,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ecoflow_nextgen_160w_portable_solar_panel",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EcoFlow NextGen 160W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 160,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        124.8,
+        156.8,
+        18.23,
+        19.16,
+        6.36,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ht_saae_ht72_18x_ht_550w_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "HT-SAAE HT72-18X (HT 550W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ja_solar_jam72d40_595_mb_us",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "JA Solar JAM72D40-595/MB-US",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_jjn_solar_400w_n_type_bifacial_solar_panel",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "JJN Solar 400W N-Type Bifacial Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.43,
+        31.98,
+        9.54,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Jinko Solar JKM460M-7RL3-TV (Jinko Eagle 460W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 460,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        358.8,
+        450.8,
+        42.45,
+        44.62,
+        7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_maxeon_spr_max6_440",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Maxeon SPR-MAX6-440",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        39.69,
+        41.72,
+        8.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_phono_solar_ps590m8gf_24_tnh",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Phono Solar PS590M8GF-24/TNH",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        43.74,
+        45.97,
+        9.78,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_renogy_590w_n_type_bifacial_dual_glass",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Renogy 590W N-Type Bifacial (dual glass)",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        42.84,
+        45.02,
+        9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_renogy_rsp450dt_120",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Renogy RSP450DT-120",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        33.98,
+        35.71,
+        9.61,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_rich_solar_mega_250_rs_m250",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Rich Solar MEGA 250 (RS-M250)",
+      "panel_count": 1,
+      "nominal_total_w": 250,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        195,
+        245,
+        18.52,
+        19.47,
+        9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_rich_solar_mega_335_pro_rs_m335p",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Rich Solar MEGA 335 PRO (RS-M335P)",
+      "panel_count": 1,
+      "nominal_total_w": 335,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        261.3,
+        328.3,
+        28.62,
+        30.08,
+        8.51,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_rich_solar_mega_400_rs_m400",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Rich Solar MEGA 400 (RS-M400)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_runergy_hy_dh144n8_595",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Runergy HY-DH144N8-595",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Seraphim SRP-440-BTD-BG (Nebula, N-type bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        32.68,
+        34.35,
+        9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "ShopSolarKits (house/kit panel) 200W Rigid Solar Panel (used in EcoFlow kits)",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        20.38,
+        21.42,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_silfab_sil_530_xm_hc_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Silfab SIL-530 XM (HC Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 530,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        413.4,
+        519.4,
+        40.23,
+        42.28,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_sunpro_power_spdg550_144m10",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Sunpro Power SPDG550-144M10",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.12,
+        43.22,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "TW Solar (Tongwei) 500W N-Type Bifacial (TWMNH-54HD500 family)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        33.03,
+        34.71,
+        10.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_thornova_solar_ts_bgt66_620_g11",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Thornova Solar TS-BGT66(620)-G11",
+      "panel_count": 1,
+      "nominal_total_w": 620,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        483.6,
+        607.6,
+        40.4,
+        42.46,
+        11.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_trina_solar_tsm_425ne09rc.05",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-425NE09RC.05",
+      "panel_count": 1,
+      "nominal_total_w": 425,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        331.5,
+        416.5,
+        42.34,
+        44.5,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_trina_solar_tsm_neg19rc.20_605w_bin",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (605W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 605,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        471.9,
+        592.9,
+        39.69,
+        41.72,
+        11.06,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_trina_solar_tsm_neg19rc.20_vertex_n_615w_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (Vertex N 615W, bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 615,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        479.7,
+        602.7,
+        41.65,
+        43.78,
+        10.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_trina_solar_tsm_neg9rc.27_435w_bin",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 (435W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        42.73,
+        44.91,
+        7.39,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_vsun_vsun595n_144bmh_dg",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "VSUN VSUN595N-144BMH-DG",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.82,
+        46.05,
+        9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_znshine_zxm7_uhldd108_znshine_440w_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "ZNShine ZXM7-UHLDD108 (ZNShine 440W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        31.65,
+        33.27,
+        10.09,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_aptos_solar_dna_144_bf10_550w_dg",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Aptos Solar DNA-144-BF10-550W-DG",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.11,
+        43.21,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Axitec AC-550MBT/144US (AXIworldbipremium XXL HC MT 550W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Axitec AC-580TGB/144TS (AXIbiperfect GXXL TS 580W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        43.58,
+        45.8,
+        9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_canadian_solar_csi_solar_cs6.1_54tm_465h_tophiku6_all_black",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Canadian Solar (CSI Solar) CS6.1-54TM-465H (TOPHiKu6 All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 465,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        362.7,
+        455.7,
+        32.93,
+        34.61,
+        10.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Canadian Solar (CSI Solar) CS7N-695TB-AG (TOPBiHiKu7)",
+      "panel_count": 1,
+      "nominal_total_w": 695,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        542.1,
+        681.1,
+        39,
+        40.99,
+        12.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_canadian_solar_cs6.1_54tm_450h_tophiku6_all_black",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Canadian Solar CS6.1-54TM-450H (TOPHiKu6, All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        32.34,
+        33.99,
+        10.11,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_canadian_solar_cs6r_395ms_hl",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Canadian Solar CS6R-395MS-HL",
+      "panel_count": 1,
+      "nominal_total_w": 395,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        308.1,
+        387.1,
+        29.99,
+        31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_100w_flexible_solar_panel_zms330",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 100W Flexible Solar Panel (ZMS330)",
+      "panel_count": 1,
+      "nominal_total_w": 100,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        78,
+        98,
+        16.76,
+        17.61,
+        4.37,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 100W Rigid Solar Panel (ZMS331 / LA-200WSP-Rigi kit)",
+      "panel_count": 1,
+      "nominal_total_w": 100,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        78,
+        98,
+        16.76,
+        17.61,
+        4.37,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_110w_portable_solar_panel_efsolar110n",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 110W Portable Solar Panel (EFSOLAR110N)",
+      "panel_count": 1,
+      "nominal_total_w": 110,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        85.8,
+        107.8,
+        18.03,
+        18.95,
+        4.44,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_125w_bifacial_modular_solar_panel",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 125W Bifacial Modular Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 125,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        97.5,
+        122.5,
+        42.14,
+        44.29,
+        2.22,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_175w_rigid_solar_panel",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 175W Rigid Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        24.89,
+        26.16,
+        5.81,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_200w_portable_solar_panel",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 200W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        18.23,
+        19.16,
+        7.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_200w_rigid_solar_panel",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 200W Rigid Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        19.99,
+        21.01,
+        7.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_220w_bifacial_portable_solar_panel_efsolar220w_nextgen_220w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 220W Bifacial Portable Solar Panel (EFSOLAR220W / NextGen 220W)",
+      "panel_count": 1,
+      "nominal_total_w": 220,
+      "sample_count": 49315,
       "device_sns": [
         "R351ZABAPH331057"
       ],
       "centroid": [
-        29,
-        176.445696,
-        16.5075,
-        16.863,
-        1.776,
-        0.7251920838183935,
-        0.5286379511059371
+        29.944224,
+        174.62577664999992,
+        16.495,
+        16.959,
+        1.796,
+        0.7606610564736895,
+        0.5468721484335395
       ]
     },
     {
-      "id": "dpu_low_2x400w_ja_solar_bifacial",
+      "id": "d2m_low_ecoflow_400w_portable_solar_panel_efsolar400w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 400W Portable Solar Panel (EFSOLAR400W)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        40.18,
+        42.23,
+        7.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_400w_rigid_solar_panel_zptsp300",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 400W Rigid Solar Panel (ZPTSP300)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_450w_rigid_solar_panel_ef_sg_m450_04_efsolar450w_2",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 450W Rigid Solar Panel (EF-SG-M450-04 / EFSOLAR450W-2)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        35.57,
+        37.39,
+        9.18,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_45w_portable_solar_panel",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 45W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 45,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        35.1,
+        44.1,
+        21.56,
+        22.66,
+        1.47,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_60w_solar_panel_efsolar60",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 60W Solar Panel (EFSOLAR60)",
+      "panel_count": 1,
+      "nominal_total_w": 60,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        46.8,
+        58.8,
+        17.84,
+        18.75,
+        2.44,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_nextgen_160w_portable_solar_panel",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow NextGen 160W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 160,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        124.8,
+        156.8,
+        18.23,
+        19.16,
+        6.36,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ht_saae_ht72_18x_ht_550w_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "HT-SAAE HT72-18X (HT 550W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ja_solar_jam72d40_595_mb_us",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "JA Solar JAM72D40-595/MB-US",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_jjn_solar_400w_n_type_bifacial_solar_panel",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "JJN Solar 400W N-Type Bifacial Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.43,
+        31.98,
+        9.54,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Jinko Solar JKM460M-7RL3-TV (Jinko Eagle 460W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 460,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        358.8,
+        450.8,
+        42.45,
+        44.62,
+        7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_maxeon_spr_max6_440",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Maxeon SPR-MAX6-440",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        39.69,
+        41.72,
+        8.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_phono_solar_ps590m8gf_24_tnh",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Phono Solar PS590M8GF-24/TNH",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        43.74,
+        45.97,
+        9.78,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_renogy_590w_n_type_bifacial_dual_glass",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Renogy 590W N-Type Bifacial (dual glass)",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        42.84,
+        45.02,
+        9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_renogy_rsp450dt_120",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Renogy RSP450DT-120",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        33.98,
+        35.71,
+        9.61,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_rich_solar_mega_250_rs_m250",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Rich Solar MEGA 250 (RS-M250)",
+      "panel_count": 1,
+      "nominal_total_w": 250,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        195,
+        245,
+        18.52,
+        19.47,
+        9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_rich_solar_mega_335_pro_rs_m335p",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Rich Solar MEGA 335 PRO (RS-M335P)",
+      "panel_count": 1,
+      "nominal_total_w": 335,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        261.3,
+        328.3,
+        28.62,
+        30.08,
+        8.51,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_rich_solar_mega_400_rs_m400",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Rich Solar MEGA 400 (RS-M400)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_runergy_hy_dh144n8_595",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Runergy HY-DH144N8-595",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Seraphim SRP-440-BTD-BG (Nebula, N-type bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        32.68,
+        34.35,
+        9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "ShopSolarKits (house/kit panel) 200W Rigid Solar Panel (used in EcoFlow kits)",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        20.38,
+        21.42,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_silfab_sil_530_xm_hc_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Silfab SIL-530 XM (HC Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 530,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        413.4,
+        519.4,
+        40.23,
+        42.28,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_sunpro_power_spdg550_144m10",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Sunpro Power SPDG550-144M10",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.12,
+        43.22,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "TW Solar (Tongwei) 500W N-Type Bifacial (TWMNH-54HD500 family)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        33.03,
+        34.71,
+        10.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_thornova_solar_ts_bgt66_620_g11",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Thornova Solar TS-BGT66(620)-G11",
+      "panel_count": 1,
+      "nominal_total_w": 620,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        483.6,
+        607.6,
+        40.4,
+        42.46,
+        11.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_trina_solar_tsm_425ne09rc.05",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-425NE09RC.05",
+      "panel_count": 1,
+      "nominal_total_w": 425,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        331.5,
+        416.5,
+        42.34,
+        44.5,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_trina_solar_tsm_neg19rc.20_605w_bin",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (605W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 605,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        471.9,
+        592.9,
+        39.69,
+        41.72,
+        11.06,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_trina_solar_tsm_neg19rc.20_vertex_n_615w_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (Vertex N 615W, bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 615,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        479.7,
+        602.7,
+        41.65,
+        43.78,
+        10.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_trina_solar_tsm_neg9rc.27_435w_bin",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 (435W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        42.73,
+        44.91,
+        7.39,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_vsun_vsun595n_144bmh_dg",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "VSUN VSUN595N-144BMH-DG",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.82,
+        46.05,
+        9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_znshine_zxm7_uhldd108_znshine_440w_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "ZNShine ZXM7-UHLDD108 (ZNShine 440W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        31.65,
+        33.27,
+        10.09,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_aptos_solar_dna_144_bf10_550w_dg",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Aptos Solar DNA-144-BF10-550W-DG",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.11,
+        43.21,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Axitec AC-550MBT/144US (AXIworldbipremium XXL HC MT 550W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Axitec AC-580TGB/144TS (AXIbiperfect GXXL TS 580W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        43.58,
+        45.8,
+        9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_canadian_solar_csi_solar_cs6.1_54tm_465h_tophiku6_all_black",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Canadian Solar (CSI Solar) CS6.1-54TM-465H (TOPHiKu6 All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 465,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        362.7,
+        455.7,
+        32.93,
+        34.61,
+        10.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Canadian Solar (CSI Solar) CS7N-695TB-AG (TOPBiHiKu7)",
+      "panel_count": 1,
+      "nominal_total_w": 695,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        542.1,
+        681.1,
+        39,
+        40.99,
+        12.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_canadian_solar_cs6.1_54tm_450h_tophiku6_all_black",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Canadian Solar CS6.1-54TM-450H (TOPHiKu6, All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        32.34,
+        33.99,
+        10.11,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_canadian_solar_cs6r_395ms_hl",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Canadian Solar CS6R-395MS-HL",
+      "panel_count": 1,
+      "nominal_total_w": 395,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        308.1,
+        387.1,
+        29.99,
+        31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_100w_flexible_solar_panel_zms330",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 100W Flexible Solar Panel (ZMS330)",
+      "panel_count": 1,
+      "nominal_total_w": 100,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        78,
+        98,
+        16.76,
+        17.61,
+        4.37,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 100W Rigid Solar Panel (ZMS331 / LA-200WSP-Rigi kit)",
+      "panel_count": 1,
+      "nominal_total_w": 100,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        78,
+        98,
+        16.76,
+        17.61,
+        4.37,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_110w_portable_solar_panel_efsolar110n",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 110W Portable Solar Panel (EFSOLAR110N)",
+      "panel_count": 1,
+      "nominal_total_w": 110,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        85.8,
+        107.8,
+        18.03,
+        18.95,
+        4.44,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_125w_bifacial_modular_solar_panel",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 125W Bifacial Modular Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 125,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        97.5,
+        122.5,
+        42.14,
+        44.29,
+        2.22,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_175w_rigid_solar_panel",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 175W Rigid Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        24.89,
+        26.16,
+        5.81,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_200w_portable_solar_panel",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 200W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        18.23,
+        19.16,
+        7.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_200w_rigid_solar_panel",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 200W Rigid Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        19.99,
+        21.01,
+        7.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_220w_bifacial_portable_solar_panel_efsolar220w_nextgen_220w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 220W Bifacial Portable Solar Panel (EFSOLAR220W / NextGen 220W)",
+      "panel_count": 1,
+      "nominal_total_w": 220,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        171.6,
+        215.6,
+        18.03,
+        18.95,
+        8.81,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_400w_portable_solar_panel_efsolar400w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 400W Portable Solar Panel (EFSOLAR400W)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        40.18,
+        42.23,
+        7.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_400w_rigid_solar_panel_zptsp300",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 400W Rigid Solar Panel (ZPTSP300)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_450w_rigid_solar_panel_ef_sg_m450_04_efsolar450w_2",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 450W Rigid Solar Panel (EF-SG-M450-04 / EFSOLAR450W-2)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        35.57,
+        37.39,
+        9.18,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_45w_portable_solar_panel",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 45W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 45,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        35.1,
+        44.1,
+        21.56,
+        22.66,
+        1.47,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_60w_solar_panel_efsolar60",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow 60W Solar Panel (EFSOLAR60)",
+      "panel_count": 1,
+      "nominal_total_w": 60,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        46.8,
+        58.8,
+        17.84,
+        18.75,
+        2.44,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ecoflow_nextgen_160w_portable_solar_panel",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EcoFlow NextGen 160W Portable Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 160,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        124.8,
+        156.8,
+        18.23,
+        19.16,
+        6.36,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_hd_hyundai_energy_solutions_his_t640nj",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "HD Hyundai Energy Solutions HiS-T640NJ",
+      "panel_count": 1,
+      "nominal_total_w": 640,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        499.2,
+        627.2,
+        46.79,
+        49.17,
+        9.92,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ht_saae_ht72_18x_ht_550w_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "HT-SAAE HT72-18X (HT 550W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ja_solar_jam72d40_595_mb_us",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "JA Solar JAM72D40-595/MB-US",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_jjn_solar_400w_n_type_bifacial_solar_panel",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "JJN Solar 400W N-Type Bifacial Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.43,
+        31.98,
+        9.54,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Jinko Solar JKM460M-7RL3-TV (Jinko Eagle 460W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 460,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        358.8,
+        450.8,
+        42.45,
+        44.62,
+        7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_maxeon_spr_max6_440",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Maxeon SPR-MAX6-440",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        39.69,
+        41.72,
+        8.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_phono_solar_ps590m8gf_24_tnh",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Phono Solar PS590M8GF-24/TNH",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        43.74,
+        45.97,
+        9.78,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_renogy_590w_n_type_bifacial_dual_glass",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Renogy 590W N-Type Bifacial (dual glass)",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        42.84,
+        45.02,
+        9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_renogy_rsp450dt_120",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Renogy RSP450DT-120",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        33.98,
+        35.71,
+        9.61,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_rich_solar_mega_250_rs_m250",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Rich Solar MEGA 250 (RS-M250)",
+      "panel_count": 1,
+      "nominal_total_w": 250,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        195,
+        245,
+        18.52,
+        19.47,
+        9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_rich_solar_mega_335_pro_rs_m335p",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Rich Solar MEGA 335 PRO (RS-M335P)",
+      "panel_count": 1,
+      "nominal_total_w": 335,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        261.3,
+        328.3,
+        28.62,
+        30.08,
+        8.51,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_rich_solar_mega_400_rs_m400",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Rich Solar MEGA 400 (RS-M400)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_runergy_hy_dh144n8_595",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Runergy HY-DH144N8-595",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Seraphim SRP-440-BTD-BG (Nebula, N-type bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        32.68,
+        34.35,
+        9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "ShopSolarKits (house/kit panel) 200W Rigid Solar Panel (used in EcoFlow kits)",
+      "panel_count": 1,
+      "nominal_total_w": 200,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        156,
+        196,
+        20.38,
+        21.42,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_silfab_sil_530_xm_hc_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Silfab SIL-530 XM (HC Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 530,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        413.4,
+        519.4,
+        40.23,
+        42.28,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_solarspace_ss8_72hd_580n",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "SolarSpace SS8-72HD-580N",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        43.5,
+        45.72,
+        9.67,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_sunpro_power_spdg550_144m10",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Sunpro Power SPDG550-144M10",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.12,
+        43.22,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "TW Solar (Tongwei) 500W N-Type Bifacial (TWMNH-54HD500 family)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        33.03,
+        34.71,
+        10.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_thornova_solar_ts_bgt66_620_g11",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Thornova Solar TS-BGT66(620)-G11",
+      "panel_count": 1,
+      "nominal_total_w": 620,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        483.6,
+        607.6,
+        40.4,
+        42.46,
+        11.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_trina_solar_tsm_425ne09rc.05",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-425NE09RC.05",
+      "panel_count": 1,
+      "nominal_total_w": 425,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        331.5,
+        416.5,
+        42.34,
+        44.5,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_trina_solar_tsm_neg19rc.20_605w_bin",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (605W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 605,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        471.9,
+        592.9,
+        39.69,
+        41.72,
+        11.06,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_trina_solar_tsm_neg19rc.20_vertex_n_615w_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (Vertex N 615W, bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 615,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        479.7,
+        602.7,
+        41.65,
+        43.78,
+        10.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_trina_solar_tsm_neg9rc.27_435w_bin",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 (435W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        42.73,
+        44.91,
+        7.39,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_vsun_vsun595n_144bmh_dg",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "VSUN VSUN595N-144BMH-DG",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.82,
+        46.05,
+        9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_znshine_zxm7_uhldd108_znshine_440w_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "ZNShine ZXM7-UHLDD108 (ZNShine 440W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        31.65,
+        33.27,
+        10.09,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_2x400w_jjn_solar_400w_n_type_bifacial_solar_panel",
       "profile": "dpu",
       "port": "low",
-      "panel_setup": "2x400W JA Solar bifacial",
+      "panel_setup": "2x400W JJN Solar 400W N-Type Bifacial Solar Panel",
       "panel_count": 2,
       "nominal_total_w": 800,
-      "sample_count": 9263,
+      "sample_count": 9905,
       "device_sns": [
         "Y711ZABA9H2P0294"
       ],
       "centroid": [
-        169.74043,
+        175.542581,
         771.819102,
-        65.26569,
+        65.04126,
         67.86914,
         2.640626,
-        0.8630033466479542,
+        0.8376577486118122,
         0
+      ]
+    },
+    {
+      "id": "dpu_low_aptos_solar_dna_144_bf10_550w_dg",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Aptos Solar DNA-144-BF10-550W-DG",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.11,
+        43.21,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Axitec AC-550MBT/144US (AXIworldbipremium XXL HC MT 550W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Axitec AC-580TGB/144TS (AXIbiperfect GXXL TS 580W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        43.58,
+        45.8,
+        9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_canadian_solar_csi_solar_cs6.1_54tm_465h_tophiku6_all_black",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Canadian Solar (CSI Solar) CS6.1-54TM-465H (TOPHiKu6 All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 465,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        362.7,
+        455.7,
+        32.93,
+        34.61,
+        10.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Canadian Solar (CSI Solar) CS7N-695TB-AG (TOPBiHiKu7)",
+      "panel_count": 1,
+      "nominal_total_w": 695,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        542.1,
+        681.1,
+        39,
+        40.99,
+        12.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_canadian_solar_cs6.1_54tm_450h_tophiku6_all_black",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Canadian Solar CS6.1-54TM-450H (TOPHiKu6, All-Black)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        32.34,
+        33.99,
+        10.11,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_canadian_solar_cs6r_395ms_hl",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Canadian Solar CS6R-395MS-HL",
+      "panel_count": 1,
+      "nominal_total_w": 395,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        308.1,
+        387.1,
+        29.99,
+        31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_ecoflow_125w_bifacial_modular_solar_panel",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "EcoFlow 125W Bifacial Modular Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 125,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        97.5,
+        122.5,
+        42.14,
+        44.29,
+        2.22,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_ecoflow_400w_portable_solar_panel_efsolar400w",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "EcoFlow 400W Portable Solar Panel (EFSOLAR400W)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        40.18,
+        42.23,
+        7.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_ecoflow_400w_rigid_solar_panel_zptsp300",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "EcoFlow 400W Rigid Solar Panel (ZPTSP300)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_ecoflow_450w_rigid_solar_panel_ef_sg_m450_04_efsolar450w_2",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "EcoFlow 450W Rigid Solar Panel (EF-SG-M450-04 / EFSOLAR450W-2)",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        35.57,
+        37.39,
+        9.18,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_hd_hyundai_energy_solutions_his_t640nj",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "HD Hyundai Energy Solutions HiS-T640NJ",
+      "panel_count": 1,
+      "nominal_total_w": 640,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        499.2,
+        627.2,
+        46.79,
+        49.17,
+        9.92,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_ht_saae_ht72_18x_ht_550w_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "HT-SAAE HT72-18X (HT 550W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.06,
+        43.16,
+        9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_ja_solar_jam72d40_595_mb_us",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "JA Solar JAM72D40-595/MB-US",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_jjn_solar_400w_n_type_bifacial_solar_panel",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "JJN Solar 400W N-Type Bifacial Solar Panel",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.43,
+        31.98,
+        9.54,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Jinko Solar JKM460M-7RL3-TV (Jinko Eagle 460W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 460,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        358.8,
+        450.8,
+        42.45,
+        44.62,
+        7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_maxeon_spr_max6_440",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Maxeon SPR-MAX6-440",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        39.69,
+        41.72,
+        8.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_phono_solar_ps590m8gf_24_tnh",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Phono Solar PS590M8GF-24/TNH",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        43.74,
+        45.97,
+        9.78,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_renogy_590w_n_type_bifacial_dual_glass",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Renogy 590W N-Type Bifacial (dual glass)",
+      "panel_count": 1,
+      "nominal_total_w": 590,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        460.2,
+        578.2,
+        42.84,
+        45.02,
+        9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_renogy_rsp450dt_120",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Renogy RSP450DT-120",
+      "panel_count": 1,
+      "nominal_total_w": 450,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        351,
+        441,
+        33.98,
+        35.71,
+        9.61,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_rich_solar_mega_400_rs_m400",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Rich Solar MEGA 400 (RS-M400)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_runergy_hy_dh144n8_595",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Runergy HY-DH144N8-595",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.75,
+        45.98,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Seraphim SRP-440-BTD-BG (Nebula, N-type bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        32.68,
+        34.35,
+        9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_silfab_sil_530_xm_hc_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Silfab SIL-530 XM (HC Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 530,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        413.4,
+        519.4,
+        40.23,
+        42.28,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_solarspace_ss8_72hd_580n",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "SolarSpace SS8-72HD-580N",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        43.5,
+        45.72,
+        9.67,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_sunpro_power_spdg550_144m10",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Sunpro Power SPDG550-144M10",
+      "panel_count": 1,
+      "nominal_total_w": 550,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        429,
+        539,
+        41.12,
+        43.22,
+        9.7,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "TW Solar (Tongwei) 500W N-Type Bifacial (TWMNH-54HD500 family)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        33.03,
+        34.71,
+        10.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_thornova_solar_ts_bgt66_620_g11",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Thornova Solar TS-BGT66(620)-G11",
+      "panel_count": 1,
+      "nominal_total_w": 620,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        483.6,
+        607.6,
+        40.4,
+        42.46,
+        11.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_trina_solar_tsm_425ne09rc.05",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-425NE09RC.05",
+      "panel_count": 1,
+      "nominal_total_w": 425,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        331.5,
+        416.5,
+        42.34,
+        44.5,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_trina_solar_tsm_neg19rc.20_605w_bin",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (605W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 605,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        471.9,
+        592.9,
+        39.69,
+        41.72,
+        11.06,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_trina_solar_tsm_neg19rc.20_vertex_n_615w_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG19RC.20 (Vertex N 615W, bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 615,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        479.7,
+        602.7,
+        41.65,
+        43.78,
+        10.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_trina_solar_tsm_neg9rc.27_435w_bin",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 (435W bin)",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        42.73,
+        44.91,
+        7.39,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_vsun_vsun595n_144bmh_dg",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "VSUN VSUN595N-144BMH-DG",
+      "panel_count": 1,
+      "nominal_total_w": 595,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        464.1,
+        583.1,
+        43.82,
+        46.05,
+        9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_znshine_zxm7_uhldd108_znshine_440w_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "ZNShine ZXM7-UHLDD108 (ZNShine 440W Bifacial)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        31.65,
+        33.27,
+        10.09,
+        0.72,
+        0.68
       ]
     }
   ],
