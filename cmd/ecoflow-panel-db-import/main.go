@@ -263,7 +263,7 @@ func buildPanelIndex(data *dataset) *panelIndex {
 		id := asString(record["id"])
 		brand := asString(record[brandKey])
 		model := asString(record[modelKey])
-		panelKey := makePanelKey(brand, model, id, asInt(record["source_row"]), byPanelKey)
+		panelKey := makePanelKey(brand, model, id, asInt64(record["source_row"]), byPanelKey)
 
 		entry := panelIndexEntry{
 			ID:            id,
@@ -402,7 +402,7 @@ func makeDeviceTag(label string) string {
 	return normalizeColumn(label)
 }
 
-func makePanelKey(brand, model, fallbackID string, sourceRow int, existing map[string]panelIndexEntry) string {
+func makePanelKey(brand, model, fallbackID string, sourceRow int64, existing map[string]panelIndexEntry) string {
 	base := normalizeColumn(strings.TrimSpace(brand) + "_" + strings.TrimSpace(model))
 	if base == "" {
 		base = normalizeColumn(fallbackID)
@@ -478,16 +478,12 @@ func asString(value any) string {
 	}
 }
 
-func asInt(value any) int {
+func asInt64(value any) int64 {
 	switch typed := value.(type) {
-	case int:
-		return typed
 	case int64:
-		converted, ok := safeIntFromInt64(typed)
-		if !ok {
-			return 0
-		}
-		return converted
+		return typed
+	case int:
+		return int64(typed)
 	case float64:
 		if math.IsNaN(typed) || math.IsInf(typed, 0) {
 			return 0
@@ -496,24 +492,10 @@ func asInt(value any) int {
 		if truncated < math.MinInt64 || truncated > math.MaxInt64 {
 			return 0
 		}
-		converted, ok := safeIntFromInt64(int64(truncated))
-		if !ok {
-			return 0
-		}
-		return converted
+		return int64(truncated)
 	default:
 		return 0
 	}
-}
-
-func safeIntFromInt64(value int64) (int, bool) {
-	if strconv.IntSize == 32 {
-		if value < math.MinInt32 || value > math.MaxInt32 {
-			return 0, false
-		}
-		return int(value), true
-	}
-	return int(value), true
 }
 
 func asFloat64(value any) float64 {
