@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,13 +21,21 @@ const (
 	defaultOutJSON = "data/solar_panels/solar_panel_specs_v13.json"
 	defaultSummary = "data/solar_panels/solar_panel_specs_v13.summary.json"
 	defaultIndex   = "data/solar_panels/solar_panel_specs_v13.index.json"
+	defaultLinkMap = "data/solar_panels/panel_purchase_links_v13.json"
 )
 
 var (
-	nonAlphaNum      = regexp.MustCompile(`[^a-z0-9_]+`)
-	compatSeriesMin  = regexp.MustCompile(`(?i)needs\s*≥?\s*(\d+)\s*s`)
-	compatSeriesMax  = regexp.MustCompile(`(?i)\(max\s*(\d+)\s*s\)`)
-	deviceSpecSuffix = regexp.MustCompile(`(?i)\s+\d+\s*[–-]\s*\d+\s*v[^\s]*\s*$`)
+	nonAlphaNum        = regexp.MustCompile(`[^a-z0-9_]+`)
+	compatSeriesMin    = regexp.MustCompile(`(?i)needs\s*≥?\s*(\d+)\s*s`)
+	compatSeriesMax    = regexp.MustCompile(`(?i)\(max\s*(\d+)\s*s\)`)
+	deviceSpecSuffix   = regexp.MustCompile(`(?i)\s+\d+\s*[–-]\s*\d+\s*v[^\s]*\s*$`)
+	efficiencyLeading  = regexp.MustCompile(`(?i)\befficiency(?:\s+up\s+to)?\s*[~≈]?\s*([0-9]+(?:\.[0-9]+)?)\s*%`)
+	efficiencyTrailing = regexp.MustCompile(`(?i)([0-9]+(?:\.[0-9]+)?)\s*%\s*efficiency`)
+)
+
+const (
+	estimatedMonofacialEfficiencyPct = 20.0
+	estimatedBifacialEfficiencyPct   = 22.5
 )
 
 type dataset struct {
@@ -63,17 +72,20 @@ type panelIndex struct {
 }
 
 type panelIndexEntry struct {
-	ID                string                               `json:"id"`
-	Brand             string                               `json:"brand"`
-	Model             string                               `json:"model"`
-	Type              string                               `json:"type,omitempty"`
-	PmaxSTCW          float64                              `json:"pmax_stc_w,omitempty"`
-	VocV              float64                              `json:"voc_v,omitempty"`
-	VmpV              float64                              `json:"vmp_v,omitempty"`
-	ImpA              float64                              `json:"imp_a,omitempty"`
-	IscA              float64                              `json:"isc_a,omitempty"`
-	CompatibilityTags []string                             `json:"compatibility_tags"`
-	Compatibility     map[string]panelCompatibilitySummary `json:"compatibility"`
+	ID                  string                               `json:"id"`
+	Brand               string                               `json:"brand"`
+	Model               string                               `json:"model"`
+	Type                string                               `json:"type,omitempty"`
+	PmaxSTCW            float64                              `json:"pmax_stc_w,omitempty"`
+	VocV                float64                              `json:"voc_v,omitempty"`
+	VmpV                float64                              `json:"vmp_v,omitempty"`
+	ImpA                float64                              `json:"imp_a,omitempty"`
+	IscA                float64                              `json:"isc_a,omitempty"`
+	ModuleEfficiencyPct float64                              `json:"module_efficiency_pct,omitempty"`
+	ModuleEfficiencySrc string                               `json:"module_efficiency_source,omitempty"`
+	PurchaseLink        string                               `json:"purchase_link,omitempty"`
+	CompatibilityTags   []string                             `json:"compatibility_tags"`
+	Compatibility       map[string]panelCompatibilitySummary `json:"compatibility"`
 }
 
 type panelCompatibilitySummary struct {
@@ -90,15 +102,22 @@ func main() {
 		outPath     string
 		summaryPath string
 		indexPath   string
+		linkMapPath string
 	)
 
 	flag.StringVar(&csvPath, "csv", defaultCSVPath, "input panel CSV path")
 	flag.StringVar(&outPath, "out", defaultOutJSON, "output normalized JSON path")
 	flag.StringVar(&summaryPath, "summary-out", defaultSummary, "output summary JSON path")
 	flag.StringVar(&indexPath, "index-out", defaultIndex, "output compact index JSON path")
+	flag.StringVar(&linkMapPath, "link-map", defaultLinkMap, "optional JSON map of panel id -> purchase link")
 	flag.Parse()
 
-	data, err := importCSV(csvPath)
+	linkMap, err := loadPanelPurchaseLinks(linkMapPath)
+	if err != nil {
+		fatalf("load panel link map: %v", err)
+	}
+
+	data, err := importCSV(csvPath, linkMap)
 	if err != nil {
 		fatalf("import csv: %v", err)
 	}
@@ -121,7 +140,7 @@ func main() {
 	fmt.Printf("index: %s\n", indexPath)
 }
 
-func importCSV(path string) (*dataset, error) {
+func importCSV(path string, linkMap map[string]string) (*dataset, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open csv: %w", err)
@@ -184,6 +203,10 @@ func importCSV(path string) (*dataset, error) {
 
 		record["source_row"] = rowIdx + 2
 		record["id"] = makeRecordID(record, rowIdx)
+		if purchaseLink, purchaseLinkSource := derivePurchaseLink(record, linkMap); purchaseLink != "" {
+			record["purchase_link"] = purchaseLink
+			record["purchase_link_source"] = purchaseLinkSource
+		}
 
 		compatKey := normalizeColumn("EcoFlow_compatibility")
 		if compatRaw, ok := record[compatKey].(string); ok && strings.TrimSpace(compatRaw) != "" {
@@ -201,6 +224,10 @@ func importCSV(path string) (*dataset, error) {
 		}
 		if typ, ok := record[normalizeColumn("Type")].(string); ok && typ != "" {
 			typeDist[typ]++
+		}
+		if efficiency, source, ok := deriveModuleEfficiency(record); ok {
+			record["module_efficiency_pct"] = efficiency
+			record["module_efficiency_source"] = source
 		}
 
 		records = append(records, record)
@@ -266,16 +293,19 @@ func buildPanelIndex(data *dataset) *panelIndex {
 		panelKey := makePanelKey(brand, model, id, asInt64(record["source_row"]), byPanelKey)
 
 		entry := panelIndexEntry{
-			ID:            id,
-			Brand:         brand,
-			Model:         model,
-			Type:          asString(record[typeKey]),
-			PmaxSTCW:      asFloat64(record[pmaxKey]),
-			VocV:          asFloat64(record[vocKey]),
-			VmpV:          asFloat64(record[vmpKey]),
-			ImpA:          asFloat64(record[impKey]),
-			IscA:          asFloat64(record[iscKey]),
-			Compatibility: map[string]panelCompatibilitySummary{},
+			ID:                  id,
+			Brand:               brand,
+			Model:               model,
+			Type:                asString(record[typeKey]),
+			PmaxSTCW:            asFloat64(record[pmaxKey]),
+			VocV:                asFloat64(record[vocKey]),
+			VmpV:                asFloat64(record[vmpKey]),
+			ImpA:                asFloat64(record[impKey]),
+			IscA:                asFloat64(record[iscKey]),
+			ModuleEfficiencyPct: asFloat64(record["module_efficiency_pct"]),
+			ModuleEfficiencySrc: asString(record["module_efficiency_source"]),
+			PurchaseLink:        asString(record["purchase_link"]),
+			Compatibility:       map[string]panelCompatibilitySummary{},
 		}
 
 		tagSet := map[string]struct{}{}
@@ -511,6 +541,207 @@ func asFloat64(value any) float64 {
 	default:
 		return 0
 	}
+}
+
+func deriveModuleEfficiency(record map[string]any) (float64, string, bool) {
+	candidates := []string{
+		"module_efficiency_pct",
+		normalizeColumn("Module_efficiency_pct"),
+		normalizeColumn("Module_efficiency"),
+		normalizeColumn("Efficiency_pct"),
+		normalizeColumn("Efficiency"),
+		normalizeColumn("Panel_efficiency_pct"),
+		normalizeColumn("Panel_efficiency"),
+	}
+	for _, key := range candidates {
+		if key == "" {
+			continue
+		}
+		value, ok := normalizeModuleEfficiencyValue(record[key])
+		if ok {
+			return value, "reported", true
+		}
+	}
+
+	notes, _ := record[normalizeColumn("Notes")].(string)
+	if value, ok := extractModuleEfficiencyFromNotes(notes); ok {
+		return value, "notes", true
+	}
+	if value, source, ok := estimateModuleEfficiencyFromRecord(record); ok {
+		return value, source, true
+	}
+	return 0, "", false
+}
+
+func loadPanelPurchaseLinks(path string) (map[string]string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return map[string]string{}, nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]string{}, nil
+		}
+		return nil, fmt.Errorf("read link map: %w", err)
+	}
+	var links map[string]string
+	if err := json.Unmarshal(content, &links); err != nil {
+		return nil, fmt.Errorf("parse link map json: %w", err)
+	}
+	out := make(map[string]string, len(links))
+	for rawKey, rawValue := range links {
+		key := normalizeColumn(rawKey)
+		value := strings.TrimSpace(rawValue)
+		if key == "" || value == "" {
+			continue
+		}
+		out[key] = value
+	}
+	return out, nil
+}
+
+func derivePurchaseLink(record map[string]any, linkMap map[string]string) (string, string) {
+	brand := strings.TrimSpace(asString(record[normalizeColumn("Brand")]))
+	model := strings.TrimSpace(asString(record[normalizeColumn("Model")]))
+	panelID := normalizeColumn(asString(record["id"]))
+	if panelID == "" {
+		panelID = normalizeColumn(brand + "_" + model)
+	}
+	primarySource := strings.TrimSpace(asString(record[normalizeColumn("Primary_source")]))
+
+	// 1) Use direct CSV-provided link when present.
+	for _, key := range []string{"purchase_link", normalizeColumn("Purchase_link"), normalizeColumn("Purchase URL"), normalizeColumn("Purchase_link_url")} {
+		if value := strings.TrimSpace(asString(record[key])); isLikelyURL(value) {
+			return value, "csv"
+		}
+	}
+
+	// 2) Curated overrides by panel id.
+	if linkMap != nil {
+		for _, key := range []string{panelID, normalizeColumn(brand + "_" + model), model, brand + "_" + model} {
+			normKey := normalizeColumn(key)
+			if normKey == "" {
+				continue
+			}
+			if value := strings.TrimSpace(linkMap[normKey]); isLikelyURL(value) {
+				return value, "link_map"
+			}
+		}
+	}
+
+	query := strings.TrimSpace(strings.TrimSpace(brand + " " + model))
+	if query == "" {
+		return "", ""
+	}
+	queryEscaped := url.QueryEscape(query)
+	lowerBrand := strings.ToLower(brand)
+	lowerSource := strings.ToLower(primarySource)
+
+	// 3) Domain-specific fallbacks to respected stores/manufacturer storefronts.
+	switch {
+	case strings.Contains(lowerBrand, "ecoflow"):
+		return "https://www.ecoflow.com/us/search?keyword=" + queryEscaped, "derived_ecoflow_search"
+	case strings.Contains(lowerSource, "signaturesolar.com"):
+		return "https://signaturesolar.com/search.php?search_query=" + queryEscaped, "derived_signature_solar"
+	case strings.Contains(lowerSource, "ussolarsupplier.com"), strings.Contains(lowerSource, "us solar supplier"):
+		return "https://ussolarsupplier.com/search?type=product&q=" + queryEscaped, "derived_us_solar_supplier"
+	case strings.Contains(lowerSource, "offgridstores.com"):
+		return "https://offgridstores.com/search?q=" + queryEscaped, "derived_offgridstores"
+	case strings.Contains(lowerSource, "allprogenerators.com"):
+		return "https://allprogenerators.com/search?type=product&q=" + queryEscaped, "derived_allprogenerators"
+	case strings.Contains(lowerBrand, "renogy"):
+		return "https://www.renogy.com/search.php?search_query=" + queryEscaped, "derived_renogy"
+	case strings.Contains(lowerBrand, "rich solar"):
+		return "https://richsolar.com/search?type=product&q=" + queryEscaped, "derived_richsolar"
+	case strings.Contains(lowerSource, "shopsolarkits"), strings.Contains(lowerBrand, "shopsolarkits"):
+		return "https://shopsolarkits.com/search?type=product&q=" + queryEscaped, "derived_shopsolarkits"
+	default:
+		// Fallback to a reputable solar supplier search page.
+		return "https://ussolarsupplier.com/search?type=product&q=" + queryEscaped, "derived_fallback_supplier"
+	}
+}
+
+func isLikelyURL(value string) bool {
+	value = strings.TrimSpace(strings.ToLower(value))
+	return strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "http://")
+}
+
+func normalizeModuleEfficiencyValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return normalizeModuleEfficiencyPct(typed)
+	case float32:
+		return normalizeModuleEfficiencyPct(float64(typed))
+	case int:
+		return normalizeModuleEfficiencyPct(float64(typed))
+	case int64:
+		return normalizeModuleEfficiencyPct(float64(typed))
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return 0, false
+		}
+		trimmed = strings.TrimSuffix(trimmed, "%")
+		if parsed, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return normalizeModuleEfficiencyPct(parsed)
+		}
+		return extractModuleEfficiencyFromNotes(typed)
+	default:
+		return 0, false
+	}
+}
+
+func normalizeModuleEfficiencyPct(value float64) (float64, bool) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, false
+	}
+	if value > 0 && value <= 1 {
+		value *= 100
+	}
+	if value <= 0 || value > 100 {
+		return 0, false
+	}
+	return value, true
+}
+
+func extractModuleEfficiencyFromNotes(notes string) (float64, bool) {
+	notes = strings.TrimSpace(notes)
+	if notes == "" {
+		return 0, false
+	}
+
+	if match := efficiencyLeading.FindStringSubmatch(notes); len(match) == 2 {
+		if parsed, err := strconv.ParseFloat(match[1], 64); err == nil {
+			return normalizeModuleEfficiencyPct(parsed)
+		}
+	}
+	if match := efficiencyTrailing.FindStringSubmatch(notes); len(match) == 2 {
+		if parsed, err := strconv.ParseFloat(match[1], 64); err == nil {
+			return normalizeModuleEfficiencyPct(parsed)
+		}
+	}
+	return 0, false
+}
+
+func estimateModuleEfficiencyFromRecord(record map[string]any) (float64, string, bool) {
+	typeText := asString(record[normalizeColumn("Type")])
+	brand := asString(record[normalizeColumn("Brand")])
+	model := asString(record[normalizeColumn("Model")])
+	notes := asString(record[normalizeColumn("Notes")])
+	corpus := strings.ToLower(strings.TrimSpace(strings.Join([]string{
+		typeText,
+		brand,
+		model,
+		notes,
+	}, " ")))
+	if corpus == "" {
+		return 0, "", false
+	}
+	if strings.Contains(corpus, "bifacial") || strings.Contains(corpus, "bi-facial") {
+		return estimatedBifacialEfficiencyPct, "estimated_bifacial", true
+	}
+	return estimatedMonofacialEfficiencyPct, "estimated_monofacial", true
 }
 
 func asStringSlice(value any) []string {

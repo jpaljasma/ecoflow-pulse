@@ -111,6 +111,7 @@ func TestApplyPanelDBPortMetadata(t *testing.T) {
       "brand": "EcoFlow",
       "model": "220W Bifacial Portable",
       "pmax_stc_w": 220,
+      "purchase_link": "https://www.ecoflow.com/us/220w-bifacial-portable-solar-panel",
       "compatibility": {"d2_d2_max":{"status":"compatible","max_series":2}}
     },
     "ja_400": {
@@ -175,6 +176,12 @@ func TestApplyPanelDBPortMetadata(t *testing.T) {
 	}
 	if got := d2mSnapshot.PVLowDBCandidates[0].Label; got == "" {
 		t.Fatalf("expected non-empty d2m low candidate label")
+	}
+	if got := d2mSnapshot.PVLowDBCandidates[0].PurchaseLink; got == "" {
+		t.Fatalf("expected non-empty d2m low candidate purchase link")
+	}
+	if !d2mSnapshot.HasPVLowBestPanelLink || d2mSnapshot.PVLowBestPanelLink == "" {
+		t.Fatalf("expected d2m low best panel purchase link to be populated")
 	}
 
 	dpu := ecoflow.GeneralInfoDevice{ProductName: "DELTA Pro Ultra"}
@@ -366,5 +373,64 @@ func TestSelectPanelCandidatesForMetadataPrefersDistinctAlt(t *testing.T) {
 	}
 	if !hasAlt || alt.record.ID != "c" {
 		t.Fatalf("expected distinct alt candidate id=c, got has=%v id=%s", hasAlt, alt.record.ID)
+	}
+}
+
+func TestTopPanelCandidatesForChannelPrefersHigherEfficiencyOnEqualPower(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "panel.index.json")
+	content := `{
+  "source_csv": "/tmp/a.csv",
+  "generated_at_utc": "2026-02-17T00:00:00Z",
+  "row_count": 2,
+  "panel_count": 2,
+  "by_panel_key": {
+    "eff_21": {
+      "id": "eff_21",
+      "brand": "Brand",
+      "model": "Model 500A",
+      "pmax_stc_w": 500,
+      "voc_v": 40.0,
+      "imp_a": 12.0,
+      "module_efficiency_pct": 21.0,
+      "compatibility": {
+        "d2_d2_max": {"label":"D2/D2 Max 11–60V/15A","status":"yes","max_series":2}
+      }
+    },
+    "eff_24": {
+      "id": "eff_24",
+      "brand": "Brand",
+      "model": "Model 500B",
+      "pmax_stc_w": 500,
+      "voc_v": 40.0,
+      "imp_a": 12.0,
+      "module_efficiency_pct": 24.0,
+      "compatibility": {
+        "d2_d2_max": {"label":"D2/D2 Max 11–60V/15A","status":"yes","max_series":2}
+      }
+    }
+  },
+  "by_device_tag": {
+    "d2_d2_max": ["eff_21", "eff_24"]
+  },
+  "device_labels": {}
+}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	db, err := loadSolarPanelIndex(path)
+	if err != nil {
+		t.Fatalf("loadSolarPanelIndex returned error: %v", err)
+	}
+	device := ecoflow.GeneralInfoDevice{ProductName: "DELTA 2 Max"}
+	candidates := topPanelCandidatesForChannel(db, device, "low", 2)
+	if len(candidates) != 2 {
+		t.Fatalf("expected two candidates, got=%d", len(candidates))
+	}
+	if candidates[0].record.ID != "eff_24" {
+		t.Fatalf("expected higher-efficiency candidate first, got=%s", candidates[0].record.ID)
 	}
 }

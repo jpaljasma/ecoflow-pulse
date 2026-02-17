@@ -11,12 +11,18 @@ Primary device-to-app telemetry topic:
 The dashboard snapshot aggregates telemetry into these domains:
 
 - device summary (SOC, in/out/net, state, updated),
+- meta guardrails (SOC window min/max and backup reserve when reported),
 - channels (AC in, PV low/high/total, AC out, DC out, XT150 in/out),
 - pack-level battery data (up to 5 packs for DPU),
 - status flags (AC/DC/USB/EV/passthrough/grounded/fan/preconditioning),
 - ETA and ML estimate outputs.
 - solar panel recommendations (per PV port):
   - detected setup from runtime panel model,
+  - runtime panel model uses adaptive prediction cadence per port:
+    - low/collecting confidence: every 3rd sample,
+    - medium confidence: every 5th sample,
+    - high confidence: every 10th sample,
+    while still ingesting every sample into tracker windows,
   - add-panels upsell recommendation (headroom to device PV limit),
   - if a port is undetected/idle while the peer PV port has a detected setup,
     add-panels can mirror peer per-panel sizing to local MPPT limits,
@@ -30,6 +36,16 @@ The dashboard snapshot aggregates telemetry into these domains:
   - recommendation ranking applies a complexity score so lower-complexity
     topologies (fewer panels, fewer parallel branches, and less mixed S+P wiring)
     are preferred when energy gain is marginal,
+  - near PV-port saturation, fewer-panel topologies can outrank non-clipping
+    alternatives when effective output stays close (including a small allowed
+    effective-watt gap), to favor simpler wiring and shoulder-hours clipping
+    tradeoffs,
+  - recommendation ranking applies a modest panel-efficiency boost using
+    `module_efficiency_pct`; inferred values (`estimated_*`) are down-weighted
+    relative to `reported`/`notes`,
+  - each panel DB candidate now carries `purchase_link` metadata (seeded from
+    CSV, curated link map, or domain-aware fallback), and recommendation options
+    retain the source link for downstream web/UI integrations,
   - EcoFlow `125W Bifacial Modular` layouts get a reduced complexity weight in
     ranking (1-4P setups are treated as easier to deploy),
   - if upgrade `#1` is clipping, upgrade `#2` is forced to a non-clipping
@@ -45,6 +61,11 @@ The dashboard snapshot aggregates telemetry into these domains:
   - projected battery charge ETA impact (primary and second-best upgrade paths),
     using the same shoulder-hours uplift model as recommendation ranking (instead
     of flat clipped max-watt assumptions),
+  - "Best Upgrade Path" summary row that picks the shortest resulting charge ETA
+    across mixed per-port scenarios (`add`, `upgrade #1`, `upgrade #2`) and renders actionable steps:
+    what to buy, how to install by PV input, and resulting ETA impact,
+  - recommendation plan selection is cached and only recomputed when detected
+    panel signatures change (setup/count/nominal), reducing UI render overhead.
   - conservative bifacial ETA adjustment (+15% ETA-effective PV watts when the
     detected/recommended panel is bifacial),
   - all-ports combined ETA impact summary rows when multiple PV ports are present.

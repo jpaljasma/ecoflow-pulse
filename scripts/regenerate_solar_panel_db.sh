@@ -11,6 +11,7 @@ OUT_DIR="${2:-${SOLAR_PANEL_OUT_DIR:-${REPO_ROOT}/data/solar_panels}}"
 OUT_JSON="${OUT_DIR}/solar_panel_specs_v13.json"
 SUMMARY_JSON="${OUT_DIR}/solar_panel_specs_v13.summary.json"
 INDEX_JSON="${OUT_DIR}/solar_panel_specs_v13.index.json"
+LINK_MAP_PATH="${SOLAR_PANEL_LINK_MAP:-${REPO_ROOT}/data/solar_panels/panel_purchase_links_v13.json}"
 
 if [[ ! -f "${CSV_PATH}" ]]; then
   echo "error: csv file not found: ${CSV_PATH}" >&2
@@ -25,10 +26,12 @@ go run ./cmd/ecoflow-panel-db-import \
   -csv "${CSV_PATH}" \
   -out "${OUT_JSON}" \
   -summary-out "${SUMMARY_JSON}" \
-  -index-out "${INDEX_JSON}"
+  -index-out "${INDEX_JSON}" \
+  -link-map "${LINK_MAP_PATH}"
 
 echo
 echo "Regenerated solar panel artifacts:"
 echo "  - ${OUT_JSON}"
 echo "  - ${SUMMARY_JSON}"
 echo "  - ${INDEX_JSON}"
+echo "  - links map: ${LINK_MAP_PATH}"

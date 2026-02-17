@@ -10,6 +10,9 @@ import (
 const (
 	defaultPanelModelPath       = "data/solar_panels/panel_select_model.json"
 	defaultPanelModelMinSamples = 20
+	panelModelThrottleLow       = 3
+	panelModelThrottleMedium    = 5
+	panelModelThrottleHigh      = 10
 )
 
 type panelRuntimeModel struct {
@@ -18,6 +21,13 @@ type panelRuntimeModel struct {
 	minSamples int
 	low        *panelselect.Tracker
 	high       *panelselect.Tracker
+	lowState   panelPortRuntimeState
+	highState  panelPortRuntimeState
+}
+
+type panelPortRuntimeState struct {
+	sampleCount  int64
+	predictEvery int
 }
 
 type panelObservation struct {
@@ -73,6 +83,12 @@ func newPanelRuntimeModel(model *panelselect.Model, productName string, window, 
 		minSamples: minSamples,
 		low:        panelselect.NewTracker(window),
 		high:       panelselect.NewTracker(window),
+		lowState: panelPortRuntimeState{
+			predictEvery: 1,
+		},
+		highState: panelPortRuntimeState{
+			predictEvery: 1,
+		},
 	}
 }
 
@@ -123,15 +139,47 @@ func (p *panelRuntimeModel) ObserveSample(sample panelObservation) panelObservat
 	result := panelObservationResult{}
 	if shouldRunPanelModelForPort(sample.hasLowVolts, sample.lowVolts) {
 		p.low.Observe(sample.lowWatts, sample.lowVolts, sample.lowAmps, sample.lowState)
-		result.low = predictPortResult(p.model, p.profile, "low", p.low, p.minSamples)
-		result.low.applied = true
+		if shouldRunPanelPrediction(&p.lowState) {
+			result.low = predictPortResult(p.model, p.profile, "low", p.low, p.minSamples)
+			result.low.applied = true
+			p.lowState.predictEvery = panelPredictionThrottle(result.low)
+		}
 	}
 	if shouldRunPanelModelForPort(sample.hasHighVolts, sample.highVolts) {
 		p.high.Observe(sample.highWatts, sample.highVolts, sample.highAmps, sample.highState)
-		result.high = predictPortResult(p.model, p.profile, "high", p.high, p.minSamples)
-		result.high.applied = true
+		if shouldRunPanelPrediction(&p.highState) {
+			result.high = predictPortResult(p.model, p.profile, "high", p.high, p.minSamples)
+			result.high.applied = true
+			p.highState.predictEvery = panelPredictionThrottle(result.high)
+		}
 	}
 	return result
+}
+
+func shouldRunPanelPrediction(state *panelPortRuntimeState) bool {
+	if state == nil {
+		return true
+	}
+	state.sampleCount++
+	every := state.predictEvery
+	if every <= 1 {
+		return true
+	}
+	return state.sampleCount%int64(every) == 0
+}
+
+func panelPredictionThrottle(result panelPortResult) int {
+	if !result.hasPrediction {
+		return panelModelThrottleLow
+	}
+	switch {
+	case result.confidence >= 0.80:
+		return panelModelThrottleHigh
+	case result.confidence >= 0.60:
+		return panelModelThrottleMedium
+	default:
+		return panelModelThrottleLow
+	}
 }
 
 func shouldRunPanelModelForPort(hasVolts bool, volts float64) bool {

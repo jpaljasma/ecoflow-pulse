@@ -29,17 +29,20 @@ type solarPanelIndex struct {
 }
 
 type solarPanelRecord struct {
-	ID                string                             `json:"id"`
-	Brand             string                             `json:"brand"`
-	Model             string                             `json:"model"`
-	Type              string                             `json:"type"`
-	PmaxSTCW          float64                            `json:"pmax_stc_w"`
-	VocV              float64                            `json:"voc_v"`
-	VmpV              float64                            `json:"vmp_v"`
-	ImpA              float64                            `json:"imp_a"`
-	IscA              float64                            `json:"isc_a"`
-	CompatibilityTags []string                           `json:"compatibility_tags"`
-	Compatibility     map[string]solarPanelCompatSummary `json:"compatibility"`
+	ID                  string                             `json:"id"`
+	Brand               string                             `json:"brand"`
+	Model               string                             `json:"model"`
+	Type                string                             `json:"type"`
+	PmaxSTCW            float64                            `json:"pmax_stc_w"`
+	VocV                float64                            `json:"voc_v"`
+	VmpV                float64                            `json:"vmp_v"`
+	ImpA                float64                            `json:"imp_a"`
+	IscA                float64                            `json:"isc_a"`
+	ModuleEfficiencyPct float64                            `json:"module_efficiency_pct,omitempty"`
+	ModuleEfficiencySrc string                             `json:"module_efficiency_source,omitempty"`
+	PurchaseLink        string                             `json:"purchase_link,omitempty"`
+	CompatibilityTags   []string                           `json:"compatibility_tags"`
+	Compatibility       map[string]solarPanelCompatSummary `json:"compatibility"`
 }
 
 type solarPanelCompatSummary struct {
@@ -176,6 +179,18 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 				snapshot.PVHighBestPanelIscA = best.record.IscA
 				snapshot.HasPVHighBestPanelIscA = true
 			}
+			if best.record.ModuleEfficiencyPct > 0 {
+				snapshot.PVHighBestPanelEffPct = best.record.ModuleEfficiencyPct
+				snapshot.HasPVHighBestPanelEffPct = true
+			}
+			if src := strings.TrimSpace(best.record.ModuleEfficiencySrc); src != "" {
+				snapshot.PVHighBestPanelEffSource = src
+				snapshot.HasPVHighBestPanelEffSrc = true
+			}
+			if link := strings.TrimSpace(best.record.PurchaseLink); link != "" {
+				snapshot.PVHighBestPanelLink = link
+				snapshot.HasPVHighBestPanelLink = true
+			}
 			if best.maxSeries > 0 {
 				snapshot.PVHighBestPanelMaxSeries = best.maxSeries
 				snapshot.HasPVHighBestPanelSeries = true
@@ -207,6 +222,18 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 				if alt.record.IscA > 0 {
 					snapshot.PVHighAltPanelIscA = alt.record.IscA
 					snapshot.HasPVHighAltPanelIscA = true
+				}
+				if alt.record.ModuleEfficiencyPct > 0 {
+					snapshot.PVHighAltPanelEffPct = alt.record.ModuleEfficiencyPct
+					snapshot.HasPVHighAltPanelEffPct = true
+				}
+				if src := strings.TrimSpace(alt.record.ModuleEfficiencySrc); src != "" {
+					snapshot.PVHighAltPanelEffSource = src
+					snapshot.HasPVHighAltPanelEffSrc = true
+				}
+				if link := strings.TrimSpace(alt.record.PurchaseLink); link != "" {
+					snapshot.PVHighAltPanelLink = link
+					snapshot.HasPVHighAltPanelLink = true
 				}
 				if alt.maxSeries > 0 {
 					snapshot.PVHighAltPanelMaxSeries = alt.maxSeries
@@ -241,6 +268,18 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 			snapshot.PVLowBestPanelIscA = best.record.IscA
 			snapshot.HasPVLowBestPanelIscA = true
 		}
+		if best.record.ModuleEfficiencyPct > 0 {
+			snapshot.PVLowBestPanelEffPct = best.record.ModuleEfficiencyPct
+			snapshot.HasPVLowBestPanelEffPct = true
+		}
+		if src := strings.TrimSpace(best.record.ModuleEfficiencySrc); src != "" {
+			snapshot.PVLowBestPanelEffSource = src
+			snapshot.HasPVLowBestPanelEffSrc = true
+		}
+		if link := strings.TrimSpace(best.record.PurchaseLink); link != "" {
+			snapshot.PVLowBestPanelLink = link
+			snapshot.HasPVLowBestPanelLink = true
+		}
 		if best.maxSeries > 0 {
 			snapshot.PVLowBestPanelMaxSeries = best.maxSeries
 			snapshot.HasPVLowBestPanelSeries = true
@@ -272,6 +311,18 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 			if alt.record.IscA > 0 {
 				snapshot.PVLowAltPanelIscA = alt.record.IscA
 				snapshot.HasPVLowAltPanelIscA = true
+			}
+			if alt.record.ModuleEfficiencyPct > 0 {
+				snapshot.PVLowAltPanelEffPct = alt.record.ModuleEfficiencyPct
+				snapshot.HasPVLowAltPanelEffPct = true
+			}
+			if src := strings.TrimSpace(alt.record.ModuleEfficiencySrc); src != "" {
+				snapshot.PVLowAltPanelEffSource = src
+				snapshot.HasPVLowAltPanelEffSrc = true
+			}
+			if link := strings.TrimSpace(alt.record.PurchaseLink); link != "" {
+				snapshot.PVLowAltPanelLink = link
+				snapshot.HasPVLowAltPanelLink = true
 			}
 			if alt.maxSeries > 0 {
 				snapshot.PVLowAltPanelMaxSeries = alt.maxSeries
@@ -385,7 +436,12 @@ func topPanelCandidatesForChannel(db *solarPanelIndex, device ecoflow.GeneralInf
 			if existing, exists := candidatesByID[record.ID]; exists {
 				existingWatts := existing.record.PmaxSTCW
 				if candidate.score < existing.score || (candidate.score == existing.score && watts <= existingWatts) {
-					continue
+					if candidate.score < existing.score || watts < existingWatts {
+						continue
+					}
+					if math.Abs(watts-existingWatts) <= 1 && candidate.record.ModuleEfficiencyPct <= existing.record.ModuleEfficiencyPct {
+						continue
+					}
 				}
 			}
 			candidatesByID[record.ID] = candidate
@@ -404,6 +460,9 @@ func topPanelCandidatesForChannel(db *solarPanelIndex, device ecoflow.GeneralInf
 		}
 		if out[i].record.PmaxSTCW != out[j].record.PmaxSTCW {
 			return out[i].record.PmaxSTCW > out[j].record.PmaxSTCW
+		}
+		if out[i].record.ModuleEfficiencyPct != out[j].record.ModuleEfficiencyPct {
+			return out[i].record.ModuleEfficiencyPct > out[j].record.ModuleEfficiencyPct
 		}
 		return out[i].record.ID < out[j].record.ID
 	})
@@ -424,16 +483,19 @@ func assignPanelDBCandidatesToSnapshot(snapshot *energySnapshot, channel string,
 			continue
 		}
 		converted = append(converted, panelDBCandidate{
-			Label:      label,
-			Status:     strings.TrimSpace(candidate.status),
-			PanelWatts: candidate.record.PmaxSTCW,
-			VocV:       candidate.record.VocV,
-			VmpV:       candidate.record.VmpV,
-			ImpA:       candidate.record.ImpA,
-			IscA:       candidate.record.IscA,
-			MinSeries:  candidate.minSeries,
-			MaxSeries:  candidate.maxSeries,
-			Bifacial:   panelRecordIsBifacial(candidate.record),
+			Label:               label,
+			Status:              strings.TrimSpace(candidate.status),
+			PurchaseLink:        strings.TrimSpace(candidate.record.PurchaseLink),
+			PanelWatts:          candidate.record.PmaxSTCW,
+			VocV:                candidate.record.VocV,
+			VmpV:                candidate.record.VmpV,
+			ImpA:                candidate.record.ImpA,
+			IscA:                candidate.record.IscA,
+			ModuleEfficiencyPct: candidate.record.ModuleEfficiencyPct,
+			ModuleEfficiencySrc: candidate.record.ModuleEfficiencySrc,
+			MinSeries:           candidate.minSeries,
+			MaxSeries:           candidate.maxSeries,
+			Bifacial:            panelRecordIsBifacial(candidate.record),
 		})
 	}
 	switch strings.ToLower(strings.TrimSpace(channel)) {

@@ -129,3 +129,35 @@ go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile dpu -can
      - `New` (device-specific), then `Generic`, then `MPPT`.
    - Verify source icon logic during hybrid charging (AC + solar) updates correctly.
    - Run full tests (`go test ./...`) before commit.
+
+## Solar Panel DB Workflow (including Purchase Links)
+Use this when panel metadata/schema changes (for example new fields like `purchase_link`).
+
+1. Treat panel DB updates as end-to-end schema changes:
+   - importer (`cmd/ecoflow-panel-db-import`),
+   - compact index (`data/solar_panels/solar_panel_specs_v13.index.json`),
+   - runtime loader + snapshot mapping (`cmd/ecoflow-mqtt-sub/panel_db.go`, `main.go`),
+   - recommendation structs (`cmd/ecoflow-mqtt-sub/viewmodel.go`),
+   - tests and docs.
+
+2. For panel purchase links, use this source priority:
+   1) explicit CSV `Purchase_link`,
+   2) curated override map (`data/solar_panels/panel_purchase_links_v13.json`),
+   3) deterministic domain-aware fallback search URL.
+
+3. Keep regeneration reproducible:
+   - run `./scripts/regenerate_solar_panel_db.sh`,
+   - ensure script passes `-link-map` (or `SOLAR_PANEL_LINK_MAP`) to importer.
+
+4. Validate after regeneration:
+   - `go test ./cmd/ecoflow-panel-db-import`
+   - `go test ./cmd/ecoflow-mqtt-sub`
+   - `go test ./...`
+   - `make lint`
+   - verify non-empty link coverage with `jq`.
+
+5. Documentation must be updated in the same branch:
+   - `/docs/how-to/add-solar-panel-to-db.md`,
+   - `/docs/reference/repository-layout.md`,
+   - `/docs/reference/commands.md`,
+   - `/docs/reference/telemetry-model.md` when runtime behavior changes.

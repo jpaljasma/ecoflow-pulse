@@ -260,16 +260,19 @@ type packSnapshot struct {
 }
 
 type panelDBCandidate struct {
-	Label      string
-	Status     string
-	PanelWatts float64
-	VocV       float64
-	VmpV       float64
-	ImpA       float64
-	IscA       float64
-	MinSeries  int
-	MaxSeries  int
-	Bifacial   bool
+	Label               string
+	Status              string
+	PurchaseLink        string
+	PanelWatts          float64
+	VocV                float64
+	VmpV                float64
+	ImpA                float64
+	IscA                float64
+	ModuleEfficiencyPct float64
+	ModuleEfficiencySrc string
+	MinSeries           int
+	MaxSeries           int
+	Bifacial            bool
 }
 
 type energySnapshot struct {
@@ -334,6 +337,9 @@ type energySnapshot struct {
 	HasMaxChargeSOC  bool
 	MinDischargeSOC  float64
 	HasMinDischarge  bool
+	BackupReserveSOC float64
+	HasBackupReserve bool
+	backupReservePri uint8
 
 	RemainTimeRaw          int64
 	HasRemainTime          bool
@@ -436,10 +442,16 @@ type energySnapshot struct {
 	HasPVLowBestPanelImpA    bool
 	PVLowBestPanelIscA       float64
 	HasPVLowBestPanelIscA    bool
+	PVLowBestPanelEffPct     float64
+	HasPVLowBestPanelEffPct  bool
 	PVLowBestPanelMaxSeries  int
 	HasPVLowBestPanelSeries  bool
 	PVLowBestPanelBifacial   bool
 	HasPVLowBestPanelType    bool
+	PVLowBestPanelEffSource  string
+	HasPVLowBestPanelEffSrc  bool
+	PVLowBestPanelLink       string
+	HasPVLowBestPanelLink    bool
 	PVLowAltPanelLabel       string
 	HasPVLowAltPanelLabel    bool
 	PVLowAltPanelWatts       float64
@@ -452,10 +464,16 @@ type energySnapshot struct {
 	HasPVLowAltPanelImpA     bool
 	PVLowAltPanelIscA        float64
 	HasPVLowAltPanelIscA     bool
+	PVLowAltPanelEffPct      float64
+	HasPVLowAltPanelEffPct   bool
 	PVLowAltPanelMaxSeries   int
 	HasPVLowAltPanelSeries   bool
 	PVLowAltPanelBifacial    bool
 	HasPVLowAltPanelType     bool
+	PVLowAltPanelEffSource   string
+	HasPVLowAltPanelEffSrc   bool
+	PVLowAltPanelLink        string
+	HasPVLowAltPanelLink     bool
 	PVHighBestPanelLabel     string
 	HasPVHighBestPanelLabel  bool
 	PVHighBestPanelWatts     float64
@@ -468,10 +486,16 @@ type energySnapshot struct {
 	HasPVHighBestPanelImpA   bool
 	PVHighBestPanelIscA      float64
 	HasPVHighBestPanelIscA   bool
+	PVHighBestPanelEffPct    float64
+	HasPVHighBestPanelEffPct bool
 	PVHighBestPanelMaxSeries int
 	HasPVHighBestPanelSeries bool
 	PVHighBestPanelBifacial  bool
 	HasPVHighBestPanelType   bool
+	PVHighBestPanelEffSource string
+	HasPVHighBestPanelEffSrc bool
+	PVHighBestPanelLink      string
+	HasPVHighBestPanelLink   bool
 	PVHighAltPanelLabel      string
 	HasPVHighAltPanelLabel   bool
 	PVHighAltPanelWatts      float64
@@ -484,14 +508,23 @@ type energySnapshot struct {
 	HasPVHighAltPanelImpA    bool
 	PVHighAltPanelIscA       float64
 	HasPVHighAltPanelIscA    bool
+	PVHighAltPanelEffPct     float64
+	HasPVHighAltPanelEffPct  bool
 	PVHighAltPanelMaxSeries  int
 	HasPVHighAltPanelSeries  bool
 	PVHighAltPanelBifacial   bool
 	HasPVHighAltPanelType    bool
+	PVHighAltPanelEffSource  string
+	HasPVHighAltPanelEffSrc  bool
+	PVHighAltPanelLink       string
+	HasPVHighAltPanelLink    bool
 	PVLowDBCandidates        []panelDBCandidate
 	HasPVLowDBCandidates     bool
 	PVHighDBCandidates       []panelDBCandidate
 	HasPVHighDBCandidates    bool
+	solarRecPlanCacheKey     string
+	solarRecPlanCache        []solarRecommendationPortPlanCache
+	hasSolarRecPlanCache     bool
 
 	solarChargingSticky    bool
 	hasSolarChargingSticky bool
@@ -577,6 +610,7 @@ type snapshotDerived struct {
 	ParaLimitValue           string
 	EMSWindowValue           string
 	SocGuardrail             string
+	BackupReserveValue       string
 	EffectiveIn              float64
 	HasEffectiveIn           bool
 	EffectiveOut             float64
@@ -2374,6 +2408,50 @@ func applyDeviceQuotaToSnapshot(snapshot *energySnapshot, quota map[string]strin
 	for key, raw := range quota {
 		parsed[key] = decodeQuotaValue(raw)
 	}
+	if rawMaxSoc, ok := findQuotaValueByCandidates(parsed,
+		"chgMaxSoc",
+		"maxChargeSoc",
+		"cmsMaxChgSoc",
+		"bms_emsStatus.maxChargeSoc",
+		"hs_yj751_bms_ems_status_addr.maxChargeSoc",
+		"hs_yj751_pd_app_set_info_addr.chgMaxSoc",
+		"d_addr.cmsMaxChgSoc",
+	); ok {
+		if soc, ok := numberFromAny(rawMaxSoc); ok && soc >= 0 {
+			snapshot.MaxChargeSOC = soc
+			snapshot.HasMaxChargeSOC = true
+		}
+	}
+	if rawMinSoc, ok := findQuotaValueByCandidates(parsed,
+		"dsgMinSoc",
+		"minDsgSoc",
+		"cmsMinDsgSoc",
+		"bms_emsStatus.minDsgSoc",
+		"hs_yj751_bms_ems_status_addr.minDsgSoc",
+		"hs_yj751_pd_app_set_info_addr.dsgMinSoc",
+		"d_addr.cmsMinDsgSoc",
+	); ok {
+		if soc, ok := numberFromAny(rawMinSoc); ok && soc >= 0 {
+			snapshot.MinDischargeSOC = soc
+			snapshot.HasMinDischarge = true
+		}
+	}
+	if rawBackup, ok := findQuotaValueByCandidates(parsed,
+		"sysBackupSoc",
+		"backupReverseSoc",
+		"bpPowerSoc",
+		"minAcSoc",
+		"hs_yj751_pd_app_set_info_addr.sysBackupSoc",
+		"d_addr.backupReverseSoc",
+		"pd.bpPowerSoc",
+		"pd.minAcSoc",
+		"hs_yj751_pd_appshow_addr.bpPowerSoc",
+		"hs_yj751_pd_appshow_addr.minAcSoc",
+	); ok {
+		if soc, ok := numberFromAny(rawBackup); ok && soc >= 0 {
+			snapshot.setBackupReserveSOC(soc, 1)
+		}
+	}
 
 	seed := map[string]any{}
 	report.MappedSOC = copyNumberFromQuotaCandidates(seed, "soc", parsed,
@@ -2533,6 +2611,39 @@ func applyDeviceQuotaToSnapshot(snapshot *energySnapshot, quota map[string]strin
 	copyNumberFromQuotaCandidates(seed, "cmsMinDsgSoc", parsed,
 		"cmsMinDsgSoc",
 		"d_addr.cmsMinDsgSoc",
+	)
+	copyNumberFromQuotaCandidates(seed, "chgMaxSoc", parsed,
+		"chgMaxSoc",
+		"maxChargeSoc",
+		"hs_yj751_pd_app_set_info_addr.chgMaxSoc",
+		"hs_yj751_bms_slave_addr.1.chgMaxSoc",
+		"hs_yj751_bms_slave_addr_1.chgMaxSoc",
+		"bms_emsStatus.maxChargeSoc",
+		"hs_yj751_bms_ems_status_addr.maxChargeSoc",
+	)
+	copyNumberFromQuotaCandidates(seed, "dsgMinSoc", parsed,
+		"dsgMinSoc",
+		"minDsgSoc",
+		"hs_yj751_pd_app_set_info_addr.dsgMinSoc",
+		"hs_yj751_bms_slave_addr.1.dsgMinSoc",
+		"hs_yj751_bms_slave_addr_1.dsgMinSoc",
+		"bms_emsStatus.minDsgSoc",
+		"hs_yj751_bms_ems_status_addr.minDsgSoc",
+	)
+	copyNumberFromQuotaCandidates(seed, "sysBackupSoc", parsed,
+		"sysBackupSoc",
+		"hs_yj751_pd_app_set_info_addr.sysBackupSoc",
+		"d_addr.backupReverseSoc",
+	)
+	copyNumberFromQuotaCandidates(seed, "bpPowerSoc", parsed,
+		"bpPowerSoc",
+		"pd.bpPowerSoc",
+		"hs_yj751_pd_appshow_addr.bpPowerSoc",
+	)
+	copyNumberFromQuotaCandidates(seed, "minAcSoc", parsed,
+		"minAcSoc",
+		"pd.minAcSoc",
+		"hs_yj751_pd_appshow_addr.minAcSoc",
 	)
 	copyNumberFromQuotaCandidates(seed, "acOutFreq", parsed,
 		"acOutFreq",
@@ -3566,6 +3677,17 @@ func parseFloatArrayFromAny(value any) ([]float64, bool) {
 	}
 }
 
+func (s *energySnapshot) setBackupReserveSOC(value float64, priority uint8) {
+	if s == nil || value < 0 {
+		return
+	}
+	if !s.HasBackupReserve || priority >= s.backupReservePri {
+		s.BackupReserveSOC = value
+		s.HasBackupReserve = true
+		s.backupReservePri = priority
+	}
+}
+
 func (s *energySnapshot) Update(
 	envelope telemetryEnvelope,
 	quota map[string]any,
@@ -3749,10 +3871,10 @@ func (s *energySnapshot) Update(
 	hasFanLevelInQuota := false
 
 	for key, value := range quota {
-		if strings.Contains(key, ".") {
-			continue
+		lower := strings.ToLower(strings.TrimSpace(key))
+		if dot := strings.LastIndex(lower, "."); dot >= 0 && dot+1 < len(lower) {
+			lower = lower[dot+1:]
 		}
-		lower := strings.ToLower(key)
 		switch lower {
 		case "soc":
 			if !isPDStatusEnvelope(envelope) && !strings.EqualFold(envelope.TypeCode, "dAddr") {
@@ -3949,10 +4071,46 @@ func (s *energySnapshot) Update(
 				s.MaxChargeSOC = soc
 				s.HasMaxChargeSOC = true
 			}
+		case "chgmaxsoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.MaxChargeSOC = soc
+				s.HasMaxChargeSOC = true
+			}
+		case "maxchargesoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.MaxChargeSOC = soc
+				s.HasMaxChargeSOC = true
+			}
 		case "cmsmindsgsoc":
 			if soc, ok := numberFromAny(value); ok && soc >= 0 {
 				s.MinDischargeSOC = soc
 				s.HasMinDischarge = true
+			}
+		case "dsgminsoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.MinDischargeSOC = soc
+				s.HasMinDischarge = true
+			}
+		case "mindsgsoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.MinDischargeSOC = soc
+				s.HasMinDischarge = true
+			}
+		case "sysbackupsoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.setBackupReserveSOC(soc, 3)
+			}
+		case "backupreversesoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.setBackupReserveSOC(soc, 3)
+			}
+		case "bppowersoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.setBackupReserveSOC(soc, 2)
+			}
+		case "minacsoc":
+			if soc, ok := numberFromAny(value); ok && soc >= 0 {
+				s.setBackupReserveSOC(soc, 1)
 			}
 		case "emsparavolmin":
 			if volts, ok := numberFromAny(value); ok && volts > 0 {
@@ -4206,10 +4364,18 @@ func (s *energySnapshot) Update(
 		if minSoc, ok := firstNumberFromKeys(quota, "dsgMinSoc", envelope.Addr+".dsgMinSoc"); ok && minSoc >= 0 {
 			pack.MinSOC = minSoc
 			pack.HasMinSOC = true
+			if !s.HasMinDischarge || minSoc < s.MinDischargeSOC {
+				s.MinDischargeSOC = minSoc
+				s.HasMinDischarge = true
+			}
 		}
 		if maxSoc, ok := firstNumberFromKeys(quota, "chgMaxSoc", envelope.Addr+".chgMaxSoc"); ok && maxSoc >= 0 {
 			pack.MaxSOC = maxSoc
 			pack.HasMaxSOC = true
+			if !s.HasMaxChargeSOC || maxSoc > s.MaxChargeSOC {
+				s.MaxChargeSOC = maxSoc
+				s.HasMaxChargeSOC = true
+			}
 		}
 		if diffSoc, ok := firstNumberFromKeys(quota, "bpDiffSoc", envelope.Addr+".bpDiffSoc", "diffSoc", envelope.Addr+".diffSoc"); ok {
 			pack.DiffSOC = diffSoc
@@ -4575,16 +4741,45 @@ func (s *energySnapshot) derived() snapshotDerived {
 		derived.EMSWindowValue = minV + " .. " + maxV
 	}
 	derived.SocGuardrail = "n/a"
-	if s.HasMinDischarge || s.HasMaxChargeSOC {
+	minGuardrailSOC, hasMinGuardrailSOC := 0.0, false
+	maxGuardrailSOC, hasMaxGuardrailSOC := 0.0, false
+	if s.HasMinDischarge {
+		minGuardrailSOC = s.MinDischargeSOC
+		hasMinGuardrailSOC = true
+	}
+	if s.HasMaxChargeSOC {
+		maxGuardrailSOC = s.MaxChargeSOC
+		hasMaxGuardrailSOC = true
+	}
+	if !hasMinGuardrailSOC || !hasMaxGuardrailSOC {
+		for _, pack := range s.Packs {
+			if !hasMinGuardrailSOC && pack.HasMinSOC {
+				minGuardrailSOC = pack.MinSOC
+				hasMinGuardrailSOC = true
+			}
+			if !hasMaxGuardrailSOC && pack.HasMaxSOC {
+				maxGuardrailSOC = pack.MaxSOC
+				hasMaxGuardrailSOC = true
+			}
+			if hasMinGuardrailSOC && hasMaxGuardrailSOC {
+				break
+			}
+		}
+	}
+	if hasMinGuardrailSOC || hasMaxGuardrailSOC {
 		minSoc := "n/a"
 		maxSoc := "n/a"
-		if s.HasMinDischarge {
-			minSoc = fmt.Sprintf("%.0f%%", s.MinDischargeSOC)
+		if hasMinGuardrailSOC {
+			minSoc = fmt.Sprintf("%.0f%%", minGuardrailSOC)
 		}
-		if s.HasMaxChargeSOC {
-			maxSoc = fmt.Sprintf("%.0f%%", s.MaxChargeSOC)
+		if hasMaxGuardrailSOC {
+			maxSoc = fmt.Sprintf("%.0f%%", maxGuardrailSOC)
 		}
 		derived.SocGuardrail = minSoc + " .. " + maxSoc
+	}
+	derived.BackupReserveValue = "n/a"
+	if s.HasBackupReserve {
+		derived.BackupReserveValue = fmt.Sprintf("%.0f%%", s.BackupReserveSOC)
 	}
 
 	flow := s.batteryFlowForDisplay(

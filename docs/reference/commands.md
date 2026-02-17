@@ -19,6 +19,12 @@ go run ./cmd/ecoflow-panel-select-train
 ./scripts/train_panel_select_model.sh
 ```
 
+Optional link map override for panel DB regeneration:
+
+```bash
+SOLAR_PANEL_LINK_MAP=data/solar_panels/panel_purchase_links_v13.json ./scripts/regenerate_solar_panel_db.sh
+```
+
 ## Make Targets
 
 ```bash

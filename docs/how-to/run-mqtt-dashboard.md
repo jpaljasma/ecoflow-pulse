@@ -25,6 +25,11 @@ go run ./cmd/ecoflow-mqtt-sub
 - renders dashboard output through an asynchronous UI writer queue (drop-oldest when full),
 - persists minute history and training CSV through asynchronous bounded writer queues,
 - runs panel detection on a dedicated worker goroutine with bounded input/output queues (drop-oldest when full),
+  - adaptive panel prediction cadence per port:
+    - low/collecting confidence: predict every 3rd sample,
+    - medium confidence: every 5th sample,
+    - high confidence: every 10th sample,
+    while tracker windows still ingest every sample,
   - continuously renders:
   - summary values (SOC, AC in, solar generated, out, net, state, updated),
   - detailed channel and battery tables,
@@ -52,6 +57,10 @@ go run ./cmd/ecoflow-mqtt-sub
     - alternate recommendations prefer different panel models first; same-model
       alternates are only used when clipping behavior materially differs,
     - battery charge ETA impact (`#1` and `#2`) under sunny-condition capacity assumptions,
+    - best-upgrade-path summary now evaluates mixed per-port combinations
+      (`add`, `upgrade #1`, `upgrade #2`) and picks the fastest valid total ETA,
+    - recommendation plan selection is cached and only recomputed when detected
+      panel signatures change (setup/count/nominal),
     - conservative bifacial ETA uplift (+15% ETA-effective PV watts) when the
       detected/recommended panel is bifacial,
     - all-ports combined ETA impact summary rows (spanning PV columns),

@@ -608,9 +608,11 @@ func TestRenderDashboardShowsSolarRecommendations(t *testing.T) {
 		"| Charge ETA Impact #2",
 		"| All Ports ETA Impact",
 		"| All Ports ETA Impact #2",
+		"| Best Upgrade Path",
 		"add 2x ~220W panel",
 		"already near port max",
 		"sunny base:",
+		"* Results: Charge time",
 	} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("dashboard missing %q; output=%q", expected, output)
@@ -1054,6 +1056,175 @@ func TestRenderASCIITableSupportsColspanRow(t *testing.T) {
 	}
 }
 
+func TestRenderASCIITableSupportsMultilineColspanRow(t *testing.T) {
+	headers := []string{"Metric", "Solar #1", "Solar #2"}
+	rows := [][]string{
+		{"Best Upgrade Path", makeColspanCell("* Get 3x Panel A\n* Install Panel A into solar [500W]\n* Results: Charge time 120min (~2h 0m) (-1h 0m)")},
+	}
+
+	table := renderASCIITable(headers, rows)
+	for _, expected := range []string{
+		"Best Upgrade Path",
+		"* Get 3x Panel A",
+		"* Install Panel A into solar [500W]",
+		"* Results: Charge time 120min (~2h 0m) (-1h 0m)",
+	} {
+		if !strings.Contains(table, expected) {
+			t.Fatalf("expected multiline colspan content %q, table=%q", expected, table)
+		}
+	}
+}
+
+func TestSolarRecommendationPlanCacheRefreshesOnlyOnDetectedPanelChange(t *testing.T) {
+	snapshot := newEnergySnapshot()
+
+	lowPort := solarRecommendationPort{
+		channel:     "low",
+		label:       "solar [500W]",
+		maxWatts:    500,
+		hasMaxWatts: true,
+		detected: detectedPanelSetup{
+			has:         true,
+			setup:       "2x100W panel A",
+			panelCount:  2,
+			hasCount:    true,
+			nominalW:    200,
+			hasNominalW: true,
+		},
+		upgrade: upgradePanelTarget{
+			hasLabel:    true,
+			label:       "Panel A",
+			hasPanelW:   true,
+			panelWatts:  200,
+			hasPanelVoc: true,
+			panelVocV:   40,
+			hasPanelImp: true,
+			panelImpA:   5,
+		},
+	}
+	highPort := solarRecommendationPort{
+		channel: "high",
+		label:   "solar [500W]",
+	}
+
+	first := loadOrBuildSolarRecommendationPlans(snapshot, []solarRecommendationPort{lowPort, highPort}, false, false)
+	if len(first) == 0 {
+		t.Fatalf("expected cached recommendation plans on first build")
+	}
+	if !strings.Contains(first[0].upgradeText, "Panel A") {
+		t.Fatalf("expected first recommendation to use Panel A, got=%q", first[0].upgradeText)
+	}
+
+	lowPort.upgrade.label = "Panel B"
+	second := loadOrBuildSolarRecommendationPlans(snapshot, []solarRecommendationPort{lowPort, highPort}, false, false)
+	if len(second) == 0 {
+		t.Fatalf("expected cached recommendation plans on second build")
+	}
+	if !strings.Contains(second[0].upgradeText, "Panel A") {
+		t.Fatalf("expected cached recommendation to remain Panel A until detected panel changes, got=%q", second[0].upgradeText)
+	}
+
+	lowPort.detected.setup = "2x100W panel B"
+	third := loadOrBuildSolarRecommendationPlans(snapshot, []solarRecommendationPort{lowPort, highPort}, false, false)
+	if len(third) == 0 {
+		t.Fatalf("expected cached recommendation plans on third build")
+	}
+	if !strings.Contains(third[0].upgradeText, "Panel B") {
+		t.Fatalf("expected recommendation refresh after detected panel change, got=%q", third[0].upgradeText)
+	}
+}
+
+func TestBuildBestUpgradePathSummaryPrefersMixedFastestScenario(t *testing.T) {
+	portRows := []solarPortRecommendationData{
+		{
+			channel:           "low",
+			label:             "solar [1.6kW]",
+			basePotentialETAW: 800,
+			portMaxWatts:      1600,
+			hasPortMaxWatts:   true,
+			addOption: solarRecommendationOption{
+				hasPotential: true,
+				sourceLabel:  "JA Solar bifacial",
+				series:       2,
+				parallel:     1,
+				units:        2,
+				nominalW:     800,
+				potentialW:   1200,
+			},
+			upgradeOption: solarRecommendationOption{
+				hasPotential: true,
+				sourceLabel:  "JA Solar bifacial",
+				series:       4,
+				parallel:     1,
+				units:        4,
+				nominalW:     1600,
+				potentialW:   1600,
+			},
+			upgradeOption2: solarRecommendationOption{
+				hasPotential: true,
+				sourceLabel:  "TW Solar 500W",
+				series:       3,
+				parallel:     1,
+				units:        3,
+				nominalW:     1500,
+				potentialW:   1500,
+			},
+		},
+		{
+			channel:           "high",
+			label:             "solar [4kW]",
+			basePotentialETAW: 0,
+			portMaxWatts:      4000,
+			hasPortMaxWatts:   true,
+			addOption: solarRecommendationOption{
+				hasPotential: true,
+				sourceLabel:  "EcoFlow 400W Rigid",
+				series:       10,
+				parallel:     1,
+				units:        10,
+				nominalW:     4000,
+				potentialW:   4000,
+			},
+			upgradeOption: solarRecommendationOption{
+				hasPotential: true,
+				sourceLabel:  "EcoFlow 400W Rigid",
+				series:       10,
+				parallel:     1,
+				units:        10,
+				nominalW:     4000,
+				potentialW:   4000,
+			},
+			upgradeOption2: solarRecommendationOption{
+				hasPotential: true,
+				sourceLabel:  "Trina Solar TSM-NEG19RC.20 (Vertex N 615W, bifacial)",
+				series:       7,
+				parallel:     1,
+				units:        7,
+				nominalW:     4305,
+				potentialW:   4000,
+				clipped:      true,
+				bifacial:     true,
+			},
+		},
+	}
+
+	got := buildBestUpgradePathSummary(portRows, 10000, true, 800)
+	for _, expected := range []string{
+		"* Get 4x JA Solar bifacial",
+		"* Get 7x Trina Solar TSM-NEG19RC.20 (Vertex N 615W, bifacial)",
+		"* Install JA Solar bifacial (4S1P, ~1.6kW STC) into solar [1.6kW]",
+		"* Install Trina Solar TSM-NEG19RC.20 (Vertex N 615W, bifacial) (7S1P, ~4.3kW STC, clipped to 4kW) into solar [4kW]",
+		"* Results: Charge time",
+	} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("expected best-upgrade summary to contain %q, got=%q", expected, got)
+		}
+	}
+	if strings.Contains(got, "EcoFlow 400W Rigid") {
+		t.Fatalf("expected mixed fastest scenario to avoid slower EcoFlow 400W path, got=%q", got)
+	}
+}
+
 func TestSolarRecommendationETAWUsesShoulderGainWhenClipped(t *testing.T) {
 	potentialW := 500.0
 	nominalW := 800.0
@@ -1086,5 +1257,78 @@ func TestAdjustedPanelLayoutComplexityKeepsOtherPanelsUnchanged(t *testing.T) {
 	got := adjustedPanelLayoutComplexity(base, "JA Solar 400W Bifacial", 4)
 	if math.Abs(got-base) > 0.01 {
 		t.Fatalf("expected unchanged complexity %.2f, got=%.2f", base, got)
+	}
+}
+
+func TestShouldPreferUpgradeOptionUsesEfficiencyAsTieBreaker(t *testing.T) {
+	maxW := 500.0
+	current := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   500,
+		nominalW:     500,
+		effPct:       20.0,
+		hasEffPct:    true,
+		effSrc:       "reported",
+	}
+	candidate := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   500,
+		nominalW:     500,
+		effPct:       24.0,
+		hasEffPct:    true,
+		effSrc:       "reported",
+	}
+	if !shouldPreferUpgradeOption(candidate, current, maxW) {
+		t.Fatalf("expected higher-efficiency candidate to win tie-breaker")
+	}
+}
+
+func TestShouldPreferUpgradeOptionPrefersFewerPanelsWhenNearEqualAndNearMax(t *testing.T) {
+	maxW := 4000.0
+	current := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   4000,
+		nominalW:     4000,
+		clipped:      false,
+		units:        10,
+		series:       10,
+		parallel:     1,
+	}
+	candidate := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   4000,
+		nominalW:     4305,
+		clipped:      true,
+		units:        7,
+		series:       7,
+		parallel:     1,
+	}
+	if !shouldPreferUpgradeOption(candidate, current, maxW) {
+		t.Fatalf("expected fewer-panel clipped candidate to win near-equal near-max tie")
+	}
+}
+
+func TestShouldPreferUpgradeOptionPrefersFewerPanelsWithSmallNearMaxGap(t *testing.T) {
+	maxW := 4000.0
+	current := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   4000,
+		nominalW:     4000,
+		clipped:      false,
+		units:        10,
+		series:       10,
+		parallel:     1,
+	}
+	candidate := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   3800,
+		nominalW:     4305,
+		clipped:      true,
+		units:        7,
+		series:       7,
+		parallel:     1,
+	}
+	if !shouldPreferUpgradeOption(candidate, current, maxW) {
+		t.Fatalf("expected fewer-panel near-max candidate to win with a small effective gap")
 	}
 }

@@ -4,6 +4,102 @@ import (
 	"testing"
 )
 
+func TestExtractModuleEfficiencyFromNotes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		notes string
+		want  float64
+		ok    bool
+	}{
+		{
+			name:  "leading phrase",
+			notes: "Efficiency 25%. IP68.",
+			want:  25,
+			ok:    true,
+		},
+		{
+			name:  "trailing phrase",
+			notes: "EcoFlow rigid module; ~23% efficiency; IP68.",
+			want:  23,
+			ok:    true,
+		},
+		{
+			name:  "up to phrase",
+			notes: "Includes DC5521 + USB-C output; Efficiency up to 25%.",
+			want:  25,
+			ok:    true,
+		},
+		{
+			name:  "no efficiency",
+			notes: "No efficiency value in this note.",
+			want:  0,
+			ok:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := extractModuleEfficiencyFromNotes(tt.notes)
+			if ok != tt.ok {
+				t.Fatalf("ok mismatch: got=%t want=%t", ok, tt.ok)
+			}
+			if !tt.ok {
+				return
+			}
+			if got != tt.want {
+				t.Fatalf("value mismatch: got=%v want=%v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDeriveModuleEfficiency(t *testing.T) {
+	t.Parallel()
+
+	notesKey := normalizeColumn("Notes")
+	effKey := normalizeColumn("Efficiency_pct")
+	record := map[string]any{
+		notesKey: "Efficiency 19.5%.",
+		effKey:   float64(21.3),
+	}
+
+	got, source, ok := deriveModuleEfficiency(record)
+	if !ok {
+		t.Fatalf("expected efficiency to be detected")
+	}
+	if got != 21.3 {
+		t.Fatalf("expected structured value to win: got=%v want=21.3", got)
+	}
+	if source != "reported" {
+		t.Fatalf("expected source=reported, got=%q", source)
+	}
+}
+
+func TestDeriveModuleEfficiencyEstimateFallback(t *testing.T) {
+	t.Parallel()
+
+	typeKey := normalizeColumn("Type")
+	record := map[string]any{
+		typeKey: "Portable bifacial",
+	}
+
+	got, source, ok := deriveModuleEfficiency(record)
+	if !ok {
+		t.Fatalf("expected estimated efficiency")
+	}
+	if got != estimatedBifacialEfficiencyPct {
+		t.Fatalf("expected bifacial estimate %.1f, got=%v", estimatedBifacialEfficiencyPct, got)
+	}
+	if source != "estimated_bifacial" {
+		t.Fatalf("expected source=estimated_bifacial, got=%q", source)
+	}
+}
+
 func TestParseCompatibilityEntry(t *testing.T) {
 	t.Parallel()
 
@@ -88,16 +184,19 @@ func TestBuildPanelIndex(t *testing.T) {
 		RowCount:       1,
 		Records: []map[string]any{
 			{
-				"id":         "ecoflow_220w_bifacial_portable",
-				"source_row": int64(2),
-				brandKey:     "EcoFlow",
-				modelKey:     "220W Bifacial Portable",
-				typeKey:      "Portable bifacial",
-				pmaxKey:      float64(220),
-				vocKey:       float64(24.3),
-				vmpKey:       float64(20.3),
-				impKey:       float64(10.8),
-				iscKey:       float64(11.2),
+				"id":                       "ecoflow_220w_bifacial_portable",
+				"source_row":               int64(2),
+				brandKey:                   "EcoFlow",
+				modelKey:                   "220W Bifacial Portable",
+				typeKey:                    "Portable bifacial",
+				pmaxKey:                    float64(220),
+				vocKey:                     float64(24.3),
+				vmpKey:                     float64(20.3),
+				impKey:                     float64(10.8),
+				iscKey:                     float64(11.2),
+				"module_efficiency_pct":    float64(25.0),
+				"module_efficiency_source": "notes",
+				"purchase_link":            "https://www.ecoflow.com/us/220w-bifacial-portable-solar-panel",
 				"ecoflow_compatibility_entries": []string{
 					"D2/D2 Max 11–60V/15A: YES",
 					"DPU Low 30–150V/15A: NO",
@@ -118,6 +217,15 @@ func TestBuildPanelIndex(t *testing.T) {
 	if panel.Brand != "EcoFlow" || panel.Model != "220W Bifacial Portable" {
 		t.Fatalf("unexpected panel identity: brand=%q model=%q", panel.Brand, panel.Model)
 	}
+	if panel.ModuleEfficiencyPct != 25.0 {
+		t.Fatalf("module efficiency mismatch: got=%v want=25.0", panel.ModuleEfficiencyPct)
+	}
+	if panel.ModuleEfficiencySrc != "notes" {
+		t.Fatalf("module efficiency source mismatch: got=%q want=notes", panel.ModuleEfficiencySrc)
+	}
+	if panel.PurchaseLink != "https://www.ecoflow.com/us/220w-bifacial-portable-solar-panel" {
+		t.Fatalf("purchase link mismatch: got=%q", panel.PurchaseLink)
+	}
 	if len(panel.CompatibilityTags) != 2 {
 		t.Fatalf("compatibility tags mismatch: got=%v", panel.CompatibilityTags)
 	}
@@ -132,5 +240,34 @@ func TestBuildPanelIndex(t *testing.T) {
 	}
 	if got := len(index.ByDeviceTag["dpu_low"]); got != 1 {
 		t.Fatalf("device index mismatch for dpu_low: got=%d", got)
+	}
+}
+
+func TestDerivePurchaseLink(t *testing.T) {
+	t.Parallel()
+
+	record := map[string]any{
+		"id":                              "ecoflow_220w_bifacial_portable_solar_panel",
+		normalizeColumn("Brand"):          "EcoFlow",
+		normalizeColumn("Model"):          "220W Bifacial Portable Solar Panel",
+		normalizeColumn("Primary_source"): "EcoFlow US product page",
+	}
+	link, source := derivePurchaseLink(record, nil)
+	if link == "" {
+		t.Fatalf("expected non-empty ecoflow purchase link")
+	}
+	if source == "" {
+		t.Fatalf("expected non-empty purchase link source")
+	}
+
+	override := map[string]string{
+		"ecoflow_220w_bifacial_portable_solar_panel": "https://example.com/panel",
+	}
+	overrideLink, overrideSource := derivePurchaseLink(record, override)
+	if overrideLink != "https://example.com/panel" {
+		t.Fatalf("override link mismatch: got=%q want=%q", overrideLink, "https://example.com/panel")
+	}
+	if overrideSource != "link_map" {
+		t.Fatalf("override source mismatch: got=%q want=link_map", overrideSource)
 	}
 }
