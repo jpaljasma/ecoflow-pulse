@@ -29,6 +29,17 @@ Always use a branch -> pull request -> merge workflow.
 8. PR creation workflow is mandatory: push branch, run `gh pr create`, then verify with `gh pr view <number> --json url,title,body`.
 9. If PR creation fails due to branch/rules ambiguity, push to a fresh `codex/*` branch and retry PR creation there.
 
+## Security Review Feedback Rules
+1. Always check PR inline review comments and code-scanning findings before merge.
+2. If `gh pr view --comments` is empty but feedback is expected, fetch inline comments via:
+   - `gh api repos/<owner>/<repo>/pulls/<pr-number>/comments`
+3. Treat code-scanning/Copilot security findings as mandatory fixes unless explicitly waived by a maintainer.
+4. For numeric conversions, never narrow `int64/float64` to `int` without explicit bounds checks.
+5. After fixing review findings:
+   - rerun relevant tests and lint,
+   - push the fix commit to the same PR branch,
+   - update the PR body with a brief note that feedback was addressed.
+
 ## Documentation Hygiene Rules
 1. Before committing code changes, update developer documentation under `docs/` if any runtime behavior, architecture, telemetry mapping, UI behavior, or configuration changed.
 2. Keep the root `README.md` and `docs/README.md` links/navigation accurate when docs structure or key capabilities change.

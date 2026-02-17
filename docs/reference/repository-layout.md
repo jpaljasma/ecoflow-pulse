@@ -4,16 +4,23 @@ Top-level structure:
 
 - `cmd/`
   - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
+  - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
+  - `ecoflow-panel-select-train`: panel selection model training + replay.
   - `ecoflow-smoke`: smoke checks against EcoFlow API.
   - `ecoflow-server`: API server entrypoint.
 - `pkg/`
   - `ecoflow`: core API client and signing.
   - `ecoflowmqtt`: MQTT subscriber primitives.
+  - `panelselect`: panel selection model, feature tracker, and predictor.
   - `ecoflowserver`: server helpers and middleware.
   - `logger`: structured logging package.
 - `logs/`
   - `mqtt.log`: run log and raw payload stream.
   - `telemetry_history.jsonl`: minute telemetry persistence.
+  - `pv_fingerprint.csv`: generated per-port PV fingerprint features.
+- `data/solar_panels/`
+  - `solar_panel_specs_v13.index.json`: compact panel capabilities index.
+  - `panel_select_model.json`: trained panel selection model artifact.
 - `docs/`: developer documentation in Diataxis layout.
 
 Key dashboard-focused files:

@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "generated_at_utc": "2026-02-17T12:29:17Z",
+  "source_csv": "/Users/jpaljasma/Projects/ecoflow-api-playground/logs/telemetry_training.csv",
+  "classes": [
+    {
+      "id": "d2m_high_4x125w_ecoflow_bifacial_modular",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "4x125W EcoFlow Bifacial Modular",
+      "panel_count": 4,
+      "nominal_total_w": 500,
+      "sample_count": 16733,
+      "device_sns": [
+        "R351ZABAPH331057"
+      ],
+      "centroid": [
+        395.28874,
+        465,
+        39.518,
+        40.716,
+        9.973,
+        0.576286380206777,
+        0.3369389828482639
+      ]
+    },
+    {
+      "id": "d2m_low_ecoflow_220w_bifacial_portable",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EcoFlow 220W Bifacial Portable",
+      "panel_count": 1,
+      "nominal_total_w": 220,
+      "sample_count": 16733,
+      "device_sns": [
+        "R351ZABAPH331057"
+      ],
+      "centroid": [
+        159.789955,
+        188.018436,
+        15.708,
+        16.43,
+        10.242,
+        0.576286380206777,
+        0.3268391800633479
+      ]
+    },
+    {
+      "id": "dpu_low_2x400w_ja_solar_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "2x400W JA Solar bifacial",
+      "panel_count": 2,
+      "nominal_total_w": 800,
+      "sample_count": 3529,
+      "device_sns": [
+        "Y711ZABA9H2P0294"
+      ],
+      "centroid": [
+        683.656509,
+        820.768915,
+        62.303154,
+        65.310585,
+        11.016274,
+        0.8291300651742703,
+        0
+      ]
+    }
+  ],
+  "feature_names": [
+    "median_active_w",
+    "p95_active_w",
+    "median_active_v",
+    "p95_active_v",
+    "median_active_a",
+    "active_ratio",
+    "charging_ratio"
+  ]
+}

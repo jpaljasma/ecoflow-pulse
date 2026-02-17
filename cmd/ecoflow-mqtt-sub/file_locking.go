@@ -25,6 +25,16 @@ type fileAppendSink struct {
 	chunkSize int
 }
 
+type dailyRotatingAppendSink struct {
+	mu          sync.Mutex
+	basePath    string
+	chunkSize   int
+	nowFn       func() time.Time
+	currentDay  string
+	currentPath string
+	sink        *fileAppendSink
+}
+
 func newFileAppendSink(path string, chunkSize int) (*fileAppendSink, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -45,6 +55,119 @@ func newFileAppendSink(path string, chunkSize int) (*fileAppendSink, error) {
 		file:      file,
 		chunkSize: chunkSize,
 	}, nil
+}
+
+func newDailyRotatingAppendSink(path string, chunkSize int) (*dailyRotatingAppendSink, error) {
+	return newDailyRotatingAppendSinkWithClock(path, chunkSize, time.Now)
+}
+
+func newDailyRotatingAppendSinkWithClock(path string, chunkSize int, nowFn func() time.Time) (*dailyRotatingAppendSink, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, errors.New("daily rotating sink path is empty")
+	}
+	if chunkSize <= 0 {
+		chunkSize = defaultAppendChunkBytes
+	}
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	rotating := &dailyRotatingAppendSink{
+		basePath:  path,
+		chunkSize: chunkSize,
+		nowFn:     nowFn,
+	}
+	if err := rotating.rotateIfNeededLocked(); err != nil {
+		return nil, err
+	}
+	return rotating, nil
+}
+
+func (s *dailyRotatingAppendSink) Path() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.currentPath != "" {
+		return s.currentPath
+	}
+	return dailyLogPathForDate(s.basePath, s.currentDate())
+}
+
+func (s *dailyRotatingAppendSink) Close() error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sink == nil {
+		return nil
+	}
+	err := s.sink.Close()
+	s.sink = nil
+	s.currentDay = ""
+	s.currentPath = ""
+	return err
+}
+
+func (s *dailyRotatingAppendSink) WriteChunk(chunk []byte) error {
+	if s == nil || len(chunk) == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.rotateIfNeededLocked(); err != nil {
+		return err
+	}
+	if s.sink == nil {
+		return errors.New("daily rotating sink file is closed")
+	}
+	return s.sink.WriteChunk(chunk)
+}
+
+func (s *dailyRotatingAppendSink) rotateIfNeededLocked() error {
+	day := s.currentDate()
+	if s.sink != nil && s.currentDay == day {
+		return nil
+	}
+	if s.sink != nil {
+		if err := s.sink.Close(); err != nil {
+			return err
+		}
+		s.sink = nil
+	}
+	path := dailyLogPathForDate(s.basePath, day)
+	sink, err := newFileAppendSink(path, s.chunkSize)
+	if err != nil {
+		return err
+	}
+	s.sink = sink
+	s.currentDay = day
+	s.currentPath = path
+	return nil
+}
+
+func (s *dailyRotatingAppendSink) currentDate() string {
+	now := time.Now()
+	if s != nil && s.nowFn != nil {
+		now = s.nowFn()
+	}
+	return now.Format("2006-01-02")
+}
+
+func dailyLogPathForDate(basePath string, day string) string {
+	basePath = strings.TrimSpace(basePath)
+	day = strings.TrimSpace(day)
+	if basePath == "" || day == "" {
+		return basePath
+	}
+	ext := filepath.Ext(basePath)
+	base := strings.TrimSuffix(basePath, ext)
+	if ext == "" {
+		return base + "-" + day
+	}
+	return base + "-" + day + ext
 }
 
 func (s *fileAppendSink) Path() string {
