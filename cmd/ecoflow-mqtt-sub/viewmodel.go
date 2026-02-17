@@ -533,8 +533,8 @@ var (
 )
 
 const bifacialETAConservativeGain = 0.15
-const panelShoulderHoursGain = 0.12
-const panelComplexityPenaltyFactor = 0.008
+const panelShoulderHoursGain = 0.24
+const panelComplexityPenaltyFactor = 0.012
 const ecoflow125ComplexityFactor = 0.5
 const panelEfficiencyBoostFactor = 0.025
 const panelEstimatedEfficiencyWeight = 0.6
@@ -1734,11 +1734,12 @@ func shouldPreferUpgradeOption(candidate solarRecommendationOption, current sola
 	}
 	if candidate.clipped != current.clipped {
 		// When both options are effectively near max and close in energy outcome,
-		// prefer materially simpler wiring even if it clips a little.
+		// prefer materially simpler wiring even if it clips.
 		if nearMaxCandidate && nearMaxCurrent && math.Abs(candidateComplexity-currentComplexity) >= 0.75 {
 			return candidateComplexity < currentComplexity
 		}
-		return !candidate.clipped
+		// Product preference: favor overpaneling/clipping setups for better shoulder-hours capture.
+		return candidate.clipped
 	}
 	if candidate.units > 0 && current.units > 0 && candidate.units != current.units {
 		return candidate.units < current.units
