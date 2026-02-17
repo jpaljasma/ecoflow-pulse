@@ -7,6 +7,36 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/pkg/panelselect"
 )
 
+func TestPanelPredictionThrottleByConfidence(t *testing.T) {
+	t.Parallel()
+
+	if got := panelPredictionThrottle(panelPortResult{hasPrediction: false}); got != panelModelThrottleLow {
+		t.Fatalf("no-prediction throttle mismatch: got=%d want=%d", got, panelModelThrottleLow)
+	}
+	if got := panelPredictionThrottle(panelPortResult{hasPrediction: true, confidence: 0.55}); got != panelModelThrottleLow {
+		t.Fatalf("low-confidence throttle mismatch: got=%d want=%d", got, panelModelThrottleLow)
+	}
+	if got := panelPredictionThrottle(panelPortResult{hasPrediction: true, confidence: 0.62}); got != panelModelThrottleMedium {
+		t.Fatalf("medium-confidence throttle mismatch: got=%d want=%d", got, panelModelThrottleMedium)
+	}
+	if got := panelPredictionThrottle(panelPortResult{hasPrediction: true, confidence: 0.93}); got != panelModelThrottleHigh {
+		t.Fatalf("high-confidence throttle mismatch: got=%d want=%d", got, panelModelThrottleHigh)
+	}
+}
+
+func TestShouldRunPanelPredictionHonorsInterval(t *testing.T) {
+	t.Parallel()
+
+	state := &panelPortRuntimeState{predictEvery: 5}
+	for i := 1; i <= 12; i++ {
+		got := shouldRunPanelPrediction(state)
+		shouldRun := i%5 == 0
+		if got != shouldRun {
+			t.Fatalf("interval gate mismatch at sample=%d: got=%v want=%v", i, got, shouldRun)
+		}
+	}
+}
+
 func TestPanelRuntimeModelObserve(t *testing.T) {
 	t.Parallel()
 

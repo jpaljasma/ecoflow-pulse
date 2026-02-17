@@ -1,6 +1,6 @@
 {
   "source_csv": "/Users/jpaljasma/Downloads/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv",
-  "generated_at_utc": "2026-02-17T16:31:17Z",
+  "generated_at_utc": "2026-02-17T18:36:12Z",
   "row_count": 46,
   "panel_count": 46,
   "by_panel_key": {
@@ -16,6 +16,7 @@
       "isc_a": 13.99,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Aptos+Solar+DNA-144-BF10-550W-DG",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -83,6 +84,7 @@
       "isc_a": 13.89,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Axitec+AC-550MBT%2F144US+%28AXIworldbipremium+XXL+HC+MT+550W+bin%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -150,6 +152,7 @@
       "isc_a": 13.62,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Axitec+AC-580TGB%2F144TS+%28AXIbiperfect+GXXL+TS+580W+bin%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -217,6 +220,7 @@
       "isc_a": 14.55,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Canadian+Solar+CS6.1-54TM-450H+%28TOPHiKu6%2C+All-Black%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -284,6 +288,7 @@
       "isc_a": 13.77,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Canadian+Solar+CS6R-395MS-HL",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -350,6 +355,7 @@
       "isc_a": 14.77,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Canadian+Solar+%28CSI+Solar%29+CS6.1-54TM-465H+%28TOPHiKu6+All-Black%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -417,6 +423,7 @@
       "isc_a": 18.44,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Canadian+Solar+%28CSI+Solar%29+CS7N-695TB-AG+%28TOPBiHiKu7%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -488,6 +495,7 @@
       "isc_a": 6.3,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/100w-flexible-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -554,6 +562,7 @@
       "isc_a": 6.3,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/100w-rigid-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -620,6 +629,7 @@
       "isc_a": 6.5,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/110w-portable-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -686,6 +696,7 @@
       "isc_a": 3.2,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://us.ecoflow.com/products/125w-bifacial-modular-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -752,6 +763,7 @@
       "isc_a": 9.7,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/175w-rigid-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -818,6 +830,7 @@
       "isc_a": 11.2,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/200w-portable-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -884,6 +897,7 @@
       "isc_a": 10.41,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/200w-rigid-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -950,6 +964,7 @@
       "isc_a": 12.4,
       "module_efficiency_pct": 25,
       "module_efficiency_source": "notes",
+      "purchase_link": "https://www.ecoflow.com/us/220w-bifacial-portable-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1016,6 +1031,7 @@
       "isc_a": 11,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/400w-portable-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1082,6 +1098,7 @@
       "isc_a": 13.79,
       "module_efficiency_pct": 23,
       "module_efficiency_source": "notes",
+      "purchase_link": "https://www.ecoflow.com/us/400w-rigid-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1148,6 +1165,7 @@
       "isc_a": 13.1,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/450w-rigid-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1214,6 +1232,7 @@
       "isc_a": 2.06,
       "module_efficiency_pct": 25,
       "module_efficiency_source": "notes",
+      "purchase_link": "https://www.ecoflow.com/us/45w-portable-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1280,6 +1299,7 @@
       "isc_a": 3.5,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/60w-portable-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1346,6 +1366,7 @@
       "isc_a": 9.1,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.ecoflow.com/us/160w-portable-solar-panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1412,6 +1433,7 @@
       "isc_a": 14.06,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=HD+Hyundai+Energy+Solutions+HiS-T640NJ",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1478,6 +1500,7 @@
       "isc_a": 13.91,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=HT72-18X",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1545,6 +1568,7 @@
       "isc_a": 13.99,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=JA+Solar+JAM72D40-595%2FMB-US",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1612,6 +1636,7 @@
       "isc_a": 11.35,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=JKM460M-7RL3-TV",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1678,6 +1703,7 @@
       "isc_a": 11.58,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Maxeon+SPR-MAX6-440",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1744,6 +1770,7 @@
       "isc_a": 14.33,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Phono+Solar+PS590M8GF-24%2FTNH",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1811,6 +1838,7 @@
       "isc_a": 14.13,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://www.renogy.com/search.php?search_query=Renogy+590W+N-Type+Bifacial+%28dual+glass%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1878,6 +1906,7 @@
       "isc_a": 13.89,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.renogy.com/search.php?search_query=Renogy+RSP450DT-120",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1944,6 +1973,7 @@
       "isc_a": 13.7,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://richsolar.com/search?type=product\u0026q=Rich+Solar+MEGA+250+%28RS-M250%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2011,6 +2041,7 @@
       "isc_a": 11.8,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://richsolar.com/search?type=product\u0026q=Rich+Solar+MEGA+335+PRO+%28RS-M335P%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2077,6 +2108,7 @@
       "isc_a": 13.7,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://richsolar.com/search?type=product\u0026q=Rich+Solar+MEGA+400+%28RS-M400%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2143,6 +2175,7 @@
       "isc_a": 13.93,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Runergy+HY-DH144N8-595",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2210,6 +2243,7 @@
       "isc_a": 14.11,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=SRP-440-BTD-BG",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2277,6 +2311,7 @@
       "isc_a": 10.16,
       "module_efficiency_pct": 20,
       "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://shopsolarkits.com/search?type=product\u0026q=200W%20Rigid%20Solar%20Panel",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2343,6 +2378,7 @@
       "isc_a": 13.71,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Silfab+SIL-530+XM+%28HC+Bifacial%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2409,6 +2445,7 @@
       "isc_a": 13.71,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=SolarSpace+SS8-72HD-580N",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2475,6 +2512,7 @@
       "isc_a": 14,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Sunpro+Power+SPDG550-144M10",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2542,6 +2580,7 @@
       "isc_a": 15.92,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Thornova+Solar+TS-BGT66%28620%29-G11",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2613,6 +2652,7 @@
       "isc_a": 10.47,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Trina+Solar+TSM-425NE09RC.05",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2679,6 +2719,7 @@
       "isc_a": 15.83,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Trina+Solar+TSM-NEG19RC.20+%28605W+bin%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2746,6 +2787,7 @@
       "isc_a": 15.34,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=TSM-NEG19RC.20",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2813,6 +2855,7 @@
       "isc_a": 10.64,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Trina+Solar+TSM-NEG9RC.27+%28435W+bin%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2879,6 +2922,7 @@
       "isc_a": 15.89,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=TW+Solar+%28Tongwei%29+500W+N-Type+Bifacial+%28TWMNH-54HD500+family%29",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2946,6 +2990,7 @@
       "isc_a": 13.98,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=VSUN+VSUN595N-144BMH-DG",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -3013,6 +3058,7 @@
       "isc_a": 14.39,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=ZXM7-UHLDD108",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",

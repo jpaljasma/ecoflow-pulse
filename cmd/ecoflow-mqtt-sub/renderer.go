@@ -59,7 +59,7 @@ func renderASCIITable(headers []string, rows [][]string) string {
 	}
 	for _, row := range rows {
 		for i := 0; i < len(headers) && i < len(row); i++ {
-			if cellWidth := displayCellWidth(row[i]); cellWidth > widths[i] {
+			if cellWidth := displayMultilineCellWidth(row[i]); cellWidth > widths[i] {
 				widths[i] = cellWidth
 			}
 		}
@@ -72,8 +72,11 @@ func renderASCIITable(headers []string, rows [][]string) string {
 	builder.WriteByte('\n')
 	builder.WriteString(renderTableBorder(widths))
 	for _, row := range rows {
-		builder.WriteByte('\n')
-		builder.WriteString(renderTableRow(row, widths))
+		rowLines := renderTableRowLines(row, widths)
+		for _, line := range rowLines {
+			builder.WriteByte('\n')
+			builder.WriteString(line)
+		}
 	}
 	builder.WriteByte('\n')
 	builder.WriteString(renderTableBorder(widths))
@@ -91,37 +94,83 @@ func renderTableBorder(widths []int) string {
 }
 
 func renderTableRow(cells []string, widths []int) string {
-	var builder strings.Builder
-	builder.WriteByte('|')
-	for i := 0; i < len(widths); i++ {
-		width := widths[i]
-		cell := ""
-		if i < len(cells) && i >= 0 {
-			if value, ok := decodeColspanCell(cells[i]); ok {
-				mergedWidth := width
-				for j := i + 1; j < len(widths); j++ {
-					mergedWidth += widths[j] + 3
-				}
-				builder.WriteByte(' ')
-				builder.WriteString(value)
-				if pad := mergedWidth - displayCellWidth(value); pad > 0 {
-					builder.WriteString(strings.Repeat(" ", pad))
-				}
-				builder.WriteByte(' ')
-				builder.WriteByte('|')
-				break
-			}
-			cell = cells[i]
-		}
-		builder.WriteByte(' ')
-		builder.WriteString(cell)
-		if pad := width - displayCellWidth(cell); pad > 0 {
-			builder.WriteString(strings.Repeat(" ", pad))
-		}
-		builder.WriteByte(' ')
-		builder.WriteByte('|')
+	lines := renderTableRowLines(cells, widths)
+	if len(lines) == 0 {
+		return ""
 	}
-	return builder.String()
+	return lines[0]
+}
+
+func renderTableRowLines(cells []string, widths []int) []string {
+	maxLines := 1
+	for i := 0; i < len(widths); i++ {
+		if i >= len(cells) {
+			continue
+		}
+		value := cells[i]
+		if decoded, ok := decodeColspanCell(value); ok {
+			if lines := len(strings.Split(decoded, "\n")); lines > maxLines {
+				maxLines = lines
+			}
+			break
+		}
+		if lines := len(strings.Split(value, "\n")); lines > maxLines {
+			maxLines = lines
+		}
+	}
+
+	out := make([]string, 0, maxLines)
+	for lineIdx := 0; lineIdx < maxLines; lineIdx++ {
+		var builder strings.Builder
+		builder.WriteByte('|')
+		for i := 0; i < len(widths); i++ {
+			width := widths[i]
+			cell := ""
+			if i < len(cells) && i >= 0 {
+				if value, ok := decodeColspanCell(cells[i]); ok {
+					mergedWidth := width
+					for j := i + 1; j < len(widths); j++ {
+						mergedWidth += widths[j] + 3
+					}
+					colspanLines := strings.Split(value, "\n")
+					if lineIdx < len(colspanLines) {
+						cell = colspanLines[lineIdx]
+					}
+					builder.WriteByte(' ')
+					builder.WriteString(cell)
+					if pad := mergedWidth - displayCellWidth(cell); pad > 0 {
+						builder.WriteString(strings.Repeat(" ", pad))
+					}
+					builder.WriteByte(' ')
+					builder.WriteByte('|')
+					break
+				}
+				cellLines := strings.Split(cells[i], "\n")
+				if lineIdx < len(cellLines) {
+					cell = cellLines[lineIdx]
+				}
+			}
+			builder.WriteByte(' ')
+			builder.WriteString(cell)
+			if pad := width - displayCellWidth(cell); pad > 0 {
+				builder.WriteString(strings.Repeat(" ", pad))
+			}
+			builder.WriteByte(' ')
+			builder.WriteByte('|')
+		}
+		out = append(out, builder.String())
+	}
+	return out
+}
+
+func displayMultilineCellWidth(value string) int {
+	maxWidth := 0
+	for _, line := range strings.Split(value, "\n") {
+		if width := displayCellWidth(line); width > maxWidth {
+			maxWidth = width
+		}
+	}
+	return maxWidth
 }
 
 func makeColspanCell(value string) string {

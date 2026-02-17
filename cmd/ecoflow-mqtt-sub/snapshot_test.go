@@ -597,6 +597,108 @@ func TestEnergySnapshotMapsSocGuardrailsFromDAddr(t *testing.T) {
 	}
 }
 
+func TestEnergySnapshotMapsSocGuardrailsFromD2MKeys(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	payload := []byte(`{"cmdId":28,"cmdFunc":3,"addr":"hs_yj751_bms_slave_addr_1","params":{"chgMaxSoc":85,"dsgMinSoc":5}}`)
+	envelope, quota, err := parseTelemetryPayload(payload)
+	if err != nil {
+		t.Fatalf("parse d2m bms payload: %v", err)
+	}
+	snapshot.Update(envelope, quota, nil, false, pdStatusSummary{}, false)
+
+	derived := snapshot.derived()
+	if derived.SocGuardrail != "5% .. 85%" {
+		t.Fatalf("d2m soc guardrail mismatch: got=%s want=5%% .. 85%%", derived.SocGuardrail)
+	}
+}
+
+func TestEnergySnapshotMapsSocGuardrailsFromEMSAliases(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	payload := []byte(`{"moduleType":2,"needAck":0,"id":1,"time":1,"params":{"maxChargeSoc":85,"minDsgSoc":5},"version":"1.0","typeCode":"emsStatus"}`)
+	envelope, quota, err := parseTelemetryPayload(payload)
+	if err != nil {
+		t.Fatalf("parse d2m ems payload: %v", err)
+	}
+	snapshot.Update(envelope, quota, nil, false, pdStatusSummary{}, false)
+
+	derived := snapshot.derived()
+	if derived.SocGuardrail != "5% .. 85%" {
+		t.Fatalf("d2m ems alias soc guardrail mismatch: got=%s want=5%% .. 85%%", derived.SocGuardrail)
+	}
+}
+
+func TestEnergySnapshotMapsSocGuardrailsFromDottedQuotaKeys(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	quota := map[string]any{
+		"hs_yj751_pd_app_set_info_addr.chgMaxSoc": 85.0,
+		"hs_yj751_pd_app_set_info_addr.dsgMinSoc": 5.0,
+	}
+	snapshot.Update(telemetryEnvelope{TypeCode: "quotaBootstrap"}, quota, nil, false, pdStatusSummary{}, false)
+
+	derived := snapshot.derived()
+	if derived.SocGuardrail != "5% .. 85%" {
+		t.Fatalf("dotted key soc guardrail mismatch: got=%s want=5%% .. 85%%", derived.SocGuardrail)
+	}
+}
+
+func TestApplyDeviceQuotaToSnapshotSeedsSocGuardrailsFromStartupQuota(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	quota := map[string]string{
+		"hs_yj751_pd_app_set_info_addr.chgMaxSoc": "85",
+		"hs_yj751_pd_app_set_info_addr.dsgMinSoc": "5",
+	}
+
+	applyDeviceQuotaToSnapshot(snapshot, quota)
+	derived := snapshot.derived()
+	if derived.SocGuardrail != "5% .. 85%" {
+		t.Fatalf("startup quota soc guardrail mismatch: got=%s want=5%% .. 85%%", derived.SocGuardrail)
+	}
+}
+
+func TestApplyDeviceQuotaToSnapshotSeedsSocGuardrailsFromEMSAliases(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	quota := map[string]string{
+		"bms_emsStatus.maxChargeSoc": "85",
+		"bms_emsStatus.minDsgSoc":    "5",
+	}
+
+	applyDeviceQuotaToSnapshot(snapshot, quota)
+	derived := snapshot.derived()
+	if derived.SocGuardrail != "5% .. 85%" {
+		t.Fatalf("startup quota ems alias soc guardrail mismatch: got=%s want=5%% .. 85%%", derived.SocGuardrail)
+	}
+}
+
+func TestEnergySnapshotSocGuardrailFallsBackToPackWindow(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	pack := snapshot.ensurePack(1)
+	pack.MinSOC = 5
+	pack.HasMinSOC = true
+	pack.MaxSOC = 85
+	pack.HasMaxSOC = true
+
+	derived := snapshot.derived()
+	if derived.SocGuardrail != "5% .. 85%" {
+		t.Fatalf("pack fallback soc guardrail mismatch: got=%s want=5%% .. 85%%", derived.SocGuardrail)
+	}
+}
+
+func TestEnergySnapshotMapsBackupReserveFromD2M(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	payload := []byte(`{"moduleType":1,"needAck":0,"id":1,"time":1,"params":{"minAcSoc":10,"bpPowerSoc":21},"version":"1.0","typeCode":"pdStatus"}`)
+	envelope, quota, err := parseTelemetryPayload(payload)
+	if err != nil {
+		t.Fatalf("parse d2m pd payload: %v", err)
+	}
+	pd, hasPD := extractPDStatus(quota)
+	snapshot.Update(envelope, quota, nil, false, pd, hasPD)
+
+	derived := snapshot.derived()
+	if derived.BackupReserveValue != "21%" {
+		t.Fatalf("d2m backup reserve mismatch: got=%s want=21%%", derived.BackupReserveValue)
+	}
+}
+
 func TestEnergySnapshotMapsEMSVoltageWindowFromBackend(t *testing.T) {
 	snapshot := newEnergySnapshot()
 	payload := []byte(`{"cmdId":2,"cmdFunc":2,"addr":"hs_yj751_pd_backend_addr","params":{"emsParaVolMin":101292,"emsParaVolMax":104292}}`)

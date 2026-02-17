@@ -40,6 +40,7 @@ type solarPanelRecord struct {
 	IscA                float64                            `json:"isc_a"`
 	ModuleEfficiencyPct float64                            `json:"module_efficiency_pct,omitempty"`
 	ModuleEfficiencySrc string                             `json:"module_efficiency_source,omitempty"`
+	PurchaseLink        string                             `json:"purchase_link,omitempty"`
 	CompatibilityTags   []string                           `json:"compatibility_tags"`
 	Compatibility       map[string]solarPanelCompatSummary `json:"compatibility"`
 }
@@ -186,6 +187,10 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 				snapshot.PVHighBestPanelEffSource = src
 				snapshot.HasPVHighBestPanelEffSrc = true
 			}
+			if link := strings.TrimSpace(best.record.PurchaseLink); link != "" {
+				snapshot.PVHighBestPanelLink = link
+				snapshot.HasPVHighBestPanelLink = true
+			}
 			if best.maxSeries > 0 {
 				snapshot.PVHighBestPanelMaxSeries = best.maxSeries
 				snapshot.HasPVHighBestPanelSeries = true
@@ -225,6 +230,10 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 				if src := strings.TrimSpace(alt.record.ModuleEfficiencySrc); src != "" {
 					snapshot.PVHighAltPanelEffSource = src
 					snapshot.HasPVHighAltPanelEffSrc = true
+				}
+				if link := strings.TrimSpace(alt.record.PurchaseLink); link != "" {
+					snapshot.PVHighAltPanelLink = link
+					snapshot.HasPVHighAltPanelLink = true
 				}
 				if alt.maxSeries > 0 {
 					snapshot.PVHighAltPanelMaxSeries = alt.maxSeries
@@ -267,6 +276,10 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 			snapshot.PVLowBestPanelEffSource = src
 			snapshot.HasPVLowBestPanelEffSrc = true
 		}
+		if link := strings.TrimSpace(best.record.PurchaseLink); link != "" {
+			snapshot.PVLowBestPanelLink = link
+			snapshot.HasPVLowBestPanelLink = true
+		}
 		if best.maxSeries > 0 {
 			snapshot.PVLowBestPanelMaxSeries = best.maxSeries
 			snapshot.HasPVLowBestPanelSeries = true
@@ -306,6 +319,10 @@ func applyPanelDBPortMetadata(snapshot *energySnapshot, db *solarPanelIndex, dev
 			if src := strings.TrimSpace(alt.record.ModuleEfficiencySrc); src != "" {
 				snapshot.PVLowAltPanelEffSource = src
 				snapshot.HasPVLowAltPanelEffSrc = true
+			}
+			if link := strings.TrimSpace(alt.record.PurchaseLink); link != "" {
+				snapshot.PVLowAltPanelLink = link
+				snapshot.HasPVLowAltPanelLink = true
 			}
 			if alt.maxSeries > 0 {
 				snapshot.PVLowAltPanelMaxSeries = alt.maxSeries
@@ -468,6 +485,7 @@ func assignPanelDBCandidatesToSnapshot(snapshot *energySnapshot, channel string,
 		converted = append(converted, panelDBCandidate{
 			Label:               label,
 			Status:              strings.TrimSpace(candidate.status),
+			PurchaseLink:        strings.TrimSpace(candidate.record.PurchaseLink),
 			PanelWatts:          candidate.record.PmaxSTCW,
 			VocV:                candidate.record.VocV,
 			VmpV:                candidate.record.VmpV,

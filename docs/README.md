@@ -18,6 +18,7 @@ This project uses the Diataxis framework for documentation structure.
 - [`how-to/configure-environment.md`](how-to/configure-environment.md)
 - [`how-to/run-mqtt-dashboard.md`](how-to/run-mqtt-dashboard.md)
 - [`how-to/troubleshoot-mqtt-connectivity.md`](how-to/troubleshoot-mqtt-connectivity.md)
+- [`how-to/add-solar-panel-to-db.md`](how-to/add-solar-panel-to-db.md)
 - [`how-to/generate-pv-fingerprints.md`](how-to/generate-pv-fingerprints.md)
 - [`how-to/train-panel-select-model.md`](how-to/train-panel-select-model.md)
 

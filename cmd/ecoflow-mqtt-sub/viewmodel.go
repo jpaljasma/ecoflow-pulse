@@ -143,7 +143,7 @@ func buildDashboardViewModel(
 			"meta",
 			fmt.Sprintf("packs: %s showFlag: %s", derived.BatteryCount, derived.ShowFlagValue),
 			fmt.Sprintf("combo: %s c20: %s para: %s", derived.ComboValue, derived.C20LimitValue, derived.ParaLimitValue),
-			fmt.Sprintf("socWindow: %s", derived.SocGuardrail),
+			fmt.Sprintf("socWindow: %s backup: %s", derived.SocGuardrail, derived.BackupReserveValue),
 			"-",
 			"-",
 		},
@@ -435,6 +435,8 @@ type detectedPanelSetup struct {
 type upgradePanelTarget struct {
 	label        string
 	hasLabel     bool
+	purchaseLink string
+	hasLink      bool
 	status       string
 	sourceKind   string
 	panelWatts   float64
@@ -468,6 +470,7 @@ type solarRecommendationOption struct {
 	hasEffPct    bool
 	effSrc       string
 	sourceLabel  string
+	sourceLink   string
 	sourceKind   string
 	series       int
 	parallel     int
@@ -486,6 +489,42 @@ type solarRecommendationPort struct {
 	upgrade      upgradePanelTarget
 	upgradeAlt   upgradePanelTarget
 	dbCandidates []upgradePanelTarget
+}
+
+type solarRecommendationPortPlanCache struct {
+	channel         string
+	label           string
+	addText         string
+	upgradeText     string
+	upgrade2Text    string
+	addOption       solarRecommendationOption
+	upgradeOption   solarRecommendationOption
+	upgradeOption2  solarRecommendationOption
+	portMaxWatts    float64
+	hasPortMaxWatts bool
+}
+
+type solarPortRecommendationData struct {
+	channel               string
+	label                 string
+	detected              string
+	add                   string
+	upgrade               string
+	upgrade2              string
+	eta                   string
+	eta2                  string
+	basePotentialETAW     float64
+	addPotentialETAW      float64
+	hasAddPotential       bool
+	upgradePotentialETAW  float64
+	hasUpgradePotential   bool
+	upgrade2PotentialETAW float64
+	hasUpgrade2Potential  bool
+	addOption             solarRecommendationOption
+	upgradeOption         solarRecommendationOption
+	upgradeOption2        solarRecommendationOption
+	portMaxWatts          float64
+	hasPortMaxWatts       bool
 }
 
 var (
@@ -563,41 +602,18 @@ func buildSolarRecommendationRows(
 
 	remainingToChargeWh, hasRemainingCharge := estimatedEnergyToChargeTargetWh(snapshot)
 
-	type portRecommendationData struct {
-		label                 string
-		detected              string
-		add                   string
-		upgrade               string
-		upgrade2              string
-		eta                   string
-		eta2                  string
-		basePotentialETAW     float64
-		addPotentialETAW      float64
-		hasAddPotential       bool
-		upgradePotentialETAW  float64
-		hasUpgradePotential   bool
-		upgrade2PotentialETAW float64
-		hasUpgrade2Potential  bool
+	ports := []solarRecommendationPort{lowPort, highPort}
+	portByChannel := map[string]solarRecommendationPort{
+		"low":  lowPort,
+		"high": highPort,
 	}
-
-	portRows := make([]portRecommendationData, 0, 2)
-	for _, port := range []solarRecommendationPort{lowPort, highPort} {
-		includePort := port.hasMaxWatts || port.detected.has || port.upgrade.hasLabel || len(port.dbCandidates) > 0
-		if port.channel == "low" && hasPVLowRaw {
-			includePort = true
-		}
-		if port.channel == "high" && hasPVHighRaw {
-			includePort = true
-		}
-		if !includePort {
+	plans := loadOrBuildSolarRecommendationPlans(snapshot, ports, hasPVLowRaw, hasPVHighRaw)
+	portRows := make([]solarPortRecommendationData, 0, 2)
+	for _, plan := range plans {
+		port, ok := portByChannel[plan.channel]
+		if !ok {
 			continue
 		}
-		peerPort := lowPort
-		if strings.EqualFold(port.channel, "low") {
-			peerPort = highPort
-		}
-		addOption := buildAddPanelsOption(port, peerPort)
-		upgradeOption, upgradeOption2 := selectUpgradeRecommendationPair(port, peerPort)
 		basePortPotential, _, _ := baselineSolarPortPotential(port, false, 0)
 		basePortETAW := basePortPotential
 		if port.channel == "low" {
@@ -606,42 +622,48 @@ func buildSolarRecommendationRows(
 			basePortETAW = baseHighETAW
 		}
 		otherPortsETAW := baseTotalETAW - basePortETAW
-		addTotalETAW := otherPortsETAW + solarRecommendationOptionETAW(addOption, port.maxWatts, port.hasMaxWatts, portDetectedBifacial(port.detected))
-		upgradeTotalETAW := otherPortsETAW + solarRecommendationOptionETAW(upgradeOption, port.maxWatts, port.hasMaxWatts, upgradeOption.bifacial)
-		upgradeTotalETAW2 := otherPortsETAW + solarRecommendationOptionETAW(upgradeOption2, port.maxWatts, port.hasMaxWatts, upgradeOption2.bifacial)
+		addTotalETAW := otherPortsETAW + solarRecommendationOptionETAW(plan.addOption, port.maxWatts, port.hasMaxWatts, portDetectedBifacial(port.detected))
+		upgradeTotalETAW := otherPortsETAW + solarRecommendationOptionETAW(plan.upgradeOption, port.maxWatts, port.hasMaxWatts, plan.upgradeOption.bifacial)
+		upgradeTotalETAW2 := otherPortsETAW + solarRecommendationOptionETAW(plan.upgradeOption2, port.maxWatts, port.hasMaxWatts, plan.upgradeOption2.bifacial)
 		etaImpact := buildSolarETAImpact(
 			remainingToChargeWh,
 			hasRemainingCharge,
 			baseTotalETAW,
 			addTotalETAW,
-			addOption.hasPotential,
+			plan.addOption.hasPotential,
 			upgradeTotalETAW,
-			upgradeOption.hasPotential,
+			plan.upgradeOption.hasPotential,
 		)
 		etaImpact2 := buildSolarETAImpact(
 			remainingToChargeWh,
 			hasRemainingCharge,
 			baseTotalETAW,
 			addTotalETAW,
-			addOption.hasPotential,
+			plan.addOption.hasPotential,
 			upgradeTotalETAW2,
-			upgradeOption2.hasPotential,
+			plan.upgradeOption2.hasPotential,
 		)
-		portRows = append(portRows, portRecommendationData{
+		portRows = append(portRows, solarPortRecommendationData{
+			channel:               port.channel,
 			label:                 port.label,
 			detected:              formatDetectedPanelRecommendation(port.detected, port.maxWatts, port.hasMaxWatts),
-			add:                   addOption.text,
-			upgrade:               upgradeOption.text,
-			upgrade2:              upgradeOption2.text,
+			add:                   plan.addText,
+			upgrade:               plan.upgradeText,
+			upgrade2:              plan.upgrade2Text,
 			eta:                   etaImpact,
 			eta2:                  etaImpact2,
 			basePotentialETAW:     basePortETAW,
-			addPotentialETAW:      solarRecommendationOptionETAW(addOption, port.maxWatts, port.hasMaxWatts, portDetectedBifacial(port.detected)),
-			hasAddPotential:       addOption.hasPotential,
-			upgradePotentialETAW:  solarRecommendationOptionETAW(upgradeOption, port.maxWatts, port.hasMaxWatts, upgradeOption.bifacial),
-			hasUpgradePotential:   upgradeOption.hasPotential,
-			upgrade2PotentialETAW: solarRecommendationOptionETAW(upgradeOption2, port.maxWatts, port.hasMaxWatts, upgradeOption2.bifacial),
-			hasUpgrade2Potential:  upgradeOption2.hasPotential,
+			addPotentialETAW:      solarRecommendationOptionETAW(plan.addOption, port.maxWatts, port.hasMaxWatts, portDetectedBifacial(port.detected)),
+			hasAddPotential:       plan.addOption.hasPotential,
+			upgradePotentialETAW:  solarRecommendationOptionETAW(plan.upgradeOption, port.maxWatts, port.hasMaxWatts, plan.upgradeOption.bifacial),
+			hasUpgradePotential:   plan.upgradeOption.hasPotential,
+			upgrade2PotentialETAW: solarRecommendationOptionETAW(plan.upgradeOption2, port.maxWatts, port.hasMaxWatts, plan.upgradeOption2.bifacial),
+			hasUpgrade2Potential:  plan.upgradeOption2.hasPotential,
+			addOption:             plan.addOption,
+			upgradeOption:         plan.upgradeOption,
+			upgradeOption2:        plan.upgradeOption2,
+			portMaxWatts:          port.maxWatts,
+			hasPortMaxWatts:       port.hasMaxWatts,
 		})
 	}
 
@@ -707,7 +729,7 @@ func buildSolarRecommendationRows(
 	}
 
 	rows := make([][]string, 0, 7)
-	appendMetricRow := func(metric string, valueSelector func(portRecommendationData) string) {
+	appendMetricRow := func(metric string, valueSelector func(port solarPortRecommendationData) string) {
 		row := make([]string, 0, len(portRows)+1)
 		row = append(row, metric)
 		for _, port := range portRows {
@@ -716,12 +738,12 @@ func buildSolarRecommendationRows(
 		rows = append(rows, row)
 	}
 
-	appendMetricRow("Detected", func(port portRecommendationData) string { return port.detected })
-	appendMetricRow("Add Panels", func(port portRecommendationData) string { return port.add })
-	appendMetricRow("Upgrade Panels", func(port portRecommendationData) string { return port.upgrade })
-	appendMetricRow("Upgrade Panels #2", func(port portRecommendationData) string { return port.upgrade2 })
-	appendMetricRow("Charge ETA Impact", func(port portRecommendationData) string { return port.eta })
-	appendMetricRow("Charge ETA Impact #2", func(port portRecommendationData) string { return port.eta2 })
+	appendMetricRow("Detected", func(port solarPortRecommendationData) string { return port.detected })
+	appendMetricRow("Add Panels", func(port solarPortRecommendationData) string { return port.add })
+	appendMetricRow("Upgrade Panels", func(port solarPortRecommendationData) string { return port.upgrade })
+	appendMetricRow("Upgrade Panels #2", func(port solarPortRecommendationData) string { return port.upgrade2 })
+	appendMetricRow("Charge ETA Impact", func(port solarPortRecommendationData) string { return port.eta })
+	appendMetricRow("Charge ETA Impact #2", func(port solarPortRecommendationData) string { return port.eta2 })
 	if includeAllPortsSummary {
 		summaryRow := []string{
 			"All Ports ETA Impact",
@@ -734,7 +756,111 @@ func buildSolarRecommendationRows(
 		}
 		rows = append(rows, summaryRow2)
 	}
+	bestUpgradePath := buildBestUpgradePathSummary(portRows, remainingToChargeWh, hasRemainingCharge, baseTotalETAW)
+	if strings.TrimSpace(bestUpgradePath) != "" {
+		rows = append(rows, []string{
+			"Best Upgrade Path",
+			makeColspanCell(bestUpgradePath),
+		})
+	}
 	return headers, rows
+}
+
+func loadOrBuildSolarRecommendationPlans(
+	snapshot *energySnapshot,
+	ports []solarRecommendationPort,
+	hasPVLowRaw bool,
+	hasPVHighRaw bool,
+) []solarRecommendationPortPlanCache {
+	cacheKey := solarRecommendationPlanCacheKey(ports)
+	if snapshot != nil && snapshot.hasSolarRecPlanCache && snapshot.solarRecPlanCacheKey == cacheKey {
+		return cloneSolarRecommendationPlanCache(snapshot.solarRecPlanCache)
+	}
+
+	portByChannel := make(map[string]solarRecommendationPort, len(ports))
+	for _, port := range ports {
+		portByChannel[port.channel] = port
+	}
+
+	plans := make([]solarRecommendationPortPlanCache, 0, len(ports))
+	for _, port := range ports {
+		includePort := port.hasMaxWatts || port.detected.has || port.upgrade.hasLabel || len(port.dbCandidates) > 0
+		if port.channel == "low" && hasPVLowRaw {
+			includePort = true
+		}
+		if port.channel == "high" && hasPVHighRaw {
+			includePort = true
+		}
+		if !includePort {
+			continue
+		}
+		peerPort := portByChannel["low"]
+		if strings.EqualFold(port.channel, "low") {
+			peerPort = portByChannel["high"]
+		}
+		addOption := buildAddPanelsOption(port, peerPort)
+		upgradeOption, upgradeOption2 := selectUpgradeRecommendationPair(port, peerPort)
+		plans = append(plans, solarRecommendationPortPlanCache{
+			channel:         port.channel,
+			label:           port.label,
+			addText:         addOption.text,
+			upgradeText:     upgradeOption.text,
+			upgrade2Text:    upgradeOption2.text,
+			addOption:       addOption,
+			upgradeOption:   upgradeOption,
+			upgradeOption2:  upgradeOption2,
+			portMaxWatts:    port.maxWatts,
+			hasPortMaxWatts: port.hasMaxWatts,
+		})
+	}
+
+	if snapshot != nil {
+		snapshot.solarRecPlanCacheKey = cacheKey
+		snapshot.solarRecPlanCache = cloneSolarRecommendationPlanCache(plans)
+		snapshot.hasSolarRecPlanCache = true
+	}
+	return plans
+}
+
+func solarRecommendationPlanCacheKey(ports []solarRecommendationPort) string {
+	var builder strings.Builder
+	for _, port := range ports {
+		builder.WriteString(strings.ToLower(strings.TrimSpace(port.channel)))
+		builder.WriteString(":")
+		builder.WriteString(detectedPanelStableSignature(port.detected))
+		builder.WriteString(";")
+	}
+	return builder.String()
+}
+
+func detectedPanelStableSignature(d detectedPanelSetup) string {
+	if !d.has || strings.TrimSpace(d.setup) == "" {
+		return "none"
+	}
+	builder := strings.Builder{}
+	builder.WriteString(strings.ToLower(strings.TrimSpace(d.setup)))
+	builder.WriteString("|")
+	if d.hasCount {
+		builder.WriteString(fmt.Sprintf("c=%d", d.panelCount))
+	} else {
+		builder.WriteString("c=n/a")
+	}
+	builder.WriteString("|")
+	if d.hasNominalW {
+		builder.WriteString(fmt.Sprintf("w=%.1f", d.nominalW))
+	} else {
+		builder.WriteString("w=n/a")
+	}
+	return builder.String()
+}
+
+func cloneSolarRecommendationPlanCache(src []solarRecommendationPortPlanCache) []solarRecommendationPortPlanCache {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]solarRecommendationPortPlanCache, len(src))
+	copy(out, src)
+	return out
 }
 
 func buildSolarCandidateRows(device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) ([]string, [][]string) {
@@ -914,6 +1040,8 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 			out.sourceKind = "metadata_alt"
 			out.label = strings.TrimSpace(snapshot.PVHighAltPanelLabel)
 			out.hasLabel = snapshot.HasPVHighAltPanelLabel && out.label != ""
+			out.purchaseLink = strings.TrimSpace(snapshot.PVHighAltPanelLink)
+			out.hasLink = snapshot.HasPVHighAltPanelLink && out.purchaseLink != ""
 			out.panelWatts = snapshot.PVHighAltPanelWatts
 			out.hasPanelW = snapshot.HasPVHighAltPanelWatts && snapshot.PVHighAltPanelWatts > 0
 			out.panelVocV = snapshot.PVHighAltPanelVocV
@@ -938,6 +1066,8 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 		out.sourceKind = "metadata_best"
 		out.label = strings.TrimSpace(snapshot.PVHighBestPanelLabel)
 		out.hasLabel = snapshot.HasPVHighBestPanelLabel && out.label != ""
+		out.purchaseLink = strings.TrimSpace(snapshot.PVHighBestPanelLink)
+		out.hasLink = snapshot.HasPVHighBestPanelLink && out.purchaseLink != ""
 		out.panelWatts = snapshot.PVHighBestPanelWatts
 		out.hasPanelW = snapshot.HasPVHighBestPanelWatts && snapshot.PVHighBestPanelWatts > 0
 		out.panelVocV = snapshot.PVHighBestPanelVocV
@@ -962,6 +1092,8 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 			out.sourceKind = "metadata_alt"
 			out.label = strings.TrimSpace(snapshot.PVLowAltPanelLabel)
 			out.hasLabel = snapshot.HasPVLowAltPanelLabel && out.label != ""
+			out.purchaseLink = strings.TrimSpace(snapshot.PVLowAltPanelLink)
+			out.hasLink = snapshot.HasPVLowAltPanelLink && out.purchaseLink != ""
 			out.panelWatts = snapshot.PVLowAltPanelWatts
 			out.hasPanelW = snapshot.HasPVLowAltPanelWatts && snapshot.PVLowAltPanelWatts > 0
 			out.panelVocV = snapshot.PVLowAltPanelVocV
@@ -986,6 +1118,8 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 		out.sourceKind = "metadata_best"
 		out.label = strings.TrimSpace(snapshot.PVLowBestPanelLabel)
 		out.hasLabel = snapshot.HasPVLowBestPanelLabel && out.label != ""
+		out.purchaseLink = strings.TrimSpace(snapshot.PVLowBestPanelLink)
+		out.hasLink = snapshot.HasPVLowBestPanelLink && out.purchaseLink != ""
 		out.panelWatts = snapshot.PVLowBestPanelWatts
 		out.hasPanelW = snapshot.HasPVLowBestPanelWatts && snapshot.PVLowBestPanelWatts > 0
 		out.panelVocV = snapshot.PVLowBestPanelVocV
@@ -1041,6 +1175,8 @@ func upgradePanelCandidatesForChannel(snapshot *energySnapshot, channel string) 
 		target := upgradePanelTarget{
 			label:        label,
 			hasLabel:     true,
+			purchaseLink: strings.TrimSpace(candidate.PurchaseLink),
+			hasLink:      strings.TrimSpace(candidate.PurchaseLink) != "",
 			status:       strings.TrimSpace(candidate.Status),
 			sourceKind:   "db",
 			panelWatts:   candidate.PanelWatts,
@@ -1098,7 +1234,13 @@ func buildAddPanelsOption(port solarRecommendationPort, peer solarRecommendation
 	if port.detected.has && port.detected.hasNominalW && port.detected.nominalW > 0 {
 		currentW = math.Min(port.detected.nominalW, port.maxWatts)
 		if currentW >= port.maxWatts*0.96 {
-			return solarRecommendationOption{text: "already near port max", potentialW: currentW, hasPotential: true}
+			return solarRecommendationOption{
+				text:         "already near port max",
+				potentialW:   currentW,
+				hasPotential: true,
+				sourceLabel:  normalizePeerSetupLabel(addSource.setup),
+				units:        0,
+			}
 		}
 	} else if peer.detected.has && peer.detected.hasNominalW && peer.detected.nominalW > 0 {
 		addSource = peer.detected
@@ -1128,6 +1270,7 @@ func buildAddPanelsOption(port solarRecommendationPort, peer solarRecommendation
 			nominalW:     port.maxWatts,
 			potentialW:   port.maxWatts,
 			hasPotential: true,
+			sourceLabel:  normalizePeerSetupLabel(addSource.setup),
 		}
 	}
 
@@ -1157,6 +1300,8 @@ func buildAddPanelsOption(port solarRecommendationPort, peer solarRecommendation
 		nominalW:     projectedNominalW,
 		potentialW:   projectedPotentialW,
 		hasPotential: true,
+		sourceLabel:  normalizePeerSetupLabel(addSource.setup),
+		units:        units,
 	}
 }
 
@@ -1486,6 +1631,7 @@ func buildUpgradePanelsOptionWithExclude(port solarRecommendationPort, target up
 		hasEffPct:    target.hasPanelEff && target.panelEffPct > 0,
 		effSrc:       target.panelEffSrc,
 		sourceLabel:  target.label,
+		sourceLink:   target.purchaseLink,
 		sourceKind:   target.sourceKind,
 		series:       layout.series,
 		parallel:     layout.parallel,
@@ -1543,6 +1689,10 @@ func shouldPreferUpgradeOption(candidate solarRecommendationOption, current sola
 	currentEffective := upgradeOptionEffectiveWatts(current, maxWatts)
 	candidateEffective += recommendationEfficiencyBoostWatts(candidate, maxWatts)
 	currentEffective += recommendationEfficiencyBoostWatts(current, maxWatts)
+	nearMaxCandidate := maxWatts > 0 && candidate.potentialW >= maxWatts*0.95
+	nearMaxCurrent := maxWatts > 0 && current.potentialW >= maxWatts*0.95
+	candidateFewerPanelsNearMax := candidate.units > 0 && current.units > 0 &&
+		candidate.units+2 <= current.units && nearMaxCandidate && nearMaxCurrent
 	candidateComplexity := recommendationOptionComplexity(candidate)
 	currentComplexity := recommendationOptionComplexity(current)
 	complexityPenaltyPerPoint := math.Max(8, maxWatts*panelComplexityPenaltyFactor)
@@ -1554,7 +1704,7 @@ func shouldPreferUpgradeOption(candidate solarRecommendationOption, current sola
 	if candidateEffective > currentEffective+1 {
 		return true
 	}
-	if currentEffective > candidateEffective+1 {
+	if currentEffective > candidateEffective+1 && !candidateFewerPanelsNearMax {
 		return false
 	}
 	closeBand := math.Max(10, maxWatts*0.03)
@@ -1565,7 +1715,29 @@ func shouldPreferUpgradeOption(candidate solarRecommendationOption, current sola
 			return candidateSourceRank > currentSourceRank
 		}
 	}
+	nearEqualBand := math.Max(closeBand, maxWatts*0.04)
+	if candidate.units > 0 && current.units > 0 && candidate.units != current.units {
+		if math.Abs(candidateEffective-currentEffective) <= nearEqualBand {
+			return candidate.units < current.units
+		}
+	}
+	if candidateFewerPanelsNearMax {
+		unitReduction := current.units - candidate.units
+		if unitReduction >= 2 {
+			effectiveGap := currentEffective - candidateEffective
+			// Near MPPT saturation, prefer materially simpler wiring if energy is close.
+			allowedGap := math.Max(20, maxWatts*0.05)
+			if effectiveGap <= allowedGap {
+				return true
+			}
+		}
+	}
 	if candidate.clipped != current.clipped {
+		// When both options are effectively near max and close in energy outcome,
+		// prefer materially simpler wiring even if it clips a little.
+		if nearMaxCandidate && nearMaxCurrent && math.Abs(candidateComplexity-currentComplexity) >= 0.75 {
+			return candidateComplexity < currentComplexity
+		}
 		return !candidate.clipped
 	}
 	if candidate.units > 0 && current.units > 0 && candidate.units != current.units {
@@ -1995,6 +2167,296 @@ func buildSolarETAImpact(
 		upgradeText,
 		formatMinutesDelta(baseMinutes, hasBase, upgradeMinutes, hasUpgradeETA && hasUpgrade),
 	)
+}
+
+type upgradePathSelection struct {
+	channel      string
+	portLabel    string
+	option       solarRecommendationOption
+	hasOption    bool
+	portMaxWatts float64
+	hasPortMaxW  bool
+}
+
+type upgradePathScenario struct {
+	name       string
+	totalWatts float64
+	hasAny     bool
+	minutes    float64
+	hasMinutes bool
+	steps      []upgradePathSelection
+	stepCount  int
+	complexity float64
+}
+
+type upgradePathChoice struct {
+	name          string
+	selection     upgradePathSelection
+	hasOption     bool
+	potentialETAW float64
+	complexity    float64
+}
+
+func buildBestUpgradePathSummary(
+	portRows []solarPortRecommendationData,
+	energyToTargetWh float64,
+	hasEnergyToTarget bool,
+	baseTotalW float64,
+) string {
+	if len(portRows) == 0 || !hasEnergyToTarget || energyToTargetWh <= 0 {
+		return ""
+	}
+	baseMinutes, hasBaseMinutes := estimateSolarChargeMinutes(energyToTargetWh, baseTotalW)
+
+	choicesByPort := make([][]upgradePathChoice, 0, len(portRows))
+	for _, port := range portRows {
+		baseSelection := upgradePathSelection{
+			channel:      port.channel,
+			portLabel:    port.label,
+			hasOption:    false,
+			portMaxWatts: port.portMaxWatts,
+			hasPortMaxW:  port.hasPortMaxWatts,
+		}
+		portChoices := []upgradePathChoice{{
+			name:          "base",
+			selection:     baseSelection,
+			hasOption:     false,
+			potentialETAW: port.basePotentialETAW,
+			complexity:    0,
+		}}
+		appendChoice := func(name string, option solarRecommendationOption) {
+			if !option.hasPotential {
+				return
+			}
+			selection := upgradePathSelection{
+				channel:      port.channel,
+				portLabel:    port.label,
+				option:       option,
+				hasOption:    true,
+				portMaxWatts: port.portMaxWatts,
+				hasPortMaxW:  port.hasPortMaxWatts,
+			}
+			choice := upgradePathChoice{
+				name:          name,
+				selection:     selection,
+				hasOption:     true,
+				potentialETAW: solarRecommendationOptionETAW(option, port.portMaxWatts, port.hasPortMaxWatts, option.bifacial),
+				complexity:    recommendationOptionComplexity(option),
+			}
+			for _, existing := range portChoices {
+				if !existing.hasOption {
+					continue
+				}
+				if sameUpgradePathOption(existing.selection.option, option) {
+					return
+				}
+			}
+			portChoices = append(portChoices, choice)
+		}
+		appendChoice("add", port.addOption)
+		appendChoice("upg1", port.upgradeOption)
+		appendChoice("upg2", port.upgradeOption2)
+		choicesByPort = append(choicesByPort, portChoices)
+	}
+
+	var (
+		bestScenario upgradePathScenario
+		hasBest      bool
+		activeSteps  = make([]upgradePathSelection, len(portRows))
+		activeKinds  = make([]string, len(portRows))
+	)
+	var visit func(
+		index int,
+		totalWatts float64,
+		hasAny bool,
+		stepCount int,
+		complexity float64,
+	)
+	visit = func(
+		index int,
+		totalWatts float64,
+		hasAny bool,
+		stepCount int,
+		complexity float64,
+	) {
+		if index >= len(portRows) {
+			if !hasAny {
+				return
+			}
+			minutes, hasMinutes := estimateSolarChargeMinutes(energyToTargetWh, totalWatts)
+			if !hasMinutes {
+				return
+			}
+			candidate := upgradePathScenario{
+				name:       strings.Join(activeKinds, "+"),
+				totalWatts: totalWatts,
+				hasAny:     true,
+				minutes:    minutes,
+				hasMinutes: true,
+				steps:      append([]upgradePathSelection(nil), activeSteps...),
+				stepCount:  stepCount,
+				complexity: complexity,
+			}
+			if !hasBest || shouldPreferUpgradePathScenario(candidate, bestScenario) {
+				bestScenario = candidate
+				hasBest = true
+			}
+			return
+		}
+		for _, choice := range choicesByPort[index] {
+			activeSteps[index] = choice.selection
+			activeKinds[index] = choice.name
+			nextHasAny := hasAny || choice.hasOption
+			nextStepCount := stepCount
+			nextComplexity := complexity
+			if choice.hasOption {
+				nextStepCount++
+				nextComplexity += choice.complexity
+			}
+			visit(index+1, totalWatts+choice.potentialETAW, nextHasAny, nextStepCount, nextComplexity)
+		}
+	}
+	visit(0, 0, false, 0, 0)
+	if !hasBest {
+		return ""
+	}
+	best := bestScenario
+
+	lines := make([]string, 0, 8)
+	type panelDemand struct {
+		label string
+		units int
+	}
+	demandOrder := make([]string, 0, 4)
+	demandMap := map[string]panelDemand{}
+	for _, step := range best.steps {
+		if !step.hasOption {
+			continue
+		}
+		label := strings.TrimSpace(step.option.sourceLabel)
+		if label == "" {
+			continue
+		}
+		units := step.option.units
+		if units <= 0 {
+			units = 1
+		}
+		key := strings.ToLower(label)
+		existing, exists := demandMap[key]
+		if !exists {
+			demandOrder = append(demandOrder, key)
+			existing = panelDemand{label: label}
+		}
+		existing.units += units
+		demandMap[key] = existing
+	}
+	for _, key := range demandOrder {
+		item := demandMap[key]
+		if item.units <= 0 {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("* Get %dx %s", item.units, item.label))
+	}
+
+	for _, step := range best.steps {
+		if !step.hasOption {
+			continue
+		}
+		installLine := formatUpgradePathInstallLine(step)
+		if installLine == "" {
+			continue
+		}
+		lines = append(lines, "* "+installLine)
+	}
+
+	resultETA := "n/a"
+	if best.hasMinutes {
+		resultETA = formatETAMinutes(best.minutes)
+	}
+	resultDelta := "n/a"
+	if hasBaseMinutes && best.hasMinutes {
+		resultDelta = formatSignedMinutesDelta(best.minutes - baseMinutes)
+	}
+	lines = append(lines, fmt.Sprintf("* Results: Charge time %s (%s)", resultETA, resultDelta))
+	return strings.Join(lines, "\n")
+}
+
+func shouldPreferUpgradePathScenario(candidate, current upgradePathScenario) bool {
+	if !candidate.hasMinutes {
+		return false
+	}
+	if !current.hasMinutes {
+		return true
+	}
+	if math.Abs(candidate.minutes-current.minutes) > 0.5 {
+		return candidate.minutes < current.minutes
+	}
+	if candidate.stepCount != current.stepCount {
+		return candidate.stepCount < current.stepCount
+	}
+	if math.Abs(candidate.complexity-current.complexity) > 0.05 {
+		return candidate.complexity < current.complexity
+	}
+	if math.Abs(candidate.totalWatts-current.totalWatts) > 1 {
+		return candidate.totalWatts > current.totalWatts
+	}
+	return candidate.name < current.name
+}
+
+func sameUpgradePathOption(a, b solarRecommendationOption) bool {
+	if !a.hasPotential || !b.hasPotential {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(a.sourceLabel), strings.TrimSpace(b.sourceLabel)) &&
+		a.series == b.series &&
+		a.parallel == b.parallel &&
+		a.units == b.units {
+		return true
+	}
+	return math.Abs(a.potentialW-b.potentialW) <= 0.5 &&
+		math.Abs(a.nominalW-b.nominalW) <= 0.5 &&
+		a.clipped == b.clipped
+}
+
+func formatUpgradePathInstallLine(step upgradePathSelection) string {
+	panelLabel := strings.TrimSpace(step.option.sourceLabel)
+	if panelLabel == "" {
+		if strings.TrimSpace(step.option.text) == "" {
+			return ""
+		}
+		return step.option.text
+	}
+	target := strings.TrimSpace(step.portLabel)
+	if step.hasPortMaxW && step.portMaxWatts > 0 {
+		target = fmt.Sprintf("solar [%s]", formatPVCapacityWatts(step.portMaxWatts))
+	}
+	if step.option.series > 0 && step.option.parallel > 0 && step.option.nominalW > 0 {
+		details := fmt.Sprintf("%s, ~%s STC", formatSeriesParallel(step.option.series, step.option.parallel), formatPVCapacityWatts(step.option.nominalW))
+		if step.option.clipped && step.hasPortMaxW && step.portMaxWatts > 0 {
+			details += fmt.Sprintf(", clipped to %s", formatPVCapacityWatts(step.portMaxWatts))
+		}
+		return fmt.Sprintf("Install %s (%s) into %s", panelLabel, details, target)
+	}
+	return fmt.Sprintf("Install %s into %s", panelLabel, target)
+}
+
+func formatSignedMinutesDelta(deltaMinutes float64) string {
+	if math.IsNaN(deltaMinutes) || math.IsInf(deltaMinutes, 0) {
+		return "n/a"
+	}
+	rounded := int64(math.Round(deltaMinutes))
+	if rounded == 0 {
+		return "≈0"
+	}
+	sign := "+"
+	if rounded < 0 {
+		sign = "-"
+		rounded = -rounded
+	}
+	if rounded < 1 {
+		rounded = 1
+	}
+	return sign + formatMinutesHumanETA(rounded)
 }
 
 func formatMinutesDelta(baseMinutes float64, hasBase bool, candidateMinutes float64, hasCandidate bool) string {

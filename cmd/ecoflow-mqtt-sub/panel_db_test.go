@@ -111,6 +111,7 @@ func TestApplyPanelDBPortMetadata(t *testing.T) {
       "brand": "EcoFlow",
       "model": "220W Bifacial Portable",
       "pmax_stc_w": 220,
+      "purchase_link": "https://www.ecoflow.com/us/220w-bifacial-portable-solar-panel",
       "compatibility": {"d2_d2_max":{"status":"compatible","max_series":2}}
     },
     "ja_400": {
@@ -175,6 +176,12 @@ func TestApplyPanelDBPortMetadata(t *testing.T) {
 	}
 	if got := d2mSnapshot.PVLowDBCandidates[0].Label; got == "" {
 		t.Fatalf("expected non-empty d2m low candidate label")
+	}
+	if got := d2mSnapshot.PVLowDBCandidates[0].PurchaseLink; got == "" {
+		t.Fatalf("expected non-empty d2m low candidate purchase link")
+	}
+	if !d2mSnapshot.HasPVLowBestPanelLink || d2mSnapshot.PVLowBestPanelLink == "" {
+		t.Fatalf("expected d2m low best panel purchase link to be populated")
 	}
 
 	dpu := ecoflow.GeneralInfoDevice{ProductName: "DELTA Pro Ultra"}
