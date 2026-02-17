@@ -30,6 +30,9 @@ The dashboard snapshot aggregates telemetry into these domains:
   - recommendation ranking applies a complexity score so lower-complexity
     topologies (fewer panels, fewer parallel branches, and less mixed S+P wiring)
     are preferred when energy gain is marginal,
+  - recommendation ranking applies a modest panel-efficiency boost using
+    `module_efficiency_pct`; inferred values (`estimated_*`) are down-weighted
+    relative to `reported`/`notes`,
   - EcoFlow `125W Bifacial Modular` layouts get a reduced complexity weight in
     ranking (1-4P setups are treated as easier to deploy),
   - if upgrade `#1` is clipping, upgrade `#2` is forced to a non-clipping

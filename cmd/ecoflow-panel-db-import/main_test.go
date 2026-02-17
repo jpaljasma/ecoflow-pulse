@@ -58,7 +58,7 @@ func TestExtractModuleEfficiencyFromNotes(t *testing.T) {
 	}
 }
 
-func TestDeriveModuleEfficiencyPct(t *testing.T) {
+func TestDeriveModuleEfficiency(t *testing.T) {
 	t.Parallel()
 
 	notesKey := normalizeColumn("Notes")
@@ -68,12 +68,35 @@ func TestDeriveModuleEfficiencyPct(t *testing.T) {
 		effKey:   float64(21.3),
 	}
 
-	got, ok := deriveModuleEfficiencyPct(record)
+	got, source, ok := deriveModuleEfficiency(record)
 	if !ok {
 		t.Fatalf("expected efficiency to be detected")
 	}
 	if got != 21.3 {
 		t.Fatalf("expected structured value to win: got=%v want=21.3", got)
+	}
+	if source != "reported" {
+		t.Fatalf("expected source=reported, got=%q", source)
+	}
+}
+
+func TestDeriveModuleEfficiencyEstimateFallback(t *testing.T) {
+	t.Parallel()
+
+	typeKey := normalizeColumn("Type")
+	record := map[string]any{
+		typeKey: "Portable bifacial",
+	}
+
+	got, source, ok := deriveModuleEfficiency(record)
+	if !ok {
+		t.Fatalf("expected estimated efficiency")
+	}
+	if got != estimatedBifacialEfficiencyPct {
+		t.Fatalf("expected bifacial estimate %.1f, got=%v", estimatedBifacialEfficiencyPct, got)
+	}
+	if source != "estimated_bifacial" {
+		t.Fatalf("expected source=estimated_bifacial, got=%q", source)
 	}
 }
 
@@ -161,17 +184,18 @@ func TestBuildPanelIndex(t *testing.T) {
 		RowCount:       1,
 		Records: []map[string]any{
 			{
-				"id":                    "ecoflow_220w_bifacial_portable",
-				"source_row":            int64(2),
-				brandKey:                "EcoFlow",
-				modelKey:                "220W Bifacial Portable",
-				typeKey:                 "Portable bifacial",
-				pmaxKey:                 float64(220),
-				vocKey:                  float64(24.3),
-				vmpKey:                  float64(20.3),
-				impKey:                  float64(10.8),
-				iscKey:                  float64(11.2),
-				"module_efficiency_pct": float64(25.0),
+				"id":                       "ecoflow_220w_bifacial_portable",
+				"source_row":               int64(2),
+				brandKey:                   "EcoFlow",
+				modelKey:                   "220W Bifacial Portable",
+				typeKey:                    "Portable bifacial",
+				pmaxKey:                    float64(220),
+				vocKey:                     float64(24.3),
+				vmpKey:                     float64(20.3),
+				impKey:                     float64(10.8),
+				iscKey:                     float64(11.2),
+				"module_efficiency_pct":    float64(25.0),
+				"module_efficiency_source": "notes",
 				"ecoflow_compatibility_entries": []string{
 					"D2/D2 Max 11–60V/15A: YES",
 					"DPU Low 30–150V/15A: NO",
@@ -194,6 +218,9 @@ func TestBuildPanelIndex(t *testing.T) {
 	}
 	if panel.ModuleEfficiencyPct != 25.0 {
 		t.Fatalf("module efficiency mismatch: got=%v want=25.0", panel.ModuleEfficiencyPct)
+	}
+	if panel.ModuleEfficiencySrc != "notes" {
+		t.Fatalf("module efficiency source mismatch: got=%q want=notes", panel.ModuleEfficiencySrc)
 	}
 	if len(panel.CompatibilityTags) != 2 {
 		t.Fatalf("compatibility tags mismatch: got=%v", panel.CompatibilityTags)

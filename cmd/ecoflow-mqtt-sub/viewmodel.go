@@ -447,6 +447,9 @@ type upgradePanelTarget struct {
 	hasPanelImp  bool
 	panelIscA    float64
 	hasPanelIsc  bool
+	panelEffPct  float64
+	hasPanelEff  bool
+	panelEffSrc  string
 	minSeries    int
 	hasMinSeries bool
 	maxSeries    int
@@ -461,6 +464,9 @@ type solarRecommendationOption struct {
 	hasPotential bool
 	clipped      bool
 	bifacial     bool
+	effPct       float64
+	hasEffPct    bool
+	effSrc       string
 	sourceLabel  string
 	sourceKind   string
 	series       int
@@ -491,6 +497,8 @@ const bifacialETAConservativeGain = 0.15
 const panelShoulderHoursGain = 0.12
 const panelComplexityPenaltyFactor = 0.008
 const ecoflow125ComplexityFactor = 0.5
+const panelEfficiencyBoostFactor = 0.025
+const panelEstimatedEfficiencyWeight = 0.6
 
 func buildSolarRecommendationRows(
 	device ecoflow.GeneralInfoDevice,
@@ -916,6 +924,9 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 			out.hasPanelImp = snapshot.HasPVHighAltPanelImpA && snapshot.PVHighAltPanelImpA > 0
 			out.panelIscA = snapshot.PVHighAltPanelIscA
 			out.hasPanelIsc = snapshot.HasPVHighAltPanelIscA && snapshot.PVHighAltPanelIscA > 0
+			out.panelEffPct = snapshot.PVHighAltPanelEffPct
+			out.hasPanelEff = snapshot.HasPVHighAltPanelEffPct && snapshot.PVHighAltPanelEffPct > 0
+			out.panelEffSrc = strings.TrimSpace(snapshot.PVHighAltPanelEffSource)
 			out.maxSeries = snapshot.PVHighAltPanelMaxSeries
 			out.hasMaxSeries = snapshot.HasPVHighAltPanelSeries && snapshot.PVHighAltPanelMaxSeries > 0
 			out.bifacial = snapshot.HasPVHighAltPanelType && snapshot.PVHighAltPanelBifacial
@@ -937,6 +948,9 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 		out.hasPanelImp = snapshot.HasPVHighBestPanelImpA && snapshot.PVHighBestPanelImpA > 0
 		out.panelIscA = snapshot.PVHighBestPanelIscA
 		out.hasPanelIsc = snapshot.HasPVHighBestPanelIscA && snapshot.PVHighBestPanelIscA > 0
+		out.panelEffPct = snapshot.PVHighBestPanelEffPct
+		out.hasPanelEff = snapshot.HasPVHighBestPanelEffPct && snapshot.PVHighBestPanelEffPct > 0
+		out.panelEffSrc = strings.TrimSpace(snapshot.PVHighBestPanelEffSource)
 		out.maxSeries = snapshot.PVHighBestPanelMaxSeries
 		out.hasMaxSeries = snapshot.HasPVHighBestPanelSeries && snapshot.PVHighBestPanelMaxSeries > 0
 		out.bifacial = snapshot.HasPVHighBestPanelType && snapshot.PVHighBestPanelBifacial
@@ -958,6 +972,9 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 			out.hasPanelImp = snapshot.HasPVLowAltPanelImpA && snapshot.PVLowAltPanelImpA > 0
 			out.panelIscA = snapshot.PVLowAltPanelIscA
 			out.hasPanelIsc = snapshot.HasPVLowAltPanelIscA && snapshot.PVLowAltPanelIscA > 0
+			out.panelEffPct = snapshot.PVLowAltPanelEffPct
+			out.hasPanelEff = snapshot.HasPVLowAltPanelEffPct && snapshot.PVLowAltPanelEffPct > 0
+			out.panelEffSrc = strings.TrimSpace(snapshot.PVLowAltPanelEffSource)
 			out.maxSeries = snapshot.PVLowAltPanelMaxSeries
 			out.hasMaxSeries = snapshot.HasPVLowAltPanelSeries && snapshot.PVLowAltPanelMaxSeries > 0
 			out.bifacial = snapshot.HasPVLowAltPanelType && snapshot.PVLowAltPanelBifacial
@@ -979,6 +996,9 @@ func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate 
 		out.hasPanelImp = snapshot.HasPVLowBestPanelImpA && snapshot.PVLowBestPanelImpA > 0
 		out.panelIscA = snapshot.PVLowBestPanelIscA
 		out.hasPanelIsc = snapshot.HasPVLowBestPanelIscA && snapshot.PVLowBestPanelIscA > 0
+		out.panelEffPct = snapshot.PVLowBestPanelEffPct
+		out.hasPanelEff = snapshot.HasPVLowBestPanelEffPct && snapshot.PVLowBestPanelEffPct > 0
+		out.panelEffSrc = strings.TrimSpace(snapshot.PVLowBestPanelEffSource)
 		out.maxSeries = snapshot.PVLowBestPanelMaxSeries
 		out.hasMaxSeries = snapshot.HasPVLowBestPanelSeries && snapshot.PVLowBestPanelMaxSeries > 0
 		out.bifacial = snapshot.HasPVLowBestPanelType && snapshot.PVLowBestPanelBifacial
@@ -1033,6 +1053,9 @@ func upgradePanelCandidatesForChannel(snapshot *energySnapshot, channel string) 
 			hasPanelImp:  candidate.ImpA > 0,
 			panelIscA:    candidate.IscA,
 			hasPanelIsc:  candidate.IscA > 0,
+			panelEffPct:  candidate.ModuleEfficiencyPct,
+			hasPanelEff:  candidate.ModuleEfficiencyPct > 0,
+			panelEffSrc:  strings.TrimSpace(candidate.ModuleEfficiencySrc),
 			minSeries:    candidate.MinSeries,
 			hasMinSeries: candidate.MinSeries > 0,
 			maxSeries:    candidate.MaxSeries,
@@ -1459,6 +1482,9 @@ func buildUpgradePanelsOptionWithExclude(port solarRecommendationPort, target up
 		hasPotential: true,
 		clipped:      layout.clipped,
 		bifacial:     target.bifacial,
+		effPct:       target.panelEffPct,
+		hasEffPct:    target.hasPanelEff && target.panelEffPct > 0,
+		effSrc:       target.panelEffSrc,
 		sourceLabel:  target.label,
 		sourceKind:   target.sourceKind,
 		series:       layout.series,
@@ -1515,6 +1541,8 @@ func shouldPreferUpgradeOption(candidate solarRecommendationOption, current sola
 	}
 	candidateEffective := upgradeOptionEffectiveWatts(candidate, maxWatts)
 	currentEffective := upgradeOptionEffectiveWatts(current, maxWatts)
+	candidateEffective += recommendationEfficiencyBoostWatts(candidate, maxWatts)
+	currentEffective += recommendationEfficiencyBoostWatts(current, maxWatts)
 	candidateComplexity := recommendationOptionComplexity(candidate)
 	currentComplexity := recommendationOptionComplexity(current)
 	complexityPenaltyPerPoint := math.Max(8, maxWatts*panelComplexityPenaltyFactor)
@@ -1573,6 +1601,44 @@ func recommendationSourceRank(sourceKind string) int {
 	default:
 		return 1
 	}
+}
+
+func recommendationEfficiencyBoostWatts(option solarRecommendationOption, maxWatts float64) float64 {
+	if maxWatts <= 0 || !option.hasEffPct || option.effPct <= 0 {
+		return 0
+	}
+	score := normalizedPanelEfficiencyScore(option.effPct, option.bifacial)
+	if score <= 0 {
+		return 0
+	}
+	src := strings.ToLower(strings.TrimSpace(option.effSrc))
+	if strings.HasPrefix(src, "estimated_") {
+		score *= panelEstimatedEfficiencyWeight
+	}
+	return maxWatts * panelEfficiencyBoostFactor * score
+}
+
+func normalizedPanelEfficiencyScore(effPct float64, bifacial bool) float64 {
+	if effPct <= 0 {
+		return 0
+	}
+	baseline := 18.0
+	upper := 22.0
+	if bifacial {
+		baseline = 20.0
+		upper = 25.0
+	}
+	if upper <= baseline {
+		return 0
+	}
+	score := (effPct - baseline) / (upper - baseline)
+	if score < 0 {
+		return 0
+	}
+	if score > 1 {
+		return 1
+	}
+	return score
 }
 
 func upgradeOptionEffectiveWatts(option solarRecommendationOption, maxWatts float64) float64 {

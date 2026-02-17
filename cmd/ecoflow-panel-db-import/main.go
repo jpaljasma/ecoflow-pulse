@@ -31,6 +31,11 @@ var (
 	efficiencyTrailing = regexp.MustCompile(`(?i)([0-9]+(?:\.[0-9]+)?)\s*%\s*efficiency`)
 )
 
+const (
+	estimatedMonofacialEfficiencyPct = 20.0
+	estimatedBifacialEfficiencyPct   = 22.5
+)
+
 type dataset struct {
 	SourceCSV       string            `json:"source_csv"`
 	GeneratedAtUTC  string            `json:"generated_at_utc"`
@@ -75,6 +80,7 @@ type panelIndexEntry struct {
 	ImpA                float64                              `json:"imp_a,omitempty"`
 	IscA                float64                              `json:"isc_a,omitempty"`
 	ModuleEfficiencyPct float64                              `json:"module_efficiency_pct,omitempty"`
+	ModuleEfficiencySrc string                               `json:"module_efficiency_source,omitempty"`
 	CompatibilityTags   []string                             `json:"compatibility_tags"`
 	Compatibility       map[string]panelCompatibilitySummary `json:"compatibility"`
 }
@@ -205,8 +211,9 @@ func importCSV(path string) (*dataset, error) {
 		if typ, ok := record[normalizeColumn("Type")].(string); ok && typ != "" {
 			typeDist[typ]++
 		}
-		if efficiency, ok := deriveModuleEfficiencyPct(record); ok {
+		if efficiency, source, ok := deriveModuleEfficiency(record); ok {
 			record["module_efficiency_pct"] = efficiency
+			record["module_efficiency_source"] = source
 		}
 
 		records = append(records, record)
@@ -282,6 +289,7 @@ func buildPanelIndex(data *dataset) *panelIndex {
 			ImpA:                asFloat64(record[impKey]),
 			IscA:                asFloat64(record[iscKey]),
 			ModuleEfficiencyPct: asFloat64(record["module_efficiency_pct"]),
+			ModuleEfficiencySrc: asString(record["module_efficiency_source"]),
 			Compatibility:       map[string]panelCompatibilitySummary{},
 		}
 
@@ -520,7 +528,7 @@ func asFloat64(value any) float64 {
 	}
 }
 
-func deriveModuleEfficiencyPct(record map[string]any) (float64, bool) {
+func deriveModuleEfficiency(record map[string]any) (float64, string, bool) {
 	candidates := []string{
 		"module_efficiency_pct",
 		normalizeColumn("Module_efficiency_pct"),
@@ -536,12 +544,18 @@ func deriveModuleEfficiencyPct(record map[string]any) (float64, bool) {
 		}
 		value, ok := normalizeModuleEfficiencyValue(record[key])
 		if ok {
-			return value, true
+			return value, "reported", true
 		}
 	}
 
 	notes, _ := record[normalizeColumn("Notes")].(string)
-	return extractModuleEfficiencyFromNotes(notes)
+	if value, ok := extractModuleEfficiencyFromNotes(notes); ok {
+		return value, "notes", true
+	}
+	if value, source, ok := estimateModuleEfficiencyFromRecord(record); ok {
+		return value, source, true
+	}
+	return 0, "", false
 }
 
 func normalizeModuleEfficiencyValue(value any) (float64, bool) {
@@ -599,6 +613,26 @@ func extractModuleEfficiencyFromNotes(notes string) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func estimateModuleEfficiencyFromRecord(record map[string]any) (float64, string, bool) {
+	typeText := asString(record[normalizeColumn("Type")])
+	brand := asString(record[normalizeColumn("Brand")])
+	model := asString(record[normalizeColumn("Model")])
+	notes := asString(record[normalizeColumn("Notes")])
+	corpus := strings.ToLower(strings.TrimSpace(strings.Join([]string{
+		typeText,
+		brand,
+		model,
+		notes,
+	}, " ")))
+	if corpus == "" {
+		return 0, "", false
+	}
+	if strings.Contains(corpus, "bifacial") || strings.Contains(corpus, "bi-facial") {
+		return estimatedBifacialEfficiencyPct, "estimated_bifacial", true
+	}
+	return estimatedMonofacialEfficiencyPct, "estimated_monofacial", true
 }
 
 func asStringSlice(value any) []string {

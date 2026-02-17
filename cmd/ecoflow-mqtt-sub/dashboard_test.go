@@ -1088,3 +1088,26 @@ func TestAdjustedPanelLayoutComplexityKeepsOtherPanelsUnchanged(t *testing.T) {
 		t.Fatalf("expected unchanged complexity %.2f, got=%.2f", base, got)
 	}
 }
+
+func TestShouldPreferUpgradeOptionUsesEfficiencyAsTieBreaker(t *testing.T) {
+	maxW := 500.0
+	current := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   500,
+		nominalW:     500,
+		effPct:       20.0,
+		hasEffPct:    true,
+		effSrc:       "reported",
+	}
+	candidate := solarRecommendationOption{
+		hasPotential: true,
+		potentialW:   500,
+		nominalW:     500,
+		effPct:       24.0,
+		hasEffPct:    true,
+		effSrc:       "reported",
+	}
+	if !shouldPreferUpgradeOption(candidate, current, maxW) {
+		t.Fatalf("expected higher-efficiency candidate to win tie-breaker")
+	}
+}

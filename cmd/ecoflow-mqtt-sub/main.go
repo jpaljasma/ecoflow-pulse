@@ -260,16 +260,18 @@ type packSnapshot struct {
 }
 
 type panelDBCandidate struct {
-	Label      string
-	Status     string
-	PanelWatts float64
-	VocV       float64
-	VmpV       float64
-	ImpA       float64
-	IscA       float64
-	MinSeries  int
-	MaxSeries  int
-	Bifacial   bool
+	Label               string
+	Status              string
+	PanelWatts          float64
+	VocV                float64
+	VmpV                float64
+	ImpA                float64
+	IscA                float64
+	ModuleEfficiencyPct float64
+	ModuleEfficiencySrc string
+	MinSeries           int
+	MaxSeries           int
+	Bifacial            bool
 }
 
 type energySnapshot struct {
@@ -436,10 +438,14 @@ type energySnapshot struct {
 	HasPVLowBestPanelImpA    bool
 	PVLowBestPanelIscA       float64
 	HasPVLowBestPanelIscA    bool
+	PVLowBestPanelEffPct     float64
+	HasPVLowBestPanelEffPct  bool
 	PVLowBestPanelMaxSeries  int
 	HasPVLowBestPanelSeries  bool
 	PVLowBestPanelBifacial   bool
 	HasPVLowBestPanelType    bool
+	PVLowBestPanelEffSource  string
+	HasPVLowBestPanelEffSrc  bool
 	PVLowAltPanelLabel       string
 	HasPVLowAltPanelLabel    bool
 	PVLowAltPanelWatts       float64
@@ -452,10 +458,14 @@ type energySnapshot struct {
 	HasPVLowAltPanelImpA     bool
 	PVLowAltPanelIscA        float64
 	HasPVLowAltPanelIscA     bool
+	PVLowAltPanelEffPct      float64
+	HasPVLowAltPanelEffPct   bool
 	PVLowAltPanelMaxSeries   int
 	HasPVLowAltPanelSeries   bool
 	PVLowAltPanelBifacial    bool
 	HasPVLowAltPanelType     bool
+	PVLowAltPanelEffSource   string
+	HasPVLowAltPanelEffSrc   bool
 	PVHighBestPanelLabel     string
 	HasPVHighBestPanelLabel  bool
 	PVHighBestPanelWatts     float64
@@ -468,10 +478,14 @@ type energySnapshot struct {
 	HasPVHighBestPanelImpA   bool
 	PVHighBestPanelIscA      float64
 	HasPVHighBestPanelIscA   bool
+	PVHighBestPanelEffPct    float64
+	HasPVHighBestPanelEffPct bool
 	PVHighBestPanelMaxSeries int
 	HasPVHighBestPanelSeries bool
 	PVHighBestPanelBifacial  bool
 	HasPVHighBestPanelType   bool
+	PVHighBestPanelEffSource string
+	HasPVHighBestPanelEffSrc bool
 	PVHighAltPanelLabel      string
 	HasPVHighAltPanelLabel   bool
 	PVHighAltPanelWatts      float64
@@ -484,10 +498,14 @@ type energySnapshot struct {
 	HasPVHighAltPanelImpA    bool
 	PVHighAltPanelIscA       float64
 	HasPVHighAltPanelIscA    bool
+	PVHighAltPanelEffPct     float64
+	HasPVHighAltPanelEffPct  bool
 	PVHighAltPanelMaxSeries  int
 	HasPVHighAltPanelSeries  bool
 	PVHighAltPanelBifacial   bool
 	HasPVHighAltPanelType    bool
+	PVHighAltPanelEffSource  string
+	HasPVHighAltPanelEffSrc  bool
 	PVLowDBCandidates        []panelDBCandidate
 	HasPVLowDBCandidates     bool
 	PVHighDBCandidates       []panelDBCandidate
