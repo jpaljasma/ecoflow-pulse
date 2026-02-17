@@ -61,6 +61,7 @@ type Class struct {
 	PanelCount    int       `json:"panel_count"`
 	NominalTotalW float64   `json:"nominal_total_w"`
 	SampleCount   int       `json:"sample_count"`
+	Synthetic     bool      `json:"synthetic,omitempty"`
 	DeviceSNs     []string  `json:"device_sns"`
 	Centroid      []float64 `json:"centroid"`
 }
@@ -194,12 +195,22 @@ func Predict(model *Model, profile, port string, features []float64, sampleCount
 	if len(classes) == 0 {
 		return Prediction{}, false
 	}
+	classes = candidateClasses(classes, sampleCount)
+	if len(classes) == 0 {
+		return Prediction{}, false
+	}
 
 	bestIdx := -1
 	bestDistance := math.MaxFloat64
 	secondDistance := math.MaxFloat64
+	bestRealIdx := -1
+	bestRealDistance := math.MaxFloat64
 	for idx, class := range classes {
 		d := featureDistance(features, class.Centroid)
+		if !isSyntheticClass(class) && d < bestRealDistance {
+			bestRealDistance = d
+			bestRealIdx = idx
+		}
 		if d < bestDistance {
 			secondDistance = bestDistance
 			bestDistance = d
@@ -214,8 +225,21 @@ func Predict(model *Model, profile, port string, features []float64, sampleCount
 		return Prediction{}, false
 	}
 
+	// Keep synthetic classes as fallback only. Prefer real telemetry classes when close.
+	if bestRealIdx >= 0 && isSyntheticClass(classes[bestIdx]) {
+		// Require synthetic to be much better than best real class.
+		if bestDistance == 0 || bestRealDistance <= bestDistance*1.35 {
+			bestIdx = bestRealIdx
+			bestDistance = bestRealDistance
+		}
+	}
+
 	bestClass := classes[bestIdx]
 	confidence := predictionConfidence(bestDistance, secondDistance, len(classes), sampleCount)
+	if isSyntheticClass(bestClass) {
+		// Synthetic DB-only classes should not report high confidence.
+		confidence = math.Min(confidence, 0.55)
+	}
 	return Prediction{
 		ClassID:      bestClass.ID,
 		PanelSetup:   bestClass.PanelSetup,
@@ -227,6 +251,39 @@ func Predict(model *Model, profile, port string, features []float64, sampleCount
 		Port:         bestClass.Port,
 		NominalTotal: bestClass.NominalTotalW,
 	}, true
+}
+
+func candidateClasses(classes []Class, sampleCount int) []Class {
+	hasReal := false
+	for _, class := range classes {
+		if !isSyntheticClass(class) {
+			hasReal = true
+			break
+		}
+	}
+	// Once we have enough live samples and at least one telemetry-backed class,
+	// keep synthetic classes as fallback only (excluded from primary matching).
+	if hasReal && sampleCount >= 30 {
+		out := make([]Class, 0, len(classes))
+		for _, class := range classes {
+			if isSyntheticClass(class) {
+				continue
+			}
+			out = append(out, class)
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return classes
+}
+
+func isSyntheticClass(class Class) bool {
+	if class.Synthetic {
+		return true
+	}
+	// Backward compatibility for older model files.
+	return class.SampleCount <= 1 && len(class.DeviceSNs) == 0
 }
 
 func featureDistance(left, right []float64) float64 {

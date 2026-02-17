@@ -1,8 +1,8 @@
 {
-  "source_csv": "/Users/jpaljasma/Downloads/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv",
-  "generated_at_utc": "2026-02-17T18:36:12Z",
-  "row_count": 46,
-  "panel_count": 46,
+  "source_csv": "/Users/jpaljasma/Library/Mobile Documents/com~apple~CloudDocs/Projects/ecoflow-api-playground/data/solar_panels/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv",
+  "generated_at_utc": "2026-02-17T21:45:45Z",
+  "row_count": 47,
+  "panel_count": 47,
   "by_panel_key": {
     "aptos_solar_dna_144_bf10_550w_dg": {
       "id": "aptos_solar_dna_144_bf10_550w_dg",
@@ -1691,6 +1691,73 @@
         }
       }
     },
+    "jjn_solar_400w_n_type_bifacial_solar_panel": {
+      "id": "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "brand": "JJN Solar",
+      "model": "400W N-Type Bifacial Solar Panel",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 400,
+      "voc_v": 37,
+      "vmp_v": 31.05,
+      "imp_a": 12.89,
+      "isc_a": 13.78,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=JJN+Solar+400W+N-Type+Bifacial+Solar+Panel",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11–60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11–60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11–60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11–150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30–150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11–60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80–450V/15A",
+          "status": "needs_series",
+          "min_series": 3,
+          "max_series": 10
+        },
+        "dpu_low": {
+          "label": "DPU Low 30–150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU‑X High 80–500V/15A",
+          "status": "needs_series",
+          "min_series": 3,
+          "max_series": 11
+        }
+      }
+    },
     "maxeon_spr_max6_440": {
       "id": "maxeon_spr_max6_440",
       "brand": "Maxeon",
@@ -3142,6 +3209,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3190,6 +3258,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3238,6 +3307,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3286,6 +3356,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3334,6 +3405,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3382,6 +3454,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3430,6 +3503,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3478,6 +3552,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",
@@ -3526,6 +3601,7 @@
       "ht_saae_ht72_18x_ht_550w_bifacial",
       "ja_solar_jam72d40_595_mb_us",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
+      "jjn_solar_400w_n_type_bifacial_solar_panel",
       "maxeon_spr_max6_440",
       "phono_solar_ps590m8gf_24_tnh",
       "renogy_590w_n_type_bifacial_dual_glass",

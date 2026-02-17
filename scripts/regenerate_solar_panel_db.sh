@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd)"
 
-DEFAULT_CSV="/Users/jpaljasma/Downloads/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv"
+DEFAULT_CSV="${REPO_ROOT}/data/solar_panels/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv"
 CSV_PATH="${1:-${SOLAR_PANEL_CSV:-${DEFAULT_CSV}}}"
 OUT_DIR="${2:-${SOLAR_PANEL_OUT_DIR:-${REPO_ROOT}/data/solar_panels}}"
 

@@ -9,7 +9,7 @@ Add a new panel row to the source CSV and make it available in:
 ## Prerequisites
 
 - Source CSV is available:
-  - default: `/Users/jpaljasma/Downloads/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv`
+  - default: `data/solar_panels/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv`
 - Repo is up to date and tests pass.
 
 ## 1. Minimum Required Fields
