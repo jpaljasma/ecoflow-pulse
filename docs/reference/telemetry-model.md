@@ -31,15 +31,14 @@ The dashboard snapshot aggregates telemetry into these domains:
     counts (conservative +20% Voc rise factor) to avoid unsafe MPPT voltage spikes,
   - upgrade suggestions include series/parallel layouts (`xSxP`) and enforce MPPT
     voltage/current limits,
-  - recommendation ranking applies a shoulder-hours uplift term to account for
-    oversizing benefit under real solar curves (not only flat max-watt clipping),
+  - recommendation ranking applies a stronger shoulder-hours uplift term to
+    account for oversizing benefit under real solar curves (not only flat
+    max-watt clipping),
   - recommendation ranking applies a complexity score so lower-complexity
     topologies (fewer panels, fewer parallel branches, and less mixed S+P wiring)
     are preferred when energy gain is marginal,
-  - near PV-port saturation, fewer-panel topologies can outrank non-clipping
-    alternatives when effective output stays close (including a small allowed
-    effective-watt gap), to favor simpler wiring and shoulder-hours clipping
-    tradeoffs,
+  - near PV-port saturation, clipped (overpaneled) topologies are preferred
+    when outcomes are close, especially when they reduce panel/cable complexity,
   - recommendation ranking applies a modest panel-efficiency boost using
     `module_efficiency_pct`; inferred values (`estimated_*`) are down-weighted
     relative to `reported`/`notes`,
