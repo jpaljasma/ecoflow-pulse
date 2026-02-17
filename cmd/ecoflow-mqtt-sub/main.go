@@ -3,11 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"log/slog"
 	"math"
 	"os"
@@ -3121,14 +3120,9 @@ func parseSortNewestFirstEnv(key string, fallback bool) bool {
 }
 
 func buildClientID(sn string) string {
-	var random [4]byte
-	_, _ = rand.Read(random[:])
-	suffix := hex.EncodeToString(random[:])
-	cleanSN := strings.NewReplacer(" ", "", "/", "", "\\", "", ":", "").Replace(sn)
-	if len(cleanSN) > 16 {
-		cleanSN = cleanSN[:16]
-	}
-	return "ecoflow-sub-" + cleanSN + "-" + suffix
+	cleanSN := strings.TrimSpace(sn)
+	checksum := crc32.ChecksumIEEE([]byte(cleanSN))
+	return fmt.Sprintf("ecoflow-pulse-%08x", checksum)
 }
 
 // selectTargetDevice chooses one device to subscribe.
