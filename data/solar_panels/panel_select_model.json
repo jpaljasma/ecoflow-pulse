@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at_utc": "2026-02-17T22:06:47Z",
+  "generated_at_utc": "2026-02-17T23:30:35Z",
   "source_csv": "/Users/jpaljasma/Library/Mobile Documents/com~apple~CloudDocs/Projects/ecoflow-api-playground/logs/telemetry_training.csv",
   "classes": [
     {
@@ -10,18 +10,18 @@
       "panel_setup": "4x125W EcoFlow 125W Bifacial Modular Solar Panel",
       "panel_count": 4,
       "nominal_total_w": 500,
-      "sample_count": 49315,
+      "sample_count": 57093,
       "device_sns": [
         "R351ZABAPH331057"
       ],
       "centroid": [
-        69.472125,
-        438.165045,
-        41.028,
-        42.331,
-        1.676,
-        0.7606610564736895,
-        0.5502990976376356
+        66.16662,
+        436.54135,
+        40.833,
+        42.328,
+        1.615,
+        0.6922740090729161,
+        0.5492267002960083
       ]
     },
     {
@@ -80,6 +80,66 @@
         43.58,
         45.8,
         9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
         0.72,
         0.68
       ]
@@ -159,6 +219,86 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_dokio_400w_mono_3m_cable_b0cqshccr6",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "DOKIO 400W Mono 3m Cable (B0CQSHCCR6)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_dokio_fba_dsp400m",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_epoch_epoch_400spp_1_n",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -565,6 +705,26 @@
       ]
     },
     {
+      "id": "d2m_high_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_renogy_590w_n_type_bifacial_dual_glass",
       "profile": "d2m",
       "port": "high",
@@ -885,6 +1045,46 @@
       ]
     },
     {
+      "id": "d2m_high_unknown_400w_solar_panel_n_type_25.2%_b0fcmh4ywt",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Unknown 400W Solar Panel N-Type 25.2% (B0FCMH4YWT)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_unknown_440w_panel_perovskite_mono_wording_b0fqtwtwyx",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Unknown 440W Panel (Perovskite/Mono wording) (B0FQTWTWYX)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        33.32,
+        35.02,
+        9.58,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_vsun_vsun595n_144bmh_dg",
       "profile": "d2m",
       "port": "high",
@@ -900,6 +1100,26 @@
         43.82,
         46.05,
         9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_xilanseek_400w_bifacial_n_type_16bb_b0f2dbnq1k",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Xilanseek 400W Bifacial N-Type 16BB (B0F2DBNQ1K)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
         0.72,
         0.68
       ]
@@ -922,6 +1142,27 @@
         10.09,
         0.72,
         0.68
+      ]
+    },
+    {
+      "id": "d2m_low_2x100w_ecoflow_100w_flexible_solar_panel_zms330",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "2x100W EcoFlow 100W Flexible Solar Panel (ZMS330)",
+      "panel_count": 2,
+      "nominal_total_w": 200,
+      "sample_count": 57093,
+      "device_sns": [
+        "R351ZABAPH331057"
+      ],
+      "centroid": [
+        28.71174,
+        173.97474734999972,
+        16.454,
+        16.956,
+        1.735,
+        0.6922740090729161,
+        0.5554621407177762
       ]
     },
     {
@@ -980,6 +1221,66 @@
         43.58,
         45.8,
         9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
         0.72,
         0.68
       ]
@@ -1059,6 +1360,86 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_dokio_400w_mono_3m_cable_b0cqshccr6",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "DOKIO 400W Mono 3m Cable (B0CQSHCCR6)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_dokio_fba_dsp400m",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_epoch_epoch_400spp_1_n",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -1211,18 +1592,17 @@
       "panel_setup": "EcoFlow 220W Bifacial Portable Solar Panel (EFSOLAR220W / NextGen 220W)",
       "panel_count": 1,
       "nominal_total_w": 220,
-      "sample_count": 49315,
-      "device_sns": [
-        "R351ZABAPH331057"
-      ],
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
       "centroid": [
-        29.944224,
-        174.62577664999992,
-        16.495,
-        16.959,
-        1.796,
-        0.7606610564736895,
-        0.5468721484335395
+        171.6,
+        215.6,
+        18.03,
+        18.95,
+        8.81,
+        0.72,
+        0.68
       ]
     },
     {
@@ -1461,6 +1841,26 @@
         43.74,
         45.97,
         9.78,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
         0.72,
         0.68
       ]
@@ -1786,6 +2186,46 @@
       ]
     },
     {
+      "id": "d2m_low_unknown_400w_solar_panel_n_type_25.2%_b0fcmh4ywt",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Unknown 400W Solar Panel N-Type 25.2% (B0FCMH4YWT)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_unknown_440w_panel_perovskite_mono_wording_b0fqtwtwyx",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Unknown 440W Panel (Perovskite/Mono wording) (B0FQTWTWYX)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        33.32,
+        35.02,
+        9.58,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_vsun_vsun595n_144bmh_dg",
       "profile": "d2m",
       "port": "low",
@@ -1801,6 +2241,26 @@
         43.82,
         46.05,
         9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_xilanseek_400w_bifacial_n_type_16bb_b0f2dbnq1k",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Xilanseek 400W Bifacial N-Type 16BB (B0F2DBNQ1K)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
         0.72,
         0.68
       ]
@@ -1886,6 +2346,66 @@
       ]
     },
     {
+      "id": "dpu_high_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_canadian_solar_csi_solar_cs6.1_54tm_465h_tophiku6_all_black",
       "profile": "dpu",
       "port": "high",
@@ -1960,6 +2480,86 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_dokio_400w_mono_3m_cable_b0cqshccr6",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "DOKIO 400W Mono 3m Cable (B0CQSHCCR6)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_dokio_fba_dsp400m",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_epoch_epoch_400spp_1_n",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -2386,6 +2986,26 @@
       ]
     },
     {
+      "id": "dpu_high_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_renogy_590w_n_type_bifacial_dual_glass",
       "profile": "dpu",
       "port": "high",
@@ -2726,6 +3346,46 @@
       ]
     },
     {
+      "id": "dpu_high_unknown_400w_solar_panel_n_type_25.2%_b0fcmh4ywt",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Unknown 400W Solar Panel N-Type 25.2% (B0FCMH4YWT)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_unknown_440w_panel_perovskite_mono_wording_b0fqtwtwyx",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Unknown 440W Panel (Perovskite/Mono wording) (B0FQTWTWYX)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        33.32,
+        35.02,
+        9.58,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_vsun_vsun595n_144bmh_dg",
       "profile": "dpu",
       "port": "high",
@@ -2741,6 +3401,26 @@
         43.82,
         46.05,
         9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_xilanseek_400w_bifacial_n_type_16bb_b0f2dbnq1k",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Xilanseek 400W Bifacial N-Type 16BB (B0F2DBNQ1K)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
         0.72,
         0.68
       ]
@@ -2772,7 +3452,7 @@
       "panel_setup": "2x400W JJN Solar 400W N-Type Bifacial Solar Panel",
       "panel_count": 2,
       "nominal_total_w": 800,
-      "sample_count": 9905,
+      "sample_count": 10276,
       "device_sns": [
         "Y711ZABA9H2P0294"
       ],
@@ -2782,7 +3462,7 @@
         65.04126,
         67.86914,
         2.640626,
-        0.8376577486118122,
+        0.8078045932269365,
         0
       ]
     },
@@ -2842,6 +3522,66 @@
         43.58,
         45.8,
         9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
         0.72,
         0.68
       ]
@@ -2921,6 +3661,86 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_dokio_400w_mono_3m_cable_b0cqshccr6",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "DOKIO 400W Mono 3m Cable (B0CQSHCCR6)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_dokio_fba_dsp400m",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_epoch_epoch_400spp_1_n",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -3142,6 +3962,26 @@
         43.74,
         45.97,
         9.78,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
         0.72,
         0.68
       ]
@@ -3427,6 +4267,46 @@
       ]
     },
     {
+      "id": "dpu_low_unknown_400w_solar_panel_n_type_25.2%_b0fcmh4ywt",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Unknown 400W Solar Panel N-Type 25.2% (B0FCMH4YWT)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_unknown_440w_panel_perovskite_mono_wording_b0fqtwtwyx",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Unknown 440W Panel (Perovskite/Mono wording) (B0FQTWTWYX)",
+      "panel_count": 1,
+      "nominal_total_w": 440,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        343.2,
+        431.2,
+        33.32,
+        35.02,
+        9.58,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_vsun_vsun595n_144bmh_dg",
       "profile": "dpu",
       "port": "low",
@@ -3442,6 +4322,26 @@
         43.82,
         46.05,
         9.85,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_xilanseek_400w_bifacial_n_type_16bb_b0f2dbnq1k",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Xilanseek 400W Bifacial N-Type 16BB (B0F2DBNQ1K)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
         0.72,
         0.68
       ]
