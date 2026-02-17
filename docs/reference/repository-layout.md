@@ -19,7 +19,8 @@ Top-level structure:
   - `telemetry_history.jsonl`: minute telemetry persistence.
   - `pv_fingerprint.csv`: generated per-port PV fingerprint features.
 - `data/solar_panels/`
-  - `solar_panel_specs_v13.index.json`: compact panel capabilities index.
+  - `solar_panel_specs_v13.index.json`: compact panel capabilities index
+    with derived fields such as `module_efficiency_pct` when available.
   - `panel_select_model.json`: trained panel selection model artifact.
 - `docs/`: developer documentation in Diataxis layout.
 

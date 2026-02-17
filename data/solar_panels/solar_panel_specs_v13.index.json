@@ -1,6 +1,6 @@
 {
   "source_csv": "/Users/jpaljasma/Downloads/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv",
-  "generated_at_utc": "2026-02-17T02:54:09Z",
+  "generated_at_utc": "2026-02-17T16:24:38Z",
   "row_count": 46,
   "panel_count": 46,
   "by_panel_key": {
@@ -920,6 +920,7 @@
       "vmp_v": 18.4,
       "imp_a": 11.9,
       "isc_a": 12.4,
+      "module_efficiency_pct": 25,
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1048,6 +1049,7 @@
       "vmp_v": 31,
       "imp_a": 12.9,
       "isc_a": 13.79,
+      "module_efficiency_pct": 23,
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1176,6 +1178,7 @@
       "vmp_v": 22,
       "imp_a": 1.98,
       "isc_a": 2.06,
+      "module_efficiency_pct": 25,
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",

@@ -23,10 +23,12 @@ const (
 )
 
 var (
-	nonAlphaNum      = regexp.MustCompile(`[^a-z0-9_]+`)
-	compatSeriesMin  = regexp.MustCompile(`(?i)needs\s*≥?\s*(\d+)\s*s`)
-	compatSeriesMax  = regexp.MustCompile(`(?i)\(max\s*(\d+)\s*s\)`)
-	deviceSpecSuffix = regexp.MustCompile(`(?i)\s+\d+\s*[–-]\s*\d+\s*v[^\s]*\s*$`)
+	nonAlphaNum        = regexp.MustCompile(`[^a-z0-9_]+`)
+	compatSeriesMin    = regexp.MustCompile(`(?i)needs\s*≥?\s*(\d+)\s*s`)
+	compatSeriesMax    = regexp.MustCompile(`(?i)\(max\s*(\d+)\s*s\)`)
+	deviceSpecSuffix   = regexp.MustCompile(`(?i)\s+\d+\s*[–-]\s*\d+\s*v[^\s]*\s*$`)
+	efficiencyLeading  = regexp.MustCompile(`(?i)\befficiency(?:\s+up\s+to)?\s*[~≈]?\s*([0-9]+(?:\.[0-9]+)?)\s*%`)
+	efficiencyTrailing = regexp.MustCompile(`(?i)([0-9]+(?:\.[0-9]+)?)\s*%\s*efficiency`)
 )
 
 type dataset struct {
@@ -63,17 +65,18 @@ type panelIndex struct {
 }
 
 type panelIndexEntry struct {
-	ID                string                               `json:"id"`
-	Brand             string                               `json:"brand"`
-	Model             string                               `json:"model"`
-	Type              string                               `json:"type,omitempty"`
-	PmaxSTCW          float64                              `json:"pmax_stc_w,omitempty"`
-	VocV              float64                              `json:"voc_v,omitempty"`
-	VmpV              float64                              `json:"vmp_v,omitempty"`
-	ImpA              float64                              `json:"imp_a,omitempty"`
-	IscA              float64                              `json:"isc_a,omitempty"`
-	CompatibilityTags []string                             `json:"compatibility_tags"`
-	Compatibility     map[string]panelCompatibilitySummary `json:"compatibility"`
+	ID                  string                               `json:"id"`
+	Brand               string                               `json:"brand"`
+	Model               string                               `json:"model"`
+	Type                string                               `json:"type,omitempty"`
+	PmaxSTCW            float64                              `json:"pmax_stc_w,omitempty"`
+	VocV                float64                              `json:"voc_v,omitempty"`
+	VmpV                float64                              `json:"vmp_v,omitempty"`
+	ImpA                float64                              `json:"imp_a,omitempty"`
+	IscA                float64                              `json:"isc_a,omitempty"`
+	ModuleEfficiencyPct float64                              `json:"module_efficiency_pct,omitempty"`
+	CompatibilityTags   []string                             `json:"compatibility_tags"`
+	Compatibility       map[string]panelCompatibilitySummary `json:"compatibility"`
 }
 
 type panelCompatibilitySummary struct {
@@ -202,6 +205,9 @@ func importCSV(path string) (*dataset, error) {
 		if typ, ok := record[normalizeColumn("Type")].(string); ok && typ != "" {
 			typeDist[typ]++
 		}
+		if efficiency, ok := deriveModuleEfficiencyPct(record); ok {
+			record["module_efficiency_pct"] = efficiency
+		}
 
 		records = append(records, record)
 	}
@@ -266,16 +272,17 @@ func buildPanelIndex(data *dataset) *panelIndex {
 		panelKey := makePanelKey(brand, model, id, asInt64(record["source_row"]), byPanelKey)
 
 		entry := panelIndexEntry{
-			ID:            id,
-			Brand:         brand,
-			Model:         model,
-			Type:          asString(record[typeKey]),
-			PmaxSTCW:      asFloat64(record[pmaxKey]),
-			VocV:          asFloat64(record[vocKey]),
-			VmpV:          asFloat64(record[vmpKey]),
-			ImpA:          asFloat64(record[impKey]),
-			IscA:          asFloat64(record[iscKey]),
-			Compatibility: map[string]panelCompatibilitySummary{},
+			ID:                  id,
+			Brand:               brand,
+			Model:               model,
+			Type:                asString(record[typeKey]),
+			PmaxSTCW:            asFloat64(record[pmaxKey]),
+			VocV:                asFloat64(record[vocKey]),
+			VmpV:                asFloat64(record[vmpKey]),
+			ImpA:                asFloat64(record[impKey]),
+			IscA:                asFloat64(record[iscKey]),
+			ModuleEfficiencyPct: asFloat64(record["module_efficiency_pct"]),
+			Compatibility:       map[string]panelCompatibilitySummary{},
 		}
 
 		tagSet := map[string]struct{}{}
@@ -511,6 +518,87 @@ func asFloat64(value any) float64 {
 	default:
 		return 0
 	}
+}
+
+func deriveModuleEfficiencyPct(record map[string]any) (float64, bool) {
+	candidates := []string{
+		"module_efficiency_pct",
+		normalizeColumn("Module_efficiency_pct"),
+		normalizeColumn("Module_efficiency"),
+		normalizeColumn("Efficiency_pct"),
+		normalizeColumn("Efficiency"),
+		normalizeColumn("Panel_efficiency_pct"),
+		normalizeColumn("Panel_efficiency"),
+	}
+	for _, key := range candidates {
+		if key == "" {
+			continue
+		}
+		value, ok := normalizeModuleEfficiencyValue(record[key])
+		if ok {
+			return value, true
+		}
+	}
+
+	notes, _ := record[normalizeColumn("Notes")].(string)
+	return extractModuleEfficiencyFromNotes(notes)
+}
+
+func normalizeModuleEfficiencyValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return normalizeModuleEfficiencyPct(typed)
+	case float32:
+		return normalizeModuleEfficiencyPct(float64(typed))
+	case int:
+		return normalizeModuleEfficiencyPct(float64(typed))
+	case int64:
+		return normalizeModuleEfficiencyPct(float64(typed))
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return 0, false
+		}
+		trimmed = strings.TrimSuffix(trimmed, "%")
+		if parsed, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return normalizeModuleEfficiencyPct(parsed)
+		}
+		return extractModuleEfficiencyFromNotes(typed)
+	default:
+		return 0, false
+	}
+}
+
+func normalizeModuleEfficiencyPct(value float64) (float64, bool) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, false
+	}
+	if value > 0 && value <= 1 {
+		value *= 100
+	}
+	if value <= 0 || value > 100 {
+		return 0, false
+	}
+	return value, true
+}
+
+func extractModuleEfficiencyFromNotes(notes string) (float64, bool) {
+	notes = strings.TrimSpace(notes)
+	if notes == "" {
+		return 0, false
+	}
+
+	if match := efficiencyLeading.FindStringSubmatch(notes); len(match) == 2 {
+		if parsed, err := strconv.ParseFloat(match[1], 64); err == nil {
+			return normalizeModuleEfficiencyPct(parsed)
+		}
+	}
+	if match := efficiencyTrailing.FindStringSubmatch(notes); len(match) == 2 {
+		if parsed, err := strconv.ParseFloat(match[1], 64); err == nil {
+			return normalizeModuleEfficiencyPct(parsed)
+		}
+	}
+	return 0, false
 }
 
 func asStringSlice(value any) []string {
