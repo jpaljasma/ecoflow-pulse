@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -37,9 +38,6 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 	for _, expected := range []string{
 		"EcoFlow Live Telemetry",
 		"Kitchen Delta 2 Max",
-		"channels",
-		"ac: n/a pv_total: n/a xt150_in: n/a",
-		"ac: n/a (l14: n/a) dc: n/a xt150_out: n/a",
 		"solar #1 [500W]",
 		"max: 11-60V 15A 500W",
 		"watts: n/a",
@@ -81,7 +79,7 @@ func TestRenderDashboardShowsPassthroughAndGroundedWhenACInOutEquivalent(t *test
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
 		nil,
-		minuteTableConfig{},
+		minuteTableConfig{ShowSolarCandidates: true},
 	)
 	if !strings.Contains(output, "[x] UPS Passthrough") {
 		t.Fatalf("expected passthrough checkbox on, got=%q", output)
@@ -343,10 +341,10 @@ func TestRenderDashboardShowsSmoothedPVButSummaryStaysRaw(t *testing.T) {
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
 		nil,
-		minuteTableConfig{},
+		minuteTableConfig{ShowSolarCandidates: true},
 	)
 
-	if !strings.Contains(output, "pv_total: 130.0W (~110.0W avg)") {
+	if !strings.Contains(output, "130.0W (~110.0W avg)") {
 		t.Fatalf("expected smoothed pv total in dashboard, got=%q", output)
 	}
 	if !strings.Contains(output, "watts: 50.0W (~40.0W avg)") {
@@ -430,7 +428,7 @@ func TestRenderDashboardShowsPreconditioningForDPU(t *testing.T) {
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
 		nil,
-		minuteTableConfig{},
+		minuteTableConfig{ShowSolarCandidates: true},
 	)
 	if !strings.Contains(output, "Battery Preconditioning On") {
 		t.Fatalf("dpu dashboard should show preconditioning line, got=%q", output)
@@ -501,7 +499,7 @@ func TestRenderDashboardShowsMQTTQueueRow(t *testing.T) {
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
 		nil,
-		minuteTableConfig{},
+		minuteTableConfig{ShowSolarCandidates: true},
 	)
 	if !strings.Contains(output, "mqtt") || !strings.Contains(output, "queue: 3/128") || !strings.Contains(output, "drop-oldest: 2") || !strings.Contains(output, "status: MQTT reconnecting") {
 		t.Fatalf("dashboard missing mqtt queue row, got=%q", output)
@@ -540,5 +538,553 @@ func TestRenderDashboardShowsMQTTDegradedStatus(t *testing.T) {
 	)
 	if !strings.Contains(output, "status: MQTT auth degraded (broker reject code 5) + REST fallback") {
 		t.Fatalf("dashboard missing mqtt degraded status row, got=%q", output)
+	}
+}
+
+func TestRenderDashboardShowsSolarRecommendations(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 40
+	snapshot.HasDeviceSOC = true
+	snapshot.FullEnergyWh = 2048
+	snapshot.HasFullEnergy = true
+	snapshot.MaxChargeSOC = 95
+	snapshot.HasMaxChargeSOC = true
+	snapshot.InPVLowWatts = 120
+	snapshot.HasInPVLow = true
+	snapshot.InPVHighWatts = 260
+	snapshot.HasInPVHigh = true
+	snapshot.refreshPVTotalFromChannels()
+
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "EcoFlow 220W Bifacial Portable"
+	snapshot.PVLowPanelConfidence = 0.93
+	snapshot.PVLowPanelSamples = 88
+	snapshot.PVLowPanelCount = 1
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 220
+	snapshot.HasPVLowPanelNominal = true
+	snapshot.PVLowBestPanelLabel = "Premium 500W Panel"
+	snapshot.HasPVLowBestPanelLabel = true
+	snapshot.PVLowBestPanelWatts = 500
+	snapshot.HasPVLowBestPanelWatts = true
+	snapshot.PVLowAltPanelLabel = "Value 400W Panel"
+	snapshot.HasPVLowAltPanelLabel = true
+	snapshot.PVLowAltPanelWatts = 400
+	snapshot.HasPVLowAltPanelWatts = true
+
+	snapshot.HasPVHighPanelPrediction = true
+	snapshot.PVHighPanelSetup = "4x125W EcoFlow Bifacial Modular"
+	snapshot.PVHighPanelConfidence = 0.90
+	snapshot.PVHighPanelSamples = 92
+	snapshot.PVHighPanelCount = 4
+	snapshot.HasPVHighPanelCount = true
+	snapshot.PVHighPanelNominalWatts = 500
+	snapshot.HasPVHighPanelNominal = true
+	snapshot.PVHighBestPanelLabel = "Premium 500W Panel"
+	snapshot.HasPVHighBestPanelLabel = true
+	snapshot.PVHighBestPanelWatts = 500
+	snapshot.HasPVHighBestPanelWatts = true
+	snapshot.PVHighAltPanelLabel = "Value 420W Panel"
+	snapshot.HasPVHighAltPanelLabel = true
+	snapshot.PVHighAltPanelWatts = 420
+	snapshot.HasPVHighAltPanelWatts = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+
+	for _, expected := range []string{
+		"| Metric",
+		"| Detected",
+		"| Add Panels",
+		"| Upgrade Panels",
+		"| Upgrade Panels #2",
+		"| Charge ETA Impact",
+		"| Charge ETA Impact #2",
+		"| All Ports ETA Impact",
+		"| All Ports ETA Impact #2",
+		"add 2x ~220W panel",
+		"already near port max",
+		"sunny base:",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("dashboard missing %q; output=%q", expected, output)
+		}
+	}
+}
+
+func TestRenderDashboardPrefersNonClippingSecondUpgradeRecommendation(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 50
+	snapshot.HasDeviceSOC = true
+	snapshot.FullEnergyWh = 2048
+	snapshot.HasFullEnergy = true
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "1x 220W Panel"
+	snapshot.PVLowPanelConfidence = 0.91
+	snapshot.PVLowPanelSamples = 40
+	snapshot.PVLowPanelCount = 1
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 220
+	snapshot.HasPVLowPanelNominal = true
+	snapshot.PVLowBestPanelLabel = "Aggressive 400W Panel"
+	snapshot.HasPVLowBestPanelLabel = true
+	snapshot.PVLowBestPanelWatts = 400
+	snapshot.HasPVLowBestPanelWatts = true
+	snapshot.PVLowAltPanelLabel = "Balanced 300W Panel"
+	snapshot.HasPVLowAltPanelLabel = true
+	snapshot.PVLowAltPanelWatts = 300
+	snapshot.HasPVLowAltPanelWatts = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if !strings.Contains(output, "replace with 2x Aggressive 400W Panel (2S1P, ~800W STC, clipped to 500W)") {
+		t.Fatalf("expected clipped first upgrade recommendation, got=%q", output)
+	}
+	if !strings.Contains(output, "replace with 2x Panel (2S1P, ~440W STC)") {
+		t.Fatalf("expected non-clipping second upgrade recommendation, got=%q", output)
+	}
+}
+
+func TestRenderDashboardPromotesSecondUpgradeWhenFirstIsUnsafe(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 45
+	snapshot.HasDeviceSOC = true
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "1x 220W Panel"
+	snapshot.PVLowPanelConfidence = 0.88
+	snapshot.PVLowPanelSamples = 28
+	snapshot.PVLowPanelCount = 1
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 220
+	snapshot.HasPVLowPanelNominal = true
+
+	snapshot.PVLowBestPanelLabel = "High Current 500W Panel"
+	snapshot.HasPVLowBestPanelLabel = true
+	snapshot.PVLowBestPanelWatts = 500
+	snapshot.HasPVLowBestPanelWatts = true
+	snapshot.PVLowBestPanelImpA = 20.0
+	snapshot.HasPVLowBestPanelImpA = true
+
+	snapshot.PVLowAltPanelLabel = "Safe 450W Panel"
+	snapshot.HasPVLowAltPanelLabel = true
+	snapshot.PVLowAltPanelWatts = 450
+	snapshot.HasPVLowAltPanelWatts = true
+	snapshot.PVLowAltPanelImpA = 12.0
+	snapshot.HasPVLowAltPanelImpA = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if !strings.Contains(output, "replace with 2x Safe 450W Panel") {
+		t.Fatalf("expected safe alt panel to be promoted into upgrade #1, got=%q", output)
+	}
+	if strings.Contains(output, "replace with 1x High Current 500W Panel") {
+		t.Fatalf("unexpected unsafe best panel recommendation in output=%q", output)
+	}
+}
+
+func TestRenderDashboardPrefersPeerPortDetectedSetupForTwinPVPorts(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 52
+	snapshot.HasDeviceSOC = true
+
+	// Current port (low): underutilized setup.
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "1x 220W EcoFlow Bifacial Portable"
+	snapshot.PVLowPanelConfidence = 0.92
+	snapshot.PVLowPanelSamples = 55
+	snapshot.PVLowPanelCount = 1
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 220
+	snapshot.HasPVLowPanelNominal = true
+
+	// Peer port (high): known-good setup the user already runs.
+	snapshot.HasPVHighPanelPrediction = true
+	snapshot.PVHighPanelSetup = "4x125W EcoFlow Bifacial Modular"
+	snapshot.PVHighPanelConfidence = 0.95
+	snapshot.PVHighPanelSamples = 80
+	snapshot.PVHighPanelCount = 4
+	snapshot.HasPVHighPanelCount = true
+	snapshot.PVHighPanelNominalWatts = 500
+	snapshot.HasPVHighPanelNominal = true
+
+	// DB options exist, but peer setup should still be eligible/preferred when better.
+	snapshot.PVLowBestPanelLabel = "Generic 450W Panel"
+	snapshot.HasPVLowBestPanelLabel = true
+	snapshot.PVLowBestPanelWatts = 450
+	snapshot.HasPVLowBestPanelWatts = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if !strings.Contains(output, "replace with 4x EcoFlow Bifacial Modular") {
+		t.Fatalf("expected peer-port setup recommendation for twin 500W ports, got=%q", output)
+	}
+}
+
+func TestRenderDashboardSupportsJASolar400RecommendationForD2M(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 51
+	snapshot.HasDeviceSOC = true
+
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "1x220W EcoFlow Bifacial Portable"
+	snapshot.PVLowPanelConfidence = 0.90
+	snapshot.PVLowPanelSamples = 50
+	snapshot.PVLowPanelCount = 1
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 220
+	snapshot.HasPVLowPanelNominal = true
+
+	snapshot.HasPVHighPanelPrediction = true
+	snapshot.PVHighPanelSetup = "2x400W JA Solar bifacial"
+	snapshot.PVHighPanelConfidence = 0.92
+	snapshot.PVHighPanelSamples = 44
+	snapshot.PVHighPanelCount = 2
+	snapshot.HasPVHighPanelCount = true
+	snapshot.PVHighPanelNominalWatts = 800
+	snapshot.HasPVHighPanelNominal = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if !strings.Contains(output, "JA Solar bifacial") {
+		t.Fatalf("expected JA Solar bifacial recommendation for D2M, got=%q", output)
+	}
+}
+
+func TestRenderDashboardSupportsJASolar400RecommendationForDPULow(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 35
+	snapshot.HasDeviceSOC = true
+
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "2x400W JA Solar bifacial"
+	snapshot.PVLowPanelConfidence = 0.94
+	snapshot.PVLowPanelSamples = 66
+	snapshot.PVLowPanelCount = 2
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 800
+	snapshot.HasPVLowPanelNominal = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{ShowSolarCandidates: true},
+	)
+	if !strings.Contains(output, "JA Solar bifacial") {
+		t.Fatalf("expected JA Solar bifacial recommendation for DPU, got=%q", output)
+	}
+}
+
+func TestRenderDashboardUsesPeerDetectedFallbackWhenPrimaryRecommendationMissing(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 28
+	snapshot.HasDeviceSOC = true
+
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "2x400W JA Solar bifacial"
+	snapshot.PVLowPanelConfidence = 0.95
+	snapshot.PVLowPanelSamples = 70
+	snapshot.PVLowPanelCount = 2
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 800
+	snapshot.HasPVLowPanelNominal = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{ShowSolarCandidates: true},
+	)
+	if !strings.Contains(output, "replace with 10x JA Solar bifacial") {
+		t.Fatalf("expected peer-detected fallback recommendation on missing primary target, got=%q", output)
+	}
+}
+
+func TestRenderDashboardAddPanelsUsesPeerDetectionFallbackLowToHigh(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 27
+	snapshot.HasDeviceSOC = true
+
+	snapshot.HasPVLowPanelPrediction = true
+	snapshot.PVLowPanelSetup = "2x400W JA Solar bifacial"
+	snapshot.PVLowPanelConfidence = 0.95
+	snapshot.PVLowPanelSamples = 60
+	snapshot.PVLowPanelCount = 2
+	snapshot.HasPVLowPanelCount = true
+	snapshot.PVLowPanelNominalWatts = 800
+	snapshot.HasPVLowPanelNominal = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if !strings.Contains(output, "mirror peer setup: add 10x ~400W panel") {
+		t.Fatalf("expected high-port add fallback from low detected setup, got=%q", output)
+	}
+	if strings.Contains(output, "waiting for panel detection") {
+		t.Fatalf("did not expect waiting state when peer detection is available, got=%q", output)
+	}
+}
+
+func TestRenderDashboardAddPanelsUsesPeerDetectionFallbackHighToLow(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 27
+	snapshot.HasDeviceSOC = true
+
+	snapshot.HasPVHighPanelPrediction = true
+	snapshot.PVHighPanelSetup = "2x400W JA Solar bifacial"
+	snapshot.PVHighPanelConfidence = 0.95
+	snapshot.PVHighPanelSamples = 60
+	snapshot.PVHighPanelCount = 2
+	snapshot.HasPVHighPanelCount = true
+	snapshot.PVHighPanelNominalWatts = 800
+	snapshot.HasPVHighPanelNominal = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if !strings.Contains(output, "mirror peer setup: add 4x ~400W panel") {
+		t.Fatalf("expected low-port add fallback from high detected setup, got=%q", output)
+	}
+	if strings.Contains(output, "waiting for panel detection") {
+		t.Fatalf("did not expect waiting state when peer detection is available, got=%q", output)
+	}
+}
+
+func TestRenderDashboardShowsDPUHighCandidateElectricalData(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasPVHighDBCandidates = true
+	snapshot.PVHighDBCandidates = []panelDBCandidate{
+		{
+			Label:      "EcoFlow 125W Bifacial Modular Solar Panel",
+			Status:     "needs_series",
+			PanelWatts: 125,
+			VocV:       50,
+			VmpV:       43,
+			ImpA:       3.0,
+			IscA:       3.2,
+			MinSeries:  2,
+			MaxSeries:  9,
+			Bifacial:   true,
+		},
+		{
+			Label:      "EcoFlow 220W Bifacial Portable Solar Panel",
+			Status:     "needs_series",
+			PanelWatts: 220,
+			VocV:       21.5,
+			VmpV:       18.4,
+			ImpA:       11.9,
+			IscA:       12.4,
+			MinSeries:  5,
+			MaxSeries:  20,
+			Bifacial:   true,
+		},
+	}
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{ShowSolarCandidates: true},
+	)
+	for _, expected := range []string{
+		"| Series(cold)",
+		"solar [4kW]",
+		"EcoFlow 125W Bifacial Modular Solar Panel",
+		"EcoFlow 220W Bifacial Portable Solar Panel",
+		"50.0/43.0V",
+		"21.5/18.4V",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected candidate electrical data %q in output=%q", expected, output)
+		}
+	}
+}
+
+func TestRenderDashboardShowsD2MSafeEcoFlowCandidatePanels(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.HasPVLowDBCandidates = true
+	snapshot.PVLowDBCandidates = []panelDBCandidate{
+		{
+			Label:      "EcoFlow 125W Bifacial Modular Solar Panel",
+			Status:     "yes",
+			PanelWatts: 125,
+			VocV:       50,
+			VmpV:       43,
+			ImpA:       3.0,
+			IscA:       3.2,
+			Bifacial:   true,
+		},
+		{
+			Label:      "EcoFlow 220W Bifacial Portable Solar Panel",
+			Status:     "yes",
+			PanelWatts: 220,
+			VocV:       21.5,
+			VmpV:       18.4,
+			ImpA:       11.9,
+			IscA:       12.4,
+			Bifacial:   true,
+		},
+	}
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{ShowSolarCandidates: true},
+	)
+	for _, expected := range []string{
+		"EcoFlow 125W Bifacial Modular Solar Panel",
+		"EcoFlow 220W Bifacial Portable Solar Panel",
+		"1S4P (4x)",
+		"2S1P (2x)",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected safe D2M candidate %q in output=%q", expected, output)
+		}
+	}
+}
+
+func TestRenderDashboardSkipsTrivialSamePanelAltLayout(t *testing.T) {
+	snapshot := newEnergySnapshot()
+	snapshot.DeviceSOC = 30
+	snapshot.HasDeviceSOC = true
+	snapshot.HasPVHighPanelPrediction = true
+	snapshot.PVHighPanelSetup = "6x400W JA Solar bifacial"
+	snapshot.PVHighPanelConfidence = 0.93
+	snapshot.PVHighPanelSamples = 80
+	snapshot.PVHighPanelCount = 6
+	snapshot.HasPVHighPanelCount = true
+	snapshot.PVHighPanelNominalWatts = 2400
+	snapshot.HasPVHighPanelNominal = true
+
+	// Keep only one DB upgrade candidate so fallback would attempt same-model alt layout.
+	snapshot.PVHighBestPanelLabel = "JA Solar bifacial"
+	snapshot.HasPVHighBestPanelLabel = true
+	snapshot.PVHighBestPanelWatts = 400
+	snapshot.HasPVHighBestPanelWatts = true
+	snapshot.PVHighBestPanelVocV = 50
+	snapshot.HasPVHighBestPanelVocV = true
+	snapshot.PVHighBestPanelImpA = 10
+	snapshot.HasPVHighBestPanelImpA = true
+
+	output := renderDashboard(
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		"/open/a/b/quota",
+		telemetryEnvelope{TypeCode: "pdStatus"},
+		snapshot,
+		nil,
+		minuteTableConfig{},
+	)
+	if strings.Contains(output, "(alt layout)") {
+		t.Fatalf("expected trivial same-panel alt layout to be suppressed, got=%q", output)
+	}
+}
+
+func TestRenderASCIITableSupportsColspanRow(t *testing.T) {
+	headers := []string{"Metric", "Solar #1", "Solar #2"}
+	rows := [][]string{
+		{"Detected", "A", "B"},
+		{"All Ports ETA Impact", makeColspanCell("sunny base: 90min; add: 60min (-30m)")},
+	}
+
+	table := renderASCIITable(headers, rows)
+	lines := strings.Split(table, "\n")
+	var spanLine string
+	for _, line := range lines {
+		if strings.Contains(line, "All Ports ETA Impact") {
+			spanLine = line
+			break
+		}
+	}
+	if spanLine == "" {
+		t.Fatalf("expected span row in table, got=%q", table)
+	}
+	// Spanned row should have only outer + one internal separator:
+	// | metric | spanned-content |
+	if got, want := strings.Count(spanLine, "|"), 3; got != want {
+		t.Fatalf("unexpected separator count for spanned row: got=%d want=%d row=%q", got, want, spanLine)
+	}
+}
+
+func TestSolarRecommendationETAWUsesShoulderGainWhenClipped(t *testing.T) {
+	potentialW := 500.0
+	nominalW := 800.0
+	maxW := 500.0
+	w := solarRecommendationETAW(potentialW, nominalW, maxW, true, false)
+	if w <= potentialW {
+		t.Fatalf("expected shoulder-hours ETA watts > potential; got=%.2f potential=%.2f", w, potentialW)
+	}
+	flatMinutes, okFlat := estimateSolarChargeMinutes(1000, potentialW)
+	shoulderMinutes, okShoulder := estimateSolarChargeMinutes(1000, w)
+	if !okFlat || !okShoulder {
+		t.Fatalf("expected ETA minutes to be available for both paths; flat_ok=%v shoulder_ok=%v", okFlat, okShoulder)
+	}
+	if shoulderMinutes >= flatMinutes {
+		t.Fatalf("expected shoulder-hours ETA to be faster; flat=%.2f shoulder=%.2f", flatMinutes, shoulderMinutes)
+	}
+}
+
+func TestAdjustedPanelLayoutComplexityDiscountsEcoFlow125Bifacial(t *testing.T) {
+	base := panelLayoutComplexityScore(panelLayout{series: 1, parallel: 4, units: 4})
+	got := adjustedPanelLayoutComplexity(base, "EcoFlow 125W Bifacial Modular Solar Panel", 4)
+	want := base * ecoflow125ComplexityFactor
+	if math.Abs(got-want) > 0.01 {
+		t.Fatalf("expected discounted complexity %.2f, got=%.2f (base=%.2f)", want, got, base)
+	}
+}
+
+func TestAdjustedPanelLayoutComplexityKeepsOtherPanelsUnchanged(t *testing.T) {
+	base := panelLayoutComplexityScore(panelLayout{series: 1, parallel: 4, units: 4})
+	got := adjustedPanelLayoutComplexity(base, "JA Solar 400W Bifacial", 4)
+	if math.Abs(got-base) > 0.01 {
+		t.Fatalf("expected unchanged complexity %.2f, got=%.2f", base, got)
 	}
 }

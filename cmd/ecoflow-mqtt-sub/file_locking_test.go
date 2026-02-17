@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestDeviceInstanceLockPreventsDuplicateSerialProcess(t *testing.T) {
@@ -244,5 +245,65 @@ func validateStructuredLines(t *testing.T, path string, wantLines int, expectedP
 	}
 	if lines != wantLines {
 		t.Fatalf("line count mismatch: got=%d want=%d", lines, wantLines)
+	}
+}
+
+func TestDailyLogPathForDate(t *testing.T) {
+	if got, want := dailyLogPathForDate("logs/mqtt_raw.log", "2026-02-16"), "logs/mqtt_raw-2026-02-16.log"; got != want {
+		t.Fatalf("daily path mismatch: got=%q want=%q", got, want)
+	}
+	if got, want := dailyLogPathForDate("logs/raw_payload", "2026-02-16"), "logs/raw_payload-2026-02-16"; got != want {
+		t.Fatalf("daily path mismatch: got=%q want=%q", got, want)
+	}
+}
+
+func TestDailyRotatingAppendSinkRotatesByDay(t *testing.T) {
+	now := time.Date(2026, 2, 16, 11, 0, 0, 0, time.UTC)
+	clock := func() time.Time {
+		return now
+	}
+	basePath := filepath.Join(t.TempDir(), "raw.log")
+	sink, err := newDailyRotatingAppendSinkWithClock(basePath, 128, clock)
+	if err != nil {
+		t.Fatalf("newDailyRotatingAppendSinkWithClock: %v", err)
+	}
+	defer func() {
+		_ = sink.Close()
+	}()
+
+	if err := sink.WriteChunk([]byte("day1\n")); err != nil {
+		t.Fatalf("write day1: %v", err)
+	}
+	firstPath := sink.Path()
+	if !strings.HasSuffix(firstPath, "raw-2026-02-16.log") {
+		t.Fatalf("unexpected first rotated path: %q", firstPath)
+	}
+
+	now = now.Add(24 * time.Hour)
+	if err := sink.WriteChunk([]byte("day2\n")); err != nil {
+		t.Fatalf("write day2: %v", err)
+	}
+	secondPath := sink.Path()
+	if !strings.HasSuffix(secondPath, "raw-2026-02-17.log") {
+		t.Fatalf("unexpected second rotated path: %q", secondPath)
+	}
+	if firstPath == secondPath {
+		t.Fatalf("expected path change on day rollover")
+	}
+
+	firstRaw, err := os.ReadFile(firstPath)
+	if err != nil {
+		t.Fatalf("read first day file: %v", err)
+	}
+	if got := string(firstRaw); !strings.Contains(got, "day1") {
+		t.Fatalf("first day payload missing: %q", got)
+	}
+
+	secondRaw, err := os.ReadFile(secondPath)
+	if err != nil {
+		t.Fatalf("read second day file: %v", err)
+	}
+	if got := string(secondRaw); !strings.Contains(got, "day2") {
+		t.Fatalf("second day payload missing: %q", got)
 	}
 }

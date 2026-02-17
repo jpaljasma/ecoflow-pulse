@@ -40,10 +40,11 @@ const (
 	systemStateSmoothThreshold    = 10.0
 	appShowFlagACOnMask           = int64(0x4)
 	appShowFlagDCOnMask           = int64(0x2)
-	defaultMinuteTableRows        = 10
+	defaultMinuteTableRows        = 3
 	defaultMinuteHistoryBuckets   = 24 * 60
 	defaultMinuteHistoryPath      = "logs/telemetry_history.jsonl"
 	defaultTrainingCSVPath        = "logs/telemetry_training.csv"
+	defaultRawPayloadLogPath      = "logs/mqtt_payload_raw.log"
 	defaultPanelDBIndexPath       = "data/solar_panels/solar_panel_specs_v13.index.json"
 	defaultTrainingCSVInterval    = 10 * time.Second
 	defaultTrainingCSVJitter      = 0.2
@@ -57,6 +58,8 @@ const (
 	defaultStateSmoothingSamples  = 6
 	defaultMQTTQueueCapacity      = 64
 	defaultMQTTLogQueueCapacity   = 2048
+	defaultPanelModelQueueCap     = 64
+	defaultPanelModelResultCap    = 64
 	defaultMQTTAuthRejectThresh   = 3
 	defaultMQTTFallbackPollEvery  = 15 * time.Second
 	defaultMQTTFallbackPollTO     = 12 * time.Second
@@ -256,6 +259,19 @@ type packSnapshot struct {
 	HasPreconditioningHeat  bool
 }
 
+type panelDBCandidate struct {
+	Label      string
+	Status     string
+	PanelWatts float64
+	VocV       float64
+	VmpV       float64
+	ImpA       float64
+	IscA       float64
+	MinSeries  int
+	MaxSeries  int
+	Bifacial   bool
+}
+
 type energySnapshot struct {
 	DeviceSOC     float64
 	HasDeviceSOC  bool
@@ -392,11 +408,90 @@ type energySnapshot struct {
 	PVLowPanelSetup          string
 	PVLowPanelConfidence     float64
 	PVLowPanelSamples        int
+	PVLowPanelCount          int
+	HasPVLowPanelCount       bool
+	PVLowPanelNominalWatts   float64
+	HasPVLowPanelNominal     bool
+	PVLowPanelStatus         string
 	HasPVLowPanelPrediction  bool
 	PVHighPanelSetup         string
 	PVHighPanelConfidence    float64
 	PVHighPanelSamples       int
+	PVHighPanelCount         int
+	HasPVHighPanelCount      bool
+	PVHighPanelNominalWatts  float64
+	HasPVHighPanelNominal    bool
+	PVHighPanelStatus        string
 	HasPVHighPanelPrediction bool
+
+	PVLowBestPanelLabel      string
+	HasPVLowBestPanelLabel   bool
+	PVLowBestPanelWatts      float64
+	HasPVLowBestPanelWatts   bool
+	PVLowBestPanelVocV       float64
+	HasPVLowBestPanelVocV    bool
+	PVLowBestPanelVmpV       float64
+	HasPVLowBestPanelVmpV    bool
+	PVLowBestPanelImpA       float64
+	HasPVLowBestPanelImpA    bool
+	PVLowBestPanelIscA       float64
+	HasPVLowBestPanelIscA    bool
+	PVLowBestPanelMaxSeries  int
+	HasPVLowBestPanelSeries  bool
+	PVLowBestPanelBifacial   bool
+	HasPVLowBestPanelType    bool
+	PVLowAltPanelLabel       string
+	HasPVLowAltPanelLabel    bool
+	PVLowAltPanelWatts       float64
+	HasPVLowAltPanelWatts    bool
+	PVLowAltPanelVocV        float64
+	HasPVLowAltPanelVocV     bool
+	PVLowAltPanelVmpV        float64
+	HasPVLowAltPanelVmpV     bool
+	PVLowAltPanelImpA        float64
+	HasPVLowAltPanelImpA     bool
+	PVLowAltPanelIscA        float64
+	HasPVLowAltPanelIscA     bool
+	PVLowAltPanelMaxSeries   int
+	HasPVLowAltPanelSeries   bool
+	PVLowAltPanelBifacial    bool
+	HasPVLowAltPanelType     bool
+	PVHighBestPanelLabel     string
+	HasPVHighBestPanelLabel  bool
+	PVHighBestPanelWatts     float64
+	HasPVHighBestPanelWatts  bool
+	PVHighBestPanelVocV      float64
+	HasPVHighBestPanelVocV   bool
+	PVHighBestPanelVmpV      float64
+	HasPVHighBestPanelVmpV   bool
+	PVHighBestPanelImpA      float64
+	HasPVHighBestPanelImpA   bool
+	PVHighBestPanelIscA      float64
+	HasPVHighBestPanelIscA   bool
+	PVHighBestPanelMaxSeries int
+	HasPVHighBestPanelSeries bool
+	PVHighBestPanelBifacial  bool
+	HasPVHighBestPanelType   bool
+	PVHighAltPanelLabel      string
+	HasPVHighAltPanelLabel   bool
+	PVHighAltPanelWatts      float64
+	HasPVHighAltPanelWatts   bool
+	PVHighAltPanelVocV       float64
+	HasPVHighAltPanelVocV    bool
+	PVHighAltPanelVmpV       float64
+	HasPVHighAltPanelVmpV    bool
+	PVHighAltPanelImpA       float64
+	HasPVHighAltPanelImpA    bool
+	PVHighAltPanelIscA       float64
+	HasPVHighAltPanelIscA    bool
+	PVHighAltPanelMaxSeries  int
+	HasPVHighAltPanelSeries  bool
+	PVHighAltPanelBifacial   bool
+	HasPVHighAltPanelType    bool
+	PVLowDBCandidates        []panelDBCandidate
+	HasPVLowDBCandidates     bool
+	PVHighDBCandidates       []panelDBCandidate
+	HasPVHighDBCandidates    bool
 
 	solarChargingSticky    bool
 	hasSolarChargingSticky bool
@@ -489,9 +584,10 @@ type snapshotDerived struct {
 }
 
 type minuteTableConfig struct {
-	Rows            int
-	NewestFirst     bool
-	HistoryCapacity int
+	Rows                int
+	NewestFirst         bool
+	HistoryCapacity     int
+	ShowSolarCandidates bool
 }
 
 type minuteTelemetryBucket struct {
@@ -631,19 +727,37 @@ type mqttQueueStats struct {
 	droppedOldest atomic.Uint64
 }
 
+type panelModelWorkerStats struct {
+	droppedInput  atomic.Uint64
+	droppedOutput atomic.Uint64
+}
+
 type mqttOutputLogger struct {
 	mu      sync.RWMutex
-	sink    *fileAppendSink
+	sink    appendChunkSink
 	queue   chan []byte
 	wg      sync.WaitGroup
 	closed  bool
 	dropped atomic.Uint64
 }
 
+type appendChunkSink interface {
+	Path() string
+	WriteChunk([]byte) error
+	Close() error
+}
+
 func newMQTTOutputLogger(path string, queueCapacity int) (*mqttOutputLogger, error) {
 	sink, err := newFileAppendSink(path, defaultAppendChunkBytes)
 	if err != nil {
 		return nil, fmt.Errorf("init mqtt log append sink: %w", err)
+	}
+	return newMQTTOutputLoggerWithSink(sink, queueCapacity)
+}
+
+func newMQTTOutputLoggerWithSink(sink appendChunkSink, queueCapacity int) (*mqttOutputLogger, error) {
+	if sink == nil {
+		return nil, errors.New("mqtt output logger sink is nil")
 	}
 	if queueCapacity <= 0 {
 		queueCapacity = defaultMQTTLogQueueCapacity
@@ -748,6 +862,87 @@ func enqueueLoggerChunkDropOldest(queue chan []byte, payload []byte, counter *at
 	default:
 		// If we still can't enqueue under contention, keep the old queue content.
 		return false, droppedOldest
+	}
+}
+
+func enqueuePanelObservationDropOldest(queue chan panelObservation, sample panelObservation, counter *atomic.Uint64) (enqueued bool, droppedOldest bool) {
+	if queue == nil {
+		return false, false
+	}
+	select {
+	case queue <- sample:
+		return true, false
+	default:
+	}
+	select {
+	case <-queue:
+		droppedOldest = true
+		if counter != nil {
+			counter.Add(1)
+		}
+	default:
+	}
+	select {
+	case queue <- sample:
+		return true, droppedOldest
+	default:
+		return false, droppedOldest
+	}
+}
+
+func enqueuePanelObservationResultDropOldest(queue chan panelObservationResult, result panelObservationResult, counter *atomic.Uint64) (enqueued bool, droppedOldest bool) {
+	if queue == nil {
+		return false, false
+	}
+	select {
+	case queue <- result:
+		return true, false
+	default:
+	}
+	select {
+	case <-queue:
+		droppedOldest = true
+		if counter != nil {
+			counter.Add(1)
+		}
+	default:
+	}
+	select {
+	case queue <- result:
+		return true, droppedOldest
+	default:
+		return false, droppedOldest
+	}
+}
+
+func runPanelModelWorker(
+	ctx context.Context,
+	model *panelRuntimeModel,
+	input <-chan panelObservation,
+	output chan panelObservationResult,
+	stats *panelModelWorkerStats,
+) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case sample, ok := <-input:
+			if !ok {
+				return
+			}
+			if model == nil {
+				continue
+			}
+			result := model.ObserveSample(sample)
+			if !result.HasUpdates() {
+				continue
+			}
+			var droppedOutputCounter *atomic.Uint64
+			if stats != nil {
+				droppedOutputCounter = &stats.droppedOutput
+			}
+			_, _ = enqueuePanelObservationResultDropOldest(output, result, droppedOutputCounter)
+		}
 	}
 }
 
@@ -1278,6 +1473,38 @@ func main() {
 	}()
 	runLog.Printf("session_start")
 
+	rawPayloadLogEnabled := parseBoolEnv("ECOFLOW_MQTT_RAW_PAYLOAD_LOG", true)
+	rawPayloadLogPath := envOrDefault("ECOFLOW_MQTT_RAW_PAYLOAD_LOG_PATH", defaultRawPayloadLogPath)
+	rawPayloadLogQueueCapacity := parsePositiveIntEnv("ECOFLOW_MQTT_RAW_PAYLOAD_LOG_QUEUE_CAPACITY", mqttLogQueueCapacity)
+	var rawPayloadLog *mqttOutputLogger
+	if rawPayloadLogEnabled {
+		rotatingSink, sinkErr := newDailyRotatingAppendSink(rawPayloadLogPath, defaultAppendChunkBytes)
+		if sinkErr != nil {
+			logger.Warn("init raw mqtt payload log sink failed", slog.String("error", sinkErr.Error()), slog.String("path", rawPayloadLogPath))
+			runLog.Printf("raw_payload_log_init_error path=%s error=%q", rawPayloadLogPath, sinkErr.Error())
+		} else {
+			rawPayloadLog, err = newMQTTOutputLoggerWithSink(rotatingSink, rawPayloadLogQueueCapacity)
+			if err != nil {
+				logger.Warn("init raw mqtt payload logger failed", slog.String("error", err.Error()), slog.String("path", rawPayloadLogPath))
+				runLog.Printf("raw_payload_log_init_error path=%s error=%q", rawPayloadLogPath, err.Error())
+				_ = rotatingSink.Close()
+			} else {
+				runLog.Printf("raw_payload_log_enabled path=%s rotate=daily queue_capacity=%d", rawPayloadLogPath, rawPayloadLogQueueCapacity)
+				defer func() {
+					dropped := rawPayloadLog.DroppedCount()
+					if dropped > 0 {
+						logger.Warn("raw mqtt payload log dropped queued chunks", slog.Uint64("dropped_chunks", dropped))
+					}
+					if closeErr := rawPayloadLog.Close(); closeErr != nil {
+						logger.Warn("flush/close raw mqtt payload log failed", slog.String("error", closeErr.Error()))
+					}
+				}()
+			}
+		}
+	} else {
+		runLog.Printf("raw_payload_log_disabled path=%s", rawPayloadLogPath)
+	}
+
 	stopQuitListener, err := startQuitKeyListener(cancel, logger, runLog)
 	if err != nil {
 		logger.Warn("keyboard quit listener disabled", slog.String("error", err.Error()))
@@ -1304,6 +1531,7 @@ func main() {
 	if err != nil {
 		fatalf("select target device: %v", err)
 	}
+	var loadedPanelDB *solarPanelIndex
 	panelDBEnabled := parseBoolEnv("ECOFLOW_MQTT_PANEL_DB_ENABLED", true)
 	panelDBPath := envOrDefault("ECOFLOW_MQTT_PANEL_DB_PATH", defaultPanelDBIndexPath)
 	if panelDBEnabled {
@@ -1316,6 +1544,7 @@ func main() {
 			)
 			runLog.Printf("solar_panel_db_load_error path=%s error=%q", panelDBPath, loadErr.Error())
 		} else {
+			loadedPanelDB = panelDB
 			deviceTags := inferPanelDeviceTags(targetDevice)
 			candidatePanels := panelDB.candidatePanelsForDeviceTags(deviceTags)
 			tagList := strings.Join(deviceTags, ",")
@@ -1422,9 +1651,10 @@ func main() {
 	mqttLivenessPollTimeout := mustDuration("ECOFLOW_MQTT_LIVENESS_POLL_TIMEOUT", defaultMQTTLivenessPollTO)
 	mqttLivenessPollMinInterval := mustDuration("ECOFLOW_MQTT_LIVENESS_POLL_MIN_INTERVAL", defaultMQTTLivenessMinIntvl)
 	minuteTableConfig := minuteTableConfig{
-		Rows:            parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_ROWS", defaultMinuteTableRows),
-		NewestFirst:     parseSortNewestFirstEnv("ECOFLOW_MQTT_MINUTE_SORT", true),
-		HistoryCapacity: parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_HISTORY_BUCKETS", defaultMinuteHistoryBuckets),
+		Rows:                parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_ROWS", defaultMinuteTableRows),
+		NewestFirst:         parseSortNewestFirstEnv("ECOFLOW_MQTT_MINUTE_SORT", true),
+		HistoryCapacity:     parsePositiveIntEnv("ECOFLOW_MQTT_MINUTE_HISTORY_BUCKETS", defaultMinuteHistoryBuckets),
+		ShowSolarCandidates: parseBoolEnv("ECOFLOW_MQTT_SHOW_SOLAR_CANDIDATES", false),
 	}
 	minuteHistoryPath := envOrDefault("ECOFLOW_MQTT_HISTORY_PATH", defaultMinuteHistoryPath)
 	trainingCSVPath := envOrDefault("ECOFLOW_MQTT_TRAINING_CSV_PATH", defaultTrainingCSVPath)
@@ -1435,6 +1665,9 @@ func main() {
 	mlBucketSeconds := parsePositiveIntEnv("ECOFLOW_ML_BUCKET_SECONDS", defaultMLBucketSeconds)
 	mlHistoryBuckets := parsePositiveIntEnv("ECOFLOW_ML_HISTORY_BUCKETS", defaultMLHistoryBuckets)
 	snapshot := newEnergySnapshot()
+	if loadedPanelDB != nil {
+		applyPanelDBPortMetadata(snapshot, loadedPanelDB, targetDevice)
+	}
 	pvSmoothingSamples := parsePositiveIntEnv("ECOFLOW_MQTT_PV_SMOOTH_SAMPLES", defaultPVSmoothingSamples)
 	powerSmoothingSamples := parsePositiveIntEnv("ECOFLOW_MQTT_POWER_SMOOTH_SAMPLES", pvSmoothingSamples)
 	if powerSmoothingSamples <= 0 {
@@ -1450,6 +1683,44 @@ func main() {
 	minuteHistory := newMinuteTelemetryHistory(minuteTableConfig.HistoryCapacity)
 	mlFastHistory := newPowerTelemetryHistory(time.Duration(mlBucketSeconds)*time.Second, mlHistoryBuckets)
 	snapshot.mlFastHistory = mlFastHistory
+	var panelModelInputCh chan panelObservation
+	var panelModelOutputCh chan panelObservationResult
+	panelModelStats := &panelModelWorkerStats{}
+	enqueuePanelObservation := func() {
+		if runtimePanelModel == nil || panelModelInputCh == nil {
+			return
+		}
+		sample := buildPanelObservation(snapshot)
+		_, _ = enqueuePanelObservationDropOldest(panelModelInputCh, sample, &panelModelStats.droppedInput)
+	}
+	if runtimePanelModel != nil {
+		panelModelQueueCap := parsePositiveIntEnv("ECOFLOW_MQTT_PANEL_MODEL_QUEUE_CAPACITY", defaultPanelModelQueueCap)
+		panelModelResultCap := parsePositiveIntEnv("ECOFLOW_MQTT_PANEL_MODEL_RESULT_QUEUE_CAPACITY", defaultPanelModelResultCap)
+		panelModelInputCh = make(chan panelObservation, panelModelQueueCap)
+		panelModelOutputCh = make(chan panelObservationResult, panelModelResultCap)
+		go runPanelModelWorker(ctx, runtimePanelModel, panelModelInputCh, panelModelOutputCh, panelModelStats)
+		defer func() {
+			droppedInput := panelModelStats.droppedInput.Load()
+			droppedOutput := panelModelStats.droppedOutput.Load()
+			if droppedInput > 0 || droppedOutput > 0 {
+				logger.Warn(
+					"panel model worker dropped queued items",
+					slog.Uint64("dropped_input", droppedInput),
+					slog.Uint64("dropped_output", droppedOutput),
+				)
+				runLog.Printf(
+					"panel_model_worker_dropped dropped_input=%d dropped_output=%d",
+					droppedInput,
+					droppedOutput,
+				)
+			}
+		}()
+		runLog.Printf(
+			"panel_model_worker_started queue_capacity=%d result_capacity=%d",
+			panelModelQueueCap,
+			panelModelResultCap,
+		)
+	}
 	minuteHistoryStore, err := newMinuteTelemetryStore(minuteHistoryPath)
 	if err != nil {
 		fatalf("init minute telemetry history store: %v", err)
@@ -1659,9 +1930,7 @@ func main() {
 	}
 	if bootstrap.QuotaKeys > 0 {
 		lastEnvelope = telemetryEnvelope{TypeCode: "quotaBootstrap"}
-		if runtimePanelModel != nil {
-			runtimePanelModel.Observe(snapshot)
-		}
+		enqueuePanelObservation()
 		now := time.Now()
 		recordMinuteSample(now)
 		captureTrainingTelemetry(now, currentTopic, lastEnvelope, nil)
@@ -1863,6 +2132,11 @@ func main() {
 			if scheduled := scheduleQuotaPoll(quotaPollKindReconcile, reconcileTimeout, 0); !scheduled {
 				logger.Debug("reconcile poll skipped; quota poll already in flight")
 			}
+		case panelResult := <-panelModelOutputCh:
+			applyPanelObservationResult(snapshot, panelResult)
+			if tableView {
+				emitDashboard(lastEnvelope)
+			}
 		case pollResult := <-quotaPollResCh:
 			quotaPollInFlight = false
 			if pollResult.Error != nil {
@@ -1899,9 +2173,7 @@ func main() {
 			}
 			snapshot.MQTTLastError = ""
 			report := applyDeviceQuotaToSnapshot(snapshot, pollResult.Quota)
-			if runtimePanelModel != nil {
-				runtimePanelModel.Observe(snapshot)
-			}
+			enqueuePanelObservation()
 			now := time.Now()
 			switch pollResult.Request.Kind {
 			case quotaPollKindFallback:
@@ -1958,7 +2230,11 @@ func main() {
 				continue
 			}
 
-			runLog.Printf("payload_raw=%s", string(msg.Payload))
+			rawPayload := sanitizeLogLine(string(msg.Payload))
+			runLog.Printf("payload_raw=%s", rawPayload)
+			if rawPayloadLog != nil {
+				rawPayloadLog.Printf("topic=%s payload_raw=%s", sanitizeLogLine(msg.Topic), rawPayload)
+			}
 
 			envelope, quota, err := parseTelemetryPayload(msg.Payload)
 			if err != nil {
@@ -1989,9 +2265,7 @@ func main() {
 			}
 
 			snapshot.Update(envelope, quota, kitEntries, hasKit, pdStatus, hasPDStatus)
-			if runtimePanelModel != nil {
-				runtimePanelModel.Observe(snapshot)
-			}
+			enqueuePanelObservation()
 			snapshot.MQTTQueueDepth = len(mqttIngressQueue)
 			snapshot.MQTTQueueCapacity = cap(mqttIngressQueue)
 			snapshot.MQTTQueueDroppedOldest = mqttIngressStats.droppedOldest.Load()

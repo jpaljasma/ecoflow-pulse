@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +20,11 @@ type dashboardViewModel struct {
 
 	summaryHeaders []string
 	summaryRows    [][]string
+
+	solarRecHeaders  []string
+	solarRecRows     [][]string
+	solarCandHeaders []string
+	solarCandRows    [][]string
 
 	packHeaders []string
 	packRows    [][]string
@@ -78,14 +84,6 @@ func buildDashboardViewModel(
 	pvHighCapability := formatPVInputCapability("high", device, snapshot)
 	pvLowUtilization := formatPVUtilizationGauge("low", device, snapshot, hasPVLowRaw, pvLowRaw, hasPVLowSmooth, pvLowSmooth)
 	pvHighUtilization := formatPVUtilizationGauge("high", device, snapshot, hasPVHighRaw, pvHighRaw, hasPVHighSmooth, pvHighSmooth)
-	showXT150 := shouldShowXT150Channels(device, snapshot, derived)
-
-	channelsInValue := fmt.Sprintf("ac: %s pv_total: %s", derived.InACValue, pvTotalDisplay)
-	channelsOutValue := fmt.Sprintf("ac: %s (l14: %s) dc: %s", derived.OutACValue, derived.OutACL14Value, derived.OutDCValue)
-	if showXT150 {
-		channelsInValue = fmt.Sprintf("%s xt150_in: %s", channelsInValue, derived.XT150InValue)
-		channelsOutValue = fmt.Sprintf("%s xt150_out: %s", channelsOutValue, derived.XT150OutValue)
-	}
 
 	updatedAt := formatSnapshotUpdatedRelative(snapshot)
 	deviceHeaders := []string{"Icon", "Device Name", "SOC", "AC In", "Solar Generated", "Out", "Net", "State", "Model", "Updated"}
@@ -142,14 +140,6 @@ func buildDashboardViewModel(
 	}}
 	summaryRows := [][]string{
 		{
-			"channels",
-			channelsInValue,
-			channelsOutValue,
-			derived.ChannelsNetValue,
-			"-",
-			"-",
-		},
-		{
 			"meta",
 			fmt.Sprintf("packs: %s showFlag: %s", derived.BatteryCount, derived.ShowFlagValue),
 			fmt.Sprintf("combo: %s c20: %s para: %s", derived.ComboValue, derived.C20LimitValue, derived.ParaLimitValue),
@@ -162,7 +152,7 @@ func buildDashboardViewModel(
 			pvLowCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVLowVoltsValue, derived.PVLowAmpsValue, pvLowDisplay),
 			formatSolarNetSummary(derived.PVLowStateValue, pvLowDisplay),
-			formatPanelPrediction(snapshot.HasPVLowPanelPrediction, snapshot.PVLowPanelSetup, snapshot.PVLowPanelConfidence, snapshot.PVLowPanelSamples),
+			formatPanelPrediction(snapshot.HasPVLowPanelPrediction, snapshot.PVLowPanelSetup, snapshot.PVLowPanelConfidence, snapshot.PVLowPanelSamples, snapshot.PVLowPanelStatus),
 			pvLowUtilization,
 		},
 		{
@@ -170,7 +160,7 @@ func buildDashboardViewModel(
 			pvHighCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVHighVoltsValue, derived.PVHighAmpsValue, pvHighDisplay),
 			formatSolarNetSummary(derived.PVHighStateValue, pvHighDisplay),
-			formatPanelPrediction(snapshot.HasPVHighPanelPrediction, snapshot.PVHighPanelSetup, snapshot.PVHighPanelConfidence, snapshot.PVHighPanelSamples),
+			formatPanelPrediction(snapshot.HasPVHighPanelPrediction, snapshot.PVHighPanelSetup, snapshot.PVHighPanelConfidence, snapshot.PVHighPanelSamples, snapshot.PVHighPanelStatus),
 			pvHighUtilization,
 		},
 		{
@@ -189,6 +179,27 @@ func buildDashboardViewModel(
 			"-",
 			"-",
 		},
+	}
+
+	solarRecHeaders, solarRecRows := buildSolarRecommendationRows(device, snapshot, hasPVLowRaw, pvLowRaw, hasPVLowSmooth, pvLowSmooth, hasPVHighRaw, pvHighRaw, hasPVHighSmooth, pvHighSmooth)
+	if len(solarRecRows) == 0 {
+		if len(solarRecHeaders) == 0 {
+			solarRecHeaders = []string{"Metric", "PV"}
+		}
+		fallback := make([]string, 0, len(solarRecHeaders))
+		for i := range solarRecHeaders {
+			if i == 0 {
+				fallback = append(fallback, "n/a")
+				continue
+			}
+			fallback = append(fallback, "n/a")
+		}
+		solarRecRows = append(solarRecRows, fallback)
+	}
+	var solarCandHeaders []string
+	var solarCandRows [][]string
+	if minuteCfg.ShowSolarCandidates {
+		solarCandHeaders, solarCandRows = buildSolarCandidateRows(device, snapshot)
 	}
 
 	estimateHeaders := []string{"Model", "Charge", "Discharge", "Active", "Power", "Confidence", "Δ ETA vs Unit", "Δ Power vs Unit"}
@@ -316,25 +327,31 @@ func buildDashboardViewModel(
 	showEVStatus := shouldShowEVStatus(device, snapshot)
 	showFanStatus := shouldShowFanStatus(device, snapshot)
 	showPreconditioningStatus := shouldShowPreconditioningStatus(device, snapshot)
-	statusLines = append(statusLines, fmt.Sprintf("%s AC On", derived.StatusACValue))
+
+	statusItems := make([]string, 0, 10)
+	statusItems = append(statusItems, fmt.Sprintf("%s AC On", derived.StatusACValue))
 	if showSeparateUSBAndDC {
-		statusLines = append(statusLines, fmt.Sprintf("%s USB On", derived.StatusUSBValue))
-		statusLines = append(statusLines, fmt.Sprintf("%s 12V DC On", derived.StatusDC12VValue))
+		statusItems = append(statusItems, fmt.Sprintf("%s USB On", derived.StatusUSBValue))
+		statusItems = append(statusItems, fmt.Sprintf("%s 12V DC On", derived.StatusDC12VValue))
 	} else {
-		statusLines = append(statusLines, fmt.Sprintf("%s DC/USB On", derived.StatusDCValue))
-	}
-	if showEVStatus {
-		statusLines = append(statusLines, fmt.Sprintf("%s EV Charging On", derived.StatusEVValue))
+		statusItems = append(statusItems, fmt.Sprintf("%s DC/USB On", derived.StatusDCValue))
 	}
 	if showFanStatus {
-		statusLines = append(statusLines, fmt.Sprintf("%s Fan On", derived.StatusFanValue))
+		statusItems = append(statusItems, fmt.Sprintf("%s Fan On", derived.StatusFanValue))
 	}
-	statusLines = append(statusLines, fmt.Sprintf("%s UPS Passthrough", derived.StatusPassthroughValue))
-	statusLines = append(statusLines, fmt.Sprintf("%s Solar Passthrough", derived.StatusSolarPassValue))
-	statusLines = append(statusLines, fmt.Sprintf("%s Solar Charging", derived.StatusSolarChargingValue))
-	statusLines = append(statusLines, fmt.Sprintf("%s Grounded (Estimated)", derived.StatusGroundedValue))
+	if showEVStatus {
+		statusItems = append(statusItems, fmt.Sprintf("%s EV Charging On", derived.StatusEVValue))
+	}
+	statusItems = append(statusItems, fmt.Sprintf("%s UPS Passthrough", derived.StatusPassthroughValue))
+	statusItems = append(statusItems, fmt.Sprintf("%s Solar Passthrough", derived.StatusSolarPassValue))
+	statusItems = append(statusItems, fmt.Sprintf("%s Solar Charging", derived.StatusSolarChargingValue))
+	statusItems = append(statusItems, fmt.Sprintf("%s Grounded (Estimated)", derived.StatusGroundedValue))
 	if showPreconditioningStatus {
-		statusLines = append(statusLines, fmt.Sprintf("%s Battery Preconditioning On", derived.StatusPrecondValue))
+		statusItems = append(statusItems, fmt.Sprintf("%s Battery Preconditioning On", derived.StatusPrecondValue))
+	}
+
+	if len(statusItems) > 0 {
+		statusLines = append(statusLines, strings.Join(statusItems, "  "))
 	}
 
 	return dashboardViewModel{
@@ -345,6 +362,11 @@ func buildDashboardViewModel(
 
 		summaryHeaders: summaryHeaders,
 		summaryRows:    summaryRows,
+
+		solarRecHeaders:  solarRecHeaders,
+		solarRecRows:     solarRecRows,
+		solarCandHeaders: solarCandHeaders,
+		solarCandRows:    solarCandRows,
 
 		packHeaders: packHeaders,
 		packRows:    packRows,
@@ -380,14 +402,1630 @@ func firstNonEmpty(value, fallback string) string {
 	return value
 }
 
-func formatPanelPrediction(has bool, setup string, confidence float64, samples int) string {
+func formatPanelPrediction(has bool, setup string, confidence float64, samples int, status string) string {
+	status = strings.TrimSpace(status)
 	if !has || strings.TrimSpace(setup) == "" {
+		if status != "" {
+			return "panel: " + status
+		}
 		return "panel: n/a"
+	}
+	if status != "" {
+		return fmt.Sprintf("panel: %s (%s)", setup, status)
 	}
 	if samples > 0 {
 		return fmt.Sprintf("panel: %s (%.2f, n=%d)", setup, confidence, samples)
 	}
 	return fmt.Sprintf("panel: %s (%.2f)", setup, confidence)
+}
+
+type detectedPanelSetup struct {
+	has         bool
+	setup       string
+	status      string
+	bifacial    bool
+	confidence  float64
+	samples     int
+	panelCount  int
+	hasCount    bool
+	nominalW    float64
+	hasNominalW bool
+}
+
+type upgradePanelTarget struct {
+	label        string
+	hasLabel     bool
+	status       string
+	sourceKind   string
+	panelWatts   float64
+	hasPanelW    bool
+	panelVocV    float64
+	hasPanelVoc  bool
+	panelVmpV    float64
+	hasPanelVmp  bool
+	panelImpA    float64
+	hasPanelImp  bool
+	panelIscA    float64
+	hasPanelIsc  bool
+	minSeries    int
+	hasMinSeries bool
+	maxSeries    int
+	hasMaxSeries bool
+	bifacial     bool
+}
+
+type solarRecommendationOption struct {
+	text         string
+	nominalW     float64
+	potentialW   float64
+	hasPotential bool
+	clipped      bool
+	bifacial     bool
+	sourceLabel  string
+	sourceKind   string
+	series       int
+	parallel     int
+	units        int
+	complexity   float64
+}
+
+type solarRecommendationPort struct {
+	channel      string
+	label        string
+	maxWatts     float64
+	hasMaxWatts  bool
+	capability   pvInputCapability
+	hasCap       bool
+	detected     detectedPanelSetup
+	upgrade      upgradePanelTarget
+	upgradeAlt   upgradePanelTarget
+	dbCandidates []upgradePanelTarget
+}
+
+var (
+	panelSetupCountPattern = regexp.MustCompile(`(?i)^\s*(\d+)\s*x\s*([0-9]+(?:\.[0-9]+)?)\s*w\b`)
+	panelSetupWattPattern  = regexp.MustCompile(`(?i)([0-9]+(?:\.[0-9]+)?)\s*w\b`)
+)
+
+const bifacialETAConservativeGain = 0.15
+const panelShoulderHoursGain = 0.12
+const panelComplexityPenaltyFactor = 0.008
+const ecoflow125ComplexityFactor = 0.5
+
+func buildSolarRecommendationRows(
+	device ecoflow.GeneralInfoDevice,
+	snapshot *energySnapshot,
+	hasPVLowRaw bool,
+	pvLowRaw float64,
+	_ bool,
+	_ float64,
+	hasPVHighRaw bool,
+	pvHighRaw float64,
+	_ bool,
+	_ float64,
+) ([]string, [][]string) {
+	if snapshot == nil {
+		return nil, nil
+	}
+
+	lowPort := solarRecommendationPort{
+		channel:      "low",
+		label:        formatPVInputRowLabel("low", device, snapshot),
+		detected:     detectedPanelForChannel(snapshot, "low"),
+		upgrade:      upgradePanelForChannel(snapshot, "low", false),
+		upgradeAlt:   upgradePanelForChannel(snapshot, "low", true),
+		dbCandidates: upgradePanelCandidatesForChannel(snapshot, "low"),
+	}
+	highPort := solarRecommendationPort{
+		channel:      "high",
+		label:        formatPVInputRowLabel("high", device, snapshot),
+		detected:     detectedPanelForChannel(snapshot, "high"),
+		upgrade:      upgradePanelForChannel(snapshot, "high", false),
+		upgradeAlt:   upgradePanelForChannel(snapshot, "high", true),
+		dbCandidates: upgradePanelCandidatesForChannel(snapshot, "high"),
+	}
+	if maxW, ok := estimatePVInputMaxWatts("low", device, snapshot); ok {
+		lowPort.maxWatts = maxW
+		lowPort.hasMaxWatts = true
+	}
+	if maxW, ok := estimatePVInputMaxWatts("high", device, snapshot); ok {
+		highPort.maxWatts = maxW
+		highPort.hasMaxWatts = true
+	}
+	if capLow, ok := estimatePVInputCapability("low", device, snapshot); ok {
+		lowPort.capability = capLow
+		lowPort.hasCap = true
+	}
+	if capHigh, ok := estimatePVInputCapability("high", device, snapshot); ok {
+		highPort.capability = capHigh
+		highPort.hasCap = true
+	}
+
+	baseLow, baseLowNominal, hasBaseLow := baselineSolarPortPotential(lowPort, hasPVLowRaw, pvLowRaw)
+	baseHigh, baseHighNominal, hasBaseHigh := baselineSolarPortPotential(highPort, hasPVHighRaw, pvHighRaw)
+	baseLowETAW := solarRecommendationETAW(baseLow, baseLowNominal, lowPort.maxWatts, lowPort.hasMaxWatts, portDetectedBifacial(lowPort.detected))
+	baseHighETAW := solarRecommendationETAW(baseHigh, baseHighNominal, highPort.maxWatts, highPort.hasMaxWatts, portDetectedBifacial(highPort.detected))
+	baseTotalETAW := 0.0
+	if hasBaseLow {
+		baseTotalETAW += baseLowETAW
+	}
+	if hasBaseHigh {
+		baseTotalETAW += baseHighETAW
+	}
+
+	remainingToChargeWh, hasRemainingCharge := estimatedEnergyToChargeTargetWh(snapshot)
+
+	type portRecommendationData struct {
+		label                 string
+		detected              string
+		add                   string
+		upgrade               string
+		upgrade2              string
+		eta                   string
+		eta2                  string
+		basePotentialETAW     float64
+		addPotentialETAW      float64
+		hasAddPotential       bool
+		upgradePotentialETAW  float64
+		hasUpgradePotential   bool
+		upgrade2PotentialETAW float64
+		hasUpgrade2Potential  bool
+	}
+
+	portRows := make([]portRecommendationData, 0, 2)
+	for _, port := range []solarRecommendationPort{lowPort, highPort} {
+		includePort := port.hasMaxWatts || port.detected.has || port.upgrade.hasLabel || len(port.dbCandidates) > 0
+		if port.channel == "low" && hasPVLowRaw {
+			includePort = true
+		}
+		if port.channel == "high" && hasPVHighRaw {
+			includePort = true
+		}
+		if !includePort {
+			continue
+		}
+		peerPort := lowPort
+		if strings.EqualFold(port.channel, "low") {
+			peerPort = highPort
+		}
+		addOption := buildAddPanelsOption(port, peerPort)
+		upgradeOption, upgradeOption2 := selectUpgradeRecommendationPair(port, peerPort)
+		basePortPotential, _, _ := baselineSolarPortPotential(port, false, 0)
+		basePortETAW := basePortPotential
+		if port.channel == "low" {
+			basePortETAW = baseLowETAW
+		} else if port.channel == "high" {
+			basePortETAW = baseHighETAW
+		}
+		otherPortsETAW := baseTotalETAW - basePortETAW
+		addTotalETAW := otherPortsETAW + solarRecommendationOptionETAW(addOption, port.maxWatts, port.hasMaxWatts, portDetectedBifacial(port.detected))
+		upgradeTotalETAW := otherPortsETAW + solarRecommendationOptionETAW(upgradeOption, port.maxWatts, port.hasMaxWatts, upgradeOption.bifacial)
+		upgradeTotalETAW2 := otherPortsETAW + solarRecommendationOptionETAW(upgradeOption2, port.maxWatts, port.hasMaxWatts, upgradeOption2.bifacial)
+		etaImpact := buildSolarETAImpact(
+			remainingToChargeWh,
+			hasRemainingCharge,
+			baseTotalETAW,
+			addTotalETAW,
+			addOption.hasPotential,
+			upgradeTotalETAW,
+			upgradeOption.hasPotential,
+		)
+		etaImpact2 := buildSolarETAImpact(
+			remainingToChargeWh,
+			hasRemainingCharge,
+			baseTotalETAW,
+			addTotalETAW,
+			addOption.hasPotential,
+			upgradeTotalETAW2,
+			upgradeOption2.hasPotential,
+		)
+		portRows = append(portRows, portRecommendationData{
+			label:                 port.label,
+			detected:              formatDetectedPanelRecommendation(port.detected, port.maxWatts, port.hasMaxWatts),
+			add:                   addOption.text,
+			upgrade:               upgradeOption.text,
+			upgrade2:              upgradeOption2.text,
+			eta:                   etaImpact,
+			eta2:                  etaImpact2,
+			basePotentialETAW:     basePortETAW,
+			addPotentialETAW:      solarRecommendationOptionETAW(addOption, port.maxWatts, port.hasMaxWatts, portDetectedBifacial(port.detected)),
+			hasAddPotential:       addOption.hasPotential,
+			upgradePotentialETAW:  solarRecommendationOptionETAW(upgradeOption, port.maxWatts, port.hasMaxWatts, upgradeOption.bifacial),
+			hasUpgradePotential:   upgradeOption.hasPotential,
+			upgrade2PotentialETAW: solarRecommendationOptionETAW(upgradeOption2, port.maxWatts, port.hasMaxWatts, upgradeOption2.bifacial),
+			hasUpgrade2Potential:  upgradeOption2.hasPotential,
+		})
+	}
+
+	if len(portRows) == 0 {
+		return nil, nil
+	}
+
+	headers := make([]string, 0, len(portRows)+1)
+	headers = append(headers, "Metric")
+	for _, port := range portRows {
+		headers = append(headers, port.label)
+	}
+	includeAllPortsSummary := len(portRows) > 1
+	allPortsChargeETAImpact := ""
+	allPortsChargeETAImpact2 := ""
+	if includeAllPortsSummary {
+		allAddTotalW := 0.0
+		allUpgradeTotalW := 0.0
+		allUpgradeTotalW2 := 0.0
+		hasAllAdd := false
+		hasAllUpgrade := false
+		hasAllUpgrade2 := false
+		for _, port := range portRows {
+			addW := port.basePotentialETAW
+			if port.hasAddPotential {
+				addW = port.addPotentialETAW
+				hasAllAdd = true
+			}
+			allAddTotalW += addW
+
+			upgradeW := port.basePotentialETAW
+			if port.hasUpgradePotential {
+				upgradeW = port.upgradePotentialETAW
+				hasAllUpgrade = true
+			}
+			allUpgradeTotalW += upgradeW
+
+			upgradeW2 := port.basePotentialETAW
+			if port.hasUpgrade2Potential {
+				upgradeW2 = port.upgrade2PotentialETAW
+				hasAllUpgrade2 = true
+			}
+			allUpgradeTotalW2 += upgradeW2
+		}
+		allPortsChargeETAImpact = buildSolarETAImpact(
+			remainingToChargeWh,
+			hasRemainingCharge,
+			baseTotalETAW,
+			allAddTotalW,
+			hasAllAdd,
+			allUpgradeTotalW,
+			hasAllUpgrade,
+		)
+		allPortsChargeETAImpact2 = buildSolarETAImpact(
+			remainingToChargeWh,
+			hasRemainingCharge,
+			baseTotalETAW,
+			allAddTotalW,
+			hasAllAdd,
+			allUpgradeTotalW2,
+			hasAllUpgrade2,
+		)
+	}
+
+	rows := make([][]string, 0, 7)
+	appendMetricRow := func(metric string, valueSelector func(portRecommendationData) string) {
+		row := make([]string, 0, len(portRows)+1)
+		row = append(row, metric)
+		for _, port := range portRows {
+			row = append(row, valueSelector(port))
+		}
+		rows = append(rows, row)
+	}
+
+	appendMetricRow("Detected", func(port portRecommendationData) string { return port.detected })
+	appendMetricRow("Add Panels", func(port portRecommendationData) string { return port.add })
+	appendMetricRow("Upgrade Panels", func(port portRecommendationData) string { return port.upgrade })
+	appendMetricRow("Upgrade Panels #2", func(port portRecommendationData) string { return port.upgrade2 })
+	appendMetricRow("Charge ETA Impact", func(port portRecommendationData) string { return port.eta })
+	appendMetricRow("Charge ETA Impact #2", func(port portRecommendationData) string { return port.eta2 })
+	if includeAllPortsSummary {
+		summaryRow := []string{
+			"All Ports ETA Impact",
+			makeColspanCell(allPortsChargeETAImpact),
+		}
+		rows = append(rows, summaryRow)
+		summaryRow2 := []string{
+			"All Ports ETA Impact #2",
+			makeColspanCell(allPortsChargeETAImpact2),
+		}
+		rows = append(rows, summaryRow2)
+	}
+	return headers, rows
+}
+
+func buildSolarCandidateRows(device ecoflow.GeneralInfoDevice, snapshot *energySnapshot) ([]string, [][]string) {
+	if snapshot == nil {
+		return nil, nil
+	}
+	lowPort := solarRecommendationPort{
+		channel:      "low",
+		label:        formatPVInputRowLabel("low", device, snapshot),
+		dbCandidates: upgradePanelCandidatesForChannel(snapshot, "low"),
+	}
+	highPort := solarRecommendationPort{
+		channel:      "high",
+		label:        formatPVInputRowLabel("high", device, snapshot),
+		dbCandidates: upgradePanelCandidatesForChannel(snapshot, "high"),
+	}
+	if maxW, ok := estimatePVInputMaxWatts("low", device, snapshot); ok {
+		lowPort.maxWatts = maxW
+		lowPort.hasMaxWatts = true
+	}
+	if maxW, ok := estimatePVInputMaxWatts("high", device, snapshot); ok {
+		highPort.maxWatts = maxW
+		highPort.hasMaxWatts = true
+	}
+	if capLow, ok := estimatePVInputCapability("low", device, snapshot); ok {
+		lowPort.capability = capLow
+		lowPort.hasCap = true
+	}
+	if capHigh, ok := estimatePVInputCapability("high", device, snapshot); ok {
+		highPort.capability = capHigh
+		highPort.hasCap = true
+	}
+
+	headers := []string{"Port", "Panel", "Status", "STC", "Voc/Vmp", "Imp/Isc", "Series(cold)", "Best Layout", "Complexity", "Potential"}
+	type candidateDisplayRow struct {
+		cells      []string
+		port       string
+		complexity float64
+		potential  float64
+	}
+	displayRows := make([]candidateDisplayRow, 0, len(lowPort.dbCandidates)+len(highPort.dbCandidates))
+	appendPortCandidates := func(port solarRecommendationPort) {
+		if !port.hasMaxWatts || !port.hasCap || len(port.dbCandidates) == 0 {
+			return
+		}
+		for _, target := range port.dbCandidates {
+			layout, ok := selectSafePanelLayout(port, target, false, panelLayout{})
+			if !ok {
+				continue
+			}
+			status := strings.TrimSpace(target.status)
+			if status == "" {
+				status = "compatible"
+			}
+			potential := formatPVCapacityWatts(layout.potentialW)
+			if layout.clipped {
+				potential = fmt.Sprintf("%s (from %s)", formatPVCapacityWatts(layout.potentialW), formatPVCapacityWatts(layout.nominalW))
+			}
+			complexity := adjustedPanelLayoutComplexity(panelLayoutComplexityScore(layout), target.label, layout.parallel)
+			displayRows = append(displayRows, candidateDisplayRow{
+				port:       port.label,
+				complexity: complexity,
+				potential:  layout.potentialW,
+				cells: []string{
+					port.label,
+					target.label,
+					status,
+					formatPVCapacityWatts(target.panelWatts),
+					fmt.Sprintf("%.1f/%.1fV", target.panelVocV, target.panelVmpV),
+					fmt.Sprintf("%.2f/%.2fA", target.panelImpA, target.panelIscA),
+					formatPanelSeriesRange(target),
+					fmt.Sprintf("%s (%dx)", formatSeriesParallel(layout.series, layout.parallel), layout.units),
+					fmt.Sprintf("%.1f", complexity),
+					potential,
+				},
+			})
+		}
+	}
+	appendPortCandidates(lowPort)
+	appendPortCandidates(highPort)
+	if len(displayRows) == 0 {
+		return nil, nil
+	}
+	sort.SliceStable(displayRows, func(i, j int) bool {
+		if displayRows[i].port != displayRows[j].port {
+			return displayRows[i].port < displayRows[j].port
+		}
+		if math.Abs(displayRows[i].complexity-displayRows[j].complexity) > 0.05 {
+			return displayRows[i].complexity < displayRows[j].complexity
+		}
+		if math.Abs(displayRows[i].potential-displayRows[j].potential) > 1 {
+			return displayRows[i].potential > displayRows[j].potential
+		}
+		return displayRows[i].cells[1] < displayRows[j].cells[1]
+	})
+	rows := make([][]string, 0, len(displayRows))
+	for _, row := range displayRows {
+		rows = append(rows, row.cells)
+	}
+	return headers, rows
+}
+
+func formatPanelSeriesRange(target upgradePanelTarget) string {
+	minSeries := 1
+	maxSeries := 0
+	if target.hasMinSeries && target.minSeries > 0 {
+		minSeries = target.minSeries
+	}
+	if target.hasMaxSeries && target.maxSeries > 0 {
+		maxSeries = target.maxSeries
+	}
+	switch {
+	case maxSeries > 0 && minSeries > maxSeries:
+		return fmt.Sprintf("%d-%d", maxSeries, minSeries)
+	case maxSeries > 0:
+		return fmt.Sprintf("%d-%d", minSeries, maxSeries)
+	default:
+		return fmt.Sprintf("%d+", minSeries)
+	}
+}
+
+func detectedPanelForChannel(snapshot *energySnapshot, channel string) detectedPanelSetup {
+	out := detectedPanelSetup{}
+	if snapshot == nil {
+		return out
+	}
+	switch strings.ToLower(strings.TrimSpace(channel)) {
+	case "high":
+		out.setup = strings.TrimSpace(snapshot.PVHighPanelSetup)
+		out.status = strings.TrimSpace(snapshot.PVHighPanelStatus)
+		out.bifacial = panelTextIsBifacial(out.setup)
+		out.confidence = snapshot.PVHighPanelConfidence
+		out.samples = snapshot.PVHighPanelSamples
+		out.panelCount = snapshot.PVHighPanelCount
+		out.hasCount = snapshot.HasPVHighPanelCount && snapshot.PVHighPanelCount > 0
+		out.nominalW = snapshot.PVHighPanelNominalWatts
+		out.hasNominalW = snapshot.HasPVHighPanelNominal && snapshot.PVHighPanelNominalWatts > 0
+		out.has = snapshot.HasPVHighPanelPrediction && out.setup != ""
+	default:
+		out.setup = strings.TrimSpace(snapshot.PVLowPanelSetup)
+		out.status = strings.TrimSpace(snapshot.PVLowPanelStatus)
+		out.bifacial = panelTextIsBifacial(out.setup)
+		out.confidence = snapshot.PVLowPanelConfidence
+		out.samples = snapshot.PVLowPanelSamples
+		out.panelCount = snapshot.PVLowPanelCount
+		out.hasCount = snapshot.HasPVLowPanelCount && snapshot.PVLowPanelCount > 0
+		out.nominalW = snapshot.PVLowPanelNominalWatts
+		out.hasNominalW = snapshot.HasPVLowPanelNominal && snapshot.PVLowPanelNominalWatts > 0
+		out.has = snapshot.HasPVLowPanelPrediction && out.setup != ""
+	}
+	if !out.has {
+		return out
+	}
+	if !out.hasNominalW || out.nominalW <= 0 || !out.hasCount || out.panelCount <= 0 {
+		if parsedCount, parsedPerPanelW, ok := parsePanelSetupCountAndWatts(out.setup); ok {
+			if !out.hasCount || out.panelCount <= 0 {
+				out.panelCount = parsedCount
+				out.hasCount = parsedCount > 0
+			}
+			if !out.hasNominalW || out.nominalW <= 0 {
+				out.nominalW = float64(parsedCount) * parsedPerPanelW
+				out.hasNominalW = out.nominalW > 0
+			}
+		}
+	}
+	return out
+}
+
+func upgradePanelForChannel(snapshot *energySnapshot, channel string, alternate bool) upgradePanelTarget {
+	out := upgradePanelTarget{}
+	if snapshot == nil {
+		return out
+	}
+	switch strings.ToLower(strings.TrimSpace(channel)) {
+	case "high":
+		if alternate {
+			out.sourceKind = "metadata_alt"
+			out.label = strings.TrimSpace(snapshot.PVHighAltPanelLabel)
+			out.hasLabel = snapshot.HasPVHighAltPanelLabel && out.label != ""
+			out.panelWatts = snapshot.PVHighAltPanelWatts
+			out.hasPanelW = snapshot.HasPVHighAltPanelWatts && snapshot.PVHighAltPanelWatts > 0
+			out.panelVocV = snapshot.PVHighAltPanelVocV
+			out.hasPanelVoc = snapshot.HasPVHighAltPanelVocV && snapshot.PVHighAltPanelVocV > 0
+			out.panelVmpV = snapshot.PVHighAltPanelVmpV
+			out.hasPanelVmp = snapshot.HasPVHighAltPanelVmpV && snapshot.PVHighAltPanelVmpV > 0
+			out.panelImpA = snapshot.PVHighAltPanelImpA
+			out.hasPanelImp = snapshot.HasPVHighAltPanelImpA && snapshot.PVHighAltPanelImpA > 0
+			out.panelIscA = snapshot.PVHighAltPanelIscA
+			out.hasPanelIsc = snapshot.HasPVHighAltPanelIscA && snapshot.PVHighAltPanelIscA > 0
+			out.maxSeries = snapshot.PVHighAltPanelMaxSeries
+			out.hasMaxSeries = snapshot.HasPVHighAltPanelSeries && snapshot.PVHighAltPanelMaxSeries > 0
+			out.bifacial = snapshot.HasPVHighAltPanelType && snapshot.PVHighAltPanelBifacial
+			if !snapshot.HasPVHighAltPanelType {
+				out.bifacial = panelTextIsBifacial(out.label)
+			}
+			return out
+		}
+		out.sourceKind = "metadata_best"
+		out.label = strings.TrimSpace(snapshot.PVHighBestPanelLabel)
+		out.hasLabel = snapshot.HasPVHighBestPanelLabel && out.label != ""
+		out.panelWatts = snapshot.PVHighBestPanelWatts
+		out.hasPanelW = snapshot.HasPVHighBestPanelWatts && snapshot.PVHighBestPanelWatts > 0
+		out.panelVocV = snapshot.PVHighBestPanelVocV
+		out.hasPanelVoc = snapshot.HasPVHighBestPanelVocV && snapshot.PVHighBestPanelVocV > 0
+		out.panelVmpV = snapshot.PVHighBestPanelVmpV
+		out.hasPanelVmp = snapshot.HasPVHighBestPanelVmpV && snapshot.PVHighBestPanelVmpV > 0
+		out.panelImpA = snapshot.PVHighBestPanelImpA
+		out.hasPanelImp = snapshot.HasPVHighBestPanelImpA && snapshot.PVHighBestPanelImpA > 0
+		out.panelIscA = snapshot.PVHighBestPanelIscA
+		out.hasPanelIsc = snapshot.HasPVHighBestPanelIscA && snapshot.PVHighBestPanelIscA > 0
+		out.maxSeries = snapshot.PVHighBestPanelMaxSeries
+		out.hasMaxSeries = snapshot.HasPVHighBestPanelSeries && snapshot.PVHighBestPanelMaxSeries > 0
+		out.bifacial = snapshot.HasPVHighBestPanelType && snapshot.PVHighBestPanelBifacial
+		if !snapshot.HasPVHighBestPanelType {
+			out.bifacial = panelTextIsBifacial(out.label)
+		}
+	default:
+		if alternate {
+			out.sourceKind = "metadata_alt"
+			out.label = strings.TrimSpace(snapshot.PVLowAltPanelLabel)
+			out.hasLabel = snapshot.HasPVLowAltPanelLabel && out.label != ""
+			out.panelWatts = snapshot.PVLowAltPanelWatts
+			out.hasPanelW = snapshot.HasPVLowAltPanelWatts && snapshot.PVLowAltPanelWatts > 0
+			out.panelVocV = snapshot.PVLowAltPanelVocV
+			out.hasPanelVoc = snapshot.HasPVLowAltPanelVocV && snapshot.PVLowAltPanelVocV > 0
+			out.panelVmpV = snapshot.PVLowAltPanelVmpV
+			out.hasPanelVmp = snapshot.HasPVLowAltPanelVmpV && snapshot.PVLowAltPanelVmpV > 0
+			out.panelImpA = snapshot.PVLowAltPanelImpA
+			out.hasPanelImp = snapshot.HasPVLowAltPanelImpA && snapshot.PVLowAltPanelImpA > 0
+			out.panelIscA = snapshot.PVLowAltPanelIscA
+			out.hasPanelIsc = snapshot.HasPVLowAltPanelIscA && snapshot.PVLowAltPanelIscA > 0
+			out.maxSeries = snapshot.PVLowAltPanelMaxSeries
+			out.hasMaxSeries = snapshot.HasPVLowAltPanelSeries && snapshot.PVLowAltPanelMaxSeries > 0
+			out.bifacial = snapshot.HasPVLowAltPanelType && snapshot.PVLowAltPanelBifacial
+			if !snapshot.HasPVLowAltPanelType {
+				out.bifacial = panelTextIsBifacial(out.label)
+			}
+			return out
+		}
+		out.sourceKind = "metadata_best"
+		out.label = strings.TrimSpace(snapshot.PVLowBestPanelLabel)
+		out.hasLabel = snapshot.HasPVLowBestPanelLabel && out.label != ""
+		out.panelWatts = snapshot.PVLowBestPanelWatts
+		out.hasPanelW = snapshot.HasPVLowBestPanelWatts && snapshot.PVLowBestPanelWatts > 0
+		out.panelVocV = snapshot.PVLowBestPanelVocV
+		out.hasPanelVoc = snapshot.HasPVLowBestPanelVocV && snapshot.PVLowBestPanelVocV > 0
+		out.panelVmpV = snapshot.PVLowBestPanelVmpV
+		out.hasPanelVmp = snapshot.HasPVLowBestPanelVmpV && snapshot.PVLowBestPanelVmpV > 0
+		out.panelImpA = snapshot.PVLowBestPanelImpA
+		out.hasPanelImp = snapshot.HasPVLowBestPanelImpA && snapshot.PVLowBestPanelImpA > 0
+		out.panelIscA = snapshot.PVLowBestPanelIscA
+		out.hasPanelIsc = snapshot.HasPVLowBestPanelIscA && snapshot.PVLowBestPanelIscA > 0
+		out.maxSeries = snapshot.PVLowBestPanelMaxSeries
+		out.hasMaxSeries = snapshot.HasPVLowBestPanelSeries && snapshot.PVLowBestPanelMaxSeries > 0
+		out.bifacial = snapshot.HasPVLowBestPanelType && snapshot.PVLowBestPanelBifacial
+		if !snapshot.HasPVLowBestPanelType {
+			out.bifacial = panelTextIsBifacial(out.label)
+		}
+	}
+	return out
+}
+
+func upgradePanelCandidatesForChannel(snapshot *energySnapshot, channel string) []upgradePanelTarget {
+	if snapshot == nil {
+		return nil
+	}
+	var source []panelDBCandidate
+	switch strings.ToLower(strings.TrimSpace(channel)) {
+	case "high":
+		if !snapshot.HasPVHighDBCandidates || len(snapshot.PVHighDBCandidates) == 0 {
+			return nil
+		}
+		source = snapshot.PVHighDBCandidates
+	default:
+		if !snapshot.HasPVLowDBCandidates || len(snapshot.PVLowDBCandidates) == 0 {
+			return nil
+		}
+		source = snapshot.PVLowDBCandidates
+	}
+	out := make([]upgradePanelTarget, 0, len(source))
+	seen := make(map[string]struct{}, len(source))
+	for _, candidate := range source {
+		label := strings.TrimSpace(candidate.Label)
+		if label == "" {
+			continue
+		}
+		key := strings.ToLower(label)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		target := upgradePanelTarget{
+			label:        label,
+			hasLabel:     true,
+			status:       strings.TrimSpace(candidate.Status),
+			sourceKind:   "db",
+			panelWatts:   candidate.PanelWatts,
+			hasPanelW:    candidate.PanelWatts > 0,
+			panelVocV:    candidate.VocV,
+			hasPanelVoc:  candidate.VocV > 0,
+			panelVmpV:    candidate.VmpV,
+			hasPanelVmp:  candidate.VmpV > 0,
+			panelImpA:    candidate.ImpA,
+			hasPanelImp:  candidate.ImpA > 0,
+			panelIscA:    candidate.IscA,
+			hasPanelIsc:  candidate.IscA > 0,
+			minSeries:    candidate.MinSeries,
+			hasMinSeries: candidate.MinSeries > 0,
+			maxSeries:    candidate.MaxSeries,
+			hasMaxSeries: candidate.MaxSeries > 0,
+			bifacial:     candidate.Bifacial,
+		}
+		if target.hasPanelW {
+			out = append(out, target)
+		}
+	}
+	return out
+}
+
+func baselineSolarPortPotential(port solarRecommendationPort, hasObserved bool, observedWatts float64) (float64, float64, bool) {
+	if port.detected.has && port.detected.hasNominalW && port.detected.nominalW > 0 {
+		nominal := port.detected.nominalW
+		potential := nominal
+		if port.hasMaxWatts && port.maxWatts > 0 {
+			potential = math.Min(nominal, port.maxWatts)
+		}
+		return potential, nominal, true
+	}
+	if hasObserved {
+		observed := math.Abs(observedWatts)
+		if observed > 0 {
+			return observed, observed, true
+		}
+	}
+	return 0, 0, false
+}
+
+func buildAddPanelsOption(port solarRecommendationPort, peer solarRecommendationPort) solarRecommendationOption {
+	if !port.hasMaxWatts || port.maxWatts <= 0 {
+		return solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false}
+	}
+
+	addSource := port.detected
+	usingPeerFallback := false
+	currentW := 0.0
+	if port.detected.has && port.detected.hasNominalW && port.detected.nominalW > 0 {
+		currentW = math.Min(port.detected.nominalW, port.maxWatts)
+		if currentW >= port.maxWatts*0.96 {
+			return solarRecommendationOption{text: "already near port max", potentialW: currentW, hasPotential: true}
+		}
+	} else if peer.detected.has && peer.detected.hasNominalW && peer.detected.nominalW > 0 {
+		addSource = peer.detected
+		usingPeerFallback = true
+		currentW = 0
+	} else {
+		return solarRecommendationOption{text: "waiting for panel detection", potentialW: 0, hasPotential: false}
+	}
+
+	perPanelW := 0.0
+	if addSource.hasCount && addSource.panelCount > 0 {
+		perPanelW = addSource.nominalW / float64(addSource.panelCount)
+	}
+	if perPanelW <= 0 {
+		if _, parsedPerPanelW, ok := parsePanelSetupCountAndWatts(addSource.setup); ok {
+			perPanelW = parsedPerPanelW
+		}
+	}
+	if perPanelW <= 0 {
+		headroom := math.Max(port.maxWatts-currentW, 0)
+		recommendationPrefix := "add"
+		if usingPeerFallback {
+			recommendationPrefix = "mirror peer setup: add"
+		}
+		return solarRecommendationOption{
+			text:         fmt.Sprintf("%s ~%s panels (target %s)", recommendationPrefix, formatPVCapacityWatts(headroom), formatPVCapacityWatts(port.maxWatts)),
+			nominalW:     port.maxWatts,
+			potentialW:   port.maxWatts,
+			hasPotential: true,
+		}
+	}
+
+	headroomW := math.Max(port.maxWatts-currentW, 0)
+	units := int(math.Ceil(headroomW / perPanelW))
+	if units < 1 {
+		units = 1
+	}
+	projectedNominalW := addSource.nominalW + (float64(units) * perPanelW)
+	if usingPeerFallback {
+		projectedNominalW = float64(units) * perPanelW
+	}
+	projectedPotentialW := math.Min(projectedNominalW, port.maxWatts)
+	recommendationPrefix := "add"
+	if usingPeerFallback {
+		recommendationPrefix = "mirror peer setup: add"
+	}
+	return solarRecommendationOption{
+		text: fmt.Sprintf(
+			"%s %dx ~%s panel (%s -> %s)",
+			recommendationPrefix,
+			units,
+			formatPVCapacityWatts(perPanelW),
+			formatPVCapacityWatts(currentW),
+			formatPVCapacityWatts(projectedPotentialW),
+		),
+		nominalW:     projectedNominalW,
+		potentialW:   projectedPotentialW,
+		hasPotential: true,
+	}
+}
+
+func buildUpgradePanelsOption(port solarRecommendationPort, target upgradePanelTarget, preferNoClip bool) solarRecommendationOption {
+	return buildUpgradePanelsOptionWithExclude(port, target, preferNoClip, panelLayout{})
+}
+
+func selectUpgradeRecommendationPair(port solarRecommendationPort, peer solarRecommendationPort) (solarRecommendationOption, solarRecommendationOption) {
+	targets := collectUpgradeTargets(port, peer)
+	if len(targets) == 0 {
+		if primary, ok := fallbackUpgradeFromPeerDetection(port, peer); ok {
+			return primary, solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false}
+		}
+		return solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false},
+			solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false}
+	}
+
+	options := make([]solarRecommendationOption, 0, len(targets))
+	targetByLabel := make(map[string]upgradePanelTarget, len(targets))
+	for _, target := range targets {
+		key := normalizeUpgradeTargetLabel(target.label)
+		if _, ok := targetByLabel[key]; !ok {
+			targetByLabel[key] = target
+		}
+		option := buildUpgradePanelsOption(port, target, false)
+		if option.hasPotential {
+			options = append(options, option)
+		}
+	}
+	if len(options) == 0 {
+		if primary, ok := fallbackUpgradeFromPeerDetection(port, peer); ok {
+			return primary, solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false}
+		}
+		return solarRecommendationOption{text: "n/a (no safe layout within MPPT limits)", potentialW: 0, hasPotential: false},
+			solarRecommendationOption{text: "n/a (no safe layout within MPPT limits)", potentialW: 0, hasPotential: false}
+	}
+
+	sort.SliceStable(options, func(i, j int) bool {
+		return shouldPreferUpgradeOption(options[i], options[j], port.maxWatts)
+	})
+	primary := options[0]
+
+	secondary := solarRecommendationOption{}
+	sameModelFallback := solarRecommendationOption{}
+	requireNoClip := primary.clipped
+	for idx := 1; idx < len(options); idx++ {
+		candidate := options[idx]
+		if requireNoClip && candidate.clipped {
+			continue
+		}
+		if !isMeaningfulAlternateLayout(primary, candidate, port.maxWatts) {
+			continue
+		}
+		if sameUpgradeModel(primary, candidate) {
+			if !sameModelFallback.hasPotential || shouldPreferUpgradeOption(candidate, sameModelFallback, port.maxWatts) {
+				sameModelFallback = candidate
+			}
+			continue
+		}
+		secondary = candidate
+		break
+	}
+
+	if !secondary.hasPotential && requireNoClip {
+		noClipCandidates := make([]solarRecommendationOption, 0, len(targets))
+		for _, target := range targets {
+			candidate := buildUpgradePanelsOption(port, target, true)
+			if !candidate.hasPotential || candidate.clipped {
+				continue
+			}
+			noClipCandidates = append(noClipCandidates, candidate)
+		}
+		sort.SliceStable(noClipCandidates, func(i, j int) bool {
+			return shouldPreferUpgradeOption(noClipCandidates[i], noClipCandidates[j], port.maxWatts)
+		})
+		for _, candidate := range noClipCandidates {
+			if !isMeaningfulAlternateLayout(primary, candidate, port.maxWatts) {
+				continue
+			}
+			if sameUpgradeModel(primary, candidate) {
+				if !sameModelFallback.hasPotential || shouldPreferUpgradeOption(candidate, sameModelFallback, port.maxWatts) {
+					sameModelFallback = candidate
+				}
+				continue
+			}
+			secondary = candidate
+			break
+		}
+	}
+
+	if !secondary.hasPotential && primary.hasPotential {
+		if target, ok := targetByLabel[normalizeUpgradeTargetLabel(primary.sourceLabel)]; ok {
+			exclude := panelLayout{
+				series:   primary.series,
+				parallel: primary.parallel,
+				units:    primary.units,
+			}
+			altLayout := buildUpgradePanelsOptionWithExclude(port, target, primary.clipped, exclude)
+			if !altLayout.hasPotential {
+				altLayout = buildUpgradePanelsOptionWithExclude(port, target, !primary.clipped, exclude)
+			}
+			if altLayout.hasPotential && isMeaningfulAlternateLayout(primary, altLayout, port.maxWatts) {
+				if altLayout.text != "" {
+					altLayout.text += " (alt layout)"
+				}
+				secondary = altLayout
+			}
+		}
+	}
+
+	if !secondary.hasPotential && sameModelFallback.hasPotential {
+		secondary = sameModelFallback
+	}
+
+	if !secondary.hasPotential {
+		if primary.clipped {
+			secondary = solarRecommendationOption{
+				text:         "n/a (no non-clipping option)",
+				potentialW:   0,
+				hasPotential: false,
+				clipped:      false,
+			}
+		} else {
+			secondary = solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false}
+		}
+	}
+
+	return primary, secondary
+}
+
+func fallbackUpgradeFromPeerDetection(port solarRecommendationPort, peer solarRecommendationPort) (solarRecommendationOption, bool) {
+	target, ok := peerDetectedUpgradeTargetAnyCapability(port, peer)
+	if !ok {
+		return solarRecommendationOption{}, false
+	}
+	primary := buildUpgradePanelsOption(port, target, false)
+	if !primary.hasPotential {
+		return solarRecommendationOption{}, false
+	}
+	return primary, true
+}
+
+func collectUpgradeTargets(port solarRecommendationPort, peer solarRecommendationPort) []upgradePanelTarget {
+	targets := make([]upgradePanelTarget, 0, len(port.dbCandidates)+4)
+	targets = appendUniqueUpgradeTarget(targets, port.upgrade)
+	targets = appendUniqueUpgradeTarget(targets, port.upgradeAlt)
+	for _, candidate := range port.dbCandidates {
+		targets = appendUniqueUpgradeTarget(targets, candidate)
+	}
+	if detectedTarget, ok := detectedSetupUpgradeTarget(port.detected); ok {
+		targets = appendUniqueUpgradeTarget(targets, detectedTarget)
+	}
+	if peerTarget, ok := peerDetectedUpgradeTarget(port, peer); ok {
+		targets = appendUniqueUpgradeTarget(targets, peerTarget)
+	}
+	return targets
+}
+
+func appendUniqueUpgradeTarget(targets []upgradePanelTarget, target upgradePanelTarget) []upgradePanelTarget {
+	if !target.hasLabel || strings.TrimSpace(target.label) == "" || !target.hasPanelW || target.panelWatts <= 0 {
+		return targets
+	}
+	newKey := normalizeUpgradeTargetKey(target)
+	for _, existing := range targets {
+		if normalizeUpgradeTargetKey(existing) == newKey {
+			return targets
+		}
+	}
+	return append(targets, target)
+}
+
+func normalizeUpgradeTargetLabel(label string) string {
+	return strings.ToLower(strings.TrimSpace(label))
+}
+
+func normalizeUpgradeTargetKey(target upgradePanelTarget) string {
+	label := normalizeUpgradeTargetLabel(target.label)
+	return fmt.Sprintf(
+		"%s|%.2f|%.2f|%.2f|%.2f|%.2f|%d|%d",
+		label,
+		target.panelWatts,
+		target.panelVocV,
+		target.panelVmpV,
+		target.panelImpA,
+		target.panelIscA,
+		target.minSeries,
+		target.maxSeries,
+	)
+}
+
+func sameUpgradeModel(a solarRecommendationOption, b solarRecommendationOption) bool {
+	return normalizeUpgradeTargetLabel(a.sourceLabel) == normalizeUpgradeTargetLabel(b.sourceLabel)
+}
+
+func peerDetectedUpgradeTarget(port solarRecommendationPort, peer solarRecommendationPort) (upgradePanelTarget, bool) {
+	target := upgradePanelTarget{}
+	if !port.hasMaxWatts || port.maxWatts <= 0 {
+		return target, false
+	}
+	if !portsSharePVCapability(port, peer) {
+		return target, false
+	}
+	if !peer.detected.has || !peer.detected.hasNominalW || peer.detected.nominalW <= 0 {
+		return target, false
+	}
+	if !peer.detected.hasCount || peer.detected.panelCount <= 0 {
+		return target, false
+	}
+	perPanelW := peer.detected.nominalW / float64(peer.detected.panelCount)
+	if perPanelW <= 0 {
+		return target, false
+	}
+	target.label = normalizePeerSetupLabel(peer.detected.setup)
+	target.hasLabel = target.label != ""
+	target.sourceKind = "peer"
+	target.panelWatts = perPanelW
+	target.hasPanelW = perPanelW > 0
+	target.bifacial = peer.detected.bifacial
+	if !target.hasLabel || !target.hasPanelW {
+		return target, false
+	}
+	return target, true
+}
+
+func peerDetectedUpgradeTargetAnyCapability(port solarRecommendationPort, peer solarRecommendationPort) (upgradePanelTarget, bool) {
+	target := upgradePanelTarget{}
+	if !port.hasMaxWatts || port.maxWatts <= 0 {
+		return target, false
+	}
+	if !peer.detected.has || !peer.detected.hasNominalW || peer.detected.nominalW <= 0 {
+		return target, false
+	}
+	panelCount := peer.detected.panelCount
+	if !peer.detected.hasCount || panelCount <= 0 {
+		if parsedCount, _, ok := parsePanelSetupCountAndWatts(peer.detected.setup); ok {
+			panelCount = parsedCount
+		}
+	}
+	if panelCount <= 0 {
+		return target, false
+	}
+	perPanelW := peer.detected.nominalW / float64(panelCount)
+	if perPanelW <= 0 {
+		return target, false
+	}
+	target.label = normalizePeerSetupLabel(peer.detected.setup)
+	target.hasLabel = target.label != ""
+	target.sourceKind = "peer_fallback"
+	target.panelWatts = perPanelW
+	target.hasPanelW = perPanelW > 0
+	target.bifacial = peer.detected.bifacial
+	if !target.hasLabel || !target.hasPanelW {
+		return target, false
+	}
+	return target, true
+}
+
+func detectedSetupUpgradeTarget(detected detectedPanelSetup) (upgradePanelTarget, bool) {
+	target := upgradePanelTarget{}
+	if !detected.has || !detected.hasNominalW || detected.nominalW <= 0 {
+		return target, false
+	}
+	panelCount := detected.panelCount
+	if !detected.hasCount || panelCount <= 0 {
+		if parsedCount, _, ok := parsePanelSetupCountAndWatts(detected.setup); ok {
+			panelCount = parsedCount
+		}
+	}
+	if panelCount <= 0 {
+		return target, false
+	}
+	perPanelW := detected.nominalW / float64(panelCount)
+	if perPanelW <= 0 {
+		if _, parsedPerPanelW, ok := parsePanelSetupCountAndWatts(detected.setup); ok && parsedPerPanelW > 0 {
+			perPanelW = parsedPerPanelW
+		}
+	}
+	if perPanelW <= 0 {
+		return target, false
+	}
+	target.label = normalizePeerSetupLabel(detected.setup)
+	target.hasLabel = target.label != ""
+	target.sourceKind = "detected"
+	target.panelWatts = perPanelW
+	target.hasPanelW = perPanelW > 0
+	target.bifacial = detected.bifacial
+	if !target.hasLabel || !target.hasPanelW {
+		return target, false
+	}
+	return target, true
+}
+
+func buildUpgradePanelsOptionWithExclude(port solarRecommendationPort, target upgradePanelTarget, preferNoClip bool, exclude panelLayout) solarRecommendationOption {
+	if !target.hasLabel || !target.hasPanelW || target.panelWatts <= 0 {
+		return solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false}
+	}
+	if !port.hasMaxWatts || port.maxWatts <= 0 {
+		return solarRecommendationOption{text: "n/a", potentialW: 0, hasPotential: false}
+	}
+	layout, ok := selectSafePanelLayout(port, target, preferNoClip, exclude)
+	if !ok {
+		if preferNoClip {
+			return solarRecommendationOption{text: "n/a (no safe non-clipping layout)", potentialW: 0, hasPotential: false}
+		}
+		return solarRecommendationOption{text: "n/a (no safe layout within MPPT limits)", potentialW: 0, hasPotential: false}
+	}
+
+	text := fmt.Sprintf(
+		"replace with %dx %s (%s, ~%s STC",
+		layout.units,
+		target.label,
+		formatSeriesParallel(layout.series, layout.parallel),
+		formatPVCapacityWatts(layout.nominalW),
+	)
+	if layout.clipped {
+		text += fmt.Sprintf(", clipped to %s", formatPVCapacityWatts(port.maxWatts))
+	}
+	text += ")"
+	return solarRecommendationOption{
+		text:         text,
+		nominalW:     layout.nominalW,
+		potentialW:   layout.potentialW,
+		hasPotential: true,
+		clipped:      layout.clipped,
+		bifacial:     target.bifacial,
+		sourceLabel:  target.label,
+		sourceKind:   target.sourceKind,
+		series:       layout.series,
+		parallel:     layout.parallel,
+		units:        layout.units,
+		complexity:   panelLayoutComplexityScore(layout),
+	}
+}
+
+func portsSharePVCapability(a, b solarRecommendationPort) bool {
+	if !a.hasMaxWatts || !b.hasMaxWatts {
+		return false
+	}
+	if math.Abs(a.maxWatts-b.maxWatts) > 0.5 {
+		return false
+	}
+	if a.hasCap && b.hasCap {
+		if math.Abs(a.capability.minVolts-b.capability.minVolts) > 0.5 {
+			return false
+		}
+		if math.Abs(a.capability.maxVolts-b.capability.maxVolts) > 0.5 {
+			return false
+		}
+		if math.Abs(a.capability.maxAmps-b.capability.maxAmps) > 0.2 {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizePeerSetupLabel(setup string) string {
+	setup = strings.TrimSpace(setup)
+	if setup == "" {
+		return ""
+	}
+	if _, perPanelW, ok := parsePanelSetupCountAndWatts(setup); ok && perPanelW > 0 {
+		lower := strings.ToLower(setup)
+		if idx := strings.Index(lower, "w"); idx >= 0 && idx+1 < len(setup) {
+			candidate := strings.TrimSpace(setup[idx+1:])
+			if candidate != "" {
+				return candidate
+			}
+		}
+	}
+	return setup
+}
+
+func shouldPreferUpgradeOption(candidate solarRecommendationOption, current solarRecommendationOption, maxWatts float64) bool {
+	if !candidate.hasPotential {
+		return false
+	}
+	if !current.hasPotential {
+		return true
+	}
+	candidateEffective := upgradeOptionEffectiveWatts(candidate, maxWatts)
+	currentEffective := upgradeOptionEffectiveWatts(current, maxWatts)
+	candidateComplexity := recommendationOptionComplexity(candidate)
+	currentComplexity := recommendationOptionComplexity(current)
+	complexityPenaltyPerPoint := math.Max(8, maxWatts*panelComplexityPenaltyFactor)
+	adjustedCandidate := candidateEffective - (candidateComplexity * complexityPenaltyPerPoint)
+	adjustedCurrent := currentEffective - (currentComplexity * complexityPenaltyPerPoint)
+	if math.Abs(adjustedCandidate-adjustedCurrent) > math.Max(10, maxWatts*0.03) {
+		return adjustedCandidate > adjustedCurrent
+	}
+	if candidateEffective > currentEffective+1 {
+		return true
+	}
+	if currentEffective > candidateEffective+1 {
+		return false
+	}
+	closeBand := math.Max(10, maxWatts*0.03)
+	if math.Abs(candidateEffective-currentEffective) <= closeBand {
+		candidateSourceRank := recommendationSourceRank(candidate.sourceKind)
+		currentSourceRank := recommendationSourceRank(current.sourceKind)
+		if candidateSourceRank != currentSourceRank {
+			return candidateSourceRank > currentSourceRank
+		}
+	}
+	if candidate.clipped != current.clipped {
+		return !candidate.clipped
+	}
+	if candidate.units > 0 && current.units > 0 && candidate.units != current.units {
+		return candidate.units < current.units
+	}
+	nearMax := maxWatts > 0 && math.Abs(candidate.potentialW-maxWatts) <= math.Max(1, maxWatts*0.03)
+	currentNearMax := maxWatts > 0 && math.Abs(current.potentialW-maxWatts) <= math.Max(1, maxWatts*0.03)
+	if nearMax != currentNearMax {
+		return nearMax
+	}
+	return false
+}
+
+func recommendationOptionComplexity(option solarRecommendationOption) float64 {
+	if option.complexity > 0 {
+		return adjustedPanelLayoutComplexity(option.complexity, option.sourceLabel, option.parallel)
+	}
+	layout := panelLayout{
+		series:   option.series,
+		parallel: option.parallel,
+		units:    option.units,
+	}
+	base := panelLayoutComplexityScore(layout)
+	return adjustedPanelLayoutComplexity(base, option.sourceLabel, option.parallel)
+}
+
+func recommendationSourceRank(sourceKind string) int {
+	switch strings.ToLower(strings.TrimSpace(sourceKind)) {
+	case "detected", "peer", "peer_fallback":
+		return 3
+	case "db", "metadata_best", "metadata_alt":
+		return 2
+	default:
+		return 1
+	}
+}
+
+func upgradeOptionEffectiveWatts(option solarRecommendationOption, maxWatts float64) float64 {
+	base := option.potentialW
+	if maxWatts <= 0 {
+		return base
+	}
+	nominal := option.nominalW
+	if nominal <= maxWatts || nominal <= 0 {
+		return base
+	}
+	oversizeRatio := (nominal / maxWatts) - 1.0
+	if oversizeRatio <= 0 {
+		return base
+	}
+	// Use a logarithmic shoulder-hours gain so oversizing helps, but with diminishing returns.
+	bonus := maxWatts * panelShoulderHoursGain * math.Log1p(oversizeRatio)
+	maxBonus := maxWatts * 0.25
+	if bonus > maxBonus {
+		bonus = maxBonus
+	}
+	return base + bonus
+}
+
+func solarRecommendationETAW(potentialW float64, nominalW float64, maxWatts float64, hasMaxWatts bool, bifacial bool) float64 {
+	option := solarRecommendationOption{
+		potentialW: potentialW,
+		nominalW:   nominalW,
+	}
+	if option.nominalW <= 0 {
+		option.nominalW = option.potentialW
+	}
+	watts := option.potentialW
+	if hasMaxWatts && maxWatts > 0 {
+		watts = upgradeOptionEffectiveWatts(option, maxWatts)
+	}
+	return applyBifacialETAAdjustment(watts, bifacial)
+}
+
+func solarRecommendationOptionETAW(option solarRecommendationOption, maxWatts float64, hasMaxWatts bool, bifacial bool) float64 {
+	return solarRecommendationETAW(option.potentialW, option.nominalW, maxWatts, hasMaxWatts, bifacial)
+}
+
+func adjustedPanelLayoutComplexity(base float64, label string, parallel int) float64 {
+	if base <= 0 {
+		return base
+	}
+	if !isEcoFlow125BifacialModularPanel(label) {
+		return base
+	}
+	if parallel < 1 || parallel > 4 {
+		return base
+	}
+	return base * ecoflow125ComplexityFactor
+}
+
+func isEcoFlow125BifacialModularPanel(label string) bool {
+	v := strings.ToLower(strings.TrimSpace(label))
+	if v == "" {
+		return false
+	}
+	return strings.Contains(v, "ecoflow") &&
+		strings.Contains(v, "125w") &&
+		strings.Contains(v, "bifacial") &&
+		strings.Contains(v, "modular")
+}
+
+func isMeaningfulAlternateLayout(primary solarRecommendationOption, alt solarRecommendationOption, maxWatts float64) bool {
+	if !primary.hasPotential || !alt.hasPotential {
+		return false
+	}
+	sameModel := strings.EqualFold(strings.TrimSpace(primary.sourceLabel), strings.TrimSpace(alt.sourceLabel))
+	// Prefer diversity for alternate recommendations. Same-model alternates are only useful
+	// when they materially change clipping behavior.
+	if sameModel {
+		return primary.clipped != alt.clipped
+	}
+	// If this isn't the same panel/model recommendation, keep it.
+	if !sameModel {
+		return true
+	}
+	// Reject tiny same-model tweaks that only reduce panel count a little (e.g. 6S1P -> 5S1P).
+	if primary.parallel > 0 && alt.parallel > 0 && primary.parallel == alt.parallel &&
+		primary.series > 0 && alt.series > 0 && absInt(primary.series-alt.series) <= 1 {
+		return false
+	}
+	// Reject near-identical power outcomes for same model.
+	diff := math.Abs(primary.potentialW - alt.potentialW)
+	minDelta := math.Max(15, maxWatts*0.08)
+	if diff < minDelta {
+		return false
+	}
+	return true
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+type panelLayout struct {
+	series     int
+	parallel   int
+	units      int
+	nominalW   float64
+	potentialW float64
+	clipped    bool
+}
+
+func selectSafePanelLayout(port solarRecommendationPort, target upgradePanelTarget, preferNoClip bool, exclude panelLayout) (panelLayout, bool) {
+	if !port.hasMaxWatts || port.maxWatts <= 0 || !target.hasPanelW || target.panelWatts <= 0 {
+		return panelLayout{}, false
+	}
+
+	sMin := 1
+	sMax := 12
+	if target.hasMinSeries && target.minSeries > sMin {
+		sMin = target.minSeries
+	}
+	if target.hasMaxSeries && target.maxSeries > 0 && target.maxSeries < sMax {
+		sMax = target.maxSeries
+	}
+	if target.hasPanelVoc && target.panelVocV > 0 && port.hasCap && port.capability.maxVolts > 0 {
+		coldVoc := target.panelVocV * coldVocRiseFactor
+		if coldVoc > 0 {
+			vocMaxSeries := int(math.Floor(port.capability.maxVolts / coldVoc))
+			if vocMaxSeries < sMax {
+				sMax = vocMaxSeries
+			}
+		}
+	}
+	if target.hasPanelVmp && target.panelVmpV > 0 && port.hasCap {
+		if port.capability.minVolts > 0 {
+			minByVmp := int(math.Ceil(port.capability.minVolts / target.panelVmpV))
+			if minByVmp > sMin {
+				sMin = minByVmp
+			}
+		}
+		if port.capability.maxVolts > 0 {
+			maxByVmp := int(math.Floor(port.capability.maxVolts / target.panelVmpV))
+			if maxByVmp < sMax {
+				sMax = maxByVmp
+			}
+		}
+	}
+	if sMin < 1 {
+		sMin = 1
+	}
+	if sMax < sMin || sMax < 1 {
+		return panelLayout{}, false
+	}
+
+	pMax := 16
+	if port.hasCap && port.capability.maxAmps > 0 {
+		perPanelCurrent := panelCurrentLimitValue(target)
+		if perPanelCurrent > 0 {
+			maxParallel := int(math.Floor(port.capability.maxAmps / perPanelCurrent))
+			if maxParallel < pMax {
+				pMax = maxParallel
+			}
+		}
+	}
+	if pMax < 1 {
+		return panelLayout{}, false
+	}
+
+	best := panelLayout{}
+	hasBest := false
+	for s := sMin; s <= sMax; s++ {
+		for p := 1; p <= pMax; p++ {
+			units := s * p
+			if units < 1 {
+				continue
+			}
+			nominal := float64(units) * target.panelWatts
+			if nominal <= 0 {
+				continue
+			}
+			clipped := nominal > port.maxWatts*1.05
+			if preferNoClip && clipped {
+				continue
+			}
+			potential := math.Min(nominal, port.maxWatts)
+			if potential <= 0 {
+				continue
+			}
+
+			candidate := panelLayout{
+				series:     s,
+				parallel:   p,
+				units:      units,
+				nominalW:   nominal,
+				potentialW: potential,
+				clipped:    clipped,
+			}
+			if exclude.units > 0 && candidate.series == exclude.series && candidate.parallel == exclude.parallel {
+				continue
+			}
+			if !hasBest || panelLayoutBetter(candidate, best) {
+				best = candidate
+				hasBest = true
+			}
+		}
+	}
+	return best, hasBest
+}
+
+func panelLayoutBetter(a, b panelLayout) bool {
+	aComplexity := panelLayoutComplexityScore(a)
+	bComplexity := panelLayoutComplexityScore(b)
+	if math.Abs(a.potentialW-b.potentialW) <= math.Max(15, a.potentialW*0.05) {
+		if math.Abs(aComplexity-bComplexity) > 0.5 {
+			return aComplexity < bComplexity
+		}
+	}
+	if a.potentialW > b.potentialW+1 {
+		return true
+	}
+	if b.potentialW > a.potentialW+1 {
+		return false
+	}
+	if a.units != b.units {
+		return a.units < b.units
+	}
+	if math.Abs(aComplexity-bComplexity) > 0.5 {
+		return aComplexity < bComplexity
+	}
+	if a.clipped != b.clipped {
+		// For equal potential and equal panel count, prefer non-clipping.
+		return !a.clipped
+	}
+	if a.series != b.series {
+		// Prefer higher series / lower parallel for lower current.
+		return a.series > b.series
+	}
+	return a.parallel < b.parallel
+}
+
+func panelLayoutComplexityScore(layout panelLayout) float64 {
+	if layout.units <= 0 {
+		return 0
+	}
+	series := float64(layout.series)
+	if series < 1 {
+		series = 1
+	}
+	parallel := float64(layout.parallel)
+	if parallel < 1 {
+		parallel = 1
+	}
+	units := float64(layout.units)
+
+	score := units
+	if parallel > 1 {
+		score += (parallel - 1) * 4.0
+	}
+	if series > 1 {
+		score += (series - 1) * 0.3
+	}
+	if series > 1 && parallel > 1 {
+		score += 10.0
+	}
+	if units > 12 {
+		score += (units - 12) * 1.8
+	}
+	return score
+}
+
+func panelCurrentLimitValue(target upgradePanelTarget) float64 {
+	if target.hasPanelImp && target.panelImpA > 0 {
+		return target.panelImpA
+	}
+	if target.hasPanelIsc && target.panelIscA > 0 {
+		return target.panelIscA
+	}
+	return 0
+}
+
+func formatSeriesParallel(series int, parallel int) string {
+	if series < 1 {
+		series = 1
+	}
+	if parallel < 1 {
+		parallel = 1
+	}
+	return fmt.Sprintf("%dS%dP", series, parallel)
+}
+
+func formatDetectedPanelRecommendation(detected detectedPanelSetup, maxWatts float64, hasMaxWatts bool) string {
+	if !detected.has || strings.TrimSpace(detected.setup) == "" {
+		if strings.TrimSpace(detected.status) != "" {
+			return detected.status
+		}
+		return "panel: n/a"
+	}
+	parts := []string{detected.setup}
+	if strings.TrimSpace(detected.status) != "" {
+		parts = append(parts, "("+detected.status+")")
+		return strings.Join(parts, " ")
+	}
+	if detected.hasNominalW && detected.nominalW > 0 {
+		if hasMaxWatts && maxWatts > 0 {
+			parts = append(parts, fmt.Sprintf("~%s/%s", formatPVCapacityWatts(math.Min(detected.nominalW, maxWatts)), formatPVCapacityWatts(maxWatts)))
+		} else {
+			parts = append(parts, fmt.Sprintf("~%s", formatPVCapacityWatts(detected.nominalW)))
+		}
+	}
+	parts = append(parts, fmt.Sprintf("c=%.2f", detected.confidence))
+	if detected.samples > 0 {
+		parts = append(parts, fmt.Sprintf("n=%d", detected.samples))
+	}
+	return strings.Join(parts, " ")
+}
+
+func buildSolarETAImpact(
+	energyToTargetWh float64,
+	hasEnergyToTarget bool,
+	baseTotalW float64,
+	addTotalW float64,
+	hasAdd bool,
+	upgradeTotalW float64,
+	hasUpgrade bool,
+) string {
+	if !hasEnergyToTarget {
+		return "n/a"
+	}
+	if energyToTargetWh <= 0 {
+		return "at target SOC"
+	}
+
+	baseMinutes, hasBase := estimateSolarChargeMinutes(energyToTargetWh, baseTotalW)
+	addMinutes, hasAddETA := estimateSolarChargeMinutes(energyToTargetWh, addTotalW)
+	upgradeMinutes, hasUpgradeETA := estimateSolarChargeMinutes(energyToTargetWh, upgradeTotalW)
+
+	baseText := "n/a"
+	if hasBase {
+		baseText = formatETAMinutes(baseMinutes)
+	}
+	addText := "n/a"
+	if hasAdd && hasAddETA {
+		addText = formatETAMinutes(addMinutes)
+	}
+	upgradeText := "n/a"
+	if hasUpgrade && hasUpgradeETA {
+		upgradeText = formatETAMinutes(upgradeMinutes)
+	}
+	return fmt.Sprintf(
+		"sunny base: %s | add: %s (%s) | upg: %s (%s)",
+		baseText,
+		addText,
+		formatMinutesDelta(baseMinutes, hasBase, addMinutes, hasAddETA && hasAdd),
+		upgradeText,
+		formatMinutesDelta(baseMinutes, hasBase, upgradeMinutes, hasUpgradeETA && hasUpgrade),
+	)
+}
+
+func formatMinutesDelta(baseMinutes float64, hasBase bool, candidateMinutes float64, hasCandidate bool) string {
+	if !hasBase || !hasCandidate {
+		return "n/a"
+	}
+	delta := int64(math.Round(candidateMinutes - baseMinutes))
+	if delta == 0 {
+		return "≈0"
+	}
+	sign := "+"
+	if delta < 0 {
+		sign = "-"
+		delta = -delta
+	}
+	if delta < 1 {
+		delta = 1
+	}
+	return sign + formatMinutesHumanETA(delta)
+}
+
+func estimateSolarChargeMinutes(energyWh float64, solarWatts float64) (float64, bool) {
+	const solarChargeEfficiency = 0.85
+	if energyWh <= 0 || solarWatts <= solarPowerEstimateMinWatts {
+		return 0, false
+	}
+	effectiveWatts := solarWatts * solarChargeEfficiency
+	if effectiveWatts <= solarPowerEstimateMinWatts {
+		return 0, false
+	}
+	return (energyWh / effectiveWatts) * 60.0, true
+}
+
+func estimatedEnergyToChargeTargetWh(snapshot *energySnapshot) (float64, bool) {
+	if snapshot == nil {
+		return 0, false
+	}
+	totalCapacityWh, hasTotalCapacity := snapshot.estimatedTotalCapacityWh()
+	remainingWh, hasRemainingWh := snapshot.estimatedRemainingEnergyWh()
+	if !hasTotalCapacity || !hasRemainingWh || totalCapacityWh <= 0 {
+		return 0, false
+	}
+	targetSOC := 100.0
+	if snapshot.HasMaxChargeSOC && snapshot.MaxChargeSOC > 0 {
+		targetSOC = clampPercent(snapshot.MaxChargeSOC)
+	}
+	targetWh := totalCapacityWh * (targetSOC / 100.0)
+	if targetWh <= remainingWh {
+		return 0, true
+	}
+	return targetWh - remainingWh, true
+}
+
+func parsePanelSetupCountAndWatts(setup string) (count int, perPanelW float64, ok bool) {
+	setup = strings.TrimSpace(setup)
+	if setup == "" {
+		return 0, 0, false
+	}
+	if matches := panelSetupCountPattern.FindStringSubmatch(setup); len(matches) == 3 {
+		parsedCount, errCount := strconv.Atoi(strings.TrimSpace(matches[1]))
+		parsedWatts, errWatts := strconv.ParseFloat(strings.TrimSpace(matches[2]), 64)
+		if errCount == nil && errWatts == nil && parsedCount > 0 && parsedWatts > 0 {
+			return parsedCount, parsedWatts, true
+		}
+	}
+	if matches := panelSetupWattPattern.FindStringSubmatch(setup); len(matches) >= 2 {
+		parsedWatts, errWatts := strconv.ParseFloat(strings.TrimSpace(matches[1]), 64)
+		if errWatts == nil && parsedWatts > 0 {
+			return 1, parsedWatts, true
+		}
+	}
+	return 0, 0, false
+}
+
+func panelTextIsBifacial(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return false
+	}
+	return strings.Contains(value, "bifacial") || strings.Contains(value, "bi-facial")
+}
+
+func portDetectedBifacial(detected detectedPanelSetup) bool {
+	if detected.bifacial {
+		return true
+	}
+	return panelTextIsBifacial(detected.setup)
+}
+
+func applyBifacialETAAdjustment(watts float64, bifacial bool) float64 {
+	if watts <= 0 {
+		return watts
+	}
+	if !bifacial {
+		return watts
+	}
+	return watts * (1.0 + bifacialETAConservativeGain)
 }
 
 func selectTopStateValue(

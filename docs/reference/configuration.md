@@ -37,6 +37,8 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_TABLE_VIEW` (default `true` when payload print mode is disabled)
 - `ECOFLOW_MQTT_UI_REFRESH_INTERVAL` (default `1s`)
 - `ECOFLOW_MQTT_UI_QUEUE_CAPACITY` (default `8`)
+- `ECOFLOW_MQTT_MINUTE_ROWS` (default `3`)
+- `ECOFLOW_MQTT_SHOW_SOLAR_CANDIDATES` (default `false`; set `true` to render full per-port solar candidate matrix)
 
 ## Telemetry History and Fallback
 
@@ -54,11 +56,16 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_PANEL_MODEL_PATH` (default `data/solar_panels/panel_select_model.json`)
 - `ECOFLOW_MQTT_PANEL_MODEL_WINDOW` (default `240`)
 - `ECOFLOW_MQTT_PANEL_MODEL_MIN_SAMPLES` (default `20`)
+- `ECOFLOW_MQTT_PANEL_MODEL_QUEUE_CAPACITY` (default `64`)
+- `ECOFLOW_MQTT_PANEL_MODEL_RESULT_QUEUE_CAPACITY` (default `64`)
 
 ## Logging and Process Safety
 
 - `ECOFLOW_MQTT_LOG_PATH` (default `logs/mqtt.log`, file truncated on startup)
 - `ECOFLOW_MQTT_LOG_QUEUE_CAPACITY` (default `2048`)
+- `ECOFLOW_MQTT_RAW_PAYLOAD_LOG` (default `true`)
+- `ECOFLOW_MQTT_RAW_PAYLOAD_LOG_PATH` (default `logs/mqtt_payload_raw.log`, stored as daily files: `...-YYYY-MM-DD.log`)
+- `ECOFLOW_MQTT_RAW_PAYLOAD_LOG_QUEUE_CAPACITY` (default `2048`)
 - `ECOFLOW_MQTT_LOCK_DIR` (default `logs/locks`, per-device serial instance lock files)
 - `ECOFLOW_MQTT_TRAINING_CSV` (default `true`)
 - `ECOFLOW_MQTT_TRAINING_CSV_PATH` (default `logs/telemetry_training.csv`)

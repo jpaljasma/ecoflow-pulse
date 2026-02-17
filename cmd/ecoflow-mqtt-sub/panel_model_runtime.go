@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jpaljasma/ecoflow-pulse/pkg/panelselect"
@@ -17,6 +18,43 @@ type panelRuntimeModel struct {
 	minSamples int
 	low        *panelselect.Tracker
 	high       *panelselect.Tracker
+}
+
+type panelObservation struct {
+	lowWatts     float64
+	hasLowWatts  bool
+	highWatts    float64
+	hasHighWatts bool
+	lowVolts     float64
+	hasLowVolts  bool
+	highVolts    float64
+	hasHighVolts bool
+	lowAmps      float64
+	hasLowAmps   bool
+	highAmps     float64
+	hasHighAmps  bool
+	lowState     string
+	highState    string
+}
+
+type panelPortResult struct {
+	applied       bool
+	hasPrediction bool
+	setup         string
+	confidence    float64
+	samples       int
+	panelCount    int
+	nominalWatts  float64
+	status        string
+}
+
+type panelObservationResult struct {
+	low  panelPortResult
+	high panelPortResult
+}
+
+func (r panelObservationResult) HasUpdates() bool {
+	return r.low.applied || r.high.applied
 }
 
 func newPanelRuntimeModel(model *panelselect.Model, productName string, window, minSamples int) *panelRuntimeModel {
@@ -39,35 +77,68 @@ func newPanelRuntimeModel(model *panelselect.Model, productName string, window, 
 }
 
 func (p *panelRuntimeModel) Observe(snapshot *energySnapshot) {
-	if p == nil || snapshot == nil || p.model == nil {
+	if p == nil || snapshot == nil {
 		return
 	}
+	sample := buildPanelObservation(snapshot)
+	result := p.ObserveSample(sample)
+	applyPanelObservationResult(snapshot, result)
+}
+
+func buildPanelObservation(snapshot *energySnapshot) panelObservation {
+	observation := panelObservation{}
+	if snapshot == nil {
+		return observation
+	}
 	_, _, lowW, hasLowW, highW, hasHighW := snapshot.effectivePVInputChannels()
-	lowV := 0.0
-	highV := 0.0
-	lowA := 0.0
-	highA := 0.0
+	observation.lowWatts = lowW
+	observation.hasLowWatts = hasLowW
+	observation.highWatts = highW
+	observation.hasHighWatts = hasHighW
 	if snapshot.HasSolarLVVolts {
-		lowV = snapshot.SolarLVVolts
+		observation.lowVolts = snapshot.SolarLVVolts
+		observation.hasLowVolts = true
 	}
 	if snapshot.HasSolarHVVolts {
-		highV = snapshot.SolarHVVolts
+		observation.highVolts = snapshot.SolarHVVolts
+		observation.hasHighVolts = true
 	}
 	if snapshot.HasSolarLVAmp {
-		lowA = snapshot.SolarLVAmp
+		observation.lowAmps = snapshot.SolarLVAmp
+		observation.hasLowAmps = true
 	}
 	if snapshot.HasSolarHVAmp {
-		highA = snapshot.SolarHVAmp
+		observation.highAmps = snapshot.SolarHVAmp
+		observation.hasHighAmps = true
 	}
+	observation.lowState = inferPanelPortState(hasLowW, lowW, snapshot.HasPVLowChgState, snapshot.PVLowChgStateRaw)
+	observation.highState = inferPanelPortState(hasHighW, highW, snapshot.HasPVHighChgState, snapshot.PVHighChgStateRaw)
+	return observation
+}
 
-	lowState := inferPanelPortState(hasLowW, lowW, snapshot.HasPVLowChgState, snapshot.PVLowChgStateRaw)
-	highState := inferPanelPortState(hasHighW, highW, snapshot.HasPVHighChgState, snapshot.PVHighChgStateRaw)
+func (p *panelRuntimeModel) ObserveSample(sample panelObservation) panelObservationResult {
+	if p == nil || p.model == nil {
+		return panelObservationResult{}
+	}
+	result := panelObservationResult{}
+	if shouldRunPanelModelForPort(sample.hasLowVolts, sample.lowVolts) {
+		p.low.Observe(sample.lowWatts, sample.lowVolts, sample.lowAmps, sample.lowState)
+		result.low = predictPortResult(p.model, p.profile, "low", p.low, p.minSamples)
+		result.low.applied = true
+	}
+	if shouldRunPanelModelForPort(sample.hasHighVolts, sample.highVolts) {
+		p.high.Observe(sample.highWatts, sample.highVolts, sample.highAmps, sample.highState)
+		result.high = predictPortResult(p.model, p.profile, "high", p.high, p.minSamples)
+		result.high.applied = true
+	}
+	return result
+}
 
-	p.low.Observe(lowW, lowV, lowA, lowState)
-	p.high.Observe(highW, highV, highA, highState)
-
-	predictPort(snapshot, p.model, p.profile, "low", p.low, p.minSamples)
-	predictPort(snapshot, p.model, p.profile, "high", p.high, p.minSamples)
+func shouldRunPanelModelForPort(hasVolts bool, volts float64) bool {
+	if !hasVolts {
+		return false
+	}
+	return volts > 0.05
 }
 
 func inferPanelPortState(hasWatts bool, watts float64, hasRaw bool, raw int64) string {
@@ -91,35 +162,97 @@ func predictPort(
 	tracker *panelselect.Tracker,
 	minSamples int,
 ) {
-	if snapshot == nil || model == nil || tracker == nil {
+	if snapshot == nil {
 		return
+	}
+	result := predictPortResult(model, profile, port, tracker, minSamples)
+	applyPanelPortResult(snapshot, port, result)
+}
+
+func predictPortResult(
+	model *panelselect.Model,
+	profile string,
+	port string,
+	tracker *panelselect.Tracker,
+	minSamples int,
+) panelPortResult {
+	if model == nil || tracker == nil {
+		return panelPortResult{}
 	}
 	samples := tracker.SampleCount()
 	if samples < minSamples {
-		clearPanelPrediction(snapshot, port)
-		return
+		return panelPortResult{
+			status:  fmt.Sprintf("collecting samples %d/%d", samples, minSamples),
+			samples: samples,
+		}
 	}
 	features, ok := tracker.FeatureVector()
 	if !ok {
-		clearPanelPrediction(snapshot, port)
-		return
+		return panelPortResult{
+			status:  fmt.Sprintf("analyzing signal (n=%d)", samples),
+			samples: samples,
+		}
 	}
 	prediction, ok := panelselect.Predict(model, profile, port, features, samples)
 	if !ok || strings.TrimSpace(prediction.PanelSetup) == "" {
+		return panelPortResult{
+			status:  fmt.Sprintf("low confidence / unknown setup (n=%d)", samples),
+			samples: samples,
+		}
+	}
+	return panelPortResult{
+		hasPrediction: true,
+		setup:         prediction.PanelSetup,
+		confidence:    prediction.Confidence,
+		samples:       samples,
+		panelCount:    prediction.PanelCount,
+		nominalWatts:  prediction.NominalTotal,
+		status:        panelPredictionConfidenceStatus(prediction.Confidence, samples),
+	}
+}
+
+func applyPanelObservationResult(snapshot *energySnapshot, result panelObservationResult) {
+	if snapshot == nil {
+		return
+	}
+	if result.low.applied {
+		applyPanelPortResult(snapshot, "low", result.low)
+	}
+	if result.high.applied {
+		applyPanelPortResult(snapshot, "high", result.high)
+	}
+}
+
+func applyPanelPortResult(snapshot *energySnapshot, port string, result panelPortResult) {
+	if snapshot == nil {
+		return
+	}
+	if !result.hasPrediction {
 		clearPanelPrediction(snapshot, port)
+		setPanelPredictionStatus(snapshot, port, result.status)
 		return
 	}
 	switch panelselect.NormalizePort(port) {
 	case "high":
-		snapshot.PVHighPanelSetup = prediction.PanelSetup
-		snapshot.PVHighPanelConfidence = prediction.Confidence
-		snapshot.PVHighPanelSamples = samples
+		snapshot.PVHighPanelSetup = result.setup
+		snapshot.PVHighPanelConfidence = result.confidence
+		snapshot.PVHighPanelSamples = result.samples
+		snapshot.PVHighPanelCount = result.panelCount
+		snapshot.HasPVHighPanelCount = result.panelCount > 0
+		snapshot.PVHighPanelNominalWatts = result.nominalWatts
+		snapshot.HasPVHighPanelNominal = result.nominalWatts > 0
 		snapshot.HasPVHighPanelPrediction = true
+		setPanelPredictionStatus(snapshot, port, result.status)
 	default:
-		snapshot.PVLowPanelSetup = prediction.PanelSetup
-		snapshot.PVLowPanelConfidence = prediction.Confidence
-		snapshot.PVLowPanelSamples = samples
+		snapshot.PVLowPanelSetup = result.setup
+		snapshot.PVLowPanelConfidence = result.confidence
+		snapshot.PVLowPanelSamples = result.samples
+		snapshot.PVLowPanelCount = result.panelCount
+		snapshot.HasPVLowPanelCount = result.panelCount > 0
+		snapshot.PVLowPanelNominalWatts = result.nominalWatts
+		snapshot.HasPVLowPanelNominal = result.nominalWatts > 0
 		snapshot.HasPVLowPanelPrediction = true
+		setPanelPredictionStatus(snapshot, port, result.status)
 	}
 }
 
@@ -132,11 +265,43 @@ func clearPanelPrediction(snapshot *energySnapshot, port string) {
 		snapshot.PVHighPanelSetup = ""
 		snapshot.PVHighPanelConfidence = 0
 		snapshot.PVHighPanelSamples = 0
+		snapshot.PVHighPanelCount = 0
+		snapshot.HasPVHighPanelCount = false
+		snapshot.PVHighPanelNominalWatts = 0
+		snapshot.HasPVHighPanelNominal = false
 		snapshot.HasPVHighPanelPrediction = false
 	default:
 		snapshot.PVLowPanelSetup = ""
 		snapshot.PVLowPanelConfidence = 0
 		snapshot.PVLowPanelSamples = 0
+		snapshot.PVLowPanelCount = 0
+		snapshot.HasPVLowPanelCount = false
+		snapshot.PVLowPanelNominalWatts = 0
+		snapshot.HasPVLowPanelNominal = false
 		snapshot.HasPVLowPanelPrediction = false
 	}
+}
+
+func setPanelPredictionStatus(snapshot *energySnapshot, port string, status string) {
+	if snapshot == nil {
+		return
+	}
+	status = strings.TrimSpace(status)
+	switch panelselect.NormalizePort(port) {
+	case "high":
+		snapshot.PVHighPanelStatus = status
+	default:
+		snapshot.PVLowPanelStatus = status
+	}
+}
+
+func panelPredictionConfidenceStatus(confidence float64, samples int) string {
+	tier := "low confidence"
+	switch {
+	case confidence >= 0.80:
+		tier = "high confidence"
+	case confidence >= 0.60:
+		tier = "medium confidence"
+	}
+	return fmt.Sprintf("%s (%.2f, n=%d)", tier, confidence, samples)
 }
