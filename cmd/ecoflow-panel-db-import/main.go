@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -478,16 +479,33 @@ func asString(value any) string {
 }
 
 func asInt(value any) int {
+	minInt, maxInt := intBounds()
 	switch typed := value.(type) {
 	case int:
 		return typed
 	case int64:
+		if typed < minInt || typed > maxInt {
+			return 0
+		}
 		return int(typed)
 	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) {
+			return 0
+		}
+		truncated := math.Trunc(typed)
+		if truncated < float64(minInt) || truncated > float64(maxInt) {
+			return 0
+		}
 		return int(typed)
 	default:
 		return 0
 	}
+}
+
+func intBounds() (int64, int64) {
+	maxInt := int64(^uint(0) >> 1)
+	minInt := -maxInt - 1
+	return minInt, maxInt
 }
 
 func asFloat64(value any) float64 {
