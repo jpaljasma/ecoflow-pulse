@@ -28,6 +28,7 @@ go run ./cmd/ecoflow-mqtt-sub
   - summary values (SOC, AC in, solar generated, out, net, state, updated),
   - detailed channel and battery tables,
   - minute history table,
+  - per-port solar panel prediction labels and confidence (when panel model is loaded),
   - ML/heuristic ETA estimate rows.
 
 ## Exit
@@ -53,5 +54,6 @@ ECOFLOW_MQTT_UI_QUEUE_CAPACITY=8 \
 ECOFLOW_MQTT_UI_REFRESH_INTERVAL=1s \
 ECOFLOW_MQTT_LOG_QUEUE_CAPACITY=2048 \
 ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES=180 \
+ECOFLOW_MQTT_PANEL_MODEL_PATH=data/solar_panels/panel_select_model.json \
 make mqtt
 ```

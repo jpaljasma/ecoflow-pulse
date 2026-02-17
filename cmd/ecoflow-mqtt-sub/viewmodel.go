@@ -94,6 +94,7 @@ func buildDashboardViewModel(
 		"In",
 		"Out",
 		"Net",
+		"Panel Model",
 		"Details",
 	}
 	stateKind := systemStateKind(derived.SystemStateValue)
@@ -146,6 +147,7 @@ func buildDashboardViewModel(
 			channelsOutValue,
 			derived.ChannelsNetValue,
 			"-",
+			"-",
 		},
 		{
 			"meta",
@@ -153,12 +155,14 @@ func buildDashboardViewModel(
 			fmt.Sprintf("combo: %s c20: %s para: %s", derived.ComboValue, derived.C20LimitValue, derived.ParaLimitValue),
 			fmt.Sprintf("socWindow: %s", derived.SocGuardrail),
 			"-",
+			"-",
 		},
 		{
 			pvLowLabel,
 			pvLowCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVLowVoltsValue, derived.PVLowAmpsValue, pvLowDisplay),
 			formatSolarNetSummary(derived.PVLowStateValue, pvLowDisplay),
+			formatPanelPrediction(snapshot.HasPVLowPanelPrediction, snapshot.PVLowPanelSetup, snapshot.PVLowPanelConfidence, snapshot.PVLowPanelSamples),
 			pvLowUtilization,
 		},
 		{
@@ -166,6 +170,7 @@ func buildDashboardViewModel(
 			pvHighCapability,
 			fmt.Sprintf("volts: %s amps: %s watts: %s", derived.PVHighVoltsValue, derived.PVHighAmpsValue, pvHighDisplay),
 			formatSolarNetSummary(derived.PVHighStateValue, pvHighDisplay),
+			formatPanelPrediction(snapshot.HasPVHighPanelPrediction, snapshot.PVHighPanelSetup, snapshot.PVHighPanelConfidence, snapshot.PVHighPanelSamples),
 			pvHighUtilization,
 		},
 		{
@@ -174,12 +179,14 @@ func buildDashboardViewModel(
 			fmt.Sprintf("out: %s idle: %s", derived.BatteryOutValue, derived.IdleDrawValue),
 			fmt.Sprintf("%s source: %s", derived.BatteryNetValue, batterySource),
 			"-",
+			"-",
 		},
 		{
 			"mqtt",
 			fmt.Sprintf("queue: %s", mqttQueueValue),
 			mqttDropsValue,
 			fmt.Sprintf("status: %s", mqttStatusValue),
+			"-",
 			"-",
 		},
 	}
@@ -371,6 +378,16 @@ func firstNonEmpty(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func formatPanelPrediction(has bool, setup string, confidence float64, samples int) string {
+	if !has || strings.TrimSpace(setup) == "" {
+		return "panel: n/a"
+	}
+	if samples > 0 {
+		return fmt.Sprintf("panel: %s (%.2f, n=%d)", setup, confidence, samples)
+	}
+	return fmt.Sprintf("panel: %s (%.2f)", setup, confidence)
 }
 
 func selectTopStateValue(

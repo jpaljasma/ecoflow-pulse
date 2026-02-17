@@ -44,6 +44,25 @@ ML training data is persisted as CSV for offline model tuning.
   using `ECOFLOW_MQTT_TRAINING_CSV_INTERVAL` + jitter.
 - writes are append-safe across processes and threads.
 
+PV fingerprint features can be generated from training telemetry:
+
+- command: `go run ./cmd/ecoflow-pv-fingerprint`
+- output file: `logs/pv_fingerprint.csv`
+- scope: per `device_sn + product_name + port(low/high)`
+- includes median and max-based power/voltage/current features for panel modeling.
+
+Panel selection model can be trained from telemetry:
+
+- command: `go run ./cmd/ecoflow-panel-select-train`
+- output file: `data/solar_panels/panel_select_model.json`
+- replay mode reports per-port prediction accuracy and confidence.
+
+When loaded by `cmd/ecoflow-mqtt-sub`, PV low/high rows include:
+
+- predicted panel setup label,
+- confidence score,
+- sample count used by the runtime tracker.
+
 ## Units
 
 - Instantaneous dashboard channel values are watts (`W` or `kW`).

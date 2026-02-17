@@ -48,6 +48,12 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_MQTT_FALLBACK_POLL_TIMEOUT` (default `12s`)
 - `ECOFLOW_MQTT_RECONCILE_INTERVAL` (default `1m`)
 - `ECOFLOW_MQTT_RECONCILE_TIMEOUT` (default `12s`)
+- `ECOFLOW_MQTT_PANEL_DB_ENABLED` (default `true`)
+- `ECOFLOW_MQTT_PANEL_DB_PATH` (default `data/solar_panels/solar_panel_specs_v13.index.json`)
+- `ECOFLOW_MQTT_PANEL_MODEL_ENABLED` (default `true`)
+- `ECOFLOW_MQTT_PANEL_MODEL_PATH` (default `data/solar_panels/panel_select_model.json`)
+- `ECOFLOW_MQTT_PANEL_MODEL_WINDOW` (default `240`)
+- `ECOFLOW_MQTT_PANEL_MODEL_MIN_SAMPLES` (default `20`)
 
 ## Logging and Process Safety
 

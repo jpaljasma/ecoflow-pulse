@@ -7,6 +7,16 @@ go test ./...
 go run ./cmd/ecoflow-smoke
 go run ./cmd/ecoflow-server
 go run ./cmd/ecoflow-mqtt-sub
+go run ./cmd/ecoflow-pv-fingerprint
+go run ./cmd/ecoflow-panel-db-import
+go run ./cmd/ecoflow-panel-select-train
+```
+
+## Helper Scripts
+
+```bash
+./scripts/regenerate_solar_panel_db.sh
+./scripts/train_panel_select_model.sh
 ```
 
 ## Make Targets

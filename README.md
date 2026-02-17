@@ -41,6 +41,9 @@ Start here:
 - `pkg/ecoflow`: reusable EcoFlow API client
 - `pkg/ecoflowserver`: HTTP server utilities and middleware
 - `pkg/ecoflowmqtt`: MQTT subscriber primitives
+- `pkg/panelselect`: solar panel selection model + runtime predictor utilities
 - `cmd/ecoflow-server`: API server entrypoint
 - `cmd/ecoflow-smoke`: manual API smoke checks
 - `cmd/ecoflow-mqtt-sub`: real-time MQTT telemetry dashboard
+- `cmd/ecoflow-pv-fingerprint`: PV fingerprint feature extraction for panel modeling
+- `cmd/ecoflow-panel-select-train`: train/replay panel selection model from telemetry CSV

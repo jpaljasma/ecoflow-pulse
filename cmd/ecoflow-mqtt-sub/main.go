@@ -23,6 +23,7 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/panelselect"
 )
 
 const (
@@ -43,6 +44,7 @@ const (
 	defaultMinuteHistoryBuckets   = 24 * 60
 	defaultMinuteHistoryPath      = "logs/telemetry_history.jsonl"
 	defaultTrainingCSVPath        = "logs/telemetry_training.csv"
+	defaultPanelDBIndexPath       = "data/solar_panels/solar_panel_specs_v13.index.json"
 	defaultTrainingCSVInterval    = 10 * time.Second
 	defaultTrainingCSVJitter      = 0.2
 	defaultHistoryQueueCapacity   = 1024
@@ -386,6 +388,15 @@ type energySnapshot struct {
 	HasPVLowType        bool
 	PVHighType          int64
 	HasPVHighType       bool
+
+	PVLowPanelSetup          string
+	PVLowPanelConfidence     float64
+	PVLowPanelSamples        int
+	HasPVLowPanelPrediction  bool
+	PVHighPanelSetup         string
+	PVHighPanelConfidence    float64
+	PVHighPanelSamples       int
+	HasPVHighPanelPrediction bool
 
 	solarChargingSticky    bool
 	hasSolarChargingSticky bool
@@ -1293,6 +1304,78 @@ func main() {
 	if err != nil {
 		fatalf("select target device: %v", err)
 	}
+	panelDBEnabled := parseBoolEnv("ECOFLOW_MQTT_PANEL_DB_ENABLED", true)
+	panelDBPath := envOrDefault("ECOFLOW_MQTT_PANEL_DB_PATH", defaultPanelDBIndexPath)
+	if panelDBEnabled {
+		panelDB, loadErr := loadSolarPanelIndex(panelDBPath)
+		if loadErr != nil {
+			logger.Warn(
+				"solar panel database load failed",
+				slog.String("path", panelDBPath),
+				slog.String("error", loadErr.Error()),
+			)
+			runLog.Printf("solar_panel_db_load_error path=%s error=%q", panelDBPath, loadErr.Error())
+		} else {
+			deviceTags := inferPanelDeviceTags(targetDevice)
+			candidatePanels := panelDB.candidatePanelsForDeviceTags(deviceTags)
+			tagList := strings.Join(deviceTags, ",")
+			if strings.TrimSpace(tagList) == "" {
+				tagList = "n/a"
+			}
+			logger.Info(
+				"solar panel database loaded",
+				slog.String("path", panelDBPath),
+				slog.Int("panel_count", panelDB.PanelCount),
+				slog.Int("device_tag_count", len(deviceTags)),
+				slog.Int("candidate_panel_count", len(candidatePanels)),
+			)
+			runLog.Printf(
+				"solar_panel_db_loaded path=%s panel_count=%d device_tags=%s candidate_panels=%d tag_labels=%q",
+				panelDBPath,
+				panelDB.PanelCount,
+				tagList,
+				len(candidatePanels),
+				panelTagLabels(panelDB, deviceTags),
+			)
+		}
+	} else {
+		runLog.Printf("solar_panel_db_disabled path=%s", panelDBPath)
+	}
+	panelModelEnabled := parseBoolEnv("ECOFLOW_MQTT_PANEL_MODEL_ENABLED", true)
+	panelModelPath := envOrDefault("ECOFLOW_MQTT_PANEL_MODEL_PATH", defaultPanelModelPath)
+	panelModelWindow := parsePositiveIntEnv("ECOFLOW_MQTT_PANEL_MODEL_WINDOW", panelselect.DefaultTrackerLimit)
+	panelModelMinSamples := parsePositiveIntEnv("ECOFLOW_MQTT_PANEL_MODEL_MIN_SAMPLES", defaultPanelModelMinSamples)
+	var runtimePanelModel *panelRuntimeModel
+	if panelModelEnabled {
+		panelModel, loadErr := panelselect.Load(panelModelPath)
+		if loadErr != nil {
+			logger.Warn(
+				"solar panel select model load failed",
+				slog.String("path", panelModelPath),
+				slog.String("error", loadErr.Error()),
+			)
+			runLog.Printf("solar_panel_model_load_error path=%s error=%q", panelModelPath, loadErr.Error())
+		} else {
+			runtimePanelModel = newPanelRuntimeModel(panelModel, targetDevice.ProductName, panelModelWindow, panelModelMinSamples)
+			logger.Info(
+				"solar panel select model loaded",
+				slog.String("path", panelModelPath),
+				slog.Int("classes", len(panelModel.Classes)),
+				slog.Int("window", panelModelWindow),
+				slog.Int("min_samples", panelModelMinSamples),
+			)
+			runLog.Printf(
+				"solar_panel_model_loaded path=%s classes=%d profile=%s window=%d min_samples=%d",
+				panelModelPath,
+				len(panelModel.Classes),
+				panelselect.NormalizeProfile(targetDevice.ProductName),
+				panelModelWindow,
+				panelModelMinSamples,
+			)
+		}
+	} else {
+		runLog.Printf("solar_panel_model_disabled path=%s", panelModelPath)
+	}
 	lockDir := envOrDefault("ECOFLOW_MQTT_LOCK_DIR", defaultDeviceLockDir)
 	if err := cleanupStaleDeviceLocks(lockDir); err != nil {
 		logger.Warn("stale device lock cleanup skipped", slog.String("error", err.Error()))
@@ -1576,6 +1659,9 @@ func main() {
 	}
 	if bootstrap.QuotaKeys > 0 {
 		lastEnvelope = telemetryEnvelope{TypeCode: "quotaBootstrap"}
+		if runtimePanelModel != nil {
+			runtimePanelModel.Observe(snapshot)
+		}
 		now := time.Now()
 		recordMinuteSample(now)
 		captureTrainingTelemetry(now, currentTopic, lastEnvelope, nil)
@@ -1813,6 +1899,9 @@ func main() {
 			}
 			snapshot.MQTTLastError = ""
 			report := applyDeviceQuotaToSnapshot(snapshot, pollResult.Quota)
+			if runtimePanelModel != nil {
+				runtimePanelModel.Observe(snapshot)
+			}
 			now := time.Now()
 			switch pollResult.Request.Kind {
 			case quotaPollKindFallback:
@@ -1900,6 +1989,9 @@ func main() {
 			}
 
 			snapshot.Update(envelope, quota, kitEntries, hasKit, pdStatus, hasPDStatus)
+			if runtimePanelModel != nil {
+				runtimePanelModel.Observe(snapshot)
+			}
 			snapshot.MQTTQueueDepth = len(mqttIngressQueue)
 			snapshot.MQTTQueueCapacity = cap(mqttIngressQueue)
 			snapshot.MQTTQueueDroppedOldest = mqttIngressStats.droppedOldest.Load()
