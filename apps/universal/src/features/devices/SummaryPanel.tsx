@@ -122,7 +122,9 @@ export function SummaryPanel({
       const devicesOfType = devices.filter((d) => (getDeviceAssetMatch(d.model).slug ?? d.model.toLowerCase()) === key);
       const hasActive = devicesOfType.some((d) => {
         const snap = byId[d.id];
-        const lastSeenAt = snap?.lastSeenAt ?? d.telemetryTsMs ?? null;
+        const lastSeenAtCandidates = [snap?.lastSeenAt ?? 0, d.telemetryTsMs ?? 0];
+        const freshestLastSeenAt = Math.max(...lastSeenAtCandidates);
+        const lastSeenAt = freshestLastSeenAt > 0 ? freshestLastSeenAt : null;
         if (lastSeenAt === null) return false;
         return now - lastSeenAt <= 60_000;
       });

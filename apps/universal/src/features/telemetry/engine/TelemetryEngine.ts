@@ -19,6 +19,7 @@ type EngineOptions = {
   ringCapacity?: number;
   sparklinePoints?: number;
   heartbeatMs?: number;
+  stalledReconnectMs?: number;
 };
 
 type SnapshotListener = (payload: {
@@ -40,6 +41,7 @@ export class TelemetryEngine {
   private readonly ringCapacity: number;
   private readonly sparklinePoints: number;
   private readonly heartbeatMs: number;
+  private readonly stalledReconnectMs: number;
   private readonly wsEnabled: boolean;
 
   private status: TelemetryEngineStatus = 'idle';
@@ -47,6 +49,7 @@ export class TelemetryEngine {
   private shouldReconnect = true;
 
   private reconnectAttempt = 0;
+  private lastInboundAt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshotTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -67,6 +70,7 @@ export class TelemetryEngine {
     this.ringCapacity = options.ringCapacity ?? 600;
     this.sparklinePoints = options.sparklinePoints ?? 60;
     this.heartbeatMs = options.heartbeatMs ?? 20_000;
+    this.stalledReconnectMs = options.stalledReconnectMs ?? 20_000;
     // In local mock mode, default WS endpoint is typically not available.
     // Disable socket churn to keep UI stable unless WS is explicitly configured.
     this.wsEnabled = !(env.apiUrl.startsWith('mock://') && this.wsUrl === DEFAULT_WS_URL);
@@ -178,12 +182,14 @@ export class TelemetryEngine {
 
     this.ws.onopen = () => {
       this.reconnectAttempt = 0;
+      this.lastInboundAt = Date.now();
       this.setStatus('connected');
       this.sendSubscription();
       this.startHeartbeat();
     };
 
     this.ws.onmessage = (event) => {
+      this.lastInboundAt = Date.now();
       if (typeof event.data !== 'string') {
         return;
       }
@@ -323,6 +329,7 @@ export class TelemetryEngine {
   }
 
   private emitSnapshot(): void {
+    this.reconnectIfStalled();
     const snapshots = this.buildSnapshot();
     const freshest = Object.values(snapshots).reduce((max, snapshot) => {
       const seen = snapshot.lastSeenAt ?? 0;
@@ -372,6 +379,16 @@ export class TelemetryEngine {
     }
     clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;
+  }
+
+  private reconnectIfStalled(): void {
+    if (!this.wsEnabled) return;
+    if (!this.ws) return;
+    if (this.ws.readyState !== WebSocket.OPEN) return;
+    if (this.status !== 'connected') return;
+    if (!this.lastInboundAt) return;
+    if (Date.now() - this.lastInboundAt <= this.stalledReconnectMs) return;
+    this.ws.close();
   }
 
   private sendSubscription(): void {

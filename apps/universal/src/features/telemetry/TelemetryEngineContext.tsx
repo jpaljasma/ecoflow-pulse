@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useEffect, useMemo } from 'react';
 import { TelemetryEngine } from '@/features/telemetry/engine/TelemetryEngine';
 
 type TelemetryEngineContextValue = {
@@ -9,6 +9,14 @@ const TelemetryEngineContext = createContext<TelemetryEngineContextValue | null>
 
 export function TelemetryEngineProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({ engine: new TelemetryEngine() }), []);
+
+  useEffect(() => {
+    value.engine.connect();
+    return () => {
+      value.engine.disconnect();
+    };
+  }, [value.engine]);
+
   return <TelemetryEngineContext.Provider value={value}>{children}</TelemetryEngineContext.Provider>;
 }
 

@@ -1,6 +1,48 @@
 import { z } from 'zod';
 import { requestJson } from '@/shared/api/restClient';
 
+const BatteryPackDetailSchema = z.object({
+  id: z.string(),
+  socPct: z.number().optional(),
+  powerW: z.number().optional(),
+  tempC: z.number().optional()
+});
+
+const SolarPortDetailSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  state: z.string().optional(),
+  volts: z.number().optional(),
+  amps: z.number().optional(),
+  watts: z.number().optional(),
+  maxVolts: z.number().optional(),
+  maxAmps: z.number().optional(),
+  maxWatts: z.number().optional()
+});
+
+const DeviceTelemetryDetailsSchema = z.object({
+  bpCount: z.number().int().optional(),
+  packs: z.array(BatteryPackDetailSchema).optional(),
+  solarPorts: z.array(SolarPortDetailSchema).optional(),
+  estimateMode: z.string().optional(),
+  estimateSource: z.string().optional(),
+  estimateEtaMin: z.number().optional(),
+  remainChargeMin: z.number().optional(),
+  remainDischargeMin: z.number().optional(),
+  remainGlobalMin: z.number().optional(),
+  mpptLowState: z.string().optional(),
+  mpptHighState: z.string().optional(),
+  acOn: z.boolean().optional(),
+  dcOn: z.boolean().optional(),
+  usbOn: z.boolean().optional(),
+  dc12vOn: z.boolean().optional(),
+  evChargingOn: z.boolean().optional(),
+  fanOn: z.boolean().optional(),
+  solarChargingOn: z.boolean().optional(),
+  mqttQueueDepth: z.number().int().optional(),
+  mqttQueueDroppedOldest: z.number().int().optional()
+});
+
 export const DeviceSchema = z.object({
   id: z.string(),
   serialNumber: z.string(),
@@ -17,7 +59,8 @@ export const DeviceSchema = z.object({
   netW: z.number().optional(),
   tempC: z.number().optional(),
   telemetryTsMs: z.number().optional(),
-  capabilities: z.record(z.unknown()).optional()
+  capabilities: z.record(z.unknown()).optional(),
+  details: DeviceTelemetryDetailsSchema.optional()
 });
 
 export const DevicesResponseSchema = z.object({

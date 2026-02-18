@@ -23,6 +23,7 @@ const ENERGY_REMAIN_LEGACY = /remain=([0-9]+)/;
 const ENERGY_REMAIN_TYPED = /remain=(charging|discharging|active):\s*([0-9]+)min/i;
 const ENERGY_STATE = /state=(charging|discharging|idle)/i;
 const ETA_TYPED = /(charging|discharging|active):\s*([0-9]+)min/i;
+const ISO_PREFIX_TS = /^(\d{4}-\d{2}-\d{2}T[^\s]+)/;
 
 let cachedAt = 0;
 let cachedDevices: MutableDevice[] = mockDevices.map((d) => ({
@@ -47,7 +48,8 @@ function cloneCachedDevices(): MockDevice[] {
     netW: device.netW,
     tempC: device.tempC,
     telemetryTsMs: device.telemetryTsMs,
-    capabilities: device.capabilities
+    capabilities: device.capabilities,
+    details: device.details
   }));
 }
 
@@ -66,6 +68,13 @@ function parseJsonFromLine(line: string): unknown | null {
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
+}
+
+function parseLineTimestampMs(line: string): number | null {
+  const iso = line.match(ISO_PREFIX_TS)?.[1];
+  if (!iso) return null;
+  const ts = Date.parse(iso);
+  return Number.isFinite(ts) ? ts : null;
 }
 
 function parseStateFromPower(inW: number | null, outW: number | null): MockDevice['state'] | null {
@@ -98,7 +107,11 @@ function getOrCreateDevice(
     netW: 0,
     tempC: 0,
     telemetryTsMs: Date.now(),
-    updatedAtMs: Date.now()
+    updatedAtMs: Date.now(),
+    details: {
+      packs: [],
+      solarPorts: []
+    }
   };
   map.set(serial, created);
   return created;
@@ -115,6 +128,7 @@ function updateFromPayload(
 
   if (payload?.cmdId === 21 && typeof payload?.param?.cmsBattSoc === 'number') {
     device.batteryPct = clampPercent(payload.param.cmsBattSoc);
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
 
@@ -127,10 +141,12 @@ function updateFromPayload(
     const remain = payload.params.remainTime;
     if (typeof soc === 'number') {
       device.batteryPct = clampPercent(soc);
+      device.telemetryTsMs = nowMs;
       device.updatedAtMs = nowMs;
     }
     if (typeof remain === 'number' && Number.isFinite(remain)) {
       device.etaMinutes = Math.max(0, Math.round(remain));
+      device.telemetryTsMs = nowMs;
       device.updatedAtMs = nowMs;
     }
   }
@@ -142,6 +158,7 @@ function updateFromPayload(
       const soc = typeof primary.f32Soc === 'number' ? primary.f32Soc : primary.soc;
       if (typeof soc === 'number') {
         device.batteryPct = clampPercent(soc);
+        device.telemetryTsMs = nowMs;
         device.updatedAtMs = nowMs;
       }
     }
@@ -153,11 +170,13 @@ function updateFromPayload(
     if (typeof chgRemain === 'number' && Number.isFinite(chgRemain) && chgRemain >= 0) {
       device.state = 'charging';
       device.etaMinutes = Math.round(chgRemain);
+      device.telemetryTsMs = nowMs;
       device.updatedAtMs = nowMs;
     }
     if (typeof dsgRemain === 'number' && Number.isFinite(dsgRemain) && dsgRemain >= 0) {
       device.state = 'discharging';
       device.etaMinutes = Math.round(dsgRemain);
+      device.telemetryTsMs = nowMs;
       device.updatedAtMs = nowMs;
     }
   }
@@ -177,6 +196,7 @@ function updateFromEnergySummary(
     const soc = Number(socMatch[1]);
     if (Number.isFinite(soc)) {
       device.batteryPct = clampPercent(soc);
+      device.telemetryTsMs = nowMs;
       device.updatedAtMs = nowMs;
     }
   }
@@ -190,6 +210,7 @@ function updateFromEnergySummary(
       if (typedState === 'charging' || typedState === 'discharging') {
         device.state = typedState;
       }
+      device.telemetryTsMs = nowMs;
       device.updatedAtMs = nowMs;
     }
   } else {
@@ -198,6 +219,7 @@ function updateFromEnergySummary(
       const remain = Number(remainMatch[1]);
       if (Number.isFinite(remain)) {
         device.etaMinutes = Math.max(0, Math.round(remain));
+        device.telemetryTsMs = nowMs;
         device.updatedAtMs = nowMs;
       }
     }
@@ -206,6 +228,7 @@ function updateFromEnergySummary(
   const energyState = line.match(ENERGY_STATE)?.[1]?.toLowerCase();
   if (energyState === 'charging' || energyState === 'discharging' || energyState === 'idle') {
     device.state = energyState;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
 
@@ -224,30 +247,37 @@ function updateFromEnergySummary(
 
   if (Number.isFinite(pvW as number)) {
     device.pvW = pvW as number;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
   if (Number.isFinite(outW as number)) {
     device.loadW = outW as number;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
   if (Number.isFinite(dcOutW as number)) {
     device.dcW = dcOutW as number;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
   if (Number.isFinite(netW as number)) {
     device.netW = netW as number;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
   if (Number.isFinite(acInW as number)) {
     device.acInW = acInW as number;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   } else if (Number.isFinite(inW as number)) {
     device.acInW = inW as number;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
 
   if (!Number.isFinite(netW as number) && Number.isFinite(inW as number) && Number.isFinite(outW as number)) {
     device.netW = (inW as number) - (outW as number);
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
 
@@ -257,6 +287,7 @@ function updateFromEnergySummary(
   );
   if (derivedState) {
     device.state = derivedState;
+    device.telemetryTsMs = nowMs;
     device.updatedAtMs = nowMs;
   }
 }
@@ -315,10 +346,11 @@ function parseDevicesFromLog(logText: string): MockDevice[] {
       continue;
     }
 
-    updateFromEnergySummary(line, activeSerial, map, nowMs);
+    const lineTsMs = parseLineTimestampMs(line) ?? nowMs;
+    updateFromEnergySummary(line, activeSerial, map, lineTsMs);
     const payload = parseJsonFromLine(line);
     if (payload) {
-      updateFromPayload(payload, activeSerial, map, nowMs);
+      updateFromPayload(payload, activeSerial, map, lineTsMs);
     }
   }
 
@@ -341,7 +373,8 @@ function parseDevicesFromLog(logText: string): MockDevice[] {
       netW: device.netW,
       tempC: device.tempC,
       telemetryTsMs: device.telemetryTsMs,
-      capabilities: device.capabilities
+      capabilities: device.capabilities,
+      details: device.details
     }));
 }
 
@@ -349,6 +382,34 @@ function parseNumber(value: string | undefined): number | null {
   if (!value || value === 'n/a') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function parseBoolLike(value: string | undefined): boolean | undefined {
+  const n = parseNumber(value);
+  if (n === null) return undefined;
+  return n > 0;
+}
+
+function getPvPortCaps(
+  modelName: string
+): { low: { maxWatts: number; maxVolts: number; maxAmps: number }; high: { maxWatts: number; maxVolts: number; maxAmps: number } } {
+  const model = modelName.toLowerCase();
+  if (model.includes('delta pro ultra')) {
+    return {
+      low: { maxWatts: 1600, maxVolts: 150, maxAmps: 15 },
+      high: { maxWatts: 4000, maxVolts: 450, maxAmps: 15 }
+    };
+  }
+  if (model.includes('delta 2 max')) {
+    return {
+      low: { maxWatts: 500, maxVolts: 60, maxAmps: 15 },
+      high: { maxWatts: 500, maxVolts: 60, maxAmps: 15 }
+    };
+  }
+  return {
+    low: { maxWatts: 0, maxVolts: 0, maxAmps: 0 },
+    high: { maxWatts: 0, maxVolts: 0, maxAmps: 0 }
+  };
 }
 
 function median(values: Array<number | null>): number | null {
@@ -422,6 +483,8 @@ function parseDevicesFromTrainingCsv(csvText: string): MockDevice[] {
     }
 
     const solarIn = parseNumber(col(cols, 'solar_in_w')) ?? 0;
+    const solarLowIn = parseNumber(col(cols, 'solar_low_in_w')) ?? 0;
+    const solarHighIn = parseNumber(col(cols, 'solar_high_in_w')) ?? 0;
     const acIn = parseNumber(col(cols, 'ac_in_w')) ?? 0;
     const dcIn = parseNumber(col(cols, 'dc_in_w')) ?? 0;
     const acOut = parseNumber(col(cols, 'ac_out_w')) ?? 0;
@@ -444,6 +507,8 @@ function parseDevicesFromTrainingCsv(csvText: string): MockDevice[] {
       device.tempC = avgPackTemp;
     }
 
+    const estimateMode = col(cols, 'estimate_mode') || undefined;
+    const estimateSource = col(cols, 'estimate_source') || undefined;
     const etaEstimate = parseNumber(col(cols, 'estimate_eta_min'));
     const etaCharge = parseNumber(col(cols, 'remain_charge_min'));
     const etaDischarge = parseNumber(col(cols, 'remain_discharge_min'));
@@ -456,6 +521,71 @@ function parseDevicesFromTrainingCsv(csvText: string): MockDevice[] {
     if (chosenEta !== null) {
       device.etaMinutes = Math.max(0, Math.round(chosenEta));
     }
+
+    const bpCount = parseNumber(col(cols, 'bp_count'));
+    const packs = Array.from({ length: 5 }, (_, idxPack) => {
+      const n = idxPack + 1;
+      const soc = parseNumber(col(cols, `bp${n}_soc`));
+      const power = parseNumber(col(cols, `bp${n}_power_w`));
+      const temp = parseNumber(col(cols, `bp${n}_temp_c`));
+      if (soc === null && power === null && temp === null) return null;
+      return {
+        id: `bp${n}`,
+        socPct: soc ?? undefined,
+        powerW: power ?? undefined,
+        tempC: temp ?? undefined
+      };
+    }).filter((v): v is NonNullable<typeof v> => v !== null);
+
+    const caps = getPvPortCaps(modelName);
+    const solarPorts = [
+      {
+        id: 'low',
+        name: modelName.includes('delta 2 max') ? 'PV 1' : 'PV Low',
+        state: col(cols, 'mppt_low_state') || undefined,
+        volts: parseNumber(col(cols, 'solar_low_v')) ?? undefined,
+        amps: parseNumber(col(cols, 'solar_low_a')) ?? undefined,
+        watts: solarLowIn || undefined,
+        maxWatts: caps.low.maxWatts || undefined,
+        maxVolts: caps.low.maxVolts || undefined,
+        maxAmps: caps.low.maxAmps || undefined
+      },
+      {
+        id: 'high',
+        name: modelName.includes('delta 2 max') ? 'PV 2' : 'PV High',
+        state: col(cols, 'mppt_high_state') || undefined,
+        volts: parseNumber(col(cols, 'solar_high_v')) ?? undefined,
+        amps: parseNumber(col(cols, 'solar_high_a')) ?? undefined,
+        watts: solarHighIn || undefined,
+        maxWatts: caps.high.maxWatts || undefined,
+        maxVolts: caps.high.maxVolts || undefined,
+        maxAmps: caps.high.maxAmps || undefined
+      }
+    ];
+
+    device.details = {
+      bpCount: bpCount !== null ? Math.round(bpCount) : undefined,
+      packs,
+      solarPorts,
+      estimateMode,
+      estimateSource,
+      estimateEtaMin: etaEstimate ?? undefined,
+      remainChargeMin: etaCharge ?? undefined,
+      remainDischargeMin: etaDischarge ?? undefined,
+      remainGlobalMin: etaGlobal ?? undefined,
+      mpptLowState: col(cols, 'mppt_low_state') || undefined,
+      mpptHighState: col(cols, 'mppt_high_state') || undefined,
+      acOn: parseBoolLike(col(cols, 'ac_on')),
+      dcOn: parseBoolLike(col(cols, 'dc_on')),
+      usbOn: parseBoolLike(col(cols, 'usb_on')),
+      dc12vOn: parseBoolLike(col(cols, 'dc12v_on')),
+      evChargingOn: parseBoolLike(col(cols, 'ev_charging_on')),
+      fanOn: parseBoolLike(col(cols, 'fan_on')),
+      solarChargingOn: parseBoolLike(col(cols, 'solar_charging_on')),
+      mqttQueueDepth: parseNumber(col(cols, 'mqtt_queue_depth')) ?? undefined,
+      mqttQueueDroppedOldest:
+        parseNumber(col(cols, 'mqtt_queue_dropped_oldest')) ?? undefined
+    };
 
     device.updatedAtMs = nowMs;
   }
@@ -479,7 +609,8 @@ function parseDevicesFromTrainingCsv(csvText: string): MockDevice[] {
       netW: device.netW,
       tempC: device.tempC,
       telemetryTsMs: device.telemetryTsMs,
-      capabilities: device.capabilities
+      capabilities: device.capabilities,
+      details: device.details
     }));
 }
 
@@ -522,22 +653,31 @@ export async function getMockDevices(): Promise<MockDevice[]> {
 
   cachedAt = now;
   const csvText = await fetchMockTrainingCsvText();
-  if (csvText) {
-    const parsedCsv = parseDevicesFromTrainingCsv(csvText);
-    if (parsedCsv.length > 0) {
-      cachedDevices = parsedCsv.map((d) => ({ ...d, updatedAtMs: Date.now() }));
-      return cloneCachedDevices();
-    }
-  }
-
   const logText = await fetchMockLogText();
-  if (!logText) {
-    return cloneCachedDevices();
-  }
+  const parsedCsv = csvText ? parseDevicesFromTrainingCsv(csvText) : [];
+  const parsedLog = logText ? parseDevicesFromLog(logText) : [];
 
-  const parsed = parseDevicesFromLog(logText);
-  if (parsed.length > 0) {
-    cachedDevices = parsed.map((d) => ({ ...d, updatedAtMs: Date.now() }));
+  if (parsedCsv.length > 0 || parsedLog.length > 0) {
+    const merged = new Map<string, MockDevice>();
+    const consider = (device: MockDevice) => {
+      const prev = merged.get(device.serialNumber);
+      if (!prev) {
+        merged.set(device.serialNumber, device);
+        return;
+      }
+      const prevTs = prev.telemetryTsMs ?? 0;
+      const nextTs = device.telemetryTsMs ?? 0;
+      if (nextTs >= prevTs) {
+        merged.set(device.serialNumber, device);
+      }
+    };
+    parsedCsv.forEach(consider);
+    parsedLog.forEach(consider);
+
+    const mergedDevices = Array.from(merged.values());
+    if (mergedDevices.length > 0) {
+      cachedDevices = mergedDevices.map((d) => ({ ...d, updatedAtMs: Date.now() }));
+    }
   }
   return cloneCachedDevices();
 }

@@ -1,5 +1,47 @@
 export type DeviceState = 'charging' | 'discharging' | 'idle';
 
+export type BatteryPackDetail = {
+  id: string;
+  socPct?: number;
+  powerW?: number;
+  tempC?: number;
+};
+
+export type SolarPortDetail = {
+  id: string;
+  name: string;
+  state?: string;
+  volts?: number;
+  amps?: number;
+  watts?: number;
+  maxVolts?: number;
+  maxAmps?: number;
+  maxWatts?: number;
+};
+
+export type DeviceTelemetryDetails = {
+  bpCount?: number;
+  packs?: BatteryPackDetail[];
+  solarPorts?: SolarPortDetail[];
+  estimateMode?: string;
+  estimateSource?: string;
+  estimateEtaMin?: number;
+  remainChargeMin?: number;
+  remainDischargeMin?: number;
+  remainGlobalMin?: number;
+  mpptLowState?: string;
+  mpptHighState?: string;
+  acOn?: boolean;
+  dcOn?: boolean;
+  usbOn?: boolean;
+  dc12vOn?: boolean;
+  evChargingOn?: boolean;
+  fanOn?: boolean;
+  solarChargingOn?: boolean;
+  mqttQueueDepth?: number;
+  mqttQueueDroppedOldest?: number;
+};
+
 export type MockDevice = {
   id: string;
   serialNumber: string;
@@ -17,6 +59,7 @@ export type MockDevice = {
   tempC?: number;
   telemetryTsMs?: number;
   capabilities?: Record<string, unknown>;
+  details?: DeviceTelemetryDetails;
 };
 
 // Seeded from recent mqtt.log energy_summary snapshots.
