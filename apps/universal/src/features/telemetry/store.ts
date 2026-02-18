@@ -33,9 +33,15 @@ export const useTelemetryStore = create<TelemetrySnapshotState>((set) => ({
       return { connectionStatus: status };
     }),
   updateSnapshots: ({ snapshots, lastUpdatedAt, status }) =>
-    set({
-      snapshotByDeviceId: snapshots,
-      lastUpdatedAt,
+    set((state) => ({
+      // Merge per-device snapshots so switching screens/subscriptions
+      // doesn't temporarily drop non-visible devices from UI summaries.
+      snapshotByDeviceId: {
+        ...state.snapshotByDeviceId,
+        ...snapshots
+      },
+      lastUpdatedAt:
+        lastUpdatedAt > state.lastUpdatedAt ? lastUpdatedAt : state.lastUpdatedAt,
       connectionStatus: status
-    })
+    }))
 }));
