@@ -1,0 +1,10 @@
+{
+  "name": "@ecoflow-pulse/eslint-config",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.cjs",
+  "peerDependencies": {
+    "eslint": "^9.0.0",
+    "typescript": "^5.0.0"
+  }
+}
