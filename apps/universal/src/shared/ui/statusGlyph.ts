@@ -13,7 +13,7 @@ export function getStatusGlyph(status: UiStatus): string {
     case 'waiting':
       return '⟳';
     case 'idle':
-      return '◌';
+      return '◯';
     case 'processing':
       return '⚙';
     case 'loading':
@@ -21,9 +21,9 @@ export function getStatusGlyph(status: UiStatus): string {
     case 'online':
       return '●';
     case 'stale':
-      return '◒';
+      return '◔';
     case 'charging':
-      return '↗';
+      return '⚡';
     case 'discharging':
       return '↘';
     default:
@@ -41,15 +41,12 @@ export function getPowerFlowGlyph(params: {
 
   if (params.status === 'charging') {
     const pvW = params.pvW ?? 0;
-    const loadW = params.loadW ?? 0;
-
-    if (pvW > 20 && loadW > 20) return '☀⚡'; // hybrid (solar + AC path active)
-    if (pvW > 20) return '☀'; // solar charging
-    return '⚡'; // AC charging fallback
+    if (pvW > 5) return '☀⚡'; // charging with solar present
+    return '⚡'; // charging, likely AC or non-PV source
   }
 
   if (params.status === 'discharging') {
-    return '🔌⎓⌁'; // discharging to AC / DC / USB loads
+    return '↘'; // discharging
   }
 
   if (params.status === 'idle') return getStatusGlyph('idle');

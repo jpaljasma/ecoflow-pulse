@@ -6,13 +6,21 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-export function SocBar({ value }: { value: number | null | undefined }) {
+export function SocBar({
+  value,
+  fullWidth = false
+}: {
+  value: number | null | undefined;
+  fullWidth?: boolean;
+}) {
   const { width } = useWindowDimensions();
   const isTabletUp = width >= 768;
   const pct = clamp(value ?? 0);
+  const barWidth = fullWidth ? '100%' : isTabletUp ? '50%' : '100%';
+  const minBarWidth = fullWidth ? 0 : isTabletUp ? 220 : 0;
 
   return (
-    <YStack gap="$2" width={isTabletUp ? '50%' : '100%'} minWidth={isTabletUp ? 220 : 0}>
+    <YStack gap="$2" width={barWidth} minWidth={minBarWidth}>
       <XStack alignItems="center" justifyContent="space-between">
         <Text fontFamily="$body" fontSize="$3" opacity={0.78} fontWeight="500">
           SOC

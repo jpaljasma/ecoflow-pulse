@@ -9,6 +9,13 @@ export type MockDevice = {
   batteryPct: number;
   state: DeviceState;
   etaMinutes: number;
+  pvW?: number;
+  acInW?: number;
+  dcW?: number;
+  loadW?: number;
+  netW?: number;
+  tempC?: number;
+  telemetryTsMs?: number;
   capabilities?: Record<string, unknown>;
 };
 
@@ -23,6 +30,13 @@ export const mockDevices: MockDevice[] = [
     batteryPct: 31.5,
     state: 'discharging',
     etaMinutes: 3168,
+    pvW: 0,
+    acInW: 0,
+    dcW: 0,
+    loadW: 0,
+    netW: 0,
+    tempC: 0,
+    telemetryTsMs: 0,
     capabilities: {
       batteryPacks: 2,
       pvInputs: ['low', 'high'],
@@ -38,6 +52,13 @@ export const mockDevices: MockDevice[] = [
     batteryPct: 35.0,
     state: 'discharging',
     etaMinutes: 1761,
+    pvW: 0,
+    acInW: 0,
+    dcW: 0,
+    loadW: 0,
+    netW: 0,
+    tempC: 0,
+    telemetryTsMs: 0,
     capabilities: {
       batteryPacks: 2,
       pvInputs: ['port1', 'port2'],

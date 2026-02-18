@@ -5,6 +5,7 @@ import { useTelemetryStore } from '@/features/telemetry/store';
 export function useTelemetrySnapshot(deviceIds: string[]) {
   const engine = useTelemetryEngine();
   const setVisibleDeviceIds = useTelemetryStore((s) => s.setVisibleDeviceIds);
+  const setConnectionStatus = useTelemetryStore((s) => s.setConnectionStatus);
   const updateSnapshots = useTelemetryStore((s) => s.updateSnapshots);
   const byId = useTelemetryStore((s) => s.snapshotByDeviceId);
   const connectionStatus = useTelemetryStore((s) => s.connectionStatus);
@@ -14,13 +15,15 @@ export function useTelemetrySnapshot(deviceIds: string[]) {
   const stableIds = useMemo(() => (idsKey ? idsKey.split(',') : []), [idsKey]);
 
   useEffect(() => {
+    const unsubSnapshot = engine.onSnapshot(updateSnapshots);
+    const unsubStatus = engine.onStatus(setConnectionStatus);
     engine.connect();
-    const unsub = engine.onSnapshot(updateSnapshots);
     return () => {
-      unsub();
+      unsubSnapshot();
+      unsubStatus();
       engine.disconnect();
     };
-  }, [engine, updateSnapshots]);
+  }, [engine, setConnectionStatus, updateSnapshots]);
 
   useEffect(() => {
     setVisibleDeviceIds(stableIds);

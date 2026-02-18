@@ -4,9 +4,9 @@ export function formatW(value: number | undefined | null): string {
   }
   const abs = Math.abs(value);
   if (abs >= 1000) {
-    return `${(value / 1000).toFixed(2)} kW`;
+    return `${(value / 1000).toFixed(1)} kW`;
   }
-  return `${value.toFixed(0)} W`;
+  return `${value.toFixed(1)} W`;
 }
 
 export function formatSoc(value: number | undefined | null): string {
@@ -32,7 +32,7 @@ export function formatEtaMinutes(minutes: number | undefined | null): string {
   const d = Math.floor(total / (24 * 60));
   const h = Math.floor((total % (24 * 60)) / 60);
   const m = total % 60;
-  if (d > 0) return `${d}d ${h}h`;
+  if (d > 0) return `${d}d ${h}h ${m}m`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }

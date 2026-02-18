@@ -18,7 +18,14 @@ export function TopBar({
 }) {
   const titleNode =
     typeof title === 'string' || typeof title === 'number' ? (
-      <Text fontFamily="$heading" fontSize="$8" fontWeight="800" letterSpacing={-0.25}>
+      <Text
+        fontFamily="$heading"
+        fontSize="$8"
+        fontWeight="800"
+        letterSpacing={-0.25}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
         {title}
       </Text>
     ) : (
@@ -37,7 +44,13 @@ export function TopBar({
       <YStack gap="$1" flex={titleFlex}>
         {titleNode}
         {subtitle ? (
-          <Text fontFamily="$body" fontSize="$4" opacity={0.78}>
+          <Text
+            fontFamily="$body"
+            fontSize="$4"
+            opacity={0.78}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {subtitle}
           </Text>
         ) : null}

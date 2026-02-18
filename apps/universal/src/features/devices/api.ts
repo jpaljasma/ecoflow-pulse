@@ -10,6 +10,13 @@ export const DeviceSchema = z.object({
   batteryPct: z.number(),
   state: z.enum(['charging', 'discharging', 'idle']),
   etaMinutes: z.number().int().nonnegative(),
+  pvW: z.number().optional(),
+  acInW: z.number().optional(),
+  dcW: z.number().optional(),
+  loadW: z.number().optional(),
+  netW: z.number().optional(),
+  tempC: z.number().optional(),
+  telemetryTsMs: z.number().optional(),
   capabilities: z.record(z.unknown()).optional()
 });
 

@@ -189,3 +189,35 @@ Use this when panel detection starts misclassifying under low sun, clipping, or 
      - `make lint`
      - `make test`
      - `make build`
+
+## Universal App UI Workflow (Expo/Tamagui)
+Use this when working on `apps/universal` dashboard layout, telemetry rendering, and responsive behavior.
+
+1. Keep behavior centralized in shared UI components:
+   - power-flow glyph logic must be rendered via shared component (`PowerFlowGlyph`),
+   - trendline rendering must be shared (`SparklineTrend`) so Home + Details behave identically,
+   - avoid duplicating glyph/render logic in page files.
+
+2. Responsive trend layout rules:
+   - desktop: 2-column split (`Load Trend` / `PV Trend`, 50/50),
+   - mobile: stacked trend containers,
+   - trend data must be fixed-length and padded so charts start flat and grow with data.
+
+3. Scroll container rule for web:
+   - keep app shell fixed,
+   - scroll only inside the content pane,
+   - enforce `flex: 1` + `minHeight: 0` on wrapper and `overflowY: auto` on web container to avoid resize-related scroll lock.
+
+4. Telemetry visual feedback rules:
+   - values in `[-0.5, 0.5]` for AC/DC/PV/Load should be muted (label + value),
+   - use monochrome glyph labels for tintable icons in muted state,
+   - cold temperature (`<= 2C`) should use snowflake + blue style.
+
+5. Mock telemetry mapping rules:
+   - prefer `telemetry_training.csv` for mock runtime playback,
+   - map metrics by device serial and latest timestamp,
+   - when multiple pack temps are present in a row, use median.
+
+6. Before every UI commit:
+   - run `npm run -w apps/universal typecheck`
+   - run `npm run -w apps/universal lint`

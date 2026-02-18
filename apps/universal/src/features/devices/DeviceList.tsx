@@ -1,15 +1,17 @@
 import { Platform, FlatList, useWindowDimensions } from 'react-native';
 import { YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
-import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
+import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
 
 export function DeviceList({
   devices,
-  byId
+  byId,
+  connectionStatus
 }: {
   devices: DeviceSummary[];
   byId: Record<string, DeviceSnapshot>;
+  connectionStatus: TelemetryEngineStatus;
 }) {
   const { width } = useWindowDimensions();
 
@@ -30,6 +32,7 @@ export function DeviceList({
               device={device}
               snapshot={byId[device.id]}
               imageContext="list"
+              connectionStatus={connectionStatus}
             />
           ))}
         </div>
@@ -47,7 +50,12 @@ export function DeviceList({
       maxToRenderPerBatch={10}
       windowSize={7}
       renderItem={({ item }) => (
-        <DeviceCard device={item} snapshot={byId[item.id]} imageContext="list" />
+        <DeviceCard
+          device={item}
+          snapshot={byId[item.id]}
+          imageContext="list"
+          connectionStatus={connectionStatus}
+        />
       )}
     />
   );

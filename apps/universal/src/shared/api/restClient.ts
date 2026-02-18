@@ -24,7 +24,7 @@ export async function requestJson<T>(
   { method = 'GET', token, body, signal }: RequestOptions = {}
 ): Promise<T> {
   if (env.apiUrl.startsWith('mock://')) {
-    const mock = maybeHandleMockRequest(path);
+    const mock = await maybeHandleMockRequest(path);
     if (!mock) {
       throw new ApiError(`No mock route for ${path}`, 404);
     }

@@ -1,4 +1,5 @@
 import { env } from '@/shared/config/env';
+import { getMockDevices } from '@/shared/api/mockLogDevices';
 import {
   IncomingMessageSchema,
   type IncomingMessage,
@@ -49,6 +50,8 @@ export class TelemetryEngine {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshotTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private mockStreamTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly lastMockTsByDevice = new Map<string, number>();
 
   private readonly subscribedDeviceIds = new Set<string>();
   private readonly devices = new Map<string, DeviceRuntime>();
@@ -59,7 +62,7 @@ export class TelemetryEngine {
   constructor(options: EngineOptions = {}) {
     this.wsUrl = options.wsUrl ?? env.wsUrl;
     this.snapshotIntervalMs = options.snapshotIntervalMs ?? 200;
-    this.staleAfterMs = options.staleAfterMs ?? 3_000;
+    this.staleAfterMs = options.staleAfterMs ?? 5_000;
     this.ringCapacity = options.ringCapacity ?? 600;
     this.sparklinePoints = options.sparklinePoints ?? 60;
     this.heartbeatMs = options.heartbeatMs ?? 20_000;
@@ -78,8 +81,8 @@ export class TelemetryEngine {
 
     if (!this.wsEnabled) {
       this.setStatus('connected');
-      // In mock mode without WS, keep a stable connected state and avoid
-      // periodic snapshot churn that causes unnecessary UI re-renders/flicker.
+      this.startSnapshotClock();
+      this.startMockStream();
       return;
     }
 
@@ -96,6 +99,7 @@ export class TelemetryEngine {
     this.clearReconnectTimer();
     this.stopHeartbeat();
     this.stopSnapshotClock();
+    this.stopMockStream();
 
     if (this.ws) {
       this.ws.onopen = null;
@@ -120,6 +124,9 @@ export class TelemetryEngine {
 
     if (changed) {
       this.sendSubscription();
+      if (!this.wsEnabled) {
+        this.emitSnapshot();
+      }
     }
   }
 
@@ -133,6 +140,9 @@ export class TelemetryEngine {
 
     if (changed) {
       this.sendSubscription();
+      if (!this.wsEnabled) {
+        this.emitSnapshot();
+      }
     }
   }
 
@@ -388,5 +398,65 @@ export class TelemetryEngine {
     }
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+  }
+
+  private startMockStream(): void {
+    if (this.mockStreamTimer) {
+      return;
+    }
+    void this.pullMockTelemetry();
+    this.mockStreamTimer = setInterval(() => {
+      void this.pullMockTelemetry();
+    }, 1_000);
+  }
+
+  private stopMockStream(): void {
+    if (!this.mockStreamTimer) {
+      return;
+    }
+    clearInterval(this.mockStreamTimer);
+    this.mockStreamTimer = null;
+    this.lastMockTsByDevice.clear();
+  }
+
+  private async pullMockTelemetry(): Promise<void> {
+    try {
+      const devices = await getMockDevices();
+      if (devices.length === 0) return;
+      for (const device of devices) {
+        if (!this.subscribedDeviceIds.has(device.id)) {
+          continue;
+        }
+
+        const ts = device.telemetryTsMs ?? Date.now();
+        const lastTs = this.lastMockTsByDevice.get(device.id) ?? 0;
+        if (ts <= lastTs) {
+          continue;
+        }
+        this.lastMockTsByDevice.set(device.id, ts);
+
+        this.ingest({
+          type: 'device_status',
+          deviceId: device.id,
+          ts,
+          online: device.online
+        });
+
+        this.ingest({
+          type: 'telemetry',
+          deviceId: device.id,
+          ts,
+          metrics: {
+            soc: device.batteryPct ?? 0,
+            pvW: device.pvW ?? 0,
+            loadW: device.loadW ?? 0,
+            batteryW: device.netW ?? 0,
+            tempC: device.tempC ?? 0
+          }
+        });
+      }
+    } catch {
+      // Keep mock stream resilient; status stays connected in mock mode.
+    }
   }
 }

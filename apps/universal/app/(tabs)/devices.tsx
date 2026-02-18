@@ -1,12 +1,12 @@
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView } from 'react-native';
 import { useMemo } from 'react';
-import { useRouter } from 'expo-router';
 import { Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { useDevices } from '@/features/devices/hooks';
 import { useTelemetrySnapshot } from '@/features/telemetry/hooks';
+import { SummaryCard } from '@/features/devices/SummaryCard';
 import { DeviceList } from '@/features/devices/DeviceList';
 import { formatAgo } from '@/features/telemetry/format';
 
@@ -17,19 +17,28 @@ function statusColor(status: string): '$success' | '$warning' | '$danger' {
 }
 
 export default function DevicesScreen() {
-  const router = useRouter();
   const devicesQuery = useDevices();
   const deviceIds = useMemo(
     () => devicesQuery.data?.devices.map((d) => d.id) ?? [],
     [devicesQuery.data?.devices]
   );
   const telemetry = useTelemetrySnapshot(deviceIds);
+  const updatedAt = Math.max(
+    telemetry.lastUpdatedAt || 0,
+    devicesQuery.dataUpdatedAt || 0
+  );
 
   return (
     <YStack flex={1} backgroundColor="$background">
       <TopBar
-        title={<BrandLogo onPress={() => router.push('/devices')} />}
-        subtitle={`Updated ${formatAgo(telemetry.lastUpdatedAt || null)}`}
+        title={
+          <BrandLogo
+            onPress={() => {
+              void devicesQuery.refetch();
+            }}
+          />
+        }
+        subtitle={`Updated ${formatAgo(updatedAt || null)}`}
         titleFlex={3}
         rightFlex={1}
         right={
@@ -59,7 +68,47 @@ export default function DevicesScreen() {
       ) : null}
 
       {devicesQuery.data ? (
-        <DeviceList devices={devicesQuery.data.devices} byId={telemetry.byId} />
+        <YStack flex={1} minHeight={0}>
+          {Platform.OS === 'web' ? (
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                paddingBottom: 16
+              }}
+            >
+              <YStack gap="$3">
+                <YStack paddingHorizontal="$4">
+                  <SummaryCard devices={devicesQuery.data.devices} byId={telemetry.byId} />
+                </YStack>
+                <DeviceList
+                  devices={devicesQuery.data.devices}
+                  byId={telemetry.byId}
+                  connectionStatus={telemetry.connectionStatus}
+                />
+              </YStack>
+            </div>
+          ) : (
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              showsVerticalScrollIndicator
+            >
+              <YStack gap="$3">
+                <YStack paddingHorizontal="$4">
+                  <SummaryCard devices={devicesQuery.data.devices} byId={telemetry.byId} />
+                </YStack>
+                <DeviceList
+                  devices={devicesQuery.data.devices}
+                  byId={telemetry.byId}
+                  connectionStatus={telemetry.connectionStatus}
+                />
+              </YStack>
+            </ScrollView>
+          )}
+        </YStack>
       ) : null}
     </YStack>
   );

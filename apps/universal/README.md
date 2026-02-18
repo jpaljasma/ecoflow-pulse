@@ -22,6 +22,23 @@ A universal telemetry dashboard scaffold for EcoFlow devices: one codebase for w
    - iOS: `npm run ios`
    - Android: `npm run android`
 
+## Mock Data Sources
+In `mock://ecoflow` mode, data is sourced in this priority:
+1. `telemetry_training.csv` (preferred, SN-scoped normalized telemetry)
+2. `mqtt.log` (fallback only)
+
+Default web paths:
+- `/mock/telemetry_training.csv`
+- `/mock/mqtt.log`
+
+You can override with:
+- `EXPO_PUBLIC_MOCK_TRAINING_URL`
+- `EXPO_PUBLIC_MOCK_LOG_URL`
+
+### SOC Rule (DELTA 2 Max)
+For D2M, card SOC prefers `bp1_soc` from training CSV when available.
+Reason: `soc_pct` may be weighted across packs and can diverge from the user-facing main-unit SOC.
+
 ## Telemetry Engine (ingest vs snapshot)
 Telemetry rendering is decoupled from message ingest:
 - WS ingest can run at high frequency (e.g. 10Hz/device, 16 devices).

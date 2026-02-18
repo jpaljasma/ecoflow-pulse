@@ -7,6 +7,7 @@ type TelemetrySnapshotState = {
   lastUpdatedAt: number;
   connectionStatus: TelemetryEngineStatus;
   setVisibleDeviceIds: (ids: string[]) => void;
+  setConnectionStatus: (status: TelemetryEngineStatus) => void;
   updateSnapshots: (payload: {
     snapshots: Record<string, DeviceSnapshot>;
     lastUpdatedAt: number;
@@ -25,6 +26,11 @@ export const useTelemetryStore = create<TelemetrySnapshotState>((set) => ({
         return state;
       }
       return { visibleDeviceIds: ids };
+    }),
+  setConnectionStatus: (status) =>
+    set((state) => {
+      if (state.connectionStatus === status) return state;
+      return { connectionStatus: status };
     }),
   updateSnapshots: ({ snapshots, lastUpdatedAt, status }) =>
     set({
