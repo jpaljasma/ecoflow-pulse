@@ -22,6 +22,9 @@ fi
 mkdir -p "${OUT_DIR}"
 
 cd "${REPO_ROOT}"
+go run ./cmd/ecoflow-panel-csv-backfill \
+  -csv "${CSV_PATH}"
+
 go run ./cmd/ecoflow-panel-db-import \
   -csv "${CSV_PATH}" \
   -out "${OUT_JSON}" \

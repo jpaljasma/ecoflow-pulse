@@ -9,6 +9,7 @@ go run ./cmd/ecoflow-server
 go run ./cmd/ecoflow-mqtt-sub
 go run ./cmd/ecoflow-pv-fingerprint
 go run ./cmd/ecoflow-panel-db-import
+go run ./cmd/ecoflow-panel-csv-backfill
 go run ./cmd/ecoflow-panel-select-train
 ```
 

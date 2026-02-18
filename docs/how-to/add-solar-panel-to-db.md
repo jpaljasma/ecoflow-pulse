@@ -83,6 +83,18 @@ Notes:
 ./scripts/regenerate_solar_panel_db.sh
 ```
 
+This script now runs CSV backfill first:
+
+- fills missing derived safety fields (`Voc_0C_V`, `Voc_-20C_V`, `Voc_-25C_V`),
+- fills safety and series fields (`Voc_safety_*`, `MaxSeries_*`, `SeriesRange_*`),
+- fills `EcoFlow_compatibility` when missing using conservative defaults.
+
+Standalone backfill command (optional):
+
+```bash
+go run ./cmd/ecoflow-panel-csv-backfill -csv data/solar_panels/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv
+```
+
 This updates:
 
 - `data/solar_panels/solar_panel_specs_v13.json`
