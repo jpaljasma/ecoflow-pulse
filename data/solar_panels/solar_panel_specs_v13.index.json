@@ -1,22 +1,20 @@
 {
   "source_csv": "/Users/jpaljasma/Library/Mobile Documents/com~apple~CloudDocs/Projects/ecoflow-api-playground/data/solar_panels/solar_panel_specs_with_ecoflow_compat_cold_voc_and_safety_margins_v13.csv",
-  "generated_at_utc": "2026-02-17T21:45:45Z",
-  "row_count": 47,
-  "panel_count": 47,
+  "generated_at_utc": "2026-02-18T00:40:20Z",
+  "row_count": 69,
+  "panel_count": 69,
   "by_panel_key": {
-    "aptos_solar_dna_144_bf10_550w_dg": {
-      "id": "aptos_solar_dna_144_bf10_550w_dg",
+    "aptos_solar_dna_108_bf10_410w": {
+      "id": "aptos_solar_dna_108_bf10_410w",
       "brand": "Aptos Solar",
-      "model": "DNA-144-BF10-550W-DG",
-      "type": "Bifacial, dual-glass",
-      "pmax_stc_w": 550,
-      "voc_v": 49.8,
-      "vmp_v": 41.95,
-      "imp_a": 13.11,
-      "isc_a": 13.99,
+      "model": "DNA-108-BF10-410W",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 410,
+      "voc_v": 37.67,
+      "isc_a": 13.11,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
-      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Aptos+Solar+DNA-144-BF10-550W-DG",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=Aptos+Solar+DNA-108-BF10-410W",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -30,61 +28,57 @@
       ],
       "compatibility": {
         "d2_d2_max": {
-          "label": "D2/D2 Max 11–60V/15A",
+          "label": "D2/D2 Max 11-60V/15A",
           "status": "yes"
         },
         "d3_max": {
-          "label": "D3 Max 11–60V/13A",
+          "label": "D3 Max 11-60V/13A",
           "status": "yes",
           "current_clip_likely": true
         },
         "d3_ultra_plus": {
-          "label": "D3 Ultra+ 11–60V/18A",
+          "label": "D3 Ultra+ 11-60V/18A",
           "status": "yes"
         },
         "delta_pro": {
-          "label": "Delta Pro 11–150V/15A",
+          "label": "Delta Pro 11-150V/15A",
           "status": "yes"
         },
         "dp3_hv": {
-          "label": "DP3 HV 30–150V/15A",
+          "label": "DP3 HV 30-150V/15A",
           "status": "yes"
         },
         "dp3_lv": {
-          "label": "DP3 LV 11–60V/20A",
+          "label": "DP3 LV 11-60V/20A",
           "status": "yes"
         },
         "dpu_high": {
-          "label": "DPU High 80–450V/15A",
+          "label": "DPU High 80-450V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 7
+          "max_series": 10
         },
         "dpu_low": {
-          "label": "DPU Low 30–150V/15A",
+          "label": "DPU Low 30-150V/15A",
           "status": "yes"
         },
         "dpu_x_high": {
-          "label": "DPU‑X High 80–500V/15A",
+          "label": "DPU-X High 80-500V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 8
+          "max_series": 11
         }
       }
     },
-    "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin": {
-      "id": "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
-      "brand": "Axitec",
-      "model": "AC-550MBT/144US (AXIworldbipremium XXL HC MT 550W bin)",
-      "type": "Bifacial (bifaciality 70%±10%), glass/front + backsheet film",
-      "pmax_stc_w": 550,
-      "voc_v": 50.2,
-      "vmp_v": 41.9,
-      "imp_a": 13.13,
-      "isc_a": 13.89,
-      "module_efficiency_pct": 22.5,
-      "module_efficiency_source": "estimated_bifacial",
-      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Axitec+AC-550MBT%2F144US+%28AXIworldbipremium+XXL+HC+MT+550W+bin%29",
+    "aptos_solar_dna_108_mf10_415w": {
+      "id": "aptos_solar_dna_108_mf10_415w",
+      "brand": "Aptos Solar",
+      "model": "DNA-108-MF10-415W",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 415,
+      "voc_v": 37.41,
+      "isc_a": 13.92,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=Aptos+Solar+DNA-108-MF10-415W",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -98,45 +92,43 @@
       ],
       "compatibility": {
         "d2_d2_max": {
-          "label": "D2/D2 Max 11–60V/15A",
+          "label": "D2/D2 Max 11-60V/15A",
           "status": "yes"
         },
         "d3_max": {
-          "label": "D3 Max 11–60V/13A",
+          "label": "D3 Max 11-60V/13A",
           "status": "yes",
           "current_clip_likely": true
         },
         "d3_ultra_plus": {
-          "label": "D3 Ultra+ 11–60V/18A",
+          "label": "D3 Ultra+ 11-60V/18A",
           "status": "yes"
         },
         "delta_pro": {
-          "label": "Delta Pro 11–150V/15A",
+          "label": "Delta Pro 11-150V/15A",
           "status": "yes"
         },
         "dp3_hv": {
-          "label": "DP3 HV 30–150V/15A",
+          "label": "DP3 HV 30-150V/15A",
           "status": "yes"
         },
         "dp3_lv": {
-          "label": "DP3 LV 11–60V/20A",
+          "label": "DP3 LV 11-60V/20A",
           "status": "yes"
         },
         "dpu_high": {
-          "label": "DPU High 80–450V/15A",
+          "label": "DPU High 80-450V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 7
+          "max_series": 10
         },
         "dpu_low": {
-          "label": "DPU Low 30–150V/15A",
+          "label": "DPU Low 30-150V/15A",
           "status": "yes"
         },
         "dpu_x_high": {
-          "label": "DPU‑X High 80–500V/15A",
+          "label": "DPU-X High 80-500V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 8
+          "max_series": 11
         }
       }
     },
@@ -205,6 +197,205 @@
           "status": "needs_series",
           "min_series": 2,
           "max_series": 8
+        }
+      }
+    },
+    "bougerv_300w_12bb_mono_bifacial_ise239": {
+      "id": "bougerv_300w_12bb_mono_bifacial_ise239",
+      "brand": "BougeRV",
+      "model": "300W 12BB Mono Bifacial (ISE239)",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 300,
+      "voc_v": 40.7,
+      "vmp_v": 34.8,
+      "imp_a": 8.62,
+      "isc_a": 9.64,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=BougeRV+300W+12BB+Mono+Bifacial+%28ISE239%29",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "min_series": 3,
+          "max_series": 9
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "min_series": 3,
+          "max_series": 10
+        }
+      }
+    },
+    "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n": {
+      "id": "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "brand": "BougeRV",
+      "model": "N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 300,
+      "voc_v": 44.2,
+      "vmp_v": 37.6,
+      "imp_a": 8.13,
+      "isc_a": 8.9,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=BougeRV+N-Type+300W+Rigid+Bifacial+16BB+%28ISE239N%29",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "min_series": 3,
+          "max_series": 8
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "min_series": 3,
+          "max_series": 9
+        }
+      }
+    },
+    "bougerv_yuma_215w_n_type_bifacial": {
+      "id": "bougerv_yuma_215w_n_type_bifacial",
+      "brand": "BougeRV",
+      "model": "Yuma 215W N-Type Bifacial",
+      "type": "Rigid framed bifacial",
+      "pmax_stc_w": 215,
+      "voc_v": 26.9,
+      "vmp_v": 22.6,
+      "imp_a": 9.51,
+      "isc_a": 10.1,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=BougeRV+Yuma+215W+N-Type+Bifacial",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "no"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 14
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "no"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 16
         }
       }
     },
@@ -480,6 +671,135 @@
           "status": "needs_series",
           "min_series": 3,
           "max_series": 9
+        }
+      }
+    },
+    "cw_energy_cwt410_108pmb10_410wp": {
+      "id": "cw_energy_cwt410_108pmb10_410wp",
+      "brand": "CW Energy",
+      "model": "CWT410-108PMB10 410Wp",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 410,
+      "voc_v": 37.09,
+      "isc_a": 14.07,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=CW+Energy+CWT410-108PMB10+410Wp",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes",
+          "current_clip_likely": true
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 10
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        }
+      }
+    },
+    "cw_energy_cwt410_108pmfb10_410w_mono_all_black": {
+      "id": "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
+      "brand": "CW Energy",
+      "model": "CWT410-108PMFB10 410W Mono All Black",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 410,
+      "voc_v": 37.5,
+      "vmp_v": 31.5,
+      "imp_a": 13.02,
+      "isc_a": 13.85,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=CW+Energy+CWT410-108PMFB10+410W+Mono+All+Black",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
         }
       }
     },
@@ -1421,10 +1741,75 @@
         }
       }
     },
-    "hd_hyundai_energy_solutions_his_t640nj": {
-      "id": "hd_hyundai_energy_solutions_his_t640nj",
+    "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w": {
+      "id": "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "brand": "Hanwha Qcells",
+      "model": "Q.PEAK DUO BLK ML-G10+ 410W",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 410,
+      "voc_v": 45.31,
+      "vmp_v": 38.48,
+      "imp_a": 10.65,
+      "isc_a": 11.11,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Hanwha+Qcells+Q.PEAK+DUO+BLK+ML-G10%2B+410W",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 9
+        }
+      }
+    },
+    "hd_hyundai_energy_solutions_hin_t640nj": {
+      "id": "hd_hyundai_energy_solutions_hin_t640nj",
       "brand": "HD Hyundai Energy Solutions",
-      "model": "HiS-T640NJ",
+      "model": "HiN-T640NJ",
       "type": "Bifacial (BNPI rear gain), glass/glass",
       "pmax_stc_w": 640,
       "voc_v": 57.77,
@@ -1433,7 +1818,7 @@
       "isc_a": 14.06,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
-      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=HD+Hyundai+Energy+Solutions+HiS-T640NJ",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=HD+Hyundai+Energy+Solutions+HiN-T640NJ",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1488,19 +1873,19 @@
         }
       }
     },
-    "ht_saae_ht72_18x_ht_550w_bifacial": {
-      "id": "ht_saae_ht72_18x_ht_550w_bifacial",
-      "brand": "HT-SAAE",
-      "model": "HT72-18X (HT 550W Bifacial)",
-      "type": "Bifacial (dual glass)",
-      "pmax_stc_w": 550,
-      "voc_v": 50.2,
-      "vmp_v": 41.9,
-      "imp_a": 13.13,
-      "isc_a": 13.91,
+    "heliene_144hc_m10_ntyp_sl_580w": {
+      "id": "heliene_144hc_m10_ntyp_sl_580w",
+      "brand": "Heliene",
+      "model": "144HC M10 NTYP SL 580W",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 580,
+      "voc_v": 51.65,
+      "vmp_v": 43.62,
+      "imp_a": 13.32,
+      "isc_a": 14.1,
       "module_efficiency_pct": 22.5,
       "module_efficiency_source": "estimated_bifacial",
-      "purchase_link": "https://signaturesolar.com/search.php?search_query=HT72-18X",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Heliene+144HC+M10+NTYP+SL+580W",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -1514,45 +1899,108 @@
       ],
       "compatibility": {
         "d2_d2_max": {
-          "label": "D2/D2 Max 11–60V/15A",
+          "label": "D2/D2 Max 11-60V/15A",
           "status": "yes"
         },
         "d3_max": {
-          "label": "D3 Max 11–60V/13A",
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        }
+      }
+    },
+    "ja_solar_jam54d40_435_mb": {
+      "id": "ja_solar_jam54d40_435_mb",
+      "brand": "JA Solar",
+      "model": "JAM54D40-435/MB",
+      "type": "Rigid framed bifacial",
+      "pmax_stc_w": 435,
+      "voc_v": 39.4,
+      "vmp_v": 33.2,
+      "imp_a": 13.1,
+      "isc_a": 13.82,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=JA+Solar+JAM54D40-435%2FMB",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
           "status": "yes",
           "current_clip_likely": true
         },
         "d3_ultra_plus": {
-          "label": "D3 Ultra+ 11–60V/18A",
+          "label": "D3 Ultra+ 11-60V/18A",
           "status": "yes"
         },
         "delta_pro": {
-          "label": "Delta Pro 11–150V/15A",
+          "label": "Delta Pro 11-150V/15A",
           "status": "yes"
         },
         "dp3_hv": {
-          "label": "DP3 HV 30–150V/15A",
+          "label": "DP3 HV 30-150V/15A",
           "status": "yes"
         },
         "dp3_lv": {
-          "label": "DP3 LV 11–60V/20A",
+          "label": "DP3 LV 11-60V/20A",
           "status": "yes"
         },
         "dpu_high": {
-          "label": "DPU High 80–450V/15A",
+          "label": "DPU High 80-450V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 8
+          "max_series": 10
         },
         "dpu_low": {
-          "label": "DPU Low 30–150V/15A",
+          "label": "DPU Low 30-150V/15A",
           "status": "yes"
         },
         "dpu_x_high": {
-          "label": "DPU‑X High 80–500V/15A",
+          "label": "DPU-X High 80-500V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 8
+          "max_series": 11
         }
       }
     },
@@ -1620,6 +2068,71 @@
           "label": "DPU‑X High 80–500V/15A",
           "status": "needs_series",
           "min_series": 2,
+          "max_series": 8
+        }
+      }
+    },
+    "jinko_solar_jkm390m_72hl_v": {
+      "id": "jinko_solar_jkm390m_72hl_v",
+      "brand": "Jinko Solar",
+      "model": "JKM390M-72HL-V",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 390,
+      "voc_v": 48.6,
+      "vmp_v": 39.64,
+      "imp_a": 9.84,
+      "isc_a": 10.46,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Jinko+Solar+JKM390M-72HL-V",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
           "max_series": 8
         }
       }
@@ -1758,6 +2271,72 @@
         }
       }
     },
+    "longi_lr5_54hph_410m": {
+      "id": "longi_lr5_54hph_410m",
+      "brand": "LONGi",
+      "model": "LR5-54HPH-410M",
+      "type": "Rigid framed",
+      "pmax_stc_w": 410,
+      "voc_v": 37.2,
+      "vmp_v": 31.3,
+      "imp_a": 13.1,
+      "isc_a": 13.85,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=LONGi+LR5-54HPH-410M",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes",
+          "current_clip_likely": true
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 10
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        }
+      }
+    },
     "maxeon_spr_max6_440": {
       "id": "maxeon_spr_max6_440",
       "brand": "Maxeon",
@@ -1821,6 +2400,70 @@
           "label": "DPU‑X High 80–500V/15A",
           "status": "needs_series",
           "min_series": 2,
+          "max_series": 9
+        }
+      }
+    },
+    "peimar_dr10h500m_fb": {
+      "id": "peimar_dr10h500m_fb",
+      "brand": "Peimar",
+      "model": "DR10H500M (FB)",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 500,
+      "voc_v": 45.45,
+      "isc_a": 13.93,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=Peimar+DR10H500M+%28FB%29",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes",
+          "current_clip_likely": true
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
           "max_series": 9
         }
       }
@@ -1893,6 +2536,201 @@
         }
       }
     },
+    "qcells_q_peak_duo_g5_325": {
+      "id": "qcells_q_peak_duo_g5_325",
+      "brand": "Qcells",
+      "model": "Q.PEAK DUO-G5 325",
+      "type": "Rigid framed",
+      "pmax_stc_w": 325,
+      "voc_v": 40.3,
+      "vmp_v": 33.8,
+      "imp_a": 9.62,
+      "isc_a": 10.17,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Qcells+Q.PEAK+DUO-G5+325",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 9
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 10
+        }
+      }
+    },
+    "qcells_q_tron_blk_m_g2_h_plus_430_dca": {
+      "id": "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "brand": "Qcells",
+      "model": "Q.TRON BLK M-G2.H+ 430 DCA",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 430,
+      "voc_v": 39.32,
+      "vmp_v": 32.94,
+      "imp_a": 13.05,
+      "isc_a": 13.74,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Qcells+Q.TRON+BLK+M-G2.H%2B+430+DCA",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        }
+      }
+    },
+    "rec_rec390aa_alpha": {
+      "id": "rec_rec390aa_alpha",
+      "brand": "REC",
+      "model": "REC390AA Alpha",
+      "type": "Rigid framed",
+      "pmax_stc_w": 390,
+      "voc_v": 45.1,
+      "vmp_v": 37.6,
+      "imp_a": 10.38,
+      "isc_a": 10.92,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=REC+REC390AA+Alpha",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 9
+        }
+      }
+    },
     "renogy_590w_n_type_bifacial_dual_glass": {
       "id": "renogy_590w_n_type_bifacial_dual_glass",
       "brand": "Renogy",
@@ -1958,6 +2796,71 @@
           "status": "needs_series",
           "min_series": 2,
           "max_series": 8
+        }
+      }
+    },
+    "renogy_rng_175d_r": {
+      "id": "renogy_rng_175d_r",
+      "brand": "Renogy",
+      "model": "RNG-175D-R",
+      "type": "Rigid framed",
+      "pmax_stc_w": 175,
+      "voc_v": 24.3,
+      "vmp_v": 20.3,
+      "imp_a": 8.62,
+      "isc_a": 9.21,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://www.renogy.com/search.php?search_query=Renogy+RNG-175D-R",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "no"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 16
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "no"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 17
         }
       }
     },
@@ -2163,19 +3066,19 @@
         }
       }
     },
-    "rich_solar_mega_400_rs_m400": {
-      "id": "rich_solar_mega_400_rs_m400",
-      "brand": "Rich Solar",
-      "model": "MEGA 400 (RS-M400)",
-      "type": "Rigid, monofacial",
-      "pmax_stc_w": 400,
-      "voc_v": 37.1,
-      "vmp_v": 31,
-      "imp_a": 12.9,
-      "isc_a": 13.7,
-      "module_efficiency_pct": 20,
-      "module_efficiency_source": "estimated_monofacial",
-      "purchase_link": "https://richsolar.com/search?type=product\u0026q=Rich+Solar+MEGA+400+%28RS-M400%29",
+    "risen_energy_rsm132_8_475bmdg": {
+      "id": "risen_energy_rsm132_8_475bmdg",
+      "brand": "Risen Energy",
+      "model": "RSM132-8-475BMDG",
+      "type": "Rigid framed bifacial",
+      "pmax_stc_w": 475,
+      "voc_v": 52.6,
+      "vmp_v": 44,
+      "imp_a": 10.8,
+      "isc_a": 11.45,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Risen+Energy+RSM132-8-475BMDG",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2189,43 +3092,168 @@
       ],
       "compatibility": {
         "d2_d2_max": {
-          "label": "D2/D2 Max 11–60V/15A",
+          "label": "D2/D2 Max 11-60V/15A",
           "status": "yes"
         },
         "d3_max": {
-          "label": "D3 Max 11–60V/13A",
+          "label": "D3 Max 11-60V/13A",
           "status": "yes"
         },
         "d3_ultra_plus": {
-          "label": "D3 Ultra+ 11–60V/18A",
+          "label": "D3 Ultra+ 11-60V/18A",
           "status": "yes"
         },
         "delta_pro": {
-          "label": "Delta Pro 11–150V/15A",
+          "label": "Delta Pro 11-150V/15A",
           "status": "yes"
         },
         "dp3_hv": {
-          "label": "DP3 HV 30–150V/15A",
+          "label": "DP3 HV 30-150V/15A",
           "status": "yes"
         },
         "dp3_lv": {
-          "label": "DP3 LV 11–60V/20A",
+          "label": "DP3 LV 11-60V/20A",
           "status": "yes"
         },
         "dpu_high": {
-          "label": "DPU High 80–450V/15A",
+          "label": "DPU High 80-450V/15A",
           "status": "needs_series",
-          "min_series": 3,
-          "max_series": 10
+          "max_series": 7
         },
         "dpu_low": {
-          "label": "DPU Low 30–150V/15A",
+          "label": "DPU Low 30-150V/15A",
           "status": "yes"
         },
         "dpu_x_high": {
-          "label": "DPU‑X High 80–500V/15A",
+          "label": "DPU-X High 80-500V/15A",
           "status": "needs_series",
-          "min_series": 3,
+          "max_series": 8
+        }
+      }
+    },
+    "runergy_hy_dh108p8_hyperion_405w": {
+      "id": "runergy_hy_dh108p8_hyperion_405w",
+      "brand": "Runergy",
+      "model": "HY-DH108P8 (Hyperion 405W)",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 405,
+      "voc_v": 37.28,
+      "isc_a": 13.87,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=Runergy+HY-DH108P8+%28Hyperion+405W%29",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes",
+          "current_clip_likely": true
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 10
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        }
+      }
+    },
+    "runergy_hy_dh108p8b_400w_hyperion_bifacial": {
+      "id": "runergy_hy_dh108p8b_400w_hyperion_bifacial",
+      "brand": "Runergy",
+      "model": "HY-DH108P8B 400W Hyperion Bifacial",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 400,
+      "voc_v": 37.07,
+      "isc_a": 13.79,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=Runergy+HY-DH108P8B+400W+Hyperion+Bifacial",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
           "max_series": 11
         }
       }
@@ -2295,6 +3323,71 @@
           "status": "needs_series",
           "min_series": 2,
           "max_series": 8
+        }
+      }
+    },
+    "seraphim_srp_410_bmd_hv_410w": {
+      "id": "seraphim_srp_410_bmd_hv_410w",
+      "brand": "Seraphim",
+      "model": "SRP-410-BMD-HV 410W",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 410,
+      "voc_v": 37.5,
+      "vmp_v": 31.43,
+      "imp_a": 13.05,
+      "isc_a": 13.94,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Seraphim+SRP-410-BMD-HV+410W",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
         }
       }
     },
@@ -2433,6 +3526,72 @@
         }
       }
     },
+    "silfab_sil_420_qd_108": {
+      "id": "silfab_sil_420_qd_108",
+      "brand": "Silfab",
+      "model": "SIL-420-QD 108",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 420,
+      "voc_v": 38.5,
+      "vmp_v": 32.2,
+      "imp_a": 13.05,
+      "isc_a": 11.34,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Silfab+SIL-420-QD+108",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes",
+          "current_clip_likely": true
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 10
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        }
+      }
+    },
     "silfab_sil_530_xm_hc_bifacial": {
       "id": "silfab_sil_530_xm_hc_bifacial",
       "brand": "Silfab",
@@ -2567,19 +3726,31 @@
         }
       }
     },
-    "sunpro_power_spdg550_144m10": {
-      "id": "sunpro_power_spdg550_144m10",
-      "brand": "Sunpro Power",
-      "model": "SPDG550-144M10",
-      "type": "Bifacial (dual-glass)",
-      "pmax_stc_w": 550,
-      "voc_v": 49.9,
-      "vmp_v": 41.96,
-      "imp_a": 13.11,
-      "isc_a": 14,
-      "module_efficiency_pct": 22.5,
-      "module_efficiency_source": "estimated_bifacial",
-      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=Sunpro+Power+SPDG550-144M10",
+    "sungoldpower_370w_mono_black_perc_ul61730": {
+      "id": "sungoldpower_370w_mono_black_perc_ul61730",
+      "brand": "SunGoldPower",
+      "model": "370W Mono Black PERC UL61730",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 370,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=SunGoldPower+370W+Mono+Black+PERC+UL61730",
+      "compatibility_tags": [],
+      "compatibility": {}
+    },
+    "sungoldpower_sg370wm_370w_mono_black_perc": {
+      "id": "sungoldpower_sg370wm_370w_mono_black_perc",
+      "brand": "SunGoldPower",
+      "model": "SG370WM 370W Mono Black PERC",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 370,
+      "voc_v": 40.17,
+      "vmp_v": 33.2,
+      "imp_a": 11.15,
+      "isc_a": 11.81,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=SunGoldPower+SG370WM+370W+Mono+Black+PERC",
       "compatibility_tags": [
         "d2_d2_max",
         "d3_max",
@@ -2593,45 +3764,172 @@
       ],
       "compatibility": {
         "d2_d2_max": {
-          "label": "D2/D2 Max 11–60V/15A",
+          "label": "D2/D2 Max 11-60V/15A",
           "status": "yes"
         },
         "d3_max": {
-          "label": "D3 Max 11–60V/13A",
-          "status": "yes",
-          "current_clip_likely": true
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
         },
         "d3_ultra_plus": {
-          "label": "D3 Ultra+ 11–60V/18A",
+          "label": "D3 Ultra+ 11-60V/18A",
           "status": "yes"
         },
         "delta_pro": {
-          "label": "Delta Pro 11–150V/15A",
+          "label": "Delta Pro 11-150V/15A",
           "status": "yes"
         },
         "dp3_hv": {
-          "label": "DP3 HV 30–150V/15A",
+          "label": "DP3 HV 30-150V/15A",
           "status": "yes"
         },
         "dp3_lv": {
-          "label": "DP3 LV 11–60V/20A",
+          "label": "DP3 LV 11-60V/20A",
           "status": "yes"
         },
         "dpu_high": {
-          "label": "DPU High 80–450V/15A",
+          "label": "DPU High 80-450V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 7
+          "max_series": 11
         },
         "dpu_low": {
-          "label": "DPU Low 30–150V/15A",
+          "label": "DPU Low 30-150V/15A",
           "status": "yes"
         },
         "dpu_x_high": {
-          "label": "DPU‑X High 80–500V/15A",
+          "label": "DPU-X High 80-500V/15A",
           "status": "needs_series",
-          "min_series": 2,
-          "max_series": 8
+          "max_series": 11
+        }
+      }
+    },
+    "sungoldpower_sg415wm_415w_mono_black_perc": {
+      "id": "sungoldpower_sg415wm_415w_mono_black_perc",
+      "brand": "SunGoldPower",
+      "model": "SG415WM 415W Mono Black PERC",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 415,
+      "voc_v": 38.32,
+      "vmp_v": 31.11,
+      "imp_a": 13.34,
+      "isc_a": 14.09,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=SunGoldPower+SG415WM+415W+Mono+Black+PERC",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 11
+        }
+      }
+    },
+    "sungoldpower_sg500wm_500w_mono_black_perc": {
+      "id": "sungoldpower_sg500wm_500w_mono_black_perc",
+      "brand": "SunGoldPower",
+      "model": "SG500WM 500W Mono Black PERC",
+      "type": "Rigid, monofacial",
+      "pmax_stc_w": 500,
+      "voc_v": 44.36,
+      "vmp_v": 37.6,
+      "imp_a": 13.3,
+      "isc_a": 14.09,
+      "module_efficiency_pct": 20,
+      "module_efficiency_source": "estimated_monofacial",
+      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=SunGoldPower+SG500WM+500W+Mono+Black+PERC",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 10
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 10
         }
       }
     },
@@ -2771,6 +4069,69 @@
           "status": "needs_series",
           "min_series": 2,
           "max_series": 8
+        }
+      }
+    },
+    "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial": {
+      "id": "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
+      "brand": "Trina Solar",
+      "model": "TSM-NE09RC.05 390W Vertex Bifacial",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 390,
+      "voc_v": 48.4,
+      "isc_a": 10.22,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=Trina+Solar+TSM-NE09RC.05+390W+Vertex+Bifacial",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 9
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 9
         }
       }
     },
@@ -2977,6 +4338,69 @@
         }
       }
     },
+    "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial": {
+      "id": "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
+      "brand": "Trina Solar",
+      "model": "TSM-NEG9RC.27 435W Vertex Bifacial",
+      "type": "Rigid, bifacial",
+      "pmax_stc_w": 435,
+      "voc_v": 51.8,
+      "isc_a": 10.64,
+      "module_efficiency_pct": 22.5,
+      "module_efficiency_source": "estimated_bifacial",
+      "purchase_link": "https://signaturesolar.com/search.php?search_query=Trina+Solar+TSM-NEG9RC.27+435W+Vertex+Bifacial",
+      "compatibility_tags": [
+        "d2_d2_max",
+        "d3_max",
+        "d3_ultra_plus",
+        "delta_pro",
+        "dp3_hv",
+        "dp3_lv",
+        "dpu_high",
+        "dpu_low",
+        "dpu_x_high"
+      ],
+      "compatibility": {
+        "d2_d2_max": {
+          "label": "D2/D2 Max 11-60V/15A",
+          "status": "yes"
+        },
+        "d3_max": {
+          "label": "D3 Max 11-60V/13A",
+          "status": "yes"
+        },
+        "d3_ultra_plus": {
+          "label": "D3 Ultra+ 11-60V/18A",
+          "status": "yes"
+        },
+        "delta_pro": {
+          "label": "Delta Pro 11-150V/15A",
+          "status": "yes"
+        },
+        "dp3_hv": {
+          "label": "DP3 HV 30-150V/15A",
+          "status": "yes"
+        },
+        "dp3_lv": {
+          "label": "DP3 LV 11-60V/20A",
+          "status": "yes"
+        },
+        "dpu_high": {
+          "label": "DPU High 80-450V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        },
+        "dpu_low": {
+          "label": "DPU Low 30-150V/15A",
+          "status": "yes"
+        },
+        "dpu_x_high": {
+          "label": "DPU-X High 80-500V/15A",
+          "status": "needs_series",
+          "max_series": 8
+        }
+      }
+    },
     "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family": {
       "id": "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
       "brand": "TW Solar (Tongwei)",
@@ -3042,74 +4466,6 @@
           "status": "needs_series",
           "min_series": 3,
           "max_series": 11
-        }
-      }
-    },
-    "vsun_vsun595n_144bmh_dg": {
-      "id": "vsun_vsun595n_144bmh_dg",
-      "brand": "VSUN",
-      "model": "VSUN595N-144BMH-DG",
-      "type": "Bifacial, dual-glass",
-      "pmax_stc_w": 595,
-      "voc_v": 52.69,
-      "vmp_v": 44.71,
-      "imp_a": 13.31,
-      "isc_a": 13.98,
-      "module_efficiency_pct": 22.5,
-      "module_efficiency_source": "estimated_bifacial",
-      "purchase_link": "https://ussolarsupplier.com/search?type=product\u0026q=VSUN+VSUN595N-144BMH-DG",
-      "compatibility_tags": [
-        "d2_d2_max",
-        "d3_max",
-        "d3_ultra_plus",
-        "delta_pro",
-        "dp3_hv",
-        "dp3_lv",
-        "dpu_high",
-        "dpu_low",
-        "dpu_x_high"
-      ],
-      "compatibility": {
-        "d2_d2_max": {
-          "label": "D2/D2 Max 11–60V/15A",
-          "status": "yes"
-        },
-        "d3_max": {
-          "label": "D3 Max 11–60V/13A",
-          "status": "yes",
-          "current_clip_likely": true
-        },
-        "d3_ultra_plus": {
-          "label": "D3 Ultra+ 11–60V/18A",
-          "status": "yes"
-        },
-        "delta_pro": {
-          "label": "Delta Pro 11–150V/15A",
-          "status": "yes"
-        },
-        "dp3_hv": {
-          "label": "DP3 HV 30–150V/15A",
-          "status": "yes"
-        },
-        "dp3_lv": {
-          "label": "DP3 LV 11–60V/20A",
-          "status": "yes"
-        },
-        "dpu_high": {
-          "label": "DPU High 80–450V/15A",
-          "status": "needs_series",
-          "min_series": 2,
-          "max_series": 7
-        },
-        "dpu_low": {
-          "label": "DPU Low 30–150V/15A",
-          "status": "yes"
-        },
-        "dpu_x_high": {
-          "label": "DPU‑X High 80–500V/15A",
-          "status": "needs_series",
-          "min_series": 2,
-          "max_series": 8
         }
       }
     },
@@ -3184,13 +4540,18 @@
   },
   "by_device_tag": {
     "d2_d2_max": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3205,41 +4566,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "d3_max": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3254,41 +4636,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "d3_ultra_plus": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3303,41 +4706,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "delta_pro": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3352,41 +4776,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "dp3_hv": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3401,41 +4846,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "dp3_lv": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3450,41 +4916,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "dpu_high": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3499,41 +4986,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "dpu_low": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3548,41 +5056,62 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ],
     "dpu_x_high": [
-      "aptos_solar_dna_144_bf10_550w_dg",
-      "axitec_ac_550mbt_144us_axiworldbipremium_xxl_hc_mt_550w_bin",
+      "aptos_solar_dna_108_bf10_410w",
+      "aptos_solar_dna_108_mf10_415w",
       "axitec_ac_580tgb_144ts_axibiperfect_gxxl_ts_580w_bin",
+      "bougerv_300w_12bb_mono_bifacial_ise239",
+      "bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "bougerv_yuma_215w_n_type_bifacial",
       "canadian_solar_cs6_1_54tm_450h_tophiku6_all_black",
       "canadian_solar_cs6r_395ms_hl",
       "canadian_solar_csi_solar_cs6_1_54tm_465h_tophiku6_all_black",
       "canadian_solar_csi_solar_cs7n_695tb_ag_topbihiku7",
+      "cw_energy_cwt410_108pmb10_410wp",
+      "cw_energy_cwt410_108pmfb10_410w_mono_all_black",
       "ecoflow_100w_flexible_solar_panel_zms330",
       "ecoflow_100w_rigid_solar_panel_zms331_la_200wsp_rigi_kit",
       "ecoflow_110w_portable_solar_panel_efsolar110n",
@@ -3597,43 +5126,59 @@
       "ecoflow_45w_portable_solar_panel",
       "ecoflow_60w_solar_panel_efsolar60",
       "ecoflow_nextgen_160w_portable_solar_panel",
-      "hd_hyundai_energy_solutions_his_t640nj",
-      "ht_saae_ht72_18x_ht_550w_bifacial",
+      "hanwha_qcells_q_peak_duo_blk_ml_g10_plus_410w",
+      "hd_hyundai_energy_solutions_hin_t640nj",
+      "heliene_144hc_m10_ntyp_sl_580w",
+      "ja_solar_jam54d40_435_mb",
       "ja_solar_jam72d40_595_mb_us",
+      "jinko_solar_jkm390m_72hl_v",
       "jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "jjn_solar_400w_n_type_bifacial_solar_panel",
+      "longi_lr5_54hph_410m",
       "maxeon_spr_max6_440",
+      "peimar_dr10h500m_fb",
       "phono_solar_ps590m8gf_24_tnh",
+      "qcells_q_peak_duo_g5_325",
+      "qcells_q_tron_blk_m_g2_h_plus_430_dca",
+      "rec_rec390aa_alpha",
       "renogy_590w_n_type_bifacial_dual_glass",
+      "renogy_rng_175d_r",
       "renogy_rsp450dt_120",
       "rich_solar_mega_250_rs_m250",
       "rich_solar_mega_335_pro_rs_m335p",
-      "rich_solar_mega_400_rs_m400",
+      "risen_energy_rsm132_8_475bmdg",
+      "runergy_hy_dh108p8_hyperion_405w",
+      "runergy_hy_dh108p8b_400w_hyperion_bifacial",
       "runergy_hy_dh144n8_595",
+      "seraphim_srp_410_bmd_hv_410w",
       "seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "shopsolarkits_house_kit_panel_200w_rigid_solar_panel_used_in_ecoflow_kits",
+      "silfab_sil_420_qd_108",
       "silfab_sil_530_xm_hc_bifacial",
       "solarspace_ss8_72hd_580n",
-      "sunpro_power_spdg550_144m10",
+      "sungoldpower_sg370wm_370w_mono_black_perc",
+      "sungoldpower_sg415wm_415w_mono_black_perc",
+      "sungoldpower_sg500wm_500w_mono_black_perc",
       "thornova_solar_ts_bgt66_620_g11",
       "trina_solar_tsm_425ne09rc_05",
+      "trina_solar_tsm_ne09rc_05_390w_vertex_bifacial",
       "trina_solar_tsm_neg19rc_20_605w_bin",
       "trina_solar_tsm_neg19rc_20_vertex_n_615w_bifacial",
       "trina_solar_tsm_neg9rc_27_435w_bin",
+      "trina_solar_tsm_neg9rc_27_435w_vertex_bifacial",
       "tw_solar_tongwei_500w_n_type_bifacial_twmnh_54hd500_family",
-      "vsun_vsun595n_144bmh_dg",
       "znshine_zxm7_uhldd108_znshine_440w_bifacial"
     ]
   },
   "device_labels": {
-    "d2_d2_max": "D2/D2 Max 11–60V/15A",
-    "d3_max": "D3 Max 11–60V/13A",
-    "d3_ultra_plus": "D3 Ultra+ 11–60V/18A",
-    "delta_pro": "Delta Pro 11–150V/15A",
-    "dp3_hv": "DP3 HV 30–150V/15A",
-    "dp3_lv": "DP3 LV 11–60V/20A",
-    "dpu_high": "DPU High 80–450V/15A",
-    "dpu_low": "DPU Low 30–150V/15A",
-    "dpu_x_high": "DPU‑X High 80–500V/15A"
+    "d2_d2_max": "D2/D2 Max 11-60V/15A",
+    "d3_max": "D3 Max 11-60V/13A",
+    "d3_ultra_plus": "D3 Ultra+ 11-60V/18A",
+    "delta_pro": "Delta Pro 11-150V/15A",
+    "dp3_hv": "DP3 HV 30-150V/15A",
+    "dp3_lv": "DP3 LV 11-60V/20A",
+    "dpu_high": "DPU High 80-450V/15A",
+    "dpu_low": "DPU Low 30-150V/15A",
+    "dpu_x_high": "DPU-X High 80-500V/15A"
   }
 }

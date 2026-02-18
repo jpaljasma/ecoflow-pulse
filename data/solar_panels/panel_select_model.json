@@ -1,27 +1,46 @@
 {
   "version": 1,
-  "generated_at_utc": "2026-02-17T22:06:47Z",
-  "source_csv": "/Users/jpaljasma/Library/Mobile Documents/com~apple~CloudDocs/Projects/ecoflow-api-playground/logs/telemetry_training.csv",
+  "generated_at_utc": "2026-02-18T00:40:20Z",
+  "source_csv": "logs/telemetry_training.csv",
   "classes": [
     {
-      "id": "d2m_high_4x125w_ecoflow_125w_bifacial_modular_solar_panel",
+      "id": "d2m_high_aptos_solar_dna_108_bf10_410w",
       "profile": "d2m",
       "port": "high",
-      "panel_setup": "4x125W EcoFlow 125W Bifacial Modular Solar Panel",
-      "panel_count": 4,
-      "nominal_total_w": 500,
-      "sample_count": 49315,
-      "device_sns": [
-        "R351ZABAPH331057"
-      ],
+      "panel_setup": "Aptos Solar DNA-108-BF10-410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
       "centroid": [
-        69.472125,
-        438.165045,
-        41.028,
-        42.331,
-        1.676,
-        0.7606610564736895,
-        0.5502990976376356
+        319.8,
+        401.8,
+        30.27,
+        31.82,
+        9.82,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_aptos_solar_dna_108_mf10_415w",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Aptos Solar DNA-108-MF10-415W",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.06,
+        31.6,
+        10.01,
+        0.72,
+        0.68
       ]
     },
     {
@@ -80,6 +99,126 @@
         43.58,
         45.8,
         9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_yuma_215w_n_type_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV Yuma 215W N-Type Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 215,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        167.7,
+        210.7,
+        22.15,
+        23.28,
+        7.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_cw_energy_cwt410_108pmb10_410wp",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "CW Energy CWT410-108PMB10 410Wp",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        29.81,
+        31.33,
+        9.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_cw_energy_cwt410_108pmfb10_410w_mono_all_black",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "CW Energy CWT410-108PMFB10 410W Mono All Black",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.87,
+        32.45,
+        9.63,
         0.72,
         0.68
       ]
@@ -159,6 +298,66 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_dokio_fba_dsp400m",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_epoch_epoch_400spp_1_n",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -465,6 +664,66 @@
       ]
     },
     {
+      "id": "d2m_high_hanwha_qcells_q.peak_duo_blk_ml_g10+_410w",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Hanwha Qcells Q.PEAK DUO BLK ML-G10+ 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        37.71,
+        39.63,
+        7.88,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_heliene_144hc_m10_ntyp_sl_580w",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Heliene 144HC M10 NTYP SL 580W",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        42.75,
+        44.93,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_ja_solar_jam54d40_435_mb",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_ja_solar_jam72d40_595_mb_us",
       "profile": "d2m",
       "port": "high",
@@ -505,6 +764,26 @@
       ]
     },
     {
+      "id": "d2m_high_jinko_solar_jkm390m_72hl_v",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Jinko Solar JKM390M-72HL-V",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.85,
+        40.83,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "profile": "d2m",
       "port": "high",
@@ -520,6 +799,26 @@
         42.45,
         44.62,
         7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_longi_lr5_54hph_410m",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
         0.72,
         0.68
       ]
@@ -545,6 +844,26 @@
       ]
     },
     {
+      "id": "d2m_high_peimar_dr10h500m_fb",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Peimar DR10H500M (FB)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.52,
+        38.39,
+        9.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_phono_solar_ps590m8gf_24_tnh",
       "profile": "d2m",
       "port": "high",
@@ -565,6 +884,86 @@
       ]
     },
     {
+      "id": "d2m_high_qcells_q.peak_duo_g5_325",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_qcells_q.tron_blk_m_g2.h+_430_dca",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Qcells Q.TRON BLK M-G2.H+ 430 DCA",
+      "panel_count": 1,
+      "nominal_total_w": 430,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        335.4,
+        421.4,
+        32.28,
+        33.93,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_rec_rec390aa_alpha",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_renogy_590w_n_type_bifacial_dual_glass",
       "profile": "d2m",
       "port": "high",
@@ -580,6 +979,26 @@
         42.84,
         45.02,
         9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_renogy_rng_175d_r",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Renogy RNG-175D-R",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        19.89,
+        20.91,
+        6.38,
         0.72,
         0.68
       ]
@@ -665,6 +1084,66 @@
       ]
     },
     {
+      "id": "d2m_high_risen_energy_rsm132_8_475bmdg",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_runergy_hy_dh108p8_hyperion_405w",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Runergy HY-DH108P8 (Hyperion 405W)",
+      "panel_count": 1,
+      "nominal_total_w": 405,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        315.9,
+        396.9,
+        29.96,
+        31.49,
+        9.8,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_runergy_hy_dh108p8b_400w_hyperion_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Runergy HY-DH108P8B 400W Hyperion Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        29.79,
+        31.31,
+        9.74,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_runergy_hy_dh144n8_595",
       "profile": "d2m",
       "port": "high",
@@ -680,6 +1159,26 @@
         43.75,
         45.98,
         9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_seraphim_srp_410_bmd_hv_410w",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Seraphim SRP-410-BMD-HV 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.8,
+        32.37,
+        9.66,
         0.72,
         0.68
       ]
@@ -725,6 +1224,26 @@
       ]
     },
     {
+      "id": "d2m_high_silfab_sil_420_qd_108",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Silfab SIL-420-QD 108",
+      "panel_count": 1,
+      "nominal_total_w": 420,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        327.6,
+        411.6,
+        31.56,
+        33.17,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_silfab_sil_530_xm_hc_bifacial",
       "profile": "d2m",
       "port": "high",
@@ -740,6 +1259,66 @@
         40.23,
         42.28,
         9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_sungoldpower_sg370wm_370w_mono_black_perc",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "SunGoldPower SG370WM 370W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 370,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        288.6,
+        362.6,
+        32.54,
+        34.2,
+        8.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_sungoldpower_sg415wm_415w_mono_black_perc",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "SunGoldPower SG415WM 415W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.49,
+        32.04,
+        9.87,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_sungoldpower_sg500wm_500w_mono_black_perc",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "SunGoldPower SG500WM 500W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.85,
+        38.73,
+        9.84,
         0.72,
         0.68
       ]
@@ -825,6 +1404,26 @@
       ]
     },
     {
+      "id": "d2m_high_trina_solar_tsm_ne09rc.05_390w_vertex_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NE09RC.05 390W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.89,
+        40.88,
+        7.27,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_trina_solar_tsm_neg19rc.20_605w_bin",
       "profile": "d2m",
       "port": "high",
@@ -885,6 +1484,27 @@
       ]
     },
     {
+      "id": "d2m_high_trina_solar_tsm_neg9rc.27_435w_vertex_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 435W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 61061,
+      "device_sns": [
+        "R351ZABAPH331057"
+      ],
+      "centroid": [
+        66.16662,
+        436.54135,
+        40.833,
+        42.328,
+        1.615,
+        0.6472871390904178,
+        0.5135356446831857
+      ]
+    },
+    {
       "id": "d2m_high_vsun_vsun595n_144bmh_dg",
       "profile": "d2m",
       "port": "high",
@@ -920,6 +1540,67 @@
         31.65,
         33.27,
         10.09,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_2x100w_ecoflow_100w_flexible_solar_panel_zms330",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "2x100W EcoFlow 100W Flexible Solar Panel (ZMS330)",
+      "panel_count": 2,
+      "nominal_total_w": 200,
+      "sample_count": 61061,
+      "device_sns": [
+        "R351ZABAPH331057"
+      ],
+      "centroid": [
+        28.71174,
+        173.97474734999972,
+        16.454,
+        16.956,
+        1.735,
+        0.6472871390904178,
+        0.5193658800216178
+      ]
+    },
+    {
+      "id": "d2m_low_aptos_solar_dna_108_bf10_410w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Aptos Solar DNA-108-BF10-410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.27,
+        31.82,
+        9.82,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_aptos_solar_dna_108_mf10_415w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Aptos Solar DNA-108-MF10-415W",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.06,
+        31.6,
+        10.01,
         0.72,
         0.68
       ]
@@ -980,6 +1661,126 @@
         43.58,
         45.8,
         9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_yuma_215w_n_type_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV Yuma 215W N-Type Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 215,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        167.7,
+        210.7,
+        22.15,
+        23.28,
+        7.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_cw_energy_cwt410_108pmb10_410wp",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "CW Energy CWT410-108PMB10 410Wp",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        29.81,
+        31.33,
+        9.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_cw_energy_cwt410_108pmfb10_410w_mono_all_black",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "CW Energy CWT410-108PMFB10 410W Mono All Black",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.87,
+        32.45,
+        9.63,
         0.72,
         0.68
       ]
@@ -1059,6 +1860,66 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_dokio_fba_dsp400m",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_epoch_epoch_400spp_1_n",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -1211,18 +2072,17 @@
       "panel_setup": "EcoFlow 220W Bifacial Portable Solar Panel (EFSOLAR220W / NextGen 220W)",
       "panel_count": 1,
       "nominal_total_w": 220,
-      "sample_count": 49315,
-      "device_sns": [
-        "R351ZABAPH331057"
-      ],
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
       "centroid": [
-        29.944224,
-        174.62577664999992,
-        16.495,
-        16.959,
-        1.796,
-        0.7606610564736895,
-        0.5468721484335395
+        171.6,
+        215.6,
+        18.03,
+        18.95,
+        8.81,
+        0.72,
+        0.68
       ]
     },
     {
@@ -1366,6 +2226,66 @@
       ]
     },
     {
+      "id": "d2m_low_hanwha_qcells_q.peak_duo_blk_ml_g10+_410w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Hanwha Qcells Q.PEAK DUO BLK ML-G10+ 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        37.71,
+        39.63,
+        7.88,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_heliene_144hc_m10_ntyp_sl_580w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Heliene 144HC M10 NTYP SL 580W",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        42.75,
+        44.93,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_ja_solar_jam54d40_435_mb",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_ja_solar_jam72d40_595_mb_us",
       "profile": "d2m",
       "port": "low",
@@ -1406,6 +2326,26 @@
       ]
     },
     {
+      "id": "d2m_low_jinko_solar_jkm390m_72hl_v",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Jinko Solar JKM390M-72HL-V",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.85,
+        40.83,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "profile": "d2m",
       "port": "low",
@@ -1421,6 +2361,26 @@
         42.45,
         44.62,
         7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_longi_lr5_54hph_410m",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
         0.72,
         0.68
       ]
@@ -1446,6 +2406,26 @@
       ]
     },
     {
+      "id": "d2m_low_peimar_dr10h500m_fb",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Peimar DR10H500M (FB)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.52,
+        38.39,
+        9.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_phono_solar_ps590m8gf_24_tnh",
       "profile": "d2m",
       "port": "low",
@@ -1466,6 +2446,86 @@
       ]
     },
     {
+      "id": "d2m_low_qcells_q.peak_duo_g5_325",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_qcells_q.tron_blk_m_g2.h+_430_dca",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Qcells Q.TRON BLK M-G2.H+ 430 DCA",
+      "panel_count": 1,
+      "nominal_total_w": 430,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        335.4,
+        421.4,
+        32.28,
+        33.93,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_rec_rec390aa_alpha",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_renogy_590w_n_type_bifacial_dual_glass",
       "profile": "d2m",
       "port": "low",
@@ -1481,6 +2541,26 @@
         42.84,
         45.02,
         9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_renogy_rng_175d_r",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Renogy RNG-175D-R",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        19.89,
+        20.91,
+        6.38,
         0.72,
         0.68
       ]
@@ -1566,6 +2646,66 @@
       ]
     },
     {
+      "id": "d2m_low_risen_energy_rsm132_8_475bmdg",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_runergy_hy_dh108p8_hyperion_405w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Runergy HY-DH108P8 (Hyperion 405W)",
+      "panel_count": 1,
+      "nominal_total_w": 405,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        315.9,
+        396.9,
+        29.96,
+        31.49,
+        9.8,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_runergy_hy_dh108p8b_400w_hyperion_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Runergy HY-DH108P8B 400W Hyperion Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        29.79,
+        31.31,
+        9.74,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_runergy_hy_dh144n8_595",
       "profile": "d2m",
       "port": "low",
@@ -1581,6 +2721,26 @@
         43.75,
         45.98,
         9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_seraphim_srp_410_bmd_hv_410w",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Seraphim SRP-410-BMD-HV 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.8,
+        32.37,
+        9.66,
         0.72,
         0.68
       ]
@@ -1626,6 +2786,26 @@
       ]
     },
     {
+      "id": "d2m_low_silfab_sil_420_qd_108",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Silfab SIL-420-QD 108",
+      "panel_count": 1,
+      "nominal_total_w": 420,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        327.6,
+        411.6,
+        31.56,
+        33.17,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_silfab_sil_530_xm_hc_bifacial",
       "profile": "d2m",
       "port": "low",
@@ -1641,6 +2821,66 @@
         40.23,
         42.28,
         9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_sungoldpower_sg370wm_370w_mono_black_perc",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "SunGoldPower SG370WM 370W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 370,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        288.6,
+        362.6,
+        32.54,
+        34.2,
+        8.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_sungoldpower_sg415wm_415w_mono_black_perc",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "SunGoldPower SG415WM 415W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.49,
+        32.04,
+        9.87,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_sungoldpower_sg500wm_500w_mono_black_perc",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "SunGoldPower SG500WM 500W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.85,
+        38.73,
+        9.84,
         0.72,
         0.68
       ]
@@ -1726,6 +2966,26 @@
       ]
     },
     {
+      "id": "d2m_low_trina_solar_tsm_ne09rc.05_390w_vertex_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NE09RC.05 390W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.89,
+        40.88,
+        7.27,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_trina_solar_tsm_neg19rc.20_605w_bin",
       "profile": "d2m",
       "port": "low",
@@ -1786,6 +3046,26 @@
       ]
     },
     {
+      "id": "d2m_low_trina_solar_tsm_neg9rc.27_435w_vertex_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 435W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        41.63,
+        43.75,
+        7.58,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_vsun_vsun595n_144bmh_dg",
       "profile": "d2m",
       "port": "low",
@@ -1821,6 +3101,46 @@
         31.65,
         33.27,
         10.09,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_aptos_solar_dna_108_bf10_410w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Aptos Solar DNA-108-BF10-410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.27,
+        31.82,
+        9.82,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_aptos_solar_dna_108_mf10_415w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Aptos Solar DNA-108-MF10-415W",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.06,
+        31.6,
+        10.01,
         0.72,
         0.68
       ]
@@ -1881,6 +3201,126 @@
         43.58,
         45.8,
         9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_bougerv_yuma_215w_n_type_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV Yuma 215W N-Type Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 215,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        167.7,
+        210.7,
+        22.15,
+        23.28,
+        7.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_cw_energy_cwt410_108pmb10_410wp",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "CW Energy CWT410-108PMB10 410Wp",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        29.81,
+        31.33,
+        9.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_cw_energy_cwt410_108pmfb10_410w_mono_all_black",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "CW Energy CWT410-108PMFB10 410W Mono All Black",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.87,
+        32.45,
+        9.63,
         0.72,
         0.68
       ]
@@ -1960,6 +3400,66 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_dokio_fba_dsp400m",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_epoch_epoch_400spp_1_n",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -2246,10 +3746,10 @@
       ]
     },
     {
-      "id": "dpu_high_hd_hyundai_energy_solutions_his_t640nj",
+      "id": "dpu_high_hd_hyundai_energy_solutions_hin_t640nj",
       "profile": "dpu",
       "port": "high",
-      "panel_setup": "HD Hyundai Energy Solutions HiS-T640NJ",
+      "panel_setup": "HD Hyundai Energy Solutions HiN-T640NJ",
       "panel_count": 1,
       "nominal_total_w": 640,
       "sample_count": 1,
@@ -2281,6 +3781,66 @@
         41.06,
         43.16,
         9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_hanwha_qcells_q.peak_duo_blk_ml_g10+_410w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Hanwha Qcells Q.PEAK DUO BLK ML-G10+ 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        37.71,
+        39.63,
+        7.88,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_heliene_144hc_m10_ntyp_sl_580w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Heliene 144HC M10 NTYP SL 580W",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        42.75,
+        44.93,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_ja_solar_jam54d40_435_mb",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
         0.72,
         0.68
       ]
@@ -2326,6 +3886,26 @@
       ]
     },
     {
+      "id": "dpu_high_jinko_solar_jkm390m_72hl_v",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Jinko Solar JKM390M-72HL-V",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.85,
+        40.83,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "profile": "dpu",
       "port": "high",
@@ -2341,6 +3921,26 @@
         42.45,
         44.62,
         7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_longi_lr5_54hph_410m",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
         0.72,
         0.68
       ]
@@ -2366,6 +3966,26 @@
       ]
     },
     {
+      "id": "dpu_high_peimar_dr10h500m_fb",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Peimar DR10H500M (FB)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.52,
+        38.39,
+        9.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_phono_solar_ps590m8gf_24_tnh",
       "profile": "dpu",
       "port": "high",
@@ -2386,6 +4006,86 @@
       ]
     },
     {
+      "id": "dpu_high_qcells_q.peak_duo_g5_325",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_qcells_q.tron_blk_m_g2.h+_430_dca",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Qcells Q.TRON BLK M-G2.H+ 430 DCA",
+      "panel_count": 1,
+      "nominal_total_w": 430,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        335.4,
+        421.4,
+        32.28,
+        33.93,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_rec_rec390aa_alpha",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_renogy_590w_n_type_bifacial_dual_glass",
       "profile": "dpu",
       "port": "high",
@@ -2401,6 +4101,26 @@
         42.84,
         45.02,
         9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_renogy_rng_175d_r",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Renogy RNG-175D-R",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        19.89,
+        20.91,
+        6.38,
         0.72,
         0.68
       ]
@@ -2486,6 +4206,66 @@
       ]
     },
     {
+      "id": "dpu_high_risen_energy_rsm132_8_475bmdg",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_runergy_hy_dh108p8_hyperion_405w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Runergy HY-DH108P8 (Hyperion 405W)",
+      "panel_count": 1,
+      "nominal_total_w": 405,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        315.9,
+        396.9,
+        29.96,
+        31.49,
+        9.8,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_runergy_hy_dh108p8b_400w_hyperion_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Runergy HY-DH108P8B 400W Hyperion Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        29.79,
+        31.31,
+        9.74,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_runergy_hy_dh144n8_595",
       "profile": "dpu",
       "port": "high",
@@ -2501,6 +4281,26 @@
         43.75,
         45.98,
         9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_seraphim_srp_410_bmd_hv_410w",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Seraphim SRP-410-BMD-HV 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.8,
+        32.37,
+        9.66,
         0.72,
         0.68
       ]
@@ -2546,6 +4346,26 @@
       ]
     },
     {
+      "id": "dpu_high_silfab_sil_420_qd_108",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Silfab SIL-420-QD 108",
+      "panel_count": 1,
+      "nominal_total_w": 420,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        327.6,
+        411.6,
+        31.56,
+        33.17,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_silfab_sil_530_xm_hc_bifacial",
       "profile": "dpu",
       "port": "high",
@@ -2581,6 +4401,66 @@
         43.5,
         45.72,
         9.67,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_sungoldpower_sg370wm_370w_mono_black_perc",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "SunGoldPower SG370WM 370W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 370,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        288.6,
+        362.6,
+        32.54,
+        34.2,
+        8.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_sungoldpower_sg415wm_415w_mono_black_perc",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "SunGoldPower SG415WM 415W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.49,
+        32.04,
+        9.87,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_sungoldpower_sg500wm_500w_mono_black_perc",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "SunGoldPower SG500WM 500W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.85,
+        38.73,
+        9.84,
         0.72,
         0.68
       ]
@@ -2666,6 +4546,26 @@
       ]
     },
     {
+      "id": "dpu_high_trina_solar_tsm_ne09rc.05_390w_vertex_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NE09RC.05 390W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.89,
+        40.88,
+        7.27,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_trina_solar_tsm_neg19rc.20_605w_bin",
       "profile": "dpu",
       "port": "high",
@@ -2726,6 +4626,26 @@
       ]
     },
     {
+      "id": "dpu_high_trina_solar_tsm_neg9rc.27_435w_vertex_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 435W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        41.63,
+        43.75,
+        7.58,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_vsun_vsun595n_144bmh_dg",
       "profile": "dpu",
       "port": "high",
@@ -2766,13 +4686,13 @@
       ]
     },
     {
-      "id": "dpu_low_2x400w_jjn_solar_400w_n_type_bifacial_solar_panel",
+      "id": "dpu_low_2x420w_silfab_sil_420_qd_108",
       "profile": "dpu",
       "port": "low",
-      "panel_setup": "2x400W JJN Solar 400W N-Type Bifacial Solar Panel",
+      "panel_setup": "2x420W Silfab SIL-420-QD 108",
       "panel_count": 2,
-      "nominal_total_w": 800,
-      "sample_count": 9905,
+      "nominal_total_w": 840,
+      "sample_count": 10528,
       "device_sns": [
         "Y711ZABA9H2P0294"
       ],
@@ -2782,8 +4702,48 @@
         65.04126,
         67.86914,
         2.640626,
-        0.8376577486118122,
+        0.7884688449848024,
         0
+      ]
+    },
+    {
+      "id": "dpu_low_aptos_solar_dna_108_bf10_410w",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Aptos Solar DNA-108-BF10-410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.27,
+        31.82,
+        9.82,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_aptos_solar_dna_108_mf10_415w",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Aptos Solar DNA-108-MF10-415W",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.06,
+        31.6,
+        10.01,
+        0.72,
+        0.68
       ]
     },
     {
@@ -2842,6 +4802,106 @@
         43.58,
         45.8,
         9.65,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_bougerv_300w_12bb_mono_bifacial_ise239",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "BougeRV 300W 12BB Mono Bifacial (ISE239)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        34.1,
+        35.84,
+        6.38,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_bougerv_bifacial_400w_10bb_rigid_ise240",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "BougeRV Bifacial 400W 10BB Rigid (ISE240)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_bougerv_n_type_300w_rigid_bifacial_16bb_ise239n",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "BougeRV N-Type 300W Rigid Bifacial 16BB (ISE239N)",
+      "panel_count": 1,
+      "nominal_total_w": 300,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        234,
+        294,
+        36.85,
+        38.73,
+        6.02,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_cw_energy_cwt410_108pmb10_410wp",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "CW Energy CWT410-108PMB10 410Wp",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        29.81,
+        31.33,
+        9.98,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_cw_energy_cwt410_108pmfb10_410w_mono_all_black",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "CW Energy CWT410-108PMFB10 410W Mono All Black",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.87,
+        32.45,
+        9.63,
         0.72,
         0.68
       ]
@@ -2921,6 +4981,66 @@
         387.1,
         29.99,
         31.52,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_dokio_fba_dsp400m",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "DOKIO FBA-DSP400M",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_eco_baeerss_1820_400w_n_type_b0fmrnkr35",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "ECO-Baeerss 1820 400W N-Type (B0FMRNKR35)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_epoch_epoch_400spp_1_n",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "EPOCH Epoch-400SPP-1-N",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
         9.55,
         0.72,
         0.68
@@ -3007,10 +5127,10 @@
       ]
     },
     {
-      "id": "dpu_low_hd_hyundai_energy_solutions_his_t640nj",
+      "id": "dpu_low_hd_hyundai_energy_solutions_hin_t640nj",
       "profile": "dpu",
       "port": "low",
-      "panel_setup": "HD Hyundai Energy Solutions HiS-T640NJ",
+      "panel_setup": "HD Hyundai Energy Solutions HiN-T640NJ",
       "panel_count": 1,
       "nominal_total_w": 640,
       "sample_count": 1,
@@ -3042,6 +5162,66 @@
         41.06,
         43.16,
         9.72,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_hanwha_qcells_q.peak_duo_blk_ml_g10+_410w",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Hanwha Qcells Q.PEAK DUO BLK ML-G10+ 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        37.71,
+        39.63,
+        7.88,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_heliene_144hc_m10_ntyp_sl_580w",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Heliene 144HC M10 NTYP SL 580W",
+      "panel_count": 1,
+      "nominal_total_w": 580,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        452.4,
+        568.4,
+        42.75,
+        44.93,
+        9.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_ja_solar_jam54d40_435_mb",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
         0.72,
         0.68
       ]
@@ -3087,6 +5267,26 @@
       ]
     },
     {
+      "id": "dpu_low_jinko_solar_jkm390m_72hl_v",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Jinko Solar JKM390M-72HL-V",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.85,
+        40.83,
+        7.28,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_jinko_solar_jkm460m_7rl3_tv_jinko_eagle_460w_bifacial",
       "profile": "dpu",
       "port": "low",
@@ -3102,6 +5302,26 @@
         42.45,
         44.62,
         7.86,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_longi_lr5_54hph_410m",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
         0.72,
         0.68
       ]
@@ -3127,6 +5347,26 @@
       ]
     },
     {
+      "id": "dpu_low_peimar_dr10h500m_fb",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Peimar DR10H500M (FB)",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.52,
+        38.39,
+        9.93,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_phono_solar_ps590m8gf_24_tnh",
       "profile": "dpu",
       "port": "low",
@@ -3142,6 +5382,86 @@
         43.74,
         45.97,
         9.78,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_qcells_q.peak_duo_g5_325",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_qcells_q.tron_blk_m_g2.h+_430_dca",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Qcells Q.TRON BLK M-G2.H+ 430 DCA",
+      "panel_count": 1,
+      "nominal_total_w": 430,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        335.4,
+        421.4,
+        32.28,
+        33.93,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_rec_rec390aa_alpha",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_recom_400w_monocrystalline_b0cwjh5y9s",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Recom 400W Monocrystalline (B0CWJH5Y9S)",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        30.38,
+        31.93,
+        9.55,
         0.72,
         0.68
       ]
@@ -3207,6 +5527,66 @@
       ]
     },
     {
+      "id": "dpu_low_risen_energy_rsm132_8_475bmdg",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_runergy_hy_dh108p8_hyperion_405w",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Runergy HY-DH108P8 (Hyperion 405W)",
+      "panel_count": 1,
+      "nominal_total_w": 405,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        315.9,
+        396.9,
+        29.96,
+        31.49,
+        9.8,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_runergy_hy_dh108p8b_400w_hyperion_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Runergy HY-DH108P8B 400W Hyperion Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 400,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        312,
+        392,
+        29.79,
+        31.31,
+        9.74,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_runergy_hy_dh144n8_595",
       "profile": "dpu",
       "port": "low",
@@ -3227,6 +5607,26 @@
       ]
     },
     {
+      "id": "dpu_low_seraphim_srp_410_bmd_hv_410w",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Seraphim SRP-410-BMD-HV 410W",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.8,
+        32.37,
+        9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_seraphim_srp_440_btd_bg_nebula_n_type_bifacial",
       "profile": "dpu",
       "port": "low",
@@ -3242,6 +5642,26 @@
         32.68,
         34.35,
         9.77,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_silfab_sil_420_qd_108",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Silfab SIL-420-QD 108",
+      "panel_count": 1,
+      "nominal_total_w": 420,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        327.6,
+        411.6,
+        31.56,
+        33.17,
+        9.66,
         0.72,
         0.68
       ]
@@ -3282,6 +5702,66 @@
         43.5,
         45.72,
         9.67,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_sungoldpower_sg370wm_370w_mono_black_perc",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "SunGoldPower SG370WM 370W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 370,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        288.6,
+        362.6,
+        32.54,
+        34.2,
+        8.25,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_sungoldpower_sg415wm_415w_mono_black_perc",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "SunGoldPower SG415WM 415W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 415,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        323.7,
+        406.7,
+        30.49,
+        32.04,
+        9.87,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_sungoldpower_sg500wm_500w_mono_black_perc",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "SunGoldPower SG500WM 500W Mono Black PERC",
+      "panel_count": 1,
+      "nominal_total_w": 500,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        390,
+        490,
+        36.85,
+        38.73,
+        9.84,
         0.72,
         0.68
       ]
@@ -3367,6 +5847,26 @@
       ]
     },
     {
+      "id": "dpu_low_trina_solar_tsm_ne09rc.05_390w_vertex_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NE09RC.05 390W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        38.89,
+        40.88,
+        7.27,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_trina_solar_tsm_neg19rc.20_605w_bin",
       "profile": "dpu",
       "port": "low",
@@ -3422,6 +5922,26 @@
         42.73,
         44.91,
         7.39,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_trina_solar_tsm_neg9rc.27_435w_vertex_bifacial",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Trina Solar TSM-NEG9RC.27 435W Vertex Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        41.63,
+        43.75,
+        7.58,
         0.72,
         0.68
       ]
