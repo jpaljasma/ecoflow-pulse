@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at_utc": "2026-02-18T00:18:48Z",
+  "generated_at_utc": "2026-02-18T00:30:30Z",
   "source_csv": "logs/telemetry_training.csv",
   "classes": [
     {
@@ -159,6 +159,26 @@
         36.85,
         38.73,
         6.02,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_bougerv_yuma_215w_n_type_bifacial",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "BougeRV Yuma 215W N-Type Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 215,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        167.7,
+        210.7,
+        22.15,
+        23.28,
+        7.04,
         0.72,
         0.68
       ]
@@ -684,6 +704,26 @@
       ]
     },
     {
+      "id": "d2m_high_ja_solar_jam54d40_435_mb",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_ja_solar_jam72d40_595_mb_us",
       "profile": "d2m",
       "port": "high",
@@ -764,6 +804,26 @@
       ]
     },
     {
+      "id": "d2m_high_longi_lr5_54hph_410m",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_maxeon_spr_max6_440",
       "profile": "d2m",
       "port": "high",
@@ -824,6 +884,26 @@
       ]
     },
     {
+      "id": "d2m_high_qcells_q.peak_duo_g5_325",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_high_qcells_q.tron_blk_m_g2.h+_430_dca",
       "profile": "d2m",
       "port": "high",
@@ -839,6 +919,26 @@
         32.28,
         33.93,
         9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_rec_rec390aa_alpha",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
         0.72,
         0.68
       ]
@@ -879,6 +979,26 @@
         42.84,
         45.02,
         9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_renogy_rng_175d_r",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Renogy RNG-175D-R",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        19.89,
+        20.91,
+        6.38,
         0.72,
         0.68
       ]
@@ -959,6 +1079,26 @@
         30.38,
         31.93,
         9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_high_risen_energy_rsm132_8_475bmdg",
+      "profile": "d2m",
+      "port": "high",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
         0.72,
         0.68
       ]
@@ -1350,7 +1490,7 @@
       "panel_setup": "Trina Solar TSM-NEG9RC.27 435W Vertex Bifacial",
       "panel_count": 1,
       "nominal_total_w": 435,
-      "sample_count": 59656,
+      "sample_count": 60418,
       "device_sns": [
         "R351ZABAPH331057"
       ],
@@ -1360,8 +1500,8 @@
         40.833,
         42.328,
         1.615,
-        0.6625318492691431,
-        0.5256302802735685
+        0.6541759078420338,
+        0.5190009599788142
       ]
     },
     {
@@ -1402,6 +1542,27 @@
         10.09,
         0.72,
         0.68
+      ]
+    },
+    {
+      "id": "d2m_low_2x100w_ecoflow_100w_flexible_solar_panel_zms330",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "2x100W EcoFlow 100W Flexible Solar Panel (ZMS330)",
+      "panel_count": 2,
+      "nominal_total_w": 200,
+      "sample_count": 60418,
+      "device_sns": [
+        "R351ZABAPH331057"
+      ],
+      "centroid": [
+        28.71174,
+        173.97474734999972,
+        16.454,
+        16.956,
+        1.735,
+        0.6541759078420338,
+        0.5248932437353107
       ]
     },
     {
@@ -1560,6 +1721,26 @@
         36.85,
         38.73,
         6.02,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_bougerv_yuma_215w_n_type_bifacial",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "BougeRV Yuma 215W N-Type Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 215,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        167.7,
+        210.7,
+        22.15,
+        23.28,
+        7.04,
         0.72,
         0.68
       ]
@@ -1891,18 +2072,17 @@
       "panel_setup": "EcoFlow 220W Bifacial Portable Solar Panel (EFSOLAR220W / NextGen 220W)",
       "panel_count": 1,
       "nominal_total_w": 220,
-      "sample_count": 59656,
-      "device_sns": [
-        "R351ZABAPH331057"
-      ],
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
       "centroid": [
-        28.71174,
-        173.97474734999972,
-        16.454,
-        16.956,
-        1.735,
-        0.6625318492691431,
-        0.531597827544589
+        171.6,
+        215.6,
+        18.03,
+        18.95,
+        8.81,
+        0.72,
+        0.68
       ]
     },
     {
@@ -2086,6 +2266,26 @@
       ]
     },
     {
+      "id": "d2m_low_ja_solar_jam54d40_435_mb",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_ja_solar_jam72d40_595_mb_us",
       "profile": "d2m",
       "port": "low",
@@ -2166,6 +2366,26 @@
       ]
     },
     {
+      "id": "d2m_low_longi_lr5_54hph_410m",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_maxeon_spr_max6_440",
       "profile": "d2m",
       "port": "low",
@@ -2226,6 +2446,26 @@
       ]
     },
     {
+      "id": "d2m_low_qcells_q.peak_duo_g5_325",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "d2m_low_qcells_q.tron_blk_m_g2.h+_430_dca",
       "profile": "d2m",
       "port": "low",
@@ -2241,6 +2481,26 @@
         32.28,
         33.93,
         9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_rec_rec390aa_alpha",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
         0.72,
         0.68
       ]
@@ -2281,6 +2541,26 @@
         42.84,
         45.02,
         9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_renogy_rng_175d_r",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Renogy RNG-175D-R",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        19.89,
+        20.91,
+        6.38,
         0.72,
         0.68
       ]
@@ -2361,6 +2641,26 @@
         30.38,
         31.93,
         9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "d2m_low_risen_energy_rsm132_8_475bmdg",
+      "profile": "d2m",
+      "port": "low",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
         0.72,
         0.68
       ]
@@ -2966,6 +3266,26 @@
       ]
     },
     {
+      "id": "dpu_high_bougerv_yuma_215w_n_type_bifacial",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "BougeRV Yuma 215W N-Type Bifacial",
+      "panel_count": 1,
+      "nominal_total_w": 215,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        167.7,
+        210.7,
+        22.15,
+        23.28,
+        7.04,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_cw_energy_cwt410_108pmb10_410wp",
       "profile": "dpu",
       "port": "high",
@@ -3506,6 +3826,26 @@
       ]
     },
     {
+      "id": "dpu_high_ja_solar_jam54d40_435_mb",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_ja_solar_jam72d40_595_mb_us",
       "profile": "dpu",
       "port": "high",
@@ -3586,6 +3926,26 @@
       ]
     },
     {
+      "id": "dpu_high_longi_lr5_54hph_410m",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_maxeon_spr_max6_440",
       "profile": "dpu",
       "port": "high",
@@ -3646,6 +4006,26 @@
       ]
     },
     {
+      "id": "dpu_high_qcells_q.peak_duo_g5_325",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_high_qcells_q.tron_blk_m_g2.h+_430_dca",
       "profile": "dpu",
       "port": "high",
@@ -3661,6 +4041,26 @@
         32.28,
         33.93,
         9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_rec_rec390aa_alpha",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
         0.72,
         0.68
       ]
@@ -3701,6 +4101,26 @@
         42.84,
         45.02,
         9.99,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_renogy_rng_175d_r",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Renogy RNG-175D-R",
+      "panel_count": 1,
+      "nominal_total_w": 175,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        136.5,
+        171.5,
+        19.89,
+        20.91,
+        6.38,
         0.72,
         0.68
       ]
@@ -3781,6 +4201,26 @@
         30.38,
         31.93,
         9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_high_risen_energy_rsm132_8_475bmdg",
+      "profile": "dpu",
+      "port": "high",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
         0.72,
         0.68
       ]
@@ -4252,7 +4692,7 @@
       "panel_setup": "2x420W Silfab SIL-420-QD 108",
       "panel_count": 2,
       "nominal_total_w": 840,
-      "sample_count": 10435,
+      "sample_count": 10488,
       "device_sns": [
         "Y711ZABA9H2P0294"
       ],
@@ -4262,7 +4702,7 @@
         65.04126,
         67.86914,
         2.640626,
-        0.795495927168184,
+        0.7914759725400458,
         0
       ]
     },
@@ -4767,6 +5207,26 @@
       ]
     },
     {
+      "id": "dpu_low_ja_solar_jam54d40_435_mb",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "JA Solar JAM54D40-435/MB",
+      "panel_count": 1,
+      "nominal_total_w": 435,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        339.3,
+        426.3,
+        32.54,
+        34.2,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_ja_solar_jam72d40_595_mb_us",
       "profile": "dpu",
       "port": "low",
@@ -4847,6 +5307,26 @@
       ]
     },
     {
+      "id": "dpu_low_longi_lr5_54hph_410m",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "LONGi LR5-54HPH-410M",
+      "panel_count": 1,
+      "nominal_total_w": 410,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        319.8,
+        401.8,
+        30.67,
+        32.24,
+        9.69,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_maxeon_spr_max6_440",
       "profile": "dpu",
       "port": "low",
@@ -4907,6 +5387,26 @@
       ]
     },
     {
+      "id": "dpu_low_qcells_q.peak_duo_g5_325",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Qcells Q.PEAK DUO-G5 325",
+      "panel_count": 1,
+      "nominal_total_w": 325,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        253.5,
+        318.5,
+        33.12,
+        34.81,
+        7.12,
+        0.72,
+        0.68
+      ]
+    },
+    {
       "id": "dpu_low_qcells_q.tron_blk_m_g2.h+_430_dca",
       "profile": "dpu",
       "port": "low",
@@ -4922,6 +5422,26 @@
         32.28,
         33.93,
         9.66,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_rec_rec390aa_alpha",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "REC REC390AA Alpha",
+      "panel_count": 1,
+      "nominal_total_w": 390,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        304.2,
+        382.2,
+        36.85,
+        38.73,
+        7.68,
         0.72,
         0.68
       ]
@@ -5002,6 +5522,26 @@
         30.38,
         31.93,
         9.55,
+        0.72,
+        0.68
+      ]
+    },
+    {
+      "id": "dpu_low_risen_energy_rsm132_8_475bmdg",
+      "profile": "dpu",
+      "port": "low",
+      "panel_setup": "Risen Energy RSM132-8-475BMDG",
+      "panel_count": 1,
+      "nominal_total_w": 475,
+      "sample_count": 1,
+      "synthetic": true,
+      "device_sns": null,
+      "centroid": [
+        370.5,
+        465.5,
+        43.12,
+        45.32,
+        7.99,
         0.72,
         0.68
       ]
