@@ -26,7 +26,8 @@ function isNearZero(value: number | undefined | null): boolean {
 
 export default function DeviceDetailScreen() {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 900;
+  const isTablet = width >= 768;
+  const isDesktop = width >= 1200;
   const router = useRouter();
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
   const deviceQuery = useDevice(deviceId);
@@ -79,6 +80,18 @@ export default function DeviceDetailScreen() {
       emoji: match.glyph.emoji
     };
   }, [deviceQuery.data?.model]);
+  const modelLower = (deviceQuery.data?.model ?? '').toLowerCase();
+  const isDelta2Max = modelLower.includes('delta 2 max');
+  const isDeltaProUltra = modelLower.includes('delta pro ultra');
+  const desktopScale = isDelta2Max ? 1.46 : isDeltaProUltra ? 1.5 : 1.48;
+  const desktopOffsetY = isDelta2Max ? 8 : 0;
+  const mobileImageSize = Math.min(width - 64, 360);
+  const mediaColumnWidth = isDesktop ? 320 : 280;
+  const mediaBoxHeight = isDesktop
+    ? Math.round(mediaColumnWidth * 0.86)
+    : isTablet
+      ? Math.round(mediaColumnWidth * 0.92)
+      : mobileImageSize;
 
   return (
     <YStack
@@ -104,140 +117,194 @@ export default function DeviceDetailScreen() {
       />
 
       <Card gap="$3">
-        {deviceAsset ? (
-          <YStack
-            borderRadius="$4"
-            overflow="hidden"
-            backgroundColor="rgba(120,120,128,0.12)"
-            alignItems="center"
-            justifyContent="center"
-            padding="$2"
-          >
-            {Platform.OS === 'web' ? (
-              <Image
-                source={{ uri: deviceAsset.uri }}
-                style={{ width: '100%', height: 220 }}
-                resizeMode="cover"
+        <XStack
+          gap="$4"
+          alignItems={isTablet ? 'stretch' : 'flex-start'}
+          flexDirection={isTablet ? 'row' : 'column'}
+        >
+          {deviceAsset ? (
+            <YStack
+              width={isTablet ? mediaColumnWidth : '100%'}
+              height={mediaBoxHeight}
+              flexShrink={0}
+              borderRadius="$4"
+              overflow="hidden"
+              backgroundColor="rgba(120,120,128,0.12)"
+              alignItems="center"
+              justifyContent="center"
+            >
+              {Platform.OS === 'web' ? (
+                <Image
+                  source={{ uri: deviceAsset.uri }}
+                  style={{
+                    width: (isTablet ? mediaColumnWidth : mobileImageSize) * (isTablet ? desktopScale : 1.35),
+                    height: mediaBoxHeight * (isTablet ? desktopScale : 1.35),
+                    transform: isTablet ? [{ translateY: desktopOffsetY }] : undefined
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text fontSize="$9">{deviceAsset.emoji}</Text>
+              )}
+            </YStack>
+          ) : null}
+
+          <YStack gap="$3" flex={1} minWidth={0}>
+            <XStack alignItems="flex-end" gap="$3">
+              <XStack flex={1} minWidth={0}>
+                <SocBar value={snapshot?.metrics?.soc ?? deviceQuery.data?.batteryPct} fullWidth />
+              </XStack>
+              <Text fontSize="$3" opacity={0.75} marginBottom="$1" flexShrink={0}>
+                {capacityKWh !== null ? `🔋 ${capacityKWh.toFixed(1)}kWh` : '🔋 n/a'}
+              </Text>
+            </XStack>
+            <XStack gap="$3" flexWrap="wrap" paddingRight="$2">
+              <Stat label="∿ AC" value={formatW(acInW)} tone={isNearZero(acInW) ? 'muted' : 'default'} />
+              <Stat label="⎓ DC" value={formatW(dcW)} tone={isNearZero(dcW) ? 'muted' : 'default'} />
+              <Stat label="☼ PV" value={formatW(snapshot?.metrics?.pvW)} tone={isNearZero(snapshot?.metrics?.pvW) ? 'muted' : 'default'} />
+              <Stat label="⌂ Load" value={formatW(snapshot?.metrics?.loadW)} tone={isNearZero(snapshot?.metrics?.loadW) ? 'muted' : 'default'} />
+              <Stat label="⚖ Net" value={formatW(netW)} />
+              <Stat label="🔋 Battery" value={formatW(snapshot?.metrics?.batteryW)} />
+              <Stat
+                label={isColdTemp ? '❄ Temp' : '🌡 Temp'}
+                value={snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—'}
+                tone={isColdTemp ? 'cold' : 'default'}
               />
+              <Stat
+                label="◉ State"
+                value={deviceQuery.data ? detailState : '—'}
+              />
+              <Stat label="⏱ ETA" value={formatEtaMinutes(deviceQuery.data?.etaMinutes)} />
+            </XStack>
+            <XStack justifyContent="flex-end" alignItems="center" gap="$2">
+              {deviceQuery.data ? (
+                <PowerFlowGlyph
+                  status={detailState}
+                  pvW={snapshot?.metrics?.pvW ?? deviceQuery.data?.pvW}
+                  loadW={snapshot?.metrics?.loadW ?? deviceQuery.data?.loadW}
+                  fontSize="$6"
+                  lineHeight={24}
+                />
+              ) : null}
+              <Text fontSize="$3" opacity={0.9}>
+                {connectionGlyph}
+              </Text>
+            </XStack>
+          </YStack>
+        </XStack>
+      </Card>
+
+      {isDesktop ? (
+        <XStack gap="$3" alignItems="stretch">
+          <Card gap="$2" flex={2}>
+            <YStack
+              flex={1}
+              gap="$2"
+              padding="$3"
+              borderRadius="$3"
+              borderWidth={1}
+              borderColor="rgba(120,120,128,0.24)"
+            >
+              <Text fontSize="$4" fontWeight="700">
+                Load Trend
+              </Text>
+              <SparklineTrend values={sparklineLoad} points={DETAIL_TREND_POINTS} />
+            </YStack>
+            <YStack
+              flex={1}
+              gap="$2"
+              padding="$3"
+              borderRadius="$3"
+              borderWidth={1}
+              borderColor="rgba(120,120,128,0.24)"
+            >
+              <Text fontSize="$4" fontWeight="700">
+                PV Trend
+              </Text>
+              <SparklineTrend values={sparklinePV} points={DETAIL_TREND_POINTS} />
+            </YStack>
+          </Card>
+          <Card gap="$2" flex={1}>
+            <Text fontSize="$4" fontWeight="700">
+              Connection
+            </Text>
+            <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
+            <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
+            <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
+          </Card>
+        </XStack>
+      ) : (
+        <>
+          <Card gap="$2">
+            {isTablet ? (
+              <XStack gap="$3">
+                <YStack
+                  flex={1}
+                  gap="$2"
+                  padding="$3"
+                  borderRadius="$3"
+                  borderWidth={1}
+                  borderColor="rgba(120,120,128,0.24)"
+                >
+                  <Text fontSize="$4" fontWeight="700">
+                    Load Trend
+                  </Text>
+                  <SparklineTrend values={sparklineLoad} points={DETAIL_TREND_POINTS} />
+                </YStack>
+                <YStack
+                  flex={1}
+                  gap="$2"
+                  padding="$3"
+                  borderRadius="$3"
+                  borderWidth={1}
+                  borderColor="rgba(120,120,128,0.24)"
+                >
+                  <Text fontSize="$4" fontWeight="700">
+                    PV Trend
+                  </Text>
+                  <SparklineTrend values={sparklinePV} points={DETAIL_TREND_POINTS} />
+                </YStack>
+              </XStack>
             ) : (
-              <Text fontSize="$9">{deviceAsset.emoji}</Text>
+              <YStack gap="$3">
+                <YStack
+                  gap="$2"
+                  padding="$3"
+                  borderRadius="$3"
+                  borderWidth={1}
+                  borderColor="rgba(120,120,128,0.24)"
+                >
+                  <Text fontSize="$4" fontWeight="700">
+                    Load Trend
+                  </Text>
+                  <SparklineTrend values={sparklineLoad} points={DETAIL_TREND_POINTS} />
+                </YStack>
+                <YStack
+                  gap="$2"
+                  padding="$3"
+                  borderRadius="$3"
+                  borderWidth={1}
+                  borderColor="rgba(120,120,128,0.24)"
+                >
+                  <Text fontSize="$4" fontWeight="700">
+                    PV Trend
+                  </Text>
+                  <SparklineTrend values={sparklinePV} points={DETAIL_TREND_POINTS} />
+                </YStack>
+              </YStack>
             )}
-          </YStack>
-        ) : null}
-        <XStack alignItems="flex-end" gap="$3">
-          <XStack flex={1} minWidth={0}>
-            <SocBar value={snapshot?.metrics?.soc ?? deviceQuery.data?.batteryPct} fullWidth />
-          </XStack>
-          <Text fontSize="$3" opacity={0.75} marginBottom="$1" flexShrink={0}>
-            {capacityKWh !== null ? `🔋 ${capacityKWh.toFixed(1)}kWh` : '🔋 n/a'}
-          </Text>
-        </XStack>
-        <XStack gap="$3" flexWrap="wrap" paddingRight="$2">
-          <Stat label="∿ AC" value={formatW(acInW)} tone={isNearZero(acInW) ? 'muted' : 'default'} />
-          <Stat label="⎓ DC" value={formatW(dcW)} tone={isNearZero(dcW) ? 'muted' : 'default'} />
-          <Stat label="☼ PV" value={formatW(snapshot?.metrics?.pvW)} tone={isNearZero(snapshot?.metrics?.pvW) ? 'muted' : 'default'} />
-          <Stat label="⌂ Load" value={formatW(snapshot?.metrics?.loadW)} tone={isNearZero(snapshot?.metrics?.loadW) ? 'muted' : 'default'} />
-          <Stat label="⚖ Net" value={formatW(netW)} />
-          <Stat label="🔋 Battery" value={formatW(snapshot?.metrics?.batteryW)} />
-          <Stat
-            label={isColdTemp ? '❄ Temp' : '🌡 Temp'}
-            value={snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—'}
-            tone={isColdTemp ? 'cold' : 'default'}
-          />
-          <Stat
-            label="◉ State"
-            value={
-              deviceQuery.data ? (
-                <XStack alignItems="center" gap="$1">
-                  <PowerFlowGlyph
-                    status={detailState}
-                    pvW={snapshot?.metrics?.pvW ?? deviceQuery.data?.pvW}
-                    loadW={snapshot?.metrics?.loadW ?? deviceQuery.data?.loadW}
-                    fontSize="$4"
-                    lineHeight={22}
-                  />
-                  <Text>{detailState}</Text>
-                </XStack>
-              ) : '—'
-            }
-          />
-          <Stat label="⏱ ETA" value={formatEtaMinutes(deviceQuery.data?.etaMinutes)} />
-        </XStack>
-        <XStack justifyContent="flex-end">
-          <Text fontSize="$3" opacity={0.9}>
-            {connectionGlyph}
-          </Text>
-        </XStack>
-      </Card>
+          </Card>
 
-      <Card gap="$2">
-        {isDesktop ? (
-          <XStack gap="$3">
-            <YStack
-              flex={1}
-              gap="$2"
-              padding="$3"
-              borderRadius="$3"
-              borderWidth={1}
-              borderColor="rgba(120,120,128,0.24)"
-            >
-              <Text fontSize="$4" fontWeight="700">
-                Load Trend
-              </Text>
-              <SparklineTrend values={sparklineLoad} points={DETAIL_TREND_POINTS} />
-            </YStack>
-            <YStack
-              flex={1}
-              gap="$2"
-              padding="$3"
-              borderRadius="$3"
-              borderWidth={1}
-              borderColor="rgba(120,120,128,0.24)"
-            >
-              <Text fontSize="$4" fontWeight="700">
-                PV Trend
-              </Text>
-              <SparklineTrend values={sparklinePV} points={DETAIL_TREND_POINTS} />
-            </YStack>
-          </XStack>
-        ) : (
-          <YStack gap="$3">
-            <YStack
-              gap="$2"
-              padding="$3"
-              borderRadius="$3"
-              borderWidth={1}
-              borderColor="rgba(120,120,128,0.24)"
-            >
-              <Text fontSize="$4" fontWeight="700">
-                Load Trend
-              </Text>
-              <SparklineTrend values={sparklineLoad} points={DETAIL_TREND_POINTS} />
-            </YStack>
-            <YStack
-              gap="$2"
-              padding="$3"
-              borderRadius="$3"
-              borderWidth={1}
-              borderColor="rgba(120,120,128,0.24)"
-            >
-              <Text fontSize="$4" fontWeight="700">
-                PV Trend
-              </Text>
-              <SparklineTrend values={sparklinePV} points={DETAIL_TREND_POINTS} />
-            </YStack>
-          </YStack>
-        )}
-      </Card>
-
-      <Card gap="$2">
-        <Text fontSize="$4" fontWeight="700">
-          Connection
-        </Text>
-        <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
-        <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
-        <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
-      </Card>
+          <Card gap="$2">
+            <Text fontSize="$4" fontWeight="700">
+              Connection
+            </Text>
+            <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
+            <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
+            <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
+          </Card>
+        </>
+      )}
     </YStack>
   );
 }

@@ -45,9 +45,20 @@ Telemetry rendering is decoupled from message ingest:
 - Incoming messages are validated (Zod) and written into internal per-device ring buffers.
 - UI updates are emitted on a fixed snapshot clock (`200ms` default / `5fps`), not per message.
 - Zustand stores **snapshots only** (`snapshotByDeviceId`, `lastUpdatedAt`, visible IDs).
-- A device is marked stale when no update arrives for `>3s`.
+- A device is marked stale when no update arrives for `>5s`.
 
 This keeps rendering stable and avoids React churn under high throughput.
+
+## Devices UI Behavior
+- Fleet summary includes:
+  - unique device-type thumbnail strip,
+  - aggregate battery/SOC/AC/DC/PV/Load/Net stats,
+  - load + PV trend blocks.
+- Device cards include per-card freshness:
+  - card becomes **inactive** after `>60s` without new data,
+  - inactive cards fade to muted gray and show `(inactive)` next to title,
+  - cards fade back to active immediately when telemetry resumes.
+- Top-right list status indicator uses a subtle pulse animation.
 
 ## Structure
 - `app/` Expo Router screens

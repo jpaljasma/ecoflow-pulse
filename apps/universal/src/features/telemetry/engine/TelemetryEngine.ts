@@ -52,6 +52,7 @@ export class TelemetryEngine {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private mockStreamTimer: ReturnType<typeof setInterval> | null = null;
   private readonly lastMockTsByDevice = new Map<string, number>();
+  private readonly lastMockFingerprintByDevice = new Map<string, string>();
 
   private readonly subscribedDeviceIds = new Set<string>();
   private readonly devices = new Map<string, DeviceRuntime>();
@@ -219,7 +220,9 @@ export class TelemetryEngine {
 
   private ingest(message: IncomingMessage): void {
     const runtime = this.getOrInitDeviceRuntime(message.deviceId);
-    runtime.lastMessageAt = message.ts;
+    // Freshness for UI/staleness should be based on receive-time, not source ts,
+    // because mocked/log-replayed streams may emit delayed or repeated timestamps.
+    runtime.lastMessageAt = Date.now();
 
     if (message.type === 'device_status') {
       const latest = runtime.latest;
@@ -304,7 +307,7 @@ export class TelemetryEngine {
         deviceId,
         stale,
         online,
-        lastSeenAt: latest?.ts ?? null,
+        lastSeenAt: runtime.lastMessageAt || latest?.ts || null,
         metrics: latest,
         status,
         sparkline: {
@@ -320,9 +323,15 @@ export class TelemetryEngine {
   }
 
   private emitSnapshot(): void {
+    const snapshots = this.buildSnapshot();
+    const freshest = Object.values(snapshots).reduce((max, snapshot) => {
+      const seen = snapshot.lastSeenAt ?? 0;
+      return seen > max ? seen : max;
+    }, 0);
+
     const payload = {
-      snapshots: this.buildSnapshot(),
-      lastUpdatedAt: Date.now(),
+      snapshots,
+      lastUpdatedAt: freshest,
       status: this.status
     };
 
@@ -416,7 +425,8 @@ export class TelemetryEngine {
     }
     clearInterval(this.mockStreamTimer);
     this.mockStreamTimer = null;
-    this.lastMockTsByDevice.clear();
+    // Keep per-device freshness memory across screen/navigation reconnects.
+    // Clearing these maps causes stale devices to appear briefly active on resume.
   }
 
   private async pullMockTelemetry(): Promise<void> {
@@ -430,22 +440,39 @@ export class TelemetryEngine {
 
         const ts = device.telemetryTsMs ?? Date.now();
         const lastTs = this.lastMockTsByDevice.get(device.id) ?? 0;
-        if (ts <= lastTs) {
+        const fingerprint = JSON.stringify({
+          online: device.online,
+          batteryPct: device.batteryPct,
+          pvW: device.pvW,
+          loadW: device.loadW,
+          netW: device.netW,
+          acInW: device.acInW,
+          dcW: device.dcW,
+          tempC: device.tempC,
+          etaMinutes: device.etaMinutes,
+          telemetryTsMs: device.telemetryTsMs ?? null
+        });
+        const lastFingerprint = this.lastMockFingerprintByDevice.get(device.id) ?? '';
+        const changed = ts > lastTs || fingerprint !== lastFingerprint;
+        if (!changed) {
           continue;
         }
-        this.lastMockTsByDevice.set(device.id, ts);
+
+        const effectiveTs = ts > lastTs ? ts : lastTs + 1;
+        this.lastMockTsByDevice.set(device.id, effectiveTs);
+        this.lastMockFingerprintByDevice.set(device.id, fingerprint);
 
         this.ingest({
           type: 'device_status',
           deviceId: device.id,
-          ts,
+          ts: effectiveTs,
           online: device.online
         });
 
         this.ingest({
           type: 'telemetry',
           deviceId: device.id,
-          ts,
+          ts: effectiveTs,
           metrics: {
             soc: device.batteryPct ?? 0,
             pvW: device.pvW ?? 0,

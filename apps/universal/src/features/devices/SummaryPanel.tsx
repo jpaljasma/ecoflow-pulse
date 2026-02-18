@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Image, Platform, useWindowDimensions } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -8,6 +8,8 @@ import { SparklineTrend, normalizeTrend } from '@/shared/ui/SparklineTrend';
 import { Stat } from '@/shared/ui/Stat';
 import { formatW } from '@/features/telemetry/format';
 import { getCapacityKWh } from '@/features/devices/capacity';
+import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
+import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 
 const SUMMARY_TREND_POINTS = 60;
 
@@ -21,7 +23,7 @@ function isNearZero(value: number | undefined | null): boolean {
   return value >= -0.5 && value <= 0.5;
 }
 
-export function SummaryCard({
+export function SummaryPanel({
   devices,
   byId
 }: {
@@ -30,6 +32,12 @@ export function SummaryCard({
 }) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const summary = useMemo(() => {
     if (!devices.length) {
@@ -101,27 +109,82 @@ export function SummaryCard({
     };
   }, [devices, byId]);
 
+  const uniqueTypes = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ key: string; label: string; uri?: string; emoji: string; active: boolean }> = [];
+    const now = nowMs;
+
+    for (const device of devices) {
+      const match = getDeviceAssetMatch(device.model);
+      const key = match.slug ?? device.model.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const devicesOfType = devices.filter((d) => (getDeviceAssetMatch(d.model).slug ?? d.model.toLowerCase()) === key);
+      const hasActive = devicesOfType.some((d) => {
+        const snap = byId[d.id];
+        const lastSeenAt = snap?.lastSeenAt ?? d.telemetryTsMs ?? null;
+        if (lastSeenAt === null) return false;
+        return now - lastSeenAt <= 60_000;
+      });
+      out.push({
+        key,
+        label: match.glyph.label,
+        uri: match.slug ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('list')) : undefined,
+        emoji: match.glyph.emoji,
+        active: hasActive
+      });
+    }
+    return out;
+  }, [devices, byId, nowMs]);
+
   return (
     <Card>
       <YStack gap="$3">
         <Text fontSize="$5" fontWeight="700">
           Fleet Summary
         </Text>
-        <XStack gap="$3" flexWrap="wrap">
-          <Stat
-            label="🔋 Battery"
-            value={
-              summary.totalCapacityKWh !== null
-                ? `${summary.totalCapacityKWh.toFixed(1)}kWh`
-                : '—'
-            }
-          />
-          <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} />
-          <Stat label="∿ AC" value={formatW(summary.acInW)} tone={isNearZero(summary.acInW) ? 'muted' : 'default'} />
-          <Stat label="⎓ DC" value={formatW(summary.dcW)} tone={isNearZero(summary.dcW) ? 'muted' : 'default'} />
-          <Stat label="☼ PV" value={formatW(summary.pvW)} tone={isNearZero(summary.pvW) ? 'muted' : 'default'} />
-          <Stat label="⌂ Load" value={formatW(summary.loadW)} tone={isNearZero(summary.loadW) ? 'muted' : 'default'} />
-          <Stat label="⚖️ Net" value={formatW(summary.netW)} />
+        <XStack gap="$3" alignItems="flex-start" flexWrap={isDesktop ? 'nowrap' : 'wrap'}>
+          <XStack gap="$2" alignItems="center" flexShrink={0} flexWrap="wrap">
+            {uniqueTypes.map((item) => (
+              <YStack
+                key={item.key}
+                width={40}
+                height={40}
+                borderRadius="$2"
+                overflow="hidden"
+                backgroundColor="rgba(120,120,128,0.12)"
+                alignItems="center"
+                justifyContent="center"
+                opacity={item.active ? 1 : 0.42}
+              >
+                {item.uri && Platform.OS === 'web' ? (
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={{ width: 34, height: 34 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text>{item.emoji}</Text>
+                )}
+              </YStack>
+            ))}
+          </XStack>
+          <XStack gap="$3" flexWrap="wrap" flex={1} minWidth={0}>
+            <Stat
+              label="🔋 Battery"
+              value={
+                summary.totalCapacityKWh !== null
+                  ? `${summary.totalCapacityKWh.toFixed(1)}kWh`
+                  : '—'
+              }
+            />
+            <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} />
+            <Stat label="∿ AC" value={formatW(summary.acInW)} tone={isNearZero(summary.acInW) ? 'muted' : 'default'} />
+            <Stat label="⎓ DC" value={formatW(summary.dcW)} tone={isNearZero(summary.dcW) ? 'muted' : 'default'} />
+            <Stat label="☼ PV" value={formatW(summary.pvW)} tone={isNearZero(summary.pvW) ? 'muted' : 'default'} />
+            <Stat label="⌂ Load" value={formatW(summary.loadW)} tone={isNearZero(summary.loadW) ? 'muted' : 'default'} />
+            <Stat label="⚖️ Net" value={formatW(summary.netW)} />
+          </XStack>
         </XStack>
         <YStack height={1} backgroundColor="rgba(120,120,128,0.24)" />
         {isDesktop ? (
