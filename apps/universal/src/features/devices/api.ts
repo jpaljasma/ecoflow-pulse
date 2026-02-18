@@ -3,9 +3,13 @@ import { requestJson } from '@/shared/api/restClient';
 
 export const DeviceSchema = z.object({
   id: z.string(),
+  serialNumber: z.string(),
   name: z.string(),
   model: z.string(),
   online: z.boolean(),
+  batteryPct: z.number(),
+  state: z.enum(['charging', 'discharging', 'idle']),
+  etaMinutes: z.number().int().nonnegative(),
   capabilities: z.record(z.unknown()).optional()
 });
 

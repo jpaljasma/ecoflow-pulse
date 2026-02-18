@@ -14,11 +14,11 @@ export function Pill({ label, tone = 'neutral' }: { label: string; tone?: keyof 
       alignItems="center"
       justifyContent="center"
       paddingHorizontal="$3"
-      paddingVertical="$1"
+      paddingVertical="$2"
       borderRadius="$5"
       backgroundColor={tones[tone].bg}
     >
-      <Text fontSize="$2" fontWeight="600" color={tones[tone].color as any}>
+      <Text fontFamily="$body" fontSize="$3" fontWeight="700" color={tones[tone].color as any}>
         {label}
       </Text>
     </XStack>

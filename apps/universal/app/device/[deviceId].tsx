@@ -1,13 +1,15 @@
 import { useMemo } from 'react';
-import { useLocalSearchParams } from 'expo-router';
-import { Text, XStack, YStack } from 'tamagui';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Button, Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Card } from '@/shared/ui/Card';
 import { Pill } from '@/shared/ui/Pill';
 import { Stat } from '@/shared/ui/Stat';
+import { AppMenu } from '@/shared/ui/AppMenu';
+import { SocBar } from '@/shared/ui/SocBar';
 import { useDevice } from '@/features/devices/hooks';
 import { useTelemetrySnapshot } from '@/features/telemetry/hooks';
-import { formatAgo, formatSoc, formatW } from '@/features/telemetry/format';
+import { formatAgo, formatEtaMinutes, formatW } from '@/features/telemetry/format';
 
 function SparklinePlaceholder({ values }: { values: number[] }) {
   if (!values.length) {
@@ -20,13 +22,14 @@ function SparklinePlaceholder({ values }: { values: number[] }) {
   const normalized = values.map((v) => ((v - min) / range) * 36);
 
   return (
-    <Text fontFamily="Menlo" fontSize="$2" opacity={0.85}>
+    <Text fontSize="$3" opacity={0.85}>
       {normalized.map((v) => (v > 28 ? '█' : v > 18 ? '▓' : v > 10 ? '▒' : '░')).join('')}
     </Text>
   );
 }
 
 export default function DeviceDetailScreen() {
+  const router = useRouter();
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
   const deviceQuery = useDevice(deviceId);
   const telemetry = useTelemetrySnapshot(deviceId ? [deviceId] : []);
@@ -46,23 +49,33 @@ export default function DeviceDetailScreen() {
       gap="$4"
     >
       <TopBar
+        left={
+          <Button chromeless size="$3" onPress={() => router.back()}>
+            ← Back
+          </Button>
+        }
         title={deviceQuery.data?.name ?? 'Device'}
         subtitle={deviceQuery.data ? `${deviceQuery.data.model} · ${formatAgo(snapshot?.lastSeenAt ?? null)}` : 'Loading…'}
         right={
-          <Pill
-            label={snapshot?.stale ? 'STALE' : telemetry.connectionStatus.toUpperCase()}
-            tone={snapshot?.stale ? 'warning' : telemetry.connectionStatus === 'connected' ? 'success' : 'neutral'}
-          />
+          <YStack alignItems="flex-end" gap="$2">
+            <Pill
+              label={snapshot?.stale ? 'STALE' : telemetry.connectionStatus.toUpperCase()}
+              tone={snapshot?.stale ? 'warning' : telemetry.connectionStatus === 'connected' ? 'success' : 'neutral'}
+            />
+            <AppMenu />
+          </YStack>
         }
       />
 
       <Card gap="$3">
+        <SocBar value={snapshot?.metrics?.soc ?? deviceQuery.data?.batteryPct} />
         <XStack gap="$3" flexWrap="wrap">
-          <Stat label="SOC" value={formatSoc(snapshot?.metrics?.soc)} />
           <Stat label="PV" value={formatW(snapshot?.metrics?.pvW)} />
           <Stat label="Load" value={formatW(snapshot?.metrics?.loadW)} />
           <Stat label="Battery" value={formatW(snapshot?.metrics?.batteryW)} />
           <Stat label="Temp" value={snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—'} />
+          <Stat label="State" value={deviceQuery.data?.state ?? '—'} />
+          <Stat label="ETA" value={formatEtaMinutes(deviceQuery.data?.etaMinutes)} />
         </XStack>
       </Card>
 
@@ -79,6 +92,7 @@ export default function DeviceDetailScreen() {
         </Text>
         <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
         <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>3s)' : 'fresh'}</Text>
+        <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
       </Card>
     </YStack>
   );

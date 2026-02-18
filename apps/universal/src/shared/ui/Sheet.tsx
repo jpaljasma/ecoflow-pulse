@@ -1,4 +1,6 @@
-import { Sheet as TamaguiSheet, Text, YStack } from 'tamagui';
+import { Modal, Pressable } from 'react-native';
+import { Text, YStack } from 'tamagui';
+import { Card } from '@/shared/ui/Card';
 
 export function Sheet({
   open,
@@ -12,16 +14,38 @@ export function Sheet({
   children: React.ReactNode;
 }) {
   return (
-    <TamaguiSheet open={open} onOpenChange={onOpenChange} modal snapPoints={[85]} dismissOnSnapToBottom>
-      <TamaguiSheet.Overlay />
-      <TamaguiSheet.Frame padding="$4" gap="$3">
-        <YStack gap="$2">
-          <Text fontSize="$6" fontWeight="700">
-            {title}
-          </Text>
-        </YStack>
-        {children}
-      </TamaguiSheet.Frame>
-    </TamaguiSheet>
+    <Modal
+      transparent
+      animationType="slide"
+      visible={open}
+      onRequestClose={() => onOpenChange(false)}
+    >
+      <Pressable
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.35)',
+          justifyContent: 'flex-end'
+        }}
+        onPress={() => onOpenChange(false)}
+      >
+        <Pressable onPress={(e) => e.stopPropagation()}>
+          <YStack
+            maxHeight="85%"
+            paddingHorizontal="$3"
+            paddingBottom="$5"
+            paddingTop="$2"
+          >
+            <Card gap="$3" padding="$4">
+              <YStack gap="$2">
+                <Text fontSize="$6" fontWeight="700">
+                  {title}
+                </Text>
+              </YStack>
+              {children}
+            </Card>
+          </YStack>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }

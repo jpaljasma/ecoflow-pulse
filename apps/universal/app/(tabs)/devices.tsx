@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import { Text, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Pill } from '@/shared/ui/Pill';
+import { BrandLogo } from '@/shared/ui/BrandLogo';
+import { AppMenu } from '@/shared/ui/AppMenu';
 import { useDevices } from '@/features/devices/hooks';
 import { useTelemetrySnapshot } from '@/features/telemetry/hooks';
 import { DeviceList } from '@/features/devices/DeviceList';
@@ -19,13 +21,16 @@ export default function DevicesScreen() {
   return (
     <YStack flex={1} backgroundColor="$background">
       <TopBar
-        title="EcoFlow Pulse"
+        title={<BrandLogo />}
         subtitle={`Updated ${formatAgo(telemetry.lastUpdatedAt || null)}`}
         right={
-          <Pill
-            label={telemetry.connectionStatus.toUpperCase()}
-            tone={telemetry.connectionStatus === 'connected' ? 'success' : 'warning'}
-          />
+          <YStack alignItems="flex-end" gap="$2">
+            <Pill
+              label={telemetry.connectionStatus.toUpperCase()}
+              tone={telemetry.connectionStatus === 'connected' ? 'success' : 'warning'}
+            />
+            <AppMenu />
+          </YStack>
         }
       />
 

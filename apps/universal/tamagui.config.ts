@@ -1,4 +1,4 @@
-import { createTamagui, createTokens } from 'tamagui';
+import { createFont, createTamagui, createTokens } from 'tamagui';
 
 const tokens = createTokens({
   color: {
@@ -41,6 +41,7 @@ const tokens = createTokens({
     7: 28,
     8: 34,
     9: 40,
+    10: 48,
     true: 16
   },
   radius: {
@@ -89,8 +90,88 @@ const themes = {
   }
 };
 
+const bodyFont = createFont({
+  family: 'Roboto_400Regular',
+  size: {
+    1: 12,
+    2: 14,
+    3: 16,
+    4: 18,
+    5: 20,
+    6: 24,
+    7: 28,
+    8: 34,
+    9: 40,
+    10: 48,
+    true: 16
+  },
+  lineHeight: {
+    1: 18,
+    2: 20,
+    3: 22,
+    4: 24,
+    5: 26,
+    6: 30,
+    7: 34,
+    8: 40,
+    9: 48,
+    10: 56,
+    true: 22
+  },
+  weight: {
+    4: '400',
+    5: '500',
+    6: '600',
+    7: '700',
+    8: '800'
+  },
+  face: {
+    400: { normal: 'Roboto_400Regular' },
+    500: { normal: 'Roboto_500Medium' },
+    700: { normal: 'Roboto_700Bold' }
+  },
+  letterSpacing: {
+    1: 0.1,
+    2: 0.05,
+    3: 0,
+    4: 0,
+    5: 0,
+    6: -0.1,
+    7: -0.2,
+    8: -0.3,
+    9: -0.4,
+    10: -0.5,
+    true: 0
+  }
+});
+
+const headingFont = createFont({
+  family: 'Inter_700Bold',
+  size: bodyFont.size,
+  lineHeight: bodyFont.lineHeight,
+  weight: {
+    4: '400',
+    5: '500',
+    6: '600',
+    7: '700',
+    8: '800'
+  },
+  face: {
+    400: { normal: 'Inter_400Regular' },
+    500: { normal: 'Inter_500Medium' },
+    700: { normal: 'Inter_700Bold' },
+    800: { normal: 'Inter_800ExtraBold' }
+  },
+  letterSpacing: bodyFont.letterSpacing
+});
+
 const config = createTamagui({
   tokens,
+  defaultFont: 'body',
+  fonts: {
+    body: bodyFont,
+    heading: headingFont
+  },
   themes,
   settings: {
     shouldAddPrefersColorThemes: true,

@@ -1,6 +1,8 @@
 import { Text, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Card } from '@/shared/ui/Card';
+import { BrandLogo } from '@/shared/ui/BrandLogo';
+import { AppMenu } from '@/shared/ui/AppMenu';
 
 export default function SettingsScreen() {
   return (
@@ -11,7 +13,11 @@ export default function SettingsScreen() {
       paddingVertical="$4"
       gap="$4"
     >
-      <TopBar title="Settings" subtitle="Configuration and diagnostics" />
+      <TopBar
+        title={<BrandLogo />}
+        subtitle="Configuration and diagnostics"
+        right={<AppMenu />}
+      />
       <Card gap="$2">
         <Text fontSize="$5" fontWeight="700">
           API Endpoints
