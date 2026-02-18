@@ -1,5 +1,4 @@
-import { Platform, FlatList } from 'react-native';
-import { FixedSizeList as WindowList } from 'react-window';
+import { Platform, FlatList, useWindowDimensions } from 'react-native';
 import { YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -12,20 +11,28 @@ export function DeviceList({
   devices: DeviceSummary[];
   byId: Record<string, DeviceSnapshot>;
 }) {
+  const { width } = useWindowDimensions();
+
   if (Platform.OS === 'web') {
-    const height = Math.min(900, Math.max(520, window.innerHeight - 180));
+    const columns = width >= 900 ? 2 : 1;
     return (
-    <YStack paddingHorizontal="$4" paddingBottom="$4">
-        <WindowList height={height} itemCount={devices.length} itemSize={190} width="100%">
-          {({ index, style }) => {
-            const device = devices[index] as DeviceSummary;
-            return (
-              <div style={{ ...style, paddingBottom: 12 }}>
-                <DeviceCard device={device} snapshot={byId[device.id]} />
-              </div>
-            );
+      <YStack paddingHorizontal="$4" paddingBottom="$4">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+            gap: 12
           }}
-        </WindowList>
+        >
+          {devices.map((device) => (
+            <DeviceCard
+              key={device.id}
+              device={device}
+              snapshot={byId[device.id]}
+              imageContext="list"
+            />
+          ))}
+        </div>
       </YStack>
     );
   }
@@ -39,7 +46,9 @@ export function DeviceList({
       initialNumToRender={8}
       maxToRenderPerBatch={10}
       windowSize={7}
-      renderItem={({ item }) => <DeviceCard device={item} snapshot={byId[item.id]} />}
+      renderItem={({ item }) => (
+        <DeviceCard device={item} snapshot={byId[item.id]} imageContext="list" />
+      )}
     />
   );
 }

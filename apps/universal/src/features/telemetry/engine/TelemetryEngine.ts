@@ -29,6 +29,7 @@ type SnapshotListener = (payload: {
 type StatusListener = (status: TelemetryEngineStatus) => void;
 
 const METRIC_KEYS: MetricKey[] = ['soc', 'pvW', 'loadW', 'batteryW', 'tempC'];
+const DEFAULT_WS_URL = 'ws://localhost:8080/ws';
 
 export class TelemetryEngine {
   private ws: WebSocket | null = null;
@@ -38,6 +39,7 @@ export class TelemetryEngine {
   private readonly ringCapacity: number;
   private readonly sparklinePoints: number;
   private readonly heartbeatMs: number;
+  private readonly wsEnabled: boolean;
 
   private status: TelemetryEngineStatus = 'idle';
   private token: string | undefined;
@@ -61,6 +63,9 @@ export class TelemetryEngine {
     this.ringCapacity = options.ringCapacity ?? 600;
     this.sparklinePoints = options.sparklinePoints ?? 60;
     this.heartbeatMs = options.heartbeatMs ?? 20_000;
+    // In local mock mode, default WS endpoint is typically not available.
+    // Disable socket churn to keep UI stable unless WS is explicitly configured.
+    this.wsEnabled = !(env.apiUrl.startsWith('mock://') && this.wsUrl === DEFAULT_WS_URL);
   }
 
   getStatus(): TelemetryEngineStatus {
@@ -70,6 +75,13 @@ export class TelemetryEngine {
   connect(token?: string): void {
     this.token = token;
     this.shouldReconnect = true;
+
+    if (!this.wsEnabled) {
+      this.setStatus('connected');
+      // In mock mode without WS, keep a stable connected state and avoid
+      // periodic snapshot churn that causes unnecessary UI re-renders/flicker.
+      return;
+    }
 
     if (this.ws && (this.status === 'connected' || this.status === 'connecting')) {
       return;
@@ -358,8 +370,9 @@ export class TelemetryEngine {
 
   private scheduleReconnect(): void {
     const base = Math.min(30_000, 1_000 * 2 ** this.reconnectAttempt);
-    const jitter = Math.floor(Math.random() * 400);
-    const delay = base + jitter;
+    // Full jitter: spread retries uniformly from 0..base to avoid
+    // synchronized reconnect storms and improve fleet stability.
+    const delay = Math.floor(Math.random() * (base + 1));
 
     this.reconnectAttempt += 1;
     this.setStatus('reconnecting');

@@ -5,12 +5,16 @@ export function TopBar({
   title,
   subtitle,
   left,
-  right
+  right,
+  titleFlex = 1,
+  rightFlex
 }: {
   title: ReactNode;
   subtitle?: string;
   left?: ReactNode;
   right?: ReactNode;
+  titleFlex?: number;
+  rightFlex?: number;
 }) {
   const titleNode =
     typeof title === 'string' || typeof title === 'number' ? (
@@ -23,14 +27,14 @@ export function TopBar({
 
   return (
     <XStack
-      alignItems="center"
+      alignItems="flex-start"
       justifyContent="space-between"
       paddingHorizontal="$4"
       paddingVertical="$3"
       gap="$3"
     >
       {left ? <XStack>{left}</XStack> : null}
-      <YStack gap="$1" flex={1}>
+      <YStack gap="$1" flex={titleFlex}>
         {titleNode}
         {subtitle ? (
           <Text fontFamily="$body" fontSize="$4" opacity={0.78}>
@@ -38,7 +42,11 @@ export function TopBar({
           </Text>
         ) : null}
       </YStack>
-      {right}
+      {right ? (
+        <XStack flex={rightFlex} justifyContent="flex-end" alignItems="flex-start">
+          {right}
+        </XStack>
+      ) : null}
     </XStack>
   );
 }

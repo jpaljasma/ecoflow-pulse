@@ -1,4 +1,6 @@
 import { router } from 'expo-router';
+import { Image, Platform } from 'react-native';
+import { useMemo } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -6,8 +8,10 @@ import { Card } from '@/shared/ui/Card';
 import { Pill } from '@/shared/ui/Pill';
 import { Stat } from '@/shared/ui/Stat';
 import { formatEtaMinutes, formatW } from '@/features/telemetry/format';
-import { getDeviceGlyph } from '@/features/devices/deviceIcon';
+import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { SocBar } from '@/shared/ui/SocBar';
+import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
+import { getPowerFlowGlyph, getStatusGlyph } from '@/shared/ui/statusGlyph';
 
 function statusTone(snapshot: DeviceSnapshot | undefined): 'neutral' | 'success' | 'warning' | 'danger' {
   if (!snapshot) return 'neutral';
@@ -18,21 +22,30 @@ function statusTone(snapshot: DeviceSnapshot | undefined): 'neutral' | 'success'
 }
 
 function statusLabel(snapshot: DeviceSnapshot | undefined): string {
-  if (!snapshot) return 'Waiting';
-  if (snapshot.stale) return 'STALE';
-  return snapshot.status.toUpperCase();
+  if (!snapshot) return getStatusGlyph('waiting');
+  return getPowerFlowGlyph({
+    stale: snapshot.stale,
+    status: snapshot.status,
+    pvW: snapshot.metrics?.pvW,
+    loadW: snapshot.metrics?.loadW
+  });
 }
 
 export function DeviceCard({
   device,
-  snapshot
+  snapshot,
+  imageContext = 'card'
 }: {
   device: DeviceSummary;
   snapshot?: DeviceSnapshot;
+  imageContext?: 'list' | 'card' | 'detail';
 }) {
   const metrics = snapshot?.metrics;
   const netW = metrics ? metrics.pvW - metrics.loadW : undefined;
-  const glyph = getDeviceGlyph(device.model);
+  const match = getDeviceAssetMatch(device.model);
+  const cardImage = match.slug ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize(imageContext)) : null;
+  const imageSource = useMemo(() => (cardImage ? { uri: cardImage } : undefined), [cardImage]);
+  const iconSize = 84;
 
   return (
     <Card
@@ -43,13 +56,24 @@ export function DeviceCard({
     >
       <XStack gap="$3" alignItems="stretch">
         <YStack
-          width={56}
+          width={iconSize}
+          height={iconSize}
+          flexShrink={0}
           alignItems="center"
           justifyContent="center"
           borderRadius="$4"
           backgroundColor="rgba(120,120,128,0.12)"
+          overflow="hidden"
         >
-          <Text fontSize="$10">{glyph.emoji}</Text>
+          {imageSource && Platform.OS === 'web' ? (
+            <Image
+              source={imageSource}
+              style={{ width: iconSize * 1.45, height: iconSize * 1.05 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text fontSize="$10">{match.glyph.emoji}</Text>
+          )}
         </YStack>
 
         <YStack gap="$3" flex={1}>
@@ -57,7 +81,7 @@ export function DeviceCard({
             <Text fontFamily="$heading" fontSize="$7" fontWeight="700" numberOfLines={1} flex={1}>
               {device.name}
             </Text>
-            <Pill label={statusLabel(snapshot)} tone={statusTone(snapshot)} />
+            <Pill label={statusLabel(snapshot)} tone={statusTone(snapshot)} glyph />
           </XStack>
 
           <Text fontFamily="$body" fontSize="$3" opacity={0.8} numberOfLines={1}>

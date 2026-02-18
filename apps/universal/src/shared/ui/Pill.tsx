@@ -8,7 +8,15 @@ const tones = {
   info: { bg: 'rgba(10,132,255,0.2)', color: '#0a84ff' }
 } as const;
 
-export function Pill({ label, tone = 'neutral' }: { label: string; tone?: keyof typeof tones }) {
+export function Pill({
+  label,
+  tone = 'neutral',
+  glyph = false
+}: {
+  label: string;
+  tone?: keyof typeof tones;
+  glyph?: boolean;
+}) {
   return (
     <XStack
       alignItems="center"
@@ -18,7 +26,13 @@ export function Pill({ label, tone = 'neutral' }: { label: string; tone?: keyof 
       borderRadius="$5"
       backgroundColor={tones[tone].bg}
     >
-      <Text fontFamily="$body" fontSize="$3" fontWeight="700" color={tones[tone].color as any}>
+      <Text
+        fontFamily="$body"
+        fontSize={glyph ? '$6' : '$3'}
+        lineHeight={glyph ? 26 : undefined}
+        fontWeight="700"
+        color={tones[tone].color as any}
+      >
         {label}
       </Text>
     </XStack>

@@ -1,3 +1,4 @@
+import { useWindowDimensions } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 
 function clamp(value: number): number {
@@ -6,10 +7,12 @@ function clamp(value: number): number {
 }
 
 export function SocBar({ value }: { value: number | null | undefined }) {
+  const { width } = useWindowDimensions();
+  const isTabletUp = width >= 768;
   const pct = clamp(value ?? 0);
 
   return (
-    <YStack gap="$2" minWidth={160}>
+    <YStack gap="$2" width={isTabletUp ? '50%' : '100%'} minWidth={isTabletUp ? 220 : 0}>
       <XStack alignItems="center" justifyContent="space-between">
         <Text fontFamily="$body" fontSize="$3" opacity={0.78} fontWeight="500">
           SOC

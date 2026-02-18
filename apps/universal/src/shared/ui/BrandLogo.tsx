@@ -1,23 +1,59 @@
+import { Image, Platform, Pressable } from 'react-native';
+import { useColorScheme } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
+import { getEcoFlowLogoForTheme } from '@/shared/assets/ecoflowBrandAssets';
 
-export function BrandLogo({ compact = false }: { compact?: boolean }) {
-  return (
+export function BrandLogo({
+  compact = false,
+  onPress
+}: {
+  compact?: boolean;
+  onPress?: () => void;
+}) {
+  const scheme = useColorScheme();
+  const theme = scheme === 'dark' ? 'dark' : 'light';
+  const logoWidth = compact ? 150 : 210;
+  const logoHeight = compact ? 26 : 36;
+  const pulseSize = logoHeight;
+  const logoSrc = getEcoFlowLogoForTheme(theme, 'wordmark');
+
+  const content = (
     <XStack alignItems="center" gap="$2">
       <YStack
-        width={compact ? 24 : 28}
-        height={compact ? 24 : 28}
-        borderRadius="$5"
+        width={logoWidth}
+        height={logoHeight}
         alignItems="center"
         justifyContent="center"
-        backgroundColor="rgba(10,132,255,0.18)"
-        borderWidth={1}
-        borderColor="rgba(10,132,255,0.35)"
+        overflow="hidden"
       >
-        <Text fontSize={compact ? '$2' : '$3'}>⚡</Text>
+        {Platform.OS === 'web' ? (
+          <Image
+            source={{ uri: logoSrc }}
+            style={{ width: logoWidth, height: logoHeight }}
+            resizeMode="contain"
+          />
+        ) : (
+          <Text fontSize={compact ? '$2' : '$3'}>⚡</Text>
+        )}
       </YStack>
-      <Text fontFamily="$heading" fontSize={compact ? '$6' : '$7'} fontWeight="800" letterSpacing={-0.45}>
-        EcoFlow Pulse
+      <Text
+        fontFamily="$heading"
+        fontSize={pulseSize}
+        lineHeight={pulseSize}
+        fontWeight="800"
+        fontStyle="italic"
+        letterSpacing={-0.7}
+        paddingLeft={12}
+        style={Platform.OS === 'web' ? ({ fontSize: '2em' } as any) : undefined}
+      >
+        Pulse
       </Text>
     </XStack>
   );
+
+  if (!onPress) {
+    return content;
+  }
+
+  return <Pressable onPress={onPress}>{content}</Pressable>;
 }

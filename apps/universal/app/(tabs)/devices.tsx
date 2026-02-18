@@ -1,8 +1,8 @@
 import { ActivityIndicator } from 'react-native';
 import { useMemo } from 'react';
-import { Text, YStack } from 'tamagui';
+import { useRouter } from 'expo-router';
+import { Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
-import { Pill } from '@/shared/ui/Pill';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { useDevices } from '@/features/devices/hooks';
@@ -10,7 +10,14 @@ import { useTelemetrySnapshot } from '@/features/telemetry/hooks';
 import { DeviceList } from '@/features/devices/DeviceList';
 import { formatAgo } from '@/features/telemetry/format';
 
+function statusColor(status: string): '$success' | '$warning' | '$danger' {
+  if (status === 'connected') return '$success';
+  if (status === 'reconnecting' || status === 'connecting') return '$warning';
+  return '$danger';
+}
+
 export default function DevicesScreen() {
+  const router = useRouter();
   const devicesQuery = useDevices();
   const deviceIds = useMemo(
     () => devicesQuery.data?.devices.map((d) => d.id) ?? [],
@@ -21,16 +28,17 @@ export default function DevicesScreen() {
   return (
     <YStack flex={1} backgroundColor="$background">
       <TopBar
-        title={<BrandLogo />}
+        title={<BrandLogo onPress={() => router.push('/devices')} />}
         subtitle={`Updated ${formatAgo(telemetry.lastUpdatedAt || null)}`}
+        titleFlex={3}
+        rightFlex={1}
         right={
-          <YStack alignItems="flex-end" gap="$2">
-            <Pill
-              label={telemetry.connectionStatus.toUpperCase()}
-              tone={telemetry.connectionStatus === 'connected' ? 'success' : 'warning'}
-            />
+          <XStack alignItems="flex-start" gap="$2" paddingBottom="$2">
+            <Text fontSize="$7" color={statusColor(telemetry.connectionStatus)}>
+              ●
+            </Text>
             <AppMenu />
-          </YStack>
+          </XStack>
         }
       />
 
