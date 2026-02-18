@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at_utc": "2026-02-18T00:30:30Z",
+  "generated_at_utc": "2026-02-18T00:40:20Z",
   "source_csv": "logs/telemetry_training.csv",
   "classes": [
     {
@@ -1490,7 +1490,7 @@
       "panel_setup": "Trina Solar TSM-NEG9RC.27 435W Vertex Bifacial",
       "panel_count": 1,
       "nominal_total_w": 435,
-      "sample_count": 60418,
+      "sample_count": 61061,
       "device_sns": [
         "R351ZABAPH331057"
       ],
@@ -1500,8 +1500,8 @@
         40.833,
         42.328,
         1.615,
-        0.6541759078420338,
-        0.5190009599788142
+        0.6472871390904178,
+        0.5135356446831857
       ]
     },
     {
@@ -1551,7 +1551,7 @@
       "panel_setup": "2x100W EcoFlow 100W Flexible Solar Panel (ZMS330)",
       "panel_count": 2,
       "nominal_total_w": 200,
-      "sample_count": 60418,
+      "sample_count": 61061,
       "device_sns": [
         "R351ZABAPH331057"
       ],
@@ -1561,8 +1561,8 @@
         16.454,
         16.956,
         1.735,
-        0.6541759078420338,
-        0.5248932437353107
+        0.6472871390904178,
+        0.5193658800216178
       ]
     },
     {
@@ -4692,7 +4692,7 @@
       "panel_setup": "2x420W Silfab SIL-420-QD 108",
       "panel_count": 2,
       "nominal_total_w": 840,
-      "sample_count": 10488,
+      "sample_count": 10528,
       "device_sns": [
         "Y711ZABA9H2P0294"
       ],
@@ -4702,7 +4702,7 @@
         65.04126,
         67.86914,
         2.640626,
-        0.7914759725400458,
+        0.7884688449848024,
         0
       ]
     },
