@@ -5,7 +5,9 @@ export const TelemetryMetricsSchema = z.object({
   pvW: z.number(),
   loadW: z.number(),
   batteryW: z.number(),
-  tempC: z.number()
+  tempC: z.number(),
+  acW: z.number().optional(),
+  dcW: z.number().optional()
 });
 
 export const TelemetryMessageSchema = z.object({

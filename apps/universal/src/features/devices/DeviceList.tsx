@@ -1,65 +1,45 @@
-import { Platform, FlatList, useWindowDimensions } from 'react-native';
+import { FlatList, Platform, View, useWindowDimensions } from 'react-native';
 import { YStack } from 'tamagui';
 import type { ReactElement } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
-import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
+import type { TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
 
 export function DeviceList({
   devices,
-  byId,
   connectionStatus,
   header
 }: {
   devices: DeviceSummary[];
-  byId: Record<string, DeviceSnapshot>;
   connectionStatus: TelemetryEngineStatus;
   header?: ReactElement;
 }) {
   const { width } = useWindowDimensions();
-
-  if (Platform.OS === 'web') {
-    const columns = width >= 900 ? 2 : 1;
-    return (
-      <YStack paddingHorizontal="$4" paddingBottom="$4">
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-            gap: 12
-          }}
-        >
-          {devices.map((device) => (
-            <DeviceCard
-              key={device.id}
-              device={device}
-              snapshot={byId[device.id]}
-              imageContext="list"
-              connectionStatus={connectionStatus}
-            />
-          ))}
-        </div>
-      </YStack>
-    );
-  }
+  const columns = Platform.OS === 'web' && width >= 900 ? 2 : 1;
 
   return (
     <FlatList
+      key={`device-list-${columns}`}
       data={devices}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={{ padding: 16, gap: 12 }}
+      numColumns={columns}
+      contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
       ListHeaderComponent={header}
+      columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
       removeClippedSubviews
       initialNumToRender={8}
       maxToRenderPerBatch={10}
       windowSize={7}
+      updateCellsBatchingPeriod={50}
+      ItemSeparatorComponent={() => <YStack height="$3" />}
       renderItem={({ item }) => (
-        <DeviceCard
-          device={item}
-          snapshot={byId[item.id]}
-          imageContext="list"
-          connectionStatus={connectionStatus}
-        />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <DeviceCard
+            device={item}
+            imageContext="list"
+            connectionStatus={connectionStatus}
+          />
+        </View>
       )}
     />
   );

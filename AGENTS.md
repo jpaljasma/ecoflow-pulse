@@ -221,6 +221,11 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
 6. Before every UI commit:
    - run `npm run -w apps/universal typecheck`
    - run `npm run -w apps/universal lint`
+7. Performance defaults for telemetry-heavy screens:
+   - prefer per-device telemetry selectors (`useTelemetryDeviceSnapshot`) over passing large `byId` maps through props,
+   - keep fleet/device trend aggregation in telemetry engine/store, not component-local `setInterval` state,
+   - avoid page/card-level global rerenders for relative time labels; compute inactivity in snapshots and keep any "time ago" refresh isolated to leaf text components only when needed,
+   - use virtualized list rendering on web and native (`FlatList`/virtualized path) instead of manual mapped grids for device cards.
 
 7. Cross-platform image loading rules (web + iOS):
    - treat brand assets and UI chrome assets as bundled/static first (logos, menu glyphs, icons),

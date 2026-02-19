@@ -5,7 +5,11 @@ import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { useDevices } from '@/features/devices/hooks';
-import { useTelemetrySnapshot } from '@/features/telemetry/hooks';
+import {
+  useTelemetryConnectionStatus,
+  useTelemetryLastUpdatedAt,
+  useTelemetrySubscription
+} from '@/features/telemetry/hooks';
 import { SummaryPanel } from '@/features/devices/SummaryPanel';
 import { DeviceList } from '@/features/devices/DeviceList';
 import { formatAgo } from '@/features/telemetry/format';
@@ -24,9 +28,11 @@ export default function DevicesScreen() {
     () => devicesQuery.data?.devices.map((d) => d.id) ?? [],
     [devicesQuery.data?.devices]
   );
-  const telemetry = useTelemetrySnapshot(deviceIds);
+  useTelemetrySubscription(deviceIds);
+  const connectionStatus = useTelemetryConnectionStatus();
+  const lastUpdatedAt = useTelemetryLastUpdatedAt();
   const updatedAt = Math.max(
-    telemetry.lastUpdatedAt || 0,
+    lastUpdatedAt || 0,
     devicesQuery.dataUpdatedAt || 0
   );
   const pulse = useRef(new Animated.Value(0)).current;
@@ -87,7 +93,7 @@ export default function DevicesScreen() {
                 height: compactHeader ? 12 : 14,
                 borderRadius: compactHeader ? 6 : 7,
                 marginTop: compactHeader ? 2 : 1,
-                backgroundColor: statusDotColor(telemetry.connectionStatus),
+                backgroundColor: statusDotColor(connectionStatus),
                 transform: [{ scale: dotScale }],
                 opacity: dotOpacity
               }}
@@ -115,39 +121,15 @@ export default function DevicesScreen() {
 
       {devicesQuery.data ? (
         <YStack flex={1} minHeight={0}>
-          {Platform.OS === 'web' ? (
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                paddingBottom: 16
-              }}
-            >
-              <YStack gap="$3">
-                <YStack paddingHorizontal="$4" marginTop={10}>
-                  <SummaryPanel devices={devicesQuery.data.devices} byId={telemetry.byId} />
-                </YStack>
-                <DeviceList
-                  devices={devicesQuery.data.devices}
-                  byId={telemetry.byId}
-                  connectionStatus={telemetry.connectionStatus}
-                />
+          <DeviceList
+            devices={devicesQuery.data.devices}
+            connectionStatus={connectionStatus}
+            header={(
+              <YStack marginTop={10} marginBottom="$3">
+                <SummaryPanel devices={devicesQuery.data.devices} />
               </YStack>
-            </div>
-          ) : (
-            <DeviceList
-              devices={devicesQuery.data.devices}
-              byId={telemetry.byId}
-              connectionStatus={telemetry.connectionStatus}
-              header={(
-                <YStack marginTop={10} marginBottom="$3">
-                  <SummaryPanel devices={devicesQuery.data.devices} byId={telemetry.byId} />
-                </YStack>
-              )}
-            />
-          )}
+            )}
+          />
         </YStack>
       ) : null}
     </YStack>

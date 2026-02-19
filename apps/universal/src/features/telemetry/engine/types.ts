@@ -9,6 +9,8 @@ export type DeviceLatest = {
   loadW: number;
   batteryW: number;
   tempC: number;
+  acW: number;
+  dcW: number;
 };
 
 export type DeviceRuntime = {
@@ -20,6 +22,7 @@ export type DeviceRuntime = {
 export type DeviceSnapshot = {
   deviceId: string;
   stale: boolean;
+  inactive: boolean;
   online: boolean;
   lastSeenAt: number | null;
   metrics: DeviceLatest | null;
@@ -29,7 +32,16 @@ export type DeviceSnapshot = {
     pvW: TimePoint[];
     batteryW: TimePoint[];
     soc: TimePoint[];
+    acW: TimePoint[];
+    dcW: TimePoint[];
   };
+};
+
+export type FleetTrendSnapshot = {
+  load: number[];
+  pv: number[];
+  ac: number[];
+  dc: number[];
 };
 
 export type TelemetryEngineStatus =

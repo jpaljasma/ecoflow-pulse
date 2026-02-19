@@ -9,6 +9,7 @@ import { RingBuffer } from '@/features/telemetry/engine/ringBuffer';
 import type {
   DeviceRuntime,
   DeviceSnapshot,
+  FleetTrendSnapshot,
   TelemetryEngineStatus
 } from '@/features/telemetry/engine/types';
 
@@ -20,17 +21,20 @@ type EngineOptions = {
   sparklinePoints?: number;
   heartbeatMs?: number;
   stalledReconnectMs?: number;
+  fleetTrendPoints?: number;
+  fleetTrendBucketMs?: number;
 };
 
 type SnapshotListener = (payload: {
   snapshots: Record<string, DeviceSnapshot>;
+  fleetTrend: FleetTrendSnapshot;
   lastUpdatedAt: number;
   status: TelemetryEngineStatus;
 }) => void;
 
 type StatusListener = (status: TelemetryEngineStatus) => void;
 
-const METRIC_KEYS: MetricKey[] = ['soc', 'pvW', 'loadW', 'batteryW', 'tempC'];
+const METRIC_KEYS: MetricKey[] = ['soc', 'pvW', 'loadW', 'batteryW', 'tempC', 'acW', 'dcW'];
 export class TelemetryEngine {
   private ws: WebSocket | null = null;
   private readonly wsUrl: string;
@@ -43,6 +47,8 @@ export class TelemetryEngine {
   private readonly sparklinePoints: number;
   private readonly heartbeatMs: number;
   private readonly stalledReconnectMs: number;
+  private readonly fleetTrendPoints: number;
+  private readonly fleetTrendBucketMs: number;
   private readonly wsEnabled: boolean;
 
   private status: TelemetryEngineStatus = 'idle';
@@ -57,6 +63,20 @@ export class TelemetryEngine {
   private mockStreamTimer: ReturnType<typeof setInterval> | null = null;
   private readonly lastMockTsByDevice = new Map<string, number>();
   private readonly lastMockFingerprintByDevice = new Map<string, string>();
+  private fleetTrend: FleetTrendSnapshot = {
+    load: [],
+    pv: [],
+    ac: [],
+    dc: []
+  };
+  private fleetTrendPending: {
+    bucket: number;
+    loadSum: number;
+    pvSum: number;
+    acSum: number;
+    dcSum: number;
+    count: number;
+  } | null = null;
 
   private readonly subscribedDeviceIds = new Set<string>();
   private readonly subscriptionRefCounts = new Map<string, number>();
@@ -75,6 +95,14 @@ export class TelemetryEngine {
     this.sparklinePoints = options.sparklinePoints ?? 60;
     this.heartbeatMs = options.heartbeatMs ?? 20_000;
     this.stalledReconnectMs = options.stalledReconnectMs ?? 20_000;
+    this.fleetTrendPoints = options.fleetTrendPoints ?? 60;
+    this.fleetTrendBucketMs = options.fleetTrendBucketMs ?? 5_000;
+    this.fleetTrend = {
+      load: Array.from({ length: this.fleetTrendPoints }, () => 0),
+      pv: Array.from({ length: this.fleetTrendPoints }, () => 0),
+      ac: Array.from({ length: this.fleetTrendPoints }, () => 0),
+      dc: Array.from({ length: this.fleetTrendPoints }, () => 0)
+    };
     // In mock API mode, always use polling transport.
     // Native/web mock sources are file/HTTP based and WS churn causes reconnect loops.
     this.wsEnabled = !env.apiUrl.startsWith('mock://');
@@ -272,19 +300,31 @@ export class TelemetryEngine {
             pvW: 0,
             loadW: 0,
             batteryW: 0,
-            tempC: 0
+            tempC: 0,
+            acW: 0,
+            dcW: 0
           };
       return;
     }
 
+    const normalized = {
+      soc: message.metrics.soc,
+      pvW: message.metrics.pvW,
+      loadW: message.metrics.loadW,
+      batteryW: message.metrics.batteryW,
+      tempC: message.metrics.tempC,
+      acW: message.metrics.acW ?? runtime.latest?.acW ?? 0,
+      dcW: message.metrics.dcW ?? runtime.latest?.dcW ?? 0
+    };
+
     runtime.latest = {
       ts: message.ts,
       online: runtime.latest?.online ?? true,
-      ...message.metrics
+      ...normalized
     };
 
     for (const metric of METRIC_KEYS) {
-      runtime.metrics[metric].push({ ts: message.ts, value: message.metrics[metric] });
+      runtime.metrics[metric].push({ ts: message.ts, value: normalized[metric] });
     }
   }
 
@@ -319,17 +359,19 @@ export class TelemetryEngine {
         snapshots[deviceId] = {
           deviceId,
           stale: true,
+          inactive: true,
           online: false,
           lastSeenAt: null,
           metrics: null,
           status: 'stale',
-          sparkline: { loadW: [], pvW: [], batteryW: [], soc: [] }
+          sparkline: { loadW: [], pvW: [], batteryW: [], soc: [], acW: [], dcW: [] }
         };
         continue;
       }
 
       const latest = runtime.latest;
       const stale = !latest || now - runtime.lastMessageAt > this.staleAfterMs;
+      const inactive = !latest || now - runtime.lastMessageAt > 60_000;
       const online = latest?.online ?? false;
 
       const status = stale
@@ -343,6 +385,7 @@ export class TelemetryEngine {
       snapshots[deviceId] = {
         deviceId,
         stale,
+        inactive,
         online,
         lastSeenAt: runtime.lastMessageAt || latest?.ts || null,
         metrics: latest,
@@ -351,7 +394,9 @@ export class TelemetryEngine {
           loadW: runtime.metrics.loadW.downsample(this.sparklinePoints),
           pvW: runtime.metrics.pvW.downsample(this.sparklinePoints),
           batteryW: runtime.metrics.batteryW.downsample(this.sparklinePoints),
-          soc: runtime.metrics.soc.downsample(this.sparklinePoints)
+          soc: runtime.metrics.soc.downsample(this.sparklinePoints),
+          acW: runtime.metrics.acW.downsample(this.sparklinePoints),
+          dcW: runtime.metrics.dcW.downsample(this.sparklinePoints)
         }
       };
     }
@@ -361,6 +406,7 @@ export class TelemetryEngine {
 
   private emitSnapshot(): void {
     this.reconnectIfStalled();
+    this.updateFleetTrend(Date.now());
     const snapshots = this.buildSnapshot();
     const freshest = Object.values(snapshots).reduce((max, snapshot) => {
       const seen = snapshot.lastSeenAt ?? 0;
@@ -369,6 +415,7 @@ export class TelemetryEngine {
 
     const payload = {
       snapshots,
+      fleetTrend: this.fleetTrend,
       lastUpdatedAt: freshest,
       status: this.status
     };
@@ -525,7 +572,9 @@ export class TelemetryEngine {
             pvW: device.pvW ?? 0,
             loadW: device.loadW ?? 0,
             batteryW: device.netW ?? 0,
-            tempC: device.tempC ?? 0
+            tempC: device.tempC ?? 0,
+            acW: device.acInW ?? 0,
+            dcW: device.dcW ?? 0
           }
         });
       }
@@ -548,5 +597,81 @@ export class TelemetryEngine {
   private rotateWsCandidate(): void {
     if (this.wsCandidates.length <= 1 || this.wsUrlExplicit) return;
     this.wsCandidateIndex = (this.wsCandidateIndex + 1) % this.wsCandidates.length;
+  }
+
+  private aggregateFleetNow(): { load: number; pv: number; ac: number; dc: number } {
+    let load = 0;
+    let pv = 0;
+    let ac = 0;
+    let dc = 0;
+
+    for (const deviceId of this.subscribedDeviceIds) {
+      const runtime = this.devices.get(deviceId);
+      if (!runtime?.latest) continue;
+      load += runtime.latest.loadW ?? 0;
+      pv += runtime.latest.pvW ?? 0;
+      ac += runtime.latest.acW ?? 0;
+      dc += runtime.latest.dcW ?? 0;
+    }
+
+    return { load, pv, ac, dc };
+  }
+
+  private pushFleetTrendPoint(point: { load: number; pv: number; ac: number; dc: number }): void {
+    const append = (arr: number[], value: number): number[] => [...arr, value].slice(-this.fleetTrendPoints);
+    this.fleetTrend = {
+      load: append(this.fleetTrend.load, point.load),
+      pv: append(this.fleetTrend.pv, point.pv),
+      ac: append(this.fleetTrend.ac, point.ac),
+      dc: append(this.fleetTrend.dc, point.dc)
+    };
+  }
+
+  private updateFleetTrend(nowMs: number): void {
+    const current = this.aggregateFleetNow();
+    const currentBucket = Math.floor(nowMs / this.fleetTrendBucketMs);
+    const pending = this.fleetTrendPending;
+
+    if (!pending) {
+      this.fleetTrendPending = {
+        bucket: currentBucket,
+        loadSum: current.load,
+        pvSum: current.pv,
+        acSum: current.ac,
+        dcSum: current.dc,
+        count: 1
+      };
+      return;
+    }
+
+    if (pending.bucket === currentBucket) {
+      pending.loadSum += current.load;
+      pending.pvSum += current.pv;
+      pending.acSum += current.ac;
+      pending.dcSum += current.dc;
+      pending.count += 1;
+      return;
+    }
+
+    const count = Math.max(1, pending.count);
+    const averaged = {
+      load: pending.loadSum / count,
+      pv: pending.pvSum / count,
+      ac: pending.acSum / count,
+      dc: pending.dcSum / count
+    };
+    const bucketDelta = Math.max(1, currentBucket - pending.bucket);
+    for (let i = 0; i < bucketDelta; i += 1) {
+      this.pushFleetTrendPoint(averaged);
+    }
+
+    this.fleetTrendPending = {
+      bucket: currentBucket,
+      loadSum: current.load,
+      pvSum: current.pv,
+      acSum: current.ac,
+      dcSum: current.dc,
+      count: 1
+    };
   }
 }
