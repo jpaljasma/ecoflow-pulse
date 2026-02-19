@@ -31,11 +31,12 @@ type SnapshotListener = (payload: {
 type StatusListener = (status: TelemetryEngineStatus) => void;
 
 const METRIC_KEYS: MetricKey[] = ['soc', 'pvW', 'loadW', 'batteryW', 'tempC'];
-const DEFAULT_WS_URL = 'ws://localhost:8080/ws';
-
 export class TelemetryEngine {
   private ws: WebSocket | null = null;
   private readonly wsUrl: string;
+  private readonly wsCandidates: string[];
+  private wsCandidateIndex = 0;
+  private readonly wsUrlExplicit: boolean;
   private readonly snapshotIntervalMs: number;
   private readonly staleAfterMs: number;
   private readonly ringCapacity: number;
@@ -66,15 +67,17 @@ export class TelemetryEngine {
 
   constructor(options: EngineOptions = {}) {
     this.wsUrl = options.wsUrl ?? env.wsUrl;
+    this.wsUrlExplicit = env.wsUrlExplicit;
+    this.wsCandidates = this.buildWsCandidates(this.wsUrl);
     this.snapshotIntervalMs = options.snapshotIntervalMs ?? 200;
     this.staleAfterMs = options.staleAfterMs ?? 5_000;
     this.ringCapacity = options.ringCapacity ?? 600;
     this.sparklinePoints = options.sparklinePoints ?? 60;
     this.heartbeatMs = options.heartbeatMs ?? 20_000;
     this.stalledReconnectMs = options.stalledReconnectMs ?? 20_000;
-    // In local mock mode, default WS endpoint is typically not available.
-    // Disable socket churn to keep UI stable unless WS is explicitly configured.
-    this.wsEnabled = !(env.apiUrl.startsWith('mock://') && this.wsUrl === DEFAULT_WS_URL);
+    // In mock API mode, always use polling transport.
+    // Native/web mock sources are file/HTTP based and WS churn causes reconnect loops.
+    this.wsEnabled = !env.apiUrl.startsWith('mock://');
   }
 
   getStatus(): TelemetryEngineStatus {
@@ -193,9 +196,12 @@ export class TelemetryEngine {
 
     this.setStatus(this.reconnectAttempt > 0 ? 'reconnecting' : 'connecting');
 
+    const baseUrl = this.wsCandidates[this.wsCandidateIndex] ?? this.wsUrl;
     const url = this.token
-      ? `${this.wsUrl}${this.wsUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(this.token)}`
-      : this.wsUrl;
+      ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(this.token)}`
+      : baseUrl;
+
+    console.info('[TelemetryEngine] opening websocket', { url, attempt: this.reconnectAttempt + 1 });
 
     this.ws = new WebSocket(url);
 
@@ -228,7 +234,12 @@ export class TelemetryEngine {
       this.ingest(parsed.data);
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
+      console.warn('[TelemetryEngine] websocket closed', {
+        url: baseUrl,
+        code: event.code,
+        reason: event.reason
+      });
       this.ws = null;
       this.stopHeartbeat();
       if (!this.shouldReconnect) {
@@ -239,6 +250,7 @@ export class TelemetryEngine {
     };
 
     this.ws.onerror = () => {
+      console.warn('[TelemetryEngine] websocket error', { url: baseUrl });
       this.ws?.close();
     };
   }
@@ -431,6 +443,7 @@ export class TelemetryEngine {
 
     this.reconnectAttempt += 1;
     this.setStatus('reconnecting');
+    this.rotateWsCandidate();
 
     this.reconnectTimer = setTimeout(() => {
       this.openSocket();
@@ -519,5 +532,21 @@ export class TelemetryEngine {
     } catch {
       // Keep mock stream resilient; status stays connected in mock mode.
     }
+  }
+
+  private buildWsCandidates(primary: string): string[] {
+    const ordered: string[] = [primary];
+    if (!this.wsUrlExplicit) {
+      const defaults = ['ws://localhost:8080/ws', 'ws://127.0.0.1:8080/ws'];
+      for (const candidate of defaults) {
+        if (!ordered.includes(candidate)) ordered.push(candidate);
+      }
+    }
+    return ordered;
+  }
+
+  private rotateWsCandidate(): void {
+    if (this.wsCandidates.length <= 1 || this.wsUrlExplicit) return;
+    this.wsCandidateIndex = (this.wsCandidateIndex + 1) % this.wsCandidates.length;
   }
 }

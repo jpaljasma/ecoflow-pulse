@@ -1,4 +1,6 @@
 import { env } from '@/shared/config/env';
+import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 import { type MockDevice, mockDevices } from '@/features/devices/mockData';
 
 type MutableDevice = MockDevice & {
@@ -51,6 +53,23 @@ function cloneCachedDevices(): MockDevice[] {
     capabilities: device.capabilities,
     details: device.details
   }));
+}
+
+function nativeMockCandidates(pathSuffix: string): string[] {
+  if (Platform.OS === 'web') return [];
+  const candidates: string[] = [];
+  try {
+    const created = Linking.createURL('/');
+    const parsed = new URL(created);
+    const host = parsed.hostname || '127.0.0.1';
+    const port = parsed.port || '8081';
+    candidates.push(`http://${host}:${port}${pathSuffix}`);
+  } catch {
+    // ignore
+  }
+  candidates.push(`http://127.0.0.1:8081${pathSuffix}`);
+  candidates.push(`http://localhost:8081${pathSuffix}`);
+  return candidates;
 }
 
 function parseJsonFromLine(line: string): unknown | null {
@@ -615,7 +634,13 @@ function parseDevicesFromTrainingCsv(csvText: string): MockDevice[] {
 }
 
 async function fetchMockTrainingCsvText(): Promise<string | null> {
-  const candidates = [env.mockTrainingUrl, '/logs/telemetry_training.csv'];
+  const candidates = [
+    env.mockTrainingUrl,
+    '/logs/telemetry_training.csv',
+    '/mock/telemetry_training.csv',
+    ...nativeMockCandidates('/logs/telemetry_training.csv'),
+    ...nativeMockCandidates('/mock/telemetry_training.csv')
+  ];
   for (const url of candidates) {
     try {
       const response = await fetch(url, { cache: 'no-store' });
@@ -632,7 +657,13 @@ async function fetchMockTrainingCsvText(): Promise<string | null> {
 }
 
 async function fetchMockLogText(): Promise<string | null> {
-  const candidates = [env.mockLogUrl, '/logs/mqtt.log'];
+  const candidates = [
+    env.mockLogUrl,
+    '/logs/mqtt.log',
+    '/mock/mqtt.log',
+    ...nativeMockCandidates('/logs/mqtt.log'),
+    ...nativeMockCandidates('/mock/mqtt.log')
+  ];
   for (const url of candidates) {
     try {
       const response = await fetch(url, { cache: 'no-store' });

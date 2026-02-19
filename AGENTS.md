@@ -237,3 +237,9 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
 9. Navigation interaction rules:
    - for iOS close/dismiss from detail, prefer `router.back()` when possible so transition direction feels native,
    - keep replace fallback to home route only when stack back is unavailable.
+
+10. Mock telemetry transport reliability rules (web vs iOS):
+   - in `mock://` API mode, prefer polling transport by default and avoid WS reconnect loops,
+   - do not rely on web-only relative paths (`/logs/...`) on native; provide absolute host-based candidates for iOS/Android,
+   - keep multiple native URL candidates for mock files (`/logs` and `/mock`, plus host fallbacks) so incremental updates continue,
+   - if UI shows `connected` but data is stale, trace last successful mock fetch path and verify per-second refresh still advances.
