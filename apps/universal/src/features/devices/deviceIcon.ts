@@ -4,7 +4,17 @@ export type DeviceGlyph = {
 };
 
 export type DeviceAssetMatch = {
-  slug?: 'delta_2_max' | 'delta_3' | 'delta_3_plus' | 'delta_3_max' | 'delta_3_ultra' | 'delta_pro' | 'delta_pro_3' | 'delta_pro_ultra' | 'delta_pro_ultra_x';
+  slug?:
+    | 'delta_2_max'
+    | 'delta_2_max_plus_battery'
+    | 'delta_3'
+    | 'delta_3_plus'
+    | 'delta_3_max'
+    | 'delta_3_ultra'
+    | 'delta_pro'
+    | 'delta_pro_3'
+    | 'delta_pro_ultra'
+    | 'delta_pro_ultra_x';
   glyph: DeviceGlyph;
 };
 
@@ -12,7 +22,10 @@ export function getDeviceGlyph(model: string): DeviceGlyph {
   return getDeviceAssetMatch(model).glyph;
 }
 
-export function getDeviceAssetMatch(model: string): DeviceAssetMatch {
+export function getDeviceAssetMatch(
+  model: string,
+  options?: { batteryCount?: number }
+): DeviceAssetMatch {
   const m = model.toLowerCase();
 
   if (m.includes('delta pro ultra x')) {
@@ -28,7 +41,10 @@ export function getDeviceAssetMatch(model: string): DeviceAssetMatch {
   }
 
   if (m.includes('delta 2 max')) {
-    return { slug: 'delta_2_max', glyph: { emoji: '📦', label: 'D2M' } };
+    return {
+      slug: (options?.batteryCount ?? 0) > 1 ? 'delta_2_max_plus_battery' : 'delta_2_max',
+      glyph: { emoji: '📦', label: 'D2M' }
+    };
   }
 
   if (m.includes('delta 3 ultra')) {

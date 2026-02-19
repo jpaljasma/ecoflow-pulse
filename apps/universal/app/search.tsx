@@ -1,19 +1,24 @@
 import { useState } from 'react';
-import { Platform } from 'react-native';
+import { Animated, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Input, Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { Card } from '@/shared/ui/Card';
 import { AppMenu } from '@/shared/ui/AppMenu';
+import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
+import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 
 export default function SearchScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
 
   return (
-    <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
+    <Animated.View style={containerStyle}>
+      <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
       <TopBar
+        left={<CloseToHomeButton onClose={closeToHome} />}
         title={<BrandLogo onPress={() => router.push('/devices')} />}
         subtitle="Search devices and telemetry"
         right={<AppMenu />}
@@ -48,6 +53,7 @@ export default function SearchScreen() {
           </XStack>
         </XStack>
       </Card>
-    </YStack>
+      </YStack>
+    </Animated.View>
   );
 }

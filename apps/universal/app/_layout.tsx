@@ -8,7 +8,7 @@ export default function RootLayout() {
       <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="device/[deviceId]" />
+        <Stack.Screen name="device/[deviceId]" options={{ animation: 'flip' }} />
       </Stack>
     </AppProvider>
   );

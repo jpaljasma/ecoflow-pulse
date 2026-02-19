@@ -52,7 +52,10 @@ export function DeviceCard({
   const dcW = device.dcW;
   const loadW = metrics?.loadW ?? device.loadW;
   const netW = metrics ? metrics.pvW - metrics.loadW : (device.netW ?? (pvW !== undefined && loadW !== undefined ? pvW - loadW : undefined));
-  const match = getDeviceAssetMatch(device.model);
+  const batteryCount =
+    device.details?.bpCount ??
+    ((device.capabilities as { batteryPacks?: number } | undefined)?.batteryPacks ?? 1);
+  const match = getDeviceAssetMatch(device.model, { batteryCount });
   const cardImage = match.slug ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize(imageContext)) : null;
   const imageSource = useMemo(() => (cardImage ? { uri: cardImage } : undefined), [cardImage]);
   const imageBoxSize = isDesktopWide ? 106 : isTabletUp ? 99 : 92;

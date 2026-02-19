@@ -58,6 +58,7 @@ export class TelemetryEngine {
   private readonly lastMockFingerprintByDevice = new Map<string, string>();
 
   private readonly subscribedDeviceIds = new Set<string>();
+  private readonly subscriptionRefCounts = new Map<string, number>();
   private readonly devices = new Map<string, DeviceRuntime>();
 
   private readonly snapshotListeners = new Set<SnapshotListener>();
@@ -99,29 +100,12 @@ export class TelemetryEngine {
     this.startSnapshotClock();
   }
 
-  disconnect(): void {
-    this.shouldReconnect = false;
-    this.clearReconnectTimer();
-    this.stopHeartbeat();
-    this.stopSnapshotClock();
-    this.stopMockStream();
-
-    if (this.ws) {
-      this.ws.onopen = null;
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.onmessage = null;
-      this.ws.close();
-      this.ws = null;
-    }
-
-    this.setStatus('disconnected');
-  }
-
   subscribe(deviceIds: string[]): void {
     let changed = false;
     for (const id of deviceIds) {
-      if (!this.subscribedDeviceIds.has(id)) {
+      const nextCount = (this.subscriptionRefCounts.get(id) ?? 0) + 1;
+      this.subscriptionRefCounts.set(id, nextCount);
+      if (nextCount === 1) {
         this.subscribedDeviceIds.add(id);
         changed = true;
       }
@@ -138,9 +122,19 @@ export class TelemetryEngine {
   unsubscribe(deviceIds: string[]): void {
     let changed = false;
     for (const id of deviceIds) {
-      if (this.subscribedDeviceIds.delete(id)) {
-        changed = true;
+      const prevCount = this.subscriptionRefCounts.get(id) ?? 0;
+      if (prevCount <= 1) {
+        this.subscriptionRefCounts.delete(id);
+        if (this.subscribedDeviceIds.delete(id)) {
+          changed = true;
+        }
+      } else {
+        this.subscriptionRefCounts.set(id, prevCount - 1);
       }
+    }
+
+    if (this.subscribedDeviceIds.size === 0 && this.subscriptionRefCounts.size > 0) {
+      this.subscriptionRefCounts.clear();
     }
 
     if (changed) {
@@ -149,6 +143,31 @@ export class TelemetryEngine {
         this.emitSnapshot();
       }
     }
+  }
+
+  private clearSubscriptions(): void {
+    this.subscribedDeviceIds.clear();
+    this.subscriptionRefCounts.clear();
+  }
+
+  disconnect(): void {
+    this.shouldReconnect = false;
+    this.clearReconnectTimer();
+    this.stopHeartbeat();
+    this.stopSnapshotClock();
+    this.stopMockStream();
+    this.clearSubscriptions();
+
+    if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
+      this.ws.close();
+      this.ws = null;
+    }
+
+    this.setStatus('disconnected');
   }
 
   onSnapshot(listener: SnapshotListener): () => void {
@@ -457,6 +476,9 @@ export class TelemetryEngine {
 
         const ts = device.telemetryTsMs ?? Date.now();
         const lastTs = this.lastMockTsByDevice.get(device.id) ?? 0;
+        // Always append one sample per polling tick for subscribed devices.
+        // This keeps trend lines advancing even during stable-power periods
+        // and after route transitions.
         const fingerprint = JSON.stringify({
           online: device.online,
           batteryPct: device.batteryPct,
@@ -469,13 +491,8 @@ export class TelemetryEngine {
           etaMinutes: device.etaMinutes,
           telemetryTsMs: device.telemetryTsMs ?? null
         });
-        const lastFingerprint = this.lastMockFingerprintByDevice.get(device.id) ?? '';
-        const changed = ts > lastTs || fingerprint !== lastFingerprint;
-        if (!changed) {
-          continue;
-        }
 
-        const effectiveTs = ts > lastTs ? ts : lastTs + 1;
+        const effectiveTs = ts > lastTs ? ts : lastTs + 1_000;
         this.lastMockTsByDevice.set(device.id, effectiveTs);
         this.lastMockFingerprintByDevice.set(device.id, fingerprint);
 
