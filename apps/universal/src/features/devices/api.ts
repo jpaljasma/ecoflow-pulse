@@ -5,7 +5,8 @@ const BatteryPackDetailSchema = z.object({
   id: z.string(),
   socPct: z.number().optional(),
   powerW: z.number().optional(),
-  tempC: z.number().optional()
+  tempC: z.number().optional(),
+  heatingOn: z.boolean().optional()
 });
 
 const SolarPortDetailSchema = z.object({
@@ -39,6 +40,7 @@ const DeviceTelemetryDetailsSchema = z.object({
   evChargingOn: z.boolean().optional(),
   fanOn: z.boolean().optional(),
   solarChargingOn: z.boolean().optional(),
+  batteryHeatingOn: z.boolean().optional(),
   mqttQueueDepth: z.number().int().optional(),
   mqttQueueDroppedOldest: z.number().int().optional()
 });
@@ -57,6 +59,8 @@ export const DeviceSchema = z.object({
   dcW: z.number().optional(),
   loadW: z.number().optional(),
   netW: z.number().optional(),
+  solarTodayWh: z.number().optional(),
+  solarGeneratedSeriesWh: z.array(z.number()).optional(),
   tempC: z.number().optional(),
   telemetryTsMs: z.number().optional(),
   capabilities: z.record(z.unknown()).optional(),

@@ -8,7 +8,7 @@ import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry
 import { Card } from '@/shared/ui/Card';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
 import { Stat } from '@/shared/ui/Stat';
-import { formatAgo, formatEtaMinutes, formatW } from '@/features/telemetry/format';
+import { formatAgo, formatEtaMinutes, formatKWh, formatW } from '@/features/telemetry/format';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { SocBar } from '@/shared/ui/SocBar';
@@ -17,6 +17,7 @@ import { getStatusGlyph } from '@/shared/ui/statusGlyph';
 import { CachedImage } from '@/shared/ui/CachedImage';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 import { env } from '@/shared/config/env';
+import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
 
 function isNearZero(value: number | undefined | null): boolean {
   if (value === null || value === undefined || Number.isNaN(value)) return false;
@@ -48,6 +49,7 @@ export function DeviceCard({
 }) {
   const { width } = useWindowDimensions();
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const isPhoneCompact = width < 460;
   const isTabletUp = width >= 768;
   const isDesktopWide = width >= 1200;
   const metrics = snapshot?.metrics;
@@ -73,8 +75,8 @@ export function DeviceCard({
     [match.slug]
   );
   const [imageFailed, setImageFailed] = useState(false);
-  const imageBoxSize = isDesktopWide ? 106 : isTabletUp ? 99 : 92;
-  const railWidth = isDesktopWide ? 124 : isTabletUp ? 117 : 106;
+  const imageBoxSize = isDesktopWide ? 106 : isTabletUp ? 98 : 82;
+  const railWidth = isDesktopWide ? 124 : isTabletUp ? 112 : 94;
 
   const fallbackStatus =
     device.state === 'charging' || device.state === 'discharging' || device.state === 'idle'
@@ -128,7 +130,7 @@ export function DeviceCard({
         backgroundColor={isInactive ? 'rgba(120,120,128,0.08)' : '$background'}
       >
         <XStack gap="$3" alignItems="stretch">
-          <YStack width={railWidth} flexShrink={0} alignItems="center" gap="$2">
+          <YStack width={railWidth} flexShrink={0} alignItems="center" gap="$3">
             <YStack
               width={imageBoxSize}
               height={imageBoxSize}
@@ -156,21 +158,35 @@ export function DeviceCard({
                 <Text fontSize="$10">{match.glyph.emoji}</Text>
               )}
             </YStack>
-            <Text fontSize="$3" opacity={0.75} textAlign="center" numberOfLines={1}>
-              {capacityKWh !== null ? `🔋 ${capacityKWh.toFixed(1)}kWh` : '🔋 n/a'}
+            <Text
+              fontSize={isPhoneCompact ? 11 : 13}
+              opacity={0.75}
+              textAlign="center"
+              numberOfLines={1}
+              marginTop="$1"
+            >
+              {capacityKWh !== null ? `🔋 ${formatKWh(capacityKWh)}` : '🔋 n/a'}
             </Text>
-            <PowerFlowGlyph
-              status={snapshotState}
-              pvW={snapshot?.metrics?.pvW ?? device.pvW}
-              loadW={snapshot?.metrics?.loadW ?? device.loadW}
-              fontSize="$8"
-              lineHeight={32}
-            />
+            <YStack marginTop={isPhoneCompact ? '$3' : '$2'}>
+              <PowerFlowGlyph
+                status={snapshotState}
+                pvW={snapshot?.metrics?.pvW ?? device.pvW}
+                loadW={snapshot?.metrics?.loadW ?? device.loadW}
+                fontSize={isPhoneCompact ? '$7' : '$8'}
+                lineHeight={isPhoneCompact ? 26 : 30}
+              />
+            </YStack>
           </YStack>
 
           <YStack gap="$3" flex={1} justifyContent="space-between">
             <XStack alignItems="flex-start" gap="$2">
-              <Text fontFamily="$heading" fontSize="$7" fontWeight="700" numberOfLines={1} flex={1}>
+              <Text
+                fontFamily="$heading"
+                fontSize={isPhoneCompact ? '$6' : '$7'}
+                fontWeight="700"
+                numberOfLines={1}
+                flex={1}
+              >
                 {device.name}
               </Text>
               {isInactive ? (
@@ -180,19 +196,56 @@ export function DeviceCard({
               ) : null}
             </XStack>
 
-            <Text fontFamily="$body" fontSize="$3" opacity={0.8} numberOfLines={1}>
+            <Text fontFamily="$body" fontSize={isPhoneCompact ? '$2' : '$3'} opacity={0.8} numberOfLines={1}>
               {device.model} · SN {device.serialNumber}
             </Text>
 
-            <XStack gap="$3" flexWrap="wrap" alignItems="flex-end">
+            <YStack gap="$2">
               <SocBar value={metrics?.soc ?? device.batteryPct} />
-              <Stat label="AC" value={formatW(acInW)} tone={isNearZero(acInW) ? 'muted' : 'default'} />
-              <Stat label="DC" value={formatW(dcW)} tone={isNearZero(dcW) ? 'muted' : 'default'} />
-              <Stat label="PV" value={formatW(pvW)} tone={isNearZero(pvW) ? 'muted' : 'default'} />
-              <Stat label="Load" value={formatW(loadW)} tone={isNearZero(loadW) ? 'muted' : 'default'} />
-              <Stat label="Net" value={formatW(netW)} />
-              <Stat label="⏱ ETA" value={formatEtaMinutes(device.etaMinutes)} />
-            </XStack>
+              <XStack flexWrap="wrap" marginHorizontal={-4}>
+                <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                  <Stat
+                    label="AC"
+                    value={formatW(acInW)}
+                    tone={isNearZero(acInW) ? 'muted' : 'default'}
+                    compact
+                  />
+                </YStack>
+                <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                  <Stat
+                    label="DC"
+                    value={formatW(dcW)}
+                    tone={isNearZero(dcW) ? 'muted' : 'default'}
+                    compact
+                  />
+                </YStack>
+                <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                  <Stat
+                    label="PV"
+                    value={formatW(pvW)}
+                    tone={isNearZero(pvW) ? 'muted' : 'default'}
+                    compact
+                  />
+                </YStack>
+                <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                  <SolarTodayBadge valueWh={device.solarTodayWh} compact fitCell />
+                </YStack>
+                <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                  <Stat
+                    label="Load"
+                    value={formatW(loadW)}
+                    tone={isNearZero(loadW) ? 'muted' : 'default'}
+                    compact
+                  />
+                </YStack>
+                <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                  <Stat label="Net" value={formatW(netW)} compact />
+                </YStack>
+                <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                  <Stat label="⏱ ETA" value={formatEtaMinutes(device.etaMinutes)} compact />
+                </YStack>
+              </XStack>
+            </YStack>
 
           <XStack justifyContent="space-between" alignItems="center">
             <Text fontSize={10} opacity={0.48} numberOfLines={1}>

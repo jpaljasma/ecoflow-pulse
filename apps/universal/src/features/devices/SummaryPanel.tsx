@@ -6,8 +6,10 @@ import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { Card } from '@/shared/ui/Card';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
+import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { Stat } from '@/shared/ui/Stat';
-import { formatW } from '@/features/telemetry/format';
+import { formatKWh, formatW } from '@/features/telemetry/format';
+import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
@@ -18,6 +20,7 @@ import { env } from '@/shared/config/env';
 
 const SUMMARY_TREND_POINTS = 60;
 const SUMMARY_TREND_BUCKET_MS = 5_000;
+const SOLAR_GENERATED_POINTS = 72;
 
 function formatPct(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return '—';
@@ -51,7 +54,9 @@ export function SummaryPanel({
   byId: Record<string, DeviceSnapshot>;
 }) {
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 900;
+  const isTabletUp = width >= 768;
+  const isCompact = width < 720;
+  const metricCellMinWidth = isCompact ? 0 : 96;
   const useRemoteImage = Boolean(env.assetBaseUrl);
   const trendChartStyle = useChartPrefs((s) => s.trendChartStyle);
   const toggleTrendChartStyle = useChartPrefs((s) => s.toggleTrendChartStyle);
@@ -67,6 +72,11 @@ export function SummaryPanel({
     ac: Array.from({ length: SUMMARY_TREND_POINTS }, () => 0),
     dc: Array.from({ length: SUMMARY_TREND_POINTS }, () => 0)
   }));
+  const [solarGeneratedTrend, setSolarGeneratedTrend] = useState<number[]>(
+    Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0)
+  );
+  const solarGeneratedMinuteRef = useRef<number | null>(null);
+  const solarGeneratedInitializedRef = useRef(false);
   const pendingBucketRef = useRef<{
     bucket: number;
     loadSum: number;
@@ -81,6 +91,33 @@ export function SummaryPanel({
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const minuteBucket = Math.floor(nowMs / 60_000);
+    if (
+      solarGeneratedInitializedRef.current &&
+      solarGeneratedMinuteRef.current === minuteBucket
+    ) {
+      return;
+    }
+    const byIndex = Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
+    for (const device of devices) {
+      const series = device.solarGeneratedSeriesWh ?? [];
+      const padded =
+        series.length >= SOLAR_GENERATED_POINTS
+          ? series.slice(-SOLAR_GENERATED_POINTS)
+          : [
+              ...Array.from({ length: SOLAR_GENERATED_POINTS - series.length }, () => 0),
+              ...series
+            ];
+      for (let i = 0; i < SOLAR_GENERATED_POINTS; i += 1) {
+        byIndex[i] = (byIndex[i] ?? 0) + Math.max(0, padded[i] ?? 0);
+      }
+    }
+    setSolarGeneratedTrend(byIndex);
+    solarGeneratedInitializedRef.current = true;
+    solarGeneratedMinuteRef.current = minuteBucket;
+  }, [devices, nowMs]);
+
   const summary = useMemo(() => {
     if (!devices.length) {
       return {
@@ -90,7 +127,8 @@ export function SummaryPanel({
         dcW: undefined,
         pvW: undefined,
         loadW: undefined,
-        netW: undefined
+        netW: undefined,
+        solarTodayWh: undefined
       };
     }
 
@@ -102,6 +140,7 @@ export function SummaryPanel({
     let pvW = 0;
     let loadW = 0;
     let netW = 0;
+    let solarTodayWh = 0;
 
     for (const device of devices) {
       const cap = getCapacityKWh(device);
@@ -119,6 +158,7 @@ export function SummaryPanel({
       pvW += snapshot?.metrics?.pvW ?? device.pvW ?? 0;
       loadW += snapshot?.metrics?.loadW ?? device.loadW ?? 0;
       netW += snapshot?.metrics ? snapshot.metrics.pvW - snapshot.metrics.loadW : device.netW ?? 0;
+      solarTodayWh += Math.max(0, device.solarTodayWh ?? 0);
     }
 
     return {
@@ -128,7 +168,8 @@ export function SummaryPanel({
       dcW,
       pvW,
       loadW,
-      netW
+      netW,
+      solarTodayWh
     };
   }, [devices, byId]);
 
@@ -252,60 +293,170 @@ export function SummaryPanel({
         <Text fontSize="$5" fontWeight="700">
           Fleet Summary
         </Text>
-        <XStack gap="$3" alignItems="flex-start" flexWrap={isDesktop ? 'nowrap' : 'wrap'}>
-          <XStack gap="$2" alignItems="center" flexShrink={0} flexWrap="wrap">
-            {uniqueTypes.map((item) => (
-              <YStack
-                key={item.key}
-                width={40}
-                height={40}
-                borderRadius="$2"
-                overflow="hidden"
-                backgroundColor="rgba(120,120,128,0.12)"
-                alignItems="center"
-                justifyContent="center"
-                opacity={item.active ? 1 : 0.42}
-              >
-                {item.uri ? (
-                  <CachedImage
-                    uri={item.uri}
-                    style={{ width: 34, height: 34 }}
-                    contentFit="cover"
-                  />
-                ) : item.fallback ? (
-                  <ExpoImage
-                    source={item.fallback}
-                    style={{ width: 34, height: 34 }}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <Text>{item.emoji}</Text>
-                )}
-              </YStack>
-            ))}
-          </XStack>
-          <XStack gap="$3" flexWrap="wrap" flex={1} minWidth={0}>
-            <Stat
-              label="🔋 Battery"
-              value={
-                summary.totalCapacityKWh !== null
-                  ? `${summary.totalCapacityKWh.toFixed(1)}kWh`
-                  : '—'
-              }
-            />
-            <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} />
-            <Stat label="∿ AC" value={formatW(summary.acInW)} tone={isNearZero(summary.acInW) ? 'muted' : 'default'} />
-            <Stat label="⎓ DC" value={formatW(summary.dcW)} tone={isNearZero(summary.dcW) ? 'muted' : 'default'} />
-            <Stat label="☼ PV" value={formatW(summary.pvW)} tone={isNearZero(summary.pvW) ? 'muted' : 'default'} />
-            <Stat label="⌂ Load" value={formatW(summary.loadW)} tone={isNearZero(summary.loadW) ? 'muted' : 'default'} />
-            <Stat label="⚖️ Net" value={formatW(summary.netW)} />
-          </XStack>
-        </XStack>
-        <YStack height={1} backgroundColor="rgba(120,120,128,0.24)" />
-        {isDesktop ? (
-          <XStack gap="$3">
+        <XStack gap="$2" alignItems="center" flexWrap="wrap">
+          {uniqueTypes.map((item) => (
             <YStack
-              flex={1}
+              key={item.key}
+              width={40}
+              height={40}
+              borderRadius="$2"
+              overflow="hidden"
+              backgroundColor="rgba(120,120,128,0.12)"
+              alignItems="center"
+              justifyContent="center"
+              opacity={item.active ? 1 : 0.42}
+            >
+              {item.uri ? (
+                <CachedImage
+                  uri={item.uri}
+                  style={{ width: 34, height: 34 }}
+                  contentFit="cover"
+                />
+              ) : item.fallback ? (
+                <ExpoImage
+                  source={item.fallback}
+                  style={{ width: 34, height: 34 }}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text>{item.emoji}</Text>
+              )}
+            </YStack>
+          ))}
+        </XStack>
+        {isCompact ? (
+          <XStack flexWrap="wrap" marginHorizontal={-4} alignItems="flex-start">
+            <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+              <Stat
+                label="🔋 Battery"
+                value={
+                  summary.totalCapacityKWh !== null
+                    ? formatKWh(summary.totalCapacityKWh)
+                    : '—'
+                }
+                compact
+              />
+            </YStack>
+            <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+              <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} compact />
+            </YStack>
+            <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+              <Stat label="⚖️ Net" value={formatW(summary.netW)} compact />
+            </YStack>
+            <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+              <Stat
+                label="∿ AC"
+                value={formatW(summary.acInW)}
+                tone={isNearZero(summary.acInW) ? 'muted' : 'default'}
+                compact
+              />
+            </YStack>
+            <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+              <Stat
+                label="⎓ DC"
+                value={formatW(summary.dcW)}
+                tone={isNearZero(summary.dcW) ? 'muted' : 'default'}
+                compact
+              />
+            </YStack>
+            <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+              <Stat
+                label="☼ PV"
+                value={formatW(summary.pvW)}
+                tone={isNearZero(summary.pvW) ? 'muted' : 'default'}
+                compact
+              />
+            </YStack>
+            <YStack width="100%" paddingHorizontal={4} paddingVertical={2}>
+              <SolarTodayBadge valueWh={summary.solarTodayWh} compact />
+            </YStack>
+            <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+              <Stat
+                label="⌂ Load"
+                value={formatW(summary.loadW)}
+                tone={isNearZero(summary.loadW) ? 'muted' : 'default'}
+                compact
+              />
+            </YStack>
+          </XStack>
+        ) : (
+          <XStack gap="$2" flexWrap="nowrap" alignItems="flex-start">
+            <YStack minWidth={metricCellMinWidth} flex={1}>
+              <Stat
+                label="🔋 Battery"
+                value={
+                  summary.totalCapacityKWh !== null
+                    ? formatKWh(summary.totalCapacityKWh)
+                    : '—'
+                }
+              />
+            </YStack>
+            <YStack minWidth={metricCellMinWidth} flex={1}>
+              <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} />
+            </YStack>
+            <YStack minWidth={metricCellMinWidth} flex={1}>
+              <Stat label="⚖️ Net" value={formatW(summary.netW)} />
+            </YStack>
+            <YStack minWidth={metricCellMinWidth} flex={1}>
+              <Stat
+                label="∿ AC"
+                value={formatW(summary.acInW)}
+                tone={isNearZero(summary.acInW) ? 'muted' : 'default'}
+              />
+            </YStack>
+            <YStack minWidth={metricCellMinWidth} flex={1}>
+              <Stat
+                label="⎓ DC"
+                value={formatW(summary.dcW)}
+                tone={isNearZero(summary.dcW) ? 'muted' : 'default'}
+              />
+            </YStack>
+            <YStack minWidth={metricCellMinWidth} flex={1}>
+              <Stat
+                label="☼ PV"
+                value={formatW(summary.pvW)}
+                tone={isNearZero(summary.pvW) ? 'muted' : 'default'}
+              />
+            </YStack>
+            <YStack minWidth={Math.max(180, metricCellMinWidth * 2)} flex={1.4}>
+              <SolarTodayBadge valueWh={summary.solarTodayWh} />
+            </YStack>
+            <YStack minWidth={metricCellMinWidth} flex={1}>
+              <Stat
+                label="⌂ Load"
+                value={formatW(summary.loadW)}
+                tone={isNearZero(summary.loadW) ? 'muted' : 'default'}
+              />
+            </YStack>
+          </XStack>
+        )}
+        <YStack height={1} backgroundColor="rgba(120,120,128,0.24)" />
+        {isTabletUp ? (
+          <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+            <YStack
+              flexBasis="50%"
+              minWidth="50%"
+              maxWidth="50%"
+              gap="$2"
+              padding="$3"
+              borderRadius="$3"
+              borderWidth={1}
+              borderColor="rgba(120,120,128,0.24)"
+            >
+              <XStack alignItems="center" justifyContent="space-between">
+                <Text fontSize="$4" fontWeight="700">
+                  ☼ Solar Generated (6am-6pm, 10m buckets)
+                </Text>
+                <Text fontSize="$2" opacity={0.72}>
+                  1m refresh
+                </Text>
+              </XStack>
+              <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+            </YStack>
+            <YStack
+              flexBasis="50%"
+              minWidth="50%"
+              maxWidth="50%"
               gap="$2"
               padding="$3"
               borderRadius="$3"
@@ -342,6 +493,23 @@ export function SummaryPanel({
           </XStack>
         ) : (
           <YStack gap="$3">
+            <YStack
+              gap="$2"
+              padding="$3"
+              borderRadius="$3"
+              borderWidth={1}
+              borderColor="rgba(120,120,128,0.24)"
+            >
+              <XStack alignItems="center" justifyContent="space-between">
+                <Text fontSize="$4" fontWeight="700">
+                  ☼ Solar Generated (6am-6pm, 10m buckets)
+                </Text>
+                <Text fontSize="$2" opacity={0.72}>
+                  1m refresh
+                </Text>
+              </XStack>
+              <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+            </YStack>
             <YStack
               gap="$2"
               padding="$3"

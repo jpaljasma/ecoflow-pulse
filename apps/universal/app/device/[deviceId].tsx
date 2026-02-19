@@ -11,13 +11,15 @@ import { Stat } from '@/shared/ui/Stat';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { SocBar } from '@/shared/ui/SocBar';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
+import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { useChartPrefs } from '@/shared/ui/chartPrefs';
-import { useDevice } from '@/features/devices/hooks';
+import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
+import { useDevice, useDevices } from '@/features/devices/hooks';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { useTelemetrySnapshot } from '@/features/telemetry/hooks';
-import { formatAgo, formatEtaMinutes, formatW } from '@/features/telemetry/format';
+import { formatAgo, formatEtaMinutes, formatKWh, formatW } from '@/features/telemetry/format';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getStatusGlyph } from '@/shared/ui/statusGlyph';
@@ -27,6 +29,7 @@ import { env } from '@/shared/config/env';
 
 const DETAIL_TREND_POINTS = 60;
 const DETAIL_TREND_BUCKET_MS = 5_000;
+const SOLAR_GENERATED_POINTS = 72;
 
 function isNearZero(value: number | undefined | null): boolean {
   if (value === null || value === undefined || Number.isNaN(value)) return false;
@@ -46,6 +49,57 @@ function formatSolarState(state: string | undefined): string {
   return state.replaceAll('_', ' ');
 }
 
+function isInactivePvPort(volts: number | undefined): boolean {
+  return Number.isFinite(volts as number) && Math.abs((volts as number) ?? 0) <= 0.5;
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
+function toPctOfMax(watts: number | undefined, maxWatts: number | undefined): number | null {
+  if (!Number.isFinite(watts as number) || !Number.isFinite(maxWatts as number) || (maxWatts as number) <= 0) {
+    return null;
+  }
+  return ((watts as number) / (maxWatts as number)) * 100;
+}
+
+function pvLoadColor(percent: number): string {
+  const pct = clampPercent(percent) / 100;
+  // Match SOC orange tone: #ff9f0a, with a lighter ramp at low utilization.
+  const start = { r: 255, g: 232, b: 199 };
+  const end = { r: 255, g: 159, b: 10 };
+  const r = Math.round(start.r + (end.r - start.r) * pct);
+  const g = Math.round(start.g + (end.g - start.g) * pct);
+  const b = Math.round(start.b + (end.b - start.b) * pct);
+  return `rgb(${r},${g},${b})`;
+}
+
+function getSolarPortUiState(port: {
+  state?: string;
+  volts?: number;
+  amps?: number;
+  watts?: number;
+}): { label: string; tone: 'neutral' | 'success' | 'warning' | 'danger' | 'info' } {
+  const stateLabel = formatSolarState(port.state).toLowerCase();
+  const hasFlow =
+    (Number.isFinite(port.watts as number) && (port.watts as number) > 1) ||
+    (Number.isFinite(port.amps as number) && (port.amps as number) > 0.03);
+  const isInactive = isInactivePvPort(port.volts);
+
+  if (isInactive) {
+    return { label: 'inactive', tone: 'neutral' };
+  }
+  if (stateLabel === 'unknown' && hasFlow) {
+    return { label: 'active', tone: 'success' };
+  }
+  return {
+    label: stateLabel,
+    tone: toneForState(port.state)
+  };
+}
+
 export default function DeviceDetailScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -57,6 +111,7 @@ export default function DeviceDetailScreen() {
   const trendChartStyle = useChartPrefs((s) => s.trendChartStyle);
   const toggleTrendChartStyle = useChartPrefs((s) => s.toggleTrendChartStyle);
   const deviceQuery = useDevice(deviceId);
+  const devicesQuery = useDevices();
   const telemetry = useTelemetrySnapshot(deviceId ? [deviceId] : []);
   const snapshot = deviceId ? telemetry.byId[deviceId] : undefined;
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -71,6 +126,12 @@ export default function DeviceDetailScreen() {
     ac: Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
     dc: Array.from({ length: DETAIL_TREND_POINTS }, () => 0)
   }));
+  const [solarGeneratedTrend, setSolarGeneratedTrend] = useState<number[]>(
+    Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0)
+  );
+  const solarGeneratedMinuteRef = useRef<number | null>(null);
+  const solarGeneratedSigRef = useRef<string>('');
+  const solarGeneratedInitializedRef = useRef(false);
   const pendingBucketRef = useRef<{
     bucket: number;
     loadSum: number;
@@ -87,13 +148,55 @@ export default function DeviceDetailScreen() {
 
   useEffect(() => {
     pendingBucketRef.current = null;
+    solarGeneratedInitializedRef.current = false;
+    solarGeneratedMinuteRef.current = null;
+    solarGeneratedSigRef.current = '';
     setDetailTrend({
       load: Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
       pv: Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
       ac: Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
       dc: Array.from({ length: DETAIL_TREND_POINTS }, () => 0)
     });
+    setSolarGeneratedTrend(Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0));
   }, [deviceId]);
+
+  const listDeviceSolarSeries = useMemo(() => {
+    if (!deviceId || !devicesQuery.data?.devices?.length) return [];
+    return devicesQuery.data.devices.find((d) => d.id === deviceId)?.solarGeneratedSeriesWh ?? [];
+  }, [deviceId, devicesQuery.data?.devices]);
+
+  const detailSolarSeries = deviceQuery.data?.solarGeneratedSeriesWh ?? [];
+  const perDeviceSolarSeries =
+    detailSolarSeries.length >= listDeviceSolarSeries.length
+      ? detailSolarSeries
+      : listDeviceSolarSeries;
+
+  useEffect(() => {
+    const raw = perDeviceSolarSeries;
+    if (!raw.length) {
+      return;
+    }
+    const minuteBucket = Math.floor(nowMs / 60_000);
+    const rawSig = `${raw.length}:${raw[0] ?? 0}:${raw[raw.length - 1] ?? 0}:${raw
+      .slice(Math.max(0, raw.length - 6))
+      .map((v) => Number(v).toFixed(3))
+      .join(',')}`;
+    if (
+      solarGeneratedInitializedRef.current &&
+      solarGeneratedMinuteRef.current === minuteBucket &&
+      solarGeneratedSigRef.current === rawSig
+    ) {
+      return;
+    }
+    const padded =
+      raw.length >= SOLAR_GENERATED_POINTS
+        ? raw.slice(-SOLAR_GENERATED_POINTS)
+        : [...Array.from({ length: SOLAR_GENERATED_POINTS - raw.length }, () => 0), ...raw];
+    setSolarGeneratedTrend(padded.map((v) => Math.max(0, v)));
+    solarGeneratedInitializedRef.current = true;
+    solarGeneratedMinuteRef.current = minuteBucket;
+    solarGeneratedSigRef.current = rawSig;
+  }, [perDeviceSolarSeries, nowMs]);
 
   useEffect(() => {
     const currentLoad = snapshot?.metrics?.loadW ?? deviceQuery.data?.loadW ?? 0;
@@ -220,12 +323,27 @@ export default function DeviceDetailScreen() {
   const estimateLabel = details?.estimateMode
     ? `${details.estimateMode}${details.estimateSource ? ` · ${details.estimateSource}` : ''}`
     : details?.estimateSource ?? 'n/a';
+  const capabilities = deviceQuery.data?.capabilities as Record<string, unknown> | undefined;
+  const supportsEvCharging =
+    modelLower.includes('delta pro ultra') ||
+    capabilities?.evCharging === true ||
+    capabilities?.evCharger === true ||
+    capabilities?.evOutput === true;
+  const supportsBatteryHeating =
+    modelLower.includes('delta pro ultra') ||
+    capabilities?.batteryHeating === true ||
+    capabilities?.preconditioning === true;
+  const preconditioningOn =
+    details?.batteryHeatingOn === true ||
+    (details?.packs ?? []).some((pack) => pack.heatingOn === true);
+  const dcSignalOn = details?.dcOn === true || details?.usbOn === true || details?.dc12vOn === true;
   const signalRows: Array<{ label: string; on?: boolean }> = [
     { label: 'AC On', on: details?.acOn },
-    { label: 'DC On', on: details?.dcOn },
+    { label: 'DC On', on: dcSignalOn },
     { label: 'USB On', on: details?.usbOn },
     { label: '12V On', on: details?.dc12vOn },
-    { label: 'EV Charging', on: details?.evChargingOn },
+    ...(supportsEvCharging ? [{ label: 'EV Charging', on: details?.evChargingOn }] : []),
+    ...(supportsBatteryHeating ? [{ label: 'Preconditioning', on: preconditioningOn }] : []),
     { label: 'Fan', on: details?.fanOn },
     { label: 'Solar Charging', on: details?.solarChargingOn }
   ];
@@ -325,26 +443,47 @@ export default function DeviceDetailScreen() {
                 <SocBar value={snapshot?.metrics?.soc ?? deviceQuery.data?.batteryPct} fullWidth />
               </XStack>
               <Text fontSize="$3" opacity={0.75} marginBottom="$1" flexShrink={0}>
-                {capacityKWh !== null ? `🔋 ${capacityKWh.toFixed(1)}kWh` : '🔋 n/a'}
+                {capacityKWh !== null ? `🔋 ${formatKWh(capacityKWh)}` : '🔋 n/a'}
               </Text>
             </XStack>
-            <XStack gap="$3" flexWrap="wrap" paddingRight="$2">
-              <Stat label="∿ AC" value={formatW(acInW)} tone={isNearZero(acInW) ? 'muted' : 'default'} />
-              <Stat label="⎓ DC" value={formatW(dcW)} tone={isNearZero(dcW) ? 'muted' : 'default'} />
-              <Stat label="☼ PV" value={formatW(snapshot?.metrics?.pvW)} tone={isNearZero(snapshot?.metrics?.pvW) ? 'muted' : 'default'} />
-              <Stat label="⌂ Load" value={formatW(snapshot?.metrics?.loadW)} tone={isNearZero(snapshot?.metrics?.loadW) ? 'muted' : 'default'} />
-              <Stat label="⚖ Net" value={formatW(netW)} />
-              <Stat label="🔋 Battery" value={formatW(snapshot?.metrics?.batteryW)} />
-              <Stat
-                label={isColdTemp ? '❄ Temp' : '🌡 Temp'}
-                value={snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—'}
-                tone={isColdTemp ? 'cold' : 'default'}
-              />
-              <Stat
-                label="◉ State"
-                value={deviceQuery.data ? detailState : '—'}
-              />
-              <Stat label="⏱ ETA" value={formatEtaMinutes(deviceQuery.data?.etaMinutes)} />
+            <XStack flexWrap="wrap" marginHorizontal={-4}>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat label="∿ AC" value={formatW(acInW)} tone={isNearZero(acInW) ? 'muted' : 'default'} />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat label="⎓ DC" value={formatW(dcW)} tone={isNearZero(dcW) ? 'muted' : 'default'} />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat label="☼ PV" value={formatW(snapshot?.metrics?.pvW)} tone={isNearZero(snapshot?.metrics?.pvW) ? 'muted' : 'default'} />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <SolarTodayBadge valueWh={deviceQuery.data?.solarTodayWh} compact fitCell />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat label="⌂ Load" value={formatW(snapshot?.metrics?.loadW)} tone={isNearZero(snapshot?.metrics?.loadW) ? 'muted' : 'default'} />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat label="⚖ Net" value={formatW(netW)} />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat label="🔋 Battery" value={formatW(snapshot?.metrics?.batteryW)} />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat
+                  label={isColdTemp ? '❄ Temp' : '🌡 Temp'}
+                  value={snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—'}
+                  tone={isColdTemp ? 'cold' : 'default'}
+                />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat
+                  label="◉ State"
+                  value={deviceQuery.data ? detailState : '—'}
+                />
+              </YStack>
+              <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                <Stat label="⏱ ETA" value={formatEtaMinutes(deviceQuery.data?.etaMinutes)} />
+              </YStack>
             </XStack>
             <XStack justifyContent="flex-end" alignItems="center" gap="$2">
               {deviceQuery.data ? (
@@ -361,8 +500,112 @@ export default function DeviceDetailScreen() {
               </Text>
             </XStack>
           </YStack>
+      </XStack>
+    </Card>
+
+      {isTablet ? (
+        <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+          <YStack
+            flexBasis="50%"
+            minWidth="50%"
+            maxWidth="50%"
+            gap="$2"
+            padding="$3"
+            borderRadius="$3"
+            borderWidth={1}
+            borderColor="rgba(120,120,128,0.24)"
+          >
+            <XStack alignItems="center" justifyContent="space-between">
+              <Text fontSize="$4" fontWeight="700">
+                ☼ Solar Generated (6am-6pm, 10m buckets)
+              </Text>
+              <Text fontSize="$2" opacity={0.72}>
+                1m refresh
+              </Text>
+            </XStack>
+            <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+          </YStack>
+          <YStack
+            flexBasis="50%"
+            minWidth="50%"
+            maxWidth="50%"
+            gap="$2"
+            padding="$3"
+            borderRadius="$3"
+            borderWidth={1}
+            borderColor="rgba(120,120,128,0.24)"
+          >
+            <XStack alignItems="center" justifyContent="space-between">
+              <Text fontSize="$4" fontWeight="700">
+                Power Trends
+              </Text>
+              <Text
+                fontSize="$2"
+                opacity={0.88}
+                paddingHorizontal="$2"
+                paddingVertical="$1"
+                borderRadius="$3"
+                borderWidth={1}
+                borderColor="rgba(120,120,128,0.3)"
+                onPress={toggleTrendChartStyle}
+                cursor="pointer"
+              >
+                {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
+              </Text>
+            </XStack>
+            <PowerTrendChart
+              solar={sparklinePV}
+              ac={sparklineAC}
+              dc={sparklineDC}
+              load={sparklineLoad}
+              points={DETAIL_TREND_POINTS}
+              style={trendChartStyle}
+            />
+          </YStack>
         </XStack>
-      </Card>
+      ) : (
+        <YStack gap="$3">
+          <Card gap="$2">
+            <XStack alignItems="center" justifyContent="space-between">
+              <Text fontSize="$4" fontWeight="700">
+                ☼ Solar Generated (6am-6pm, 10m buckets)
+              </Text>
+              <Text fontSize="$2" opacity={0.72}>
+                1m refresh
+              </Text>
+            </XStack>
+            <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+          </Card>
+          <Card gap="$2">
+            <XStack alignItems="center" justifyContent="space-between">
+              <Text fontSize="$4" fontWeight="700">
+                Power Trends
+              </Text>
+              <Text
+                fontSize="$2"
+                opacity={0.88}
+                paddingHorizontal="$2"
+                paddingVertical="$1"
+                borderRadius="$3"
+                borderWidth={1}
+                borderColor="rgba(120,120,128,0.3)"
+                onPress={toggleTrendChartStyle}
+                cursor="pointer"
+              >
+                {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
+              </Text>
+            </XStack>
+            <PowerTrendChart
+              solar={sparklinePV}
+              ac={sparklineAC}
+              dc={sparklineDC}
+              load={sparklineLoad}
+              points={DETAIL_TREND_POINTS}
+              style={trendChartStyle}
+            />
+          </Card>
+        </YStack>
+      )}
 
       <XStack gap="$3" flexWrap="wrap">
         <Card gap="$3" flex={1} minWidth={isDesktop ? 320 : 280}>
@@ -384,15 +627,31 @@ export default function DeviceDetailScreen() {
                   padding="$2"
                   borderRadius="$3"
                   borderWidth={1}
-                  borderColor="rgba(120,120,128,0.24)"
+                  borderColor={
+                    pack.heatingOn
+                      ? 'rgba(255,159,10,0.55)'
+                      : 'rgba(120,120,128,0.24)'
+                  }
+                  backgroundColor={
+                    pack.heatingOn
+                      ? 'rgba(255,159,10,0.10)'
+                      : undefined
+                  }
                 >
                   <XStack alignItems="center" justifyContent="space-between">
                     <Text fontWeight="700">{pack.id.toUpperCase()}</Text>
-                    <Text opacity={0.8}>
-                      {Number.isFinite(pack.powerW as number) ? formatW(pack.powerW) : '—'}
-                      {' · '}
-                      {Number.isFinite(pack.tempC as number) ? `${pack.tempC?.toFixed(1)}°C` : '—'}
-                    </Text>
+                    <XStack gap="$2" alignItems="center">
+                      {pack.heatingOn ? (
+                        <Text color="rgba(255,159,10,0.95)" fontWeight="700">
+                          ♨ Preconditioning
+                        </Text>
+                      ) : null}
+                      <Text opacity={0.8}>
+                        {Number.isFinite(pack.powerW as number) ? formatW(pack.powerW) : '—'}
+                        {' · '}
+                        {Number.isFinite(pack.tempC as number) ? `${pack.tempC?.toFixed(1)}°C` : '—'}
+                      </Text>
+                    </XStack>
                   </XStack>
                   <SocBar value={pack.socPct} fullWidth />
                 </YStack>
@@ -409,6 +668,12 @@ export default function DeviceDetailScreen() {
           </Text>
           <YStack gap="$2">
             {solarRows.map((port) => (
+              (() => {
+                const portInactive = isInactivePvPort(port.volts);
+                const uiState = getSolarPortUiState(port);
+                const pvLoadPct = toPctOfMax(port.watts, port.maxWatts);
+                const barPct = clampPercent(pvLoadPct ?? 0);
+                return (
               <YStack
                 key={port.id}
                 gap="$2"
@@ -416,18 +681,31 @@ export default function DeviceDetailScreen() {
                 borderRadius="$3"
                 borderWidth={1}
                 borderColor="rgba(120,120,128,0.24)"
+                opacity={portInactive ? 0.72 : 1}
               >
                 <XStack justifyContent="space-between" alignItems="center">
                   <Text fontWeight="700">{port.name}</Text>
                   <Pill
-                    label={formatSolarState(port.state)}
-                    tone={toneForState(port.state)}
+                    label={uiState.label}
+                    tone={uiState.tone}
                   />
                 </XStack>
                 <XStack gap="$3" flexWrap="wrap">
-                  <Stat label="⚡ W" value={formatW(port.watts)} tone={isNearZero(port.watts) ? 'muted' : 'default'} />
-                  <Stat label="V" value={Number.isFinite(port.volts as number) ? `${port.volts?.toFixed(1)}V` : '—'} />
-                  <Stat label="A" value={Number.isFinite(port.amps as number) ? `${port.amps?.toFixed(2)}A` : '—'} />
+                  <Stat
+                    label="⚡ W"
+                    value={formatW(port.watts)}
+                    tone={portInactive || isNearZero(port.watts) ? 'muted' : 'default'}
+                  />
+                  <Stat
+                    label="V"
+                    value={Number.isFinite(port.volts as number) ? `${port.volts?.toFixed(1)}V` : '—'}
+                    tone={portInactive ? 'muted' : 'default'}
+                  />
+                  <Stat
+                    label="A"
+                    value={Number.isFinite(port.amps as number) ? `${port.amps?.toFixed(2)}A` : '—'}
+                    tone={portInactive ? 'muted' : 'default'}
+                  />
                   <Stat
                     label="Cap"
                     value={
@@ -435,9 +713,35 @@ export default function DeviceDetailScreen() {
                         ? `${port.maxWatts}W · ${port.maxVolts ?? '—'}V · ${port.maxAmps ?? '—'}A`
                         : '—'
                     }
+                    tone={portInactive ? 'muted' : 'default'}
                   />
                 </XStack>
+                <YStack gap="$1">
+                  <XStack alignItems="center" justifyContent="space-between">
+                    <Text opacity={portInactive ? 0.6 : 0.85} fontWeight="600">
+                      PV Load
+                    </Text>
+                    <Text opacity={portInactive ? 0.6 : 0.9} fontWeight="700">
+                      {pvLoadPct === null ? '—' : `${barPct.toFixed(1)}%`}
+                    </Text>
+                  </XStack>
+                  <XStack
+                    height={10}
+                    borderRadius="$5"
+                    overflow="hidden"
+                    backgroundColor="rgba(255,159,10,0.14)"
+                  >
+                    <XStack
+                      height="100%"
+                      width={`${barPct}%` as `${number}%`}
+                      opacity={portInactive ? 0.5 : 1}
+                      style={{ backgroundColor: pvLoadColor(barPct) }}
+                    />
+                  </XStack>
+                </YStack>
               </YStack>
+                );
+              })()
             ))}
           </YStack>
         </Card>
@@ -480,129 +784,14 @@ export default function DeviceDetailScreen() {
         </Card>
       </XStack>
 
-      {isDesktop ? (
-        <XStack gap="$3" alignItems="stretch">
-          <Card gap="$2" flex={2}>
-            <YStack
-              flex={1}
-              gap="$2"
-              padding="$3"
-              borderRadius="$3"
-              borderWidth={1}
-              borderColor="rgba(120,120,128,0.24)"
-            >
-              <XStack alignItems="center" justifyContent="space-between">
-                <Text fontSize="$4" fontWeight="700">
-                  Power Trends
-                </Text>
-                <Text
-                  fontSize="$2"
-                  opacity={0.88}
-                  paddingHorizontal="$2"
-                  paddingVertical="$1"
-                  borderRadius="$3"
-                  borderWidth={1}
-                  borderColor="rgba(120,120,128,0.3)"
-                  onPress={toggleTrendChartStyle}
-                  cursor="pointer"
-                >
-                  {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
-                </Text>
-              </XStack>
-              <PowerTrendChart
-                solar={sparklinePV}
-                ac={sparklineAC}
-                dc={sparklineDC}
-                load={sparklineLoad}
-                points={DETAIL_TREND_POINTS}
-                style={trendChartStyle}
-              />
-            </YStack>
-          </Card>
-          <Card gap="$2" flex={1}>
-            <Text fontSize="$4" fontWeight="700">
-              Connection
-            </Text>
-            <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
-            <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
-            <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
-          </Card>
-        </XStack>
-      ) : (
-        <>
-          <Card gap="$2">
-            {isTablet ? (
-              <XStack gap="$3">
-                <YStack
-                  flex={1}
-                  gap="$2"
-                  padding="$3"
-                  borderRadius="$3"
-                  borderWidth={1}
-                  borderColor="rgba(120,120,128,0.24)"
-                >
-                  <XStack alignItems="center" justifyContent="space-between">
-                    <Text fontSize="$4" fontWeight="700">
-                      Power Trends
-                    </Text>
-                    <Text
-                      fontSize="$2"
-                      opacity={0.88}
-                      paddingHorizontal="$2"
-                      paddingVertical="$1"
-                      borderRadius="$3"
-                      borderWidth={1}
-                      borderColor="rgba(120,120,128,0.3)"
-                      onPress={toggleTrendChartStyle}
-                      cursor="pointer"
-                    >
-                      {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
-                    </Text>
-                  </XStack>
-                  <PowerTrendChart
-                    solar={sparklinePV}
-                    ac={sparklineAC}
-                    dc={sparklineDC}
-                    load={sparklineLoad}
-                    points={DETAIL_TREND_POINTS}
-                    style={trendChartStyle}
-                  />
-                </YStack>
-              </XStack>
-            ) : (
-              <YStack gap="$3">
-                <YStack
-                  gap="$2"
-                  padding="$3"
-                  borderRadius="$3"
-                  borderWidth={1}
-                  borderColor="rgba(120,120,128,0.24)"
-                >
-                  <Text fontSize="$4" fontWeight="700">
-                    Power Trends
-                  </Text>
-                  <PowerTrendChart
-                    solar={sparklinePV}
-                    ac={sparklineAC}
-                    dc={sparklineDC}
-                    load={sparklineLoad}
-                    points={DETAIL_TREND_POINTS}
-                  />
-                </YStack>
-              </YStack>
-            )}
-          </Card>
-
-          <Card gap="$2">
-            <Text fontSize="$4" fontWeight="700">
-              Connection
-            </Text>
-            <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
-            <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
-            <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
-          </Card>
-        </>
-      )}
+      <Card gap="$2">
+        <Text fontSize="$4" fontWeight="700">
+          Connection
+        </Text>
+        <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
+        <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
+        <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
+      </Card>
             </YStack>
           </div>
         ) : (
@@ -660,26 +849,47 @@ export default function DeviceDetailScreen() {
                         <SocBar value={snapshot?.metrics?.soc ?? deviceQuery.data?.batteryPct} fullWidth />
                       </XStack>
                       <Text fontSize="$3" opacity={0.75} marginBottom="$1" flexShrink={0}>
-                        {capacityKWh !== null ? `🔋 ${capacityKWh.toFixed(1)}kWh` : '🔋 n/a'}
+                        {capacityKWh !== null ? `🔋 ${formatKWh(capacityKWh)}` : '🔋 n/a'}
                       </Text>
                     </XStack>
-                    <XStack gap="$3" flexWrap="wrap" paddingRight="$2">
-                      <Stat label="∿ AC" value={formatW(acInW)} tone={isNearZero(acInW) ? 'muted' : 'default'} />
-                      <Stat label="⎓ DC" value={formatW(dcW)} tone={isNearZero(dcW) ? 'muted' : 'default'} />
-                      <Stat label="☼ PV" value={formatW(snapshot?.metrics?.pvW)} tone={isNearZero(snapshot?.metrics?.pvW) ? 'muted' : 'default'} />
-                      <Stat label="⌂ Load" value={formatW(snapshot?.metrics?.loadW)} tone={isNearZero(snapshot?.metrics?.loadW) ? 'muted' : 'default'} />
-                      <Stat label="⚖ Net" value={formatW(netW)} />
-                      <Stat label="🔋 Battery" value={formatW(snapshot?.metrics?.batteryW)} />
-                      <Stat
-                        label={isColdTemp ? '❄ Temp' : '🌡 Temp'}
-                        value={snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—'}
-                        tone={isColdTemp ? 'cold' : 'default'}
-                      />
-                      <Stat
-                        label="◉ State"
-                        value={deviceQuery.data ? detailState : '—'}
-                      />
-                      <Stat label="⏱ ETA" value={formatEtaMinutes(deviceQuery.data?.etaMinutes)} />
+                    <XStack flexWrap="wrap" marginHorizontal={-4}>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat label="∿ AC" value={formatW(acInW)} tone={isNearZero(acInW) ? 'muted' : 'default'} />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat label="⎓ DC" value={formatW(dcW)} tone={isNearZero(dcW) ? 'muted' : 'default'} />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat label="☼ PV" value={formatW(snapshot?.metrics?.pvW)} tone={isNearZero(snapshot?.metrics?.pvW) ? 'muted' : 'default'} />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <SolarTodayBadge valueWh={deviceQuery.data?.solarTodayWh} compact fitCell />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat label="⌂ Load" value={formatW(snapshot?.metrics?.loadW)} tone={isNearZero(snapshot?.metrics?.loadW) ? 'muted' : 'default'} />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat label="⚖ Net" value={formatW(netW)} />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat label="🔋 Battery" value={formatW(snapshot?.metrics?.batteryW)} />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat
+                          label={isColdTemp ? '❄ Temp' : '🌡 Temp'}
+                          value={snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—'}
+                          tone={isColdTemp ? 'cold' : 'default'}
+                        />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat
+                          label="◉ State"
+                          value={deviceQuery.data ? detailState : '—'}
+                        />
+                      </YStack>
+                      <YStack width="33.333%" paddingHorizontal={4} paddingVertical={2}>
+                        <Stat label="⏱ ETA" value={formatEtaMinutes(deviceQuery.data?.etaMinutes)} />
+                      </YStack>
                     </XStack>
                     <XStack justifyContent="flex-end" alignItems="center" gap="$2">
                       {deviceQuery.data ? (
@@ -698,6 +908,110 @@ export default function DeviceDetailScreen() {
                   </YStack>
                 </XStack>
               </Card>
+
+              {isTablet ? (
+                <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+                  <YStack
+                    flexBasis="50%"
+                    minWidth="50%"
+                    maxWidth="50%"
+                    gap="$2"
+                    padding="$3"
+                    borderRadius="$3"
+                    borderWidth={1}
+                    borderColor="rgba(120,120,128,0.24)"
+                  >
+                    <XStack alignItems="center" justifyContent="space-between">
+                      <Text fontSize="$4" fontWeight="700">
+                        ☼ Solar Generated (6am-6pm, 10m buckets)
+                      </Text>
+                      <Text fontSize="$2" opacity={0.72}>
+                        1m refresh
+                      </Text>
+                    </XStack>
+                    <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+                  </YStack>
+                  <YStack
+                    flexBasis="50%"
+                    minWidth="50%"
+                    maxWidth="50%"
+                    gap="$2"
+                    padding="$3"
+                    borderRadius="$3"
+                    borderWidth={1}
+                    borderColor="rgba(120,120,128,0.24)"
+                  >
+                    <XStack alignItems="center" justifyContent="space-between">
+                      <Text fontSize="$4" fontWeight="700">
+                        Power Trends
+                      </Text>
+                      <Text
+                        fontSize="$2"
+                        opacity={0.88}
+                        paddingHorizontal="$2"
+                        paddingVertical="$1"
+                        borderRadius="$3"
+                        borderWidth={1}
+                        borderColor="rgba(120,120,128,0.3)"
+                        onPress={toggleTrendChartStyle}
+                        cursor="pointer"
+                      >
+                        {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
+                      </Text>
+                    </XStack>
+                    <PowerTrendChart
+                      solar={sparklinePV}
+                      ac={sparklineAC}
+                      dc={sparklineDC}
+                      load={sparklineLoad}
+                      points={DETAIL_TREND_POINTS}
+                      style={trendChartStyle}
+                    />
+                  </YStack>
+                </XStack>
+              ) : (
+                <YStack gap="$3">
+                  <Card gap="$2">
+                    <XStack alignItems="center" justifyContent="space-between">
+                      <Text fontSize="$4" fontWeight="700">
+                        ☼ Solar Generated (6am-6pm, 10m buckets)
+                      </Text>
+                      <Text fontSize="$2" opacity={0.72}>
+                        1m refresh
+                      </Text>
+                    </XStack>
+                    <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+                  </Card>
+                  <Card gap="$2">
+                    <XStack alignItems="center" justifyContent="space-between">
+                      <Text fontSize="$4" fontWeight="700">
+                        Power Trends
+                      </Text>
+                      <Text
+                        fontSize="$2"
+                        opacity={0.88}
+                        paddingHorizontal="$2"
+                        paddingVertical="$1"
+                        borderRadius="$3"
+                        borderWidth={1}
+                        borderColor="rgba(120,120,128,0.3)"
+                        onPress={toggleTrendChartStyle}
+                        cursor="pointer"
+                      >
+                        {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
+                      </Text>
+                    </XStack>
+                    <PowerTrendChart
+                      solar={sparklinePV}
+                      ac={sparklineAC}
+                      dc={sparklineDC}
+                      load={sparklineLoad}
+                      points={DETAIL_TREND_POINTS}
+                      style={trendChartStyle}
+                    />
+                  </Card>
+                </YStack>
+              )}
 
               <XStack gap="$3" flexWrap="wrap">
                 <Card gap="$3" flex={1} minWidth={isDesktop ? 320 : 280}>
@@ -744,6 +1058,12 @@ export default function DeviceDetailScreen() {
                   </Text>
                   <YStack gap="$2">
                     {solarRows.map((port) => (
+                      (() => {
+                        const portInactive = isInactivePvPort(port.volts);
+                        const uiState = getSolarPortUiState(port);
+                        const pvLoadPct = toPctOfMax(port.watts, port.maxWatts);
+                        const barPct = clampPercent(pvLoadPct ?? 0);
+                        return (
                       <YStack
                         key={port.id}
                         gap="$2"
@@ -751,18 +1071,31 @@ export default function DeviceDetailScreen() {
                         borderRadius="$3"
                         borderWidth={1}
                         borderColor="rgba(120,120,128,0.24)"
+                        opacity={portInactive ? 0.72 : 1}
                       >
                         <XStack justifyContent="space-between" alignItems="center">
                           <Text fontWeight="700">{port.name}</Text>
                           <Pill
-                            label={formatSolarState(port.state)}
-                            tone={toneForState(port.state)}
+                            label={uiState.label}
+                            tone={uiState.tone}
                           />
                         </XStack>
                         <XStack gap="$3" flexWrap="wrap">
-                          <Stat label="⚡ W" value={formatW(port.watts)} tone={isNearZero(port.watts) ? 'muted' : 'default'} />
-                          <Stat label="V" value={Number.isFinite(port.volts as number) ? `${port.volts?.toFixed(1)}V` : '—'} />
-                          <Stat label="A" value={Number.isFinite(port.amps as number) ? `${port.amps?.toFixed(2)}A` : '—'} />
+                          <Stat
+                            label="⚡ W"
+                            value={formatW(port.watts)}
+                            tone={portInactive || isNearZero(port.watts) ? 'muted' : 'default'}
+                          />
+                          <Stat
+                            label="V"
+                            value={Number.isFinite(port.volts as number) ? `${port.volts?.toFixed(1)}V` : '—'}
+                            tone={portInactive ? 'muted' : 'default'}
+                          />
+                          <Stat
+                            label="A"
+                            value={Number.isFinite(port.amps as number) ? `${port.amps?.toFixed(2)}A` : '—'}
+                            tone={portInactive ? 'muted' : 'default'}
+                          />
                           <Stat
                             label="Cap"
                             value={
@@ -770,9 +1103,35 @@ export default function DeviceDetailScreen() {
                                 ? `${port.maxWatts}W · ${port.maxVolts ?? '—'}V · ${port.maxAmps ?? '—'}A`
                                 : '—'
                             }
+                            tone={portInactive ? 'muted' : 'default'}
                           />
                         </XStack>
+                        <YStack gap="$1">
+                          <XStack alignItems="center" justifyContent="space-between">
+                            <Text opacity={portInactive ? 0.6 : 0.85} fontWeight="600">
+                              PV Load
+                            </Text>
+                            <Text opacity={portInactive ? 0.6 : 0.9} fontWeight="700">
+                              {pvLoadPct === null ? '—' : `${barPct.toFixed(1)}%`}
+                            </Text>
+                          </XStack>
+                          <XStack
+                            height={10}
+                            borderRadius="$5"
+                            overflow="hidden"
+                            backgroundColor="rgba(255,159,10,0.14)"
+                          >
+                            <XStack
+                              height="100%"
+                              width={`${barPct}%` as `${number}%`}
+                              opacity={portInactive ? 0.5 : 1}
+                              style={{ backgroundColor: pvLoadColor(barPct) }}
+                            />
+                          </XStack>
+                        </YStack>
                       </YStack>
+                        );
+                      })()
                     ))}
                   </YStack>
                 </Card>
@@ -815,113 +1174,14 @@ export default function DeviceDetailScreen() {
                 </Card>
               </XStack>
 
-              {isDesktop ? (
-                <XStack gap="$3" alignItems="stretch">
-                  <Card gap="$2" flex={2}>
-                    <YStack
-                      flex={1}
-                      gap="$2"
-                      padding="$3"
-                      borderRadius="$3"
-                      borderWidth={1}
-                      borderColor="rgba(120,120,128,0.24)"
-                    >
-                      <Text fontSize="$4" fontWeight="700">
-                        Power Trends
-                      </Text>
-                      <PowerTrendChart
-                        solar={sparklinePV}
-                        ac={sparklineAC}
-                        dc={sparklineDC}
-                        load={sparklineLoad}
-                        points={DETAIL_TREND_POINTS}
-                      />
-                    </YStack>
-                  </Card>
-                  <Card gap="$2" flex={1}>
-                    <Text fontSize="$4" fontWeight="700">
-                      Connection
-                    </Text>
-                    <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
-                    <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
-                    <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
-                  </Card>
-                </XStack>
-              ) : (
-                <>
-                  <Card gap="$2">
-                    {isTablet ? (
-                      <XStack gap="$3">
-                        <YStack
-                          flex={1}
-                          gap="$2"
-                          padding="$3"
-                          borderRadius="$3"
-                          borderWidth={1}
-                          borderColor="rgba(120,120,128,0.24)"
-                        >
-                          <XStack alignItems="center" justifyContent="space-between">
-                            <Text fontSize="$4" fontWeight="700">
-                              Power Trends
-                            </Text>
-                            <Text
-                              fontSize="$2"
-                              opacity={0.88}
-                              paddingHorizontal="$2"
-                              paddingVertical="$1"
-                              borderRadius="$3"
-                              borderWidth={1}
-                              borderColor="rgba(120,120,128,0.3)"
-                              onPress={toggleTrendChartStyle}
-                              cursor="pointer"
-                            >
-                              {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
-                            </Text>
-                          </XStack>
-                          <PowerTrendChart
-                            solar={sparklinePV}
-                            ac={sparklineAC}
-                            dc={sparklineDC}
-                            load={sparklineLoad}
-                            points={DETAIL_TREND_POINTS}
-                            style={trendChartStyle}
-                          />
-                        </YStack>
-                      </XStack>
-                    ) : (
-                      <YStack gap="$3">
-                        <YStack
-                          gap="$2"
-                          padding="$3"
-                          borderRadius="$3"
-                          borderWidth={1}
-                          borderColor="rgba(120,120,128,0.24)"
-                        >
-                          <Text fontSize="$4" fontWeight="700">
-                            Power Trends
-                          </Text>
-                          <PowerTrendChart
-                            solar={sparklinePV}
-                            ac={sparklineAC}
-                            dc={sparklineDC}
-                            load={sparklineLoad}
-                            points={DETAIL_TREND_POINTS}
-                          />
-                        </YStack>
-                      </YStack>
-                    )}
-                  </Card>
-
-                  <Card gap="$2">
-                    <Text fontSize="$4" fontWeight="700">
-                      Connection
-                    </Text>
-                    <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
-                    <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
-                    <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
-                  </Card>
-                </>
-              )}
+              <Card gap="$2">
+                <Text fontSize="$4" fontWeight="700">
+                  Connection
+                </Text>
+                <Text opacity={0.8}>Engine: {telemetry.connectionStatus}</Text>
+                <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
+                <Text opacity={0.8}>Serial: {deviceQuery.data?.serialNumber ?? '—'}</Text>
+              </Card>
             </YStack>
           </ScrollView>
         )}

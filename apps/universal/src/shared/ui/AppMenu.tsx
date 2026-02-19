@@ -16,31 +16,24 @@ export function AppMenu() {
       <Button
         size="$4"
         onPress={() => setOpen(true)}
-        height={36}
-        minWidth={56}
-        paddingHorizontal="$3"
-        paddingVertical="$1"
-        paddingBottom="$2"
+        width={46}
+        height={46}
+        minWidth={46}
+        paddingHorizontal="$0"
+        paddingVertical="$0"
         alignSelf="flex-start"
         backgroundColor="rgba(120,120,128,0.16)"
         borderColor="rgba(120,120,128,0.45)"
         borderWidth={1}
-        borderRadius="$4"
+        borderRadius={23}
         alignItems="center"
         justifyContent="center"
         pressStyle={{ opacity: 0.85 }}
-        style={
-          Platform.OS === 'web'
-            ? ({
-                paddingTop: 10,
-                paddingBottom: 6
-              } as any)
-            : undefined
-        }
+        style={Platform.OS === 'web' ? ({ paddingTop: 0, paddingBottom: 0 } as any) : undefined}
         aria-label="Open menu"
       >
-        <XStack width={24} height={24} alignItems="center" justifyContent="center">
-          <Image source={menuMark} style={{ width: 20, height: 20, marginTop: 1 }} resizeMode="contain" />
+        <XStack width={26} height={26} alignItems="center" justifyContent="center">
+          <Image source={menuMark} style={{ width: 20, height: 20 }} resizeMode="contain" />
         </XStack>
       </Button>
 

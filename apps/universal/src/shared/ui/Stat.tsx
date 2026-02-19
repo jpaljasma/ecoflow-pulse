@@ -4,11 +4,13 @@ import { Text, YStack } from 'tamagui';
 export function Stat({
   label,
   value,
-  tone = 'default'
+  tone = 'default',
+  compact = false
 }: {
   label: string;
   value: ReactNode;
   tone?: 'default' | 'muted' | 'cold';
+  compact?: boolean;
 }) {
   const mutedColor = 'rgba(168,168,176,0.95)';
   const coldColor = '#2f80ed';
@@ -20,18 +22,20 @@ export function Stat({
         fontFamily="$body"
         color={resolvedColor}
         opacity={labelOpacity}
-        fontSize="$3"
+        fontSize={compact ? '$1' : '$3'}
         fontWeight="500"
+        numberOfLines={1}
       >
         {label}
       </Text>
       <Text
         fontFamily="$body"
-        fontSize="$4"
+        fontSize={compact ? '$3' : '$4'}
         fontWeight="700"
         letterSpacing={-0.1}
         color={resolvedColor}
         opacity={1}
+        numberOfLines={1}
       >
         {value}
       </Text>

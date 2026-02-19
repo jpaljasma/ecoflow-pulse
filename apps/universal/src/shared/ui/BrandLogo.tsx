@@ -5,15 +5,17 @@ import { getBundledBrandWordmark } from '@/shared/assets/brandBundled';
 
 export function BrandLogo({
   compact = false,
+  dense = false,
   onPress
 }: {
   compact?: boolean;
+  dense?: boolean;
   onPress?: () => void;
 }) {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? 'dark' : 'light';
-  const logoWidth = compact ? 150 : 210;
-  const logoHeight = compact ? 26 : 36;
+  const logoWidth = dense ? 122 : compact ? 150 : 210;
+  const logoHeight = dense ? 22 : compact ? 26 : 36;
   const pulseSize = logoHeight;
   const logoSrc = getBundledBrandWordmark(theme);
 
@@ -39,7 +41,7 @@ export function BrandLogo({
         fontWeight="800"
         fontStyle="italic"
         letterSpacing={-0.7}
-        paddingLeft={12}
+        paddingLeft={dense ? 8 : 12}
         style={Platform.OS === 'web' ? ({ fontSize: '2em' } as any) : undefined}
       >
         Pulse

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Animated } from 'react-native';
+import { Animated, useWindowDimensions } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
@@ -10,6 +10,8 @@ import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 
 export default function AboutScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const compactHeader = width < 430;
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
 
   return (
@@ -17,11 +19,15 @@ export default function AboutScreen() {
       <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
       <TopBar
         left={<CloseToHomeButton onClose={closeToHome} />}
-        title={<BrandLogo onPress={() => router.push('/devices')} />}
+        title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
         subtitle="About EcoFlow Pulse"
-        right={<AppMenu />}
-        titleFlex={3}
-        rightFlex={1}
+        right={
+          <YStack alignItems="flex-end">
+            <AppMenu />
+          </YStack>
+        }
+        titleFlex={compactHeader ? 1 : 3}
+        rightFlex={compactHeader ? 0 : 1}
       />
       <Card gap="$2">
         <Text fontSize="$6" fontWeight="700">

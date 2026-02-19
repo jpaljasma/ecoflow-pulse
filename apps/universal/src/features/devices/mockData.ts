@@ -5,6 +5,7 @@ export type BatteryPackDetail = {
   socPct?: number;
   powerW?: number;
   tempC?: number;
+  heatingOn?: boolean;
 };
 
 export type SolarPortDetail = {
@@ -38,6 +39,7 @@ export type DeviceTelemetryDetails = {
   evChargingOn?: boolean;
   fanOn?: boolean;
   solarChargingOn?: boolean;
+  batteryHeatingOn?: boolean;
   mqttQueueDepth?: number;
   mqttQueueDroppedOldest?: number;
 };
@@ -56,6 +58,8 @@ export type MockDevice = {
   dcW?: number;
   loadW?: number;
   netW?: number;
+  solarTodayWh?: number;
+  solarGeneratedSeriesWh?: number[];
   tempC?: number;
   telemetryTsMs?: number;
   capabilities?: Record<string, unknown>;
@@ -78,6 +82,7 @@ export const mockDevices: MockDevice[] = [
     dcW: 0,
     loadW: 0,
     netW: 0,
+    solarTodayWh: 724,
     tempC: 0,
     telemetryTsMs: 0,
     capabilities: {
@@ -100,6 +105,7 @@ export const mockDevices: MockDevice[] = [
     dcW: 0,
     loadW: 0,
     netW: 0,
+    solarTodayWh: 0,
     tempC: 0,
     telemetryTsMs: 0,
     capabilities: {

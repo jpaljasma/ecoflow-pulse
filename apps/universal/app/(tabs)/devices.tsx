@@ -80,13 +80,13 @@ export default function DevicesScreen() {
         titleFlex={compactHeader ? 1 : 3}
         rightFlex={compactHeader ? 0 : 1}
         right={
-          <XStack alignItems="flex-start" gap="$1" paddingBottom="$2" marginLeft="$1">
+          <XStack alignItems="center" gap="$1" marginLeft="$1">
             <Animated.View
               style={{
                 width: compactHeader ? 12 : 14,
                 height: compactHeader ? 12 : 14,
                 borderRadius: compactHeader ? 6 : 7,
-                marginTop: compactHeader ? 10 : 8,
+                marginTop: compactHeader ? 2 : 1,
                 backgroundColor: statusDotColor(telemetry.connectionStatus),
                 transform: [{ scale: dotScale }],
                 opacity: dotOpacity
@@ -142,7 +142,7 @@ export default function DevicesScreen() {
               byId={telemetry.byId}
               connectionStatus={telemetry.connectionStatus}
               header={(
-                <YStack paddingHorizontal="$4" marginTop={10} marginBottom="$3">
+                <YStack marginTop={10} marginBottom="$3">
                   <SummaryPanel devices={devicesQuery.data.devices} byId={telemetry.byId} />
                 </YStack>
               )}

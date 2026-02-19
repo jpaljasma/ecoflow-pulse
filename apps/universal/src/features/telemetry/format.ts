@@ -1,12 +1,37 @@
+function formatScaled(
+  value: number,
+  baseUnit: string,
+  kiloUnit: string
+): string {
+  if (Math.abs(value) < 1000) {
+    return `${Math.round(value)} ${baseUnit}`;
+  }
+  return `${(value / 1000).toFixed(2)} ${kiloUnit}`;
+}
+
 export function formatW(value: number | undefined | null): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return '—';
   }
-  const abs = Math.abs(value);
-  if (abs >= 1000) {
-    return `${(value / 1000).toFixed(1)} kW`;
+  return formatScaled(value, 'W', 'kW');
+}
+
+export function formatKWh(value: number | undefined | null): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '—';
   }
-  return `${value.toFixed(1)} W`;
+  const wh = value * 1000;
+  if (Math.abs(wh) < 1000) {
+    return `${Math.round(wh)} Wh`;
+  }
+  return `${value.toFixed(2)} kWh`;
+}
+
+export function formatWhAndKWh(valueWh: number | undefined | null): string {
+  if (valueWh === null || valueWh === undefined || Number.isNaN(valueWh)) {
+    return '—';
+  }
+  return formatScaled(Math.max(0, valueWh), 'Wh', 'kWh');
 }
 
 export function formatSoc(value: number | undefined | null): string {

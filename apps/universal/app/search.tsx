@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Animated, Platform } from 'react-native';
+import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Input, Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
@@ -12,6 +12,8 @@ import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 export default function SearchScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const { width } = useWindowDimensions();
+  const compactHeader = width < 430;
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
 
   return (
@@ -19,11 +21,15 @@ export default function SearchScreen() {
       <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
       <TopBar
         left={<CloseToHomeButton onClose={closeToHome} />}
-        title={<BrandLogo onPress={() => router.push('/devices')} />}
+        title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
         subtitle="Search devices and telemetry"
-        right={<AppMenu />}
-        titleFlex={3}
-        rightFlex={1}
+        right={
+          <YStack alignItems="flex-end">
+            <AppMenu />
+          </YStack>
+        }
+        titleFlex={compactHeader ? 1 : 3}
+        rightFlex={compactHeader ? 0 : 1}
       />
       <Card gap="$3">
         <XStack alignItems="center" gap="$2">

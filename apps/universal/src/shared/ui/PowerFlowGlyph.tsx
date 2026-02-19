@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
-import { Text } from 'tamagui';
-import { getPowerFlowGlyph } from '@/shared/ui/statusGlyph';
+import { Platform } from 'react-native';
+import { Text, XStack } from 'tamagui';
+import { getPowerFlowGlyphParts } from '@/shared/ui/statusGlyph';
 
 export type PowerFlowGlyphProps = {
   stale?: boolean;
@@ -21,9 +22,21 @@ export function PowerFlowGlyph({
   lineHeight = 30,
   opacity = 1
 }: PowerFlowGlyphProps) {
+  const glyphParts = getPowerFlowGlyphParts({ stale, status, pvW, loadW });
+  const adjustedLineHeight = Math.max(lineHeight, 34);
+
   return (
-    <Text fontSize={fontSize} lineHeight={lineHeight} opacity={opacity}>
-      {getPowerFlowGlyph({ stale, status, pvW, loadW })}
-    </Text>
+    <XStack alignItems="center" gap={2} opacity={opacity}>
+      {glyphParts.map((glyph, index) => (
+        <Text
+          key={`${glyph}-${index}`}
+          fontSize={fontSize}
+          lineHeight={adjustedLineHeight}
+          style={Platform.OS === 'ios' ? ({ paddingTop: 2 } as any) : undefined}
+        >
+          {glyph}
+        </Text>
+      ))}
+    </XStack>
   );
 }

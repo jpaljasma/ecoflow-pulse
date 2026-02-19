@@ -76,8 +76,8 @@ export function CloseToHomeButton({
         accessibilityRole="button"
         accessibilityLabel="Close and return to devices"
       >
-        <Text fontSize="$6" lineHeight={20} fontWeight="700">
-          ✕
+        <Text fontSize="$7" lineHeight={24} fontWeight="700" marginTop={-1}>
+          ×
         </Text>
       </Button>
     </Animated.View>

@@ -37,18 +37,27 @@ export function getPowerFlowGlyph(params: {
   pvW?: number;
   loadW?: number;
 }): string {
-  if (params.stale || params.status === 'stale') return getStatusGlyph('stale');
+  return getPowerFlowGlyphParts(params).join(' ');
+}
+
+export function getPowerFlowGlyphParts(params: {
+  stale?: boolean;
+  status?: 'charging' | 'discharging' | 'idle' | 'stale';
+  pvW?: number;
+  loadW?: number;
+}): string[] {
+  if (params.stale || params.status === 'stale') return [getStatusGlyph('stale')];
 
   if (params.status === 'charging') {
     const pvW = params.pvW ?? 0;
-    if (pvW > 5) return '☀⚡'; // charging with solar present
-    return '⚡'; // charging, likely AC or non-PV source
+    if (pvW > 5) return ['☀', '⚡']; // charging with solar present
+    return ['⚡']; // charging, likely AC or non-PV source
   }
 
   if (params.status === 'discharging') {
-    return '↘'; // discharging
+    return ['↘']; // discharging
   }
 
-  if (params.status === 'idle') return getStatusGlyph('idle');
-  return getStatusGlyph('waiting');
+  if (params.status === 'idle') return [getStatusGlyph('idle')];
+  return [getStatusGlyph('waiting')];
 }
