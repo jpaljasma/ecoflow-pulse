@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import { Animated, Image, Platform, useWindowDimensions } from 'react-native';
+import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
@@ -13,6 +14,9 @@ import { getCapacityKWh } from '@/features/devices/capacity';
 import { SocBar } from '@/shared/ui/SocBar';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getStatusGlyph } from '@/shared/ui/statusGlyph';
+import { CachedImage } from '@/shared/ui/CachedImage';
+import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
+import { env } from '@/shared/config/env';
 
 function isNearZero(value: number | undefined | null): boolean {
   if (value === null || value === undefined || Number.isNaN(value)) return false;
@@ -56,8 +60,19 @@ export function DeviceCard({
     device.details?.bpCount ??
     ((device.capabilities as { batteryPacks?: number } | undefined)?.batteryPacks ?? 1);
   const match = getDeviceAssetMatch(device.model, { batteryCount });
-  const cardImage = match.slug ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize(imageContext)) : null;
-  const imageSource = useMemo(() => (cardImage ? { uri: cardImage } : undefined), [cardImage]);
+  const useRemoteImage = Boolean(env.assetBaseUrl);
+  const imageUri = useMemo(
+    () =>
+      useRemoteImage && match.slug
+        ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize(imageContext))
+        : undefined,
+    [useRemoteImage, match.slug, imageContext]
+  );
+  const fallbackSource = useMemo(
+    () => (match.slug ? getBundledDeviceFallback(match.slug, '256') : undefined),
+    [match.slug]
+  );
+  const [imageFailed, setImageFailed] = useState(false);
   const imageBoxSize = isDesktopWide ? 106 : isTabletUp ? 99 : 92;
   const railWidth = isDesktopWide ? 124 : isTabletUp ? 117 : 106;
 
@@ -90,6 +105,10 @@ export function DeviceCard({
     }).start();
   }, [fadeOpacity, isInactive]);
 
+  useEffect(() => {
+    setImageFailed(false);
+  }, [imageUri]);
+
   return (
     <Animated.View style={{ opacity: fadeOpacity }}>
       <Card
@@ -120,11 +139,18 @@ export function DeviceCard({
               backgroundColor="rgba(120,120,128,0.12)"
               overflow="hidden"
             >
-              {imageSource && Platform.OS === 'web' ? (
-                <Image
-                  source={imageSource}
+              {imageUri && !imageFailed ? (
+                <CachedImage
+                  uri={imageUri}
                   style={{ width: imageBoxSize * 1.08, height: imageBoxSize * 1.08 }}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  onError={() => setImageFailed(true)}
+                />
+              ) : fallbackSource ? (
+                <ExpoImage
+                  source={fallbackSource}
+                  style={{ width: imageBoxSize * 1.08, height: imageBoxSize * 1.08 }}
+                  contentFit="cover"
                 />
               ) : (
                 <Text fontSize="$10">{match.glyph.emoji}</Text>

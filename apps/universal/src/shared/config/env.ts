@@ -1,8 +1,14 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 const extra = Constants.expoConfig?.extra ?? {};
+const defaultWebAssetBaseUrl =
+  Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : '';
 
 export const env = {
+  defaultAssetBaseUrl: defaultWebAssetBaseUrl,
   apiUrl:
     process.env.EXPO_PUBLIC_API_URL ??
     (typeof extra.apiUrl === 'string' ? extra.apiUrl : 'mock://ecoflow'),
@@ -17,6 +23,11 @@ export const env = {
     (typeof extra.mockTrainingUrl === 'string'
       ? extra.mockTrainingUrl
       : '/mock/telemetry_training.csv'),
+  assetBaseUrl:
+    process.env.EXPO_PUBLIC_ASSET_BASE_URL ??
+    (typeof extra.assetBaseUrl === 'string'
+      ? extra.assetBaseUrl
+      : defaultWebAssetBaseUrl),
   closePageTransition:
     process.env.EXPO_PUBLIC_CLOSE_PAGE_TRANSITION ??
     (typeof extra.closePageTransition === 'string'

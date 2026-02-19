@@ -1,3 +1,6 @@
+import { Platform } from 'react-native';
+import { env } from '@/shared/config/env';
+
 export type EcoFlowLogoVariant = 'black' | 'white';
 export type EcoFlowLogoSize = 'mark' | 'wordmark' | '1024' | '512' | '256';
 
@@ -23,7 +26,14 @@ export function getEcoFlowLogo(
   variant: EcoFlowLogoVariant = 'black'
 ): string {
   const entry = ECOFLOW_BRAND[variant];
-  return entry[size] ?? entry['512'];
+  const path = entry[size] ?? entry['512'];
+  if (Platform.OS === 'web' && !env.assetBaseUrl) {
+    return path;
+  }
+  const base =
+    env.assetBaseUrl ||
+    'https://cdn.jsdelivr.net/gh/jpaljasma/ecoflow-pulse@main/apps/universal/public';
+  return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
 export function getEcoFlowLogoForTheme(

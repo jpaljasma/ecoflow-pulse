@@ -1,8 +1,10 @@
+import { Platform } from 'react-native';
+import { env } from '@/shared/config/env';
+
 /**
  * EcoFlow DELTA-family product image assets (official EcoFlow sources).
  *
  * Generated from ecoflow_delta_assets/manifest.json and adapted for app use.
- * Paths resolve from web root `/public`.
  */
 
 export type EcoFlowDeviceSlug =
@@ -106,7 +108,13 @@ export function getEcoFlowAsset(
 ): string {
   const entry = ECOFLOW_ASSETS[slug];
   const path = entry[size] ?? entry['512'];
-  return `/${path}`;
+  if (Platform.OS === 'web' && !env.assetBaseUrl) {
+    return `/${path}`;
+  }
+  const base =
+    env.assetBaseUrl ||
+    'https://raw.githubusercontent.com/jpaljasma/ecoflow-pulse/main/apps/universal/public';
+  return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
 export function getEcoFlowDefaultSize(

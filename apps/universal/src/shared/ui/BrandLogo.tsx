@@ -1,7 +1,7 @@
 import { Image, Platform, Pressable } from 'react-native';
 import { useColorScheme } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
-import { getEcoFlowLogoForTheme } from '@/shared/assets/ecoflowBrandAssets';
+import { getBundledBrandWordmark } from '@/shared/assets/brandBundled';
 
 export function BrandLogo({
   compact = false,
@@ -15,7 +15,7 @@ export function BrandLogo({
   const logoWidth = compact ? 150 : 210;
   const logoHeight = compact ? 26 : 36;
   const pulseSize = logoHeight;
-  const logoSrc = getEcoFlowLogoForTheme(theme, 'wordmark');
+  const logoSrc = getBundledBrandWordmark(theme);
 
   const content = (
     <XStack alignItems="center" gap="$2">
@@ -26,15 +26,11 @@ export function BrandLogo({
         justifyContent="center"
         overflow="hidden"
       >
-        {Platform.OS === 'web' ? (
-          <Image
-            source={{ uri: logoSrc }}
-            style={{ width: logoWidth, height: logoHeight }}
-            resizeMode="contain"
-          />
-        ) : (
-          <Text fontSize={compact ? '$2' : '$3'}>⚡</Text>
-        )}
+        <Image
+          source={logoSrc}
+          style={{ width: logoWidth, height: logoHeight }}
+          resizeMode="contain"
+        />
       </YStack>
       <Text
         fontFamily="$heading"

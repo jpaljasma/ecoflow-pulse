@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -11,6 +12,9 @@ import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { useChartPrefs } from '@/shared/ui/chartPrefs';
+import { CachedImage } from '@/shared/ui/CachedImage';
+import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
+import { env } from '@/shared/config/env';
 
 const SUMMARY_TREND_POINTS = 60;
 const SUMMARY_TREND_BUCKET_MS = 5_000;
@@ -48,6 +52,7 @@ export function SummaryPanel({
 }) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
+  const useRemoteImage = Boolean(env.assetBaseUrl);
   const trendChartStyle = useChartPrefs((s) => s.trendChartStyle);
   const toggleTrendChartStyle = useChartPrefs((s) => s.toggleTrendChartStyle);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -199,7 +204,14 @@ export function SummaryPanel({
 
   const uniqueTypes = useMemo(() => {
     const seen = new Set<string>();
-    const out: Array<{ key: string; label: string; uri?: string; emoji: string; active: boolean }> = [];
+    const out: Array<{
+      key: string;
+      label: string;
+      uri?: string;
+      fallback?: ReturnType<typeof getBundledDeviceFallback>;
+      emoji: string;
+      active: boolean;
+    }> = [];
     const now = nowMs;
 
     for (const device of devices) {
@@ -222,13 +234,17 @@ export function SummaryPanel({
       out.push({
         key,
         label: match.glyph.label,
-        uri: match.slug ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('list')) : undefined,
+        uri:
+          useRemoteImage && match.slug
+            ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('list'))
+            : undefined,
+        fallback: match.slug ? getBundledDeviceFallback(match.slug, '256') : undefined,
         emoji: match.glyph.emoji,
         active: hasActive
       });
     }
     return out;
-  }, [devices, byId, nowMs]);
+  }, [devices, byId, nowMs, useRemoteImage]);
 
   return (
     <Card>
@@ -250,11 +266,17 @@ export function SummaryPanel({
                 justifyContent="center"
                 opacity={item.active ? 1 : 0.42}
               >
-                {item.uri && Platform.OS === 'web' ? (
-                  <Image
-                    source={{ uri: item.uri }}
+                {item.uri ? (
+                  <CachedImage
+                    uri={item.uri}
                     style={{ width: 34, height: 34 }}
-                    resizeMode="cover"
+                    contentFit="cover"
+                  />
+                ) : item.fallback ? (
+                  <ExpoImage
+                    source={item.fallback}
+                    style={{ width: 34, height: 34 }}
+                    contentFit="cover"
                   />
                 ) : (
                   <Text>{item.emoji}</Text>

@@ -221,3 +221,19 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
 6. Before every UI commit:
    - run `npm run -w apps/universal typecheck`
    - run `npm run -w apps/universal lint`
+
+7. Cross-platform image loading rules (web + iOS):
+   - treat brand assets and UI chrome assets as bundled/static first (logos, menu glyphs, icons),
+   - for product photos, support bundled fallback for reliability and remote URI only when explicitly configured,
+   - always include an error fallback path for fleet summary thumbnails and device cards/details (do not assume URI availability),
+   - avoid custom web fetch/blob/object-URL image loops; prefer direct URI rendering with cache-friendly components,
+   - if image requests spike, inspect Network for repeated same-filename fetches and verify image source stability per component.
+
+8. iOS layout/safe-area rules:
+   - top header/logo rows must account for safe area insets to avoid notch overlap,
+   - avoid nested `VirtualizedList` inside plain `ScrollView` with same direction (RN warning, broken windowing),
+   - keep list/detail scroll behavior explicit per platform (`FlatList` header pattern on index, dedicated scroll container on detail).
+
+9. Navigation interaction rules:
+   - for iOS close/dismiss from detail, prefer `router.back()` when possible so transition direction feels native,
+   - keep replace fallback to home route only when stack back is unavailable.

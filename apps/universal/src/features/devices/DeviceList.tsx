@@ -1,5 +1,6 @@
 import { Platform, FlatList, useWindowDimensions } from 'react-native';
 import { YStack } from 'tamagui';
+import type { ReactElement } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
@@ -7,11 +8,13 @@ import { DeviceCard } from '@/features/devices/DeviceCard';
 export function DeviceList({
   devices,
   byId,
-  connectionStatus
+  connectionStatus,
+  header
 }: {
   devices: DeviceSummary[];
   byId: Record<string, DeviceSnapshot>;
   connectionStatus: TelemetryEngineStatus;
+  header?: ReactElement;
 }) {
   const { width } = useWindowDimensions();
 
@@ -45,6 +48,7 @@ export function DeviceList({
       data={devices}
       keyExtractor={(item) => item.id}
       contentContainerStyle={{ padding: 16, gap: 12 }}
+      ListHeaderComponent={header}
       removeClippedSubviews
       initialNumToRender={8}
       maxToRenderPerBatch={10}

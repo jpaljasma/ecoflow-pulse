@@ -1,4 +1,4 @@
-import { ActivityIndicator, Animated, Platform, ScrollView } from 'react-native';
+import { ActivityIndicator, Animated, Platform, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
@@ -17,6 +17,8 @@ function statusDotColor(status: string): string {
 }
 
 export default function DevicesScreen() {
+  const { width } = useWindowDimensions();
+  const compactHeader = width < 430;
   const devicesQuery = useDevices();
   const deviceIds = useMemo(
     () => devicesQuery.data?.devices.map((d) => d.id) ?? [],
@@ -64,6 +66,7 @@ export default function DevicesScreen() {
       <TopBar
         title={
           <BrandLogo
+            compact={compactHeader}
             onPress={() => {
               void devicesQuery.refetch();
             }}
@@ -74,16 +77,16 @@ export default function DevicesScreen() {
             Updated {formatAgo(updatedAt || null)}
           </Text>
         }
-        titleFlex={3}
-        rightFlex={1}
+        titleFlex={compactHeader ? 1 : 3}
+        rightFlex={compactHeader ? 0 : 1}
         right={
-          <XStack alignItems="flex-start" gap="$2" paddingBottom="$2">
+          <XStack alignItems="flex-start" gap="$1" paddingBottom="$2" marginLeft="$1">
             <Animated.View
               style={{
-                width: 14,
-                height: 14,
-                borderRadius: 7,
-                marginTop: 8,
+                width: compactHeader ? 12 : 14,
+                height: compactHeader ? 12 : 14,
+                borderRadius: compactHeader ? 6 : 7,
+                marginTop: compactHeader ? 10 : 8,
                 backgroundColor: statusDotColor(telemetry.connectionStatus),
                 transform: [{ scale: dotScale }],
                 opacity: dotOpacity
@@ -134,22 +137,16 @@ export default function DevicesScreen() {
               </YStack>
             </div>
           ) : (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 16 }}
-              showsVerticalScrollIndicator
-            >
-              <YStack gap="$3">
-                <YStack paddingHorizontal="$4" marginTop={10}>
+            <DeviceList
+              devices={devicesQuery.data.devices}
+              byId={telemetry.byId}
+              connectionStatus={telemetry.connectionStatus}
+              header={(
+                <YStack paddingHorizontal="$4" marginTop={10} marginBottom="$3">
                   <SummaryPanel devices={devicesQuery.data.devices} byId={telemetry.byId} />
                 </YStack>
-                <DeviceList
-                  devices={devicesQuery.data.devices}
-                  byId={telemetry.byId}
-                  connectionStatus={telemetry.connectionStatus}
-                />
-              </YStack>
-            </ScrollView>
+              )}
+            />
           )}
         </YStack>
       ) : null}

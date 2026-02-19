@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 
 export function TopBar({
@@ -16,6 +18,9 @@ export function TopBar({
   titleFlex?: number;
   rightFlex?: number;
 }) {
+  const insets = useSafeAreaInsets();
+  const topInset = Platform.OS === 'web' ? 0 : insets.top;
+
   const titleNode =
     typeof title === 'string' || typeof title === 'number' ? (
       <Text
@@ -38,6 +43,7 @@ export function TopBar({
       justifyContent="space-between"
       paddingHorizontal="$4"
       paddingVertical="$3"
+      paddingTop={topInset > 0 ? topInset + 8 : 12}
       gap="$3"
     >
       {left ? <XStack>{left}</XStack> : null}

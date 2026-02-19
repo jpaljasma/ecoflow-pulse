@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Animated, Image, Platform, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Card } from '@/shared/ui/Card';
@@ -20,6 +21,9 @@ import { formatAgo, formatEtaMinutes, formatW } from '@/features/telemetry/forma
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getStatusGlyph } from '@/shared/ui/statusGlyph';
+import { CachedImage } from '@/shared/ui/CachedImage';
+import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
+import { env } from '@/shared/config/env';
 
 const DETAIL_TREND_POINTS = 60;
 const DETAIL_TREND_BUCKET_MS = 5_000;
@@ -46,6 +50,7 @@ export default function DeviceDetailScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const isDesktop = width >= 1200;
+  const useRemoteImage = Boolean(env.assetBaseUrl);
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
   const router = useRouter();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
@@ -196,10 +201,18 @@ export default function DeviceDetailScreen() {
     const match = getDeviceAssetMatch(model, { batteryCount });
     if (!match.slug) return null;
     return {
-      uri: getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('detail')),
+      slug: match.slug,
+      uri: useRemoteImage
+        ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('detail'))
+        : undefined,
       emoji: match.glyph.emoji
     };
-  }, [deviceQuery.data?.model, deviceQuery.data?.details?.bpCount, deviceQuery.data?.capabilities]);
+  }, [deviceQuery.data?.model, deviceQuery.data?.details?.bpCount, deviceQuery.data?.capabilities, useRemoteImage]);
+  const detailFallback = useMemo(
+    () => (deviceAsset?.slug ? getBundledDeviceFallback(deviceAsset.slug, '512') : undefined),
+    [deviceAsset?.slug]
+  );
+  const [detailImageFailed, setDetailImageFailed] = useState(false);
   const modelLower = (deviceQuery.data?.model ?? '').toLowerCase();
   const details = deviceQuery.data?.details;
   const packRows = details?.packs ?? [];
@@ -227,6 +240,10 @@ export default function DeviceDetailScreen() {
     : isTablet
       ? Math.round(mediaColumnWidth * 0.92)
       : mobileImageSize;
+
+  useEffect(() => {
+    setDetailImageFailed(false);
+  }, [deviceAsset?.uri, deviceAsset?.slug]);
 
   return (
     <Animated.View style={containerStyle}>
@@ -277,19 +294,28 @@ export default function DeviceDetailScreen() {
               alignItems="center"
               justifyContent="center"
             >
-              {Platform.OS === 'web' ? (
-                <Image
-                  source={{ uri: deviceAsset.uri }}
+              {deviceAsset.uri && !detailImageFailed ? (
+                <CachedImage
+                  uri={deviceAsset.uri}
                   style={{
                     width: (isTablet ? mediaColumnWidth : mobileImageSize) * (isTablet ? desktopScale : 1.35),
                     height: mediaBoxHeight * (isTablet ? desktopScale : 1.35),
                     transform: isTablet ? [{ translateY: desktopOffsetY }] : undefined
                   }}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  onError={() => setDetailImageFailed(true)}
                 />
-              ) : (
-                <Text fontSize="$9">{deviceAsset.emoji}</Text>
-              )}
+              ) : detailFallback ? (
+                <ExpoImage
+                  source={detailFallback}
+                  style={{
+                    width: (isTablet ? mediaColumnWidth : mobileImageSize) * (isTablet ? desktopScale : 1.35),
+                    height: mediaBoxHeight * (isTablet ? desktopScale : 1.35),
+                    transform: isTablet ? [{ translateY: desktopOffsetY }] : undefined
+                  }}
+                  contentFit="cover"
+                />
+              ) : null}
             </YStack>
           ) : null}
 
@@ -603,15 +629,28 @@ export default function DeviceDetailScreen() {
                       alignItems="center"
                       justifyContent="center"
                     >
-                      <Image
-                        source={{ uri: deviceAsset.uri }}
-                        style={{
-                          width: (isTablet ? mediaColumnWidth : mobileImageSize) * (isTablet ? desktopScale : 1.35),
-                          height: mediaBoxHeight * (isTablet ? desktopScale : 1.35),
-                          transform: isTablet ? [{ translateY: desktopOffsetY }] : undefined
-                        }}
-                        resizeMode="cover"
-                      />
+                      {deviceAsset.uri && !detailImageFailed ? (
+                        <CachedImage
+                          uri={deviceAsset.uri}
+                          style={{
+                            width: (isTablet ? mediaColumnWidth : mobileImageSize) * (isTablet ? desktopScale : 1.35),
+                            height: mediaBoxHeight * (isTablet ? desktopScale : 1.35),
+                            transform: isTablet ? [{ translateY: desktopOffsetY }] : undefined
+                          }}
+                          contentFit="cover"
+                          onError={() => setDetailImageFailed(true)}
+                        />
+                      ) : detailFallback ? (
+                        <ExpoImage
+                          source={detailFallback}
+                          style={{
+                            width: (isTablet ? mediaColumnWidth : mobileImageSize) * (isTablet ? desktopScale : 1.35),
+                            height: mediaBoxHeight * (isTablet ? desktopScale : 1.35),
+                            transform: isTablet ? [{ translateY: desktopOffsetY }] : undefined
+                          }}
+                          contentFit="cover"
+                        />
+                      ) : null}
                     </YStack>
                   ) : null}
 

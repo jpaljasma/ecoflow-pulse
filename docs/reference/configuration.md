@@ -85,3 +85,15 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_SERVER_DEFLATE_LEVEL` (default `5`)
 - `ECOFLOW_SERVER_BROTLI_LEVEL` (default `5`, `moderncompress` builds)
 - `ECOFLOW_SERVER_ZSTD_LEVEL` (default `3`, `moderncompress` builds)
+
+## Universal App (Expo)
+
+- `EXPO_PUBLIC_API_URL`
+- `EXPO_PUBLIC_WS_URL`
+- `EXPO_PUBLIC_MOCK_LOG_URL`
+- `EXPO_PUBLIC_MOCK_TRAINING_URL`
+- `EXPO_PUBLIC_ASSET_BASE_URL`
+  - optional absolute base URL for product/brand images in native and web,
+  - when unset on web, app uses `/public` local paths,
+  - large product images can be remote URI-based and are cached via `expo-image` (`memory-disk`),
+  - brand/logo assets are bundled local app assets for smooth top-bar and menu rendering.

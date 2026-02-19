@@ -3,13 +3,13 @@ import { router } from 'expo-router';
 import { Image, Platform, ScrollView, useColorScheme } from 'react-native';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
 import { Sheet } from '@/shared/ui/Sheet';
-import { getEcoFlowLogoForTheme } from '@/shared/assets/ecoflowBrandAssets';
+import { getBundledBrandMark } from '@/shared/assets/brandBundled';
 
 export function AppMenu() {
   const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const scheme = useColorScheme();
-  const menuMark = getEcoFlowLogoForTheme(scheme === 'dark' ? 'dark' : 'light', 'mark');
+  const menuMark = getBundledBrandMark(scheme === 'dark' ? 'dark' : 'light');
 
   return (
     <>
@@ -39,15 +39,9 @@ export function AppMenu() {
         }
         aria-label="Open menu"
       >
-        {Platform.OS === 'web' ? (
-          <XStack width={24} height={24} alignItems="center" justifyContent="center">
-            <Image source={{ uri: menuMark }} style={{ width: 20, height: 20, marginTop: 1 }} resizeMode="contain" />
-          </XStack>
-        ) : (
-          <Text fontSize="$7" fontWeight="700" lineHeight={30}>
-            ☰
-          </Text>
-        )}
+        <XStack width={24} height={24} alignItems="center" justifyContent="center">
+          <Image source={menuMark} style={{ width: 20, height: 20, marginTop: 1 }} resizeMode="contain" />
+        </XStack>
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen} title="Menu">

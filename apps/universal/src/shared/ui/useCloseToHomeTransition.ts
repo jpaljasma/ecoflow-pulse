@@ -65,8 +65,20 @@ export function useCloseToHomeTransition(router: Router) {
   }, [mode, progress]);
 
   const closeToHome = useCallback(() => {
-    if (mode === 'off') {
+    const navigateHome = () => {
+      // On iOS, prefer stack back-navigation so the close gesture animates rightward.
+      if (Platform.OS === 'ios' && typeof (router as Router & { canGoBack?: () => boolean }).canGoBack === 'function') {
+        const canGoBack = (router as Router & { canGoBack: () => boolean }).canGoBack();
+        if (canGoBack) {
+          router.back();
+          return;
+        }
+      }
       router.replace('/(tabs)/devices');
+    };
+
+    if (mode === 'off') {
+      navigateHome();
       return;
     }
 
@@ -76,7 +88,7 @@ export function useCloseToHomeTransition(router: Router) {
       useNativeDriver: Platform.OS !== 'web'
     }).start(() => {
       progress.setValue(0);
-      router.replace('/(tabs)/devices');
+      navigateHome();
     });
   }, [duration, mode, progress, router]);
 
