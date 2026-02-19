@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/universal" }
+  ],
+  "compilerOptions": {
+    "composite": false,
+    "jsx": "react-jsx"
+  }
+}

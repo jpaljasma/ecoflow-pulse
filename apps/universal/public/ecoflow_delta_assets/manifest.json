@@ -1,0 +1,72 @@
+{
+  "delta_2_max": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_2_max_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_2_max_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_2_max_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_2_max.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_2_max.webp"
+  },
+  "delta_2_max_plus_battery": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_2_max_plus_battery_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_2_max_plus_battery_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_2_max_plus_battery_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_2_max_plus_battery.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_2_max_plus_battery.webp"
+  },
+  "delta_3": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_3_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_3_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_3_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_3.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_3.webp"
+  },
+  "delta_3_max": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_3_max_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_3_max_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_3_max_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_3_max.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_3_max.webp"
+  },
+  "delta_3_plus": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_3_plus_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_3_plus_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_3_plus_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_3_plus.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_3_plus.webp"
+  },
+  "delta_3_ultra": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_3_ultra_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_3_ultra_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_3_ultra_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_3_ultra.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_3_ultra.webp"
+  },
+  "delta_pro": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_pro_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_pro_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_pro_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_pro.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_pro.webp"
+  },
+  "delta_pro_3": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_pro_3_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_pro_3_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_pro_3_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_pro_3.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_pro_3.webp"
+  },
+  "delta_pro_ultra": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_pro_ultra_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_pro_ultra_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_pro_ultra_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_pro_ultra.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_pro_ultra.webp"
+  },
+  "delta_pro_ultra_x": {
+    "1024": "ecoflow_delta_assets/processed/crop_1024/delta_pro_ultra_x_1024.png",
+    "256": "ecoflow_delta_assets/processed/crop_256/delta_pro_ultra_x_256.png",
+    "512": "ecoflow_delta_assets/processed/crop_512/delta_pro_ultra_x_512.png",
+    "original": "ecoflow_delta_assets/processed/original_png/delta_pro_ultra_x.png",
+    "original_webp": "ecoflow_delta_assets/originals/delta_pro_ultra_x.webp"
+  }
+}

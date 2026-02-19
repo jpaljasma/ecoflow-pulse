@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "EcoFlow Pulse",
+    "slug": "ecoflow-pulse-universal",
+    "scheme": "ecoflowpulse",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router"
+    ],
+    "web": {
+      "bundler": "metro"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

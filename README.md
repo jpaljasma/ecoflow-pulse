@@ -46,3 +46,6 @@ Developer docs follow Diataxis under `/docs`:
 - `pkg/ecoflow`: API client
 - `pkg/ecoflowmqtt`: MQTT primitives
 - `pkg/panelselect`: panel selection model + runtime predictor
+
+## Universal Dashboard Scaffold
+- Expo universal app scaffold: [`apps/universal/README.md`](apps/universal/README.md)

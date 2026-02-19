@@ -189,3 +189,62 @@ Use this when panel detection starts misclassifying under low sun, clipping, or 
      - `make lint`
      - `make test`
      - `make build`
+
+## Universal App UI Workflow (Expo/Tamagui)
+Use this when working on `apps/universal` dashboard layout, telemetry rendering, and responsive behavior.
+
+1. Keep behavior centralized in shared UI components:
+   - power-flow glyph logic must be rendered via shared component (`PowerFlowGlyph`),
+   - trendline rendering must be shared (`SparklineTrend`) so Home + Details behave identically,
+   - avoid duplicating glyph/render logic in page files.
+
+2. Responsive trend layout rules:
+   - desktop: 2-column split (`Load Trend` / `PV Trend`, 50/50),
+   - mobile: stacked trend containers,
+   - trend data must be fixed-length and padded so charts start flat and grow with data.
+
+3. Scroll container rule for web:
+   - keep app shell fixed,
+   - scroll only inside the content pane,
+   - enforce `flex: 1` + `minHeight: 0` on wrapper and `overflowY: auto` on web container to avoid resize-related scroll lock.
+
+4. Telemetry visual feedback rules:
+   - values in `[-0.5, 0.5]` for AC/DC/PV/Load should be muted (label + value),
+   - use monochrome glyph labels for tintable icons in muted state,
+   - cold temperature (`<= 2C`) should use snowflake + blue style.
+
+5. Mock telemetry mapping rules:
+   - prefer `telemetry_training.csv` for mock runtime playback,
+   - map metrics by device serial and latest timestamp,
+   - when multiple pack temps are present in a row, use median.
+
+6. Before every UI commit:
+   - run `npm run -w apps/universal typecheck`
+   - run `npm run -w apps/universal lint`
+7. Performance defaults for telemetry-heavy screens:
+   - prefer per-device telemetry selectors (`useTelemetryDeviceSnapshot`) over passing large `byId` maps through props,
+   - keep fleet/device trend aggregation in telemetry engine/store, not component-local `setInterval` state,
+   - avoid page/card-level global rerenders for relative time labels; compute inactivity in snapshots and keep any "time ago" refresh isolated to leaf text components only when needed,
+   - use virtualized list rendering on web and native (`FlatList`/virtualized path) instead of manual mapped grids for device cards.
+
+7. Cross-platform image loading rules (web + iOS):
+   - treat brand assets and UI chrome assets as bundled/static first (logos, menu glyphs, icons),
+   - for product photos, support bundled fallback for reliability and remote URI only when explicitly configured,
+   - always include an error fallback path for fleet summary thumbnails and device cards/details (do not assume URI availability),
+   - avoid custom web fetch/blob/object-URL image loops; prefer direct URI rendering with cache-friendly components,
+   - if image requests spike, inspect Network for repeated same-filename fetches and verify image source stability per component.
+
+8. iOS layout/safe-area rules:
+   - top header/logo rows must account for safe area insets to avoid notch overlap,
+   - avoid nested `VirtualizedList` inside plain `ScrollView` with same direction (RN warning, broken windowing),
+   - keep list/detail scroll behavior explicit per platform (`FlatList` header pattern on index, dedicated scroll container on detail).
+
+9. Navigation interaction rules:
+   - for iOS close/dismiss from detail, prefer `router.back()` when possible so transition direction feels native,
+   - keep replace fallback to home route only when stack back is unavailable.
+
+10. Mock telemetry transport reliability rules (web vs iOS):
+   - in `mock://` API mode, prefer polling transport by default and avoid WS reconnect loops,
+   - do not rely on web-only relative paths (`/logs/...`) on native; provide absolute host-based candidates for iOS/Android,
+   - keep multiple native URL candidates for mock files (`/logs` and `/mock`, plus host fallbacks) so incremental updates continue,
+   - if UI shows `connected` but data is stale, trace last successful mock fetch path and verify per-second refresh still advances.

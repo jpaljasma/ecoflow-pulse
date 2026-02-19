@@ -35,6 +35,8 @@ make bench
 make build
 make smoke
 make mqtt
+make web-stop
+make web
 ```
 
 Notes:
@@ -42,3 +44,6 @@ Notes:
 - default `GOFLAGS` in `Makefile` include `-tags=moderncompress -mod=mod`,
 - `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on
   intentional stop.
+- `make web` restarts Expo web by first stopping any process listening on
+  `WEB_PORT` (default `8081`), then running:
+  `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
