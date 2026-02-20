@@ -54,6 +54,88 @@ Always use a branch -> pull request -> merge workflow.
 ## Exceptions
 Direct commits to `main` are allowed only if explicitly requested by a maintainer for an urgent reason.
 
+## Locked Architecture Compliance Rules
+These rules are mandatory for all new platform work and are sourced from:
+- `docs/architecture/README.md`
+- `docs/architecture/adr/*.md`
+
+### Source-of-truth rule
+1. Treat `docs/architecture/README.md` + accepted ADRs as authoritative architecture contracts.
+2. If implementation or design would deviate, create a new ADR first; do not silently drift.
+3. Accepted ADRs are immutable except status/superseded metadata.
+
+### Locked system shape (must preserve)
+1. Tiering:
+   - Expo universal client (Web/iOS/Android)
+   - Node REST BFF (public)
+   - Go gRPC data/API layer (internal)
+   - data plane (ingest/projection/storage)
+   - dedicated WebSockets gateway (public realtime)
+2. Flow:
+   - ingestion -> normalization/derivation -> projection/read models -> UI rendering
+
+### Locked platform choices (do not substitute without ADR)
+1. Cloud/K8s:
+   - GKE first, region `us-east1`, portable to EKS later
+2. Messaging:
+   - NATS JetStream
+3. Hot cache:
+   - Valkey (Redis-compatible), replication + Sentinel (no cluster mode in v1)
+4. Databases:
+   - Postgres (control plane) + TimescaleDB (rollups/history), operated via CloudNativePG
+5. Replay archive:
+   - object storage with protobuf + zstd (local MinIO, prod GCS)
+6. Auth:
+   - Keycloak OIDC with Google/Facebook
+7. Realtime:
+   - dedicated WebSockets gateway with backpressure/downsampling ladder
+8. Local development:
+   - k3d Kubernetes with one-command bringup, in-cluster dependencies by default
+
+### Locked data/replay constraints
+1. Retention:
+   - raw telemetry archive: 30 days
+   - minute rollups: 90 days
+   - hourly rollups: 3 years
+   - daily rollups: 3 years
+2. Replay:
+   - authoritative replay source is object archive; JetStream replay is operational-only (24-72h)
+3. Replay modes must support:
+   - per-device replay
+   - fleet/shard time-range replay
+   - gap repair
+
+### Locked security boundary rules
+1. Client auth uses Authorization Code + PKCE via Keycloak.
+2. Node REST must validate JWT via JWKS.
+3. Node forwards user JWT to Go gRPC metadata.
+4. Go validates JWT again and enforces device-level authz (no trust-by-proxy).
+
+### Locked realtime behavior rules
+1. WS gateway sends snapshot-on-connect from Valkey, then delta stream from NATS.
+2. Backpressure degradation ladder must be implemented and preserved:
+   - 250ms -> 500ms -> 1s -> key-metrics-only -> paused
+3. Reconnect/resubscribe behavior and UX states are required in clients.
+
+### Locked milestone execution order
+1. Execute in order unless explicitly re-planned with documented rationale:
+   - M0 platform baseline
+   - M1 identity/control plane
+   - M2 telemetry pipeline + archive + replay
+   - M3 rollups + history + comparisons
+   - M4 websocket realtime UX hardening
+   - M5 testing/operability/DR-lite
+   - M6 online ML recommendations
+
+### Architecture-change workflow
+1. Any architecture-affecting PR must:
+   - reference relevant ADR(s) or architecture section
+   - update `docs/architecture/README.md` and/or ADR index as needed
+   - explain compatibility impact and migration path
+2. If a decision changes:
+   - add new ADR with supersedes pointer
+   - mark old ADR as superseded (do not rewrite history)
+
 ## ML Training Workflow (ETA Models)
 Use the built-in trainer at `cmd/ecoflow-ml-train` for fast, repeatable tuning.
 
