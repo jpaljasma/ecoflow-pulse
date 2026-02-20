@@ -62,7 +62,12 @@ Notes:
   - `kubectl get sts -n pulse-platform`
   - `kubectl get pods -n pulse-platform`
   - `kubectl get deploy -n pulse-platform`
+  - `kubectl get nodes -o wide`
   - `kubectl get pod pulse-platform-valkey-node-0 -n pulse-platform -o jsonpath='{.spec.containers[*].name}'`
+  Recovery examples after Docker restart:
+  - `docker restart k3d-pulse-local-agent-0`
+  - `kubectl get nodes -o wide`
+  - `kubectl get pods -n pulse-platform`
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services` using `deploy/env/local/values.services.yaml`.
 - `make dev-up` runs `k3d-up`, `platform-up`, then `services-up`.
 - `make dev-down` uninstalls `pulse-services` and `pulse-platform`; preserves cluster by default.

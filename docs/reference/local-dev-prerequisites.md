@@ -19,3 +19,4 @@ This page tracks required local tools for development workflows.
 |---|---|---|
 | 2026-02-20 | `k3d` | `make dev-up` failed at `k3d-up` before cluster creation |
 | 2026-02-20 | Docker daemon not running | `make dev-up` failed to create k3d cluster (`Cannot connect to the Docker daemon`) |
+| 2026-02-20 | k3d worker node not Ready after Docker restart | `pulse-platform` pods stuck `Terminating/Pending`; recovered by restarting affected node container (for example `docker restart k3d-pulse-local-agent-0`) |
