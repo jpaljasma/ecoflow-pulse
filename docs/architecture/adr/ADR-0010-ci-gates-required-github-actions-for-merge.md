@@ -1,6 +1,6 @@
 # ADR-0010: CI Gates — Required GitHub Actions Checks for Merge
 
-**Status:** Proposed  
+**Status:** Accepted  
 **Date:** 2026-02-20
 
 ## Context

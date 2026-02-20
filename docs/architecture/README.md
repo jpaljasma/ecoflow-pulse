@@ -58,7 +58,7 @@ EcoFlow Pulse is a resilient, multi-tier real-time monitor for streaming IoT tel
 - Media assets strategy
 
 ### CI/CD
-- GitHub Actions (Go tests, issue auto-summary)
+- GitHub Actions (Go tests, frontend CI, CodeQL, issue auto-summary)
 - Makefile task orchestration
 
 ---
@@ -177,6 +177,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - **DONE:** Hourly/daily rollups retention = **3 years**
 - **DONE:** Realtime = **WebSockets**
 - **DONE:** Auth = **Keycloak** w/ Google & Facebook
+- **DONE:** CI merge gates = **go-test + frontend-ci + CodeQL**
 
 ---
 
