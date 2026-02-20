@@ -58,11 +58,16 @@ Notes:
 - `make k3d-up` creates or reuses local k3d cluster from `deploy/tilt/k3d-config.yaml`.
   Requires `k3d`, `kubectl`, and a running Docker daemon.
 - `make platform-up` updates Helm deps and installs/upgrades `pulse-platform` using `deploy/env/local/values.platform.yaml`.
+  It runs a CRD-safe reconcile flow for CloudNativePG:
+  1) initial Helm install/upgrade,
+  2) wait for CNPG operator deployment readiness,
+  3) second Helm pass to apply CRD-backed resources (for example `Cluster`).
   Validation examples:
   - `kubectl get sts -n pulse-platform`
   - `kubectl get pods -n pulse-platform`
   - `kubectl get deploy -n pulse-platform`
   - `kubectl get nodes -o wide`
+  - `kubectl get clusters.postgresql.cnpg.io -n pulse-platform`
   - `kubectl get pod pulse-platform-valkey-node-0 -n pulse-platform -o jsonpath='{.spec.containers[*].name}'`
   Recovery examples after Docker restart:
   - `docker restart k3d-pulse-local-agent-0`

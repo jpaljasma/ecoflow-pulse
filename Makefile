@@ -108,6 +108,14 @@ platform-up:
 	$(HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
 		--namespace $(PLATFORM_NAMESPACE) --create-namespace \
 		-f $(LOCAL_PLATFORM_VALUES)
+	@if command -v $(KUBECTL) >/dev/null 2>&1 && $(KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
+		echo "waiting for CloudNativePG operator to become ready"; \
+		$(KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
+	fi
+	@echo "running platform reconcile pass for CRD-backed resources"
+	$(HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
+		--namespace $(PLATFORM_NAMESPACE) --create-namespace \
+		-f $(LOCAL_PLATFORM_VALUES)
 
 services-up:
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \

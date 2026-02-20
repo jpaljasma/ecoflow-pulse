@@ -9,7 +9,7 @@ components:
   nats:
     enabled: true
   cloudnativepg:
-    enabled: false
+    enabled: true
   timescaledb:
     enabled: false
   valkey:
@@ -36,6 +36,25 @@ nats:
           size: 10Gi
 
 cloudnative-pg: {}
+cloudnativepgCluster:
+  enabled: true
+  name: pulse-platform-core
+  instances: 2
+  storage:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
+  bootstrap:
+    database: pulse
+    owner: pulse
+    appSecretName: pulse-platform-core-app
+    appUser: pulse
+    appPassword: pulse-local-dev-password
 valkey:
   architecture: replication
   auth:
