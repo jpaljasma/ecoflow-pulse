@@ -1,22 +1,45 @@
+import { useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { Pill } from '@/shared/ui/Pill';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import type { DetailBatteryPackVM } from '@/features/device-detail/view-model';
+import { BatteryUpsellComponent } from '@/features/device-detail/components/BatteryUpsellComponent';
+import { getBatteryUpsellUrl, getMaxBatteryCount } from '@/shared/config/merchandising';
 
 export function BatteryPacksSection({
   packs,
   bpCount,
+  model,
+  serialNumber,
   minWidth
 }: {
   packs: DetailBatteryPackVM[];
   bpCount?: number;
+  model?: string;
+  serialNumber?: string;
   minWidth?: number;
 }) {
+  const stableBatteryCountRef = useRef<number>(0);
+  const observedCount = Math.max(bpCount ?? 0, packs.length ?? 0);
+  if (observedCount > stableBatteryCountRef.current) {
+    stableBatteryCountRef.current = observedCount;
+  }
+  const batteryCount = stableBatteryCountRef.current;
+  const upsellHref = useMemo(
+    () =>
+      getBatteryUpsellUrl({
+        model,
+        serialNumber,
+        batteryCount
+      }),
+    [model, serialNumber, batteryCount]
+  );
+  const maxBatteries = useMemo(() => getMaxBatteryCount(model), [model]);
   return (
     <SectionCard
       title="🔋 Battery Packs"
-      right={<Pill label={`${bpCount ?? packs.length ?? 0} packs`} tone="info" />}
+      right={<Pill label={`${batteryCount} packs`} tone="info" />}
       minWidth={minWidth}
     >
       {packs.length ? (
@@ -51,7 +74,12 @@ export function BatteryPacksSection({
       ) : (
         <Text opacity={0.7}>No per-pack telemetry yet.</Text>
       )}
+      <BatteryUpsellComponent
+        href={upsellHref}
+        modelName={model}
+        batteryCount={batteryCount}
+        maxBatteries={maxBatteries}
+      />
     </SectionCard>
   );
 }
-

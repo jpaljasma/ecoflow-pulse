@@ -11,7 +11,6 @@ import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { Stat } from '@/shared/ui/Stat';
 import { formatKWh, formatW } from '@/features/telemetry/format';
 import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
-import { useChartPrefs } from '@/shared/ui/chartPrefs';
 import { CachedImage } from '@/shared/ui/CachedImage';
 import { env } from '@/shared/config/env';
 import { useFleetSummaryViewModel } from '@/features/devices/view-model';
@@ -35,8 +34,6 @@ export function SummaryPanel({
   const isTabletUp = width >= 768;
   const isCompact = width < 720;
   const useRemoteImage = Boolean(env.assetBaseUrl);
-  const trendChartStyle = useChartPrefs((s) => s.trendChartStyle);
-  const toggleTrendChartStyle = useChartPrefs((s) => s.toggleTrendChartStyle);
   const deviceIds = useMemo(() => devices.map((device) => device.id), [devices]);
   const byId = useTelemetrySnapshotsByIds(deviceIds);
   const fleetTrend = useTelemetryFleetTrend();
@@ -174,31 +171,13 @@ export function SummaryPanel({
               </ChartSection>
             </YStack>
             <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
-              <ChartSection
-                title="Power Trends"
-                right={(
-                  <Text
-                    fontSize="$2"
-                    opacity={0.88}
-                    paddingHorizontal="$2"
-                    paddingVertical="$1"
-                    borderRadius="$3"
-                    borderWidth={1}
-                    borderColor="rgba(120,120,128,0.3)"
-                    onPress={toggleTrendChartStyle}
-                    cursor="pointer"
-                  >
-                    {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
-                  </Text>
-                )}
-              >
+              <ChartSection title="Power Trends">
                 <PowerTrendChart
                   solar={fleetTrend.pv}
                   ac={fleetTrend.ac}
                   dc={fleetTrend.dc}
                   load={fleetTrend.load}
                   points={SUMMARY_TREND_POINTS}
-                  style={trendChartStyle}
                 />
               </ChartSection>
             </YStack>
@@ -208,31 +187,13 @@ export function SummaryPanel({
             <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
               <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
             </ChartSection>
-            <ChartSection
-              title="Power Trends"
-              right={(
-                <Text
-                  fontSize="$2"
-                  opacity={0.88}
-                  paddingHorizontal="$2"
-                  paddingVertical="$1"
-                  borderRadius="$3"
-                  borderWidth={1}
-                  borderColor="rgba(120,120,128,0.3)"
-                  onPress={toggleTrendChartStyle}
-                  cursor="pointer"
-                >
-                  {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
-                </Text>
-              )}
-            >
+            <ChartSection title="Power Trends">
               <PowerTrendChart
                 solar={fleetTrend.pv}
                 ac={fleetTrend.ac}
                 dc={fleetTrend.dc}
                 load={fleetTrend.load}
                 points={SUMMARY_TREND_POINTS}
-                style={trendChartStyle}
               />
             </ChartSection>
           </YStack>

@@ -1,4 +1,4 @@
-import { ActivityIndicator, Animated, Platform, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, Image, Platform, useColorScheme, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
@@ -13,6 +13,7 @@ import {
 import { SummaryPanel } from '@/features/devices/SummaryPanel';
 import { DeviceList } from '@/features/devices/DeviceList';
 import { formatAgo } from '@/features/telemetry/format';
+import { getBundledBrandMark } from '@/shared/assets/brandBundled';
 
 function statusDotColor(status: string): string {
   if (status === 'connected') return '#30d158';
@@ -22,6 +23,8 @@ function statusDotColor(status: string): string {
 
 export default function DevicesScreen() {
   const { width } = useWindowDimensions();
+  const scheme = useColorScheme();
+  const loadingMark = getBundledBrandMark(scheme === 'dark' ? 'dark' : 'light');
   const compactHeader = width < 430;
   const devicesQuery = useDevices();
   const deviceIds = useMemo(
@@ -104,9 +107,21 @@ export default function DevicesScreen() {
       />
 
       {devicesQuery.isLoading ? (
-        <YStack flex={1} alignItems="center" justifyContent="center" gap="$3">
-          <ActivityIndicator />
-          <Text opacity={0.75}>Loading devices…</Text>
+        <YStack flex={1} alignItems="center" justifyContent="center" gap="$4">
+          <YStack
+            width={68}
+            height={68}
+            borderRadius="$4"
+            alignItems="center"
+            justifyContent="center"
+            backgroundColor="rgba(120,120,128,0.12)"
+          >
+            <Image source={loadingMark} style={{ width: 34, height: 34 }} resizeMode="contain" />
+          </YStack>
+          <ActivityIndicator size="large" />
+          <Text opacity={0.82} fontSize="$5" fontWeight="600">
+            Loading...
+          </Text>
         </YStack>
       ) : null}
 
