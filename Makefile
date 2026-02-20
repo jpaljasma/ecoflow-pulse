@@ -3,6 +3,20 @@ SHELL := /bin/zsh
 GO ?= go
 NPM ?= npm
 WEB_PORT ?= 8081
+K3D ?= k3d
+HELM ?= helm
+KUBECTL ?= kubectl
+K3D_CLUSTER_NAME ?= pulse-local
+K3D_CONFIG ?= deploy/tilt/k3d-config.yaml
+PLATFORM_CHART ?= deploy/charts/pulse-platform
+SERVICES_CHART ?= deploy/charts/pulse-services
+LOCAL_PLATFORM_VALUES ?= deploy/env/local/values.platform.yaml
+LOCAL_SERVICES_VALUES ?= deploy/env/local/values.services.yaml
+PLATFORM_RELEASE ?= pulse-platform
+SERVICES_RELEASE ?= pulse-services
+PLATFORM_NAMESPACE ?= pulse-platform
+SERVICES_NAMESPACE ?= pulse-services
+DELETE_CLUSTER ?= 0
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -14,7 +28,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up services-up dev-up dev-down web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -58,6 +72,62 @@ mqtt:
 		exit 0; \
 	fi; \
 	exit $$code
+
+k3d-up:
+	@if ! command -v $(K3D) >/dev/null 2>&1; then \
+		echo "$(K3D) not found. Install k3d first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@if $(K3D) kubeconfig get $(K3D_CLUSTER_NAME) >/dev/null 2>&1; then \
+		echo "k3d cluster '$(K3D_CLUSTER_NAME)' already exists"; \
+	else \
+		echo "creating k3d cluster '$(K3D_CLUSTER_NAME)' from $(K3D_CONFIG)"; \
+		$(K3D) cluster create --config $(K3D_CONFIG); \
+	fi
+	$(KUBECTL) get nodes
+
+platform-up:
+	@if ! command -v $(HELM) >/dev/null 2>&1; then \
+		echo "$(HELM) not found. Install helm first."; \
+		exit 1; \
+	fi
+	$(HELM) dependency update $(PLATFORM_CHART)
+	$(HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
+		--namespace $(PLATFORM_NAMESPACE) --create-namespace \
+		-f $(LOCAL_PLATFORM_VALUES)
+
+services-up:
+	@if ! command -v $(HELM) >/dev/null 2>&1; then \
+		echo "$(HELM) not found. Install helm first."; \
+		exit 1; \
+	fi
+	$(HELM) dependency update $(SERVICES_CHART)
+	$(HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
+		--namespace $(SERVICES_NAMESPACE) --create-namespace \
+		-f $(LOCAL_SERVICES_VALUES)
+
+dev-up: k3d-up platform-up services-up
+
+dev-down:
+	@if command -v $(HELM) >/dev/null 2>&1; then \
+		$(HELM) uninstall $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1 || true; \
+		$(HELM) uninstall $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1 || true; \
+	else \
+		echo "$(HELM) not found; skipping helm uninstall"; \
+	fi
+	@if [ "$(DELETE_CLUSTER)" = "1" ]; then \
+		if command -v $(K3D) >/dev/null 2>&1; then \
+			$(K3D) cluster delete $(K3D_CLUSTER_NAME) || true; \
+		else \
+			echo "$(K3D) not found; cannot delete cluster"; \
+		fi; \
+	else \
+		echo "cluster preserved (set DELETE_CLUSTER=1 to delete)"; \
+	fi
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \

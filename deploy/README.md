@@ -29,6 +29,28 @@ Current state: **scaffold only** (Milestone 0, task #1 in progress).
 3. Add service deployments progressively.
 4. Wire Make targets and one-command local bringup.
 
+## Local Bringup (Make)
+
+Default local workflow:
+
+```bash
+make dev-up
+```
+
+Expanded commands:
+
+```bash
+make k3d-up
+make platform-up
+make services-up
+make dev-down
+make dev-down DELETE_CLUSTER=1
+```
+
+Defaults:
+- local values are read from `deploy/env/local/*.yaml`,
+- `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
+
 ## Helm Dependency Bootstrap
 
 Dependencies are defined in `charts/pulse-platform/Chart.yaml` and are disabled

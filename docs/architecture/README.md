@@ -186,8 +186,8 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 
 | Status | Task | Dependency |
 |---|---|---|
-| PROGRESS | Create `/deploy` layout (charts + env values + Argo apps)<br>- [x] Implemented `/deploy` scaffold (local+dev only, namespaces agreed)<br>- [x] Added direct Argo apps (`pulse-platform`, `pulse-services`)<br>- [x] Added local k3d config at `deploy/tilt/k3d-config.yaml`<br>- [x] Wired initial platform chart dependencies (scaffold-first, disabled by default)<br>- [x] Pinned initial dependency chart versions (`nats`, `cloudnative-pg`, `valkey`, `keycloak`, `minio`)<br>- [ ] Add Make targets (`k3d-up`, `platform-up`, `services-up`, `dev-up`, `dev-down`) | — |
-| TODO | Local k3d cluster config + Make targets (`dev-up`) | — |
+| DONE | Create `/deploy` layout (charts + env values + Argo apps)<br>- [x] Implemented `/deploy` scaffold (local+dev only, namespaces agreed)<br>- [x] Added direct Argo apps (`pulse-platform`, `pulse-services`)<br>- [x] Added local k3d config at `deploy/tilt/k3d-config.yaml`<br>- [x] Wired initial platform chart dependencies (scaffold-first, disabled by default)<br>- [x] Pinned initial dependency chart versions (`nats`, `cloudnative-pg`, `valkey`, `keycloak`, `minio`)<br>- [x] Added `Chart.lock` for reproducible Helm dependency resolution | — |
+| PROGRESS | Local k3d cluster config + Make targets (`dev-up`)<br>- [x] Added k3d cluster config (`deploy/tilt/k3d-config.yaml`)<br>- [x] Implemented Make targets (`k3d-up`, `platform-up`, `services-up`, `dev-up`, `dev-down`)<br>- [x] Documented local bringup/down usage and defaults | — |
 | TODO | Argo CD bootstrapped in GKE dev | cluster |
 | TODO | ingress-nginx + cert-manager | cluster |
 | TODO | External Secrets Operator (staging/prod) | cluster |

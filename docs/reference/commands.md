@@ -35,6 +35,11 @@ make bench
 make build
 make smoke
 make mqtt
+make k3d-up
+make platform-up
+make services-up
+make dev-up
+make dev-down
 make web-stop
 make web
 ```
