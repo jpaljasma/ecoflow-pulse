@@ -8,6 +8,20 @@ metadata:
     app.kubernetes.io/name: pulse-platform
     app.kubernetes.io/part-of: ecoflow-pulse
 spec:
+  {{- if and .Values.components.timescaledb.enabled .Values.cloudnativepgCluster.timescaledb.enabled }}
+  postgresUID: {{ .Values.cloudnativepgCluster.timescaledb.postgresUID }}
+  postgresGID: {{ .Values.cloudnativepgCluster.timescaledb.postgresGID }}
+  {{- else }}
+  postgresUID: {{ .Values.cloudnativepgCluster.postgresUID }}
+  postgresGID: {{ .Values.cloudnativepgCluster.postgresGID }}
+  {{- end }}
+  {{- if and .Values.components.timescaledb.enabled .Values.cloudnativepgCluster.timescaledb.enabled }}
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ImageCatalog
+    name: {{ .Values.cloudnativepgCluster.timescaledb.imageCatalog.name | quote }}
+    major: {{ .Values.cloudnativepgCluster.timescaledb.imageCatalog.major }}
+  {{- end }}
   instances: {{ .Values.cloudnativepgCluster.instances }}
   bootstrap:
     initdb:
@@ -15,6 +29,17 @@ spec:
       owner: {{ .Values.cloudnativepgCluster.bootstrap.owner | quote }}
       secret:
         name: {{ .Values.cloudnativepgCluster.bootstrap.appSecretName | quote }}
+      {{- if and .Values.components.timescaledb.enabled .Values.cloudnativepgCluster.timescaledb.enabled }}
+      postInitSQL:
+        {{- range .Values.cloudnativepgCluster.timescaledb.postInitSQL }}
+        - {{ . | quote }}
+        {{- end }}
+      {{- end }}
+  {{- if and .Values.components.timescaledb.enabled .Values.cloudnativepgCluster.timescaledb.enabled }}
+  postgresql:
+    shared_preload_libraries:
+      - timescaledb
+  {{- end }}
   resources:
     requests:
       cpu: {{ .Values.cloudnativepgCluster.resources.requests.cpu | quote }}

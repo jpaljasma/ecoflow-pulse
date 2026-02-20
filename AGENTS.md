@@ -212,6 +212,20 @@ These are mandatory implementation principles for local workflows and tooling qu
 5. Documentation freshness:
    - whenever local workflow changes, update `/docs` runbooks and command references in the same PR.
 
+### Kubernetes bringup hardening (local/dev)
+1. `make dev-up` must be single-run and self-healing:
+   - developers should not need manual reruns to recover transient startup races.
+2. For Helm installs that create CRD-backed resources (for example CNPG `Cluster`):
+   - implement retry + backoff around `helm upgrade --install`,
+   - explicitly wait for operator/webhook readiness before reconcile pass.
+3. Enforce dependency order in make targets:
+   - platform apply -> platform readiness gates -> services apply -> services readiness gates.
+4. Add explicit wait targets and use them in `dev-up`:
+   - `kubectl rollout status` for deployments/statefulsets,
+   - `kubectl wait --for=condition=Ready` for CRDs (for example CNPG cluster condition).
+5. Wait targets must be safe for optional workloads:
+   - if a namespace/release has no pods yet, return success with a clear message instead of failing bringup.
+
 ## ML Training Workflow (ETA Models)
 Use the built-in trainer at `cmd/ecoflow-ml-train` for fast, repeatable tuning.
 

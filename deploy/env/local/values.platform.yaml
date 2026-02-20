@@ -11,7 +11,7 @@ components:
   cloudnativepg:
     enabled: true
   timescaledb:
-    enabled: false
+    enabled: true
   valkey:
     enabled: true
   keycloak:
@@ -40,6 +40,8 @@ cloudnativepgCluster:
   enabled: true
   name: pulse-platform-core
   instances: 2
+  postgresUID: 26
+  postgresGID: 26
   storage:
     size: 10Gi
   resources:
@@ -55,6 +57,16 @@ cloudnativepgCluster:
     appSecretName: pulse-platform-core-app
     appUser: pulse
     appPassword: pulse-local-dev-password
+  timescaledb:
+    enabled: true
+    imageCatalog:
+      name: pulse-platform-timescaledb
+      major: 18
+      image: timescale/timescaledb:latest-pg18@sha256:42ffa71e12b69a7d8ff4fd04c177e4519f66d3c9d1a026e5c4adf296a8168240
+    postgresUID: 70
+    postgresGID: 70
+    postInitSQL:
+      - CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 cloudnativepgContract:
   enabled: true
   configMapName: pulse-platform-core-contract
