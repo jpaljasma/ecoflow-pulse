@@ -15,7 +15,6 @@ import { formatKWh } from '@/features/telemetry/format';
 import type { DeviceDetailViewModel } from '@/features/device-detail/view-model';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
-import { EstimateQueueSection } from '@/features/device-detail/components/EstimateQueueSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
 
 const DETAIL_TREND_POINTS = 60;
@@ -31,8 +30,6 @@ export function DeviceDetailBody({
   mediaColumnWidth,
   mediaBoxHeight,
   mobileImageSize,
-  trendChartStyle,
-  onToggleTrendChartStyle,
   sparklineLoad,
   sparklinePV,
   sparklineAC,
@@ -48,8 +45,6 @@ export function DeviceDetailBody({
   mediaColumnWidth: number;
   mediaBoxHeight: number;
   mobileImageSize: number;
-  trendChartStyle: 'ascii' | 'premium';
-  onToggleTrendChartStyle: () => void;
   sparklineLoad: number[];
   sparklinePV: number[];
   sparklineAC: number[];
@@ -124,31 +119,13 @@ export function DeviceDetailBody({
             </ChartSection>
           </YStack>
           <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
-            <ChartSection
-              title="Power Trends"
-              right={(
-                <Text
-                  fontSize="$2"
-                  opacity={0.88}
-                  paddingHorizontal="$2"
-                  paddingVertical="$1"
-                  borderRadius="$3"
-                  borderWidth={1}
-                  borderColor="rgba(120,120,128,0.3)"
-                  onPress={onToggleTrendChartStyle}
-                  cursor="pointer"
-                >
-                  {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
-                </Text>
-              )}
-            >
+            <ChartSection title="Power Trends">
               <PowerTrendChart
                 solar={sparklinePV}
                 ac={sparklineAC}
                 dc={sparklineDC}
                 load={sparklineLoad}
                 points={DETAIL_TREND_POINTS}
-                style={trendChartStyle}
               />
             </ChartSection>
           </YStack>
@@ -158,31 +135,13 @@ export function DeviceDetailBody({
           <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
             <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
           </ChartSection>
-          <ChartSection
-            title="Power Trends"
-            right={(
-              <Text
-                fontSize="$2"
-                opacity={0.88}
-                paddingHorizontal="$2"
-                paddingVertical="$1"
-                borderRadius="$3"
-                borderWidth={1}
-                borderColor="rgba(120,120,128,0.3)"
-                onPress={onToggleTrendChartStyle}
-                cursor="pointer"
-              >
-                {trendChartStyle === 'premium' ? 'Premium' : 'ASCII'}
-              </Text>
-            )}
-          >
+          <ChartSection title="Power Trends">
             <PowerTrendChart
               solar={sparklinePV}
               ac={sparklineAC}
               dc={sparklineDC}
               load={sparklineLoad}
               points={DETAIL_TREND_POINTS}
-              style={trendChartStyle}
             />
           </ChartSection>
         </YStack>
@@ -192,13 +151,14 @@ export function DeviceDetailBody({
         <BatteryPacksSection
           packs={vm.batteryPacks}
           bpCount={vm.details?.bpCount}
+          model={device?.model}
+          serialNumber={device?.serialNumber}
           minWidth={isDesktop ? 320 : 280}
         />
         <SolarInputsSection ports={vm.solarPorts} minWidth={isDesktop ? 320 : 280} />
       </XStack>
 
       <XStack gap="$3" flexWrap="wrap">
-        <EstimateQueueSection pills={vm.estimatePills} minWidth={isDesktop ? 360 : 280} />
         <SystemSignalsSection pills={vm.signalPills} minWidth={isDesktop ? 360 : 280} />
       </XStack>
 

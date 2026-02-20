@@ -53,7 +53,7 @@ This keeps rendering stable and avoids React churn under high throughput.
 - Fleet summary includes:
   - unique device-type thumbnail strip,
   - aggregate battery/SOC/AC/DC/PV/Load/Net stats,
-  - load + PV trend blocks.
+  - load + PV trend blocks (premium chart renderer only).
 - Device cards include per-card freshness:
   - card becomes **inactive** after `>60s` without new data,
   - inactive cards fade to muted gray and show `(inactive)` next to title,
