@@ -196,7 +196,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | DONE | NATS JetStream (3 replicas)<br>- [x] Added + pinned NATS dependency in `pulse-platform` chart<br>- [x] Enabled NATS JetStream (3 replicas) in `deploy/env/local/values.platform.yaml`<br>- [x] Kept dev NATS config scaffolded but disabled by default<br>- [x] Validated `make platform-up` end-to-end on local k3d cluster | cluster |
 | DONE | Valkey (Sentinel, 3 pods total)<br>- [x] Enabled Valkey component in `deploy/env/local/values.platform.yaml`<br>- [x] Configured replication + Sentinel topology for 3 pods total in local k3d (`replica.replicaCount=3`, `sentinel.enabled=true`)<br>- [x] Validated with `make platform-up` + pod health checks (`kubectl get sts/pods -n pulse-platform`)<br>- [x] Documented local validation commands/results | cluster |
 | TODO | Keycloak (2 replicas) | cluster |
-| TODO | MinIO (local only) | local |
+| DONE | MinIO (local only)<br>- [x] Enabled MinIO component in `deploy/env/local/values.platform.yaml`<br>- [x] Configured local MinIO for standalone + ephemeral mode (`mode=standalone`, `replicas=1`, `persistence.enabled=false`)<br>- [x] Tuned local resource requests to schedule in k3d (`memory=512Mi`, `cpu=100m`)<br>- [x] Validated with `make platform-up` + pod health checks (`kubectl get deploy/pods -n pulse-platform`) | local |
 | TODO | Observability “lite” installed | cluster |
 
 **Acceptance criteria**

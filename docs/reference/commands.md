@@ -61,6 +61,7 @@ Notes:
   Validation examples:
   - `kubectl get sts -n pulse-platform`
   - `kubectl get pods -n pulse-platform`
+  - `kubectl get deploy -n pulse-platform`
   - `kubectl get pod pulse-platform-valkey-node-0 -n pulse-platform -o jsonpath='{.spec.containers[*].name}'`
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services` using `deploy/env/local/values.services.yaml`.
 - `make dev-up` runs `k3d-up`, `platform-up`, then `services-up`.

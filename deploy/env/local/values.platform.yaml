@@ -17,7 +17,7 @@ components:
   keycloak:
     enabled: false
   minio:
-    enabled: false
+    enabled: true
   observabilityLite:
     enabled: false
 
@@ -51,4 +51,12 @@ valkey:
     enabled: true
     quorum: 2
 keycloak: {}
-minio: {}
+minio:
+  mode: standalone
+  replicas: 1
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
