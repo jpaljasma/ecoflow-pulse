@@ -2,8 +2,6 @@ import { useMemo, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
-import { SparklineTrend } from '@/shared/ui/SparklineTrend';
-import type { TrendChartStyle } from '@/shared/ui/chartPrefs';
 
 type SeriesConfig = {
   key: 'solar' | 'ac' | 'dc' | 'load';
@@ -105,8 +103,7 @@ export function PowerTrendChart({
   dc,
   load,
   points = 60,
-  bucketSeconds = 5,
-  style = 'premium'
+  bucketSeconds = 5
 }: {
   solar: number[];
   ac: number[];
@@ -114,7 +111,6 @@ export function PowerTrendChart({
   load: number[];
   points?: number;
   bucketSeconds?: number;
-  style?: TrendChartStyle;
 }) {
   const [width, setWidth] = useState(0);
   const [visible, setVisible] = useState<Record<SeriesConfig['key'], boolean>>({
@@ -146,40 +142,6 @@ export function PowerTrendChart({
   const maxVal = allValues.length ? Math.max(1, ...allValues) : 1;
   const yAxisLabels = useMemo(() => [maxVal, (maxVal + minVal) / 2, minVal], [maxVal, minVal]);
   const xAxisLabels = useMemo(() => buildXAxisLabels(points, bucketSeconds), [points, bucketSeconds]);
-
-  if (style === 'ascii') {
-    return (
-      <YStack gap="$2">
-        <XStack gap="$3" flexWrap="wrap">
-          {series.map((s) => (
-            <XStack key={s.key} alignItems="center" gap="$2">
-              <View
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: s.color
-                }}
-              />
-              <Text fontSize="$2" opacity={0.78}>
-                {s.label}
-              </Text>
-            </XStack>
-          ))}
-        </XStack>
-        <YStack gap="$2">
-          {series.map((s) => (
-            <YStack key={s.key} gap="$1">
-              <Text fontSize="$2" opacity={0.75}>
-                {s.label}
-              </Text>
-              <SparklineTrend values={s.values} points={points} />
-            </YStack>
-          ))}
-        </YStack>
-      </YStack>
-    );
-  }
 
   if (Platform.OS === 'web') {
     const webWidth = Math.max(300, width);
