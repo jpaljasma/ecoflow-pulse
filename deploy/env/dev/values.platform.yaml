@@ -4,3 +4,38 @@ global:
 scaffold:
   enabled: true
   message: "pulse-platform dev scaffold"
+
+components:
+  nats:
+    enabled: false
+  cloudnativepg:
+    enabled: false
+  timescaledb:
+    enabled: false
+  valkey:
+    enabled: false
+  keycloak:
+    enabled: false
+  minio:
+    enabled: false
+  observabilityLite:
+    enabled: false
+
+# Dev environment enablement will be staged after local validation.
+nats:
+  config:
+    cluster:
+      enabled: true
+      replicas: 3
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        pvc:
+          enabled: true
+          size: 10Gi
+
+cloudnative-pg: {}
+valkey: {}
+keycloak: {}
+minio: {}

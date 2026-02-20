@@ -52,3 +52,9 @@ Notes:
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
+- `make k3d-up` creates or reuses local k3d cluster from `deploy/tilt/k3d-config.yaml`.
+- `make platform-up` updates Helm deps and installs/upgrades `pulse-platform` using `deploy/env/local/values.platform.yaml`.
+- `make services-up` updates Helm deps and installs/upgrades `pulse-services` using `deploy/env/local/values.services.yaml`.
+- `make dev-up` runs `k3d-up`, `platform-up`, then `services-up`.
+- `make dev-down` uninstalls `pulse-services` and `pulse-platform`; preserves cluster by default.
+  Set `DELETE_CLUSTER=1` to also delete the local k3d cluster.

@@ -50,6 +50,8 @@ make dev-down DELETE_CLUSTER=1
 Defaults:
 - local values are read from `deploy/env/local/*.yaml`,
 - `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
+- current local platform default enables `nats` (JetStream, 3 replicas) only;
+  other platform dependencies remain disabled until later M0 chunks.
 
 ## Helm Dependency Bootstrap
 
