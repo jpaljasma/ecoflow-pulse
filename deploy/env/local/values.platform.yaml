@@ -13,7 +13,7 @@ components:
   timescaledb:
     enabled: false
   valkey:
-    enabled: false
+    enabled: true
   keycloak:
     enabled: false
   minio:
@@ -36,6 +36,19 @@ nats:
           size: 10Gi
 
 cloudnative-pg: {}
-valkey: {}
+valkey:
+  architecture: replication
+  auth:
+    enabled: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    replicaCount: 3
+    persistence:
+      enabled: false
+  sentinel:
+    enabled: true
+    quorum: 2
 keycloak: {}
 minio: {}

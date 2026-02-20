@@ -61,7 +61,7 @@ Dev/local:
 ---
 
 ## Valkey (recommended Helm knobs)
-Using a Valkey chart that supports Sentinel:
+Using the pinned Bitnami Valkey chart with Sentinel enabled:
 - `architecture: replication`
-- `replica.replicaCount: 2`
+- `replica.replicaCount: 3` (yields 3 `valkey-node` pods total in local/dev)
 - `sentinel.enabled: true`
