@@ -28,3 +28,14 @@ Current state: **scaffold only** (Milestone 0, task #1 in progress).
 2. Add platform chart dependencies progressively.
 3. Add service deployments progressively.
 4. Wire Make targets and one-command local bringup.
+
+## Helm Dependency Bootstrap
+
+Dependencies are defined in `charts/pulse-platform/Chart.yaml` and are disabled
+by default via `components.*.enabled: false`.
+
+When you need to render/install enabled dependencies locally:
+
+```bash
+helm dependency update deploy/charts/pulse-platform
+```

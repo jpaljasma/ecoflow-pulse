@@ -23,3 +23,11 @@ components:
     enabled: false
   observabilityLite:
     enabled: false
+
+# Dependency chart values are intentionally minimal in scaffold mode.
+# Expand these blocks iteratively when each platform component is wired.
+nats: {}
+cloudnative-pg: {}
+valkey: {}
+keycloak: {}
+minio: {}
