@@ -44,6 +44,9 @@ make web-stop
 make web
 ```
 
+For required local tooling (for example `helm`, `k3d`, `kubectl`), see:
+`docs/reference/local-dev-prerequisites.md`.
+
 Notes:
 
 - default `GOFLAGS` in `Makefile` include `-tags=moderncompress -mod=mod`,
@@ -53,6 +56,7 @@ Notes:
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
 - `make k3d-up` creates or reuses local k3d cluster from `deploy/tilt/k3d-config.yaml`.
+  Requires `k3d`, `kubectl`, and a running Docker daemon.
 - `make platform-up` updates Helm deps and installs/upgrades `pulse-platform` using `deploy/env/local/values.platform.yaml`.
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services` using `deploy/env/local/values.services.yaml`.
 - `make dev-up` runs `k3d-up`, `platform-up`, then `services-up`.

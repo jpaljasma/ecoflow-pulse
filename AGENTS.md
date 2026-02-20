@@ -66,6 +66,7 @@ When starting any new milestone task from `docs/architecture/README.md`:
 3. Treat documentation updates as part of the same feature branch and commit series; do not defer doc sync to later cleanup commits.
 4. When available, run markdown lint checks before pushing docs-heavy changes.
 5. Whenever new developer-facing commands or Make targets are introduced/changed, update `docs/reference/commands.md` in the same commit with command meanings/default behavior.
+6. If implementation/validation fails due to missing local tooling (for example `k3d`, `kubectl`, `helm`), update developer docs in the same branch to record the requirement and where it is needed.
 
 ## Merge Rules
 1. Merge only after CI and required checks are green.

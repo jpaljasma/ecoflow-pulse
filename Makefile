@@ -6,6 +6,7 @@ WEB_PORT ?= 8081
 K3D ?= k3d
 HELM ?= helm
 KUBECTL ?= kubectl
+DOCKER ?= docker
 K3D_CLUSTER_NAME ?= pulse-local
 K3D_CONFIG ?= deploy/tilt/k3d-config.yaml
 PLATFORM_CHART ?= deploy/charts/pulse-platform
@@ -80,6 +81,14 @@ k3d-up:
 	fi
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
 		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+		echo "$(DOCKER) not found. Install Docker Desktop first."; \
+		exit 1; \
+	fi
+	@if ! $(DOCKER) info >/dev/null 2>&1; then \
+		echo "Docker daemon is not running. Start Docker Desktop and retry."; \
 		exit 1; \
 	fi
 	@if $(K3D) kubeconfig get $(K3D_CLUSTER_NAME) >/dev/null 2>&1; then \
