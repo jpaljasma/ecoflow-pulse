@@ -55,6 +55,16 @@ cloudnativepgCluster:
     appSecretName: pulse-platform-core-app
     appUser: pulse
     appPassword: pulse-local-dev-password
+cloudnativepgContract:
+  enabled: true
+  configMapName: pulse-platform-core-contract
+  connectionSecretName: pulse-platform-core-connection
+  service:
+    rw: pulse-platform-core-rw
+    ro: pulse-platform-core-ro
+    r: pulse-platform-core-r
+  port: 5432
+  database: pulse
 valkey:
   architecture: replication
   auth:
@@ -84,15 +94,14 @@ keycloak:
     adminUser: admin
     adminPassword: admin
   postgresql:
-    enabled: true
-    image:
-      repository: bitnamilegacy/postgresql
-    auth:
-      postgresPassword: postgres
-      password: keycloak
-    primary:
-      persistence:
-        enabled: false
+    enabled: false
+  externalDatabase:
+    host: pulse-platform-core-rw
+    port: 5432
+    database: pulse
+    existingSecret: pulse-platform-core-app
+    existingSecretUserKey: username
+    existingSecretPasswordKey: password
 minio:
   mode: standalone
   replicas: 1

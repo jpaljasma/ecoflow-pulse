@@ -47,6 +47,16 @@ cloudnativepgCluster:
     appSecretName: pulse-platform-core-app
     appUser: pulse
     appPassword: pulse-local-dev-password
+cloudnativepgContract:
+  enabled: false
+  configMapName: pulse-platform-core-contract
+  connectionSecretName: pulse-platform-core-connection
+  service:
+    rw: pulse-platform-core-rw
+    ro: pulse-platform-core-ro
+    r: pulse-platform-core-r
+  port: 5432
+  database: pulse
 valkey: {}
 keycloak: {}
 minio: {}

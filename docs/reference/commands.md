@@ -62,12 +62,19 @@ Notes:
   1) initial Helm install/upgrade,
   2) wait for CNPG operator deployment readiness,
   3) second Helm pass to apply CRD-backed resources (for example `Cluster`).
+  Connection + bootstrap contract:
+  - bootstrap app credentials are configured in `cloudnativepgCluster.bootstrap.*` and rendered to secret `pulse-platform-core-app`,
+  - service-facing contract is exposed via configmap `pulse-platform-core-contract`,
+  - DSN-style connection secret is exposed via `pulse-platform-core-connection`,
+  - local Keycloak is configured to use CNPG (`keycloak.postgresql.enabled=false`, `keycloak.externalDatabase.*` -> `pulse-platform-core-rw`).
   Validation examples:
   - `kubectl get sts -n pulse-platform`
   - `kubectl get pods -n pulse-platform`
   - `kubectl get deploy -n pulse-platform`
   - `kubectl get nodes -o wide`
   - `kubectl get clusters.postgresql.cnpg.io -n pulse-platform`
+  - `kubectl get configmap pulse-platform-core-contract -n pulse-platform -o yaml`
+  - `kubectl get secret pulse-platform-core-connection -n pulse-platform -o jsonpath='{.data.url}' | base64 -d; echo`
   - `kubectl get pod pulse-platform-valkey-node-0 -n pulse-platform -o jsonpath='{.spec.containers[*].name}'`
   Recovery examples after Docker restart:
   - `docker restart k3d-pulse-local-agent-0`

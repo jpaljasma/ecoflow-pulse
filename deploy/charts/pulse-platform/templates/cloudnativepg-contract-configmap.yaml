@@ -1,0 +1,19 @@
+{{- $cnpgCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "clusters.postgresql.cnpg.io" -}}
+{{- if and .Values.components.cloudnativepg.enabled .Values.cloudnativepgCluster.enabled .Values.cloudnativepgContract.enabled $cnpgCRD }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.cloudnativepgContract.configMapName | quote }}
+  labels:
+    app.kubernetes.io/name: pulse-platform
+    app.kubernetes.io/part-of: ecoflow-pulse
+data:
+  host_rw: {{ .Values.cloudnativepgContract.service.rw | quote }}
+  host_ro: {{ .Values.cloudnativepgContract.service.ro | quote }}
+  host_r: {{ .Values.cloudnativepgContract.service.r | quote }}
+  port: {{ .Values.cloudnativepgContract.port | quote }}
+  database: {{ .Values.cloudnativepgContract.database | quote }}
+  app_user_secret_name: {{ .Values.cloudnativepgCluster.bootstrap.appSecretName | quote }}
+  app_user_secret_username_key: "username"
+  app_user_secret_password_key: "password"
+{{- end }}
