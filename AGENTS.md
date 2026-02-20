@@ -136,6 +136,22 @@ These rules are mandatory for all new platform work and are sourced from:
    - add new ADR with supersedes pointer
    - mark old ADR as superseded (do not rewrite history)
 
+### CI governance (locked by ADR-0010 once accepted)
+1. Treat CI gates as architecture controls, not optional repo hygiene.
+2. Required checks for merges to `main`:
+   - `go-test`
+   - `frontend-ci`
+   - `CodeQL`
+3. Keep workflow/check names stable to avoid breaking required-status wiring.
+4. When CI workflow scope changes (paths, jobs, check names), update:
+   - ruleset/branch protection required checks,
+   - relevant architecture docs/ADR status and references.
+5. Frontend CI must validate at minimum:
+   - `npm run -w apps/universal typecheck`
+   - `npm run -w apps/universal lint`
+   - `npm run -w apps/universal test`
+   - Expo web build/export sanity check
+
 ## Local Development Principles (Developer Experience)
 These are mandatory implementation principles for local workflows and tooling quality.
 

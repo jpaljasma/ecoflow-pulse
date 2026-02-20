@@ -13,6 +13,7 @@
 - [ADR-0007-authentication-keycloak-oidc-with-social-login-jwt-validated-at-every-boundary.md](./ADR-0007-authentication-keycloak-oidc-with-social-login-jwt-validated-at-every-boundary.md)
 - [ADR-0008-realtime-delivery-websockets-gateway-with-backpressure-downsampling.md](./ADR-0008-realtime-delivery-websockets-gateway-with-backpressure-downsampling.md)
 - [ADR-0009-local-development-k3d-kubernetes-with-one-command-bringup.md](./ADR-0009-local-development-k3d-kubernetes-with-one-command-bringup.md)
+- [ADR-0010-ci-gates-required-github-actions-for-merge.md](./ADR-0010-ci-gates-required-github-actions-for-merge.md)
 ---
 
 ## How to add an ADR
@@ -67,4 +68,3 @@ When a decision changes:
 - Numbers are sequential, 4 digits, zero-padded: `0001`, `0002`, …
 - Use kebab-case titles in filenames (lowercase, dashes).
 - The ADR ID in the filename should match the ID in the document title.
-
