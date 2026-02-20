@@ -54,6 +54,142 @@ Always use a branch -> pull request -> merge workflow.
 ## Exceptions
 Direct commits to `main` are allowed only if explicitly requested by a maintainer for an urgent reason.
 
+## Locked Architecture Compliance Rules
+These rules are mandatory for all new platform work and are sourced from:
+- `docs/architecture/README.md`
+- `docs/architecture/adr/*.md`
+
+### Source-of-truth rule
+1. Treat `docs/architecture/README.md` + accepted ADRs as authoritative architecture contracts.
+2. If implementation or design would deviate, create a new ADR first; do not silently drift.
+3. Accepted ADRs are immutable except status/superseded metadata.
+
+### Locked system shape (must preserve)
+1. Tiering:
+   - Expo universal client (Web/iOS/Android)
+   - Node REST BFF (public)
+   - Go gRPC data/API layer (internal)
+   - data plane (ingest/projection/storage)
+   - dedicated WebSockets gateway (public realtime)
+2. Flow:
+   - ingestion -> normalization/derivation -> projection/read models -> UI rendering
+
+### Locked platform choices (do not substitute without ADR)
+1. Cloud/K8s:
+   - GKE first, region `us-east1`, portable to EKS later
+2. Messaging:
+   - NATS JetStream
+3. Hot cache:
+   - Valkey (Redis-compatible), replication + Sentinel (no cluster mode in v1)
+4. Databases:
+   - Postgres (control plane) + TimescaleDB (rollups/history), operated via CloudNativePG
+5. Replay archive:
+   - object storage with protobuf + zstd (local MinIO, prod GCS)
+6. Auth:
+   - Keycloak OIDC with Google/Facebook
+7. Realtime:
+   - dedicated WebSockets gateway with backpressure/downsampling ladder
+8. Local development:
+   - k3d Kubernetes with one-command bringup, in-cluster dependencies by default
+
+### Locked data/replay constraints
+1. Retention:
+   - raw telemetry archive: 30 days
+   - minute rollups: 90 days
+   - hourly rollups: 3 years
+   - daily rollups: 3 years
+2. Replay:
+   - authoritative replay source is object archive; JetStream replay is operational-only (24-72h)
+3. Replay modes must support:
+   - per-device replay
+   - fleet/shard time-range replay
+   - gap repair
+
+### Locked security boundary rules
+1. Client auth uses Authorization Code + PKCE via Keycloak.
+2. Node REST must validate JWT via JWKS.
+3. Node forwards user JWT to Go gRPC metadata.
+4. Go validates JWT again and enforces device-level authz (no trust-by-proxy).
+
+### Locked realtime behavior rules
+1. WS gateway sends snapshot-on-connect from Valkey, then delta stream from NATS.
+2. Backpressure degradation ladder must be implemented and preserved:
+   - 250ms -> 500ms -> 1s -> key-metrics-only -> paused
+3. Reconnect/resubscribe behavior and UX states are required in clients.
+
+### Locked milestone execution order
+1. Execute in order unless explicitly re-planned with documented rationale:
+   - M0 platform baseline
+   - M1 identity/control plane
+   - M2 telemetry pipeline + archive + replay
+   - M3 rollups + history + comparisons
+   - M4 websocket realtime UX hardening
+   - M5 testing/operability/DR-lite
+   - M6 online ML recommendations
+
+### Architecture-change workflow
+1. Any architecture-affecting PR must:
+   - reference relevant ADR(s) or architecture section
+   - update `docs/architecture/README.md` and/or ADR index as needed
+   - explain compatibility impact and migration path
+2. If a decision changes:
+   - add new ADR with supersedes pointer
+   - mark old ADR as superseded (do not rewrite history)
+
+### CI governance (locked by ADR-0010 once accepted)
+1. Treat CI gates as architecture controls, not optional repo hygiene.
+2. Required checks for merges to `main`:
+   - `go-test`
+   - `frontend-ci`
+   - `CodeQL`
+3. Keep workflow/check names stable to avoid breaking required-status wiring.
+4. When CI workflow scope changes (paths, jobs, check names), update:
+   - ruleset/branch protection required checks,
+   - relevant architecture docs/ADR status and references.
+5. Frontend CI must validate at minimum:
+   - `npm run -w apps/universal typecheck`
+   - `npm run -w apps/universal lint`
+   - `npm run -w apps/universal test`
+   - Expo web build/export sanity check
+
+## Local Development Principles (Developer Experience)
+These are mandatory implementation principles for local workflows and tooling quality.
+
+### Core DX principles
+1. Local-first and reproducible:
+   - a new developer must be able to boot the stack from a clean checkout with documented commands,
+   - avoid hidden prerequisites and machine-specific manual steps.
+2. Production-parity where it matters:
+   - prefer local runtime shape that mirrors deployed architecture (Kubernetes, service boundaries, auth, streaming),
+   - avoid local-only shortcuts that hide distributed/system behavior.
+3. One-command lifecycle:
+   - keep bringup/teardown ergonomic and idempotent (`dev-up`, `dev-down` style),
+   - commands should be safe to rerun and recover partial setups.
+4. Fast feedback loops:
+   - provide quick paths for lint/typecheck/tests before full-stack runs,
+   - prioritize deterministic failures with actionable error output.
+5. Deterministic behavior:
+   - pin toolchain/runtime versions where possible,
+   - keep seeded training/testing flows reproducible.
+
+### Local platform expectations (aligned with ADR-0009)
+1. Local development should run on k3d Kubernetes by default.
+2. Platform dependencies should run in-cluster (NATS, Postgres/Timescale, Valkey, Keycloak, MinIO).
+3. Services should run in-cluster by default; local out-of-cluster runs are optional debug paths.
+4. Keep local topology close to GKE deployment shape to reduce environment drift.
+
+### Operational UX standards
+1. Configuration clarity:
+   - all required env vars must be documented with sane local defaults.
+2. Observability by default:
+   - local runs should emit useful logs/metrics for debugging connection, replay, and ingestion issues.
+3. Backpressure/safety visible locally:
+   - queue depth, drop behavior, and reconnect states should be inspectable in local mode.
+4. Data safety:
+   - destructive cleanup commands must be explicit and opt-in.
+5. Documentation freshness:
+   - whenever local workflow changes, update `/docs` runbooks and command references in the same PR.
+
 ## ML Training Workflow (ETA Models)
 Use the built-in trainer at `cmd/ecoflow-ml-train` for fast, repeatable tuning.
 

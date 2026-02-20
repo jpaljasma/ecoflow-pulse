@@ -31,6 +31,8 @@ make mqtt
 Developer docs follow Diataxis under `/docs`:
 
 - [Developer Documentation Index](docs/README.md)
+- [Architecture (Locked Plan)](docs/architecture/README.md)
+- [Architecture Decision Records (ADR Index)](docs/architecture/adr/README.md)
 - [Run MQTT Dashboard](docs/how-to/run-mqtt-dashboard.md)
 - [Configuration Reference](docs/reference/configuration.md)
 - [Telemetry Model](docs/reference/telemetry-model.md)
