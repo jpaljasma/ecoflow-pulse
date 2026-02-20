@@ -136,6 +136,44 @@ These rules are mandatory for all new platform work and are sourced from:
    - add new ADR with supersedes pointer
    - mark old ADR as superseded (do not rewrite history)
 
+## Local Development Principles (Developer Experience)
+These are mandatory implementation principles for local workflows and tooling quality.
+
+### Core DX principles
+1. Local-first and reproducible:
+   - a new developer must be able to boot the stack from a clean checkout with documented commands,
+   - avoid hidden prerequisites and machine-specific manual steps.
+2. Production-parity where it matters:
+   - prefer local runtime shape that mirrors deployed architecture (Kubernetes, service boundaries, auth, streaming),
+   - avoid local-only shortcuts that hide distributed/system behavior.
+3. One-command lifecycle:
+   - keep bringup/teardown ergonomic and idempotent (`dev-up`, `dev-down` style),
+   - commands should be safe to rerun and recover partial setups.
+4. Fast feedback loops:
+   - provide quick paths for lint/typecheck/tests before full-stack runs,
+   - prioritize deterministic failures with actionable error output.
+5. Deterministic behavior:
+   - pin toolchain/runtime versions where possible,
+   - keep seeded training/testing flows reproducible.
+
+### Local platform expectations (aligned with ADR-0009)
+1. Local development should run on k3d Kubernetes by default.
+2. Platform dependencies should run in-cluster (NATS, Postgres/Timescale, Valkey, Keycloak, MinIO).
+3. Services should run in-cluster by default; local out-of-cluster runs are optional debug paths.
+4. Keep local topology close to GKE deployment shape to reduce environment drift.
+
+### Operational UX standards
+1. Configuration clarity:
+   - all required env vars must be documented with sane local defaults.
+2. Observability by default:
+   - local runs should emit useful logs/metrics for debugging connection, replay, and ingestion issues.
+3. Backpressure/safety visible locally:
+   - queue depth, drop behavior, and reconnect states should be inspectable in local mode.
+4. Data safety:
+   - destructive cleanup commands must be explicit and opt-in.
+5. Documentation freshness:
+   - whenever local workflow changes, update `/docs` runbooks and command references in the same PR.
+
 ## ML Training Workflow (ETA Models)
 Use the built-in trainer at `cmd/ecoflow-ml-train` for fast, repeatable tuning.
 
