@@ -26,6 +26,12 @@ Top-level structure:
   - `panel_purchase_links_v13.json`: curated panel-id to purchase-link override map
     used during panel DB regeneration.
   - `panel_select_model.json`: trained panel selection model artifact.
+- `deploy/`
+  - `charts/pulse-platform`: platform umbrella chart scaffold.
+  - `charts/pulse-services`: services umbrella chart scaffold.
+  - `env/local` and `env/dev`: values files for local/dev deploys.
+  - `argocd/apps`: direct Argo CD apps (`pulse-platform`, `pulse-services`).
+  - `tilt/k3d-config.yaml`: k3d local cluster config.
 - `docs/`: developer documentation in Diataxis layout.
 
 Key dashboard-focused files:

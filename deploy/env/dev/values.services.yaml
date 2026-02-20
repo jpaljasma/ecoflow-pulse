@@ -1,0 +1,6 @@
+global:
+  environment: dev
+
+scaffold:
+  enabled: true
+  message: "pulse-services dev scaffold"

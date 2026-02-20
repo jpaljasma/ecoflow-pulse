@@ -186,7 +186,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | Create `/deploy` layout (charts + env values + Argo apps) | — |
+| PROGRESS | Create `/deploy` layout (charts + env values + Argo apps)<br>- [x] Implemented `/deploy` scaffold (local+dev only, namespaces agreed)<br>- [x] Added direct Argo apps (`pulse-platform`, `pulse-services`)<br>- [x] Added local k3d config at `deploy/tilt/k3d-config.yaml`<br>- [ ] Wire initial platform chart dependencies (scaffold-first, disabled by default)<br>- [ ] Add Make targets (`k3d-up`, `platform-up`, `services-up`, `dev-up`, `dev-down`) | — |
 | TODO | Local k3d cluster config + Make targets (`dev-up`) | — |
 | TODO | Argo CD bootstrapped in GKE dev | cluster |
 | TODO | ingress-nginx + cert-manager | cluster |

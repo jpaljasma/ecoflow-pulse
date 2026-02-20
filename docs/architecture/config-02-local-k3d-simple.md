@@ -42,8 +42,8 @@ kubectl get nodes
 ## One-command workflow (recommended Make targets)
 - `make dev-up`:
   1) create k3d cluster (if missing)
-  2) `helm upgrade --install pulse-platform ... -f env/local/values.platform.yaml`
-  3) `helm upgrade --install pulse-services ... -f env/local/values.services.yaml`
+  2) `helm upgrade --install pulse-platform deploy/charts/pulse-platform -f deploy/env/local/values.platform.yaml`
+  3) `helm upgrade --install pulse-services deploy/charts/pulse-services -f deploy/env/local/values.services.yaml`
 - `make dev-down`:
   - uninstall charts (optional)
   - optionally delete k3d cluster

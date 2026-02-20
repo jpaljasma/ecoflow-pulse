@@ -1,0 +1,7 @@
+apiVersion: v2
+name: pulse-platform
+description: EcoFlow Pulse platform dependencies umbrella chart (scaffold)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies: []

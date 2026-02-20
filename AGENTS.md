@@ -13,6 +13,26 @@ Always use a branch -> pull request -> merge workflow.
 5. Open a pull request to `main`.
 6. Merge only through the pull request after checks pass.
 
+## Milestone Task Kickoff Workflow
+When starting any new milestone task from `docs/architecture/README.md`:
+
+1. Switch to an up-to-date `main`.
+2. When picking a task, ensure that dependencies are satisfied first.
+3. Create a dedicated `codex/<topic>` branch for that one task.
+4. Mark the selected milestone task status from `TODO` to `PROGRESS` before implementation starts.
+5. Read `docs/architecture/README.md` + all `docs/architecture/config*.md` files relevant to the task.
+6. Share an implementation overview first (scope, files, acceptance criteria, risks).
+7. Ask focused clarification questions when requirements are ambiguous; do not start coding until critical gaps are resolved.
+8. Implement step by step, keeping docs updated in the same branch.
+9. Run tests/lint relevant to the change, then commit/push and open a PR.
+
+### Milestone Breakdown Tracking (required)
+1. When a milestone task is large, break it into sub-steps directly in `docs/architecture/README.md` under that task.
+2. Use markdown checkboxes to track sub-steps, for example:
+   - `[x] done`
+   - `[ ] next`
+3. Update checkbox state in every implementation chunk commit so milestone progress is always visible.
+
 ## Branch Rules
 1. Do not commit directly to `main`.
 2. Use clear branch names. For Codex-created branches, use `codex/<topic>`.
@@ -243,24 +263,24 @@ go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile d2m -can
 go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile generic -candidates 4000 -stages 0.15,0.4,1.0 -seed 808
 ```
 
-3. Retrain DPU only when needed:
+1. Retrain DPU only when needed:
 ```bash
 go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile dpu -candidates 4000 -stages 0.15,0.4,1.0 -seed 88
 ```
 
-4. Compare against currently deployed params on the same dataset:
+1. Compare against currently deployed params on the same dataset:
    - Only apply new params if `best_score` is lower with equal/better `coverage`.
    - Keep `coverage` near 1.0 for DPU and high for D2M/generic.
    - If results are close, prefer parameter sets that are stable across multiple seeds.
 
-5. Seed sweep guidance:
+2. Seed sweep guidance:
    - Run 4-8 seeds for the same profile.
    - Choose the winner by:
      1) lowest `best_score`
      2) highest `best_coverage`
      3) simpler/stabler windows
 
-6. Post-update validation:
+3. Post-update validation:
    - Verify top-state model selection still follows:
      - `New` (device-specific), then `Generic`, then `MPPT`.
    - Verify source icon logic during hybrid charging (AC + solar) updates correctly.
@@ -363,23 +383,23 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
    - avoid page/card-level global rerenders for relative time labels; compute inactivity in snapshots and keep any "time ago" refresh isolated to leaf text components only when needed,
    - use virtualized list rendering on web and native (`FlatList`/virtualized path) instead of manual mapped grids for device cards.
 
-7. Cross-platform image loading rules (web + iOS):
+8. Cross-platform image loading rules (web + iOS):
    - treat brand assets and UI chrome assets as bundled/static first (logos, menu glyphs, icons),
    - for product photos, support bundled fallback for reliability and remote URI only when explicitly configured,
    - always include an error fallback path for fleet summary thumbnails and device cards/details (do not assume URI availability),
    - avoid custom web fetch/blob/object-URL image loops; prefer direct URI rendering with cache-friendly components,
    - if image requests spike, inspect Network for repeated same-filename fetches and verify image source stability per component.
 
-8. iOS layout/safe-area rules:
+9. iOS layout/safe-area rules:
    - top header/logo rows must account for safe area insets to avoid notch overlap,
    - avoid nested `VirtualizedList` inside plain `ScrollView` with same direction (RN warning, broken windowing),
    - keep list/detail scroll behavior explicit per platform (`FlatList` header pattern on index, dedicated scroll container on detail).
 
-9. Navigation interaction rules:
+10. Navigation interaction rules:
    - for iOS close/dismiss from detail, prefer `router.back()` when possible so transition direction feels native,
    - keep replace fallback to home route only when stack back is unavailable.
 
-10. Mock telemetry transport reliability rules (web vs iOS):
+11. Mock telemetry transport reliability rules (web vs iOS):
    - in `mock://` API mode, prefer polling transport by default and avoid WS reconnect loops,
    - do not rely on web-only relative paths (`/logs/...`) on native; provide absolute host-based candidates for iOS/Android,
    - keep multiple native URL candidates for mock files (`/logs` and `/mock`, plus host fallbacks) so incremental updates continue,

@@ -1,0 +1,21 @@
+global:
+  environment: local
+  namespaces:
+    platform: pulse-platform
+    services: pulse-services
+
+scaffold:
+  enabled: true
+  message: "pulse-services scaffold chart"
+
+services:
+  nodeBff:
+    enabled: false
+  wsGateway:
+    enabled: false
+  goIngest:
+    enabled: false
+  goProjection:
+    enabled: false
+  goQueryApi:
+    enabled: false

@@ -1,0 +1,25 @@
+global:
+  environment: local
+  namespaces:
+    platform: pulse-platform
+    services: pulse-services
+
+scaffold:
+  enabled: true
+  message: "pulse-platform scaffold chart"
+
+components:
+  nats:
+    enabled: false
+  cloudnativepg:
+    enabled: false
+  timescaledb:
+    enabled: false
+  valkey:
+    enabled: false
+  keycloak:
+    enabled: false
+  minio:
+    enabled: false
+  observabilityLite:
+    enabled: false
