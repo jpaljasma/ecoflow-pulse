@@ -4,6 +4,7 @@ description: EcoFlow Pulse platform dependencies umbrella chart (scaffold)
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
+icon: "https://raw.githubusercontent.com/jpaljasma/ecoflow-pulse/main/apps/universal/public/ecoflow_brand_assets/ecoflow_mark_256.png"
 dependencies:
   - name: nats
     repository: https://nats-io.github.io/k8s/helm/charts/

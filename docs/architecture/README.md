@@ -193,8 +193,8 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | TODO | External Secrets Operator (staging/prod) | cluster |
 | TODO | CloudNativePG operator + base Postgres | cluster |
 | TODO | TimescaleDB enablement (extension) | Postgres |
-| PROGRESS | NATS JetStream (3 replicas)<br>- [x] Added + pinned NATS dependency in `pulse-platform` chart<br>- [x] Enabled NATS JetStream (3 replicas) in `deploy/env/local/values.platform.yaml`<br>- [x] Kept dev NATS config scaffolded but disabled by default<br>- [ ] Validate `make platform-up` end-to-end on local k3d cluster | cluster |
-| TODO | Valkey (Sentinel, 3 pods total) | cluster |
+| DONE | NATS JetStream (3 replicas)<br>- [x] Added + pinned NATS dependency in `pulse-platform` chart<br>- [x] Enabled NATS JetStream (3 replicas) in `deploy/env/local/values.platform.yaml`<br>- [x] Kept dev NATS config scaffolded but disabled by default<br>- [x] Validated `make platform-up` end-to-end on local k3d cluster | cluster |
+| PROGRESS | Valkey (Sentinel, 3 pods total)<br>- [ ] Enable Valkey component in `deploy/env/local/values.platform.yaml`<br>- [ ] Configure replication + Sentinel topology for 3 pods total in local k3d<br>- [ ] Validate with `make platform-up` + pod health checks<br>- [ ] Document local validation commands/results | cluster |
 | TODO | Keycloak (2 replicas) | cluster |
 | TODO | MinIO (local only) | local |
 | TODO | Observability “lite” installed | cluster |
