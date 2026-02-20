@@ -35,9 +35,7 @@ export function BatteryPacksSection({
       }),
     [model, serialNumber, batteryCount]
   );
-  const maxBatteries = useMemo(
-    () => getMaxBatteryCount(model),[model, serialNumber]
-  )
+  const maxBatteries = useMemo(() => getMaxBatteryCount(model), [model]);
   return (
     <SectionCard
       title="🔋 Battery Packs"

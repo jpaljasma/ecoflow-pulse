@@ -6,7 +6,6 @@ import { TopBar } from '@/shared/ui/TopBar';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
-import { useChartPrefs } from '@/shared/ui/chartPrefs';
 import { useDevice, useDevices } from '@/features/devices/hooks';
 import {
   useTelemetryConnectionStatus,
@@ -29,8 +28,6 @@ export default function DeviceDetailScreen() {
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
   const router = useRouter();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
-  const trendChartStyle = useChartPrefs((s) => s.trendChartStyle);
-  const toggleTrendChartStyle = useChartPrefs((s) => s.toggleTrendChartStyle);
   const deviceQuery = useDevice(deviceId);
   const devicesQuery = useDevices();
   useTelemetrySubscription(deviceId ? [deviceId] : []);
@@ -102,8 +99,6 @@ export default function DeviceDetailScreen() {
       mediaColumnWidth={mediaColumnWidth}
       mediaBoxHeight={mediaBoxHeight}
       mobileImageSize={mobileImageSize}
-      trendChartStyle={trendChartStyle}
-      onToggleTrendChartStyle={toggleTrendChartStyle}
       sparklineLoad={detailTrend.load}
       sparklinePV={detailTrend.pv}
       sparklineAC={detailTrend.ac}
