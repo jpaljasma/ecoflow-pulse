@@ -9,3 +9,4 @@ node_modules/
 .expo-shared/
 apps/universal/dist/
 *.tsbuildinfo
+deploy/charts/*/charts/

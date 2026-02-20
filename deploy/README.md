@@ -39,3 +39,7 @@ When you need to render/install enabled dependencies locally:
 ```bash
 helm dependency update deploy/charts/pulse-platform
 ```
+
+Repository policy:
+- commit `Chart.lock` for reproducible resolution,
+- do not commit vendored `charts/*.tgz` artifacts.
