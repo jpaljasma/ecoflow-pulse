@@ -62,7 +62,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -379,6 +379,10 @@ gke-wake: gke-context gke-dev-guardrails
 			echo "skipping missing deploy/$$dep in $$ns"; \
 		fi; \
 	done
+
+scale-down: gke-park
+
+scale-up: gke-wake
 
 argocd-bootstrap-dev: gke-context
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \

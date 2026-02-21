@@ -46,6 +46,8 @@ make gke-context
 make gke-dev-guardrails
 make gke-park
 make gke-wake
+make scale-down
+make scale-up
 make argocd-bootstrap-dev
 make argocd-apps-dev
 make argocd-wait-apps
@@ -132,6 +134,8 @@ Notes:
   - stateless replicas: `2`
   - baseline pool min/max: `2/4`
   - spot pool min/max: `0/4`
+- `make scale-down` is a convenience alias for `make gke-park` (same required variables and behavior).
+- `make scale-up` is a convenience alias for `make gke-wake` (same required variables and behavior).
 - `make argocd-bootstrap-dev` installs/upgrades Argo CD in `argocd` namespace on GKE dev and waits for:
   - `crd/applications.argoproj.io` Established
   - `deploy/argocd-server` Ready
