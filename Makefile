@@ -7,6 +7,7 @@ K3D ?= k3d
 HELM ?= helm
 KUBECTL ?= kubectl
 DOCKER ?= docker
+GCLOUD ?= gcloud
 K3D_CLUSTER_NAME ?= pulse-local
 K3D_CONFIG ?= deploy/tilt/k3d-config.yaml
 PLATFORM_CHART ?= deploy/charts/pulse-platform
@@ -21,6 +22,21 @@ DELETE_CLUSTER ?= 0
 WAIT_TIMEOUT ?= 600s
 HELM_RETRY_MAX ?= 6
 HELM_RETRY_DELAY_SEC ?= 5
+GKE_PROJECT_ID ?=
+GKE_CLUSTER_NAME ?= pulse-dev
+GKE_CLUSTER_ZONE ?= us-east1-b
+GKE_DEV_NAMESPACE ?= pulse-dev
+GKE_GUARDRAILS_DIR ?= deploy/env/dev/guardrails
+GKE_BASELINE_NODEPOOL ?= baseline-pool
+GKE_SPOT_NODEPOOL ?= spot-pool
+GKE_STATELESS_DEPLOYMENTS ?= node-bff ws-gateway query-api projection ingest
+GKE_WAKE_REPLICAS ?= 2
+GKE_PARK_REPLICAS ?= 0
+GKE_BASELINE_MIN_ACTIVE ?= 2
+GKE_BASELINE_MIN_PARKED ?= 1
+GKE_BASELINE_MAX ?= 4
+GKE_SPOT_MIN ?= 0
+GKE_SPOT_MAX ?= 4
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -33,7 +49,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -240,6 +256,105 @@ dev-down:
 	else \
 		echo "cluster preserved (set DELETE_CLUSTER=1 to delete)"; \
 	fi
+
+gke-context:
+	@if ! command -v $(GCLOUD) >/dev/null 2>&1; then \
+		echo "$(GCLOUD) not found. Install Google Cloud SDK first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@if [ -z "$(GKE_PROJECT_ID)" ]; then \
+		echo "GKE_PROJECT_ID is required. Example: make gke-context GKE_PROJECT_ID=my-project"; \
+		exit 1; \
+	fi
+	@echo "fetching kube credentials for $(GKE_CLUSTER_NAME) in $(GKE_CLUSTER_ZONE) (project: $(GKE_PROJECT_ID))"
+	$(GCLOUD) container clusters get-credentials $(GKE_CLUSTER_NAME) \
+		--zone $(GKE_CLUSTER_ZONE) \
+		--project $(GKE_PROJECT_ID)
+
+gke-dev-guardrails: gke-context
+	@echo "ensuring namespace $(GKE_DEV_NAMESPACE) exists"
+	@$(KUBECTL) get ns $(GKE_DEV_NAMESPACE) >/dev/null 2>&1 || $(KUBECTL) create ns $(GKE_DEV_NAMESPACE)
+	@echo "applying dev guardrails in $(GKE_DEV_NAMESPACE)"
+	$(KUBECTL) apply -f $(GKE_GUARDRAILS_DIR)/pulse-dev-resourcequota.yaml
+	$(KUBECTL) apply -f $(GKE_GUARDRAILS_DIR)/pulse-dev-limitrange.yaml
+
+gke-park: gke-context
+	@set -euo pipefail; \
+	ns="$(GKE_DEV_NAMESPACE)"; \
+	echo "parking stateless workloads in $$ns"; \
+	for dep in $(GKE_STATELESS_DEPLOYMENTS); do \
+		if $(KUBECTL) -n "$$ns" get deploy "$$dep" >/dev/null 2>&1; then \
+			echo "scaling deploy/$$dep -> $(GKE_PARK_REPLICAS)"; \
+			$(KUBECTL) -n "$$ns" scale deploy/"$$dep" --replicas=$(GKE_PARK_REPLICAS); \
+		else \
+			echo "skipping missing deploy/$$dep in $$ns"; \
+		fi; \
+	done; \
+	if $(GCLOUD) container node-pools describe $(GKE_BASELINE_NODEPOOL) --cluster $(GKE_CLUSTER_NAME) --zone $(GKE_CLUSTER_ZONE) --project $(GKE_PROJECT_ID) >/dev/null 2>&1; then \
+		echo "setting baseline node pool min/max to $(GKE_BASELINE_MIN_PARKED)/$(GKE_BASELINE_MAX)"; \
+		$(GCLOUD) container node-pools update $(GKE_BASELINE_NODEPOOL) \
+			--cluster $(GKE_CLUSTER_NAME) \
+			--zone $(GKE_CLUSTER_ZONE) \
+			--project $(GKE_PROJECT_ID) \
+			--enable-autoscaling \
+			--min-nodes $(GKE_BASELINE_MIN_PARKED) \
+			--max-nodes $(GKE_BASELINE_MAX); \
+	else \
+		echo "skipping missing node pool $(GKE_BASELINE_NODEPOOL)"; \
+	fi; \
+	if $(GCLOUD) container node-pools describe $(GKE_SPOT_NODEPOOL) --cluster $(GKE_CLUSTER_NAME) --zone $(GKE_CLUSTER_ZONE) --project $(GKE_PROJECT_ID) >/dev/null 2>&1; then \
+		echo "setting spot node pool min/max to $(GKE_SPOT_MIN)/$(GKE_SPOT_MAX)"; \
+		$(GCLOUD) container node-pools update $(GKE_SPOT_NODEPOOL) \
+			--cluster $(GKE_CLUSTER_NAME) \
+			--zone $(GKE_CLUSTER_ZONE) \
+			--project $(GKE_PROJECT_ID) \
+			--enable-autoscaling \
+			--min-nodes $(GKE_SPOT_MIN) \
+			--max-nodes $(GKE_SPOT_MAX); \
+	else \
+		echo "skipping missing node pool $(GKE_SPOT_NODEPOOL)"; \
+	fi
+
+gke-wake: gke-context gke-dev-guardrails
+	@set -euo pipefail; \
+	ns="$(GKE_DEV_NAMESPACE)"; \
+	if $(GCLOUD) container node-pools describe $(GKE_BASELINE_NODEPOOL) --cluster $(GKE_CLUSTER_NAME) --zone $(GKE_CLUSTER_ZONE) --project $(GKE_PROJECT_ID) >/dev/null 2>&1; then \
+		echo "setting baseline node pool min/max to $(GKE_BASELINE_MIN_ACTIVE)/$(GKE_BASELINE_MAX)"; \
+		$(GCLOUD) container node-pools update $(GKE_BASELINE_NODEPOOL) \
+			--cluster $(GKE_CLUSTER_NAME) \
+			--zone $(GKE_CLUSTER_ZONE) \
+			--project $(GKE_PROJECT_ID) \
+			--enable-autoscaling \
+			--min-nodes $(GKE_BASELINE_MIN_ACTIVE) \
+			--max-nodes $(GKE_BASELINE_MAX); \
+	else \
+		echo "skipping missing node pool $(GKE_BASELINE_NODEPOOL)"; \
+	fi; \
+	if $(GCLOUD) container node-pools describe $(GKE_SPOT_NODEPOOL) --cluster $(GKE_CLUSTER_NAME) --zone $(GKE_CLUSTER_ZONE) --project $(GKE_PROJECT_ID) >/dev/null 2>&1; then \
+		echo "setting spot node pool min/max to $(GKE_SPOT_MIN)/$(GKE_SPOT_MAX)"; \
+		$(GCLOUD) container node-pools update $(GKE_SPOT_NODEPOOL) \
+			--cluster $(GKE_CLUSTER_NAME) \
+			--zone $(GKE_CLUSTER_ZONE) \
+			--project $(GKE_PROJECT_ID) \
+			--enable-autoscaling \
+			--min-nodes $(GKE_SPOT_MIN) \
+			--max-nodes $(GKE_SPOT_MAX); \
+	else \
+		echo "skipping missing node pool $(GKE_SPOT_NODEPOOL)"; \
+	fi; \
+	echo "waking stateless workloads in $$ns"; \
+	for dep in $(GKE_STATELESS_DEPLOYMENTS); do \
+		if $(KUBECTL) -n "$$ns" get deploy "$$dep" >/dev/null 2>&1; then \
+			echo "scaling deploy/$$dep -> $(GKE_WAKE_REPLICAS)"; \
+			$(KUBECTL) -n "$$ns" scale deploy/"$$dep" --replicas=$(GKE_WAKE_REPLICAS); \
+		else \
+			echo "skipping missing deploy/$$dep in $$ns"; \
+		fi; \
+	done
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \

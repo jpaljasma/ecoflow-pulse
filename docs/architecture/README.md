@@ -141,6 +141,15 @@ This ensures:
 - REST cannot be forged to access other users’ devices
 - gRPC does not “trust” Node implicitly
 
+### CI merge gates (required)
+The `main` branch is protected by required CI checks. These check names are part of the architecture contract and must remain stable:
+
+- `go-test`
+- `frontend-ci`
+- `CodeQL`
+
+If a workflow or check name changes, update repository branch protection/rulesets in the same change so merges are never silently unblocked.
+
 ---
 
 ## 7) Local dev principle (keep it very simple)
@@ -158,6 +167,18 @@ Suggested developer commands (you’ll implement in Makefile):
 - `make dev-down` — uninstall + optionally delete cluster
 
 Optional (not required): Tilt for hot-reload convenience.
+
+### When to use GKE dev (cost-min policy)
+Use GKE dev only for cloud-only validation:
+
+1. OAuth/social redirect flows on real domains/devices
+2. ingress + TLS + cert-manager behavior
+3. Workload Identity and External Secrets behavior
+4. GCS lifecycle/retention checks for archive flows
+5. autoscaling/node lifecycle behavior and Argo CD cloud sync realism
+
+Everything else should run on local k3d first.  
+When not actively testing in GKE dev, park workloads and reduce node-pool mins.
 
 ---
 

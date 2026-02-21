@@ -12,6 +12,7 @@ Current state: **scaffold only** (Milestone 0, task #1 in progress).
   (Node BFF, WS gateway, Go ingest/projection/query).
 - `env/local/`: local values overrides.
 - `env/dev/`: dev values overrides.
+- `env/dev/guardrails/`: dev namespace guardrails (`ResourceQuota`, `LimitRange`).
 - `argocd/apps/`: direct Argo CD Applications:
   - `pulse-platform`
   - `pulse-services`
@@ -45,6 +46,10 @@ make platform-up
 make services-up
 make dev-down
 make dev-down DELETE_CLUSTER=1
+make gke-context GKE_PROJECT_ID=<project>
+make gke-dev-guardrails GKE_PROJECT_ID=<project>
+make gke-park GKE_PROJECT_ID=<project>
+make gke-wake GKE_PROJECT_ID=<project>
 ```
 
 Defaults:

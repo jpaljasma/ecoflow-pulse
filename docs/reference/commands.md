@@ -42,6 +42,10 @@ make services-up
 make services-wait
 make dev-up
 make dev-down
+make gke-context
+make gke-dev-guardrails
+make gke-park
+make gke-wake
 make web-stop
 make web
 ```
@@ -98,3 +102,22 @@ Notes:
   This enforces startup order and returns only when dependencies are actually ready.
 - `make dev-down` uninstalls `pulse-services` and `pulse-platform`; preserves cluster by default.
   Set `DELETE_CLUSTER=1` to also delete the local k3d cluster.
+- `make gke-context` fetches kube credentials for GKE dev.
+  Required variables:
+  - `GKE_PROJECT_ID` (required)
+  Optional variables:
+  - `GKE_CLUSTER_NAME` (default `pulse-dev`)
+  - `GKE_CLUSTER_ZONE` (default `us-east1-b`)
+- `make gke-dev-guardrails` creates `pulse-dev` namespace if needed and applies:
+  - `deploy/env/dev/guardrails/pulse-dev-resourcequota.yaml`
+  - `deploy/env/dev/guardrails/pulse-dev-limitrange.yaml`
+- `make gke-park` scales stateless app deployments down and reduces node-pool minimums for cost-min idle mode.
+  Defaults:
+  - `GKE_STATELESS_DEPLOYMENTS="node-bff ws-gateway query-api projection ingest"`
+  - baseline pool min/max: `1/4`
+  - spot pool min/max: `0/4`
+- `make gke-wake` restores baseline autoscaling settings, reapplies guardrails, and scales stateless app deployments up.
+  Defaults:
+  - stateless replicas: `2`
+  - baseline pool min/max: `2/4`
+  - spot pool min/max: `0/4`

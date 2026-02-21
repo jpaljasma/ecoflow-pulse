@@ -212,6 +212,32 @@ These are mandatory implementation principles for local workflows and tooling qu
 5. Documentation freshness:
    - whenever local workflow changes, update `/docs` runbooks and command references in the same PR.
 
+### Dev cloud cost-min policy (ADR-0011 + dev-cost guide)
+1. Prime directive (non-negotiable):
+   - daily development happens on local k3d,
+   - GKE dev is used only for integration/cloud-only validation.
+2. Use GKE dev only for:
+   - OAuth/social redirect flows on real domains/devices,
+   - ingress/TLS/cert-manager validation,
+   - workload identity + external secrets behavior,
+   - cloud object storage lifecycle/retention checks,
+   - autoscaling/node-lifecycle/cloud realism tests.
+3. Cost floor for GKE dev:
+   - one shared zonal Standard cluster in `us-east1-b` for dev usage,
+   - avoid multiple dev clusters unless explicitly approved in architecture decisions.
+4. Keep expensive defaults off:
+   - no always-on public ingress/load balancers by default,
+   - use port-forward for routine debugging where possible,
+   - keep observability lite in dev.
+5. Mandatory scale-down when idle:
+   - scale stateless workloads to 0 or 1 when not actively testing,
+   - reduce node pool minimums (baseline low, Spot min=0 where used).
+6. Namespace guardrails are required for dev cloud usage:
+   - apply ResourceQuota + LimitRange in `pulse-dev` to avoid accidental overprovisioning.
+7. Delivery workflow:
+   - local-first implementation and testing,
+   - promote to GKE dev only for cloud-only validation gates.
+
 ### Kubernetes bringup hardening (local/dev)
 1. `make dev-up` must be single-run and self-healing:
    - developers should not need manual reruns to recover transient startup races.
