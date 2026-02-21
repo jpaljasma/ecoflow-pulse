@@ -12,6 +12,7 @@ This page tracks required local tools for development workflows.
 | Helm | Kubernetes chart lint/install and dependency resolution | `make platform-up`, `make services-up` |
 | k3d | Local Kubernetes cluster bringup | `make k3d-up`, `make dev-up` |
 | kubectl | Kubernetes cluster inspection and validation | `make k3d-up`, local debugging |
+| Google Cloud SDK (`gcloud`) | GKE dev kubecontext and node-pool scaling | `make gke-context`, `make gke-park`, `make gke-wake`, `make argocd-dev-up` |
 
 ## Recently Observed Missing Requirements
 

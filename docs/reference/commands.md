@@ -46,6 +46,10 @@ make gke-context
 make gke-dev-guardrails
 make gke-park
 make gke-wake
+make argocd-bootstrap-dev
+make argocd-apps-dev
+make argocd-wait-apps
+make argocd-dev-up
 make web-stop
 make web
 ```
@@ -121,3 +125,20 @@ Notes:
   - stateless replicas: `2`
   - baseline pool min/max: `2/4`
   - spot pool min/max: `0/4`
+- `make argocd-bootstrap-dev` installs/upgrades Argo CD in `argocd` namespace on GKE dev and waits for:
+  - `crd/applications.argoproj.io` Established
+  - `deploy/argocd-server` Ready
+  - `deploy/argocd-repo-server` Ready
+  - `sts/argocd-application-controller` Ready
+  Defaults:
+  - chart: `argo/argo-cd`
+  - version: `9.4.3`
+  - values: `deploy/env/dev/values.argocd.yaml`
+- `make argocd-apps-dev` applies direct app manifests in `deploy/argocd/apps/` (`pulse-platform`, `pulse-services`).
+- `make argocd-wait-apps` waits until each Argo Application reaches:
+  - `status.sync.status=Synced`
+  - `status.health.status=Healthy`
+- `make argocd-dev-up` is the full bootstrap sequence:
+  - Argo CD install/upgrade
+  - direct app apply
+  - app sync/health wait loop

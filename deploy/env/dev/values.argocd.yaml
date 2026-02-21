@@ -1,0 +1,34 @@
+fullnameOverride: argocd
+
+global:
+  domain: argocd.dev.local
+
+configs:
+  params:
+    # Use port-forward/cluster-internal access in cost-min dev unless ingress is explicitly enabled.
+    server.insecure: true
+
+server:
+  service:
+    type: ClusterIP
+
+controller:
+  replicas: 1
+
+repoServer:
+  replicas: 1
+
+applicationSet:
+  replicas: 1
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+redis:
+  enabled: true
+
+redis-ha:
+  enabled: false

@@ -37,6 +37,16 @@ GKE_BASELINE_MIN_PARKED ?= 1
 GKE_BASELINE_MAX ?= 4
 GKE_SPOT_MIN ?= 0
 GKE_SPOT_MAX ?= 4
+ARGOCD_HELM_REPO ?= https://argoproj.github.io/argo-helm
+ARGOCD_HELM_CHART ?= argo/argo-cd
+ARGOCD_CHART_VERSION ?= 9.4.3
+ARGOCD_RELEASE ?= argocd
+ARGOCD_NAMESPACE ?= argocd
+ARGOCD_VALUES_DEV ?= deploy/env/dev/values.argocd.yaml
+ARGOCD_APPS_DIR ?= deploy/argocd/apps
+ARGOCD_APPS ?= pulse-platform pulse-services
+ARGOCD_APP_WAIT_ATTEMPTS ?= 60
+ARGOCD_APP_WAIT_SLEEP_SEC ?= 10
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -49,7 +59,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -355,6 +365,63 @@ gke-wake: gke-context gke-dev-guardrails
 			echo "skipping missing deploy/$$dep in $$ns"; \
 		fi; \
 	done
+
+argocd-bootstrap-dev: gke-context
+	@if ! command -v $(HELM) >/dev/null 2>&1; then \
+		echo "$(HELM) not found. Install helm first."; \
+		exit 1; \
+	fi
+	@echo "ensuring namespace $(ARGOCD_NAMESPACE) exists"
+	@$(KUBECTL) get ns $(ARGOCD_NAMESPACE) >/dev/null 2>&1 || $(KUBECTL) create ns $(ARGOCD_NAMESPACE)
+	@echo "installing/upgrading Argo CD chart $(ARGOCD_HELM_CHART) ($(ARGOCD_CHART_VERSION))"
+	@$(HELM) repo add argo $(ARGOCD_HELM_REPO) >/dev/null 2>&1 || true
+	@$(HELM) repo update >/dev/null 2>&1
+	$(HELM) upgrade --install $(ARGOCD_RELEASE) $(ARGOCD_HELM_CHART) \
+		--version $(ARGOCD_CHART_VERSION) \
+		--namespace $(ARGOCD_NAMESPACE) \
+		--create-namespace \
+		-f $(ARGOCD_VALUES_DEV)
+	@echo "waiting for Argo CD CRDs and core workloads"
+	$(KUBECTL) wait --for=condition=Established --timeout=$(WAIT_TIMEOUT) crd/applications.argoproj.io
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-repo-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status sts/argocd-application-controller --timeout=$(WAIT_TIMEOUT)
+
+argocd-apps-dev: gke-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_APPS); do \
+		manifest="$(ARGOCD_APPS_DIR)/$$app.yaml"; \
+		if [ ! -f "$$manifest" ]; then \
+			echo "missing Argo application manifest: $$manifest"; \
+			exit 1; \
+		fi; \
+		echo "applying $$manifest"; \
+		$(KUBECTL) apply -f "$$manifest"; \
+	done
+
+argocd-wait-apps: gke-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_APPS); do \
+		echo "waiting for application/$$app (Synced + Healthy)"; \
+		ok=0; \
+		for attempt in $$(seq 1 $(ARGOCD_APP_WAIT_ATTEMPTS)); do \
+			sync="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.sync.status}' 2>/dev/null || true )"; \
+			health="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.health.status}' 2>/dev/null || true )"; \
+			echo "  attempt $$attempt/$(ARGOCD_APP_WAIT_ATTEMPTS): sync=$${sync:-n/a} health=$${health:-n/a}"; \
+			if [ "$$sync" = "Synced" ] && [ "$$health" = "Healthy" ]; then \
+				ok=1; \
+				break; \
+			fi; \
+			sleep $(ARGOCD_APP_WAIT_SLEEP_SEC); \
+		done; \
+		if [ $$ok -ne 1 ]; then \
+			echo "application/$$app did not reach Synced+Healthy"; \
+			$(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o yaml || true; \
+			exit 1; \
+		fi; \
+	done
+
+argocd-dev-up: argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \
