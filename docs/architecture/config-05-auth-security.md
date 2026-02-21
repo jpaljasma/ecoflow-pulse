@@ -25,6 +25,11 @@ Tables:
 - `devices`
 - `user_devices(user_id, device_id, role)`
 
+Schema conventions:
+- IDs are `UUID` with PostgreSQL-native `uuidv7()` defaults.
+- `devices.ecoflow_sn` is global and unique.
+- timestamps (`created_at`, `updated_at`) are `TIMESTAMPTZ` and application-managed (UTC semantics, no DB-managed timestamp defaults).
+
 Roles:
 - `viewer`
 - `admin`
