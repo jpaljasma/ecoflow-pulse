@@ -138,6 +138,14 @@ These rules are mandatory for all new platform work and are sourced from:
 3. Node forwards user JWT to Go gRPC metadata.
 4. Go validates JWT again and enforces device-level authz (no trust-by-proxy).
 
+### Locked control-plane schema rules
+1. Control-plane relational IDs must use `UUID` with PostgreSQL-native `uuidv7()` defaults.
+2. `users.keycloak_subject` is required and globally unique.
+3. `users.email` is nullable, indexed, and non-unique.
+4. `devices.ecoflow_sn` is required and globally unique.
+5. `user_devices` keeps composite PK `(user_id, device_id)` and role check constraints.
+6. `created_at` and `updated_at` are always UTC semantics with `TIMESTAMPTZ`, and are always application-managed (no DB default/trigger-owned timestamp writes).
+
 ### Locked realtime behavior rules
 1. WS gateway sends snapshot-on-connect from Valkey, then delta stream from NATS.
 2. Backpressure degradation ladder must be implemented and preserved:

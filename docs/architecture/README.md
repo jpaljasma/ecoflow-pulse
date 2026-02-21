@@ -235,7 +235,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 |---|---|---|
 | TODO | Keycloak realm + Google/Facebook providers | M0 |
 | TODO | Expo PKCE auth flow | Keycloak |
-| TODO | Postgres schema + migrations (`users`, `devices`, `user_devices`) | M0 |
+| PROGRESS | Postgres schema + migrations (`users`, `devices`, `user_devices`)<br>- [x] Added initial migration scaffold under `deploy/db/migrations` (`000001_m1_control_plane_schema.up.sql`, `.down.sql`)<br>- [x] Applied UUIDv7 IDs (`uuidv7()`) across `users` and `devices`<br>- [x] Enforced `keycloak_subject` unique+required and `ecoflow_sn` unique+global<br>- [x] Added `user_devices` composite PK (`user_id`, `device_id`) with role check (`viewer/admin`)<br>- [x] Locked app-managed UTC timestamps (`created_at`, `updated_at`) with no DB defaults<br>- [x] Added migration apply/verify command path for local k3d CNPG DB (`make db-migrate-up-local`, `make db-migrate-down-local`, `make db-migrate-verify-local`, `make db-migrate-cycle-local`, `make db-migrate-e2e-local`)<br>- [x] Validated migration end-to-end against local platform DB (`make db-migrate-cycle-local` + `make db-migrate-e2e-local`; verified `uuidv7()` ID default, check constraints, uniqueness constraints, ownership join path, and app-managed timestamp columns) | M0 |
 | TODO | Node JWT middleware (JWKS) | Keycloak |
 | TODO | Go gRPC JWT interceptor + authz | Keycloak |
 | TODO | Device registry APIs (create/link/list) | schema + auth |
@@ -245,6 +245,11 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - Social login works
 - Device list shows only owned/shared devices
 - Forged access rejected by both REST and gRPC
+
+**Post-M1 follow-up (explicitly deferred until M1 is DONE)**
+- Add GitHub `db-migrations-ci` workflow (up/verify/down/up/e2e) and make it a required check.
+- Define and implement schema migration rollout path for `dev -> staging -> prod` (Argo sync hook / migration job sequencing, backup gates, forward-only policy).
+- Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
 
 ---
 

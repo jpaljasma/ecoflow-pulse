@@ -48,6 +48,11 @@ ARGOCD_APPS_DIR ?= deploy/argocd/apps
 ARGOCD_APPS ?= pulse-platform pulse-services
 ARGOCD_APP_WAIT_ATTEMPTS ?= 60
 ARGOCD_APP_WAIT_SLEEP_SEC ?= 10
+DB_MIGRATIONS_DIR ?= deploy/db/migrations
+DB_MIGRATION_NAMESPACE ?= pulse-platform
+DB_MIGRATION_CLUSTER ?= pulse-platform-core
+DB_MIGRATION_SECRET ?= pulse-platform-core-app
+DB_MIGRATION_DB ?= pulse
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -62,7 +67,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -280,6 +285,113 @@ dev-down:
 	else \
 		echo "cluster preserved (set DELETE_CLUSTER=1 to delete)"; \
 	fi
+
+db-migrate-up-local:
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	files="$$(find $(DB_MIGRATIONS_DIR) -maxdepth 1 -type f -name '*.up.sql' | sort)"; \
+	if [ -z "$$files" ]; then \
+		echo "no .up.sql files found in $(DB_MIGRATIONS_DIR)"; \
+		exit 1; \
+	fi; \
+	primary="$$(kubectl --context "$$ctx" -n "$$ns" get pods -l cnpg.io/cluster="$$cluster",cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$$cluster in namespace=$$ns"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	for f in $$files; do \
+		echo "applying $$f"; \
+		cat "$$f" | kubectl --context "$$ctx" -n "$$ns" exec -i "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -f -; \
+	done
+
+db-migrate-down-local:
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	files="$$(find $(DB_MIGRATIONS_DIR) -maxdepth 1 -type f -name '*.down.sql' | sort -r)"; \
+	if [ -z "$$files" ]; then \
+		echo "no .down.sql files found in $(DB_MIGRATIONS_DIR)"; \
+		exit 1; \
+	fi; \
+	primary="$$(kubectl --context "$$ctx" -n "$$ns" get pods -l cnpg.io/cluster="$$cluster",cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$$cluster in namespace=$$ns"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	for f in $$files; do \
+		echo "reverting $$f"; \
+		cat "$$f" | kubectl --context "$$ctx" -n "$$ns" exec -i "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -f -; \
+	done
+
+db-migrate-verify-local:
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	primary="$$(kubectl --context "$$ctx" -n "$$ns" get pods -l cnpg.io/cluster="$$cluster",cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$$cluster in namespace=$$ns"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	echo "verifying control-plane schema on $$cluster-rw (db=$$db user=$$user)"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices') ORDER BY table_name;"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT pg_get_expr(adbin, adrelid) FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=d.adnum WHERE c.relname='users' AND a.attname='id';"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT a.attname, pg_get_expr(d.adbin,d.adrelid) FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum JOIN pg_class c ON c.oid=a.attrelid WHERE c.relname='users' AND a.attname IN ('created_at','updated_at') ORDER BY a.attname;"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty') ORDER BY conname;"
+
+db-migrate-cycle-local:
+	@$(MAKE) db-migrate-up-local
+	@$(MAKE) db-migrate-verify-local
+	@$(MAKE) db-migrate-down-local
+	@$(MAKE) db-migrate-up-local
+	@$(MAKE) db-migrate-verify-local
+
+db-migrate-e2e-local: db-migrate-up-local
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	primary="$$(kubectl --context "$$ctx" -n "$$ns" get pods -l cnpg.io/cluster="$$cluster",cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$$cluster in namespace=$$ns"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	echo "running migration e2e checks on $$cluster-rw (db=$$db user=$$user)"; \
+	sql="TRUNCATE user_devices, users, devices RESTART IDENTITY; WITH u AS (INSERT INTO users (keycloak_subject, email, display_name, created_at, updated_at) VALUES ('kc-sub-e2e-1','e2e1@example.com','E2E User 1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id), d AS (INSERT INTO devices (ecoflow_sn, product_name, model, created_at, updated_at) VALUES ('SN-E2E-0001','DELTA Pro Ultra','dpu', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id) INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at) SELECT u.id, d.id, 'viewer', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC' FROM u CROSS JOIN d; SELECT u.keycloak_subject, d.ecoflow_sn, ud.role FROM users u JOIN user_devices ud ON ud.user_id = u.id JOIN devices d ON d.id = ud.device_id WHERE u.keycloak_subject = 'kc-sub-e2e-1';"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "$$sql"; \
+	set +e; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "INSERT INTO users (keycloak_subject, created_at, updated_at) VALUES ('kc-sub-e2e-1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC');" >/tmp/m1_dup_user.out 2>&1; \
+	rc_user=$$?; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "INSERT INTO devices (ecoflow_sn, created_at, updated_at) VALUES ('SN-E2E-0001', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC');" >/tmp/m1_dup_sn.out 2>&1; \
+	rc_sn=$$?; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at) SELECT user_id, device_id, 'owner', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC' FROM user_devices LIMIT 1;" >/tmp/m1_bad_role.out 2>&1; \
+	rc_role=$$?; \
+	set -e; \
+	if [ $$rc_user -eq 0 ] || [ $$rc_sn -eq 0 ] || [ $$rc_role -eq 0 ]; then \
+		echo "e2e constraint check failed: expected uniqueness/role failures"; \
+		echo "rc_user=$$rc_user rc_sn=$$rc_sn rc_role=$$rc_role"; \
+		exit 1; \
+	fi; \
+	echo "e2e checks passed: ownership join + uniqueness + role guard"
 
 gke-context:
 	@if ! command -v $(GCLOUD) >/dev/null 2>&1; then \

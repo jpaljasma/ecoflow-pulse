@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS user_devices;
+DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS users;
