@@ -1,0 +1,12 @@
+{{- if .Values.scaffold.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulse-services-scaffold
+  labels:
+    app.kubernetes.io/name: pulse-services
+    app.kubernetes.io/part-of: ecoflow-pulse
+data:
+  environment: {{ .Values.global.environment | quote }}
+  message: {{ .Values.scaffold.message | quote }}
+{{- end }}

@@ -1,0 +1,125 @@
+global:
+  environment: local
+
+scaffold:
+  enabled: true
+  message: "pulse-platform local scaffold"
+
+components:
+  nats:
+    enabled: true
+  cloudnativepg:
+    enabled: true
+  timescaledb:
+    enabled: true
+  valkey:
+    enabled: true
+  keycloak:
+    enabled: true
+  minio:
+    enabled: true
+  observabilityLite:
+    enabled: false
+
+# Local-first: NATS JetStream enabled, remaining platform components staged.
+nats:
+  config:
+    cluster:
+      enabled: true
+      replicas: 3
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        pvc:
+          enabled: true
+          size: 10Gi
+
+cloudnative-pg: {}
+cloudnativepgCluster:
+  enabled: true
+  name: pulse-platform-core
+  instances: 2
+  postgresUID: 26
+  postgresGID: 26
+  storage:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
+  bootstrap:
+    database: pulse
+    owner: pulse
+    appSecretName: pulse-platform-core-app
+    appUser: pulse
+    appPassword: pulse-local-dev-password
+  timescaledb:
+    enabled: true
+    imageCatalog:
+      name: pulse-platform-timescaledb
+      major: 18
+      image: timescale/timescaledb:latest-pg18@sha256:42ffa71e12b69a7d8ff4fd04c177e4519f66d3c9d1a026e5c4adf296a8168240
+    postgresUID: 70
+    postgresGID: 70
+    postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+cloudnativepgContract:
+  enabled: true
+  configMapName: pulse-platform-core-contract
+  connectionSecretName: pulse-platform-core-connection
+  service:
+    rw: pulse-platform-core-rw
+    ro: pulse-platform-core-ro
+    r: pulse-platform-core-r
+  port: 5432
+  database: pulse
+valkey:
+  architecture: replication
+  auth:
+    enabled: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    replicaCount: 3
+    persistence:
+      enabled: false
+  sentinel:
+    enabled: true
+    quorum: 2
+keycloak:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  image:
+    repository: bitnamilegacy/keycloak
+  auth:
+    adminUser: admin
+    adminPassword: admin
+  postgresql:
+    enabled: false
+  externalDatabase:
+    host: pulse-platform-core-rw
+    port: 5432
+    database: pulse
+    existingSecret: pulse-platform-core-app
+    existingSecretUserKey: username
+    existingSecretPasswordKey: password
+minio:
+  mode: standalone
+  replicas: 1
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi

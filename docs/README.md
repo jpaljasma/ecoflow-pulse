@@ -26,6 +26,7 @@ This project uses the Diataxis framework for documentation structure.
 
 - [`reference/repository-layout.md`](reference/repository-layout.md)
 - [`reference/commands.md`](reference/commands.md)
+- [`reference/local-dev-prerequisites.md`](reference/local-dev-prerequisites.md)
 - [`reference/configuration.md`](reference/configuration.md)
 - [`reference/telemetry-model.md`](reference/telemetry-model.md)
 

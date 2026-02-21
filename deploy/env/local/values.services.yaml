@@ -1,0 +1,6 @@
+global:
+  environment: local
+
+scaffold:
+  enabled: true
+  message: "pulse-services local scaffold"

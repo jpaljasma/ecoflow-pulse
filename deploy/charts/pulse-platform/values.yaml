@@ -1,0 +1,74 @@
+global:
+  environment: local
+  namespaces:
+    platform: pulse-platform
+    services: pulse-services
+
+scaffold:
+  enabled: true
+  message: "pulse-platform scaffold chart"
+
+components:
+  nats:
+    enabled: false
+  cloudnativepg:
+    enabled: false
+  timescaledb:
+    enabled: false
+  valkey:
+    enabled: false
+  keycloak:
+    enabled: false
+  minio:
+    enabled: false
+  observabilityLite:
+    enabled: false
+
+# Dependency chart values are intentionally minimal in scaffold mode.
+# Expand these blocks iteratively when each platform component is wired.
+nats: {}
+cloudnative-pg: {}
+cloudnativepgCluster:
+  enabled: false
+  name: pulse-platform-core
+  instances: 2
+  postgresUID: 26
+  postgresGID: 26
+  storage:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
+  bootstrap:
+    database: pulse
+    owner: pulse
+    appSecretName: pulse-platform-core-app
+    appUser: pulse
+    appPassword: pulse-local-dev-password
+  timescaledb:
+    enabled: false
+    imageCatalog:
+      name: pulse-platform-timescaledb
+      major: 18
+      image: timescale/timescaledb:latest-pg18@sha256:42ffa71e12b69a7d8ff4fd04c177e4519f66d3c9d1a026e5c4adf296a8168240
+    postgresUID: 70
+    postgresGID: 70
+    postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+cloudnativepgContract:
+  enabled: false
+  configMapName: pulse-platform-core-contract
+  connectionSecretName: pulse-platform-core-connection
+  service:
+    rw: pulse-platform-core-rw
+    ro: pulse-platform-core-ro
+    r: pulse-platform-core-r
+  port: 5432
+  database: pulse
+valkey: {}
+keycloak: {}
+minio: {}
