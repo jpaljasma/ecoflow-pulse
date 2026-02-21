@@ -14,6 +14,7 @@
 - [ADR-0008-realtime-delivery-websockets-gateway-with-backpressure-downsampling.md](./ADR-0008-realtime-delivery-websockets-gateway-with-backpressure-downsampling.md)
 - [ADR-0009-local-development-k3d-kubernetes-with-one-command-bringup.md](./ADR-0009-local-development-k3d-kubernetes-with-one-command-bringup.md)
 - [ADR-0010-ci-gates-required-github-actions-for-merge.md](./ADR-0010-ci-gates-required-github-actions-for-merge.md)
+- [ADR-0011-dev-cost-policy-k3d-daily-gke-for-integration-only.md](./ADR-0011-dev-cost-policy-k3d-daily-gke-for-integration-only.md)
 ---
 
 ## How to add an ADR

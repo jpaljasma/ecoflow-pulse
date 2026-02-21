@@ -40,6 +40,6 @@ Ruleset/branch protection must treat these checks as mandatory (no optional merg
   **Mitigation:** include shared package/manifests/workflow paths in frontend-ci triggers; review periodically.
 
 ## Follow-ups
-- [ ] Add this CI-gate policy to architecture summary docs (`docs/architecture/README.md`).
-- [ ] Add a short runbook for maintaining required checks/rulesets.
-- [ ] Monitor CI duration and optimize caching/test split if developer latency increases.
+- [x] Add this CI-gate policy to architecture summary docs (`docs/architecture/README.md`).
+- [x] Add a short runbook for maintaining required checks/rulesets.
+- [x] Monitor CI duration and optimize caching/test split if developer latency increases.
