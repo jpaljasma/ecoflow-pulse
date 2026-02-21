@@ -112,6 +112,7 @@ Notes:
   Optional variables:
   - `GKE_CLUSTER_NAME` (default `pulse-dev`)
   - `GKE_CLUSTER_ZONE` (default `us-east1-b`)
+  - `GKE_BASELINE_NODEPOOL` (default `baseline-pool`; use `default-pool` if cluster was created via raw `gcloud container clusters create`)
 - `make gke-dev-guardrails` creates `pulse-dev` namespace if needed and applies:
   - `deploy/env/dev/guardrails/pulse-dev-resourcequota.yaml`
   - `deploy/env/dev/guardrails/pulse-dev-limitrange.yaml`
@@ -142,3 +143,6 @@ Notes:
   - Argo CD install/upgrade
   - direct app apply
   - app sync/health wait loop
+
+For complete fresh-project bootstrap (project creation, billing, APIs, cluster create, Argo bootstrap), see:
+`docs/how-to/setup-gke-dev-project.md`.

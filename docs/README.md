@@ -22,6 +22,7 @@ This project uses the Diataxis framework for documentation structure.
 - [`how-to/generate-pv-fingerprints.md`](how-to/generate-pv-fingerprints.md)
 - [`how-to/train-panel-select-model.md`](how-to/train-panel-select-model.md)
 - [`how-to/maintain-ci-required-checks.md`](how-to/maintain-ci-required-checks.md)
+- [`how-to/setup-gke-dev-project.md`](how-to/setup-gke-dev-project.md)
 
 ### Reference
 

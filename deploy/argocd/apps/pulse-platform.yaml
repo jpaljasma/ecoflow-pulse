@@ -18,5 +18,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: pulse-platform
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true

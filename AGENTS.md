@@ -238,6 +238,17 @@ These are mandatory implementation principles for local workflows and tooling qu
    - local-first implementation and testing,
    - promote to GKE dev only for cloud-only validation gates.
 
+### GKE bootstrap and park/wake execution learnings
+1. For project billing link in automation scripts, prefer:
+   - `gcloud billing projects link <project> --billing-account <account>`
+   over beta-only variants.
+2. After switching project context, set ADC quota project to avoid drift/warnings:
+   - `gcloud auth application-default set-quota-project <project>`.
+3. If a cluster is created with raw `gcloud container clusters create`, default nodepool name is typically `default-pool`:
+   - run park/wake with `GKE_BASELINE_NODEPOOL=default-pool` unless a custom baseline pool exists.
+4. Argo app health wait loops that require `Synced + Healthy` depend on app auto-sync policy:
+   - ensure Application manifests include `spec.syncPolicy.automated` (`prune`, `selfHeal`) when using non-interactive `argocd-wait-apps` workflows.
+
 ### Kubernetes bringup hardening (local/dev)
 1. `make dev-up` must be single-run and self-healing:
    - developers should not need manual reruns to recover transient startup races.
