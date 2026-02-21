@@ -100,7 +100,9 @@ Notes:
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
   - `nats`, `valkey-node`, and `keycloak` statefulsets,
-  - `minio` deployment.
+  - `minio` deployment,
+  - optional `ingress-nginx` controller deployment,
+  - optional `cert-manager` controller/webhook/cainjector deployments.
 - `make services-wait` blocks until `pulse-services` pods are `Ready` (if services workloads exist).
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.

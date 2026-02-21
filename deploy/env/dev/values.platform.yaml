@@ -18,6 +18,10 @@ components:
     enabled: false
   minio:
     enabled: false
+  ingressNginx:
+    enabled: true
+  certManager:
+    enabled: true
   observabilityLite:
     enabled: false
 
@@ -39,3 +43,16 @@ cloudnative-pg: {}
 valkey: {}
 keycloak: {}
 minio: {}
+ingress-nginx:
+  controller:
+    replicaCount: 1
+    service:
+      type: ClusterIP
+cert-manager:
+  crds:
+    enabled: true
+  replicaCount: 1
+  webhook:
+    replicaCount: 1
+  cainjector:
+    replicaCount: 1

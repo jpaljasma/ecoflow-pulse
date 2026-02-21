@@ -217,6 +217,10 @@ platform-wait:
 	wait_rollout statefulset $(PLATFORM_RELEASE)-valkey-node $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-keycloak $(WAIT_TIMEOUT); \
 	wait_rollout deployment $(PLATFORM_RELEASE)-minio 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-ingress-nginx-controller 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager-webhook 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager-cainjector 300s; \
 	echo "platform dependencies are ready"
 
 services-up:

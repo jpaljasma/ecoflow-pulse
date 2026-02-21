@@ -248,6 +248,9 @@ These are mandatory implementation principles for local workflows and tooling qu
    - run park/wake with `GKE_BASELINE_NODEPOOL=default-pool` unless a custom baseline pool exists.
 4. Argo app health wait loops that require `Synced + Healthy` depend on app auto-sync policy:
    - ensure Application manifests include `spec.syncPolicy.automated` (`prune`, `selfHeal`) when using non-interactive `argocd-wait-apps` workflows.
+5. Argo app manifests in this repo track `targetRevision: main` by default:
+   - `make argocd-dev-up` validates what is on `main`,
+   - validate in-flight branch chart changes with local `helm dependency update` + `helm lint` (or explicit branch-targeted app manifests when needed).
 
 ### Kubernetes bringup hardening (local/dev)
 1. `make dev-up` must be single-run and self-healing:
