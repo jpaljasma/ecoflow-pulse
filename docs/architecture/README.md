@@ -246,6 +246,11 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - Device list shows only owned/shared devices
 - Forged access rejected by both REST and gRPC
 
+**Post-M1 follow-up (explicitly deferred until M1 is DONE)**
+- Add GitHub `db-migrations-ci` workflow (up/verify/down/up/e2e) and make it a required check.
+- Define and implement schema migration rollout path for `dev -> staging -> prod` (Argo sync hook / migration job sequencing, backup gates, forward-only policy).
+- Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
+
 ---
 
 ## M2 — Telemetry pipeline v1 + archive + replay
