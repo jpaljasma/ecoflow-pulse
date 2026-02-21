@@ -30,8 +30,8 @@ spec:
       secret:
         name: {{ .Values.cloudnativepgCluster.bootstrap.appSecretName | quote }}
       {{- if and .Values.components.timescaledb.enabled .Values.cloudnativepgCluster.timescaledb.enabled }}
-      postInitSQL:
-        {{- range .Values.cloudnativepgCluster.timescaledb.postInitSQL }}
+      postInitApplicationSQL:
+        {{- range .Values.cloudnativepgCluster.timescaledb.postInitApplicationSQL }}
         - {{ . | quote }}
         {{- end }}
       {{- end }}
