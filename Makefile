@@ -9,6 +9,7 @@ KUBECTL ?= kubectl
 DOCKER ?= docker
 GCLOUD ?= gcloud
 K3D_CLUSTER_NAME ?= pulse-local
+K3D_CONTEXT ?= k3d-$(K3D_CLUSTER_NAME)
 K3D_CONFIG ?= deploy/tilt/k3d-config.yaml
 PLATFORM_CHART ?= deploy/charts/pulse-platform
 SERVICES_CHART ?= deploy/charts/pulse-services
@@ -51,7 +52,9 @@ GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
 LDFLAGS ?=
-PLATFORM_HELM_APPLY = $(HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace -f $(LOCAL_PLATFORM_VALUES)
+LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
+LOCAL_HELM = $(HELM) --kube-context $(K3D_CONTEXT)
+PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace -f $(LOCAL_PLATFORM_VALUES)
 
 export GOCACHE
 export GOMODCACHE
@@ -127,7 +130,8 @@ k3d-up:
 		echo "creating k3d cluster '$(K3D_CLUSTER_NAME)' from $(K3D_CONFIG)"; \
 		$(K3D) cluster create --config $(K3D_CONFIG); \
 	fi
-	$(KUBECTL) get nodes
+	$(KUBECTL) config use-context $(K3D_CONTEXT)
+	$(LOCAL_KUBECTL) get nodes
 
 platform-up:
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \
@@ -150,12 +154,12 @@ platform-up:
 		fi; \
 		echo "platform apply failed, waiting for CNPG webhook/operator before retry"; \
 		if command -v $(KUBECTL) >/dev/null 2>&1; then \
-			if $(KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
-				$(KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s || true; \
+			if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
+				$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s || true; \
 			fi; \
-			if $(KUBECTL) -n $(PLATFORM_NAMESPACE) get svc cnpg-webhook-service >/dev/null 2>&1; then \
+			if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc cnpg-webhook-service >/dev/null 2>&1; then \
 				for _ in {1..36}; do \
-					webhook_eps="$$( $(KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints cnpg-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+					webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints cnpg-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
 					if [ -n "$$webhook_eps" ]; then \
 						echo "CNPG webhook endpoints ready: $$webhook_eps"; \
 						break; \
@@ -169,9 +173,9 @@ platform-up:
 		delay=$$((delay * 2)); \
 		if [ $$delay -gt 30 ]; then delay=30; fi; \
 	done
-	@if command -v $(KUBECTL) >/dev/null 2>&1 && $(KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
+	@if command -v $(KUBECTL) >/dev/null 2>&1 && $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
 		echo "waiting for CloudNativePG operator to become ready"; \
-		$(KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
+		$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
 	fi
 	@echo "running platform reconcile pass for CRD-backed resources"
 	@set -euo pipefail; \
@@ -199,16 +203,16 @@ platform-wait:
 	ns="$(PLATFORM_NAMESPACE)"; \
 	wait_rollout() { \
 		kind="$$1"; name="$$2"; timeout="$$3"; \
-		if $(KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
+		if $(LOCAL_KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
 			echo "waiting for $$kind/$$name"; \
-			$(KUBECTL) -n "$$ns" rollout status "$$kind/$$name" --timeout="$$timeout"; \
+			$(LOCAL_KUBECTL) -n "$$ns" rollout status "$$kind/$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
 	wait_condition() { \
 		kind="$$1"; name="$$2"; condition="$$3"; timeout="$$4"; \
-		if $(KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
+		if $(LOCAL_KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
 			echo "waiting for $$kind/$$name condition=$$condition"; \
-			$(KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
+			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cloudnative-pg 180s; \
@@ -235,7 +239,7 @@ services-up:
 		exit 1; \
 	fi
 	$(HELM) dependency update $(SERVICES_CHART)
-	$(HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
+	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		-f $(LOCAL_SERVICES_VALUES)
 
@@ -246,24 +250,24 @@ services-wait:
 	fi
 	@set -euo pipefail; \
 	ns="$(SERVICES_NAMESPACE)"; \
-	if ! $(KUBECTL) get ns "$$ns" >/dev/null 2>&1; then \
+	if ! $(LOCAL_KUBECTL) get ns "$$ns" >/dev/null 2>&1; then \
 		echo "namespace $$ns does not exist yet, skipping services wait"; \
 		exit 0; \
 	fi; \
-	if [ -z "$$( $(KUBECTL) -n "$$ns" get pods -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
+	if [ -z "$$( $(LOCAL_KUBECTL) -n "$$ns" get pods -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
 		echo "no services workloads found for instance $(SERVICES_RELEASE) in $$ns"; \
 		exit 0; \
 	fi; \
 	echo "waiting for services pods to become Ready"; \
-	$(KUBECTL) -n "$$ns" wait --for=condition=Ready pod -l app.kubernetes.io/instance=$(SERVICES_RELEASE) --timeout=$(WAIT_TIMEOUT); \
+	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod -l app.kubernetes.io/instance=$(SERVICES_RELEASE) --timeout=$(WAIT_TIMEOUT); \
 	echo "services dependencies are ready"
 
 dev-up: k3d-up platform-up platform-wait services-up services-wait
 
 dev-down:
 	@if command -v $(HELM) >/dev/null 2>&1; then \
-		$(HELM) uninstall $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1 || true; \
-		$(HELM) uninstall $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1 || true; \
+		$(LOCAL_HELM) uninstall $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1 || true; \
+		$(LOCAL_HELM) uninstall $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1 || true; \
 	else \
 		echo "$(HELM) not found; skipping helm uninstall"; \
 	fi

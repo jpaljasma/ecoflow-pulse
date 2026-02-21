@@ -14,9 +14,14 @@ server:
 
 controller:
   replicas: 1
+  extraArgs:
+    - --repo-server-timeout-seconds=300
 
 repoServer:
   replicas: 1
+  env:
+    - name: ARGOCD_EXEC_TIMEOUT
+      value: "300"
 
 applicationSet:
   replicas: 1

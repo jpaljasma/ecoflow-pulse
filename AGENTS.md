@@ -65,6 +65,11 @@ When starting any new milestone task from `docs/architecture/README.md`:
 2. Keep the root `README.md` and `docs/README.md` links/navigation accurate when docs structure or key capabilities change.
 3. Treat documentation updates as part of the same feature branch and commit series; do not defer doc sync to later cleanup commits.
 4. When available, run markdown lint checks before pushing docs-heavy changes.
+
+## Milestone Closure Rules
+1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.
+2. Record acceptance evidence in `docs/architecture/README.md` in the same branch/commit series as the implementation.
+3. For local platform validation, ensure commands target `k3d-pulse-local` explicitly (context-pinned) so local checks cannot accidentally run against GKE.
 5. Whenever new developer-facing commands or Make targets are introduced/changed, update `docs/reference/commands.md` in the same commit with command meanings/default behavior.
 6. If implementation/validation fails due to missing local tooling (for example `k3d`, `kubectl`, `helm`), update developer docs in the same branch to record the requirement and where it is needed.
 

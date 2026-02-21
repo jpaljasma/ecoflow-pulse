@@ -67,7 +67,9 @@ Notes:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
 - `make k3d-up` creates or reuses local k3d cluster from `deploy/tilt/k3d-config.yaml`.
   Requires `k3d`, `kubectl`, and a running Docker daemon.
+  It also switches `kubectl` context to `k3d-pulse-local`.
 - `make platform-up` updates Helm deps and installs/upgrades `pulse-platform` using `deploy/env/local/values.platform.yaml`.
+  Local Helm/Kubernetes operations are pinned to `k3d-pulse-local` (`--kube-context` / `--context`) so local targets cannot accidentally apply to GKE.
   It includes retry/backoff for transient CNPG webhook race conditions during initial install.
   It runs a CRD-safe reconcile flow for CloudNativePG:
   1) initial Helm install/upgrade,
