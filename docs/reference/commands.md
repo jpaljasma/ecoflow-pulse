@@ -145,6 +145,11 @@ Notes:
   - Argo CD install/upgrade
   - direct app apply
   - app sync/health wait loop
+- pre-merge GKE validation pattern (when Argo apps track `main` but you need to validate branch changes):
+  - patch app `spec.source.targetRevision=<branch>` with `argocd.argoproj.io/refresh=hard`,
+  - run `make argocd-wait-apps`,
+  - verify platform deployments/CRDs,
+  - restore `spec.source.targetRevision=main` and wait again.
 
 For complete fresh-project bootstrap (project creation, billing, APIs, cluster create, Argo bootstrap), see:
 `docs/how-to/setup-gke-dev-project.md`.

@@ -251,6 +251,12 @@ These are mandatory implementation principles for local workflows and tooling qu
 5. Argo app manifests in this repo track `targetRevision: main` by default:
    - `make argocd-dev-up` validates what is on `main`,
    - validate in-flight branch chart changes with local `helm dependency update` + `helm lint` (or explicit branch-targeted app manifests when needed).
+6. Preferred explicit pre-merge GKE app validation flow:
+   - patch Argo Application `spec.source.targetRevision` to current branch,
+   - add `argocd.argoproj.io/refresh=hard`,
+   - wait for `Synced + Healthy`,
+   - validate expected workloads/CRDs,
+   - restore `targetRevision=main` and wait again.
 
 ### Kubernetes bringup hardening (local/dev)
 1. `make dev-up` must be single-run and self-healing:
