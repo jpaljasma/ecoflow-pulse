@@ -221,6 +221,12 @@ platform-wait:
 	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager-webhook 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager-cainjector 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-external-secrets-cert-controller 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-external-secrets 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-external-secrets-webhook 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-kube-promet-operator 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-grafana 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-opentelemetry-collector 300s; \
 	echo "platform dependencies are ready"
 
 services-up:

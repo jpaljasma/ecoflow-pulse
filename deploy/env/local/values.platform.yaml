@@ -22,6 +22,8 @@ components:
     enabled: false
   certManager:
     enabled: false
+  externalSecrets:
+    enabled: false
   observabilityLite:
     enabled: false
 
@@ -142,3 +144,21 @@ cert-manager:
     replicaCount: 1
   cainjector:
     replicaCount: 1
+
+external-secrets:
+  installCRDs: true
+  replicaCount: 1
+
+kube-prometheus-stack:
+  defaultRules:
+    create: false
+  alertmanager:
+    enabled: false
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+
+opentelemetry-collector:
+  mode: deployment
+  replicaCount: 1

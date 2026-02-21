@@ -25,6 +25,8 @@ components:
     enabled: false
   certManager:
     enabled: false
+  externalSecrets:
+    enabled: false
   observabilityLite:
     enabled: false
 
@@ -91,3 +93,66 @@ cert-manager:
     replicaCount: 1
   cainjector:
     replicaCount: 1
+external-secrets:
+  installCRDs: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+kube-prometheus-stack:
+  crds:
+    enabled: true
+  defaultRules:
+    create: false
+  alertmanager:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  coreDns:
+    enabled: false
+  prometheus-node-exporter:
+    enabled: false
+  grafana:
+    enabled: true
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      retention: 2d
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          cpu: 1
+          memory: 1Gi
+opentelemetry-collector:
+  mode: deployment
+  replicaCount: 1
+  image:
+    repository: otel/opentelemetry-collector-k8s
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi

@@ -8,7 +8,7 @@ Current state: **scaffold only** (Milestone 0, task #1 in progress).
 
 - `charts/pulse-platform/`: umbrella chart for platform dependencies
   (NATS, CloudNativePG/Postgres, Valkey, Keycloak, MinIO, ingress-nginx,
-  cert-manager, observability).
+  cert-manager, External Secrets, observability-lite).
 - `charts/pulse-services/`: umbrella chart for Pulse runtime services
   (Node BFF, WS gateway, Go ingest/projection/query).
 - `env/local/`: local values overrides.
@@ -63,9 +63,12 @@ Defaults:
 - `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).
-- local keeps `ingress-nginx` and `cert-manager` disabled by default.
+- local keeps `ingress-nginx`, `cert-manager`, `external-secrets`, and
+  `observability-lite` disabled by default.
 - dev values enable `ingress-nginx` + `cert-manager` with cost-min settings
   (`ClusterIP`, single replicas).
+- dev values also enable `external-secrets` + `observability-lite` using
+  low-footprint resource limits.
 - GKE Argo CD bootstrap uses `deploy/env/dev/values.argocd.yaml`.
 
 ## Helm Dependency Bootstrap
