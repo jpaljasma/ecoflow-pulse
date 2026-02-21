@@ -9,6 +9,7 @@ KUBECTL ?= kubectl
 DOCKER ?= docker
 GCLOUD ?= gcloud
 K3D_CLUSTER_NAME ?= pulse-local
+K3D_CONTEXT ?= k3d-$(K3D_CLUSTER_NAME)
 K3D_CONFIG ?= deploy/tilt/k3d-config.yaml
 PLATFORM_CHART ?= deploy/charts/pulse-platform
 SERVICES_CHART ?= deploy/charts/pulse-services
@@ -37,11 +38,23 @@ GKE_BASELINE_MIN_PARKED ?= 1
 GKE_BASELINE_MAX ?= 4
 GKE_SPOT_MIN ?= 0
 GKE_SPOT_MAX ?= 4
+ARGOCD_HELM_REPO ?= https://argoproj.github.io/argo-helm
+ARGOCD_HELM_CHART ?= argo/argo-cd
+ARGOCD_CHART_VERSION ?= 9.4.3
+ARGOCD_RELEASE ?= argocd
+ARGOCD_NAMESPACE ?= argocd
+ARGOCD_VALUES_DEV ?= deploy/env/dev/values.argocd.yaml
+ARGOCD_APPS_DIR ?= deploy/argocd/apps
+ARGOCD_APPS ?= pulse-platform pulse-services
+ARGOCD_APP_WAIT_ATTEMPTS ?= 60
+ARGOCD_APP_WAIT_SLEEP_SEC ?= 10
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
 LDFLAGS ?=
-PLATFORM_HELM_APPLY = $(HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace -f $(LOCAL_PLATFORM_VALUES)
+LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
+LOCAL_HELM = $(HELM) --kube-context $(K3D_CONTEXT)
+PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace -f $(LOCAL_PLATFORM_VALUES)
 
 export GOCACHE
 export GOMODCACHE
@@ -49,7 +62,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down gke-context gke-dev-guardrails gke-park gke-wake argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -117,7 +130,8 @@ k3d-up:
 		echo "creating k3d cluster '$(K3D_CLUSTER_NAME)' from $(K3D_CONFIG)"; \
 		$(K3D) cluster create --config $(K3D_CONFIG); \
 	fi
-	$(KUBECTL) get nodes
+	$(KUBECTL) config use-context $(K3D_CONTEXT)
+	$(LOCAL_KUBECTL) get nodes
 
 platform-up:
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \
@@ -140,12 +154,12 @@ platform-up:
 		fi; \
 		echo "platform apply failed, waiting for CNPG webhook/operator before retry"; \
 		if command -v $(KUBECTL) >/dev/null 2>&1; then \
-			if $(KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
-				$(KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s || true; \
+			if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
+				$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s || true; \
 			fi; \
-			if $(KUBECTL) -n $(PLATFORM_NAMESPACE) get svc cnpg-webhook-service >/dev/null 2>&1; then \
+			if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc cnpg-webhook-service >/dev/null 2>&1; then \
 				for _ in {1..36}; do \
-					webhook_eps="$$( $(KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints cnpg-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+					webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints cnpg-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
 					if [ -n "$$webhook_eps" ]; then \
 						echo "CNPG webhook endpoints ready: $$webhook_eps"; \
 						break; \
@@ -159,9 +173,9 @@ platform-up:
 		delay=$$((delay * 2)); \
 		if [ $$delay -gt 30 ]; then delay=30; fi; \
 	done
-	@if command -v $(KUBECTL) >/dev/null 2>&1 && $(KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
+	@if command -v $(KUBECTL) >/dev/null 2>&1 && $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
 		echo "waiting for CloudNativePG operator to become ready"; \
-		$(KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
+		$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
 	fi
 	@echo "running platform reconcile pass for CRD-backed resources"
 	@set -euo pipefail; \
@@ -189,16 +203,16 @@ platform-wait:
 	ns="$(PLATFORM_NAMESPACE)"; \
 	wait_rollout() { \
 		kind="$$1"; name="$$2"; timeout="$$3"; \
-		if $(KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
+		if $(LOCAL_KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
 			echo "waiting for $$kind/$$name"; \
-			$(KUBECTL) -n "$$ns" rollout status "$$kind/$$name" --timeout="$$timeout"; \
+			$(LOCAL_KUBECTL) -n "$$ns" rollout status "$$kind/$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
 	wait_condition() { \
 		kind="$$1"; name="$$2"; condition="$$3"; timeout="$$4"; \
-		if $(KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
+		if $(LOCAL_KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
 			echo "waiting for $$kind/$$name condition=$$condition"; \
-			$(KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
+			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cloudnative-pg 180s; \
@@ -207,6 +221,16 @@ platform-wait:
 	wait_rollout statefulset $(PLATFORM_RELEASE)-valkey-node $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-keycloak $(WAIT_TIMEOUT); \
 	wait_rollout deployment $(PLATFORM_RELEASE)-minio 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-ingress-nginx-controller 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager-webhook 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager-cainjector 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-external-secrets-cert-controller 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-external-secrets 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-external-secrets-webhook 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-kube-promet-operator 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-grafana 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-opentelemetry-collector 300s; \
 	echo "platform dependencies are ready"
 
 services-up:
@@ -215,7 +239,7 @@ services-up:
 		exit 1; \
 	fi
 	$(HELM) dependency update $(SERVICES_CHART)
-	$(HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
+	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		-f $(LOCAL_SERVICES_VALUES)
 
@@ -226,24 +250,24 @@ services-wait:
 	fi
 	@set -euo pipefail; \
 	ns="$(SERVICES_NAMESPACE)"; \
-	if ! $(KUBECTL) get ns "$$ns" >/dev/null 2>&1; then \
+	if ! $(LOCAL_KUBECTL) get ns "$$ns" >/dev/null 2>&1; then \
 		echo "namespace $$ns does not exist yet, skipping services wait"; \
 		exit 0; \
 	fi; \
-	if [ -z "$$( $(KUBECTL) -n "$$ns" get pods -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
+	if [ -z "$$( $(LOCAL_KUBECTL) -n "$$ns" get pods -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
 		echo "no services workloads found for instance $(SERVICES_RELEASE) in $$ns"; \
 		exit 0; \
 	fi; \
 	echo "waiting for services pods to become Ready"; \
-	$(KUBECTL) -n "$$ns" wait --for=condition=Ready pod -l app.kubernetes.io/instance=$(SERVICES_RELEASE) --timeout=$(WAIT_TIMEOUT); \
+	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod -l app.kubernetes.io/instance=$(SERVICES_RELEASE) --timeout=$(WAIT_TIMEOUT); \
 	echo "services dependencies are ready"
 
 dev-up: k3d-up platform-up platform-wait services-up services-wait
 
 dev-down:
 	@if command -v $(HELM) >/dev/null 2>&1; then \
-		$(HELM) uninstall $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1 || true; \
-		$(HELM) uninstall $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1 || true; \
+		$(LOCAL_HELM) uninstall $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1 || true; \
+		$(LOCAL_HELM) uninstall $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1 || true; \
 	else \
 		echo "$(HELM) not found; skipping helm uninstall"; \
 	fi
@@ -355,6 +379,63 @@ gke-wake: gke-context gke-dev-guardrails
 			echo "skipping missing deploy/$$dep in $$ns"; \
 		fi; \
 	done
+
+argocd-bootstrap-dev: gke-context
+	@if ! command -v $(HELM) >/dev/null 2>&1; then \
+		echo "$(HELM) not found. Install helm first."; \
+		exit 1; \
+	fi
+	@echo "ensuring namespace $(ARGOCD_NAMESPACE) exists"
+	@$(KUBECTL) get ns $(ARGOCD_NAMESPACE) >/dev/null 2>&1 || $(KUBECTL) create ns $(ARGOCD_NAMESPACE)
+	@echo "installing/upgrading Argo CD chart $(ARGOCD_HELM_CHART) ($(ARGOCD_CHART_VERSION))"
+	@$(HELM) repo add argo $(ARGOCD_HELM_REPO) >/dev/null 2>&1 || true
+	@$(HELM) repo update >/dev/null 2>&1
+	$(HELM) upgrade --install $(ARGOCD_RELEASE) $(ARGOCD_HELM_CHART) \
+		--version $(ARGOCD_CHART_VERSION) \
+		--namespace $(ARGOCD_NAMESPACE) \
+		--create-namespace \
+		-f $(ARGOCD_VALUES_DEV)
+	@echo "waiting for Argo CD CRDs and core workloads"
+	$(KUBECTL) wait --for=condition=Established --timeout=$(WAIT_TIMEOUT) crd/applications.argoproj.io
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-repo-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status sts/argocd-application-controller --timeout=$(WAIT_TIMEOUT)
+
+argocd-apps-dev: gke-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_APPS); do \
+		manifest="$(ARGOCD_APPS_DIR)/$$app.yaml"; \
+		if [ ! -f "$$manifest" ]; then \
+			echo "missing Argo application manifest: $$manifest"; \
+			exit 1; \
+		fi; \
+		echo "applying $$manifest"; \
+		$(KUBECTL) apply -f "$$manifest"; \
+	done
+
+argocd-wait-apps: gke-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_APPS); do \
+		echo "waiting for application/$$app (Synced + Healthy)"; \
+		ok=0; \
+		for attempt in $$(seq 1 $(ARGOCD_APP_WAIT_ATTEMPTS)); do \
+			sync="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.sync.status}' 2>/dev/null || true )"; \
+			health="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.health.status}' 2>/dev/null || true )"; \
+			echo "  attempt $$attempt/$(ARGOCD_APP_WAIT_ATTEMPTS): sync=$${sync:-n/a} health=$${health:-n/a}"; \
+			if [ "$$sync" = "Synced" ] && [ "$$health" = "Healthy" ]; then \
+				ok=1; \
+				break; \
+			fi; \
+			sleep $(ARGOCD_APP_WAIT_SLEEP_SEC); \
+		done; \
+		if [ $$ok -ne 1 ]; then \
+			echo "application/$$app did not reach Synced+Healthy"; \
+			$(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o yaml || true; \
+			exit 1; \
+		fi; \
+	done
+
+argocd-dev-up: argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \

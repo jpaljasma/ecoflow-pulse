@@ -14,5 +14,20 @@ dependencies:
 - name: minio
   repository: https://charts.min.io/
   version: 5.4.0
-digest: sha256:66b49266f392ea133a42e8f0fbd34f781e98e862493a529a2cc4f66b344813c1
-generated: "2026-02-20T12:04:09.571914-05:00"
+- name: ingress-nginx
+  repository: https://kubernetes.github.io/ingress-nginx
+  version: 4.14.3
+- name: cert-manager
+  repository: https://charts.jetstack.io
+  version: v1.19.3
+- name: external-secrets
+  repository: https://charts.external-secrets.io
+  version: 2.0.1
+- name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 82.2.0
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.145.0
+digest: sha256:16c08b681f7a76710f3b479fae90d8f2cf325da002568523ac21122c97dd7fa8
+generated: "2026-02-21T10:23:10.635618-05:00"

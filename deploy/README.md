@@ -7,11 +7,13 @@ Current state: **scaffold only** (Milestone 0, task #1 in progress).
 ## Layout
 
 - `charts/pulse-platform/`: umbrella chart for platform dependencies
-  (NATS, CloudNativePG/Postgres, Valkey, Keycloak, MinIO, observability).
+  (NATS, CloudNativePG/Postgres, Valkey, Keycloak, MinIO, ingress-nginx,
+  cert-manager, External Secrets, observability-lite).
 - `charts/pulse-services/`: umbrella chart for Pulse runtime services
   (Node BFF, WS gateway, Go ingest/projection/query).
 - `env/local/`: local values overrides.
 - `env/dev/`: dev values overrides.
+- `env/dev/values.argocd.yaml`: Argo CD bootstrap values for GKE dev.
 - `env/dev/guardrails/`: dev namespace guardrails (`ResourceQuota`, `LimitRange`).
 - `argocd/apps/`: direct Argo CD Applications:
   - `pulse-platform`
@@ -50,13 +52,24 @@ make gke-context GKE_PROJECT_ID=<project>
 make gke-dev-guardrails GKE_PROJECT_ID=<project>
 make gke-park GKE_PROJECT_ID=<project>
 make gke-wake GKE_PROJECT_ID=<project>
+make argocd-bootstrap-dev GKE_PROJECT_ID=<project>
+make argocd-apps-dev GKE_PROJECT_ID=<project>
+make argocd-wait-apps GKE_PROJECT_ID=<project>
+make argocd-dev-up GKE_PROJECT_ID=<project>
 ```
 
 Defaults:
 - local values are read from `deploy/env/local/*.yaml`,
 - `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
-- current local platform default enables `nats` (JetStream, 3 replicas) only;
-  other platform dependencies remain disabled until later M0 chunks.
+- current local platform defaults enable core dependencies (`nats`,
+  `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).
+- local keeps `ingress-nginx`, `cert-manager`, `external-secrets`, and
+  `observability-lite` disabled by default.
+- dev values enable `ingress-nginx` + `cert-manager` with cost-min settings
+  (`ClusterIP`, single replicas).
+- dev values also enable `external-secrets` + `observability-lite` using
+  low-footprint resource limits.
+- GKE Argo CD bootstrap uses `deploy/env/dev/values.argocd.yaml`.
 
 ## Helm Dependency Bootstrap
 

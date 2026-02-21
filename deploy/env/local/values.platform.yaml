@@ -18,6 +18,12 @@ components:
     enabled: true
   minio:
     enabled: true
+  ingressNginx:
+    enabled: false
+  certManager:
+    enabled: false
+  externalSecrets:
+    enabled: false
   observabilityLite:
     enabled: false
 
@@ -123,3 +129,36 @@ minio:
     requests:
       cpu: 100m
       memory: 512Mi
+
+ingress-nginx:
+  controller:
+    replicaCount: 1
+    service:
+      type: ClusterIP
+
+cert-manager:
+  crds:
+    enabled: true
+  replicaCount: 1
+  webhook:
+    replicaCount: 1
+  cainjector:
+    replicaCount: 1
+
+external-secrets:
+  installCRDs: true
+  replicaCount: 1
+
+kube-prometheus-stack:
+  defaultRules:
+    create: false
+  alertmanager:
+    enabled: false
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+
+opentelemetry-collector:
+  mode: deployment
+  replicaCount: 1

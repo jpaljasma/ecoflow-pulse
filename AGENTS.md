@@ -65,6 +65,11 @@ When starting any new milestone task from `docs/architecture/README.md`:
 2. Keep the root `README.md` and `docs/README.md` links/navigation accurate when docs structure or key capabilities change.
 3. Treat documentation updates as part of the same feature branch and commit series; do not defer doc sync to later cleanup commits.
 4. When available, run markdown lint checks before pushing docs-heavy changes.
+
+## Milestone Closure Rules
+1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.
+2. Record acceptance evidence in `docs/architecture/README.md` in the same branch/commit series as the implementation.
+3. For local platform validation, ensure commands target `k3d-pulse-local` explicitly (context-pinned) so local checks cannot accidentally run against GKE.
 5. Whenever new developer-facing commands or Make targets are introduced/changed, update `docs/reference/commands.md` in the same commit with command meanings/default behavior.
 6. If implementation/validation fails due to missing local tooling (for example `k3d`, `kubectl`, `helm`), update developer docs in the same branch to record the requirement and where it is needed.
 
@@ -237,6 +242,26 @@ These are mandatory implementation principles for local workflows and tooling qu
 7. Delivery workflow:
    - local-first implementation and testing,
    - promote to GKE dev only for cloud-only validation gates.
+
+### GKE bootstrap and park/wake execution learnings
+1. For project billing link in automation scripts, prefer:
+   - `gcloud billing projects link <project> --billing-account <account>`
+   over beta-only variants.
+2. After switching project context, set ADC quota project to avoid drift/warnings:
+   - `gcloud auth application-default set-quota-project <project>`.
+3. If a cluster is created with raw `gcloud container clusters create`, default nodepool name is typically `default-pool`:
+   - run park/wake with `GKE_BASELINE_NODEPOOL=default-pool` unless a custom baseline pool exists.
+4. Argo app health wait loops that require `Synced + Healthy` depend on app auto-sync policy:
+   - ensure Application manifests include `spec.syncPolicy.automated` (`prune`, `selfHeal`) when using non-interactive `argocd-wait-apps` workflows.
+5. Argo app manifests in this repo track `targetRevision: main` by default:
+   - `make argocd-dev-up` validates what is on `main`,
+   - validate in-flight branch chart changes with local `helm dependency update` + `helm lint` (or explicit branch-targeted app manifests when needed).
+6. Preferred explicit pre-merge GKE app validation flow:
+   - patch Argo Application `spec.source.targetRevision` to current branch,
+   - add `argocd.argoproj.io/refresh=hard`,
+   - wait for `Synced + Healthy`,
+   - validate expected workloads/CRDs,
+   - restore `targetRevision=main` and wait again.
 
 ### Kubernetes bringup hardening (local/dev)
 1. `make dev-up` must be single-run and self-healing:
