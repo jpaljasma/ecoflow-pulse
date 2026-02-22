@@ -72,6 +72,42 @@ EcoFlow Pulse is a resilient, multi-tier real-time monitor for streaming IoT tel
 → **Data plane** (ingest/stream/projections/storage)  
 → **WebSockets Gateway (public realtime)**
 
+### Internal gRPC baseline (ADR-0013)
+All internal Go gRPC services follow a shared high-throughput baseline:
+- keepalive + enforcement policy (ping-flood resistant),
+- HTTP/2 transport tuning (flow-control windows, stream concurrency),
+- explicit message/header limits,
+- required interceptor chain:
+  - request-id propagation,
+  - recovery,
+  - auth hook,
+  - structured logging,
+- reflection only in local/dev,
+- graceful drain on `SIGTERM`.
+- mandatory regression tests for:
+  - `internal/grpcserver`,
+  - `internal/grpcmw`,
+  - service bootstrap packages under `cmd/` (for example `cmd/ecoflow-grpc-api` telemetry behavior).
+- lock/allocation discipline on hot paths:
+  - avoid per-request mutex contention unless a profiler proves it is required,
+  - prefer lock-free atomics for simple monotonic counters/IDs,
+  - keep immutable shared defaults for response templates to reduce alloc churn.
+- goroutine/channel discipline:
+  - prefer bounded channel fanout for streaming update paths,
+  - define explicit drop/backpressure behavior for slow consumers,
+  - avoid unbounded goroutine creation under burst loads.
+- performance validation gates:
+  - benchmark profiles must be derived from observed telemetry (`logs/mqtt_payload_raw-*.log`),
+  - include steady-state and startup-burst scenarios,
+  - keep a 10k-device synthetic soak gate with p99 latency + heap-growth thresholds.
+
+Bootstrap packages/paths:
+- `internal/grpcserver` (standardized server builder + lifecycle),
+- `internal/grpcmw` (middleware scaffolding),
+- `cmd/ecoflow-grpc-api` (runnable bootstrap service),
+- `proto/pulse/telemetry/v1` + generated code in `gen/pulse/telemetry/v1`,
+- `buf.yaml` + `buf.gen.yaml` for reproducible protobuf generation.
+
 ### Technology choices (locked)
 - **Cloud / K8s:** **GKE** (region **us-east1**) first, portable to EKS later
 - **Streaming / queue:** **NATS JetStream**
@@ -233,6 +269,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M1 — Identity + control plane
 | Status | Task | Dependency |
 |---|---|---|
+| PROGRESS | Internal Go gRPC baseline bootstrap (ADR-0013)<br>- [x] Imported shared gRPC server builder (`internal/grpcserver`) with keepalive enforcement, HTTP/2 tuning, stream/message limits, reflection-gated-by-env, and graceful SIGTERM drain<br>- [x] Imported standard middleware scaffold (`internal/grpcmw`): request-id, recovery, auth hook, structured logging<br>- [x] Added bootstrap telemetry service (`proto/pulse/telemetry/v1`) + generated stubs under `gen/pulse/telemetry/v1` via Buf<br>- [x] Added runnable server entrypoint (`cmd/ecoflow-grpc-api`) with health service and telemetry registration<br>- [x] Added regression tests for `internal/grpcserver`, `internal/grpcmw`, and `cmd/ecoflow-grpc-api` telemetry service behavior to prevent baseline regressions<br>- [x] Added workload-calibrated soak/benchmark coverage and GC/pprof profiling workflow based on `logs/mqtt_payload_raw-*.log` characteristics<br>- [x] Added 10k-device synthetic fleet soak benchmark with p99 latency and heap-growth thresholds (opt-in)<br>- [ ] Replace `NoopAuthorizer` with Keycloak JWKS validation + `user_devices` RBAC enforcement at Go boundary (`ControlPlaneService`) | M0 |
 | PROGRESS | Keycloak realm + Google/Facebook providers<br>- [x] Added chart-managed Keycloak realm import ConfigMap template (`deploy/charts/pulse-platform/templates/keycloak-realm-configmap.yaml`)<br>- [x] Added chart-managed social provider secret template (`deploy/charts/pulse-platform/templates/keycloak-social-secret.yaml`)<br>- [x] Wired local values to enable `keycloakConfigCli` with `existingConfigmap` + `extraEnvVarsSecret`<br>- [x] Added local verification target (`make auth-keycloak-verify-local`) to assert realm + provider presence via `kcadm`<br>- [x] Validate local end-to-end (`make platform-up` + `make platform-wait` + `make auth-keycloak-verify-local`)<br>- [x] Add dev secrets contract + provider credential bootstrap doc (`docs/how-to/configure-keycloak-social-providers-local.md`) | M0 |
 | TODO | Expo PKCE auth flow | Keycloak |
 | PROGRESS | Postgres schema + migrations (`users`, `devices`, `user_devices`)<br>- [x] Added initial migration scaffold under `deploy/db/migrations` (`000001_m1_control_plane_schema.up.sql`, `.down.sql`)<br>- [x] Applied UUIDv7 IDs (`uuidv7()`) across `users` and `devices`<br>- [x] Enforced `keycloak_subject` unique+required and `ecoflow_sn` unique+global<br>- [x] Added `user_devices` composite PK (`user_id`, `device_id`) with role check (`viewer/admin`)<br>- [x] Locked app-managed UTC timestamps (`created_at`, `updated_at`) with no DB defaults<br>- [x] Added migration apply/verify command path for local k3d CNPG DB (`make db-migrate-up-local`, `make db-migrate-down-local`, `make db-migrate-verify-local`, `make db-migrate-cycle-local`, `make db-migrate-e2e-local`)<br>- [x] Validated migration end-to-end against local platform DB (`make db-migrate-cycle-local` + `make db-migrate-e2e-local`; verified `uuidv7()` ID default, check constraints, uniqueness constraints, ownership join path, and app-managed timestamp columns) | M0 |

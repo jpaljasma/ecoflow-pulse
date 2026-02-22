@@ -3,6 +3,7 @@
 Top-level structure:
 
 - `cmd/`
+  - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry service).
   - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
   - `ecoflow-panel-select-train`: panel selection model training + replay.
@@ -14,6 +15,15 @@ Top-level structure:
   - `panelselect`: panel selection model, feature tracker, and predictor.
   - `ecoflowserver`: server helpers and middleware.
   - `logger`: structured logging package.
+- `internal/`
+  - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
+  - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
+- `proto/`
+  - `pulse/telemetry/v1/telemetry.proto`: telemetry gRPC contract (snapshot + server-stream updates).
+- `gen/`
+  - generated protobuf/gRPC Go stubs (via `buf generate`).
+- `buf.yaml`, `buf.gen.yaml`
+  - protobuf module and generation configuration for reproducible codegen.
 - `logs/`
   - `mqtt.log`: run log and raw payload stream.
   - `telemetry_history.jsonl`: minute telemetry persistence.

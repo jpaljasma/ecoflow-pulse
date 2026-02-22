@@ -171,6 +171,65 @@ These rules are mandatory for all new platform work and are sourced from:
    - add new ADR with supersedes pointer
    - mark old ADR as superseded (do not rewrite history)
 
+### Internal gRPC baseline compliance (ADR-0013)
+When touching Go internal API services, enforce the ADR-0013 baseline:
+1. Use shared server builder from `internal/grpcserver` (no bespoke grpc.NewServer wiring per service).
+2. Always keep these options enabled:
+   - keepalive params + enforcement policy,
+   - HTTP/2 transport tuning (`MaxConcurrentStreams`, connection/window sizes),
+   - explicit message/header limits (`MaxRecvMsgSize`, `MaxSendMsgSize`, `MaxHeaderListSize`).
+3. Unary and stream interceptor chains must include, in a consistent order:
+   - request-id propagation,
+   - recovery,
+   - auth hook,
+   - structured logging.
+4. Reflection is allowed only in `local/dev`; never in `staging/prod`.
+5. Health service registration is required for bootstrap/runtime liveness checks.
+6. Graceful SIGTERM drain is mandatory (`GracefulStop` with timeout fallback to `Stop`).
+7. Protobuf generation is standardized through Buf:
+   - source of truth: `proto/`,
+   - configs: `buf.yaml`, `buf.gen.yaml`,
+   - generated output: `gen/`,
+   - command: `buf generate`.
+8. After changing proto or grpc server wiring, always run:
+   - `buf generate`
+   - `go test ./...`
+9. Next security hardening step after baseline bootstrap:
+   - replace `NoopAuthorizer` with Keycloak JWKS JWT validation,
+   - enforce `user_devices` RBAC at Go boundary (no trust-by-proxy from Node).
+10. Testing is mandatory for gRPC baseline code:
+   - add/maintain regression tests in `internal/grpcserver` and `internal/grpcmw`,
+   - add service behavior tests for bootstrap handlers in `cmd/ecoflow-grpc-api`,
+   - run `go test ./...` before commit.
+11. For performance changes, run workload-calibrated benchmarks before tuning:
+   - derive per-device message-rate/payload baselines from `logs/mqtt_payload_raw-*.log`,
+   - use these baselines to tune benchmark profiles (steady + burst),
+   - do not apply GC tuning blindly.
+12. GC tuning policy for gRPC services:
+   - profile first (`pprof`, `gctrace`, benchmarks),
+   - prefer setting `GOMEMLIMIT` to protect against OOM,
+   - increase `GOGC` only if profiles show GC overhead dominates and memory headroom exists,
+   - re-validate with the same benchmark profile after each tuning change.
+13. Keep a 10k-device synthetic soak gate available (opt-in):
+   - command shape: `ECOFLOW_GRPC_10K_SOAK=1 GOGC=200 GOMEMLIMIT=128MiB go test ./cmd/ecoflow-grpc-api -run TestTelemetryServerP99LatencyAndHeapStable10k -count=1 -v`,
+   - use env overrides for thresholds: steady p99, burst p99, and heap delta.
+14. Locking policy for gRPC hot paths:
+   - do not add per-request mutexes unless contention profiling proves necessity,
+   - prefer lock-free atomics for monotonic counters/request-id suffixes,
+   - if a lock is required, keep critical sections minimal and never hold locks across I/O or channel sends.
+15. Goroutine/channel policy for streaming and fanout:
+   - use bounded channels and explicit drop/merge/sample behavior for slow consumers,
+   - avoid unbounded goroutine creation in request paths and startup bursts,
+   - prefer one long-lived worker/fanout loop per shared stream source over per-message goroutines.
+16. Allocation policy for throughput-sensitive handlers:
+   - keep immutable shared default maps/struct templates for common response fields,
+   - avoid repeated variadic slice growth in middleware logging paths,
+   - benchmark alloc/op before/after each optimization and keep regressions out.
+17. Mandatory perf validation after grpc hot-path changes:
+   - run benchmark suites covering observed fleet mix + startup bursts + 10k synthetic scenarios,
+   - capture p99 latency and heap delta results and include them in PR validation notes,
+   - re-run mutex/block profiles when adding synchronization primitives.
+
 ### CI governance (locked by ADR-0010 once accepted)
 1. Treat CI gates as architecture controls, not optional repo hygiene.
 2. Required checks for merges to `main`:
