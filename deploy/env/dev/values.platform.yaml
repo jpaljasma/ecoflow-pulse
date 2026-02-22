@@ -44,6 +44,19 @@ nats:
 cloudnative-pg: {}
 valkey: {}
 keycloak: {}
+keycloakRealm:
+  enabled: false
+  configMapName: pulse-platform-keycloak-realm-import
+  socialSecretName: pulse-platform-keycloak-social-providers
+  realmName: pulse
+  google:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+  facebook:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
 minio: {}
 ingress-nginx:
   controller:

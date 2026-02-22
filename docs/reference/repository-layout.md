@@ -28,6 +28,8 @@ Top-level structure:
   - `panel_select_model.json`: trained panel selection model artifact.
 - `deploy/`
   - `charts/pulse-platform`: platform umbrella chart scaffold.
+    - includes chart-managed bootstrap resources such as CNPG contracts and
+      Keycloak realm/provider bootstrap (`templates/keycloak-*.yaml`).
   - `charts/pulse-services`: services umbrella chart scaffold.
   - `db/migrations`: control-plane SQL migrations (M1+ schema evolution).
   - `env/local` and `env/dev`: values files for local/dev deploys.

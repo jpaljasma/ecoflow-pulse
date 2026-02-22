@@ -9,6 +9,15 @@ This config ensures REST and gRPC can independently verify requests are legitima
 - Social: Google + Facebook
 - Client flow: Authorization Code + PKCE
 
+Realm bootstrap conventions:
+- Realm is imported via `keycloakConfigCli` in Helm, not manually in UI.
+- Realm import config source:
+  - ConfigMap: `pulse-platform-keycloak-realm-import`
+- Social provider credentials source:
+  - Secret: `pulse-platform-keycloak-social-providers`
+- Local validation command:
+  - `make auth-keycloak-verify-local`
+
 ---
 
 ## Request authority model
@@ -55,6 +64,12 @@ Optional early: enable after M1 to keep M0 simple.
 ## Secrets
 - Staging/Prod: External Secrets Operator + GCP Secret Manager
 - Local/Dev: SOPS (age) or dev-only secrets
+
+Social provider secret keys (contract):
+- `KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID`
+- `KEYCLOAK_SOCIAL_GOOGLE_CLIENT_SECRET`
+- `KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_ID`
+- `KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_SECRET`
 
 ---
 

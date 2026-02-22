@@ -47,6 +47,7 @@ make db-migrate-down-local
 make db-migrate-verify-local
 make db-migrate-cycle-local
 make db-migrate-e2e-local
+make auth-keycloak-verify-local
 make gke-context
 make gke-dev-guardrails
 make gke-park
@@ -133,6 +134,10 @@ Notes:
   - verifies ownership join shape (`keycloak_subject -> user_devices -> ecoflow_sn`),
   - verifies uniqueness guards for `keycloak_subject` and `ecoflow_sn`,
   - verifies role guard rejects invalid roles.
+- `make auth-keycloak-verify-local` validates Keycloak realm bootstrap on local k3d:
+  - authenticates with `kcadm` against running Keycloak pod,
+  - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),
+  - verifies social providers `google` and `facebook` are present in that realm.
 - `make gke-context` fetches kube credentials for GKE dev.
   Required variables:
   - `GKE_PROJECT_ID` (required)

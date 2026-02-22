@@ -53,6 +53,8 @@ DB_MIGRATION_NAMESPACE ?= pulse-platform
 DB_MIGRATION_CLUSTER ?= pulse-platform-core
 DB_MIGRATION_SECRET ?= pulse-platform-core-app
 DB_MIGRATION_DB ?= pulse
+KEYCLOAK_REALM_NAME ?= pulse
+KEYCLOAK_ADMIN_USER ?= admin
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -67,7 +69,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -392,6 +394,27 @@ db-migrate-e2e-local: db-migrate-up-local
 		exit 1; \
 	fi; \
 	echo "e2e checks passed: ownership join + uniqueness + role guard"
+
+auth-keycloak-verify-local:
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	ns="$(PLATFORM_NAMESPACE)"; \
+	secret_name="$(PLATFORM_RELEASE)-keycloak"; \
+	admin_password="$$( $(LOCAL_KUBECTL) -n "$$ns" get secret "$$secret_name" -o jsonpath='{.data.admin-password}' | base64 --decode )"; \
+	pod_name="$$( $(LOCAL_KUBECTL) -n "$$ns" get pods -l app.kubernetes.io/instance=$(PLATFORM_RELEASE),app.kubernetes.io/component=keycloak -o jsonpath='{.items[0].metadata.name}' )"; \
+	if [ -z "$$pod_name" ]; then \
+		echo "no Keycloak pod found in namespace $$ns"; \
+		exit 1; \
+	fi; \
+	$(LOCAL_KUBECTL) -n "$$ns" exec "$$pod_name" -- env HOME=/tmp /opt/bitnami/keycloak/bin/kcadm.sh config credentials --server http://127.0.0.1:8080 --realm master --user "$(KEYCLOAK_ADMIN_USER)" --password "$$admin_password" >/dev/null; \
+	$(LOCAL_KUBECTL) -n "$$ns" exec "$$pod_name" -- env HOME=/tmp /opt/bitnami/keycloak/bin/kcadm.sh get "realms/$(KEYCLOAK_REALM_NAME)" --fields realm >/dev/null; \
+	for alias in google facebook; do \
+		$(LOCAL_KUBECTL) -n "$$ns" exec "$$pod_name" -- env HOME=/tmp /opt/bitnami/keycloak/bin/kcadm.sh get "identity-provider/instances/$$alias" -r "$(KEYCLOAK_REALM_NAME)" --fields alias >/dev/null; \
+	done; \
+	echo "keycloak realm verification passed: realm=$(KEYCLOAK_REALM_NAME), providers=google,facebook"
 
 gke-context:
 	@if ! command -v $(GCLOUD) >/dev/null 2>&1; then \
