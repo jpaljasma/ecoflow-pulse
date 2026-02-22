@@ -14,6 +14,12 @@ go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-grpc-api
 ```
 
+Run gRPC API with explicit control-plane Postgres store:
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' go run ./cmd/ecoflow-grpc-api
+```
+
 ## Protobuf / gRPC Generation
 
 ```bash
