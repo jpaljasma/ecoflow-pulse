@@ -53,6 +53,10 @@ DB_MIGRATION_NAMESPACE ?= pulse-platform
 DB_MIGRATION_CLUSTER ?= pulse-platform-core
 DB_MIGRATION_SECRET ?= pulse-platform-core-app
 DB_MIGRATION_DB ?= pulse
+DB_SEED_LOCAL_PORT ?= 15432
+DB_SEED_USER_SUBJECT ?= jpaljasma@gmail.com
+DB_SEED_USER_EMAIL ?= jpaljasma@gmail.com
+DB_SEED_SERIALS ?= R351ZABAPH331057,Y711ZABA9H2P0294
 KEYCLOAK_REALM_NAME ?= pulse
 KEYCLOAK_ADMIN_USER ?= admin
 GOCACHE ?= $(CURDIR)/.cache/go-build
@@ -69,7 +73,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -408,6 +412,53 @@ db-migrate-e2e-local: db-migrate-up-local
 		exit 1; \
 	fi; \
 	echo "e2e checks passed: ownership join + uniqueness + role guard"
+
+db-seed-dev-local: db-migrate-up-local
+	@set -euo pipefail; \
+	if [ -f .env ]; then \
+		set -a; source ./.env; set +a; \
+	fi; \
+	if [ -z "$${ECOFLOW_DEV_ACCESS_KEY:-}" ]; then \
+		echo "ECOFLOW_DEV_ACCESS_KEY is required (export it or set it in .env)"; \
+		exit 1; \
+	fi; \
+	if [ -z "$${ECOFLOW_DEV_SECRET_KEY:-}" ]; then \
+		echo "ECOFLOW_DEV_SECRET_KEY is required (export it or set it in .env)"; \
+		exit 1; \
+	fi; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	port="$(DB_SEED_LOCAL_PORT)"; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	pf_log="/tmp/ecoflow-dev-seed-port-forward-$$.log"; \
+	$(LOCAL_KUBECTL) -n "$$ns" port-forward "svc/$$cluster-rw" "$$port:5432" >"$$pf_log" 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { \
+		kill "$$pf_pid" >/dev/null 2>&1 || true; \
+		wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	ready=0; \
+	for _ in {1..30}; do \
+		if grep -q "Forwarding from" "$$pf_log" 2>/dev/null; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "port-forward did not become ready; see $$pf_log"; \
+		exit 1; \
+	fi; \
+	CONTROL_PLANE_DB_DSN="host=127.0.0.1 port=$$port user=$$user password=$$pass dbname=$$db sslmode=disable" \
+	ECOFLOW_DEV_USER_SUBJECT="$(DB_SEED_USER_SUBJECT)" \
+	ECOFLOW_DEV_USER_EMAIL="$(DB_SEED_USER_EMAIL)" \
+	ECOFLOW_DEV_SEED_SNS="$(DB_SEED_SERIALS)" \
+	$(GO) run ./cmd/ecoflow-dev-seed
 
 auth-keycloak-verify-local:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \

@@ -12,6 +12,7 @@ go run ./cmd/ecoflow-panel-db-import
 go run ./cmd/ecoflow-panel-csv-backfill
 go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-grpc-api
+go run ./cmd/ecoflow-dev-seed
 ```
 
 Run gRPC API with explicit control-plane Postgres store:
@@ -88,6 +89,7 @@ make db-migrate-down-local
 make db-migrate-verify-local
 make db-migrate-cycle-local
 make db-migrate-e2e-local
+make db-seed-dev-local
 make auth-keycloak-verify-local
 make gke-context
 make gke-dev-guardrails
@@ -186,6 +188,17 @@ Notes:
   - verifies ownership join shape (`keycloak_subject -> user_devices -> ecoflow_sn`),
   - verifies uniqueness guards for `keycloak_subject` and `ecoflow_sn`,
   - verifies role guard rejects invalid roles.
+- `make db-seed-dev-local` performs explicit local provider/dev-device seeding:
+  - loads `.env` first when present (for `ECOFLOW_DEV_ACCESS_KEY` / `ECOFLOW_DEV_SECRET_KEY`),
+  - uses temporary `kubectl port-forward` to local CNPG primary service,
+  - runs `go run ./cmd/ecoflow-dev-seed` with:
+    - `CONTROL_PLANE_DB_DSN` pointed at local forwarded Postgres,
+    - `ECOFLOW_DEV_USER_SUBJECT`, `ECOFLOW_DEV_USER_EMAIL`,
+    - `ECOFLOW_DEV_SEED_SNS`.
+  - defaults:
+    - `DB_SEED_USER_SUBJECT=jpaljasma@gmail.com`,
+    - `DB_SEED_USER_EMAIL=jpaljasma@gmail.com`,
+    - `DB_SEED_SERIALS=R351ZABAPH331057,Y711ZABA9H2P0294`.
 - `make auth-keycloak-verify-local` validates Keycloak realm bootstrap on local k3d:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),

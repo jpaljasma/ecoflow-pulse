@@ -3,6 +3,7 @@
 Top-level structure:
 
 - `cmd/`
+  - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane services).
   - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
