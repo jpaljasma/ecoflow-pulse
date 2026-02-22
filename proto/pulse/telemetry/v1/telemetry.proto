@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package pulse.telemetry.v1;
+
+option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1";
+
+// Cursor supports resume/replay semantics for streaming.
+// You can map this to NATS sequence, archive object offsets, or a monotonic per-device revision.
+message Cursor {
+  uint64 seq = 1;          // monotonic sequence (per device stream)
+  int64  ts_unix_ms = 2;   // server ingest time for the event
+}
+
+message Snapshot {
+  string device_id = 1;
+  Cursor cursor = 2;
+  // In v1, store values as generic key/value to avoid schema churn.
+  // Later you can move high-frequency fields into typed messages.
+  map<string, double> metrics = 3;
+}
+
+message Delta {
+  string device_id = 1;
+  Cursor cursor = 2;
+  map<string, double> changed = 3;   // only changed keys
+  repeated string cleared = 4;       // keys removed/invalidated
+}
+
+message Heartbeat {
+  string device_id = 1;
+  Cursor cursor = 2;
+}
+
+message GetSnapshotRequest {
+  string device_id = 1;
+}
+
+message GetSnapshotResponse {
+  Snapshot snapshot = 1;
+}
+
+// Server-streaming subscription.
+// The first message SHOULD be a Snapshot when include_initial_snapshot=true.
+message SubscribeRequest {
+  string device_id = 1;
+
+  // Start from a known cursor (resume). If empty, server uses latest.
+  Cursor from = 2;
+
+  // If true, server sends a Snapshot first, then deltas.
+  bool include_initial_snapshot = 3;
+
+  // Optional client hint: cap update rate by server-side sampling (0 = server default).
+  uint32 max_update_hz = 4;
+}
+
+message TelemetryUpdate {
+  oneof payload {
+    Snapshot snapshot = 1;
+    Delta delta = 2;
+    Heartbeat heartbeat = 3;
+  }
+}
+
+service TelemetryService {
+  rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
+  rpc Subscribe(SubscribeRequest) returns (stream TelemetryUpdate);
+}

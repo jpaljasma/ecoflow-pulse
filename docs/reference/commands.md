@@ -11,6 +11,40 @@ go run ./cmd/ecoflow-pv-fingerprint
 go run ./cmd/ecoflow-panel-db-import
 go run ./cmd/ecoflow-panel-csv-backfill
 go run ./cmd/ecoflow-panel-select-train
+go run ./cmd/ecoflow-grpc-api
+```
+
+## Protobuf / gRPC Generation
+
+```bash
+buf generate
+```
+
+## gRPC Profiling / Benchmarks
+
+```bash
+# Baseline grpc benchmarks (unary path)
+go test ./cmd/ecoflow-grpc-api -run '^$' -bench 'BenchmarkTelemetry(GetSnapshotParallel|GetSnapshot)$' -benchmem -benchtime=5s
+
+# Workload-calibrated benchmarks (derived from mqtt payload logs)
+go test ./cmd/ecoflow-grpc-api -run '^$' -bench 'BenchmarkTelemetry(GetSnapshotObservedFleetMix|SubscribeObservedBurst)$' -benchmem -benchtime=3s
+go test ./cmd/ecoflow-grpc-api -run '^$' -bench 'BenchmarkTelemetry(GetSnapshotObservedFleetMix10k|SubscribeObservedStartupSpike10k)$' -benchmem -benchtime=2s
+
+# Compare GC settings
+GOGC=200 go test ./cmd/ecoflow-grpc-api -run '^$' -bench 'BenchmarkTelemetry(GetSnapshotObservedFleetMix|SubscribeObservedBurst)$' -benchmem -benchtime=3s
+GOGC=400 go test ./cmd/ecoflow-grpc-api -run '^$' -bench 'BenchmarkTelemetry(GetSnapshotObservedFleetMix|SubscribeObservedBurst)$' -benchmem -benchtime=3s
+GOGC=200 GOMEMLIMIT=128MiB go test ./cmd/ecoflow-grpc-api -run '^$' -bench 'BenchmarkTelemetry(GetSnapshotObservedFleetMix|SubscribeObservedBurst)$' -benchmem -benchtime=3s
+
+# Opt-in 10k-device p99 + heap guard soak test
+ECOFLOW_GRPC_10K_SOAK=1 GOGC=200 GOMEMLIMIT=128MiB go test ./cmd/ecoflow-grpc-api -run TestTelemetryServerP99LatencyAndHeapStable10k -count=1 -v
+# Optional threshold overrides (milliseconds / MiB):
+# ECOFLOW_GRPC_P99_STEADY_MAX_MS=50 ECOFLOW_GRPC_P99_BURST_MAX_MS=250 ECOFLOW_GRPC_MAX_HEAP_DELTA_MB=64
+
+# CPU/heap profiles
+go test ./cmd/ecoflow-grpc-api -run '^$' -bench BenchmarkTelemetryGetSnapshotParallel -benchtime=10s -cpuprofile /tmp/ecoflow-grpc-api.cpu.out
+go tool pprof -top /tmp/ecoflow-grpc-api.cpu.out
+go test ./cmd/ecoflow-grpc-api -run TestTelemetryServerHeapStableUnderSnapshotLoad -count=1 -memprofile /tmp/ecoflow-grpc-api.mem.out
+go tool pprof -top /tmp/ecoflow-grpc-api.mem.out
 ```
 
 ## Helper Scripts
@@ -68,11 +102,19 @@ For required local tooling (for example `helm`, `k3d`, `kubectl`), see:
 Notes:
 
 - default `GOFLAGS` in `Makefile` include `-tags=moderncompress -mod=mod`,
+- `make lint` now runs:
+  - `go fmt ./...`
+  - `golangci-lint run ./...` (or `go vet ./...` fallback)
+  - `markdownlint` over tracked `*.md` files using `.markdownlint.json`
+  - if `markdownlint` is missing, it fails with install hint:
+    `brew install markdownlint-cli`
 - `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on
   intentional stop.
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
+- `buf generate` regenerates protobuf/gRPC Go stubs into `gen/` from
+  `proto/` using `buf.yaml` + `buf.gen.yaml`.
 - `make k3d-up` creates or reuses local k3d cluster from `deploy/tilt/k3d-config.yaml`.
   Requires `k3d`, `kubectl`, and a running Docker daemon.
   It also switches `kubectl` context to `k3d-pulse-local`.
