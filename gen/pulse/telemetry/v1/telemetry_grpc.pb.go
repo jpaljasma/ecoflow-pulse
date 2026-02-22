@@ -28,7 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TelemetryServiceClient interface {
 	GetSnapshot(ctx context.Context, in *GetSnapshotRequest, opts ...grpc.CallOption) (*GetSnapshotResponse, error)
-	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TelemetryUpdate], error)
+	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SubscribeResponse], error)
 }
 
 type telemetryServiceClient struct {
@@ -49,13 +49,13 @@ func (c *telemetryServiceClient) GetSnapshot(ctx context.Context, in *GetSnapsho
 	return out, nil
 }
 
-func (c *telemetryServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TelemetryUpdate], error) {
+func (c *telemetryServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SubscribeResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &TelemetryService_ServiceDesc.Streams[0], TelemetryService_Subscribe_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[SubscribeRequest, TelemetryUpdate]{ClientStream: stream}
+	x := &grpc.GenericClientStream[SubscribeRequest, SubscribeResponse]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -66,14 +66,14 @@ func (c *telemetryServiceClient) Subscribe(ctx context.Context, in *SubscribeReq
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TelemetryService_SubscribeClient = grpc.ServerStreamingClient[TelemetryUpdate]
+type TelemetryService_SubscribeClient = grpc.ServerStreamingClient[SubscribeResponse]
 
 // TelemetryServiceServer is the server API for TelemetryService service.
 // All implementations must embed UnimplementedTelemetryServiceServer
 // for forward compatibility.
 type TelemetryServiceServer interface {
 	GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error)
-	Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[TelemetryUpdate]) error
+	Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[SubscribeResponse]) error
 	mustEmbedUnimplementedTelemetryServiceServer()
 }
 
@@ -87,7 +87,7 @@ type UnimplementedTelemetryServiceServer struct{}
 func (UnimplementedTelemetryServiceServer) GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSnapshot not implemented")
 }
-func (UnimplementedTelemetryServiceServer) Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[TelemetryUpdate]) error {
+func (UnimplementedTelemetryServiceServer) Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[SubscribeResponse]) error {
 	return status.Error(codes.Unimplemented, "method Subscribe not implemented")
 }
 func (UnimplementedTelemetryServiceServer) mustEmbedUnimplementedTelemetryServiceServer() {}
@@ -134,11 +134,11 @@ func _TelemetryService_Subscribe_Handler(srv interface{}, stream grpc.ServerStre
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(TelemetryServiceServer).Subscribe(m, &grpc.GenericServerStream[SubscribeRequest, TelemetryUpdate]{ServerStream: stream})
+	return srv.(TelemetryServiceServer).Subscribe(m, &grpc.GenericServerStream[SubscribeRequest, SubscribeResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TelemetryService_SubscribeServer = grpc.ServerStreamingServer[TelemetryUpdate]
+type TelemetryService_SubscribeServer = grpc.ServerStreamingServer[SubscribeResponse]
 
 // TelemetryService_ServiceDesc is the grpc.ServiceDesc for TelemetryService service.
 // It's only intended for direct use with grpc.RegisterService,

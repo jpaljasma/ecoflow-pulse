@@ -6,6 +6,7 @@ This runbook keeps merge protection aligned with ADR-0010.
 
 - `go-test`
 - `frontend-ci`
+- `proto-ci`
 - `CodeQL`
 
 These names are treated as an architecture contract. Do not rename checks casually.
@@ -31,7 +32,7 @@ gh run list --limit 20
 
 Review CI performance on a regular cadence (weekly is enough for current scale):
 
-1. Inspect median and p95 durations for `go-test` and `frontend-ci`.
+1. Inspect median and p95 durations for `go-test`, `frontend-ci`, and `proto-ci`.
 2. If developer latency increases, optimize in this order:
    - dependency/cache hit rates,
    - path filters,

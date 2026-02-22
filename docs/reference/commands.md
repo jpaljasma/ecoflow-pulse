@@ -18,6 +18,7 @@ go run ./cmd/ecoflow-grpc-api
 
 ```bash
 buf generate
+buf lint
 ```
 
 ## gRPC Profiling / Benchmarks
@@ -105,7 +106,10 @@ Notes:
 - `make lint` now runs:
   - `go fmt ./...`
   - `golangci-lint run ./...` (or `go vet ./...` fallback)
+  - `buf lint`
   - `markdownlint` over tracked `*.md` files using `.markdownlint.json`
+  - if `buf` is missing, it fails with install hint:
+    `https://buf.build/docs/installation/`
   - if `markdownlint` is missing, it fails with install hint:
     `brew install markdownlint-cli`
 - `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on

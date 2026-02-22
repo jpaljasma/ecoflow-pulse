@@ -54,7 +54,7 @@ message SubscribeRequest {
   uint32 max_update_hz = 4;
 }
 
-message TelemetryUpdate {
+message SubscribeResponse {
   oneof payload {
     Snapshot snapshot = 1;
     Delta delta = 2;
@@ -64,5 +64,5 @@ message TelemetryUpdate {
 
 service TelemetryService {
   rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
-  rpc Subscribe(SubscribeRequest) returns (stream TelemetryUpdate);
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
 }

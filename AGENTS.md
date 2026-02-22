@@ -240,6 +240,7 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
 2. Required checks for merges to `main`:
    - `go-test`
    - `frontend-ci`
+   - `proto-ci`
    - `CodeQL`
 3. Keep workflow/check names stable to avoid breaking required-status wiring.
 4. When CI workflow scope changes (paths, jobs, check names), update:
@@ -250,6 +251,9 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
    - `npm run -w apps/universal lint`
    - `npm run -w apps/universal test`
    - Expo web build/export sanity check
+6. Protobuf contract changes must pass both local and CI lint:
+   - local: `make lint` (includes `buf lint`)
+   - CI: `proto-ci` GitHub Actions check (`buf lint`)
 
 ## Local Development Principles (Developer Experience)
 These are mandatory implementation principles for local workflows and tooling quality.

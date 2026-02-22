@@ -418,32 +418,32 @@ func (x *SubscribeRequest) GetMaxUpdateHz() uint32 {
 	return 0
 }
 
-type TelemetryUpdate struct {
+type SubscribeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
-	//	*TelemetryUpdate_Snapshot
-	//	*TelemetryUpdate_Delta
-	//	*TelemetryUpdate_Heartbeat
-	Payload       isTelemetryUpdate_Payload `protobuf_oneof:"payload"`
+	//	*SubscribeResponse_Snapshot
+	//	*SubscribeResponse_Delta
+	//	*SubscribeResponse_Heartbeat
+	Payload       isSubscribeResponse_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *TelemetryUpdate) Reset() {
-	*x = TelemetryUpdate{}
+func (x *SubscribeResponse) Reset() {
+	*x = SubscribeResponse{}
 	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TelemetryUpdate) String() string {
+func (x *SubscribeResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TelemetryUpdate) ProtoMessage() {}
+func (*SubscribeResponse) ProtoMessage() {}
 
-func (x *TelemetryUpdate) ProtoReflect() protoreflect.Message {
+func (x *SubscribeResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -455,66 +455,66 @@ func (x *TelemetryUpdate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TelemetryUpdate.ProtoReflect.Descriptor instead.
-func (*TelemetryUpdate) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeResponse.ProtoReflect.Descriptor instead.
+func (*SubscribeResponse) Descriptor() ([]byte, []int) {
 	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *TelemetryUpdate) GetPayload() isTelemetryUpdate_Payload {
+func (x *SubscribeResponse) GetPayload() isSubscribeResponse_Payload {
 	if x != nil {
 		return x.Payload
 	}
 	return nil
 }
 
-func (x *TelemetryUpdate) GetSnapshot() *Snapshot {
+func (x *SubscribeResponse) GetSnapshot() *Snapshot {
 	if x != nil {
-		if x, ok := x.Payload.(*TelemetryUpdate_Snapshot); ok {
+		if x, ok := x.Payload.(*SubscribeResponse_Snapshot); ok {
 			return x.Snapshot
 		}
 	}
 	return nil
 }
 
-func (x *TelemetryUpdate) GetDelta() *Delta {
+func (x *SubscribeResponse) GetDelta() *Delta {
 	if x != nil {
-		if x, ok := x.Payload.(*TelemetryUpdate_Delta); ok {
+		if x, ok := x.Payload.(*SubscribeResponse_Delta); ok {
 			return x.Delta
 		}
 	}
 	return nil
 }
 
-func (x *TelemetryUpdate) GetHeartbeat() *Heartbeat {
+func (x *SubscribeResponse) GetHeartbeat() *Heartbeat {
 	if x != nil {
-		if x, ok := x.Payload.(*TelemetryUpdate_Heartbeat); ok {
+		if x, ok := x.Payload.(*SubscribeResponse_Heartbeat); ok {
 			return x.Heartbeat
 		}
 	}
 	return nil
 }
 
-type isTelemetryUpdate_Payload interface {
-	isTelemetryUpdate_Payload()
+type isSubscribeResponse_Payload interface {
+	isSubscribeResponse_Payload()
 }
 
-type TelemetryUpdate_Snapshot struct {
+type SubscribeResponse_Snapshot struct {
 	Snapshot *Snapshot `protobuf:"bytes,1,opt,name=snapshot,proto3,oneof"`
 }
 
-type TelemetryUpdate_Delta struct {
+type SubscribeResponse_Delta struct {
 	Delta *Delta `protobuf:"bytes,2,opt,name=delta,proto3,oneof"`
 }
 
-type TelemetryUpdate_Heartbeat struct {
+type SubscribeResponse_Heartbeat struct {
 	Heartbeat *Heartbeat `protobuf:"bytes,3,opt,name=heartbeat,proto3,oneof"`
 }
 
-func (*TelemetryUpdate_Snapshot) isTelemetryUpdate_Payload() {}
+func (*SubscribeResponse_Snapshot) isSubscribeResponse_Payload() {}
 
-func (*TelemetryUpdate_Delta) isTelemetryUpdate_Payload() {}
+func (*SubscribeResponse_Delta) isSubscribeResponse_Payload() {}
 
-func (*TelemetryUpdate_Heartbeat) isTelemetryUpdate_Payload() {}
+func (*SubscribeResponse_Heartbeat) isSubscribeResponse_Payload() {}
 
 var File_pulse_telemetry_v1_telemetry_proto protoreflect.FileDescriptor
 
@@ -551,15 +551,15 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12.\n" +
 	"\x04from\x18\x02 \x01(\v2\x1a.pulse.telemetry.v1.CursorR\x04from\x128\n" +
 	"\x18include_initial_snapshot\x18\x03 \x01(\bR\x16includeInitialSnapshot\x12\"\n" +
-	"\rmax_update_hz\x18\x04 \x01(\rR\vmaxUpdateHz\"\xca\x01\n" +
-	"\x0fTelemetryUpdate\x12:\n" +
+	"\rmax_update_hz\x18\x04 \x01(\rR\vmaxUpdateHz\"\xcc\x01\n" +
+	"\x11SubscribeResponse\x12:\n" +
 	"\bsnapshot\x18\x01 \x01(\v2\x1c.pulse.telemetry.v1.SnapshotH\x00R\bsnapshot\x121\n" +
 	"\x05delta\x18\x02 \x01(\v2\x19.pulse.telemetry.v1.DeltaH\x00R\x05delta\x12=\n" +
 	"\theartbeat\x18\x03 \x01(\v2\x1d.pulse.telemetry.v1.HeartbeatH\x00R\theartbeatB\t\n" +
-	"\apayload2\xcc\x01\n" +
+	"\apayload2\xce\x01\n" +
 	"\x10TelemetryService\x12^\n" +
-	"\vGetSnapshot\x12&.pulse.telemetry.v1.GetSnapshotRequest\x1a'.pulse.telemetry.v1.GetSnapshotResponse\x12X\n" +
-	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a#.pulse.telemetry.v1.TelemetryUpdate0\x01BGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
+	"\vGetSnapshot\x12&.pulse.telemetry.v1.GetSnapshotRequest\x1a'.pulse.telemetry.v1.GetSnapshotResponse\x12Z\n" +
+	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x01BGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
 
 var (
 	file_pulse_telemetry_v1_telemetry_proto_rawDescOnce sync.Once
@@ -582,7 +582,7 @@ var file_pulse_telemetry_v1_telemetry_proto_goTypes = []any{
 	(*GetSnapshotRequest)(nil),  // 4: pulse.telemetry.v1.GetSnapshotRequest
 	(*GetSnapshotResponse)(nil), // 5: pulse.telemetry.v1.GetSnapshotResponse
 	(*SubscribeRequest)(nil),    // 6: pulse.telemetry.v1.SubscribeRequest
-	(*TelemetryUpdate)(nil),     // 7: pulse.telemetry.v1.TelemetryUpdate
+	(*SubscribeResponse)(nil),   // 7: pulse.telemetry.v1.SubscribeResponse
 	nil,                         // 8: pulse.telemetry.v1.Snapshot.MetricsEntry
 	nil,                         // 9: pulse.telemetry.v1.Delta.ChangedEntry
 }
@@ -594,13 +594,13 @@ var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	0,  // 4: pulse.telemetry.v1.Heartbeat.cursor:type_name -> pulse.telemetry.v1.Cursor
 	1,  // 5: pulse.telemetry.v1.GetSnapshotResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
 	0,  // 6: pulse.telemetry.v1.SubscribeRequest.from:type_name -> pulse.telemetry.v1.Cursor
-	1,  // 7: pulse.telemetry.v1.TelemetryUpdate.snapshot:type_name -> pulse.telemetry.v1.Snapshot
-	2,  // 8: pulse.telemetry.v1.TelemetryUpdate.delta:type_name -> pulse.telemetry.v1.Delta
-	3,  // 9: pulse.telemetry.v1.TelemetryUpdate.heartbeat:type_name -> pulse.telemetry.v1.Heartbeat
+	1,  // 7: pulse.telemetry.v1.SubscribeResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
+	2,  // 8: pulse.telemetry.v1.SubscribeResponse.delta:type_name -> pulse.telemetry.v1.Delta
+	3,  // 9: pulse.telemetry.v1.SubscribeResponse.heartbeat:type_name -> pulse.telemetry.v1.Heartbeat
 	4,  // 10: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
 	6,  // 11: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
 	5,  // 12: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
-	7,  // 13: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.TelemetryUpdate
+	7,  // 13: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
 	12, // [12:14] is the sub-list for method output_type
 	10, // [10:12] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
@@ -614,9 +614,9 @@ func file_pulse_telemetry_v1_telemetry_proto_init() {
 		return
 	}
 	file_pulse_telemetry_v1_telemetry_proto_msgTypes[7].OneofWrappers = []any{
-		(*TelemetryUpdate_Snapshot)(nil),
-		(*TelemetryUpdate_Delta)(nil),
-		(*TelemetryUpdate_Heartbeat)(nil),
+		(*SubscribeResponse_Snapshot)(nil),
+		(*SubscribeResponse_Delta)(nil),
+		(*SubscribeResponse_Heartbeat)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
