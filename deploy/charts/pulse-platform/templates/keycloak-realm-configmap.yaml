@@ -1,0 +1,40 @@
+{{- if and .Values.components.keycloak.enabled .Values.keycloakRealm.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.keycloakRealm.configMapName | quote }}
+  labels:
+    app.kubernetes.io/name: pulse-platform
+    app.kubernetes.io/part-of: ecoflow-pulse
+data:
+  realm-pulse.yaml: |-
+    realm: {{ .Values.keycloakRealm.realmName | quote }}
+    enabled: true
+    displayName: "EcoFlow Pulse"
+    loginWithEmailAllowed: true
+    duplicateEmailsAllowed: false
+    resetPasswordAllowed: true
+    registrationAllowed: false
+    verifyEmail: true
+    identityProviders:
+      - alias: "google"
+        providerId: "google"
+        enabled: {{ .Values.keycloakRealm.google.enabled }}
+        trustEmail: true
+        storeToken: false
+        firstBrokerLoginFlowAlias: "first broker login"
+        config:
+          clientId: "${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID:}"
+          clientSecret: "${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_SECRET:}"
+          defaultScope: "openid email profile"
+      - alias: "facebook"
+        providerId: "facebook"
+        enabled: {{ .Values.keycloakRealm.facebook.enabled }}
+        trustEmail: true
+        storeToken: false
+        firstBrokerLoginFlowAlias: "first broker login"
+        config:
+          clientId: "${KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_ID:}"
+          clientSecret: "${KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_SECRET:}"
+          defaultScope: "public_profile,email"
+{{- end }}

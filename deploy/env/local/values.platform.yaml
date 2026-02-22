@@ -120,6 +120,30 @@ keycloak:
     existingSecret: pulse-platform-core-app
     existingSecretUserKey: username
     existingSecretPasswordKey: password
+  keycloakConfigCli:
+    enabled: true
+    existingConfigmap: pulse-platform-keycloak-realm-import
+    extraEnvVarsSecret: pulse-platform-keycloak-social-providers
+    image:
+      repository: bitnamilegacy/keycloak-config-cli
+    cleanupAfterFinished:
+      enabled: true
+      seconds: 600
+
+keycloakRealm:
+  enabled: true
+  configMapName: pulse-platform-keycloak-realm-import
+  socialSecretName: pulse-platform-keycloak-social-providers
+  realmName: pulse
+  google:
+    enabled: false
+    clientId: "replace-me-google-client-id"
+    clientSecret: "replace-me-google-client-secret"
+  facebook:
+    enabled: false
+    clientId: "replace-me-facebook-client-id"
+    clientSecret: "replace-me-facebook-client-secret"
+
 minio:
   mode: standalone
   replicas: 1
