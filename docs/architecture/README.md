@@ -293,8 +293,8 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M2 — Telemetry pipeline v1 + archive + replay
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | `TelemetryEnvelope` protobuf + versioning | M0 |
-| TODO | NATS subject model + sharding rules | M0 |
+| PROGRESS | `TelemetryEnvelope` protobuf + versioning<br>- [x] Added canonical ingest/archive envelope schema at `proto/pulse/envelope/v1/envelope.proto`<br>- [x] Added explicit version fields (`envelope_version`, `payload_version`) and source/encoding enums<br>- [x] Added deterministic shard metadata fields (`shard`, `shard_count`) to support replay partitioning<br>- [x] Generated Go stubs via Buf (`gen/pulse/envelope/v1`)<br>- [ ] Wire envelope builder into ingest path (`MQTT -> normalize -> NATS`) | M0 |
+| PROGRESS | NATS subject model + sharding rules<br>- [x] Added deterministic shard function (`ShardForDevice`) using stable FNV-1a hashing in `internal/telemetrybus`<br>- [x] Added versioned subject taxonomy helpers for ingest/projection/archive/replay/gap-repair subjects<br>- [x] Added regression tests for subject formatting + shard determinism<br>- [ ] Wire ingest/projection/replay workers to shared `internal/telemetrybus` subject helpers | M0 |
 | TODO | Ingest: MQTT → normalize → NATS | proto + NATS |
 | TODO | Projection: NATS → Valkey live snapshot | NATS + Valkey |
 | TODO | Archive writer: protobuf+zstd objects | storage |

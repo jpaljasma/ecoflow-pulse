@@ -18,8 +18,10 @@ Top-level structure:
 - `internal/`
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
+  - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths.
 - `proto/`
   - `pulse/telemetry/v1/telemetry.proto`: telemetry gRPC contract (snapshot + server-stream updates).
+  - `pulse/envelope/v1/envelope.proto`: canonical ingest/archive `TelemetryEnvelope` contract.
 - `gen/`
   - generated protobuf/gRPC Go stubs (via `buf generate`).
 - `buf.yaml`, `buf.gen.yaml`

@@ -20,6 +20,18 @@ Use **NATS JetStream** as the streaming bus for:
 
 Keep JetStream retention modest (24–72 hours) for operational replay; use object storage as the authoritative replay log.
 
+Subject taxonomy and shard routing are standardized as:
+- `pulse.telemetry.ingest.sNNN`
+- `pulse.telemetry.projection.sNNN`
+- `pulse.telemetry.archive.sNNN`
+- `pulse.telemetry.replay.sNNN`
+- `pulse.telemetry.gaprepair.sNNN`
+
+Where:
+- `NNN` is a zero-padded shard index,
+- shard is deterministic by device ID using `hash(device_id) % shard_count`,
+- initial default shard count is 128 (tunable).
+
 ## Consequences
 ### Positive
 - Simple operations relative to Kafka
@@ -30,5 +42,5 @@ Keep JetStream retention modest (24–72 hours) for operational replay; use obje
 - If long-term ecosystem integrations require Kafka, migration may be needed
 
 ### Follow-ups
-- Define subject naming + sharding strategy
+- [x] Define subject naming + sharding strategy
 - Define replay subject conventions and idempotency strategy

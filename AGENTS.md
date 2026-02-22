@@ -132,6 +132,10 @@ These rules are mandatory for all new platform work and are sourced from:
    - per-device replay
    - fleet/shard time-range replay
    - gap repair
+4. M2 contract rules:
+   - canonical archive frame is `TelemetryEnvelope` (`proto/pulse/envelope/v1`)
+   - envelope and payload versions must be explicit fields in each frame
+   - NATS subject naming/sharding must use shared helpers (`internal/telemetrybus`), not ad-hoc string formatting
 
 ### Locked security boundary rules
 1. Client auth uses Authorization Code + PKCE via Keycloak.
