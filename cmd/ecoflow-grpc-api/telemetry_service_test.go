@@ -22,10 +22,10 @@ type telemetryTestStream struct {
 	sendErr      error
 
 	mu   sync.Mutex
-	sent []*telemetryv1.TelemetryUpdate
+	sent []*telemetryv1.SubscribeResponse
 }
 
-func (s *telemetryTestStream) Send(msg *telemetryv1.TelemetryUpdate) error {
+func (s *telemetryTestStream) Send(msg *telemetryv1.SubscribeResponse) error {
 	if s.sendErr != nil {
 		return s.sendErr
 	}

@@ -85,6 +85,12 @@ lint:
 		echo "markdownlint not found; install with: brew install markdownlint-cli"; \
 		exit 1; \
 	fi
+	@if ! command -v buf >/dev/null 2>&1; then \
+		echo "buf not found; install from https://buf.build/docs/installation/"; \
+		exit 1; \
+	fi
+	@echo "running buf lint"
+	@buf lint
 	@echo "running markdownlint"
 	@git ls-files -z '*.md' | xargs -0 markdownlint --config .markdownlint.json
 

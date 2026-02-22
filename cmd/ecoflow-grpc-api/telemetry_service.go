@@ -56,7 +56,7 @@ func (s *TelemetryService) Subscribe(req *telemetryv1.SubscribeRequest, stream t
 		if err != nil {
 			return err
 		}
-		if err := stream.Send(&telemetryv1.TelemetryUpdate{Payload: &telemetryv1.TelemetryUpdate_Snapshot{Snapshot: resp.Snapshot}}); err != nil {
+		if err := stream.Send(&telemetryv1.SubscribeResponse{Payload: &telemetryv1.SubscribeResponse_Snapshot{Snapshot: resp.Snapshot}}); err != nil {
 			return err
 		}
 	}
@@ -77,7 +77,7 @@ func (s *TelemetryService) Subscribe(req *telemetryv1.SubscribeRequest, stream t
 				DeviceId: req.DeviceId,
 				Cursor:   &telemetryv1.Cursor{Seq: seq, TsUnixMs: time.Now().UnixMilli()},
 			}
-			if err := stream.Send(&telemetryv1.TelemetryUpdate{Payload: &telemetryv1.TelemetryUpdate_Heartbeat{Heartbeat: hb}}); err != nil {
+			if err := stream.Send(&telemetryv1.SubscribeResponse{Payload: &telemetryv1.SubscribeResponse_Heartbeat{Heartbeat: hb}}); err != nil {
 				return err
 			}
 		}

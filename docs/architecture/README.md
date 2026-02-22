@@ -58,7 +58,7 @@ EcoFlow Pulse is a resilient, multi-tier real-time monitor for streaming IoT tel
 - Media assets strategy
 
 ### CI/CD
-- GitHub Actions (Go tests, frontend CI, CodeQL, issue auto-summary)
+- GitHub Actions (Go tests, frontend CI, proto CI, CodeQL, issue auto-summary)
 - Makefile task orchestration
 
 ---
@@ -182,6 +182,7 @@ The `main` branch is protected by required CI checks. These check names are part
 
 - `go-test`
 - `frontend-ci`
+- `proto-ci`
 - `CodeQL`
 
 If a workflow or check name changes, update repository branch protection/rulesets in the same change so merges are never silently unblocked.
@@ -234,7 +235,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - **DONE:** Hourly/daily rollups retention = **3 years**
 - **DONE:** Realtime = **WebSockets**
 - **DONE:** Auth = **Keycloak** w/ Google & Facebook
-- **DONE:** CI merge gates = **go-test + frontend-ci + CodeQL**
+- **DONE:** CI merge gates = **go-test + frontend-ci + proto-ci + CodeQL**
 
 ---
 
@@ -293,8 +294,8 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M2 — Telemetry pipeline v1 + archive + replay
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | `TelemetryEnvelope` protobuf + versioning | M0 |
-| TODO | NATS subject model + sharding rules | M0 |
+| PROGRESS | `TelemetryEnvelope` protobuf + versioning<br>- [x] Added canonical ingest/archive envelope schema at `proto/pulse/envelope/v1/envelope.proto`<br>- [x] Added explicit version fields (`envelope_version`, `payload_version`) and source/encoding enums<br>- [x] Added deterministic shard metadata fields (`shard`, `shard_count`) to support replay partitioning<br>- [x] Generated Go stubs via Buf (`gen/pulse/envelope/v1`)<br>- [ ] Wire envelope builder into ingest path (`MQTT -> normalize -> NATS`) | M0 |
+| PROGRESS | NATS subject model + sharding rules<br>- [x] Added deterministic shard function (`ShardForDevice`) using stable FNV-1a hashing in `internal/telemetrybus`<br>- [x] Added versioned subject taxonomy helpers for ingest/projection/archive/replay/gap-repair subjects<br>- [x] Added regression tests for subject formatting + shard determinism<br>- [ ] Wire ingest/projection/replay workers to shared `internal/telemetrybus` subject helpers | M0 |
 | TODO | Ingest: MQTT → normalize → NATS | proto + NATS |
 | TODO | Projection: NATS → Valkey live snapshot | NATS + Valkey |
 | TODO | Archive writer: protobuf+zstd objects | storage |

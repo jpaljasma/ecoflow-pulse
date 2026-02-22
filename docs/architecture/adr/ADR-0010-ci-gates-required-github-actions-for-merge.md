@@ -14,11 +14,13 @@ To keep throughput high without regressions, CI must reliably gate both runtime 
 Add and enforce required GitHub Actions status checks for merges to `main`:
 - `go-test`
 - `frontend-ci`
+- `proto-ci`
 - `CodeQL`
 
 CI workflow intent:
 - `go-test` validates backend/runtime contracts.
 - `frontend-ci` validates `typecheck`, `lint`, tests, and Expo web build sanity.
+- `proto-ci` validates protobuf contract hygiene (`buf lint`) for `proto/`.
 - `CodeQL` remains the security/code-scanning gate.
 
 Ruleset/branch protection must treat these checks as mandatory (no optional merge when checks fail).
