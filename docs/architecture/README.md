@@ -108,6 +108,13 @@ Bootstrap packages/paths:
 - `proto/pulse/telemetry/v1` + generated code in `gen/pulse/telemetry/v1`,
 - `buf.yaml` + `buf.gen.yaml` for reproducible protobuf generation.
 
+### Provider integration + distributed ingest control plane (ADR-0014)
+The control plane uses provider-aware entities while keeping ownership primitives (`users`, `devices`, `user_devices`) stable:
+- `provider_credentials`: multi-entry per user/provider, write-only secret semantics for user-facing APIs, `is_active` lifecycle control.
+- `provider_devices`: provider-specific identity + capability metadata, credential linkage, and ingest desired state (`active | draining | paused`).
+- Distributed ingest workers use Valkey lease locks (`provider + provider_device_id`) with heartbeat TTL and graceful drain behavior.
+- EcoFlow discovery is manual trigger in v1; MQTT certification is fetched on connect/reconnect.
+
 ### Technology choices (locked)
 - **Cloud / K8s:** **GKE** (region **us-east1**) first, portable to EKS later
 - **Streaming / queue:** **NATS JetStream**
@@ -274,6 +281,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | PROGRESS | Keycloak realm + Google/Facebook providers<br>- [x] Added chart-managed Keycloak realm import ConfigMap template (`deploy/charts/pulse-platform/templates/keycloak-realm-configmap.yaml`)<br>- [x] Added chart-managed social provider secret template (`deploy/charts/pulse-platform/templates/keycloak-social-secret.yaml`)<br>- [x] Wired local values to enable `keycloakConfigCli` with `existingConfigmap` + `extraEnvVarsSecret`<br>- [x] Added local verification target (`make auth-keycloak-verify-local`) to assert realm + provider presence via `kcadm`<br>- [x] Validate local end-to-end (`make platform-up` + `make platform-wait` + `make auth-keycloak-verify-local`)<br>- [x] Add dev secrets contract + provider credential bootstrap doc (`docs/how-to/configure-keycloak-social-providers-local.md`) | M0 |
 | TODO | Expo PKCE auth flow | Keycloak |
 | PROGRESS | Postgres schema + migrations (`users`, `devices`, `user_devices`)<br>- [x] Added initial migration scaffold under `deploy/db/migrations` (`000001_m1_control_plane_schema.up.sql`, `.down.sql`)<br>- [x] Applied UUIDv7 IDs (`uuidv7()`) across `users` and `devices`<br>- [x] Enforced `keycloak_subject` unique+required and `ecoflow_sn` unique+global<br>- [x] Added `user_devices` composite PK (`user_id`, `device_id`) with role check (`viewer/admin`)<br>- [x] Locked app-managed UTC timestamps (`created_at`, `updated_at`) with no DB defaults<br>- [x] Added migration apply/verify command path for local k3d CNPG DB (`make db-migrate-up-local`, `make db-migrate-down-local`, `make db-migrate-verify-local`, `make db-migrate-cycle-local`, `make db-migrate-e2e-local`)<br>- [x] Validated migration end-to-end against local platform DB (`make db-migrate-cycle-local` + `make db-migrate-e2e-local`; verified `uuidv7()` ID default, check constraints, uniqueness constraints, ownership join path, and app-managed timestamp columns) | M0 |
+| PROGRESS | Provider integrations + device metadata control-plane model (ADR-0014)<br>- [x] Locked architecture decision for provider-scoped credentials + provider device identity (`provider_credentials`, `provider_devices`)<br>- [x] Locked write-only secret policy for user-facing credential APIs<br>- [x] Locked manual discovery-only behavior for v1 (`DiscoverDevices()` explicit trigger)<br>- [x] Locked lease protocol choice (Valkey TTL + heartbeat + graceful drain)<br>- [ ] Add migration for `provider_credentials` + `provider_devices` (UUIDv7 + UTC app-managed timestamps)<br>- [ ] Add control-plane APIs: credentials CRUD/list, `DiscoverDevices()`, provider-grouped `ListDevices()`<br>- [ ] Add explicit dev seed command using `ECOFLOW_DEV_ACCESS_KEY` / `ECOFLOW_DEV_SECRET_KEY` and initial SN bindings | M1 schema + ADR-0014 |
 | TODO | Node JWT middleware (JWKS) | Keycloak |
 | TODO | Go gRPC JWT interceptor + authz | Keycloak |
 | TODO | Device registry APIs (create/link/list) | schema + auth |
@@ -287,6 +295,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 **Post-M1 follow-up (explicitly deferred until M1 is DONE)**
 - Add GitHub `db-migrations-ci` workflow (up/verify/down/up/e2e) and make it a required check.
 - Define and implement schema migration rollout path for `dev -> staging -> prod` (Argo sync hook / migration job sequencing, backup gates, forward-only policy).
+- Adopt `pgroll` for safe reversible online PostgreSQL schema migrations with simultaneous multi-schema serving during transitions.
 - Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
 
 ---
@@ -296,6 +305,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 |---|---|---|
 | PROGRESS | `TelemetryEnvelope` protobuf + versioning<br>- [x] Added canonical ingest/archive envelope schema at `proto/pulse/envelope/v1/envelope.proto`<br>- [x] Added explicit version fields (`envelope_version`, `payload_version`) and source/encoding enums<br>- [x] Added deterministic shard metadata fields (`shard`, `shard_count`) to support replay partitioning<br>- [x] Generated Go stubs via Buf (`gen/pulse/envelope/v1`)<br>- [ ] Wire envelope builder into ingest path (`MQTT -> normalize -> NATS`) | M0 |
 | PROGRESS | NATS subject model + sharding rules<br>- [x] Added deterministic shard function (`ShardForDevice`) using stable FNV-1a hashing in `internal/telemetrybus`<br>- [x] Added versioned subject taxonomy helpers for ingest/projection/archive/replay/gap-repair subjects<br>- [x] Added regression tests for subject formatting + shard determinism<br>- [ ] Wire ingest/projection/replay workers to shared `internal/telemetrybus` subject helpers | M0 |
+| PROGRESS | Distributed MQTT ingest worker pool + global lease locks (ADR-0014)<br>- [x] Locked one-session-per-`(provider, provider_device_id)` rule for distributed workers<br>- [x] Locked Valkey lease protocol baseline (`TTL=45s`, `heartbeat=15s`, tuned by soak testing)<br>- [x] Locked graceful drain behavior for deactivation/credential disable events (event-driven)<br>- [ ] Implement provider adapter contract (`EcoFlow` first) for connect/reconnect certification flow<br>- [ ] Implement Valkey Lua lease manager (acquire/renew/release with token + fencing)<br>- [ ] Implement worker assignment loop and session lifecycle manager (multi-replica safe)<br>- [ ] Replace production ingest path dependency on host-local file lock runtime | M0 + ADR-0014 |
 | TODO | Ingest: MQTT → normalize → NATS | proto + NATS |
 | TODO | Projection: NATS → Valkey live snapshot | NATS + Valkey |
 | TODO | Archive writer: protobuf+zstd objects | storage |
