@@ -102,6 +102,12 @@ For required local tooling (for example `helm`, `k3d`, `kubectl`), see:
 Notes:
 
 - default `GOFLAGS` in `Makefile` include `-tags=moderncompress -mod=mod`,
+- `make lint` now runs:
+  - `go fmt ./...`
+  - `golangci-lint run ./...` (or `go vet ./...` fallback)
+  - `markdownlint` over tracked `*.md` files using `.markdownlint.json`
+  - if `markdownlint` is missing, it fails with install hint:
+    `brew install markdownlint-cli`
 - `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on
   intentional stop.
 - `make web` restarts Expo web by first stopping any process listening on

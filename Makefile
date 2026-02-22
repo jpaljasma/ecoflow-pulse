@@ -81,6 +81,12 @@ lint:
 		echo "golangci-lint not found; running go vet"; \
 		$(GO) vet ./...; \
 	fi
+	@if ! command -v markdownlint >/dev/null 2>&1; then \
+		echo "markdownlint not found; install with: brew install markdownlint-cli"; \
+		exit 1; \
+	fi
+	@echo "running markdownlint"
+	@git ls-files -z '*.md' | xargs -0 markdownlint --config .markdownlint.json
 
 test:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"

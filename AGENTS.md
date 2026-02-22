@@ -64,7 +64,8 @@ When starting any new milestone task from `docs/architecture/README.md`:
 1. Before committing code changes, update developer documentation under `docs/` if any runtime behavior, architecture, telemetry mapping, UI behavior, or configuration changed.
 2. Keep the root `README.md` and `docs/README.md` links/navigation accurate when docs structure or key capabilities change.
 3. Treat documentation updates as part of the same feature branch and commit series; do not defer doc sync to later cleanup commits.
-4. When available, run markdown lint checks before pushing docs-heavy changes.
+4. For commits touching Markdown, run `make lint` before push.
+5. Markdown linting uses repo-level sane defaults in `.markdownlint.json`; avoid broad doc reflow/polish unless the task explicitly requires it.
 
 ## Milestone Closure Rules
 1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.
