@@ -154,7 +154,34 @@ A new ingest worker service (replacing `cmd/ecoflow-mqtt-sub` runtime for produc
 - publish envelopes/events downstream,
 - gracefully drain and release lease on deactivation/disable/shutdown.
 
-### 6) Development seed policy
+Worker startup/reconcile concurrency defaults:
+- startup worker pool default: `4 * GOMAXPROCS`, clamped to `[8, 64]`,
+- startup queue default: `start_workers * 8`,
+- both are overridable via environment (`INGEST_START_WORKERS`, `INGEST_START_QUEUE_SIZE`).
+
+These defaults target high connection churn bursts while keeping bounded pod-level
+resource usage and avoiding unbounded goroutine growth.
+
+### 6) Horizontal autoscaling policy (recommended)
+The ingest worker HPA policy is explicitly two-level:
+1. in-pod bounded startup pool handles local bursts first,
+2. pod replicas scale out when sustained pressure remains.
+
+Recommended baseline in dev/prod:
+- HPA `minReplicas=2`, `maxReplicas=24`,
+- scale-out on CPU `65%` and memory `70%`,
+- fast scale-up (`100%` or `+8 pods` per 60s),
+- conservative scale-down (`20%` or `-2 pods` per 60s, 15m stabilization).
+
+Reference manifest:
+- `deploy/env/dev/recommended/pulse-services-go-ingest-hpa.recommended.yaml`
+
+Recommended follow-up custom metrics for autoscaling:
+- unassigned active device count,
+- reconcile duration p95 vs poll interval,
+- lease acquire latency p95.
+
+### 7) Development seed policy
 Initial seed is explicit-only (no automatic startup seed):
 - read `ECOFLOW_DEV_ACCESS_KEY` / `ECOFLOW_DEV_SECRET_KEY`,
 - tie to user `jpaljasma@gmail.com`,
@@ -239,3 +266,6 @@ Graceful drain as event-driven desired state avoids abrupt disconnect churn and 
 - [ ] Add end-to-end dedup strategy at projection/archive stages.
 - [ ] Generalize provider adapters beyond EcoFlow.
 - [ ] Add chaos tests for lease loss, worker crash, and reconnect storms.
+- [ ] Add autoscaling custom metrics pipeline (Prometheus Adapter/KEDA) for
+  `ingest_unassigned_active_devices`, `ingest_reconcile_duration_p95_seconds`,
+  and `ingest_lease_acquire_latency_p95_seconds`.

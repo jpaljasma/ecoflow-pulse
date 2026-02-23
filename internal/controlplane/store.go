@@ -43,6 +43,23 @@ type ProviderDevice struct {
 	IngestDesiredState string
 }
 
+// IngestAssignment is an internal worker-facing projection for distributed
+// MQTT session orchestration. It includes credential material and desired
+// ingest state and must never be returned by user-facing APIs.
+type IngestAssignment struct {
+	Provider           string
+	ProviderDeviceID   string
+	DeviceID           string
+	CredentialID       string
+	ProductName        string
+	Model              string
+	AccessKey          string
+	SecretKey          string
+	DeviceIsActive     bool
+	CredentialIsActive bool
+	IngestDesiredState string
+}
+
 type CreateProviderCredentialInput struct {
 	UserSubject string
 	Provider    string
@@ -68,10 +85,16 @@ type ListProviderDevicesInput struct {
 	ActiveOnly  bool
 }
 
+type ListIngestAssignmentsInput struct {
+	Provider   string
+	ActiveOnly bool
+}
+
 type Store interface {
 	CreateProviderCredential(ctx context.Context, in CreateProviderCredentialInput) (ProviderCredential, error)
 	ListProviderCredentials(ctx context.Context, in ListProviderCredentialsInput) ([]ProviderCredential, error)
 	SetProviderCredentialActive(ctx context.Context, in SetProviderCredentialActiveInput) (ProviderCredential, error)
 	GetProviderCredential(ctx context.Context, userSubject string, credentialID string) (ProviderCredential, error)
 	ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error)
+	ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error)
 }

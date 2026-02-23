@@ -164,6 +164,56 @@ func (s *MemoryStore) ListProviderDevices(_ context.Context, in ListProviderDevi
 	return out, nil
 }
 
+func (s *MemoryStore) ListIngestAssignments(_ context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	provider := NormalizeProvider(in.Provider)
+	credsByID := make(map[string]ProviderCredential, len(s.credentials))
+	for _, cred := range s.credentials {
+		credsByID[cred.ID] = cred
+	}
+
+	out := make([]IngestAssignment, 0, len(s.devices))
+	for _, dev := range s.devices {
+		if provider != "" && dev.Provider != provider {
+			continue
+		}
+		if in.ActiveOnly {
+			if !dev.IsActive {
+				continue
+			}
+			if strings.TrimSpace(strings.ToLower(dev.IngestDesiredState)) != "active" {
+				continue
+			}
+		}
+		cred, ok := credsByID[dev.CredentialID]
+		if !ok {
+			continue
+		}
+		out = append(out, IngestAssignment{
+			Provider:           dev.Provider,
+			ProviderDeviceID:   dev.ProviderDeviceID,
+			DeviceID:           dev.DeviceID,
+			CredentialID:       dev.CredentialID,
+			ProductName:        dev.ProductName,
+			Model:              dev.Model,
+			AccessKey:          cred.AccessKey,
+			SecretKey:          cred.SecretKey,
+			DeviceIsActive:     dev.IsActive,
+			CredentialIsActive: cred.IsActive,
+			IngestDesiredState: dev.IngestDesiredState,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Provider == out[j].Provider {
+			return out[i].ProviderDeviceID < out[j].ProviderDeviceID
+		}
+		return out[i].Provider < out[j].Provider
+	})
+	return out, nil
+}
+
 func (s *MemoryStore) nextID(prefix string) string {
 	seq := atomic.AddUint64(&s.idCounter, 1)
 	return fmt.Sprintf("%s-%d", prefix, seq)

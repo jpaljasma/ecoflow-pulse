@@ -1,0 +1,57 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pulse-services-go-ingest
+  namespace: pulse-services
+  labels:
+    app.kubernetes.io/name: pulse-services-go-ingest
+    app.kubernetes.io/part-of: ecoflow-pulse
+  annotations:
+    pulse.ecoflow.dev/policy: "recommended"
+    pulse.ecoflow.dev/notes: "Scale out fast on sustained pressure; scale in conservatively to avoid lease/session churn"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pulse-services-go-ingest
+  minReplicas: 2
+  maxReplicas: 24
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      selectPolicy: Max
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+        - type: Pods
+          value: 8
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 900
+      selectPolicy: Min
+      policies:
+        - type: Percent
+          value: 20
+          periodSeconds: 60
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+  metrics:
+    # Keep pod-level pressure below saturation; this is the baseline signal.
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+    # Recommended follow-up once Prometheus Adapter/KEDA metrics are exposed:
+    # - ingest_unassigned_active_devices > 0 for 2+ reconcile cycles
+    # - ingest_reconcile_duration_p95_seconds > ingest_poll_interval_seconds
+    # - ingest_lease_acquire_latency_p95_seconds sustained above baseline

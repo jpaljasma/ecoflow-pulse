@@ -394,6 +394,24 @@ These are mandatory implementation principles for local workflows and tooling qu
    - token mismatch rejection,
    - heartbeat + drain/release lifecycle.
 
+### Ingest worker scaling baseline (ADR-0014)
+1. Startup/reconcile worker pool defaults are policy-driven:
+   - `start_workers = clamp(4*GOMAXPROCS, 8, 64)`
+   - `start_queue_size = start_workers * 8`
+2. These defaults must remain overridable via env/config:
+   - `INGEST_START_WORKERS`
+   - `INGEST_START_QUEUE_SIZE`
+3. Keep startup work bounded:
+   - do not create unbounded goroutines for assignment start bursts,
+   - use bounded channels/worker pools and explicit queue caps.
+4. HPA policy is two-level by design:
+   - in-pod bounded pool handles local bursts first,
+   - HPA scales replicas when sustained pressure remains.
+5. Recommended HPA baseline (documented manifest):
+   - CPU target `65%`, memory target `70%`,
+   - fast scale-up, conservative scale-down with stabilization,
+   - custom metrics follow-up for unassigned devices + reconcile/lease p95.
+
 ## ML Training Workflow (ETA Models)
 Use the built-in trainer at `cmd/ecoflow-ml-train` for fast, repeatable tuning.
 

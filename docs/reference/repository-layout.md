@@ -5,6 +5,7 @@ Top-level structure:
 - `cmd/`
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane services).
+  - `ecoflow-ingest-worker`: distributed MQTT ingest assignment loop + session runner entrypoint.
   - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
   - `ecoflow-panel-select-train`: panel selection model training + replay.
@@ -18,6 +19,7 @@ Top-level structure:
   - `logger`: structured logging package.
 - `internal/`
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
+  - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
   - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths.
@@ -48,6 +50,8 @@ Top-level structure:
   - `charts/pulse-services`: services umbrella chart scaffold.
   - `db/migrations`: control-plane SQL migrations (M1+ schema evolution).
   - `env/local` and `env/dev`: values files for local/dev deploys.
+  - `env/dev/recommended`: recommended (non-auto-applied) runtime policies,
+    including ingest worker HPA baseline manifests.
   - `argocd/apps`: direct Argo CD apps (`pulse-platform`, `pulse-services`).
   - `tilt/k3d-config.yaml`: k3d local cluster config.
 - `docs/`: developer documentation in Diataxis layout.

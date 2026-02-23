@@ -108,8 +108,6 @@ SELECT
 	pc.user_id::text,
 	pc.provider,
 	pc.access_key_mask,
-	pc.access_key_ciphertext,
-	pc.secret_key_ciphertext,
 	pc.is_active,
 	pc.created_at,
 	pc.updated_at
@@ -184,6 +182,8 @@ SELECT
 	pc.user_id::text,
 	pc.provider,
 	pc.access_key_mask,
+	pc.access_key_ciphertext,
+	pc.secret_key_ciphertext,
 	pc.is_active,
 	pc.created_at,
 	pc.updated_at
@@ -267,6 +267,64 @@ ORDER BY pd.provider ASC, d.product_name ASC, d.ecoflow_sn ASC;
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate provider devices rows: %w", err)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error) {
+	provider := NormalizeProvider(in.Provider)
+	query := `
+SELECT
+	pd.provider,
+	pd.provider_device_id,
+	pd.device_id::text,
+	pd.credential_id::text,
+	COALESCE(pd.product_name, d.product_name, ''),
+	COALESCE(pd.model, d.model, ''),
+	pc.access_key_ciphertext,
+	pc.secret_key_ciphertext,
+	pd.is_active,
+	pc.is_active,
+	pd.ingest_desired_state
+FROM provider_devices pd
+JOIN provider_credentials pc ON pc.id = pd.credential_id
+JOIN devices d ON d.id = pd.device_id
+WHERE ($1 = '' OR pd.provider = $1)
+  AND (NOT $2 OR (pd.is_active = TRUE AND pd.ingest_desired_state = 'active'))
+ORDER BY pd.provider ASC, pd.provider_device_id ASC;
+`
+	rows, err := s.db.QueryContext(ctx, query, provider, in.ActiveOnly)
+	if err != nil {
+		return nil, fmt.Errorf("query ingest assignments: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]IngestAssignment, 0, 8)
+	for rows.Next() {
+		var row IngestAssignment
+		var accessKeyBytes []byte
+		var secretKeyBytes []byte
+		if err := rows.Scan(
+			&row.Provider,
+			&row.ProviderDeviceID,
+			&row.DeviceID,
+			&row.CredentialID,
+			&row.ProductName,
+			&row.Model,
+			&accessKeyBytes,
+			&secretKeyBytes,
+			&row.DeviceIsActive,
+			&row.CredentialIsActive,
+			&row.IngestDesiredState,
+		); err != nil {
+			return nil, fmt.Errorf("scan ingest assignments row: %w", err)
+		}
+		row.AccessKey = string(accessKeyBytes)
+		row.SecretKey = string(secretKeyBytes)
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ingest assignments rows: %w", err)
 	}
 	return out, nil
 }
