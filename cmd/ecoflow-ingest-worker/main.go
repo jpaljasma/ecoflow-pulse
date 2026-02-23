@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -66,6 +67,10 @@ func main() {
 	pollInterval := mustDuration("INGEST_POLL_INTERVAL", 4*time.Second)
 	pollJitter := mustFloat64("INGEST_POLL_JITTER", 0.20)
 	stopTimeout := mustDuration("INGEST_STOP_TIMEOUT", 8*time.Second)
+	startWorkersDefault := ingestworker.RecommendedStartWorkers(runtime.GOMAXPROCS(0))
+	startWorkers := mustInt("INGEST_START_WORKERS", startWorkersDefault)
+	startQueueDefault := ingestworker.RecommendedStartQueueSize(startWorkers)
+	startQueueSize := mustInt("INGEST_START_QUEUE_SIZE", startQueueDefault)
 
 	loop, err := ingestworker.NewLoop(log, store, leaseMgr, runner, ingestworker.Config{
 		WorkerID:       workerID,
@@ -73,6 +78,8 @@ func main() {
 		PollInterval:   pollInterval,
 		PollJitter:     pollJitter,
 		StopTimeout:    stopTimeout,
+		StartWorkers:   startWorkers,
+		StartQueueSize: startQueueSize,
 	})
 	if err != nil {
 		log.Error("init ingest worker loop failed", slog.String("error", err.Error()))
@@ -86,6 +93,8 @@ func main() {
 		slog.String("worker_id", workerID),
 		slog.Duration("poll_interval", pollInterval),
 		slog.Float64("poll_jitter", pollJitter),
+		slog.Int("start_workers", startWorkers),
+		slog.Int("start_queue_size", startQueueSize),
 	)
 	if err := loop.Run(ctx); err != nil {
 		log.Error("ingest worker stopped with error", slog.String("error", err.Error()))
@@ -131,6 +140,18 @@ func mustFloat64(key string, fallback float64) float64 {
 	}
 	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil || v < 0 {
+		return fallback
+	}
+	return v
+}
+
+func mustInt(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 {
 		return fallback
 	}
 	return v

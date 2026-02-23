@@ -50,6 +50,8 @@ Top-level structure:
   - `charts/pulse-services`: services umbrella chart scaffold.
   - `db/migrations`: control-plane SQL migrations (M1+ schema evolution).
   - `env/local` and `env/dev`: values files for local/dev deploys.
+  - `env/dev/recommended`: recommended (non-auto-applied) runtime policies,
+    including ingest worker HPA baseline manifests.
   - `argocd/apps`: direct Argo CD apps (`pulse-platform`, `pulse-services`).
   - `tilt/k3d-config.yaml`: k3d local cluster config.
 - `docs/`: developer documentation in Diataxis layout.

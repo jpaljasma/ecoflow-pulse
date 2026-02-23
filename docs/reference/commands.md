@@ -36,6 +36,16 @@ VALKEY_ADDRS='127.0.0.1:6379' \
 go run ./cmd/ecoflow-ingest-worker
 ```
 
+Ingest worker scaling knobs:
+
+```bash
+# startup/reconcile worker pool (default: clamp(4*GOMAXPROCS, 8, 64))
+export INGEST_START_WORKERS=32
+
+# bounded startup queue (default: INGEST_START_WORKERS*8)
+export INGEST_START_QUEUE_SIZE=256
+```
+
 ## Protobuf / gRPC Generation
 
 ```bash
@@ -68,6 +78,21 @@ go test ./cmd/ecoflow-grpc-api -run '^$' -bench BenchmarkTelemetryGetSnapshotPar
 go tool pprof -top /tmp/ecoflow-grpc-api.cpu.out
 go test ./cmd/ecoflow-grpc-api -run TestTelemetryServerHeapStableUnderSnapshotLoad -count=1 -memprofile /tmp/ecoflow-grpc-api.mem.out
 go tool pprof -top /tmp/ecoflow-grpc-api.mem.out
+```
+
+## Ingest Worker Profiling / Benchmarks
+
+```bash
+# worker assignment loop throughput (5k/10k synthetic assignments)
+go test ./internal/ingestworker -run '^$' -bench BenchmarkLoopReconcileStartBatch -benchmem -count=1
+
+# race detection for lease/session lifecycle and concurrency edges
+go test -race ./internal/ingestworker -count=1
+
+# focused cpu/heap profile (10k, high-concurrency startup path)
+go test ./internal/ingestworker -run '^$' -bench BenchmarkLoopReconcileStartBatch/10k_workers48_delay50us -benchtime=3x -cpuprofile /tmp/ingestworker.cpu.out -memprofile /tmp/ingestworker.mem.out
+go tool pprof -top /tmp/ingestworker.cpu.out
+go tool pprof -top -alloc_space /tmp/ingestworker.mem.out
 ```
 
 ## Helper Scripts

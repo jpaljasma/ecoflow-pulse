@@ -15,6 +15,8 @@ Current state: **scaffold only** (Milestone 0, task #1 in progress).
 - `env/dev/`: dev values overrides.
 - `env/dev/values.argocd.yaml`: Argo CD bootstrap values for GKE dev.
 - `env/dev/guardrails/`: dev namespace guardrails (`ResourceQuota`, `LimitRange`).
+- `env/dev/recommended/`: recommended runtime policies not auto-applied by scaffold.
+  - `pulse-services-go-ingest-hpa.recommended.yaml`: ingest worker HPA baseline.
 - `argocd/apps/`: direct Argo CD Applications:
   - `pulse-platform`
   - `pulse-services`
