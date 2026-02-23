@@ -89,3 +89,76 @@ func TestMemoryStoreListProviderDevices(t *testing.T) {
 		t.Fatalf("expected 1 active device, got %d", got)
 	}
 }
+
+func TestMemoryStoreListIngestAssignmentsActiveOnly(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	store.EnsureUser("user-1")
+
+	credActive, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-active",
+		SecretKey:   "SK-active",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create active credential failed: %v", err)
+	}
+	credInactive, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-inactive",
+		SecretKey:   "SK-inactive",
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create inactive credential failed: %v", err)
+	}
+
+	store.PutProviderDevice(ProviderDevice{
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "SN-active",
+		CredentialID:       credActive.ID,
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+	store.PutProviderDevice(ProviderDevice{
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "SN-paused",
+		CredentialID:       credActive.ID,
+		IsActive:           true,
+		IngestDesiredState: "paused",
+	})
+	store.PutProviderDevice(ProviderDevice{
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "SN-disabled",
+		CredentialID:       credActive.ID,
+		IsActive:           false,
+		IngestDesiredState: "active",
+	})
+	store.PutProviderDevice(ProviderDevice{
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "SN-cred-off",
+		CredentialID:       credInactive.ID,
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+
+	assignments, err := store.ListIngestAssignments(context.Background(), ListIngestAssignmentsInput{
+		Provider:   ProviderEcoFlow,
+		ActiveOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("list ingest assignments failed: %v", err)
+	}
+	if got := len(assignments); got != 2 {
+		t.Fatalf("expected 2 active assignments, got %d", got)
+	}
+	for _, a := range assignments {
+		if a.ProviderDeviceID == "SN-paused" || a.ProviderDeviceID == "SN-disabled" {
+			t.Fatalf("unexpected assignment in active-only result: %s", a.ProviderDeviceID)
+		}
+	}
+}

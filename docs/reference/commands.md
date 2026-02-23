@@ -13,6 +13,7 @@ go run ./cmd/ecoflow-panel-csv-backfill
 go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
+go run ./cmd/ecoflow-ingest-worker
 ```
 
 Run gRPC API with explicit control-plane Postgres store:
@@ -25,6 +26,14 @@ Run the opt-in real EcoFlow adapter integration check against seeded SNs:
 
 ```bash
 ECOFLOW_ADAPTER_INTEGRATION=1 go test ./internal/provideradapter -run TestEcoFlowAdapterGetMQTTCertificationSeededSNsIntegration -count=1 -v
+```
+
+Run distributed ingest worker loop (poll active assignments, claim lease, start one session per provider device):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' \
+VALKEY_ADDRS='127.0.0.1:6379' \
+go run ./cmd/ecoflow-ingest-worker
 ```
 
 ## Protobuf / gRPC Generation
@@ -83,6 +92,7 @@ make bench
 make build
 make smoke
 make mqtt
+make ingest-worker
 make k3d-up
 make platform-up
 make platform-wait
