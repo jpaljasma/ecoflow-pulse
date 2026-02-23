@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"log/slog"
 	"math"
 	"os"
@@ -3120,9 +3119,7 @@ func parseSortNewestFirstEnv(key string, fallback bool) bool {
 }
 
 func buildClientID(sn string) string {
-	cleanSN := strings.TrimSpace(sn)
-	checksum := crc32.ChecksumIEEE([]byte(cleanSN))
-	return fmt.Sprintf("ecoflow-pulse-%08x", checksum)
+	return ecoflowmqtt.BuildClientIDFromSN(sn)
 }
 
 // selectTargetDevice chooses one device to subscribe.

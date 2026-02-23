@@ -375,6 +375,25 @@ These are mandatory implementation principles for local workflows and tooling qu
 5. Wait targets must be safe for optional workloads:
    - if a namespace/release has no pods yet, return success with a clear message instead of failing bringup.
 
+### Valkey ingest lease baseline (ADR-0014)
+1. Lease operations must use Lua with token checks and fencing:
+   - acquire, renew, release must remain atomic and token-validated.
+2. Use cluster-aware keying with ADR hash tags:
+   - `pulse:v1:ingest:lease:{provider|provider_device_id}`
+   - `pulse:v1:ingest:session:{provider|provider_device_id}`
+   - `pulse:v1:ingest:fence:{provider|provider_device_id}`
+3. Lock timings are defaults unless explicitly tuned:
+   - lease TTL `45s`,
+   - heartbeat `15s` with jitter,
+   - graceful drain before release on shutdown/deactivation.
+4. Use official `valkey-go` for lease manager and keep lock path cache disabled:
+   - `DisableCache=true` for lease clients to avoid client-tracking/cache coupling.
+5. Lease manager changes must include concurrency-focused tests:
+   - single-winner contention,
+   - fencing increment on re-acquire,
+   - token mismatch rejection,
+   - heartbeat + drain/release lifecycle.
+
 ## ML Training Workflow (ETA Models)
 Use the built-in trainer at `cmd/ecoflow-ml-train` for fast, repeatable tuning.
 

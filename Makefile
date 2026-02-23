@@ -59,6 +59,10 @@ DB_SEED_USER_EMAIL ?= jpaljasma@gmail.com
 DB_SEED_SERIALS ?= R351ZABAPH331057,Y711ZABA9H2P0294
 KEYCLOAK_REALM_NAME ?= pulse
 KEYCLOAK_ADMIN_USER ?= admin
+VALKEY_BENCH_NAMESPACE ?= pulse-platform
+VALKEY_BENCH_SERVICE ?= pulse-platform-valkey
+VALKEY_BENCH_LOCAL_PORT ?= 6389
+VALKEY_BENCH_ADDRS ?= 127.0.0.1:$(VALKEY_BENCH_LOCAL_PORT)
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -73,7 +77,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench bench-ingestlease-integration build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -105,6 +109,23 @@ test:
 bench:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
 	$(GO) test ./... -run '^$$' -bench . -benchmem -count=1
+
+bench-ingestlease-integration:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	log_file=/tmp/pulse-valkey-bench-portforward.log; \
+	echo "starting valkey port-forward on $(VALKEY_BENCH_ADDRS) (log: $$log_file)"; \
+	$(KUBECTL) -n $(VALKEY_BENCH_NAMESPACE) port-forward svc/$(VALKEY_BENCH_SERVICE) $(VALKEY_BENCH_LOCAL_PORT):6379 >$$log_file 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { kill $$pf_pid >/dev/null 2>&1 || true; }; \
+	trap cleanup EXIT INT TERM; \
+	sleep 2; \
+	VALKEY_INTEGRATION_ADDRS="$(VALKEY_BENCH_ADDRS)" $(GO) test ./internal/ingestlease -tags integration -run '^TestRunHeartbeatNoGoroutineLeakIntegration$$' -count=1; \
+	VALKEY_INTEGRATION_ADDRS="$(VALKEY_BENCH_ADDRS)" $(GO) test ./internal/ingestlease -tags integration -run '^$$' -bench 'BenchmarkLeaseManager.*Integration' -benchmem -count=1
 
 build:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin

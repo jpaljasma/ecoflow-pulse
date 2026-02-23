@@ -11,3 +11,6 @@ apps/universal/dist/
 *.tsbuildinfo
 deploy/charts/*/charts/
 deploy/charts/pulse-services/Chart.lock
+.tmp/
+.idea/
+*.test
