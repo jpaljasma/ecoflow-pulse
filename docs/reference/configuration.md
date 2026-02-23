@@ -86,6 +86,24 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_SERVER_BROTLI_LEVEL` (default `5`, `moderncompress` builds)
 - `ECOFLOW_SERVER_ZSTD_LEVEL` (default `3`, `moderncompress` builds)
 
+## Internal gRPC API Runtime
+
+- `PULSE_ENV` (`local|dev|staging|prod`, default `local`)
+- `GRPC_LISTEN_ADDR` (default from grpc server profile; typically `:9090` in local/dev)
+- `CONTROL_PLANE_DB_DSN`
+  - when set to a non-empty DSN, `cmd/ecoflow-grpc-api` uses Postgres-backed control-plane storage,
+  - when unset (or whitespace), service falls back to in-memory control-plane storage for local bootstrap/testing.
+
+## Explicit Dev Seed (`cmd/ecoflow-dev-seed`)
+
+- `ECOFLOW_DEV_ACCESS_KEY` (required)
+- `ECOFLOW_DEV_SECRET_KEY` (required)
+- `CONTROL_PLANE_DB_DSN` (required)
+- `ECOFLOW_DEV_USER_SUBJECT` (default `jpaljasma@gmail.com`)
+- `ECOFLOW_DEV_USER_EMAIL` (default = `ECOFLOW_DEV_USER_SUBJECT`)
+- `ECOFLOW_DEV_PROVIDER` (default `ecoflow`)
+- `ECOFLOW_DEV_SEED_SNS` (comma/whitespace-delimited serials, default `R351ZABAPH331057,Y711ZABA9H2P0294`)
+
 ## Universal App (Expo)
 
 - `EXPO_PUBLIC_API_URL`

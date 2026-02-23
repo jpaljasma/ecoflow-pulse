@@ -1,0 +1,198 @@
+package main
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"testing"
+
+	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+type staticDiscoverer struct {
+	devices []controlplane.ProviderDevice
+}
+
+func (d staticDiscoverer) DiscoverDevices(context.Context, controlplane.ProviderCredential) ([]controlplane.ProviderDevice, error) {
+	return d.devices, nil
+}
+
+func newControlPlaneServiceForTest() (*ControlPlaneService, *controlplane.MemoryStore) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("dev-user")
+	return NewControlPlaneService(log, store), store
+}
+
+func TestCreateProviderCredentialValidation(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	_, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    "unknown",
+		AccessKey:   "abc",
+		SecretKey:   "def",
+		IsActive:    true,
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v", err)
+	}
+}
+
+func TestCreateAndListProviderCredentials(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	createResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK1234567890",
+		SecretKey:   "SK1234567890",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	if createResp.GetCredential().GetAccessKeyMask() == "" {
+		t.Fatalf("expected masked access key")
+	}
+
+	listResp, err := svc.ListProviderCredentials(context.Background(), &controlplanev1.ListProviderCredentialsRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+	})
+	if err != nil {
+		t.Fatalf("list credentials failed: %v", err)
+	}
+	if got := len(listResp.GetCredentials()); got != 1 {
+		t.Fatalf("expected 1 credential, got %d", got)
+	}
+}
+
+func TestSetProviderCredentialActive(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	createResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK11112222",
+		SecretKey:   "SK11112222",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	updateResp, err := svc.SetProviderCredentialActive(context.Background(), &controlplanev1.SetProviderCredentialActiveRequest{
+		UserSubject:  "dev-user",
+		CredentialId: createResp.GetCredential().GetId(),
+		IsActive:     false,
+	})
+	if err != nil {
+		t.Fatalf("set active failed: %v", err)
+	}
+	if updateResp.GetCredential().GetIsActive() {
+		t.Fatalf("expected credential to be inactive")
+	}
+}
+
+func TestListDevicesGroupedByProvider(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	store.PutProviderDevice(controlplane.ProviderDevice{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "R351ZABAPH331057",
+		CanonicalSN:        "R351ZABAPH331057",
+		ProductName:        "Kitchen Delta 2 Max",
+		Model:              "DELTA 2 Max",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+	store.PutProviderDevice(controlplane.ProviderDevice{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		CanonicalSN:        "Y711ZABA9H2P0294",
+		ProductName:        "DPU A 12 kWh",
+		Model:              "DELTA Pro Ultra",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+
+	resp, err := svc.ListDevices(context.Background(), &controlplanev1.ListDevicesRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		ActiveOnly:  true,
+	})
+	if err != nil {
+		t.Fatalf("list devices failed: %v", err)
+	}
+	if got := len(resp.GetGroups()); got != 1 {
+		t.Fatalf("expected 1 provider group, got %d", got)
+	}
+	if got := len(resp.GetGroups()[0].GetDevices()); got != 2 {
+		t.Fatalf("expected 2 devices, got %d", got)
+	}
+}
+
+func TestDiscoverDevicesConfiguredAndUnconfigured(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	createResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK55556666",
+		SecretKey:   "SK55556666",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+
+	unconfigured, err := svc.DiscoverDevices(context.Background(), &controlplanev1.DiscoverDevicesRequest{
+		UserSubject:  "dev-user",
+		Provider:     controlplane.ProviderEcoFlow,
+		CredentialId: createResp.GetCredential().GetId(),
+	})
+	if err != nil {
+		t.Fatalf("discover devices (unconfigured) failed: %v", err)
+	}
+	if unconfigured.GetAccepted() {
+		t.Fatalf("expected accepted=false when discoverer is not configured")
+	}
+
+	svc.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{
+			{
+				ID:                 "pdev-1",
+				Provider:           controlplane.ProviderEcoFlow,
+				ProviderDeviceID:   "R351ZABAPH331057",
+				CredentialID:       createResp.GetCredential().GetId(),
+				CanonicalSN:        "R351ZABAPH331057",
+				ProductName:        "Kitchen Delta 2 Max",
+				Model:              "DELTA 2 Max",
+				IsActive:           true,
+				IngestDesiredState: "active",
+			},
+		},
+	})
+	configured, err := svc.DiscoverDevices(context.Background(), &controlplanev1.DiscoverDevicesRequest{
+		UserSubject:  "dev-user",
+		Provider:     controlplane.ProviderEcoFlow,
+		CredentialId: createResp.GetCredential().GetId(),
+	})
+	if err != nil {
+		t.Fatalf("discover devices (configured) failed: %v", err)
+	}
+	if !configured.GetAccepted() {
+		t.Fatalf("expected accepted=true when discoverer is configured")
+	}
+	if configured.GetDiscoveredCount() != 1 {
+		t.Fatalf("expected discovered_count=1, got %d", configured.GetDiscoveredCount())
+	}
+}

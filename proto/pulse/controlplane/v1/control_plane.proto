@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package pulse.controlplane.v1;
+
+option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1;controlplanev1";
+
+message ProviderCredential {
+  string id = 1;
+  string provider = 2;
+  string access_key_mask = 3;
+  bool is_active = 4;
+  int64 created_at_unix_ms = 5;
+  int64 updated_at_unix_ms = 6;
+}
+
+message CreateProviderCredentialRequest {
+  string user_subject = 1;
+  string provider = 2;
+  string access_key = 3;
+  string secret_key = 4;
+  bool is_active = 5;
+}
+
+message CreateProviderCredentialResponse {
+  ProviderCredential credential = 1;
+}
+
+message ListProviderCredentialsRequest {
+  string user_subject = 1;
+  string provider = 2;
+}
+
+message ListProviderCredentialsResponse {
+  repeated ProviderCredential credentials = 1;
+}
+
+message SetProviderCredentialActiveRequest {
+  string user_subject = 1;
+  string credential_id = 2;
+  bool is_active = 3;
+}
+
+message SetProviderCredentialActiveResponse {
+  ProviderCredential credential = 1;
+}
+
+message ProviderDevice {
+  string id = 1;
+  string device_id = 2;
+  string provider = 3;
+  string provider_device_id = 4;
+  string credential_id = 5;
+  string canonical_sn = 6;
+  string product_name = 7;
+  string model = 8;
+  bool is_active = 9;
+  string ingest_desired_state = 10;
+}
+
+message ProviderDeviceGroup {
+  string provider = 1;
+  repeated ProviderDevice devices = 2;
+}
+
+message ListDevicesRequest {
+  string user_subject = 1;
+  string provider = 2;
+  bool active_only = 3;
+}
+
+message ListDevicesResponse {
+  repeated ProviderDeviceGroup groups = 1;
+}
+
+message DiscoverDevicesRequest {
+  string user_subject = 1;
+  string provider = 2;
+  string credential_id = 3;
+}
+
+message DiscoverDevicesResponse {
+  bool accepted = 1;
+  string status = 2;
+  uint32 discovered_count = 3;
+  repeated ProviderDevice devices = 4;
+}
+
+service ControlPlaneService {
+  rpc CreateProviderCredential(CreateProviderCredentialRequest) returns (CreateProviderCredentialResponse);
+  rpc ListProviderCredentials(ListProviderCredentialsRequest) returns (ListProviderCredentialsResponse);
+  rpc SetProviderCredentialActive(SetProviderCredentialActiveRequest) returns (SetProviderCredentialActiveResponse);
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  rpc DiscoverDevices(DiscoverDevicesRequest) returns (DiscoverDevicesResponse);
+}

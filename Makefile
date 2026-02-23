@@ -53,6 +53,10 @@ DB_MIGRATION_NAMESPACE ?= pulse-platform
 DB_MIGRATION_CLUSTER ?= pulse-platform-core
 DB_MIGRATION_SECRET ?= pulse-platform-core-app
 DB_MIGRATION_DB ?= pulse
+DB_SEED_LOCAL_PORT ?= 15432
+DB_SEED_USER_SUBJECT ?= jpaljasma@gmail.com
+DB_SEED_USER_EMAIL ?= jpaljasma@gmail.com
+DB_SEED_SERIALS ?= R351ZABAPH331057,Y711ZABA9H2P0294
 KEYCLOAK_REALM_NAME ?= pulse
 KEYCLOAK_ADMIN_USER ?= admin
 GOCACHE ?= $(CURDIR)/.cache/go-build
@@ -69,7 +73,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench build smoke mqtt k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -319,10 +323,11 @@ db-migrate-up-local:
 	fi; \
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
-	for f in $$files; do \
+	while IFS= read -r f; do \
+		[ -n "$$f" ] || continue; \
 		echo "applying $$f"; \
 		cat "$$f" | kubectl --context "$$ctx" -n "$$ns" exec -i "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -f -; \
-	done
+	done <<< "$$files"
 
 db-migrate-down-local:
 	@set -euo pipefail; \
@@ -343,10 +348,11 @@ db-migrate-down-local:
 	fi; \
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
-	for f in $$files; do \
+	while IFS= read -r f; do \
+		[ -n "$$f" ] || continue; \
 		echo "reverting $$f"; \
 		cat "$$f" | kubectl --context "$$ctx" -n "$$ns" exec -i "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -f -; \
-	done
+	done <<< "$$files"
 
 db-migrate-verify-local:
 	@set -euo pipefail; \
@@ -390,7 +396,7 @@ db-migrate-e2e-local: db-migrate-up-local
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
 	echo "running migration e2e checks on $$cluster-rw (db=$$db user=$$user)"; \
-	sql="TRUNCATE user_devices, users, devices RESTART IDENTITY; WITH u AS (INSERT INTO users (keycloak_subject, email, display_name, created_at, updated_at) VALUES ('kc-sub-e2e-1','e2e1@example.com','E2E User 1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id), d AS (INSERT INTO devices (ecoflow_sn, product_name, model, created_at, updated_at) VALUES ('SN-E2E-0001','DELTA Pro Ultra','dpu', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id) INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at) SELECT u.id, d.id, 'viewer', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC' FROM u CROSS JOIN d; SELECT u.keycloak_subject, d.ecoflow_sn, ud.role FROM users u JOIN user_devices ud ON ud.user_id = u.id JOIN devices d ON d.id = ud.device_id WHERE u.keycloak_subject = 'kc-sub-e2e-1';"; \
+	sql="TRUNCATE user_devices, provider_devices, provider_credentials, users, devices RESTART IDENTITY CASCADE; WITH u AS (INSERT INTO users (keycloak_subject, email, display_name, created_at, updated_at) VALUES ('kc-sub-e2e-1','e2e1@example.com','E2E User 1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id), d AS (INSERT INTO devices (ecoflow_sn, product_name, model, created_at, updated_at) VALUES ('SN-E2E-0001','DELTA Pro Ultra','dpu', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id) INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at) SELECT u.id, d.id, 'viewer', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC' FROM u CROSS JOIN d; SELECT u.keycloak_subject, d.ecoflow_sn, ud.role FROM users u JOIN user_devices ud ON ud.user_id = u.id JOIN devices d ON d.id = ud.device_id WHERE u.keycloak_subject = 'kc-sub-e2e-1';"; \
 	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "$$sql"; \
 	set +e; \
 	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "INSERT INTO users (keycloak_subject, created_at, updated_at) VALUES ('kc-sub-e2e-1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC');" >/tmp/m1_dup_user.out 2>&1; \
@@ -406,6 +412,53 @@ db-migrate-e2e-local: db-migrate-up-local
 		exit 1; \
 	fi; \
 	echo "e2e checks passed: ownership join + uniqueness + role guard"
+
+db-seed-dev-local: db-migrate-up-local
+	@set -euo pipefail; \
+	if [ -f .env ]; then \
+		set -a; source ./.env; set +a; \
+	fi; \
+	if [ -z "$${ECOFLOW_DEV_ACCESS_KEY:-}" ]; then \
+		echo "ECOFLOW_DEV_ACCESS_KEY is required (export it or set it in .env)"; \
+		exit 1; \
+	fi; \
+	if [ -z "$${ECOFLOW_DEV_SECRET_KEY:-}" ]; then \
+		echo "ECOFLOW_DEV_SECRET_KEY is required (export it or set it in .env)"; \
+		exit 1; \
+	fi; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	port="$(DB_SEED_LOCAL_PORT)"; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	pf_log="/tmp/ecoflow-dev-seed-port-forward-$$.log"; \
+	$(LOCAL_KUBECTL) -n "$$ns" port-forward "svc/$$cluster-rw" "$$port:5432" >"$$pf_log" 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { \
+		kill "$$pf_pid" >/dev/null 2>&1 || true; \
+		wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	ready=0; \
+	for _ in {1..30}; do \
+		if grep -q "Forwarding from" "$$pf_log" 2>/dev/null; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "port-forward did not become ready; see $$pf_log"; \
+		exit 1; \
+	fi; \
+	CONTROL_PLANE_DB_DSN="host=127.0.0.1 port=$$port user=$$user password=$$pass dbname=$$db sslmode=disable" \
+	ECOFLOW_DEV_USER_SUBJECT="$(DB_SEED_USER_SUBJECT)" \
+	ECOFLOW_DEV_USER_EMAIL="$(DB_SEED_USER_EMAIL)" \
+	ECOFLOW_DEV_SEED_SNS="$(DB_SEED_SERIALS)" \
+	$(GO) run ./cmd/ecoflow-dev-seed
 
 auth-keycloak-verify-local:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \

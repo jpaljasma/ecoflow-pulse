@@ -151,6 +151,28 @@ These rules are mandatory for all new platform work and are sourced from:
 5. `user_devices` keeps composite PK `(user_id, device_id)` and role check constraints.
 6. `created_at` and `updated_at` are always UTC semantics with `TIMESTAMPTZ`, and are always application-managed (no DB default/trigger-owned timestamp writes).
 
+### Provider integration + ingest rules (ADR-0014)
+1. Multi-provider support is mandatory in the control plane:
+   - keep `users/devices/user_devices`,
+   - add provider-scoped entities (`provider_credentials`, `provider_devices`) for integration identity and metadata.
+2. Credential handling:
+   - user-facing APIs are write-only for secrets (never return plaintext secret values),
+   - multiple credentials per user/provider are allowed,
+   - credentials must support `is_active` enable/disable lifecycle.
+3. Discovery behavior:
+   - `DiscoverDevices()` is manual trigger in v1 (no periodic background discovery),
+   - discovered provider devices must be linked to canonical `devices` and user ownership via existing authz primitives.
+4. Session/lease behavior:
+   - only one active MQTT session globally per `(provider, provider_device_id)`,
+   - distributed lock/lease uses Valkey with TTL + heartbeat + token/fencing safety,
+   - disable/deactivate flows must use graceful drain (event-driven), not hard stop.
+5. Initial dev seeding:
+   - explicit command only (no automatic startup seeding),
+   - seed from env-provided credentials and configured SN list.
+
+### Migration safety follow-up (locked direction)
+1. After M1 baseline lands, adopt `pgroll` for safe online PostgreSQL schema migrations with reversible rollout and simultaneous multi-schema serving during transitions.
+
 ### Locked realtime behavior rules
 1. WS gateway sends snapshot-on-connect from Valkey, then delta stream from NATS.
 2. Backpressure degradation ladder must be implemented and preserved:

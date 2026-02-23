@@ -4,15 +4,20 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
+	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	telemetryv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
+	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 )
 
 func main() {
@@ -56,6 +61,26 @@ func main() {
 
 	// Register services
 	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryService(log))
+	controlPlaneStore, cleanupStore, err := newControlPlaneStoreFromEnv(log)
+	if err != nil {
+		log.Error("control-plane store init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer cleanupStore()
+	ecoflowClientConfig := ecoflow.DefaultConfig()
+	ecoflowClientConfig.Logging.Debug = false
+	ecoflowClientConfig.Logging.AdvancedDebugTelemetry = false
+	ecoflowClientConfig.Logging.DebugLogHeaders = false
+	ecoflowClientConfig.Logging.Logger = log
+
+	controlPlaneService := NewControlPlaneService(log, controlPlaneStore)
+	controlPlaneService.RegisterDiscoverer(
+		controlplane.ProviderEcoFlow,
+		provideradapter.NewEcoFlowAdapter(
+			provideradapter.NewDefaultEcoFlowClientFactory(ecoflowClientConfig),
+		),
+	)
+	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
 
 	log.Info("grpc server starting", "addr", cfg.ListenAddr, "env", env)
 
@@ -64,4 +89,20 @@ func main() {
 		log.Error("grpc server stopped", "error", err.Error())
 		os.Exit(1)
 	}
+}
+
+func newControlPlaneStoreFromEnv(log *slog.Logger) (controlplane.Store, func(), error) {
+	dsn := strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
+	if dsn == "" {
+		log.Info("using in-memory control-plane store", "source", "fallback")
+		store := controlplane.NewMemoryStore()
+		store.EnsureUser("dev-user")
+		return store, func() {}, nil
+	}
+	store, err := controlplane.NewPostgresStore(dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+	log.Info("using postgres control-plane store", "source", "CONTROL_PLANE_DB_DSN")
+	return store, func() { _ = store.Close() }, nil
 }

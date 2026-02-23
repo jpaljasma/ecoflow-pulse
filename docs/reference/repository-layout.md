@@ -3,7 +3,8 @@
 Top-level structure:
 
 - `cmd/`
-  - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry service).
+  - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
+  - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane services).
   - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
   - `ecoflow-panel-select-train`: panel selection model training + replay.
@@ -16,10 +17,12 @@ Top-level structure:
   - `ecoflowserver`: server helpers and middleware.
   - `logger`: structured logging package.
 - `internal/`
+  - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
   - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths.
 - `proto/`
+  - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Activate credentials`, `ListDevices`, `DiscoverDevices`).
   - `pulse/telemetry/v1/telemetry.proto`: telemetry gRPC contract (snapshot + server-stream updates).
   - `pulse/envelope/v1/envelope.proto`: canonical ingest/archive `TelemetryEnvelope` contract.
 - `gen/`
