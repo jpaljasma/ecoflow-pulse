@@ -135,6 +135,12 @@ Lease behavior:
 - renew via Lua only when token matches,
 - release via Lua only when token matches.
 
+Lease client baseline (implementation):
+- use official `valkey-go` cluster-aware client,
+- disable client-side caching for lock operations explicitly (`DisableCache=true`),
+- enable topology refresh + MOVED/ASK handling with bounded redirect settings,
+- keep manager-level per-call retry overrides for transient network/cluster errors.
+
 Initial timing:
 - lease TTL: `45s`
 - heartbeat: `15s` with jitter
