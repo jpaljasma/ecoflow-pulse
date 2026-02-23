@@ -21,6 +21,12 @@ Run gRPC API with explicit control-plane Postgres store:
 CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' go run ./cmd/ecoflow-grpc-api
 ```
 
+Run the opt-in real EcoFlow adapter integration check against seeded SNs:
+
+```bash
+ECOFLOW_ADAPTER_INTEGRATION=1 go test ./internal/provideradapter -run TestEcoFlowAdapterGetMQTTCertificationSeededSNsIntegration -count=1 -v
+```
+
 ## Protobuf / gRPC Generation
 
 ```bash

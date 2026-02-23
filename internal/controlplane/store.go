@@ -16,13 +16,18 @@ var (
 )
 
 type ProviderCredential struct {
-	ID            string
-	UserID        string
-	Provider      string
+	ID       string
+	UserID   string
+	Provider string
+	// AccessKeyMask is the only key material field exposed in user-facing APIs.
 	AccessKeyMask string
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// AccessKey and SecretKey are internal-only credential material.
+	// They must never be exposed through user-facing API responses.
+	AccessKey string
+	SecretKey string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type ProviderDevice struct {

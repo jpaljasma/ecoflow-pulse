@@ -35,6 +35,16 @@ func TestMemoryStoreCredentialCRUD(t *testing.T) {
 	if got := len(listed); got != 1 {
 		t.Fatalf("expected 1 credential, got %d", got)
 	}
+	fetched, err := store.GetProviderCredential(context.Background(), "user-1", created.ID)
+	if err != nil {
+		t.Fatalf("get credential failed: %v", err)
+	}
+	if fetched.AccessKey != "AK-1111-2222" {
+		t.Fatalf("access key mismatch: got %q", fetched.AccessKey)
+	}
+	if fetched.SecretKey != "SK-1111-2222" {
+		t.Fatalf("secret key mismatch: got %q", fetched.SecretKey)
+	}
 
 	updated, err := store.SetProviderCredentialActive(context.Background(), SetProviderCredentialActiveInput{
 		UserSubject:  "user-1",

@@ -69,6 +69,8 @@ func (s *MemoryStore) CreateProviderCredential(_ context.Context, in CreateProvi
 		UserID:        userID,
 		Provider:      NormalizeProvider(in.Provider),
 		AccessKeyMask: MaskAccessKey(in.AccessKey),
+		AccessKey:     in.AccessKey,
+		SecretKey:     in.SecretKey,
 		IsActive:      in.IsActive,
 		CreatedAt:     now,
 		UpdatedAt:     now,

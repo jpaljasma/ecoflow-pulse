@@ -108,6 +108,8 @@ SELECT
 	pc.user_id::text,
 	pc.provider,
 	pc.access_key_mask,
+	pc.access_key_ciphertext,
+	pc.secret_key_ciphertext,
 	pc.is_active,
 	pc.created_at,
 	pc.updated_at
@@ -191,12 +193,16 @@ WHERE pc.id = $1::uuid
   AND u.keycloak_subject = $2;
 `
 	var out ProviderCredential
+	var accessKeyBytes []byte
+	var secretKeyBytes []byte
 	row := s.db.QueryRowContext(ctx, query, credentialID, userSubject)
 	if err := row.Scan(
 		&out.ID,
 		&out.UserID,
 		&out.Provider,
 		&out.AccessKeyMask,
+		&accessKeyBytes,
+		&secretKeyBytes,
 		&out.IsActive,
 		&out.CreatedAt,
 		&out.UpdatedAt,
@@ -206,6 +212,8 @@ WHERE pc.id = $1::uuid
 		}
 		return ProviderCredential{}, fmt.Errorf("get provider credential: %w", err)
 	}
+	out.AccessKey = string(accessKeyBytes)
+	out.SecretKey = string(secretKeyBytes)
 	return out, nil
 }
 

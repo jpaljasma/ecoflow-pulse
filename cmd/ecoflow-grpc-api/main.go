@@ -16,6 +16,8 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
+	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 )
 
 func main() {
@@ -65,7 +67,20 @@ func main() {
 		os.Exit(1)
 	}
 	defer cleanupStore()
-	controlplanev1.RegisterControlPlaneServiceServer(s, NewControlPlaneService(log, controlPlaneStore))
+	ecoflowClientConfig := ecoflow.DefaultConfig()
+	ecoflowClientConfig.Logging.Debug = false
+	ecoflowClientConfig.Logging.AdvancedDebugTelemetry = false
+	ecoflowClientConfig.Logging.DebugLogHeaders = false
+	ecoflowClientConfig.Logging.Logger = log
+
+	controlPlaneService := NewControlPlaneService(log, controlPlaneStore)
+	controlPlaneService.RegisterDiscoverer(
+		controlplane.ProviderEcoFlow,
+		provideradapter.NewEcoFlowAdapter(
+			provideradapter.NewDefaultEcoFlowClientFactory(ecoflowClientConfig),
+		),
+	)
+	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
 
 	log.Info("grpc server starting", "addr", cfg.ListenAddr, "env", env)
 

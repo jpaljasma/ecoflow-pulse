@@ -44,3 +44,18 @@ make db-seed-dev-local \
 - `provider_devices` (`is_active=true`, `ingest_desired_state=active`)
 
 The command is idempotent and safe to rerun.
+
+## Verify EcoFlow certification path for seeded devices (optional)
+
+After seeding, you can verify the real EcoFlow provider adapter can resolve
+MQTT certification for seeded serial numbers:
+
+```bash
+ECOFLOW_ADAPTER_INTEGRATION=1 go test ./internal/provideradapter -run TestEcoFlowAdapterGetMQTTCertificationSeededSNsIntegration -count=1 -v
+```
+
+Requirements:
+
+- `ECOFLOW_DEV_ACCESS_KEY`
+- `ECOFLOW_DEV_SECRET_KEY`
+- optional `ECOFLOW_DEV_SEED_SNS` (defaults are used when omitted)
