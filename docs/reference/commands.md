@@ -33,6 +33,7 @@ Run distributed ingest worker loop (poll active assignments, claim lease, start 
 ```bash
 CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' \
 VALKEY_ADDRS='127.0.0.1:6379' \
+NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-ingest-worker
 ```
 
@@ -44,6 +45,44 @@ export INGEST_START_WORKERS=32
 
 # bounded startup queue (default: INGEST_START_WORKERS*8)
 export INGEST_START_QUEUE_SIZE=256
+```
+
+Ingest worker MQTT session + telemetry bus knobs:
+
+```bash
+# MQTT session defaults (per leased provider device)
+export INGEST_MQTT_KEEPALIVE=60s
+export INGEST_MQTT_CONNECT_TIMEOUT=10s
+export INGEST_MQTT_READ_TIMEOUT=30s
+export INGEST_MQTT_WRITE_TIMEOUT=15s
+export INGEST_MQTT_RECONNECT_INITIAL_BACKOFF=500ms
+export INGEST_MQTT_RECONNECT_MAX_BACKOFF=15s
+export INGEST_MQTT_RECONNECT_JITTER=0.25
+
+# Bounded async publish queue (per MQTT session)
+export INGEST_PUBLISH_QUEUE_SIZE=256
+export INGEST_PUBLISH_WORKERS=1
+export INGEST_PUBLISH_ENQUEUE_TIMEOUT=2s
+
+# Safety guard: workers > 1 can reorder per-session envelope publish
+export INGEST_ALLOW_UNORDERED_PUBLISH=false
+
+# Throughput knob: drop optional map labels before protobuf marshal/publish
+export INGEST_DISABLE_ENVELOPE_LABELS=false
+
+# NATS connection defaults for envelope publishing
+export NATS_URLS='nats://127.0.0.1:4222'
+export NATS_NAME='ecoflow-ingest-worker'
+export NATS_CONNECT_TIMEOUT=5s
+export NATS_RECONNECT_WAIT=2s
+export NATS_RECONNECT_JITTER=2s
+export NATS_PING_INTERVAL=20s
+export NATS_MAX_PINGS_OUT=3
+export NATS_MAX_RECONNECTS=-1
+
+# Telemetry subject routing / deterministic shard mapping
+export TELEMETRY_SUBJECT_PREFIX='pulse'
+export TELEMETRY_SHARD_COUNT=128
 ```
 
 ## Protobuf / gRPC Generation

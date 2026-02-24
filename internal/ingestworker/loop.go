@@ -199,9 +199,10 @@ func (l *Loop) reconcile(ctx context.Context) error {
 		return err
 	}
 
-	latest := make(map[string]controlplane.IngestAssignment, len(assignments))
+	latest := make(map[string]int, len(assignments))
 	for i := range assignments {
-		a := sanitizeAssignment(assignments[i])
+		assignments[i] = sanitizeAssignment(assignments[i])
+		a := assignments[i]
 		if a.Provider == "" || a.ProviderDeviceID == "" {
 			continue
 		}
@@ -209,18 +210,19 @@ func (l *Loop) reconcile(ctx context.Context) error {
 		if _, exists := latest[key]; exists {
 			continue
 		}
-		latest[key] = a
+		latest[key] = i
 	}
 
 	stopEvents := make([]stopEvent, 0, 4)
 	l.mu.Lock()
 	for key, running := range l.running {
-		a, exists := latest[key]
+		idx, exists := latest[key]
 		if !exists {
 			l.stopSessionLocked(key, running)
 			stopEvents = append(stopEvents, stopEvent{key: key, reason: "assignment_missing"})
 			continue
 		}
+		a := assignments[idx]
 		if !shouldRun(a) {
 			reason := stopReason(a)
 			l.stopSessionLocked(key, running)
@@ -240,7 +242,8 @@ func (l *Loop) reconcile(ctx context.Context) error {
 	}
 
 	toStart := make([]controlplane.IngestAssignment, 0, len(latest))
-	for _, a := range latest {
+	for _, idx := range latest {
+		a := assignments[idx]
 		if !shouldRun(a) {
 			continue
 		}
