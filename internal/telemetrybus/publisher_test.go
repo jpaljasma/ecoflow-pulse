@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/nats-io/nats.go"
@@ -95,7 +96,7 @@ func TestPublishEnvelopeWithOptionsStripsLabelsBeforeMarshal(t *testing.T) {
 		cfg:            SubjectConfig{Prefix: "pulse", ShardCount: 128}.Normalized(),
 		subjectByShard: buildIngestSubjectCache(SubjectConfig{Prefix: "pulse", ShardCount: 128}.Normalized()),
 		options:        NATSEnvelopePublisherOptions{StripLabels: true},
-		publish: func(msg *nats.Msg) error {
+		publish: func(_ context.Context, msg *nats.Msg) error {
 			publishedPayload = append([]byte(nil), msg.Data...)
 			return nil
 		},
@@ -125,5 +126,88 @@ func TestPublishEnvelopeWithOptionsStripsLabelsBeforeMarshal(t *testing.T) {
 	}
 	if got := decoded.GetLabels(); got != nil {
 		t.Fatalf("expected published labels to be stripped, got=%v", got)
+	}
+}
+
+func TestPublishEnvelopeRetriesThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	publisher := newRetryTestPublisher(func(_ context.Context, _ *nats.Msg) error {
+		attempts++
+		if attempts <= 2 {
+			return errors.New("temporary nats failure")
+		}
+		return nil
+	})
+
+	err := publisher.PublishEnvelope(context.Background(), &envelopev1.TelemetryEnvelope{
+		EnvelopeVersion: 1,
+		Shard:           2,
+	})
+	if err != nil {
+		t.Fatalf("PublishEnvelope() error = %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("attempt mismatch: got=%d want=3", attempts)
+	}
+}
+
+func TestPublishEnvelopeRetryExhausted(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	publisher := newRetryTestPublisher(func(_ context.Context, _ *nats.Msg) error {
+		attempts++
+		return errors.New("temporary nats failure")
+	})
+
+	err := publisher.PublishEnvelope(context.Background(), &envelopev1.TelemetryEnvelope{
+		EnvelopeVersion: 1,
+		Shard:           2,
+	})
+	if err == nil {
+		t.Fatalf("expected error when retries exhausted")
+	}
+	if attempts != 3 {
+		t.Fatalf("attempt mismatch: got=%d want=3", attempts)
+	}
+}
+
+func TestPublishEnvelopeDoesNotRetryNonRetryableError(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	publisher := newRetryTestPublisher(func(_ context.Context, _ *nats.Msg) error {
+		attempts++
+		return context.DeadlineExceeded
+	})
+
+	err := publisher.PublishEnvelope(context.Background(), &envelopev1.TelemetryEnvelope{
+		EnvelopeVersion: 1,
+		Shard:           2,
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got=%v", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempt mismatch: got=%d want=1", attempts)
+	}
+}
+
+func newRetryTestPublisher(publishFn func(ctx context.Context, msg *nats.Msg) error) *NATSEnvelopePublisher {
+	cfg := SubjectConfig{Prefix: "pulse", ShardCount: 128}.Normalized()
+	return &NATSEnvelopePublisher{
+		cfg:            cfg,
+		subjectByShard: buildIngestSubjectCache(cfg),
+		options: NATSEnvelopePublisherOptions{
+			PublishMaxRetries:          2,
+			PublishRetryInitialBackoff: time.Millisecond,
+			PublishRetryMaxBackoff:     time.Millisecond,
+		}.normalized(),
+		publish:       publishFn,
+		sleepFn:       func(context.Context, time.Duration) error { return nil },
+		randFloat64Fn: func() float64 { return 0 },
+		closeFn:       func() error { return nil },
 	}
 }

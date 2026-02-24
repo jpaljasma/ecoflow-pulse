@@ -23,6 +23,12 @@ const (
 	defaultNATSPingInterval    = 20 * time.Second
 	defaultNATSMaxPingsOut     = 3
 	defaultNATSMaxReconnects   = -1
+
+	defaultPublishTimeout      = 3 * time.Second
+	defaultPublishMaxRetries   = 3
+	defaultPublishRetryInitial = 50 * time.Millisecond
+	defaultPublishRetryMax     = 500 * time.Millisecond
+	defaultPublishRetryJitter  = 0.20
 )
 
 type EnvelopePublisher interface {
@@ -54,6 +60,41 @@ type NATSEnvelopePublisherOptions struct {
 	// StripLabels removes optional envelope labels before protobuf marshal.
 	// This reduces map-serialization allocations in high-throughput paths.
 	StripLabels bool
+	// UseJetStream publishes envelopes via JetStream PublishMsg and waits for ack.
+	UseJetStream bool
+	// PublishTimeout bounds a single publish attempt.
+	PublishTimeout time.Duration
+	// PublishMaxRetries controls retry attempts after the first publish attempt fails.
+	PublishMaxRetries int
+	// PublishRetryInitialBackoff is the starting retry delay.
+	PublishRetryInitialBackoff time.Duration
+	// PublishRetryMaxBackoff caps exponential retry growth.
+	PublishRetryMaxBackoff time.Duration
+	// PublishRetryJitter applies full-jitter percentage to retry delays.
+	PublishRetryJitter float64
+}
+
+func (o NATSEnvelopePublisherOptions) normalized() NATSEnvelopePublisherOptions {
+	out := o
+	if out.PublishTimeout <= 0 {
+		out.PublishTimeout = defaultPublishTimeout
+	}
+	if out.PublishMaxRetries < 0 {
+		out.PublishMaxRetries = 0
+	}
+	if out.PublishRetryInitialBackoff <= 0 {
+		out.PublishRetryInitialBackoff = defaultPublishRetryInitial
+	}
+	if out.PublishRetryMaxBackoff < out.PublishRetryInitialBackoff {
+		out.PublishRetryMaxBackoff = defaultPublishRetryMax
+		if out.PublishRetryMaxBackoff < out.PublishRetryInitialBackoff {
+			out.PublishRetryMaxBackoff = out.PublishRetryInitialBackoff
+		}
+	}
+	if out.PublishRetryJitter < 0 {
+		out.PublishRetryJitter = 0
+	}
+	return out
 }
 
 func DefaultNATSConnConfig(urls []string) NATSConnConfig {
@@ -152,7 +193,9 @@ type NATSEnvelopePublisher struct {
 	cfg            SubjectConfig
 	subjectByShard []string
 	options        NATSEnvelopePublisherOptions
-	publish        func(msg *nats.Msg) error
+	publish        func(ctx context.Context, msg *nats.Msg) error
+	sleepFn        func(ctx context.Context, d time.Duration) error
+	randFloat64Fn  func() float64
 	closeFn        func() error
 }
 
@@ -168,12 +211,34 @@ func NewNATSEnvelopePublisherWithOptions(
 	if conn == nil {
 		return nil, errors.New("nats connection is required")
 	}
+	options = options.normalized()
 	normalized := cfg.Normalized()
+	publishFn := func(_ context.Context, msg *nats.Msg) error {
+		return conn.PublishMsg(msg)
+	}
+	if options.UseJetStream {
+		js, err := conn.JetStream()
+		if err != nil {
+			return nil, fmt.Errorf("init jetstream context: %w", err)
+		}
+		publishFn = func(ctx context.Context, msg *nats.Msg) error {
+			publishCtx := ctx
+			cancel := func() {}
+			if options.PublishTimeout > 0 {
+				publishCtx, cancel = context.WithTimeout(ctx, options.PublishTimeout)
+			}
+			defer cancel()
+			_, err := js.PublishMsg(msg, nats.Context(publishCtx))
+			return err
+		}
+	}
 	return &NATSEnvelopePublisher{
 		cfg:            normalized,
 		subjectByShard: buildIngestSubjectCache(normalized),
 		options:        options,
-		publish:        conn.PublishMsg,
+		publish:        publishFn,
+		sleepFn:        sleepContext,
+		randFloat64Fn:  mathrand.Float64,
 		closeFn: func() error {
 			if err := conn.Drain(); err != nil {
 				conn.Close()
@@ -189,9 +254,13 @@ func newNATSEnvelopePublisherForTest(cfg SubjectConfig, publishFn func(msg *nats
 	return &NATSEnvelopePublisher{
 		cfg:            normalized,
 		subjectByShard: buildIngestSubjectCache(normalized),
-		options:        NATSEnvelopePublisherOptions{},
-		publish:        publishFn,
-		closeFn:        func() error { return nil },
+		options:        NATSEnvelopePublisherOptions{}.normalized(),
+		publish: func(_ context.Context, msg *nats.Msg) error {
+			return publishFn(msg)
+		},
+		sleepFn:       sleepContext,
+		randFloat64Fn: func() float64 { return 0 },
+		closeFn:       func() error { return nil },
 	}
 }
 
@@ -223,10 +292,37 @@ func (p *NATSEnvelopePublisher) PublishEnvelope(ctx context.Context, envelope *e
 		msg.Header = nats.Header{nats.MsgIdHdr: []string{id}}
 	}
 
-	if err := p.publish(msg); err != nil {
+	if err := p.publishWithRetry(ctx, msg); err != nil {
 		return fmt.Errorf("publish envelope to nats: %w", err)
 	}
 	return nil
+}
+
+func (p *NATSEnvelopePublisher) publishWithRetry(ctx context.Context, msg *nats.Msg) error {
+	if err := p.publish(ctx, msg); err == nil {
+		return nil
+	} else {
+		if !isRetryablePublishError(ctx, err) || p.options.PublishMaxRetries == 0 {
+			return err
+		}
+		lastErr := err
+		backoff := p.options.PublishRetryInitialBackoff
+		for attempt := 0; attempt < p.options.PublishMaxRetries; attempt++ {
+			delay := applyPublishJitter(backoff, p.options.PublishRetryJitter, p.randFloat64Fn)
+			if sleepErr := p.sleepFn(ctx, delay); sleepErr != nil {
+				return sleepErr
+			}
+			if err = p.publish(ctx, msg); err == nil {
+				return nil
+			}
+			lastErr = err
+			if !isRetryablePublishError(ctx, err) {
+				break
+			}
+			backoff = nextBackoff(backoff, p.options.PublishRetryMaxBackoff)
+		}
+		return lastErr
+	}
 }
 
 func (p *NATSEnvelopePublisher) Close() error {
@@ -234,6 +330,69 @@ func (p *NATSEnvelopePublisher) Close() error {
 		return nil
 	}
 	return p.closeFn()
+}
+
+func isRetryablePublishError(ctx context.Context, err error) bool {
+	if err == nil {
+		return false
+	}
+	if ctx.Err() != nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	return true
+}
+
+func applyPublishJitter(base time.Duration, factor float64, randFloat64Fn func() float64) time.Duration {
+	if base <= 0 || factor <= 0 {
+		return base
+	}
+	if randFloat64Fn == nil {
+		randFloat64Fn = mathrand.Float64
+	}
+	maxShift := time.Duration(float64(base) * factor)
+	if maxShift <= 0 {
+		return base
+	}
+	min := base - maxShift
+	if min < 0 {
+		min = 0
+	}
+	max := base + maxShift
+	if max <= min {
+		return min
+	}
+	return min + time.Duration(randFloat64Fn()*float64(max-min))
+}
+
+func sleepContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func nextBackoff(current, max time.Duration) time.Duration {
+	if current <= 0 {
+		current = defaultPublishRetryInitial
+	}
+	next := current * 2
+	if next <= 0 {
+		next = max
+	}
+	if max > 0 && next > max {
+		return max
+	}
+	return next
 }
 
 func compactStrings(in []string) []string {

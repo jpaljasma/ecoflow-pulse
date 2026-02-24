@@ -70,6 +70,21 @@ export INGEST_ALLOW_UNORDERED_PUBLISH=false
 # Throughput knob: drop optional map labels before protobuf marshal/publish
 export INGEST_DISABLE_ENVELOPE_LABELS=false
 
+# JetStream ingest stream bootstrap (idempotent on worker start)
+export INGEST_NATS_JS_BOOTSTRAP_ENABLED=true
+export INGEST_NATS_JS_STREAM_NAME='PULSE_TELEMETRY_INGEST'
+export INGEST_NATS_JS_REPLICAS=3
+export INGEST_NATS_JS_MAX_AGE=72h
+export INGEST_NATS_JS_MAX_BYTES=0
+
+# Envelope publish policy (retry/backpressure tuning)
+export INGEST_NATS_USE_JETSTREAM=true
+export INGEST_NATS_PUBLISH_TIMEOUT=3s
+export INGEST_NATS_PUBLISH_MAX_RETRIES=3
+export INGEST_NATS_PUBLISH_RETRY_INITIAL_BACKOFF=50ms
+export INGEST_NATS_PUBLISH_RETRY_MAX_BACKOFF=500ms
+export INGEST_NATS_PUBLISH_RETRY_JITTER=0.20
+
 # NATS connection defaults for envelope publishing
 export NATS_URLS='nats://127.0.0.1:4222'
 export NATS_NAME='ecoflow-ingest-worker'

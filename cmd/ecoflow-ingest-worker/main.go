@@ -78,12 +78,37 @@ func main() {
 		ShardCount: mustUint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
 	}
 	disableEnvelopeLabels := mustBool("INGEST_DISABLE_ENVELOPE_LABELS", false)
+
+	publishOpts := telemetrybus.NATSEnvelopePublisherOptions{
+		StripLabels:                disableEnvelopeLabels,
+		UseJetStream:               mustBool("INGEST_NATS_USE_JETSTREAM", true),
+		PublishTimeout:             mustDuration("INGEST_NATS_PUBLISH_TIMEOUT", 3*time.Second),
+		PublishMaxRetries:          mustIntMin("INGEST_NATS_PUBLISH_MAX_RETRIES", 3, 0),
+		PublishRetryInitialBackoff: mustDuration("INGEST_NATS_PUBLISH_RETRY_INITIAL_BACKOFF", 50*time.Millisecond),
+		PublishRetryMaxBackoff:     mustDuration("INGEST_NATS_PUBLISH_RETRY_MAX_BACKOFF", 500*time.Millisecond),
+		PublishRetryJitter:         mustFloat64("INGEST_NATS_PUBLISH_RETRY_JITTER", 0.20),
+	}
+	jetstreamCfg := telemetrybus.DefaultJetStreamIngestBootstrapConfig()
+	jetstreamCfg.Enabled = mustBool("INGEST_NATS_JS_BOOTSTRAP_ENABLED", publishOpts.UseJetStream)
+	jetstreamCfg.StreamName = envOrDefault("INGEST_NATS_JS_STREAM_NAME", jetstreamCfg.StreamName)
+	jetstreamCfg.Replicas = mustIntMin("INGEST_NATS_JS_REPLICAS", jetstreamCfg.Replicas, 1)
+	jetstreamCfg.MaxAge = mustDuration("INGEST_NATS_JS_MAX_AGE", jetstreamCfg.MaxAge)
+	jetstreamCfg.MaxBytes = mustInt64Min("INGEST_NATS_JS_MAX_BYTES", jetstreamCfg.MaxBytes, 0)
+
+	if jetstreamCfg.Enabled {
+		bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := telemetrybus.EnsureJetStreamIngestStream(bootstrapCtx, natsConn, subjectCfg, jetstreamCfg); err != nil {
+			bootstrapCancel()
+			log.Error("bootstrap ingest jetstream stream failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		bootstrapCancel()
+	}
+
 	publisher, err := telemetrybus.NewNATSEnvelopePublisherWithOptions(
 		natsConn,
 		subjectCfg,
-		telemetrybus.NATSEnvelopePublisherOptions{
-			StripLabels: disableEnvelopeLabels,
-		},
+		publishOpts,
 	)
 	if err != nil {
 		log.Error("init telemetry envelope publisher failed", slog.String("error", err.Error()))
@@ -159,6 +184,17 @@ func main() {
 		slog.Duration("publish_enqueue_timeout", sessionCfg.PublishEnqueueTimeout),
 		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),
 		slog.Bool("disable_envelope_labels", sessionCfg.DisableEnvelopeLabels),
+		slog.Bool("nats_use_jetstream", publishOpts.UseJetStream),
+		slog.Duration("nats_publish_timeout", publishOpts.PublishTimeout),
+		slog.Int("nats_publish_max_retries", publishOpts.PublishMaxRetries),
+		slog.Duration("nats_publish_retry_initial_backoff", publishOpts.PublishRetryInitialBackoff),
+		slog.Duration("nats_publish_retry_max_backoff", publishOpts.PublishRetryMaxBackoff),
+		slog.Float64("nats_publish_retry_jitter", publishOpts.PublishRetryJitter),
+		slog.Bool("nats_js_bootstrap_enabled", jetstreamCfg.Enabled),
+		slog.String("nats_js_stream_name", jetstreamCfg.StreamName),
+		slog.Int("nats_js_replicas", jetstreamCfg.Replicas),
+		slog.Duration("nats_js_max_age", jetstreamCfg.MaxAge),
+		slog.Int64("nats_js_max_bytes", jetstreamCfg.MaxBytes),
 	)
 	if err := loop.Run(ctx); err != nil {
 		log.Error("ingest worker stopped with error", slog.String("error", err.Error()))
@@ -227,6 +263,18 @@ func mustIntMin(key string, fallback int, min int) int {
 		return fallback
 	}
 	v, err := strconv.Atoi(raw)
+	if err != nil || v < min {
+		return fallback
+	}
+	return v
+}
+
+func mustInt64Min(key string, fallback int64, min int64) int64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || v < min {
 		return fallback
 	}
