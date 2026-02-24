@@ -132,7 +132,7 @@ func desiredIngestStreamConfig(subjectCfg SubjectConfig, cfg JetStreamIngestBoot
 	cfg = cfg.normalized()
 	return nats.StreamConfig{
 		Name:      strings.TrimSpace(cfg.StreamName),
-		Subjects:  []string{fmt.Sprintf("%s.telemetry.ingest.s*", subjectCfg.Prefix)},
+		Subjects:  []string{IngestWildcardSubject(subjectCfg)},
 		Retention: cfg.Retention,
 		MaxAge:    cfg.MaxAge,
 		MaxBytes:  cfg.MaxBytes,

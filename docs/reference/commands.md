@@ -14,6 +14,7 @@ go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
 go run ./cmd/ecoflow-ingest-worker
+go run ./cmd/ecoflow-projection-worker
 ```
 
 Run gRPC API with explicit control-plane Postgres store:
@@ -35,6 +36,14 @@ CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable
 VALKEY_ADDRS='127.0.0.1:6379' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-ingest-worker
+```
+
+Run projection worker loop (consume ingest envelopes from JetStream and build Valkey live snapshots):
+
+```bash
+VALKEY_ADDRS='127.0.0.1:6379' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-projection-worker
 ```
 
 Ingest worker scaling knobs:
@@ -98,6 +107,16 @@ export NATS_MAX_RECONNECTS=-1
 # Telemetry subject routing / deterministic shard mapping
 export TELEMETRY_SUBJECT_PREFIX='pulse'
 export TELEMETRY_SHARD_COUNT=128
+
+# Projection worker consumer + snapshot store knobs
+export PROJECTION_KEY_PREFIX='pulse:projection'
+export PROJECTION_INGEST_STREAM_NAME='PULSE_TELEMETRY_INGEST'
+export PROJECTION_CONSUMER_DURABLE='projection-live-v1'
+export PROJECTION_QUEUE_GROUP='projection-live'
+export PROJECTION_ACK_WAIT=30s
+export PROJECTION_MAX_ACK_PENDING=4096
+export PROJECTION_PROCESS_TIMEOUT=3s
+export PROJECTION_DRAIN_TIMEOUT=8s
 ```
 
 ## Protobuf / gRPC Generation
@@ -172,6 +191,7 @@ make build
 make smoke
 make mqtt
 make ingest-worker
+make projection-worker
 make k3d-up
 make platform-up
 make platform-wait
