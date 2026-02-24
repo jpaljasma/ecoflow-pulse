@@ -63,6 +63,97 @@ func TestHandleMessageInvalidEnvelopeSkipsStore(t *testing.T) {
 	}
 }
 
+func TestHandleMessageCheckpointRecoveryAcrossWorkerRestart(t *testing.T) {
+	t.Parallel()
+
+	store := setupSnapshotStore(t)
+	worker := &Worker{
+		log:   slog.Default(),
+		store: store,
+		cfg:   DefaultConfig(),
+	}
+
+	push := func(t *testing.T, env *envelopev1.TelemetryEnvelope) {
+		t.Helper()
+		data, err := proto.Marshal(env)
+		if err != nil {
+			t.Fatalf("marshal envelope %q: %v", env.GetEnvelopeId(), err)
+		}
+		worker.handleMessage(&nats.Msg{
+			Subject: "pulse.telemetry.ingest.s007",
+			Data:    data,
+		})
+	}
+
+	identity := SnapshotIdentity{DeviceID: "dev-recovery", EcoflowSN: "R351ZABAPH331057"}
+
+	push(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-r1",
+		DeviceId:           identity.DeviceID,
+		EcoflowSn:          identity.EcoflowSN,
+		IngestedTimeUnixMs: 1000,
+		Payload:            []byte(`{"params":{"load":10}}`),
+	})
+	push(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-r2",
+		DeviceId:           identity.DeviceID,
+		EcoflowSn:          identity.EcoflowSN,
+		IngestedTimeUnixMs: 2000,
+		Payload:            []byte(`{"params":{"load":20}}`),
+	})
+
+	beforeRestart, err := store.ReadSnapshot(context.Background(), identity)
+	if err != nil {
+		t.Fatalf("read snapshot before restart: %v", err)
+	}
+	if beforeRestart.Cursor.Seq != 2 {
+		t.Fatalf("cursor seq before restart mismatch: got=%d want=2", beforeRestart.Cursor.Seq)
+	}
+
+	// Simulate worker restart: new worker instance, same store.
+	worker = &Worker{
+		log:   slog.Default(),
+		store: store,
+		cfg:   DefaultConfig(),
+	}
+
+	push(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-r-old",
+		DeviceId:           identity.DeviceID,
+		EcoflowSn:          identity.EcoflowSN,
+		IngestedTimeUnixMs: 1500,
+		Payload:            []byte(`{"params":{"load":999}}`),
+	})
+	afterStaleReplay, err := store.ReadSnapshot(context.Background(), identity)
+	if err != nil {
+		t.Fatalf("read snapshot after stale replay: %v", err)
+	}
+	if afterStaleReplay.Cursor.Seq != 2 {
+		t.Fatalf("stale replay advanced cursor seq: got=%d want=2", afterStaleReplay.Cursor.Seq)
+	}
+	if got := afterStaleReplay.Metrics["params.load"]; got != 20 {
+		t.Fatalf("stale replay mutated metric: got=%v want=20", got)
+	}
+
+	push(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-r3",
+		DeviceId:           identity.DeviceID,
+		EcoflowSn:          identity.EcoflowSN,
+		IngestedTimeUnixMs: 3000,
+		Payload:            []byte(`{"params":{"load":30}}`),
+	})
+	afterFresh, err := store.ReadSnapshot(context.Background(), identity)
+	if err != nil {
+		t.Fatalf("read snapshot after fresh envelope: %v", err)
+	}
+	if afterFresh.Cursor.Seq != 3 {
+		t.Fatalf("fresh envelope did not advance cursor seq: got=%d want=3", afterFresh.Cursor.Seq)
+	}
+	if got := afterFresh.Metrics["params.load"]; got != 30 {
+		t.Fatalf("fresh envelope metric mismatch: got=%v want=30", got)
+	}
+}
+
 type fakeSnapshotStore struct {
 	calls int
 	last  *envelopev1.TelemetryEnvelope

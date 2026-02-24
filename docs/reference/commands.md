@@ -23,6 +23,15 @@ Run gRPC API with explicit control-plane Postgres store:
 CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' go run ./cmd/ecoflow-grpc-api
 ```
 
+Run gRPC API with live snapshot reads from Valkey (used by `TelemetryService.GetSnapshot`):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' \
+VALKEY_ADDRS='127.0.0.1:6379' \
+PROJECTION_KEY_PREFIX='pulse:projection' \
+go run ./cmd/ecoflow-grpc-api
+```
+
 Run the opt-in real EcoFlow adapter integration check against seeded SNs:
 
 ```bash

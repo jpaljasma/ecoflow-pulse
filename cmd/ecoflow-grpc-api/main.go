@@ -8,6 +8,8 @@ import (
 	"time"
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
+	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -59,8 +61,15 @@ func main() {
 	healthpb.RegisterHealthServer(s, hs)
 	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
+	snapshotReader, cleanupSnapshotReader, err := newTelemetrySnapshotReaderFromEnv(log)
+	if err != nil {
+		log.Error("telemetry snapshot reader init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer cleanupSnapshotReader()
+
 	// Register services
-	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryService(log))
+	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithSnapshotReader(log, snapshotReader))
 	controlPlaneStore, cleanupStore, err := newControlPlaneStoreFromEnv(log)
 	if err != nil {
 		log.Error("control-plane store init failed", "error", err.Error())
@@ -105,4 +114,52 @@ func newControlPlaneStoreFromEnv(log *slog.Logger) (controlplane.Store, func(), 
 	}
 	log.Info("using postgres control-plane store", "source", "CONTROL_PLANE_DB_DSN")
 	return store, func() { _ = store.Close() }, nil
+}
+
+func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.SnapshotReader, func(), error) {
+	valkeyAddrs := splitNonEmpty(strings.TrimSpace(os.Getenv("VALKEY_ADDRS")))
+	if len(valkeyAddrs) == 0 {
+		log.Info("telemetry snapshot reader disabled", "reason", "VALKEY_ADDRS not set")
+		return nil, func() {}, nil
+	}
+	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
+	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
+	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+
+	client, err := ingestlease.NewValkeyClient(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	store, err := projectionworker.NewValkeySnapshotStore(client, projectionworker.ValkeySnapshotStoreConfig{
+		KeyPrefix: strings.TrimSpace(envOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
+	})
+	if err != nil {
+		client.Close()
+		return nil, nil, err
+	}
+
+	log.Info("telemetry snapshot reader enabled",
+		"source", "valkey",
+		"valkey_addrs", strings.Join(valkeyAddrs, ","),
+		"key_prefix", strings.TrimSpace(envOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
+	)
+	return store, func() { client.Close() }, nil
+}
+
+func splitNonEmpty(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if v := strings.TrimSpace(part); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return fallback
 }
