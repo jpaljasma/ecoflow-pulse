@@ -16,6 +16,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 )
 
@@ -51,13 +52,68 @@ func main() {
 		os.Exit(1)
 	}
 
+	natsCfg := telemetrybus.DefaultNATSConnConfig(splitNonEmpty(envOrDefault("NATS_URLS", "nats://127.0.0.1:4222")))
+	natsCfg.Name = envOrDefault("NATS_NAME", "ecoflow-ingest-worker")
+	natsCfg.ConnectTimeout = mustDuration("NATS_CONNECT_TIMEOUT", natsCfg.ConnectTimeout)
+	natsCfg.ReconnectWait = mustDuration("NATS_RECONNECT_WAIT", natsCfg.ReconnectWait)
+	natsCfg.ReconnectJitter = mustDuration("NATS_RECONNECT_JITTER", natsCfg.ReconnectJitter)
+	natsCfg.PingInterval = mustDuration("NATS_PING_INTERVAL", natsCfg.PingInterval)
+	natsCfg.MaxPingsOut = mustIntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
+	natsCfg.MaxReconnects = mustIntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
+
+	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
+	if err != nil {
+		log.Error("init nats connection failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	ecoCfg := ecoflow.DefaultConfig()
 	ecoCfg.Logging.Debug = false
 	ecoCfg.Logging.AdvancedDebugTelemetry = false
 	ecoCfg.Logging.DebugLogHeaders = false
 	ecoCfg.Logging.Logger = log
 	adapter := provideradapter.NewEcoFlowAdapter(provideradapter.NewDefaultEcoFlowClientFactory(ecoCfg))
-	runner := ingestworker.NewEcoFlowSessionRunner(log, adapter)
+	subjectCfg := telemetrybus.SubjectConfig{
+		Prefix:     envOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: mustUint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+	}
+	disableEnvelopeLabels := mustBool("INGEST_DISABLE_ENVELOPE_LABELS", false)
+	publisher, err := telemetrybus.NewNATSEnvelopePublisherWithOptions(
+		natsConn,
+		subjectCfg,
+		telemetrybus.NATSEnvelopePublisherOptions{
+			StripLabels: disableEnvelopeLabels,
+		},
+	)
+	if err != nil {
+		log.Error("init telemetry envelope publisher failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer func() {
+		if closeErr := publisher.Close(); closeErr != nil {
+			log.Warn("close telemetry envelope publisher failed", slog.String("error", closeErr.Error()))
+		}
+	}()
+
+	sessionCfg := ingestworker.DefaultEcoFlowSessionConfig()
+	sessionCfg.ShardCount = subjectCfg.ShardCount
+	sessionCfg.KeepAlive = mustDuration("INGEST_MQTT_KEEPALIVE", sessionCfg.KeepAlive)
+	sessionCfg.ConnectTimeout = mustDuration("INGEST_MQTT_CONNECT_TIMEOUT", sessionCfg.ConnectTimeout)
+	sessionCfg.ReadTimeout = mustDuration("INGEST_MQTT_READ_TIMEOUT", sessionCfg.ReadTimeout)
+	sessionCfg.WriteTimeout = mustDuration("INGEST_MQTT_WRITE_TIMEOUT", sessionCfg.WriteTimeout)
+	sessionCfg.ReconnectInitialBackoff = mustDuration("INGEST_MQTT_RECONNECT_INITIAL_BACKOFF", sessionCfg.ReconnectInitialBackoff)
+	sessionCfg.ReconnectMaxBackoff = mustDuration("INGEST_MQTT_RECONNECT_MAX_BACKOFF", sessionCfg.ReconnectMaxBackoff)
+	sessionCfg.ReconnectJitter = mustFloat64("INGEST_MQTT_RECONNECT_JITTER", sessionCfg.ReconnectJitter)
+	sessionCfg.PublishQueueSize = mustInt("INGEST_PUBLISH_QUEUE_SIZE", sessionCfg.PublishQueueSize)
+	sessionCfg.PublishWorkers = mustInt("INGEST_PUBLISH_WORKERS", sessionCfg.PublishWorkers)
+	sessionCfg.PublishEnqueueTimeout = mustDuration("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
+	sessionCfg.AllowUnorderedPublish = mustBool("INGEST_ALLOW_UNORDERED_PUBLISH", sessionCfg.AllowUnorderedPublish)
+	sessionCfg.DisableEnvelopeLabels = disableEnvelopeLabels
+	runner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, sessionCfg)
+	if err != nil {
+		log.Error("init session runner failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	workerID := strings.TrimSpace(os.Getenv("INGEST_WORKER_ID"))
 	if workerID == "" {
@@ -91,10 +147,18 @@ func main() {
 
 	log.Info("ingest worker starting",
 		slog.String("worker_id", workerID),
+		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
+		slog.String("subject_prefix", subjectCfg.Prefix),
+		slog.Uint64("shards", uint64(subjectCfg.ShardCount)),
 		slog.Duration("poll_interval", pollInterval),
 		slog.Float64("poll_jitter", pollJitter),
 		slog.Int("start_workers", startWorkers),
 		slog.Int("start_queue_size", startQueueSize),
+		slog.Int("publish_queue_size", sessionCfg.PublishQueueSize),
+		slog.Int("publish_workers", sessionCfg.PublishWorkers),
+		slog.Duration("publish_enqueue_timeout", sessionCfg.PublishEnqueueTimeout),
+		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),
+		slog.Bool("disable_envelope_labels", sessionCfg.DisableEnvelopeLabels),
 	)
 	if err := loop.Run(ctx); err != nil {
 		log.Error("ingest worker stopped with error", slog.String("error", err.Error()))
@@ -152,6 +216,42 @@ func mustInt(key string, fallback int) int {
 	}
 	v, err := strconv.Atoi(raw)
 	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
+}
+
+func mustIntMin(key string, fallback int, min int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < min {
+		return fallback
+	}
+	return v
+}
+
+func mustUint32(key string, fallback uint32) uint32 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		return fallback
+	}
+	return uint32(v)
+}
+
+func mustBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
 		return fallback
 	}
 	return v
