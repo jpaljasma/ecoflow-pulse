@@ -193,6 +193,122 @@ func TestEcoFlowSessionRunnerReconnectsAfterReadFailure(t *testing.T) {
 	}
 }
 
+func TestEcoFlowSessionRunnerDoesNotReconnectOnPublishFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var publishCalls atomic.Int64
+	publisher := &fakeEnvelopePublisher{
+		onPublish: func(*envelopev1.TelemetryEnvelope) error {
+			if publishCalls.Add(1) == 1 {
+				return errors.New("nats unavailable")
+			}
+			cancel()
+			return nil
+		},
+	}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+		ReconnectInitialBackoff: time.Millisecond,
+		ReconnectMaxBackoff:     2 * time.Millisecond,
+		ReconnectJitter:         0,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+
+	resolver := &fakeCertResolver{
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+		},
+	}
+	subscriber := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`)}},
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":2,"typeCode":"pdStatus"}`)}},
+		},
+	}
+	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+	runner.adapter = resolver
+	runner.newSubscriber = factory.new
+	runner.sleepFn = func(context.Context, time.Duration) error { return nil }
+
+	assignment := controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	}
+
+	if err := runner.Run(ctx, assignment); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := resolver.calls.Load(); got != 1 {
+		t.Fatalf("expected single certification call with no reconnect, got=%d", got)
+	}
+	if got := len(factory.configs); got != 1 {
+		t.Fatalf("expected single subscriber init with no reconnect, got=%d", got)
+	}
+	if got := publisher.publishCount.Load(); got != 2 {
+		t.Fatalf("expected two publish attempts, got=%d", got)
+	}
+}
+
+func TestEcoFlowSessionRunnerStopsOnInvalidAccessKeyBusinessError(t *testing.T) {
+	t.Parallel()
+
+	publisher := &fakeEnvelopePublisher{}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+		ReconnectInitialBackoff: time.Millisecond,
+		ReconnectMaxBackoff:     2 * time.Millisecond,
+		ReconnectJitter:         0,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+
+	resolver := &fakeCertResolver{
+		err: &ecoflow.BusinessError{
+			Code:    "8513",
+			Message: "accessKey is invalid",
+		},
+	}
+	runner.adapter = resolver
+	sleepCalls := atomic.Int64{}
+	runner.sleepFn = func(context.Context, time.Duration) error {
+		sleepCalls.Add(1)
+		return nil
+	}
+
+	assignment := controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	}
+
+	err = runner.Run(context.Background(), assignment)
+	if !errors.Is(err, ErrEcoFlowCredentialRejected) {
+		t.Fatalf("expected ErrEcoFlowCredentialRejected, got=%v", err)
+	}
+	if got := resolver.calls.Load(); got != 1 {
+		t.Fatalf("expected one certification call, got=%d", got)
+	}
+	if got := sleepCalls.Load(); got != 0 {
+		t.Fatalf("expected no reconnect sleep on invalid access key, got=%d", got)
+	}
+}
+
 func TestEcoFlowSessionRunnerRejectsUnsupportedProvider(t *testing.T) {
 	t.Parallel()
 

@@ -24,10 +24,8 @@ type asyncEnvelopePublisher struct {
 
 	enqueueTimeout time.Duration
 
-	once  sync.Once
-	errMu sync.RWMutex
-	err   error
-	wg    sync.WaitGroup
+	once sync.Once
+	wg   sync.WaitGroup
 }
 
 func newAsyncEnvelopePublisher(
@@ -51,7 +49,7 @@ func newAsyncEnvelopePublisher(
 	out := &asyncEnvelopePublisher{
 		publisher:      publisher,
 		jobs:           make(chan *envelopev1.TelemetryEnvelope, queueSize),
-		errors:         make(chan error, 1),
+		errors:         make(chan error, queueSize),
 		cancel:         cancel,
 		enqueueTimeout: enqueueTimeout,
 	}
@@ -72,9 +70,11 @@ func newAsyncEnvelopePublisher(
 						if errors.Is(err, context.Canceled) {
 							return
 						}
-						out.setErr(err)
-						out.cancel()
-						return
+						select {
+						case out.errors <- err:
+						default:
+						}
+						continue
 					}
 				}
 			}
@@ -90,9 +90,6 @@ func (p *asyncEnvelopePublisher) Publish(ctx context.Context, envelope *envelope
 	if envelope == nil {
 		return errors.New("envelope is required")
 	}
-	if err := p.Err(); err != nil {
-		return err
-	}
 
 	timer := time.NewTimer(p.enqueueTimeout)
 	defer timer.Stop()
@@ -105,30 +102,6 @@ func (p *asyncEnvelopePublisher) Publish(ctx context.Context, envelope *envelope
 	case p.jobs <- envelope:
 		return nil
 	}
-}
-
-func (p *asyncEnvelopePublisher) Err() error {
-	if p == nil {
-		return nil
-	}
-	p.errMu.RLock()
-	defer p.errMu.RUnlock()
-	return p.err
-}
-
-func (p *asyncEnvelopePublisher) setErr(err error) {
-	if err == nil {
-		return
-	}
-	p.errMu.Lock()
-	if p.err == nil {
-		p.err = err
-		select {
-		case p.errors <- err:
-		default:
-		}
-	}
-	p.errMu.Unlock()
 }
 
 func (p *asyncEnvelopePublisher) Errors() <-chan error {
@@ -147,5 +120,5 @@ func (p *asyncEnvelopePublisher) Close() error {
 		p.wg.Wait()
 		p.cancel()
 	})
-	return p.Err()
+	return nil
 }

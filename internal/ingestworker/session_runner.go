@@ -24,7 +24,10 @@ const (
 	defaultMQTTReconnectInitialDelay = 500 * time.Millisecond
 	defaultMQTTReconnectMaxDelay     = 15 * time.Second
 	defaultMQTTReconnectJitter       = 0.25
+	ecoflowAccessKeyInvalidCode      = "8513"
 )
+
+var ErrEcoFlowCredentialRejected = errors.New("ecoflow credential rejected")
 
 type mqttSubscriber interface {
 	Connect(ctx context.Context) error
@@ -201,6 +204,21 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 		if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 			return nil
 		}
+		if ecoflow.IsBusinessErrorCode(err, ecoflowAccessKeyInvalidCode) {
+			r.log.Warn("ecoflow credential rejected; stopping session for credential refresh",
+				slog.String("provider", a.Provider),
+				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("%w: %v", ErrEcoFlowCredentialRejected, err)
+		}
+		if isMQTTConnectRejected(err) {
+			r.log.Warn("ecoflow mqtt connect rejected by broker; refreshing certification and retrying",
+				slog.String("provider", a.Provider),
+				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("error", err.Error()),
+			)
+		}
 
 		if connected {
 			backoff = cfg.ReconnectInitialBackoff
@@ -276,7 +294,13 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 	for {
 		select {
 		case publishErr := <-asyncPublisher.Errors():
-			return true, fmt.Errorf("publish telemetry envelope: %w", publishErr)
+			if publishErr != nil {
+				r.log.Warn("ecoflow ingest publish failed; dropping envelope and keeping mqtt session alive",
+					slog.String("provider", a.Provider),
+					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.String("error", publishErr.Error()),
+				)
+			}
 		default:
 		}
 
@@ -287,6 +311,13 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 			}
 			return true, fmt.Errorf("read mqtt message: %w", readErr)
 		}
+		r.log.Info("ecoflow ingest mqtt message received",
+			slog.String("provider", a.Provider),
+			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("topic", msg.Topic),
+			slog.Int("payload_bytes", len(msg.Payload)),
+			slog.String("payload_raw", string(msg.Payload)),
+		)
 		envelope, buildErr := envelopeBuilder.Build(msg, r.nowFn().UTC())
 		if buildErr != nil {
 			return true, fmt.Errorf("build telemetry envelope: %w", buildErr)
@@ -295,7 +326,12 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 			if errors.Is(publishErr, context.Canceled) || ctx.Err() != nil {
 				return true, nil
 			}
-			return true, fmt.Errorf("publish telemetry envelope: %w", publishErr)
+			r.log.Warn("ecoflow ingest publish enqueue failed; dropping envelope and keeping mqtt session alive",
+				slog.String("provider", a.Provider),
+				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("error", publishErr.Error()),
+			)
+			continue
 		}
 	}
 }
@@ -373,4 +409,14 @@ func applySessionJitter(base time.Duration, factor float64) time.Duration {
 	}
 	delta := max - min
 	return min + time.Duration(mathrand.Int63n(int64(delta)+1))
+}
+
+func isMQTTConnectRejected(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "connect rejected") ||
+		strings.Contains(lower, "return code=5") ||
+		strings.Contains(lower, "not authorized")
 }
