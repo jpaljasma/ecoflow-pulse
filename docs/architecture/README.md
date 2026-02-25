@@ -336,7 +336,13 @@ Legend: **TODO | PROGRESS | DONE | HELP**
   - [x] Added replay NATS publishing through shared `internal/telemetrybus` subject helpers (`ReplaySubject`)
   - [x] Added dry-run mode for decode/filter validation without NATS publish side-effects
   - [x] Added replay unit tests for decoder + runner filtering/error paths and command/docs wiring
-- [ ] Step 6: Gap detector + replay enqueue workflow
+- [x] Step 6: Gap detector + replay enqueue workflow
+  - [x] Added gap-repair request protobuf contract (`proto/pulse/replay/v1/replay.proto`) + generated stubs (`gen/pulse/replay/v1`)
+  - [x] Added gap-repair stream bootstrap helper (`internal/telemetrybus/jetstream_gaprepair.go`) with deterministic wildcard subject coverage
+  - [x] Added gap detector runtime package (`internal/gaprepair/detector.go`) that compares projection cursor vs archive manifest coverage and enqueues targeted replay windows
+  - [x] Added gap-repair worker runtime package (`internal/gaprepair/worker.go`) that consumes queue jobs and replays back into ingest subjects
+  - [x] Added runnable commands (`cmd/ecoflow-gap-detector`, `cmd/ecoflow-gap-repair-worker`) + Make targets (`make gap-detector`, `make gap-repair-worker`)
+  - [x] Added unit coverage for detector candidate ordering/window planning and worker ack/nak/term behavior
 
 | Status | Task | Dependency |
 |---|---|---|
@@ -348,7 +354,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | PROGRESS | Archive writer: protobuf+zstd objects<br>- [x] Added archive worker runtime (`cmd/ecoflow-archive-worker`)<br>- [x] Added archive pipeline package (`internal/archiveworker`) with JetStream durable consumer + graceful drain<br>- [x] Added shard/hour object keying (`raw/yyyy=.../hh=.../shard=.../part-...pb.zst`)<br>- [x] Added length-delimited protobuf framing + zstd compression and per-object metadata/checksum<br>- [x] Added unit coverage for ack/nak/term paths, interval flush, and frame decode verification<br>- [x] Added object-store integration tests (MinIO contract + failure injection, parity-ready harness) | storage |
 | PROGRESS | Manifest index table (Postgres)<br>- [x] Added `archive_object_manifest` schema migration with replay lookup indexes<br>- [x] Added archive manifest upsert store and worker wiring<br>- [x] Added unit tests for manifest normalization + flush failure semantics<br>- [x] Added local migration verify checks for manifest constraints | M1 DB |
 | PROGRESS | Replay CLI: device list + shard/time replay<br>- [x] Added replay CLI command and runtime package (`cmd/ecoflow-replay-cli`, `internal/replaycli`)<br>- [x] Added manifest-backed list-devices mode for safe target discovery<br>- [x] Added per-device and per-fleet replay modes with shard/time filters and dry-run support<br>- [x] Added replay decoder/runner tests and command/docs coverage | archive + manifest |
-| TODO | Gap detector + replay enqueue | projections |
+| PROGRESS | Gap detector + replay enqueue<br>- [x] Added replay queue request schema (`GapRepairRequest`) with deterministic shard metadata and replay window fields<br>- [x] Added NATS JetStream gap-repair stream bootstrap and wildcard subject helpers<br>- [x] Added detector service (`internal/gaprepair`) that polls active ingest assignments, compares projection cursor vs archive coverage, and enqueues targeted replay jobs<br>- [x] Added queue consumer worker (`internal/gaprepair`) that drains gap-repair jobs and invokes replay in device-scoped windows<br>- [x] Added runtime commands + Make targets (`ecoflow-gap-detector`, `ecoflow-gap-repair-worker`) for local/dev execution<br>- [x] Added unit tests for detector planning/order + worker replay ack/nak/term paths | projections |
 
 **Acceptance criteria**
 - Replay can rebuild live state for last 24h

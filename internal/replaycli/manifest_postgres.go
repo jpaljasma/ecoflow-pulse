@@ -62,16 +62,23 @@ SELECT provider, shard, shard_count, partition_hour, ts_min_unix_ms, ts_max_unix
 FROM archive_object_manifest
 WHERE ts_max_unix_ms >= $1
   AND ts_min_unix_ms <= $2
+  AND ($3::text = '' OR provider = $3::text)
   AND (
-    (COALESCE(cardinality($3::text[]), 0) > 0 AND device_ids && $3::text[])
+    (COALESCE(cardinality($4::text[]), 0) > 0 AND device_ids && $4::text[])
     OR
-    (COALESCE(cardinality($4::text[]), 0) > 0 AND provider_device_ids && $4::text[])
+    (COALESCE(cardinality($5::text[]), 0) > 0 AND provider_device_ids && $5::text[])
   )
 ORDER BY partition_hour ASC, shard ASC, object_key ASC
 `
-	args := []any{query.FromUnixMS, query.ToUnixMS, deviceIDs, providerDeviceIDs}
+	args := []any{
+		query.FromUnixMS,
+		query.ToUnixMS,
+		strings.TrimSpace(query.Provider),
+		deviceIDs,
+		providerDeviceIDs,
+	}
 	if query.MaxObjectsReturned > 0 {
-		sql += "LIMIT $5"
+		sql += "LIMIT $6"
 		args = append(args, query.MaxObjectsReturned)
 	}
 	rows, err := s.pool.Query(ctx, sql, args...)

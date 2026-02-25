@@ -27,6 +27,7 @@ const (
 func main() {
 	var (
 		mode              string
+		provider          string
 		fromRaw           string
 		toRaw             string
 		deviceIDsRaw      string
@@ -47,6 +48,7 @@ func main() {
 	)
 
 	flag.StringVar(&mode, "mode", modeListDevices, "Replay mode: list-devices|device|fleet")
+	flag.StringVar(&provider, "provider", "", "Optional provider filter (for example ecoflow)")
 	flag.StringVar(&fromRaw, "from", "", "Range start (RFC3339 or unix-ms). Default: now-1h")
 	flag.StringVar(&toRaw, "to", "", "Range end (RFC3339 or unix-ms). Default: now")
 	flag.StringVar(&deviceIDsRaw, "device-ids", "", "Comma-delimited internal device ids for device mode")
@@ -138,6 +140,7 @@ func main() {
 	defer runner.Close()
 
 	request := replaycli.ReplayRequest{
+		Provider:          strings.TrimSpace(provider),
 		FromUnixMS:        fromUnixMS,
 		ToUnixMS:          toUnixMS,
 		DeviceIDs:         splitNonEmpty(deviceIDsRaw),

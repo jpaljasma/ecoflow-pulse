@@ -71,6 +71,7 @@ func (r *Runner) ReplayDevices(ctx context.Context, request ReplayRequest) (Repl
 	deviceIDs := normalizeStrings(request.DeviceIDs, false)
 	providerDeviceIDs := normalizeStrings(request.ProviderDeviceIDs, true)
 	objects, err := r.manifest.ListByDevices(ctx, DeviceQuery{
+		Provider:           strings.TrimSpace(request.Provider),
 		FromUnixMS:         request.FromUnixMS,
 		ToUnixMS:           request.ToUnixMS,
 		DeviceIDs:          deviceIDs,

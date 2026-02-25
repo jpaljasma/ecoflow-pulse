@@ -82,7 +82,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker projection-worker archive-worker replay-cli k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -197,6 +197,14 @@ archive-worker:
 replay-cli:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
 	$(GO) run ./cmd/ecoflow-replay-cli $(ARGS)
+
+gap-detector:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	$(GO) run ./cmd/ecoflow-gap-detector
+
+gap-repair-worker:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	$(GO) run ./cmd/ecoflow-gap-repair-worker
 
 k3d-up:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \

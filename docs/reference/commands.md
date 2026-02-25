@@ -17,6 +17,8 @@ go run ./cmd/ecoflow-ingest-worker
 go run ./cmd/ecoflow-projection-worker
 go run ./cmd/ecoflow-archive-worker
 go run ./cmd/ecoflow-replay-cli
+go run ./cmd/ecoflow-gap-detector
+go run ./cmd/ecoflow-gap-repair-worker
 ```
 
 Run gRPC API with explicit control-plane Postgres store:
@@ -89,6 +91,26 @@ ARCHIVE_OBJECT_ACCESS_KEY='minio' \
 ARCHIVE_OBJECT_SECRET_KEY='minio123' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-replay-cli -mode fleet -shards 7,11 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z
+```
+
+Run gap detector loop (projection lag detection + targeted replay enqueue):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+VALKEY_ADDRS='127.0.0.1:6379' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-gap-detector
+```
+
+Run gap-repair worker loop (consume queue jobs and replay back to ingest subjects):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-gap-repair-worker
 ```
 
 Ingest worker scaling knobs:
@@ -190,6 +212,39 @@ export ARCHIVE_OBJECT_AUTO_CREATE_BUCKET=true
 
 # Optional manifest index persistence (falls back to CONTROL_PLANE_DB_DSN when unset)
 export ARCHIVE_MANIFEST_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable'
+
+# Gap detector knobs
+export GAP_REPAIR_PROVIDER='ecoflow'                    # optional
+export GAP_REPAIR_POLL_INTERVAL=30s
+export GAP_REPAIR_POLL_JITTER=0.20
+export GAP_REPAIR_LOOKBACK_WINDOW=30m
+export GAP_REPAIR_LAG_THRESHOLD=90s
+export GAP_REPAIR_WINDOW_PADDING=30s
+export GAP_REPAIR_MAX_REPLAY_WINDOW=30m
+export GAP_REPAIR_SAFE_DELAY=10s
+export GAP_REPAIR_MAX_OBJECTS_PER_JOB=0
+export GAP_REPAIR_MAX_JOBS_PER_CYCLE=64
+export GAP_REPAIR_EVAL_WORKERS=16
+export GAP_REPAIR_DRY_RUN=false
+export GAP_REPAIR_NATS_USE_JETSTREAM=true
+export GAP_REPAIR_MSG_ID_BUCKET=1m
+
+# Gap-repair queue stream bootstrap
+export GAP_REPAIR_NATS_JS_BOOTSTRAP_ENABLED=true
+export GAP_REPAIR_NATS_JS_STREAM_NAME='PULSE_TELEMETRY_GAPREPAIR'
+export GAP_REPAIR_NATS_JS_REPLICAS=3
+export GAP_REPAIR_NATS_JS_MAX_AGE=24h
+export GAP_REPAIR_NATS_JS_MAX_BYTES=0
+
+# Gap-repair worker consumer knobs
+export GAP_REPAIR_STREAM_NAME='PULSE_TELEMETRY_GAPREPAIR'
+export GAP_REPAIR_CONSUMER_DURABLE='gap-repair-v1'
+export GAP_REPAIR_QUEUE_GROUP='gap-repair-workers'
+export GAP_REPAIR_ACK_WAIT=2m
+export GAP_REPAIR_MAX_ACK_PENDING=1024
+export GAP_REPAIR_PROCESS_TIMEOUT=2m
+export GAP_REPAIR_DRAIN_TIMEOUT=10s
+export GAP_REPAIR_DEFAULT_MAX_OBJECTS=0
 ```
 
 ## Protobuf / gRPC Generation
@@ -269,6 +324,8 @@ make ingest-worker
 make projection-worker
 make archive-worker
 make replay-cli
+make gap-detector
+make gap-repair-worker
 make k3d-up
 make platform-up
 make platform-wait

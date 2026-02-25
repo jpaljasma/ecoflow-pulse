@@ -22,6 +22,7 @@ type ManifestObject struct {
 }
 
 type DeviceQuery struct {
+	Provider           string
 	FromUnixMS         int64
 	ToUnixMS           int64
 	DeviceIDs          []string
@@ -53,6 +54,7 @@ type ReplayPublisher interface {
 }
 
 type ReplayRequest struct {
+	Provider          string
 	FromUnixMS        int64
 	ToUnixMS          int64
 	DeviceIDs         []string
