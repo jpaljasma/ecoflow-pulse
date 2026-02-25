@@ -233,6 +233,8 @@ SOLAR_PANEL_LINK_MAP=data/solar_panels/panel_purchase_links_v13.json ./scripts/r
 make lint
 make test
 make bench
+make bench-ingestlease-integration
+make test-archive-integration
 make build
 make smoke
 make mqtt
@@ -284,6 +286,18 @@ Notes:
     `brew install markdownlint-cli`
 - `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on
   intentional stop.
+- `make bench-ingestlease-integration` runs Valkey lease manager integration
+  leak/throughput checks against a live Valkey service via temporary
+  `kubectl port-forward`.
+- `make test-archive-integration` runs `internal/archiveworker` integration
+  tests (real MinIO object writes + failure injection):
+  - opens temporary `kubectl port-forward` to
+    `svc/pulse-platform-minio:9000`,
+  - resolves MinIO credentials from
+    `secret/pulse-platform-minio` (`rootUser` / `rootPassword`) unless
+    overridden via `ARCHIVE_OBJECT_ACCESS_KEY` / `ARCHIVE_OBJECT_SECRET_KEY`,
+  - sets `ARCHIVE_STORE_INTEGRATION=1` and runs
+    `go test ./internal/archiveworker -tags integration`.
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.

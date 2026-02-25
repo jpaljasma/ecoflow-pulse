@@ -63,6 +63,11 @@ VALKEY_BENCH_NAMESPACE ?= pulse-platform
 VALKEY_BENCH_SERVICE ?= pulse-platform-valkey
 VALKEY_BENCH_LOCAL_PORT ?= 6389
 VALKEY_BENCH_ADDRS ?= 127.0.0.1:$(VALKEY_BENCH_LOCAL_PORT)
+ARCHIVE_INTEGRATION_NAMESPACE ?= pulse-platform
+ARCHIVE_INTEGRATION_SERVICE ?= pulse-platform-minio
+ARCHIVE_INTEGRATION_SECRET ?= pulse-platform-minio
+ARCHIVE_INTEGRATION_LOCAL_PORT ?= 9000
+ARCHIVE_INTEGRATION_ENDPOINT ?= 127.0.0.1:$(ARCHIVE_INTEGRATION_LOCAL_PORT)
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -77,7 +82,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench bench-ingestlease-integration build smoke mqtt ingest-worker projection-worker archive-worker k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker projection-worker archive-worker k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -126,6 +131,32 @@ bench-ingestlease-integration:
 	sleep 2; \
 	VALKEY_INTEGRATION_ADDRS="$(VALKEY_BENCH_ADDRS)" $(GO) test ./internal/ingestlease -tags integration -run '^TestRunHeartbeatNoGoroutineLeakIntegration$$' -count=1; \
 	VALKEY_INTEGRATION_ADDRS="$(VALKEY_BENCH_ADDRS)" $(GO) test ./internal/ingestlease -tags integration -run '^$$' -bench 'BenchmarkLeaseManager.*Integration' -benchmem -count=1
+
+test-archive-integration:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	log_file=/tmp/pulse-minio-integration-portforward.log; \
+	echo "starting minio port-forward on $(ARCHIVE_INTEGRATION_ENDPOINT) (log: $$log_file)"; \
+	$(KUBECTL) -n $(ARCHIVE_INTEGRATION_NAMESPACE) port-forward svc/$(ARCHIVE_INTEGRATION_SERVICE) $(ARCHIVE_INTEGRATION_LOCAL_PORT):9000 >$$log_file 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { kill $$pf_pid >/dev/null 2>&1 || true; }; \
+	trap cleanup EXIT INT TERM; \
+	sleep 2; \
+	access_key="$${ARCHIVE_OBJECT_ACCESS_KEY:-}"; \
+	secret_key="$${ARCHIVE_OBJECT_SECRET_KEY:-}"; \
+	if [ -z "$$access_key" ] || [ -z "$$secret_key" ]; then \
+		access_key="$$( $(KUBECTL) -n $(ARCHIVE_INTEGRATION_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootUser}' | base64 -d )"; \
+		secret_key="$$( $(KUBECTL) -n $(ARCHIVE_INTEGRATION_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootPassword}' | base64 -d )"; \
+	fi; \
+	ARCHIVE_STORE_INTEGRATION=1 \
+	ARCHIVE_OBJECT_ENDPOINT="$(ARCHIVE_INTEGRATION_ENDPOINT)" \
+	ARCHIVE_OBJECT_ACCESS_KEY="$$access_key" \
+	ARCHIVE_OBJECT_SECRET_KEY="$$secret_key" \
+	$(GO) test ./internal/archiveworker -tags integration -run 'TestMinIOObjectStore.*Integration' -count=1 -v
 
 build:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin
