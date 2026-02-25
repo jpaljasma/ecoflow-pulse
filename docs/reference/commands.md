@@ -163,6 +163,9 @@ export ARCHIVE_OBJECT_SECRET_KEY='minio123'
 export ARCHIVE_OBJECT_REGION='us-east-1'
 export ARCHIVE_OBJECT_SECURE=false
 export ARCHIVE_OBJECT_AUTO_CREATE_BUCKET=true
+
+# Optional manifest index persistence (falls back to CONTROL_PLANE_DB_DSN when unset)
+export ARCHIVE_MANIFEST_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable'
 ```
 
 ## Protobuf / gRPC Generation

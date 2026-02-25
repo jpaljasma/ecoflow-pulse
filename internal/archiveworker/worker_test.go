@@ -51,6 +51,52 @@ func TestProcessDeliveryFlushByMaxRecords(t *testing.T) {
 	}
 }
 
+func TestProcessDeliveryFlushByMaxRecordsWritesManifest(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeObjectStore{}
+	manifest := &fakeManifestStore{}
+	now := time.Date(2026, time.February, 24, 18, 0, 0, 0, time.UTC)
+	worker := newTestWorker(store, now)
+	worker.manifestStore = manifest
+	worker.cfg.MaxRecordsPerPart = 2
+	worker.cfg.FlushInterval = 5 * time.Minute
+
+	env1 := envelope(1, "env-1", 1000)
+	env1.Labels = map[string]string{
+		"provider": "ecoflow",
+	}
+	env2 := envelope(1, "env-2", 2000)
+	env2.Labels = map[string]string{
+		"provider": "ecoflow",
+	}
+	d1 := newFakeDelivery(t, env1)
+	d2 := newFakeDelivery(t, env2)
+	if err := worker.processDelivery(context.Background(), d1); err != nil {
+		t.Fatalf("process first delivery failed: %v", err)
+	}
+	if err := worker.processDelivery(context.Background(), d2); err != nil {
+		t.Fatalf("process second delivery failed: %v", err)
+	}
+
+	if len(manifest.records) != 1 {
+		t.Fatalf("manifest upsert count mismatch: got=%d want=1", len(manifest.records))
+	}
+	record := manifest.records[0]
+	if record.Provider != "ecoflow" {
+		t.Fatalf("manifest provider mismatch: got=%q want=ecoflow", record.Provider)
+	}
+	if record.RecordCount != 2 {
+		t.Fatalf("manifest record count mismatch: got=%d want=2", record.RecordCount)
+	}
+	if len(record.DeviceIDs) != 1 || record.DeviceIDs[0] != "device-1" {
+		t.Fatalf("manifest device ids mismatch: got=%v", record.DeviceIDs)
+	}
+	if len(record.ProviderDeviceIDs) != 1 || record.ProviderDeviceIDs[0] != "R351ZABAPH331057" {
+		t.Fatalf("manifest provider device ids mismatch: got=%v", record.ProviderDeviceIDs)
+	}
+}
+
 func TestProcessDeliveryInvalidEnvelopeTerms(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +137,40 @@ func TestProcessDeliveryStoreFailureNacks(t *testing.T) {
 	}
 	if len(worker.segments) != 0 {
 		t.Fatalf("segments should be cleared after failed flush, got=%d", len(worker.segments))
+	}
+}
+
+func TestProcessDeliveryManifestFailureNacks(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeObjectStore{}
+	manifest := &fakeManifestStore{err: errors.New("manifest write failed")}
+	worker := newTestWorker(store, time.Unix(10, 0).UTC())
+	worker.manifestStore = manifest
+	worker.cfg.MaxRecordsPerPart = 1
+	env := envelope(2, "env-err", 1500)
+	env.Labels = map[string]string{
+		"provider": "ecoflow",
+	}
+	d := newFakeDelivery(t, env)
+
+	if err := worker.processDelivery(context.Background(), d); err == nil {
+		t.Fatalf("expected process error when manifest write fails")
+	}
+	if d.nacked != 1 {
+		t.Fatalf("expected one nack, got=%d", d.nacked)
+	}
+	if d.acked != 0 {
+		t.Fatalf("unexpected ack count=%d", d.acked)
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("expected one object write before manifest failure, got=%d", len(store.requests))
+	}
+	if len(manifest.records) != 1 {
+		t.Fatalf("expected one manifest attempt, got=%d", len(manifest.records))
+	}
+	if len(worker.segments) != 0 {
+		t.Fatalf("segments should be cleared after failed manifest flush, got=%d", len(worker.segments))
 	}
 }
 
@@ -140,6 +220,23 @@ func (f *fakeObjectStore) PutObject(_ context.Context, req PutObjectRequest) err
 		ContentType: req.ContentType,
 		Metadata:    copyMetadata(req.Metadata),
 	})
+	return nil
+}
+
+type fakeManifestStore struct {
+	records []ManifestRecord
+	err     error
+}
+
+func (f *fakeManifestStore) UpsertObjectManifest(_ context.Context, record ManifestRecord) error {
+	f.records = append(f.records, record)
+	if f.err != nil {
+		return f.err
+	}
+	return nil
+}
+
+func (f *fakeManifestStore) Close() error {
 	return nil
 }
 

@@ -67,7 +67,25 @@ func main() {
 	cfg.WriterID = envOrDefault("ARCHIVE_WRITER_ID", cfg.WriterID)
 	cfg.ZstdEncoderLevel = mustInt("ARCHIVE_ZSTD_LEVEL", cfg.ZstdEncoderLevel)
 
-	worker, err := archiveworker.New(log, natsConn, objectStore, cfg)
+	manifestDSN := strings.TrimSpace(os.Getenv("ARCHIVE_MANIFEST_DB_DSN"))
+	if manifestDSN == "" {
+		manifestDSN = strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
+	}
+	var manifestStore archiveworker.ManifestStore
+	if manifestDSN != "" {
+		manifestStore, err = archiveworker.NewPostgresManifestStore(manifestDSN)
+		if err != nil {
+			log.Error("init archive manifest store failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer func() {
+			if closeErr := manifestStore.Close(); closeErr != nil {
+				log.Warn("close archive manifest store failed", slog.String("error", closeErr.Error()))
+			}
+		}()
+	}
+
+	worker, err := archiveworker.New(log, natsConn, objectStore, cfg, archiveworker.WithManifestStore(manifestStore))
 	if err != nil {
 		log.Error("init archive worker failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -93,6 +111,7 @@ func main() {
 		slog.String("writer_id", cfg.WriterID),
 		slog.String("object_endpoint", storeCfg.Endpoint),
 		slog.Bool("object_secure", storeCfg.Secure),
+		slog.Bool("manifest_enabled", manifestStore != nil),
 	)
 	if err := worker.Run(ctx); err != nil {
 		log.Error("archive worker stopped with error", slog.String("error", err.Error()))

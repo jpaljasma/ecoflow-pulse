@@ -60,6 +60,8 @@ type Config struct {
 
 type SubjectConfig = telemetrybus.SubjectConfig
 
+type WorkerOption func(*Worker) error
+
 func DefaultConfig() Config {
 	return Config{
 		SubjectConfig: SubjectConfig{
@@ -161,22 +163,32 @@ func (k segmentKey) mapKey() string {
 }
 
 type archiveSegment struct {
-	key      segmentKey
-	part     int
-	openedAt time.Time
-	buffer   bytes.Buffer
-	encoder  *zstd.Encoder
-	pending  []delivery
-	records  int
-	tsMin    int64
-	tsMax    int64
+	key               segmentKey
+	part              int
+	openedAt          time.Time
+	buffer            bytes.Buffer
+	encoder           *zstd.Encoder
+	pending           []delivery
+	records           int
+	tsMin             int64
+	tsMax             int64
+	providers         map[string]struct{}
+	deviceIDs         map[string]struct{}
+	providerDeviceIDs map[string]struct{}
+}
+
+type archiveRecordMeta struct {
+	provider         string
+	deviceID         string
+	providerDeviceID string
 }
 
 type Worker struct {
-	log   *slog.Logger
-	conn  *nats.Conn
-	store ObjectStore
-	cfg   Config
+	log           *slog.Logger
+	conn          *nats.Conn
+	store         ObjectStore
+	manifestStore ManifestStore
+	cfg           Config
 
 	nowFn      func() time.Time
 	subscribe  func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
@@ -185,7 +197,7 @@ type Worker struct {
 	mu         sync.Mutex
 }
 
-func New(log *slog.Logger, conn *nats.Conn, store ObjectStore, cfg Config) (*Worker, error) {
+func New(log *slog.Logger, conn *nats.Conn, store ObjectStore, cfg Config, options ...WorkerOption) (*Worker, error) {
 	if conn == nil {
 		return nil, errors.New("nats connection is required")
 	}
@@ -206,7 +218,25 @@ func New(log *slog.Logger, conn *nats.Conn, store ObjectStore, cfg Config) (*Wor
 		partCounts: make(map[string]int),
 	}
 	w.subscribe = w.defaultSubscribe
+	for _, option := range options {
+		if option == nil {
+			continue
+		}
+		if err := option(w); err != nil {
+			return nil, err
+		}
+	}
 	return w, nil
+}
+
+func WithManifestStore(store ManifestStore) WorkerOption {
+	return func(w *Worker) error {
+		if w == nil {
+			return errors.New("archive worker is not initialized")
+		}
+		w.manifestStore = store
+		return nil
+	}
 }
 
 func (w *Worker) Run(ctx context.Context) error {
@@ -325,7 +355,7 @@ func (w *Worker) processDelivery(_ context.Context, d delivery) error {
 		_ = d.Nak()
 		return err
 	}
-	if err := segment.append(payload, d, w.recordTimestampUnixMilli(&env)); err != nil {
+	if err := segment.append(payload, d, w.recordTimestampUnixMilli(&env), manifestRecordMetaFromEnvelope(&env)); err != nil {
 		_ = d.Nak()
 		_ = w.dropSegmentLocked(segment)
 		return fmt.Errorf("append envelope to archive segment: %w", err)
@@ -437,9 +467,10 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 	body := append([]byte(nil), segment.buffer.Bytes()...)
 	checksum := crc32.ChecksumIEEE(body)
 	req := PutObjectRequest{
-		Bucket: w.cfg.ObjectBucket,
-		Key:    objectKey,
-		Body:   body,
+		Bucket:      w.cfg.ObjectBucket,
+		Key:         objectKey,
+		Body:        body,
+		ContentType: defaultObjectContentType,
 		Metadata: map[string]string{
 			"record_count":   strconv.Itoa(segment.records),
 			"ts_min_unix_ms": strconv.FormatInt(segment.tsMin, 10),
@@ -453,6 +484,30 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 	if err := w.store.PutObject(ctx, req); err != nil {
 		_ = w.nakPending(segment.pending)
 		return fmt.Errorf("write archive object %q: %w", objectKey, err)
+	}
+	if w.manifestStore != nil {
+		record := ManifestRecord{
+			Provider:          segmentProvider(segment.providers),
+			Shard:             segment.key.shard,
+			ShardCount:        w.cfg.SubjectConfig.ShardCount,
+			PartitionHour:     segment.key.partitionHour,
+			TSMinUnixMS:       segment.tsMin,
+			TSMaxUnixMS:       segment.tsMax,
+			RecordCount:       segment.records,
+			ObjectBucket:      req.Bucket,
+			ObjectKey:         req.Key,
+			ObjectSizeBytes:   int64(len(body)),
+			ContentType:       req.ContentType,
+			Compression:       defaultManifestCompression,
+			ChecksumCRC32:     fmt.Sprintf("%08x", checksum),
+			WriterID:          w.cfg.WriterID,
+			DeviceIDs:         normalizeStringSet(mapSetValues(segment.deviceIDs), false),
+			ProviderDeviceIDs: normalizeStringSet(mapSetValues(segment.providerDeviceIDs), true),
+		}
+		if err := w.manifestStore.UpsertObjectManifest(ctx, record); err != nil {
+			_ = w.nakPending(segment.pending)
+			return fmt.Errorf("persist archive manifest %q: %w", objectKey, err)
+		}
 	}
 	_ = w.ackPending(segment.pending)
 	return nil
@@ -487,7 +542,7 @@ func (w *Worker) drainSubscription(sub *nats.Subscription) {
 	}
 }
 
-func (s *archiveSegment) append(payload []byte, d delivery, recordTs int64) error {
+func (s *archiveSegment) append(payload []byte, d delivery, recordTs int64, meta archiveRecordMeta) error {
 	if len(payload) == 0 {
 		return errors.New("archive payload is empty")
 	}
@@ -511,8 +566,69 @@ func (s *archiveSegment) append(payload []byte, d delivery, recordTs int64) erro
 			s.tsMax = recordTs
 		}
 	}
+	if provider := strings.ToLower(strings.TrimSpace(meta.provider)); provider != "" {
+		if s.providers == nil {
+			s.providers = make(map[string]struct{})
+		}
+		s.providers[provider] = struct{}{}
+	}
+	if deviceID := strings.TrimSpace(meta.deviceID); deviceID != "" {
+		if s.deviceIDs == nil {
+			s.deviceIDs = make(map[string]struct{})
+		}
+		s.deviceIDs[deviceID] = struct{}{}
+	}
+	if providerDeviceID := strings.TrimSpace(meta.providerDeviceID); providerDeviceID != "" {
+		if s.providerDeviceIDs == nil {
+			s.providerDeviceIDs = make(map[string]struct{})
+		}
+		s.providerDeviceIDs[providerDeviceID] = struct{}{}
+	}
 	s.pending = append(s.pending, d)
 	return nil
+}
+
+func manifestRecordMetaFromEnvelope(env *envelopev1.TelemetryEnvelope) archiveRecordMeta {
+	if env == nil {
+		return archiveRecordMeta{}
+	}
+	provider := ""
+	providerDeviceID := ""
+	if labels := env.GetLabels(); len(labels) > 0 {
+		provider = strings.TrimSpace(labels["provider"])
+		providerDeviceID = strings.TrimSpace(labels["provider_device_id"])
+	}
+	if providerDeviceID == "" {
+		providerDeviceID = strings.TrimSpace(env.GetEcoflowSn())
+	}
+	return archiveRecordMeta{
+		provider:         provider,
+		deviceID:         strings.TrimSpace(env.GetDeviceId()),
+		providerDeviceID: providerDeviceID,
+	}
+}
+
+func segmentProvider(providers map[string]struct{}) string {
+	if len(providers) == 0 {
+		return defaultManifestProvider
+	}
+	if len(providers) == 1 {
+		for provider := range providers {
+			return provider
+		}
+	}
+	return "mixed"
+}
+
+func mapSetValues(values map[string]struct{}) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	return out
 }
 
 func (w *Worker) ackPending(deliveries []delivery) error {

@@ -274,9 +274,12 @@ func (p *NATSEnvelopePublisher) PublishEnvelope(ctx context.Context, envelope *e
 
 	encodedEnvelope := envelope
 	if p.options.StripLabels && len(envelope.GetLabels()) > 0 {
-		clone := *envelope
+		clone, ok := proto.Clone(envelope).(*envelopev1.TelemetryEnvelope)
+		if !ok {
+			return errors.New("clone envelope protobuf: type assertion failed")
+		}
 		clone.Labels = nil
-		encodedEnvelope = &clone
+		encodedEnvelope = clone
 	}
 
 	data, err := proto.Marshal(encodedEnvelope)

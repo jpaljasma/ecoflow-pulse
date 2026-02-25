@@ -322,7 +322,12 @@ Legend: **TODO | PROGRESS | DONE | HELP**
   - [x] Added MinIO-compatible object writer (`internal/archiveworker`) with metadata/checksum tagging
   - [x] Added archive worker docs + Make target (`make archive-worker`)
   - [x] Add object-store integration tests (MinIO/GCS parity + failure injection)
-- [ ] Step 4: Manifest index persistence (Postgres metadata for replay lookup)
+- [x] Step 4: Manifest index persistence (Postgres metadata for replay lookup)
+  - [x] Added migration `000003_m2_archive_manifest_schema` with UUIDv7 primary key, app-managed UTC timestamps, object uniqueness, and replay lookup indexes
+  - [x] Added Postgres manifest store (`internal/archiveworker/manifest_store.go`) with idempotent upsert on `(object_bucket, object_key)`
+  - [x] Wired archive writer flush path to persist manifest metadata after object write and before ACK
+  - [x] Added unit coverage for manifest normalization/validation and manifest write failure (NAK/retry path)
+  - [x] Extended local migration verification to include manifest table + constraints
 - [ ] Step 5: Replay CLI (device list + shard/time replay modes)
 - [ ] Step 6: Gap detector + replay enqueue workflow
 
@@ -334,7 +339,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | PROGRESS | Ingest: MQTT → normalize → NATS<br>- [x] Ingest worker now resolves MQTT certification per connect/reconnect and opens one MQTT session per leased provider device<br>- [x] MQTT payloads are normalized into `TelemetryEnvelope` (UUIDv7 envelope id, shard metadata, labels, payload encoding, source/type mapping)<br>- [x] Envelopes are published to `pulse.telemetry.ingest.sNNN` via `internal/telemetrybus` NATS publisher<br>- [x] Added session-runner/publisher/envelope unit tests to prevent ingest regressions<br>- [x] Step 1.1 JetStream stream bootstrap (`PULSE_TELEMETRY_INGEST`) from worker startup<br>- [x] Step 1.2 NATS publish retry/backpressure policy (bounded timeout + jittered retries)<br>- [x] Step 1.3 Worker env knobs/docs for JetStream bootstrap + publish retry tuning<br>- [x] Step 1.4 Failure-mode tests (stream add/update/no-op + retry success/exhaust/cancel) | proto + NATS |
 | PROGRESS | Projection: NATS → Valkey live snapshot<br>- [x] Added projection worker command (`cmd/ecoflow-projection-worker`) for distributed consumer runtime<br>- [x] Added JetStream queue consumer with durable/manual-ack semantics on ingest wildcard subjects<br>- [x] Added telemetry projection store (`internal/projectionworker`) that merges numeric metrics into per-device live snapshots<br>- [x] Added stale/duplicate envelope guards (envelope id + ingest timestamp checks)<br>- [x] Added cluster-aware Valkey keying for atomic snapshot/cursor groups (`{did:*}` / `{sn:*}` tags)<br>- [x] Added explicit downstream read-model contract (`SnapshotReader` / `SnapshotReadModel`) and wired gRPC snapshot reads to it when Valkey is configured<br>- [x] Added projection replay/gap-repair contract validation + end-to-end checkpoint/recovery tests (worker restart + stale replay idempotency + cursor monotonicity)<br>- [ ] Add WS/query consumer integration over the same snapshot read-model contract | NATS + Valkey |
 | PROGRESS | Archive writer: protobuf+zstd objects<br>- [x] Added archive worker runtime (`cmd/ecoflow-archive-worker`)<br>- [x] Added archive pipeline package (`internal/archiveworker`) with JetStream durable consumer + graceful drain<br>- [x] Added shard/hour object keying (`raw/yyyy=.../hh=.../shard=.../part-...pb.zst`)<br>- [x] Added length-delimited protobuf framing + zstd compression and per-object metadata/checksum<br>- [x] Added unit coverage for ack/nak/term paths, interval flush, and frame decode verification<br>- [x] Added object-store integration tests (MinIO contract + failure injection, parity-ready harness) | storage |
-| TODO | Manifest index table (Postgres) | M1 DB |
+| PROGRESS | Manifest index table (Postgres)<br>- [x] Added `archive_object_manifest` schema migration with replay lookup indexes<br>- [x] Added archive manifest upsert store and worker wiring<br>- [x] Added unit tests for manifest normalization + flush failure semantics<br>- [x] Added local migration verify checks for manifest constraints | M1 DB |
 | TODO | Replay CLI: device list + shard/time | archive + manifest |
 | TODO | Gap detector + replay enqueue | projections |
 
