@@ -15,6 +15,7 @@ go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
 go run ./cmd/ecoflow-ingest-worker
 go run ./cmd/ecoflow-projection-worker
+go run ./cmd/ecoflow-archive-worker
 ```
 
 Run gRPC API with explicit control-plane Postgres store:
@@ -53,6 +54,17 @@ Run projection worker loop (consume ingest envelopes from JetStream and build Va
 VALKEY_ADDRS='127.0.0.1:6379' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-projection-worker
+```
+
+Run archive worker loop (consume ingest envelopes from JetStream and write protobuf+zstd objects to MinIO-compatible storage):
+
+```bash
+NATS_URLS='nats://127.0.0.1:4222' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+ARCHIVE_OBJECT_BUCKET='pulse-telemetry-raw' \
+go run ./cmd/ecoflow-archive-worker
 ```
 
 Ingest worker scaling knobs:
@@ -126,6 +138,31 @@ export PROJECTION_ACK_WAIT=30s
 export PROJECTION_MAX_ACK_PENDING=4096
 export PROJECTION_PROCESS_TIMEOUT=3s
 export PROJECTION_DRAIN_TIMEOUT=8s
+
+# Archive worker consumer + object writer knobs
+export ARCHIVE_INGEST_STREAM_NAME='PULSE_TELEMETRY_INGEST'
+export ARCHIVE_CONSUMER_DURABLE='archive-raw-v1'
+export ARCHIVE_QUEUE_GROUP='archive-raw'
+export ARCHIVE_ACK_WAIT=60s
+export ARCHIVE_MAX_ACK_PENDING=4096
+export ARCHIVE_PROCESS_TIMEOUT=3s
+export ARCHIVE_DRAIN_TIMEOUT=8s
+export ARCHIVE_FLUSH_INTERVAL=30s
+export ARCHIVE_FLUSH_TIMEOUT=12s
+export ARCHIVE_MAX_RECORDS_PER_PART=1024
+export ARCHIVE_MAX_BYTES_PER_PART=4194304
+export ARCHIVE_ZSTD_LEVEL=3
+export ARCHIVE_OBJECT_BUCKET='pulse-telemetry-raw'
+export ARCHIVE_OBJECT_PREFIX='raw'
+export ARCHIVE_WRITER_ID='archive-worker-1'
+
+# MinIO/S3-compatible object store connection
+export ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000'
+export ARCHIVE_OBJECT_ACCESS_KEY='minio'
+export ARCHIVE_OBJECT_SECRET_KEY='minio123'
+export ARCHIVE_OBJECT_REGION='us-east-1'
+export ARCHIVE_OBJECT_SECURE=false
+export ARCHIVE_OBJECT_AUTO_CREATE_BUCKET=true
 ```
 
 ## Protobuf / gRPC Generation
@@ -201,6 +238,7 @@ make smoke
 make mqtt
 make ingest-worker
 make projection-worker
+make archive-worker
 make k3d-up
 make platform-up
 make platform-wait
