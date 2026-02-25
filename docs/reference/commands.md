@@ -16,6 +16,7 @@ go run ./cmd/ecoflow-dev-seed
 go run ./cmd/ecoflow-ingest-worker
 go run ./cmd/ecoflow-projection-worker
 go run ./cmd/ecoflow-archive-worker
+go run ./cmd/ecoflow-replay-cli
 ```
 
 Run gRPC API with explicit control-plane Postgres store:
@@ -65,6 +66,29 @@ ARCHIVE_OBJECT_ACCESS_KEY='minio' \
 ARCHIVE_OBJECT_SECRET_KEY='minio123' \
 ARCHIVE_OBJECT_BUCKET='pulse-telemetry-raw' \
 go run ./cmd/ecoflow-archive-worker
+```
+
+Run replay CLI modes (manifest-backed listing + device/fleet replay to NATS replay subjects):
+
+```bash
+# List known device/provider ids in the archive manifest window.
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+go run ./cmd/ecoflow-replay-cli -mode list-devices -from 2026-02-26T00:00:00Z -to 2026-02-26T23:59:59Z
+
+# Per-device replay (dry-run decode/filter only; no NATS publish).
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+go run ./cmd/ecoflow-replay-cli -mode device -provider-device-ids R351ZABAPH331057 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z -dry-run
+
+# Fleet shard/time replay (publishes TelemetryEnvelope bytes to pulse.telemetry.replay.sNNN).
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-replay-cli -mode fleet -shards 7,11 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z
 ```
 
 Ingest worker scaling knobs:
@@ -244,6 +268,7 @@ make mqtt
 make ingest-worker
 make projection-worker
 make archive-worker
+make replay-cli
 make k3d-up
 make platform-up
 make platform-wait
@@ -304,6 +329,8 @@ Notes:
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
+- `make replay-cli` runs the replay command with optional passthrough args:
+  `make replay-cli ARGS='-mode list-devices -from 2026-02-26T00:00:00Z -to 2026-02-26T23:59:59Z'`.
 - `buf generate` regenerates protobuf/gRPC Go stubs into `gen/` from
   `proto/` using `buf.yaml` + `buf.gen.yaml`.
 - `make k3d-up` creates or reuses local k3d cluster from `deploy/tilt/k3d-config.yaml`.
