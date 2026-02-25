@@ -88,6 +88,18 @@ func (s *PostgresManifestStore) UpsertObjectManifest(ctx context.Context, record
 	if err := validateManifestRecord(record); err != nil {
 		return err
 	}
+	shard, err := uint32ToInt32(record.Shard, "manifest shard")
+	if err != nil {
+		return err
+	}
+	shardCount, err := uint32ToInt32(record.ShardCount, "manifest shard_count")
+	if err != nil {
+		return err
+	}
+	recordCount, err := intToInt32(record.RecordCount, "manifest record_count")
+	if err != nil {
+		return err
+	}
 	const query = `
 INSERT INTO archive_object_manifest (
 	provider,
@@ -129,16 +141,16 @@ SET provider = EXCLUDED.provider,
 	provider_device_ids = EXCLUDED.provider_device_ids,
 	updated_at = EXCLUDED.updated_at;
 `
-	_, err := s.pool.Exec(
+	_, err = s.pool.Exec(
 		ctx,
 		query,
 		record.Provider,
-		int32(record.Shard),
-		int32(record.ShardCount),
+		shard,
+		shardCount,
 		record.PartitionHour,
 		record.TSMinUnixMS,
 		record.TSMaxUnixMS,
-		int32(record.RecordCount),
+		recordCount,
 		record.ObjectBucket,
 		record.ObjectKey,
 		record.ObjectSizeBytes,
@@ -250,4 +262,18 @@ func normalizeStringSet(values []string, upper bool) []string {
 
 func utcNow() time.Time {
 	return time.Now().UTC()
+}
+
+func uint32ToInt32(value uint32, field string) (int32, error) {
+	if value > 2147483647 {
+		return 0, fmt.Errorf("%s exceeds int32 bounds: %d", field, value)
+	}
+	return int32(value), nil
+}
+
+func intToInt32(value int, field string) (int32, error) {
+	if value < -2147483648 || value > 2147483647 {
+		return 0, fmt.Errorf("%s exceeds int32 bounds: %d", field, value)
+	}
+	return int32(value), nil
 }

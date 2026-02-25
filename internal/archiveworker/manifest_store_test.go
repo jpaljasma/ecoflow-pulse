@@ -1,6 +1,7 @@
 package archiveworker
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -103,5 +104,45 @@ func TestValidateManifestRecord(t *testing.T) {
 	invalid.Shard = invalid.ShardCount
 	if err := validateManifestRecord(invalid); err == nil {
 		t.Fatalf("expected error for shard >= shard_count")
+	}
+}
+
+func TestUint32ToInt32(t *testing.T) {
+	t.Parallel()
+
+	converted, err := uint32ToInt32(uint32(math.MaxInt32), "manifest shard")
+	if err != nil {
+		t.Fatalf("expected max int32 uint32 conversion to succeed, got error: %v", err)
+	}
+	if converted != math.MaxInt32 {
+		t.Fatalf("converted value mismatch: got=%d want=%d", converted, math.MaxInt32)
+	}
+
+	_, err = uint32ToInt32(uint32(math.MaxInt32)+1, "manifest shard")
+	if err == nil {
+		t.Fatalf("expected conversion overflow error")
+	}
+	if !strings.Contains(err.Error(), "manifest shard exceeds int32 bounds") {
+		t.Fatalf("expected overflow error to mention field and bounds, got: %v", err)
+	}
+}
+
+func TestIntToInt32(t *testing.T) {
+	t.Parallel()
+
+	converted, err := intToInt32(math.MaxInt32, "manifest record_count")
+	if err != nil {
+		t.Fatalf("expected max int32 conversion to succeed, got error: %v", err)
+	}
+	if converted != math.MaxInt32 {
+		t.Fatalf("converted value mismatch: got=%d want=%d", converted, math.MaxInt32)
+	}
+
+	_, err = intToInt32(math.MaxInt32+1, "manifest record_count")
+	if err == nil {
+		t.Fatalf("expected conversion overflow error")
+	}
+	if !strings.Contains(err.Error(), "manifest record_count exceeds int32 bounds") {
+		t.Fatalf("expected overflow error to mention field and bounds, got: %v", err)
 	}
 }
