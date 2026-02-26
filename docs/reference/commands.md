@@ -4,6 +4,8 @@
 
 ```bash
 go test ./...
+make test-race
+make test-race-stress
 go run ./cmd/ecoflow-smoke
 go run ./cmd/ecoflow-server
 go run ./cmd/ecoflow-mqtt-sub
@@ -19,6 +21,19 @@ go run ./cmd/ecoflow-archive-worker
 go run ./cmd/ecoflow-replay-cli
 go run ./cmd/ecoflow-gap-detector
 go run ./cmd/ecoflow-gap-repair-worker
+```
+
+Race detection commands (critical service paths):
+
+```bash
+# PR-equivalent race gate
+make test-race
+
+# Optional stress pass (defaults to 5 repetitions)
+make test-race-stress
+
+# Override stress count
+make test-race-stress RACE_STRESS_COUNT=10
 ```
 
 Run gRPC API with explicit control-plane Postgres store:

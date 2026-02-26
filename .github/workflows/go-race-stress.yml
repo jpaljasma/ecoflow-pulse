@@ -1,0 +1,36 @@
+name: Go Race Stress
+
+on:
+  workflow_dispatch:
+    inputs:
+      race_count:
+        description: "Race test repetition count"
+        required: false
+        default: "5"
+
+permissions:
+  contents: read
+
+jobs:
+  go-test-race-stress:
+    name: go-test-race-stress
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run Go race stress tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          race_count="${{ github.event.inputs.race_count }}"
+          if [[ -z "${race_count}" ]]; then
+            race_count="5"
+          fi
+          go test -race ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./cmd/ecoflow-grpc-api -count="${race_count}"

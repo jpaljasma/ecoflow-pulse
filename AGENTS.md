@@ -82,6 +82,12 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Keep deprecated gRPC APIs out of tests/runtime paths (prefer `grpc.NewClient` over deprecated dial patterns).
 5. If helper code is intentionally retained but currently unused, annotate with a short `//nolint:unused` reason.
 
+## Go Race Testing Rules
+1. Run `make test-race` for concurrency-sensitive changes (leases, worker loops, projection/archive ingest paths, gRPC streaming paths).
+2. `make test-race` is the PR-critical race scope and must stay fast/stable.
+3. Use `make test-race-stress` for repeated contention checks (`RACE_STRESS_COUNT` default `5`) before merging changes that touch lock ownership, queueing, session lifecycle, or async publish paths.
+4. Keep stress race checks opt-in (manual) and avoid making them mandatory per-PR unless explicitly requested by maintainers.
+
 ## Service Logging Throughput Rules
 1. All long-running services/workers and operational CLIs must use `pkg/logger` (`BuildServiceLogger`) for consistent structured logging behavior.
 2. Keep high-volume payload logs off the hot path:
