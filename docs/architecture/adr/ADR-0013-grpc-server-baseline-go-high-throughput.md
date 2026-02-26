@@ -277,4 +277,4 @@ func Serve(ctx context.Context, s *grpc.Server, lis net.Listener, grace time.Dur
 - [x] Add contention/allocation profiling workflow (`pprof`, mutex/block profiles, gc tuning)
 - [ ] Add load test harness for unary + streaming (k6 or ghz)
 - [ ] Decide per-method compression rules (thresholds)
-- [ ] Replace `NoopAuthorizer` with Keycloak JWKS JWT validation + RBAC enforcement at Go boundary
+- [x] Replace `NoopAuthorizer` with Keycloak JWKS JWT validation + RBAC enforcement at Go boundary

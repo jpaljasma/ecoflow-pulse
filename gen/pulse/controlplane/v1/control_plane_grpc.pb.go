@@ -22,6 +22,9 @@ const (
 	ControlPlaneService_CreateProviderCredential_FullMethodName    = "/pulse.controlplane.v1.ControlPlaneService/CreateProviderCredential"
 	ControlPlaneService_ListProviderCredentials_FullMethodName     = "/pulse.controlplane.v1.ControlPlaneService/ListProviderCredentials"
 	ControlPlaneService_SetProviderCredentialActive_FullMethodName = "/pulse.controlplane.v1.ControlPlaneService/SetProviderCredentialActive"
+	ControlPlaneService_CreateDevice_FullMethodName                = "/pulse.controlplane.v1.ControlPlaneService/CreateDevice"
+	ControlPlaneService_LinkDevice_FullMethodName                  = "/pulse.controlplane.v1.ControlPlaneService/LinkDevice"
+	ControlPlaneService_ListUserDevices_FullMethodName             = "/pulse.controlplane.v1.ControlPlaneService/ListUserDevices"
 	ControlPlaneService_ListDevices_FullMethodName                 = "/pulse.controlplane.v1.ControlPlaneService/ListDevices"
 	ControlPlaneService_DiscoverDevices_FullMethodName             = "/pulse.controlplane.v1.ControlPlaneService/DiscoverDevices"
 )
@@ -33,6 +36,9 @@ type ControlPlaneServiceClient interface {
 	CreateProviderCredential(ctx context.Context, in *CreateProviderCredentialRequest, opts ...grpc.CallOption) (*CreateProviderCredentialResponse, error)
 	ListProviderCredentials(ctx context.Context, in *ListProviderCredentialsRequest, opts ...grpc.CallOption) (*ListProviderCredentialsResponse, error)
 	SetProviderCredentialActive(ctx context.Context, in *SetProviderCredentialActiveRequest, opts ...grpc.CallOption) (*SetProviderCredentialActiveResponse, error)
+	CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*CreateDeviceResponse, error)
+	LinkDevice(ctx context.Context, in *LinkDeviceRequest, opts ...grpc.CallOption) (*LinkDeviceResponse, error)
+	ListUserDevices(ctx context.Context, in *ListUserDevicesRequest, opts ...grpc.CallOption) (*ListUserDevicesResponse, error)
 	ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
 	DiscoverDevices(ctx context.Context, in *DiscoverDevicesRequest, opts ...grpc.CallOption) (*DiscoverDevicesResponse, error)
 }
@@ -75,6 +81,36 @@ func (c *controlPlaneServiceClient) SetProviderCredentialActive(ctx context.Cont
 	return out, nil
 }
 
+func (c *controlPlaneServiceClient) CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*CreateDeviceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateDeviceResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_CreateDevice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) LinkDevice(ctx context.Context, in *LinkDeviceRequest, opts ...grpc.CallOption) (*LinkDeviceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LinkDeviceResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_LinkDevice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) ListUserDevices(ctx context.Context, in *ListUserDevicesRequest, opts ...grpc.CallOption) (*ListUserDevicesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserDevicesResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_ListUserDevices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *controlPlaneServiceClient) ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListDevicesResponse)
@@ -102,6 +138,9 @@ type ControlPlaneServiceServer interface {
 	CreateProviderCredential(context.Context, *CreateProviderCredentialRequest) (*CreateProviderCredentialResponse, error)
 	ListProviderCredentials(context.Context, *ListProviderCredentialsRequest) (*ListProviderCredentialsResponse, error)
 	SetProviderCredentialActive(context.Context, *SetProviderCredentialActiveRequest) (*SetProviderCredentialActiveResponse, error)
+	CreateDevice(context.Context, *CreateDeviceRequest) (*CreateDeviceResponse, error)
+	LinkDevice(context.Context, *LinkDeviceRequest) (*LinkDeviceResponse, error)
+	ListUserDevices(context.Context, *ListUserDevicesRequest) (*ListUserDevicesResponse, error)
 	ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error)
 	DiscoverDevices(context.Context, *DiscoverDevicesRequest) (*DiscoverDevicesResponse, error)
 	mustEmbedUnimplementedControlPlaneServiceServer()
@@ -122,6 +161,15 @@ func (UnimplementedControlPlaneServiceServer) ListProviderCredentials(context.Co
 }
 func (UnimplementedControlPlaneServiceServer) SetProviderCredentialActive(context.Context, *SetProviderCredentialActiveRequest) (*SetProviderCredentialActiveResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetProviderCredentialActive not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) CreateDevice(context.Context, *CreateDeviceRequest) (*CreateDeviceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateDevice not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) LinkDevice(context.Context, *LinkDeviceRequest) (*LinkDeviceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LinkDevice not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) ListUserDevices(context.Context, *ListUserDevicesRequest) (*ListUserDevicesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUserDevices not implemented")
 }
 func (UnimplementedControlPlaneServiceServer) ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListDevices not implemented")
@@ -204,6 +252,60 @@ func _ControlPlaneService_SetProviderCredentialActive_Handler(srv interface{}, c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ControlPlaneService_CreateDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).CreateDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_CreateDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).CreateDevice(ctx, req.(*CreateDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_LinkDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LinkDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).LinkDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_LinkDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).LinkDevice(ctx, req.(*LinkDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_ListUserDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserDevicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ListUserDevices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_ListUserDevices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ListUserDevices(ctx, req.(*ListUserDevicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ControlPlaneService_ListDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListDevicesRequest)
 	if err := dec(in); err != nil {
@@ -258,6 +360,18 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetProviderCredentialActive",
 			Handler:    _ControlPlaneService_SetProviderCredentialActive_Handler,
+		},
+		{
+			MethodName: "CreateDevice",
+			Handler:    _ControlPlaneService_CreateDevice_Handler,
+		},
+		{
+			MethodName: "LinkDevice",
+			Handler:    _ControlPlaneService_LinkDevice_Handler,
+		},
+		{
+			MethodName: "ListUserDevices",
+			Handler:    _ControlPlaneService_ListUserDevices_Handler,
 		},
 		{
 			MethodName: "ListDevices",

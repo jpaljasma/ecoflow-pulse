@@ -130,6 +130,10 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `EXPO_PUBLIC_MOCK_LOG_URL`
 - `EXPO_PUBLIC_MOCK_TRAINING_URL`
 - `EXPO_PUBLIC_ASSET_BASE_URL`
+- `EXPO_PUBLIC_OIDC_ISSUER_URL` (Keycloak issuer URL for Authorization Code + PKCE)
+- `EXPO_PUBLIC_OIDC_CLIENT_ID` (public OIDC client ID for Expo app)
+- `EXPO_PUBLIC_OIDC_AUDIENCE` (optional audience for token exchange/validation alignment)
+- `EXPO_PUBLIC_OIDC_SCOPES` (optional, default `openid profile email offline_access`)
   - optional absolute base URL for product/brand images in native and web,
   - when unset on web, app uses `/public` local paths,
   - large product images can be remote URI-based and are cached via `expo-image` (`memory-disk`),

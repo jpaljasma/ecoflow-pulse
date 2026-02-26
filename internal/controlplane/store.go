@@ -13,6 +13,8 @@ const (
 var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrCredentialNotFound = errors.New("provider credential not found")
+	ErrDeviceNotFound     = errors.New("device not found")
+	ErrPermissionDenied   = errors.New("permission denied")
 )
 
 type ProviderCredential struct {
@@ -41,6 +43,16 @@ type ProviderDevice struct {
 	Model              string
 	IsActive           bool
 	IngestDesiredState string
+}
+
+type UserDevice struct {
+	DeviceID    string
+	EcoflowSN   string
+	ProductName string
+	Model       string
+	Role        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // IngestAssignment is an internal worker-facing projection for distributed
@@ -85,6 +97,35 @@ type ListProviderDevicesInput struct {
 	ActiveOnly  bool
 }
 
+type CreateDeviceInput struct {
+	UserSubject string
+	EcoflowSN   string
+	ProductName string
+	Model       string
+}
+
+type LinkDeviceInput struct {
+	UserSubject       string
+	TargetUserSubject string
+	DeviceID          string
+	Role              string
+}
+
+type ListUserDevicesInput struct {
+	UserSubject string
+}
+
+type UpsertProviderDeviceInput struct {
+	DeviceID           string
+	Provider           string
+	ProviderDeviceID   string
+	CredentialID       string
+	ProductName        string
+	Model              string
+	IsActive           bool
+	IngestDesiredState string
+}
+
 type ListIngestAssignmentsInput struct {
 	Provider   string
 	ActiveOnly bool
@@ -95,6 +136,10 @@ type Store interface {
 	ListProviderCredentials(ctx context.Context, in ListProviderCredentialsInput) ([]ProviderCredential, error)
 	SetProviderCredentialActive(ctx context.Context, in SetProviderCredentialActiveInput) (ProviderCredential, error)
 	GetProviderCredential(ctx context.Context, userSubject string, credentialID string) (ProviderCredential, error)
+	CreateDevice(ctx context.Context, in CreateDeviceInput) (UserDevice, error)
+	LinkDevice(ctx context.Context, in LinkDeviceInput) (UserDevice, error)
+	ListUserDevices(ctx context.Context, in ListUserDevicesInput) ([]UserDevice, error)
+	UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error)
 	ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error)
 	ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error)
 }

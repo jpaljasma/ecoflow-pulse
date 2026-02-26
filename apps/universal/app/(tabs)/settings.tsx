@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Animated, useWindowDimensions } from 'react-native';
 import { Text, YStack } from 'tamagui';
+import { KeycloakPkceCard } from '@/features/auth/KeycloakPkceCard';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Card } from '@/shared/ui/Card';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
@@ -23,24 +24,25 @@ export default function SettingsScreen() {
         paddingVertical="$4"
         gap="$4"
       >
-      <TopBar
-        left={<CloseToHomeButton onClose={closeToHome} />}
-        title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
-        subtitle="Configuration and diagnostics"
-        titleFlex={compactHeader ? 1 : 3}
-        rightFlex={compactHeader ? 0 : 1}
-        right={
-          <YStack alignItems="flex-end">
-            <AppMenu />
-          </YStack>
-        }
-      />
-      <Card gap="$2">
-        <Text fontSize="$5" fontWeight="700">
-          API Endpoints
-        </Text>
-        <Text opacity={0.75}>Set EXPO_PUBLIC_API_URL and EXPO_PUBLIC_WS_URL in your environment.</Text>
-      </Card>
+        <TopBar
+          left={<CloseToHomeButton onClose={closeToHome} />}
+          title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
+          subtitle="Configuration and diagnostics"
+          titleFlex={compactHeader ? 1 : 3}
+          rightFlex={compactHeader ? 0 : 1}
+          right={
+            <YStack alignItems="flex-end">
+              <AppMenu />
+            </YStack>
+          }
+        />
+        <KeycloakPkceCard />
+        <Card gap="$2">
+          <Text fontSize="$5" fontWeight="700">
+            API Endpoints
+          </Text>
+          <Text opacity={0.75}>Set EXPO_PUBLIC_API_URL and EXPO_PUBLIC_WS_URL in your environment.</Text>
+        </Card>
       </YStack>
     </Animated.View>
   );

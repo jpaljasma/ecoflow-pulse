@@ -99,6 +99,26 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Emit async logger SLO metrics (`queue_depth`, `dropped_total`, etc.) on a periodic ticker with jitter (`StartAsyncMetricsReporter`).
 5. Async logger shutdown must be graceful and race-safe; avoid send/close channel races in hot logging paths.
 
+## M1 Auth Implementation Rules
+1. Treat M1 auth as complete only when all four layers are wired and validated together:
+   - Expo PKCE client flow (Keycloak OIDC),
+   - Node JWKS JWT middleware package,
+   - Go gRPC JWT validation/interceptors,
+   - control-plane RBAC (`viewer/admin`) device registry paths.
+2. For Expo PKCE work, keep runtime configuration env-driven:
+   - `EXPO_PUBLIC_OIDC_ISSUER_URL`,
+   - `EXPO_PUBLIC_OIDC_CLIENT_ID`,
+   - `EXPO_PUBLIC_OIDC_AUDIENCE`,
+   - `EXPO_PUBLIC_OIDC_SCOPES`.
+3. Every auth change must run both JS and Go validation gates:
+   - `npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth`
+   - `npm run test --workspace @ecoflow-pulse/node-jwks-auth`
+   - `npm run -w apps/universal typecheck`
+   - `npm run -w apps/universal lint`
+   - `npm run -w apps/universal test`
+   - `go test ./...`
+4. Keep frontend CI aligned with auth package coverage (do not allow `node-jwks-auth` tests/typecheck to be optional when auth files change).
+
 ## Milestone Closure Rules
 1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.
 2. Record acceptance evidence in `docs/architecture/README.md` in the same branch/commit series as the implementation.
