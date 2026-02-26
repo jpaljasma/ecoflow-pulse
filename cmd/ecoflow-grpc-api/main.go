@@ -20,6 +20,8 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 func main() {
@@ -28,7 +30,22 @@ func main() {
 		env = "local"
 	}
 
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("grpc-api")
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	logCfg.AsyncEnabled = !runtimecfg.Bool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = runtimecfg.IntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(runtimecfg.EnvOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("init logger failed: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
 
 	cfg := grpcserver.DefaultConfig(env)
 	if addr := os.Getenv("GRPC_LISTEN_ADDR"); addr != "" {
@@ -91,9 +108,22 @@ func main() {
 	)
 	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
 
-	log.Info("grpc server starting", "addr", cfg.ListenAddr, "env", env)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "grpc-api", asyncLogHandler, logMetricsInterval)
+	defer stopLogMetrics()
 
-	ctx := context.Background()
+	log.Info("grpc server starting",
+		"addr", cfg.ListenAddr,
+		"env", env,
+		"log_level", logCfg.Level.String(),
+		"log_async_enabled", logCfg.AsyncEnabled,
+		"log_async_queue_size", logCfg.AsyncQueueSize,
+		"log_async_bypass_level", logCfg.AsyncBypassLevel.String(),
+		"log_metrics_interval", logMetricsInterval,
+	)
+
 	if err := grpcserver.ServeWithSignal(ctx, s, lis, 15*time.Second); err != nil {
 		log.Error("grpc server stopped", "error", err.Error())
 		os.Exit(1)
@@ -117,7 +147,7 @@ func newControlPlaneStoreFromEnv(log *slog.Logger) (controlplane.Store, func(), 
 }
 
 func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.SnapshotReader, func(), error) {
-	valkeyAddrs := splitNonEmpty(strings.TrimSpace(os.Getenv("VALKEY_ADDRS")))
+	valkeyAddrs := runtimecfg.SplitNonEmpty(strings.TrimSpace(os.Getenv("VALKEY_ADDRS")))
 	if len(valkeyAddrs) == 0 {
 		log.Info("telemetry snapshot reader disabled", "reason", "VALKEY_ADDRS not set")
 		return nil, func() {}, nil
@@ -131,7 +161,7 @@ func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.Snaps
 		return nil, nil, err
 	}
 	store, err := projectionworker.NewValkeySnapshotStore(client, projectionworker.ValkeySnapshotStoreConfig{
-		KeyPrefix: strings.TrimSpace(envOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
+		KeyPrefix: strings.TrimSpace(runtimecfg.EnvOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
 	})
 	if err != nil {
 		client.Close()
@@ -141,25 +171,7 @@ func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.Snaps
 	log.Info("telemetry snapshot reader enabled",
 		"source", "valkey",
 		"valkey_addrs", strings.Join(valkeyAddrs, ","),
-		"key_prefix", strings.TrimSpace(envOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
+		"key_prefix", strings.TrimSpace(runtimecfg.EnvOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
 	)
 	return store, func() { client.Close() }, nil
-}
-
-func splitNonEmpty(raw string) []string {
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if v := strings.TrimSpace(part); v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v
-	}
-	return fallback
 }

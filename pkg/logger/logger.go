@@ -19,6 +19,11 @@ func NewDevelopmentJSON(out io.Writer) *slog.Logger {
 
 // NewJSON builds a JSON slog logger with normalized level/timestamp fields.
 func NewJSON(out io.Writer, level slog.Level) *slog.Logger {
+	return slog.New(NewJSONHandler(out, level))
+}
+
+// NewJSONHandler builds a JSON slog handler with normalized level/timestamp fields.
+func NewJSONHandler(out io.Writer, level slog.Level) slog.Handler {
 	if out == nil {
 		out = os.Stderr
 	}
@@ -26,7 +31,7 @@ func NewJSON(out io.Writer, level slog.Level) *slog.Logger {
 	levelVar := new(slog.LevelVar)
 	levelVar.Set(level)
 
-	handler := slog.NewJSONHandler(out, &slog.HandlerOptions{
+	return slog.NewJSONHandler(out, &slog.HandlerOptions{
 		Level:     levelVar,
 		AddSource: false,
 		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
@@ -43,6 +48,4 @@ func NewJSON(out io.Writer, level slog.Level) *slog.Logger {
 			}
 		},
 	})
-
-	return slog.New(handler)
 }

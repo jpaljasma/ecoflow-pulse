@@ -13,6 +13,8 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 const (
@@ -62,13 +64,35 @@ type seedResult struct {
 }
 
 func main() {
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("dev-seed")
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	logCfg.AsyncEnabled = !runtimecfg.Bool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = runtimecfg.IntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(runtimecfg.EnvOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("init logger failed: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
 
 	cfg, err := configFromEnv()
 	if err != nil {
 		log.Error("invalid seed configuration", "error", err.Error())
 		os.Exit(1)
 	}
+
+	log.Info("dev seed starting",
+		"log_level", logCfg.Level.String(),
+		"log_async_enabled", logCfg.AsyncEnabled,
+		"log_async_queue_size", logCfg.AsyncQueueSize,
+		"log_async_bypass_level", logCfg.AsyncBypassLevel.String(),
+	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

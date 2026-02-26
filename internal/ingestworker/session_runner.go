@@ -72,6 +72,9 @@ type EcoFlowSessionConfig struct {
 	ReconnectAlertWindow    time.Duration
 	ReconnectAlertThreshold int
 	ReconnectAlertCooldown  time.Duration
+
+	LogMQTTPayloadDebug       bool
+	LogMQTTPayloadSampleEvery int
 }
 
 func DefaultEcoFlowSessionConfig() EcoFlowSessionConfig {
@@ -90,12 +93,14 @@ func DefaultEcoFlowSessionConfig() EcoFlowSessionConfig {
 		AllowUnorderedPublish: false,
 		DisableEnvelopeLabels: false,
 
-		ReconnectInitialBackoff: defaultMQTTReconnectInitialDelay,
-		ReconnectMaxBackoff:     defaultMQTTReconnectMaxDelay,
-		ReconnectJitter:         defaultMQTTReconnectJitter,
-		ReconnectAlertWindow:    defaultMQTTReconnectAlertWindow,
-		ReconnectAlertThreshold: defaultMQTTReconnectAlertThresh,
-		ReconnectAlertCooldown:  defaultMQTTReconnectAlertBackoff,
+		ReconnectInitialBackoff:   defaultMQTTReconnectInitialDelay,
+		ReconnectMaxBackoff:       defaultMQTTReconnectMaxDelay,
+		ReconnectJitter:           defaultMQTTReconnectJitter,
+		ReconnectAlertWindow:      defaultMQTTReconnectAlertWindow,
+		ReconnectAlertThreshold:   defaultMQTTReconnectAlertThresh,
+		ReconnectAlertCooldown:    defaultMQTTReconnectAlertBackoff,
+		LogMQTTPayloadDebug:       false,
+		LogMQTTPayloadSampleEvery: 100,
 	}
 }
 
@@ -148,6 +153,9 @@ func (c EcoFlowSessionConfig) normalized() EcoFlowSessionConfig {
 	}
 	if cfg.ReconnectAlertCooldown <= 0 {
 		cfg.ReconnectAlertCooldown = defaultMQTTReconnectAlertBackoff
+	}
+	if cfg.LogMQTTPayloadSampleEvery <= 0 {
+		cfg.LogMQTTPayloadSampleEvery = 100
 	}
 	return cfg
 }
@@ -340,6 +348,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 	defer func() { _ = asyncPublisher.Close() }()
 
 	envelopeBuilder := newTelemetryEnvelopeBuilder(a, cfg)
+	messageCount := 0
 
 	for {
 		select {
@@ -361,13 +370,17 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 			}
 			return true, fmt.Errorf("read mqtt message: %w", readErr)
 		}
-		r.log.Info("ecoflow ingest mqtt message received",
-			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
-			slog.String("topic", msg.Topic),
-			slog.Int("payload_bytes", len(msg.Payload)),
-			slog.String("payload_raw", string(msg.Payload)),
-		)
+		messageCount++
+		if cfg.LogMQTTPayloadDebug && (cfg.LogMQTTPayloadSampleEvery <= 1 || messageCount%cfg.LogMQTTPayloadSampleEvery == 0) {
+			r.log.Debug("ecoflow ingest mqtt message sampled",
+				slog.String("provider", a.Provider),
+				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("topic", msg.Topic),
+				slog.Int("payload_bytes", len(msg.Payload)),
+				slog.String("payload_raw", string(msg.Payload)),
+				slog.Int("sample_every", cfg.LogMQTTPayloadSampleEvery),
+			)
+		}
 		envelope, buildErr := envelopeBuilder.Build(msg, r.nowFn().UTC())
 		if buildErr != nil {
 			return true, fmt.Errorf("build telemetry envelope: %w", buildErr)

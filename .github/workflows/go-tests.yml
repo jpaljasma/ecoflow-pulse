@@ -32,3 +32,19 @@ jobs:
 
       - name: Run all Go tests
         run: go test ./...
+
+  go-test-race-critical:
+    name: go-test-race-critical
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run Go race tests (critical paths)
+        run: go test -race ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./cmd/ecoflow-grpc-api

@@ -188,6 +188,7 @@ This ensures:
 The `main` branch is protected by required CI checks. These check names are part of the architecture contract and must remain stable:
 
 - `go-test`
+- `go-test-race-critical`
 - `frontend-ci`
 - `proto-ci`
 - `CodeQL`
@@ -242,7 +243,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - **DONE:** Hourly/daily rollups retention = **3 years**
 - **DONE:** Realtime = **WebSockets**
 - **DONE:** Auth = **Keycloak** w/ Google & Facebook
-- **DONE:** CI merge gates = **go-test + frontend-ci + proto-ci + CodeQL**
+- **DONE:** CI merge gates = **go-test + go-test-race-critical + frontend-ci + proto-ci + CodeQL**
 
 ---
 
