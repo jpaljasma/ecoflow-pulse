@@ -129,6 +129,9 @@ func main() {
 	sessionCfg.ReconnectInitialBackoff = mustDuration("INGEST_MQTT_RECONNECT_INITIAL_BACKOFF", sessionCfg.ReconnectInitialBackoff)
 	sessionCfg.ReconnectMaxBackoff = mustDuration("INGEST_MQTT_RECONNECT_MAX_BACKOFF", sessionCfg.ReconnectMaxBackoff)
 	sessionCfg.ReconnectJitter = mustFloat64("INGEST_MQTT_RECONNECT_JITTER", sessionCfg.ReconnectJitter)
+	sessionCfg.ReconnectAlertWindow = mustDuration("INGEST_MQTT_RECONNECT_ALERT_WINDOW", sessionCfg.ReconnectAlertWindow)
+	sessionCfg.ReconnectAlertThreshold = mustInt("INGEST_MQTT_RECONNECT_ALERT_THRESHOLD", sessionCfg.ReconnectAlertThreshold)
+	sessionCfg.ReconnectAlertCooldown = mustDuration("INGEST_MQTT_RECONNECT_ALERT_COOLDOWN", sessionCfg.ReconnectAlertCooldown)
 	sessionCfg.PublishQueueSize = mustInt("INGEST_PUBLISH_QUEUE_SIZE", sessionCfg.PublishQueueSize)
 	sessionCfg.PublishWorkers = mustInt("INGEST_PUBLISH_WORKERS", sessionCfg.PublishWorkers)
 	sessionCfg.PublishEnqueueTimeout = mustDuration("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
@@ -152,15 +155,21 @@ func main() {
 	startWorkers := mustInt("INGEST_START_WORKERS", startWorkersDefault)
 	startQueueDefault := ingestworker.RecommendedStartQueueSize(startWorkers)
 	startQueueSize := mustInt("INGEST_START_QUEUE_SIZE", startQueueDefault)
+	leaseMissingAlertWindow := mustDuration("INGEST_LEASE_MISSING_ALERT_WINDOW", 5*time.Minute)
+	leaseMissingAlertThreshold := mustInt("INGEST_LEASE_MISSING_ALERT_THRESHOLD", 4)
+	leaseMissingAlertCooldown := mustDuration("INGEST_LEASE_MISSING_ALERT_COOLDOWN", 2*time.Minute)
 
 	loop, err := ingestworker.NewLoop(log, store, leaseMgr, runner, ingestworker.Config{
-		WorkerID:       workerID,
-		ProviderFilter: controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("INGEST_PROVIDER"))),
-		PollInterval:   pollInterval,
-		PollJitter:     pollJitter,
-		StopTimeout:    stopTimeout,
-		StartWorkers:   startWorkers,
-		StartQueueSize: startQueueSize,
+		WorkerID:                   workerID,
+		ProviderFilter:             controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("INGEST_PROVIDER"))),
+		PollInterval:               pollInterval,
+		PollJitter:                 pollJitter,
+		StopTimeout:                stopTimeout,
+		StartWorkers:               startWorkers,
+		StartQueueSize:             startQueueSize,
+		LeaseMissingAlertWindow:    leaseMissingAlertWindow,
+		LeaseMissingAlertThreshold: leaseMissingAlertThreshold,
+		LeaseMissingAlertCooldown:  leaseMissingAlertCooldown,
 	})
 	if err != nil {
 		log.Error("init ingest worker loop failed", slog.String("error", err.Error()))
@@ -179,9 +188,17 @@ func main() {
 		slog.Float64("poll_jitter", pollJitter),
 		slog.Int("start_workers", startWorkers),
 		slog.Int("start_queue_size", startQueueSize),
+		slog.Duration("lease_missing_alert_window", leaseMissingAlertWindow),
+		slog.Int("lease_missing_alert_threshold", leaseMissingAlertThreshold),
+		slog.Duration("lease_missing_alert_cooldown", leaseMissingAlertCooldown),
 		slog.Int("publish_queue_size", sessionCfg.PublishQueueSize),
 		slog.Int("publish_workers", sessionCfg.PublishWorkers),
 		slog.Duration("publish_enqueue_timeout", sessionCfg.PublishEnqueueTimeout),
+		slog.Duration("mqtt_keepalive", sessionCfg.KeepAlive),
+		slog.Duration("mqtt_read_timeout", sessionCfg.ReadTimeout),
+		slog.Duration("mqtt_reconnect_alert_window", sessionCfg.ReconnectAlertWindow),
+		slog.Int("mqtt_reconnect_alert_threshold", sessionCfg.ReconnectAlertThreshold),
+		slog.Duration("mqtt_reconnect_alert_cooldown", sessionCfg.ReconnectAlertCooldown),
 		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),
 		slog.Bool("disable_envelope_labels", sessionCfg.DisableEnvelopeLabels),
 		slog.Bool("nats_use_jetstream", publishOpts.UseJetStream),

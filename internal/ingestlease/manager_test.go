@@ -324,6 +324,80 @@ func TestRunHeartbeatReleasesOnCancelWithoutDrain(t *testing.T) {
 	}
 }
 
+func TestRunHeartbeatReacquiresOnMissingLeaseKey(t *testing.T) {
+	t.Parallel()
+
+	_, client, manager := setupTestManager(t, Config{
+		LeaseTTL:          450 * time.Millisecond,
+		HeartbeatInterval: 90 * time.Millisecond,
+		HeartbeatJitter:   0,
+		RetryPolicy: RetryPolicy{
+			MaxAttempts: 1,
+			MinBackoff:  5 * time.Millisecond,
+			MaxBackoff:  10 * time.Millisecond,
+		},
+	})
+
+	ctx := context.Background()
+	ref := LeaseRef{Provider: "ecoflow", ProviderDeviceID: "SN-heartbeat-reacquire"}
+	acquired, err := manager.Acquire(ctx, ref, "worker-heartbeat", "token-heartbeat", CallOptions{})
+	if err != nil {
+		t.Fatalf("acquire error: %v", err)
+	}
+	if !acquired.Acquired {
+		t.Fatalf("expected acquire success")
+	}
+	keys, err := KeysForRef(ref)
+	if err != nil {
+		t.Fatalf("KeysForRef error: %v", err)
+	}
+
+	beatCtx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- manager.RunHeartbeat(beatCtx, acquired.Lease, HeartbeatOptions{
+			GracefulDrain: false,
+		})
+	}()
+
+	// Let heartbeat run once, then force lease/session disappearance.
+	time.Sleep(150 * time.Millisecond)
+	delResult := client.Do(ctx, client.B().Del().Key(keys.Lease, keys.Session).Build())
+	if err := delResult.Error(); err != nil {
+		t.Fatalf("delete lease/session keys: %v", err)
+	}
+
+	// Heartbeat should self-heal by reacquiring with the same token and keep running.
+	time.Sleep(220 * time.Millisecond)
+	select {
+	case err := <-errCh:
+		t.Fatalf("heartbeat exited unexpectedly after missing lease key: %v", err)
+	default:
+	}
+
+	leaseExists, err := existsKey(ctx, client, keys.Lease)
+	if err != nil {
+		t.Fatalf("existsKey lease error: %v", err)
+	}
+	sessionExists, err := existsKey(ctx, client, keys.Session)
+	if err != nil {
+		t.Fatalf("existsKey session error: %v", err)
+	}
+	if !leaseExists || !sessionExists {
+		t.Fatalf("expected lease/session to be re-created by heartbeat self-heal, lease=%v session=%v", leaseExists, sessionExists)
+	}
+
+	cancel()
+	select {
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("heartbeat loop error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for heartbeat loop exit")
+	}
+}
+
 func TestIsRetryableErr(t *testing.T) {
 	t.Parallel()
 

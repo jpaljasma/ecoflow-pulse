@@ -98,6 +98,21 @@ func TestRecommendedStartQueueSize(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigLeaseMissingAlertDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig("worker-test")
+	if cfg.LeaseMissingAlertWindow != 5*time.Minute {
+		t.Fatalf("LeaseMissingAlertWindow=%v want=5m", cfg.LeaseMissingAlertWindow)
+	}
+	if cfg.LeaseMissingAlertThreshold != 4 {
+		t.Fatalf("LeaseMissingAlertThreshold=%d want=4", cfg.LeaseMissingAlertThreshold)
+	}
+	if cfg.LeaseMissingAlertCooldown != 2*time.Minute {
+		t.Fatalf("LeaseMissingAlertCooldown=%v want=2m", cfg.LeaseMissingAlertCooldown)
+	}
+}
+
 func TestLoopStopsOnCredentialDisable(t *testing.T) {
 	t.Parallel()
 
@@ -141,6 +156,112 @@ func TestLoopStopsOnCredentialDisable(t *testing.T) {
 	})
 	waitForAtLeast(t, &runner.stops, 1, time.Second, "session stop on credential disable")
 
+	cancelAndWait(t, cancel, done)
+}
+
+func TestLoopRestartsWhenCredentialIDChanges(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStore{}
+	store.set([]controlplane.IngestAssignment{
+		{
+			Provider:           controlplane.ProviderEcoFlow,
+			ProviderDeviceID:   "Y711ZABA9H2P0294",
+			CredentialID:       "cred-1",
+			AccessKey:          "ak-1",
+			SecretKey:          "sk-1",
+			DeviceIsActive:     true,
+			CredentialIsActive: true,
+			IngestDesiredState: "active",
+		},
+	})
+	leases := &fakeLeaseManager{}
+	runner := &fakeSessionRunner{}
+
+	loop, err := NewLoop(testLogger(), store, leases, runner, Config{
+		WorkerID:     "worker-test",
+		PollInterval: 15 * time.Millisecond,
+		PollJitter:   0,
+		StopTimeout:  2 * time.Second,
+		StartWorkers: 8,
+	})
+	if err != nil {
+		t.Fatalf("NewLoop error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := runLoop(ctx, loop)
+
+	waitForAtLeast(t, &runner.starts, 1, time.Second, "initial session start")
+
+	store.set([]controlplane.IngestAssignment{
+		{
+			Provider:           controlplane.ProviderEcoFlow,
+			ProviderDeviceID:   "Y711ZABA9H2P0294",
+			CredentialID:       "cred-2",
+			AccessKey:          "ak-2",
+			SecretKey:          "sk-2",
+			DeviceIsActive:     true,
+			CredentialIsActive: true,
+			IngestDesiredState: "active",
+		},
+	})
+
+	waitForAtLeast(t, &runner.stops, 1, time.Second, "session stop on credential id change")
+	waitForAtLeast(t, &runner.starts, 2, time.Second, "session restart on credential id change")
+	cancelAndWait(t, cancel, done)
+}
+
+func TestLoopRestartsWhenCredentialMaterialChanges(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStore{}
+	store.set([]controlplane.IngestAssignment{
+		{
+			Provider:           controlplane.ProviderEcoFlow,
+			ProviderDeviceID:   "R351ZABAPH331057",
+			CredentialID:       "cred-1",
+			AccessKey:          "ak-1",
+			SecretKey:          "sk-1",
+			DeviceIsActive:     true,
+			CredentialIsActive: true,
+			IngestDesiredState: "active",
+		},
+	})
+	leases := &fakeLeaseManager{}
+	runner := &fakeSessionRunner{}
+
+	loop, err := NewLoop(testLogger(), store, leases, runner, Config{
+		WorkerID:     "worker-test",
+		PollInterval: 15 * time.Millisecond,
+		PollJitter:   0,
+		StopTimeout:  2 * time.Second,
+		StartWorkers: 8,
+	})
+	if err != nil {
+		t.Fatalf("NewLoop error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := runLoop(ctx, loop)
+
+	waitForAtLeast(t, &runner.starts, 1, time.Second, "initial session start")
+
+	store.set([]controlplane.IngestAssignment{
+		{
+			Provider:           controlplane.ProviderEcoFlow,
+			ProviderDeviceID:   "R351ZABAPH331057",
+			CredentialID:       "cred-1",
+			AccessKey:          "ak-rotated",
+			SecretKey:          "sk-rotated",
+			DeviceIsActive:     true,
+			CredentialIsActive: true,
+			IngestDesiredState: "active",
+		},
+	})
+
+	waitForAtLeast(t, &runner.stops, 1, time.Second, "session stop on credential material change")
+	waitForAtLeast(t, &runner.starts, 2, time.Second, "session restart on credential material change")
 	cancelAndWait(t, cancel, done)
 }
 

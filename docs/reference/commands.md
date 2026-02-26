@@ -127,13 +127,23 @@ Ingest worker MQTT session + telemetry bus knobs:
 
 ```bash
 # MQTT session defaults (per leased provider device)
-export INGEST_MQTT_KEEPALIVE=60s
+export INGEST_MQTT_KEEPALIVE=90s
 export INGEST_MQTT_CONNECT_TIMEOUT=10s
-export INGEST_MQTT_READ_TIMEOUT=30s
+export INGEST_MQTT_READ_TIMEOUT=45s
 export INGEST_MQTT_WRITE_TIMEOUT=15s
 export INGEST_MQTT_RECONNECT_INITIAL_BACKOFF=500ms
 export INGEST_MQTT_RECONNECT_MAX_BACKOFF=15s
 export INGEST_MQTT_RECONNECT_JITTER=0.25
+
+# EOF reconnect-rate spike alerting (read mqtt message: EOF)
+export INGEST_MQTT_RECONNECT_ALERT_WINDOW=5m
+export INGEST_MQTT_RECONNECT_ALERT_THRESHOLD=8
+export INGEST_MQTT_RECONNECT_ALERT_COOLDOWN=2m
+
+# Lease-loss spike alerting (heartbeat renew rejected: missing)
+export INGEST_LEASE_MISSING_ALERT_WINDOW=5m
+export INGEST_LEASE_MISSING_ALERT_THRESHOLD=4
+export INGEST_LEASE_MISSING_ALERT_COOLDOWN=2m
 
 # Bounded async publish queue (per MQTT session)
 export INGEST_PUBLISH_QUEUE_SIZE=256
@@ -326,6 +336,9 @@ make archive-worker
 make replay-cli
 make gap-detector
 make gap-repair-worker
+make services-image-build-local
+make services-image-import-local
+make services-image-local-up
 make k3d-up
 make platform-up
 make platform-wait
@@ -423,6 +436,16 @@ Notes:
   - `kubectl get nodes -o wide`
   - `kubectl get pods -n pulse-platform`
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services` using `deploy/env/local/values.services.yaml`.
+- `make services-image-build-local` builds local telemetry worker image
+  `$(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)` from
+  `deploy/docker/pulse-services.Dockerfile`.
+- `make services-image-import-local` imports that local worker image into
+  k3d cluster `$(K3D_CLUSTER_NAME)`.
+- `make services-image-local-up` runs build + import for local k3d in one step.
+- `make services-up` updates Helm deps and installs/upgrades `pulse-services`
+  using `deploy/env/local/values.services.yaml`. By default it auto-builds and
+  imports the local worker image before Helm apply; set
+  `SERVICES_AUTO_BUILD_IMAGE=0` to skip.
 - `make platform-wait` blocks until critical platform dependencies are ready:
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
@@ -462,6 +485,10 @@ Notes:
     - `DB_SEED_USER_SUBJECT=jpaljasma@gmail.com`,
     - `DB_SEED_USER_EMAIL=jpaljasma@gmail.com`,
     - `DB_SEED_SERIALS=R351ZABAPH331057,Y711ZABA9H2P0294`.
+  - after credential rotation, recycle ingest sessions so workers immediately
+    reconnect with fresh provider credentials:
+    - `kubectl -n pulse-services rollout restart deploy/pulse-services-go-ingest`
+    - `kubectl -n pulse-services rollout status deploy/pulse-services-go-ingest --timeout=120s`
 - `make auth-keycloak-verify-local` validates Keycloak realm bootstrap on local k3d:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),
