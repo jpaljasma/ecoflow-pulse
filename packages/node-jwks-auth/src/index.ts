@@ -42,7 +42,8 @@ export function createJwksVerifier(cfg: JwksVerifierConfig): JwtVerifier {
   if (!audience) {
     throw new Error('audience is required');
   }
-  const jwksUrl = (cfg.jwksUrl ?? `${issuerUrl.replace(/\/+$/, '')}/protocol/openid-connect/certs`).trim();
+  const issuerBaseUrl = trimTrailingSlashes(issuerUrl);
+  const jwksUrl = (cfg.jwksUrl ?? `${issuerBaseUrl}/protocol/openid-connect/certs`).trim();
   const jwks = createRemoteJWKSet(new URL(jwksUrl));
   return async (rawJwt: string): Promise<AuthClaims> => {
     const { payload } = await jwtVerify(rawJwt, jwks, {
@@ -60,6 +61,14 @@ export function createJwksVerifier(cfg: JwksVerifierConfig): JwtVerifier {
       rawJwt
     };
   };
+}
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
 }
 
 export function createJwksAuthMiddleware(cfg: JwtMiddlewareConfig) {

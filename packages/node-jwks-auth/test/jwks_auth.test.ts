@@ -156,4 +156,50 @@ describe('createJwksVerifier', () => {
     expect(claims.email).toBe('dev@example.com');
     expect(claims.roles).toEqual(['admin', 'viewer']);
   });
+
+  it('derives default JWKS path from issuer without regex trailing slash trim', async () => {
+    const audience = 'pulse-api';
+    const { publicKey, privateKey } = await generateKeyPair('RS256');
+    const jwk = await exportJWK(publicKey);
+    jwk.kid = 'test-kid-2';
+    jwk.alg = 'RS256';
+    jwk.use = 'sig';
+
+    let requestedPath = '';
+    const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      requestedPath = req.url ?? '';
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ keys: [jwk] }));
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    closeServer = async () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('jwks server address unavailable');
+    }
+    const issuerUrl = `http://127.0.0.1:${address.port}/realms/pulse////`;
+
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-kid-2' })
+      .setIssuer(issuerUrl)
+      .setAudience(audience)
+      .setSubject('kc-subject-456')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey);
+
+    const verifier = createJwksVerifier({
+      issuerUrl,
+      audience
+    });
+    const claims = await verifier(token);
+    expect(claims.subject).toBe('kc-subject-456');
+    expect(requestedPath).toBe('/realms/pulse/protocol/openid-connect/certs');
+  });
 });
