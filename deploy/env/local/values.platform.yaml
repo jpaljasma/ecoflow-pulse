@@ -147,6 +147,8 @@ keycloakRealm:
 minio:
   mode: standalone
   replicas: 1
+  rootUser: minio
+  rootPassword: minio123
   persistence:
     enabled: false
   resources:

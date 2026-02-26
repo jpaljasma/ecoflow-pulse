@@ -74,6 +74,13 @@ Defaults:
 - current local services defaults enable containerized telemetry workers
   (`go-ingest`, `go-projection`, `go-archive`) using image
   `ecoflow-pulse/services:local`.
+- local/dev MinIO credentials are intentionally pinned for deterministic
+  bring-up and service compatibility:
+  - platform chart uses `minio.rootUser` / `minio.rootPassword`
+    (MinIO chart `5.4.0` top-level keys),
+  - services runtime secret uses matching
+    `ARCHIVE_OBJECT_ACCESS_KEY` / `ARCHIVE_OBJECT_SECRET_KEY`
+    (`minio` / `minio123`).
 - local keeps `ingress-nginx`, `cert-manager`, `external-secrets`, and
   `observability-lite` disabled by default.
 - dev values enable `ingress-nginx` + `cert-manager` with cost-min settings
