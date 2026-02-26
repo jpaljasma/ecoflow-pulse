@@ -293,6 +293,7 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
 1. Treat CI gates as architecture controls, not optional repo hygiene.
 2. Required checks for merges to `main`:
    - `go-test`
+   - `go-test-race-critical`
    - `frontend-ci`
    - `proto-ci`
    - `CodeQL`
