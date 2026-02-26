@@ -36,7 +36,7 @@ func TestEnsureJetStreamIngestStreamAddsWhenMissing(t *testing.T) {
 	if mgr.lastAdded == nil {
 		t.Fatalf("expected stream config to be added")
 	}
-	if got := mgr.lastAdded.Subjects; len(got) != 1 || got[0] != "pulse.telemetry.ingest.s*" {
+	if got := mgr.lastAdded.Subjects; len(got) != 1 || got[0] != "pulse.telemetry.ingest.*" {
 		t.Fatalf("unexpected subjects=%v", got)
 	}
 }
@@ -48,7 +48,7 @@ func TestEnsureJetStreamIngestStreamUpdatesWhenConfigDiffers(t *testing.T) {
 		streamInfo: &nats.StreamInfo{
 			Config: nats.StreamConfig{
 				Name:      "PULSE_TELEMETRY_INGEST",
-				Subjects:  []string{"pulse.telemetry.ingest.s*"},
+				Subjects:  []string{"pulse.telemetry.ingest.*"},
 				Retention: nats.LimitsPolicy,
 				MaxAge:    12 * time.Hour,
 				Storage:   nats.FileStorage,
@@ -84,7 +84,7 @@ func TestEnsureJetStreamIngestStreamNoopWhenConfigMatches(t *testing.T) {
 		streamInfo: &nats.StreamInfo{
 			Config: nats.StreamConfig{
 				Name:      "PULSE_TELEMETRY_INGEST",
-				Subjects:  []string{"pulse.telemetry.ingest.s*"},
+				Subjects:  []string{"pulse.telemetry.ingest.*"},
 				Retention: nats.LimitsPolicy,
 				MaxAge:    72 * time.Hour,
 				Storage:   nats.FileStorage,

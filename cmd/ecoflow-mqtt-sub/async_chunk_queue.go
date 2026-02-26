@@ -88,10 +88,7 @@ func (q *asyncChunkQueue) Flush() error {
 	if q == nil {
 		return nil
 	}
-	for {
-		if q.pending.Load() <= 0 {
-			break
-		}
+	for q.pending.Load() > 0 {
 		time.Sleep(1 * time.Millisecond)
 	}
 	if raw, ok := q.err.Load().(string); ok && raw != "" {

@@ -345,8 +345,8 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 		)
 	}
 
-	signMatchRatio := 0.5
-	recentSignMatchRatio := 0.5
+	var signMatchRatio float64
+	var recentSignMatchRatio float64
 	directionDeadband := adaptiveDirectionDeadband(stdNetW)
 	recentSamples := lastNSamples(samples, 6)
 	recentAbsMean := averageAbs(recentSamples)
@@ -518,7 +518,6 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 						if corrected > 0 {
 							switch stateForML {
 							case systemStateCharging:
-								chargeEtaMinutes = corrected
 								estimates.ChargeValue = formatETAMinutes(corrected)
 								estimates.ActiveValue = estimates.ChargeValue
 								if energyToChargeWh > 0 {
@@ -530,7 +529,6 @@ func estimateBatteryETAsML(snapshot *energySnapshot, history *minuteTelemetryHis
 									}
 								}
 							case systemStateDischarging:
-								dischargeEtaMinutes = corrected
 								estimates.DischargeValue = formatETAMinutes(corrected)
 								estimates.ActiveValue = estimates.DischargeValue
 								if energyToDischargeWh > 0 {

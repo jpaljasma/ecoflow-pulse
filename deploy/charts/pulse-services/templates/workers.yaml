@@ -1,0 +1,101 @@
+{{- if .Values.runtime.workers.ingest.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-ingest
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-ingest
+spec:
+  replicas: {{ .Values.runtime.workers.ingest.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-ingest
+  template:
+    metadata:
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-ingest
+    spec:
+      containers:
+        - name: go-ingest
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-ingest-worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.ingest.resources | nindent 12 }}
+{{- end }}
+---
+{{- if .Values.runtime.workers.projection.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-projection
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-projection
+spec:
+  replicas: {{ .Values.runtime.workers.projection.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-projection
+  template:
+    metadata:
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-projection
+    spec:
+      containers:
+        - name: go-projection
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-projection-worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.projection.resources | nindent 12 }}
+{{- end }}
+---
+{{- if .Values.runtime.workers.archive.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-archive
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-archive
+spec:
+  replicas: {{ .Values.runtime.workers.archive.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-archive
+  template:
+    metadata:
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-archive
+    spec:
+      containers:
+        - name: go-archive
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-archive-worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
+{{- end }}

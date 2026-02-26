@@ -2,15 +2,19 @@
 
 This directory contains the Kubernetes deployment layout for EcoFlow Pulse.
 
-Current state: **scaffold only** (Milestone 0, task #1 in progress).
+Current state: **platform + telemetry worker runtime in local k3d**.
 
 ## Layout
 
 - `charts/pulse-platform/`: umbrella chart for platform dependencies
   (NATS, CloudNativePG/Postgres, Valkey, Keycloak, MinIO, ingress-nginx,
   cert-manager, External Secrets, observability-lite).
-- `charts/pulse-services/`: umbrella chart for Pulse runtime services
-  (Node BFF, WS gateway, Go ingest/projection/query).
+- `charts/pulse-services/`: Pulse runtime services chart.
+  - currently deploys Go telemetry workers:
+    - `go-ingest`
+    - `go-projection`
+    - `go-archive`
+  - Node BFF/WS gateway/query API remain staged for later milestones.
 - `env/local/`: local values overrides.
 - `env/dev/`: dev values overrides.
 - `env/dev/values.argocd.yaml`: Argo CD bootstrap values for GKE dev.
@@ -29,10 +33,10 @@ Current state: **scaffold only** (Milestone 0, task #1 in progress).
 
 ## Iteration Plan
 
-1. Scaffold complete (this step).
-2. Add platform chart dependencies progressively.
-3. Add service deployments progressively.
-4. Wire Make targets and one-command local bringup.
+1. Platform chart dependencies complete for local/dev baseline.
+2. Containerized telemetry worker Deployments active in local.
+3. Add query/API/BFF services in later milestones.
+4. Expand autoscaling and production hardening policies.
 
 ## Local Bringup (Make)
 
@@ -47,6 +51,8 @@ Expanded commands:
 ```bash
 make k3d-up
 make platform-up
+make services-image-build-local
+make services-image-import-local
 make services-up
 make dev-down
 make dev-down DELETE_CLUSTER=1
@@ -65,6 +71,9 @@ Defaults:
 - `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).
+- current local services defaults enable containerized telemetry workers
+  (`go-ingest`, `go-projection`, `go-archive`) using image
+  `ecoflow-pulse/services:local`.
 - local keeps `ingress-nginx`, `cert-manager`, `external-secrets`, and
   `observability-lite` disabled by default.
 - dev values enable `ingress-nginx` + `cert-manager` with cost-min settings
@@ -87,3 +96,15 @@ helm dependency update deploy/charts/pulse-platform
 Repository policy:
 - commit `Chart.lock` for reproducible resolution,
 - do not commit vendored `charts/*.tgz` artifacts.
+
+## Worker Image Build/Load (local)
+
+Worker binaries are packaged into one local image via:
+
+```bash
+make services-image-build-local
+make services-image-import-local
+```
+
+`make services-up` runs these automatically when
+`SERVICES_AUTO_BUILD_IMAGE=1` (default).

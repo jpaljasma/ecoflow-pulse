@@ -68,7 +68,7 @@ func main() {
 		log.Error("init manifest store failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer manifestStore.Close()
+	defer func() { _ = manifestStore.Close() }()
 
 	objectCfg := replaycli.DefaultMinIOObjectReaderConfig()
 	objectCfg.Endpoint = envOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectCfg.Endpoint)
@@ -81,7 +81,7 @@ func main() {
 		log.Error("init object reader failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer objectReader.Close()
+	defer func() { _ = objectReader.Close() }()
 
 	replayPublisher, err := replaycli.NewNATSPublisherWithConfig(natsConn, replaycli.NATSPublisherConfig{
 		SubjectConfig: subjectCfg,
@@ -91,14 +91,14 @@ func main() {
 		log.Error("init ingest replay publisher failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer replayPublisher.Close()
+	defer func() { _ = replayPublisher.Close() }()
 
 	runner, err := replaycli.NewRunner(log, manifestStore, objectReader, replayPublisher)
 	if err != nil {
 		log.Error("init replay runner failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer runner.Close()
+	defer func() { _ = runner.Close() }()
 
 	cfg := gaprepair.DefaultWorkerConfig()
 	cfg.StreamName = envOrDefault("GAP_REPAIR_STREAM_NAME", cfg.StreamName)

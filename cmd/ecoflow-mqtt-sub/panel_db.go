@@ -342,7 +342,6 @@ func selectPanelCandidatesForMetadata(candidates []panelChannelCandidate) (best 
 		return panelChannelCandidate{}, false, panelChannelCandidate{}, false
 	}
 	best = candidates[0]
-	hasBest = true
 	for i := 1; i < len(candidates); i++ {
 		if candidateIsDistinctForMetadata(best, candidates[i]) {
 			return best, true, candidates[i], true
@@ -595,7 +594,7 @@ func parseCompatibilityMaxVolts(label string) (float64, bool) {
 		return 0, false
 	}
 	if high < low {
-		low, high = high, low
+		return low, true
 	}
 	return high, true
 }

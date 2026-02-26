@@ -34,7 +34,7 @@ func TestEnsureJetStreamGapRepairStreamAddsWhenMissing(t *testing.T) {
 	if mgr.lastAdded == nil {
 		t.Fatalf("expected stream config to be added")
 	}
-	if got := mgr.lastAdded.Subjects; len(got) != 1 || got[0] != "pulse.telemetry.gaprepair.s*" {
+	if got := mgr.lastAdded.Subjects; len(got) != 1 || got[0] != "pulse.telemetry.gaprepair.*" {
 		t.Fatalf("unexpected subjects=%v", got)
 	}
 }
@@ -45,7 +45,7 @@ func TestEnsureJetStreamGapRepairStreamUpdatesWhenConfigDiffers(t *testing.T) {
 	mgr := &fakeJetStreamManager{
 		streamInfo: &nats.StreamInfo{Config: nats.StreamConfig{
 			Name:      "PULSE_TELEMETRY_GAPREPAIR",
-			Subjects:  []string{"pulse.telemetry.gaprepair.s*"},
+			Subjects:  []string{"pulse.telemetry.gaprepair.*"},
 			Retention: nats.WorkQueuePolicy,
 			MaxAge:    12 * time.Hour,
 			Storage:   nats.FileStorage,
@@ -79,7 +79,7 @@ func TestEnsureJetStreamGapRepairStreamNoopWhenConfigMatches(t *testing.T) {
 	mgr := &fakeJetStreamManager{
 		streamInfo: &nats.StreamInfo{Config: nats.StreamConfig{
 			Name:      "PULSE_TELEMETRY_GAPREPAIR",
-			Subjects:  []string{"pulse.telemetry.gaprepair.s*"},
+			Subjects:  []string{"pulse.telemetry.gaprepair.*"},
 			Retention: nats.WorkQueuePolicy,
 			MaxAge:    24 * time.Hour,
 			Storage:   nats.FileStorage,

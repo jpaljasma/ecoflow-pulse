@@ -76,7 +76,7 @@ func (r *MinIOObjectReader) ReadObject(ctx context.Context, bucket string, key s
 	if err != nil {
 		return nil, fmt.Errorf("get object %s/%s: %w", bucket, key, err)
 	}
-	defer object.Close()
+	defer func() { _ = object.Close() }()
 	body, err := io.ReadAll(object)
 	if err != nil {
 		return nil, fmt.Errorf("read object %s/%s: %w", bucket, key, err)

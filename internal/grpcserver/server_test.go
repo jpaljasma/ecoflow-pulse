@@ -65,7 +65,7 @@ func TestReflectionEnabledOnlyLocalDev(t *testing.T) {
 			t.Fatalf("New failed: %v", err)
 		}
 		defer s.Stop()
-		defer lis.Close()
+		defer func() { _ = lis.Close() }()
 
 		info := s.GetServiceInfo()
 		hasReflection := false
@@ -94,7 +94,7 @@ func TestServeWithSignalStopsOnContextCancel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

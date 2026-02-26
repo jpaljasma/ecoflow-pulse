@@ -288,6 +288,7 @@ func inferPanelPortState(hasWatts bool, watts float64, hasRaw bool, raw int64) s
 	return "idle"
 }
 
+//nolint:unused // reserved for future per-port direct prediction API.
 func predictPort(
 	snapshot *energySnapshot,
 	model *panelselect.Model,

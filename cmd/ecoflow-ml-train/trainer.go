@@ -133,7 +133,7 @@ func loadTrainingRecords(path string) ([]trainingRecord, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open csv: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	reader := csv.NewReader(file)
 	rows, err := reader.ReadAll()

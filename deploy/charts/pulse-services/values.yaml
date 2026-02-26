@@ -8,14 +8,52 @@ scaffold:
   enabled: true
   message: "pulse-services scaffold chart"
 
-services:
-  nodeBff:
-    enabled: false
-  wsGateway:
-    enabled: false
-  goIngest:
-    enabled: false
-  goProjection:
-    enabled: false
-  goQueryApi:
-    enabled: false
+runtime:
+  image:
+    repository: ecoflow-pulse/services
+    tag: local
+    pullPolicy: IfNotPresent
+  env:
+    controlPlaneDBDSN: ""
+    archiveManifestDBDSN: ""
+    natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
+    valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
+    archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
+    archiveObjectAccessKey: "minio"
+    archiveObjectSecretKey: "minio123"
+    archiveObjectBucket: "pulse-telemetry-raw"
+    archiveObjectPrefix: "raw"
+    archiveObjectRegion: "us-east-1"
+    archiveObjectSecure: "false"
+    archiveObjectAutoCreateBucket: "true"
+  workers:
+    ingest:
+      enabled: false
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: 1
+          memory: 1Gi
+    projection:
+      enabled: false
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+    archive:
+      enabled: false
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi

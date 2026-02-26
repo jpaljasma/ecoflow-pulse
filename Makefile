@@ -68,6 +68,11 @@ ARCHIVE_INTEGRATION_SERVICE ?= pulse-platform-minio
 ARCHIVE_INTEGRATION_SECRET ?= pulse-platform-minio
 ARCHIVE_INTEGRATION_LOCAL_PORT ?= 9000
 ARCHIVE_INTEGRATION_ENDPOINT ?= 127.0.0.1:$(ARCHIVE_INTEGRATION_LOCAL_PORT)
+SERVICES_IMAGE_REPO ?= ecoflow-pulse/services
+SERVICES_IMAGE_TAG ?= local
+SERVICES_IMAGE ?= $(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)
+SERVICES_IMAGE_DOCKERFILE ?= deploy/docker/pulse-services.Dockerfile
+SERVICES_AUTO_BUILD_IMAGE ?= 1
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -82,7 +87,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -164,6 +169,28 @@ build:
 		echo "building $$cmd"; \
 		$(GO) build -ldflags "$(LDFLAGS)" -o "bin/$$cmd" "./cmd/$$cmd"; \
 	done
+
+services-image-build-local:
+	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+		echo "$(DOCKER) not found. Install Docker Desktop first."; \
+		exit 1; \
+	fi
+	@if ! $(DOCKER) info >/dev/null 2>&1; then \
+		echo "Docker daemon is not running. Start Docker Desktop and retry."; \
+		exit 1; \
+	fi
+	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
+	$(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .
+
+services-image-import-local:
+	@if ! command -v $(K3D) >/dev/null 2>&1; then \
+		echo "$(K3D) not found. Install k3d first."; \
+		exit 1; \
+	fi
+	@echo "importing services image $(SERVICES_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)"
+	$(K3D) image import $(SERVICES_IMAGE) -c $(K3D_CLUSTER_NAME)
+
+services-image-local-up: services-image-build-local services-image-import-local
 
 smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -336,6 +363,9 @@ services-up:
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \
 		echo "$(HELM) not found. Install helm first."; \
 		exit 1; \
+	fi
+	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
+		$(MAKE) services-image-local-up; \
 	fi
 	$(HELM) dependency update $(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
@@ -510,7 +540,7 @@ db-seed-dev-local: db-migrate-up-local
 	port="$(DB_SEED_LOCAL_PORT)"; \
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
-	pf_log="/tmp/ecoflow-dev-seed-port-forward-$$.log"; \
+	pf_log="$$(mktemp -t ecoflow-dev-seed-port-forward.XXXXXX.log)"; \
 	$(LOCAL_KUBECTL) -n "$$ns" port-forward "svc/$$cluster-rw" "$$port:5432" >"$$pf_log" 2>&1 & \
 	pf_pid=$$!; \
 	cleanup() { \

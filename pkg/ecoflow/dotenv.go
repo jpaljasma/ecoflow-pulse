@@ -103,12 +103,12 @@ func isValidDotEnvKey(key string) bool {
 	}
 	for i, r := range key {
 		if i == 0 {
-			if !(unicode.IsLetter(r) || r == '_') {
+			if !unicode.IsLetter(r) && r != '_' {
 				return false
 			}
 			continue
 		}
-		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_') {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
 			return false
 		}
 	}

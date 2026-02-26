@@ -2,5 +2,35 @@ global:
   environment: local
 
 scaffold:
-  enabled: true
-  message: "pulse-services local scaffold"
+  enabled: false
+  message: "pulse-services local runtime"
+
+runtime:
+  image:
+    repository: ecoflow-pulse/services
+    tag: local
+    pullPolicy: IfNotPresent
+  env:
+    controlPlaneDBDSN: "postgres://pulse:pulse-local-dev-password@pulse-platform-core-rw.pulse-platform.svc.cluster.local:5432/pulse?sslmode=disable"
+    archiveManifestDBDSN: "postgres://pulse:pulse-local-dev-password@pulse-platform-core-rw.pulse-platform.svc.cluster.local:5432/pulse?sslmode=disable"
+    natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
+    # Valkey chart is replication+sentinel. For write-heavy lease/snapshot paths we target the current primary endpoint.
+    valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
+    archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
+    archiveObjectAccessKey: "minio"
+    archiveObjectSecretKey: "minio123"
+    archiveObjectBucket: "pulse-telemetry-raw"
+    archiveObjectPrefix: "raw"
+    archiveObjectRegion: "us-east-1"
+    archiveObjectSecure: "false"
+    archiveObjectAutoCreateBucket: "true"
+  workers:
+    ingest:
+      enabled: true
+      replicaCount: 1
+    projection:
+      enabled: true
+      replicaCount: 1
+    archive:
+      enabled: true
+      replicaCount: 1

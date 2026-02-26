@@ -40,7 +40,7 @@ func TestRunnerReplayDevicesFiltersAndPublishes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new replay runner: %v", err)
 	}
-	defer runner.Close()
+	defer func() { _ = runner.Close() }()
 
 	report, err := runner.ReplayDevices(context.Background(), ReplayRequest{
 		FromUnixMS:        1,
@@ -94,7 +94,7 @@ func TestRunnerReplayFleetPublishesAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new replay runner: %v", err)
 	}
-	defer runner.Close()
+	defer func() { _ = runner.Close() }()
 
 	report, err := runner.ReplayFleet(context.Background(), ReplayRequest{
 		FromUnixMS: 1,
@@ -131,7 +131,7 @@ func TestRunnerReplayStopsOnPublishFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new replay runner: %v", err)
 	}
-	defer runner.Close()
+	defer func() { _ = runner.Close() }()
 
 	report, err := runner.ReplayFleet(context.Background(), ReplayRequest{
 		FromUnixMS: 1,

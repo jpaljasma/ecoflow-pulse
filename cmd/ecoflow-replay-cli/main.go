@@ -88,7 +88,7 @@ func main() {
 		log.Error("init manifest store failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer manifest.Close()
+	defer func() { _ = manifest.Close() }()
 
 	if mode == modeListDevices {
 		if err := runListDevices(context.Background(), log, manifest, fromUnixMS, toUnixMS, maxObjects); err != nil {
@@ -137,7 +137,7 @@ func main() {
 		log.Error("init replay runner failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer runner.Close()
+	defer func() { _ = runner.Close() }()
 
 	request := replaycli.ReplayRequest{
 		Provider:          strings.TrimSpace(provider),

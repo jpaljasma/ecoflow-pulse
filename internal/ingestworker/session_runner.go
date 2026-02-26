@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	mathrand "math/rand"
 	"strings"
@@ -17,13 +18,16 @@ import (
 )
 
 const (
-	defaultMQTTKeepAlive             = 60 * time.Second
+	defaultMQTTKeepAlive             = 90 * time.Second
 	defaultMQTTConnectTimeout        = 10 * time.Second
-	defaultMQTTReadTimeout           = 30 * time.Second
+	defaultMQTTReadTimeout           = 45 * time.Second
 	defaultMQTTWriteTimeout          = 15 * time.Second
 	defaultMQTTReconnectInitialDelay = 500 * time.Millisecond
 	defaultMQTTReconnectMaxDelay     = 15 * time.Second
 	defaultMQTTReconnectJitter       = 0.25
+	defaultMQTTReconnectAlertWindow  = 5 * time.Minute
+	defaultMQTTReconnectAlertThresh  = 8
+	defaultMQTTReconnectAlertBackoff = 2 * time.Minute
 	ecoflowAccessKeyInvalidCode      = "8513"
 )
 
@@ -64,6 +68,10 @@ type EcoFlowSessionConfig struct {
 	ReconnectInitialBackoff time.Duration
 	ReconnectMaxBackoff     time.Duration
 	ReconnectJitter         float64
+
+	ReconnectAlertWindow    time.Duration
+	ReconnectAlertThreshold int
+	ReconnectAlertCooldown  time.Duration
 }
 
 func DefaultEcoFlowSessionConfig() EcoFlowSessionConfig {
@@ -85,6 +93,9 @@ func DefaultEcoFlowSessionConfig() EcoFlowSessionConfig {
 		ReconnectInitialBackoff: defaultMQTTReconnectInitialDelay,
 		ReconnectMaxBackoff:     defaultMQTTReconnectMaxDelay,
 		ReconnectJitter:         defaultMQTTReconnectJitter,
+		ReconnectAlertWindow:    defaultMQTTReconnectAlertWindow,
+		ReconnectAlertThreshold: defaultMQTTReconnectAlertThresh,
+		ReconnectAlertCooldown:  defaultMQTTReconnectAlertBackoff,
 	}
 }
 
@@ -128,6 +139,15 @@ func (c EcoFlowSessionConfig) normalized() EcoFlowSessionConfig {
 	}
 	if cfg.ReconnectJitter < 0 {
 		cfg.ReconnectJitter = 0
+	}
+	if cfg.ReconnectAlertWindow <= 0 {
+		cfg.ReconnectAlertWindow = defaultMQTTReconnectAlertWindow
+	}
+	if cfg.ReconnectAlertThreshold <= 0 {
+		cfg.ReconnectAlertThreshold = defaultMQTTReconnectAlertThresh
+	}
+	if cfg.ReconnectAlertCooldown <= 0 {
+		cfg.ReconnectAlertCooldown = defaultMQTTReconnectAlertBackoff
 	}
 	return cfg
 }
@@ -191,6 +211,11 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 
 	cfg := r.cfg.normalized()
 	backoff := cfg.ReconnectInitialBackoff
+	eofReconnects := newReconnectRateTracker(
+		cfg.ReconnectAlertWindow,
+		cfg.ReconnectAlertThreshold,
+		cfg.ReconnectAlertCooldown,
+	)
 
 	for {
 		if ctx.Err() != nil {
@@ -220,16 +245,41 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 			)
 		}
 
+		eofReconnectCount := 0
+		eofReconnectsPerMin := 0.0
+		if isMQTTReadEOF(err) {
+			eofReconnectCount, eofReconnectsPerMin, spike := eofReconnects.Record(r.nowFn().UTC())
+			if spike {
+				r.log.Warn("ecoflow mqtt eof reconnect-rate spike detected",
+					slog.String("provider", a.Provider),
+					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.Int("eof_reconnects_in_window", eofReconnectCount),
+					slog.Float64("eof_reconnects_per_min", eofReconnectsPerMin),
+					slog.Duration("window", cfg.ReconnectAlertWindow),
+					slog.Int("threshold", cfg.ReconnectAlertThreshold),
+					slog.Duration("cooldown", cfg.ReconnectAlertCooldown),
+				)
+			}
+		}
+
 		if connected {
 			backoff = cfg.ReconnectInitialBackoff
 		}
 		retryIn := applySessionJitter(backoff, cfg.ReconnectJitter)
-		r.log.Warn("ecoflow ingest session error; reconnecting",
+		logFields := []any{
 			slog.String("provider", a.Provider),
 			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 			slog.Duration("retry_in", retryIn),
-		)
+		}
+		if eofReconnectCount > 0 {
+			logFields = append(logFields,
+				slog.Int("eof_reconnects_in_window", eofReconnectCount),
+				slog.Float64("eof_reconnects_per_min", eofReconnectsPerMin),
+				slog.Duration("eof_reconnect_window", cfg.ReconnectAlertWindow),
+			)
+		}
+		r.log.Warn("ecoflow ingest session error; reconnecting", logFields...)
 		if sleepErr := r.sleepFn(ctx, retryIn); sleepErr != nil {
 			return nil
 		}
@@ -419,4 +469,55 @@ func isMQTTConnectRejected(err error) bool {
 	return strings.Contains(lower, "connect rejected") ||
 		strings.Contains(lower, "return code=5") ||
 		strings.Contains(lower, "not authorized")
+}
+
+func isMQTTReadEOF(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "read mqtt message: eof")
+}
+
+type reconnectRateTracker struct {
+	window    time.Duration
+	threshold int
+	cooldown  time.Duration
+	lastAlert time.Time
+	events    []time.Time
+}
+
+func newReconnectRateTracker(window time.Duration, threshold int, cooldown time.Duration) *reconnectRateTracker {
+	return &reconnectRateTracker{
+		window:    window,
+		threshold: threshold,
+		cooldown:  cooldown,
+		events:    make([]time.Time, 0, threshold*2),
+	}
+}
+
+func (t *reconnectRateTracker) Record(now time.Time) (count int, perMinute float64, spike bool) {
+	if t == nil || t.window <= 0 {
+		return 0, 0, false
+	}
+	cutoff := now.Add(-t.window)
+	keep := t.events[:0]
+	for _, ts := range t.events {
+		if !ts.Before(cutoff) {
+			keep = append(keep, ts)
+		}
+	}
+	t.events = append(keep, now)
+	count = len(t.events)
+	perMinute = float64(count) / t.window.Minutes()
+	if t.threshold <= 0 || count < t.threshold {
+		return count, perMinute, false
+	}
+	if !t.lastAlert.IsZero() && now.Sub(t.lastAlert) < t.cooldown {
+		return count, perMinute, false
+	}
+	t.lastAlert = now
+	return count, perMinute, true
 }

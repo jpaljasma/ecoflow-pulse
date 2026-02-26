@@ -43,7 +43,7 @@ func TestCompressionMiddleware_CompressesGzipResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gzip.NewReader() error = %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	decoded, err := io.ReadAll(reader)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestCompressionMiddleware_DecodesGzipRequestBody(t *testing.T) {
 		},
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			body, _ := io.ReadAll(r.Body)
-			defer r.Body.Close()
+			defer func() { _ = r.Body.Close() }()
 			if !bytes.Equal(body, payload) {
 				t.Fatalf("decoded body mismatch: got %q", string(body))
 			}

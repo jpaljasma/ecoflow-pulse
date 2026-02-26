@@ -121,7 +121,7 @@ ORDER BY pc.created_at DESC, pc.id DESC;
 	if err != nil {
 		return nil, fmt.Errorf("query provider credentials: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]ProviderCredential, 0, 4)
 	for rows.Next() {
@@ -244,7 +244,7 @@ ORDER BY pd.provider ASC, d.product_name ASC, d.ecoflow_sn ASC;
 	if err != nil {
 		return nil, fmt.Errorf("query provider devices: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]ProviderDevice, 0, 8)
 	for rows.Next() {
@@ -297,7 +297,7 @@ ORDER BY pd.provider ASC, pd.provider_device_id ASC;
 	if err != nil {
 		return nil, fmt.Errorf("query ingest assignments: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]IngestAssignment, 0, 8)
 	for rows.Next() {

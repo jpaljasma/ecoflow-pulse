@@ -104,7 +104,7 @@ func compressionMiddleware(cfg CompressionConfig, next http.Handler) (http.Handl
 			return
 		}
 		if decodeCloser != nil {
-			defer decodeCloser.Close()
+			defer func() { _ = decodeCloser.Close() }()
 		}
 
 		responseEncoding := negotiateEncoding(r.Header.Get("Accept-Encoding"), preferred)
@@ -157,10 +157,7 @@ func shouldCompress(r *http.Request) bool {
 		return false
 	}
 	upgrade := strings.ToLower(strings.TrimSpace(r.Header.Get("Upgrade")))
-	if upgrade != "" {
-		return false
-	}
-	return true
+	return upgrade == ""
 }
 
 type compressResponseWriter struct {

@@ -111,6 +111,7 @@ func maskSecret(value string) string {
 	return value[:2] + "****" + value[len(value)-2:]
 }
 
+//nolint:unused // local debug helper for full quota dumps.
 func printQuotaAll(quota map[string]string) {
 	if len(quota) == 0 {
 		return
@@ -125,6 +126,7 @@ func printQuotaAll(quota map[string]string) {
 	}
 }
 
+//nolint:unused // local debug helper for typed battery-pack fields.
 func printTypedBPInfo(quota map[string]string) {
 	if len(quota) == 0 {
 		return
@@ -161,6 +163,7 @@ func printTypedBPInfo(quota map[string]string) {
 	}
 }
 
+//nolint:unused // local debug helper for typed kitInfo watts arrays.
 func printTypedKitInfoWatts(quota map[string]string) {
 	if len(quota) == 0 {
 		return
@@ -199,6 +202,7 @@ func printTypedKitInfoWatts(quota map[string]string) {
 	}
 }
 
+//nolint:unused // local debug helper for typed uint-array quota values.
 func printTypedUnsignedIntArrays(quota map[string]string) {
 	if len(quota) == 0 {
 		return

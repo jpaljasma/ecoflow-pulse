@@ -1,0 +1,30 @@
+# VCS / IDE
+.git
+.github
+.idea
+.vscode
+
+# Build outputs / caches
+bin
+coverage
+*.out
+*.test
+.tmp
+cache
+
+# Runtime/log artifacts
+logs
+nohup.out
+
+# Frontend workspace (not needed for Go worker image)
+apps/universal/node_modules
+apps/universal/.expo
+apps/universal/.next
+apps/universal/dist
+
+# OS files
+.DS_Store
+
+# Docs and local notes not needed in worker image build context
+docs
+*.md

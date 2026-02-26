@@ -71,6 +71,6 @@ func reencodeZstd(t *testing.T, raw []byte) []byte {
 	if err != nil {
 		t.Fatalf("create zstd encoder: %v", err)
 	}
-	defer encoder.Close()
+	defer func() { _ = encoder.Close() }()
 	return encoder.EncodeAll(raw, nil)
 }
