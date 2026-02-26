@@ -17,9 +17,11 @@ type captureAuthorizer struct {
 	err    error
 }
 
-func (a *captureAuthorizer) Authorize(_ context.Context, fullMethod string, claims Claims) error {
+func (a *captureAuthorizer) Authorize(_ context.Context, fullMethod string, claims *Claims) error {
 	a.method = fullMethod
-	a.claims = claims
+	if claims != nil {
+		a.claims = *claims
+	}
 	return a.err
 }
 
@@ -74,6 +76,28 @@ func TestAuthUnaryAllowsAndPassesToken(t *testing.T) {
 	}
 }
 
+func TestAuthUnaryStoresClaimsInContext(t *testing.T) {
+	t.Parallel()
+
+	a := &captureAuthorizer{}
+	interceptor := AuthUnary(a)
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer jwt-token"))
+
+	_, err := interceptor(ctx, "req", &grpc.UnaryServerInfo{FullMethod: "/pulse.test/Unary"}, func(ctx context.Context, req any) (any, error) {
+		claims, ok := ClaimsFromContext(ctx)
+		if !ok {
+			t.Fatalf("expected claims in context")
+		}
+		if claims.RawJWT != "jwt-token" {
+			t.Fatalf("unexpected raw jwt in context: %q", claims.RawJWT)
+		}
+		return "ok", nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestAuthUnaryDenied(t *testing.T) {
 	t.Parallel()
 
@@ -113,6 +137,29 @@ func TestAuthStreamAllowsAndPassesToken(t *testing.T) {
 	}
 	if a.claims.RawJWT != "stream-jwt" {
 		t.Fatalf("unexpected jwt passed to authorizer: %q", a.claims.RawJWT)
+	}
+}
+
+func TestAuthStreamStoresClaimsInContext(t *testing.T) {
+	t.Parallel()
+
+	a := &captureAuthorizer{}
+	interceptor := AuthStream(a)
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer stream-jwt"))
+	stream := &testServerStream{ctx: ctx}
+
+	err := interceptor(nil, stream, &grpc.StreamServerInfo{FullMethod: "/pulse.test/Stream"}, func(srv any, ss grpc.ServerStream) error {
+		claims, ok := ClaimsFromContext(ss.Context())
+		if !ok {
+			t.Fatalf("expected claims in stream context")
+		}
+		if claims.RawJWT != "stream-jwt" {
+			t.Fatalf("unexpected raw jwt in stream context: %q", claims.RawJWT)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

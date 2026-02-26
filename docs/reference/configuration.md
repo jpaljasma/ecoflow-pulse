@@ -103,6 +103,12 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 
 - `PULSE_ENV` (`local|dev|staging|prod`, default `local`)
 - `GRPC_LISTEN_ADDR` (default from grpc server profile; typically `:9090` in local/dev)
+- `GRPC_AUTH_MODE` (`noop|keycloak`, default `noop`)
+  - `noop`: development-only pass-through auth mode.
+  - `keycloak`: validates bearer JWTs via Keycloak OIDC/JWKS and injects claims into gRPC context.
+- `KEYCLOAK_ISSUER_URL` (required when `GRPC_AUTH_MODE=keycloak`)
+- `KEYCLOAK_AUDIENCE` (optional; when set, JWT audience must match)
+- `GRPC_AUTH_ALLOW_MISSING_JWT` (default `false`; optional only for controlled local bootstrap)
 - `CONTROL_PLANE_DB_DSN`
   - when set to a non-empty DSN, `cmd/ecoflow-grpc-api` uses Postgres-backed control-plane storage,
   - when unset (or whitespace), service falls back to in-memory control-plane storage for local bootstrap/testing.

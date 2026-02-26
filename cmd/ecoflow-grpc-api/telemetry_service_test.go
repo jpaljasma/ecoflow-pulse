@@ -201,6 +201,167 @@ func TestSubscribeSendsHeartbeat(t *testing.T) {
 	}
 }
 
+func TestSubscribeReadModelSendsDeltaOnMetricChange(t *testing.T) {
+	t.Parallel()
+
+	reader := &sequenceSnapshotReader{
+		snapshots: []*projectionworker.SnapshotReadModel{
+			{
+				DeviceID: "dev-1",
+				Cursor: projectionworker.SnapshotCursor{
+					Seq:      10,
+					TsUnixMs: 1000,
+				},
+				Metrics: map[string]float64{
+					"soc":      25,
+					"watts_in": 100,
+				},
+			},
+			{
+				DeviceID: "dev-1",
+				Cursor: projectionworker.SnapshotCursor{
+					Seq:      11,
+					TsUnixMs: 1100,
+				},
+				Metrics: map[string]float64{
+					"soc":      25,
+					"watts_in": 140,
+				},
+			},
+		},
+	}
+	svc := NewTelemetryServiceWithSnapshotReader(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		reader,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := &telemetryTestStream{ctx: ctx, cancel: cancel, cancelOnSend: 2}
+
+	err := svc.Subscribe(&telemetryv1.SubscribeRequest{
+		DeviceId:               "dev-1",
+		IncludeInitialSnapshot: true,
+		MaxUpdateHz:            50,
+	}, stream)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+	if len(stream.sent) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(stream.sent))
+	}
+	if stream.sent[0].GetSnapshot() == nil {
+		t.Fatalf("expected first payload to be snapshot")
+	}
+	delta := stream.sent[1].GetDelta()
+	if delta == nil {
+		t.Fatalf("expected second payload to be delta")
+	}
+	if got := delta.GetCursor().GetSeq(); got != 11 {
+		t.Fatalf("delta cursor seq mismatch: got=%d want=11", got)
+	}
+	if got := delta.GetChanged()["watts_in"]; got != 140 {
+		t.Fatalf("delta changed metric mismatch: got=%v want=140", got)
+	}
+}
+
+func TestSubscribeReadModelSendsHeartbeatWhenUnchanged(t *testing.T) {
+	t.Parallel()
+
+	reader := &sequenceSnapshotReader{
+		snapshots: []*projectionworker.SnapshotReadModel{
+			{
+				DeviceID: "dev-1",
+				Cursor: projectionworker.SnapshotCursor{
+					Seq:      20,
+					TsUnixMs: 2000,
+				},
+				Metrics: map[string]float64{"soc": 55},
+			},
+			{
+				DeviceID: "dev-1",
+				Cursor: projectionworker.SnapshotCursor{
+					Seq:      20,
+					TsUnixMs: 2000,
+				},
+				Metrics: map[string]float64{"soc": 55},
+			},
+		},
+	}
+	svc := NewTelemetryServiceWithSnapshotReader(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		reader,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := &telemetryTestStream{ctx: ctx, cancel: cancel, cancelOnSend: 2}
+
+	err := svc.Subscribe(&telemetryv1.SubscribeRequest{
+		DeviceId:               "dev-1",
+		IncludeInitialSnapshot: true,
+		MaxUpdateHz:            50,
+	}, stream)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+	if len(stream.sent) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(stream.sent))
+	}
+	if stream.sent[1].GetHeartbeat() == nil {
+		t.Fatalf("expected second payload to be heartbeat")
+	}
+}
+
+func TestSubscribeReadModelContinuesOnReadError(t *testing.T) {
+	t.Parallel()
+
+	reader := &sequenceSnapshotReader{
+		errAtCall: map[int]error{
+			1: errors.New("valkey unavailable"),
+		},
+		snapshots: []*projectionworker.SnapshotReadModel{
+			{
+				DeviceID: "dev-1",
+				Cursor: projectionworker.SnapshotCursor{
+					Seq:      30,
+					TsUnixMs: 3000,
+				},
+				Metrics: map[string]float64{"soc": 65},
+			},
+		},
+	}
+	svc := NewTelemetryServiceWithSnapshotReader(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		reader,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := &telemetryTestStream{ctx: ctx, cancel: cancel, cancelOnSend: 1}
+
+	err := svc.Subscribe(&telemetryv1.SubscribeRequest{
+		DeviceId:               "dev-1",
+		IncludeInitialSnapshot: false,
+		MaxUpdateHz:            50,
+	}, stream)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+	if len(stream.sent) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(stream.sent))
+	}
+	if stream.sent[0].GetHeartbeat() == nil {
+		t.Fatalf("expected heartbeat on snapshot read error")
+	}
+}
+
 func TestSubscribePropagatesSendError(t *testing.T) {
 	t.Parallel()
 
@@ -228,4 +389,27 @@ func (f fakeSnapshotReader) ReadSnapshot(context.Context, projectionworker.Snaps
 		return nil, f.err
 	}
 	return f.snapshot, nil
+}
+
+type sequenceSnapshotReader struct {
+	mu        sync.Mutex
+	snapshots []*projectionworker.SnapshotReadModel
+	errAtCall map[int]error
+	idx       int
+}
+
+func (s *sequenceSnapshotReader) ReadSnapshot(context.Context, projectionworker.SnapshotIdentity) (*projectionworker.SnapshotReadModel, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.idx++
+	if err := s.errAtCall[s.idx]; err != nil {
+		return nil, err
+	}
+	if len(s.snapshots) == 0 {
+		return nil, nil
+	}
+	if s.idx-1 >= len(s.snapshots) {
+		return s.snapshots[len(s.snapshots)-1], nil
+	}
+	return s.snapshots[s.idx-1], nil
 }
