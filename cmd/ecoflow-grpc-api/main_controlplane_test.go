@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 )
 
 func TestNewControlPlaneStoreFromEnvFallback(t *testing.T) {
@@ -69,5 +71,29 @@ func TestMainStoreFallbackDoesNotDependOnFilesystem(t *testing.T) {
 	defer cleanup()
 	if _, ok := store.(*controlplane.MemoryStore); !ok {
 		t.Fatalf("expected memory store fallback, got %T", store)
+	}
+}
+
+func TestNewAuthorizerFromEnvNoop(t *testing.T) {
+	t.Setenv("GRPC_AUTH_MODE", "noop")
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	a, err := newAuthorizerFromEnv(context.Background(), log)
+	if err != nil {
+		t.Fatalf("newAuthorizerFromEnv returned error: %v", err)
+	}
+	if _, ok := a.(grpcmw.NoopAuthorizer); !ok {
+		t.Fatalf("expected NoopAuthorizer, got %T", a)
+	}
+}
+
+func TestNewAuthorizerFromEnvKeycloakMissingIssuer(t *testing.T) {
+	t.Setenv("GRPC_AUTH_MODE", "keycloak")
+	t.Setenv("KEYCLOAK_ISSUER_URL", "")
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	_, err := newAuthorizerFromEnv(context.Background(), log)
+	if err == nil {
+		t.Fatalf("expected error when issuer is missing")
 	}
 }

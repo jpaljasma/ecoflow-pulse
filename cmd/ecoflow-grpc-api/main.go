@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -52,18 +53,24 @@ func main() {
 		cfg.ListenAddr = addr
 	}
 
+	authorizer, err := newAuthorizerFromEnv(context.Background(), log)
+	if err != nil {
+		log.Error("grpc auth init failed", "error", err.Error())
+		os.Exit(1)
+	}
+
 	// Middleware chain (order matters):
 	// request-id -> recovery -> auth -> logging
 	unary := []grpc.UnaryServerInterceptor{
 		grpcmw.RequestIDUnary(),
 		grpcmw.RecoveryUnary(),
-		grpcmw.AuthUnary(grpcmw.NoopAuthorizer{}), // TODO: replace with Keycloak/JWKS authorizer in M1
+		grpcmw.AuthUnary(authorizer),
 		grpcmw.LoggingUnary(log),
 	}
 	stream := []grpc.StreamServerInterceptor{
 		grpcmw.RequestIDStream(),
 		grpcmw.RecoveryStream(),
-		grpcmw.AuthStream(grpcmw.NoopAuthorizer{}),
+		grpcmw.AuthStream(authorizer),
 		grpcmw.LoggingStream(log),
 	}
 
@@ -144,6 +151,34 @@ func newControlPlaneStoreFromEnv(log *slog.Logger) (controlplane.Store, func(), 
 	}
 	log.Info("using postgres control-plane store", "source", "CONTROL_PLANE_DB_DSN")
 	return store, func() { _ = store.Close() }, nil
+}
+
+func newAuthorizerFromEnv(ctx context.Context, log *slog.Logger) (grpcmw.Authorizer, error) {
+	mode := strings.ToLower(strings.TrimSpace(runtimecfg.EnvOrDefault("GRPC_AUTH_MODE", "noop")))
+	switch mode {
+	case "noop":
+		log.Warn("grpc auth mode: noop (development only)")
+		return grpcmw.NoopAuthorizer{}, nil
+	case "keycloak":
+		issuer := strings.TrimSpace(os.Getenv("KEYCLOAK_ISSUER_URL"))
+		if issuer == "" {
+			return nil, fmt.Errorf("KEYCLOAK_ISSUER_URL is required when GRPC_AUTH_MODE=keycloak")
+		}
+		audience := strings.TrimSpace(os.Getenv("KEYCLOAK_AUDIENCE"))
+		allowMissingJWT := runtimecfg.Bool("GRPC_AUTH_ALLOW_MISSING_JWT", false)
+		authorizer, err := grpcmw.NewKeycloakJWKSAuthorizer(ctx, grpcmw.KeycloakJWKSAuthorizerConfig{
+			IssuerURL:       issuer,
+			Audience:        audience,
+			AllowMissingJWT: allowMissingJWT,
+		})
+		if err != nil {
+			return nil, err
+		}
+		log.Info("grpc auth mode: keycloak", "issuer", issuer, "audience", audience, "allow_missing_jwt", allowMissingJWT)
+		return authorizer, nil
+	default:
+		return nil, fmt.Errorf("unsupported GRPC_AUTH_MODE %q", mode)
+	}
 }
 
 func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.SnapshotReader, func(), error) {

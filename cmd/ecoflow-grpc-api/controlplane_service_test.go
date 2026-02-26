@@ -8,6 +8,7 @@ import (
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -40,6 +41,23 @@ func TestCreateProviderCredentialValidation(t *testing.T) {
 	})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("expected InvalidArgument, got %v", err)
+	}
+}
+
+func TestCreateProviderCredentialUsesTokenSubject(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"})
+	_, err := svc.CreateProviderCredential(ctx, &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "other-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK1234567890",
+		SecretKey:   "SK1234567890",
+		IsActive:    true,
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected PermissionDenied, got %v", err)
 	}
 }
 

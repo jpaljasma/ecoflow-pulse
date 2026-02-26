@@ -8,6 +8,7 @@ import (
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -43,8 +44,9 @@ func (s *ControlPlaneService) RegisterDiscoverer(provider string, discoverer Pro
 }
 
 func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req *controlplanev1.CreateProviderCredentialRequest) (*controlplanev1.CreateProviderCredentialResponse, error) {
-	if strings.TrimSpace(req.GetUserSubject()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_subject required")
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
 	if !controlplane.IsSupportedProvider(provider) {
@@ -57,7 +59,7 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 		return nil, status.Error(codes.InvalidArgument, "secret_key required")
 	}
 	out, err := s.store.CreateProviderCredential(ctx, controlplane.CreateProviderCredentialInput{
-		UserSubject: req.GetUserSubject(),
+		UserSubject: userSubject,
 		Provider:    provider,
 		AccessKey:   req.GetAccessKey(),
 		SecretKey:   req.GetSecretKey(),
@@ -75,15 +77,16 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 }
 
 func (s *ControlPlaneService) ListProviderCredentials(ctx context.Context, req *controlplanev1.ListProviderCredentialsRequest) (*controlplanev1.ListProviderCredentialsResponse, error) {
-	if strings.TrimSpace(req.GetUserSubject()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_subject required")
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
 	if provider != "" && !controlplane.IsSupportedProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
 	}
 	rows, err := s.store.ListProviderCredentials(ctx, controlplane.ListProviderCredentialsInput{
-		UserSubject: req.GetUserSubject(),
+		UserSubject: userSubject,
 		Provider:    provider,
 	})
 	if err != nil {
@@ -97,14 +100,15 @@ func (s *ControlPlaneService) ListProviderCredentials(ctx context.Context, req *
 }
 
 func (s *ControlPlaneService) SetProviderCredentialActive(ctx context.Context, req *controlplanev1.SetProviderCredentialActiveRequest) (*controlplanev1.SetProviderCredentialActiveResponse, error) {
-	if strings.TrimSpace(req.GetUserSubject()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_subject required")
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(req.GetCredentialId()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "credential_id required")
 	}
 	row, err := s.store.SetProviderCredentialActive(ctx, controlplane.SetProviderCredentialActiveInput{
-		UserSubject:  req.GetUserSubject(),
+		UserSubject:  userSubject,
 		CredentialID: req.GetCredentialId(),
 		IsActive:     req.GetIsActive(),
 	})
@@ -120,15 +124,16 @@ func (s *ControlPlaneService) SetProviderCredentialActive(ctx context.Context, r
 }
 
 func (s *ControlPlaneService) ListDevices(ctx context.Context, req *controlplanev1.ListDevicesRequest) (*controlplanev1.ListDevicesResponse, error) {
-	if strings.TrimSpace(req.GetUserSubject()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_subject required")
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
 	if provider != "" && !controlplane.IsSupportedProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
 	}
 	rows, err := s.store.ListProviderDevices(ctx, controlplane.ListProviderDevicesInput{
-		UserSubject: req.GetUserSubject(),
+		UserSubject: userSubject,
 		Provider:    provider,
 		ActiveOnly:  req.GetActiveOnly(),
 	})
@@ -158,13 +163,14 @@ func (s *ControlPlaneService) ListDevices(ctx context.Context, req *controlplane
 }
 
 func (s *ControlPlaneService) DiscoverDevices(ctx context.Context, req *controlplanev1.DiscoverDevicesRequest) (*controlplanev1.DiscoverDevicesResponse, error) {
-	if strings.TrimSpace(req.GetUserSubject()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_subject required")
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(req.GetCredentialId()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "credential_id required")
 	}
-	cred, err := s.store.GetProviderCredential(ctx, req.GetUserSubject(), req.GetCredentialId())
+	cred, err := s.store.GetProviderCredential(ctx, userSubject, req.GetCredentialId())
 	if err != nil {
 		if errors.Is(err, controlplane.ErrCredentialNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
@@ -200,6 +206,23 @@ func (s *ControlPlaneService) DiscoverDevices(ctx context.Context, req *controlp
 		DiscoveredCount: uint32(len(out)),
 		Devices:         out,
 	}, nil
+}
+
+func resolveUserSubject(ctx context.Context, requested string) (string, error) {
+	requested = strings.TrimSpace(requested)
+	if claims, ok := grpcmw.ClaimsFromContext(ctx); ok {
+		subject := strings.TrimSpace(claims.Subject)
+		if subject != "" {
+			if requested != "" && requested != subject {
+				return "", status.Error(codes.PermissionDenied, "user_subject does not match token subject")
+			}
+			return subject, nil
+		}
+	}
+	if requested == "" {
+		return "", status.Error(codes.InvalidArgument, "user_subject required")
+	}
+	return requested, nil
 }
 
 func providerCredentialToProto(in controlplane.ProviderCredential) *controlplanev1.ProviderCredential {

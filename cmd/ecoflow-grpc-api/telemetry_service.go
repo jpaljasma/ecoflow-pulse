@@ -152,12 +152,16 @@ func (s *TelemetryService) subscribeFromReadModel(
 	ticker := time.NewTicker(updateInterval)
 	defer ticker.Stop()
 
-	var lastCursor telemetryv1.Cursor
+	type cursorState struct {
+		seq      uint64
+		tsUnixMs int64
+	}
+	var lastCursor cursorState
 	var lastMetrics map[string]float64
 	if req.GetIncludeInitialSnapshot() && initialSnapshot != nil {
-		lastCursor = telemetryv1.Cursor{
-			Seq:      initialSnapshot.GetCursor().GetSeq(),
-			TsUnixMs: initialSnapshot.GetCursor().GetTsUnixMs(),
+		lastCursor = cursorState{
+			seq:      initialSnapshot.GetCursor().GetSeq(),
+			tsUnixMs: initialSnapshot.GetCursor().GetTsUnixMs(),
 		}
 		lastMetrics = cloneMetrics(initialSnapshot.GetMetrics())
 	}
@@ -174,7 +178,7 @@ func (s *TelemetryService) subscribeFromReadModel(
 					Payload: &telemetryv1.SubscribeResponse_Heartbeat{
 						Heartbeat: &telemetryv1.Heartbeat{
 							DeviceId: req.GetDeviceId(),
-							Cursor:   &telemetryv1.Cursor{Seq: lastCursor.Seq, TsUnixMs: time.Now().UnixMilli()},
+							Cursor:   &telemetryv1.Cursor{Seq: lastCursor.seq, TsUnixMs: time.Now().UnixMilli()},
 						},
 					},
 				}); err != nil {
@@ -187,7 +191,7 @@ func (s *TelemetryService) subscribeFromReadModel(
 					Payload: &telemetryv1.SubscribeResponse_Heartbeat{
 						Heartbeat: &telemetryv1.Heartbeat{
 							DeviceId: req.GetDeviceId(),
-							Cursor:   &telemetryv1.Cursor{Seq: lastCursor.Seq, TsUnixMs: time.Now().UnixMilli()},
+							Cursor:   &telemetryv1.Cursor{Seq: lastCursor.seq, TsUnixMs: time.Now().UnixMilli()},
 						},
 					},
 				}); err != nil {
@@ -196,18 +200,18 @@ func (s *TelemetryService) subscribeFromReadModel(
 				continue
 			}
 
-			currentCursor := telemetryv1.Cursor{
-				Seq:      snap.Cursor.Seq,
-				TsUnixMs: snap.Cursor.TsUnixMs,
+			currentCursor := cursorState{
+				seq:      snap.Cursor.Seq,
+				tsUnixMs: snap.Cursor.TsUnixMs,
 			}
-			if currentCursor.TsUnixMs <= 0 {
-				currentCursor.TsUnixMs = time.Now().UnixMilli()
+			if currentCursor.tsUnixMs <= 0 {
+				currentCursor.tsUnixMs = time.Now().UnixMilli()
 			}
 			currentMetrics := cloneMetrics(snap.Metrics)
 
 			changed, cleared := computeDelta(lastMetrics, currentMetrics)
 			hasDelta := len(changed) > 0 || len(cleared) > 0
-			cursorAdvanced := currentCursor.Seq > lastCursor.Seq || currentCursor.TsUnixMs > lastCursor.TsUnixMs
+			cursorAdvanced := currentCursor.seq > lastCursor.seq || currentCursor.tsUnixMs > lastCursor.tsUnixMs
 
 			if hasDelta || cursorAdvanced {
 				if hasDelta {
@@ -215,7 +219,7 @@ func (s *TelemetryService) subscribeFromReadModel(
 						Payload: &telemetryv1.SubscribeResponse_Delta{
 							Delta: &telemetryv1.Delta{
 								DeviceId: req.GetDeviceId(),
-								Cursor:   &telemetryv1.Cursor{Seq: currentCursor.Seq, TsUnixMs: currentCursor.TsUnixMs},
+								Cursor:   &telemetryv1.Cursor{Seq: currentCursor.seq, TsUnixMs: currentCursor.tsUnixMs},
 								Changed:  changed,
 								Cleared:  cleared,
 							},
@@ -228,7 +232,7 @@ func (s *TelemetryService) subscribeFromReadModel(
 						Payload: &telemetryv1.SubscribeResponse_Heartbeat{
 							Heartbeat: &telemetryv1.Heartbeat{
 								DeviceId: req.GetDeviceId(),
-								Cursor:   &telemetryv1.Cursor{Seq: currentCursor.Seq, TsUnixMs: currentCursor.TsUnixMs},
+								Cursor:   &telemetryv1.Cursor{Seq: currentCursor.seq, TsUnixMs: currentCursor.tsUnixMs},
 							},
 						},
 					}); err != nil {
@@ -240,7 +244,7 @@ func (s *TelemetryService) subscribeFromReadModel(
 					Payload: &telemetryv1.SubscribeResponse_Heartbeat{
 						Heartbeat: &telemetryv1.Heartbeat{
 							DeviceId: req.GetDeviceId(),
-							Cursor:   &telemetryv1.Cursor{Seq: lastCursor.Seq, TsUnixMs: time.Now().UnixMilli()},
+							Cursor:   &telemetryv1.Cursor{Seq: lastCursor.seq, TsUnixMs: time.Now().UnixMilli()},
 						},
 					},
 				}); err != nil {
