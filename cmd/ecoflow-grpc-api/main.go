@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 func main() {
@@ -32,9 +32,9 @@ func main() {
 
 	logCfg := pulselog.DefaultServiceConfig("grpc-api")
 	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
-	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
-	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
-	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+	logCfg.AsyncEnabled = !runtimecfg.Bool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = runtimecfg.IntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(runtimecfg.EnvOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
 
 	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
 	if err != nil {
@@ -110,7 +110,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "grpc-api", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
 
@@ -147,7 +147,7 @@ func newControlPlaneStoreFromEnv(log *slog.Logger) (controlplane.Store, func(), 
 }
 
 func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.SnapshotReader, func(), error) {
-	valkeyAddrs := splitNonEmpty(strings.TrimSpace(os.Getenv("VALKEY_ADDRS")))
+	valkeyAddrs := runtimecfg.SplitNonEmpty(strings.TrimSpace(os.Getenv("VALKEY_ADDRS")))
 	if len(valkeyAddrs) == 0 {
 		log.Info("telemetry snapshot reader disabled", "reason", "VALKEY_ADDRS not set")
 		return nil, func() {}, nil
@@ -161,7 +161,7 @@ func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.Snaps
 		return nil, nil, err
 	}
 	store, err := projectionworker.NewValkeySnapshotStore(client, projectionworker.ValkeySnapshotStoreConfig{
-		KeyPrefix: strings.TrimSpace(envOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
+		KeyPrefix: strings.TrimSpace(runtimecfg.EnvOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
 	})
 	if err != nil {
 		client.Close()
@@ -171,61 +171,7 @@ func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.Snaps
 	log.Info("telemetry snapshot reader enabled",
 		"source", "valkey",
 		"valkey_addrs", strings.Join(valkeyAddrs, ","),
-		"key_prefix", strings.TrimSpace(envOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
+		"key_prefix", strings.TrimSpace(runtimecfg.EnvOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
 	)
 	return store, func() { client.Close() }, nil
-}
-
-func splitNonEmpty(raw string) []string {
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if v := strings.TrimSpace(part); v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func mustIntMin(key string, fallback int, min int) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < min {
-		return fallback
-	}
-	return v
-}
-
-func mustBool(key string, fallback bool) bool {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseBool(raw)
-	if err != nil {
-		return fallback
-	}
-	return v
-}
-
-func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := time.ParseDuration(raw)
-	if err != nil || v < 0 {
-		return fallback
-	}
-	return v
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 const (
@@ -59,23 +60,23 @@ func main() {
 	flag.IntVar(&maxObjects, "max-objects", 0, "Optional object scan cap (0 means no limit)")
 
 	flag.StringVar(&manifestDSN, "manifest-dsn", strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN")), "Postgres DSN for archive manifest index")
-	flag.StringVar(&objectEndpoint, "object-endpoint", envOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint), "Object store endpoint")
-	flag.StringVar(&objectAccessKey, "object-access-key", envOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID), "Object store access key")
-	flag.StringVar(&objectSecretKey, "object-secret-key", envOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey), "Object store secret key")
-	flag.StringVar(&objectRegion, "object-region", envOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region), "Object store region")
-	flag.BoolVar(&objectSecure, "object-secure", mustBool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure), "Object store tls")
+	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint), "Object store endpoint")
+	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID), "Object store access key")
+	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey), "Object store secret key")
+	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region), "Object store region")
+	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure), "Object store tls")
 
-	flag.StringVar(&natsURLsRaw, "nats-urls", envOrDefault("NATS_URLS", "nats://127.0.0.1:4222"), "Comma-delimited NATS URLs")
-	flag.StringVar(&natsName, "nats-name", envOrDefault("NATS_NAME", "ecoflow-replay-cli"), "NATS client name")
-	flag.StringVar(&subjectPrefix, "subject-prefix", envOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix), "Telemetry subject prefix")
-	flag.UintVar(&subjectShardCount, "subject-shards", uint(mustUint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount)), "Telemetry subject shard count")
+	flag.StringVar(&natsURLsRaw, "nats-urls", runtimecfg.EnvOrDefault("NATS_URLS", "nats://127.0.0.1:4222"), "Comma-delimited NATS URLs")
+	flag.StringVar(&natsName, "nats-name", runtimecfg.EnvOrDefault("NATS_NAME", "ecoflow-replay-cli"), "NATS client name")
+	flag.StringVar(&subjectPrefix, "subject-prefix", runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix), "Telemetry subject prefix")
+	flag.UintVar(&subjectShardCount, "subject-shards", uint(runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount)), "Telemetry subject shard count")
 	flag.Parse()
 
 	logCfg := pulselog.DefaultServiceConfig("replay-cli")
 	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
-	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
-	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
-	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+	logCfg.AsyncEnabled = !runtimecfg.Bool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = runtimecfg.IntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(runtimecfg.EnvOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
 
 	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
 	if err != nil {
@@ -88,7 +89,7 @@ func main() {
 		}
 	}()
 
-	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
 	metricsCtx, cancelMetrics := context.WithCancel(context.Background())
 	defer cancelMetrics()
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(metricsCtx, log, "replay-cli", asyncLogHandler, logMetricsInterval)
@@ -148,7 +149,7 @@ func main() {
 
 	var publisher replaycli.ReplayPublisher = replaycli.NoopPublisher{}
 	if !dryRun {
-		natsCfg := telemetrybus.DefaultNATSConnConfig(splitNonEmpty(natsURLsRaw))
+		natsCfg := telemetrybus.DefaultNATSConnConfig(runtimecfg.SplitNonEmpty(natsURLsRaw))
 		natsCfg.Name = strings.TrimSpace(natsName)
 		natsConn, err := telemetrybus.DialNATS(log, natsCfg)
 		if err != nil {
@@ -174,8 +175,8 @@ func main() {
 		Provider:          strings.TrimSpace(provider),
 		FromUnixMS:        fromUnixMS,
 		ToUnixMS:          toUnixMS,
-		DeviceIDs:         splitNonEmpty(deviceIDsRaw),
-		ProviderDeviceIDs: splitNonEmpty(providerIDsRaw),
+		DeviceIDs:         runtimecfg.SplitNonEmpty(deviceIDsRaw),
+		ProviderDeviceIDs: runtimecfg.SplitNonEmpty(providerIDsRaw),
 		Shards:            parseShards(shardsRaw),
 		MaxObjects:        maxObjects,
 	}
@@ -317,7 +318,7 @@ func parseTimeArg(raw string) (time.Time, error) {
 }
 
 func parseShards(raw string) []uint32 {
-	values := splitNonEmpty(raw)
+	values := runtimecfg.SplitNonEmpty(raw)
 	if len(values) == 0 {
 		return nil
 	}
@@ -346,70 +347,4 @@ func mapKeys(values map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func splitNonEmpty(raw string) []string {
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if v := strings.TrimSpace(part); v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-func mustBool(key string, fallback bool) bool {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseBool(raw)
-	if err != nil {
-		return fallback
-	}
-	return v
-}
-
-func mustIntMin(key string, fallback int, min int) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < min {
-		return fallback
-	}
-	return v
-}
-
-func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := time.ParseDuration(raw)
-	if err != nil || v < 0 {
-		return fallback
-	}
-	return v
-}
-
-func mustUint32(key string, fallback uint32) uint32 {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseUint(raw, 10, 32)
-	if err != nil {
-		return fallback
-	}
-	return uint32(v)
 }

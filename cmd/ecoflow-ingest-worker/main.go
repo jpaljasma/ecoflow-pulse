@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -19,14 +18,15 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 func main() {
 	logCfg := pulselog.DefaultServiceConfig("ingest-worker")
 	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
-	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
-	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
-	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+	logCfg.AsyncEnabled = !runtimecfg.Bool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = runtimecfg.IntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(runtimecfg.EnvOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
 
 	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
 	if err != nil {
@@ -51,7 +51,7 @@ func main() {
 	}
 	defer func() { _ = store.Close() }()
 
-	valkeyAddrs := splitNonEmpty(envOrDefault("VALKEY_ADDRS", "127.0.0.1:6379"))
+	valkeyAddrs := runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_ADDRS", "127.0.0.1:6379"))
 	valkeyCfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	valkeyCfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	valkeyCfg.Password = os.Getenv("VALKEY_PASSWORD")
@@ -68,14 +68,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	natsCfg := telemetrybus.DefaultNATSConnConfig(splitNonEmpty(envOrDefault("NATS_URLS", "nats://127.0.0.1:4222")))
-	natsCfg.Name = envOrDefault("NATS_NAME", "ecoflow-ingest-worker")
-	natsCfg.ConnectTimeout = mustDuration("NATS_CONNECT_TIMEOUT", natsCfg.ConnectTimeout)
-	natsCfg.ReconnectWait = mustDuration("NATS_RECONNECT_WAIT", natsCfg.ReconnectWait)
-	natsCfg.ReconnectJitter = mustDuration("NATS_RECONNECT_JITTER", natsCfg.ReconnectJitter)
-	natsCfg.PingInterval = mustDuration("NATS_PING_INTERVAL", natsCfg.PingInterval)
-	natsCfg.MaxPingsOut = mustIntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
-	natsCfg.MaxReconnects = mustIntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
+	natsCfg := telemetrybus.DefaultNATSConnConfig(runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("NATS_URLS", "nats://127.0.0.1:4222")))
+	natsCfg.Name = runtimecfg.EnvOrDefault("NATS_NAME", "ecoflow-ingest-worker")
+	natsCfg.ConnectTimeout = runtimecfg.DurationPositive("NATS_CONNECT_TIMEOUT", natsCfg.ConnectTimeout)
+	natsCfg.ReconnectWait = runtimecfg.DurationPositive("NATS_RECONNECT_WAIT", natsCfg.ReconnectWait)
+	natsCfg.ReconnectJitter = runtimecfg.DurationPositive("NATS_RECONNECT_JITTER", natsCfg.ReconnectJitter)
+	natsCfg.PingInterval = runtimecfg.DurationPositive("NATS_PING_INTERVAL", natsCfg.PingInterval)
+	natsCfg.MaxPingsOut = runtimecfg.IntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
+	natsCfg.MaxReconnects = runtimecfg.IntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
 
 	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
 	if err != nil {
@@ -90,26 +90,26 @@ func main() {
 	ecoCfg.Logging.Logger = log
 	adapter := provideradapter.NewEcoFlowAdapter(provideradapter.NewDefaultEcoFlowClientFactory(ecoCfg))
 	subjectCfg := telemetrybus.SubjectConfig{
-		Prefix:     envOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
-		ShardCount: mustUint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
 	}
-	disableEnvelopeLabels := mustBool("INGEST_DISABLE_ENVELOPE_LABELS", false)
+	disableEnvelopeLabels := runtimecfg.Bool("INGEST_DISABLE_ENVELOPE_LABELS", false)
 
 	publishOpts := telemetrybus.NATSEnvelopePublisherOptions{
 		StripLabels:                disableEnvelopeLabels,
-		UseJetStream:               mustBool("INGEST_NATS_USE_JETSTREAM", true),
-		PublishTimeout:             mustDuration("INGEST_NATS_PUBLISH_TIMEOUT", 3*time.Second),
-		PublishMaxRetries:          mustIntMin("INGEST_NATS_PUBLISH_MAX_RETRIES", 3, 0),
-		PublishRetryInitialBackoff: mustDuration("INGEST_NATS_PUBLISH_RETRY_INITIAL_BACKOFF", 50*time.Millisecond),
-		PublishRetryMaxBackoff:     mustDuration("INGEST_NATS_PUBLISH_RETRY_MAX_BACKOFF", 500*time.Millisecond),
-		PublishRetryJitter:         mustFloat64("INGEST_NATS_PUBLISH_RETRY_JITTER", 0.20),
+		UseJetStream:               runtimecfg.Bool("INGEST_NATS_USE_JETSTREAM", true),
+		PublishTimeout:             runtimecfg.DurationPositive("INGEST_NATS_PUBLISH_TIMEOUT", 3*time.Second),
+		PublishMaxRetries:          runtimecfg.IntMin("INGEST_NATS_PUBLISH_MAX_RETRIES", 3, 0),
+		PublishRetryInitialBackoff: runtimecfg.DurationPositive("INGEST_NATS_PUBLISH_RETRY_INITIAL_BACKOFF", 50*time.Millisecond),
+		PublishRetryMaxBackoff:     runtimecfg.DurationPositive("INGEST_NATS_PUBLISH_RETRY_MAX_BACKOFF", 500*time.Millisecond),
+		PublishRetryJitter:         runtimecfg.Float64NonNegative("INGEST_NATS_PUBLISH_RETRY_JITTER", 0.20),
 	}
 	jetstreamCfg := telemetrybus.DefaultJetStreamIngestBootstrapConfig()
-	jetstreamCfg.Enabled = mustBool("INGEST_NATS_JS_BOOTSTRAP_ENABLED", publishOpts.UseJetStream)
-	jetstreamCfg.StreamName = envOrDefault("INGEST_NATS_JS_STREAM_NAME", jetstreamCfg.StreamName)
-	jetstreamCfg.Replicas = mustIntMin("INGEST_NATS_JS_REPLICAS", jetstreamCfg.Replicas, 1)
-	jetstreamCfg.MaxAge = mustDuration("INGEST_NATS_JS_MAX_AGE", jetstreamCfg.MaxAge)
-	jetstreamCfg.MaxBytes = mustInt64Min("INGEST_NATS_JS_MAX_BYTES", jetstreamCfg.MaxBytes, 0)
+	jetstreamCfg.Enabled = runtimecfg.Bool("INGEST_NATS_JS_BOOTSTRAP_ENABLED", publishOpts.UseJetStream)
+	jetstreamCfg.StreamName = runtimecfg.EnvOrDefault("INGEST_NATS_JS_STREAM_NAME", jetstreamCfg.StreamName)
+	jetstreamCfg.Replicas = runtimecfg.IntMin("INGEST_NATS_JS_REPLICAS", jetstreamCfg.Replicas, 1)
+	jetstreamCfg.MaxAge = runtimecfg.DurationPositive("INGEST_NATS_JS_MAX_AGE", jetstreamCfg.MaxAge)
+	jetstreamCfg.MaxBytes = runtimecfg.Int64Min("INGEST_NATS_JS_MAX_BYTES", jetstreamCfg.MaxBytes, 0)
 
 	if jetstreamCfg.Enabled {
 		bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -138,23 +138,23 @@ func main() {
 
 	sessionCfg := ingestworker.DefaultEcoFlowSessionConfig()
 	sessionCfg.ShardCount = subjectCfg.ShardCount
-	sessionCfg.KeepAlive = mustDuration("INGEST_MQTT_KEEPALIVE", sessionCfg.KeepAlive)
-	sessionCfg.ConnectTimeout = mustDuration("INGEST_MQTT_CONNECT_TIMEOUT", sessionCfg.ConnectTimeout)
-	sessionCfg.ReadTimeout = mustDuration("INGEST_MQTT_READ_TIMEOUT", sessionCfg.ReadTimeout)
-	sessionCfg.WriteTimeout = mustDuration("INGEST_MQTT_WRITE_TIMEOUT", sessionCfg.WriteTimeout)
-	sessionCfg.ReconnectInitialBackoff = mustDuration("INGEST_MQTT_RECONNECT_INITIAL_BACKOFF", sessionCfg.ReconnectInitialBackoff)
-	sessionCfg.ReconnectMaxBackoff = mustDuration("INGEST_MQTT_RECONNECT_MAX_BACKOFF", sessionCfg.ReconnectMaxBackoff)
-	sessionCfg.ReconnectJitter = mustFloat64("INGEST_MQTT_RECONNECT_JITTER", sessionCfg.ReconnectJitter)
-	sessionCfg.ReconnectAlertWindow = mustDuration("INGEST_MQTT_RECONNECT_ALERT_WINDOW", sessionCfg.ReconnectAlertWindow)
-	sessionCfg.ReconnectAlertThreshold = mustInt("INGEST_MQTT_RECONNECT_ALERT_THRESHOLD", sessionCfg.ReconnectAlertThreshold)
-	sessionCfg.ReconnectAlertCooldown = mustDuration("INGEST_MQTT_RECONNECT_ALERT_COOLDOWN", sessionCfg.ReconnectAlertCooldown)
-	sessionCfg.PublishQueueSize = mustInt("INGEST_PUBLISH_QUEUE_SIZE", sessionCfg.PublishQueueSize)
-	sessionCfg.PublishWorkers = mustInt("INGEST_PUBLISH_WORKERS", sessionCfg.PublishWorkers)
-	sessionCfg.PublishEnqueueTimeout = mustDuration("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
-	sessionCfg.AllowUnorderedPublish = mustBool("INGEST_ALLOW_UNORDERED_PUBLISH", sessionCfg.AllowUnorderedPublish)
+	sessionCfg.KeepAlive = runtimecfg.DurationPositive("INGEST_MQTT_KEEPALIVE", sessionCfg.KeepAlive)
+	sessionCfg.ConnectTimeout = runtimecfg.DurationPositive("INGEST_MQTT_CONNECT_TIMEOUT", sessionCfg.ConnectTimeout)
+	sessionCfg.ReadTimeout = runtimecfg.DurationPositive("INGEST_MQTT_READ_TIMEOUT", sessionCfg.ReadTimeout)
+	sessionCfg.WriteTimeout = runtimecfg.DurationPositive("INGEST_MQTT_WRITE_TIMEOUT", sessionCfg.WriteTimeout)
+	sessionCfg.ReconnectInitialBackoff = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_INITIAL_BACKOFF", sessionCfg.ReconnectInitialBackoff)
+	sessionCfg.ReconnectMaxBackoff = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_MAX_BACKOFF", sessionCfg.ReconnectMaxBackoff)
+	sessionCfg.ReconnectJitter = runtimecfg.Float64NonNegative("INGEST_MQTT_RECONNECT_JITTER", sessionCfg.ReconnectJitter)
+	sessionCfg.ReconnectAlertWindow = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_ALERT_WINDOW", sessionCfg.ReconnectAlertWindow)
+	sessionCfg.ReconnectAlertThreshold = runtimecfg.IntPositive("INGEST_MQTT_RECONNECT_ALERT_THRESHOLD", sessionCfg.ReconnectAlertThreshold)
+	sessionCfg.ReconnectAlertCooldown = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_ALERT_COOLDOWN", sessionCfg.ReconnectAlertCooldown)
+	sessionCfg.PublishQueueSize = runtimecfg.IntPositive("INGEST_PUBLISH_QUEUE_SIZE", sessionCfg.PublishQueueSize)
+	sessionCfg.PublishWorkers = runtimecfg.IntPositive("INGEST_PUBLISH_WORKERS", sessionCfg.PublishWorkers)
+	sessionCfg.PublishEnqueueTimeout = runtimecfg.DurationPositive("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
+	sessionCfg.AllowUnorderedPublish = runtimecfg.Bool("INGEST_ALLOW_UNORDERED_PUBLISH", sessionCfg.AllowUnorderedPublish)
 	sessionCfg.DisableEnvelopeLabels = disableEnvelopeLabels
-	sessionCfg.LogMQTTPayloadDebug = mustBool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
-	sessionCfg.LogMQTTPayloadSampleEvery = mustIntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
+	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
+	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
 	runner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, sessionCfg)
 	if err != nil {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
@@ -166,16 +166,16 @@ func main() {
 		hostname, _ := os.Hostname()
 		workerID = fmt.Sprintf("%s-%d", hostname, os.Getpid())
 	}
-	pollInterval := mustDuration("INGEST_POLL_INTERVAL", 4*time.Second)
-	pollJitter := mustFloat64("INGEST_POLL_JITTER", 0.20)
-	stopTimeout := mustDuration("INGEST_STOP_TIMEOUT", 8*time.Second)
+	pollInterval := runtimecfg.DurationPositive("INGEST_POLL_INTERVAL", 4*time.Second)
+	pollJitter := runtimecfg.Float64NonNegative("INGEST_POLL_JITTER", 0.20)
+	stopTimeout := runtimecfg.DurationPositive("INGEST_STOP_TIMEOUT", 8*time.Second)
 	startWorkersDefault := ingestworker.RecommendedStartWorkers(runtime.GOMAXPROCS(0))
-	startWorkers := mustInt("INGEST_START_WORKERS", startWorkersDefault)
+	startWorkers := runtimecfg.IntPositive("INGEST_START_WORKERS", startWorkersDefault)
 	startQueueDefault := ingestworker.RecommendedStartQueueSize(startWorkers)
-	startQueueSize := mustInt("INGEST_START_QUEUE_SIZE", startQueueDefault)
-	leaseMissingAlertWindow := mustDuration("INGEST_LEASE_MISSING_ALERT_WINDOW", 5*time.Minute)
-	leaseMissingAlertThreshold := mustInt("INGEST_LEASE_MISSING_ALERT_THRESHOLD", 4)
-	leaseMissingAlertCooldown := mustDuration("INGEST_LEASE_MISSING_ALERT_COOLDOWN", 2*time.Minute)
+	startQueueSize := runtimecfg.IntPositive("INGEST_START_QUEUE_SIZE", startQueueDefault)
+	leaseMissingAlertWindow := runtimecfg.DurationPositive("INGEST_LEASE_MISSING_ALERT_WINDOW", 5*time.Minute)
+	leaseMissingAlertThreshold := runtimecfg.IntPositive("INGEST_LEASE_MISSING_ALERT_THRESHOLD", 4)
+	leaseMissingAlertCooldown := runtimecfg.DurationPositive("INGEST_LEASE_MISSING_ALERT_COOLDOWN", 2*time.Minute)
 
 	loop, err := ingestworker.NewLoop(log, store, leaseMgr, runner, ingestworker.Config{
 		WorkerID:                   workerID,
@@ -196,7 +196,7 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "ingest-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
 
@@ -246,118 +246,4 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("ingest worker stopped")
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func splitNonEmpty(raw string) []string {
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if v := strings.TrimSpace(part); v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-func mustDuration(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := time.ParseDuration(raw)
-	if err != nil || v <= 0 {
-		return fallback
-	}
-	return v
-}
-
-func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := time.ParseDuration(raw)
-	if err != nil || v < 0 {
-		return fallback
-	}
-	return v
-}
-
-func mustFloat64(key string, fallback float64) float64 {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseFloat(raw, 64)
-	if err != nil || v < 0 {
-		return fallback
-	}
-	return v
-}
-
-func mustInt(key string, fallback int) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v <= 0 {
-		return fallback
-	}
-	return v
-}
-
-func mustIntMin(key string, fallback int, min int) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < min {
-		return fallback
-	}
-	return v
-}
-
-func mustInt64Min(key string, fallback int64, min int64) int64 {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || v < min {
-		return fallback
-	}
-	return v
-}
-
-func mustUint32(key string, fallback uint32) uint32 {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseUint(raw, 10, 32)
-	if err != nil {
-		return fallback
-	}
-	return uint32(v)
-}
-
-func mustBool(key string, fallback bool) bool {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseBool(raw)
-	if err != nil {
-		return fallback
-	}
-	return v
 }

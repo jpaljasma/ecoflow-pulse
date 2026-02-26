@@ -5,23 +5,22 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 func main() {
 	logCfg := pulselog.DefaultServiceConfig("projection-worker")
 	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
-	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
-	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
-	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+	logCfg.AsyncEnabled = !runtimecfg.Bool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = runtimecfg.IntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(runtimecfg.EnvOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
 
 	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
 	if err != nil {
@@ -34,7 +33,7 @@ func main() {
 		}
 	}()
 
-	valkeyAddrs := splitNonEmpty(envOrDefault("VALKEY_ADDRS", "127.0.0.1:6379"))
+	valkeyAddrs := runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_ADDRS", "127.0.0.1:6379"))
 	valkeyCfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	valkeyCfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	valkeyCfg.Password = os.Getenv("VALKEY_PASSWORD")
@@ -46,21 +45,21 @@ func main() {
 	defer client.Close()
 
 	snapshotStore, err := projectionworker.NewValkeySnapshotStore(client, projectionworker.ValkeySnapshotStoreConfig{
-		KeyPrefix: envOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection"),
+		KeyPrefix: runtimecfg.EnvOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection"),
 	})
 	if err != nil {
 		log.Error("init projection snapshot store failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	natsCfg := telemetrybus.DefaultNATSConnConfig(splitNonEmpty(envOrDefault("NATS_URLS", "nats://127.0.0.1:4222")))
-	natsCfg.Name = envOrDefault("NATS_NAME", "ecoflow-projection-worker")
-	natsCfg.ConnectTimeout = mustDuration("NATS_CONNECT_TIMEOUT", natsCfg.ConnectTimeout)
-	natsCfg.ReconnectWait = mustDuration("NATS_RECONNECT_WAIT", natsCfg.ReconnectWait)
-	natsCfg.ReconnectJitter = mustDuration("NATS_RECONNECT_JITTER", natsCfg.ReconnectJitter)
-	natsCfg.PingInterval = mustDuration("NATS_PING_INTERVAL", natsCfg.PingInterval)
-	natsCfg.MaxPingsOut = mustIntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
-	natsCfg.MaxReconnects = mustIntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
+	natsCfg := telemetrybus.DefaultNATSConnConfig(runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("NATS_URLS", "nats://127.0.0.1:4222")))
+	natsCfg.Name = runtimecfg.EnvOrDefault("NATS_NAME", "ecoflow-projection-worker")
+	natsCfg.ConnectTimeout = runtimecfg.DurationPositive("NATS_CONNECT_TIMEOUT", natsCfg.ConnectTimeout)
+	natsCfg.ReconnectWait = runtimecfg.DurationPositive("NATS_RECONNECT_WAIT", natsCfg.ReconnectWait)
+	natsCfg.ReconnectJitter = runtimecfg.DurationPositive("NATS_RECONNECT_JITTER", natsCfg.ReconnectJitter)
+	natsCfg.PingInterval = runtimecfg.DurationPositive("NATS_PING_INTERVAL", natsCfg.PingInterval)
+	natsCfg.MaxPingsOut = runtimecfg.IntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
+	natsCfg.MaxReconnects = runtimecfg.IntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
 
 	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
 	if err != nil {
@@ -71,16 +70,16 @@ func main() {
 
 	cfg := projectionworker.DefaultConfig()
 	cfg.SubjectConfig = projectionworker.SubjectConfig{
-		Prefix:     envOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
-		ShardCount: mustUint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
 	}
-	cfg.StreamName = envOrDefault("PROJECTION_INGEST_STREAM_NAME", cfg.StreamName)
-	cfg.Durable = envOrDefault("PROJECTION_CONSUMER_DURABLE", cfg.Durable)
-	cfg.QueueGroup = envOrDefault("PROJECTION_QUEUE_GROUP", cfg.QueueGroup)
-	cfg.AckWait = mustDuration("PROJECTION_ACK_WAIT", cfg.AckWait)
-	cfg.MaxAckPending = mustIntMin("PROJECTION_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
-	cfg.ProcessTimeout = mustDuration("PROJECTION_PROCESS_TIMEOUT", cfg.ProcessTimeout)
-	cfg.DrainTimeout = mustDuration("PROJECTION_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	cfg.StreamName = runtimecfg.EnvOrDefault("PROJECTION_INGEST_STREAM_NAME", cfg.StreamName)
+	cfg.Durable = runtimecfg.EnvOrDefault("PROJECTION_CONSUMER_DURABLE", cfg.Durable)
+	cfg.QueueGroup = runtimecfg.EnvOrDefault("PROJECTION_QUEUE_GROUP", cfg.QueueGroup)
+	cfg.AckWait = runtimecfg.DurationPositive("PROJECTION_ACK_WAIT", cfg.AckWait)
+	cfg.MaxAckPending = runtimecfg.IntMin("PROJECTION_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
+	cfg.ProcessTimeout = runtimecfg.DurationPositive("PROJECTION_PROCESS_TIMEOUT", cfg.ProcessTimeout)
+	cfg.DrainTimeout = runtimecfg.DurationPositive("PROJECTION_DRAIN_TIMEOUT", cfg.DrainTimeout)
 
 	worker, err := projectionworker.New(log, natsConn, snapshotStore, cfg)
 	if err != nil {
@@ -90,7 +89,7 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "projection-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
 	log.Info("projection worker starting",
@@ -115,82 +114,4 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("projection worker stopped")
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func splitNonEmpty(raw string) []string {
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if v := strings.TrimSpace(part); v != "" {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-func mustDuration(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := time.ParseDuration(raw)
-	if err != nil || v <= 0 {
-		return fallback
-	}
-	return v
-}
-
-func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := time.ParseDuration(raw)
-	if err != nil || v < 0 {
-		return fallback
-	}
-	return v
-}
-
-func mustIntMin(key string, fallback int, min int) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < min {
-		return fallback
-	}
-	return v
-}
-
-func mustBool(key string, fallback bool) bool {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseBool(raw)
-	if err != nil {
-		return fallback
-	}
-	return v
-}
-
-func mustUint32(key string, fallback uint32) uint32 {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.ParseUint(raw, 10, 32)
-	if err != nil {
-		return fallback
-	}
-	return uint32(v)
 }
