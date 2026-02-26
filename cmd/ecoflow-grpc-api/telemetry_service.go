@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	telemetryv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -14,7 +16,8 @@ import (
 // In M2 you will back this with NATS (deltas) + Valkey (snapshots) + Timescale (history).
 type TelemetryService struct {
 	telemetryv1.UnimplementedTelemetryServiceServer
-	log *slog.Logger
+	log            *slog.Logger
+	snapshotReader projectionworker.SnapshotReader
 }
 
 var defaultSnapshotMetrics = map[string]float64{
@@ -24,7 +27,14 @@ var defaultSnapshotMetrics = map[string]float64{
 }
 
 func NewTelemetryService(log *slog.Logger) *TelemetryService {
-	return &TelemetryService{log: log}
+	return NewTelemetryServiceWithSnapshotReader(log, nil)
+}
+
+func NewTelemetryServiceWithSnapshotReader(log *slog.Logger, reader projectionworker.SnapshotReader) *TelemetryService {
+	return &TelemetryService{
+		log:            log,
+		snapshotReader: reader,
+	}
 }
 
 func (s *TelemetryService) GetSnapshot(ctx context.Context, req *telemetryv1.GetSnapshotRequest) (*telemetryv1.GetSnapshotResponse, error) {
@@ -33,7 +43,35 @@ func (s *TelemetryService) GetSnapshot(ctx context.Context, req *telemetryv1.Get
 	}
 
 	nowMs := time.Now().UnixMilli()
-	// TODO: fetch from Valkey (live snapshot).
+	if s.snapshotReader != nil {
+		snap, err := s.snapshotReader.ReadSnapshot(ctx, projectionworker.SnapshotIdentity{DeviceID: req.GetDeviceId()})
+		if err != nil {
+			s.log.Warn("snapshot read failed", "device_id", req.GetDeviceId(), "error", err.Error())
+			return nil, status.Error(codes.Unavailable, "snapshot unavailable")
+		}
+		if snap != nil {
+			deviceID := strings.TrimSpace(snap.DeviceID)
+			if deviceID == "" {
+				deviceID = req.GetDeviceId()
+			}
+			cursorTs := snap.Cursor.TsUnixMs
+			if cursorTs <= 0 {
+				cursorTs = nowMs
+			}
+			metrics := snap.Metrics
+			if metrics == nil {
+				metrics = map[string]float64{}
+			}
+			return &telemetryv1.GetSnapshotResponse{
+				Snapshot: &telemetryv1.Snapshot{
+					DeviceId: deviceID,
+					Cursor:   &telemetryv1.Cursor{Seq: snap.Cursor.Seq, TsUnixMs: cursorTs},
+					Metrics:  metrics,
+				},
+			}, nil
+		}
+	}
+
 	snap := &telemetryv1.Snapshot{
 		DeviceId: req.DeviceId,
 		Cursor:   &telemetryv1.Cursor{Seq: 1, TsUnixMs: nowMs},

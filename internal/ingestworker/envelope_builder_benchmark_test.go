@@ -43,4 +43,3 @@ func BenchmarkBuildTelemetryEnvelope(b *testing.B) {
 		}
 	}
 }
-

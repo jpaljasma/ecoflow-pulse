@@ -6,6 +6,10 @@ Top-level structure:
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane services).
   - `ecoflow-ingest-worker`: distributed MQTT ingest assignment loop + session runner entrypoint.
+  - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects).
+  - `ecoflow-replay-cli`: archive replay CLI (device listing + per-device/fleet shard-time replay modes).
+  - `ecoflow-gap-detector`: projection lag detector that enqueues targeted replay jobs.
+  - `ecoflow-gap-repair-worker`: gap-repair queue consumer that replays missing windows back into ingest subjects.
   - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
   - `ecoflow-panel-select-train`: panel selection model training + replay.
@@ -20,6 +24,9 @@ Top-level structure:
 - `internal/`
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
+  - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + MinIO-compatible object writer).
+  - `replaycli`: manifest/object replay runtime (manifest query + object decode + replay publish runner).
+  - `gaprepair`: projection lag detection + replay queue consumer/publisher primitives.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
   - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths.
@@ -27,6 +34,7 @@ Top-level structure:
   - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Activate credentials`, `ListDevices`, `DiscoverDevices`).
   - `pulse/telemetry/v1/telemetry.proto`: telemetry gRPC contract (snapshot + server-stream updates).
   - `pulse/envelope/v1/envelope.proto`: canonical ingest/archive `TelemetryEnvelope` contract.
+  - `pulse/replay/v1/replay.proto`: targeted replay request contract (`GapRepairRequest`).
 - `gen/`
   - generated protobuf/gRPC Go stubs (via `buf generate`).
 - `buf.yaml`, `buf.gen.yaml`

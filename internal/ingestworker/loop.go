@@ -17,14 +17,17 @@ import (
 )
 
 const (
-	defaultPollInterval = 5 * time.Second
-	defaultPollJitter   = 0.20
-	defaultStopTimeout  = 8 * time.Second
-	minStartWorkers     = 8
-	maxStartWorkers     = 64
-	startWorkersPerP    = 4
-	startQueueFactor    = 8
-	defaultTermQueueCap = 4096
+	defaultPollInterval               = 5 * time.Second
+	defaultPollJitter                 = 0.20
+	defaultStopTimeout                = 8 * time.Second
+	defaultLeaseMissingAlertWindow    = 5 * time.Minute
+	defaultLeaseMissingAlertThreshold = 4
+	defaultLeaseMissingAlertCooldown  = 2 * time.Minute
+	minStartWorkers                   = 8
+	maxStartWorkers                   = 64
+	startWorkersPerP                  = 4
+	startQueueFactor                  = 8
+	defaultTermQueueCap               = 4096
 )
 
 type AssignmentStore interface {
@@ -41,24 +44,30 @@ type SessionRunner interface {
 }
 
 type Config struct {
-	WorkerID       string
-	ProviderFilter string
-	PollInterval   time.Duration
-	PollJitter     float64
-	StopTimeout    time.Duration
-	StartWorkers   int
-	StartQueueSize int
+	WorkerID                   string
+	ProviderFilter             string
+	PollInterval               time.Duration
+	PollJitter                 float64
+	StopTimeout                time.Duration
+	StartWorkers               int
+	StartQueueSize             int
+	LeaseMissingAlertWindow    time.Duration
+	LeaseMissingAlertThreshold int
+	LeaseMissingAlertCooldown  time.Duration
 }
 
 func DefaultConfig(workerID string) Config {
 	workers := RecommendedStartWorkers(runtime.GOMAXPROCS(0))
 	return Config{
-		WorkerID:       strings.TrimSpace(workerID),
-		PollInterval:   defaultPollInterval,
-		PollJitter:     defaultPollJitter,
-		StopTimeout:    defaultStopTimeout,
-		StartWorkers:   workers,
-		StartQueueSize: RecommendedStartQueueSize(workers),
+		WorkerID:                   strings.TrimSpace(workerID),
+		PollInterval:               defaultPollInterval,
+		PollJitter:                 defaultPollJitter,
+		StopTimeout:                defaultStopTimeout,
+		StartWorkers:               workers,
+		StartQueueSize:             RecommendedStartQueueSize(workers),
+		LeaseMissingAlertWindow:    defaultLeaseMissingAlertWindow,
+		LeaseMissingAlertThreshold: defaultLeaseMissingAlertThreshold,
+		LeaseMissingAlertCooldown:  defaultLeaseMissingAlertCooldown,
 	}
 }
 
@@ -101,6 +110,8 @@ type Loop struct {
 	tokenNS string
 	termCh  chan terminationEvent
 	runDone chan struct{}
+
+	leaseMissingTracker *reconnectRateTracker
 }
 
 type runningSession struct {
@@ -146,6 +157,15 @@ func NewLoop(log *slog.Logger, store AssignmentStore, leases LeaseManager, runne
 	if cfg.StartQueueSize == 0 {
 		cfg.StartQueueSize = RecommendedStartQueueSize(cfg.StartWorkers)
 	}
+	if cfg.LeaseMissingAlertWindow <= 0 {
+		cfg.LeaseMissingAlertWindow = defaultLeaseMissingAlertWindow
+	}
+	if cfg.LeaseMissingAlertThreshold <= 0 {
+		cfg.LeaseMissingAlertThreshold = defaultLeaseMissingAlertThreshold
+	}
+	if cfg.LeaseMissingAlertCooldown <= 0 {
+		cfg.LeaseMissingAlertCooldown = defaultLeaseMissingAlertCooldown
+	}
 
 	return &Loop{
 		log:     log,
@@ -158,6 +178,11 @@ func NewLoop(log *slog.Logger, store AssignmentStore, leases LeaseManager, runne
 		tokenNS: cfg.WorkerID + "-",
 		termCh:  make(chan terminationEvent, defaultTermQueueCap),
 		runDone: make(chan struct{}),
+		leaseMissingTracker: newReconnectRateTracker(
+			cfg.LeaseMissingAlertWindow,
+			cfg.LeaseMissingAlertThreshold,
+			cfg.LeaseMissingAlertCooldown,
+		),
 	}, nil
 }
 
@@ -227,6 +252,11 @@ func (l *Loop) reconcile(ctx context.Context) error {
 			reason := stopReason(a)
 			l.stopSessionLocked(key, running)
 			stopEvents = append(stopEvents, stopEvent{key: key, reason: reason})
+			continue
+		}
+		if !sameRuntimeAssignment(running.assignment, a) {
+			l.stopSessionLocked(key, running)
+			stopEvents = append(stopEvents, stopEvent{key: key, reason: "assignment_updated"})
 			continue
 		}
 		// Already running and still valid; remove from latest so we only attempt
@@ -422,6 +452,27 @@ func (l *Loop) handleTerminationEvent(evt terminationEvent) {
 	}
 
 	if err != nil && !errors.Is(err, context.Canceled) {
+		if source == "heartbeat" && ingestlease.IsLeaseRenewMissing(err) {
+			count, perMinute, spike := l.leaseMissingTracker.Record(time.Now().UTC())
+			l.log.Warn("ingest session terminated with lease-missing heartbeat error",
+				slog.String("key", evt.key),
+				slog.String("source", source),
+				slog.String("error", err.Error()),
+				slog.Int("lease_missing_events_in_window", count),
+				slog.Float64("lease_missing_events_per_min", perMinute),
+				slog.Duration("lease_missing_window", l.cfg.LeaseMissingAlertWindow),
+			)
+			if spike {
+				l.log.Warn("ingest lease-missing heartbeat-rate spike detected",
+					slog.Int("lease_missing_events_in_window", count),
+					slog.Float64("lease_missing_events_per_min", perMinute),
+					slog.Duration("window", l.cfg.LeaseMissingAlertWindow),
+					slog.Int("threshold", l.cfg.LeaseMissingAlertThreshold),
+					slog.Duration("cooldown", l.cfg.LeaseMissingAlertCooldown),
+				)
+			}
+			return
+		}
 		l.log.Warn("ingest session terminated with error",
 			slog.String("key", evt.key),
 			slog.String("source", source),
@@ -499,8 +550,22 @@ func sanitizeProvider(provider string) string {
 func sanitizeAssignment(a controlplane.IngestAssignment) controlplane.IngestAssignment {
 	a.Provider = sanitizeProvider(a.Provider)
 	a.ProviderDeviceID = strings.ToUpper(strings.TrimSpace(a.ProviderDeviceID))
+	a.DeviceID = strings.TrimSpace(a.DeviceID)
+	a.CredentialID = strings.TrimSpace(a.CredentialID)
+	a.ProductName = strings.TrimSpace(a.ProductName)
+	a.Model = strings.TrimSpace(a.Model)
+	a.AccessKey = strings.TrimSpace(a.AccessKey)
+	a.SecretKey = strings.TrimSpace(a.SecretKey)
 	a.IngestDesiredState = strings.ToLower(strings.TrimSpace(a.IngestDesiredState))
 	return a
+}
+
+func sameRuntimeAssignment(current, next controlplane.IngestAssignment) bool {
+	return current.Provider == next.Provider &&
+		current.ProviderDeviceID == next.ProviderDeviceID &&
+		current.CredentialID == next.CredentialID &&
+		current.AccessKey == next.AccessKey &&
+		current.SecretKey == next.SecretKey
 }
 
 func shouldRun(a controlplane.IngestAssignment) bool {

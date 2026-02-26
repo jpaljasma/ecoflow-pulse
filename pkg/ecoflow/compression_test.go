@@ -65,7 +65,7 @@ func TestClient_Do_CompressesRequestBodyWithGzip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("gzip.NewReader() error = %v", err)
 			}
-			defer reader.Close()
+			defer func() { _ = reader.Close() }()
 
 			decodedBody, err := io.ReadAll(reader)
 			if err != nil {

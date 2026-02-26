@@ -10,6 +10,7 @@ import (
 	"time"
 
 	telemetryv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -73,6 +74,51 @@ func TestGetSnapshotOK(t *testing.T) {
 	}
 	if _, ok := resp.GetSnapshot().GetMetrics()["soc"]; !ok {
 		t.Fatalf("expected soc metric")
+	}
+}
+
+func TestGetSnapshotUsesProjectionReadModelWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTelemetryServiceWithSnapshotReader(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		fakeSnapshotReader{
+			snapshot: &projectionworker.SnapshotReadModel{
+				DeviceID: "dev-proj",
+				Cursor: projectionworker.SnapshotCursor{
+					Seq:      55,
+					TsUnixMs: 9999,
+				},
+				Metrics: map[string]float64{
+					"soc":      22.5,
+					"watts_in": 180,
+				},
+			},
+		},
+	)
+
+	resp, err := svc.GetSnapshot(context.Background(), &telemetryv1.GetSnapshotRequest{DeviceId: "dev-proj"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := resp.GetSnapshot().GetCursor().GetSeq(); got != 55 {
+		t.Fatalf("cursor seq mismatch: got=%d want=55", got)
+	}
+	if got := resp.GetSnapshot().GetMetrics()["watts_in"]; got != 180 {
+		t.Fatalf("metric mismatch: got=%v want=180", got)
+	}
+}
+
+func TestGetSnapshotProjectionReadError(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTelemetryServiceWithSnapshotReader(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		fakeSnapshotReader{err: errors.New("valkey down")},
+	)
+	_, err := svc.GetSnapshot(context.Background(), &telemetryv1.GetSnapshotRequest{DeviceId: "dev-1"})
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("expected Unavailable, got %v", err)
 	}
 }
 
@@ -170,4 +216,16 @@ func TestSubscribePropagatesSendError(t *testing.T) {
 	if err == nil || err.Error() != "send failed" {
 		t.Fatalf("expected send error, got %v", err)
 	}
+}
+
+type fakeSnapshotReader struct {
+	snapshot *projectionworker.SnapshotReadModel
+	err      error
+}
+
+func (f fakeSnapshotReader) ReadSnapshot(context.Context, projectionworker.SnapshotIdentity) (*projectionworker.SnapshotReadModel, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.snapshot, nil
 }

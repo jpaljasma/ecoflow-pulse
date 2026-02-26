@@ -14,12 +14,26 @@ go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
 go run ./cmd/ecoflow-ingest-worker
+go run ./cmd/ecoflow-projection-worker
+go run ./cmd/ecoflow-archive-worker
+go run ./cmd/ecoflow-replay-cli
+go run ./cmd/ecoflow-gap-detector
+go run ./cmd/ecoflow-gap-repair-worker
 ```
 
 Run gRPC API with explicit control-plane Postgres store:
 
 ```bash
 CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' go run ./cmd/ecoflow-grpc-api
+```
+
+Run gRPC API with live snapshot reads from Valkey (used by `TelemetryService.GetSnapshot`):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' \
+VALKEY_ADDRS='127.0.0.1:6379' \
+PROJECTION_KEY_PREFIX='pulse:projection' \
+go run ./cmd/ecoflow-grpc-api
 ```
 
 Run the opt-in real EcoFlow adapter integration check against seeded SNs:
@@ -37,6 +51,68 @@ NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-ingest-worker
 ```
 
+Run projection worker loop (consume ingest envelopes from JetStream and build Valkey live snapshots):
+
+```bash
+VALKEY_ADDRS='127.0.0.1:6379' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-projection-worker
+```
+
+Run archive worker loop (consume ingest envelopes from JetStream and write protobuf+zstd objects to MinIO-compatible storage):
+
+```bash
+NATS_URLS='nats://127.0.0.1:4222' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+ARCHIVE_OBJECT_BUCKET='pulse-telemetry-raw' \
+go run ./cmd/ecoflow-archive-worker
+```
+
+Run replay CLI modes (manifest-backed listing + device/fleet replay to NATS replay subjects):
+
+```bash
+# List known device/provider ids in the archive manifest window.
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+go run ./cmd/ecoflow-replay-cli -mode list-devices -from 2026-02-26T00:00:00Z -to 2026-02-26T23:59:59Z
+
+# Per-device replay (dry-run decode/filter only; no NATS publish).
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+go run ./cmd/ecoflow-replay-cli -mode device -provider-device-ids R351ZABAPH331057 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z -dry-run
+
+# Fleet shard/time replay (publishes TelemetryEnvelope bytes to pulse.telemetry.replay.sNNN).
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-replay-cli -mode fleet -shards 7,11 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z
+```
+
+Run gap detector loop (projection lag detection + targeted replay enqueue):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+VALKEY_ADDRS='127.0.0.1:6379' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-gap-detector
+```
+
+Run gap-repair worker loop (consume queue jobs and replay back to ingest subjects):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-gap-repair-worker
+```
+
 Ingest worker scaling knobs:
 
 ```bash
@@ -51,13 +127,23 @@ Ingest worker MQTT session + telemetry bus knobs:
 
 ```bash
 # MQTT session defaults (per leased provider device)
-export INGEST_MQTT_KEEPALIVE=60s
+export INGEST_MQTT_KEEPALIVE=90s
 export INGEST_MQTT_CONNECT_TIMEOUT=10s
-export INGEST_MQTT_READ_TIMEOUT=30s
+export INGEST_MQTT_READ_TIMEOUT=45s
 export INGEST_MQTT_WRITE_TIMEOUT=15s
 export INGEST_MQTT_RECONNECT_INITIAL_BACKOFF=500ms
 export INGEST_MQTT_RECONNECT_MAX_BACKOFF=15s
 export INGEST_MQTT_RECONNECT_JITTER=0.25
+
+# EOF reconnect-rate spike alerting (read mqtt message: EOF)
+export INGEST_MQTT_RECONNECT_ALERT_WINDOW=5m
+export INGEST_MQTT_RECONNECT_ALERT_THRESHOLD=8
+export INGEST_MQTT_RECONNECT_ALERT_COOLDOWN=2m
+
+# Lease-loss spike alerting (heartbeat renew rejected: missing)
+export INGEST_LEASE_MISSING_ALERT_WINDOW=5m
+export INGEST_LEASE_MISSING_ALERT_THRESHOLD=4
+export INGEST_LEASE_MISSING_ALERT_COOLDOWN=2m
 
 # Bounded async publish queue (per MQTT session)
 export INGEST_PUBLISH_QUEUE_SIZE=256
@@ -69,6 +155,21 @@ export INGEST_ALLOW_UNORDERED_PUBLISH=false
 
 # Throughput knob: drop optional map labels before protobuf marshal/publish
 export INGEST_DISABLE_ENVELOPE_LABELS=false
+
+# JetStream ingest stream bootstrap (idempotent on worker start)
+export INGEST_NATS_JS_BOOTSTRAP_ENABLED=true
+export INGEST_NATS_JS_STREAM_NAME='PULSE_TELEMETRY_INGEST'
+export INGEST_NATS_JS_REPLICAS=3
+export INGEST_NATS_JS_MAX_AGE=72h
+export INGEST_NATS_JS_MAX_BYTES=0
+
+# Envelope publish policy (retry/backpressure tuning)
+export INGEST_NATS_USE_JETSTREAM=true
+export INGEST_NATS_PUBLISH_TIMEOUT=3s
+export INGEST_NATS_PUBLISH_MAX_RETRIES=3
+export INGEST_NATS_PUBLISH_RETRY_INITIAL_BACKOFF=50ms
+export INGEST_NATS_PUBLISH_RETRY_MAX_BACKOFF=500ms
+export INGEST_NATS_PUBLISH_RETRY_JITTER=0.20
 
 # NATS connection defaults for envelope publishing
 export NATS_URLS='nats://127.0.0.1:4222'
@@ -83,6 +184,77 @@ export NATS_MAX_RECONNECTS=-1
 # Telemetry subject routing / deterministic shard mapping
 export TELEMETRY_SUBJECT_PREFIX='pulse'
 export TELEMETRY_SHARD_COUNT=128
+
+# Projection worker consumer + snapshot store knobs
+export PROJECTION_KEY_PREFIX='pulse:projection'
+export PROJECTION_INGEST_STREAM_NAME='PULSE_TELEMETRY_INGEST'
+export PROJECTION_CONSUMER_DURABLE='projection-live-v1'
+export PROJECTION_QUEUE_GROUP='projection-live'
+export PROJECTION_ACK_WAIT=30s
+export PROJECTION_MAX_ACK_PENDING=4096
+export PROJECTION_PROCESS_TIMEOUT=3s
+export PROJECTION_DRAIN_TIMEOUT=8s
+
+# Archive worker consumer + object writer knobs
+export ARCHIVE_INGEST_STREAM_NAME='PULSE_TELEMETRY_INGEST'
+export ARCHIVE_CONSUMER_DURABLE='archive-raw-v1'
+export ARCHIVE_QUEUE_GROUP='archive-raw'
+export ARCHIVE_ACK_WAIT=60s
+export ARCHIVE_MAX_ACK_PENDING=4096
+export ARCHIVE_PROCESS_TIMEOUT=3s
+export ARCHIVE_DRAIN_TIMEOUT=8s
+export ARCHIVE_FLUSH_INTERVAL=30s
+export ARCHIVE_FLUSH_TIMEOUT=12s
+export ARCHIVE_MAX_RECORDS_PER_PART=1024
+export ARCHIVE_MAX_BYTES_PER_PART=4194304
+export ARCHIVE_ZSTD_LEVEL=3
+export ARCHIVE_OBJECT_BUCKET='pulse-telemetry-raw'
+export ARCHIVE_OBJECT_PREFIX='raw'
+export ARCHIVE_WRITER_ID='archive-worker-1'
+
+# MinIO/S3-compatible object store connection
+export ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000'
+export ARCHIVE_OBJECT_ACCESS_KEY='minio'
+export ARCHIVE_OBJECT_SECRET_KEY='minio123'
+export ARCHIVE_OBJECT_REGION='us-east-1'
+export ARCHIVE_OBJECT_SECURE=false
+export ARCHIVE_OBJECT_AUTO_CREATE_BUCKET=true
+
+# Optional manifest index persistence (falls back to CONTROL_PLANE_DB_DSN when unset)
+export ARCHIVE_MANIFEST_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable'
+
+# Gap detector knobs
+export GAP_REPAIR_PROVIDER='ecoflow'                    # optional
+export GAP_REPAIR_POLL_INTERVAL=30s
+export GAP_REPAIR_POLL_JITTER=0.20
+export GAP_REPAIR_LOOKBACK_WINDOW=30m
+export GAP_REPAIR_LAG_THRESHOLD=90s
+export GAP_REPAIR_WINDOW_PADDING=30s
+export GAP_REPAIR_MAX_REPLAY_WINDOW=30m
+export GAP_REPAIR_SAFE_DELAY=10s
+export GAP_REPAIR_MAX_OBJECTS_PER_JOB=0
+export GAP_REPAIR_MAX_JOBS_PER_CYCLE=64
+export GAP_REPAIR_EVAL_WORKERS=16
+export GAP_REPAIR_DRY_RUN=false
+export GAP_REPAIR_NATS_USE_JETSTREAM=true
+export GAP_REPAIR_MSG_ID_BUCKET=1m
+
+# Gap-repair queue stream bootstrap
+export GAP_REPAIR_NATS_JS_BOOTSTRAP_ENABLED=true
+export GAP_REPAIR_NATS_JS_STREAM_NAME='PULSE_TELEMETRY_GAPREPAIR'
+export GAP_REPAIR_NATS_JS_REPLICAS=3
+export GAP_REPAIR_NATS_JS_MAX_AGE=24h
+export GAP_REPAIR_NATS_JS_MAX_BYTES=0
+
+# Gap-repair worker consumer knobs
+export GAP_REPAIR_STREAM_NAME='PULSE_TELEMETRY_GAPREPAIR'
+export GAP_REPAIR_CONSUMER_DURABLE='gap-repair-v1'
+export GAP_REPAIR_QUEUE_GROUP='gap-repair-workers'
+export GAP_REPAIR_ACK_WAIT=2m
+export GAP_REPAIR_MAX_ACK_PENDING=1024
+export GAP_REPAIR_PROCESS_TIMEOUT=2m
+export GAP_REPAIR_DRAIN_TIMEOUT=10s
+export GAP_REPAIR_DEFAULT_MAX_OBJECTS=0
 ```
 
 ## Protobuf / gRPC Generation
@@ -153,10 +325,20 @@ SOLAR_PANEL_LINK_MAP=data/solar_panels/panel_purchase_links_v13.json ./scripts/r
 make lint
 make test
 make bench
+make bench-ingestlease-integration
+make test-archive-integration
 make build
 make smoke
 make mqtt
 make ingest-worker
+make projection-worker
+make archive-worker
+make replay-cli
+make gap-detector
+make gap-repair-worker
+make services-image-build-local
+make services-image-import-local
+make services-image-local-up
 make k3d-up
 make platform-up
 make platform-wait
@@ -202,9 +384,23 @@ Notes:
     `brew install markdownlint-cli`
 - `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on
   intentional stop.
+- `make bench-ingestlease-integration` runs Valkey lease manager integration
+  leak/throughput checks against a live Valkey service via temporary
+  `kubectl port-forward`.
+- `make test-archive-integration` runs `internal/archiveworker` integration
+  tests (real MinIO object writes + failure injection):
+  - opens temporary `kubectl port-forward` to
+    `svc/pulse-platform-minio:9000`,
+  - resolves MinIO credentials from
+    `secret/pulse-platform-minio` (`rootUser` / `rootPassword`) unless
+    overridden via `ARCHIVE_OBJECT_ACCESS_KEY` / `ARCHIVE_OBJECT_SECRET_KEY`,
+  - sets `ARCHIVE_STORE_INTEGRATION=1` and runs
+    `go test ./internal/archiveworker -tags integration`.
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
+- `make replay-cli` runs the replay command with optional passthrough args:
+  `make replay-cli ARGS='-mode list-devices -from 2026-02-26T00:00:00Z -to 2026-02-26T23:59:59Z'`.
 - `buf generate` regenerates protobuf/gRPC Go stubs into `gen/` from
   `proto/` using `buf.yaml` + `buf.gen.yaml`.
 - `make k3d-up` creates or reuses local k3d cluster from `deploy/tilt/k3d-config.yaml`.
@@ -240,6 +436,16 @@ Notes:
   - `kubectl get nodes -o wide`
   - `kubectl get pods -n pulse-platform`
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services` using `deploy/env/local/values.services.yaml`.
+- `make services-image-build-local` builds local telemetry worker image
+  `$(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)` from
+  `deploy/docker/pulse-services.Dockerfile`.
+- `make services-image-import-local` imports that local worker image into
+  k3d cluster `$(K3D_CLUSTER_NAME)`.
+- `make services-image-local-up` runs build + import for local k3d in one step.
+- `make services-up` updates Helm deps and installs/upgrades `pulse-services`
+  using `deploy/env/local/values.services.yaml`. By default it auto-builds and
+  imports the local worker image before Helm apply; set
+  `SERVICES_AUTO_BUILD_IMAGE=0` to skip.
 - `make platform-wait` blocks until critical platform dependencies are ready:
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
@@ -279,6 +485,10 @@ Notes:
     - `DB_SEED_USER_SUBJECT=jpaljasma@gmail.com`,
     - `DB_SEED_USER_EMAIL=jpaljasma@gmail.com`,
     - `DB_SEED_SERIALS=R351ZABAPH331057,Y711ZABA9H2P0294`.
+  - after credential rotation, recycle ingest sessions so workers immediately
+    reconnect with fresh provider credentials:
+    - `kubectl -n pulse-services rollout restart deploy/pulse-services-go-ingest`
+    - `kubectl -n pulse-services rollout status deploy/pulse-services-go-ingest --timeout=120s`
 - `make auth-keycloak-verify-local` validates Keycloak realm bootstrap on local k3d:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),

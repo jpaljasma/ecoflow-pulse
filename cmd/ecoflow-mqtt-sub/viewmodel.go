@@ -616,9 +616,10 @@ func buildSolarRecommendationRows(
 		}
 		basePortPotential, _, _ := baselineSolarPortPotential(port, false, 0)
 		basePortETAW := basePortPotential
-		if port.channel == "low" {
+		switch port.channel {
+		case "low":
 			basePortETAW = baseLowETAW
-		} else if port.channel == "high" {
+		case "high":
 			basePortETAW = baseHighETAW
 		}
 		otherPortsETAW := baseTotalETAW - basePortETAW
@@ -841,13 +842,13 @@ func detectedPanelStableSignature(d detectedPanelSetup) string {
 	builder.WriteString(strings.ToLower(strings.TrimSpace(d.setup)))
 	builder.WriteString("|")
 	if d.hasCount {
-		builder.WriteString(fmt.Sprintf("c=%d", d.panelCount))
+		_, _ = fmt.Fprintf(&builder, "c=%d", d.panelCount)
 	} else {
 		builder.WriteString("c=n/a")
 	}
 	builder.WriteString("|")
 	if d.hasNominalW {
-		builder.WriteString(fmt.Sprintf("w=%.1f", d.nominalW))
+		_, _ = fmt.Fprintf(&builder, "w=%.1f", d.nominalW)
 	} else {
 		builder.WriteString("w=n/a")
 	}
@@ -1901,10 +1902,7 @@ func isMeaningfulAlternateLayout(primary solarRecommendationOption, alt solarRec
 	// Reject near-identical power outcomes for same model.
 	diff := math.Abs(primary.potentialW - alt.potentialW)
 	minDelta := math.Max(15, maxWatts*0.08)
-	if diff < minDelta {
-		return false
-	}
-	return true
+	return diff >= minDelta
 }
 
 func absInt(v int) int {
@@ -2868,6 +2866,7 @@ func inferBatteryChargeSource(snapshot *energySnapshot, derived snapshotDerived)
 	}
 }
 
+//nolint:unused // retained for future display normalization in panel recommendations.
 func extractPrimaryWattsDisplay(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" || value == "n/a" {
@@ -2943,6 +2942,7 @@ func pickPreferredMLForTopState(
 	return unit, "MPPT"
 }
 
+//nolint:unused // retained for future ranking diagnostics against unit estimates.
 func estimateClosenessToUnit(
 	unit batteryETAEstimates,
 	candidate batteryETAEstimates,
@@ -3010,6 +3010,7 @@ func parseConfidenceScore(value string) (float64, bool) {
 	return score, true
 }
 
+//nolint:unused // retained for future type/state compact formatting.
 func formatTypeWithState(typeCode string, systemState string) string {
 	typeCode = strings.TrimSpace(typeCode)
 	systemState = strings.TrimSpace(systemState)
@@ -3251,6 +3252,7 @@ func trimFloatForRange(value float64) string {
 	return fmt.Sprintf("%.1f", value)
 }
 
+//nolint:unused // retained for optional mqtt debug metadata row rendering.
 func formatLastMQTTMeta(envelope telemetryEnvelope) string {
 	parts := make([]string, 0, 4)
 	if envelope.ID != 0 {
@@ -3308,6 +3310,7 @@ func isMQTTStale(snapshot *energySnapshot) bool {
 	return time.Since(snapshot.MQTTLastMessageAt) >= threshold
 }
 
+//nolint:unused // retained for optional mqtt uptime diagnostics.
 func formatMQTTUptime(snapshot *energySnapshot) string {
 	if snapshot == nil || !snapshot.MQTTConnected || !snapshot.HasMQTTConnectedSince {
 		return "n/a"
@@ -3374,6 +3377,7 @@ func formatSOCGauge(soc float64, gaugeWidth int) string {
 	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", gaugeWidth-filled) + "]"
 }
 
+//nolint:unused // retained for optional mqtt last-message diagnostics.
 func formatMQTTLastMessageAge(snapshot *energySnapshot) string {
 	if snapshot == nil || !snapshot.HasMQTTLastMessage || snapshot.MQTTLastMessageAt.IsZero() {
 		return "last_msg: n/a"
@@ -3440,6 +3444,7 @@ func formatRelativeTimeAgo(ts time.Time) string {
 	return fmt.Sprintf("%d days ago", days)
 }
 
+//nolint:unused // retained for optional mqtt diagnostics.
 func formatShortDuration(value time.Duration) string {
 	if value < 0 {
 		value = -value

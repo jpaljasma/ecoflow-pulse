@@ -460,9 +460,9 @@ func estimateBatteryETAsMLWithProfile(
 		)
 	}
 
-	signMatch := 0.5
+	var signMatch float64
 	recent := lastNSamples(samples, cfg.recentWindow)
-	recentSignMatch := 0.5
+	var recentSignMatch float64
 	deadband := adaptiveDirectionDeadband(stdNetW)
 	if deadband < threshold*0.7 {
 		deadband = threshold * 0.7
@@ -563,7 +563,8 @@ func estimateBatteryETAsMLWithProfile(
 			confidenceScore += 0.03
 		}
 	}
-	if stateForModel == systemStateCharging || stateForModel == systemStateDischarging {
+	switch stateForModel {
+	case systemStateCharging, systemStateDischarging:
 		steadyWindow := cfg.recentWindow + 2
 		if steadyWindow < 8 {
 			steadyWindow = 8
@@ -617,7 +618,7 @@ func estimateBatteryETAsMLWithProfile(
 			confidenceScore < 0.92 {
 			confidenceScore = 0.92
 		}
-	} else if stateForModel == systemStateIdle {
+	case systemStateIdle:
 		idleWindow := cfg.recentWindow + 2
 		if idleWindow < 6 {
 			idleWindow = 6

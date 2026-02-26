@@ -1,0 +1,31 @@
+{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled -}}
+{{- if $workersEnabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-runtime-env
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+data:
+  NATS_URLS: {{ .Values.runtime.env.natsURLs | quote }}
+  VALKEY_ADDRS: {{ .Values.runtime.env.valkeyAddrs | quote }}
+  ARCHIVE_OBJECT_ENDPOINT: {{ .Values.runtime.env.archiveObjectEndpoint | quote }}
+  ARCHIVE_OBJECT_BUCKET: {{ .Values.runtime.env.archiveObjectBucket | quote }}
+  ARCHIVE_OBJECT_PREFIX: {{ .Values.runtime.env.archiveObjectPrefix | quote }}
+  ARCHIVE_OBJECT_REGION: {{ .Values.runtime.env.archiveObjectRegion | quote }}
+  ARCHIVE_OBJECT_SECURE: {{ .Values.runtime.env.archiveObjectSecure | quote }}
+  ARCHIVE_OBJECT_AUTO_CREATE_BUCKET: {{ .Values.runtime.env.archiveObjectAutoCreateBucket | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-runtime-secret
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  CONTROL_PLANE_DB_DSN: {{ .Values.runtime.env.controlPlaneDBDSN | quote }}
+  ARCHIVE_MANIFEST_DB_DSN: {{ .Values.runtime.env.archiveManifestDBDSN | quote }}
+  ARCHIVE_OBJECT_ACCESS_KEY: {{ .Values.runtime.env.archiveObjectAccessKey | quote }}
+  ARCHIVE_OBJECT_SECRET_KEY: {{ .Values.runtime.env.archiveObjectSecretKey | quote }}
+{{- end }}

@@ -67,6 +67,21 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. For commits touching Markdown, run `make lint` before push.
 5. Markdown linting uses repo-level sane defaults in `.markdownlint.json`; avoid broad doc reflow/polish unless the task explicitly requires it.
 
+## Local Telemetry Pipeline Rules
+1. Prefer in-cluster containerized workers over long-running local `go run` loops.
+2. Use `make dev-up` + `make services-up` as the default local runtime path for ingest/projection/archive.
+3. Keep worker image flow reproducible:
+   - `make services-image-build-local`
+   - `make services-image-import-local`
+4. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
+
+## Go Lint Hygiene Rules
+1. `golangci-lint run ./...` must pass before commit.
+2. Treat `errcheck` as mandatory: explicitly handle close errors (or intentionally ignore with `_ = ...`).
+3. Avoid ineffective assignments and dead branches; remove no-op placeholder logic instead of suppressing it.
+4. Keep deprecated gRPC APIs out of tests/runtime paths (prefer `grpc.NewClient` over deprecated dial patterns).
+5. If helper code is intentionally retained but currently unused, annotate with a short `//nolint:unused` reason.
+
 ## Milestone Closure Rules
 1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.
 2. Record acceptance evidence in `docs/architecture/README.md` in the same branch/commit series as the implementation.

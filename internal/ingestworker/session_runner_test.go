@@ -193,6 +193,122 @@ func TestEcoFlowSessionRunnerReconnectsAfterReadFailure(t *testing.T) {
 	}
 }
 
+func TestEcoFlowSessionRunnerDoesNotReconnectOnPublishFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var publishCalls atomic.Int64
+	publisher := &fakeEnvelopePublisher{
+		onPublish: func(*envelopev1.TelemetryEnvelope) error {
+			if publishCalls.Add(1) == 1 {
+				return errors.New("nats unavailable")
+			}
+			cancel()
+			return nil
+		},
+	}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+		ReconnectInitialBackoff: time.Millisecond,
+		ReconnectMaxBackoff:     2 * time.Millisecond,
+		ReconnectJitter:         0,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+
+	resolver := &fakeCertResolver{
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+		},
+	}
+	subscriber := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`)}},
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":2,"typeCode":"pdStatus"}`)}},
+		},
+	}
+	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+	runner.adapter = resolver
+	runner.newSubscriber = factory.new
+	runner.sleepFn = func(context.Context, time.Duration) error { return nil }
+
+	assignment := controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	}
+
+	if err := runner.Run(ctx, assignment); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := resolver.calls.Load(); got != 1 {
+		t.Fatalf("expected single certification call with no reconnect, got=%d", got)
+	}
+	if got := len(factory.configs); got != 1 {
+		t.Fatalf("expected single subscriber init with no reconnect, got=%d", got)
+	}
+	if got := publisher.publishCount.Load(); got != 2 {
+		t.Fatalf("expected two publish attempts, got=%d", got)
+	}
+}
+
+func TestEcoFlowSessionRunnerStopsOnInvalidAccessKeyBusinessError(t *testing.T) {
+	t.Parallel()
+
+	publisher := &fakeEnvelopePublisher{}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+		ReconnectInitialBackoff: time.Millisecond,
+		ReconnectMaxBackoff:     2 * time.Millisecond,
+		ReconnectJitter:         0,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+
+	resolver := &fakeCertResolver{
+		err: &ecoflow.BusinessError{
+			Code:    "8513",
+			Message: "accessKey is invalid",
+		},
+	}
+	runner.adapter = resolver
+	sleepCalls := atomic.Int64{}
+	runner.sleepFn = func(context.Context, time.Duration) error {
+		sleepCalls.Add(1)
+		return nil
+	}
+
+	assignment := controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	}
+
+	err = runner.Run(context.Background(), assignment)
+	if !errors.Is(err, ErrEcoFlowCredentialRejected) {
+		t.Fatalf("expected ErrEcoFlowCredentialRejected, got=%v", err)
+	}
+	if got := resolver.calls.Load(); got != 1 {
+		t.Fatalf("expected one certification call, got=%d", got)
+	}
+	if got := sleepCalls.Load(); got != 0 {
+		t.Fatalf("expected no reconnect sleep on invalid access key, got=%d", got)
+	}
+}
+
 func TestEcoFlowSessionRunnerRejectsUnsupportedProvider(t *testing.T) {
 	t.Parallel()
 
@@ -206,6 +322,87 @@ func TestEcoFlowSessionRunnerRejectsUnsupportedProvider(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected unsupported provider error")
+	}
+}
+
+func TestDefaultEcoFlowSessionConfigReconnectAlertDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultEcoFlowSessionConfig()
+	if cfg.KeepAlive != 90*time.Second {
+		t.Fatalf("keepalive default mismatch: got=%s want=90s", cfg.KeepAlive)
+	}
+	if cfg.ReadTimeout != 45*time.Second {
+		t.Fatalf("read timeout default mismatch: got=%s want=45s", cfg.ReadTimeout)
+	}
+	if cfg.ReconnectAlertWindow != 5*time.Minute {
+		t.Fatalf("reconnect alert window mismatch: got=%s want=5m", cfg.ReconnectAlertWindow)
+	}
+	if cfg.ReconnectAlertThreshold != 8 {
+		t.Fatalf("reconnect alert threshold mismatch: got=%d want=8", cfg.ReconnectAlertThreshold)
+	}
+	if cfg.ReconnectAlertCooldown != 2*time.Minute {
+		t.Fatalf("reconnect alert cooldown mismatch: got=%s want=2m", cfg.ReconnectAlertCooldown)
+	}
+}
+
+func TestReconnectRateTrackerAlertingAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	base := time.Unix(1_700_000_000, 0).UTC()
+	tracker := newReconnectRateTracker(5*time.Minute, 3, 2*time.Minute)
+	if tracker == nil {
+		t.Fatal("tracker should not be nil")
+	}
+
+	count, perMin, spike := tracker.Record(base)
+	if count != 1 || spike {
+		t.Fatalf("first event mismatch: count=%d spike=%v", count, spike)
+	}
+	if perMin <= 0 {
+		t.Fatalf("per-minute rate should be positive, got=%v", perMin)
+	}
+
+	count, _, spike = tracker.Record(base.Add(20 * time.Second))
+	if count != 2 || spike {
+		t.Fatalf("second event mismatch: count=%d spike=%v", count, spike)
+	}
+
+	count, _, spike = tracker.Record(base.Add(40 * time.Second))
+	if count != 3 || !spike {
+		t.Fatalf("third event should trigger spike: count=%d spike=%v", count, spike)
+	}
+
+	// Cooldown suppresses duplicate alerts while still tracking count.
+	count, _, spike = tracker.Record(base.Add(60 * time.Second))
+	if count != 4 || spike {
+		t.Fatalf("cooldown event mismatch: count=%d spike=%v", count, spike)
+	}
+
+	// After cooldown expires and threshold still exceeded, alert should fire again.
+	count, _, spike = tracker.Record(base.Add(3 * time.Minute))
+	if count < 3 || !spike {
+		t.Fatalf("post-cooldown event should trigger spike: count=%d spike=%v", count, spike)
+	}
+
+	// Old events should age out of the window.
+	count, _, spike = tracker.Record(base.Add(10 * time.Minute))
+	if count != 1 || spike {
+		t.Fatalf("aged-out window mismatch: count=%d spike=%v", count, spike)
+	}
+}
+
+func TestIsMQTTReadEOF(t *testing.T) {
+	t.Parallel()
+
+	if !isMQTTReadEOF(io.EOF) {
+		t.Fatal("expected io.EOF to be recognized as mqtt read eof")
+	}
+	if !isMQTTReadEOF(errors.New("read mqtt message: EOF")) {
+		t.Fatal("expected wrapped read eof string to be recognized")
+	}
+	if isMQTTReadEOF(errors.New("connect rejected, return code=5")) {
+		t.Fatal("did not expect non-read error to be classified as mqtt read eof")
 	}
 }
 

@@ -63,6 +63,16 @@ VALKEY_BENCH_NAMESPACE ?= pulse-platform
 VALKEY_BENCH_SERVICE ?= pulse-platform-valkey
 VALKEY_BENCH_LOCAL_PORT ?= 6389
 VALKEY_BENCH_ADDRS ?= 127.0.0.1:$(VALKEY_BENCH_LOCAL_PORT)
+ARCHIVE_INTEGRATION_NAMESPACE ?= pulse-platform
+ARCHIVE_INTEGRATION_SERVICE ?= pulse-platform-minio
+ARCHIVE_INTEGRATION_SECRET ?= pulse-platform-minio
+ARCHIVE_INTEGRATION_LOCAL_PORT ?= 9000
+ARCHIVE_INTEGRATION_ENDPOINT ?= 127.0.0.1:$(ARCHIVE_INTEGRATION_LOCAL_PORT)
+SERVICES_IMAGE_REPO ?= ecoflow-pulse/services
+SERVICES_IMAGE_TAG ?= local
+SERVICES_IMAGE ?= $(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)
+SERVICES_IMAGE_DOCKERFILE ?= deploy/docker/pulse-services.Dockerfile
+SERVICES_AUTO_BUILD_IMAGE ?= 1
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -77,7 +87,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test bench bench-ingestlease-integration build smoke mqtt ingest-worker k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -127,12 +137,60 @@ bench-ingestlease-integration:
 	VALKEY_INTEGRATION_ADDRS="$(VALKEY_BENCH_ADDRS)" $(GO) test ./internal/ingestlease -tags integration -run '^TestRunHeartbeatNoGoroutineLeakIntegration$$' -count=1; \
 	VALKEY_INTEGRATION_ADDRS="$(VALKEY_BENCH_ADDRS)" $(GO) test ./internal/ingestlease -tags integration -run '^$$' -bench 'BenchmarkLeaseManager.*Integration' -benchmem -count=1
 
+test-archive-integration:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	log_file=/tmp/pulse-minio-integration-portforward.log; \
+	echo "starting minio port-forward on $(ARCHIVE_INTEGRATION_ENDPOINT) (log: $$log_file)"; \
+	$(KUBECTL) -n $(ARCHIVE_INTEGRATION_NAMESPACE) port-forward svc/$(ARCHIVE_INTEGRATION_SERVICE) $(ARCHIVE_INTEGRATION_LOCAL_PORT):9000 >$$log_file 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { kill $$pf_pid >/dev/null 2>&1 || true; }; \
+	trap cleanup EXIT INT TERM; \
+	sleep 2; \
+	access_key="$${ARCHIVE_OBJECT_ACCESS_KEY:-}"; \
+	secret_key="$${ARCHIVE_OBJECT_SECRET_KEY:-}"; \
+	if [ -z "$$access_key" ] || [ -z "$$secret_key" ]; then \
+		access_key="$$( $(KUBECTL) -n $(ARCHIVE_INTEGRATION_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootUser}' | base64 -d )"; \
+		secret_key="$$( $(KUBECTL) -n $(ARCHIVE_INTEGRATION_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootPassword}' | base64 -d )"; \
+	fi; \
+	ARCHIVE_STORE_INTEGRATION=1 \
+	ARCHIVE_OBJECT_ENDPOINT="$(ARCHIVE_INTEGRATION_ENDPOINT)" \
+	ARCHIVE_OBJECT_ACCESS_KEY="$$access_key" \
+	ARCHIVE_OBJECT_SECRET_KEY="$$secret_key" \
+	$(GO) test ./internal/archiveworker -tags integration -run 'TestMinIOObjectStore.*Integration' -count=1 -v
+
 build:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin
 	@for cmd in $(CMDS); do \
 		echo "building $$cmd"; \
 		$(GO) build -ldflags "$(LDFLAGS)" -o "bin/$$cmd" "./cmd/$$cmd"; \
 	done
+
+services-image-build-local:
+	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+		echo "$(DOCKER) not found. Install Docker Desktop first."; \
+		exit 1; \
+	fi
+	@if ! $(DOCKER) info >/dev/null 2>&1; then \
+		echo "Docker daemon is not running. Start Docker Desktop and retry."; \
+		exit 1; \
+	fi
+	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
+	$(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .
+
+services-image-import-local:
+	@if ! command -v $(K3D) >/dev/null 2>&1; then \
+		echo "$(K3D) not found. Install k3d first."; \
+		exit 1; \
+	fi
+	@echo "importing services image $(SERVICES_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)"
+	$(K3D) image import $(SERVICES_IMAGE) -c $(K3D_CLUSTER_NAME)
+
+services-image-local-up: services-image-build-local services-image-import-local
 
 smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -154,6 +212,26 @@ mqtt:
 ingest-worker:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
 	$(GO) run ./cmd/ecoflow-ingest-worker
+
+projection-worker:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	$(GO) run ./cmd/ecoflow-projection-worker
+
+archive-worker:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	$(GO) run ./cmd/ecoflow-archive-worker
+
+replay-cli:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	$(GO) run ./cmd/ecoflow-replay-cli $(ARGS)
+
+gap-detector:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	$(GO) run ./cmd/ecoflow-gap-detector
+
+gap-repair-worker:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	$(GO) run ./cmd/ecoflow-gap-repair-worker
 
 k3d-up:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \
@@ -286,6 +364,9 @@ services-up:
 		echo "$(HELM) not found. Install helm first."; \
 		exit 1; \
 	fi
+	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
+		$(MAKE) services-image-local-up; \
+	fi
 	$(HELM) dependency update $(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
@@ -394,10 +475,10 @@ db-migrate-verify-local:
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
 	echo "verifying control-plane schema on $$cluster-rw (db=$$db user=$$user)"; \
-	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices') ORDER BY table_name;"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest') ORDER BY table_name;"; \
 	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT pg_get_expr(adbin, adrelid) FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=d.adnum WHERE c.relname='users' AND a.attname='id';"; \
 	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT a.attname, pg_get_expr(d.adbin,d.adrelid) FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum JOIN pg_class c ON c.oid=a.attrelid WHERE c.relname='users' AND a.attname IN ('created_at','updated_at') ORDER BY a.attname;"; \
-	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty') ORDER BY conname;"
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order') ORDER BY conname;"
 
 db-migrate-cycle-local:
 	@$(MAKE) db-migrate-up-local
@@ -421,7 +502,7 @@ db-migrate-e2e-local: db-migrate-up-local
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
 	echo "running migration e2e checks on $$cluster-rw (db=$$db user=$$user)"; \
-	sql="TRUNCATE user_devices, provider_devices, provider_credentials, users, devices RESTART IDENTITY CASCADE; WITH u AS (INSERT INTO users (keycloak_subject, email, display_name, created_at, updated_at) VALUES ('kc-sub-e2e-1','e2e1@example.com','E2E User 1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id), d AS (INSERT INTO devices (ecoflow_sn, product_name, model, created_at, updated_at) VALUES ('SN-E2E-0001','DELTA Pro Ultra','dpu', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id) INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at) SELECT u.id, d.id, 'viewer', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC' FROM u CROSS JOIN d; SELECT u.keycloak_subject, d.ecoflow_sn, ud.role FROM users u JOIN user_devices ud ON ud.user_id = u.id JOIN devices d ON d.id = ud.device_id WHERE u.keycloak_subject = 'kc-sub-e2e-1';"; \
+	sql="TRUNCATE archive_object_manifest, user_devices, provider_devices, provider_credentials, users, devices RESTART IDENTITY CASCADE; WITH u AS (INSERT INTO users (keycloak_subject, email, display_name, created_at, updated_at) VALUES ('kc-sub-e2e-1','e2e1@example.com','E2E User 1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id), d AS (INSERT INTO devices (ecoflow_sn, product_name, model, created_at, updated_at) VALUES ('SN-E2E-0001','DELTA Pro Ultra','dpu', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC') RETURNING id) INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at) SELECT u.id, d.id, 'viewer', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC' FROM u CROSS JOIN d; SELECT u.keycloak_subject, d.ecoflow_sn, ud.role FROM users u JOIN user_devices ud ON ud.user_id = u.id JOIN devices d ON d.id = ud.device_id WHERE u.keycloak_subject = 'kc-sub-e2e-1';"; \
 	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "$$sql"; \
 	set +e; \
 	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "INSERT INTO users (keycloak_subject, created_at, updated_at) VALUES ('kc-sub-e2e-1', NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC');" >/tmp/m1_dup_user.out 2>&1; \
@@ -459,7 +540,7 @@ db-seed-dev-local: db-migrate-up-local
 	port="$(DB_SEED_LOCAL_PORT)"; \
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
-	pf_log="/tmp/ecoflow-dev-seed-port-forward-$$.log"; \
+	pf_log="$$(mktemp -t ecoflow-dev-seed-port-forward.XXXXXX.log)"; \
 	$(LOCAL_KUBECTL) -n "$$ns" port-forward "svc/$$cluster-rw" "$$port:5432" >"$$pf_log" 2>&1 & \
 	pf_pid=$$!; \
 	cleanup() { \

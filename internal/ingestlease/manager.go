@@ -384,7 +384,20 @@ func (m *Manager) RunHeartbeat(ctx context.Context, lease Lease, options Heartbe
 				return err
 			}
 			if !result.Renewed {
-				return fmt.Errorf("lease renew rejected: %s", result.Reason)
+				// On transient backend churn the lease key can momentarily disappear.
+				// Try one immediate self-heal reacquire with the same token before failing.
+				if result.Reason == "missing" {
+					reacquired, reacquireErr := m.Acquire(ctx, lease.Ref, lease.WorkerID, lease.Token, options.CallOptions)
+					if reacquireErr != nil {
+						return fmt.Errorf("lease reacquire after missing failed: %w", reacquireErr)
+					}
+					if reacquired.Acquired {
+						lease.Fence = reacquired.Lease.Fence
+						timer.Reset(m.jitteredInterval(interval, jitter))
+						continue
+					}
+				}
+				return NewLeaseRejectedError("renew", result.Reason)
 			}
 			lease.Fence = result.Fence
 			timer.Reset(m.jitteredInterval(interval, jitter))

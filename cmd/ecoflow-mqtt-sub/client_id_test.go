@@ -11,17 +11,17 @@ func TestBuildClientIDDeterministicCRC32(t *testing.T) {
 		{
 			name: "d2m",
 			sn:   "R351ZABAPH331057",
-			want: "ecoflow-pulse-29f3a572",
+			want: "ecoflow-mqtt-29f3a572",
 		},
 		{
 			name: "dpu",
 			sn:   "Y711ZABA9H2P0294",
-			want: "ecoflow-pulse-b416aca2",
+			want: "ecoflow-mqtt-b416aca2",
 		},
 		{
 			name: "empty",
 			sn:   "",
-			want: "ecoflow-pulse-00000000",
+			want: "ecoflow-mqtt-00000000",
 		},
 	}
 	for _, tt := range tests {

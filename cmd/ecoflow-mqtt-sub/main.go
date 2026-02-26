@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"log/slog"
 	"math"
 	"os"
@@ -642,9 +643,8 @@ type minuteTelemetryBucket struct {
 }
 
 type minuteTelemetryHistory struct {
-	buckets     map[int64]*minuteTelemetryBucket
-	maxBuckets  int
-	initialized bool
+	buckets    map[int64]*minuteTelemetryBucket
+	maxBuckets int
 }
 
 type powerTelemetryBucket struct {
@@ -858,10 +858,7 @@ func (l *mqttOutputLogger) Printf(format string, args ...any) {
 	if l.closed || l.queue == nil {
 		return
 	}
-	_, dropped := enqueueLoggerChunkDropOldest(l.queue, payload, &l.dropped)
-	if dropped {
-		// Intentionally silent to avoid recursive logging on logger pressure.
-	}
+	_, _ = enqueueLoggerChunkDropOldest(l.queue, payload, &l.dropped)
 }
 
 func (l *mqttOutputLogger) DroppedCount() uint64 {
@@ -3119,7 +3116,9 @@ func parseSortNewestFirstEnv(key string, fallback bool) bool {
 }
 
 func buildClientID(sn string) string {
-	return ecoflowmqtt.BuildClientIDFromSN(sn)
+	cleanSN := strings.TrimSpace(sn)
+	checksum := crc32.ChecksumIEEE([]byte(cleanSN))
+	return fmt.Sprintf("ecoflow-mqtt-%08x", checksum)
 }
 
 // selectTargetDevice chooses one device to subscribe.
@@ -4523,7 +4522,6 @@ func (s *energySnapshot) Update(
 				s.HasWattsIn = true
 				s.WattsInAt = updateNow
 				s.HasWattsInAt = true
-				wattsInUpdated = true
 			}
 		}
 	}
@@ -5440,6 +5438,7 @@ func shouldShowPreconditioningStatus(device ecoflow.GeneralInfoDevice, snapshot 
 	return false
 }
 
+//nolint:unused // kept for future per-model XT150 channel visibility tuning.
 func shouldShowXT150Channels(device ecoflow.GeneralInfoDevice, snapshot *energySnapshot, derived snapshotDerived) bool {
 	name := strings.ToLower(strings.TrimSpace(device.DeviceName + " " + device.ProductName))
 	if strings.Contains(name, "delta pro ultra") || strings.Contains(name, "dpu") {
@@ -5517,6 +5516,7 @@ func isLikelySolarPassthrough(
 	return pvInputWatts+solarPassthroughSlackWatts >= outACWatts
 }
 
+//nolint:unused // retained for potential PD-status fallback wiring.
 func extractDCOutputFromPDStatus(pdStatus pdStatusSummary) float64 {
 	total := 0.0
 	for _, value := range pdStatus.USBWatts {
@@ -5601,13 +5601,8 @@ func (s *energySnapshot) solarChargingStatus() (known bool, on bool) {
 		}
 	}
 	// Restrict to solar-driven charging (not AC-only charging).
-	pvActive := false
-	if s.HasPVLowChgState && isMPPTChargeStateActive(s.PVLowChgStateRaw) {
-		pvActive = true
-	}
-	if s.HasPVHighChgState && isMPPTChargeStateActive(s.PVHighChgStateRaw) {
-		pvActive = true
-	}
+	pvActive := (s.HasPVLowChgState && isMPPTChargeStateActive(s.PVLowChgStateRaw)) ||
+		(s.HasPVHighChgState && isMPPTChargeStateActive(s.PVHighChgStateRaw))
 	if !pvActive {
 		// Prefer direct PV power channels when present, because V*I inferred power can
 		// stay non-zero from stale volt/amp updates after appshow/d_addr reports 0W.
@@ -5707,6 +5702,7 @@ func hasDCHintInIcoBytes(bytes []uint64) bool {
 	return (bytes[3] & 0x80) != 0
 }
 
+//nolint:unused // retained for quota-derived XT150 fallback calculations.
 func sumXT150FromQuota(quota map[string]any) (float64, bool) {
 	total := 0.0
 	found := false
@@ -5724,6 +5720,7 @@ func sumXT150FromQuota(quota map[string]any) (float64, bool) {
 	return total, found
 }
 
+//nolint:unused // retained for generic quota suffix aggregation fallback.
 func sumByKeySuffix(quota map[string]any, suffixes ...string) (float64, bool) {
 	total := 0.0
 	found := false
@@ -5894,6 +5891,7 @@ func trailingIntegerAfterUnderscore(value string) (int, bool) {
 	return number, true
 }
 
+//nolint:unused // kept for future map aggregation helpers.
 func sumValues(values map[string]float64) float64 {
 	total := 0.0
 	for _, value := range values {
@@ -5980,6 +5978,7 @@ func computeChannelStats(values map[string]float64) channelStats {
 	return stats
 }
 
+//nolint:unused // debug helper for interactive telemetry inspection.
 func printKeyFloatMap(prefix string, values map[string]float64) {
 	if len(values) == 0 {
 		return

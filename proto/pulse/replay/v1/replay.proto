@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package pulse.replay.v1;
+
+option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/replay/v1;replayv1";
+
+// GapRepairRequest describes one targeted replay request for a missing
+// telemetry window.
+message GapRepairRequest {
+  // UUIDv7 request id.
+  string request_id = 1;
+
+  // Integration provider (for example "ecoflow").
+  string provider = 2;
+
+  // Internal control-plane device id.
+  string device_id = 3;
+
+  // Provider-specific device id (for EcoFlow this is typically SN).
+  string provider_device_id = 4;
+
+  // Deterministic shard metadata.
+  uint32 shard = 5;
+  uint32 shard_count = 6;
+
+  // Replay window.
+  int64 from_unix_ms = 7;
+  int64 to_unix_ms = 8;
+
+  // Detection metadata.
+  string reason = 9;
+  int64 detected_at_unix_ms = 10;
+
+  // Optional replay object cap override (0 means worker default).
+  int32 max_objects = 11;
+}

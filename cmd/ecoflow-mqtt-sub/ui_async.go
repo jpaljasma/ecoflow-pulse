@@ -54,10 +54,7 @@ func (w *asyncUIWriter) Enqueue(frame string) {
 	if w.closed || w.queue == nil {
 		return
 	}
-	_, dropped := enqueueUIFrameDropOldest(w.queue, frame, &w.dropped)
-	if dropped {
-		// Intentionally silent to avoid recursive stdout/log pressure.
-	}
+	_, _ = enqueueUIFrameDropOldest(w.queue, frame, &w.dropped)
 }
 
 func (w *asyncUIWriter) Close() error {

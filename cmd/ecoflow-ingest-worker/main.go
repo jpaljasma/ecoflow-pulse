@@ -78,12 +78,37 @@ func main() {
 		ShardCount: mustUint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
 	}
 	disableEnvelopeLabels := mustBool("INGEST_DISABLE_ENVELOPE_LABELS", false)
+
+	publishOpts := telemetrybus.NATSEnvelopePublisherOptions{
+		StripLabels:                disableEnvelopeLabels,
+		UseJetStream:               mustBool("INGEST_NATS_USE_JETSTREAM", true),
+		PublishTimeout:             mustDuration("INGEST_NATS_PUBLISH_TIMEOUT", 3*time.Second),
+		PublishMaxRetries:          mustIntMin("INGEST_NATS_PUBLISH_MAX_RETRIES", 3, 0),
+		PublishRetryInitialBackoff: mustDuration("INGEST_NATS_PUBLISH_RETRY_INITIAL_BACKOFF", 50*time.Millisecond),
+		PublishRetryMaxBackoff:     mustDuration("INGEST_NATS_PUBLISH_RETRY_MAX_BACKOFF", 500*time.Millisecond),
+		PublishRetryJitter:         mustFloat64("INGEST_NATS_PUBLISH_RETRY_JITTER", 0.20),
+	}
+	jetstreamCfg := telemetrybus.DefaultJetStreamIngestBootstrapConfig()
+	jetstreamCfg.Enabled = mustBool("INGEST_NATS_JS_BOOTSTRAP_ENABLED", publishOpts.UseJetStream)
+	jetstreamCfg.StreamName = envOrDefault("INGEST_NATS_JS_STREAM_NAME", jetstreamCfg.StreamName)
+	jetstreamCfg.Replicas = mustIntMin("INGEST_NATS_JS_REPLICAS", jetstreamCfg.Replicas, 1)
+	jetstreamCfg.MaxAge = mustDuration("INGEST_NATS_JS_MAX_AGE", jetstreamCfg.MaxAge)
+	jetstreamCfg.MaxBytes = mustInt64Min("INGEST_NATS_JS_MAX_BYTES", jetstreamCfg.MaxBytes, 0)
+
+	if jetstreamCfg.Enabled {
+		bootstrapCtx, bootstrapCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := telemetrybus.EnsureJetStreamIngestStream(bootstrapCtx, natsConn, subjectCfg, jetstreamCfg); err != nil {
+			bootstrapCancel()
+			log.Error("bootstrap ingest jetstream stream failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		bootstrapCancel()
+	}
+
 	publisher, err := telemetrybus.NewNATSEnvelopePublisherWithOptions(
 		natsConn,
 		subjectCfg,
-		telemetrybus.NATSEnvelopePublisherOptions{
-			StripLabels: disableEnvelopeLabels,
-		},
+		publishOpts,
 	)
 	if err != nil {
 		log.Error("init telemetry envelope publisher failed", slog.String("error", err.Error()))
@@ -104,6 +129,9 @@ func main() {
 	sessionCfg.ReconnectInitialBackoff = mustDuration("INGEST_MQTT_RECONNECT_INITIAL_BACKOFF", sessionCfg.ReconnectInitialBackoff)
 	sessionCfg.ReconnectMaxBackoff = mustDuration("INGEST_MQTT_RECONNECT_MAX_BACKOFF", sessionCfg.ReconnectMaxBackoff)
 	sessionCfg.ReconnectJitter = mustFloat64("INGEST_MQTT_RECONNECT_JITTER", sessionCfg.ReconnectJitter)
+	sessionCfg.ReconnectAlertWindow = mustDuration("INGEST_MQTT_RECONNECT_ALERT_WINDOW", sessionCfg.ReconnectAlertWindow)
+	sessionCfg.ReconnectAlertThreshold = mustInt("INGEST_MQTT_RECONNECT_ALERT_THRESHOLD", sessionCfg.ReconnectAlertThreshold)
+	sessionCfg.ReconnectAlertCooldown = mustDuration("INGEST_MQTT_RECONNECT_ALERT_COOLDOWN", sessionCfg.ReconnectAlertCooldown)
 	sessionCfg.PublishQueueSize = mustInt("INGEST_PUBLISH_QUEUE_SIZE", sessionCfg.PublishQueueSize)
 	sessionCfg.PublishWorkers = mustInt("INGEST_PUBLISH_WORKERS", sessionCfg.PublishWorkers)
 	sessionCfg.PublishEnqueueTimeout = mustDuration("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
@@ -127,15 +155,21 @@ func main() {
 	startWorkers := mustInt("INGEST_START_WORKERS", startWorkersDefault)
 	startQueueDefault := ingestworker.RecommendedStartQueueSize(startWorkers)
 	startQueueSize := mustInt("INGEST_START_QUEUE_SIZE", startQueueDefault)
+	leaseMissingAlertWindow := mustDuration("INGEST_LEASE_MISSING_ALERT_WINDOW", 5*time.Minute)
+	leaseMissingAlertThreshold := mustInt("INGEST_LEASE_MISSING_ALERT_THRESHOLD", 4)
+	leaseMissingAlertCooldown := mustDuration("INGEST_LEASE_MISSING_ALERT_COOLDOWN", 2*time.Minute)
 
 	loop, err := ingestworker.NewLoop(log, store, leaseMgr, runner, ingestworker.Config{
-		WorkerID:       workerID,
-		ProviderFilter: controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("INGEST_PROVIDER"))),
-		PollInterval:   pollInterval,
-		PollJitter:     pollJitter,
-		StopTimeout:    stopTimeout,
-		StartWorkers:   startWorkers,
-		StartQueueSize: startQueueSize,
+		WorkerID:                   workerID,
+		ProviderFilter:             controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("INGEST_PROVIDER"))),
+		PollInterval:               pollInterval,
+		PollJitter:                 pollJitter,
+		StopTimeout:                stopTimeout,
+		StartWorkers:               startWorkers,
+		StartQueueSize:             startQueueSize,
+		LeaseMissingAlertWindow:    leaseMissingAlertWindow,
+		LeaseMissingAlertThreshold: leaseMissingAlertThreshold,
+		LeaseMissingAlertCooldown:  leaseMissingAlertCooldown,
 	})
 	if err != nil {
 		log.Error("init ingest worker loop failed", slog.String("error", err.Error()))
@@ -154,11 +188,30 @@ func main() {
 		slog.Float64("poll_jitter", pollJitter),
 		slog.Int("start_workers", startWorkers),
 		slog.Int("start_queue_size", startQueueSize),
+		slog.Duration("lease_missing_alert_window", leaseMissingAlertWindow),
+		slog.Int("lease_missing_alert_threshold", leaseMissingAlertThreshold),
+		slog.Duration("lease_missing_alert_cooldown", leaseMissingAlertCooldown),
 		slog.Int("publish_queue_size", sessionCfg.PublishQueueSize),
 		slog.Int("publish_workers", sessionCfg.PublishWorkers),
 		slog.Duration("publish_enqueue_timeout", sessionCfg.PublishEnqueueTimeout),
+		slog.Duration("mqtt_keepalive", sessionCfg.KeepAlive),
+		slog.Duration("mqtt_read_timeout", sessionCfg.ReadTimeout),
+		slog.Duration("mqtt_reconnect_alert_window", sessionCfg.ReconnectAlertWindow),
+		slog.Int("mqtt_reconnect_alert_threshold", sessionCfg.ReconnectAlertThreshold),
+		slog.Duration("mqtt_reconnect_alert_cooldown", sessionCfg.ReconnectAlertCooldown),
 		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),
 		slog.Bool("disable_envelope_labels", sessionCfg.DisableEnvelopeLabels),
+		slog.Bool("nats_use_jetstream", publishOpts.UseJetStream),
+		slog.Duration("nats_publish_timeout", publishOpts.PublishTimeout),
+		slog.Int("nats_publish_max_retries", publishOpts.PublishMaxRetries),
+		slog.Duration("nats_publish_retry_initial_backoff", publishOpts.PublishRetryInitialBackoff),
+		slog.Duration("nats_publish_retry_max_backoff", publishOpts.PublishRetryMaxBackoff),
+		slog.Float64("nats_publish_retry_jitter", publishOpts.PublishRetryJitter),
+		slog.Bool("nats_js_bootstrap_enabled", jetstreamCfg.Enabled),
+		slog.String("nats_js_stream_name", jetstreamCfg.StreamName),
+		slog.Int("nats_js_replicas", jetstreamCfg.Replicas),
+		slog.Duration("nats_js_max_age", jetstreamCfg.MaxAge),
+		slog.Int64("nats_js_max_bytes", jetstreamCfg.MaxBytes),
 	)
 	if err := loop.Run(ctx); err != nil {
 		log.Error("ingest worker stopped with error", slog.String("error", err.Error()))
@@ -227,6 +280,18 @@ func mustIntMin(key string, fallback int, min int) int {
 		return fallback
 	}
 	v, err := strconv.Atoi(raw)
+	if err != nil || v < min {
+		return fallback
+	}
+	return v
+}
+
+func mustInt64Min(key string, fallback int64, min int64) int64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || v < min {
 		return fallback
 	}

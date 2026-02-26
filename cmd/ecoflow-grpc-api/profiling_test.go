@@ -59,12 +59,10 @@ func startProfilingServer(t *testing.T) (telemetryv1.TelemetryServiceClient, fun
 		_ = grpcserver.ServeWithSignal(ctx, s, lis, 3*time.Second)
 	}()
 
-	dialCtx, dialCancel := context.WithTimeout(context.Background(), 3*time.Second)
-	conn, err := grpc.DialContext(dialCtx, lis.Addr().String(),
+	conn, err := grpc.NewClient(
+		lis.Addr().String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
-	dialCancel()
 	if err != nil {
 		cancel()
 		wg.Wait()

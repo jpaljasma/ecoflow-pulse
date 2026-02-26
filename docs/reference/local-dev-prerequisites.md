@@ -22,6 +22,14 @@ Install markdownlint-cli (non-Node) with Homebrew:
 brew install markdownlint-cli
 ```
 
+**golangci-lint** is a fast linters runner for Go
+
+It runs linters in parallel, uses caching, supports YAML configuration, integrates with all major IDEs, and includes over a hundred linters.
+
+```bash
+brew install golangci-cli
+```
+
 ## Recently Observed Missing Requirements
 
 | Date | Missing tool | Context |

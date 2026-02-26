@@ -35,12 +35,16 @@ func TestAsyncEnvelopePublisherPublishesAndCloses(t *testing.T) {
 	}
 }
 
-func TestAsyncEnvelopePublisherPropagatesWorkerError(t *testing.T) {
+func TestAsyncEnvelopePublisherEmitsWorkerErrorAndContinues(t *testing.T) {
 	t.Parallel()
 
+	var calls atomic.Int64
 	pub := &fakeEnvelopePublisher{
 		onPublish: func(*envelopev1.TelemetryEnvelope) error {
-			return errors.New("publish failed")
+			if calls.Add(1) == 1 {
+				return errors.New("publish failed")
+			}
+			return nil
 		},
 	}
 
@@ -63,8 +67,11 @@ func TestAsyncEnvelopePublisherPropagatesWorkerError(t *testing.T) {
 	}
 
 verify:
-	if err := ap.Publish(context.Background(), &envelopev1.TelemetryEnvelope{EnvelopeId: "id-2"}); err == nil {
-		t.Fatal("expected Publish() to fail after worker error")
+	if err := ap.Publish(context.Background(), &envelopev1.TelemetryEnvelope{EnvelopeId: "id-2"}); err != nil {
+		t.Fatalf("expected Publish() to keep accepting envelopes after worker error, got=%v", err)
+	}
+	if err := ap.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
 	}
 }
 
