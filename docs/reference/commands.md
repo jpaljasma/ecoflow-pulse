@@ -23,6 +23,19 @@ go run ./cmd/ecoflow-gap-detector
 go run ./cmd/ecoflow-gap-repair-worker
 ```
 
+## Node/Expo Auth Commands
+
+```bash
+# Typecheck + test Node JWKS middleware package.
+npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth
+npm run test --workspace @ecoflow-pulse/node-jwks-auth
+
+# Universal app checks (includes PKCE auth card code paths).
+npm run -w apps/universal typecheck
+npm run -w apps/universal lint
+npm run -w apps/universal test
+```
+
 Race detection commands (critical service paths):
 
 ```bash

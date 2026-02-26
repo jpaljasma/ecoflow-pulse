@@ -61,3 +61,20 @@ go run ./cmd/ecoflow-smoke
 ```
 
 If smoke passes, configuration is valid enough for dashboard startup.
+
+## 5. Enable Expo Keycloak PKCE Login (optional)
+
+To enable the Settings -> Authentication (PKCE) card in the universal app:
+
+```bash
+EXPO_PUBLIC_OIDC_ISSUER_URL=https://<keycloak-host>/realms/pulse
+EXPO_PUBLIC_OIDC_CLIENT_ID=pulse-expo
+EXPO_PUBLIC_OIDC_AUDIENCE=pulse-api
+EXPO_PUBLIC_OIDC_SCOPES="openid profile email offline_access"
+```
+
+Then run:
+
+```bash
+npm run -w apps/universal web
+```

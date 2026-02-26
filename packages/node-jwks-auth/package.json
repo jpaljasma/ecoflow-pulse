@@ -1,0 +1,20 @@
+{
+  "name": "@ecoflow-pulse/node-jwks-auth",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "jose": "^5.10.0"
+  },
+  "devDependencies": {
+    "@ecoflow-pulse/tsconfig": "0.0.1",
+    "typescript": "~5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

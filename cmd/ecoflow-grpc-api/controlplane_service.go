@@ -123,6 +123,80 @@ func (s *ControlPlaneService) SetProviderCredentialActive(ctx context.Context, r
 	}, nil
 }
 
+func (s *ControlPlaneService) CreateDevice(ctx context.Context, req *controlplanev1.CreateDeviceRequest) (*controlplanev1.CreateDeviceResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetEcoflowSn()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "ecoflow_sn required")
+	}
+	row, err := s.store.CreateDevice(ctx, controlplane.CreateDeviceInput{
+		UserSubject: userSubject,
+		EcoflowSN:   strings.ToUpper(strings.TrimSpace(req.GetEcoflowSn())),
+		ProductName: req.GetProductName(),
+		Model:       req.GetModel(),
+	})
+	if err != nil {
+		if errors.Is(err, controlplane.ErrUserNotFound) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "create device: %v", err)
+	}
+	return &controlplanev1.CreateDeviceResponse{Device: userDeviceToProto(row)}, nil
+}
+
+func (s *ControlPlaneService) LinkDevice(ctx context.Context, req *controlplanev1.LinkDeviceRequest) (*controlplanev1.LinkDeviceResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	role, err := normalizeDeviceRole(req.GetRole())
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetDeviceId()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "device_id required")
+	}
+	row, err := s.store.LinkDevice(ctx, controlplane.LinkDeviceInput{
+		UserSubject:       userSubject,
+		TargetUserSubject: strings.TrimSpace(req.GetTargetUserSubject()),
+		DeviceID:          strings.TrimSpace(req.GetDeviceId()),
+		Role:              role,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, controlplane.ErrUserNotFound):
+			return nil, status.Error(codes.NotFound, err.Error())
+		case errors.Is(err, controlplane.ErrDeviceNotFound):
+			return nil, status.Error(codes.NotFound, err.Error())
+		case errors.Is(err, controlplane.ErrPermissionDenied):
+			return nil, status.Error(codes.PermissionDenied, err.Error())
+		default:
+			return nil, status.Errorf(codes.Internal, "link device: %v", err)
+		}
+	}
+	return &controlplanev1.LinkDeviceResponse{Device: userDeviceToProto(row)}, nil
+}
+
+func (s *ControlPlaneService) ListUserDevices(ctx context.Context, req *controlplanev1.ListUserDevicesRequest) (*controlplanev1.ListUserDevicesResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.store.ListUserDevices(ctx, controlplane.ListUserDevicesInput{
+		UserSubject: userSubject,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list user devices: %v", err)
+	}
+	devices := make([]*controlplanev1.UserDevice, 0, len(rows))
+	for i := range rows {
+		devices = append(devices, userDeviceToProto(rows[i]))
+	}
+	return &controlplanev1.ListUserDevicesResponse{Devices: devices}, nil
+}
+
 func (s *ControlPlaneService) ListDevices(ctx context.Context, req *controlplanev1.ListDevicesRequest) (*controlplanev1.ListDevicesResponse, error) {
 	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
 	if err != nil {
@@ -198,7 +272,37 @@ func (s *ControlPlaneService) DiscoverDevices(ctx context.Context, req *controlp
 	}
 	out := make([]*controlplanev1.ProviderDevice, 0, len(devices))
 	for i := range devices {
-		out = append(out, providerDeviceToProto(devices[i]))
+		discovered := devices[i]
+		created, err := s.store.CreateDevice(ctx, controlplane.CreateDeviceInput{
+			UserSubject: userSubject,
+			EcoflowSN:   discovered.CanonicalSN,
+			ProductName: discovered.ProductName,
+			Model:       discovered.Model,
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "create discovered device: %v", err)
+		}
+		persisted, err := s.store.UpsertProviderDevice(ctx, controlplane.UpsertProviderDeviceInput{
+			DeviceID:           created.DeviceID,
+			Provider:           provider,
+			ProviderDeviceID:   discovered.ProviderDeviceID,
+			CredentialID:       cred.ID,
+			ProductName:        discovered.ProductName,
+			Model:              discovered.Model,
+			IsActive:           discovered.IsActive,
+			IngestDesiredState: discovered.IngestDesiredState,
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "persist discovered provider device: %v", err)
+		}
+		persisted.CanonicalSN = created.EcoflowSN
+		if persisted.ProductName == "" {
+			persisted.ProductName = created.ProductName
+		}
+		if persisted.Model == "" {
+			persisted.Model = created.Model
+		}
+		out = append(out, providerDeviceToProto(persisted))
 	}
 	return &controlplanev1.DiscoverDevicesResponse{
 		Accepted:        true,
@@ -248,5 +352,30 @@ func providerDeviceToProto(in controlplane.ProviderDevice) *controlplanev1.Provi
 		Model:              in.Model,
 		IsActive:           in.IsActive,
 		IngestDesiredState: in.IngestDesiredState,
+	}
+}
+
+func userDeviceToProto(in controlplane.UserDevice) *controlplanev1.UserDevice {
+	return &controlplanev1.UserDevice{
+		DeviceId:         in.DeviceID,
+		EcoflowSn:        in.EcoflowSN,
+		ProductName:      in.ProductName,
+		Model:            in.Model,
+		Role:             in.Role,
+		CreatedAtUnixMs:  in.CreatedAt.UnixMilli(),
+		UpdatedAtUnixMs:  in.UpdatedAt.UnixMilli(),
+	}
+}
+
+func normalizeDeviceRole(in string) (string, error) {
+	role := strings.ToLower(strings.TrimSpace(in))
+	if role == "" {
+		role = "viewer"
+	}
+	switch role {
+	case "viewer", "admin":
+		return role, nil
+	default:
+		return "", status.Error(codes.InvalidArgument, "role must be viewer or admin")
 	}
 }

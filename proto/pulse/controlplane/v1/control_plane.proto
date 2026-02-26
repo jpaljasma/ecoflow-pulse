@@ -57,6 +57,46 @@ message ProviderDevice {
   string ingest_desired_state = 10;
 }
 
+message UserDevice {
+  string device_id = 1;
+  string ecoflow_sn = 2;
+  string product_name = 3;
+  string model = 4;
+  string role = 5;
+  int64 created_at_unix_ms = 6;
+  int64 updated_at_unix_ms = 7;
+}
+
+message CreateDeviceRequest {
+  string user_subject = 1;
+  string ecoflow_sn = 2;
+  string product_name = 3;
+  string model = 4;
+}
+
+message CreateDeviceResponse {
+  UserDevice device = 1;
+}
+
+message LinkDeviceRequest {
+  string user_subject = 1;
+  string target_user_subject = 2;
+  string device_id = 3;
+  string role = 4;
+}
+
+message LinkDeviceResponse {
+  UserDevice device = 1;
+}
+
+message ListUserDevicesRequest {
+  string user_subject = 1;
+}
+
+message ListUserDevicesResponse {
+  repeated UserDevice devices = 1;
+}
+
 message ProviderDeviceGroup {
   string provider = 1;
   repeated ProviderDevice devices = 2;
@@ -89,6 +129,9 @@ service ControlPlaneService {
   rpc CreateProviderCredential(CreateProviderCredentialRequest) returns (CreateProviderCredentialResponse);
   rpc ListProviderCredentials(ListProviderCredentialsRequest) returns (ListProviderCredentialsResponse);
   rpc SetProviderCredentialActive(SetProviderCredentialActiveRequest) returns (SetProviderCredentialActiveResponse);
+  rpc CreateDevice(CreateDeviceRequest) returns (CreateDeviceResponse);
+  rpc LinkDevice(LinkDeviceRequest) returns (LinkDeviceResponse);
+  rpc ListUserDevices(ListUserDevicesRequest) returns (ListUserDevicesResponse);
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   rpc DiscoverDevices(DiscoverDevicesRequest) returns (DiscoverDevicesResponse);
 }

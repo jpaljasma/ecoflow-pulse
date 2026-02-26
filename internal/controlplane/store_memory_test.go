@@ -162,3 +162,60 @@ func TestMemoryStoreListIngestAssignmentsActiveOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestMemoryStoreDeviceRegistryRBAC(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	store.EnsureUser("owner")
+	store.EnsureUser("guest")
+
+	created, err := store.CreateDevice(context.Background(), CreateDeviceInput{
+		UserSubject: "owner",
+		EcoflowSN:   "R351ZABAPH331057",
+		ProductName: "Kitchen Delta 2 Max",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create device failed: %v", err)
+	}
+	if created.Role != "admin" {
+		t.Fatalf("expected owner role=admin, got %q", created.Role)
+	}
+
+	_, err = store.LinkDevice(context.Background(), LinkDeviceInput{
+		UserSubject:       "guest",
+		TargetUserSubject: "owner",
+		DeviceID:          created.DeviceID,
+		Role:              "viewer",
+	})
+	if err == nil {
+		t.Fatalf("expected non-admin link attempt to fail")
+	}
+
+	linked, err := store.LinkDevice(context.Background(), LinkDeviceInput{
+		UserSubject:       "owner",
+		TargetUserSubject: "guest",
+		DeviceID:          created.DeviceID,
+		Role:              "viewer",
+	})
+	if err != nil {
+		t.Fatalf("link device failed: %v", err)
+	}
+	if linked.Role != "viewer" {
+		t.Fatalf("expected guest role=viewer, got %q", linked.Role)
+	}
+
+	listed, err := store.ListUserDevices(context.Background(), ListUserDevicesInput{
+		UserSubject: "guest",
+	})
+	if err != nil {
+		t.Fatalf("list guest devices failed: %v", err)
+	}
+	if got := len(listed); got != 1 {
+		t.Fatalf("expected 1 guest device, got %d", got)
+	}
+	if listed[0].Role != "viewer" {
+		t.Fatalf("expected guest role=viewer, got %q", listed[0].Role)
+	}
+}

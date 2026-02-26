@@ -118,6 +118,85 @@ func TestSetProviderCredentialActive(t *testing.T) {
 	}
 }
 
+func TestDeviceRegistryCreateLinkListAndRBAC(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	store.EnsureUser("other-user")
+
+	created, err := svc.CreateDevice(context.Background(), &controlplanev1.CreateDeviceRequest{
+		UserSubject: "dev-user",
+		EcoflowSn:   "r351zabaph331057",
+		ProductName: "Kitchen Delta 2 Max",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create device failed: %v", err)
+	}
+	if created.GetDevice().GetRole() != "admin" {
+		t.Fatalf("expected creator role=admin, got %q", created.GetDevice().GetRole())
+	}
+
+	listDevUser, err := svc.ListUserDevices(context.Background(), &controlplanev1.ListUserDevicesRequest{
+		UserSubject: "dev-user",
+	})
+	if err != nil {
+		t.Fatalf("list user devices for dev-user failed: %v", err)
+	}
+	if got := len(listDevUser.GetDevices()); got != 1 {
+		t.Fatalf("expected 1 device for dev-user, got %d", got)
+	}
+
+	linked, err := svc.LinkDevice(context.Background(), &controlplanev1.LinkDeviceRequest{
+		UserSubject:       "dev-user",
+		TargetUserSubject: "other-user",
+		DeviceId:          created.GetDevice().GetDeviceId(),
+		Role:              "viewer",
+	})
+	if err != nil {
+		t.Fatalf("link device as admin failed: %v", err)
+	}
+	if linked.GetDevice().GetRole() != "viewer" {
+		t.Fatalf("expected linked role=viewer, got %q", linked.GetDevice().GetRole())
+	}
+
+	listOtherUser, err := svc.ListUserDevices(context.Background(), &controlplanev1.ListUserDevicesRequest{
+		UserSubject: "other-user",
+	})
+	if err != nil {
+		t.Fatalf("list user devices for other-user failed: %v", err)
+	}
+	if got := len(listOtherUser.GetDevices()); got != 1 {
+		t.Fatalf("expected 1 device for other-user, got %d", got)
+	}
+	if role := listOtherUser.GetDevices()[0].GetRole(); role != "viewer" {
+		t.Fatalf("expected other-user role=viewer, got %q", role)
+	}
+
+	_, err = svc.LinkDevice(context.Background(), &controlplanev1.LinkDeviceRequest{
+		UserSubject:       "other-user",
+		TargetUserSubject: "dev-user",
+		DeviceId:          created.GetDevice().GetDeviceId(),
+		Role:              "admin",
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected PermissionDenied for non-admin link, got %v", err)
+	}
+}
+
+func TestLinkDeviceValidation(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	_, err := svc.LinkDevice(context.Background(), &controlplanev1.LinkDeviceRequest{
+		UserSubject: "dev-user",
+		Role:        "owner",
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected InvalidArgument for invalid role, got %v", err)
+	}
+}
+
 func TestListDevicesGroupedByProvider(t *testing.T) {
 	t.Parallel()
 
@@ -212,5 +291,21 @@ func TestDiscoverDevicesConfiguredAndUnconfigured(t *testing.T) {
 	}
 	if configured.GetDiscoveredCount() != 1 {
 		t.Fatalf("expected discovered_count=1, got %d", configured.GetDiscoveredCount())
+	}
+	if got := len(configured.GetDevices()); got != 1 {
+		t.Fatalf("expected 1 discovered provider device in response, got %d", got)
+	}
+
+	listUserDevices, err := svc.ListUserDevices(context.Background(), &controlplanev1.ListUserDevicesRequest{
+		UserSubject: "dev-user",
+	})
+	if err != nil {
+		t.Fatalf("list user devices after discover failed: %v", err)
+	}
+	if got := len(listUserDevices.GetDevices()); got != 1 {
+		t.Fatalf("expected 1 user device after discover persistence, got %d", got)
+	}
+	if listUserDevices.GetDevices()[0].GetRole() != "admin" {
+		t.Fatalf("expected discover persistence to grant admin role")
 	}
 }

@@ -7,15 +7,30 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
+
+type memoryDevice struct {
+	ID         string
+	EcoflowSN  string
+	ProductName string
+	Model      string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
 
 type MemoryStore struct {
 	mu sync.RWMutex
 
 	usersBySubject map[string]string
 	credentials    map[string]ProviderCredential
-	devices        map[string]ProviderDevice
-	idCounter      uint64
+	providerDevices map[string]ProviderDevice
+
+	devicesByID map[string]memoryDevice
+	deviceBySN  map[string]string
+	userDevices map[string]map[string]string // userID -> deviceID -> role
+
+	idCounter uint64
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -23,8 +38,11 @@ func NewMemoryStore() *MemoryStore {
 		usersBySubject: map[string]string{
 			"dev-user": "dev-user-id-1",
 		},
-		credentials: map[string]ProviderCredential{},
-		devices:     map[string]ProviderDevice{},
+		credentials:     map[string]ProviderCredential{},
+		providerDevices: map[string]ProviderDevice{},
+		devicesByID:     map[string]memoryDevice{},
+		deviceBySN:      map[string]string{},
+		userDevices:     map[string]map[string]string{},
 	}
 }
 
@@ -52,7 +70,9 @@ func (s *MemoryStore) PutProviderDevice(device ProviderDevice) {
 	if strings.TrimSpace(device.Provider) == "" {
 		device.Provider = ProviderEcoFlow
 	}
-	s.devices[device.ID] = device
+	device.Provider = NormalizeProvider(device.Provider)
+	device.ProviderDeviceID = strings.ToUpper(strings.TrimSpace(device.ProviderDeviceID))
+	s.providerDevices[device.ID] = device
 }
 
 func (s *MemoryStore) CreateProviderCredential(_ context.Context, in CreateProviderCredentialInput) (ProviderCredential, error) {
@@ -140,13 +160,147 @@ func (s *MemoryStore) GetProviderCredential(_ context.Context, userSubject strin
 	return row, nil
 }
 
+func (s *MemoryStore) CreateDevice(_ context.Context, in CreateDeviceInput) (UserDevice, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if strings.TrimSpace(in.EcoflowSN) == "" {
+		return UserDevice{}, ErrDeviceNotFound
+	}
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return UserDevice{}, ErrUserNotFound
+	}
+	now := utcNow()
+	dev, created := s.ensureDeviceLocked(in.EcoflowSN, in.ProductName, in.Model, now)
+	if !created {
+		dev.UpdatedAt = now
+		s.devicesByID[dev.ID] = dev
+	}
+	s.ensureUserDeviceRoleLocked(userID, dev.ID, "admin")
+	return UserDevice{
+		DeviceID:    dev.ID,
+		EcoflowSN:   dev.EcoflowSN,
+		ProductName: dev.ProductName,
+		Model:       dev.Model,
+		Role:        "admin",
+		CreatedAt:   dev.CreatedAt,
+		UpdatedAt:   dev.UpdatedAt,
+	}, nil
+}
+
+func (s *MemoryStore) LinkDevice(_ context.Context, in LinkDeviceInput) (UserDevice, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	requesterID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return UserDevice{}, ErrUserNotFound
+	}
+	targetSubject := strings.TrimSpace(in.TargetUserSubject)
+	if targetSubject == "" {
+		targetSubject = strings.TrimSpace(in.UserSubject)
+	}
+	targetUserID, ok := s.usersBySubject[targetSubject]
+	if !ok {
+		return UserDevice{}, ErrUserNotFound
+	}
+
+	deviceID := strings.TrimSpace(in.DeviceID)
+	dev, ok := s.devicesByID[deviceID]
+	if !ok {
+		return UserDevice{}, ErrDeviceNotFound
+	}
+
+	requesterRoles, ok := s.userDevices[requesterID]
+	if !ok || requesterRoles[deviceID] != "admin" {
+		return UserDevice{}, ErrPermissionDenied
+	}
+	s.ensureUserDeviceRoleLocked(targetUserID, deviceID, in.Role)
+	return UserDevice{
+		DeviceID:    dev.ID,
+		EcoflowSN:   dev.EcoflowSN,
+		ProductName: dev.ProductName,
+		Model:       dev.Model,
+		Role:        in.Role,
+		CreatedAt:   dev.CreatedAt,
+		UpdatedAt:   dev.UpdatedAt,
+	}, nil
+}
+
+func (s *MemoryStore) ListUserDevices(_ context.Context, in ListUserDevicesInput) ([]UserDevice, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return []UserDevice{}, nil
+	}
+	roles := s.userDevices[userID]
+	out := make([]UserDevice, 0, len(roles))
+	for deviceID, role := range roles {
+		dev, ok := s.devicesByID[deviceID]
+		if !ok {
+			continue
+		}
+		out = append(out, UserDevice{
+			DeviceID:    dev.ID,
+			EcoflowSN:   dev.EcoflowSN,
+			ProductName: dev.ProductName,
+			Model:       dev.Model,
+			Role:        role,
+			CreatedAt:   dev.CreatedAt,
+			UpdatedAt:   dev.UpdatedAt,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ProductName == out[j].ProductName {
+			return out[i].EcoflowSN < out[j].EcoflowSN
+		}
+		return out[i].ProductName < out[j].ProductName
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	provider := NormalizeProvider(in.Provider)
+	providerDeviceID := strings.ToUpper(strings.TrimSpace(in.ProviderDeviceID))
+	var existingID string
+	for id, row := range s.providerDevices {
+		if row.Provider == provider && row.ProviderDeviceID == providerDeviceID {
+			existingID = id
+			break
+		}
+	}
+	if existingID == "" {
+		existingID = s.nextID("pdev")
+	}
+	row := ProviderDevice{
+		ID:                 existingID,
+		DeviceID:           strings.TrimSpace(in.DeviceID),
+		Provider:           provider,
+		ProviderDeviceID:   providerDeviceID,
+		CredentialID:       strings.TrimSpace(in.CredentialID),
+		CanonicalSN:        providerDeviceID,
+		ProductName:        strings.TrimSpace(in.ProductName),
+		Model:              strings.TrimSpace(in.Model),
+		IsActive:           in.IsActive,
+		IngestDesiredState: strings.ToLower(strings.TrimSpace(in.IngestDesiredState)),
+	}
+	s.providerDevices[row.ID] = row
+	return row, nil
+}
+
 func (s *MemoryStore) ListProviderDevices(_ context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	provider := NormalizeProvider(in.Provider)
-	out := make([]ProviderDevice, 0, len(s.devices))
-	for _, row := range s.devices {
+	out := make([]ProviderDevice, 0, len(s.providerDevices))
+	for _, row := range s.providerDevices {
 		if provider != "" && row.Provider != provider {
 			continue
 		}
@@ -174,8 +328,8 @@ func (s *MemoryStore) ListIngestAssignments(_ context.Context, in ListIngestAssi
 		credsByID[cred.ID] = cred
 	}
 
-	out := make([]IngestAssignment, 0, len(s.devices))
-	for _, dev := range s.devices {
+	out := make([]IngestAssignment, 0, len(s.providerDevices))
+	for _, dev := range s.providerDevices {
 		if provider != "" && dev.Provider != provider {
 			continue
 		}
@@ -212,6 +366,43 @@ func (s *MemoryStore) ListIngestAssignments(_ context.Context, in ListIngestAssi
 		return out[i].Provider < out[j].Provider
 	})
 	return out, nil
+}
+
+func (s *MemoryStore) ensureDeviceLocked(sn string, productName string, model string, now time.Time) (memoryDevice, bool) {
+	canonicalSN := strings.ToUpper(strings.TrimSpace(sn))
+	if canonicalSN == "" {
+		return memoryDevice{}, false
+	}
+	if existingID, ok := s.deviceBySN[canonicalSN]; ok {
+		dev := s.devicesByID[existingID]
+		if strings.TrimSpace(dev.ProductName) == "" {
+			dev.ProductName = strings.TrimSpace(productName)
+		}
+		if strings.TrimSpace(dev.Model) == "" {
+			dev.Model = strings.TrimSpace(model)
+		}
+		dev.UpdatedAt = now
+		s.devicesByID[dev.ID] = dev
+		return dev, false
+	}
+	dev := memoryDevice{
+		ID:          s.nextID("dev"),
+		EcoflowSN:   canonicalSN,
+		ProductName: strings.TrimSpace(productName),
+		Model:       strings.TrimSpace(model),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	s.deviceBySN[canonicalSN] = dev.ID
+	s.devicesByID[dev.ID] = dev
+	return dev, true
+}
+
+func (s *MemoryStore) ensureUserDeviceRoleLocked(userID string, deviceID string, role string) {
+	if _, ok := s.userDevices[userID]; !ok {
+		s.userDevices[userID] = map[string]string{}
+	}
+	s.userDevices[userID][deviceID] = strings.TrimSpace(role)
 }
 
 func (s *MemoryStore) nextID(prefix string) string {

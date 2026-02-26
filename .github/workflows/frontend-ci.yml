@@ -55,6 +55,12 @@ jobs:
           : > logs/telemetry_training.csv
           : > logs/mqtt.log
 
+      - name: Typecheck auth middleware package
+        run: npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth
+
+      - name: Test auth middleware package
+        run: npm run test --workspace @ecoflow-pulse/node-jwks-auth
+
       - name: Typecheck
         run: npm run -w apps/universal typecheck
 

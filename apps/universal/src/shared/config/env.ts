@@ -84,5 +84,17 @@ export const env = {
     process.env.EXPO_PUBLIC_CLOSE_BUTTON_ANIMATION ??
     (typeof extra.closeButtonAnimation === 'string'
       ? extra.closeButtonAnimation
-      : 'subtle')
+      : 'subtle'),
+  oidcIssuerUrl:
+    process.env.EXPO_PUBLIC_OIDC_ISSUER_URL ??
+    (typeof extra.oidcIssuerUrl === 'string' ? extra.oidcIssuerUrl : ''),
+  oidcClientId:
+    process.env.EXPO_PUBLIC_OIDC_CLIENT_ID ??
+    (typeof extra.oidcClientId === 'string' ? extra.oidcClientId : ''),
+  oidcAudience:
+    process.env.EXPO_PUBLIC_OIDC_AUDIENCE ??
+    (typeof extra.oidcAudience === 'string' ? extra.oidcAudience : ''),
+  oidcScopes:
+    process.env.EXPO_PUBLIC_OIDC_SCOPES ??
+    (typeof extra.oidcScopes === 'string' ? extra.oidcScopes : 'openid profile email offline_access')
 };

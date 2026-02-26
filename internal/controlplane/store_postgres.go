@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -214,6 +215,303 @@ WHERE pc.id = $1::uuid
 	}
 	out.AccessKey = string(accessKeyBytes)
 	out.SecretKey = string(secretKeyBytes)
+	return out, nil
+}
+
+func (s *PostgresStore) CreateDevice(ctx context.Context, in CreateDeviceInput) (UserDevice, error) {
+	now := s.now()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return UserDevice{}, fmt.Errorf("begin create device tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var userID string
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT id::text FROM users WHERE keycloak_subject = $1`,
+		in.UserSubject,
+	).Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return UserDevice{}, ErrUserNotFound
+		}
+		return UserDevice{}, fmt.Errorf("resolve user for create device: %w", err)
+	}
+
+	var row UserDevice
+	if err := tx.QueryRowContext(
+		ctx,
+		`
+INSERT INTO devices (ecoflow_sn, product_name, model, metadata, created_at, updated_at)
+VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), '{}'::jsonb, $4, $4)
+ON CONFLICT (ecoflow_sn)
+DO UPDATE
+SET product_name = CASE
+		WHEN length(trim(COALESCE(devices.product_name, ''))) = 0 THEN EXCLUDED.product_name
+		ELSE devices.product_name
+	END,
+	model = CASE
+		WHEN length(trim(COALESCE(devices.model, ''))) = 0 THEN EXCLUDED.model
+		ELSE devices.model
+	END,
+	updated_at = EXCLUDED.updated_at
+RETURNING id::text, ecoflow_sn, COALESCE(product_name, ''), COALESCE(model, ''), created_at, updated_at;
+`,
+		in.EcoflowSN,
+		in.ProductName,
+		in.Model,
+		now,
+	).Scan(
+		&row.DeviceID,
+		&row.EcoflowSN,
+		&row.ProductName,
+		&row.Model,
+		&row.CreatedAt,
+		&row.UpdatedAt,
+	); err != nil {
+		return UserDevice{}, fmt.Errorf("upsert device: %w", err)
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`
+INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at)
+VALUES ($1::uuid, $2::uuid, 'admin', $3, $3)
+ON CONFLICT (user_id, device_id)
+DO UPDATE SET role = 'admin', updated_at = EXCLUDED.updated_at;
+`,
+		userID,
+		row.DeviceID,
+		now,
+	); err != nil {
+		return UserDevice{}, fmt.Errorf("upsert user device admin link: %w", err)
+	}
+
+	row.Role = "admin"
+	if err := tx.Commit(); err != nil {
+		return UserDevice{}, fmt.Errorf("commit create device tx: %w", err)
+	}
+	return row, nil
+}
+
+func (s *PostgresStore) LinkDevice(ctx context.Context, in LinkDeviceInput) (UserDevice, error) {
+	now := s.now()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return UserDevice{}, fmt.Errorf("begin link device tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var requesterID string
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT id::text FROM users WHERE keycloak_subject = $1`,
+		in.UserSubject,
+	).Scan(&requesterID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return UserDevice{}, ErrUserNotFound
+		}
+		return UserDevice{}, fmt.Errorf("resolve requester user: %w", err)
+	}
+
+	targetSubject := in.TargetUserSubject
+	if targetSubject == "" {
+		targetSubject = in.UserSubject
+	}
+
+	var targetUserID string
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT id::text FROM users WHERE keycloak_subject = $1`,
+		targetSubject,
+	).Scan(&targetUserID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return UserDevice{}, ErrUserNotFound
+		}
+		return UserDevice{}, fmt.Errorf("resolve target user: %w", err)
+	}
+
+	var row UserDevice
+	if err := tx.QueryRowContext(
+		ctx,
+		`
+SELECT id::text, ecoflow_sn, COALESCE(product_name, ''), COALESCE(model, ''), created_at, updated_at
+FROM devices
+WHERE id = $1::uuid;
+`,
+		in.DeviceID,
+	).Scan(
+		&row.DeviceID,
+		&row.EcoflowSN,
+		&row.ProductName,
+		&row.Model,
+		&row.CreatedAt,
+		&row.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return UserDevice{}, ErrDeviceNotFound
+		}
+		return UserDevice{}, fmt.Errorf("resolve device for link: %w", err)
+	}
+
+	var requesterRole string
+	if err := tx.QueryRowContext(
+		ctx,
+		`
+SELECT role
+FROM user_devices
+WHERE user_id = $1::uuid
+  AND device_id = $2::uuid;
+`,
+		requesterID,
+		in.DeviceID,
+	).Scan(&requesterRole); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return UserDevice{}, ErrPermissionDenied
+		}
+		return UserDevice{}, fmt.Errorf("resolve requester role for link: %w", err)
+	}
+	if requesterRole != "admin" {
+		return UserDevice{}, ErrPermissionDenied
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`
+INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, $4)
+ON CONFLICT (user_id, device_id)
+DO UPDATE SET role = EXCLUDED.role, updated_at = EXCLUDED.updated_at;
+`,
+		targetUserID,
+		in.DeviceID,
+		in.Role,
+		now,
+	); err != nil {
+		return UserDevice{}, fmt.Errorf("upsert user device link: %w", err)
+	}
+	row.Role = in.Role
+	if err := tx.Commit(); err != nil {
+		return UserDevice{}, fmt.Errorf("commit link device tx: %w", err)
+	}
+	return row, nil
+}
+
+func (s *PostgresStore) ListUserDevices(ctx context.Context, in ListUserDevicesInput) ([]UserDevice, error) {
+	query := `
+SELECT
+	d.id::text,
+	d.ecoflow_sn,
+	COALESCE(d.product_name, ''),
+	COALESCE(d.model, ''),
+	ud.role,
+	d.created_at,
+	d.updated_at
+FROM user_devices ud
+JOIN users u ON u.id = ud.user_id
+JOIN devices d ON d.id = ud.device_id
+WHERE u.keycloak_subject = $1
+ORDER BY d.product_name ASC, d.ecoflow_sn ASC;
+`
+	rows, err := s.db.QueryContext(ctx, query, in.UserSubject)
+	if err != nil {
+		return nil, fmt.Errorf("query user devices: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]UserDevice, 0, 8)
+	for rows.Next() {
+		var row UserDevice
+		if err := rows.Scan(
+			&row.DeviceID,
+			&row.EcoflowSN,
+			&row.ProductName,
+			&row.Model,
+			&row.Role,
+			&row.CreatedAt,
+			&row.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan user devices row: %w", err)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate user devices rows: %w", err)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
+	now := s.now()
+	query := `
+INSERT INTO provider_devices (
+	device_id,
+	provider,
+	provider_device_id,
+	credential_id,
+	product_name,
+	model,
+	is_active,
+	ingest_desired_state,
+	created_at,
+	updated_at
+)
+VALUES (
+	$1::uuid,
+	$2,
+	$3,
+	$4::uuid,
+	NULLIF($5, ''),
+	NULLIF($6, ''),
+	$7,
+	$8,
+	$9,
+	$9
+)
+ON CONFLICT (provider, provider_device_id)
+DO UPDATE
+SET device_id = EXCLUDED.device_id,
+	credential_id = EXCLUDED.credential_id,
+	product_name = CASE
+		WHEN length(trim(COALESCE(provider_devices.product_name, ''))) = 0 THEN EXCLUDED.product_name
+		ELSE provider_devices.product_name
+	END,
+	model = CASE
+		WHEN length(trim(COALESCE(provider_devices.model, ''))) = 0 THEN EXCLUDED.model
+		ELSE provider_devices.model
+	END,
+	is_active = EXCLUDED.is_active,
+	ingest_desired_state = EXCLUDED.ingest_desired_state,
+	updated_at = EXCLUDED.updated_at
+RETURNING id::text, device_id::text, provider, provider_device_id, credential_id::text, is_active, ingest_desired_state;
+`
+	var out ProviderDevice
+	if err := s.db.QueryRowContext(
+		ctx,
+		query,
+		in.DeviceID,
+		NormalizeProvider(in.Provider),
+		in.ProviderDeviceID,
+		in.CredentialID,
+		in.ProductName,
+		in.Model,
+		in.IsActive,
+		strings.ToLower(strings.TrimSpace(in.IngestDesiredState)),
+		now,
+	).Scan(
+		&out.ID,
+		&out.DeviceID,
+		&out.Provider,
+		&out.ProviderDeviceID,
+		&out.CredentialID,
+		&out.IsActive,
+		&out.IngestDesiredState,
+	); err != nil {
+		return ProviderDevice{}, fmt.Errorf("upsert provider device: %w", err)
+	}
+	out.CanonicalSN = strings.TrimSpace(in.ProviderDeviceID)
+	out.ProductName = strings.TrimSpace(in.ProductName)
+	out.Model = strings.TrimSpace(in.Model)
 	return out, nil
 }
 
