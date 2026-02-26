@@ -57,7 +57,9 @@ keycloakRealm:
     enabled: false
     clientId: ""
     clientSecret: ""
-minio: {}
+minio:
+  rootUser: minio
+  rootPassword: minio123
 ingress-nginx:
   controller:
     replicaCount: 1
