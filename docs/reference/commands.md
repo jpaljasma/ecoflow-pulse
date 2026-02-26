@@ -123,6 +123,16 @@ export INGEST_START_WORKERS=32
 export INGEST_START_QUEUE_SIZE=256
 ```
 
+Common structured logging knobs (all service/worker binaries):
+
+```bash
+export LOG_LEVEL=info
+export LOG_ASYNC_DISABLED=false
+export LOG_ASYNC_QUEUE_SIZE=8192
+export LOG_ASYNC_BYPASS_LEVEL=warn
+export LOG_METRICS_INTERVAL=30s
+```
+
 Ingest worker MQTT session + telemetry bus knobs:
 
 ```bash
@@ -139,6 +149,10 @@ export INGEST_MQTT_RECONNECT_JITTER=0.25
 export INGEST_MQTT_RECONNECT_ALERT_WINDOW=5m
 export INGEST_MQTT_RECONNECT_ALERT_THRESHOLD=8
 export INGEST_MQTT_RECONNECT_ALERT_COOLDOWN=2m
+
+# Optional sampled payload logging (debug-only, off by default)
+export INGEST_MQTT_LOG_PAYLOAD_DEBUG=false
+export INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY=100
 
 # Lease-loss spike alerting (heartbeat renew rejected: missing)
 export INGEST_LEASE_MISSING_ALERT_WINDOW=5m

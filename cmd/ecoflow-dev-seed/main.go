@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
 
 const (
@@ -62,13 +64,35 @@ type seedResult struct {
 }
 
 func main() {
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("dev-seed")
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("init logger failed: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
 
 	cfg, err := configFromEnv()
 	if err != nil {
 		log.Error("invalid seed configuration", "error", err.Error())
 		os.Exit(1)
 	}
+
+	log.Info("dev seed starting",
+		"log_level", logCfg.Level.String(),
+		"log_async_enabled", logCfg.AsyncEnabled,
+		"log_async_queue_size", logCfg.AsyncQueueSize,
+		"log_async_bypass_level", logCfg.AsyncBypassLevel.String(),
+	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -445,4 +469,35 @@ SET device_id = EXCLUDED.device_id,
 		return fmt.Errorf("upsert provider device %s: %w", binding.SN, err)
 	}
 	return nil
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func mustBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func mustIntMin(key string, fallback int, min int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < min {
+		return fallback
+	}
+	return v
 }

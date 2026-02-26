@@ -12,10 +12,26 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/archiveworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
 
 func main() {
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("archive-worker")
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("init logger failed: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
 
 	natsCfg := telemetrybus.DefaultNATSConnConfig(splitNonEmpty(envOrDefault("NATS_URLS", "nats://127.0.0.1:4222")))
 	natsCfg.Name = envOrDefault("NATS_NAME", "ecoflow-archive-worker")
@@ -93,8 +109,16 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "archive-worker", asyncLogHandler, logMetricsInterval)
+	defer stopLogMetrics()
 
 	log.Info("archive worker starting",
+		slog.String("log_level", logCfg.Level.String()),
+		slog.Bool("log_async_enabled", logCfg.AsyncEnabled),
+		slog.Int("log_async_queue_size", logCfg.AsyncQueueSize),
+		slog.String("log_async_bypass_level", logCfg.AsyncBypassLevel.String()),
+		slog.Duration("log_metrics_interval", logMetricsInterval),
 		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
 		slog.String("subject_prefix", cfg.SubjectConfig.Prefix),
 		slog.Uint64("shards", uint64(cfg.SubjectConfig.ShardCount)),
@@ -145,6 +169,18 @@ func mustDuration(key string, fallback time.Duration) time.Duration {
 	}
 	v, err := time.ParseDuration(raw)
 	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
+}
+
+func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := time.ParseDuration(raw)
+	if err != nil || v < 0 {
 		return fallback
 	}
 	return v

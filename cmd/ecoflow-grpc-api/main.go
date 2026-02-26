@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
 
 func main() {
@@ -28,7 +30,22 @@ func main() {
 		env = "local"
 	}
 
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("grpc-api")
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("init logger failed: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
 
 	cfg := grpcserver.DefaultConfig(env)
 	if addr := os.Getenv("GRPC_LISTEN_ADDR"); addr != "" {
@@ -91,9 +108,22 @@ func main() {
 	)
 	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
 
-	log.Info("grpc server starting", "addr", cfg.ListenAddr, "env", env)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "grpc-api", asyncLogHandler, logMetricsInterval)
+	defer stopLogMetrics()
 
-	ctx := context.Background()
+	log.Info("grpc server starting",
+		"addr", cfg.ListenAddr,
+		"env", env,
+		"log_level", logCfg.Level.String(),
+		"log_async_enabled", logCfg.AsyncEnabled,
+		"log_async_queue_size", logCfg.AsyncQueueSize,
+		"log_async_bypass_level", logCfg.AsyncBypassLevel.String(),
+		"log_metrics_interval", logMetricsInterval,
+	)
+
 	if err := grpcserver.ServeWithSignal(ctx, s, lis, 15*time.Second); err != nil {
 		log.Error("grpc server stopped", "error", err.Error())
 		os.Exit(1)
@@ -162,4 +192,40 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func mustIntMin(key string, fallback int, min int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < min {
+		return fallback
+	}
+	return v
+}
+
+func mustBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := time.ParseDuration(raw)
+	if err != nil || v < 0 {
+		return fallback
+	}
+	return v
 }

@@ -18,10 +18,26 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
 
 func main() {
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("ingest-worker")
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("init logger failed: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
 
 	dbDSN := strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
 	if dbDSN == "" {
@@ -137,6 +153,8 @@ func main() {
 	sessionCfg.PublishEnqueueTimeout = mustDuration("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
 	sessionCfg.AllowUnorderedPublish = mustBool("INGEST_ALLOW_UNORDERED_PUBLISH", sessionCfg.AllowUnorderedPublish)
 	sessionCfg.DisableEnvelopeLabels = disableEnvelopeLabels
+	sessionCfg.LogMQTTPayloadDebug = mustBool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
+	sessionCfg.LogMQTTPayloadSampleEvery = mustIntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
 	runner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, sessionCfg)
 	if err != nil {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
@@ -178,8 +196,16 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "ingest-worker", asyncLogHandler, logMetricsInterval)
+	defer stopLogMetrics()
 
 	log.Info("ingest worker starting",
+		slog.String("log_level", logCfg.Level.String()),
+		slog.Bool("log_async_enabled", logCfg.AsyncEnabled),
+		slog.Int("log_async_queue_size", logCfg.AsyncQueueSize),
+		slog.String("log_async_bypass_level", logCfg.AsyncBypassLevel.String()),
+		slog.Duration("log_metrics_interval", logMetricsInterval),
 		slog.String("worker_id", workerID),
 		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
 		slog.String("subject_prefix", subjectCfg.Prefix),
@@ -199,6 +225,8 @@ func main() {
 		slog.Duration("mqtt_reconnect_alert_window", sessionCfg.ReconnectAlertWindow),
 		slog.Int("mqtt_reconnect_alert_threshold", sessionCfg.ReconnectAlertThreshold),
 		slog.Duration("mqtt_reconnect_alert_cooldown", sessionCfg.ReconnectAlertCooldown),
+		slog.Bool("mqtt_payload_debug", sessionCfg.LogMQTTPayloadDebug),
+		slog.Int("mqtt_payload_sample_every", sessionCfg.LogMQTTPayloadSampleEvery),
 		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),
 		slog.Bool("disable_envelope_labels", sessionCfg.DisableEnvelopeLabels),
 		slog.Bool("nats_use_jetstream", publishOpts.UseJetStream),
@@ -245,6 +273,18 @@ func mustDuration(key string, fallback time.Duration) time.Duration {
 	}
 	v, err := time.ParseDuration(raw)
 	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
+}
+
+func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := time.ParseDuration(raw)
+	if err != nil || v < 0 {
 		return fallback
 	}
 	return v

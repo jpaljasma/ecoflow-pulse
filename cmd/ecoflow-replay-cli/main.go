@@ -16,6 +16,7 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
 
 const (
@@ -70,7 +71,37 @@ func main() {
 	flag.UintVar(&subjectShardCount, "subject-shards", uint(mustUint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount)), "Telemetry subject shard count")
 	flag.Parse()
 
-	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("replay-cli")
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	logCfg.AsyncEnabled = !mustBool("LOG_ASYNC_DISABLED", false)
+	logCfg.AsyncQueueSize = mustIntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
+	logCfg.AsyncBypassLevel = pulselog.ParseLevel(envOrDefault("LOG_ASYNC_BYPASS_LEVEL", "warn"), slog.LevelWarn)
+
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = os.Stderr.WriteString("init logger failed: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
+
+	logMetricsInterval := mustDurationAllowZero("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	metricsCtx, cancelMetrics := context.WithCancel(context.Background())
+	defer cancelMetrics()
+	stopLogMetrics := pulselog.StartAsyncMetricsReporter(metricsCtx, log, "replay-cli", asyncLogHandler, logMetricsInterval)
+	defer stopLogMetrics()
+
+	log.Info("replay cli starting",
+		slog.String("log_level", logCfg.Level.String()),
+		slog.Bool("log_async_enabled", logCfg.AsyncEnabled),
+		slog.Int("log_async_queue_size", logCfg.AsyncQueueSize),
+		slog.String("log_async_bypass_level", logCfg.AsyncBypassLevel.String()),
+		slog.Duration("log_metrics_interval", logMetricsInterval),
+	)
+
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	if mode != modeListDevices && mode != modeDevice && mode != modeFleet {
 		log.Error("invalid mode", slog.String("mode", mode))
@@ -342,6 +373,30 @@ func mustBool(key string, fallback bool) bool {
 	}
 	v, err := strconv.ParseBool(raw)
 	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func mustIntMin(key string, fallback int, min int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < min {
+		return fallback
+	}
+	return v
+}
+
+func mustDurationAllowZero(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := time.ParseDuration(raw)
+	if err != nil || v < 0 {
 		return fallback
 	}
 	return v

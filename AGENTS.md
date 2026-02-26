@@ -82,6 +82,17 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Keep deprecated gRPC APIs out of tests/runtime paths (prefer `grpc.NewClient` over deprecated dial patterns).
 5. If helper code is intentionally retained but currently unused, annotate with a short `//nolint:unused` reason.
 
+## Service Logging Throughput Rules
+1. All long-running services/workers and operational CLIs must use `pkg/logger` (`BuildServiceLogger`) for consistent structured logging behavior.
+2. Keep high-volume payload logs off the hot path:
+   - payload logging must remain `DEBUG` level only,
+   - payload logging must be sampled (for example every `N` messages), never per-message at `INFO`.
+3. Async logging is the default path:
+   - bounded queue with drop-on-full for low-priority logs,
+   - warning/error logs bypass queue synchronously.
+4. Emit async logger SLO metrics (`queue_depth`, `dropped_total`, etc.) on a periodic ticker with jitter (`StartAsyncMetricsReporter`).
+5. Async logger shutdown must be graceful and race-safe; avoid send/close channel races in hot logging paths.
+
 ## Milestone Closure Rules
 1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.
 2. Record acceptance evidence in `docs/architecture/README.md` in the same branch/commit series as the implementation.

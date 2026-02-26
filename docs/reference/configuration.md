@@ -64,6 +64,19 @@ Environment-specific credential keys (preferred):
 
 ## Logging and Process Safety
 
+Common service/worker logging knobs (`cmd/ecoflow-ingest-worker`, `cmd/ecoflow-projection-worker`, `cmd/ecoflow-archive-worker`, `cmd/ecoflow-gap-detector`, `cmd/ecoflow-gap-repair-worker`, `cmd/ecoflow-grpc-api`, `cmd/ecoflow-replay-cli`, `cmd/ecoflow-dev-seed`):
+
+- `LOG_LEVEL` (default `info`)
+- `LOG_ASYNC_DISABLED` (default `false`; when `true`, bypass async queue)
+- `LOG_ASYNC_QUEUE_SIZE` (default `8192`; bounded queue capacity)
+- `LOG_ASYNC_BYPASS_LEVEL` (default `warn`; warn/error logs bypass queue sync)
+- `LOG_METRICS_INTERVAL` (default `30s`; set `0` to disable async queue metrics logs)
+
+Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
+
+- `INGEST_MQTT_LOG_PAYLOAD_DEBUG` (default `false`; payload logging stays off hot path)
+- `INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY` (default `100`; sampled debug payload logging interval)
+
 - `ECOFLOW_MQTT_LOG_PATH` (default `logs/mqtt.log`, file truncated on startup)
 - `ECOFLOW_MQTT_LOG_QUEUE_CAPACITY` (default `2048`)
 - `ECOFLOW_MQTT_RAW_PAYLOAD_LOG` (default `true`)

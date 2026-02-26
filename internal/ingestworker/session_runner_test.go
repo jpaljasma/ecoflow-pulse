@@ -344,6 +344,12 @@ func TestDefaultEcoFlowSessionConfigReconnectAlertDefaults(t *testing.T) {
 	if cfg.ReconnectAlertCooldown != 2*time.Minute {
 		t.Fatalf("reconnect alert cooldown mismatch: got=%s want=2m", cfg.ReconnectAlertCooldown)
 	}
+	if cfg.LogMQTTPayloadDebug {
+		t.Fatalf("mqtt payload debug should default to false")
+	}
+	if cfg.LogMQTTPayloadSampleEvery != 100 {
+		t.Fatalf("mqtt payload sample default mismatch: got=%d want=100", cfg.LogMQTTPayloadSampleEvery)
+	}
 }
 
 func TestReconnectRateTrackerAlertingAndCooldown(t *testing.T) {
