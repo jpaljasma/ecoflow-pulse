@@ -16,6 +16,7 @@ export function buildApp(
   options: BuildAppOptions = {}
 ): FastifyInstance {
   const app = Fastify({ logger: false });
+  const authPreHandler = options.authPreHandler ?? buildAuthPreHandler(config);
   app.decorate('telemetryDeadlineMs', config.grpcDeadlineMs);
   app.decorate('historyRateLimit', {
     max: config.historyRateLimit.max,
@@ -37,8 +38,7 @@ export function buildApp(
         'retry-after': true
       }
     });
-    scopedApp.addHook('preHandler', options.authPreHandler ?? buildAuthPreHandler(config));
-    registerHistoryRoutes(scopedApp, historyClient);
+    registerHistoryRoutes(scopedApp, historyClient, authPreHandler);
   });
   app.addHook('onClose', async () => {
     historyClient.close();

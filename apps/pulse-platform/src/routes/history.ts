@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
 import { z } from 'zod';
 import type { ServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
@@ -18,10 +18,16 @@ const compareQuerySchema = querySchema.extend({
   compare: z.enum(['previous_period']).optional().default('previous_period')
 });
 
-export function registerHistoryRoutes(app: FastifyInstance, historyClient: TelemetryHistoryClient): void {
+export function registerHistoryRoutes(
+  app: FastifyInstance,
+  historyClient: TelemetryHistoryClient,
+  authPreHandler: preHandlerHookHandler
+): void {
+  const historyPreHandlers = [app.rateLimit(app.historyRateLimit), authPreHandler];
+
   app.get(
     '/api/v1/devices/:deviceId/history',
-    { config: { rateLimit: app.historyRateLimit } },
+    { preHandler: historyPreHandlers },
     async (request, reply) => {
       try {
         const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
@@ -50,7 +56,7 @@ export function registerHistoryRoutes(app: FastifyInstance, historyClient: Telem
 
   app.get(
     '/api/v1/devices/:deviceId/history/compare',
-    { config: { rateLimit: app.historyRateLimit } },
+    { preHandler: historyPreHandlers },
     async (request, reply) => {
       try {
         const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
