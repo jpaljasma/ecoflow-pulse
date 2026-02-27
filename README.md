@@ -37,6 +37,8 @@ Actively validated:
 - Live read model:
   - projection worker consumes NATS and writes Valkey snapshots/cursors
   - gRPC snapshot and realtime subscription flow from the same read model
+- Public query/API layer:
+  - Node REST BFF workspace (`apps/pulse-platform`) validates JWTs and forwards history queries to the internal gRPC API
 - Durable archive and replay:
   - archive worker writes protobuf+zstd objects to MinIO
   - manifest index persisted in Postgres for replay lookup
@@ -73,6 +75,7 @@ Developer docs follow Diataxis under `/docs`:
 
 ## Repository Layout
 
+- `apps/pulse-platform`: public Node REST BFF over the internal gRPC query layer
 - `cmd/ecoflow-mqtt-sub`: real-time MQTT telemetry dashboard
 - `cmd/ecoflow-grpc-api`: internal high-throughput gRPC API
 - `cmd/ecoflow-ingest-worker`: distributed MQTT ingest worker

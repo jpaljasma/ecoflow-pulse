@@ -2,6 +2,9 @@
 
 Top-level structure:
 
+- `apps/`
+  - `pulse-platform`: Node REST BFF workspace (public history/query adapter over internal gRPC).
+  - `universal`: Expo universal dashboard (Web/iOS/Android).
 - `cmd/`
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane services).

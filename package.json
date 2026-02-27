@@ -10,9 +10,10 @@
     "web": "npm run web --workspace @ecoflow-pulse/universal",
     "ios": "npm run ios --workspace @ecoflow-pulse/universal",
     "android": "npm run android --workspace @ecoflow-pulse/universal",
-    "typecheck": "npm run typecheck --workspace @ecoflow-pulse/universal",
-    "test": "npm run test --workspace @ecoflow-pulse/universal",
-    "lint": "npm run lint --workspace @ecoflow-pulse/universal"
+    "platform-bff": "npm run dev --workspace @ecoflow-pulse/pulse-platform",
+    "typecheck": "npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth && npm run typecheck --workspace @ecoflow-pulse/pulse-platform && npm run typecheck --workspace @ecoflow-pulse/universal",
+    "test": "npm run test --workspace @ecoflow-pulse/node-jwks-auth && npm run test --workspace @ecoflow-pulse/pulse-platform && npm run test --workspace @ecoflow-pulse/universal",
+    "lint": "npm run lint --workspace @ecoflow-pulse/pulse-platform && npm run lint --workspace @ecoflow-pulse/universal"
   },
   "engines": {
     "node": ">=20"

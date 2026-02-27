@@ -1,0 +1,29 @@
+{
+  "name": "@ecoflow-pulse/pulse-platform",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint . --ext .ts"
+  },
+  "dependencies": {
+    "@ecoflow-pulse/node-jwks-auth": "0.0.1",
+    "@grpc/grpc-js": "^1.14.0",
+    "@grpc/proto-loader": "^0.8.0",
+    "fastify": "^5.6.1",
+    "fastify-rate-limit": "npm:@fastify/rate-limit@^10.3.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@ecoflow-pulse/eslint-config": "0.0.1",
+    "@ecoflow-pulse/tsconfig": "0.0.1",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "~5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
