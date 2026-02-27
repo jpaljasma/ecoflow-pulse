@@ -20,6 +20,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
@@ -91,15 +92,26 @@ func main() {
 		os.Exit(1)
 	}
 	defer cleanupSnapshotReader()
-
-	// Register services
-	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithSnapshotReader(log, snapshotReader))
 	controlPlaneStore, cleanupStore, err := newControlPlaneStoreFromEnv(log)
 	if err != nil {
 		log.Error("control-plane store init failed", "error", err.Error())
 		os.Exit(1)
 	}
 	defer cleanupStore()
+	queryReader, cleanupQueryReader, err := newTelemetryQueryReaderFromEnv(log)
+	if err != nil {
+		log.Error("telemetry query reader init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer cleanupQueryReader()
+
+	// Register services
+	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               log,
+		SnapshotReader:    snapshotReader,
+		QueryReader:       queryReader,
+		ControlPlaneStore: controlPlaneStore,
+	}))
 	ecoflowClientConfig := ecoflow.DefaultConfig()
 	ecoflowClientConfig.Logging.Debug = false
 	ecoflowClientConfig.Logging.AdvancedDebugTelemetry = false
@@ -209,4 +221,20 @@ func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.Snaps
 		"key_prefix", strings.TrimSpace(runtimecfg.EnvOrDefault("PROJECTION_KEY_PREFIX", "pulse:projection")),
 	)
 	return store, func() { client.Close() }, nil
+}
+
+func newTelemetryQueryReaderFromEnv(log *slog.Logger) (telemetryquery.Reader, func(), error) {
+	dsn := strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
+	if dsn == "" {
+		log.Info("telemetry query reader disabled", "reason", "CONTROL_PLANE_DB_DSN not set")
+		return nil, func() {}, nil
+	}
+
+	reader, err := telemetryquery.NewPostgresReader(dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	log.Info("telemetry query reader enabled", "source", "postgres")
+	return reader, func() { _ = reader.Close() }, nil
 }

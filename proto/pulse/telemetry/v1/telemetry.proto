@@ -7,8 +7,8 @@ option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;t
 // Cursor supports resume/replay semantics for streaming.
 // You can map this to NATS sequence, archive object offsets, or a monotonic per-device revision.
 message Cursor {
-  uint64 seq = 1;          // monotonic sequence (per device stream)
-  int64  ts_unix_ms = 2;   // server ingest time for the event
+  uint64 seq = 1; // monotonic sequence (per device stream)
+  int64 ts_unix_ms = 2; // server ingest time for the event
 }
 
 message Snapshot {
@@ -22,8 +22,8 @@ message Snapshot {
 message Delta {
   string device_id = 1;
   Cursor cursor = 2;
-  map<string, double> changed = 3;   // only changed keys
-  repeated string cleared = 4;       // keys removed/invalidated
+  map<string, double> changed = 3; // only changed keys
+  repeated string cleared = 4; // keys removed/invalidated
 }
 
 message Heartbeat {
@@ -62,7 +62,100 @@ message SubscribeResponse {
   }
 }
 
+enum RollupResolution {
+  ROLLUP_RESOLUTION_UNSPECIFIED = 0;
+  ROLLUP_RESOLUTION_MINUTE = 1;
+  ROLLUP_RESOLUTION_HOUR = 2;
+  ROLLUP_RESOLUTION_DAY = 3;
+}
+
+message RollupMetrics {
+  optional double soc_avg_pct = 1;
+  optional double soc_min_pct = 2;
+  optional double soc_max_pct = 3;
+
+  optional double ac_in_avg_w = 4;
+  optional double ac_in_max_w = 5;
+
+  optional double pv_avg_w = 6;
+  optional double pv_max_w = 7;
+
+  optional double dc_avg_w = 8;
+  optional double dc_max_w = 9;
+
+  optional double load_avg_w = 10;
+  optional double load_max_w = 11;
+
+  optional double net_avg_w = 12;
+  optional double net_min_w = 13;
+  optional double net_max_w = 14;
+
+  optional double battery_avg_w = 15;
+  optional double battery_min_w = 16;
+  optional double battery_max_w = 17;
+
+  optional double temp_avg_c = 18;
+  optional double temp_min_c = 19;
+  optional double temp_max_c = 20;
+
+  optional double solar_generated_wh = 21;
+}
+
+message RollupPoint {
+  int64 bucket_start_unix_ms = 1;
+  int64 bucket_end_unix_ms = 2;
+  uint64 sample_count = 3;
+  int64 first_ts_unix_ms = 4;
+  int64 last_ts_unix_ms = 5;
+  RollupMetrics metrics = 6;
+}
+
+message RollupSeries {
+  string device_id = 1;
+  RollupResolution resolution = 2;
+  // Range is normalized and returned as [from_unix_ms, to_unix_ms).
+  int64 from_unix_ms = 3;
+  int64 to_unix_ms = 4;
+  repeated RollupPoint points = 5;
+}
+
+message QueryRollupRangeRequest {
+  string device_id = 1;
+  RollupResolution resolution = 2;
+  // Query range is [from_unix_ms, to_unix_ms).
+  int64 from_unix_ms = 3;
+  int64 to_unix_ms = 4;
+}
+
+message QueryRollupRangeResponse {
+  RollupSeries series = 1;
+}
+
+message CompareRollupRangeRequest {
+  string device_id = 1;
+  RollupResolution resolution = 2;
+  // Current range is [from_unix_ms, to_unix_ms).
+  int64 from_unix_ms = 3;
+  int64 to_unix_ms = 4;
+
+  // If true and compare_* are not supplied, the server returns the immediately
+  // preceding window with the same duration as the current range.
+  bool use_previous_period = 5;
+
+  // Optional explicit comparison window. When both values are set, they take
+  // precedence over use_previous_period.
+  int64 compare_from_unix_ms = 6;
+  int64 compare_to_unix_ms = 7;
+}
+
+message CompareRollupRangeResponse {
+  RollupSeries current = 1;
+  RollupSeries previous = 2;
+}
+
 service TelemetryService {
   rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+  rpc QueryRollupRange(QueryRollupRangeRequest) returns (QueryRollupRangeResponse);
+  rpc CompareRollupRange(CompareRollupRangeRequest) returns (CompareRollupRangeResponse);
 }
