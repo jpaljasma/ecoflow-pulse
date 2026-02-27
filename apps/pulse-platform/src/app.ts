@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type preHandlerHookHandler } from 'fastify';
-import { RateLimiterMemory } from 'rate-limiter-flexible';
+import rateLimit, { type RateLimitOptions } from 'fastify-rate-limit';
 
 import { buildAuthPreHandler } from './auth.js';
 import type { AppConfig } from './config.js';
@@ -17,11 +17,16 @@ export function buildApp(
 ): FastifyInstance {
   const app = Fastify({ logger: false });
   const authPreHandler = options.authPreHandler ?? buildAuthPreHandler(config);
-  const historyRateLimiter = buildHistoryRateLimiter(config);
+  const historyRateLimit = buildHistoryRateLimit(config);
   app.decorate('telemetryDeadlineMs', config.grpcDeadlineMs);
+  app.decorate('historyRateLimit', historyRateLimit);
   app.get('/healthz', async () => ({ ok: true }));
   void app.register(async (scopedApp) => {
-    registerHistoryRoutes(scopedApp, historyClient, authPreHandler, historyRateLimiter);
+    await scopedApp.register(rateLimit, {
+      global: false,
+      hook: 'preHandler'
+    });
+    registerHistoryRoutes(scopedApp, historyClient, authPreHandler);
   });
   app.addHook('onClose', async () => {
     historyClient.close();
@@ -29,16 +34,17 @@ export function buildApp(
   return app;
 }
 
-function buildHistoryRateLimiter(config: AppConfig): RateLimiterMemory {
-  return new RateLimiterMemory({
-    keyPrefix: 'pulse-platform:history',
-    points: config.historyRateLimit.max,
-    duration: Math.max(1, Math.ceil(config.historyRateLimit.timeWindowMs / 1000))
-  });
+function buildHistoryRateLimit(config: AppConfig): RateLimitOptions {
+  return {
+    max: config.historyRateLimit.max,
+    timeWindow: Math.max(1, Math.ceil(config.historyRateLimit.timeWindowMs / 1000)),
+    cache: 10_000
+  };
 }
 
 declare module 'fastify' {
   interface FastifyInstance {
+    historyRateLimit: RateLimitOptions;
     telemetryDeadlineMs: number;
   }
 }

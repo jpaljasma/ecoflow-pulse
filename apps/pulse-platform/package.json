@@ -15,7 +15,7 @@
     "@grpc/grpc-js": "^1.14.0",
     "@grpc/proto-loader": "^0.8.0",
     "fastify": "^5.6.1",
-    "rate-limiter-flexible": "^5.0.5",
+    "fastify-rate-limit": "npm:@fastify/rate-limit@^10.3.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

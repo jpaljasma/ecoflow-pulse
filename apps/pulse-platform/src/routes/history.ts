@@ -1,5 +1,4 @@
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
-import { type RateLimiterMemory, RateLimiterRes } from 'rate-limiter-flexible';
 import { z } from 'zod';
 import type { ServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
@@ -22,11 +21,9 @@ const compareQuerySchema = querySchema.extend({
 export function registerHistoryRoutes(
   app: FastifyInstance,
   historyClient: TelemetryHistoryClient,
-  authPreHandler: preHandlerHookHandler,
-  historyRateLimiter: RateLimiterMemory
+  authPreHandler: preHandlerHookHandler
 ): void {
-  const historyRateLimitPreHandler = buildHistoryRateLimitPreHandler(historyRateLimiter);
-  const historyPreHandlers = [historyRateLimitPreHandler, authPreHandler];
+  const historyPreHandlers = [app.rateLimit(app.historyRateLimit), authPreHandler];
 
   app.get(
     '/api/v1/devices/:deviceId/history',
@@ -120,32 +117,6 @@ function handleRouteError(reply: { code: (code: number) => { send: (body: unknow
     });
   }
   throw error;
-}
-
-function buildHistoryRateLimitPreHandler(
-  historyRateLimiter: RateLimiterMemory
-): preHandlerHookHandler {
-  return async function historyRateLimitPreHandler(request, reply) {
-    try {
-      await historyRateLimiter.consume(request.ip);
-    } catch (error) {
-      return sendRateLimited(reply, error);
-    }
-  };
-}
-
-function sendRateLimited(
-  reply: {
-    header: (name: string, value: string) => unknown;
-    code: (code: number) => { send: (body: unknown) => unknown };
-  },
-  error: unknown
-) {
-  if (error instanceof RateLimiterRes) {
-    const retryAfterSeconds = Math.max(1, Math.ceil(error.msBeforeNext / 1000));
-    void reply.header('retry-after', String(retryAfterSeconds));
-  }
-  return reply.code(429).send({ error: 'rate_limited' });
 }
 
 function isServiceError(error: unknown): error is ServiceError {
