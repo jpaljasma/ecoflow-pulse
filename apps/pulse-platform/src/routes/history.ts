@@ -21,9 +21,10 @@ const compareQuerySchema = querySchema.extend({
 export function registerHistoryRoutes(
   app: FastifyInstance,
   historyClient: TelemetryHistoryClient,
-  authPreHandler: preHandlerHookHandler
+  authPreHandler: preHandlerHookHandler,
+  historyRateLimitPreHandler: preHandlerHookHandler
 ): void {
-  const historyPreHandlers = [app.rateLimit(app.historyRateLimit), authPreHandler];
+  const historyPreHandlers = [historyRateLimitPreHandler, authPreHandler];
 
   app.get(
     '/api/v1/devices/:deviceId/history',

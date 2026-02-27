@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type preHandlerHookHandler } from 'fastify';
-import rateLimit from '@fastify/rate-limit';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import { buildAuthPreHandler } from './auth.js';
 import type { AppConfig } from './config.js';
@@ -17,28 +17,11 @@ export function buildApp(
 ): FastifyInstance {
   const app = Fastify({ logger: false });
   const authPreHandler = options.authPreHandler ?? buildAuthPreHandler(config);
+  const historyRateLimitPreHandler = buildHistoryRateLimitPreHandler(config);
   app.decorate('telemetryDeadlineMs', config.grpcDeadlineMs);
-  app.decorate('historyRateLimit', {
-    max: config.historyRateLimit.max,
-    timeWindow: config.historyRateLimit.timeWindowMs
-  });
   app.get('/healthz', async () => ({ ok: true }));
   void app.register(async (scopedApp) => {
-    await scopedApp.register(rateLimit, {
-      global: false,
-      addHeadersOnExceeding: {
-        'x-ratelimit-limit': false,
-        'x-ratelimit-remaining': false,
-        'x-ratelimit-reset': false
-      },
-      addHeaders: {
-        'x-ratelimit-limit': true,
-        'x-ratelimit-remaining': true,
-        'x-ratelimit-reset': true,
-        'retry-after': true
-      }
-    });
-    registerHistoryRoutes(scopedApp, historyClient, authPreHandler);
+    registerHistoryRoutes(scopedApp, historyClient, authPreHandler, historyRateLimitPreHandler);
   });
   app.addHook('onClose', async () => {
     historyClient.close();
@@ -46,12 +29,38 @@ export function buildApp(
   return app;
 }
 
+function buildHistoryRateLimitPreHandler(config: AppConfig): preHandlerHookHandler {
+  const limiter = new RateLimiterMemory({
+    keyPrefix: 'pulse-platform:history',
+    points: config.historyRateLimit.max,
+    duration: Math.max(1, Math.ceil(config.historyRateLimit.timeWindowMs / 1000))
+  });
+  return async (request, reply) => {
+    try {
+      await limiter.consume(request.ip);
+    } catch (error) {
+      const retryAfterSeconds = getRetryAfterSeconds(error);
+      if (retryAfterSeconds !== undefined) {
+        void reply.header('retry-after', String(retryAfterSeconds));
+      }
+      void reply.code(429).send({ error: 'rate_limited' });
+    }
+  };
+}
+
+function getRetryAfterSeconds(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('msBeforeNext' in error)) {
+    return undefined;
+  }
+  const msBeforeNext = Number(error.msBeforeNext);
+  if (!Number.isFinite(msBeforeNext) || msBeforeNext <= 0) {
+    return undefined;
+  }
+  return Math.max(1, Math.ceil(msBeforeNext / 1000));
+}
+
 declare module 'fastify' {
   interface FastifyInstance {
     telemetryDeadlineMs: number;
-    historyRateLimit: {
-      max: number;
-      timeWindow: number;
-    };
   }
 }
