@@ -6,6 +6,7 @@ Top-level structure:
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane services).
   - `ecoflow-ingest-worker`: distributed MQTT ingest assignment loop + session runner entrypoint.
+  - `ecoflow-rollup-worker`: Timescale rollup pipeline worker (ingest envelopes -> minute/hour/day rollup upserts).
   - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects).
   - `ecoflow-replay-cli`: archive replay CLI (device listing + per-device/fleet shard-time replay modes).
   - `ecoflow-gap-detector`: projection lag detector that enqueues targeted replay jobs.
@@ -25,6 +26,7 @@ Top-level structure:
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
   - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + MinIO-compatible object writer).
+  - `rollupworker`: rollup pipeline primitives (durable ingest consumer + explicit metric extraction + Timescale upserts).
   - `replaycli`: manifest/object replay runtime (manifest query + object decode + replay publish runner).
   - `gaprepair`: projection lag detection + replay queue consumer/publisher primitives.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).

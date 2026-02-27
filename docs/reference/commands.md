@@ -16,6 +16,7 @@ go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
 go run ./cmd/ecoflow-ingest-worker
+go run ./cmd/ecoflow-rollup-worker
 go run ./cmd/ecoflow-projection-worker
 go run ./cmd/ecoflow-archive-worker
 go run ./cmd/ecoflow-replay-cli
@@ -85,6 +86,14 @@ Run projection worker loop (consume ingest envelopes from JetStream and build Va
 VALKEY_ADDRS='127.0.0.1:6379' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-projection-worker
+```
+
+Run rollup worker loop (consume ingest envelopes from JetStream and upsert minute/hour/day Timescale rollups):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-rollup-worker
 ```
 
 Run archive worker loop (consume ingest envelopes from JetStream and write protobuf+zstd objects to MinIO-compatible storage):
@@ -236,6 +245,16 @@ export PROJECTION_ACK_WAIT=30s
 export PROJECTION_MAX_ACK_PENDING=4096
 export PROJECTION_PROCESS_TIMEOUT=3s
 export PROJECTION_DRAIN_TIMEOUT=8s
+
+# Rollup worker consumer + Timescale upsert knobs
+export ROLLUP_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable'
+export ROLLUP_INGEST_STREAM_NAME='PULSE_TELEMETRY_INGEST'
+export ROLLUP_CONSUMER_DURABLE='rollup-timeseries-v1'
+export ROLLUP_QUEUE_GROUP='rollup-timeseries'
+export ROLLUP_ACK_WAIT=30s
+export ROLLUP_MAX_ACK_PENDING=4096
+export ROLLUP_PROCESS_TIMEOUT=3s
+export ROLLUP_DRAIN_TIMEOUT=8s
 
 # Archive worker consumer + object writer knobs
 export ARCHIVE_INGEST_STREAM_NAME='PULSE_TELEMETRY_INGEST'

@@ -113,6 +113,21 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
   - when set to a non-empty DSN, `cmd/ecoflow-grpc-api` uses Postgres-backed control-plane storage,
   - when unset (or whitespace), service falls back to in-memory control-plane storage for local bootstrap/testing.
 
+## Rollup Worker (`cmd/ecoflow-rollup-worker`)
+
+- `ROLLUP_DB_DSN` (optional override; falls back to `CONTROL_PLANE_DB_DSN`)
+- `CONTROL_PLANE_DB_DSN` (required when `ROLLUP_DB_DSN` is unset)
+- `NATS_URLS`
+- `TELEMETRY_SUBJECT_PREFIX`
+- `TELEMETRY_SHARD_COUNT`
+- `ROLLUP_INGEST_STREAM_NAME` (default `PULSE_TELEMETRY_INGEST`)
+- `ROLLUP_CONSUMER_DURABLE` (default `rollup-timeseries-v1`)
+- `ROLLUP_QUEUE_GROUP` (default `rollup-timeseries`)
+- `ROLLUP_ACK_WAIT` (default `30s`)
+- `ROLLUP_MAX_ACK_PENDING` (default `4096`)
+- `ROLLUP_PROCESS_TIMEOUT` (default `3s`)
+- `ROLLUP_DRAIN_TIMEOUT` (default `8s`)
+
 ## Explicit Dev Seed (`cmd/ecoflow-dev-seed`)
 
 - `ECOFLOW_DEV_ACCESS_KEY` (required)
