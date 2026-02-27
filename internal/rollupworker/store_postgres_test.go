@@ -23,7 +23,9 @@ func TestPostgresStoreApplyEnvelopeUpsertsAllBuckets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New failed: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	store := newPostgresStore(db)
 	now := time.Date(2026, time.February, 27, 12, 0, 0, 0, time.UTC)
@@ -56,7 +58,9 @@ func TestPostgresStoreApplyEnvelopeRollsBackOnExecFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New failed: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	store := newPostgresStore(db)
 	env := &envelopev1.TelemetryEnvelope{

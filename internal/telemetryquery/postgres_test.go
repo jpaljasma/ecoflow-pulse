@@ -24,7 +24,9 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New failed: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	reader := newPostgresReader(db)
 	from := time.Date(2026, time.February, 27, 12, 0, 0, 0, time.UTC)
