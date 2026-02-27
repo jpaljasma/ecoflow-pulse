@@ -507,11 +507,13 @@ Notes:
   Set `DELETE_CLUSTER=1` to also delete the local k3d cluster.
 - `make db-migrate-up-local` applies all SQL up migrations from `deploy/db/migrations` to the local CNPG primary (`k3d-pulse-local`, namespace `pulse-platform`, service `pulse-platform-core-rw`).
 - `make db-migrate-down-local` applies all SQL down migrations in reverse order from `deploy/db/migrations` to the same local CNPG primary.
-- `make db-migrate-verify-local` runs schema verification checks for M1 control-plane tables and constraints:
-  - `users`, `devices`, `user_devices` existence
+- `make db-migrate-verify-local` runs schema verification checks for M1/M2/M3 tables and constraints:
+  - `users`, `devices`, `user_devices`, `provider_credentials`, `provider_devices`, `archive_object_manifest` existence
+  - rollup table existence: `telemetry_rollup_minute`, `telemetry_rollup_hour`, `telemetry_rollup_day`
+  - Timescale hypertable registration for the 3 rollup tables
   - `users.id` default expression (`uuidv7()`)
   - no DB default expression on `users.created_at`/`users.updated_at`
-  - control-plane check constraints (`keycloak_subject`, `ecoflow_sn`, `role`)
+  - control-plane and rollup check constraints (`keycloak_subject`, `ecoflow_sn`, `role`, rollup PKs)
 - `make db-migrate-cycle-local` runs the full local validation cycle:
   - `up` -> `verify` -> `down` -> `up` -> `verify`
 - `make db-migrate-e2e-local` runs data-path checks on top of applied schema:

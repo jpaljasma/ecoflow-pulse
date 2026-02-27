@@ -382,7 +382,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M3 — Rollups + history queries + comparisons
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | Timescale hypertables + indexes | M0 |
+| DONE | Timescale hypertables + indexes<br>- [x] Added M3 rollup migration scaffold (`000004_m3_rollups_hypertables_schema.up/.down.sql`)<br>- [x] Added rollup hypertables (`telemetry_rollup_minute`, `telemetry_rollup_hour`, `telemetry_rollup_day`)<br>- [x] Added read/query indexes for device and provider-device time-window scans<br>- [x] Extended local migration verification to assert rollup table + hypertable presence<br>- [x] Validated migration cycle (`make db-migrate-cycle-local`) and e2e checks (`make db-migrate-e2e-local`) | M0 |
 | TODO | Rollup pipeline (minute/hour/day) | M2 |
 | TODO | Retention jobs: minute 90d, hour/day 3y | Timescale |
 | TODO | Go gRPC query APIs (range + compare) | rollups |
