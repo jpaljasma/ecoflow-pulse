@@ -383,7 +383,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | Status | Task | Dependency |
 |---|---|---|
 | DONE | Timescale hypertables + indexes<br>- [x] Added M3 rollup migration scaffold (`000004_m3_rollups_hypertables_schema.up/.down.sql`)<br>- [x] Added rollup hypertables (`telemetry_rollup_minute`, `telemetry_rollup_hour`, `telemetry_rollup_day`)<br>- [x] Added read/query indexes for device and provider-device time-window scans<br>- [x] Extended local migration verification to assert rollup table + hypertable presence<br>- [x] Validated migration cycle (`make db-migrate-cycle-local`) and e2e checks (`make db-migrate-e2e-local`) | M0 |
-| TODO | Rollup pipeline (minute/hour/day) | M2 |
+| PROGRESS | Rollup pipeline (minute/hour/day)<br>- [x] Added `internal/rollupworker` extraction/store pipeline for minute/hour/day rollup upserts<br>- [x] Added `cmd/ecoflow-rollup-worker` runtime, Docker build target, Make target, and Helm worker deployment scaffolding<br>- [x] Added unit tests for payload extraction, worker delivery semantics, and Postgres upsert transaction flow<br>- [ ] Validate end-to-end local rollup writes against live ingest stream and record evidence | M2 |
 | TODO | Retention jobs: minute 90d, hour/day 3y | Timescale |
 | TODO | Go gRPC query APIs (range + compare) | rollups |
 | TODO | Node REST endpoints → gRPC | gRPC |
