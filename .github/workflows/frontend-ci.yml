@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "apps/universal/**"
+      - "apps/pulse-platform/**"
       - "packages/**"
       - "package.json"
       - "package-lock.json"
@@ -15,6 +16,7 @@ on:
       - "**"
     paths:
       - "apps/universal/**"
+      - "apps/pulse-platform/**"
       - "packages/**"
       - "package.json"
       - "package-lock.json"
@@ -60,6 +62,15 @@ jobs:
 
       - name: Test auth middleware package
         run: npm run test --workspace @ecoflow-pulse/node-jwks-auth
+
+      - name: Typecheck pulse-platform BFF
+        run: npm run typecheck --workspace @ecoflow-pulse/pulse-platform
+
+      - name: Lint pulse-platform BFF
+        run: npm run lint --workspace @ecoflow-pulse/pulse-platform
+
+      - name: Test pulse-platform BFF
+        run: npm run test --workspace @ecoflow-pulse/pulse-platform
 
       - name: Typecheck
         run: npm run -w apps/universal typecheck

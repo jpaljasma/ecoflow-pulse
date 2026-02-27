@@ -113,6 +113,20 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
   - when set to a non-empty DSN, `cmd/ecoflow-grpc-api` uses Postgres-backed control-plane storage,
   - when unset (or whitespace), service falls back to in-memory control-plane storage for local bootstrap/testing.
 
+## Pulse Platform Node REST BFF (`apps/pulse-platform`)
+
+- `PULSE_PLATFORM_HOST` (default `0.0.0.0`)
+- `PULSE_PLATFORM_PORT` (default `8081`)
+- `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
+- `GRPC_API_DEADLINE_MS` (default `10000`)
+- `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
+  - `noop`: local/dev mode, bearer token optional, forwarded only if present.
+  - `keycloak`: validate bearer JWT using the shared Node JWKS package before forwarding to gRPC.
+- `KEYCLOAK_ISSUER_URL` (required when `NODE_AUTH_MODE=keycloak`)
+- `KEYCLOAK_AUDIENCE` (required when `NODE_AUTH_MODE=keycloak`)
+- `KEYCLOAK_JWKS_URL` (optional override)
+- `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
+
 ## Rollup Worker (`cmd/ecoflow-rollup-worker`)
 
 - `ROLLUP_DB_DSN` (optional override; falls back to `CONTROL_PLANE_DB_DSN`)

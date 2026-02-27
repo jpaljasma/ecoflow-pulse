@@ -31,10 +31,25 @@ go run ./cmd/ecoflow-gap-repair-worker
 npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth
 npm run test --workspace @ecoflow-pulse/node-jwks-auth
 
+# Pulse platform Node REST BFF.
+npm run -w apps/pulse-platform typecheck
+npm run -w apps/pulse-platform lint
+npm run -w apps/pulse-platform test
+npm run platform-bff
+
 # Universal app checks (includes PKCE auth card code paths).
 npm run -w apps/universal typecheck
 npm run -w apps/universal lint
 npm run -w apps/universal test
+```
+
+Run the Node REST BFF against the local gRPC API:
+
+```bash
+GRPC_API_ADDR='127.0.0.1:9090' \
+NODE_AUTH_MODE='noop' \
+PULSE_PLATFORM_PORT='8081' \
+npm run platform-bff
 ```
 
 Race detection commands (critical service paths):
