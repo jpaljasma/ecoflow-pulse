@@ -17,11 +17,11 @@ export function buildApp(
 ): FastifyInstance {
   const app = Fastify({ logger: false });
   const authPreHandler = options.authPreHandler ?? buildAuthPreHandler(config);
-  const historyRateLimitPreHandler = buildHistoryRateLimitPreHandler(config);
+  const historyRateLimiter = buildHistoryRateLimiter(config);
   app.decorate('telemetryDeadlineMs', config.grpcDeadlineMs);
   app.get('/healthz', async () => ({ ok: true }));
   void app.register(async (scopedApp) => {
-    registerHistoryRoutes(scopedApp, historyClient, authPreHandler, historyRateLimitPreHandler);
+    registerHistoryRoutes(scopedApp, historyClient, authPreHandler, historyRateLimiter);
   });
   app.addHook('onClose', async () => {
     historyClient.close();
@@ -29,34 +29,12 @@ export function buildApp(
   return app;
 }
 
-function buildHistoryRateLimitPreHandler(config: AppConfig): preHandlerHookHandler {
-  const limiter = new RateLimiterMemory({
+function buildHistoryRateLimiter(config: AppConfig): RateLimiterMemory {
+  return new RateLimiterMemory({
     keyPrefix: 'pulse-platform:history',
     points: config.historyRateLimit.max,
     duration: Math.max(1, Math.ceil(config.historyRateLimit.timeWindowMs / 1000))
   });
-  return async (request, reply) => {
-    try {
-      await limiter.consume(request.ip);
-    } catch (error) {
-      const retryAfterSeconds = getRetryAfterSeconds(error);
-      if (retryAfterSeconds !== undefined) {
-        void reply.header('retry-after', String(retryAfterSeconds));
-      }
-      void reply.code(429).send({ error: 'rate_limited' });
-    }
-  };
-}
-
-function getRetryAfterSeconds(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null || !('msBeforeNext' in error)) {
-    return undefined;
-  }
-  const msBeforeNext = Number(error.msBeforeNext);
-  if (!Number.isFinite(msBeforeNext) || msBeforeNext <= 0) {
-    return undefined;
-  }
-  return Math.max(1, Math.ceil(msBeforeNext / 1000));
 }
 
 declare module 'fastify' {

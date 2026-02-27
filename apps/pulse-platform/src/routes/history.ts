@@ -1,4 +1,5 @@
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
+import { type RateLimiterMemory, RateLimiterRes } from 'rate-limiter-flexible';
 import { z } from 'zod';
 import type { ServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
@@ -22,15 +23,18 @@ export function registerHistoryRoutes(
   app: FastifyInstance,
   historyClient: TelemetryHistoryClient,
   authPreHandler: preHandlerHookHandler,
-  historyRateLimitPreHandler: preHandlerHookHandler
+  historyRateLimiter: RateLimiterMemory
 ): void {
-  const historyPreHandlers = [historyRateLimitPreHandler, authPreHandler];
-
   app.get(
     '/api/v1/devices/:deviceId/history',
-    { preHandler: historyPreHandlers },
+    { preHandler: authPreHandler },
     async (request, reply) => {
       try {
+        try {
+          await historyRateLimiter.consume(request.ip);
+        } catch (error) {
+          return sendRateLimited(reply, error);
+        }
         const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
         const query = querySchema.parse(request.query);
         const result = await historyClient.queryRollupRange({
@@ -57,9 +61,14 @@ export function registerHistoryRoutes(
 
   app.get(
     '/api/v1/devices/:deviceId/history/compare',
-    { preHandler: historyPreHandlers },
+    { preHandler: authPreHandler },
     async (request, reply) => {
       try {
+        try {
+          await historyRateLimiter.consume(request.ip);
+        } catch (error) {
+          return sendRateLimited(reply, error);
+        }
         const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
         const query = compareQuerySchema.parse(request.query);
         const result = await historyClient.compareRollupRange({
@@ -118,6 +127,20 @@ function handleRouteError(reply: { code: (code: number) => { send: (body: unknow
     });
   }
   throw error;
+}
+
+function sendRateLimited(
+  reply: {
+    header: (name: string, value: string) => unknown;
+    code: (code: number) => { send: (body: unknown) => unknown };
+  },
+  error: unknown
+) {
+  if (error instanceof RateLimiterRes) {
+    const retryAfterSeconds = Math.max(1, Math.ceil(error.msBeforeNext / 1000));
+    void reply.header('retry-after', String(retryAfterSeconds));
+  }
+  return reply.code(429).send({ error: 'rate_limited' });
 }
 
 function isServiceError(error: unknown): error is ServiceError {
