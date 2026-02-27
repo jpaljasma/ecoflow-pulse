@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance, type preHandlerHookHandler } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 
 import { buildAuthPreHandler } from './auth.js';
 import type { AppConfig } from './config.js';
@@ -16,11 +17,41 @@ export function buildApp(
 ): FastifyInstance {
   const app = Fastify({ logger: false });
   app.decorate('telemetryDeadlineMs', config.grpcDeadlineMs);
+  app.decorate('historyRateLimit', {
+    max: config.historyRateLimit.max,
+    timeWindow: config.historyRateLimit.timeWindowMs
+  });
   app.get('/healthz', async () => ({ ok: true }));
-  app.addHook('preHandler', options.authPreHandler ?? buildAuthPreHandler(config));
-  registerHistoryRoutes(app, historyClient);
+  void app.register(async (scopedApp) => {
+    await scopedApp.register(rateLimit, {
+      global: false,
+      addHeadersOnExceeding: {
+        'x-ratelimit-limit': false,
+        'x-ratelimit-remaining': false,
+        'x-ratelimit-reset': false
+      },
+      addHeaders: {
+        'x-ratelimit-limit': true,
+        'x-ratelimit-remaining': true,
+        'x-ratelimit-reset': true,
+        'retry-after': true
+      }
+    });
+    scopedApp.addHook('preHandler', options.authPreHandler ?? buildAuthPreHandler(config));
+    registerHistoryRoutes(scopedApp, historyClient);
+  });
   app.addHook('onClose', async () => {
     historyClient.close();
   });
   return app;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    telemetryDeadlineMs: number;
+    historyRateLimit: {
+      max: number;
+      timeWindow: number;
+    };
+  }
 }

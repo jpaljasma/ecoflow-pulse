@@ -19,59 +19,61 @@ const compareQuerySchema = querySchema.extend({
 });
 
 export function registerHistoryRoutes(app: FastifyInstance, historyClient: TelemetryHistoryClient): void {
-  app.get('/api/v1/devices/:deviceId/history', async (request, reply) => {
-    try {
-      const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
-      const query = querySchema.parse(request.query);
-      const result = await historyClient.queryRollupRange({
-        deviceId: params.deviceId,
-        resolution: query.resolution,
-        fromUnixMs: normalizeTime(query.from),
-        toUnixMs: normalizeTime(query.to),
-        authHeader: extractAuthHeader(request),
-        requestID: request.id,
-        deadlineMs: app.telemetryDeadlineMs
-      });
-      return {
-        deviceId: result.deviceId,
-        resolution: result.resolution,
-        fromUnixMs: result.fromUnixMs,
-        toUnixMs: result.toUnixMs,
-        points: result.points
-      };
-    } catch (error) {
-      return handleRouteError(reply, error);
+  app.get(
+    '/api/v1/devices/:deviceId/history',
+    { config: { rateLimit: app.historyRateLimit } },
+    async (request, reply) => {
+      try {
+        const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
+        const query = querySchema.parse(request.query);
+        const result = await historyClient.queryRollupRange({
+          deviceId: params.deviceId,
+          resolution: query.resolution,
+          fromUnixMs: normalizeTime(query.from),
+          toUnixMs: normalizeTime(query.to),
+          authHeader: extractAuthHeader(request),
+          requestID: request.id,
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return {
+          deviceId: result.deviceId,
+          resolution: result.resolution,
+          fromUnixMs: result.fromUnixMs,
+          toUnixMs: result.toUnixMs,
+          points: result.points
+        };
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
     }
-  });
+  );
 
-  app.get('/api/v1/devices/:deviceId/history/compare', async (request, reply) => {
-    try {
-      const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
-      const query = compareQuerySchema.parse(request.query);
-      const result = await historyClient.compareRollupRange({
-        deviceId: params.deviceId,
-        resolution: query.resolution,
-        fromUnixMs: normalizeTime(query.from),
-        toUnixMs: normalizeTime(query.to),
-        usePreviousPeriod: query.compare === 'previous_period',
-        authHeader: extractAuthHeader(request),
-        requestID: request.id,
-        deadlineMs: app.telemetryDeadlineMs
-      });
-      return {
-        current: result.current,
-        previous: result.previous
-      };
-    } catch (error) {
-      return handleRouteError(reply, error);
+  app.get(
+    '/api/v1/devices/:deviceId/history/compare',
+    { config: { rateLimit: app.historyRateLimit } },
+    async (request, reply) => {
+      try {
+        const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
+        const query = compareQuerySchema.parse(request.query);
+        const result = await historyClient.compareRollupRange({
+          deviceId: params.deviceId,
+          resolution: query.resolution,
+          fromUnixMs: normalizeTime(query.from),
+          toUnixMs: normalizeTime(query.to),
+          usePreviousPeriod: query.compare === 'previous_period',
+          authHeader: extractAuthHeader(request),
+          requestID: request.id,
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return {
+          current: result.current,
+          previous: result.previous
+        };
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
     }
-  });
-}
-
-declare module 'fastify' {
-  interface FastifyInstance {
-    telemetryDeadlineMs: number;
-  }
+  );
 }
 
 function normalizeTime(value: string | number): string {

@@ -119,6 +119,8 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `PULSE_PLATFORM_PORT` (default `8081`)
 - `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
+- `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
+- `PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS` (default `60000`; rate-limit window for authenticated history endpoints)
 - `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
   - `noop`: local/dev mode, bearer token optional, forwarded only if present.
   - `keycloak`: validate bearer JWT using the shared Node JWKS package before forwarding to gRPC.

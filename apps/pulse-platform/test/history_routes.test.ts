@@ -12,6 +12,10 @@ function baseConfig(): AppConfig {
     port: 8081,
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
+    historyRateLimit: {
+      max: 120,
+      timeWindowMs: 60000
+    },
     auth: { mode: 'noop', allowMissingJwt: true }
   };
 }
@@ -59,11 +63,11 @@ function makeSeries(deviceId = '019c9f0e-4521-775d-873e-e80039f16d75'): RollupSe
 
 function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryHistoryClient {
   return {
-      queryRollupRange: vi.fn(async () => makeSeries()),
-      compareRollupRange: vi.fn(async () => ({
-        current: makeSeries(),
-        previous: { ...makeSeries(), points: [] }
-      } satisfies CompareRollupSeries)),
+    queryRollupRange: vi.fn(async () => makeSeries()),
+    compareRollupRange: vi.fn(async () => ({
+      current: makeSeries(),
+      previous: { ...makeSeries(), points: [] }
+    } satisfies CompareRollupSeries)),
     close: vi.fn(),
     ...overrides
   };
@@ -209,6 +213,39 @@ describe('pulse-platform history routes', () => {
     const response = await app.inject({ method: 'GET', url: '/healthz' });
     expect(response.statusCode).toBe(200);
     expect(verifier).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('rate limits history routes', async () => {
+    const app = buildApp(
+      {
+        ...baseConfig(),
+        historyRateLimit: {
+          max: 1,
+          timeWindowMs: 60000
+        }
+      },
+      makeClient()
+    );
+
+    const first = await app.inject({
+      method: 'GET',
+      url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history?resolution=hour&from=1&to=2',
+      headers: {
+        'x-forwarded-for': '203.0.113.10'
+      }
+    });
+    expect(first.statusCode).toBe(200);
+
+    const second = await app.inject({
+      method: 'GET',
+      url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history?resolution=hour&from=1&to=2',
+      headers: {
+        'x-forwarded-for': '203.0.113.10'
+      }
+    });
+    expect(second.statusCode).toBe(429);
+
     await app.close();
   });
 });

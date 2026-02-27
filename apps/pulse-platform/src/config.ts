@@ -5,6 +5,8 @@ const envSchema = z.object({
   PULSE_PLATFORM_PORT: z.coerce.number().int().min(1).max(65535).default(8081),
   GRPC_API_ADDR: z.string().trim().min(1).default('127.0.0.1:9090'),
   GRPC_API_DEADLINE_MS: z.coerce.number().int().min(100).max(60000).default(10000),
+  PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10000).default(120),
+  PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   NODE_AUTH_MODE: z.enum(['noop', 'keycloak']).default('noop'),
   KEYCLOAK_ISSUER_URL: z.string().trim().default(''),
   KEYCLOAK_AUDIENCE: z.string().trim().default(''),
@@ -19,6 +21,10 @@ export type AppConfig = {
   port: number;
   grpcApiAddr: string;
   grpcDeadlineMs: number;
+  historyRateLimit: {
+    max: number;
+    timeWindowMs: number;
+  };
   auth:
     | { mode: 'noop'; allowMissingJwt: true }
     | {
@@ -40,6 +46,10 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       port: parsed.PULSE_PLATFORM_PORT,
       grpcApiAddr: parsed.GRPC_API_ADDR,
       grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
+      historyRateLimit: {
+        max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
+        timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
+      },
       auth: { mode: 'noop', allowMissingJwt: true }
     };
   }
@@ -54,6 +64,10 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     port: parsed.PULSE_PLATFORM_PORT,
     grpcApiAddr: parsed.GRPC_API_ADDR,
     grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
+    historyRateLimit: {
+      max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
+      timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
+    },
     auth: {
       mode: 'keycloak',
       issuerUrl: parsed.KEYCLOAK_ISSUER_URL,
