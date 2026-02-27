@@ -21,6 +21,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type RollupResolution int32
+
+const (
+	RollupResolution_ROLLUP_RESOLUTION_UNSPECIFIED RollupResolution = 0
+	RollupResolution_ROLLUP_RESOLUTION_MINUTE      RollupResolution = 1
+	RollupResolution_ROLLUP_RESOLUTION_HOUR        RollupResolution = 2
+	RollupResolution_ROLLUP_RESOLUTION_DAY         RollupResolution = 3
+)
+
+// Enum value maps for RollupResolution.
+var (
+	RollupResolution_name = map[int32]string{
+		0: "ROLLUP_RESOLUTION_UNSPECIFIED",
+		1: "ROLLUP_RESOLUTION_MINUTE",
+		2: "ROLLUP_RESOLUTION_HOUR",
+		3: "ROLLUP_RESOLUTION_DAY",
+	}
+	RollupResolution_value = map[string]int32{
+		"ROLLUP_RESOLUTION_UNSPECIFIED": 0,
+		"ROLLUP_RESOLUTION_MINUTE":      1,
+		"ROLLUP_RESOLUTION_HOUR":        2,
+		"ROLLUP_RESOLUTION_DAY":         3,
+	}
+)
+
+func (x RollupResolution) Enum() *RollupResolution {
+	p := new(RollupResolution)
+	*p = x
+	return p
+}
+
+func (x RollupResolution) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RollupResolution) Descriptor() protoreflect.EnumDescriptor {
+	return file_pulse_telemetry_v1_telemetry_proto_enumTypes[0].Descriptor()
+}
+
+func (RollupResolution) Type() protoreflect.EnumType {
+	return &file_pulse_telemetry_v1_telemetry_proto_enumTypes[0]
+}
+
+func (x RollupResolution) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RollupResolution.Descriptor instead.
+func (RollupResolution) EnumDescriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{0}
+}
+
 // Cursor supports resume/replay semantics for streaming.
 // You can map this to NATS sequence, archive object offsets, or a monotonic per-device revision.
 type Cursor struct {
@@ -516,6 +568,633 @@ func (*SubscribeResponse_Delta) isSubscribeResponse_Payload() {}
 
 func (*SubscribeResponse_Heartbeat) isSubscribeResponse_Payload() {}
 
+type RollupMetrics struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	SocAvgPct        *float64               `protobuf:"fixed64,1,opt,name=soc_avg_pct,json=socAvgPct,proto3,oneof" json:"soc_avg_pct,omitempty"`
+	SocMinPct        *float64               `protobuf:"fixed64,2,opt,name=soc_min_pct,json=socMinPct,proto3,oneof" json:"soc_min_pct,omitempty"`
+	SocMaxPct        *float64               `protobuf:"fixed64,3,opt,name=soc_max_pct,json=socMaxPct,proto3,oneof" json:"soc_max_pct,omitempty"`
+	AcInAvgW         *float64               `protobuf:"fixed64,4,opt,name=ac_in_avg_w,json=acInAvgW,proto3,oneof" json:"ac_in_avg_w,omitempty"`
+	AcInMaxW         *float64               `protobuf:"fixed64,5,opt,name=ac_in_max_w,json=acInMaxW,proto3,oneof" json:"ac_in_max_w,omitempty"`
+	PvAvgW           *float64               `protobuf:"fixed64,6,opt,name=pv_avg_w,json=pvAvgW,proto3,oneof" json:"pv_avg_w,omitempty"`
+	PvMaxW           *float64               `protobuf:"fixed64,7,opt,name=pv_max_w,json=pvMaxW,proto3,oneof" json:"pv_max_w,omitempty"`
+	DcAvgW           *float64               `protobuf:"fixed64,8,opt,name=dc_avg_w,json=dcAvgW,proto3,oneof" json:"dc_avg_w,omitempty"`
+	DcMaxW           *float64               `protobuf:"fixed64,9,opt,name=dc_max_w,json=dcMaxW,proto3,oneof" json:"dc_max_w,omitempty"`
+	LoadAvgW         *float64               `protobuf:"fixed64,10,opt,name=load_avg_w,json=loadAvgW,proto3,oneof" json:"load_avg_w,omitempty"`
+	LoadMaxW         *float64               `protobuf:"fixed64,11,opt,name=load_max_w,json=loadMaxW,proto3,oneof" json:"load_max_w,omitempty"`
+	NetAvgW          *float64               `protobuf:"fixed64,12,opt,name=net_avg_w,json=netAvgW,proto3,oneof" json:"net_avg_w,omitempty"`
+	NetMinW          *float64               `protobuf:"fixed64,13,opt,name=net_min_w,json=netMinW,proto3,oneof" json:"net_min_w,omitempty"`
+	NetMaxW          *float64               `protobuf:"fixed64,14,opt,name=net_max_w,json=netMaxW,proto3,oneof" json:"net_max_w,omitempty"`
+	BatteryAvgW      *float64               `protobuf:"fixed64,15,opt,name=battery_avg_w,json=batteryAvgW,proto3,oneof" json:"battery_avg_w,omitempty"`
+	BatteryMinW      *float64               `protobuf:"fixed64,16,opt,name=battery_min_w,json=batteryMinW,proto3,oneof" json:"battery_min_w,omitempty"`
+	BatteryMaxW      *float64               `protobuf:"fixed64,17,opt,name=battery_max_w,json=batteryMaxW,proto3,oneof" json:"battery_max_w,omitempty"`
+	TempAvgC         *float64               `protobuf:"fixed64,18,opt,name=temp_avg_c,json=tempAvgC,proto3,oneof" json:"temp_avg_c,omitempty"`
+	TempMinC         *float64               `protobuf:"fixed64,19,opt,name=temp_min_c,json=tempMinC,proto3,oneof" json:"temp_min_c,omitempty"`
+	TempMaxC         *float64               `protobuf:"fixed64,20,opt,name=temp_max_c,json=tempMaxC,proto3,oneof" json:"temp_max_c,omitempty"`
+	SolarGeneratedWh *float64               `protobuf:"fixed64,21,opt,name=solar_generated_wh,json=solarGeneratedWh,proto3,oneof" json:"solar_generated_wh,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RollupMetrics) Reset() {
+	*x = RollupMetrics{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollupMetrics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollupMetrics) ProtoMessage() {}
+
+func (x *RollupMetrics) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollupMetrics.ProtoReflect.Descriptor instead.
+func (*RollupMetrics) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RollupMetrics) GetSocAvgPct() float64 {
+	if x != nil && x.SocAvgPct != nil {
+		return *x.SocAvgPct
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetSocMinPct() float64 {
+	if x != nil && x.SocMinPct != nil {
+		return *x.SocMinPct
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetSocMaxPct() float64 {
+	if x != nil && x.SocMaxPct != nil {
+		return *x.SocMaxPct
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetAcInAvgW() float64 {
+	if x != nil && x.AcInAvgW != nil {
+		return *x.AcInAvgW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetAcInMaxW() float64 {
+	if x != nil && x.AcInMaxW != nil {
+		return *x.AcInMaxW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetPvAvgW() float64 {
+	if x != nil && x.PvAvgW != nil {
+		return *x.PvAvgW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetPvMaxW() float64 {
+	if x != nil && x.PvMaxW != nil {
+		return *x.PvMaxW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetDcAvgW() float64 {
+	if x != nil && x.DcAvgW != nil {
+		return *x.DcAvgW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetDcMaxW() float64 {
+	if x != nil && x.DcMaxW != nil {
+		return *x.DcMaxW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetLoadAvgW() float64 {
+	if x != nil && x.LoadAvgW != nil {
+		return *x.LoadAvgW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetLoadMaxW() float64 {
+	if x != nil && x.LoadMaxW != nil {
+		return *x.LoadMaxW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetNetAvgW() float64 {
+	if x != nil && x.NetAvgW != nil {
+		return *x.NetAvgW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetNetMinW() float64 {
+	if x != nil && x.NetMinW != nil {
+		return *x.NetMinW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetNetMaxW() float64 {
+	if x != nil && x.NetMaxW != nil {
+		return *x.NetMaxW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetBatteryAvgW() float64 {
+	if x != nil && x.BatteryAvgW != nil {
+		return *x.BatteryAvgW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetBatteryMinW() float64 {
+	if x != nil && x.BatteryMinW != nil {
+		return *x.BatteryMinW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetBatteryMaxW() float64 {
+	if x != nil && x.BatteryMaxW != nil {
+		return *x.BatteryMaxW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetTempAvgC() float64 {
+	if x != nil && x.TempAvgC != nil {
+		return *x.TempAvgC
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetTempMinC() float64 {
+	if x != nil && x.TempMinC != nil {
+		return *x.TempMinC
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetTempMaxC() float64 {
+	if x != nil && x.TempMaxC != nil {
+		return *x.TempMaxC
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetSolarGeneratedWh() float64 {
+	if x != nil && x.SolarGeneratedWh != nil {
+		return *x.SolarGeneratedWh
+	}
+	return 0
+}
+
+type RollupPoint struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	BucketStartUnixMs int64                  `protobuf:"varint,1,opt,name=bucket_start_unix_ms,json=bucketStartUnixMs,proto3" json:"bucket_start_unix_ms,omitempty"`
+	BucketEndUnixMs   int64                  `protobuf:"varint,2,opt,name=bucket_end_unix_ms,json=bucketEndUnixMs,proto3" json:"bucket_end_unix_ms,omitempty"`
+	SampleCount       uint64                 `protobuf:"varint,3,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
+	FirstTsUnixMs     int64                  `protobuf:"varint,4,opt,name=first_ts_unix_ms,json=firstTsUnixMs,proto3" json:"first_ts_unix_ms,omitempty"`
+	LastTsUnixMs      int64                  `protobuf:"varint,5,opt,name=last_ts_unix_ms,json=lastTsUnixMs,proto3" json:"last_ts_unix_ms,omitempty"`
+	Metrics           *RollupMetrics         `protobuf:"bytes,6,opt,name=metrics,proto3" json:"metrics,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *RollupPoint) Reset() {
+	*x = RollupPoint{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollupPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollupPoint) ProtoMessage() {}
+
+func (x *RollupPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollupPoint.ProtoReflect.Descriptor instead.
+func (*RollupPoint) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RollupPoint) GetBucketStartUnixMs() int64 {
+	if x != nil {
+		return x.BucketStartUnixMs
+	}
+	return 0
+}
+
+func (x *RollupPoint) GetBucketEndUnixMs() int64 {
+	if x != nil {
+		return x.BucketEndUnixMs
+	}
+	return 0
+}
+
+func (x *RollupPoint) GetSampleCount() uint64 {
+	if x != nil {
+		return x.SampleCount
+	}
+	return 0
+}
+
+func (x *RollupPoint) GetFirstTsUnixMs() int64 {
+	if x != nil {
+		return x.FirstTsUnixMs
+	}
+	return 0
+}
+
+func (x *RollupPoint) GetLastTsUnixMs() int64 {
+	if x != nil {
+		return x.LastTsUnixMs
+	}
+	return 0
+}
+
+func (x *RollupPoint) GetMetrics() *RollupMetrics {
+	if x != nil {
+		return x.Metrics
+	}
+	return nil
+}
+
+type RollupSeries struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId   string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Resolution RollupResolution       `protobuf:"varint,2,opt,name=resolution,proto3,enum=pulse.telemetry.v1.RollupResolution" json:"resolution,omitempty"`
+	// Range is normalized and returned as [from_unix_ms, to_unix_ms).
+	FromUnixMs    int64          `protobuf:"varint,3,opt,name=from_unix_ms,json=fromUnixMs,proto3" json:"from_unix_ms,omitempty"`
+	ToUnixMs      int64          `protobuf:"varint,4,opt,name=to_unix_ms,json=toUnixMs,proto3" json:"to_unix_ms,omitempty"`
+	Points        []*RollupPoint `protobuf:"bytes,5,rep,name=points,proto3" json:"points,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RollupSeries) Reset() {
+	*x = RollupSeries{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RollupSeries) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RollupSeries) ProtoMessage() {}
+
+func (x *RollupSeries) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RollupSeries.ProtoReflect.Descriptor instead.
+func (*RollupSeries) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RollupSeries) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *RollupSeries) GetResolution() RollupResolution {
+	if x != nil {
+		return x.Resolution
+	}
+	return RollupResolution_ROLLUP_RESOLUTION_UNSPECIFIED
+}
+
+func (x *RollupSeries) GetFromUnixMs() int64 {
+	if x != nil {
+		return x.FromUnixMs
+	}
+	return 0
+}
+
+func (x *RollupSeries) GetToUnixMs() int64 {
+	if x != nil {
+		return x.ToUnixMs
+	}
+	return 0
+}
+
+func (x *RollupSeries) GetPoints() []*RollupPoint {
+	if x != nil {
+		return x.Points
+	}
+	return nil
+}
+
+type QueryRollupRangeRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId   string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Resolution RollupResolution       `protobuf:"varint,2,opt,name=resolution,proto3,enum=pulse.telemetry.v1.RollupResolution" json:"resolution,omitempty"`
+	// Query range is [from_unix_ms, to_unix_ms).
+	FromUnixMs    int64 `protobuf:"varint,3,opt,name=from_unix_ms,json=fromUnixMs,proto3" json:"from_unix_ms,omitempty"`
+	ToUnixMs      int64 `protobuf:"varint,4,opt,name=to_unix_ms,json=toUnixMs,proto3" json:"to_unix_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryRollupRangeRequest) Reset() {
+	*x = QueryRollupRangeRequest{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryRollupRangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRollupRangeRequest) ProtoMessage() {}
+
+func (x *QueryRollupRangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRollupRangeRequest.ProtoReflect.Descriptor instead.
+func (*QueryRollupRangeRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *QueryRollupRangeRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *QueryRollupRangeRequest) GetResolution() RollupResolution {
+	if x != nil {
+		return x.Resolution
+	}
+	return RollupResolution_ROLLUP_RESOLUTION_UNSPECIFIED
+}
+
+func (x *QueryRollupRangeRequest) GetFromUnixMs() int64 {
+	if x != nil {
+		return x.FromUnixMs
+	}
+	return 0
+}
+
+func (x *QueryRollupRangeRequest) GetToUnixMs() int64 {
+	if x != nil {
+		return x.ToUnixMs
+	}
+	return 0
+}
+
+type QueryRollupRangeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Series        *RollupSeries          `protobuf:"bytes,1,opt,name=series,proto3" json:"series,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryRollupRangeResponse) Reset() {
+	*x = QueryRollupRangeResponse{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryRollupRangeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRollupRangeResponse) ProtoMessage() {}
+
+func (x *QueryRollupRangeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRollupRangeResponse.ProtoReflect.Descriptor instead.
+func (*QueryRollupRangeResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *QueryRollupRangeResponse) GetSeries() *RollupSeries {
+	if x != nil {
+		return x.Series
+	}
+	return nil
+}
+
+type CompareRollupRangeRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId   string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	Resolution RollupResolution       `protobuf:"varint,2,opt,name=resolution,proto3,enum=pulse.telemetry.v1.RollupResolution" json:"resolution,omitempty"`
+	// Current range is [from_unix_ms, to_unix_ms).
+	FromUnixMs int64 `protobuf:"varint,3,opt,name=from_unix_ms,json=fromUnixMs,proto3" json:"from_unix_ms,omitempty"`
+	ToUnixMs   int64 `protobuf:"varint,4,opt,name=to_unix_ms,json=toUnixMs,proto3" json:"to_unix_ms,omitempty"`
+	// If true and compare_* are not supplied, the server returns the immediately
+	// preceding window with the same duration as the current range.
+	UsePreviousPeriod bool `protobuf:"varint,5,opt,name=use_previous_period,json=usePreviousPeriod,proto3" json:"use_previous_period,omitempty"`
+	// Optional explicit comparison window. When both values are set, they take
+	// precedence over use_previous_period.
+	CompareFromUnixMs int64 `protobuf:"varint,6,opt,name=compare_from_unix_ms,json=compareFromUnixMs,proto3" json:"compare_from_unix_ms,omitempty"`
+	CompareToUnixMs   int64 `protobuf:"varint,7,opt,name=compare_to_unix_ms,json=compareToUnixMs,proto3" json:"compare_to_unix_ms,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *CompareRollupRangeRequest) Reset() {
+	*x = CompareRollupRangeRequest{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompareRollupRangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompareRollupRangeRequest) ProtoMessage() {}
+
+func (x *CompareRollupRangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompareRollupRangeRequest.ProtoReflect.Descriptor instead.
+func (*CompareRollupRangeRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CompareRollupRangeRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *CompareRollupRangeRequest) GetResolution() RollupResolution {
+	if x != nil {
+		return x.Resolution
+	}
+	return RollupResolution_ROLLUP_RESOLUTION_UNSPECIFIED
+}
+
+func (x *CompareRollupRangeRequest) GetFromUnixMs() int64 {
+	if x != nil {
+		return x.FromUnixMs
+	}
+	return 0
+}
+
+func (x *CompareRollupRangeRequest) GetToUnixMs() int64 {
+	if x != nil {
+		return x.ToUnixMs
+	}
+	return 0
+}
+
+func (x *CompareRollupRangeRequest) GetUsePreviousPeriod() bool {
+	if x != nil {
+		return x.UsePreviousPeriod
+	}
+	return false
+}
+
+func (x *CompareRollupRangeRequest) GetCompareFromUnixMs() int64 {
+	if x != nil {
+		return x.CompareFromUnixMs
+	}
+	return 0
+}
+
+func (x *CompareRollupRangeRequest) GetCompareToUnixMs() int64 {
+	if x != nil {
+		return x.CompareToUnixMs
+	}
+	return 0
+}
+
+type CompareRollupRangeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Current       *RollupSeries          `protobuf:"bytes,1,opt,name=current,proto3" json:"current,omitempty"`
+	Previous      *RollupSeries          `protobuf:"bytes,2,opt,name=previous,proto3" json:"previous,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompareRollupRangeResponse) Reset() {
+	*x = CompareRollupRangeResponse{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompareRollupRangeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompareRollupRangeResponse) ProtoMessage() {}
+
+func (x *CompareRollupRangeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompareRollupRangeResponse.ProtoReflect.Descriptor instead.
+func (*CompareRollupRangeResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CompareRollupRangeResponse) GetCurrent() *RollupSeries {
+	if x != nil {
+		return x.Current
+	}
+	return nil
+}
+
+func (x *CompareRollupRangeResponse) GetPrevious() *RollupSeries {
+	if x != nil {
+		return x.Previous
+	}
+	return nil
+}
+
 var File_pulse_telemetry_v1_telemetry_proto protoreflect.FileDescriptor
 
 const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
@@ -556,10 +1235,113 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\bsnapshot\x18\x01 \x01(\v2\x1c.pulse.telemetry.v1.SnapshotH\x00R\bsnapshot\x121\n" +
 	"\x05delta\x18\x02 \x01(\v2\x19.pulse.telemetry.v1.DeltaH\x00R\x05delta\x12=\n" +
 	"\theartbeat\x18\x03 \x01(\v2\x1d.pulse.telemetry.v1.HeartbeatH\x00R\theartbeatB\t\n" +
-	"\apayload2\xce\x01\n" +
+	"\apayload\"\xc8\b\n" +
+	"\rRollupMetrics\x12#\n" +
+	"\vsoc_avg_pct\x18\x01 \x01(\x01H\x00R\tsocAvgPct\x88\x01\x01\x12#\n" +
+	"\vsoc_min_pct\x18\x02 \x01(\x01H\x01R\tsocMinPct\x88\x01\x01\x12#\n" +
+	"\vsoc_max_pct\x18\x03 \x01(\x01H\x02R\tsocMaxPct\x88\x01\x01\x12\"\n" +
+	"\vac_in_avg_w\x18\x04 \x01(\x01H\x03R\bacInAvgW\x88\x01\x01\x12\"\n" +
+	"\vac_in_max_w\x18\x05 \x01(\x01H\x04R\bacInMaxW\x88\x01\x01\x12\x1d\n" +
+	"\bpv_avg_w\x18\x06 \x01(\x01H\x05R\x06pvAvgW\x88\x01\x01\x12\x1d\n" +
+	"\bpv_max_w\x18\a \x01(\x01H\x06R\x06pvMaxW\x88\x01\x01\x12\x1d\n" +
+	"\bdc_avg_w\x18\b \x01(\x01H\aR\x06dcAvgW\x88\x01\x01\x12\x1d\n" +
+	"\bdc_max_w\x18\t \x01(\x01H\bR\x06dcMaxW\x88\x01\x01\x12!\n" +
+	"\n" +
+	"load_avg_w\x18\n" +
+	" \x01(\x01H\tR\bloadAvgW\x88\x01\x01\x12!\n" +
+	"\n" +
+	"load_max_w\x18\v \x01(\x01H\n" +
+	"R\bloadMaxW\x88\x01\x01\x12\x1f\n" +
+	"\tnet_avg_w\x18\f \x01(\x01H\vR\anetAvgW\x88\x01\x01\x12\x1f\n" +
+	"\tnet_min_w\x18\r \x01(\x01H\fR\anetMinW\x88\x01\x01\x12\x1f\n" +
+	"\tnet_max_w\x18\x0e \x01(\x01H\rR\anetMaxW\x88\x01\x01\x12'\n" +
+	"\rbattery_avg_w\x18\x0f \x01(\x01H\x0eR\vbatteryAvgW\x88\x01\x01\x12'\n" +
+	"\rbattery_min_w\x18\x10 \x01(\x01H\x0fR\vbatteryMinW\x88\x01\x01\x12'\n" +
+	"\rbattery_max_w\x18\x11 \x01(\x01H\x10R\vbatteryMaxW\x88\x01\x01\x12!\n" +
+	"\n" +
+	"temp_avg_c\x18\x12 \x01(\x01H\x11R\btempAvgC\x88\x01\x01\x12!\n" +
+	"\n" +
+	"temp_min_c\x18\x13 \x01(\x01H\x12R\btempMinC\x88\x01\x01\x12!\n" +
+	"\n" +
+	"temp_max_c\x18\x14 \x01(\x01H\x13R\btempMaxC\x88\x01\x01\x121\n" +
+	"\x12solar_generated_wh\x18\x15 \x01(\x01H\x14R\x10solarGeneratedWh\x88\x01\x01B\x0e\n" +
+	"\f_soc_avg_pctB\x0e\n" +
+	"\f_soc_min_pctB\x0e\n" +
+	"\f_soc_max_pctB\x0e\n" +
+	"\f_ac_in_avg_wB\x0e\n" +
+	"\f_ac_in_max_wB\v\n" +
+	"\t_pv_avg_wB\v\n" +
+	"\t_pv_max_wB\v\n" +
+	"\t_dc_avg_wB\v\n" +
+	"\t_dc_max_wB\r\n" +
+	"\v_load_avg_wB\r\n" +
+	"\v_load_max_wB\f\n" +
+	"\n" +
+	"_net_avg_wB\f\n" +
+	"\n" +
+	"_net_min_wB\f\n" +
+	"\n" +
+	"_net_max_wB\x10\n" +
+	"\x0e_battery_avg_wB\x10\n" +
+	"\x0e_battery_min_wB\x10\n" +
+	"\x0e_battery_max_wB\r\n" +
+	"\v_temp_avg_cB\r\n" +
+	"\v_temp_min_cB\r\n" +
+	"\v_temp_max_cB\x15\n" +
+	"\x13_solar_generated_wh\"\x9b\x02\n" +
+	"\vRollupPoint\x12/\n" +
+	"\x14bucket_start_unix_ms\x18\x01 \x01(\x03R\x11bucketStartUnixMs\x12+\n" +
+	"\x12bucket_end_unix_ms\x18\x02 \x01(\x03R\x0fbucketEndUnixMs\x12!\n" +
+	"\fsample_count\x18\x03 \x01(\x04R\vsampleCount\x12'\n" +
+	"\x10first_ts_unix_ms\x18\x04 \x01(\x03R\rfirstTsUnixMs\x12%\n" +
+	"\x0flast_ts_unix_ms\x18\x05 \x01(\x03R\flastTsUnixMs\x12;\n" +
+	"\ametrics\x18\x06 \x01(\v2!.pulse.telemetry.v1.RollupMetricsR\ametrics\"\xea\x01\n" +
+	"\fRollupSeries\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12D\n" +
+	"\n" +
+	"resolution\x18\x02 \x01(\x0e2$.pulse.telemetry.v1.RollupResolutionR\n" +
+	"resolution\x12 \n" +
+	"\ffrom_unix_ms\x18\x03 \x01(\x03R\n" +
+	"fromUnixMs\x12\x1c\n" +
+	"\n" +
+	"to_unix_ms\x18\x04 \x01(\x03R\btoUnixMs\x127\n" +
+	"\x06points\x18\x05 \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x06points\"\xbc\x01\n" +
+	"\x17QueryRollupRangeRequest\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12D\n" +
+	"\n" +
+	"resolution\x18\x02 \x01(\x0e2$.pulse.telemetry.v1.RollupResolutionR\n" +
+	"resolution\x12 \n" +
+	"\ffrom_unix_ms\x18\x03 \x01(\x03R\n" +
+	"fromUnixMs\x12\x1c\n" +
+	"\n" +
+	"to_unix_ms\x18\x04 \x01(\x03R\btoUnixMs\"T\n" +
+	"\x18QueryRollupRangeResponse\x128\n" +
+	"\x06series\x18\x01 \x01(\v2 .pulse.telemetry.v1.RollupSeriesR\x06series\"\xcc\x02\n" +
+	"\x19CompareRollupRangeRequest\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12D\n" +
+	"\n" +
+	"resolution\x18\x02 \x01(\x0e2$.pulse.telemetry.v1.RollupResolutionR\n" +
+	"resolution\x12 \n" +
+	"\ffrom_unix_ms\x18\x03 \x01(\x03R\n" +
+	"fromUnixMs\x12\x1c\n" +
+	"\n" +
+	"to_unix_ms\x18\x04 \x01(\x03R\btoUnixMs\x12.\n" +
+	"\x13use_previous_period\x18\x05 \x01(\bR\x11usePreviousPeriod\x12/\n" +
+	"\x14compare_from_unix_ms\x18\x06 \x01(\x03R\x11compareFromUnixMs\x12+\n" +
+	"\x12compare_to_unix_ms\x18\a \x01(\x03R\x0fcompareToUnixMs\"\x96\x01\n" +
+	"\x1aCompareRollupRangeResponse\x12:\n" +
+	"\acurrent\x18\x01 \x01(\v2 .pulse.telemetry.v1.RollupSeriesR\acurrent\x12<\n" +
+	"\bprevious\x18\x02 \x01(\v2 .pulse.telemetry.v1.RollupSeriesR\bprevious*\x8a\x01\n" +
+	"\x10RollupResolution\x12!\n" +
+	"\x1dROLLUP_RESOLUTION_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18ROLLUP_RESOLUTION_MINUTE\x10\x01\x12\x1a\n" +
+	"\x16ROLLUP_RESOLUTION_HOUR\x10\x02\x12\x19\n" +
+	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xb2\x03\n" +
 	"\x10TelemetryService\x12^\n" +
 	"\vGetSnapshot\x12&.pulse.telemetry.v1.GetSnapshotRequest\x1a'.pulse.telemetry.v1.GetSnapshotResponse\x12Z\n" +
-	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x01BGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
+	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x01\x12m\n" +
+	"\x10QueryRollupRange\x12+.pulse.telemetry.v1.QueryRollupRangeRequest\x1a,.pulse.telemetry.v1.QueryRollupRangeResponse\x12s\n" +
+	"\x12CompareRollupRange\x12-.pulse.telemetry.v1.CompareRollupRangeRequest\x1a..pulse.telemetry.v1.CompareRollupRangeResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
 
 var (
 	file_pulse_telemetry_v1_telemetry_proto_rawDescOnce sync.Once
@@ -573,39 +1355,60 @@ func file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP() []byte {
 	return file_pulse_telemetry_v1_telemetry_proto_rawDescData
 }
 
-var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_pulse_telemetry_v1_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_pulse_telemetry_v1_telemetry_proto_goTypes = []any{
-	(*Cursor)(nil),              // 0: pulse.telemetry.v1.Cursor
-	(*Snapshot)(nil),            // 1: pulse.telemetry.v1.Snapshot
-	(*Delta)(nil),               // 2: pulse.telemetry.v1.Delta
-	(*Heartbeat)(nil),           // 3: pulse.telemetry.v1.Heartbeat
-	(*GetSnapshotRequest)(nil),  // 4: pulse.telemetry.v1.GetSnapshotRequest
-	(*GetSnapshotResponse)(nil), // 5: pulse.telemetry.v1.GetSnapshotResponse
-	(*SubscribeRequest)(nil),    // 6: pulse.telemetry.v1.SubscribeRequest
-	(*SubscribeResponse)(nil),   // 7: pulse.telemetry.v1.SubscribeResponse
-	nil,                         // 8: pulse.telemetry.v1.Snapshot.MetricsEntry
-	nil,                         // 9: pulse.telemetry.v1.Delta.ChangedEntry
+	(RollupResolution)(0),              // 0: pulse.telemetry.v1.RollupResolution
+	(*Cursor)(nil),                     // 1: pulse.telemetry.v1.Cursor
+	(*Snapshot)(nil),                   // 2: pulse.telemetry.v1.Snapshot
+	(*Delta)(nil),                      // 3: pulse.telemetry.v1.Delta
+	(*Heartbeat)(nil),                  // 4: pulse.telemetry.v1.Heartbeat
+	(*GetSnapshotRequest)(nil),         // 5: pulse.telemetry.v1.GetSnapshotRequest
+	(*GetSnapshotResponse)(nil),        // 6: pulse.telemetry.v1.GetSnapshotResponse
+	(*SubscribeRequest)(nil),           // 7: pulse.telemetry.v1.SubscribeRequest
+	(*SubscribeResponse)(nil),          // 8: pulse.telemetry.v1.SubscribeResponse
+	(*RollupMetrics)(nil),              // 9: pulse.telemetry.v1.RollupMetrics
+	(*RollupPoint)(nil),                // 10: pulse.telemetry.v1.RollupPoint
+	(*RollupSeries)(nil),               // 11: pulse.telemetry.v1.RollupSeries
+	(*QueryRollupRangeRequest)(nil),    // 12: pulse.telemetry.v1.QueryRollupRangeRequest
+	(*QueryRollupRangeResponse)(nil),   // 13: pulse.telemetry.v1.QueryRollupRangeResponse
+	(*CompareRollupRangeRequest)(nil),  // 14: pulse.telemetry.v1.CompareRollupRangeRequest
+	(*CompareRollupRangeResponse)(nil), // 15: pulse.telemetry.v1.CompareRollupRangeResponse
+	nil,                                // 16: pulse.telemetry.v1.Snapshot.MetricsEntry
+	nil,                                // 17: pulse.telemetry.v1.Delta.ChangedEntry
 }
 var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
-	0,  // 0: pulse.telemetry.v1.Snapshot.cursor:type_name -> pulse.telemetry.v1.Cursor
-	8,  // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
-	0,  // 2: pulse.telemetry.v1.Delta.cursor:type_name -> pulse.telemetry.v1.Cursor
-	9,  // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
-	0,  // 4: pulse.telemetry.v1.Heartbeat.cursor:type_name -> pulse.telemetry.v1.Cursor
-	1,  // 5: pulse.telemetry.v1.GetSnapshotResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
-	0,  // 6: pulse.telemetry.v1.SubscribeRequest.from:type_name -> pulse.telemetry.v1.Cursor
-	1,  // 7: pulse.telemetry.v1.SubscribeResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
-	2,  // 8: pulse.telemetry.v1.SubscribeResponse.delta:type_name -> pulse.telemetry.v1.Delta
-	3,  // 9: pulse.telemetry.v1.SubscribeResponse.heartbeat:type_name -> pulse.telemetry.v1.Heartbeat
-	4,  // 10: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
-	6,  // 11: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
-	5,  // 12: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
-	7,  // 13: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
-	12, // [12:14] is the sub-list for method output_type
-	10, // [10:12] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	1,  // 0: pulse.telemetry.v1.Snapshot.cursor:type_name -> pulse.telemetry.v1.Cursor
+	16, // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
+	1,  // 2: pulse.telemetry.v1.Delta.cursor:type_name -> pulse.telemetry.v1.Cursor
+	17, // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
+	1,  // 4: pulse.telemetry.v1.Heartbeat.cursor:type_name -> pulse.telemetry.v1.Cursor
+	2,  // 5: pulse.telemetry.v1.GetSnapshotResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
+	1,  // 6: pulse.telemetry.v1.SubscribeRequest.from:type_name -> pulse.telemetry.v1.Cursor
+	2,  // 7: pulse.telemetry.v1.SubscribeResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
+	3,  // 8: pulse.telemetry.v1.SubscribeResponse.delta:type_name -> pulse.telemetry.v1.Delta
+	4,  // 9: pulse.telemetry.v1.SubscribeResponse.heartbeat:type_name -> pulse.telemetry.v1.Heartbeat
+	9,  // 10: pulse.telemetry.v1.RollupPoint.metrics:type_name -> pulse.telemetry.v1.RollupMetrics
+	0,  // 11: pulse.telemetry.v1.RollupSeries.resolution:type_name -> pulse.telemetry.v1.RollupResolution
+	10, // 12: pulse.telemetry.v1.RollupSeries.points:type_name -> pulse.telemetry.v1.RollupPoint
+	0,  // 13: pulse.telemetry.v1.QueryRollupRangeRequest.resolution:type_name -> pulse.telemetry.v1.RollupResolution
+	11, // 14: pulse.telemetry.v1.QueryRollupRangeResponse.series:type_name -> pulse.telemetry.v1.RollupSeries
+	0,  // 15: pulse.telemetry.v1.CompareRollupRangeRequest.resolution:type_name -> pulse.telemetry.v1.RollupResolution
+	11, // 16: pulse.telemetry.v1.CompareRollupRangeResponse.current:type_name -> pulse.telemetry.v1.RollupSeries
+	11, // 17: pulse.telemetry.v1.CompareRollupRangeResponse.previous:type_name -> pulse.telemetry.v1.RollupSeries
+	5,  // 18: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
+	7,  // 19: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
+	12, // 20: pulse.telemetry.v1.TelemetryService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
+	14, // 21: pulse.telemetry.v1.TelemetryService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
+	6,  // 22: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
+	8,  // 23: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
+	13, // 24: pulse.telemetry.v1.TelemetryService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
+	15, // 25: pulse.telemetry.v1.TelemetryService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
+	22, // [22:26] is the sub-list for method output_type
+	18, // [18:22] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_pulse_telemetry_v1_telemetry_proto_init() }
@@ -618,18 +1421,20 @@ func file_pulse_telemetry_v1_telemetry_proto_init() {
 		(*SubscribeResponse_Delta)(nil),
 		(*SubscribeResponse_Heartbeat)(nil),
 	}
+	file_pulse_telemetry_v1_telemetry_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_telemetry_v1_telemetry_proto_rawDesc), len(file_pulse_telemetry_v1_telemetry_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   10,
+			NumEnums:      1,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_pulse_telemetry_v1_telemetry_proto_goTypes,
 		DependencyIndexes: file_pulse_telemetry_v1_telemetry_proto_depIdxs,
+		EnumInfos:         file_pulse_telemetry_v1_telemetry_proto_enumTypes,
 		MessageInfos:      file_pulse_telemetry_v1_telemetry_proto_msgTypes,
 	}.Build()
 	File_pulse_telemetry_v1_telemetry_proto = out.File

@@ -10,7 +10,10 @@ import (
 	"time"
 
 	telemetryv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -379,6 +382,180 @@ func TestSubscribePropagatesSendError(t *testing.T) {
 	}
 }
 
+func TestQueryRollupRangeValidation(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestService()
+	_, err := svc.QueryRollupRange(context.Background(), &telemetryv1.QueryRollupRangeRequest{
+		DeviceId:   "not-a-uuid",
+		Resolution: telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
+		FromUnixMs: time.Now().Add(-time.Hour).UnixMilli(),
+		ToUnixMs:   time.Now().UnixMilli(),
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v", err)
+	}
+}
+
+func TestQueryRollupRangeUnavailableWithoutReader(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52"
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+
+	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+	})
+
+	_, err := svc.QueryRollupRange(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.QueryRollupRangeRequest{
+		DeviceId:   deviceID,
+		Resolution: telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
+		FromUnixMs: time.Now().Add(-time.Hour).UnixMilli(),
+		ToUnixMs:   time.Now().UnixMilli(),
+	})
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("expected Unavailable, got %v", err)
+	}
+}
+
+func TestQueryRollupRangePermissionDenied(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f53"
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"owner": {{DeviceID: deviceID, EcoflowSN: "Y711ZABA9H2P0294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
+	})
+
+	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       &fakeQueryReader{},
+	})
+
+	_, err := svc.QueryRollupRange(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "other-user"}), &telemetryv1.QueryRollupRangeRequest{
+		DeviceId:   deviceID,
+		Resolution: telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
+		FromUnixMs: time.Now().Add(-time.Hour).UnixMilli(),
+		ToUnixMs:   time.Now().UnixMilli(),
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected PermissionDenied, got %v", err)
+	}
+}
+
+func TestQueryRollupRangeReturnsSeries(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f54"
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+
+	from := time.Date(2026, time.February, 27, 12, 0, 0, 0, time.UTC)
+	to := from.Add(2 * time.Hour)
+	pvAvg := 52.5
+	reader := &fakeQueryReader{
+		series: []telemetryquery.Series{
+			{
+				DeviceID:   deviceID,
+				Resolution: telemetryquery.ResolutionHour,
+				From:       from,
+				To:         to,
+				Points: []telemetryquery.Point{
+					{
+						BucketStart:   from,
+						BucketEnd:     from.Add(time.Hour),
+						SampleCount:   60,
+						FirstTsUnixMs: from.UnixMilli(),
+						LastTsUnixMs:  from.Add(time.Hour - time.Minute).UnixMilli(),
+						Metrics: telemetryquery.Metrics{
+							PVAvgW: &pvAvg,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+	})
+
+	resp, err := svc.QueryRollupRange(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.QueryRollupRangeRequest{
+		DeviceId:   deviceID,
+		Resolution: telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
+		FromUnixMs: from.UnixMilli(),
+		ToUnixMs:   to.UnixMilli(),
+	})
+	if err != nil {
+		t.Fatalf("QueryRollupRange failed: %v", err)
+	}
+	if got := len(resp.GetSeries().GetPoints()); got != 1 {
+		t.Fatalf("points mismatch: got=%d want=1", got)
+	}
+	if got := resp.GetSeries().GetPoints()[0].GetMetrics().GetPvAvgW(); got != pvAvg {
+		t.Fatalf("pv_avg_w mismatch: got=%v want=%v", got, pvAvg)
+	}
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got := len(reader.queries); got != 1 {
+		t.Fatalf("query count mismatch: got=%d want=1", got)
+	}
+	if got := reader.queries[0].Resolution; got != telemetryquery.ResolutionHour {
+		t.Fatalf("resolution mismatch: got=%v want=%v", got, telemetryquery.ResolutionHour)
+	}
+}
+
+func TestCompareRollupRangeUsesPreviousPeriod(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f55"
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+
+	from := time.Date(2026, time.February, 27, 12, 0, 0, 0, time.UTC)
+	to := from.Add(2 * time.Hour)
+	reader := &fakeQueryReader{
+		series: []telemetryquery.Series{
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionHour, From: from, To: to},
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionHour, From: from.Add(-2 * time.Hour), To: from},
+		},
+	}
+	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+	})
+
+	resp, err := svc.CompareRollupRange(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.CompareRollupRangeRequest{
+		DeviceId:          deviceID,
+		Resolution:        telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
+		FromUnixMs:        from.UnixMilli(),
+		ToUnixMs:          to.UnixMilli(),
+		UsePreviousPeriod: true,
+	})
+	if err != nil {
+		t.Fatalf("CompareRollupRange failed: %v", err)
+	}
+	if resp.GetPrevious().GetFromUnixMs() != from.Add(-2*time.Hour).UnixMilli() {
+		t.Fatalf("previous from mismatch: got=%d", resp.GetPrevious().GetFromUnixMs())
+	}
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got := len(reader.queries); got != 2 {
+		t.Fatalf("query count mismatch: got=%d want=2", got)
+	}
+	if reader.queries[1].From != from.Add(-2*time.Hour) || reader.queries[1].To != from {
+		t.Fatalf("previous window mismatch: got=[%s,%s)", reader.queries[1].From, reader.queries[1].To)
+	}
+}
+
 type fakeSnapshotReader struct {
 	snapshot *projectionworker.SnapshotReadModel
 	err      error
@@ -412,4 +589,87 @@ func (s *sequenceSnapshotReader) ReadSnapshot(context.Context, projectionworker.
 		return s.snapshots[len(s.snapshots)-1], nil
 	}
 	return s.snapshots[s.idx-1], nil
+}
+
+type fakeQueryReader struct {
+	mu      sync.Mutex
+	queries []telemetryquery.RangeQuery
+	series  []telemetryquery.Series
+	err     error
+}
+
+func (f *fakeQueryReader) QueryRange(_ context.Context, query telemetryquery.RangeQuery) (telemetryquery.Series, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.queries = append(f.queries, query)
+	if f.err != nil {
+		return telemetryquery.Series{}, f.err
+	}
+	if len(f.series) == 0 {
+		return telemetryquery.Series{
+			DeviceID:   query.DeviceID,
+			Resolution: query.Resolution,
+			From:       query.From,
+			To:         query.To,
+		}, nil
+	}
+	next := f.series[0]
+	f.series = f.series[1:]
+	return next, nil
+}
+
+func (f *fakeQueryReader) Close() error {
+	return nil
+}
+
+type fakeControlPlaneStore struct {
+	userDevices map[string][]controlplane.UserDevice
+}
+
+func newFakeControlPlaneStore(userDevices map[string][]controlplane.UserDevice) *fakeControlPlaneStore {
+	return &fakeControlPlaneStore{userDevices: userDevices}
+}
+
+func (f *fakeControlPlaneStore) CreateProviderCredential(context.Context, controlplane.CreateProviderCredentialInput) (controlplane.ProviderCredential, error) {
+	return controlplane.ProviderCredential{}, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) ListProviderCredentials(context.Context, controlplane.ListProviderCredentialsInput) ([]controlplane.ProviderCredential, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) SetProviderCredentialActive(context.Context, controlplane.SetProviderCredentialActiveInput) (controlplane.ProviderCredential, error) {
+	return controlplane.ProviderCredential{}, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) GetProviderCredential(context.Context, string, string) (controlplane.ProviderCredential, error) {
+	return controlplane.ProviderCredential{}, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) CreateDevice(context.Context, controlplane.CreateDeviceInput) (controlplane.UserDevice, error) {
+	return controlplane.UserDevice{}, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) LinkDevice(context.Context, controlplane.LinkDeviceInput) (controlplane.UserDevice, error) {
+	return controlplane.UserDevice{}, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) ListUserDevices(_ context.Context, in controlplane.ListUserDevicesInput) ([]controlplane.UserDevice, error) {
+	rows := f.userDevices[in.UserSubject]
+	out := make([]controlplane.UserDevice, len(rows))
+	copy(out, rows)
+	return out, nil
+}
+
+func (f *fakeControlPlaneStore) UpsertProviderDevice(context.Context, controlplane.UpsertProviderDeviceInput) (controlplane.ProviderDevice, error) {
+	return controlplane.ProviderDevice{}, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) ListProviderDevices(context.Context, controlplane.ListProviderDevicesInput) ([]controlplane.ProviderDevice, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) ListIngestAssignments(context.Context, controlplane.ListIngestAssignmentsInput) ([]controlplane.IngestAssignment, error) {
+	return nil, errors.New("not implemented")
 }
