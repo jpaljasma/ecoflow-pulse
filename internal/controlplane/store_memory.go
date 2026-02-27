@@ -11,19 +11,19 @@ import (
 )
 
 type memoryDevice struct {
-	ID         string
-	EcoflowSN  string
+	ID          string
+	EcoflowSN   string
 	ProductName string
-	Model      string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	Model       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type MemoryStore struct {
 	mu sync.RWMutex
 
-	usersBySubject map[string]string
-	credentials    map[string]ProviderCredential
+	usersBySubject  map[string]string
+	credentials     map[string]ProviderCredential
 	providerDevices map[string]ProviderDevice
 
 	devicesByID map[string]memoryDevice

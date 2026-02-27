@@ -357,13 +357,13 @@ func providerDeviceToProto(in controlplane.ProviderDevice) *controlplanev1.Provi
 
 func userDeviceToProto(in controlplane.UserDevice) *controlplanev1.UserDevice {
 	return &controlplanev1.UserDevice{
-		DeviceId:         in.DeviceID,
-		EcoflowSn:        in.EcoflowSN,
-		ProductName:      in.ProductName,
-		Model:            in.Model,
-		Role:             in.Role,
-		CreatedAtUnixMs:  in.CreatedAt.UnixMilli(),
-		UpdatedAtUnixMs:  in.UpdatedAt.UnixMilli(),
+		DeviceId:        in.DeviceID,
+		EcoflowSn:       in.EcoflowSN,
+		ProductName:     in.ProductName,
+		Model:           in.Model,
+		Role:            in.Role,
+		CreatedAtUnixMs: in.CreatedAt.UnixMilli(),
+		UpdatedAtUnixMs: in.UpdatedAt.UnixMilli(),
 	}
 }
 

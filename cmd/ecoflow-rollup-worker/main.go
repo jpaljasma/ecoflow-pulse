@@ -41,7 +41,11 @@ func main() {
 		log.Error("init rollup store failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			log.Warn("close rollup store failed", slog.String("error", err.Error()))
+		}
+	}()
 
 	natsCfg := telemetrybus.DefaultNATSConnConfig(runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("NATS_URLS", "nats://127.0.0.1:4222")))
 	natsCfg.Name = runtimecfg.EnvOrDefault("NATS_NAME", "ecoflow-rollup-worker")

@@ -545,6 +545,10 @@ Notes:
   - `users`, `devices`, `user_devices`, `provider_credentials`, `provider_devices`, `archive_object_manifest` existence
   - rollup table existence: `telemetry_rollup_minute`, `telemetry_rollup_hour`, `telemetry_rollup_day`
   - Timescale hypertable registration for the 3 rollup tables
+  - Timescale retention policies for the 3 rollup tables:
+    - minute: `90 days`
+    - hour: `3 years`
+    - day: `3 years`
   - `users.id` default expression (`uuidv7()`)
   - no DB default expression on `users.created_at`/`users.updated_at`
   - control-plane and rollup check constraints (`keycloak_subject`, `ecoflow_sn`, `role`, rollup PKs)
