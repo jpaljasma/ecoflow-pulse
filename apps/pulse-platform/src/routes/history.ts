@@ -25,16 +25,14 @@ export function registerHistoryRoutes(
   authPreHandler: preHandlerHookHandler,
   historyRateLimiter: RateLimiterMemory
 ): void {
+  const historyRateLimitPreHandler = buildHistoryRateLimitPreHandler(historyRateLimiter);
+  const historyPreHandlers = [historyRateLimitPreHandler, authPreHandler];
+
   app.get(
     '/api/v1/devices/:deviceId/history',
-    { preHandler: authPreHandler },
+    { preHandler: historyPreHandlers },
     async (request, reply) => {
       try {
-        try {
-          await historyRateLimiter.consume(request.ip);
-        } catch (error) {
-          return sendRateLimited(reply, error);
-        }
         const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
         const query = querySchema.parse(request.query);
         const result = await historyClient.queryRollupRange({
@@ -61,14 +59,9 @@ export function registerHistoryRoutes(
 
   app.get(
     '/api/v1/devices/:deviceId/history/compare',
-    { preHandler: authPreHandler },
+    { preHandler: historyPreHandlers },
     async (request, reply) => {
       try {
-        try {
-          await historyRateLimiter.consume(request.ip);
-        } catch (error) {
-          return sendRateLimited(reply, error);
-        }
         const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
         const query = compareQuerySchema.parse(request.query);
         const result = await historyClient.compareRollupRange({
@@ -127,6 +120,18 @@ function handleRouteError(reply: { code: (code: number) => { send: (body: unknow
     });
   }
   throw error;
+}
+
+function buildHistoryRateLimitPreHandler(
+  historyRateLimiter: RateLimiterMemory
+): preHandlerHookHandler {
+  return async function historyRateLimitPreHandler(request, reply) {
+    try {
+      await historyRateLimiter.consume(request.ip);
+    } catch (error) {
+      return sendRateLimited(reply, error);
+    }
+  };
 }
 
 function sendRateLimited(
