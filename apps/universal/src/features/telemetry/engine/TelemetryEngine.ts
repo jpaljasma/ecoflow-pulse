@@ -51,6 +51,7 @@ type SnapshotListener = (payload: {
 type StatusListener = (status: TelemetryEngineStatus) => void;
 
 const METRIC_KEYS: MetricKey[] = ['soc', 'pvW', 'loadW', 'batteryW', 'tempC', 'acW', 'dcW'];
+const SOCKET_READY_STATE_OPEN = 1;
 export class TelemetryEngine {
   private ws: WebSocketLike | null = null;
   private readonly wsUrl: string;
@@ -492,10 +493,14 @@ export class TelemetryEngine {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      if (!this.isSocketOpen()) {
         return;
       }
-      this.ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+      const socket = this.ws;
+      if (!socket) {
+        return;
+      }
+      socket.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
     }, this.heartbeatMs);
   }
 
@@ -509,25 +514,34 @@ export class TelemetryEngine {
 
   private reconnectIfStalled(): void {
     if (!this.wsEnabled) return;
-    if (!this.ws) return;
-    if (this.ws.readyState !== WebSocket.OPEN) return;
+    if (!this.isSocketOpen()) return;
+    const socket = this.ws;
+    if (!socket) return;
     if (this.status !== 'connected') return;
     if (!this.lastInboundAt) return;
     if (Date.now() - this.lastInboundAt <= this.stalledReconnectMs) return;
-    this.ws.close();
+    socket.close();
   }
 
   private sendSubscription(): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.isSocketOpen()) {
+      return;
+    }
+    const socket = this.ws;
+    if (!socket) {
       return;
     }
 
-    this.ws.send(
+    socket.send(
       JSON.stringify({
         type: 'subscribe',
         deviceIds: Array.from(this.subscribedDeviceIds)
       })
     );
+  }
+
+  private isSocketOpen(): boolean {
+    return !!this.ws && this.ws.readyState === SOCKET_READY_STATE_OPEN;
   }
 
   private scheduleReconnect(): void {
