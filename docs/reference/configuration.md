@@ -202,3 +202,8 @@ Runtime behavior:
   - when unset on web, app uses `/public` local paths,
   - large product images can be remote URI-based and are cached via `expo-image` (`memory-disk`),
   - brand/logo assets are bundled local app assets for smooth top-bar and menu rendering.
+
+Runtime behavior:
+- if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
+- if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
+- websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.

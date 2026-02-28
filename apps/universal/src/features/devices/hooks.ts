@@ -4,10 +4,18 @@ import { env } from '@/shared/config/env';
 
 const isMock = env.apiUrl.startsWith('mock://');
 
-export function useDevices(token?: string) {
+type DeviceQueryOptions = {
+  token?: string;
+  authKey?: string;
+  enabled?: boolean;
+};
+
+export function useDevices(options: DeviceQueryOptions = {}) {
+  const { token, authKey = 'anonymous', enabled = true } = options;
   return useQuery({
-    queryKey: ['devices'],
+    queryKey: ['devices', authKey],
     queryFn: () => fetchDevices(token),
+    enabled,
     refetchInterval: isMock ? 1_000 : false,
     refetchIntervalInBackground: true,
     staleTime: 60_000,
@@ -15,11 +23,12 @@ export function useDevices(token?: string) {
   });
 }
 
-export function useDevice(deviceId: string | undefined, token?: string) {
+export function useDevice(deviceId: string | undefined, options: DeviceQueryOptions = {}) {
+  const { token, authKey = 'anonymous', enabled = true } = options;
   return useQuery({
-    queryKey: ['device', deviceId],
+    queryKey: ['device', deviceId, authKey],
     queryFn: () => fetchDevice(deviceId ?? '', token),
-    enabled: Boolean(deviceId),
+    enabled: enabled && Boolean(deviceId),
     refetchInterval: isMock ? 1_000 : false,
     refetchIntervalInBackground: true,
     staleTime: 60_000,

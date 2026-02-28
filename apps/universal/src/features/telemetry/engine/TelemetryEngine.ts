@@ -23,6 +23,22 @@ type EngineOptions = {
   stalledReconnectMs?: number;
   fleetTrendPoints?: number;
   fleetTrendBucketMs?: number;
+  createSocket?: (url: string) => WebSocketLike;
+  wsEnabled?: boolean;
+};
+
+type ConnectOptions = {
+  authRequired?: boolean;
+};
+
+type WebSocketLike = {
+  readonly readyState: number;
+  onopen: ((event: Event) => void) | null;
+  onclose: ((event: CloseEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onmessage: ((event: MessageEvent) => void) | null;
+  send(data: string): void;
+  close(): void;
 };
 
 type SnapshotListener = (payload: {
@@ -36,7 +52,7 @@ type StatusListener = (status: TelemetryEngineStatus) => void;
 
 const METRIC_KEYS: MetricKey[] = ['soc', 'pvW', 'loadW', 'batteryW', 'tempC', 'acW', 'dcW'];
 export class TelemetryEngine {
-  private ws: WebSocket | null = null;
+  private ws: WebSocketLike | null = null;
   private readonly wsUrl: string;
   private readonly wsCandidates: string[];
   private wsCandidateIndex = 0;
@@ -50,9 +66,11 @@ export class TelemetryEngine {
   private readonly fleetTrendPoints: number;
   private readonly fleetTrendBucketMs: number;
   private readonly wsEnabled: boolean;
+  private readonly createSocket: (url: string) => WebSocketLike;
 
   private status: TelemetryEngineStatus = 'idle';
   private token: string | undefined;
+  private authRequired = false;
   private shouldReconnect = true;
 
   private reconnectAttempt = 0;
@@ -97,6 +115,7 @@ export class TelemetryEngine {
     this.stalledReconnectMs = options.stalledReconnectMs ?? 20_000;
     this.fleetTrendPoints = options.fleetTrendPoints ?? 60;
     this.fleetTrendBucketMs = options.fleetTrendBucketMs ?? 5_000;
+    this.createSocket = options.createSocket ?? ((url) => new WebSocket(url));
     this.fleetTrend = {
       load: Array.from({ length: this.fleetTrendPoints }, () => 0),
       pv: Array.from({ length: this.fleetTrendPoints }, () => 0),
@@ -105,16 +124,21 @@ export class TelemetryEngine {
     };
     // In mock API mode, always use polling transport.
     // Native/web mock sources are file/HTTP based and WS churn causes reconnect loops.
-    this.wsEnabled = !env.apiUrl.startsWith('mock://');
+    this.wsEnabled = options.wsEnabled ?? !env.apiUrl.startsWith('mock://');
   }
 
   getStatus(): TelemetryEngineStatus {
     return this.status;
   }
 
-  connect(token?: string): void {
-    this.token = token;
-    this.shouldReconnect = true;
+  connect(token?: string, options: ConnectOptions = {}): void {
+    const normalizedToken = token?.trim() ? token.trim() : undefined;
+    const nextAuthRequired = options.authRequired ?? false;
+    const tokenChanged = this.token !== normalizedToken;
+    const authChanged = this.authRequired !== nextAuthRequired;
+
+    this.token = normalizedToken;
+    this.authRequired = nextAuthRequired;
 
     if (!this.wsEnabled) {
       this.setStatus('connected');
@@ -123,12 +147,32 @@ export class TelemetryEngine {
       return;
     }
 
-    if (this.ws && (this.status === 'connected' || this.status === 'connecting')) {
+    this.startSnapshotClock();
+
+    if (this.authRequired && !this.token) {
+      this.shouldReconnect = false;
+      this.clearReconnectTimer();
+      this.disposeSocket('auth_required');
+      return;
+    }
+
+    this.shouldReconnect = true;
+
+    if (tokenChanged || authChanged) {
+      this.clearReconnectTimer();
+      this.disposeSocket();
+    }
+
+    if (
+      this.ws &&
+      (this.status === 'connected' ||
+        this.status === 'connecting' ||
+        this.status === 'reconnecting')
+    ) {
       return;
     }
 
     this.openSocket();
-    this.startSnapshotClock();
   }
 
   subscribe(deviceIds: string[]): void {
@@ -184,21 +228,10 @@ export class TelemetryEngine {
   disconnect(): void {
     this.shouldReconnect = false;
     this.clearReconnectTimer();
-    this.stopHeartbeat();
     this.stopSnapshotClock();
     this.stopMockStream();
     this.clearSubscriptions();
-
-    if (this.ws) {
-      this.ws.onopen = null;
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.onmessage = null;
-      this.ws.close();
-      this.ws = null;
-    }
-
-    this.setStatus('disconnected');
+    this.disposeSocket('disconnected');
   }
 
   onSnapshot(listener: SnapshotListener): () => void {
@@ -231,7 +264,7 @@ export class TelemetryEngine {
 
     console.info('[TelemetryEngine] opening websocket', { url, attempt: this.reconnectAttempt + 1 });
 
-    this.ws = new WebSocket(url);
+    this.ws = this.createSocket(url);
 
     this.ws.onopen = () => {
       this.reconnectAttempt = 0;
@@ -281,6 +314,21 @@ export class TelemetryEngine {
       console.warn('[TelemetryEngine] websocket error', { url: baseUrl });
       this.ws?.close();
     };
+  }
+
+  private disposeSocket(nextStatus?: TelemetryEngineStatus): void {
+    if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
+      this.ws.close();
+      this.ws = null;
+    }
+    this.stopHeartbeat();
+    if (nextStatus) {
+      this.setStatus(nextStatus);
+    }
   }
 
   private ingest(message: IncomingMessage): void {

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { YStack } from 'tamagui';
+import { useAuthSession } from '@/features/auth/hooks';
 import { TopBar } from '@/shared/ui/TopBar';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
@@ -12,7 +13,6 @@ import {
   useTelemetryDeviceSnapshot,
   useTelemetrySubscription
 } from '@/features/telemetry/hooks';
-import { formatAgo } from '@/features/telemetry/format';
 import { useDeviceDetailViewModel } from '@/features/device-detail/view-model';
 import { DeviceDetailBody } from '@/features/device-detail/components/DeviceDetailBody';
 import { env } from '@/shared/config/env';
@@ -28,8 +28,10 @@ export default function DeviceDetailScreen() {
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
   const router = useRouter();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
-  const deviceQuery = useDevice(deviceId);
-  const devicesQuery = useDevices();
+  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
+  const queryEnabled = authReady && (!authConfigured || sessionValid);
+  const deviceQuery = useDevice(deviceId, { token, authKey, enabled: queryEnabled });
+  const devicesQuery = useDevices({ token, authKey, enabled: queryEnabled });
   useTelemetrySubscription(deviceId ? [deviceId] : []);
   const telemetryConnectionStatus = useTelemetryConnectionStatus();
   const snapshot = useTelemetryDeviceSnapshot(deviceId);
@@ -113,7 +115,7 @@ export default function DeviceDetailScreen() {
         <TopBar
           left={<CloseToHomeButton onClose={closeToHome} />}
           title={deviceQuery.data?.name ?? 'Device'}
-          subtitle={deviceQuery.data ? `${deviceQuery.data.model} · ${formatAgo(snapshot?.lastSeenAt ?? null)}` : 'Loading…'}
+          subtitle={deviceQuery.data ? deviceQuery.data.model : 'Loading…'}
           right={(
             <YStack alignItems="flex-end">
               <AppMenu />

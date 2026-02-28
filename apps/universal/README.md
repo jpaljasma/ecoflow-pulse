@@ -49,6 +49,11 @@ Telemetry rendering is decoupled from message ingest:
 
 This keeps rendering stable and avoids React churn under high throughput.
 
+## Auth + reconnect behavior
+- when OIDC is configured, REST queries and websocket connect wait for persisted auth session hydration.
+- if auth is required and no valid access token exists, the telemetry engine stays in `auth_required` and the devices screen shows a sign-in-required state.
+- websocket lifecycle is owned by the provider, so token refresh/reconnect does not clear active device subscriptions.
+
 ## Devices UI Behavior
 - Fleet summary includes:
   - unique device-type thumbnail strip,

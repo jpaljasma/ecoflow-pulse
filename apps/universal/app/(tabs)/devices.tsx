@@ -1,22 +1,23 @@
 import { ActivityIndicator, Animated, Image, Platform, useColorScheme, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
+import { useAuthSession } from '@/features/auth/hooks';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { useDevices } from '@/features/devices/hooks';
 import {
   useTelemetryConnectionStatus,
-  useTelemetryLastUpdatedAt,
   useTelemetrySubscription
 } from '@/features/telemetry/hooks';
 import { SummaryPanel } from '@/features/devices/SummaryPanel';
 import { DeviceList } from '@/features/devices/DeviceList';
-import { formatAgo } from '@/features/telemetry/format';
+import { formatConnectionStatus } from '@/features/telemetry/status';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
 
 function statusDotColor(status: string): string {
   if (status === 'connected') return '#30d158';
+  if (status === 'auth_required') return '#ff9f0a';
   if (status === 'reconnecting' || status === 'connecting') return '#ff9f0a';
   return '#ff453a';
 }
@@ -26,18 +27,18 @@ export default function DevicesScreen() {
   const scheme = useColorScheme();
   const loadingMark = getBundledBrandMark(scheme === 'dark' ? 'dark' : 'light');
   const compactHeader = width < 430;
-  const devicesQuery = useDevices();
+  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
+  const devicesQuery = useDevices({
+    token,
+    authKey,
+    enabled: authReady && (!authConfigured || sessionValid)
+  });
   const deviceIds = useMemo(
     () => devicesQuery.data?.devices.map((d) => d.id) ?? [],
     [devicesQuery.data?.devices]
   );
   useTelemetrySubscription(deviceIds);
   const connectionStatus = useTelemetryConnectionStatus();
-  const lastUpdatedAt = useTelemetryLastUpdatedAt();
-  const updatedAt = Math.max(
-    lastUpdatedAt || 0,
-    devicesQuery.dataUpdatedAt || 0
-  );
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -83,7 +84,9 @@ export default function DevicesScreen() {
         }
         subtitle={
           <Text fontSize={10} opacity={0.5} numberOfLines={1}>
-            Updated {formatAgo(updatedAt || null)}
+            {authConfigured && !authReady
+              ? 'Restoring session…'
+              : formatConnectionStatus(connectionStatus)}
           </Text>
         }
         titleFlex={compactHeader ? 1 : 3}
@@ -131,6 +134,17 @@ export default function DevicesScreen() {
             Failed to load devices
           </Text>
           <Text opacity={0.75}>{String(devicesQuery.error)}</Text>
+        </YStack>
+      ) : null}
+
+      {!devicesQuery.data && !devicesQuery.isLoading && !devicesQuery.isError && authConfigured && authReady && !sessionValid ? (
+        <YStack paddingHorizontal="$4" paddingVertical="$6" gap="$2">
+          <Text fontSize="$5" fontWeight="700">
+            Sign in required
+          </Text>
+          <Text opacity={0.75}>
+            Open Settings and sign in to load devices and live telemetry.
+          </Text>
         </YStack>
       ) : null}
 

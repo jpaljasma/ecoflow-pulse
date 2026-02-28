@@ -417,7 +417,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
  - [x] Degrade to `key-only` delivery under sustained pressure
  - [x] Pause delivery entirely under extreme pressure while continuing to merge state
  - [x] Recover automatically after quiet ticks and cover escalation/recovery in unit tests
-| TODO | Expo client WS integration + reconnection UX | WS |
+| PROGRESS | Expo client WS integration + reconnection UX<br>- [x] Added auth-aware Expo telemetry session hook (`useAuthSession`) so REST queries and WS connect wait for persisted PKCE session hydration before starting<br>- [x] Moved WS lifecycle ownership into `TelemetryEngineProvider` so token refresh/reconnect preserves active device subscriptions instead of reconnecting from each screen hook<br>- [x] Added explicit `auth_required` telemetry engine state and sign-in-required devices UX when OIDC is configured but no valid access token exists<br>- [x] Scoped Expo device queries by auth session key to prevent cross-session cache bleed while preserving mock polling behavior<br>- [x] Added `TelemetryEngine` regression tests covering `auth_required` and token-change reconnect behavior<br>- [ ] Validate the universal app end-to-end against the realtime gateway (`apps/pulse-realtime-gateway`) in local/dev | WS |
 
 **Acceptance criteria**
 - 250ms updates when possible
