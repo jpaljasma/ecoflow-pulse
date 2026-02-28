@@ -5,9 +5,20 @@ const envSchema = z.object({
   PULSE_REALTIME_GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(8082),
   GRPC_API_ADDR: z.string().trim().min(1).default('127.0.0.1:9090'),
   GRPC_API_DEADLINE_MS: z.coerce.number().int().min(100).max(60000).default(10000),
-  GRPC_SUBSCRIBE_UPDATE_HZ: z.coerce.number().int().min(1).max(50).default(4),
   GRPC_RECONNECT_BASE_MS: z.coerce.number().int().min(10).max(10000).default(250),
   GRPC_RECONNECT_MAX_MS: z.coerce.number().int().min(10).max(60000).default(2000),
+  NATS_URLS: z.string().trim().default('nats://127.0.0.1:4222'),
+  VALKEY_ADDRS: z.string().trim().default('127.0.0.1:6379'),
+  VALKEY_USERNAME: z.string().trim().default(''),
+  VALKEY_PASSWORD: z.string().trim().default(''),
+  PROJECTION_KEY_PREFIX: z.string().trim().min(1).default('pulse:projection'),
+  TELEMETRY_SUBJECT_PREFIX: z.string().trim().min(1).default('pulse.telemetry'),
+  WS_DELIVERY_FAST_INTERVAL_MS: z.coerce.number().int().min(50).max(5000).default(250),
+  WS_DELIVERY_STEADY_INTERVAL_MS: z.coerce.number().int().min(50).max(5000).default(500),
+  WS_DELIVERY_SLOW_INTERVAL_MS: z.coerce.number().int().min(100).max(10000).default(1000),
+  WS_DELIVERY_HIGH_WATERMARK: z.coerce.number().int().min(1).max(1000).default(8),
+  WS_BUFFERED_AMOUNT_HIGH_WATER_BYTES: z.coerce.number().int().min(1024).max(16777216).default(262144),
+  WS_QUIET_TICKS_TO_RECOVER: z.coerce.number().int().min(1).max(100).default(4),
   NODE_AUTH_MODE: z.enum(['noop', 'keycloak']).default('noop'),
   KEYCLOAK_ISSUER_URL: z.string().trim().default(''),
   KEYCLOAK_AUDIENCE: z.string().trim().default(''),
@@ -22,10 +33,25 @@ export type AppConfig = {
   port: number;
   grpcApiAddr: string;
   grpcDeadlineMs: number;
-  subscribeUpdateHz: number;
   reconnectBackoff: {
     baseMs: number;
     maxMs: number;
+  };
+  natsUrls: string[];
+  valkey: {
+    addrs: string[];
+    username?: string;
+    password?: string;
+    keyPrefix: string;
+  };
+  telemetrySubjectPrefix: string;
+  delivery: {
+    fastIntervalMs: number;
+    steadyIntervalMs: number;
+    slowIntervalMs: number;
+    highWatermark: number;
+    bufferedAmountHighWaterBytes: number;
+    quietTicksToRecover: number;
   };
   auth:
     | { mode: 'noop'; allowMissingJwt: true }
@@ -42,6 +68,16 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
   const parsed = envSchema.parse(env);
   const allowMissingJwt =
     parsed.KEYCLOAK_ALLOW_MISSING_JWT === 'true' || parsed.KEYCLOAK_ALLOW_MISSING_JWT === '1';
+  const natsUrls = splitCsvList(parsed.NATS_URLS, ['nats://127.0.0.1:4222']);
+  const valkeyAddrs = splitCsvList(parsed.VALKEY_ADDRS, ['127.0.0.1:6379']);
+  const delivery = {
+    fastIntervalMs: parsed.WS_DELIVERY_FAST_INTERVAL_MS,
+    steadyIntervalMs: parsed.WS_DELIVERY_STEADY_INTERVAL_MS,
+    slowIntervalMs: parsed.WS_DELIVERY_SLOW_INTERVAL_MS,
+    highWatermark: parsed.WS_DELIVERY_HIGH_WATERMARK,
+    bufferedAmountHighWaterBytes: parsed.WS_BUFFERED_AMOUNT_HIGH_WATER_BYTES,
+    quietTicksToRecover: parsed.WS_QUIET_TICKS_TO_RECOVER
+  };
 
   if (parsed.NODE_AUTH_MODE === 'noop') {
     return {
@@ -49,11 +85,19 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       port: parsed.PULSE_REALTIME_GATEWAY_PORT,
       grpcApiAddr: parsed.GRPC_API_ADDR,
       grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
-      subscribeUpdateHz: parsed.GRPC_SUBSCRIBE_UPDATE_HZ,
       reconnectBackoff: {
         baseMs: parsed.GRPC_RECONNECT_BASE_MS,
         maxMs: parsed.GRPC_RECONNECT_MAX_MS
       },
+      natsUrls,
+      valkey: {
+        addrs: valkeyAddrs,
+        username: parsed.VALKEY_USERNAME || undefined,
+        password: parsed.VALKEY_PASSWORD || undefined,
+        keyPrefix: parsed.PROJECTION_KEY_PREFIX
+      },
+      telemetrySubjectPrefix: parsed.TELEMETRY_SUBJECT_PREFIX,
+      delivery,
       auth: { mode: 'noop', allowMissingJwt: true }
     };
   }
@@ -70,11 +114,19 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     port: parsed.PULSE_REALTIME_GATEWAY_PORT,
     grpcApiAddr: parsed.GRPC_API_ADDR,
     grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
-    subscribeUpdateHz: parsed.GRPC_SUBSCRIBE_UPDATE_HZ,
     reconnectBackoff: {
       baseMs: parsed.GRPC_RECONNECT_BASE_MS,
       maxMs: parsed.GRPC_RECONNECT_MAX_MS
     },
+    natsUrls,
+    valkey: {
+      addrs: valkeyAddrs,
+      username: parsed.VALKEY_USERNAME || undefined,
+      password: parsed.VALKEY_PASSWORD || undefined,
+      keyPrefix: parsed.PROJECTION_KEY_PREFIX
+    },
+    telemetrySubjectPrefix: parsed.TELEMETRY_SUBJECT_PREFIX,
+    delivery,
     auth: {
       mode: 'keycloak',
       issuerUrl: parsed.KEYCLOAK_ISSUER_URL,
@@ -83,4 +135,12 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       allowMissingJwt
     }
   };
+}
+
+function splitCsvList(input: string, fallback: string[]): string[] {
+  const values = input
+    .split(/[,\s]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return values.length > 0 ? values : fallback;
 }

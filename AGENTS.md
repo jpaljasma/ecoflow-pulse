@@ -669,12 +669,13 @@ Use this when working on `apps/pulse-realtime-gateway` and the live telemetry de
 
 2. Enforce access control in both places:
    - gateway-level JWT/noop auth during websocket upgrade,
-   - Go gRPC live snapshot/subscribe device-level authz at the service boundary.
+   - Go gRPC device-level authz at the service boundary.
 
-3. Keep the first live slice snapshot-first:
-   - initial state first,
-   - then deltas/heartbeats,
-   - later Valkey/NATS bridge work should preserve that observable behavior.
+3. Keep the live data plane split cleanly:
+   - authz remains in Go gRPC,
+   - initial state comes from Valkey projection snapshots,
+   - live deltas/heartbeats come from NATS,
+   - buffer deltas/heartbeats until the snapshot is emitted, then flush in order.
 
 4. Websocket contract tests must use buffered message collectors rather than one-shot listeners attached after emits:
    - snapshot-first delivery is often synchronous,
@@ -683,4 +684,9 @@ Use this when working on `apps/pulse-realtime-gateway` and the live telemetry de
 5. For reconnect behavior:
    - retry only retryable transport/service failures,
    - treat authz/not-found/invalid-argument as terminal,
-   - leave backpressure/downsampling as separate follow-on slices unless explicitly included.
+   - do not reconnect on terminal business failures.
+
+6. Backpressure is a required delivery contract, not a cosmetic optimization:
+   - per-device delivery lanes degrade through `fast -> steady -> slow -> key-only -> paused`,
+   - recovery must happen automatically after quiet ticks,
+   - tests must explicitly cover `key-only` suppression and `paused` recovery.

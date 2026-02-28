@@ -4,7 +4,7 @@ Top-level structure:
 
 - `apps/`
   - `pulse-platform`: Node REST BFF workspace (public history/query adapter over internal gRPC).
-  - `pulse-realtime-gateway`: Node WebSocket gateway workspace (JWT/noop auth, snapshot-first live telemetry bridge over internal gRPC).
+  - `pulse-realtime-gateway`: Node WebSocket gateway workspace (JWT/noop auth, gRPC authz, Valkey snapshot reads, NATS delta fanout, per-session backpressure ladder).
   - `universal`: Expo universal dashboard (Web/iOS/Android).
 - `cmd/`
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).

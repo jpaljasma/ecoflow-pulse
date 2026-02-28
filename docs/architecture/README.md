@@ -407,8 +407,16 @@ Legend: **TODO | PROGRESS | DONE | HELP**
  - [x] Preserve existing Expo subscribe/unsubscribe/ping message contract
  - [x] Bridge snapshot-first + delta stream for a subscribed device
  - [x] Add authz/reconnect/contract tests for the first thin slice
-| TODO | Snapshot-on-connect (Valkey) + deltas (NATS) | M2 |
-| TODO | Backpressure + downsampling ladder | WS |
+| DONE | Snapshot-on-connect (Valkey) + deltas (NATS) | M2 |
+ - [x] Read current device snapshot from Valkey projection keys on subscribe
+ - [x] Subscribe to shared NATS telemetry subjects and fan out per-device deltas
+ - [x] Buffer deltas/heartbeats until snapshot delivery completes, then flush in order
+ - [x] Keep live authz at the Go boundary while moving the data plane off direct gRPC streaming
+| DONE | Backpressure + downsampling ladder | WS |
+ - [x] Add per-device delivery lanes with staged intervals (`250ms -> 500ms -> 1s`)
+ - [x] Degrade to `key-only` delivery under sustained pressure
+ - [x] Pause delivery entirely under extreme pressure while continuing to merge state
+ - [x] Recover automatically after quiet ticks and cover escalation/recovery in unit tests
 | TODO | Expo client WS integration + reconnection UX | WS |
 
 **Acceptance criteria**
