@@ -7,6 +7,7 @@ on:
     paths:
       - "apps/universal/**"
       - "apps/pulse-platform/**"
+      - "apps/pulse-realtime-gateway/**"
       - "packages/**"
       - "package.json"
       - "package-lock.json"
@@ -17,6 +18,7 @@ on:
     paths:
       - "apps/universal/**"
       - "apps/pulse-platform/**"
+      - "apps/pulse-realtime-gateway/**"
       - "packages/**"
       - "package.json"
       - "package-lock.json"
@@ -71,6 +73,15 @@ jobs:
 
       - name: Test pulse-platform BFF
         run: npm run test --workspace @ecoflow-pulse/pulse-platform
+
+      - name: Typecheck pulse-realtime-gateway
+        run: npm run typecheck --workspace @ecoflow-pulse/pulse-realtime-gateway
+
+      - name: Lint pulse-realtime-gateway
+        run: npm run lint --workspace @ecoflow-pulse/pulse-realtime-gateway
+
+      - name: Test pulse-realtime-gateway
+        run: npm run test --workspace @ecoflow-pulse/pulse-realtime-gateway
 
       - name: Typecheck
         run: npm run -w apps/universal typecheck

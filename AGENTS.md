@@ -659,3 +659,28 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
    - do not rely on web-only relative paths (`/logs/...`) on native; provide absolute host-based candidates for iOS/Android,
    - keep multiple native URL candidates for mock files (`/logs` and `/mock`, plus host fallbacks) so incremental updates continue,
    - if UI shows `connected` but data is stale, trace last successful mock fetch path and verify per-second refresh still advances.
+
+## Realtime Gateway Workflow (M4)
+Use this when working on `apps/pulse-realtime-gateway` and the live telemetry delivery path.
+
+1. Preserve the existing Expo websocket contract unless there is an explicit protocol migration:
+   - client messages: `subscribe`, `unsubscribe`, `ping`
+   - server messages: `telemetry`, `device_status`
+
+2. Enforce access control in both places:
+   - gateway-level JWT/noop auth during websocket upgrade,
+   - Go gRPC live snapshot/subscribe device-level authz at the service boundary.
+
+3. Keep the first live slice snapshot-first:
+   - initial state first,
+   - then deltas/heartbeats,
+   - later Valkey/NATS bridge work should preserve that observable behavior.
+
+4. Websocket contract tests must use buffered message collectors rather than one-shot listeners attached after emits:
+   - snapshot-first delivery is often synchronous,
+   - tests should queue inbound messages so assertions do not race transport timing.
+
+5. For reconnect behavior:
+   - retry only retryable transport/service failures,
+   - treat authz/not-found/invalid-argument as terminal,
+   - leave backpressure/downsampling as separate follow-on slices unless explicitly included.

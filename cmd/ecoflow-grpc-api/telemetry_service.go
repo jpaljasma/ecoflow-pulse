@@ -84,6 +84,9 @@ func (s *TelemetryService) GetSnapshot(ctx context.Context, req *telemetryv1.Get
 	if req.GetDeviceId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "device_id required")
 	}
+	if err := s.authorizeDeviceAccess(ctx, req.GetDeviceId()); err != nil {
+		return nil, err
+	}
 
 	nowMs := time.Now().UnixMilli()
 	if s.snapshotReader != nil {
@@ -127,6 +130,9 @@ func (s *TelemetryService) GetSnapshot(ctx context.Context, req *telemetryv1.Get
 func (s *TelemetryService) Subscribe(req *telemetryv1.SubscribeRequest, stream telemetryv1.TelemetryService_SubscribeServer) error {
 	if req.GetDeviceId() == "" {
 		return status.Error(codes.InvalidArgument, "device_id required")
+	}
+	if err := s.authorizeDeviceAccess(stream.Context(), req.GetDeviceId()); err != nil {
+		return err
 	}
 
 	var initialSnapshot *telemetryv1.Snapshot
@@ -180,7 +186,7 @@ func (s *TelemetryService) QueryRollupRange(ctx context.Context, req *telemetryv
 	if err != nil {
 		return nil, err
 	}
-	if err := s.authorizeHistoryDeviceAccess(ctx, query.DeviceID); err != nil {
+	if err := s.authorizeDeviceAccess(ctx, query.DeviceID); err != nil {
 		return nil, err
 	}
 	if s.queryReader == nil {
@@ -201,7 +207,7 @@ func (s *TelemetryService) CompareRollupRange(ctx context.Context, req *telemetr
 	if err != nil {
 		return nil, err
 	}
-	if err := s.authorizeHistoryDeviceAccess(ctx, currentQuery.DeviceID); err != nil {
+	if err := s.authorizeDeviceAccess(ctx, currentQuery.DeviceID); err != nil {
 		return nil, err
 	}
 	if s.queryReader == nil {
@@ -400,7 +406,7 @@ func (s *TelemetryService) buildCompareQuery(req *telemetryv1.CompareRollupRange
 	)
 }
 
-func (s *TelemetryService) authorizeHistoryDeviceAccess(ctx context.Context, deviceID string) error {
+func (s *TelemetryService) authorizeDeviceAccess(ctx context.Context, deviceID string) error {
 	if s.controlPlaneStore == nil {
 		return nil
 	}

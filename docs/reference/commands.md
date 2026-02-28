@@ -37,6 +37,12 @@ npm run -w apps/pulse-platform lint
 npm run -w apps/pulse-platform test
 npm run platform-bff
 
+# Pulse realtime WebSocket gateway.
+npm run -w apps/pulse-realtime-gateway typecheck
+npm run -w apps/pulse-realtime-gateway lint
+npm run -w apps/pulse-realtime-gateway test
+npm run realtime-gateway
+
 # Universal app checks (includes PKCE auth card code paths).
 npm run -w apps/universal typecheck
 npm run -w apps/universal lint
@@ -50,6 +56,15 @@ GRPC_API_ADDR='127.0.0.1:9090' \
 NODE_AUTH_MODE='noop' \
 PULSE_PLATFORM_PORT='8081' \
 npm run platform-bff
+```
+
+Run the realtime WebSocket gateway against the local gRPC API:
+
+```bash
+GRPC_API_ADDR='127.0.0.1:9090' \
+NODE_AUTH_MODE='noop' \
+PULSE_REALTIME_GATEWAY_PORT='8082' \
+npm run realtime-gateway
 ```
 
 Race detection commands (critical service paths):
