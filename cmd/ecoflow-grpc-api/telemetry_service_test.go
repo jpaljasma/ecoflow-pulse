@@ -382,6 +382,50 @@ func TestSubscribePropagatesSendError(t *testing.T) {
 	}
 }
 
+func TestGetSnapshotPermissionDenied(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f50"
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"owner": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+	})
+
+	_, err := svc.GetSnapshot(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "other-user"}), &telemetryv1.GetSnapshotRequest{
+		DeviceId: deviceID,
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected PermissionDenied, got %v", err)
+	}
+}
+
+func TestSubscribePermissionDenied(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f51"
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"owner": {{DeviceID: deviceID, EcoflowSN: "Y711ZABA9H2P0294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
+	})
+	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+	})
+	ctx, cancel := context.WithCancel(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "other-user"}))
+	defer cancel()
+	stream := &telemetryTestStream{ctx: ctx, cancel: cancel}
+
+	err := svc.Subscribe(&telemetryv1.SubscribeRequest{
+		DeviceId:               deviceID,
+		IncludeInitialSnapshot: true,
+	}, stream)
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected PermissionDenied, got %v", err)
+	}
+}
+
 func TestQueryRollupRangeValidation(t *testing.T) {
 	t.Parallel()
 

@@ -401,7 +401,12 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M4 — WebSockets gateway + UX hardening
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | WS Gateway (auth, authz, subscribe protocol) | M1 |
+| DONE | WS Gateway (auth, authz, subscribe protocol) | M1 |
+ - [x] Enforce device-level authz on live gRPC snapshot/subscribe APIs
+ - [x] Add dedicated WS gateway service with JWT/noop auth modes
+ - [x] Preserve existing Expo subscribe/unsubscribe/ping message contract
+ - [x] Bridge snapshot-first + delta stream for a subscribed device
+ - [x] Add authz/reconnect/contract tests for the first thin slice
 | TODO | Snapshot-on-connect (Valkey) + deltas (NATS) | M2 |
 | TODO | Backpressure + downsampling ladder | WS |
 | TODO | Expo client WS integration + reconnection UX | WS |

@@ -11,9 +11,10 @@
     "ios": "npm run ios --workspace @ecoflow-pulse/universal",
     "android": "npm run android --workspace @ecoflow-pulse/universal",
     "platform-bff": "npm run dev --workspace @ecoflow-pulse/pulse-platform",
-    "typecheck": "npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth && npm run typecheck --workspace @ecoflow-pulse/pulse-platform && npm run typecheck --workspace @ecoflow-pulse/universal",
-    "test": "npm run test --workspace @ecoflow-pulse/node-jwks-auth && npm run test --workspace @ecoflow-pulse/pulse-platform && npm run test --workspace @ecoflow-pulse/universal",
-    "lint": "npm run lint --workspace @ecoflow-pulse/pulse-platform && npm run lint --workspace @ecoflow-pulse/universal"
+    "realtime-gateway": "npm run dev --workspace @ecoflow-pulse/pulse-realtime-gateway",
+    "typecheck": "npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth && npm run typecheck --workspace @ecoflow-pulse/pulse-platform && npm run typecheck --workspace @ecoflow-pulse/pulse-realtime-gateway && npm run typecheck --workspace @ecoflow-pulse/universal",
+    "test": "npm run test --workspace @ecoflow-pulse/node-jwks-auth && npm run test --workspace @ecoflow-pulse/pulse-platform && npm run test --workspace @ecoflow-pulse/pulse-realtime-gateway && npm run test --workspace @ecoflow-pulse/universal",
+    "lint": "npm run lint --workspace @ecoflow-pulse/pulse-platform && npm run lint --workspace @ecoflow-pulse/pulse-realtime-gateway && npm run lint --workspace @ecoflow-pulse/universal"
   },
   "engines": {
     "node": ">=20"

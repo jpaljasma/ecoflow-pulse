@@ -129,6 +129,23 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `KEYCLOAK_JWKS_URL` (optional override)
 - `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
 
+## Pulse Realtime WebSocket Gateway (`apps/pulse-realtime-gateway`)
+
+- `PULSE_REALTIME_GATEWAY_HOST` (default `0.0.0.0`)
+- `PULSE_REALTIME_GATEWAY_PORT` (default `8082`)
+- `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
+- `GRPC_API_DEADLINE_MS` (default `10000`)
+- `GRPC_SUBSCRIBE_UPDATE_HZ` (default `4`; thin-slice gateway cap for upstream subscribe streams)
+- `GRPC_RECONNECT_BASE_MS` (default `250`)
+- `GRPC_RECONNECT_MAX_MS` (default `2000`)
+- `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
+  - `noop`: local/dev mode, token optional.
+  - `keycloak`: validate websocket bearer JWT via shared JWKS auth before opening the session.
+- `KEYCLOAK_ISSUER_URL` (required when `NODE_AUTH_MODE=keycloak`)
+- `KEYCLOAK_AUDIENCE` (required when `NODE_AUTH_MODE=keycloak`)
+- `KEYCLOAK_JWKS_URL` (optional override)
+- `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
+
 ## Rollup Worker (`cmd/ecoflow-rollup-worker`)
 
 - `ROLLUP_DB_DSN` (optional override; falls back to `CONTROL_PLANE_DB_DSN`)
