@@ -6,12 +6,16 @@ import type { RawData } from 'ws';
 
 import { buildWsPreValidation } from './auth.js';
 import type { AppConfig } from './config.js';
+import { DeliveryLane } from './live/deliveryLane.js';
 import type {
   LiveSubscription,
   LiveTelemetryClient
-} from './grpc/liveTelemetryClient.js';
-import { ClientMessageSchema, type ServerDeviceStatusMessage, type ServerTelemetryMessage } from './schemas.js';
-import { deriveTelemetryMetrics, mergeRawMetrics, type RawTelemetryMetrics } from './telemetryMap.js';
+} from './live/liveTelemetryClient.js';
+import {
+  ClientMessageSchema,
+  type ServerDeviceStatusMessage,
+  type ServerTelemetryMessage
+} from './schemas.js';
 
 type BuildAppOptions = {
   wsPreValidation?: preValidationHookHandler;
@@ -19,10 +23,10 @@ type BuildAppOptions = {
 
 type DeviceStreamState = {
   deviceId: string;
-  rawMetrics: RawTelemetryMetrics;
   reconnectAttempt: number;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   activeStream: LiveSubscription | null;
+  deliveryLane: DeliveryLane;
   disposed: boolean;
 };
 
@@ -142,16 +146,28 @@ class GatewaySession {
     if (this.deviceStreams.has(deviceId)) {
       return;
     }
+
     const state: DeviceStreamState = {
       deviceId,
-      rawMetrics: {},
       reconnectAttempt: 0,
       reconnectTimer: null,
       activeStream: null,
+      deliveryLane: new DeliveryLane({
+        deviceId,
+        socket: this.socket,
+        config: this.config.delivery,
+        emitTelemetry: (message) => {
+          this.send(message);
+        },
+        emitStatus: (message) => {
+          this.send(message);
+        }
+      }),
       disposed: false
     };
+
     this.deviceStreams.set(deviceId, state);
-    this.openStream(state, true);
+    this.openStream(state);
   }
 
   private unsubscribeDevice(deviceId: string): void {
@@ -165,7 +181,7 @@ class GatewaySession {
     this.sendDeviceStatus(deviceId, false, Date.now());
   }
 
-  private openStream(state: DeviceStreamState, includeInitialSnapshot: boolean): void {
+  private openStream(state: DeviceStreamState): void {
     if (this.closed || state.disposed) {
       return;
     }
@@ -173,24 +189,19 @@ class GatewaySession {
 
     state.activeStream = this.liveClient.subscribe({
       deviceId: state.deviceId,
-      includeInitialSnapshot,
-      maxUpdateHz: this.config.subscribeUpdateHz,
       authHeader: this.authHeader,
       requestID: this.requestId,
       deadlineMs: this.config.grpcDeadlineMs,
       onSnapshot: (snapshot) => {
         state.reconnectAttempt = 0;
-        state.rawMetrics = { ...snapshot.metrics };
-        this.sendDeviceStatus(state.deviceId, true, timestamp(snapshot.cursor.tsUnixMs));
-        this.sendTelemetry(state.deviceId, timestamp(snapshot.cursor.tsUnixMs), state.rawMetrics);
+        state.deliveryLane.applySnapshot(timestamp(snapshot.cursor.tsUnixMs), snapshot.metrics);
       },
       onDelta: (delta) => {
         state.reconnectAttempt = 0;
-        state.rawMetrics = mergeRawMetrics(state.rawMetrics, delta.changed, delta.cleared);
-        this.sendTelemetry(state.deviceId, timestamp(delta.cursor.tsUnixMs), state.rawMetrics);
+        state.deliveryLane.applyDelta(timestamp(delta.cursor.tsUnixMs), delta.changed, delta.cleared);
       },
       onHeartbeat: (heartbeat) => {
-        this.sendDeviceStatus(state.deviceId, true, timestamp(heartbeat.cursor.tsUnixMs));
+        state.deliveryLane.applyHeartbeat(timestamp(heartbeat.cursor.tsUnixMs));
       },
       onClose: (error) => {
         state.activeStream = null;
@@ -199,6 +210,7 @@ class GatewaySession {
         }
         this.sendDeviceStatus(state.deviceId, false, Date.now());
         if (!shouldReconnect(error)) {
+          this.stopState(state);
           this.deviceStreams.delete(state.deviceId);
           return;
         }
@@ -219,7 +231,7 @@ class GatewaySession {
     );
     state.reconnectTimer = setTimeout(() => {
       state.reconnectTimer = null;
-      this.openStream(state, true);
+      this.openStream(state);
     }, delay);
   }
 
@@ -229,6 +241,7 @@ class GatewaySession {
       state.reconnectTimer = null;
     }
     this.stopActiveStream(state);
+    state.deliveryLane.close();
   }
 
   private stopActiveStream(state: DeviceStreamState): void {
@@ -237,16 +250,6 @@ class GatewaySession {
     }
     state.activeStream.close();
     state.activeStream = null;
-  }
-
-  private sendTelemetry(deviceId: string, ts: number, rawMetrics: RawTelemetryMetrics): void {
-    const metrics = deriveTelemetryMetrics(rawMetrics);
-    this.send({
-      type: 'telemetry',
-      deviceId,
-      ts,
-      metrics
-    } satisfies ServerTelemetryMessage);
   }
 
   private sendDeviceStatus(deviceId: string, online: boolean, ts: number): void {

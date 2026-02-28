@@ -1,9 +1,25 @@
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { createLiveTelemetryClient } from './grpc/liveTelemetryClient.js';
+import {
+  createControlPlaneDeviceAuthorizer,
+  createPermissiveDeviceAuthorizer
+} from './controlplane/deviceAuthorizer.js';
+import { createLiveTelemetryClient } from './live/liveTelemetryClient.js';
+import { NatsDeltaHub } from './live/natsDeltaHub.js';
+import { ValkeySnapshotStore } from './snapshot/valkeySnapshotStore.js';
 
 const config = loadConfig(process.env);
-const liveClient = createLiveTelemetryClient(config.grpcApiAddr);
+const liveClient = createLiveTelemetryClient({
+  authorizer:
+    config.auth.mode === 'noop'
+      ? createPermissiveDeviceAuthorizer()
+      : createControlPlaneDeviceAuthorizer(config.grpcApiAddr),
+  snapshots: new ValkeySnapshotStore(config.valkey),
+  deltaHub: new NatsDeltaHub({
+    urls: config.natsUrls,
+    subjectPrefix: config.telemetrySubjectPrefix
+  })
+});
 const app = buildApp(config, liveClient);
 
 const shutdown = async (signal: string) => {

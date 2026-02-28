@@ -133,11 +133,22 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 
 - `PULSE_REALTIME_GATEWAY_HOST` (default `0.0.0.0`)
 - `PULSE_REALTIME_GATEWAY_PORT` (default `8082`)
-- `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
+- `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target for device authz)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
-- `GRPC_SUBSCRIBE_UPDATE_HZ` (default `4`; thin-slice gateway cap for upstream subscribe streams)
 - `GRPC_RECONNECT_BASE_MS` (default `250`)
 - `GRPC_RECONNECT_MAX_MS` (default `2000`)
+- `NATS_URLS` (comma/whitespace-delimited; default `nats://127.0.0.1:4222`)
+- `VALKEY_ADDRS` (comma/whitespace-delimited; default `127.0.0.1:6379`)
+- `VALKEY_USERNAME` (optional)
+- `VALKEY_PASSWORD` (optional)
+- `PROJECTION_KEY_PREFIX` (default `pulse:projection`; Valkey live snapshot key prefix)
+- `TELEMETRY_SUBJECT_PREFIX` (default `pulse.telemetry`; NATS subject prefix used for ingest delta fanout)
+- `WS_DELIVERY_FAST_INTERVAL_MS` (default `250`)
+- `WS_DELIVERY_STEADY_INTERVAL_MS` (default `500`)
+- `WS_DELIVERY_SLOW_INTERVAL_MS` (default `1000`)
+- `WS_DELIVERY_HIGH_WATERMARK` (default `8`; coalesced delta threshold before stage promotion)
+- `WS_BUFFERED_AMOUNT_HIGH_WATER_BYTES` (default `262144`; websocket bufferedAmount threshold for pressure)
+- `WS_QUIET_TICKS_TO_RECOVER` (default `4`; quiet intervals required before stage recovery)
 - `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
   - `noop`: local/dev mode, token optional.
   - `keycloak`: validate websocket bearer JWT via shared JWKS auth before opening the session.
@@ -145,6 +156,11 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `KEYCLOAK_AUDIENCE` (required when `NODE_AUTH_MODE=keycloak`)
 - `KEYCLOAK_JWKS_URL` (optional override)
 - `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
+
+Runtime behavior:
+- the gateway authorizes device access through the internal Go gRPC API,
+- serves the initial snapshot from Valkey projection state,
+- then streams live deltas from NATS with staged backpressure degradation.
 
 ## Rollup Worker (`cmd/ecoflow-rollup-worker`)
 

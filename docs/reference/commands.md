@@ -58,10 +58,14 @@ PULSE_PLATFORM_PORT='8081' \
 npm run platform-bff
 ```
 
-Run the realtime WebSocket gateway against the local gRPC API:
+Run the realtime WebSocket gateway against the local authz API + live Valkey/NATS data plane:
 
 ```bash
 GRPC_API_ADDR='127.0.0.1:9090' \
+NATS_URLS='nats://127.0.0.1:4222' \
+VALKEY_ADDRS='127.0.0.1:6379' \
+PROJECTION_KEY_PREFIX='pulse:projection' \
+TELEMETRY_SUBJECT_PREFIX='pulse.telemetry' \
 NODE_AUTH_MODE='noop' \
 PULSE_REALTIME_GATEWAY_PORT='8082' \
 npm run realtime-gateway

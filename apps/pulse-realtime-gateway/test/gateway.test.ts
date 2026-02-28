@@ -14,7 +14,7 @@ import type {
   LiveSubscription,
   LiveTelemetryClient,
   SubscribeInput
-} from '../src/grpc/liveTelemetryClient.js';
+} from '../src/live/liveTelemetryClient.js';
 
 type SubscriptionRecord = {
   input: SubscribeInput;
@@ -82,10 +82,23 @@ function baseConfig(): AppConfig {
     port: 0,
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
-    subscribeUpdateHz: 4,
     reconnectBackoff: {
       baseMs: 20,
       maxMs: 40
+    },
+    natsUrls: ['nats://127.0.0.1:4222'],
+    valkey: {
+      addrs: ['127.0.0.1:6379'],
+      keyPrefix: 'pulse:projection'
+    },
+    telemetrySubjectPrefix: 'pulse.telemetry',
+    delivery: {
+      fastIntervalMs: 250,
+      steadyIntervalMs: 500,
+      slowIntervalMs: 1000,
+      highWatermark: 8,
+      bufferedAmountHighWaterBytes: 262144,
+      quietTicksToRecover: 4
     },
     auth: { mode: 'noop', allowMissingJwt: true }
   };
