@@ -9,7 +9,7 @@ import type { CompareRollupSeries, RollupSeries, TelemetryHistoryClient } from '
 function baseConfig(): AppConfig {
   return {
     host: '127.0.0.1',
-    port: 8081,
+    port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
     historyRateLimit: {

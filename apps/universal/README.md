@@ -14,8 +14,8 @@ A universal telemetry dashboard scaffold for EcoFlow devices: one codebase for w
 1. From repo root:
    - `npm install`
 2. Configure env (shell or `.env`):
-   - `EXPO_PUBLIC_API_URL=http://localhost:8080`
-   - `EXPO_PUBLIC_WS_URL=ws://localhost:8080/ws`
+   - `EXPO_PUBLIC_API_URL=http://localhost:18081`
+   - `EXPO_PUBLIC_WS_URL=ws://localhost:8082/ws`
    - For local mock REST without backend: `EXPO_PUBLIC_API_URL=mock://ecoflow`
 3. Run:
    - Web: `npm run web`

@@ -116,7 +116,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 ## Pulse Platform Node REST BFF (`apps/pulse-platform`)
 
 - `PULSE_PLATFORM_HOST` (default `0.0.0.0`)
-- `PULSE_PLATFORM_PORT` (default `8081`)
+- `PULSE_PLATFORM_PORT` (default `18081`)
 - `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
