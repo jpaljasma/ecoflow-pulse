@@ -138,7 +138,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `GRPC_RECONNECT_BASE_MS` (default `250`)
 - `GRPC_RECONNECT_MAX_MS` (default `2000`)
 - `NATS_URLS` (comma/whitespace-delimited; default `nats://127.0.0.1:4222`)
-- `VALKEY_ADDRS` (comma/whitespace-delimited; default `127.0.0.1:6379`)
+- `VALKEY_ADDRS` (comma/whitespace-delimited; default `127.0.0.1:6379`; local realtime validation should use a stable node port-forward such as `127.0.0.1:6380`)
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `PROJECTION_KEY_PREFIX` (default `pulse:projection`; Valkey live snapshot key prefix)

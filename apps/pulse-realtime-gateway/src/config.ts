@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { preferredLocalValkeyAddrs } from './snapshot/valkeySnapshotStore.js';
+
 const envSchema = z.object({
   PULSE_REALTIME_GATEWAY_HOST: z.string().trim().min(1).default('0.0.0.0'),
   PULSE_REALTIME_GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(8082),
@@ -69,7 +71,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
   const allowMissingJwt =
     parsed.KEYCLOAK_ALLOW_MISSING_JWT === 'true' || parsed.KEYCLOAK_ALLOW_MISSING_JWT === '1';
   const natsUrls = splitCsvList(parsed.NATS_URLS, ['nats://127.0.0.1:4222']);
-  const valkeyAddrs = splitCsvList(parsed.VALKEY_ADDRS, ['127.0.0.1:6379']);
+  const valkeyAddrs = preferredLocalValkeyAddrs(splitCsvList(parsed.VALKEY_ADDRS, ['127.0.0.1:6379']));
   const delivery = {
     fastIntervalMs: parsed.WS_DELIVERY_FAST_INTERVAL_MS,
     steadyIntervalMs: parsed.WS_DELIVERY_STEADY_INTERVAL_MS,

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { Text, YStack } from 'tamagui';
@@ -63,6 +63,14 @@ export default function DeviceDetailScreen() {
     [routeDeviceId, devicesQuery.data?.devices]
   );
   const resolvedDeviceId = routeDevice?.id ?? (isUuid(routeDeviceId) ? routeDeviceId : undefined);
+
+  useEffect(() => {
+    if (!routeDeviceId || !routeDevice || routeDevice.id === routeDeviceId) {
+      return;
+    }
+    router.replace(`/device/${routeDevice.id}`);
+  }, [routeDevice, routeDeviceId, router]);
+
   const deviceQuery = useDevice(resolvedDeviceId, {
     token,
     authKey,

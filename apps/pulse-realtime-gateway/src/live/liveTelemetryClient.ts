@@ -47,7 +47,7 @@ export function createLiveTelemetryClient(deps: LiveClientDeps): LiveTelemetryCl
 
       void (async () => {
         try {
-          await deps.authorizer.authorize({
+          const authz = await deps.authorizer.authorize({
             deviceId: input.deviceId,
             authHeader: input.authHeader,
             requestID: input.requestID,
@@ -57,7 +57,7 @@ export function createLiveTelemetryClient(deps: LiveClientDeps): LiveTelemetryCl
             return;
           }
 
-          deltaSubscription = await deps.deltaHub.subscribe(input.deviceId, {
+          deltaSubscription = await deps.deltaHub.subscribe(authz.canonicalDeviceId, {
             onDelta(delta) {
               if (closed) {
                 return;
@@ -82,7 +82,7 @@ export function createLiveTelemetryClient(deps: LiveClientDeps): LiveTelemetryCl
             }
           });
 
-          const snapshot = await deps.snapshots.getSnapshot(input.deviceId);
+          const snapshot = await deps.snapshots.getSnapshot(authz.canonicalDeviceId);
           if (closed) {
             return;
           }
