@@ -1,4 +1,4 @@
-{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled -}}
+{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled .Values.runtime.workers.grpcApi.enabled -}}
 {{- if $workersEnabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -9,6 +9,7 @@ metadata:
 data:
   NATS_URLS: {{ .Values.runtime.env.natsURLs | quote }}
   VALKEY_ADDRS: {{ .Values.runtime.env.valkeyAddrs | quote }}
+  GRPC_AUTH_MODE: {{ .Values.runtime.env.grpcAuthMode | quote }}
   ARCHIVE_OBJECT_ENDPOINT: {{ .Values.runtime.env.archiveObjectEndpoint | quote }}
   ARCHIVE_OBJECT_BUCKET: {{ .Values.runtime.env.archiveObjectBucket | quote }}
   ARCHIVE_OBJECT_PREFIX: {{ .Values.runtime.env.archiveObjectPrefix | quote }}

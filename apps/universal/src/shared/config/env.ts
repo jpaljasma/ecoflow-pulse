@@ -29,11 +29,11 @@ const defaultHttpHost = Platform.OS === 'web' ? defaultWebHost : (defaultNativeH
 const defaultWsHost = defaultHttpHost;
 const defaultApiBase =
   Platform.OS === 'web'
-    ? `${defaultWebHttpScheme}://${defaultHttpHost}:18081`
+    ? `${defaultWebHttpScheme}://${defaultHttpHost}`
     : `http://${defaultHttpHost}:18081`;
 const defaultWsUrl =
   Platform.OS === 'web'
-    ? `${defaultWebWsScheme}://${defaultWsHost}:8082/ws`
+    ? `${defaultWebWsScheme}://${defaultWsHost}/ws`
     : `ws://${defaultWsHost}:8082/ws`;
 export const env = {
   defaultAssetBaseUrl: defaultWebAssetBaseUrl,

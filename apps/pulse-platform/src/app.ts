@@ -1,5 +1,9 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import Fastify, { type FastifyInstance, type preHandlerHookHandler } from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import rateLimit, { type RateLimitOptions } from 'fastify-rate-limit';
 
 import { buildAuthPreHandler } from './auth.js';
@@ -37,6 +41,30 @@ export function buildApp(
     registerDeviceRoutes(scopedApp, config, deviceClient, authPreHandler);
     registerHistoryRoutes(scopedApp, historyClient, authPreHandler);
   });
+  if (config.publicDir && fs.existsSync(config.publicDir)) {
+    void app.register(fastifyStatic, {
+      root: config.publicDir,
+      prefix: '/',
+      index: false
+    });
+    app.get('/', async (request, reply) => {
+      if (request.method !== 'GET') {
+        return reply.code(405).send();
+      }
+      return reply.sendFile('index.html');
+    });
+    app.setNotFoundHandler(async (request, reply) => {
+      const requestedPath = request.raw.url?.replace(/^\//, '').trim() ?? '';
+      if (!requestedPath || requestedPath.startsWith('api/') || requestedPath === 'healthz' || requestedPath.startsWith('ws')) {
+        return reply.code(404).send();
+      }
+      const filePath = path.join(config.publicDir!, requestedPath);
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        return reply.sendFile(requestedPath);
+      }
+      return reply.type('text/html; charset=utf-8').send(fs.readFileSync(path.join(config.publicDir!, 'index.html'), 'utf8'));
+    });
+  }
   app.addHook('onClose', async () => {
     historyClient.close();
     deviceClient.close();

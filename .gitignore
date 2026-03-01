@@ -10,6 +10,7 @@ node_modules/
 apps/universal/dist/
 *.tsbuildinfo
 deploy/charts/*/charts/
+deploy/charts/*/tmpcharts-*/
 deploy/charts/pulse-services/Chart.lock
 .tmp/
 .idea/

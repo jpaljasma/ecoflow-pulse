@@ -3,7 +3,9 @@ import { z } from 'zod';
 const envSchema = z.object({
   PULSE_PLATFORM_HOST: z.string().trim().min(1).default('0.0.0.0'),
   PULSE_PLATFORM_PORT: z.coerce.number().int().min(1).max(65535).default(18081),
+  PULSE_PLATFORM_PUBLIC_DIR: z.string().trim().default(''),
   GRPC_API_ADDR: z.string().trim().min(1).default('127.0.0.1:9090'),
+  REALTIME_GATEWAY_UPSTREAM_URL: z.string().trim().default(''),
   GRPC_API_DEADLINE_MS: z.coerce.number().int().min(100).max(60000).default(10000),
   PULSE_PLATFORM_DEV_SUBJECT: z.string().trim().default(''),
   PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10000).default(120),
@@ -20,7 +22,9 @@ const envSchema = z.object({
 export type AppConfig = {
   host: string;
   port: number;
+  publicDir?: string;
   grpcApiAddr: string;
+  realtimeGatewayUpstreamUrl?: string;
   grpcDeadlineMs: number;
   devUserSubject?: string;
   historyRateLimit: {
@@ -46,7 +50,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     return {
       host: parsed.PULSE_PLATFORM_HOST,
       port: parsed.PULSE_PLATFORM_PORT,
+      publicDir: parsed.PULSE_PLATFORM_PUBLIC_DIR || undefined,
       grpcApiAddr: parsed.GRPC_API_ADDR,
+      realtimeGatewayUpstreamUrl: parsed.REALTIME_GATEWAY_UPSTREAM_URL || undefined,
       grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
       devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,
       historyRateLimit: {
@@ -65,7 +71,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
   return {
     host: parsed.PULSE_PLATFORM_HOST,
     port: parsed.PULSE_PLATFORM_PORT,
+    publicDir: parsed.PULSE_PLATFORM_PUBLIC_DIR || undefined,
     grpcApiAddr: parsed.GRPC_API_ADDR,
+    realtimeGatewayUpstreamUrl: parsed.REALTIME_GATEWAY_UPSTREAM_URL || undefined,
     grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
     devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,
     historyRateLimit: {

@@ -27,6 +27,45 @@ components:
   observabilityLite:
     enabled: false
 
+runtime:
+  publicApp:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: ecoflow-pulse/pulse-platform
+      tag: local
+      pullPolicy: IfNotPresent
+    service:
+      type: LoadBalancer
+      port: 80
+      targetPort: 8080
+    env:
+      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
+      grpcDeadlineMs: "10000"
+      nodeAuthMode: noop
+      publicDir: /app/apps/universal/dist
+      realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
+      devUserSubject: jpaljasma@gmail.com
+  realtimeGateway:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: ecoflow-pulse/pulse-realtime-gateway
+      tag: local
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8082
+      targetPort: 8082
+    env:
+      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
+      grpcDeadlineMs: "10000"
+      natsURLs: nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222
+      valkeyAddrs: pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379
+      projectionKeyPrefix: pulse:projection
+      telemetrySubjectPrefix: pulse.telemetry
+      nodeAuthMode: noop
+
 # Local-first: NATS JetStream enabled, remaining platform components staged.
 nats:
   config:

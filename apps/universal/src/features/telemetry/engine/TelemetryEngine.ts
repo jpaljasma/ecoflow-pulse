@@ -545,6 +545,9 @@ export class TelemetryEngine {
 
   private buildWsCandidates(primary: string): string[] {
     const ordered: string[] = [primary];
+    if (typeof window !== 'undefined') {
+      return ordered;
+    }
     if (!this.wsUrlExplicit) {
       const defaults = ['ws://localhost:8082/ws', 'ws://127.0.0.1:8082/ws'];
       for (const candidate of defaults) {

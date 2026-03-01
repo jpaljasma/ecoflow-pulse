@@ -26,23 +26,3 @@ dependencies:
     repository: https://charts.min.io/
     version: "5.4.0"
     condition: components.minio.enabled
-  - name: ingress-nginx
-    repository: https://kubernetes.github.io/ingress-nginx
-    version: "4.14.3"
-    condition: components.ingressNginx.enabled
-  - name: cert-manager
-    repository: https://charts.jetstack.io
-    version: "v1.19.3"
-    condition: components.certManager.enabled
-  - name: external-secrets
-    repository: https://charts.external-secrets.io
-    version: "2.0.1"
-    condition: components.externalSecrets.enabled
-  - name: kube-prometheus-stack
-    repository: https://prometheus-community.github.io/helm-charts
-    version: "82.2.0"
-    condition: components.observabilityLite.enabled
-  - name: opentelemetry-collector
-    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
-    version: "0.145.0"
-    condition: components.observabilityLite.enabled
