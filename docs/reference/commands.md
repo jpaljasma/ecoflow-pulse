@@ -54,6 +54,7 @@ Run the Node REST BFF against the local gRPC API:
 ```bash
 GRPC_API_ADDR='127.0.0.1:9090' \
 NODE_AUTH_MODE='noop' \
+PULSE_PLATFORM_DEV_SUBJECT='jpaljasma@gmail.com' \
 PULSE_PLATFORM_PORT='18081' \
 npm run platform-bff
 ```
@@ -78,14 +79,6 @@ Run the Expo universal app against the local REST + realtime stack:
 
 ```bash
 EXPO_PUBLIC_API_URL='http://127.0.0.1:18081' \
-EXPO_PUBLIC_WS_URL='ws://127.0.0.1:8082/ws' \
-npm run -w apps/universal web -- --clear
-```
-
-Run the Expo universal app with mock device metadata but live realtime telemetry:
-
-```bash
-EXPO_PUBLIC_API_URL='mock://ecoflow' \
 EXPO_PUBLIC_WS_URL='ws://127.0.0.1:8082/ws' \
 npm run -w apps/universal web -- --clear
 ```

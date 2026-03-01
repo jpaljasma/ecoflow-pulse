@@ -1,10 +1,15 @@
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { createTelemetryHistoryClient } from './grpc/telemetryClient.js';
+import { createControlPlaneClient } from './grpc/controlPlaneClient.js';
+import { createDeviceClient } from './grpc/deviceClient.js';
+import { createTelemetryHistoryClient, createTelemetrySnapshotClient } from './grpc/telemetryClient.js';
 
 const config = loadConfig(process.env);
 const historyClient = createTelemetryHistoryClient(config.grpcApiAddr);
-const app = buildApp(config, historyClient);
+const controlPlaneClient = createControlPlaneClient(config.grpcApiAddr);
+const snapshotClient = createTelemetrySnapshotClient(config.grpcApiAddr);
+const deviceClient = createDeviceClient(config, controlPlaneClient, snapshotClient);
+const app = buildApp(config, historyClient, deviceClient);
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down pulse-platform');

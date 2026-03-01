@@ -14,7 +14,6 @@ export type FleetSummaryStats = {
   pvW: number | undefined;
   loadW: number | undefined;
   netW: number | undefined;
-  solarTodayWh: number | undefined;
 };
 
 export type FleetTypeIcon = {
@@ -61,8 +60,7 @@ export function useFleetSummaryViewModel({
         dcW: undefined,
         pvW: undefined,
         loadW: undefined,
-        netW: undefined,
-        solarTodayWh: undefined
+        netW: undefined
       };
     }
 
@@ -74,7 +72,6 @@ export function useFleetSummaryViewModel({
     let pvW = 0;
     let loadW = 0;
     let netW = 0;
-    let solarTodayWh = 0;
 
     for (const device of devices) {
       const cap = getCapacityKWh(device);
@@ -87,12 +84,13 @@ export function useFleetSummaryViewModel({
       const soc = snapshot?.metrics?.soc ?? device.batteryPct;
       socSum += soc;
 
-      acInW += device.acInW ?? 0;
-      dcW += device.dcW ?? 0;
+      acInW += snapshot?.metrics?.acW ?? device.acInW ?? 0;
+      dcW += snapshot?.metrics?.dcW ?? device.dcW ?? 0;
       pvW += snapshot?.metrics?.pvW ?? device.pvW ?? 0;
       loadW += snapshot?.metrics?.loadW ?? device.loadW ?? 0;
-      netW += snapshot?.metrics ? snapshot.metrics.pvW - snapshot.metrics.loadW : device.netW ?? 0;
-      solarTodayWh += Math.max(0, device.solarTodayWh ?? 0);
+      netW += snapshot?.metrics
+        ? snapshot.metrics.pvW - snapshot.metrics.loadW
+        : device.netW ?? 0;
     }
 
     return {
@@ -102,8 +100,7 @@ export function useFleetSummaryViewModel({
       dcW,
       pvW,
       loadW,
-      netW,
-      solarTodayWh
+      netW
     };
   }, [devices, byId]);
 

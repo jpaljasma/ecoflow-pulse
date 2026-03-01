@@ -1,5 +1,4 @@
 import { env } from '@/shared/config/env';
-import { getMockDevices } from '@/shared/api/mockLogDevices';
 import {
   IncomingMessageSchema,
   type IncomingMessage,
@@ -24,7 +23,6 @@ type EngineOptions = {
   fleetTrendPoints?: number;
   fleetTrendBucketMs?: number;
   createSocket?: (url: string) => WebSocketLike;
-  wsEnabled?: boolean;
 };
 
 type ConnectOptions = {
@@ -66,7 +64,6 @@ export class TelemetryEngine {
   private readonly stalledReconnectMs: number;
   private readonly fleetTrendPoints: number;
   private readonly fleetTrendBucketMs: number;
-  private readonly wsEnabled: boolean;
   private readonly createSocket: (url: string) => WebSocketLike;
 
   private status: TelemetryEngineStatus = 'idle';
@@ -79,9 +76,6 @@ export class TelemetryEngine {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshotTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private mockStreamTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly lastMockTsByDevice = new Map<string, number>();
-  private readonly lastMockFingerprintByDevice = new Map<string, string>();
   private fleetTrend: FleetTrendSnapshot = {
     load: [],
     pv: [],
@@ -123,9 +117,6 @@ export class TelemetryEngine {
       ac: Array.from({ length: this.fleetTrendPoints }, () => 0),
       dc: Array.from({ length: this.fleetTrendPoints }, () => 0)
     };
-    // In mock API mode, default to polling unless the caller explicitly configured
-    // a websocket endpoint for live telemetry validation.
-    this.wsEnabled = options.wsEnabled ?? (!env.apiUrl.startsWith('mock://') || env.wsUrlExplicit);
   }
 
   getStatus(): TelemetryEngineStatus {
@@ -140,13 +131,6 @@ export class TelemetryEngine {
 
     this.token = normalizedToken;
     this.authRequired = nextAuthRequired;
-
-    if (!this.wsEnabled) {
-      this.setStatus('connected');
-      this.startSnapshotClock();
-      this.startMockStream();
-      return;
-    }
 
     this.startSnapshotClock();
 
@@ -189,9 +173,6 @@ export class TelemetryEngine {
 
     if (changed) {
       this.sendSubscription();
-      if (!this.wsEnabled) {
-        this.emitSnapshot();
-      }
     }
   }
 
@@ -215,9 +196,6 @@ export class TelemetryEngine {
 
     if (changed) {
       this.sendSubscription();
-      if (!this.wsEnabled) {
-        this.emitSnapshot();
-      }
     }
   }
 
@@ -230,7 +208,6 @@ export class TelemetryEngine {
     this.shouldReconnect = false;
     this.clearReconnectTimer();
     this.stopSnapshotClock();
-    this.stopMockStream();
     this.clearSubscriptions();
     this.disposeSocket('disconnected');
   }
@@ -335,7 +312,7 @@ export class TelemetryEngine {
   private ingest(message: IncomingMessage): void {
     const runtime = this.getOrInitDeviceRuntime(message.deviceId);
     // Freshness for UI/staleness should be based on receive-time, not source ts,
-    // because mocked/log-replayed streams may emit delayed or repeated timestamps.
+    // because delayed or replayed streams may emit repeated timestamps.
     runtime.lastMessageAt = Date.now();
 
     if (message.type === 'device_status') {
@@ -513,7 +490,6 @@ export class TelemetryEngine {
   }
 
   private reconnectIfStalled(): void {
-    if (!this.wsEnabled) return;
     if (!this.isSocketOpen()) return;
     const socket = this.ws;
     if (!socket) return;
@@ -565,84 +541,6 @@ export class TelemetryEngine {
     }
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
-  }
-
-  private startMockStream(): void {
-    if (this.mockStreamTimer) {
-      return;
-    }
-    void this.pullMockTelemetry();
-    this.mockStreamTimer = setInterval(() => {
-      void this.pullMockTelemetry();
-    }, 1_000);
-  }
-
-  private stopMockStream(): void {
-    if (!this.mockStreamTimer) {
-      return;
-    }
-    clearInterval(this.mockStreamTimer);
-    this.mockStreamTimer = null;
-    // Keep per-device freshness memory across screen/navigation reconnects.
-    // Clearing these maps causes stale devices to appear briefly active on resume.
-  }
-
-  private async pullMockTelemetry(): Promise<void> {
-    try {
-      const devices = await getMockDevices();
-      if (devices.length === 0) return;
-      for (const device of devices) {
-        if (!this.subscribedDeviceIds.has(device.id)) {
-          continue;
-        }
-
-        const ts = device.telemetryTsMs ?? Date.now();
-        const lastTs = this.lastMockTsByDevice.get(device.id) ?? 0;
-        // Always append one sample per polling tick for subscribed devices.
-        // This keeps trend lines advancing even during stable-power periods
-        // and after route transitions.
-        const fingerprint = JSON.stringify({
-          online: device.online,
-          batteryPct: device.batteryPct,
-          pvW: device.pvW,
-          loadW: device.loadW,
-          netW: device.netW,
-          acInW: device.acInW,
-          dcW: device.dcW,
-          tempC: device.tempC,
-          etaMinutes: device.etaMinutes,
-          telemetryTsMs: device.telemetryTsMs ?? null
-        });
-
-        const effectiveTs = ts > lastTs ? ts : lastTs + 1_000;
-        this.lastMockTsByDevice.set(device.id, effectiveTs);
-        this.lastMockFingerprintByDevice.set(device.id, fingerprint);
-
-        this.ingest({
-          type: 'device_status',
-          deviceId: device.id,
-          ts: effectiveTs,
-          online: device.online
-        });
-
-        this.ingest({
-          type: 'telemetry',
-          deviceId: device.id,
-          ts: effectiveTs,
-          metrics: {
-            soc: device.batteryPct ?? 0,
-            pvW: device.pvW ?? 0,
-            loadW: device.loadW ?? 0,
-            batteryW: device.netW ?? 0,
-            tempC: device.tempC ?? 0,
-            acW: device.acInW ?? 0,
-            dcW: device.dcW ?? 0
-          }
-        });
-      }
-    } catch {
-      // Keep mock stream resilient; status stays connected in mock mode.
-    }
   }
 
   private buildWsCandidates(primary: string): string[] {

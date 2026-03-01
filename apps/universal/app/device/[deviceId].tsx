@@ -19,6 +19,7 @@ import { DeviceDetailBody } from '@/features/device-detail/components/DeviceDeta
 import { env } from '@/shared/config/env';
 import { ApiError } from '@/shared/api/restClient';
 import { Card } from '@/shared/ui/Card';
+import { useDeviceSolarHistory } from '@/features/history/hooks';
 
 const DETAIL_TREND_POINTS = 60;
 const SOLAR_GENERATED_POINTS = 72;
@@ -50,7 +51,6 @@ export default function DeviceDetailScreen() {
   const isTablet = width >= 768;
   const isDesktop = width >= 1200;
   const useRemoteImage = Boolean(env.assetBaseUrl);
-  const isMock = env.apiUrl.startsWith('mock://');
   const { deviceId: routeDeviceParam } = useLocalSearchParams<{ deviceId: string | string[] }>();
   const routeDeviceId = Array.isArray(routeDeviceParam) ? routeDeviceParam[0] : routeDeviceParam;
   const router = useRouter();
@@ -74,13 +74,18 @@ export default function DeviceDetailScreen() {
   const deviceQuery = useDevice(resolvedDeviceId, {
     token,
     authKey,
-    enabled: queryEnabled && !isMock && Boolean(resolvedDeviceId)
+    enabled: queryEnabled && Boolean(resolvedDeviceId)
+  });
+  const solarHistory = useDeviceSolarHistory(resolvedDeviceId, {
+    token,
+    authKey,
+    enabled: queryEnabled && Boolean(resolvedDeviceId)
   });
   const device = deviceQuery.data ?? routeDevice;
   useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
   const telemetryConnectionStatus = useTelemetryConnectionStatus();
   const snapshot = useTelemetryDeviceSnapshot(resolvedDeviceId);
-  const routeError = deviceQuery.error ?? devicesQuery.error;
+  const routeError = deviceQuery.error ?? devicesQuery.error ?? solarHistory.error;
   const deviceNotFound =
     queryEnabled &&
     !devicesQuery.isLoading &&
@@ -88,25 +93,8 @@ export default function DeviceDetailScreen() {
     !resolvedDeviceId &&
     !routeError;
 
-  const listDeviceSolarSeries = useMemo(() => {
-    return routeDevice?.solarGeneratedSeriesWh ?? [];
-  }, [routeDevice]);
-
-  const detailSolarSeries = device?.solarGeneratedSeriesWh ?? [];
-  const perDeviceSolarSeries =
-    detailSolarSeries.length >= listDeviceSolarSeries.length ? detailSolarSeries : listDeviceSolarSeries;
-
-  const solarGeneratedTrend = useMemo(() => {
-    const raw = perDeviceSolarSeries;
-    if (!raw.length) {
-      return Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
-    }
-    const padded =
-      raw.length >= SOLAR_GENERATED_POINTS
-        ? raw.slice(-SOLAR_GENERATED_POINTS)
-        : [...Array.from({ length: SOLAR_GENERATED_POINTS - raw.length }, () => 0), ...raw];
-    return padded.map((v) => Math.max(0, v));
-  }, [perDeviceSolarSeries]);
+  const solarGeneratedTrend =
+    solarHistory.data?.seriesWh ?? Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
 
   const detailTrend = useMemo(
     () => ({
@@ -130,7 +118,8 @@ export default function DeviceDetailScreen() {
     device,
     snapshot,
     connectionStatus: telemetryConnectionStatus,
-    useRemoteImage
+    useRemoteImage,
+    todayWh: solarHistory.data?.todayWh
   });
 
   const mobileImageSize = Math.min(width - 64, 360);
@@ -181,11 +170,9 @@ export default function DeviceDetailScreen() {
                 Device detail failed to load
               </Text>
               <Text opacity={0.8}>{describeQueryError(routeError)}</Text>
-              {env.apiUrl.startsWith('http') ? (
-                <Text opacity={0.65}>
-                  Check `EXPO_PUBLIC_API_URL`. Local Expo web runs on `8081`; the Node BFF should run on `18081`.
-                </Text>
-              ) : null}
+              <Text opacity={0.65}>
+                Check `EXPO_PUBLIC_API_URL`. Local Expo web runs on `8081`; the Node BFF should run on `18081`.
+              </Text>
             </Card>
           ) : deviceNotFound ? (
             <Card gap="$2">

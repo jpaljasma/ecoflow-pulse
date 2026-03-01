@@ -66,6 +66,10 @@ export function DeviceDetailBody({
     };
   });
 
+  const hasBatteryPacks = vm.batteryPacks.length > 0 || typeof vm.details?.bpCount === 'number';
+  const hasSolarInputs = vm.solarPorts.length > 0;
+  const hasSignals = vm.signalPills.length > 0;
+
   return (
     <YStack gap="$3">
       <Card gap="$3">
@@ -147,20 +151,28 @@ export function DeviceDetailBody({
         </YStack>
       )}
 
-      <XStack gap="$3" flexWrap="wrap">
-        <BatteryPacksSection
-          packs={vm.batteryPacks}
-          bpCount={vm.details?.bpCount}
-          model={device?.model}
-          serialNumber={device?.serialNumber}
-          minWidth={isDesktop ? 320 : 280}
-        />
-        <SolarInputsSection ports={vm.solarPorts} minWidth={isDesktop ? 320 : 280} />
-      </XStack>
+      {hasBatteryPacks || hasSolarInputs ? (
+        <XStack gap="$3" flexWrap="wrap">
+          {hasBatteryPacks ? (
+            <BatteryPacksSection
+              packs={vm.batteryPacks}
+              bpCount={vm.details?.bpCount}
+              model={device?.model}
+              serialNumber={device?.serialNumber}
+              minWidth={isDesktop ? 320 : 280}
+            />
+          ) : null}
+          {hasSolarInputs ? (
+            <SolarInputsSection ports={vm.solarPorts} minWidth={isDesktop ? 320 : 280} />
+          ) : null}
+        </XStack>
+      ) : null}
 
-      <XStack gap="$3" flexWrap="wrap">
-        <SystemSignalsSection pills={vm.signalPills} minWidth={isDesktop ? 360 : 280} />
-      </XStack>
+      {hasSignals ? (
+        <XStack gap="$3" flexWrap="wrap">
+          <SystemSignalsSection pills={vm.signalPills} minWidth={isDesktop ? 360 : 280} />
+        </XStack>
+      ) : null}
 
       <Card gap="$2">
         <Text fontSize="$4" fontWeight="700">

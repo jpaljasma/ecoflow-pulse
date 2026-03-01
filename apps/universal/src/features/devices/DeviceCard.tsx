@@ -20,6 +20,8 @@ import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
 import { MetricsGrid, type MetricsGridItem } from '@/shared/ui/MetricsGrid';
 import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { useTelemetryDeviceSnapshot } from '@/features/telemetry/hooks';
+import { useAuthSession } from '@/features/auth/hooks';
+import { useDeviceSolarHistory } from '@/features/history/hooks';
 
 function connectivityGlyph(
   snapshot: DeviceSnapshot | undefined,
@@ -44,15 +46,25 @@ export function DeviceCard({
 }) {
   const { width } = useWindowDimensions();
   const snapshot = useTelemetryDeviceSnapshot(device.id);
+  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
+  const historyEnabled = authReady && (!authConfigured || sessionValid);
+  const solarHistory = useDeviceSolarHistory(device.id, {
+    token,
+    authKey,
+    enabled: historyEnabled
+  });
   const isPhoneCompact = width < 460;
   const isTabletUp = width >= 768;
   const isDesktopWide = width >= 1200;
   const metrics = snapshot?.metrics;
   const pvW = metrics?.pvW ?? device.pvW;
-  const acInW = device.acInW;
-  const dcW = device.dcW;
+  const acInW = metrics?.acW ?? device.acInW;
+  const dcW = metrics?.dcW ?? device.dcW;
   const loadW = metrics?.loadW ?? device.loadW;
-  const netW = metrics ? metrics.pvW - metrics.loadW : (device.netW ?? (pvW !== undefined && loadW !== undefined ? pvW - loadW : undefined));
+  const netW =
+    metrics
+      ? metrics.pvW - metrics.loadW
+      : device.netW ?? (pvW !== undefined && loadW !== undefined ? pvW - loadW : undefined);
   const batteryCount =
     device.details?.bpCount ??
     ((device.capabilities as { batteryPacks?: number } | undefined)?.batteryPacks ?? 1);
@@ -135,7 +147,7 @@ export function DeviceCard({
       },
       {
         key: 'today',
-        content: <SolarTodayBadge valueWh={device.solarTodayWh} compact fitCell />
+        content: <SolarTodayBadge valueWh={solarHistory.data?.todayWh} compact fitCell />
       },
       {
         key: 'load',
@@ -157,7 +169,7 @@ export function DeviceCard({
         content: <Stat label="⏱ ETA" value={formatEtaMinutes(device.etaMinutes)} compact />
       }
     ];
-  }, [acInW, dcW, device.etaMinutes, device.solarTodayWh, loadW, netW, pvW]);
+  }, [acInW, dcW, device.etaMinutes, loadW, netW, pvW, solarHistory.data?.todayWh]);
 
   return (
     <Animated.View style={{ opacity: fadeOpacity }}>

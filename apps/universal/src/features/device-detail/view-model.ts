@@ -147,22 +147,24 @@ export function useDeviceDetailViewModel({
   device,
   snapshot,
   connectionStatus,
-  useRemoteImage
+  useRemoteImage,
+  todayWh
 }: {
   device?: DeviceSummary;
   snapshot?: DeviceSnapshot;
   connectionStatus: TelemetryEngineStatus;
   useRemoteImage: boolean;
+  todayWh?: number;
 }): DeviceDetailViewModel {
   const modelLower = (device?.model ?? '').toLowerCase();
   const details = device?.details;
 
-  const acInW = device?.acInW;
-  const dcW = device?.dcW;
-  const pvW = snapshot?.metrics?.pvW;
-  const loadW = snapshot?.metrics?.loadW;
+  const acInW = snapshot?.metrics?.acW ?? device?.acInW;
+  const dcW = snapshot?.metrics?.dcW ?? device?.dcW;
+  const pvW = snapshot?.metrics?.pvW ?? device?.pvW;
+  const loadW = snapshot?.metrics?.loadW ?? device?.loadW;
   const batteryW = snapshot?.metrics?.batteryW;
-  const tempC = snapshot?.metrics?.tempC;
+  const tempC = snapshot?.metrics?.tempC ?? device?.tempC;
   const isColdTemp = typeof tempC === 'number' && tempC <= 2;
   const netW = snapshot?.metrics ? snapshot.metrics.pvW - snapshot.metrics.loadW : device?.netW;
   const capacityKWh = device ? getCapacityKWh(device) : null;
@@ -223,7 +225,7 @@ export function useDeviceDetailViewModel({
       { key: 'ac', kind: 'stat', label: '∿ AC', value: formatW(acInW), tone: metricToneFromValue(acInW) },
       { key: 'dc', kind: 'stat', label: '⎓ DC', value: formatW(dcW), tone: metricToneFromValue(dcW) },
       { key: 'pv', kind: 'stat', label: '☼ PV', value: formatW(pvW), tone: metricToneFromValue(pvW) },
-      { key: 'today', kind: 'today', valueWh: device?.solarTodayWh },
+      { key: 'today', kind: 'today', valueWh: todayWh },
       {
         key: 'load',
         kind: 'stat',
@@ -243,7 +245,7 @@ export function useDeviceDetailViewModel({
       { key: 'state', kind: 'stat', label: '◉ State', value: device ? detailState : '—' },
       { key: 'eta', kind: 'stat', label: '⏱ ETA', value: formatEtaMinutes(device?.etaMinutes) }
     ];
-  }, [acInW, dcW, pvW, loadW, netW, batteryW, isColdTemp, snapshot?.metrics, device, detailState]);
+  }, [acInW, dcW, pvW, loadW, netW, batteryW, isColdTemp, snapshot?.metrics, device, detailState, todayWh]);
 
   const batteryPacks = useMemo<DetailBatteryPackVM[]>(
     () =>
@@ -287,16 +289,19 @@ export function useDeviceDetailViewModel({
   }, [details?.estimateMode, details?.estimateSource, details?.estimateEtaMin, details?.mqttQueueDepth, details?.mqttQueueDroppedOldest, device?.etaMinutes]);
 
   const signalPills = useMemo<DetailSignalPillVM[]>(() => {
-    const dcSignalOn = details?.dcOn === true || details?.usbOn === true || details?.dc12vOn === true;
+    if (!details) {
+      return [];
+    }
+    const dcSignalOn = details.dcOn === true || details.usbOn === true || details.dc12vOn === true;
     const signals: Array<{ key: string; label: string; on?: boolean }> = [
-      { key: 'ac', label: 'AC On', on: details?.acOn },
+      { key: 'ac', label: 'AC On', on: details.acOn },
       { key: 'dc', label: 'DC On', on: dcSignalOn },
-      { key: 'usb', label: 'USB On', on: details?.usbOn },
-      { key: 'dc12', label: '12V On', on: details?.dc12vOn },
-      ...(supportsEvCharging ? [{ key: 'ev', label: 'EV Charging', on: details?.evChargingOn }] : []),
+      { key: 'usb', label: 'USB On', on: details.usbOn },
+      { key: 'dc12', label: '12V On', on: details.dc12vOn },
+      ...(supportsEvCharging ? [{ key: 'ev', label: 'EV Charging', on: details.evChargingOn }] : []),
       ...(supportsBatteryHeating ? [{ key: 'preconditioning', label: 'Preconditioning', on: preconditioningOn }] : []),
-      { key: 'fan', label: 'Fan', on: details?.fanOn },
-      { key: 'solar', label: 'Solar Charging', on: details?.solarChargingOn }
+      { key: 'fan', label: 'Fan', on: details.fanOn },
+      { key: 'solar', label: 'Solar Charging', on: details.solarChargingOn }
     ];
     return signals.map((signal) => ({
       key: signal.key,

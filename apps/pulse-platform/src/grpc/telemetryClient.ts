@@ -52,6 +52,24 @@ export type CompareRollupSeries = {
   previous: RollupSeries;
 };
 
+export type SnapshotRequestInput = {
+  deviceId: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type SnapshotCursor = {
+  seq: string;
+  tsUnixMs: string;
+};
+
+export type Snapshot = {
+  deviceId: string;
+  cursor: SnapshotCursor;
+  metrics: Record<string, number>;
+};
+
 export type QueryRollupRangeInput = {
   deviceId: string;
   resolution: RollupResolution;
@@ -67,8 +85,14 @@ export type CompareRollupRangeInput = QueryRollupRangeInput & {
 };
 
 export interface TelemetryHistoryClient {
+  getSnapshot(input: SnapshotRequestInput): Promise<{ snapshot: Snapshot }>;
   queryRollupRange(input: QueryRollupRangeInput): Promise<RollupSeries>;
   compareRollupRange(input: CompareRollupRangeInput): Promise<CompareRollupSeries>;
+  close(): void;
+}
+
+export interface TelemetrySnapshotClient {
+  getSnapshot(input: SnapshotRequestInput): Promise<{ snapshot: Snapshot }>;
   close(): void;
 }
 
@@ -80,6 +104,7 @@ type GrpcUnaryMethod = (
 ) => void;
 
 type GrpcTelemetryClient = {
+  GetSnapshot: GrpcUnaryMethod;
   QueryRollupRange: GrpcUnaryMethod;
   CompareRollupRange: GrpcUnaryMethod;
   close: () => void;
@@ -120,6 +145,19 @@ type RawRollupSeries = {
 
 type RawQueryRollupRangeResponse = {
   series?: RawRollupSeries;
+};
+
+type RawSnapshot = {
+  deviceId?: unknown;
+  cursor?: {
+    seq?: unknown;
+    tsUnixMs?: unknown;
+  };
+  metrics?: unknown;
+};
+
+type RawGetSnapshotResponse = {
+  snapshot?: RawSnapshot;
 };
 
 type RawCompareRollupRangeResponse = {
@@ -179,6 +217,18 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
     grpc.credentials.createInsecure()
   );
   return {
+    async getSnapshot(input) {
+      const response = await unaryCall<RawGetSnapshotResponse>(
+        client.GetSnapshot.bind(client),
+        {
+          deviceId: input.deviceId
+        },
+        input
+      );
+      return {
+        snapshot: normalizeSnapshot(response.snapshot)
+      };
+    },
     async queryRollupRange(input) {
       const response = await unaryCall<RawQueryRollupRangeResponse>(
         client.QueryRollupRange.bind(client),
@@ -212,6 +262,14 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
     close() {
       client.close();
     }
+  };
+}
+
+export function createTelemetrySnapshotClient(address: string): TelemetrySnapshotClient {
+  const client = createTelemetryHistoryClient(address);
+  return {
+    getSnapshot: client.getSnapshot,
+    close: client.close
   };
 }
 
@@ -263,6 +321,30 @@ function normalizePoint(point: RawRollupPoint): RollupPoint {
     lastTsUnixMs: normalizeString(point.lastTsUnixMs),
     metrics: normalizeMetrics(point.metrics)
   };
+}
+
+function normalizeSnapshot(snapshot: RawSnapshot | undefined): Snapshot {
+  return {
+    deviceId: normalizeString(snapshot?.deviceId),
+    cursor: {
+      seq: normalizeString(snapshot?.cursor?.seq),
+      tsUnixMs: normalizeString(snapshot?.cursor?.tsUnixMs)
+    },
+    metrics: normalizeNumericMap(snapshot?.metrics)
+  };
+}
+
+function normalizeNumericMap(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  const out: Record<string, number> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === 'number' && Number.isFinite(entry)) {
+      out[key] = entry;
+    }
+  }
+  return out;
 }
 
 function normalizeMetrics(metrics: RawRollupMetrics | undefined): RollupMetrics {

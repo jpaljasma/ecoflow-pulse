@@ -2,18 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/shared/config/env', () => ({
   env: {
-    apiUrl: 'http://127.0.0.1:8081',
+    apiUrl: 'http://127.0.0.1:18081',
     wsUrl: 'ws://127.0.0.1:8082/ws',
     wsUrlExplicit: true
   }
 }));
 
-vi.mock('@/shared/api/mockLogDevices', () => ({
-  getMockDevices: vi.fn(async () => [])
-}));
-
 import { TelemetryEngine } from '@/features/telemetry/engine/TelemetryEngine';
-import { env } from '@/shared/config/env';
 
 type FakeSocketType = {
   url: string;
@@ -54,35 +49,22 @@ function createFakeSocket(url: string): FakeSocketType {
 }
 
 describe('TelemetryEngine', () => {
-  it('keeps websocket transport enabled when mock REST is paired with an explicit websocket URL', () => {
-    const originalApiUrl = env.apiUrl;
-    const originalWsUrlExplicit = env.wsUrlExplicit;
+  it('opens the websocket transport by default', () => {
     const createSocket = vi.fn((url: string) => createFakeSocket(url));
 
-    try {
-      env.apiUrl = 'mock://ecoflow';
-      env.wsUrlExplicit = true;
+    const engine = new TelemetryEngine({
+      createSocket
+    });
 
-      const engine = new TelemetryEngine({
-        createSocket
-      });
+    engine.connect();
 
-      engine.connect();
-
-      expect(createSocket).toHaveBeenCalledTimes(1);
-      expect(engine.getStatus()).toBe('connecting');
-    } finally {
-      env.apiUrl = originalApiUrl;
-      env.wsUrlExplicit = originalWsUrlExplicit;
-    }
+    expect(createSocket).toHaveBeenCalledTimes(1);
+    expect(engine.getStatus()).toBe('connecting');
   });
 
   it('stays auth_required without opening a socket when auth is required and no token is present', () => {
     const createSocket = vi.fn((url: string) => createFakeSocket(url));
-    const engine = new TelemetryEngine({
-      wsEnabled: true,
-      createSocket
-    });
+    const engine = new TelemetryEngine({ createSocket });
 
     engine.connect(undefined, { authRequired: true });
 
@@ -97,10 +79,7 @@ describe('TelemetryEngine', () => {
       sockets.push(socket);
       return socket;
     });
-    const engine = new TelemetryEngine({
-      wsEnabled: true,
-      createSocket
-    });
+    const engine = new TelemetryEngine({ createSocket });
 
     engine.connect('token-a', { authRequired: true });
     expect(createSocket).toHaveBeenCalledTimes(1);

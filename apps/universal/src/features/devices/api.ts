@@ -59,8 +59,6 @@ export const DeviceSchema = z.object({
   dcW: z.number().optional(),
   loadW: z.number().optional(),
   netW: z.number().optional(),
-  solarTodayWh: z.number().optional(),
-  solarGeneratedSeriesWh: z.array(z.number()).optional(),
   tempC: z.number().optional(),
   telemetryTsMs: z.number().optional(),
   capabilities: z.record(z.unknown()).optional(),

@@ -3,10 +3,12 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 const extra = Constants.expoConfig?.extra ?? {};
-const defaultWebAssetBaseUrl =
-  Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin
-    ? window.location.origin
-    : '';
+const defaultWebLocation =
+  Platform.OS === 'web' && typeof window !== 'undefined' ? window.location : undefined;
+const defaultWebAssetBaseUrl = defaultWebLocation?.origin ?? '';
+const defaultWebHost = defaultWebLocation?.hostname || '127.0.0.1';
+const defaultWebHttpScheme = defaultWebLocation?.protocol === 'https:' ? 'https' : 'http';
+const defaultWebWsScheme = defaultWebLocation?.protocol === 'https:' ? 'wss' : 'ws';
 const defaultNativeHost = (() => {
   if (Platform.OS === 'web') return '';
   try {
@@ -23,50 +25,29 @@ const defaultNativeHost = (() => {
   }
   return '';
 })();
-const defaultNativeWsUrl = `ws://${defaultNativeHost || '127.0.0.1'}:8082/ws`;
-const defaultNativeHttpBase = (() => {
-  if (Platform.OS === 'web') return '';
-  try {
-    const url = Linking.createURL('/');
-    const parsed = new URL(url);
-    const host = parsed.hostname || defaultNativeHost || '127.0.0.1';
-    const port = parsed.port || '8081';
-    return `http://${host}:${port}`;
-  } catch {
-    const host = defaultNativeHost || '127.0.0.1';
-    return `http://${host}:8081`;
-  }
-})();
-
+const defaultHttpHost = Platform.OS === 'web' ? defaultWebHost : (defaultNativeHost || '127.0.0.1');
+const defaultWsHost = defaultHttpHost;
+const defaultApiBase =
+  Platform.OS === 'web'
+    ? `${defaultWebHttpScheme}://${defaultHttpHost}:18081`
+    : `http://${defaultHttpHost}:18081`;
+const defaultWsUrl =
+  Platform.OS === 'web'
+    ? `${defaultWebWsScheme}://${defaultWsHost}:8082/ws`
+    : `ws://${defaultWsHost}:8082/ws`;
 export const env = {
   defaultAssetBaseUrl: defaultWebAssetBaseUrl,
   apiUrl:
     process.env.EXPO_PUBLIC_API_URL ??
-    (typeof extra.apiUrl === 'string' ? extra.apiUrl : 'mock://ecoflow'),
+    (typeof extra.apiUrl === 'string' ? extra.apiUrl : defaultApiBase),
   wsUrl:
     process.env.EXPO_PUBLIC_WS_URL ??
     (typeof extra.wsUrl === 'string'
       ? extra.wsUrl
-      : Platform.OS === 'web'
-        ? 'ws://localhost:8082/ws'
-        : defaultNativeWsUrl),
+      : defaultWsUrl),
   wsUrlExplicit:
     typeof process.env.EXPO_PUBLIC_WS_URL === 'string' ||
     typeof extra.wsUrl === 'string',
-  mockLogUrl:
-    process.env.EXPO_PUBLIC_MOCK_LOG_URL ??
-    (typeof extra.mockLogUrl === 'string'
-      ? extra.mockLogUrl
-      : Platform.OS === 'web'
-        ? '/mock/mqtt.log'
-        : `${defaultNativeHttpBase}/logs/mqtt.log`),
-  mockTrainingUrl:
-    process.env.EXPO_PUBLIC_MOCK_TRAINING_URL ??
-    (typeof extra.mockTrainingUrl === 'string'
-      ? extra.mockTrainingUrl
-      : Platform.OS === 'web'
-        ? '/mock/telemetry_training.csv'
-        : `${defaultNativeHttpBase}/logs/telemetry_training.csv`),
   assetBaseUrl:
     process.env.EXPO_PUBLIC_ASSET_BASE_URL ??
     (typeof extra.assetBaseUrl === 'string'
