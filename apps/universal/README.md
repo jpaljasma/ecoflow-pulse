@@ -14,8 +14,8 @@ A universal telemetry dashboard scaffold for EcoFlow devices: one codebase for w
 1. From repo root:
    - `npm install`
 2. Configure env (shell or `.env`):
-   - `EXPO_PUBLIC_API_URL=http://localhost:8080`
-   - `EXPO_PUBLIC_WS_URL=ws://localhost:8080/ws`
+   - `EXPO_PUBLIC_API_URL=http://localhost:18081`
+   - `EXPO_PUBLIC_WS_URL=ws://localhost:8082/ws`
    - For local mock REST without backend: `EXPO_PUBLIC_API_URL=mock://ecoflow`
 3. Run:
    - Web: `npm run web`
@@ -48,6 +48,11 @@ Telemetry rendering is decoupled from message ingest:
 - A device is marked stale when no update arrives for `>5s`.
 
 This keeps rendering stable and avoids React churn under high throughput.
+
+## Auth + reconnect behavior
+- when OIDC is configured, REST queries and websocket connect wait for persisted auth session hydration.
+- if auth is required and no valid access token exists, the telemetry engine stays in `auth_required` and the devices screen shows a sign-in-required state.
+- websocket lifecycle is owned by the provider, so token refresh/reconnect does not clear active device subscriptions.
 
 ## Devices UI Behavior
 - Fleet summary includes:

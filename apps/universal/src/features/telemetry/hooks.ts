@@ -17,11 +17,6 @@ export function useTelemetrySubscription(deviceIds: string[]) {
   const stableIds = useStableDeviceIds(deviceIds);
 
   useEffect(() => {
-    // Idempotent safety call: ensures engine clocks/socket are running
-    // even after route/hot-reload edge cases.
-    engine.connect();
-    // Seed current engine status immediately so UI doesn't stay on initial "idle"
-    // when provider connected before listeners were attached.
     setConnectionStatus(engine.getStatus());
     const unsubSnapshot = engine.onSnapshot(updateSnapshots);
     const unsubStatus = engine.onStatus(setConnectionStatus);

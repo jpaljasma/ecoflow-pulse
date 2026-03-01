@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo } from 'react';
+import { useAuthSession } from '@/features/auth/hooks';
 import { TelemetryEngine } from '@/features/telemetry/engine/TelemetryEngine';
 
 type TelemetryEngineContextValue = {
@@ -9,13 +10,20 @@ const TelemetryEngineContext = createContext<TelemetryEngineContextValue | null>
 
 export function TelemetryEngineProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({ engine: new TelemetryEngine() }), []);
+  const { authConfigured, authReady, token } = useAuthSession();
 
   useEffect(() => {
-    value.engine.connect();
     return () => {
       value.engine.disconnect();
     };
   }, [value.engine]);
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+    value.engine.connect(token, { authRequired: authConfigured });
+  }, [authConfigured, authReady, token, value.engine]);
 
   return <TelemetryEngineContext.Provider value={value}>{children}</TelemetryEngineContext.Provider>;
 }

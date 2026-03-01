@@ -18,7 +18,7 @@ export async function maybeHandleMockRequest(path: string): Promise<MockResponse
   const match = path.match(/^\/api\/devices\/([^/]+)$/);
   if (match) {
     const id = decodeURIComponent(match[1] as string);
-    const device = devices.find((d) => d.id === id);
+    const device = devices.find((d) => d.id === id || d.serialNumber === id);
     if (!device) {
       return { status: 404, body: { message: 'Device not found' } };
     }

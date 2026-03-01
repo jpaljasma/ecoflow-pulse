@@ -46,6 +46,7 @@ export type FleetTrendSnapshot = {
 
 export type TelemetryEngineStatus =
   | 'idle'
+  | 'auth_required'
   | 'connecting'
   | 'connected'
   | 'reconnecting'

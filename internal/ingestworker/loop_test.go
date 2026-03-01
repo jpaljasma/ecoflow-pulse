@@ -574,7 +574,7 @@ func TestLoopIgnoresStaleTerminationEvent(t *testing.T) {
 
 	waitForAtLeast(t, &runner.starts, 1, time.Second, "session start")
 	key := assignmentKey("ecoflow", "R1")
-	token := runningToken(t, loop, key)
+	token := waitForRunningToken(t, loop, key, time.Second)
 	if token == "" {
 		t.Fatalf("expected running token")
 	}
@@ -687,6 +687,18 @@ func runningToken(t *testing.T, loop *Loop, key string) string {
 		return ""
 	}
 	return rs.lease.Token
+}
+
+func waitForRunningToken(t *testing.T, loop *Loop, key string, timeout time.Duration) string {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if token := runningToken(t, loop, key); token != "" {
+			return token
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return ""
 }
 
 func testLogger() *slog.Logger {

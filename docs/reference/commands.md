@@ -54,7 +54,7 @@ Run the Node REST BFF against the local gRPC API:
 ```bash
 GRPC_API_ADDR='127.0.0.1:9090' \
 NODE_AUTH_MODE='noop' \
-PULSE_PLATFORM_PORT='8081' \
+PULSE_PLATFORM_PORT='18081' \
 npm run platform-bff
 ```
 
@@ -69,6 +69,25 @@ TELEMETRY_SUBJECT_PREFIX='pulse.telemetry' \
 NODE_AUTH_MODE='noop' \
 PULSE_REALTIME_GATEWAY_PORT='8082' \
 npm run realtime-gateway
+```
+
+Run the Expo universal app against the local REST + realtime stack:
+
+```bash
+EXPO_PUBLIC_API_URL='http://127.0.0.1:18081' \
+EXPO_PUBLIC_WS_URL='ws://127.0.0.1:8082/ws' \
+npm run -w apps/universal web -- --clear
+```
+
+Run the Expo universal app with local PKCE auth enabled:
+
+```bash
+EXPO_PUBLIC_API_URL='http://127.0.0.1:18081' \
+EXPO_PUBLIC_WS_URL='ws://127.0.0.1:8082/ws' \
+EXPO_PUBLIC_OIDC_ISSUER_URL='http://127.0.0.1:8084/realms/pulse' \
+EXPO_PUBLIC_OIDC_CLIENT_ID='pulse-universal-app' \
+EXPO_PUBLIC_OIDC_SCOPES='openid profile email offline_access' \
+npm run -w apps/universal web -- --clear
 ```
 
 Race detection commands (critical service paths):

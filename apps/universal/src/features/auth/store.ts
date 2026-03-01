@@ -15,7 +15,9 @@ export type StoredOidcSession = {
 };
 
 type AuthState = {
+  hydrated: boolean;
   session: StoredOidcSession | null;
+  setHydrated: (hydrated: boolean) => void;
   setSession: (input: {
     issuerUrl: string;
     clientId: string;
@@ -27,7 +29,9 @@ type AuthState = {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
+      hydrated: false,
       session: null,
+      setHydrated: (hydrated) => set({ hydrated }),
       setSession: (input) =>
         set(() => ({
           session: {
@@ -46,7 +50,10 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'pulse-oidc-session-v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ session: state.session })
+      partialize: (state) => ({ session: state.session }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true);
+      }
     }
   )
 );

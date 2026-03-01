@@ -116,7 +116,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 ## Pulse Platform Node REST BFF (`apps/pulse-platform`)
 
 - `PULSE_PLATFORM_HOST` (default `0.0.0.0`)
-- `PULSE_PLATFORM_PORT` (default `8081`)
+- `PULSE_PLATFORM_PORT` (default `18081`)
 - `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
@@ -202,3 +202,8 @@ Runtime behavior:
   - when unset on web, app uses `/public` local paths,
   - large product images can be remote URI-based and are cached via `expo-image` (`memory-disk`),
   - brand/logo assets are bundled local app assets for smooth top-bar and menu rendering.
+
+Runtime behavior:
+- if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
+- if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
+- websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.

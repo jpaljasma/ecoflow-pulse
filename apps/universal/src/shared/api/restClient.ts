@@ -67,5 +67,17 @@ export async function requestJson<T>(
     );
   }
 
+  if (!contentType.includes('application/json')) {
+    const preview =
+      typeof parsedBody === 'string'
+        ? parsedBody.slice(0, 160).replace(/\s+/g, ' ').trim()
+        : undefined;
+    throw new ApiError(
+      `Expected JSON response for ${method} ${path}, received ${contentType || 'unknown content-type'}${preview ? `: ${preview}` : ''}`,
+      res.status,
+      parsedBody
+    );
+  }
+
   return parsedBody as T;
 }
