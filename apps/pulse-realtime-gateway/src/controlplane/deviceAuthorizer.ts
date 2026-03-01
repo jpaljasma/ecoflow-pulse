@@ -37,19 +37,29 @@ type ControlPlaneClient = {
     request: { userSubject?: string },
     metadata: grpc.Metadata,
     options: grpc.CallOptions,
-    callback: (error: grpc.ServiceError | null, response?: { devices?: Array<{ deviceId?: string }> }) => void
+    callback: (
+      error: grpc.ServiceError | null,
+      response?: { devices?: Array<{ deviceId?: string; ecoflowSn?: string }> }
+    ) => void
   ) => void;
   close: () => void;
 };
 
 export interface DeviceAuthorizer {
-  authorize(input: { deviceId: string; authHeader?: string; requestID?: string; deadlineMs: number }): Promise<void>;
+  authorize(input: {
+    deviceId: string;
+    authHeader?: string;
+    requestID?: string;
+    deadlineMs: number;
+  }): Promise<{ canonicalDeviceId: string }>;
   close(): void;
 }
 
 export function createPermissiveDeviceAuthorizer(): DeviceAuthorizer {
   return {
-    async authorize(): Promise<void> {},
+    async authorize(input): Promise<{ canonicalDeviceId: string }> {
+      return { canonicalDeviceId: input.deviceId };
+    },
     close(): void {}
   };
 }
@@ -62,7 +72,7 @@ export function createControlPlaneDeviceAuthorizer(address: string, defaultUserS
 
   return {
     authorize(input) {
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<{ canonicalDeviceId: string }>((resolve, reject) => {
         const metadata = new grpc.Metadata();
         if (input.authHeader) {
           metadata.set('authorization', input.authHeader);
@@ -82,10 +92,15 @@ export function createControlPlaneDeviceAuthorizer(address: string, defaultUserS
               reject(error as Error & { code?: number });
               return;
             }
-            const allowed = new Set((response?.devices ?? []).map((device) => String(device.deviceId ?? '').trim()).filter(Boolean));
-            if (allowed.has(input.deviceId)) {
-              resolve();
-              return;
+            const requested = String(input.deviceId ?? '').trim();
+            for (const device of response?.devices ?? []) {
+              const canonicalDeviceId = String(device.deviceId ?? '').trim();
+              const ecoflowSn = String(device.ecoflowSn ?? '').trim();
+              if (!canonicalDeviceId) continue;
+              if (requested === canonicalDeviceId || (ecoflowSn !== '' && requested === ecoflowSn)) {
+                resolve({ canonicalDeviceId });
+                return;
+              }
             }
             reject(Object.assign(new Error('device access denied'), { code: grpc.status.PERMISSION_DENIED }));
           }

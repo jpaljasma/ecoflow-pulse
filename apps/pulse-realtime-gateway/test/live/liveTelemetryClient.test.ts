@@ -7,12 +7,13 @@ import type { LiveDelta, LiveHeartbeat, LiveSnapshot, LiveSubscription } from '.
 import type { SnapshotStore } from '../../src/snapshot/valkeySnapshotStore.js';
 
 class FakeAuthorizer implements DeviceAuthorizer {
-  constructor(private readonly allowed = true) {}
+  constructor(private readonly allowed = true, private readonly canonicalize: (deviceId: string) => string = (deviceId) => deviceId) {}
 
-  async authorize(): Promise<void> {
+  async authorize(input: { deviceId: string }): Promise<{ canonicalDeviceId: string }> {
     if (!this.allowed) {
       throw Object.assign(new Error('forbidden'), { code: 7 });
     }
+    return { canonicalDeviceId: this.canonicalize(input.deviceId) };
   }
 
   close(): void {}

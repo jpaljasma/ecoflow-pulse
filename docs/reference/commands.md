@@ -61,9 +61,12 @@ npm run platform-bff
 Run the realtime WebSocket gateway against the local authz API + live Valkey/NATS data plane:
 
 ```bash
+# Port-forward a stable Valkey node for local snapshot reads first.
+kubectl -n pulse-platform port-forward pod/pulse-platform-valkey-node-0 6380:6379
+
 GRPC_API_ADDR='127.0.0.1:9090' \
 NATS_URLS='nats://127.0.0.1:4222' \
-VALKEY_ADDRS='127.0.0.1:6379' \
+VALKEY_ADDRS='127.0.0.1:6380' \
 PROJECTION_KEY_PREFIX='pulse:projection' \
 TELEMETRY_SUBJECT_PREFIX='pulse.telemetry' \
 NODE_AUTH_MODE='noop' \
@@ -75,6 +78,14 @@ Run the Expo universal app against the local REST + realtime stack:
 
 ```bash
 EXPO_PUBLIC_API_URL='http://127.0.0.1:18081' \
+EXPO_PUBLIC_WS_URL='ws://127.0.0.1:8082/ws' \
+npm run -w apps/universal web -- --clear
+```
+
+Run the Expo universal app with mock device metadata but live realtime telemetry:
+
+```bash
+EXPO_PUBLIC_API_URL='mock://ecoflow' \
 EXPO_PUBLIC_WS_URL='ws://127.0.0.1:8082/ws' \
 npm run -w apps/universal web -- --clear
 ```
@@ -113,7 +124,7 @@ Run gRPC API with live snapshot reads from Valkey (used by `TelemetryService.Get
 
 ```bash
 CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' \
-VALKEY_ADDRS='127.0.0.1:6379' \
+VALKEY_ADDRS='127.0.0.1:6380' \
 PROJECTION_KEY_PREFIX='pulse:projection' \
 go run ./cmd/ecoflow-grpc-api
 ```

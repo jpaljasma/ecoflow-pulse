@@ -123,9 +123,9 @@ export class TelemetryEngine {
       ac: Array.from({ length: this.fleetTrendPoints }, () => 0),
       dc: Array.from({ length: this.fleetTrendPoints }, () => 0)
     };
-    // In mock API mode, always use polling transport.
-    // Native/web mock sources are file/HTTP based and WS churn causes reconnect loops.
-    this.wsEnabled = options.wsEnabled ?? !env.apiUrl.startsWith('mock://');
+    // In mock API mode, default to polling unless the caller explicitly configured
+    // a websocket endpoint for live telemetry validation.
+    this.wsEnabled = options.wsEnabled ?? (!env.apiUrl.startsWith('mock://') || env.wsUrlExplicit);
   }
 
   getStatus(): TelemetryEngineStatus {
@@ -648,7 +648,7 @@ export class TelemetryEngine {
   private buildWsCandidates(primary: string): string[] {
     const ordered: string[] = [primary];
     if (!this.wsUrlExplicit) {
-      const defaults = ['ws://localhost:8080/ws', 'ws://127.0.0.1:8080/ws'];
+      const defaults = ['ws://localhost:8082/ws', 'ws://127.0.0.1:8082/ws'];
       for (const candidate of defaults) {
         if (!ordered.includes(candidate)) ordered.push(candidate);
       }

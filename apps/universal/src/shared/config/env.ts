@@ -23,7 +23,7 @@ const defaultNativeHost = (() => {
   }
   return '';
 })();
-const defaultNativeWsUrl = `ws://${defaultNativeHost || '127.0.0.1'}:8080/ws`;
+const defaultNativeWsUrl = `ws://${defaultNativeHost || '127.0.0.1'}:8082/ws`;
 const defaultNativeHttpBase = (() => {
   if (Platform.OS === 'web') return '';
   try {
@@ -48,7 +48,7 @@ export const env = {
     (typeof extra.wsUrl === 'string'
       ? extra.wsUrl
       : Platform.OS === 'web'
-        ? 'ws://localhost:8080/ws'
+        ? 'ws://localhost:8082/ws'
         : defaultNativeWsUrl),
   wsUrlExplicit:
     typeof process.env.EXPO_PUBLIC_WS_URL === 'string' ||
