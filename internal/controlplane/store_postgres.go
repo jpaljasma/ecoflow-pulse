@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -451,6 +452,8 @@ INSERT INTO provider_devices (
 	credential_id,
 	product_name,
 	model,
+	capabilities,
+	metadata,
 	is_active,
 	ingest_desired_state,
 	created_at,
@@ -463,10 +466,12 @@ VALUES (
 	$4::uuid,
 	NULLIF($5, ''),
 	NULLIF($6, ''),
-	$7,
-	$8,
+	COALESCE($7::jsonb, '{}'::jsonb),
+	COALESCE($8::jsonb, '{}'::jsonb),
 	$9,
-	$9
+	$10,
+	$11,
+	$11
 )
 ON CONFLICT (provider, provider_device_id)
 DO UPDATE
@@ -480,11 +485,27 @@ SET device_id = EXCLUDED.device_id,
 		WHEN length(trim(COALESCE(provider_devices.model, ''))) = 0 THEN EXCLUDED.model
 		ELSE provider_devices.model
 	END,
+	capabilities = CASE
+		WHEN $7::jsonb IS NULL THEN provider_devices.capabilities
+		ELSE $7::jsonb
+	END,
+	metadata = CASE
+		WHEN $8::jsonb IS NULL THEN provider_devices.metadata
+		ELSE $8::jsonb
+	END,
 	is_active = EXCLUDED.is_active,
 	ingest_desired_state = EXCLUDED.ingest_desired_state,
 	updated_at = EXCLUDED.updated_at
-RETURNING id::text, device_id::text, provider, provider_device_id, credential_id::text, is_active, ingest_desired_state;
+RETURNING id::text, device_id::text, provider, provider_device_id, credential_id::text, COALESCE(product_name, ''), COALESCE(model, ''), capabilities, metadata, is_active, ingest_desired_state;
 `
+	capabilitiesJSON, err := marshalJSONBMap(in.Capabilities)
+	if err != nil {
+		return ProviderDevice{}, fmt.Errorf("marshal provider device capabilities: %w", err)
+	}
+	metadataJSON, err := marshalJSONBMap(in.Metadata)
+	if err != nil {
+		return ProviderDevice{}, fmt.Errorf("marshal provider device metadata: %w", err)
+	}
 	var out ProviderDevice
 	if err := s.db.QueryRowContext(
 		ctx,
@@ -495,6 +516,8 @@ RETURNING id::text, device_id::text, provider, provider_device_id, credential_id
 		in.CredentialID,
 		in.ProductName,
 		in.Model,
+		capabilitiesJSON,
+		metadataJSON,
 		in.IsActive,
 		strings.ToLower(strings.TrimSpace(in.IngestDesiredState)),
 		now,
@@ -504,14 +527,16 @@ RETURNING id::text, device_id::text, provider, provider_device_id, credential_id
 		&out.Provider,
 		&out.ProviderDeviceID,
 		&out.CredentialID,
+		&out.ProductName,
+		&out.Model,
+		(*jsonbMap)(&out.Capabilities),
+		(*jsonbMap)(&out.Metadata),
 		&out.IsActive,
 		&out.IngestDesiredState,
 	); err != nil {
 		return ProviderDevice{}, fmt.Errorf("upsert provider device: %w", err)
 	}
 	out.CanonicalSN = strings.TrimSpace(in.ProviderDeviceID)
-	out.ProductName = strings.TrimSpace(in.ProductName)
-	out.Model = strings.TrimSpace(in.Model)
 	return out, nil
 }
 
@@ -527,6 +552,8 @@ SELECT
 	d.ecoflow_sn,
 	COALESCE(pd.product_name, d.product_name, ''),
 	COALESCE(pd.model, d.model, ''),
+	pd.capabilities,
+	pd.metadata,
 	pd.is_active,
 	pd.ingest_desired_state
 FROM provider_devices pd
@@ -556,6 +583,8 @@ ORDER BY pd.provider ASC, d.product_name ASC, d.ecoflow_sn ASC;
 			&row.CanonicalSN,
 			&row.ProductName,
 			&row.Model,
+			(*jsonbMap)(&row.Capabilities),
+			(*jsonbMap)(&row.Metadata),
 			&row.IsActive,
 			&row.IngestDesiredState,
 		); err != nil {
@@ -625,6 +654,50 @@ ORDER BY pd.provider ASC, pd.provider_device_id ASC;
 		return nil, fmt.Errorf("iterate ingest assignments rows: %w", err)
 	}
 	return out, nil
+}
+
+type jsonbMap map[string]any
+
+func (m *jsonbMap) Scan(src any) error {
+	if m == nil {
+		return errors.New("jsonbMap scan target is nil")
+	}
+	switch value := src.(type) {
+	case nil:
+		*m = jsonbMap{}
+		return nil
+	case []byte:
+		return m.unmarshal(value)
+	case string:
+		return m.unmarshal([]byte(value))
+	default:
+		return fmt.Errorf("scan jsonb map: unsupported source type %T", src)
+	}
+}
+
+func (m *jsonbMap) unmarshal(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*m = jsonbMap{}
+		return nil
+	}
+	decoded := make(map[string]any)
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("unmarshal jsonb map: %w", err)
+	}
+	*m = decoded
+	return nil
+}
+
+func marshalJSONBMap(value map[string]any) ([]byte, error) {
+	if value == nil {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return encoded, nil
 }
 
 func utcNow() time.Time {

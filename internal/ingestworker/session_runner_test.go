@@ -18,7 +18,7 @@ import (
 func TestNewEcoFlowSessionRunnerRequiresPublisher(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewEcoFlowSessionRunner(testLogger(), nil, nil, EcoFlowSessionConfig{})
+	_, err := NewEcoFlowSessionRunner(testLogger(), nil, nil, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{})
 	if err == nil {
 		t.Fatalf("expected constructor to fail without publisher")
 	}
@@ -27,7 +27,7 @@ func TestNewEcoFlowSessionRunnerRequiresPublisher(t *testing.T) {
 func TestNewEcoFlowSessionRunnerRejectsUnorderedPublishWithoutOptIn(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewEcoFlowSessionRunner(testLogger(), nil, &fakeEnvelopePublisher{}, EcoFlowSessionConfig{
+	_, err := NewEcoFlowSessionRunner(testLogger(), nil, &fakeEnvelopePublisher{}, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
 		PublishWorkers: 4,
 	})
 	if err == nil {
@@ -38,12 +38,21 @@ func TestNewEcoFlowSessionRunnerRejectsUnorderedPublishWithoutOptIn(t *testing.T
 func TestNewEcoFlowSessionRunnerAllowsUnorderedPublishWithOptIn(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewEcoFlowSessionRunner(testLogger(), nil, &fakeEnvelopePublisher{}, EcoFlowSessionConfig{
+	_, err := NewEcoFlowSessionRunner(testLogger(), nil, &fakeEnvelopePublisher{}, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
 		PublishWorkers:        4,
 		AllowUnorderedPublish: true,
 	})
 	if err != nil {
 		t.Fatalf("expected constructor to succeed with unordered publish opt-in, got=%v", err)
+	}
+}
+
+func TestNewEcoFlowSessionRunnerRequiresProviderDeviceUpdater(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewEcoFlowSessionRunner(testLogger(), nil, &fakeEnvelopePublisher{}, nil, EcoFlowSessionConfig{})
+	if err == nil {
+		t.Fatalf("expected constructor to fail without provider device updater")
 	}
 }
 
@@ -59,7 +68,7 @@ func TestEcoFlowSessionRunnerRunPublishesEnvelope(t *testing.T) {
 			return nil
 		},
 	}
-	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
 		ShardCount:          64,
 		ReconnectJitter:     0,
 		ReconnectMaxBackoff: 5 * time.Millisecond,
@@ -90,7 +99,7 @@ func TestEcoFlowSessionRunnerRunPublishesEnvelope(t *testing.T) {
 
 	runner.adapter = resolver
 	runner.newSubscriber = factory.new
-	runner.sleepFn = func(context.Context, time.Duration) error { return nil }
+	runner.sleepFn = testSessionSleep
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
@@ -135,7 +144,7 @@ func TestEcoFlowSessionRunnerReconnectsAfterReadFailure(t *testing.T) {
 			return nil
 		},
 	}
-	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
 		ReconnectInitialBackoff: time.Millisecond,
 		ReconnectMaxBackoff:     2 * time.Millisecond,
 		ReconnectJitter:         0,
@@ -170,7 +179,7 @@ func TestEcoFlowSessionRunnerReconnectsAfterReadFailure(t *testing.T) {
 	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber1, subscriber2}}
 	runner.adapter = resolver
 	runner.newSubscriber = factory.new
-	runner.sleepFn = func(context.Context, time.Duration) error { return nil }
+	runner.sleepFn = testSessionSleep
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
@@ -209,7 +218,7 @@ func TestEcoFlowSessionRunnerDoesNotReconnectOnPublishFailure(t *testing.T) {
 			return nil
 		},
 	}
-	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
 		ReconnectInitialBackoff: time.Millisecond,
 		ReconnectMaxBackoff:     2 * time.Millisecond,
 		ReconnectJitter:         0,
@@ -235,7 +244,7 @@ func TestEcoFlowSessionRunnerDoesNotReconnectOnPublishFailure(t *testing.T) {
 	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
 	runner.adapter = resolver
 	runner.newSubscriber = factory.new
-	runner.sleepFn = func(context.Context, time.Duration) error { return nil }
+	runner.sleepFn = testSessionSleep
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
@@ -265,7 +274,7 @@ func TestEcoFlowSessionRunnerStopsOnInvalidAccessKeyBusinessError(t *testing.T) 
 	t.Parallel()
 
 	publisher := &fakeEnvelopePublisher{}
-	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
 		ReconnectInitialBackoff: time.Millisecond,
 		ReconnectMaxBackoff:     2 * time.Millisecond,
 		ReconnectJitter:         0,
@@ -313,7 +322,7 @@ func TestEcoFlowSessionRunnerRejectsUnsupportedProvider(t *testing.T) {
 	t.Parallel()
 
 	publisher := &fakeEnvelopePublisher{}
-	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, EcoFlowSessionConfig{})
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{})
 	if err != nil {
 		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
 	}
@@ -322,6 +331,291 @@ func TestEcoFlowSessionRunnerRejectsUnsupportedProvider(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected unsupported provider error")
+	}
+}
+
+func TestEcoFlowSessionRunnerPublishesQuotaBootstrapAndUpsertsMetadata(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	publisher := &fakeEnvelopePublisher{
+		onPublish: func(env *envelopev1.TelemetryEnvelope) error {
+			if env.GetPayloadType() == "ecoflow.mqtt.raw" {
+				cancel()
+			}
+			return nil
+		},
+	}
+	updater := &fakeProviderDeviceUpdater{}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, updater, EcoFlowSessionConfig{
+		ReconnectJitter:      0,
+		ReconnectMaxBackoff:  5 * time.Millisecond,
+		QuotaRefreshInterval: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+
+	resolver := &fakeCertResolver{
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+		},
+		quota: map[string]string{
+			"pd.soc":                         "35",
+			"pd.wattsInSum":                  "123.5",
+			"hs_yj751_pd_appshow_addr.bpNum": "2",
+			"pd.dcOutState":                  "1",
+		},
+	}
+	subscriber := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{
+			{
+				msg: ecoflowmqtt.Message{
+					Topic:   "/open/open-account/R351ZABAPH331057/quota",
+					Payload: []byte(`{"id":8221,"typeCode":"pdStatus"}`),
+				},
+			},
+		},
+	}
+	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+	runner.adapter = resolver
+	runner.newSubscriber = factory.new
+	runner.sleepFn = testSessionSleep
+
+	assignment := controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "R351ZABAPH331057",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		ProductName:        "Kitchen Delta 2 Max",
+		Model:              "delta2max",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+		DeviceIsActive:     true,
+		IngestDesiredState: "active",
+	}
+
+	if err := runner.Run(ctx, assignment); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := resolver.quotaCalls.Load(); got < 1 {
+		t.Fatalf("expected at least one quota call, got=%d", got)
+	}
+	if got := updater.calls.Load(); got < 1 {
+		t.Fatalf("expected at least one provider device upsert, got=%d", got)
+	}
+	inputs := updater.snapshot()
+	if len(inputs) == 0 {
+		t.Fatalf("expected recorded provider device upsert input")
+	}
+	if got := inputs[0].Capabilities["battery_pack_count"]; got != int64(2) {
+		t.Fatalf("expected quota-derived battery pack count=2, got=%v", got)
+	}
+	settings, ok := inputs[0].Metadata["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected metadata settings map, got=%T", inputs[0].Metadata["settings"])
+	}
+	if got := settings["dc_out_state"]; got != int64(1) {
+		t.Fatalf("expected metadata dc_out_state=1, got=%v", got)
+	}
+	published := publisher.snapshot()
+	if len(published) < 2 {
+		t.Fatalf("expected quota + mqtt publishes, got=%d", len(published))
+	}
+	if published[0].GetPayloadType() != "ecoflow.quota.normalized" {
+		t.Fatalf("expected first publish to be quota bootstrap, got=%q", published[0].GetPayloadType())
+	}
+}
+
+func TestEcoFlowSessionRunnerQuotaFetchErrorIsNonFatal(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	publisher := &fakeEnvelopePublisher{
+		onPublish: func(env *envelopev1.TelemetryEnvelope) error {
+			if env.GetPayloadType() == "ecoflow.mqtt.raw" {
+				cancel()
+			}
+			return nil
+		},
+	}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
+		ReconnectJitter:      0,
+		ReconnectMaxBackoff:  5 * time.Millisecond,
+		QuotaRefreshInterval: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+	resolver := &fakeCertResolver{
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+		},
+		quotaErr: errors.New("quota unavailable"),
+	}
+	subscriber := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/R351ZABAPH331057/quota", Payload: []byte(`{"id":1,"typeCode":"pdStatus"}`)}},
+		},
+	}
+	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+	runner.adapter = resolver
+	runner.newSubscriber = factory.new
+	runner.sleepFn = testSessionSleep
+
+	if err := runner.Run(ctx, controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "R351ZABAPH331057",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := publisher.publishCount.Load(); got != 1 {
+		t.Fatalf("expected only mqtt publish when quota fails, got=%d", got)
+	}
+}
+
+func TestEcoFlowSessionRunnerPeriodicQuotaRefresh(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	publisher := &fakeEnvelopePublisher{}
+	publisher.onPublish = func(env *envelopev1.TelemetryEnvelope) error {
+		if env.GetPayloadType() == "ecoflow.quota.normalized" {
+			// stop after startup quota + first periodic refresh
+			if publisher.publishCount.Load() >= 2 {
+				cancel()
+			}
+		}
+		return nil
+	}
+	updater := &fakeProviderDeviceUpdater{}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, updater, EcoFlowSessionConfig{
+		ReconnectJitter:      0,
+		ReconnectMaxBackoff:  5 * time.Millisecond,
+		QuotaRefreshInterval: 2 * time.Millisecond,
+		QuotaRefreshJitter:   0,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+	resolver := &fakeCertResolver{
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+		},
+		quota: map[string]string{"pd.soc": "35"},
+	}
+	subscriber := &fakeMQTTSubscriber{}
+	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+	runner.adapter = resolver
+	runner.newSubscriber = factory.new
+	runner.sleepFn = sessionSleepContext
+
+	_ = runner.Run(ctx, controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "R351ZABAPH331057",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	})
+	if got := resolver.quotaCalls.Load(); got < 2 {
+		t.Fatalf("expected periodic quota refresh, got=%d calls", got)
+	}
+}
+
+func TestEcoFlowSessionRunnerRefreshesQuotaOnReadFailureBeforeReconnect(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	publisher := &fakeEnvelopePublisher{
+		onPublish: func(env *envelopev1.TelemetryEnvelope) error {
+			if env.GetPayloadType() == "ecoflow.mqtt.raw" {
+				cancel()
+			}
+			return nil
+		},
+	}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
+		ReconnectInitialBackoff: time.Millisecond,
+		ReconnectMaxBackoff:     2 * time.Millisecond,
+		ReconnectJitter:         0,
+		QuotaRefreshInterval:    time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+
+	resolver := &fakeCertResolver{
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+		},
+		quota: map[string]string{"pd.soc": "35"},
+	}
+	subscriber1 := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{{err: io.EOF}},
+	}
+	subscriber2 := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`)}},
+		},
+	}
+	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber1, subscriber2}}
+	runner.adapter = resolver
+	runner.newSubscriber = factory.new
+	runner.sleepFn = testSessionSleep
+
+	assignment := controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	}
+
+	if err := runner.Run(ctx, assignment); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := resolver.quotaCalls.Load(); got < 3 {
+		t.Fatalf("expected startup quota + stale quota + reconnect bootstrap quota, got=%d", got)
+	}
+	published := publisher.snapshot()
+	quotaPublishes := 0
+	for _, env := range published {
+		if env.GetPayloadType() == "ecoflow.quota.normalized" {
+			quotaPublishes++
+		}
+	}
+	if quotaPublishes < 3 {
+		t.Fatalf("expected at least three quota publishes across stale reconnect path, got=%d", quotaPublishes)
 	}
 }
 
@@ -343,6 +637,15 @@ func TestDefaultEcoFlowSessionConfigReconnectAlertDefaults(t *testing.T) {
 	}
 	if cfg.ReconnectAlertCooldown != 2*time.Minute {
 		t.Fatalf("reconnect alert cooldown mismatch: got=%s want=2m", cfg.ReconnectAlertCooldown)
+	}
+	if cfg.QuotaFetchTimeout != 10*time.Second {
+		t.Fatalf("quota fetch timeout mismatch: got=%s want=10s", cfg.QuotaFetchTimeout)
+	}
+	if cfg.QuotaRefreshInterval != 30*time.Second {
+		t.Fatalf("quota refresh interval mismatch: got=%s want=30s", cfg.QuotaRefreshInterval)
+	}
+	if cfg.QuotaRefreshJitter != 0.20 {
+		t.Fatalf("quota refresh jitter mismatch: got=%v want=0.20", cfg.QuotaRefreshJitter)
 	}
 	if cfg.LogMQTTPayloadDebug {
 		t.Fatalf("mqtt payload debug should default to false")
@@ -413,9 +716,12 @@ func TestIsMQTTReadEOF(t *testing.T) {
 }
 
 type fakeCertResolver struct {
-	cert  ecoflow.GeneralInfoMQTTCertification
-	err   error
-	calls atomic.Int64
+	cert       ecoflow.GeneralInfoMQTTCertification
+	err        error
+	quota      map[string]string
+	quotaErr   error
+	calls      atomic.Int64
+	quotaCalls atomic.Int64
 }
 
 func (f *fakeCertResolver) GetMQTTCertification(_ context.Context, _ controlplane.ProviderCredential, _ string) (ecoflow.GeneralInfoMQTTCertification, error) {
@@ -424,6 +730,18 @@ func (f *fakeCertResolver) GetMQTTCertification(_ context.Context, _ controlplan
 		return ecoflow.GeneralInfoMQTTCertification{}, f.err
 	}
 	return f.cert, nil
+}
+
+func (f *fakeCertResolver) GetDeviceAllQuota(_ context.Context, _ controlplane.ProviderCredential, _ string) (map[string]string, error) {
+	f.quotaCalls.Add(1)
+	if f.quotaErr != nil {
+		return nil, f.quotaErr
+	}
+	out := make(map[string]string, len(f.quota))
+	for k, v := range f.quota {
+		out[k] = v
+	}
+	return out, nil
 }
 
 type fakeReadResult struct {
@@ -439,6 +757,14 @@ type fakeMQTTSubscriber struct {
 	reads []fakeReadResult
 
 	closeCalls atomic.Int64
+}
+
+func testSessionSleep(ctx context.Context, duration time.Duration) error {
+	if duration <= 10*time.Millisecond {
+		return nil
+	}
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func (f *fakeMQTTSubscriber) Connect(context.Context) error {
@@ -496,10 +822,15 @@ type fakeEnvelopePublisher struct {
 	onPublish func(*envelopev1.TelemetryEnvelope) error
 
 	publishCount atomic.Int64
+	mu           sync.Mutex
+	envelopes    []*envelopev1.TelemetryEnvelope
 }
 
 func (f *fakeEnvelopePublisher) PublishEnvelope(_ context.Context, envelope *envelopev1.TelemetryEnvelope) error {
 	f.publishCount.Add(1)
+	f.mu.Lock()
+	f.envelopes = append(f.envelopes, envelope)
+	f.mu.Unlock()
 	if f.onPublish == nil {
 		return nil
 	}
@@ -507,3 +838,44 @@ func (f *fakeEnvelopePublisher) PublishEnvelope(_ context.Context, envelope *env
 }
 
 func (f *fakeEnvelopePublisher) Close() error { return nil }
+
+func (f *fakeEnvelopePublisher) snapshot() []*envelopev1.TelemetryEnvelope {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]*envelopev1.TelemetryEnvelope, len(f.envelopes))
+	copy(out, f.envelopes)
+	return out
+}
+
+type fakeProviderDeviceUpdater struct {
+	mu     sync.Mutex
+	calls  atomic.Int64
+	inputs []controlplane.UpsertProviderDeviceInput
+	err    error
+}
+
+func (f *fakeProviderDeviceUpdater) UpsertProviderDevice(_ context.Context, in controlplane.UpsertProviderDeviceInput) (controlplane.ProviderDevice, error) {
+	f.calls.Add(1)
+	f.mu.Lock()
+	f.inputs = append(f.inputs, in)
+	f.mu.Unlock()
+	if f.err != nil {
+		return controlplane.ProviderDevice{}, f.err
+	}
+	return controlplane.ProviderDevice{
+		DeviceID:         in.DeviceID,
+		Provider:         in.Provider,
+		ProviderDeviceID: in.ProviderDeviceID,
+		CredentialID:     in.CredentialID,
+		Capabilities:     in.Capabilities,
+		Metadata:         in.Metadata,
+	}, nil
+}
+
+func (f *fakeProviderDeviceUpdater) snapshot() []controlplane.UpsertProviderDeviceInput {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]controlplane.UpsertProviderDeviceInput, len(f.inputs))
+	copy(out, f.inputs)
+	return out
+}

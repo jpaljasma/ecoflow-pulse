@@ -45,9 +45,14 @@ type mqttSubscriberFactory func(cfg ecoflowmqtt.Config) (mqttSubscriber, error)
 
 type ecoFlowCertificationResolver interface {
 	GetMQTTCertification(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (ecoflow.GeneralInfoMQTTCertification, error)
+	GetDeviceAllQuota(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (map[string]string, error)
 }
 
 type sessionSleepFunc func(ctx context.Context, duration time.Duration) error
+
+type providerDeviceUpdater interface {
+	UpsertProviderDevice(ctx context.Context, in controlplane.UpsertProviderDeviceInput) (controlplane.ProviderDevice, error)
+}
 
 // EcoFlowSessionConfig controls MQTT session lifecycle defaults for worker sessions.
 type EcoFlowSessionConfig struct {
@@ -72,6 +77,10 @@ type EcoFlowSessionConfig struct {
 	ReconnectAlertWindow    time.Duration
 	ReconnectAlertThreshold int
 	ReconnectAlertCooldown  time.Duration
+
+	QuotaFetchTimeout    time.Duration
+	QuotaRefreshInterval time.Duration
+	QuotaRefreshJitter   float64
 
 	LogMQTTPayloadDebug       bool
 	LogMQTTPayloadSampleEvery int
@@ -99,6 +108,9 @@ func DefaultEcoFlowSessionConfig() EcoFlowSessionConfig {
 		ReconnectAlertWindow:      defaultMQTTReconnectAlertWindow,
 		ReconnectAlertThreshold:   defaultMQTTReconnectAlertThresh,
 		ReconnectAlertCooldown:    defaultMQTTReconnectAlertBackoff,
+		QuotaFetchTimeout:         10 * time.Second,
+		QuotaRefreshInterval:      30 * time.Second,
+		QuotaRefreshJitter:        0.20,
 		LogMQTTPayloadDebug:       false,
 		LogMQTTPayloadSampleEvery: 100,
 	}
@@ -154,6 +166,15 @@ func (c EcoFlowSessionConfig) normalized() EcoFlowSessionConfig {
 	if cfg.ReconnectAlertCooldown <= 0 {
 		cfg.ReconnectAlertCooldown = defaultMQTTReconnectAlertBackoff
 	}
+	if cfg.QuotaFetchTimeout <= 0 {
+		cfg.QuotaFetchTimeout = 10 * time.Second
+	}
+	if cfg.QuotaRefreshInterval <= 0 {
+		cfg.QuotaRefreshInterval = 30 * time.Second
+	}
+	if cfg.QuotaRefreshJitter < 0 {
+		cfg.QuotaRefreshJitter = 0
+	}
 	if cfg.LogMQTTPayloadSampleEvery <= 0 {
 		cfg.LogMQTTPayloadSampleEvery = 100
 	}
@@ -168,10 +189,11 @@ func (c EcoFlowSessionConfig) validate() error {
 }
 
 type EcoFlowSessionRunner struct {
-	log       *slog.Logger
-	adapter   ecoFlowCertificationResolver
-	publisher telemetrybus.EnvelopePublisher
-	cfg       EcoFlowSessionConfig
+	log             *slog.Logger
+	adapter         ecoFlowCertificationResolver
+	publisher       telemetrybus.EnvelopePublisher
+	providerDevices providerDeviceUpdater
+	cfg             EcoFlowSessionConfig
 
 	newSubscriber mqttSubscriberFactory
 	sleepFn       sessionSleepFunc
@@ -182,6 +204,7 @@ func NewEcoFlowSessionRunner(
 	log *slog.Logger,
 	adapter *provideradapter.EcoFlowAdapter,
 	publisher telemetrybus.EnvelopePublisher,
+	providerDevices providerDeviceUpdater,
 	cfg EcoFlowSessionConfig,
 ) (*EcoFlowSessionRunner, error) {
 	if log == nil {
@@ -193,18 +216,22 @@ func NewEcoFlowSessionRunner(
 	if publisher == nil {
 		return nil, errors.New("telemetry envelope publisher is required")
 	}
+	if providerDevices == nil {
+		return nil, errors.New("provider device updater is required")
+	}
 	cfg = cfg.normalized()
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid ecoflow session config: %w", err)
 	}
 	return &EcoFlowSessionRunner{
-		log:           log,
-		adapter:       adapter,
-		publisher:     publisher,
-		cfg:           cfg,
-		newSubscriber: defaultMQTTSubscriberFactory,
-		sleepFn:       sessionSleepContext,
-		nowFn:         time.Now,
+		log:             log,
+		adapter:         adapter,
+		publisher:       publisher,
+		providerDevices: providerDevices,
+		cfg:             cfg,
+		newSubscriber:   defaultMQTTSubscriberFactory,
+		sleepFn:         sessionSleepContext,
+		nowFn:           time.Now,
 	}, nil
 }
 
@@ -345,9 +372,26 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 		cfg.PublishWorkers,
 		cfg.PublishEnqueueTimeout,
 	)
-	defer func() { _ = asyncPublisher.Close() }()
 
 	envelopeBuilder := newTelemetryEnvelopeBuilder(a, cfg)
+	quotaCtx, quotaCancel := context.WithCancel(ctx)
+	quotaDone := make(chan struct{})
+	defer func() {
+		quotaCancel()
+		<-quotaDone
+		_ = asyncPublisher.Close()
+	}()
+	if err := r.publishQuotaSnapshot(quotaCtx, a, asyncPublisher, envelopeBuilder, r.nowFn().UTC()); err != nil {
+		r.log.Warn("ecoflow quota bootstrap failed; continuing with mqtt session",
+			slog.String("provider", a.Provider),
+			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("error", err.Error()),
+		)
+	}
+	go func() {
+		defer close(quotaDone)
+		r.runQuotaRefreshLoop(quotaCtx, a, asyncPublisher, envelopeBuilder, cfg)
+	}()
 	messageCount := 0
 
 	for {
@@ -368,6 +412,14 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 			if errors.Is(readErr, context.Canceled) || ctx.Err() != nil {
 				return true, nil
 			}
+			r.tryQuotaRefresh(
+				quotaCtx,
+				a,
+				asyncPublisher,
+				envelopeBuilder,
+				r.nowFn().UTC(),
+				"ecoflow quota refresh on mqtt read failure failed; reconnecting with last known state",
+			)
 			return true, fmt.Errorf("read mqtt message: %w", readErr)
 		}
 		messageCount++
@@ -397,6 +449,95 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 			continue
 		}
 	}
+}
+
+func (r *EcoFlowSessionRunner) runQuotaRefreshLoop(
+	ctx context.Context,
+	a controlplane.IngestAssignment,
+	asyncPublisher *asyncEnvelopePublisher,
+	envelopeBuilder telemetryEnvelopeBuilder,
+	cfg EcoFlowSessionConfig,
+) {
+	for {
+		wait := applySessionJitter(cfg.QuotaRefreshInterval, cfg.QuotaRefreshJitter)
+		if err := r.sleepFn(ctx, wait); err != nil {
+			return
+		}
+		if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, r.nowFn().UTC()); err != nil {
+			r.log.Warn("ecoflow quota refresh failed; keeping mqtt session alive",
+				slog.String("provider", a.Provider),
+				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+}
+
+func (r *EcoFlowSessionRunner) tryQuotaRefresh(
+	ctx context.Context,
+	a controlplane.IngestAssignment,
+	asyncPublisher *asyncEnvelopePublisher,
+	envelopeBuilder telemetryEnvelopeBuilder,
+	observedAt time.Time,
+	logMsg string,
+) {
+	if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, observedAt); err != nil {
+		r.log.Warn(logMsg,
+			slog.String("provider", a.Provider),
+			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+func (r *EcoFlowSessionRunner) publishQuotaSnapshot(
+	ctx context.Context,
+	a controlplane.IngestAssignment,
+	asyncPublisher *asyncEnvelopePublisher,
+	envelopeBuilder telemetryEnvelopeBuilder,
+	observedAt time.Time,
+) error {
+	credential := credentialFromAssignment(a)
+	quotaCtx, cancel := context.WithTimeout(ctx, r.cfg.QuotaFetchTimeout)
+	defer cancel()
+	quota, err := r.adapter.GetDeviceAllQuota(quotaCtx, credential, a.ProviderDeviceID)
+	if err != nil {
+		return fmt.Errorf("fetch device quota: %w", err)
+	}
+	normalized := normalizeEcoFlowQuota(quota)
+	if _, err := r.providerDevices.UpsertProviderDevice(ctx, controlplane.UpsertProviderDeviceInput{
+		DeviceID:           a.DeviceID,
+		Provider:           a.Provider,
+		ProviderDeviceID:   a.ProviderDeviceID,
+		CredentialID:       a.CredentialID,
+		ProductName:        a.ProductName,
+		Model:              a.Model,
+		Capabilities:       normalized.Capabilities,
+		Metadata:           normalized.Metadata,
+		IsActive:           a.DeviceIsActive,
+		IngestDesiredState: a.IngestDesiredState,
+	}); err != nil {
+		r.log.Warn("ecoflow quota metadata upsert failed; continuing",
+			slog.String("provider", a.Provider),
+			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("error", err.Error()),
+		)
+	}
+	if len(normalized.Params) == 0 {
+		return nil
+	}
+	envelope, err := envelopeBuilder.BuildQuota(normalized.Params, observedAt)
+	if err != nil {
+		return fmt.Errorf("build quota envelope: %w", err)
+	}
+	if err := asyncPublisher.Publish(ctx, envelope); err != nil && !errors.Is(err, context.Canceled) && ctx.Err() == nil {
+		r.log.Warn("ecoflow quota publish enqueue failed; dropping quota frame",
+			slog.String("provider", a.Provider),
+			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("error", err.Error()),
+		)
+	}
+	return nil
 }
 
 func credentialFromAssignment(a controlplane.IngestAssignment) controlplane.ProviderCredential {

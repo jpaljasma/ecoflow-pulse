@@ -1,6 +1,7 @@
 package ingestworker
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -39,6 +40,9 @@ func TestBuildTelemetryEnvelopeFromMQTTPayload(t *testing.T) {
 	}
 	if envelope.GetSourceKind() != envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA {
 		t.Fatalf("source kind mismatch: got=%s", envelope.GetSourceKind().String())
+	}
+	if envelope.GetSource() != "mqtt" {
+		t.Fatalf("source mismatch: got=%q", envelope.GetSource())
 	}
 	if envelope.GetTypeCode() != "kitInfo" {
 		t.Fatalf("type_code mismatch: got=%q", envelope.GetTypeCode())
@@ -115,6 +119,50 @@ func TestBuildTelemetryEnvelopeWithLabelsDisabled(t *testing.T) {
 	}
 	if got := envelope.GetLabels(); got != nil {
 		t.Fatalf("expected labels to be nil when disabled, got=%v", got)
+	}
+}
+
+func TestBuildQuotaTelemetryEnvelope(t *testing.T) {
+	t.Parallel()
+
+	assignment := controlplane.IngestAssignment{
+		Provider:         "ecoflow",
+		ProviderDeviceID: "R351ZABAPH331057",
+		DeviceID:         "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:     "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+	}
+	builder := newTelemetryEnvelopeBuilder(assignment, EcoFlowSessionConfig{ShardCount: 128})
+	observedAt := time.UnixMilli(1771119926522)
+
+	envelope, err := builder.BuildQuota(map[string]any{
+		"soc":         int64(33),
+		"wattsInSum":  123.0,
+		"chgDsgState": int64(1),
+	}, observedAt)
+	if err != nil {
+		t.Fatalf("BuildQuota() error = %v", err)
+	}
+	if envelope.GetSource() != "quota" {
+		t.Fatalf("quota source mismatch: got=%q", envelope.GetSource())
+	}
+	if envelope.GetTypeCode() != "quota" {
+		t.Fatalf("quota type_code mismatch: got=%q", envelope.GetTypeCode())
+	}
+	if envelope.GetPayloadType() != "ecoflow.quota.normalized" {
+		t.Fatalf("quota payload_type mismatch: got=%q", envelope.GetPayloadType())
+	}
+	var payload struct {
+		TypeCode string         `json:"typeCode"`
+		Params   map[string]any `json:"params"`
+	}
+	if err := json.Unmarshal(envelope.GetPayload(), &payload); err != nil {
+		t.Fatalf("unmarshal quota payload failed: %v", err)
+	}
+	if payload.TypeCode != "quota" {
+		t.Fatalf("quota payload typeCode mismatch: got=%q", payload.TypeCode)
+	}
+	if payload.Params["soc"] != float64(33) {
+		t.Fatalf("quota payload soc mismatch: got=%v", payload.Params["soc"])
 	}
 }
 

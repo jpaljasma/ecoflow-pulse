@@ -332,6 +332,12 @@ func (w *Worker) processDelivery(_ context.Context, d delivery) error {
 		}
 		return fmt.Errorf("unmarshal telemetry envelope: %w", err)
 	}
+	if env.GetPayloadType() == "ecoflow.quota.normalized" {
+		if err := d.Ack(); err != nil {
+			return fmt.Errorf("ack quota-only delivery: %w", err)
+		}
+		return nil
+	}
 
 	partition := envelopePartitionTime(&env, w.nowFn()).Truncate(time.Hour)
 	shard := env.GetShard()

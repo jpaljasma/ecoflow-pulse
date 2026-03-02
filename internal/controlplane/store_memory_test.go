@@ -90,6 +90,77 @@ func TestMemoryStoreListProviderDevices(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreProviderDeviceCapabilitiesAndMetadata(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	device, err := store.UpsertProviderDevice(context.Background(), UpsertProviderDeviceInput{
+		DeviceID:         "dev-1",
+		Provider:         ProviderEcoFlow,
+		ProviderDeviceID: "R351ZABAPH331057",
+		CredentialID:     "cred-1",
+		ProductName:      "Kitchen Delta 2 Max",
+		Model:            "DELTA 2 Max",
+		Capabilities: map[string]any{
+			"battery_pack_count": float64(2),
+			"pv_ports":           float64(2),
+		},
+		Metadata: map[string]any{
+			"backup_soc_pct": float64(21),
+			"ac_always_on":   true,
+		},
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+	if err != nil {
+		t.Fatalf("upsert provider device failed: %v", err)
+	}
+	device.Capabilities["tamper"] = true
+	device.Metadata["tamper"] = true
+
+	listed, err := store.ListProviderDevices(context.Background(), ListProviderDevicesInput{
+		Provider: ProviderEcoFlow,
+	})
+	if err != nil {
+		t.Fatalf("list provider devices failed: %v", err)
+	}
+	if got := len(listed); got != 1 {
+		t.Fatalf("expected 1 provider device, got %d", got)
+	}
+	if listed[0].Capabilities["tamper"] != nil {
+		t.Fatalf("capabilities map should be cloned on return")
+	}
+	if listed[0].Metadata["tamper"] != nil {
+		t.Fatalf("metadata map should be cloned on return")
+	}
+	if got := listed[0].Capabilities["battery_pack_count"]; got != float64(2) {
+		t.Fatalf("unexpected battery_pack_count=%v", got)
+	}
+	if got := listed[0].Metadata["backup_soc_pct"]; got != float64(21) {
+		t.Fatalf("unexpected backup_soc_pct=%v", got)
+	}
+
+	updated, err := store.UpsertProviderDevice(context.Background(), UpsertProviderDeviceInput{
+		DeviceID:           "dev-1",
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "R351ZABAPH331057",
+		CredentialID:       "cred-1",
+		ProductName:        "Kitchen Delta 2 Max",
+		Model:              "DELTA 2 Max",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+	if err != nil {
+		t.Fatalf("upsert provider device preserve failed: %v", err)
+	}
+	if got := updated.Capabilities["battery_pack_count"]; got != float64(2) {
+		t.Fatalf("expected capabilities preserved, got %v", got)
+	}
+	if got := updated.Metadata["backup_soc_pct"]; got != float64(21) {
+		t.Fatalf("expected metadata preserved, got %v", got)
+	}
+}
+
 func TestMemoryStoreListIngestAssignmentsActiveOnly(t *testing.T) {
 	t.Parallel()
 

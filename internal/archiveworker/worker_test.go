@@ -118,6 +118,43 @@ func TestProcessDeliveryInvalidEnvelopeTerms(t *testing.T) {
 	}
 }
 
+func TestProcessDeliverySkipsNormalizedQuotaEnvelope(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeObjectStore{}
+	manifest := &fakeManifestStore{}
+	worker := newTestWorker(store, time.Unix(10, 0).UTC())
+	worker.manifestStore = manifest
+	d := newFakeDelivery(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "quota-1",
+		DeviceId:           "device-1",
+		EcoflowSn:          "R351ZABAPH331057",
+		Shard:              1,
+		ShardCount:         128,
+		IngestedTimeUnixMs: 1000,
+		Source:             "quota",
+		PayloadType:        "ecoflow.quota.normalized",
+		PayloadEncoding:    envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		Payload:            []byte(`{"typeCode":"quota","params":{"soc":42}}`),
+	})
+
+	if err := worker.processDelivery(context.Background(), d); err != nil {
+		t.Fatalf("process quota delivery failed: %v", err)
+	}
+	if d.acked != 1 {
+		t.Fatalf("expected quota delivery acked once, got=%d", d.acked)
+	}
+	if d.nacked != 0 || d.termed != 0 {
+		t.Fatalf("unexpected nack/term counts: nak=%d term=%d", d.nacked, d.termed)
+	}
+	if len(store.requests) != 0 {
+		t.Fatalf("expected no archive writes for quota delivery, got=%d", len(store.requests))
+	}
+	if len(manifest.records) != 0 {
+		t.Fatalf("expected no manifest writes for quota delivery, got=%d", len(manifest.records))
+	}
+}
+
 func TestProcessDeliveryStoreFailureNacks(t *testing.T) {
 	t.Parallel()
 

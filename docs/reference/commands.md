@@ -273,6 +273,11 @@ export INGEST_MQTT_RECONNECT_ALERT_COOLDOWN=2m
 export INGEST_MQTT_LOG_PAYLOAD_DEBUG=false
 export INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY=100
 
+# Quota bootstrap + refresh (same ingest pipeline, source=quota)
+export INGEST_QUOTA_FETCH_TIMEOUT=8s
+export INGEST_QUOTA_REFRESH_INTERVAL=30s
+export INGEST_QUOTA_REFRESH_JITTER=0.20
+
 # Lease-loss spike alerting (heartbeat renew rejected: missing)
 export INGEST_LEASE_MISSING_ALERT_WINDOW=5m
 export INGEST_LEASE_MISSING_ALERT_THRESHOLD=4
