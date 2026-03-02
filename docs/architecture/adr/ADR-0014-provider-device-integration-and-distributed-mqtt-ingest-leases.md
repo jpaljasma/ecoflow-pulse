@@ -196,6 +196,7 @@ Quota bootstrap is part of the ingest contract for EcoFlow provider devices:
 - quota output is treated as a first-class ingest source and published into the telemetry pipeline with `source="quota"` while steady-state MQTT frames use `source="mqtt"`,
 - quota payloads must normalize into the same downstream telemetry `params` shape as MQTT-derived frames so projection, rollups, and history remain source-agnostic,
 - quota-derived capability/metadata snapshots must update `provider_devices.capabilities` and `provider_devices.metadata`,
+- ingest workers must emit explicit quota bootstrap/refresh success and failure counters so sparse-MQTT sessions can be diagnosed without relying on payload archive inspection,
 - quota frames are excluded from raw replay archive storage in v1 while still participating in projection, read models, rollups, and history.
 
 ---

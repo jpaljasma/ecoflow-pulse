@@ -193,6 +193,7 @@ type EcoFlowSessionRunner struct {
 	adapter         ecoFlowCertificationResolver
 	publisher       telemetrybus.EnvelopePublisher
 	providerDevices providerDeviceUpdater
+	quotaMetrics    *QuotaMetrics
 	cfg             EcoFlowSessionConfig
 
 	newSubscriber mqttSubscriberFactory
@@ -228,11 +229,19 @@ func NewEcoFlowSessionRunner(
 		adapter:         adapter,
 		publisher:       publisher,
 		providerDevices: providerDevices,
+		quotaMetrics:    &QuotaMetrics{},
 		cfg:             cfg,
 		newSubscriber:   defaultMQTTSubscriberFactory,
 		sleepFn:         sessionSleepContext,
 		nowFn:           time.Now,
 	}, nil
+}
+
+func (r *EcoFlowSessionRunner) QuotaMetrics() *QuotaMetrics {
+	if r == nil {
+		return nil
+	}
+	return r.quotaMetrics
 }
 
 func defaultMQTTSubscriberFactory(cfg ecoflowmqtt.Config) (mqttSubscriber, error) {
@@ -381,7 +390,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 		<-quotaDone
 		_ = asyncPublisher.Close()
 	}()
-	if err := r.publishQuotaSnapshot(quotaCtx, a, asyncPublisher, envelopeBuilder, r.nowFn().UTC()); err != nil {
+	if err := r.publishQuotaSnapshot(quotaCtx, a, asyncPublisher, envelopeBuilder, quotaRefreshReasonBootstrap, r.nowFn().UTC()); err != nil {
 		r.log.Warn("ecoflow quota bootstrap failed; continuing with mqtt session",
 			slog.String("provider", a.Provider),
 			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
@@ -417,6 +426,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 				a,
 				asyncPublisher,
 				envelopeBuilder,
+				quotaRefreshReasonStale,
 				r.nowFn().UTC(),
 				"ecoflow quota refresh on mqtt read failure failed; reconnecting with last known state",
 			)
@@ -463,7 +473,7 @@ func (r *EcoFlowSessionRunner) runQuotaRefreshLoop(
 		if err := r.sleepFn(ctx, wait); err != nil {
 			return
 		}
-		if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, r.nowFn().UTC()); err != nil {
+		if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, quotaRefreshReasonPeriodic, r.nowFn().UTC()); err != nil {
 			r.log.Warn("ecoflow quota refresh failed; keeping mqtt session alive",
 				slog.String("provider", a.Provider),
 				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
@@ -478,10 +488,11 @@ func (r *EcoFlowSessionRunner) tryQuotaRefresh(
 	a controlplane.IngestAssignment,
 	asyncPublisher *asyncEnvelopePublisher,
 	envelopeBuilder telemetryEnvelopeBuilder,
+	reason quotaRefreshReason,
 	observedAt time.Time,
 	logMsg string,
 ) {
-	if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, observedAt); err != nil {
+	if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, reason, observedAt); err != nil {
 		r.log.Warn(logMsg,
 			slog.String("provider", a.Provider),
 			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
@@ -495,13 +506,16 @@ func (r *EcoFlowSessionRunner) publishQuotaSnapshot(
 	a controlplane.IngestAssignment,
 	asyncPublisher *asyncEnvelopePublisher,
 	envelopeBuilder telemetryEnvelopeBuilder,
+	reason quotaRefreshReason,
 	observedAt time.Time,
 ) error {
+	r.quotaMetrics.recordAttempt(reason)
 	credential := credentialFromAssignment(a)
 	quotaCtx, cancel := context.WithTimeout(ctx, r.cfg.QuotaFetchTimeout)
 	defer cancel()
 	quota, err := r.adapter.GetDeviceAllQuota(quotaCtx, credential, a.ProviderDeviceID)
 	if err != nil {
+		r.quotaMetrics.recordFailure(reason, observedAt)
 		return fmt.Errorf("fetch device quota: %w", err)
 	}
 	normalized := normalizeEcoFlowQuota(quota)
@@ -517,6 +531,7 @@ func (r *EcoFlowSessionRunner) publishQuotaSnapshot(
 		IsActive:           a.DeviceIsActive,
 		IngestDesiredState: a.IngestDesiredState,
 	}); err != nil {
+		r.quotaMetrics.recordMetadataUpsertFailure()
 		r.log.Warn("ecoflow quota metadata upsert failed; continuing",
 			slog.String("provider", a.Provider),
 			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
@@ -524,20 +539,59 @@ func (r *EcoFlowSessionRunner) publishQuotaSnapshot(
 		)
 	}
 	if len(normalized.Params) == 0 {
+		r.quotaMetrics.recordEmptyParams()
+		r.quotaMetrics.recordApplied(reason, observedAt, 0, quotaMetadataGroupCount(normalized.Metadata), len(normalized.Capabilities))
+		r.logQuotaRefreshApplied(a, reason, observedAt, 0, quotaMetadataGroupCount(normalized.Metadata), len(normalized.Capabilities))
 		return nil
 	}
 	envelope, err := envelopeBuilder.BuildQuota(normalized.Params, observedAt)
 	if err != nil {
+		r.quotaMetrics.recordBuildFailure()
 		return fmt.Errorf("build quota envelope: %w", err)
 	}
 	if err := asyncPublisher.Publish(ctx, envelope); err != nil && !errors.Is(err, context.Canceled) && ctx.Err() == nil {
+		r.quotaMetrics.recordPublishFailure()
 		r.log.Warn("ecoflow quota publish enqueue failed; dropping quota frame",
 			slog.String("provider", a.Provider),
 			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 	}
+	r.quotaMetrics.recordApplied(reason, observedAt, len(normalized.Params), quotaMetadataGroupCount(normalized.Metadata), len(normalized.Capabilities))
+	r.logQuotaRefreshApplied(a, reason, observedAt, len(normalized.Params), quotaMetadataGroupCount(normalized.Metadata), len(normalized.Capabilities))
 	return nil
+}
+
+func (r *EcoFlowSessionRunner) logQuotaRefreshApplied(
+	a controlplane.IngestAssignment,
+	reason quotaRefreshReason,
+	observedAt time.Time,
+	paramsCount int,
+	metadataGroups int,
+	capabilityCount int,
+) {
+	if r == nil || r.log == nil {
+		return
+	}
+	attrs := []any{
+		slog.String("provider", a.Provider),
+		slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+		slog.String("reason", string(reason)),
+		slog.Time("observed_at", observedAt.UTC()),
+		slog.Int("params_count", paramsCount),
+		slog.Int("metadata_groups", metadataGroups),
+		slog.Int("capability_keys", capabilityCount),
+	}
+	switch reason {
+	case quotaRefreshReasonPeriodic:
+		r.log.Debug("ecoflow periodic quota refresh applied", attrs...)
+	default:
+		r.log.Info("ecoflow quota refresh applied", attrs...)
+	}
+}
+
+func quotaMetadataGroupCount(metadata map[string]any) int {
+	return len(metadata)
 }
 
 func credentialFromAssignment(a controlplane.IngestAssignment) controlplane.ProviderCredential {

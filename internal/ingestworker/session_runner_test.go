@@ -431,6 +431,16 @@ func TestEcoFlowSessionRunnerPublishesQuotaBootstrapAndUpsertsMetadata(t *testin
 	if published[0].GetPayloadType() != "ecoflow.quota.normalized" {
 		t.Fatalf("expected first publish to be quota bootstrap, got=%q", published[0].GetPayloadType())
 	}
+	metrics := runner.QuotaMetrics().Snapshot()
+	if metrics.BootstrapApplied < 1 {
+		t.Fatalf("expected bootstrap applied metric, got=%d", metrics.BootstrapApplied)
+	}
+	if metrics.FetchSuccessTotal < 1 {
+		t.Fatalf("expected fetch success metric, got=%d", metrics.FetchSuccessTotal)
+	}
+	if metrics.LastMetadataGroups < 1 {
+		t.Fatalf("expected metadata group count to be tracked, got=%d", metrics.LastMetadataGroups)
+	}
 }
 
 func TestEcoFlowSessionRunnerQuotaFetchErrorIsNonFatal(t *testing.T) {
@@ -488,6 +498,13 @@ func TestEcoFlowSessionRunnerQuotaFetchErrorIsNonFatal(t *testing.T) {
 	if got := publisher.publishCount.Load(); got != 1 {
 		t.Fatalf("expected only mqtt publish when quota fails, got=%d", got)
 	}
+	metrics := runner.QuotaMetrics().Snapshot()
+	if metrics.BootstrapFailures < 1 {
+		t.Fatalf("expected bootstrap failure metric, got=%d", metrics.BootstrapFailures)
+	}
+	if metrics.FetchFailureTotal < 1 {
+		t.Fatalf("expected fetch failure metric, got=%d", metrics.FetchFailureTotal)
+	}
 }
 
 func TestEcoFlowSessionRunnerPeriodicQuotaRefresh(t *testing.T) {
@@ -542,6 +559,10 @@ func TestEcoFlowSessionRunnerPeriodicQuotaRefresh(t *testing.T) {
 	})
 	if got := resolver.quotaCalls.Load(); got < 2 {
 		t.Fatalf("expected periodic quota refresh, got=%d calls", got)
+	}
+	metrics := runner.QuotaMetrics().Snapshot()
+	if metrics.PeriodicApplied < 1 {
+		t.Fatalf("expected periodic applied metric, got=%d", metrics.PeriodicApplied)
 	}
 }
 
@@ -616,6 +637,13 @@ func TestEcoFlowSessionRunnerRefreshesQuotaOnReadFailureBeforeReconnect(t *testi
 	}
 	if quotaPublishes < 3 {
 		t.Fatalf("expected at least three quota publishes across stale reconnect path, got=%d", quotaPublishes)
+	}
+	metrics := runner.QuotaMetrics().Snapshot()
+	if metrics.StaleApplied < 1 {
+		t.Fatalf("expected stale reconnect applied metric, got=%d", metrics.StaleApplied)
+	}
+	if metrics.BootstrapApplied < 2 {
+		t.Fatalf("expected bootstrap applied metric for initial + reconnect, got=%d", metrics.BootstrapApplied)
 	}
 }
 

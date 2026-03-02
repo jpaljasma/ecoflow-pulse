@@ -200,8 +200,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	quotaMetricsInterval := runtimecfg.DurationNonNegative("INGEST_QUOTA_METRICS_INTERVAL", ingestworker.DefaultQuotaMetricsInterval())
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "ingest-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
+	stopQuotaMetrics := ingestworker.StartQuotaMetricsReporter(ctx, log, "ingest-worker", runner.QuotaMetrics(), quotaMetricsInterval)
+	defer stopQuotaMetrics()
 
 	log.Info("ingest worker starting",
 		slog.String("log_level", logCfg.Level.String()),
@@ -209,6 +212,7 @@ func main() {
 		slog.Int("log_async_queue_size", logCfg.AsyncQueueSize),
 		slog.String("log_async_bypass_level", logCfg.AsyncBypassLevel.String()),
 		slog.Duration("log_metrics_interval", logMetricsInterval),
+		slog.Duration("quota_metrics_interval", quotaMetricsInterval),
 		slog.String("worker_id", workerID),
 		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
 		slog.String("subject_prefix", subjectCfg.Prefix),
