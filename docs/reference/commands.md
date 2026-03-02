@@ -49,6 +49,31 @@ npm run -w apps/universal lint
 npm run -w apps/universal test
 ```
 
+Run the full local cluster-served web stack (default local workflow):
+
+```bash
+make platform-up
+make platform-wait
+make services-up
+make services-wait
+make db-seed-dev-local
+```
+
+Then open:
+
+```bash
+open http://localhost/devices
+```
+
+The public edge serves all three paths from the same origin:
+
+```bash
+curl -sS http://localhost/healthz
+curl -sS http://localhost/api/devices | jq '.'
+```
+
+Standalone debug mode (optional, not the default local workflow):
+
 Run the Node REST BFF against the local gRPC API:
 
 ```bash
@@ -75,7 +100,7 @@ PULSE_REALTIME_GATEWAY_PORT='8082' \
 npm run realtime-gateway
 ```
 
-Run the Expo universal app against the local REST + realtime stack:
+Run the Expo universal app against the standalone debug stack:
 
 ```bash
 EXPO_PUBLIC_API_URL='http://127.0.0.1:18081' \
@@ -83,7 +108,7 @@ EXPO_PUBLIC_WS_URL='ws://127.0.0.1:8082/ws' \
 npm run -w apps/universal web -- --clear
 ```
 
-Run the Expo universal app with local PKCE auth enabled:
+Run the Expo universal app with local PKCE auth enabled (standalone debug mode):
 
 ```bash
 EXPO_PUBLIC_API_URL='http://127.0.0.1:18081' \

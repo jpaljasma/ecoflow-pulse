@@ -13,17 +13,21 @@ A universal telemetry dashboard scaffold for EcoFlow devices: one codebase for w
 ## Setup
 1. From repo root:
    - `npm install`
-2. Start the local backend path:
-   - Go gRPC API on `:9090`
-   - Node BFF on `:18081`
-   - realtime gateway on `:8082`
-3. Configure env (shell or `.env`):
-   - `EXPO_PUBLIC_API_URL=http://localhost:18081`
-   - `EXPO_PUBLIC_WS_URL=ws://localhost:8082/ws`
-4. Run:
+2. Start the local cluster-served stack:
+   - `make platform-up`
+   - `make platform-wait`
+   - `make services-up`
+   - `make services-wait`
+   - `make db-seed-dev-local`
+3. Use the public edge:
+   - app: `http://localhost/devices`
+   - REST: `http://localhost/api/...`
+   - websocket: `ws://localhost/ws`
+4. Standalone Expo debugging is optional:
    - Web: `npm run web`
    - iOS: `npm run ios`
    - Android: `npm run android`
+   - only set `EXPO_PUBLIC_API_URL` / `EXPO_PUBLIC_WS_URL` when intentionally bypassing the cluster public edge
 
 ## Telemetry Engine (ingest vs snapshot)
 Telemetry rendering is decoupled from message ingest:

@@ -171,7 +171,8 @@ export default function DeviceDetailScreen() {
               </Text>
               <Text opacity={0.8}>{describeQueryError(routeError)}</Text>
               <Text opacity={0.65}>
-                Check `EXPO_PUBLIC_API_URL`. Local Expo web runs on `8081`; the Node BFF should run on `18081`.
+                Check the local cluster public endpoint and API configuration. In k3d, the app, `/api`, and
+                `/ws` should all be served from the same host.
               </Text>
             </Card>
           ) : deviceNotFound ? (

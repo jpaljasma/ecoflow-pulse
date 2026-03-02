@@ -116,7 +116,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 ## Pulse Platform Node REST BFF (`apps/pulse-platform`)
 
 - `PULSE_PLATFORM_HOST` (default `0.0.0.0`)
-- `PULSE_PLATFORM_PORT` (default `18081`)
+- `PULSE_PLATFORM_PORT` (default `18081`; standalone/debug-only port when running the BFF outside the cluster)
 - `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
 - `PULSE_PLATFORM_DEV_SUBJECT` (optional in local noop mode; recommended for local UI work so the BFF can resolve the current user's devices without request headers)
@@ -133,13 +133,13 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 ## Pulse Realtime WebSocket Gateway (`apps/pulse-realtime-gateway`)
 
 - `PULSE_REALTIME_GATEWAY_HOST` (default `0.0.0.0`)
-- `PULSE_REALTIME_GATEWAY_PORT` (default `8082`)
+- `PULSE_REALTIME_GATEWAY_PORT` (default `8082`; standalone/debug-only port when running the gateway outside the cluster)
 - `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target for device authz)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
 - `GRPC_RECONNECT_BASE_MS` (default `250`)
 - `GRPC_RECONNECT_MAX_MS` (default `2000`)
 - `NATS_URLS` (comma/whitespace-delimited; default `nats://127.0.0.1:4222`)
-- `VALKEY_ADDRS` (comma/whitespace-delimited; default `127.0.0.1:6379`; local realtime validation should use a stable node port-forward such as `127.0.0.1:6380`)
+- `VALKEY_ADDRS` (comma/whitespace-delimited; default `127.0.0.1:6379`; for local standalone gateway debugging, prefer a stable node port-forward such as `127.0.0.1:6380`)
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `PROJECTION_KEY_PREFIX` (default `pulse:projection`; Valkey live snapshot key prefix)
@@ -191,7 +191,11 @@ Runtime behavior:
 ## Universal App (Expo)
 
 - `EXPO_PUBLIC_API_URL`
+  - web default: same-origin (`http://localhost` in local k3d) and should normally be left unset
+  - native debug override: point directly at the public edge or standalone BFF when needed
 - `EXPO_PUBLIC_WS_URL`
+  - web default: same-origin websocket (`ws://localhost/ws` in local k3d) and should normally be left unset
+  - native debug override: point directly at the public edge or standalone gateway when needed
 - `EXPO_PUBLIC_ASSET_BASE_URL`
 - `EXPO_PUBLIC_OIDC_ISSUER_URL` (Keycloak issuer URL for Authorization Code + PKCE)
 - `EXPO_PUBLIC_OIDC_CLIENT_ID` (public OIDC client ID for Expo app)
@@ -206,7 +210,8 @@ Runtime behavior:
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
 - websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.
-- local development is real-data only:
-  - REST device metadata comes from `apps/pulse-platform`
-  - realtime telemetry comes from `apps/pulse-realtime-gateway`
+- local k3d development is real-data and single-origin by default:
+  - the public app serves `/`
+  - the Node BFF is reached through `/api`
+  - the realtime gateway is reached through `/ws`
   - detail routes accept `/device/<serial-number>` only as a compatibility alias and immediately resolve to canonical `/device/<uuid>`

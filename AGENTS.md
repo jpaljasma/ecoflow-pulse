@@ -654,12 +654,7 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
    - for iOS close/dismiss from detail, prefer `router.back()` when possible so transition direction feels native,
    - keep replace fallback to home route only when stack back is unavailable.
 
-11. Mock telemetry transport reliability rules (web vs iOS):
-   - in `mock://` API mode, prefer polling transport by default and avoid WS reconnect loops,
-   - do not rely on web-only relative paths (`/logs/...`) on native; provide absolute host-based candidates for iOS/Android,
-   - keep multiple native URL candidates for mock files (`/logs` and `/mock`, plus host fallbacks) so incremental updates continue,
-   - if UI shows `connected` but data is stale, trace last successful mock fetch path and verify per-second refresh still advances.
-12. Auth-aware realtime client rules:
+11. Auth-aware realtime client rules:
    - when OIDC is configured, gate both REST queries and websocket connect on persisted auth-store hydration,
    - expose explicit `auth_required` client transport state instead of attempting anonymous realtime fallback,
    - keep websocket lifecycle ownership in the provider/context layer so token refresh/reconnect does not clear per-screen subscriptions.
