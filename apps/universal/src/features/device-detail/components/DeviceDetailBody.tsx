@@ -1,6 +1,6 @@
 import { Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
-import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
+import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { Card } from '@/shared/ui/Card';
 import { ChartSection } from '@/shared/ui/ChartSection';
 import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
@@ -23,7 +23,6 @@ const SOLAR_GENERATED_POINTS = 72;
 export function DeviceDetailBody({
   device,
   snapshot,
-  telemetryConnectionStatus,
   vm,
   isTablet,
   isDesktop,
@@ -38,7 +37,6 @@ export function DeviceDetailBody({
 }: {
   device?: DeviceSummary;
   snapshot?: DeviceSnapshot;
-  telemetryConnectionStatus: TelemetryEngineStatus;
   vm: DeviceDetailViewModel;
   isTablet: boolean;
   isDesktop: boolean;
@@ -173,15 +171,6 @@ export function DeviceDetailBody({
           <SystemSignalsSection pills={vm.signalPills} minWidth={isDesktop ? 360 : 280} />
         </XStack>
       ) : null}
-
-      <Card gap="$2">
-        <Text fontSize="$4" fontWeight="700">
-          Connection
-        </Text>
-        <Text opacity={0.8}>Engine: {telemetryConnectionStatus}</Text>
-        <Text opacity={0.8}>Staleness: {snapshot?.stale ? 'STALE (>5s)' : 'fresh'}</Text>
-        <Text opacity={0.8}>Serial: {device?.serialNumber ?? '—'}</Text>
-      </Card>
     </YStack>
   );
 }

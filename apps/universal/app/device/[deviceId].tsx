@@ -134,7 +134,6 @@ export default function DeviceDetailScreen() {
     <DeviceDetailBody
       device={device}
       snapshot={snapshot}
-      telemetryConnectionStatus={telemetryConnectionStatus}
       vm={vm}
       isTablet={isTablet}
       isDesktop={isDesktop}
