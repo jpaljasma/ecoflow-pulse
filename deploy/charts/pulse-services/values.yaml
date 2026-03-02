@@ -18,6 +18,7 @@ runtime:
     archiveManifestDBDSN: ""
     natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
     valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
+    grpcAuthMode: "noop"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
     archiveObjectSecretKey: "minio123"
@@ -60,6 +61,18 @@ runtime:
     archive:
       enabled: false
       replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+    grpcApi:
+      enabled: false
+      replicaCount: 1
+      service:
+        port: 9090
       resources:
         requests:
           cpu: 100m

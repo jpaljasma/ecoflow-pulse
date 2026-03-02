@@ -1,0 +1,76 @@
+{{- if .Values.runtime.publicApp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-public-app
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-app
+spec:
+  replicas: {{ .Values.runtime.publicApp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulse-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: public-app
+  template:
+    metadata:
+      labels:
+        {{- include "pulse-platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: public-app
+    spec:
+      containers:
+        - name: public-app
+          image: "{{ .Values.runtime.publicApp.image.repository }}:{{ .Values.runtime.publicApp.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.publicApp.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.runtime.publicApp.service.targetPort }}
+          env:
+            - name: PULSE_PLATFORM_HOST
+              value: "0.0.0.0"
+            - name: PULSE_PLATFORM_PORT
+              value: {{ .Values.runtime.publicApp.service.targetPort | quote }}
+            - name: PULSE_PLATFORM_PUBLIC_DIR
+              value: {{ .Values.runtime.publicApp.env.publicDir | quote }}
+            - name: GRPC_API_ADDR
+              value: {{ .Values.runtime.publicApp.env.grpcApiAddr | quote }}
+            - name: GRPC_API_DEADLINE_MS
+              value: {{ .Values.runtime.publicApp.env.grpcDeadlineMs | quote }}
+            - name: REALTIME_GATEWAY_UPSTREAM_URL
+              value: {{ .Values.runtime.publicApp.env.realtimeGatewayUpstreamUrl | quote }}
+            - name: NODE_AUTH_MODE
+              value: {{ .Values.runtime.publicApp.env.nodeAuthMode | quote }}
+            - name: PULSE_PLATFORM_DEV_SUBJECT
+              value: {{ .Values.runtime.publicApp.env.devUserSubject | quote }}
+          resources:
+            {{- toYaml .Values.runtime.publicApp.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-public-app
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-app
+spec:
+  type: {{ .Values.runtime.publicApp.service.type }}
+  selector:
+    {{- include "pulse-platform.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: public-app
+  ports:
+    - name: http
+      port: {{ .Values.runtime.publicApp.service.port }}
+      targetPort: http
+{{- end }}

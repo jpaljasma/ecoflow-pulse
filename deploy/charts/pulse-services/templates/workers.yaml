@@ -133,3 +133,69 @@ spec:
           resources:
             {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
 {{- end }}
+---
+{{- if .Values.runtime.workers.grpcApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-grpc-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-grpc-api
+spec:
+  replicas: {{ .Values.runtime.workers.grpcApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-grpc-api
+  template:
+    metadata:
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-grpc-api
+    spec:
+      containers:
+        - name: go-grpc-api
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-grpc-api"]
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.runtime.workers.grpcApi.service.port }}
+          env:
+            - name: GRPC_LISTEN_ADDR
+              value: {{ printf ":%v" .Values.runtime.workers.grpcApi.service.port | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.grpcApi.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-grpc-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-grpc-api
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-grpc-api
+  ports:
+    - name: grpc
+      port: {{ .Values.runtime.workers.grpcApi.service.port }}
+      targetPort: grpc
+{{- end }}

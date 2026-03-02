@@ -16,6 +16,7 @@ runtime:
     natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
     # Valkey chart is replication+sentinel. For write-heavy lease/snapshot paths we target the current primary endpoint.
     valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
+    grpcAuthMode: "noop"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
     archiveObjectSecretKey: "minio123"
@@ -32,5 +33,8 @@ runtime:
       enabled: true
       replicaCount: 1
     archive:
+      enabled: true
+      replicaCount: 1
+    grpcApi:
       enabled: true
       replicaCount: 1

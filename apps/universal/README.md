@@ -13,31 +13,21 @@ A universal telemetry dashboard scaffold for EcoFlow devices: one codebase for w
 ## Setup
 1. From repo root:
    - `npm install`
-2. Configure env (shell or `.env`):
-   - `EXPO_PUBLIC_API_URL=http://localhost:18081`
-   - `EXPO_PUBLIC_WS_URL=ws://localhost:8082/ws`
-   - For local mock REST without backend: `EXPO_PUBLIC_API_URL=mock://ecoflow`
-3. Run:
+2. Start the local cluster-served stack:
+   - `make platform-up`
+   - `make platform-wait`
+   - `make services-up`
+   - `make services-wait`
+   - `make db-seed-dev-local`
+3. Use the public edge:
+   - app: `http://localhost/devices`
+   - REST: `http://localhost/api/...`
+   - websocket: `ws://localhost/ws`
+4. Standalone Expo debugging is optional:
    - Web: `npm run web`
    - iOS: `npm run ios`
    - Android: `npm run android`
-
-## Mock Data Sources
-In `mock://ecoflow` mode, data is sourced in this priority:
-1. `telemetry_training.csv` (preferred, SN-scoped normalized telemetry)
-2. `mqtt.log` (fallback only)
-
-Default web paths:
-- `/mock/telemetry_training.csv`
-- `/mock/mqtt.log`
-
-You can override with:
-- `EXPO_PUBLIC_MOCK_TRAINING_URL`
-- `EXPO_PUBLIC_MOCK_LOG_URL`
-
-### SOC Rule (DELTA 2 Max)
-For D2M, card SOC prefers `bp1_soc` from training CSV when available.
-Reason: `soc_pct` may be weighted across packs and can diverge from the user-facing main-unit SOC.
+   - only set `EXPO_PUBLIC_API_URL` / `EXPO_PUBLIC_WS_URL` when intentionally bypassing the cluster public edge
 
 ## Telemetry Engine (ingest vs snapshot)
 Telemetry rendering is decoupled from message ingest:
@@ -71,17 +61,7 @@ This keeps rendering stable and avoids React churn under high throughput.
 - `src/features/telemetry` engine, ring buffer, Zustand store, hooks
 - `src/shared/ui` Tamagui components and theme
 
-## Built-in Mock Devices
-When `EXPO_PUBLIC_API_URL=mock://ecoflow`, REST routes are served in-app:
-- `GET /api/devices`
-- `GET /api/devices/:id`
-
-Mock payload includes two devices from recent MQTT telemetry context:
-- `DPU A 12 kWh` (`Y711ZABA9H2P0294`)
-- `Kitchen Delta 2 Max` (`R351ZABAPH331057`)
-
-Each device includes:
-- `serialNumber`
-- `batteryPct`
-- `state`
-- `etaMinutes`
+## Routing
+- `/devices` uses canonical device UUIDs from the real Node BFF.
+- `/device/<uuid>` is the canonical detail route.
+- `/device/<serial-number>` is accepted as a compatibility alias and is immediately resolved to the canonical UUID route before history/realtime fetches begin.

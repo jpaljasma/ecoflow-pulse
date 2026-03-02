@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
+import type { DeviceClient } from '../src/grpc/deviceClient.js';
 import type { CompareRollupSeries, RollupSeries, TelemetryHistoryClient } from '../src/grpc/telemetryClient.js';
 
 function baseConfig(): AppConfig {
@@ -63,6 +64,13 @@ function makeSeries(deviceId = '019c9f0e-4521-775d-873e-e80039f16d75'): RollupSe
 
 function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryHistoryClient {
   return {
+    getSnapshot: vi.fn(async () => ({
+      snapshot: {
+        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+        cursor: { seq: '1', tsUnixMs: String(Date.now()) },
+        metrics: {}
+      }
+    })),
     queryRollupRange: vi.fn(async () => makeSeries()),
     compareRollupRange: vi.fn(async () => ({
       current: makeSeries(),
@@ -73,6 +81,14 @@ function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryH
   };
 }
 
+function makeDeviceClient(): DeviceClient {
+  return {
+    listDevices: vi.fn(async () => []),
+    getDevice: vi.fn(async () => null),
+    close: vi.fn()
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -80,7 +96,7 @@ afterEach(() => {
 describe('pulse-platform history routes', () => {
   it('returns range history via grpc client', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client);
+    const app = buildApp(baseConfig(), client, makeDeviceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history?resolution=hour&from=1772193600000&to=1772197200000',
@@ -106,7 +122,7 @@ describe('pulse-platform history routes', () => {
 
   it('parses ISO timestamps and compare requests', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client);
+    const app = buildApp(baseConfig(), client, makeDeviceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history/compare?resolution=day&from=2026-02-27T00:00:00Z&to=2026-02-28T00:00:00Z'
@@ -126,7 +142,7 @@ describe('pulse-platform history routes', () => {
   });
 
   it('returns 400 for invalid query', async () => {
-    const app = buildApp(baseConfig(), makeClient());
+    const app = buildApp(baseConfig(), makeClient(), makeDeviceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/not-a-uuid/history?resolution=hour&from=1&to=2'
@@ -145,7 +161,7 @@ describe('pulse-platform history routes', () => {
         throw error;
       })
     });
-    const app = buildApp(baseConfig(), client);
+    const app = buildApp(baseConfig(), client, makeDeviceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history?resolution=hour&from=1&to=2'
@@ -170,7 +186,7 @@ describe('pulse-platform history routes', () => {
       }
     };
     const { makeVerifierPreHandler } = await import('../src/auth.js');
-    const app = buildApp(authConfig, makeClient(), {
+    const app = buildApp(authConfig, makeClient(), makeDeviceClient(), {
       authPreHandler: makeVerifierPreHandler(verifier, false)
     });
 
@@ -202,8 +218,8 @@ describe('pulse-platform history routes', () => {
         allowMissingJwt: false
       }
     };
-    const app = buildApp(authConfig, makeClient(), {
-      authPreHandler: async (request, reply) => {
+    const app = buildApp(authConfig, makeClient(), makeDeviceClient(), {
+      authPreHandler: async (request: { url: string }, reply: { code: (statusCode: number) => { send: (body: unknown) => void } }) => {
         if (request.url !== '/healthz') {
           void reply.code(401).send({ error: 'missing_bearer_token' });
         }
@@ -225,7 +241,8 @@ describe('pulse-platform history routes', () => {
           timeWindowMs: 60000
         }
       },
-      makeClient()
+      makeClient(),
+      makeDeviceClient()
     );
 
     const first = await app.inject({

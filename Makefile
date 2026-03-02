@@ -7,6 +7,7 @@ K3D ?= k3d
 HELM ?= helm
 KUBECTL ?= kubectl
 DOCKER ?= docker
+DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 GCLOUD ?= gcloud
 K3D_CLUSTER_NAME ?= pulse-local
 K3D_CONTEXT ?= k3d-$(K3D_CLUSTER_NAME)
@@ -72,6 +73,14 @@ SERVICES_IMAGE_REPO ?= ecoflow-pulse/services
 SERVICES_IMAGE_TAG ?= local
 SERVICES_IMAGE ?= $(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)
 SERVICES_IMAGE_DOCKERFILE ?= deploy/docker/pulse-services.Dockerfile
+PLATFORM_APP_IMAGE_REPO ?= ecoflow-pulse/pulse-platform
+PLATFORM_APP_IMAGE_TAG ?= local
+PLATFORM_APP_IMAGE ?= $(PLATFORM_APP_IMAGE_REPO):$(PLATFORM_APP_IMAGE_TAG)
+PLATFORM_APP_IMAGE_DOCKERFILE ?= deploy/docker/pulse-platform.Dockerfile
+REALTIME_GATEWAY_IMAGE_REPO ?= ecoflow-pulse/pulse-realtime-gateway
+REALTIME_GATEWAY_IMAGE_TAG ?= local
+REALTIME_GATEWAY_IMAGE ?= $(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)
+REALTIME_GATEWAY_IMAGE_DOCKERFILE ?= deploy/docker/pulse-realtime-gateway.Dockerfile
 SERVICES_AUTO_BUILD_IMAGE ?= 1
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
@@ -82,6 +91,7 @@ RACE_STRESS_COUNT ?= 5
 LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
 LOCAL_HELM = $(HELM) --kube-context $(K3D_CONTEXT)
 PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace -f $(LOCAL_PLATFORM_VALUES)
+LOCAL_PLATFORM_MANIFEST ?= $(CURDIR)/.tmp/pulse-platform.rendered.yaml
 
 export GOCACHE
 export GOMODCACHE
@@ -89,7 +99,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -189,8 +199,12 @@ services-image-build-local:
 		echo "Docker daemon is not running. Start Docker Desktop and retry."; \
 		exit 1; \
 	fi
+	@mkdir -p "$(DOCKER_CONFIG_LOCAL)"
+	@if [ ! -f "$(DOCKER_CONFIG_LOCAL)/config.json" ]; then \
+		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
+	fi
 	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
-	$(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .
+	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .
 
 services-image-import-local:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \
@@ -201,6 +215,36 @@ services-image-import-local:
 	$(K3D) image import $(SERVICES_IMAGE) -c $(K3D_CLUSTER_NAME)
 
 services-image-local-up: services-image-build-local services-image-import-local
+
+public-images-build-local:
+	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+		echo "$(DOCKER) not found. Install Docker Desktop first."; \
+		exit 1; \
+	fi
+	@if ! $(DOCKER) info >/dev/null 2>&1; then \
+		echo "Docker daemon is not running. Start Docker Desktop and retry."; \
+		exit 1; \
+	fi
+	@mkdir -p "$(DOCKER_CONFIG_LOCAL)"
+	@if [ ! -f "$(DOCKER_CONFIG_LOCAL)/config.json" ]; then \
+		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
+	fi
+	@echo "building public app image $(PLATFORM_APP_IMAGE) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
+	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .
+	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
+	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .
+
+public-images-import-local:
+	@if ! command -v $(K3D) >/dev/null 2>&1; then \
+		echo "$(K3D) not found. Install k3d first."; \
+		exit 1; \
+	fi
+	@echo "importing public app image $(PLATFORM_APP_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)"
+	$(K3D) image import $(PLATFORM_APP_IMAGE) -c $(K3D_CLUSTER_NAME)
+	@echo "importing realtime gateway image $(REALTIME_GATEWAY_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)"
+	$(K3D) image import $(REALTIME_GATEWAY_IMAGE) -c $(K3D_CLUSTER_NAME)
+
+public-images-local-up: public-images-build-local public-images-import-local
 
 smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -278,61 +322,27 @@ platform-up:
 		echo "$(HELM) not found. Install helm first."; \
 		exit 1; \
 	fi
-	$(HELM) dependency update $(PLATFORM_CHART)
+	$(HELM) dependency build $(PLATFORM_CHART)
 	@set -euo pipefail; \
-	attempt=1; \
-	max_attempts=$(HELM_RETRY_MAX); \
-	delay=$(HELM_RETRY_DELAY_SEC); \
-	while true; do \
-		echo "applying platform chart (attempt $$attempt/$$max_attempts)"; \
-		if $(PLATFORM_HELM_APPLY); then \
-			break; \
+		$(LOCAL_KUBECTL) create namespace $(PLATFORM_NAMESPACE) --dry-run=client -o yaml | $(LOCAL_KUBECTL) apply -f -; \
+		echo "installing platform release via Helm"; \
+		$(PLATFORM_HELM_APPLY); \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
+			echo "waiting for CloudNativePG operator to become ready"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
 		fi; \
-		if [ $$attempt -ge $$max_attempts ]; then \
-			echo "platform apply failed after $$max_attempts attempts"; \
-			exit 1; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc cnpg-webhook-service >/dev/null 2>&1; then \
+			for _ in {1..36}; do \
+				webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints cnpg-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+				if [ -n "$$webhook_eps" ]; then \
+					echo "CNPG webhook endpoints ready: $$webhook_eps"; \
+					break; \
+				fi; \
+				sleep 5; \
+			done; \
 		fi; \
-		echo "platform apply failed, waiting for CNPG webhook/operator before retry"; \
-		if command -v $(KUBECTL) >/dev/null 2>&1; then \
-			if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
-				$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s || true; \
-			fi; \
-			if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc cnpg-webhook-service >/dev/null 2>&1; then \
-				for _ in {1..36}; do \
-					webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints cnpg-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
-					if [ -n "$$webhook_eps" ]; then \
-						echo "CNPG webhook endpoints ready: $$webhook_eps"; \
-						break; \
-					fi; \
-					sleep 5; \
-				done; \
-			fi; \
-		fi; \
-		sleep $$delay; \
-		attempt=$$((attempt + 1)); \
-		delay=$$((delay * 2)); \
-		if [ $$delay -gt 30 ]; then delay=30; fi; \
-	done
-	@if command -v $(KUBECTL) >/dev/null 2>&1 && $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
-		echo "waiting for CloudNativePG operator to become ready"; \
-		$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
-	fi
-	@echo "running platform reconcile pass for CRD-backed resources"
-	@set -euo pipefail; \
-	attempt=1; \
-	max_attempts=$(HELM_RETRY_MAX); \
-	while true; do \
-		echo "reconciling platform chart (attempt $$attempt/$$max_attempts)"; \
-		if $(PLATFORM_HELM_APPLY); then \
-			break; \
-		fi; \
-		if [ $$attempt -ge $$max_attempts ]; then \
-			echo "platform reconcile failed after $$max_attempts attempts"; \
-			exit 1; \
-		fi; \
-		sleep 5; \
-		attempt=$$((attempt + 1)); \
-	done
+		echo "running second platform Helm reconcile for CRD-backed resources"; \
+		$(PLATFORM_HELM_APPLY)
 
 platform-wait:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
@@ -372,6 +382,17 @@ platform-wait:
 	wait_rollout deployment $(PLATFORM_RELEASE)-grafana 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-opentelemetry-collector 300s; \
 	echo "platform dependencies are ready"
+	@set -euo pipefail; \
+	ns="$(PLATFORM_NAMESPACE)"; \
+	wait_rollout() { \
+		kind="$$1"; name="$$2"; timeout="$$3"; \
+		if $(LOCAL_KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
+			echo "waiting for $$kind/$$name"; \
+			$(LOCAL_KUBECTL) -n "$$ns" rollout status "$$kind/$$name" --timeout="$$timeout"; \
+		fi; \
+	}; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-public-app 300s; \
+	wait_rollout deployment $(PLATFORM_RELEASE)-realtime-gateway 300s
 
 services-up:
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \
@@ -381,7 +402,7 @@ services-up:
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 		$(MAKE) services-image-local-up; \
 	fi
-	$(HELM) dependency update $(SERVICES_CHART)
+	$(HELM) dependency build $(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		-f $(LOCAL_SERVICES_VALUES)
@@ -405,7 +426,7 @@ services-wait:
 	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod -l app.kubernetes.io/instance=$(SERVICES_RELEASE) --timeout=$(WAIT_TIMEOUT); \
 	echo "services dependencies are ready"
 
-dev-up: k3d-up platform-up platform-wait services-up services-wait
+dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait
 
 dev-down:
 	@if command -v $(HELM) >/dev/null 2>&1; then \
@@ -413,6 +434,10 @@ dev-down:
 		$(LOCAL_HELM) uninstall $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1 || true; \
 	else \
 		echo "$(HELM) not found; skipping helm uninstall"; \
+	fi
+	@if command -v $(KUBECTL) >/dev/null 2>&1; then \
+		$(LOCAL_KUBECTL) delete namespace $(SERVICES_NAMESPACE) --ignore-not-found >/dev/null 2>&1 || true; \
+		$(LOCAL_KUBECTL) delete namespace $(PLATFORM_NAMESPACE) --ignore-not-found >/dev/null 2>&1 || true; \
 	fi
 	@if [ "$(DELETE_CLUSTER)" = "1" ]; then \
 		if command -v $(K3D) >/dev/null 2>&1; then \

@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Text, XStack, YStack } from 'tamagui';
@@ -16,6 +15,8 @@ import { env } from '@/shared/config/env';
 import { useFleetSummaryViewModel } from '@/features/devices/view-model';
 import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { useTelemetryFleetTrend, useTelemetrySnapshotsByIds } from '@/features/telemetry/hooks';
+import { useAuthSession } from '@/features/auth/hooks';
+import { useFleetSolarHistory } from '@/features/history/hooks';
 
 const SUMMARY_TREND_POINTS = 60;
 const SOLAR_GENERATED_POINTS = 72;
@@ -34,9 +35,16 @@ export function SummaryPanel({
   const isTabletUp = width >= 768;
   const isCompact = width < 720;
   const useRemoteImage = Boolean(env.assetBaseUrl);
-  const deviceIds = useMemo(() => devices.map((device) => device.id), [devices]);
+  const deviceIds = devices.map((device) => device.id);
   const byId = useTelemetrySnapshotsByIds(deviceIds);
   const fleetTrend = useTelemetryFleetTrend();
+  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
+  const historyEnabled = authReady && (!authConfigured || sessionValid) && deviceIds.length > 0;
+  const fleetSolarHistory = useFleetSolarHistory(deviceIds, {
+    token,
+    authKey,
+    enabled: historyEnabled
+  });
 
   const { summary, uniqueTypes } = useFleetSummaryViewModel({
     devices,
@@ -44,92 +52,75 @@ export function SummaryPanel({
     useRemoteImage
   });
 
-  const solarGeneratedTrend = useMemo(() => {
-    const byIndex = Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
-    for (const device of devices) {
-      const series = device.solarGeneratedSeriesWh ?? [];
-      const padded =
-        series.length >= SOLAR_GENERATED_POINTS
-          ? series.slice(-SOLAR_GENERATED_POINTS)
-          : [...Array.from({ length: SOLAR_GENERATED_POINTS - series.length }, () => 0), ...series];
-      for (let i = 0; i < SOLAR_GENERATED_POINTS; i += 1) {
-        byIndex[i] = (byIndex[i] ?? 0) + Math.max(0, padded[i] ?? 0);
-      }
+  const metricItems = [
+    {
+      key: 'battery',
+      content: (
+        <Stat
+          label="🔋 Battery"
+          value={summary.totalCapacityKWh !== null ? formatKWh(summary.totalCapacityKWh) : '—'}
+          compact={isCompact}
+        />
+      )
+    },
+    {
+      key: 'soc',
+      content: <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} compact={isCompact} />
+    },
+    {
+      key: 'net',
+      content: <Stat label="⚖️ Net" value={formatW(summary.netW)} compact={isCompact} />
+    },
+    {
+      key: 'ac',
+      content: (
+        <Stat
+          label="∿ AC"
+          value={formatW(summary.acInW)}
+          tone={isMutedMetric(summary.acInW) ? 'muted' : 'default'}
+          compact={isCompact}
+        />
+      )
+    },
+    {
+      key: 'dc',
+      content: (
+        <Stat
+          label="⎓ DC"
+          value={formatW(summary.dcW)}
+          tone={isMutedMetric(summary.dcW) ? 'muted' : 'default'}
+          compact={isCompact}
+        />
+      )
+    },
+    {
+      key: 'pv',
+      content: (
+        <Stat
+          label="☼ PV"
+          value={formatW(summary.pvW)}
+          tone={isMutedMetric(summary.pvW) ? 'muted' : 'default'}
+          compact={isCompact}
+        />
+      )
+    },
+    {
+      key: 'today',
+      span: isCompact ? 3 : 2,
+      content: <SolarTodayBadge valueWh={fleetSolarHistory.data.todayWh} compact={isCompact} />
+    },
+    {
+      key: 'load',
+      content: (
+        <Stat
+          label="⌂ Load"
+          value={formatW(summary.loadW)}
+          tone={isMutedMetric(summary.loadW) ? 'muted' : 'default'}
+          compact={isCompact}
+        />
+      )
     }
-    return byIndex;
-  }, [devices]);
-
-  const metricItems = useMemo<MetricsGridItem[]>(() => {
-    return [
-      {
-        key: 'battery',
-        content: (
-          <Stat
-            label="🔋 Battery"
-            value={summary.totalCapacityKWh !== null ? formatKWh(summary.totalCapacityKWh) : '—'}
-            compact={isCompact}
-          />
-        )
-      },
-      {
-        key: 'soc',
-        content: <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} compact={isCompact} />
-      },
-      {
-        key: 'net',
-        content: <Stat label="⚖️ Net" value={formatW(summary.netW)} compact={isCompact} />
-      },
-      {
-        key: 'ac',
-        content: (
-          <Stat
-            label="∿ AC"
-            value={formatW(summary.acInW)}
-            tone={isMutedMetric(summary.acInW) ? 'muted' : 'default'}
-            compact={isCompact}
-          />
-        )
-      },
-      {
-        key: 'dc',
-        content: (
-          <Stat
-            label="⎓ DC"
-            value={formatW(summary.dcW)}
-            tone={isMutedMetric(summary.dcW) ? 'muted' : 'default'}
-            compact={isCompact}
-          />
-        )
-      },
-      {
-        key: 'pv',
-        content: (
-          <Stat
-            label="☼ PV"
-            value={formatW(summary.pvW)}
-            tone={isMutedMetric(summary.pvW) ? 'muted' : 'default'}
-            compact={isCompact}
-          />
-        )
-      },
-      {
-        key: 'today',
-        span: isCompact ? 3 : 2,
-        content: <SolarTodayBadge valueWh={summary.solarTodayWh} compact={isCompact} />
-      },
-      {
-        key: 'load',
-        content: (
-          <Stat
-            label="⌂ Load"
-            value={formatW(summary.loadW)}
-            tone={isMutedMetric(summary.loadW) ? 'muted' : 'default'}
-            compact={isCompact}
-          />
-        )
-      }
-    ];
-  }, [summary, isCompact]);
+  ] satisfies MetricsGridItem[];
 
   return (
     <Card>
@@ -167,7 +158,10 @@ export function SummaryPanel({
           <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
             <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
               <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
-                <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+                <SolarGeneratedChart
+                  valuesWh={fleetSolarHistory.data.seriesWh}
+                  points={SOLAR_GENERATED_POINTS}
+                />
               </ChartSection>
             </YStack>
             <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
@@ -185,7 +179,10 @@ export function SummaryPanel({
         ) : (
           <YStack gap="$3">
             <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
-              <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+              <SolarGeneratedChart
+                valuesWh={fleetSolarHistory.data.seriesWh}
+                points={SOLAR_GENERATED_POINTS}
+              />
             </ChartSection>
             <ChartSection title="Power Trends">
               <PowerTrendChart

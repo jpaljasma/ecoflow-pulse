@@ -8,4 +8,12 @@ describe('pulse-platform config', () => {
 
     expect(config.port).toBe(18081);
   });
+
+  it('supports optional noop dev subject override', () => {
+    const config = loadConfig({
+      PULSE_PLATFORM_DEV_SUBJECT: 'jpaljasma@gmail.com'
+    });
+
+    expect(config.devUserSubject).toBe('jpaljasma@gmail.com');
+  });
 });
