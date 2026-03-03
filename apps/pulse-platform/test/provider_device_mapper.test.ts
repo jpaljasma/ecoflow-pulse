@@ -51,12 +51,35 @@ describe('provider device mapper', () => {
               fanState: 1
             },
             hs_yj751_pd_app_set_info_addr: {
-              bmsModeSet: 1
+              bmsModeSet: 1,
+              dsgMinSoc: 12,
+              chgMaxSoc: 95,
+              sysBackupSoc: 18
             },
             hs_yj751_pd_bp_addr: {
               bpInfo: [
-                { bpNo: 'bp1', bpSoc: 48.5, bpPwr: 12.1, bpTemp: 19.5, heatTime: 120 },
-                { bpNo: 'bp2', bpSoc: 47.9, bpPwr: 11.8, bpTemp: 19.3, heatTime: 0 }
+                {
+                  bpNo: 'bp1',
+                  bpSoc: 48.5,
+                  bpPwr: 12.1,
+                  bpTemp: 19.5,
+                  heatTime: 120,
+                  bpEnergy: 5980,
+                  remainTime: 322,
+                  bpSocMin: 10,
+                  bpSocMax: 95
+                },
+                {
+                  bpNo: 'bp2',
+                  bpSoc: 47.9,
+                  bpPwr: 11.8,
+                  bpTemp: 19.3,
+                  heatTime: 0,
+                  bpEnergy: 6015,
+                  remainTime: 317,
+                  bpSocMin: 10,
+                  bpSocMax: 95
+                }
               ]
             }
           }
@@ -88,9 +111,26 @@ describe('provider device mapper', () => {
         usbOn: true,
         solarChargingOn: true,
         batteryHeatingOn: true,
+        socWindowMinPct: 12,
+        socWindowMaxPct: 95,
+        backupReservePct: 18,
         packs: [
-          expect.objectContaining({ id: 'bp1', heatingOn: true }),
-          expect.objectContaining({ id: 'bp2', heatingOn: false })
+          expect.objectContaining({
+            id: 'bp1',
+            heatingOn: true,
+            energyWh: 5980,
+            remainMinutes: 322,
+            socMinPct: 10,
+            socMaxPct: 95
+          }),
+          expect.objectContaining({
+            id: 'bp2',
+            heatingOn: false,
+            energyWh: 6015,
+            remainMinutes: 317,
+            socMinPct: 10,
+            socMaxPct: 95
+          })
         ],
         solarPorts: [
           expect.objectContaining({ id: 'pv-low', state: 'charging', maxWatts: 1600 }),
@@ -141,7 +181,14 @@ describe('provider device mapper', () => {
               targetSoc: 30.8,
               inputWatts: 10,
               outputWatts: 79,
-              temp: 13
+              temp: 13,
+              fullCap: 2048,
+              remainTime: 301
+            },
+            bms_emsStatus: {
+              minDsgSoc: 5,
+              maxChargeSoc: 85,
+              minOpenOilEb: 21
             },
             bms_kitInfo: {
               kitNum: 1,
@@ -151,7 +198,11 @@ describe('provider device mapper', () => {
                   sn: 'bp1',
                   targetSoc: 31.2,
                   curPower: 22,
-                  temp: 13.4
+                  temp: 13.4,
+                  energy: 2048,
+                  remainTime: 287,
+                  socMin: 5,
+                  socMax: 85
                 }
               ]
             }
@@ -180,9 +231,26 @@ describe('provider device mapper', () => {
         fanOn: true,
         solarChargingOn: true,
         batteryHeatingOn: false,
+        socWindowMinPct: 5,
+        socWindowMaxPct: 85,
+        backupReservePct: 21,
         packs: expect.arrayContaining([
-          expect.objectContaining({ id: 'main', powerW: -69 }),
-          expect.objectContaining({ id: 'bp1', powerW: 22 })
+          expect.objectContaining({
+            id: 'main',
+            powerW: -69,
+            energyWh: 2048,
+            remainMinutes: 301,
+            socMinPct: 5,
+            socMaxPct: 85
+          }),
+          expect.objectContaining({
+            id: 'bp1',
+            powerW: 22,
+            energyWh: 2048,
+            remainMinutes: 287,
+            socMinPct: 5,
+            socMaxPct: 85
+          })
         ]),
         solarPorts: [
           expect.objectContaining({ id: 'pv-1', state: 'charging', watts: 82 }),

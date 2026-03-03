@@ -53,6 +53,9 @@ function sampleDevice(overrides: Partial<DeviceSummary> = {}): DeviceSummary {
     },
     details: {
       bpCount: 2,
+      socWindowMinPct: 12,
+      socWindowMaxPct: 95,
+      backupReservePct: 18,
       solarPorts: [
         {
           id: 'pv-low',
@@ -64,6 +67,19 @@ function sampleDevice(overrides: Partial<DeviceSummary> = {}): DeviceSummary {
           maxWatts: 1600,
           maxVolts: 150,
           maxAmps: 15
+        }
+      ],
+      packs: [
+        {
+          id: 'bp1',
+          socPct: 48.5,
+          powerW: 12.1,
+          tempC: 19.5,
+          heatingOn: true,
+          energyWh: 5980,
+          remainMinutes: 322,
+          socMinPct: 10,
+          socMaxPct: 95
         }
       ],
       batteryHeatingOn: true
@@ -161,6 +177,18 @@ describe('pulse-platform device routes', () => {
       expect.objectContaining({
         bpCount: 2,
         batteryHeatingOn: true,
+        socWindowMinPct: 12,
+        socWindowMaxPct: 95,
+        backupReservePct: 18,
+        packs: [
+          expect.objectContaining({
+            id: 'bp1',
+            energyWh: 5980,
+            remainMinutes: 322,
+            socMinPct: 10,
+            socMaxPct: 95
+          })
+        ],
         solarPorts: [
           expect.objectContaining({
             id: 'pv-low',

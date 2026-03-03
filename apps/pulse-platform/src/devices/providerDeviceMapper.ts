@@ -8,6 +8,10 @@ export type BatteryPackDetail = {
   powerW?: number;
   tempC?: number;
   heatingOn?: boolean;
+  energyWh?: number;
+  remainMinutes?: number;
+  socMinPct?: number;
+  socMaxPct?: number;
 };
 
 export type SolarPortDetail = {
@@ -26,6 +30,9 @@ export type DeviceTelemetryDetails = {
   bpCount?: number;
   packs?: BatteryPackDetail[];
   solarPorts?: SolarPortDetail[];
+  socWindowMinPct?: number;
+  socWindowMaxPct?: number;
+  backupReservePct?: number;
   acOn?: boolean;
   dcOn?: boolean;
   usbOn?: boolean;
@@ -145,7 +152,11 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
       socPct: toNumber(pack.bpSoc),
       powerW: toNumber(pack.bpPwr),
       tempC: toNumber(pack.bpTemp),
-      heatingOn: toNumber(pack.heatTime) !== undefined && (toNumber(pack.heatTime) ?? 0) > 0
+      heatingOn: toNumber(pack.heatTime) !== undefined && (toNumber(pack.heatTime) ?? 0) > 0,
+      energyWh: toNumber(pack.bpEnergy),
+      remainMinutes: toNumber(pack.remainTime),
+      socMinPct: toNumber(pack.bpSocMin),
+      socMaxPct: toNumber(pack.bpSocMax)
     });
   }
 
@@ -186,6 +197,9 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     bpCount: bpCount ?? packs.length,
     packs,
     solarPorts: [lowPort, highPort],
+    socWindowMinPct: toNumber(appset.dsgMinSoc),
+    socWindowMaxPct: toNumber(appset.chgMaxSoc),
+    backupReservePct: firstDefined(toNumber(appset.sysBackupSoc), toNumber(appset.backupRatio)),
     acOn: anyPositive(appshow.outAcTtPwr, appshow.outAcL11Pwr, appshow.outAcL12Pwr, appshow.outAcL21Pwr, appshow.outAcL22Pwr),
     dcOn: dc12vOn,
     usbOn,
@@ -202,6 +216,7 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
   const inv = asRecord(groups.inv);
   const mppt = asRecord(groups.mppt);
   const bmsStatus = asRecord(groups.bms_bmsStatus);
+  const bmsEmsStatus = asRecord(groups.bms_emsStatus);
   const bmsKitInfo = asRecord(groups.bms_kitInfo);
 
   const packs: BatteryPackDetail[] = [];
@@ -214,7 +229,11 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
       socPct: mainSoc,
       powerW: mainPower,
       tempC: mainTemp,
-      heatingOn: false
+      heatingOn: false,
+      energyWh: toNumber(bmsStatus.fullCap),
+      remainMinutes: firstDefined(toNumber(bmsStatus.remainTime), toNumber(pd.remainTime)),
+      socMinPct: firstDefined(toNumber(bmsStatus.minSoc), toNumber(bmsStatus.socMin), toNumber(pd.minAcSoc), toNumber(bmsEmsStatus.minDsgSoc)),
+      socMaxPct: firstDefined(toNumber(bmsStatus.maxSoc), toNumber(bmsStatus.socMax), toNumber(bmsEmsStatus.maxChargeSoc))
     });
   }
   for (const entry of asArray(bmsKitInfo.watts)) {
@@ -227,7 +246,11 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
       socPct: firstDefined(toNumber(pack.soc), toNumber(pack.targetSoc)),
       powerW: firstDefined(toNumber(pack.curPower), deriveBatteryNetPower(pack)),
       tempC: firstDefined(toNumber(pack.temp), toNumber(pack.cellTemp)),
-      heatingOn: false
+      heatingOn: false,
+      energyWh: toNumber(pack.energy),
+      remainMinutes: toNumber(pack.remainTime),
+      socMinPct: firstDefined(toNumber(pack.socMin), toNumber(pack.minSoc)),
+      socMaxPct: firstDefined(toNumber(pack.socMax), toNumber(pack.maxSoc))
     });
   }
 
@@ -264,6 +287,9 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     bpCount: bpCount ?? packs.length,
     packs,
     solarPorts: [pv1, pv2],
+    socWindowMinPct: firstDefined(toNumber(bmsEmsStatus.minDsgSoc), toNumber(pd.minAcSoc), toNumber(bmsStatus.minSoc), toNumber(bmsKitInfo.minSoc)),
+    socWindowMaxPct: firstDefined(toNumber(bmsEmsStatus.maxChargeSoc), toNumber(bmsStatus.maxSoc), toNumber(bmsKitInfo.maxSoc)),
+    backupReservePct: firstDefined(toNumber(pd.minAcSoc), toNumber(bmsEmsStatus.minOpenOilEb)),
     acOn: truthyNumber(inv.cfgAcEnabled) || anyPositive(inv.outputWatts),
     dcOn: dc12vOn || truthyNumber(pd.carState),
     usbOn,

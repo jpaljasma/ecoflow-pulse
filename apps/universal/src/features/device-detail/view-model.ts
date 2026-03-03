@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
-import { formatEtaMinutes, formatW } from '@/features/telemetry/format';
+import { formatEtaMinutes, formatSoc, formatW, formatWhAndKWh } from '@/features/telemetry/format';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
@@ -52,6 +52,8 @@ export type DetailBatteryPackVM = {
   powerText: string;
   tempText: string;
   heatingOn: boolean;
+  summaryText?: string;
+  reserveText?: string;
 };
 
 export type DetailSolarPortVM = {
@@ -83,6 +85,7 @@ export type DeviceDetailViewModel = {
   } | null;
   detailFallback?: ReturnType<typeof getBundledDeviceFallback>;
   capacityKWh: number | null;
+  batterySummaryText?: string;
   isColdTemp: boolean;
   metricCells: DetailMetricCellVM[];
   batteryPacks: DetailBatteryPackVM[];
@@ -254,7 +257,13 @@ export function useDeviceDetailViewModel({
         socPct: pack.socPct,
         powerText: Number.isFinite(pack.powerW as number) ? formatW(pack.powerW) : '—',
         tempText: Number.isFinite(pack.tempC as number) ? `${pack.tempC?.toFixed(1)}°C` : '—',
-        heatingOn: pack.heatingOn === true
+        heatingOn: pack.heatingOn === true,
+        summaryText: [formatWhAndKWh(pack.energyWh), formatEtaMinutes(pack.remainMinutes)]
+          .filter((part) => part !== '—')
+          .join(' · '),
+        reserveText: [formatSoc(pack.socMinPct), formatSoc(pack.socMaxPct)]
+          .filter((part) => part !== '—')
+          .join(' - ')
       })),
     [details?.packs]
   );
@@ -263,6 +272,25 @@ export function useDeviceDetailViewModel({
     () => (details?.solarPorts ?? []).map((port) => solarPortView(port)),
     [details?.solarPorts]
   );
+
+  const batterySummaryText = useMemo(() => {
+    if (!details) {
+      return undefined;
+    }
+    const socWindowText =
+      details.socWindowMinPct !== undefined && details.socWindowMaxPct !== undefined
+        ? `SOC window ${formatSoc(details.socWindowMinPct)} - ${formatSoc(details.socWindowMaxPct)}`
+        : details.socWindowMinPct !== undefined
+          ? `SOC min ${formatSoc(details.socWindowMinPct)}`
+          : details.socWindowMaxPct !== undefined
+            ? `SOC max ${formatSoc(details.socWindowMaxPct)}`
+            : undefined;
+    const segments = [
+      socWindowText,
+      details.backupReservePct !== undefined ? `Backup ${formatSoc(details.backupReservePct)}` : undefined
+    ].filter(Boolean);
+    return segments.length > 0 ? segments.join(' · ') : undefined;
+  }, [details]);
 
   const estimatePills = useMemo<DetailEstimatePillVM[]>(() => {
     const estimateLabel = details?.estimateMode
@@ -323,6 +351,7 @@ export function useDeviceDetailViewModel({
     deviceAsset,
     detailFallback,
     capacityKWh,
+    batterySummaryText,
     isColdTemp,
     metricCells,
     batteryPacks,

@@ -155,6 +155,7 @@ export function DeviceDetailBody({
             <BatteryPacksSection
               packs={vm.batteryPacks}
               bpCount={vm.details?.bpCount}
+              summaryText={vm.batterySummaryText}
               model={device?.model}
               serialNumber={device?.serialNumber}
               minWidth={isDesktop ? 320 : 280}
