@@ -1,9 +1,14 @@
 import type { FastifyRequest } from 'fastify';
 
 import type { AppConfig } from '../config.js';
-import type { ControlPlaneClient, UserDevice } from './controlPlaneClient.js';
+import type { ControlPlaneClient, ProviderDevice, ProviderDeviceGroup } from './controlPlaneClient.js';
 import type { TelemetrySnapshotClient } from './telemetryClient.js';
 import { deriveTelemetryMetrics, deriveTelemetryState, deriveTelemetryEtaMinutes } from '../telemetry/deriveMetrics.js';
+import {
+  buildProviderDevicePresentation,
+  type DeviceCapabilities,
+  type DeviceTelemetryDetails
+} from '../devices/providerDeviceMapper.js';
 
 export type DeviceSummary = {
   id: string;
@@ -21,6 +26,8 @@ export type DeviceSummary = {
   netW?: number;
   tempC?: number;
   telemetryTsMs?: number;
+  capabilities?: DeviceCapabilities;
+  details?: DeviceTelemetryDetails;
 };
 
 export interface DeviceClient {
@@ -37,20 +44,22 @@ export function createDeviceClient(
   return {
     async listDevices(request) {
       const userSubject = resolveUserSubject(config, request);
-      const devices = await controlPlaneClient.listUserDevices({
+      const groups = await controlPlaneClient.listDevices({
         userSubject,
+        activeOnly: true,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
         deadlineMs: config.grpcDeadlineMs
       });
-      const hydrated = await Promise.all(devices.map((device) => hydrateDevice(device, request, config, telemetryClient)));
+      const providerDevices = flattenProviderDevices(groups);
+      const hydrated = await Promise.all(
+        providerDevices.map((device) => hydrateDevice(device, request, config, telemetryClient))
+      );
       return hydrated;
     },
     async getDevice(request, routeDeviceId) {
       const devices = await this.listDevices(request);
-      return (
-        devices.find((device) => device.id === routeDeviceId || device.serialNumber === routeDeviceId) ?? null
-      );
+      return devices.find((device) => device.id === routeDeviceId || device.serialNumber === routeDeviceId) ?? null;
     },
     close() {
       controlPlaneClient.close();
@@ -60,12 +69,13 @@ export function createDeviceClient(
 }
 
 async function hydrateDevice(
-  device: UserDevice,
+  device: ProviderDevice,
   request: FastifyRequest,
   config: AppConfig,
   telemetryClient: TelemetrySnapshotClient
 ): Promise<DeviceSummary> {
-  const base = baseDeviceSummary(device);
+  const presentation = buildProviderDevicePresentation(device);
+  const base = baseDeviceSummary(device, presentation);
   try {
     const response = await telemetryClient.getSnapshot({
       deviceId: device.deviceId,
@@ -78,7 +88,7 @@ async function hydrateDevice(
     const telemetryTsMs = parsePositiveInt(response.snapshot?.cursor?.tsUnixMs);
     return {
       ...base,
-      online: telemetryTsMs !== null ? Date.now()-(telemetryTsMs) <= 30_000 : false,
+      online: telemetryTsMs !== null ? Date.now() - telemetryTsMs <= 30_000 : false,
       batteryPct: clampPercent(derived.soc),
       state: deriveTelemetryState(derived.batteryW),
       etaMinutes: deriveTelemetryEtaMinutes(rawMetrics, derived.batteryW),
@@ -95,16 +105,55 @@ async function hydrateDevice(
   }
 }
 
-function baseDeviceSummary(device: UserDevice): DeviceSummary {
+function baseDeviceSummary(device: ProviderDevice, presentation: ReturnType<typeof buildProviderDevicePresentation>): DeviceSummary {
   return {
     id: device.deviceId,
-    serialNumber: device.ecoflowSn,
-    name: device.productName || device.model || device.ecoflowSn || device.deviceId,
+    serialNumber: presentation.serialNumber,
+    name: device.productName || device.model || presentation.serialNumber || device.deviceId,
     model: device.model || device.productName || 'Unknown EcoFlow',
     online: false,
     batteryPct: 0,
     state: 'idle',
-    etaMinutes: 0
+    etaMinutes: 0,
+    capabilities: presentation.capabilities,
+    details: presentation.details
+  };
+}
+
+function flattenProviderDevices(groups: ProviderDeviceGroup[]): ProviderDevice[] {
+  const byDeviceID = new Map<string, ProviderDevice>();
+  for (const group of groups) {
+    for (const device of group.devices) {
+      const existing = byDeviceID.get(device.deviceId);
+      if (!existing) {
+        byDeviceID.set(device.deviceId, device);
+        continue;
+      }
+      byDeviceID.set(device.deviceId, mergeProviderDevice(existing, device));
+    }
+  }
+  return [...byDeviceID.values()];
+}
+
+function mergeProviderDevice(left: ProviderDevice, right: ProviderDevice): ProviderDevice {
+  return {
+    ...left,
+    ...right,
+    capabilities: mergeRecord(left.capabilities, right.capabilities),
+    metadata: mergeRecord(left.metadata, right.metadata)
+  };
+}
+
+function mergeRecord(
+  left?: Record<string, unknown>,
+  right?: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (!left && !right) {
+    return undefined;
+  }
+  return {
+    ...(left ?? {}),
+    ...(right ?? {})
   };
 }
 

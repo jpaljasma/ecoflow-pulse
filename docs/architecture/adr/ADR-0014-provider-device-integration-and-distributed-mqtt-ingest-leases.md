@@ -279,4 +279,4 @@ Graceful drain as event-driven desired state avoids abrupt disconnect churn and 
 - [ ] Add autoscaling custom metrics pipeline (Prometheus Adapter/KEDA) for
   `ingest_unassigned_active_devices`, `ingest_reconcile_duration_p95_seconds`,
   and `ingest_lease_acquire_latency_p95_seconds`.
-- [ ] Extend provider metadata APIs/tests so quota-derived capabilities and metadata can be surfaced without provider-specific parsing at read time.
+- [x] Extend provider metadata APIs/tests so quota-derived capabilities and metadata can be surfaced without provider-specific parsing at read time.

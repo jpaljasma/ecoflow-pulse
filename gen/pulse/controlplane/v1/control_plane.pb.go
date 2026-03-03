@@ -9,6 +9,7 @@ package controlplanev1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -437,6 +438,8 @@ type ProviderDevice struct {
 	Model              string                 `protobuf:"bytes,8,opt,name=model,proto3" json:"model,omitempty"`
 	IsActive           bool                   `protobuf:"varint,9,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
 	IngestDesiredState string                 `protobuf:"bytes,10,opt,name=ingest_desired_state,json=ingestDesiredState,proto3" json:"ingest_desired_state,omitempty"`
+	Capabilities       *structpb.Struct       `protobuf:"bytes,11,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
+	Metadata           *structpb.Struct       `protobuf:"bytes,12,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -539,6 +542,20 @@ func (x *ProviderDevice) GetIngestDesiredState() string {
 		return x.IngestDesiredState
 	}
 	return ""
+}
+
+func (x *ProviderDevice) GetCapabilities() *structpb.Struct {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *ProviderDevice) GetMetadata() *structpb.Struct {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 type UserDevice struct {
@@ -1233,7 +1250,7 @@ var File_pulse_controlplane_v1_control_plane_proto protoreflect.FileDescriptor
 
 const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\n" +
-	")pulse/controlplane/v1/control_plane.proto\x12\x15pulse.controlplane.v1\"\xdf\x01\n" +
+	")pulse/controlplane/v1/control_plane.proto\x12\x15pulse.controlplane.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xdf\x01\n" +
 	"\x12ProviderCredential\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12&\n" +
@@ -1265,7 +1282,7 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"#SetProviderCredentialActiveResponse\x12I\n" +
 	"\n" +
 	"credential\x18\x01 \x01(\v2).pulse.controlplane.v1.ProviderCredentialR\n" +
-	"credential\"\xd7\x02\n" +
+	"credential\"\xc9\x03\n" +
 	"\x0eProviderDevice\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12\x1a\n" +
@@ -1277,7 +1294,9 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\x05model\x18\b \x01(\tR\x05model\x12\x1b\n" +
 	"\tis_active\x18\t \x01(\bR\bisActive\x120\n" +
 	"\x14ingest_desired_state\x18\n" +
-	" \x01(\tR\x12ingestDesiredState\"\xef\x01\n" +
+	" \x01(\tR\x12ingestDesiredState\x12;\n" +
+	"\fcapabilities\x18\v \x01(\v2\x17.google.protobuf.StructR\fcapabilities\x123\n" +
+	"\bmetadata\x18\f \x01(\v2\x17.google.protobuf.StructR\bmetadata\"\xef\x01\n" +
 	"\n" +
 	"UserDevice\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x1d\n" +
@@ -1371,38 +1390,41 @@ var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*ListDevicesResponse)(nil),                 // 17: pulse.controlplane.v1.ListDevicesResponse
 	(*DiscoverDevicesRequest)(nil),              // 18: pulse.controlplane.v1.DiscoverDevicesRequest
 	(*DiscoverDevicesResponse)(nil),             // 19: pulse.controlplane.v1.DiscoverDevicesResponse
+	(*structpb.Struct)(nil),                     // 20: google.protobuf.Struct
 }
 var file_pulse_controlplane_v1_control_plane_proto_depIdxs = []int32{
 	0,  // 0: pulse.controlplane.v1.CreateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 1: pulse.controlplane.v1.ListProviderCredentialsResponse.credentials:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 2: pulse.controlplane.v1.SetProviderCredentialActiveResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	8,  // 3: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	8,  // 4: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	8,  // 5: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
-	7,  // 6: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	15, // 7: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
-	7,  // 8: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	1,  // 9: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
-	3,  // 10: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
-	5,  // 11: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
-	9,  // 12: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
-	11, // 13: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
-	13, // 14: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
-	16, // 15: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
-	18, // 16: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
-	2,  // 17: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
-	4,  // 18: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
-	6,  // 19: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
-	10, // 20: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
-	12, // 21: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
-	14, // 22: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
-	17, // 23: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
-	19, // 24: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
-	17, // [17:25] is the sub-list for method output_type
-	9,  // [9:17] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	20, // 3: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
+	20, // 4: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
+	8,  // 5: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	8,  // 6: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	8,  // 7: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
+	7,  // 8: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	15, // 9: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
+	7,  // 10: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	1,  // 11: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
+	3,  // 12: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
+	5,  // 13: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
+	9,  // 14: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
+	11, // 15: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
+	13, // 16: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
+	16, // 17: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
+	18, // 18: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
+	2,  // 19: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
+	4,  // 20: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
+	6,  // 21: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
+	10, // 22: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
+	12, // 23: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
+	14, // 24: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
+	17, // 25: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
+	19, // 26: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
+	19, // [19:27] is the sub-list for method output_type
+	11, // [11:19] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_pulse_controlplane_v1_control_plane_proto_init() }

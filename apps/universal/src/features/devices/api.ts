@@ -66,7 +66,7 @@ export const DeviceSchema = z.object({
 });
 
 export const DevicesResponseSchema = z.object({
-  devices: z.array(DeviceSchema.omit({ capabilities: true }))
+  devices: z.array(DeviceSchema)
 });
 
 export type DeviceSummary = z.infer<typeof DeviceSchema>;

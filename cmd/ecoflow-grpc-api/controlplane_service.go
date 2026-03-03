@@ -11,6 +11,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type ProviderDiscoverer interface {
@@ -352,6 +353,8 @@ func providerDeviceToProto(in controlplane.ProviderDevice) *controlplanev1.Provi
 		Model:              in.Model,
 		IsActive:           in.IsActive,
 		IngestDesiredState: in.IngestDesiredState,
+		Capabilities:       mapToStructProto(in.Capabilities),
+		Metadata:           mapToStructProto(in.Metadata),
 	}
 }
 
@@ -378,4 +381,15 @@ func normalizeDeviceRole(in string) (string, error) {
 	default:
 		return "", status.Error(codes.InvalidArgument, "role must be viewer or admin")
 	}
+}
+
+func mapToStructProto(in map[string]any) *structpb.Struct {
+	if len(in) == 0 {
+		return nil
+	}
+	out, err := structpb.NewStruct(in)
+	if err != nil {
+		return nil
+	}
+	return out
 }
