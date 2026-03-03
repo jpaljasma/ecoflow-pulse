@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { fetchDeviceHistory } from '@/features/history/api';
+import { fetchCompareDeviceHistory } from '@/features/history/api';
 import {
-  buildSolarHistoryView,
+  buildCompareSolarHistoryView,
   combineSolarHistoryViews,
   buildTodayBounds,
   historyRefreshIntervalMs,
@@ -13,6 +13,8 @@ type HistoryQueryOptions = {
   token?: string;
   authKey?: string;
   enabled?: boolean;
+  maxSolarWatts?: number;
+  maxSolarWattsByDeviceId?: Record<string, number | undefined>;
 };
 
 function buildDayKey(): string {
@@ -23,22 +25,22 @@ export function useDeviceSolarHistory(
   deviceId: string | undefined,
   options: HistoryQueryOptions = {}
 ) {
-  const { token, authKey = 'anonymous', enabled = true } = options;
+  const { token, authKey = 'anonymous', enabled = true, maxSolarWatts } = options;
   const dayKey = buildDayKey();
 
   return useQuery<SolarHistoryView>({
-    queryKey: ['device-solar-history', deviceId, dayKey, authKey],
+    queryKey: ['device-solar-history', deviceId, dayKey, authKey, maxSolarWatts ?? null],
     enabled: enabled && Boolean(deviceId),
     queryFn: async () => {
       const { from, to } = buildTodayBounds();
-      const series = await fetchDeviceHistory({
+      const series = await fetchCompareDeviceHistory({
         deviceId: deviceId ?? '',
         resolution: 'minute',
         fromIso: from.toISOString(),
         toIso: to.toISOString(),
         token
       });
-      return buildSolarHistoryView(series.points);
+      return buildCompareSolarHistoryView(series, { maxSolarWatts });
     },
     staleTime: 30_000,
     gcTime: 10 * 60_000,
@@ -50,25 +52,26 @@ export function useFleetSolarHistory(
   deviceIds: string[],
   options: HistoryQueryOptions = {}
 ) {
-  const { token, authKey = 'anonymous', enabled = true } = options;
+  const { token, authKey = 'anonymous', enabled = true, maxSolarWattsByDeviceId } = options;
   const sortedIds = useMemo(() => [...deviceIds].sort(), [deviceIds]);
   const dayKey = buildDayKey();
 
   const queries = useQueries({
     queries: sortedIds.map((deviceId) => {
+      const maxSolarWatts = maxSolarWattsByDeviceId?.[deviceId];
       return {
-        queryKey: ['device-solar-history', deviceId, dayKey, authKey],
+        queryKey: ['device-solar-history', deviceId, dayKey, authKey, maxSolarWatts ?? null],
         enabled: enabled && Boolean(deviceId),
         queryFn: async () => {
           const { from, to } = buildTodayBounds();
-          const series = await fetchDeviceHistory({
+          const series = await fetchCompareDeviceHistory({
             deviceId,
             resolution: 'minute',
             fromIso: from.toISOString(),
             toIso: to.toISOString(),
             token
           });
-          return buildSolarHistoryView(series.points);
+          return buildCompareSolarHistoryView(series, { maxSolarWatts });
         },
         staleTime: 30_000,
         gcTime: 10 * 60_000,

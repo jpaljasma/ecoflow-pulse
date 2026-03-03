@@ -31,6 +31,7 @@ export type DetailMetricCellVM =
       key: 'today';
       kind: 'today';
       valueWh?: number;
+      deltaPct?: number | null;
     };
 
 export type DetailSignalPillVM = {
@@ -151,13 +152,15 @@ export function useDeviceDetailViewModel({
   snapshot,
   connectionStatus,
   useRemoteImage,
-  todayWh
+  todayWh,
+  todayDeltaPct
 }: {
   device?: DeviceSummary;
   snapshot?: DeviceSnapshot;
   connectionStatus: TelemetryEngineStatus;
   useRemoteImage: boolean;
   todayWh?: number;
+  todayDeltaPct?: number | null;
 }): DeviceDetailViewModel {
   const modelLower = (device?.model ?? '').toLowerCase();
   const details = device?.details;
@@ -228,7 +231,7 @@ export function useDeviceDetailViewModel({
       { key: 'ac', kind: 'stat', label: '∿ AC', value: formatW(acInW), tone: metricToneFromValue(acInW) },
       { key: 'dc', kind: 'stat', label: '⎓ DC', value: formatW(dcW), tone: metricToneFromValue(dcW) },
       { key: 'pv', kind: 'stat', label: '☼ PV', value: formatW(pvW), tone: metricToneFromValue(pvW) },
-      { key: 'today', kind: 'today', valueWh: todayWh },
+      { key: 'today', kind: 'today', valueWh: todayWh, deltaPct: todayDeltaPct },
       {
         key: 'load',
         kind: 'stat',
@@ -248,7 +251,20 @@ export function useDeviceDetailViewModel({
       { key: 'state', kind: 'stat', label: '◉ State', value: device ? detailState : '—' },
       { key: 'eta', kind: 'stat', label: '⏱ ETA', value: formatEtaMinutes(device?.etaMinutes) }
     ];
-  }, [acInW, dcW, pvW, loadW, netW, batteryW, isColdTemp, snapshot?.metrics, device, detailState, todayWh]);
+  }, [
+    acInW,
+    dcW,
+    pvW,
+    loadW,
+    netW,
+    batteryW,
+    isColdTemp,
+    snapshot?.metrics,
+    device,
+    detailState,
+    todayDeltaPct,
+    todayWh
+  ]);
 
   const batteryPacks = useMemo<DetailBatteryPackVM[]>(
     () =>

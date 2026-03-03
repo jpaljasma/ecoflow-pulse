@@ -53,7 +53,7 @@ export function DeviceDetailBody({
     if (cell.kind === 'today') {
       return {
         key: cell.key,
-        content: <SolarTodayBadge valueWh={cell.valueWh} compact fitCell />
+        content: <SolarTodayBadge valueWh={cell.valueWh} deltaPct={cell.deltaPct} compact fitCell />
       };
     }
     return {
