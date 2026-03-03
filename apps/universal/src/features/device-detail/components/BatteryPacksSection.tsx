@@ -26,6 +26,7 @@ export function BatteryPacksSection({
     stableBatteryCountRef.current = observedCount;
   }
   const batteryCount = stableBatteryCountRef.current;
+  const inferredOnlyCount = Math.max(0, batteryCount - packs.length);
   const upsellHref = useMemo(
     () =>
       getBatteryUpsellUrl({
@@ -71,9 +72,19 @@ export function BatteryPacksSection({
             </YStack>
           ))}
         </YStack>
+      ) : batteryCount > 0 ? (
+        <YStack gap="$2">
+          <Text opacity={0.85}>{batteryCount} pack{batteryCount === 1 ? '' : 's'} detected.</Text>
+          <Text opacity={0.65}>Per-pack telemetry has not been published yet.</Text>
+        </YStack>
       ) : (
         <Text opacity={0.7}>No per-pack telemetry yet.</Text>
       )}
+      {packs.length && inferredOnlyCount > 0 ? (
+        <Text opacity={0.65}>
+          {inferredOnlyCount} additional pack{inferredOnlyCount === 1 ? '' : 's'} detected from device capabilities.
+        </Text>
+      ) : null}
       <BatteryUpsellComponent
         href={upsellHref}
         modelName={model}
