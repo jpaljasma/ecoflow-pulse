@@ -169,12 +169,12 @@ describe('provider device mapper', () => {
               fanState: 1
             },
             mppt: {
-              inVol: 16.4,
-              inAmp: 5,
+              inVol: 16400,
+              inAmp: 5000,
               outWatts: 82,
               chgState: 2,
-              pv2InVol: 40.9,
-              pv2InAmp: 5.18,
+              pv2InVol: 40900,
+              pv2InAmp: 5180,
               pv2ChgState: 1
             },
             bms_bmsStatus: {
@@ -253,8 +253,8 @@ describe('provider device mapper', () => {
           })
         ]),
         solarPorts: [
-          expect.objectContaining({ id: 'pv-1', state: 'charging', watts: 82 }),
-          expect.objectContaining({ id: 'pv-2', state: 'charging', watts: 212 })
+          expect.objectContaining({ id: 'pv-1', state: 'charging', watts: 82, volts: 16.4, amps: 5 }),
+          expect.objectContaining({ id: 'pv-2', state: 'charging', watts: 212, volts: 40.9, amps: 5.18 })
         ]
       })
     );

@@ -26,6 +26,21 @@ describe('telemetryMap', () => {
     expect(metrics.tempC).toBe(20);
   });
 
+  it('prefers canonical D2M quota PV fields over broken MPPT power fields', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.f32ShowSoc': 90,
+      'params.pv1ChargeWatts': 158,
+      'params.pv2ChargeWatts': 333,
+      'params.inLvMpptPwr': 175288048,
+      'params.inHvMpptPwr': 443476824,
+      'params.wattsInSum': 491,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBe(491);
+    expect(metrics.acW).toBe(0);
+  });
+
   it('merges changed and cleared raw metrics', () => {
     const merged = mergeRawMetrics(
       { 'params.wattsInSum': 25, 'params.pv1ChargeWatts': 10, 'params.temp': 21 },
@@ -38,5 +53,18 @@ describe('telemetryMap', () => {
       'params.pv1ChargeWatts': 10,
       'params.pv2ChargeWatts': 12
     });
+  });
+
+  it('drops impossible MPPT fallback power values', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.f32ShowSoc': 31.5,
+      'params.inLvMpptPwr': 175288048,
+      'params.inHvMpptPwr': 443476824,
+      'params.wattsInSum': 144,
+      'params.wattsOutSum': 138
+    });
+
+    expect(metrics.pvW).toBe(0);
+    expect(metrics.acW).toBe(144);
   });
 });

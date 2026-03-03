@@ -24,8 +24,8 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
   ) ?? 0;
 
   const pv =
-    sumIfPresent(raw, 'pvW', 'params.inLvMpptPwr', 'params.inHvMpptPwr', 'param.powGetPvL', 'param.powGetPvH') ??
-    sumIfPresent(raw, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts', 'params.chgSunPower') ??
+    sumIfPresentCapped(raw, 10000, 'pvW', 'params.pv1ChargeWatts', 'params.pv2ChargeWatts', 'params.chgSunPower') ??
+    sumIfPresentCapped(raw, 10000, 'params.inLvMpptPwr', 'params.inHvMpptPwr', 'param.powGetPvL', 'param.powGetPvH') ??
     0;
 
   const acIn =
@@ -183,6 +183,19 @@ function sumIfPresent(raw: RawMetrics, ...paths: string[]): number | undefined {
   for (const path of paths) {
     const value = raw[path];
     if (typeof value === 'number' && Number.isFinite(value)) {
+      sum += value;
+      found = true;
+    }
+  }
+  return found ? sum : undefined;
+}
+
+function sumIfPresentCapped(raw: RawMetrics, max: number, ...paths: string[]): number | undefined {
+  let found = false;
+  let sum = 0;
+  for (const path of paths) {
+    const value = raw[path];
+    if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= max) {
       sum += value;
       found = true;
     }

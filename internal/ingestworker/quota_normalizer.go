@@ -341,7 +341,35 @@ func decodeQuotaMap(quota map[string]string) map[string]any {
 		}
 		decoded[trimmedKey] = decodeQuotaValue(raw)
 	}
+	normalizeQuotaUnits(decoded)
 	return decoded
+}
+
+func normalizeQuotaUnits(decoded map[string]any) {
+	for key, value := range decoded {
+		switch key {
+		case "mppt.inVol", "mppt.pv2InVol", "mppt.outVol", "inv.invOutVol", "inv.acInVol":
+			if scaled, ok := scaleMilliValue(value, 1000); ok {
+				decoded[key] = scaled
+			}
+		case "mppt.inAmp", "mppt.pv2InAmp", "mppt.outAmp", "inv.invOutAmp", "inv.acInAmp":
+			if scaled, ok := scaleMilliValue(value, 100); ok {
+				decoded[key] = scaled
+			}
+		}
+	}
+}
+
+func scaleMilliValue(value any, threshold float64) (any, bool) {
+	number, ok := numberFromAny(value)
+	if !ok || math.Abs(number) < threshold {
+		return nil, false
+	}
+	scaled := number / 1000
+	if math.Trunc(scaled) == scaled {
+		return int64(scaled), true
+	}
+	return scaled, true
 }
 
 func decodeQuotaValue(raw string) any {

@@ -1,6 +1,9 @@
 package ingestworker
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestNormalizeEcoFlowQuotaEmitsCanonicalParamsCapabilitiesAndMetadata(t *testing.T) {
 	t.Parallel()
@@ -145,5 +148,37 @@ func TestNormalizeEcoFlowQuotaReturnsNilMapsWhenEmpty(t *testing.T) {
 	metadata, ok := normalized.Metadata["quota_key_count"]
 	if !ok || metadata != 0 {
 		t.Fatalf("expected only quota_key_count=0 metadata, got=%v", normalized.Metadata)
+	}
+}
+
+func TestNormalizeEcoFlowQuotaScalesD2MMilliUnits(t *testing.T) {
+	t.Parallel()
+
+	normalized := normalizeEcoFlowQuota(map[string]string{
+		"mppt.inVol":    "10499",
+		"mppt.inAmp":    "133",
+		"mppt.pv2InVol": "15118",
+		"mppt.pv2InAmp": "33",
+		"inv.acInVol":   "119260",
+		"inv.acInAmp":   "1251",
+	})
+
+	if got, ok := numberFromAny(normalized.Params["inLvMpptVol"]); !ok || got != 10.499 {
+		t.Fatalf("scaled inLvMpptVol mismatch: got=%v ok=%v", got, ok)
+	}
+	if got, ok := numberFromAny(normalized.Params["inLvMpptAmp"]); !ok || got != 0.133 {
+		t.Fatalf("scaled inLvMpptAmp mismatch: got=%v ok=%v", got, ok)
+	}
+	if got, ok := numberFromAny(normalized.Params["inLvMpptPwr"]); !ok || math.Abs(got-(10.499*0.133)) > 1e-9 {
+		t.Fatalf("scaled inLvMpptPwr mismatch: got=%v ok=%v", got, ok)
+	}
+	groups, _ := normalized.Metadata["groups"].(map[string]any)
+	mppt, _ := groups["mppt"].(map[string]any)
+	if got := mppt["inVol"]; got != 10.499 {
+		t.Fatalf("grouped scaled mppt.inVol mismatch: got=%v", got)
+	}
+	inv, _ := groups["inv"].(map[string]any)
+	if got := inv["acInVol"]; got != 119.26 {
+		t.Fatalf("grouped scaled inv.acInVol mismatch: got=%v", got)
 	}
 }

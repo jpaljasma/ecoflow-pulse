@@ -254,13 +254,17 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     });
   }
 
-  const pv1Watts = firstDefined(toNumber(mppt.outWatts), multiplyNumbers(mppt.inVol, mppt.inAmp));
-  const pv2Watts = firstDefined(toNumber(pd.pv2ChargeWatts), toNumber(mppt.pv2InWatts), multiplyNumbers(mppt.pv2InVol, mppt.pv2InAmp));
+  const pv1Volts = normalizeMillivolts(mppt.inVol, 60);
+  const pv1Amps = normalizeMilliamps(mppt.inAmp, 15);
+  const pv2Volts = normalizeMillivolts(mppt.pv2InVol, 60);
+  const pv2Amps = normalizeMilliamps(mppt.pv2InAmp, 15);
+  const pv1Watts = sanitizeSolarWatts(firstDefined(toNumber(mppt.outWatts), multiplyNumbers(pv1Volts, pv1Amps)), 500);
+  const pv2Watts = sanitizeSolarWatts(firstDefined(toNumber(pd.pv2ChargeWatts), toNumber(mppt.pv2InWatts), multiplyNumbers(pv2Volts, pv2Amps)), 500);
   const pv1 = makeSolarPort({
     id: 'pv-1',
     name: 'PV 1',
-    volts: toNumber(mppt.inVol),
-    amps: toNumber(mppt.inAmp),
+    volts: pv1Volts,
+    amps: pv1Amps,
     watts: pv1Watts,
     maxWatts: 500,
     maxVolts: 60,
@@ -270,8 +274,8 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
   const pv2 = makeSolarPort({
     id: 'pv-2',
     name: 'PV 2',
-    volts: toNumber(mppt.pv2InVol),
-    amps: toNumber(mppt.pv2InAmp),
+    volts: pv2Volts,
+    amps: pv2Amps,
     watts: pv2Watts,
     maxWatts: 500,
     maxVolts: 60,
@@ -444,6 +448,29 @@ function multiplyNumbers(left: unknown, right: unknown): number | undefined {
     return undefined;
   }
   return l * r;
+}
+
+function normalizeMillivolts(value: unknown, maxVolts: number): number | undefined {
+  const parsed = toNumber(value);
+  if (parsed === undefined) {
+    return undefined;
+  }
+  return parsed > maxVolts*2 ? parsed / 1000 : parsed;
+}
+
+function normalizeMilliamps(value: unknown, maxAmps: number): number | undefined {
+  const parsed = toNumber(value);
+  if (parsed === undefined) {
+    return undefined;
+  }
+  return parsed > maxAmps*2 ? parsed / 1000 : parsed;
+}
+
+function sanitizeSolarWatts(value: number | undefined, maxWatts: number): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value > maxWatts * 2 ? undefined : value;
 }
 
 function firstDefined<T>(...values: (T | undefined)[]): T | undefined {

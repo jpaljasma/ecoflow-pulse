@@ -85,6 +85,7 @@ async function hydrateDevice(
     });
     const rawMetrics = response.snapshot?.metrics ?? {};
     const derived = deriveTelemetryMetrics(rawMetrics);
+    const pvW = deriveSummaryPvWatts(derived.pvW, presentation.details);
     const telemetryTsMs = parsePositiveInt(response.snapshot?.cursor?.tsUnixMs);
     return {
       ...base,
@@ -92,11 +93,11 @@ async function hydrateDevice(
       batteryPct: clampPercent(derived.soc),
       state: deriveTelemetryState(derived.batteryW),
       etaMinutes: deriveTelemetryEtaMinutes(rawMetrics, derived.batteryW),
-      pvW: derived.pvW,
+      pvW,
       acInW: derived.acW,
       dcW: derived.dcW,
       loadW: derived.loadW,
-      netW: derived.pvW - derived.loadW,
+      netW: pvW - derived.loadW,
       tempC: derived.tempC,
       telemetryTsMs: telemetryTsMs ?? undefined
     };
@@ -199,4 +200,55 @@ function clampPercent(value: number): number {
     return 0;
   }
   return Math.min(100, Math.max(0, value));
+}
+
+function deriveSummaryPvWatts(rawPvW: number, details?: DeviceTelemetryDetails): number {
+  const ports = details?.solarPorts ?? [];
+  let sum = 0;
+  let found = false;
+  let totalMaxWatts = 0;
+  for (const port of ports) {
+    const maxWatts = sanePositive(port.maxWatts);
+    if (maxWatts !== undefined) {
+      totalMaxWatts += maxWatts;
+    }
+    const watts = sanePositive(port.watts);
+    if (watts !== undefined) {
+      if (maxWatts === undefined || watts <= maxWatts * 2) {
+        sum += watts;
+        found = true;
+      }
+      continue;
+    }
+    const volts = sanePositive(port.volts);
+    const amps = sanePositive(port.amps);
+    if (volts !== undefined && amps !== undefined) {
+      const derivedWatts = volts * amps;
+      if (maxWatts === undefined || derivedWatts <= maxWatts * 2) {
+        sum += derivedWatts;
+        found = true;
+      }
+    }
+  }
+  const detailPvW = found ? sum : 0;
+  const saneRawPvW = sanePositive(rawPvW) ?? 0;
+  if (detailPvW > 0 && saneRawPvW > 0) {
+    if (totalMaxWatts > 0 && saneRawPvW > totalMaxWatts * 1.1) {
+      return detailPvW;
+    }
+    const higher = Math.max(saneRawPvW, detailPvW);
+    const lower = Math.min(saneRawPvW, detailPvW);
+    if (lower > 0 && higher / lower >= 1.5) {
+      return detailPvW;
+    }
+    return saneRawPvW;
+  }
+  if (saneRawPvW > 0) {
+    return saneRawPvW;
+  }
+  return detailPvW;
+}
+
+function sanePositive(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
 }
