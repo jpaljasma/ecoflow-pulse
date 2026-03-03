@@ -23,10 +23,7 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
     'param.soc'
   ) ?? 0;
 
-  const pv =
-    sumIfPresentCapped(raw, 10000, 'pvW', 'params.pv1ChargeWatts', 'params.pv2ChargeWatts', 'params.chgSunPower') ??
-    sumIfPresentCapped(raw, 10000, 'params.inLvMpptPwr', 'params.inHvMpptPwr', 'param.powGetPvL', 'param.powGetPvH') ??
-    0;
+  const pv = derivePv(raw);
 
   const acIn =
     sumIfPresent(raw, 'acW', 'params.inAcC20Pwr', 'params.inAc5p8Pwr') ??
@@ -87,6 +84,16 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
     acW: acIn,
     dcW: dc
   };
+}
+
+function derivePv(raw: RawMetrics): number {
+  return (
+    firstNumber(raw, 'pvW') ??
+    sumIfPresentCapped(raw, 10000, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts', 'params.chgSunPower') ??
+    sumIfPresentCapped(raw, 10000, 'params.inLvMpptPwr', 'params.inHvMpptPwr') ??
+    sumIfPresentCapped(raw, 10000, 'param.powGetPvL', 'param.powGetPvH') ??
+    0
+  );
 }
 
 export function deriveTelemetryState(batteryW: number): 'charging' | 'discharging' | 'idle' {

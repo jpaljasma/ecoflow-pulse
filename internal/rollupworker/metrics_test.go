@@ -62,6 +62,22 @@ func TestSampleFromEnvelopeDPUAppShowAndBackendFields(t *testing.T) {
 	}
 }
 
+func TestSampleFromEnvelopePrefersCanonicalD2MQuotaPVFields(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"params":{"pv1ChargeWatts":158,"pv2ChargeWatts":333,"inLvMpptPwr":175288048,"inHvMpptPwr":443476824,"wattsInSum":491,"wattsOutSum":0,"f32ShowSoc":90}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := sample.Metrics.PV.Value; got != 491 {
+		t.Fatalf("pv mismatch: got=%v want=491", got)
+	}
+	if got := sample.Metrics.ACIn.Value; got != 0 {
+		t.Fatalf("ac in mismatch: got=%v want=0", got)
+	}
+}
+
 func TestSampleFromEnvelopeUsesCellTempMedian(t *testing.T) {
 	t.Parallel()
 	env := testEnvelope(`{"params":{"outputWatts":99,"cellTemp":[13,19,17,11,80]}}`)

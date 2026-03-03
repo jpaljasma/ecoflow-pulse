@@ -32,6 +32,9 @@ runtime:
     projection:
       enabled: true
       replicaCount: 1
+    rollup:
+      enabled: true
+      replicaCount: 1
     archive:
       enabled: true
       replicaCount: 1

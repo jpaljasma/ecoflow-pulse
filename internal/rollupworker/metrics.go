@@ -64,16 +64,16 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 	)
 
 	if pv, ok := sumIfPresent(root,
+		"params.pv1ChargeWatts",
+		"params.pv2ChargeWatts",
+		"params.chgSunPower",
+	); ok {
+		metrics.PV = optionalFloat{Value: pv, Valid: true}
+	} else if pv, ok := sumIfPresent(root,
 		"params.inLvMpptPwr",
 		"params.inHvMpptPwr",
 		"param.powGetPvL",
 		"param.powGetPvH",
-	); ok {
-		metrics.PV = optionalFloat{Value: pv, Valid: true}
-	} else if pv, ok := sumIfPresent(root,
-		"params.pv1ChargeWatts",
-		"params.pv2ChargeWatts",
-		"params.chgSunPower",
 	); ok {
 		metrics.PV = optionalFloat{Value: pv, Valid: true}
 	}

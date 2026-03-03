@@ -31,6 +31,29 @@ describe('deriveTelemetryMetrics', () => {
     expect(metrics.acW).toBeCloseTo(0.19867, 4);
   });
 
+  it('does not double-count explicit pvW with provider-specific MPPT totals', () => {
+    const metrics = deriveTelemetryMetrics({
+      pvW: 167.1652,
+      'params.inLvMpptPwr': 167.1652,
+      'params.wattsInSum': 167.1652,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBeCloseTo(167.1652, 6);
+    expect(metrics.acW).toBeCloseTo(0, 6);
+  });
+
+  it('does not sum duplicate DPU MPPT power representations', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.inLvMpptPwr': 157.1652,
+      'param.powGetPvL': 157.1652,
+      'params.inHvMpptPwr': 0,
+      'param.powGetPvH': 0
+    });
+
+    expect(metrics.pvW).toBeCloseTo(157.1652, 6);
+  });
+
   it('drops impossible MPPT fallback power values', () => {
     const metrics = deriveTelemetryMetrics({
       'params.f32ShowSoc': 31.5,
