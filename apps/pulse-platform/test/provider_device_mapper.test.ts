@@ -57,30 +57,32 @@ describe('provider device mapper', () => {
               sysBackupSoc: 18
             },
             hs_yj751_pd_bp_addr: {
-              bpInfo: [
-                {
-                  bpNo: 'bp1',
-                  bpSoc: 48.5,
-                  bpPwr: 12.1,
-                  bpTemp: 19.5,
-                  heatTime: 120,
-                  bpEnergy: 5980,
-                  remainTime: 322,
-                  bpSocMin: 10,
-                  bpSocMax: 95
-                },
-                {
-                  bpNo: 'bp2',
-                  bpSoc: 47.9,
-                  bpPwr: 11.8,
-                  bpTemp: 19.3,
-                  heatTime: 0,
-                  bpEnergy: 6015,
-                  remainTime: 317,
-                  bpSocMin: 10,
-                  bpSocMax: 95
-                }
-              ]
+              bpInfo: {
+                values: [
+                  {
+                    bpNo: 'bp1',
+                    bpSoc: 48.5,
+                    bpPwr: 12.1,
+                    bpTemp: 19.5,
+                    heatTime: 120,
+                    bpEnergy: 5980,
+                    remainTime: 322,
+                    bpSocMin: 10,
+                    bpSocMax: 95
+                  },
+                  {
+                    bpNo: 'bp2',
+                    bpSoc: 47.9,
+                    bpPwr: 11.8,
+                    bpTemp: 19.3,
+                    heatTime: 0,
+                    bpEnergy: 6015,
+                    remainTime: 317,
+                    bpSocMin: 10,
+                    bpSocMax: 95
+                  }
+                ]
+              }
             }
           }
         }
@@ -192,19 +194,21 @@ describe('provider device mapper', () => {
             },
             bms_kitInfo: {
               kitNum: 1,
-              watts: [
-                {
-                  avaFlag: 1,
-                  sn: 'bp1',
-                  targetSoc: 31.2,
-                  curPower: 22,
-                  temp: 13.4,
-                  energy: 2048,
-                  remainTime: 287,
-                  socMin: 5,
-                  socMax: 85
-                }
-              ]
+              watts: {
+                values: [
+                  {
+                    avaFlag: 1,
+                    sn: 'bp1',
+                    targetSoc: 31.2,
+                    curPower: 22,
+                    temp: 13.4,
+                    energy: 2048,
+                    remainTime: 287,
+                    socMin: 5,
+                    socMax: 85
+                  }
+                ]
+              }
             }
           }
         }

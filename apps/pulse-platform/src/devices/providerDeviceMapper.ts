@@ -407,7 +407,16 @@ function asRecord(value: unknown): GenericRecord {
 }
 
 function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const wrapped = (value as GenericRecord).values;
+    if (Array.isArray(wrapped)) {
+      return wrapped;
+    }
+  }
+  return [];
 }
 
 function toNumber(value: unknown): number | undefined {
