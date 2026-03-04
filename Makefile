@@ -99,7 +99,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -182,6 +182,11 @@ test-archive-integration:
 	ARCHIVE_OBJECT_ACCESS_KEY="$$access_key" \
 	ARCHIVE_OBJECT_SECRET_KEY="$$secret_key" \
 	$(GO) test ./internal/archiveworker -tags integration -run 'TestMinIOObjectStore.*Integration' -count=1 -v
+
+test-pipeline-integration:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	@echo "running end-to-end telemetry pipeline integration suite with Testcontainers"
+	PIPELINE_INTEGRATION=1 $(GO) test ./internal/pipelineintegration -tags integration -count=1 -v
 
 build:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin

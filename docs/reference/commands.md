@@ -544,6 +544,15 @@ Notes:
     overridden via `ARCHIVE_OBJECT_ACCESS_KEY` / `ARCHIVE_OBJECT_SECRET_KEY`,
   - sets `ARCHIVE_STORE_INTEGRATION=1` and runs
     `go test ./internal/archiveworker -tags integration`.
+- `make test-pipeline-integration` runs the end-to-end telemetry pipeline
+  integration suite with Testcontainers:
+  - starts isolated Postgres/Timescale, NATS, Valkey, and MinIO containers,
+  - applies `deploy/db/migrations/*.up.sql`,
+  - runs a full data-path assertion (`NATS ingest -> projection snapshot ->
+    rollup row -> archive manifest/object`),
+  - requires a running Docker daemon,
+  - command:
+    `PIPELINE_INTEGRATION=1 go test ./internal/pipelineintegration -tags integration -count=1 -v`.
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
