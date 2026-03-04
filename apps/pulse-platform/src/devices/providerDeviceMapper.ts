@@ -316,22 +316,39 @@ function makeSolarPort(input: {
   maxAmps: number;
   rawState?: number;
 }): SolarPortDetail {
+  const watts = normalizeSolarPortWatts(input.watts, input.amps, input.rawState);
   return {
     id: input.id,
     name: input.name,
-    state: deriveSolarState(input.rawState, input.volts, input.watts),
+    state: deriveSolarState(input.rawState, input.volts, watts, input.amps),
     volts: input.volts,
     amps: input.amps,
-    watts: input.watts,
+    watts,
     maxWatts: input.maxWatts,
     maxVolts: input.maxVolts,
     maxAmps: input.maxAmps
   };
 }
 
-function deriveSolarState(rawState: number | undefined, volts: number | undefined, watts: number | undefined): string {
+function deriveSolarState(
+  rawState: number | undefined,
+  volts: number | undefined,
+  watts: number | undefined,
+  amps: number | undefined
+): string {
   if ((volts ?? 0) <= 0.1) {
     return 'inactive';
+  }
+  if ((amps ?? 0) <= 0.03 && (watts ?? 0) <= 1) {
+    if (rawState !== undefined) {
+      if (rawState === 1) {
+        return 'locked';
+      }
+      if (rawState >= 2) {
+        return 'charging';
+      }
+    }
+    return 'idle';
   }
   if ((watts ?? 0) > 1) {
     return 'charging';
@@ -345,6 +362,20 @@ function deriveSolarState(rawState: number | undefined, volts: number | undefine
     }
   }
   return 'idle';
+}
+
+function normalizeSolarPortWatts(
+  watts: number | undefined,
+  amps: number | undefined,
+  rawState: number | undefined
+): number | undefined {
+  if (watts === undefined) {
+    return undefined;
+  }
+  if ((amps ?? 0) <= 0.03 && rawState !== undefined && rawState < 2) {
+    return 0;
+  }
+  return watts;
 }
 
 function deriveBatteryCapacityKWh(modelLower: string, batteryPacks?: number): number | undefined {

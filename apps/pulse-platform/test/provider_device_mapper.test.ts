@@ -263,4 +263,38 @@ describe('provider device mapper', () => {
       })
     );
   });
+
+  it('treats zero-amp locked D2M PV ports as non-producing', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        deviceId: '019ca747-3923-7d05-ac88-090bb4c7b562',
+        providerDeviceId: 'R351ZABAPH331057',
+        canonicalSn: 'R351ZABAPH331057',
+        productName: 'Kitchen Delta 2 Max',
+        model: 'DELTA 2 Max',
+        metadata: {
+          groups: {
+            pd: {
+              pv2ChargeWatts: 0
+            },
+            mppt: {
+              inVol: 22000,
+              inAmp: 0,
+              outWatts: 7,
+              chgState: 1,
+              pv2InVol: 26000,
+              pv2InAmp: 0,
+              pv2InWatts: 0,
+              pv2ChgState: 0
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details?.solarPorts).toEqual([
+      expect.objectContaining({ id: 'pv-1', state: 'locked', volts: 22, amps: 0, watts: 0 }),
+      expect.objectContaining({ id: 'pv-2', state: 'idle', volts: 26, amps: 0, watts: 0 })
+    ]);
+  });
 });
