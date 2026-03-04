@@ -63,18 +63,7 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 		"param.soc",
 	)
 
-	if pv, ok := sumIfPresent(root,
-		"params.pv1ChargeWatts",
-		"params.pv2ChargeWatts",
-		"params.chgSunPower",
-	); ok {
-		metrics.PV = optionalFloat{Value: pv, Valid: true}
-	} else if pv, ok := sumIfPresent(root,
-		"params.inLvMpptPwr",
-		"params.inHvMpptPwr",
-		"param.powGetPvL",
-		"param.powGetPvH",
-	); ok {
+	if pv, ok := derivePV(root); ok {
 		metrics.PV = optionalFloat{Value: pv, Valid: true}
 	}
 
@@ -138,6 +127,13 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 		metrics.Net = optionalFloat{Value: metrics.ACIn.Value + metrics.PV.Value - metrics.Load.Value, Valid: true}
 	}
 
+	if generated := firstNumber(root,
+		"params.solarGeneratedWh",
+		"param.solarGeneratedWh",
+	); generated.Valid && generated.Value >= 0 {
+		metrics.SolarGeneratedWh = generated
+	}
+
 	if battery, ok := batteryMetric(root); ok {
 		metrics.Battery = optionalFloat{Value: battery, Valid: true}
 	} else if metrics.Net.Valid {
@@ -149,6 +145,45 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 	}
 
 	return metrics
+}
+
+func derivePV(root gjson.Result) (float64, bool) {
+	if pv := firstNumberCapped(root, 10_000, "pvW"); pv.Valid {
+		return pv.Value, true
+	}
+	if pv, ok := sumIfPresentCapped(root, 10_000,
+		"params.pv1ChargeWatts",
+		"params.pv2ChargeWatts",
+	); ok {
+		return pv, true
+	}
+	if pv, ok := sumIfPresentCapped(root, 10_000,
+		"params.inLvMpptPwr",
+		"params.inHvMpptPwr",
+		"param.powGetPvL",
+		"param.powGetPvH",
+	); ok {
+		return pv, true
+	}
+	return 0, false
+}
+
+func firstNumberCapped(root gjson.Result, maxAbs float64, paths ...string) optionalFloat {
+	for _, path := range paths {
+		result := root.Get(path)
+		if !result.Exists() {
+			continue
+		}
+		if !isNumericResult(result) {
+			continue
+		}
+		value := result.Float()
+		if value < -maxAbs || value > maxAbs {
+			continue
+		}
+		return optionalFloat{Value: value, Valid: true}
+	}
+	return optionalFloat{}
 }
 
 func firstPositiveInt64(values ...int64) int64 {
@@ -183,6 +218,24 @@ func sumIfPresent(root gjson.Result, paths ...string) (float64, bool) {
 			continue
 		}
 		sum += result.Float()
+		found = true
+	}
+	return sum, found
+}
+
+func sumIfPresentCapped(root gjson.Result, maxAbs float64, paths ...string) (float64, bool) {
+	var sum float64
+	var found bool
+	for _, path := range paths {
+		result := root.Get(path)
+		if !result.Exists() || !isNumericResult(result) {
+			continue
+		}
+		value := result.Float()
+		if value < -maxAbs || value > maxAbs {
+			continue
+		}
+		sum += value
 		found = true
 	}
 	return sum, found
