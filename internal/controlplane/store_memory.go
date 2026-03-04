@@ -72,6 +72,8 @@ func (s *MemoryStore) PutProviderDevice(device ProviderDevice) {
 	}
 	device.Provider = NormalizeProvider(device.Provider)
 	device.ProviderDeviceID = strings.ToUpper(strings.TrimSpace(device.ProviderDeviceID))
+	device.Capabilities = cloneAnyMap(device.Capabilities)
+	device.Metadata = cloneAnyMap(device.Metadata)
 	s.providerDevices[device.ID] = device
 }
 
@@ -278,6 +280,15 @@ func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderD
 	if existingID == "" {
 		existingID = s.nextID("pdev")
 	}
+	existing := s.providerDevices[existingID]
+	capabilities := cloneAnyMap(existing.Capabilities)
+	if in.Capabilities != nil {
+		capabilities = cloneAnyMap(in.Capabilities)
+	}
+	metadata := cloneAnyMap(existing.Metadata)
+	if in.Metadata != nil {
+		metadata = cloneAnyMap(in.Metadata)
+	}
 	row := ProviderDevice{
 		ID:                 existingID,
 		DeviceID:           strings.TrimSpace(in.DeviceID),
@@ -287,11 +298,13 @@ func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderD
 		CanonicalSN:        providerDeviceID,
 		ProductName:        strings.TrimSpace(in.ProductName),
 		Model:              strings.TrimSpace(in.Model),
+		Capabilities:       capabilities,
+		Metadata:           metadata,
 		IsActive:           in.IsActive,
 		IngestDesiredState: strings.ToLower(strings.TrimSpace(in.IngestDesiredState)),
 	}
 	s.providerDevices[row.ID] = row
-	return row, nil
+	return cloneProviderDevice(row), nil
 }
 
 func (s *MemoryStore) ListProviderDevices(_ context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error) {
@@ -307,7 +320,7 @@ func (s *MemoryStore) ListProviderDevices(_ context.Context, in ListProviderDevi
 		if in.ActiveOnly && !row.IsActive {
 			continue
 		}
-		out = append(out, row)
+		out = append(out, cloneProviderDevice(row))
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Provider == out[j].Provider {
@@ -408,4 +421,22 @@ func (s *MemoryStore) ensureUserDeviceRoleLocked(userID string, deviceID string,
 func (s *MemoryStore) nextID(prefix string) string {
 	seq := atomic.AddUint64(&s.idCounter, 1)
 	return fmt.Sprintf("%s-%d", prefix, seq)
+}
+
+func cloneProviderDevice(in ProviderDevice) ProviderDevice {
+	out := in
+	out.Capabilities = cloneAnyMap(in.Capabilities)
+	out.Metadata = cloneAnyMap(in.Metadata)
+	return out
+}
+
+func cloneAnyMap(in map[string]any) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }

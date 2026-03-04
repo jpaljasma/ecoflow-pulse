@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Text, XStack, YStack } from 'tamagui';
@@ -21,6 +22,11 @@ import { useFleetSolarHistory } from '@/features/history/hooks';
 const SUMMARY_TREND_POINTS = 60;
 const SOLAR_GENERATED_POINTS = 72;
 
+function getMaxSolarWatts(device: DeviceSummary): number | undefined {
+  const total = device.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
+  return total > 0 ? total : undefined;
+}
+
 function formatPct(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return '—';
   return `${value.toFixed(1)}%`;
@@ -40,10 +46,20 @@ export function SummaryPanel({
   const fleetTrend = useTelemetryFleetTrend();
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
   const historyEnabled = authReady && (!authConfigured || sessionValid) && deviceIds.length > 0;
+  const maxSolarWattsByDeviceId = useMemo(
+    () =>
+      Object.fromEntries(
+        devices.map((device) => {
+          return [device.id, getMaxSolarWatts(device)];
+        })
+      ),
+    [devices]
+  );
   const fleetSolarHistory = useFleetSolarHistory(deviceIds, {
     token,
     authKey,
-    enabled: historyEnabled
+    enabled: historyEnabled,
+    maxSolarWattsByDeviceId
   });
 
   const { summary, uniqueTypes } = useFleetSummaryViewModel({
@@ -107,7 +123,13 @@ export function SummaryPanel({
     {
       key: 'today',
       span: isCompact ? 3 : 2,
-      content: <SolarTodayBadge valueWh={fleetSolarHistory.data.todayWh} compact={isCompact} />
+      content: (
+        <SolarTodayBadge
+          valueWh={fleetSolarHistory.data.todayWh}
+          deltaPct={fleetSolarHistory.data.deltaPct}
+          compact={isCompact}
+        />
+      )
     },
     {
       key: 'load',

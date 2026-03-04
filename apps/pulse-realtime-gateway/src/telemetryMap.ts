@@ -29,8 +29,10 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
   const soc = firstNumber(
     raw,
     'soc',
-    'params.f32ShowSoc',
     'params.f32LcdShowSoc',
+    'params.lcdShowSoc',
+    'params.bpPowerSoc',
+    'params.f32ShowSoc',
     'params.f32Soc',
     'param.cmsBattSoc',
     'params.cmsBattSoc',
@@ -38,10 +40,7 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
     'param.soc'
   ) ?? 0;
 
-  const pv =
-    sumIfPresent(raw, 'pvW', 'params.inLvMpptPwr', 'params.inHvMpptPwr', 'param.powGetPvL', 'param.powGetPvH') ??
-    sumIfPresent(raw, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts', 'params.chgSunPower') ??
-    0;
+  const pv = derivePv(raw);
 
   const acIn =
     sumIfPresent(raw, 'acW', 'params.inAcC20Pwr', 'params.inAc5p8Pwr') ??
@@ -104,6 +103,30 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
     acW: acIn,
     dcW: dc
   };
+}
+
+function derivePv(raw: RawTelemetryMetrics): number {
+  return (
+    firstNumberCapped(raw, 10000, 'pvW') ??
+    sumIfPresentCapped(raw, 10000, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts') ??
+    sumIfPresentCapped(raw, 10000, 'params.inLvMpptPwr', 'params.inHvMpptPwr') ??
+    sumIfPresentCapped(raw, 10000, 'param.powGetPvL', 'param.powGetPvH') ??
+    0
+  );
+}
+
+function firstNumberCapped(raw: RawTelemetryMetrics, maxAbs: number, ...keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = firstNumber(raw, key);
+    if (value === undefined) {
+      continue;
+    }
+    if (value < -maxAbs || value > maxAbs) {
+      continue;
+    }
+    return value;
+  }
+  return undefined;
 }
 
 function deriveAcFromInputMinusPv(raw: RawTelemetryMetrics, pv: number): number | undefined {
@@ -177,6 +200,19 @@ function sumIfPresent(raw: RawTelemetryMetrics, ...paths: string[]): number | un
   for (const path of paths) {
     const value = raw[path];
     if (typeof value === 'number' && Number.isFinite(value)) {
+      sum += value;
+      found = true;
+    }
+  }
+  return found ? sum : undefined;
+}
+
+function sumIfPresentCapped(raw: RawTelemetryMetrics, max: number, ...paths: string[]): number | undefined {
+  let found = false;
+  let sum = 0;
+  for (const path of paths) {
+    const value = raw[path];
+    if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= max) {
       sum += value;
       found = true;
     }

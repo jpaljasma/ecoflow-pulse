@@ -4,6 +4,8 @@ package pulse.controlplane.v1;
 
 option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1;controlplanev1";
 
+import "google/protobuf/struct.proto";
+
 message ProviderCredential {
   string id = 1;
   string provider = 2;
@@ -55,6 +57,8 @@ message ProviderDevice {
   string model = 8;
   bool is_active = 9;
   string ingest_desired_state = 10;
+  google.protobuf.Struct capabilities = 11;
+  google.protobuf.Struct metadata = 12;
 }
 
 message UserDevice {

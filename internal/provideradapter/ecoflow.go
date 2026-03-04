@@ -22,6 +22,7 @@ var (
 type EcoFlowGeneralInfo interface {
 	ListDevices(ctx context.Context) ([]ecoflow.GeneralInfoDevice, ecoflow.Response, error)
 	GetMQTTCertification(ctx context.Context) (ecoflow.GeneralInfoMQTTCertification, ecoflow.Response, error)
+	GetDeviceAllQuota(ctx context.Context, sn string) (map[string]string, ecoflow.Response, error)
 }
 
 type EcoFlowClient interface {
@@ -134,6 +135,35 @@ func (a *EcoFlowAdapter) GetMQTTCertification(ctx context.Context, credential co
 		return ecoflow.GeneralInfoMQTTCertification{}, ErrInvalidMQTTCertification
 	}
 	return cert, nil
+}
+
+func (a *EcoFlowAdapter) GetDeviceAllQuota(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (map[string]string, error) {
+	targetSN := normalizeProviderDeviceID(providerDeviceID)
+	if targetSN == "" {
+		return nil, fmt.Errorf("provider_device_id is required")
+	}
+
+	generalInfo, err := a.generalInfoForCredential(credential)
+	if err != nil {
+		return nil, err
+	}
+
+	devices, _, err := generalInfo.ListDevices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list ecoflow devices: %w", err)
+	}
+	if !containsEcoFlowDeviceSN(devices, targetSN) {
+		return nil, fmt.Errorf("%w: %s", ErrProviderDeviceNotFound, targetSN)
+	}
+
+	quota, _, err := generalInfo.GetDeviceAllQuota(ctx, targetSN)
+	if err != nil {
+		return nil, fmt.Errorf("get device all quota: %w", err)
+	}
+	if quota == nil {
+		return map[string]string{}, nil
+	}
+	return quota, nil
 }
 
 func (a *EcoFlowAdapter) generalInfoForCredential(credential controlplane.ProviderCredential) (EcoFlowGeneralInfo, error) {

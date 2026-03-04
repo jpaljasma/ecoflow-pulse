@@ -41,6 +41,8 @@ type ProviderDevice struct {
 	CanonicalSN        string
 	ProductName        string
 	Model              string
+	Capabilities       map[string]any
+	Metadata           map[string]any
 	IsActive           bool
 	IngestDesiredState string
 }
@@ -122,6 +124,8 @@ type UpsertProviderDeviceInput struct {
 	CredentialID       string
 	ProductName        string
 	Model              string
+	Capabilities       map[string]any
+	Metadata           map[string]any
 	IsActive           bool
 	IngestDesiredState string
 }

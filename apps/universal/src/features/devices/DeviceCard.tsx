@@ -35,6 +35,11 @@ function connectivityGlyph(
   return getStatusGlyph('waiting');
 }
 
+function getMaxSolarWatts(device: DeviceSummary): number | undefined {
+  const total = device.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
+  return total > 0 ? total : undefined;
+}
+
 export function DeviceCard({
   device,
   imageContext = 'card',
@@ -48,10 +53,12 @@ export function DeviceCard({
   const snapshot = useTelemetryDeviceSnapshot(device.id);
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
   const historyEnabled = authReady && (!authConfigured || sessionValid);
+  const maxSolarWatts = getMaxSolarWatts(device);
   const solarHistory = useDeviceSolarHistory(device.id, {
     token,
     authKey,
-    enabled: historyEnabled
+    enabled: historyEnabled,
+    maxSolarWatts
   });
   const isPhoneCompact = width < 460;
   const isTabletUp = width >= 768;
@@ -147,7 +154,14 @@ export function DeviceCard({
       },
       {
         key: 'today',
-        content: <SolarTodayBadge valueWh={solarHistory.data?.todayWh} compact fitCell />
+        content: (
+          <SolarTodayBadge
+            valueWh={solarHistory.data?.todayWh}
+            deltaPct={solarHistory.data?.deltaPct}
+            compact
+            fitCell
+          />
+        )
       },
       {
         key: 'load',
@@ -169,7 +183,16 @@ export function DeviceCard({
         content: <Stat label="⏱ ETA" value={formatEtaMinutes(device.etaMinutes)} compact />
       }
     ];
-  }, [acInW, dcW, device.etaMinutes, loadW, netW, pvW, solarHistory.data?.todayWh]);
+  }, [
+    acInW,
+    dcW,
+    device.etaMinutes,
+    loadW,
+    netW,
+    pvW,
+    solarHistory.data?.deltaPct,
+    solarHistory.data?.todayWh
+  ]);
 
   return (
     <Animated.View style={{ opacity: fadeOpacity }}>

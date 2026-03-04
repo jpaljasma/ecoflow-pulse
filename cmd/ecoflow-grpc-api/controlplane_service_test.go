@@ -202,11 +202,19 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 
 	svc, store := newControlPlaneServiceForTest()
 	store.PutProviderDevice(controlplane.ProviderDevice{
-		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "R351ZABAPH331057",
-		CanonicalSN:        "R351ZABAPH331057",
-		ProductName:        "Kitchen Delta 2 Max",
-		Model:              "DELTA 2 Max",
+		Provider:         controlplane.ProviderEcoFlow,
+		ProviderDeviceID: "R351ZABAPH331057",
+		CanonicalSN:      "R351ZABAPH331057",
+		ProductName:      "Kitchen Delta 2 Max",
+		Model:            "DELTA 2 Max",
+		Capabilities: map[string]any{
+			"battery_pack_count": int64(2),
+		},
+		Metadata: map[string]any{
+			"groups": map[string]any{
+				"pd": map[string]any{"soc": int64(83)},
+			},
+		},
 		IsActive:           true,
 		IngestDesiredState: "active",
 	})
@@ -233,6 +241,22 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 	}
 	if got := len(resp.GetGroups()[0].GetDevices()); got != 2 {
 		t.Fatalf("expected 2 devices, got %d", got)
+	}
+	var found bool
+	for _, device := range resp.GetGroups()[0].GetDevices() {
+		if device.GetProviderDeviceId() != "R351ZABAPH331057" {
+			continue
+		}
+		found = true
+		if device.GetCapabilities().GetFields()["battery_pack_count"].GetNumberValue() != 2 {
+			t.Fatalf("expected battery_pack_count in capabilities")
+		}
+		if device.GetMetadata().GetFields()["groups"].GetStructValue() == nil {
+			t.Fatalf("expected grouped metadata in response")
+		}
+	}
+	if !found {
+		t.Fatalf("expected to find D2M provider device in response")
 	}
 }
 

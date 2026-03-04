@@ -3,6 +3,7 @@ package provideradapter
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
@@ -40,8 +41,12 @@ type fakeGeneralInfo struct {
 	cert    ecoflow.GeneralInfoMQTTCertification
 	certErr error
 
-	listCalls int
-	certCalls int
+	quota    map[string]string
+	quotaErr error
+
+	listCalls  int
+	certCalls  int
+	quotaCalls int
 }
 
 func (g *fakeGeneralInfo) ListDevices(context.Context) ([]ecoflow.GeneralInfoDevice, ecoflow.Response, error) {
@@ -58,6 +63,19 @@ func (g *fakeGeneralInfo) GetMQTTCertification(context.Context) (ecoflow.General
 		return ecoflow.GeneralInfoMQTTCertification{}, ecoflow.Response{}, g.certErr
 	}
 	return g.cert, ecoflow.Response{}, nil
+}
+
+func (g *fakeGeneralInfo) GetDeviceAllQuota(_ context.Context, sn string) (map[string]string, ecoflow.Response, error) {
+	g.quotaCalls++
+	if g.quotaErr != nil {
+		return nil, ecoflow.Response{}, g.quotaErr
+	}
+	out := make(map[string]string, len(g.quota))
+	for key, value := range g.quota {
+		out[key] = value
+	}
+	out["__requested_sn"] = sn
+	return out, ecoflow.Response{}, nil
 }
 
 func TestEcoFlowAdapterDiscoverDevicesMapsAndSorts(t *testing.T) {
@@ -232,5 +250,83 @@ func TestEcoFlowAdapterInvalidMQTTCertificationPayload(t *testing.T) {
 	_, err := adapter.GetMQTTCertification(context.Background(), cred, "R351ZABAPH331057")
 	if !errors.Is(err, ErrInvalidMQTTCertification) {
 		t.Fatalf("expected ErrInvalidMQTTCertification, got %v", err)
+	}
+}
+
+func TestEcoFlowAdapterGetDeviceAllQuotaSuccess(t *testing.T) {
+	t.Parallel()
+
+	generalInfo := &fakeGeneralInfo{
+		devices: []ecoflow.GeneralInfoDevice{{SN: "R351ZABAPH331057"}},
+		quota: map[string]string{
+			"pd.soc":          "54",
+			"pd.wattsInSum":   "138.5",
+			"mppt.outWatts":   "22.6",
+			"bms_bmsStatus":   "{\"temp\":13}",
+			"inv.outputWatts": "91",
+		},
+	}
+	adapter := NewEcoFlowAdapter(&fakeEcoFlowFactory{client: fakeEcoFlowClient{generalInfo: generalInfo}})
+	cred := controlplane.ProviderCredential{
+		Provider:  controlplane.ProviderEcoFlow,
+		AccessKey: "ak",
+		SecretKey: "sk",
+		IsActive:  true,
+	}
+
+	quota, err := adapter.GetDeviceAllQuota(context.Background(), cred, "r351zabaph331057")
+	if err != nil {
+		t.Fatalf("GetDeviceAllQuota() error = %v", err)
+	}
+	if got := quota["pd.soc"]; got != "54" {
+		t.Fatalf("unexpected quota soc=%q", got)
+	}
+	if got := quota["__requested_sn"]; got != "R351ZABAPH331057" {
+		t.Fatalf("unexpected requested sn propagation=%q", got)
+	}
+	if generalInfo.listCalls != 1 || generalInfo.quotaCalls != 1 {
+		t.Fatalf("expected one list + one quota call, got list=%d quota=%d", generalInfo.listCalls, generalInfo.quotaCalls)
+	}
+}
+
+func TestEcoFlowAdapterGetDeviceAllQuotaDeviceNotFound(t *testing.T) {
+	t.Parallel()
+
+	generalInfo := &fakeGeneralInfo{
+		devices: []ecoflow.GeneralInfoDevice{{SN: "Y711ZABA9H2P0294"}},
+	}
+	adapter := NewEcoFlowAdapter(&fakeEcoFlowFactory{client: fakeEcoFlowClient{generalInfo: generalInfo}})
+	cred := controlplane.ProviderCredential{
+		Provider:  controlplane.ProviderEcoFlow,
+		AccessKey: "ak",
+		SecretKey: "sk",
+		IsActive:  true,
+	}
+	_, err := adapter.GetDeviceAllQuota(context.Background(), cred, "R351ZABAPH331057")
+	if !errors.Is(err, ErrProviderDeviceNotFound) {
+		t.Fatalf("expected ErrProviderDeviceNotFound, got %v", err)
+	}
+	if generalInfo.quotaCalls != 0 {
+		t.Fatalf("expected zero quota calls when SN is not owned")
+	}
+}
+
+func TestEcoFlowAdapterGetDeviceAllQuotaUpstreamError(t *testing.T) {
+	t.Parallel()
+
+	generalInfo := &fakeGeneralInfo{
+		devices:  []ecoflow.GeneralInfoDevice{{SN: "R351ZABAPH331057"}},
+		quotaErr: errors.New("upstream quota failed"),
+	}
+	adapter := NewEcoFlowAdapter(&fakeEcoFlowFactory{client: fakeEcoFlowClient{generalInfo: generalInfo}})
+	cred := controlplane.ProviderCredential{
+		Provider:  controlplane.ProviderEcoFlow,
+		AccessKey: "ak",
+		SecretKey: "sk",
+		IsActive:  true,
+	}
+	_, err := adapter.GetDeviceAllQuota(context.Background(), cred, "R351ZABAPH331057")
+	if err == nil || !strings.Contains(err.Error(), "get device all quota") {
+		t.Fatalf("expected wrapped quota error, got %v", err)
 	}
 }

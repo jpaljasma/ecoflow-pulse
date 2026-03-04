@@ -189,6 +189,16 @@ Initial seed is explicit-only (no automatic startup seed):
   - `R351ZABAPH331057`
   - `Y711ZABA9H2P0294`.
 
+### 8) EcoFlow quota bootstrap and refresh policy
+Quota bootstrap is part of the ingest contract for EcoFlow provider devices:
+- workers must call `GetDeviceAllQuota(provider_device_id)` when a new ingest session starts,
+- workers must refresh quota periodically with jitter while the session is alive and must attempt a best-effort quota refresh on MQTT stale/read-failure reconnect paths so projection/read models retain last-known state even when broker traffic becomes sparse,
+- quota output is treated as a first-class ingest source and published into the telemetry pipeline with `source="quota"` while steady-state MQTT frames use `source="mqtt"`,
+- quota payloads must normalize into the same downstream telemetry `params` shape as MQTT-derived frames so projection, rollups, and history remain source-agnostic,
+- quota-derived capability/metadata snapshots must update `provider_devices.capabilities` and `provider_devices.metadata`,
+- ingest workers must emit explicit quota bootstrap/refresh success and failure counters so sparse-MQTT sessions can be diagnosed without relying on payload archive inspection,
+- quota frames are excluded from raw replay archive storage in v1 while still participating in projection, read models, rollups, and history.
+
 ---
 
 ## Rationale
@@ -269,3 +279,4 @@ Graceful drain as event-driven desired state avoids abrupt disconnect churn and 
 - [ ] Add autoscaling custom metrics pipeline (Prometheus Adapter/KEDA) for
   `ingest_unassigned_active_devices`, `ingest_reconcile_duration_p95_seconds`,
   and `ingest_lease_acquire_latency_p95_seconds`.
+- [x] Extend provider metadata APIs/tests so quota-derived capabilities and metadata can be surfaced without provider-specific parsing at read time.

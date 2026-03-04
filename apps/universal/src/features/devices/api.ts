@@ -6,7 +6,11 @@ const BatteryPackDetailSchema = z.object({
   socPct: z.number().optional(),
   powerW: z.number().optional(),
   tempC: z.number().optional(),
-  heatingOn: z.boolean().optional()
+  heatingOn: z.boolean().optional(),
+  energyWh: z.number().optional(),
+  remainMinutes: z.number().optional(),
+  socMinPct: z.number().optional(),
+  socMaxPct: z.number().optional()
 });
 
 const SolarPortDetailSchema = z.object({
@@ -25,6 +29,10 @@ const DeviceTelemetryDetailsSchema = z.object({
   bpCount: z.number().int().optional(),
   packs: z.array(BatteryPackDetailSchema).optional(),
   solarPorts: z.array(SolarPortDetailSchema).optional(),
+  overallSocPct: z.number().optional(),
+  socWindowMinPct: z.number().optional(),
+  socWindowMaxPct: z.number().optional(),
+  backupReservePct: z.number().optional(),
   estimateMode: z.string().optional(),
   estimateSource: z.string().optional(),
   estimateEtaMin: z.number().optional(),
@@ -66,7 +74,7 @@ export const DeviceSchema = z.object({
 });
 
 export const DevicesResponseSchema = z.object({
-  devices: z.array(DeviceSchema.omit({ capabilities: true }))
+  devices: z.array(DeviceSchema)
 });
 
 export type DeviceSummary = z.infer<typeof DeviceSchema>;

@@ -148,6 +148,9 @@ func main() {
 	sessionCfg.ReconnectAlertWindow = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_ALERT_WINDOW", sessionCfg.ReconnectAlertWindow)
 	sessionCfg.ReconnectAlertThreshold = runtimecfg.IntPositive("INGEST_MQTT_RECONNECT_ALERT_THRESHOLD", sessionCfg.ReconnectAlertThreshold)
 	sessionCfg.ReconnectAlertCooldown = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_ALERT_COOLDOWN", sessionCfg.ReconnectAlertCooldown)
+	sessionCfg.QuotaFetchTimeout = runtimecfg.DurationPositive("INGEST_QUOTA_FETCH_TIMEOUT", sessionCfg.QuotaFetchTimeout)
+	sessionCfg.QuotaRefreshInterval = runtimecfg.DurationPositive("INGEST_QUOTA_REFRESH_INTERVAL", sessionCfg.QuotaRefreshInterval)
+	sessionCfg.QuotaRefreshJitter = runtimecfg.Float64NonNegative("INGEST_QUOTA_REFRESH_JITTER", sessionCfg.QuotaRefreshJitter)
 	sessionCfg.PublishQueueSize = runtimecfg.IntPositive("INGEST_PUBLISH_QUEUE_SIZE", sessionCfg.PublishQueueSize)
 	sessionCfg.PublishWorkers = runtimecfg.IntPositive("INGEST_PUBLISH_WORKERS", sessionCfg.PublishWorkers)
 	sessionCfg.PublishEnqueueTimeout = runtimecfg.DurationPositive("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
@@ -155,7 +158,7 @@ func main() {
 	sessionCfg.DisableEnvelopeLabels = disableEnvelopeLabels
 	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
 	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
-	runner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, sessionCfg)
+	runner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
 	if err != nil {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -197,8 +200,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	quotaMetricsInterval := runtimecfg.DurationNonNegative("INGEST_QUOTA_METRICS_INTERVAL", ingestworker.DefaultQuotaMetricsInterval())
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "ingest-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
+	stopQuotaMetrics := ingestworker.StartQuotaMetricsReporter(ctx, log, "ingest-worker", runner.QuotaMetrics(), quotaMetricsInterval)
+	defer stopQuotaMetrics()
 
 	log.Info("ingest worker starting",
 		slog.String("log_level", logCfg.Level.String()),
@@ -206,6 +212,7 @@ func main() {
 		slog.Int("log_async_queue_size", logCfg.AsyncQueueSize),
 		slog.String("log_async_bypass_level", logCfg.AsyncBypassLevel.String()),
 		slog.Duration("log_metrics_interval", logMetricsInterval),
+		slog.Duration("quota_metrics_interval", quotaMetricsInterval),
 		slog.String("worker_id", workerID),
 		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
 		slog.String("subject_prefix", subjectCfg.Prefix),
@@ -225,6 +232,9 @@ func main() {
 		slog.Duration("mqtt_reconnect_alert_window", sessionCfg.ReconnectAlertWindow),
 		slog.Int("mqtt_reconnect_alert_threshold", sessionCfg.ReconnectAlertThreshold),
 		slog.Duration("mqtt_reconnect_alert_cooldown", sessionCfg.ReconnectAlertCooldown),
+		slog.Duration("quota_fetch_timeout", sessionCfg.QuotaFetchTimeout),
+		slog.Duration("quota_refresh_interval", sessionCfg.QuotaRefreshInterval),
+		slog.Float64("quota_refresh_jitter", sessionCfg.QuotaRefreshJitter),
 		slog.Bool("mqtt_payload_debug", sessionCfg.LogMQTTPayloadDebug),
 		slog.Int("mqtt_payload_sample_every", sessionCfg.LogMQTTPayloadSampleEvery),
 		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),

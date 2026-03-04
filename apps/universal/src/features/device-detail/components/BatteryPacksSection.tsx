@@ -10,12 +10,14 @@ import { getBatteryUpsellUrl, getMaxBatteryCount } from '@/shared/config/merchan
 export function BatteryPacksSection({
   packs,
   bpCount,
+  summaryText,
   model,
   serialNumber,
   minWidth
 }: {
   packs: DetailBatteryPackVM[];
   bpCount?: number;
+  summaryText?: string;
   model?: string;
   serialNumber?: string;
   minWidth?: number;
@@ -26,6 +28,7 @@ export function BatteryPacksSection({
     stableBatteryCountRef.current = observedCount;
   }
   const batteryCount = stableBatteryCountRef.current;
+  const inferredOnlyCount = Math.max(0, batteryCount - packs.length);
   const upsellHref = useMemo(
     () =>
       getBatteryUpsellUrl({
@@ -42,6 +45,7 @@ export function BatteryPacksSection({
       right={<Pill label={`${batteryCount} packs`} tone="info" />}
       minWidth={minWidth}
     >
+      {summaryText ? <Text opacity={0.7}>{summaryText}</Text> : null}
       {packs.length ? (
         <YStack gap="$2">
           {packs.map((pack) => (
@@ -68,12 +72,29 @@ export function BatteryPacksSection({
                 </XStack>
               </XStack>
               <SocBar value={pack.socPct} fullWidth />
+              {pack.summaryText || pack.reserveText ? (
+                <Text opacity={0.65}>
+                  {[pack.summaryText, pack.reserveText ? `limits ${pack.reserveText}` : undefined]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              ) : null}
             </YStack>
           ))}
+        </YStack>
+      ) : batteryCount > 0 ? (
+        <YStack gap="$2">
+          <Text opacity={0.85}>{batteryCount} pack{batteryCount === 1 ? '' : 's'} detected.</Text>
+          <Text opacity={0.65}>Per-pack telemetry has not been published yet.</Text>
         </YStack>
       ) : (
         <Text opacity={0.7}>No per-pack telemetry yet.</Text>
       )}
+      {packs.length && inferredOnlyCount > 0 ? (
+        <Text opacity={0.65}>
+          {inferredOnlyCount} additional pack{inferredOnlyCount === 1 ? '' : 's'} detected from device capabilities.
+        </Text>
+      ) : null}
       <BatteryUpsellComponent
         href={upsellHref}
         modelName={model}

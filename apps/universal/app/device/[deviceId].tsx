@@ -46,6 +46,11 @@ function resolveRouteDevice(
   );
 }
 
+function getMaxSolarWatts(device: DeviceSummary | undefined): number | undefined {
+  const total = device?.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
+  return total > 0 ? total : undefined;
+}
+
 export default function DeviceDetailScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -76,10 +81,12 @@ export default function DeviceDetailScreen() {
     authKey,
     enabled: queryEnabled && Boolean(resolvedDeviceId)
   });
+  const maxSolarWatts = getMaxSolarWatts(deviceQuery.data ?? routeDevice);
   const solarHistory = useDeviceSolarHistory(resolvedDeviceId, {
     token,
     authKey,
-    enabled: queryEnabled && Boolean(resolvedDeviceId)
+    enabled: queryEnabled && Boolean(resolvedDeviceId),
+    maxSolarWatts
   });
   const device = deviceQuery.data ?? routeDevice;
   useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
@@ -119,7 +126,8 @@ export default function DeviceDetailScreen() {
     snapshot,
     connectionStatus: telemetryConnectionStatus,
     useRemoteImage,
-    todayWh: solarHistory.data?.todayWh
+    todayWh: solarHistory.data?.todayWh,
+    todayDeltaPct: solarHistory.data?.deltaPct
   });
 
   const mobileImageSize = Math.min(width - 64, 360);

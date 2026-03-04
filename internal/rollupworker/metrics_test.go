@@ -62,6 +62,57 @@ func TestSampleFromEnvelopeDPUAppShowAndBackendFields(t *testing.T) {
 	}
 }
 
+func TestSampleFromEnvelopePrefersCanonicalD2MQuotaPVFields(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"params":{"pv1ChargeWatts":158,"pv2ChargeWatts":333,"inLvMpptPwr":175288048,"inHvMpptPwr":443476824,"wattsInSum":491,"wattsOutSum":0,"f32ShowSoc":90}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := sample.Metrics.PV.Value; got != 491 {
+		t.Fatalf("pv mismatch: got=%v want=491", got)
+	}
+	if got := sample.Metrics.ACIn.Value; got != 0 {
+		t.Fatalf("ac in mismatch: got=%v want=0", got)
+	}
+}
+
+func TestSampleFromEnvelopeIgnoresAbsurdTopLevelPV(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"pvW":1757819.6,"params":{"pv1ChargeWatts":57,"pv2ChargeWatts":45,"wattsInSum":102,"wattsOutSum":0,"f32ShowSoc":58}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := sample.Metrics.PV.Value; got != 102 {
+		t.Fatalf("pv mismatch: got=%v want=102", got)
+	}
+	if got := sample.Metrics.ACIn.Value; got != 0 {
+		t.Fatalf("ac in mismatch: got=%v want=0", got)
+	}
+}
+
+func TestSampleFromEnvelopeDoesNotTreatChgSunPowerAsPVWatts(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"params":{"chgSunPower":260,"wattsInSum":0,"wattsOutSum":0,"f32ShowSoc":58}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if sample.Metrics.PV.Valid {
+		t.Fatalf("expected PV to be invalid, got=%v", sample.Metrics.PV.Value)
+	}
+	if sample.Metrics.SolarGeneratedWh.Valid {
+		t.Fatalf("expected SolarGeneratedWh to be invalid, got=%v", sample.Metrics.SolarGeneratedWh.Value)
+	}
+	if sample.Metrics.ACIn.Valid && sample.Metrics.ACIn.Value != 0 {
+		t.Fatalf("expected ACIn to be zero/invalid, got=%v", sample.Metrics.ACIn.Value)
+	}
+}
+
 func TestSampleFromEnvelopeUsesCellTempMedian(t *testing.T) {
 	t.Parallel()
 	env := testEnvelope(`{"params":{"outputWatts":99,"cellTemp":[13,19,17,11,80]}}`)

@@ -1,6 +1,7 @@
 package ingestworker
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -16,9 +17,10 @@ import (
 )
 
 const (
-	defaultEnvelopeVersion = 1
-	defaultPayloadVersion  = 1
-	defaultPayloadType     = "ecoflow.mqtt.raw"
+	defaultEnvelopeVersion  = 1
+	defaultPayloadVersion   = 1
+	defaultRawPayloadType   = "ecoflow.mqtt.raw"
+	defaultQuotaPayloadType = "ecoflow.quota.normalized"
 )
 
 func init() {
@@ -113,12 +115,52 @@ func (b telemetryEnvelopeBuilder) Build(
 		ObservedTimeUnixMs: observed.UnixMilli(),
 		IngestedTimeUnixMs: observed.UnixMilli(),
 		SourceKind:         sourceKindFromTopic(message.Topic),
-		Source:             strings.TrimSpace(message.Topic),
+		Source:             "mqtt",
 		TypeCode:           typeCode,
-		PayloadType:        defaultPayloadType,
+		PayloadType:        defaultRawPayloadType,
 		PayloadVersion:     defaultPayloadVersion,
 		PayloadEncoding:    payloadEncoding,
 		Payload:            append([]byte(nil), message.Payload...),
+		Labels:             labels,
+	}, nil
+}
+
+func (b telemetryEnvelopeBuilder) BuildQuota(
+	params map[string]any,
+	observedAt time.Time,
+) (*envelopev1.TelemetryEnvelope, error) {
+	envelopeID, err := newEnvelopeID()
+	if err != nil {
+		return nil, err
+	}
+	observed := observedAt.UTC()
+	payload, err := json.Marshal(map[string]any{
+		"typeCode": "quota",
+		"params":   params,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal quota payload: %w", err)
+	}
+	var labels map[string]string
+	if !b.disableLabels {
+		labels = b.labels(mqttPayloadMeta{})
+	}
+	return &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         envelopeID,
+		EnvelopeVersion:    defaultEnvelopeVersion,
+		DeviceId:           b.deviceID,
+		EcoflowSn:          b.normalizedSN,
+		Shard:              b.shard,
+		ShardCount:         b.shardCount,
+		ObservedTimeUnixMs: observed.UnixMilli(),
+		IngestedTimeUnixMs: observed.UnixMilli(),
+		SourceKind:         envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA,
+		Source:             "quota",
+		TypeCode:           "quota",
+		PayloadType:        defaultQuotaPayloadType,
+		PayloadVersion:     defaultPayloadVersion,
+		PayloadEncoding:    envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		Payload:            payload,
 		Labels:             labels,
 	}, nil
 }
