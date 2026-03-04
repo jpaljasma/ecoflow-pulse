@@ -430,7 +430,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M5 — Testing + operability + DR-lite
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | Integration tests (Testcontainers: Postgres/Valkey/NATS/MinIO) | M2 |
+| PROGRESS | Integration tests (Testcontainers: Postgres/Valkey/NATS/MinIO)<br>- [x] Define first slice scope: Go integration harness for control-plane/history/realtime dependencies<br>- [ ] Add reusable Testcontainers helpers for Postgres, Valkey, NATS, and MinIO lifecycle<br>- [ ] Add first end-to-end Go integration suite against the core data path (NATS -> projection/archive or rollup query path)<br>- [ ] Wire the suite into local/CI commands and document how developers run it | M2 |
 | TODO | Contract tests (Node↔Go proto compatibility) | M1/M2 |
 | TODO | E2E web (Playwright) | M4 |
 | TODO | E2E mobile smoke (Maestro) | M4 |
