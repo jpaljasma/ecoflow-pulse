@@ -43,6 +43,29 @@ describe('deriveTelemetryMetrics', () => {
     expect(metrics.acW).toBeCloseTo(0, 6);
   });
 
+  it('ignores absurd top-level pvW and uses canonical per-port values', () => {
+    const metrics = deriveTelemetryMetrics({
+      pvW: 1757819.6,
+      'params.pv1ChargeWatts': 57,
+      'params.pv2ChargeWatts': 45,
+      'params.wattsInSum': 102,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBe(102);
+    expect(metrics.acW).toBe(0);
+  });
+
+  it('does not treat chgSunPower as instantaneous PV watts', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.chgSunPower': 260,
+      'params.wattsInSum': 0,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBe(0);
+  });
+
   it('does not sum duplicate DPU MPPT power representations', () => {
     const metrics = deriveTelemetryMetrics({
       'params.inLvMpptPwr': 157.1652,
@@ -65,5 +88,15 @@ describe('deriveTelemetryMetrics', () => {
 
     expect(metrics.pvW).toBe(0);
     expect(metrics.acW).toBe(144);
+  });
+
+  it('prefers aggregate display soc fields over main-pack soc fields', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.targetSoc': 22.94,
+      'params.bpPowerSoc': 25,
+      'params.f32LcdShowSoc': 25.49
+    });
+
+    expect(metrics.soc).toBeCloseTo(25.49, 2);
   });
 });

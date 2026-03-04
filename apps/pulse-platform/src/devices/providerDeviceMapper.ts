@@ -30,6 +30,7 @@ export type DeviceTelemetryDetails = {
   bpCount?: number;
   packs?: BatteryPackDetail[];
   solarPorts?: SolarPortDetail[];
+  overallSocPct?: number;
   socWindowMinPct?: number;
   socWindowMaxPct?: number;
   backupReservePct?: number;
@@ -221,6 +222,13 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
 
   const packs: BatteryPackDetail[] = [];
   const mainSoc = firstDefined(toNumber(bmsStatus.targetSoc), toNumber(pd.soc));
+  const overallSocPct = firstDefined(
+    toNumber(bmsEmsStatus.f32LcdShowSoc),
+    toNumber(bmsEmsStatus.lcdShowSoc),
+    toNumber(pd.bpPowerSoc),
+    toNumber(pd.soc),
+    toNumber(bmsStatus.targetSoc)
+  );
   const mainPower = deriveBatteryNetPower(bmsStatus);
   const mainTemp = firstDefined(toNumber(bmsStatus.temp), toNumber(bmsStatus.cellTemp), toNumber(bmsStatus.maxCellTemp));
   if (mainSoc !== undefined || mainPower !== undefined || mainTemp !== undefined) {
@@ -291,6 +299,7 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     bpCount: bpCount ?? packs.length,
     packs,
     solarPorts: [pv1, pv2],
+    overallSocPct,
     socWindowMinPct: firstDefined(toNumber(bmsEmsStatus.minDsgSoc), toNumber(pd.minAcSoc), toNumber(bmsStatus.minSoc), toNumber(bmsKitInfo.minSoc)),
     socWindowMaxPct: firstDefined(toNumber(bmsEmsStatus.maxChargeSoc), toNumber(bmsStatus.maxSoc), toNumber(bmsKitInfo.maxSoc)),
     backupReservePct: firstDefined(toNumber(pd.minAcSoc), toNumber(bmsEmsStatus.minOpenOilEb)),

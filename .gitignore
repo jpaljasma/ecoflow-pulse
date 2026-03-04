@@ -13,5 +13,6 @@ deploy/charts/*/charts/
 deploy/charts/*/tmpcharts-*/
 deploy/charts/pulse-services/Chart.lock
 .tmp/
+.playwright-cli/
 .idea/
 *.test

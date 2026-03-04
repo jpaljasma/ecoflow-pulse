@@ -29,6 +29,7 @@ const DeviceTelemetryDetailsSchema = z.object({
   bpCount: z.number().int().optional(),
   packs: z.array(BatteryPackDetailSchema).optional(),
   solarPorts: z.array(SolarPortDetailSchema).optional(),
+  overallSocPct: z.number().optional(),
   socWindowMinPct: z.number().optional(),
   socWindowMaxPct: z.number().optional(),
   backupReservePct: z.number().optional(),

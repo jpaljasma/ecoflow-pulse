@@ -188,6 +188,7 @@ describe('provider device mapper', () => {
               remainTime: 301
             },
             bms_emsStatus: {
+              f32LcdShowSoc: 25.49,
               minDsgSoc: 5,
               maxChargeSoc: 85,
               minOpenOilEb: 21
@@ -238,6 +239,7 @@ describe('provider device mapper', () => {
         socWindowMinPct: 5,
         socWindowMaxPct: 85,
         backupReservePct: 21,
+        overallSocPct: 25.49,
         packs: expect.arrayContaining([
           expect.objectContaining({
             id: 'main',

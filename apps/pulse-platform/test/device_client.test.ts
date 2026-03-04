@@ -78,6 +78,7 @@ function makeProviderDevice(): ProviderDevice {
           fullCap: 39101
         },
         bms_emsStatus: {
+          f32LcdShowSoc: 25.49,
           minDsgSoc: 10,
           maxChargeSoc: 90,
           minOpenOilEb: 15
@@ -168,5 +169,41 @@ describe('device client', () => {
 
     expect(device?.pvW).toBeCloseTo(5.9975, 4);
     expect(device?.netW).toBeCloseTo(-95.0025, 4);
+  });
+
+  it('prefers aggregate device soc from quota-derived details over main-pack target soc', async () => {
+    const controlPlaneClient: ControlPlaneClient = {
+      listUserDevices: vi.fn(),
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [makeProviderDevice()]
+        }
+      ]),
+      close: vi.fn()
+    };
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'params.soc': 22.94,
+            'params.targetSoc': 22.94,
+            'params.wattsOutSum': 101
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [device] = await client.listDevices(makeRequest());
+
+    expect(device?.batteryPct).toBeCloseTo(25.49, 2);
+    expect(device?.details?.overallSocPct).toBeCloseTo(25.49, 2);
   });
 });

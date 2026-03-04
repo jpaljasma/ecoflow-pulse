@@ -90,7 +90,7 @@ async function hydrateDevice(
     return {
       ...base,
       online: telemetryTsMs !== null ? Date.now() - telemetryTsMs <= 30_000 : false,
-      batteryPct: clampPercent(derived.soc),
+      batteryPct: clampPercent(presentation.details?.overallSocPct ?? derived.soc),
       state: deriveTelemetryState(derived.batteryW),
       etaMinutes: deriveTelemetryEtaMinutes(rawMetrics, derived.batteryW),
       pvW,

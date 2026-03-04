@@ -29,8 +29,10 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
   const soc = firstNumber(
     raw,
     'soc',
-    'params.f32ShowSoc',
     'params.f32LcdShowSoc',
+    'params.lcdShowSoc',
+    'params.bpPowerSoc',
+    'params.f32ShowSoc',
     'params.f32Soc',
     'param.cmsBattSoc',
     'params.cmsBattSoc',
@@ -105,12 +107,26 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
 
 function derivePv(raw: RawTelemetryMetrics): number {
   return (
-    firstNumber(raw, 'pvW') ??
-    sumIfPresentCapped(raw, 10000, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts', 'params.chgSunPower') ??
+    firstNumberCapped(raw, 10000, 'pvW') ??
+    sumIfPresentCapped(raw, 10000, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts') ??
     sumIfPresentCapped(raw, 10000, 'params.inLvMpptPwr', 'params.inHvMpptPwr') ??
     sumIfPresentCapped(raw, 10000, 'param.powGetPvL', 'param.powGetPvH') ??
     0
   );
+}
+
+function firstNumberCapped(raw: RawTelemetryMetrics, maxAbs: number, ...keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = firstNumber(raw, key);
+    if (value === undefined) {
+      continue;
+    }
+    if (value < -maxAbs || value > maxAbs) {
+      continue;
+    }
+    return value;
+  }
+  return undefined;
 }
 
 function deriveAcFromInputMinusPv(raw: RawTelemetryMetrics, pv: number): number | undefined {
