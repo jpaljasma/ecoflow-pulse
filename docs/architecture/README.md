@@ -425,6 +425,10 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - Graceful degradation under pressure
 - Robust reconnect/resubscribe
 
+**M4 closeout note**
+- M4 is complete. The live WebSocket path is validated in local/dev end-to-end: Valkey snapshot on subscribe, NATS delta fanout, staged backpressure/downsampling, Expo reconnect/resubscribe, and canonical `/device/<uuid>` subscriptions with `/device/<sn>` compatibility at the route boundary.
+- Remaining testing/operability work moves to M5 and does not block M4 closure unless explicitly promoted back into an M4 acceptance gate.
+
 ---
 
 ## M5 — Testing + operability + DR-lite
