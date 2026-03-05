@@ -16,7 +16,7 @@ export default function SettingsScreen() {
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
 
   return (
-    <Animated.View style={containerStyle}>
+    <Animated.View style={containerStyle} testID="screen-settings">
       <YStack
         flex={1}
         backgroundColor="$background"
@@ -38,10 +38,13 @@ export default function SettingsScreen() {
         />
         <KeycloakPkceCard />
         <Card gap="$2">
-          <Text fontSize="$5" fontWeight="700">
+          <Text fontSize="$5" fontWeight="700" testID="settings-api-endpoints">
             API Endpoints
           </Text>
-          <Text opacity={0.75}>Set EXPO_PUBLIC_API_URL and EXPO_PUBLIC_WS_URL in your environment.</Text>
+          <Text opacity={0.75}>
+            Set EXPO_PUBLIC_API_URL for non-default routing. EXPO_PUBLIC_WS_URL is optional and
+            defaults to API /ws.
+          </Text>
         </Card>
       </YStack>
     </Animated.View>

@@ -72,7 +72,7 @@ export default function DevicesScreen() {
   });
 
   return (
-    <YStack flex={1} backgroundColor="$background">
+    <YStack flex={1} backgroundColor="$background" testID="screen-devices">
       <TopBar
         title={
           <BrandLogo

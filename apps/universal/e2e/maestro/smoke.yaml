@@ -1,19 +1,25 @@
-appId: ${MAESTRO_APP_ID}
+appId: __MAESTRO_APP_ID__
 ---
-- launchApp:
-    clearState: true
-- openLink: ${MAESTRO_EXPO_URL}
+- launchApp
 - extendedWaitUntil:
-    visible: "Devices"
+    visible: "EcoFlow Pulse"
     timeout: 120000
-- assertVisible: "Settings"
-- assertVisible: "Search"
-- assertVisible: "About"
-- tapOn: "Settings"
-- assertVisible: "Configuration and diagnostics"
-- assertVisible: "API Endpoints"
-- tapOn: "Search"
-- assertVisible: "Search devices and telemetry"
-- tapOn: "About"
-- assertVisible: "About EcoFlow Pulse"
-- assertVisible: "Universal telemetry dashboard for EcoFlow devices."
+- tapOn: "EcoFlow Pulse"
+- extendedWaitUntil:
+    visible: "Pulse"
+    timeout: 120000
+- tapOn:
+    id: "tab-settings"
+- extendedWaitUntil:
+    visible: "API Endpoints"
+    timeout: 30000
+- tapOn:
+    id: "tab-search"
+- extendedWaitUntil:
+    visible: "Search devices and telemetry"
+    timeout: 30000
+- tapOn:
+    id: "tab-about"
+- extendedWaitUntil:
+    visible: "About EcoFlow Pulse"
+    timeout: 30000

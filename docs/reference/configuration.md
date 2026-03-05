@@ -198,8 +198,9 @@ Runtime behavior:
   - web default: same-origin (`http://localhost` in local k3d) and should normally be left unset
   - native debug override: point directly at the public edge or standalone BFF when needed
 - `EXPO_PUBLIC_WS_URL`
-  - web default: same-origin websocket (`ws://localhost/ws` in local k3d) and should normally be left unset
-  - native debug override: point directly at the public edge or standalone gateway when needed
+  - default when unset: derive from API base (`ws(s)://<api-host>/ws`, trimming a trailing `/api` path when present)
+  - native fallback behavior when unset: retry host variants (`<host>`, `127.0.0.1`, `localhost`) and include standalone gateway fallback (`:8082/ws`) when API port is `18081`
+  - native debug override: set explicitly when bypassing BFF `/ws` proxy routing
 - `EXPO_PUBLIC_ASSET_BASE_URL`
 - `EXPO_PUBLIC_OIDC_ISSUER_URL` (Keycloak issuer URL for Authorization Code + PKCE)
 - `EXPO_PUBLIC_OIDC_CLIENT_ID` (public OIDC client ID for Expo app)

@@ -2,13 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/shared/config/env', () => ({
   env: {
-    apiUrl: 'http://127.0.0.1:18081',
-    wsUrl: 'ws://127.0.0.1:8082/ws',
-    wsUrlExplicit: true
+    isWeb: false,
+    apiUrl: 'http://192.168.50.62:18081',
+    apiUrlExplicit: false,
+    wsUrl: 'ws://192.168.50.62:8082/ws',
+    wsUrlExplicit: false
   }
 }));
 
 import { TelemetryEngine } from '@/features/telemetry/engine/TelemetryEngine';
+import { env } from '@/shared/config/env';
 
 type FakeSocketType = {
   url: string;
@@ -94,5 +97,75 @@ describe('TelemetryEngine', () => {
     expect(createSocket).toHaveBeenCalledTimes(2);
     expect(sockets[1]?.url).toContain('token=token-b');
     expect(engine.getStatus()).toBe('connecting');
+  });
+
+  it('falls back to localhost websocket endpoint after reconnect', () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({ createSocket });
+
+    engine.connect();
+
+    expect(createSocket).toHaveBeenCalledTimes(1);
+    expect(sockets[0]?.url).toContain('192.168.50.62');
+
+    sockets[0]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(1);
+
+    expect(createSocket).toHaveBeenCalledTimes(2);
+    expect(sockets[1]?.url).toContain('127.0.0.1');
+
+    engine.disconnect();
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('tries api-proxy websocket first and then standalone gateway fallback', () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const originalWsUrl = env.wsUrl;
+    const originalWsUrlExplicit = env.wsUrlExplicit;
+    const originalApiUrl = env.apiUrl;
+
+    env.wsUrl = 'ws://192.168.50.62:18081/ws';
+    env.wsUrlExplicit = false;
+    env.apiUrl = 'http://192.168.50.62:18081';
+
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+
+    const engine = new TelemetryEngine({ createSocket });
+    engine.connect();
+
+    expect(sockets[0]?.url).toContain('192.168.50.62:18081/ws');
+
+    sockets[0]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(1);
+    expect(sockets[1]?.url).toContain('127.0.0.1:18081/ws');
+
+    sockets[1]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(1);
+    expect(sockets[2]?.url).toContain('localhost:18081/ws');
+
+    sockets[2]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(1);
+    expect(sockets[3]?.url).toContain('192.168.50.62:8082/ws');
+
+    engine.disconnect();
+    env.wsUrl = originalWsUrl;
+    env.wsUrlExplicit = originalWsUrlExplicit;
+    env.apiUrl = originalApiUrl;
+    randomSpy.mockRestore();
+    vi.useRealTimers();
   });
 });

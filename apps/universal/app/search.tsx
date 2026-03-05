@@ -17,7 +17,7 @@ export default function SearchScreen() {
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
 
   return (
-    <Animated.View style={containerStyle}>
+    <Animated.View style={containerStyle} testID="screen-search">
       <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
       <TopBar
         left={<CloseToHomeButton onClose={closeToHome} />}

@@ -73,6 +73,7 @@ MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e
 Notes:
 - `MAESTRO_APP_ID` defaults to `host.exp.Exponent` (Expo Go). Override it for custom dev-build bundle IDs.
 - `MAESTRO_EXPO_URL` defaults to `exp://127.0.0.1:8081` if unset.
+- `make test-mobile-e2e` auto-starts local mock API (`127.0.0.1:18081`) and mock WS (`127.0.0.1:8082`) when those ports are not already listening.
 
 Run the full local cluster-served web stack (default local workflow):
 

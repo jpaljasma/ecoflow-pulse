@@ -35,16 +35,50 @@ const defaultWsUrl =
   Platform.OS === 'web'
     ? `${defaultWebWsScheme}://${defaultWsHost}/ws`
     : `ws://${defaultWsHost}:8082/ws`;
+
+function normalizeBasePath(pathname: string): string {
+  if (!pathname || pathname === '/') return '';
+  return pathname.replace(/\/+$/, '');
+}
+
+function deriveWsUrlFromApiUrl(apiUrl: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(apiUrl);
+  } catch {
+    return undefined;
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return undefined;
+  }
+
+  const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+  const normalizedPath = normalizeBasePath(parsed.pathname);
+  const basePath = normalizedPath.endsWith('/api')
+    ? normalizedPath.slice(0, normalizedPath.length - '/api'.length)
+    : normalizedPath;
+  const wsPath = `${basePath}/ws`.replace(/\/{2,}/g, '/');
+  const host = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+
+  return `${wsProtocol}//${host}${wsPath}`;
+}
+
+const apiUrlFromConfig = process.env.EXPO_PUBLIC_API_URL ??
+  (typeof extra.apiUrl === 'string' ? extra.apiUrl : undefined);
+const wsUrlFromConfig = process.env.EXPO_PUBLIC_WS_URL ??
+  (typeof extra.wsUrl === 'string' ? extra.wsUrl : undefined);
+const resolvedApiUrl = apiUrlFromConfig ?? defaultApiBase;
+const resolvedWsUrl = wsUrlFromConfig ?? deriveWsUrlFromApiUrl(resolvedApiUrl) ?? defaultWsUrl;
+
 export const env = {
+  isWeb: Platform.OS === 'web',
   defaultAssetBaseUrl: defaultWebAssetBaseUrl,
-  apiUrl:
-    process.env.EXPO_PUBLIC_API_URL ??
-    (typeof extra.apiUrl === 'string' ? extra.apiUrl : defaultApiBase),
-  wsUrl:
-    process.env.EXPO_PUBLIC_WS_URL ??
-    (typeof extra.wsUrl === 'string'
-      ? extra.wsUrl
-      : defaultWsUrl),
+  apiUrl: resolvedApiUrl,
+  apiUrlExplicit:
+    typeof process.env.EXPO_PUBLIC_API_URL === 'string' ||
+    typeof extra.apiUrl === 'string',
+  wsUrl: resolvedWsUrl,
   wsUrlExplicit:
     typeof process.env.EXPO_PUBLIC_WS_URL === 'string' ||
     typeof extra.wsUrl === 'string',

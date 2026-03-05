@@ -12,10 +12,22 @@ export default function TabsLayout() {
         }
       }}
     >
-      <Tabs.Screen name="devices" options={{ title: 'Devices' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-      <Tabs.Screen name="search" options={{ title: 'Search' }} />
-      <Tabs.Screen name="about" options={{ title: 'About' }} />
+      <Tabs.Screen
+        name="devices"
+        options={{ title: 'Devices', tabBarButtonTestID: 'tab-devices' }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{ title: 'Settings', tabBarButtonTestID: 'tab-settings' }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{ title: 'Search', tabBarButtonTestID: 'tab-search' }}
+      />
+      <Tabs.Screen
+        name="about"
+        options={{ title: 'About', tabBarButtonTestID: 'tab-about' }}
+      />
     </Tabs>
   );
 }
