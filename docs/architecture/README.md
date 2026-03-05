@@ -430,9 +430,9 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M5 — Testing + operability + DR-lite
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | Integration tests (Testcontainers: Postgres/Valkey/NATS/MinIO) | M2 |
-| TODO | Contract tests (Node↔Go proto compatibility) | M1/M2 |
-| TODO | E2E web (Playwright) | M4 |
+| DONE | Integration tests (Testcontainers: Postgres/Valkey/NATS/MinIO)<br>- [x] Define first slice scope: Go integration harness for control-plane/history/realtime dependencies<br>- [x] Add reusable Testcontainers helpers for Postgres, Valkey, NATS, and MinIO lifecycle<br>- [x] Add first end-to-end Go integration suite against the core data path (NATS -> projection/archive or rollup query path)<br>- [x] Wire the suite into local/CI commands and document how developers run it<br>- [x] Validation: `make test-pipeline-integration` | M2 |
+| DONE | Contract tests (Node↔Go proto compatibility)<br>- [x] Add shared Node↔Go protobuf contract fixture generator from Go types<br>- [x] Add realtime gateway contract tests that decode Go-generated envelope bytes and validate field mapping semantics<br>- [x] Wire contract tests into local commands and CI execution path<br>- [x] Record validation evidence and mark task DONE<br>- [x] Validation: `make test-proto-contract` | M1/M2 |
+| DONE | E2E web (Playwright)<br>- [x] Mark task `PROGRESS` and define deterministic E2E scope (mocked API at browser boundary)<br>- [x] Add Playwright web config + route-mocked specs for `/devices` and `/device/{uuid-or-sn}`<br>- [x] Wire local command + CI check and record validation evidence<br>- [x] Validation: `make test-web-e2e` | M4 |
 | TODO | E2E mobile smoke (Maestro) | M4 |
 | TODO | Load tests (k6): ingest + WS + query | M4 |
 | TODO | Backups/restore drills + runbooks | M0+M1 |
