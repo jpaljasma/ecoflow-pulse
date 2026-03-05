@@ -558,6 +558,9 @@ make db-migrate-verify-local
 make db-migrate-cycle-local
 make db-migrate-e2e-local
 make db-seed-dev-local
+make dr-backup-local
+make dr-restore-local
+make dr-drill-local
 make auth-keycloak-verify-local
 make gke-context
 make gke-dev-guardrails
@@ -719,6 +722,31 @@ Notes:
     reconnect with fresh provider credentials:
     - `kubectl -n pulse-services rollout restart deploy/pulse-services-go-ingest`
     - `kubectl -n pulse-services rollout status deploy/pulse-services-go-ingest --timeout=120s`
+- `make dr-backup-local` captures a local DR backup bundle in
+  `.tmp/dr-backups/<name>/` (default `<name>=latest`):
+  - dumps Postgres control-plane + archive-manifest table data from local CNPG
+    primary to
+    `postgres.data.sql`,
+  - opens temporary local MinIO port-forward
+    (`svc/pulse-platform-minio -> 127.0.0.1:19000`),
+  - mirrors MinIO raw archive bucket (`pulse-telemetry-raw`) to local files
+    using Dockerized `minio/mc`,
+  - writes `report.env` with baseline DB/object counts for restore validation.
+  - override backup name with `DR_BACKUP_NAME=<name>`.
+  - override local MinIO forward port with
+    `DR_MINIO_LOCAL_PORT=<port>` if `19000` is in use.
+- `make dr-restore-local` restores Postgres + MinIO from an existing local DR
+  bundle (`DR_BACKUP_NAME=<name>`, default `latest`):
+  - truncates managed tables, then restores Postgres data via `psql`,
+  - clears and rehydrates MinIO bucket content from backup files via the same
+    temporary local MinIO port-forward + Dockerized `minio/mc`.
+- `make dr-drill-local` runs the full local DR-lite drill:
+  - backup (`dr-backup-local`),
+  - simulated data loss (truncate key Postgres tables + remove MinIO bucket objects),
+  - restore (`dr-restore-local`),
+  - schema verification (`make db-migrate-verify-local`),
+  - floor-based validation against `report.env` (`actual >= expected`) so
+    concurrent live ingest growth is noted but non-fatal.
 - `make auth-keycloak-verify-local` validates Keycloak realm bootstrap on local k3d:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),
