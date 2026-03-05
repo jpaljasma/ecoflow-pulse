@@ -99,7 +99,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -195,6 +195,10 @@ test-proto-contract:
 test-web-e2e:
 	@echo "running Playwright web E2E suite"
 	$(NPM) run -w apps/universal e2e:web
+
+test-mobile-e2e:
+	@echo "running Maestro mobile E2E smoke flow"
+	$(NPM) run -w apps/universal e2e:mobile
 
 build:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin

@@ -48,13 +48,31 @@ npm run -w apps/universal typecheck
 npm run -w apps/universal lint
 npm run -w apps/universal test
 npm run -w apps/universal e2e:web
+MAESTRO_EXPO_URL='exp://127.0.0.1:8081' npm run -w apps/universal e2e:mobile
 ```
 
-Run Playwright E2E via repository make target:
+Run E2E suites via repository make targets:
 
 ```bash
 make test-web-e2e
+MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e
 ```
+
+For mobile smoke with Maestro:
+
+```bash
+# one-time install
+curl -Ls "https://get.maestro.mobile.dev" | bash
+java -version
+
+# then run Expo on a simulator/emulator and execute the smoke flow
+npm run -w apps/universal ios
+MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e
+```
+
+Notes:
+- `MAESTRO_APP_ID` defaults to `host.exp.Exponent` (Expo Go). Override it for custom dev-build bundle IDs.
+- `MAESTRO_EXPO_URL` defaults to `exp://127.0.0.1:8081` if unset.
 
 Run the full local cluster-served web stack (default local workflow):
 
