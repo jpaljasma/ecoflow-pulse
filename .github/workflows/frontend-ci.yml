@@ -101,3 +101,10 @@ jobs:
       - name: Expo web export (sanity)
         run: npx expo export --platform web --non-interactive
         working-directory: apps/universal
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/universal
+
+      - name: Web E2E (Playwright)
+        run: npm run -w apps/universal e2e:web

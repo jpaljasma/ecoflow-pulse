@@ -47,6 +47,13 @@ npm run realtime-gateway
 npm run -w apps/universal typecheck
 npm run -w apps/universal lint
 npm run -w apps/universal test
+npm run -w apps/universal e2e:web
+```
+
+Run Playwright E2E via repository make target:
+
+```bash
+make test-web-e2e
 ```
 
 Run the full local cluster-served web stack (default local workflow):

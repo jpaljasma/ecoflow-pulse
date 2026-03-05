@@ -326,6 +326,7 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
    - `npm run -w apps/universal lint`
    - `npm run -w apps/universal test`
    - Expo web build/export sanity check
+   - Playwright web E2E smoke (`npm run -w apps/universal e2e:web`) with deterministic API route mocking at browser boundary
 6. Protobuf contract changes must pass both local and CI lint:
    - local: `make lint` (includes `buf lint`)
    - CI: `proto-ci` GitHub Actions check (`buf lint`)
