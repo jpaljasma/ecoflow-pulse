@@ -216,6 +216,7 @@ Runtime behavior:
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
 - websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.
+- device solar history treats `404` from `/api/v1/devices/{id}/history/compare` as empty history (no blocking detail-page error banner).
 - local k3d development is real-data and single-origin by default:
   - the public app serves `/`
   - the Node BFF is reached through `/api`
