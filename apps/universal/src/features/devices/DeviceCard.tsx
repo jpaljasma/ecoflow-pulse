@@ -197,6 +197,7 @@ export function DeviceCard({
   return (
     <Animated.View style={{ opacity: fadeOpacity }}>
       <Card
+        testID={`device-card-${device.id}`}
         hoverStyle={
           isInactive
             ? undefined

@@ -92,13 +92,16 @@ export default function DeviceDetailScreen() {
   useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
   const telemetryConnectionStatus = useTelemetryConnectionStatus();
   const snapshot = useTelemetryDeviceSnapshot(resolvedDeviceId);
-  const routeError = deviceQuery.error ?? devicesQuery.error ?? solarHistory.error;
+  const blockingRouteError =
+    devicesQuery.error ??
+    (device ? undefined : (deviceQuery.error ?? solarHistory.error));
+  const detailWarningError = device ? (deviceQuery.error ?? solarHistory.error) : undefined;
   const deviceNotFound =
     queryEnabled &&
     !devicesQuery.isLoading &&
     !devicesQuery.isFetching &&
     !resolvedDeviceId &&
-    !routeError;
+    !blockingRouteError;
 
   const solarGeneratedTrend =
     solarHistory.data?.seriesWh ?? Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
@@ -171,12 +174,12 @@ export default function DeviceDetailScreen() {
         />
 
         <YStack flex={1} minHeight={0}>
-          {routeError ? (
+          {blockingRouteError ? (
             <Card gap="$2">
               <Text fontSize="$5" fontWeight="700">
                 Device detail failed to load
               </Text>
-              <Text opacity={0.8}>{describeQueryError(routeError)}</Text>
+              <Text opacity={0.8}>{describeQueryError(blockingRouteError)}</Text>
               <Text opacity={0.65}>
                 Check the local cluster public endpoint and API configuration. In k3d, the app, `/api`, and
                 `/ws` should all be served from the same host.
@@ -201,11 +204,37 @@ export default function DeviceDetailScreen() {
                 paddingBottom: 16
               }}
             >
-              {detailContent}
+              <YStack gap="$3">
+                {detailWarningError ? (
+                  <Card gap="$2">
+                    <Text fontSize="$5" fontWeight="700">
+                      Detail endpoint unavailable
+                    </Text>
+                    <Text opacity={0.8}>{describeQueryError(detailWarningError)}</Text>
+                    <Text opacity={0.65}>
+                      Showing cached summary values while live detail/history endpoints retry.
+                    </Text>
+                  </Card>
+                ) : null}
+                {detailContent}
+              </YStack>
             </div>
           ) : (
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
-              {detailContent}
+              <YStack gap="$3">
+                {detailWarningError ? (
+                  <Card gap="$2">
+                    <Text fontSize="$5" fontWeight="700">
+                      Detail endpoint unavailable
+                    </Text>
+                    <Text opacity={0.8}>{describeQueryError(detailWarningError)}</Text>
+                    <Text opacity={0.65}>
+                      Showing cached summary values while live detail/history endpoints retry.
+                    </Text>
+                  </Card>
+                ) : null}
+                {detailContent}
+              </YStack>
             </ScrollView>
           )}
         </YStack>

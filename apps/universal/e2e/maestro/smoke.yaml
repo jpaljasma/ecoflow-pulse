@@ -8,6 +8,22 @@ appId: __MAESTRO_APP_ID__
 - extendedWaitUntil:
     visible: "Pulse"
     timeout: 120000
+- extendedWaitUntil:
+    visible:
+      id: "device-card-019cab9d-bcb3-7587-8dc9-9a57deb48d30"
+    timeout: 30000
+- tapOn:
+    id: "device-card-019cab9d-bcb3-7587-8dc9-9a57deb48d30"
+- extendedWaitUntil:
+    visible: "DELTA Pro Ultra"
+    timeout: 30000
+- assertNotVisible: "Device detail failed to load"
+- tapOn:
+    id: "close-to-devices"
+- extendedWaitUntil:
+    visible:
+      id: "tab-settings"
+    timeout: 30000
 - tapOn:
     id: "tab-settings"
 - extendedWaitUntil:

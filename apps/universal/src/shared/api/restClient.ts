@@ -34,20 +34,36 @@ function buildApiBaseCandidates(primaryBase: string): string[] {
     return [primaryBase];
   }
 
-  const hosts = [parsed.hostname, '127.0.0.1', 'localhost'];
-  const seen = new Set<string>();
+  const hostHints = Array.isArray((env as { nativeHostHints?: unknown }).nativeHostHints)
+    ? (((env as { nativeHostHints?: unknown }).nativeHostHints as unknown[]) ?? [])
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    : [];
+  const hosts = [parsed.hostname, ...hostHints, '127.0.0.1', 'localhost'];
+  const seenBases = new Set<string>();
   const bases: string[] = [];
   const rawPathname = parsed.pathname || '';
   const pathname = rawPathname === '/' ? '' : rawPathname.replace(/\/+$/, '');
+  const ports = (() => {
+    const list: string[] = [parsed.port];
+    if (parsed.protocol === 'http:') {
+      if (parsed.port === '18081') list.push('');
+      if (!parsed.port) list.push('18081');
+    }
+    return Array.from(new Set(list));
+  })();
 
-  for (const hostname of hosts) {
-    if (seen.has(hostname)) continue;
-    seen.add(hostname);
-    const host = parsed.port ? `${hostname}:${parsed.port}` : hostname;
-    bases.push(`${parsed.protocol}//${host}${pathname}`);
+  for (const port of ports) {
+    for (const hostname of hosts) {
+      if (!hostname) continue;
+      const host = port ? `${hostname}:${port}` : hostname;
+      const base = `${parsed.protocol}//${host}${pathname}`;
+      if (seenBases.has(base)) continue;
+      seenBases.add(base);
+      bases.push(base);
+    }
   }
 
-  return bases;
+  return bases.length > 0 ? bases : [primaryBase];
 }
 
 function isRetryableNetworkError(error: unknown): boolean {

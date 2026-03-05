@@ -6,7 +6,8 @@ vi.mock('@/shared/config/env', () => ({
     apiUrl: 'http://192.168.50.62:18081',
     apiUrlExplicit: false,
     wsUrl: 'ws://192.168.50.62:8082/ws',
-    wsUrlExplicit: false
+    wsUrlExplicit: false,
+    nativeHostHints: []
   }
 }));
 
@@ -159,7 +160,19 @@ describe('TelemetryEngine', () => {
 
     sockets[2]?.onclose?.({ code: 1006 } as CloseEvent);
     vi.advanceTimersByTime(1);
-    expect(sockets[3]?.url).toContain('192.168.50.62:8082/ws');
+    expect(sockets[3]?.url).toContain('192.168.50.62/ws');
+
+    sockets[3]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(1);
+    expect(sockets[4]?.url).toContain('127.0.0.1/ws');
+
+    sockets[4]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(1);
+    expect(sockets[5]?.url).toContain('localhost/ws');
+
+    sockets[5]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(1);
+    expect(sockets[6]?.url).toContain('192.168.50.62:8082/ws');
 
     engine.disconnect();
     env.wsUrl = originalWsUrl;
