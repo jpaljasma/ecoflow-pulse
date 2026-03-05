@@ -13,6 +13,7 @@ Top-level structure:
   - `ecoflow-rollup-worker`: Timescale rollup pipeline worker (ingest envelopes -> minute/hour/day rollup upserts).
   - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects).
   - `ecoflow-replay-cli`: archive replay CLI (device listing + per-device/fleet shard-time replay modes).
+  - `ecoflow-loadtest-ingest-bridge`: local load-test helper that accepts HTTP ingest payloads and publishes canonical telemetry envelopes to NATS.
   - `ecoflow-gap-detector`: projection lag detector that enqueues targeted replay jobs.
   - `ecoflow-gap-repair-worker`: gap-repair queue consumer that replays missing windows back into ingest subjects.
   - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
@@ -69,6 +70,7 @@ Top-level structure:
   - `argocd/apps`: direct Argo CD apps (`pulse-platform`, `pulse-services`).
   - `tilt/k3d-config.yaml`: k3d local cluster config.
 - `docs/`: developer documentation in Diataxis layout.
+- `load/k6/`: k6 load-test harness (ingest publish + websocket fanout + history query scenarios for M5 validation).
 
 Key dashboard-focused files:
 

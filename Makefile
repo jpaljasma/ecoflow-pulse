@@ -3,6 +3,7 @@ SHELL := /bin/zsh
 GO ?= go
 NPM ?= npm
 WEB_PORT ?= 8081
+K6 ?= k6
 K3D ?= k3d
 HELM ?= helm
 KUBECTL ?= kubectl
@@ -92,6 +93,34 @@ LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
 LOCAL_HELM = $(HELM) --kube-context $(K3D_CONTEXT)
 PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace -f $(LOCAL_PLATFORM_VALUES)
 LOCAL_PLATFORM_MANIFEST ?= $(CURDIR)/.tmp/pulse-platform.rendered.yaml
+K6_SCRIPT ?= load/k6/main.js
+K6_API_BASE_URL ?= http://127.0.0.1
+K6_WS_URL ?= ws://127.0.0.1/ws
+K6_USER_SUBJECT ?= jpaljasma@gmail.com
+K6_DURATION ?= 1m
+K6_INGEST_RATE ?= 20
+K6_INGEST_PRE_ALLOCATED_VUS ?= 8
+K6_INGEST_MAX_VUS ?= 32
+K6_QUERY_RATE ?= 1
+K6_QUERY_PRE_ALLOCATED_VUS ?= 2
+K6_QUERY_MAX_VUS ?= 8
+K6_WS_VUS ?= 20
+K6_WS_SESSION_TIMEOUT_MS ?= 4000
+K6_WS_POST_TELEMETRY_HOLD_MS ?= 200
+K6_WS_THINK_TIME_MS ?= 100
+K6_SEED_COUNT ?= 5
+K6_QUERY_WINDOW_MS ?= 900000
+K6_QUERY_RESOLUTION ?= minute
+K6_INGEST_P95_MS ?= 750
+K6_QUERY_P95_MS ?= 1200
+K6_WS_SUCCESS_RATE ?= 0.95
+K6_DEVICE_ID ?=
+K6_DEVICE_SERIAL_NUMBER ?=
+K6_NATS_NAMESPACE ?= pulse-platform
+K6_NATS_SERVICE ?= pulse-platform-nats
+K6_NATS_LOCAL_PORT ?= 14222
+K6_INGEST_BRIDGE_ADDR ?= 127.0.0.1:19090
+K6_TELEMETRY_SUBJECT_PREFIX ?= pulse
 
 export GOCACHE
 export GOMODCACHE
@@ -99,7 +128,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -199,6 +228,75 @@ test-web-e2e:
 test-mobile-e2e:
 	@echo "running Maestro mobile E2E smoke flow"
 	$(NPM) run -w apps/universal e2e:mobile
+
+test-load-k6:
+	@if ! command -v $(K6) >/dev/null 2>&1; then \
+		echo "$(K6) not found. Install k6 first: https://grafana.com/docs/k6/latest/set-up/install-k6/"; \
+		exit 1; \
+	fi
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@if ! command -v curl >/dev/null 2>&1; then \
+		echo "curl not found. Install curl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	pf_log=/tmp/pulse-k6-nats-portforward.log; \
+	bridge_log=/tmp/pulse-k6-ingest-bridge.log; \
+	echo "starting nats port-forward on 127.0.0.1:$(K6_NATS_LOCAL_PORT) (log: $$pf_log)"; \
+	$(KUBECTL) -n $(K6_NATS_NAMESPACE) port-forward svc/$(K6_NATS_SERVICE) $(K6_NATS_LOCAL_PORT):4222 >$$pf_log 2>&1 & \
+	pf_pid=$$!; \
+	bridge_pid=; \
+	cleanup() { \
+		if [ -n "$$bridge_pid" ]; then \
+			kill $$bridge_pid >/dev/null 2>&1 || true; \
+		fi; \
+		kill $$pf_pid >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	sleep 2; \
+	echo "starting loadtest ingest bridge on $(K6_INGEST_BRIDGE_ADDR) (log: $$bridge_log)"; \
+	NATS_URLS="nats://127.0.0.1:$(K6_NATS_LOCAL_PORT)" \
+	TELEMETRY_SUBJECT_PREFIX="$(K6_TELEMETRY_SUBJECT_PREFIX)" \
+	LOADTEST_INGEST_BIND_ADDR="$(K6_INGEST_BRIDGE_ADDR)" \
+	go run ./cmd/ecoflow-loadtest-ingest-bridge >$$bridge_log 2>&1 & \
+	bridge_pid=$$!; \
+	for attempt in $$(seq 1 20); do \
+		if curl -fsS "http://$(K6_INGEST_BRIDGE_ADDR)/healthz" >/dev/null 2>&1; then \
+			break; \
+		fi; \
+		sleep 0.5; \
+		if [ $$attempt -eq 20 ]; then \
+			echo "ingest bridge did not become ready; see $$bridge_log"; \
+			exit 1; \
+		fi; \
+	done; \
+	LOADTEST_API_BASE_URL="$(K6_API_BASE_URL)" \
+	LOADTEST_WS_URL="$(K6_WS_URL)" \
+	LOADTEST_INGEST_URL="http://$(K6_INGEST_BRIDGE_ADDR)/ingest" \
+	LOADTEST_USER_SUBJECT="$(K6_USER_SUBJECT)" \
+	LOADTEST_DURATION="$(K6_DURATION)" \
+	LOADTEST_INGEST_RATE="$(K6_INGEST_RATE)" \
+	LOADTEST_INGEST_PRE_ALLOCATED_VUS="$(K6_INGEST_PRE_ALLOCATED_VUS)" \
+	LOADTEST_INGEST_MAX_VUS="$(K6_INGEST_MAX_VUS)" \
+	LOADTEST_QUERY_RATE="$(K6_QUERY_RATE)" \
+	LOADTEST_QUERY_PRE_ALLOCATED_VUS="$(K6_QUERY_PRE_ALLOCATED_VUS)" \
+	LOADTEST_QUERY_MAX_VUS="$(K6_QUERY_MAX_VUS)" \
+	LOADTEST_WS_VUS="$(K6_WS_VUS)" \
+	LOADTEST_WS_SESSION_TIMEOUT_MS="$(K6_WS_SESSION_TIMEOUT_MS)" \
+	LOADTEST_WS_POST_TELEMETRY_HOLD_MS="$(K6_WS_POST_TELEMETRY_HOLD_MS)" \
+	LOADTEST_WS_THINK_TIME_MS="$(K6_WS_THINK_TIME_MS)" \
+	LOADTEST_SEED_COUNT="$(K6_SEED_COUNT)" \
+	LOADTEST_QUERY_WINDOW_MS="$(K6_QUERY_WINDOW_MS)" \
+	LOADTEST_QUERY_RESOLUTION="$(K6_QUERY_RESOLUTION)" \
+	LOADTEST_INGEST_P95_MS="$(K6_INGEST_P95_MS)" \
+	LOADTEST_QUERY_P95_MS="$(K6_QUERY_P95_MS)" \
+	LOADTEST_WS_SUCCESS_RATE="$(K6_WS_SUCCESS_RATE)" \
+	LOADTEST_DEVICE_ID="$(K6_DEVICE_ID)" \
+	LOADTEST_DEVICE_SERIAL_NUMBER="$(K6_DEVICE_SERIAL_NUMBER)" \
+	$(K6) run $(K6_SCRIPT)
 
 build:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin
