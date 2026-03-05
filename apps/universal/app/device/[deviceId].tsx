@@ -51,6 +51,29 @@ function getMaxSolarWatts(device: DeviceSummary | undefined): number | undefined
   return total > 0 ? total : undefined;
 }
 
+function mergeDeviceSources(
+  preferred: DeviceSummary | undefined,
+  fallback: DeviceSummary | undefined
+): DeviceSummary | undefined {
+  if (!preferred) return fallback;
+  if (!fallback) return preferred;
+
+  return {
+    ...fallback,
+    ...preferred,
+    pvW: preferred.pvW ?? fallback.pvW,
+    acInW: preferred.acInW ?? fallback.acInW,
+    dcW: preferred.dcW ?? fallback.dcW,
+    loadW: preferred.loadW ?? fallback.loadW,
+    netW: preferred.netW ?? fallback.netW,
+    tempC: preferred.tempC ?? fallback.tempC,
+    telemetryTsMs: preferred.telemetryTsMs ?? fallback.telemetryTsMs,
+    etaMinutes: preferred.etaMinutes ?? fallback.etaMinutes,
+    capabilities: preferred.capabilities ?? fallback.capabilities,
+    details: preferred.details ?? fallback.details
+  };
+}
+
 export default function DeviceDetailScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -88,14 +111,13 @@ export default function DeviceDetailScreen() {
     enabled: queryEnabled && Boolean(resolvedDeviceId),
     maxSolarWatts
   });
-  const device = deviceQuery.data ?? routeDevice;
+  const device = mergeDeviceSources(deviceQuery.data, routeDevice);
   useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
   const telemetryConnectionStatus = useTelemetryConnectionStatus();
   const snapshot = useTelemetryDeviceSnapshot(resolvedDeviceId);
-  const blockingRouteError =
-    devicesQuery.error ??
-    (device ? undefined : (deviceQuery.error ?? solarHistory.error));
-  const detailWarningError = device ? (deviceQuery.error ?? solarHistory.error) : undefined;
+  const firstError = devicesQuery.error ?? deviceQuery.error ?? solarHistory.error;
+  const blockingRouteError = device ? undefined : firstError;
+  const detailWarningError = device ? firstError : undefined;
   const deviceNotFound =
     queryEnabled &&
     !devicesQuery.isLoading &&
