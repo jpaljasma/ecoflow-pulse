@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint . --ext .ts,.tsx",
-    "e2e:web": "playwright test -c ./playwright.config.ts"
+    "e2e:web": "playwright test -c ./playwright.config.ts",
+    "e2e:mobile": "bash ./e2e/run_maestro_smoke.sh"
   },
   "dependencies": {
     "@ecoflow-pulse/api-types": "0.0.1",

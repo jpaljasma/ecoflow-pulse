@@ -544,7 +544,86 @@ export class TelemetryEngine {
   }
 
   private buildWsCandidates(primary: string): string[] {
-    return [primary];
+    if (this.wsUrlExplicit) {
+      return [primary];
+    }
+
+    const seedUrls = [primary, ...this.deriveWsCandidatesFromApiBase(env.apiUrl)];
+    const seen = new Set<string>();
+    const candidates: string[] = [];
+
+    for (const seedUrl of seedUrls) {
+      let parsed: URL;
+      try {
+        parsed = new URL(seedUrl);
+      } catch {
+        if (!seen.has(seedUrl)) {
+          seen.add(seedUrl);
+          candidates.push(seedUrl);
+        }
+        continue;
+      }
+
+      if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+        if (!seen.has(seedUrl)) {
+          seen.add(seedUrl);
+          candidates.push(seedUrl);
+        }
+        continue;
+      }
+
+      const hostHints = Array.isArray((env as { nativeHostHints?: unknown }).nativeHostHints)
+        ? (((env as { nativeHostHints?: unknown }).nativeHostHints as unknown[]) ?? [])
+            .filter((value): value is string => typeof value === 'string' && value.length > 0)
+        : [];
+      const hosts = [parsed.hostname, ...hostHints, '127.0.0.1', 'localhost'];
+      for (const hostname of hosts) {
+        if (!hostname) continue;
+        const host = parsed.port ? `${hostname}:${parsed.port}` : hostname;
+        const candidate = `${parsed.protocol}//${host}${parsed.pathname}${parsed.search}`;
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        candidates.push(candidate);
+      }
+    }
+
+    return candidates.length > 0 ? candidates : [primary];
+  }
+
+  private deriveWsCandidatesFromApiBase(apiBase: string): string[] {
+    let parsed: URL;
+    try {
+      parsed = new URL(apiBase);
+    } catch {
+      return [];
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return [];
+    }
+
+    const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+    const normalizedPath =
+      !parsed.pathname || parsed.pathname === '/'
+        ? ''
+        : parsed.pathname.replace(/\/+$/, '');
+    const basePath = normalizedPath.endsWith('/api')
+      ? normalizedPath.slice(0, normalizedPath.length - '/api'.length)
+      : normalizedPath;
+    const wsPath = `${basePath}/ws`.replace(/\/{2,}/g, '/');
+    const host = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+
+    const candidates = [`${wsProtocol}//${host}${wsPath}`];
+    if (parsed.port === '18081') {
+      candidates.push(`${wsProtocol}//${parsed.hostname}${wsPath}`);
+      candidates.push(`${wsProtocol}//${parsed.hostname}:8082/ws`);
+    }
+    if (!parsed.port) {
+      candidates.push(`${wsProtocol}//${parsed.hostname}:18081${wsPath}`);
+      candidates.push(`${wsProtocol}//${parsed.hostname}:8082/ws`);
+    }
+
+    return candidates;
   }
 
   private rotateWsCandidate(): void {

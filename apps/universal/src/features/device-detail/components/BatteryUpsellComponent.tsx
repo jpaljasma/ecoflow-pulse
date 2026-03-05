@@ -40,7 +40,7 @@ export const BatteryUpsellComponent = memo(function BatteryUpsellComponent({
         pressStyle={{ opacity: 0.88 }}
       >
         <Text color="white" fontWeight="700" fontSize={16}>
-          <span>🛒</span> Get More Batteries ({moreBatteries})
+          🛒 Get More Batteries ({moreBatteries})
         </Text>
       </Button>
     </YStack>

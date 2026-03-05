@@ -197,9 +197,11 @@ Runtime behavior:
 - `EXPO_PUBLIC_API_URL`
   - web default: same-origin (`http://localhost` in local k3d) and should normally be left unset
   - native debug override: point directly at the public edge or standalone BFF when needed
+  - native fallback behavior when unset: retry host variants (`<host>`, Expo host hints, `127.0.0.1`, `localhost`) and both local ports (`:18081`, then public-edge default port)
 - `EXPO_PUBLIC_WS_URL`
-  - web default: same-origin websocket (`ws://localhost/ws` in local k3d) and should normally be left unset
-  - native debug override: point directly at the public edge or standalone gateway when needed
+  - default when unset: derive from API base (`ws(s)://<api-host>/ws`, trimming a trailing `/api` path when present)
+  - native fallback behavior when unset: retry host variants (`<host>`, Expo host hints, `127.0.0.1`, `localhost`) and include both BFF-proxied (`/ws`) and standalone gateway (`:8082/ws`) paths
+  - native debug override: set explicitly when bypassing BFF `/ws` proxy routing
 - `EXPO_PUBLIC_ASSET_BASE_URL`
 - `EXPO_PUBLIC_OIDC_ISSUER_URL` (Keycloak issuer URL for Authorization Code + PKCE)
 - `EXPO_PUBLIC_OIDC_CLIENT_ID` (public OIDC client ID for Expo app)
@@ -214,6 +216,7 @@ Runtime behavior:
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
 - websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.
+- device solar history treats `404` from `/api/v1/devices/{id}/history/compare` as empty history (no blocking detail-page error banner).
 - local k3d development is real-data and single-origin by default:
   - the public app serves `/`
   - the Node BFF is reached through `/api`

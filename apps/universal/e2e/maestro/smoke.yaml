@@ -1,0 +1,42 @@
+appId: __MAESTRO_APP_ID__
+---
+- launchApp
+- extendedWaitUntil:
+      visible: "EcoFlow Pulse"
+      timeout: 120000
+- tapOn: "EcoFlow Pulse"
+- extendedWaitUntil:
+      visible: "Pulse"
+      timeout: 120000
+- scrollUntilVisible:
+      element: "DPU A 12 kWh"
+      direction: DOWN
+      visibilityPercentage: 30
+      centerElement: false
+      timeout: 45000
+- tapOn: "DPU A 12 kWh"
+- extendedWaitUntil:
+      visible: "DELTA Pro Ultra"
+      timeout: 30000
+- assertNotVisible: "Device detail failed to load"
+- tapOn:
+      id: "close-to-devices"
+- extendedWaitUntil:
+      visible:
+          id: "tab-settings"
+      timeout: 30000
+- tapOn:
+      id: "tab-settings"
+- extendedWaitUntil:
+      visible: "API Endpoints"
+      timeout: 30000
+- tapOn:
+      id: "tab-search"
+- extendedWaitUntil:
+      visible: "Search devices and telemetry"
+      timeout: 30000
+- tapOn:
+      id: "tab-about"
+- extendedWaitUntil:
+      visible: "About EcoFlow Pulse"
+      timeout: 30000

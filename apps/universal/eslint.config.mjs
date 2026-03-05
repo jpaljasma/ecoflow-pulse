@@ -24,7 +24,14 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       'no-undef': 'off',
-      'react/react-in-jsx-scope': 'off'
+      'react/react-in-jsx-scope': 'off',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.type='JSXIdentifier'][name.name='span']",
+          message: 'Use React Native/Tamagui text primitives instead of raw <span>.'
+        }
+      ]
     },
     settings: {
       react: {

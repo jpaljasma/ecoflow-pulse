@@ -76,6 +76,7 @@ Actively validated:
   - Testcontainers pipeline integration suite (`make test-pipeline-integration`)
   - Node↔Go proto compatibility tests (`make test-proto-contract`)
   - Playwright web E2E smoke (`make test-web-e2e`)
+  - Maestro mobile E2E smoke (`MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e`)
 
 ## Quick Start
 

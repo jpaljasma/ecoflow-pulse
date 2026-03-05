@@ -3,29 +3,88 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 const extra = Constants.expoConfig?.extra ?? {};
+type ExpoConstantsLike = {
+  manifest?: {
+    debuggerHost?: string;
+    hostUri?: string;
+  };
+  manifest2?: {
+    extra?: {
+      expoGo?: { debuggerHost?: string };
+      expoClient?: { hostUri?: string };
+    };
+  };
+};
+const constantsLike = Constants as unknown as ExpoConstantsLike;
+
+function extractHost(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  const withoutScheme = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const firstSegment = withoutScheme.split('/')[0] ?? '';
+  if (!firstSegment) return '';
+
+  const bracketedIpv6 = firstSegment.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketedIpv6?.[1]) {
+    return bracketedIpv6[1].toLowerCase();
+  }
+
+  return (firstSegment.split(':')[0] ?? '').toLowerCase();
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+function collectNativeHostHints(): string[] {
+  if (Platform.OS === 'web') return [];
+
+  const candidates: string[] = [];
+
+  try {
+    const url = Linking.createURL('/');
+    const parsed = new URL(url);
+    if (parsed.hostname) {
+      candidates.push(parsed.hostname.toLowerCase());
+    }
+  } catch {
+    // Fallback candidates below.
+  }
+
+  candidates.push(
+    extractHost(Constants.expoConfig?.hostUri),
+    extractHost(constantsLike.manifest?.debuggerHost),
+    extractHost(constantsLike.manifest?.hostUri),
+    extractHost(constantsLike.manifest2?.extra?.expoGo?.debuggerHost),
+    extractHost(constantsLike.manifest2?.extra?.expoClient?.hostUri)
+  );
+
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const host of candidates) {
+    if (!host || seen.has(host)) continue;
+    seen.add(host);
+    normalized.push(host);
+  }
+
+  return normalized;
+}
+
+const nativeHostHints = collectNativeHostHints();
+const preferredNativeHost =
+  nativeHostHints.find((host) => !isLoopbackHost(host)) ??
+  nativeHostHints[0] ??
+  '127.0.0.1';
+
 const defaultWebLocation =
   Platform.OS === 'web' && typeof window !== 'undefined' ? window.location : undefined;
 const defaultWebAssetBaseUrl = defaultWebLocation?.origin ?? '';
 const defaultWebHost = defaultWebLocation?.hostname || '127.0.0.1';
 const defaultWebHttpScheme = defaultWebLocation?.protocol === 'https:' ? 'https' : 'http';
 const defaultWebWsScheme = defaultWebLocation?.protocol === 'https:' ? 'wss' : 'ws';
-const defaultNativeHost = (() => {
-  if (Platform.OS === 'web') return '';
-  try {
-    const url = Linking.createURL('/');
-    const parsed = new URL(url);
-    if (parsed.hostname) return parsed.hostname;
-  } catch {
-    // Fallback below.
-  }
-  const debuggerHost = (Constants as unknown as { manifest2?: { extra?: { expoGo?: { debuggerHost?: string } } } })
-    .manifest2?.extra?.expoGo?.debuggerHost;
-  if (typeof debuggerHost === 'string' && debuggerHost.length > 0) {
-    return debuggerHost.split(':')[0] ?? '';
-  }
-  return '';
-})();
-const defaultHttpHost = Platform.OS === 'web' ? defaultWebHost : (defaultNativeHost || '127.0.0.1');
+const defaultHttpHost = Platform.OS === 'web' ? defaultWebHost : preferredNativeHost;
 const defaultWsHost = defaultHttpHost;
 const defaultApiBase =
   Platform.OS === 'web'
@@ -35,16 +94,51 @@ const defaultWsUrl =
   Platform.OS === 'web'
     ? `${defaultWebWsScheme}://${defaultWsHost}/ws`
     : `ws://${defaultWsHost}:8082/ws`;
+
+function normalizeBasePath(pathname: string): string {
+  if (!pathname || pathname === '/') return '';
+  return pathname.replace(/\/+$/, '');
+}
+
+function deriveWsUrlFromApiUrl(apiUrl: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(apiUrl);
+  } catch {
+    return undefined;
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return undefined;
+  }
+
+  const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+  const normalizedPath = normalizeBasePath(parsed.pathname);
+  const basePath = normalizedPath.endsWith('/api')
+    ? normalizedPath.slice(0, normalizedPath.length - '/api'.length)
+    : normalizedPath;
+  const wsPath = `${basePath}/ws`.replace(/\/{2,}/g, '/');
+  const host = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+
+  return `${wsProtocol}//${host}${wsPath}`;
+}
+
+const apiUrlFromConfig = process.env.EXPO_PUBLIC_API_URL ??
+  (typeof extra.apiUrl === 'string' ? extra.apiUrl : undefined);
+const wsUrlFromConfig = process.env.EXPO_PUBLIC_WS_URL ??
+  (typeof extra.wsUrl === 'string' ? extra.wsUrl : undefined);
+const resolvedApiUrl = apiUrlFromConfig ?? defaultApiBase;
+const resolvedWsUrl = wsUrlFromConfig ?? deriveWsUrlFromApiUrl(resolvedApiUrl) ?? defaultWsUrl;
+
 export const env = {
+  isWeb: Platform.OS === 'web',
+  nativeHostHints,
   defaultAssetBaseUrl: defaultWebAssetBaseUrl,
-  apiUrl:
-    process.env.EXPO_PUBLIC_API_URL ??
-    (typeof extra.apiUrl === 'string' ? extra.apiUrl : defaultApiBase),
-  wsUrl:
-    process.env.EXPO_PUBLIC_WS_URL ??
-    (typeof extra.wsUrl === 'string'
-      ? extra.wsUrl
-      : defaultWsUrl),
+  apiUrl: resolvedApiUrl,
+  apiUrlExplicit:
+    typeof process.env.EXPO_PUBLIC_API_URL === 'string' ||
+    typeof extra.apiUrl === 'string',
+  wsUrl: resolvedWsUrl,
   wsUrlExplicit:
     typeof process.env.EXPO_PUBLIC_WS_URL === 'string' ||
     typeof extra.wsUrl === 'string',
