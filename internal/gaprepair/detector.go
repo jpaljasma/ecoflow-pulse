@@ -24,6 +24,9 @@ const (
 	defaultDetectorPollJitter      = 0.20
 	defaultDetectorLookbackWindow  = 30 * time.Minute
 	defaultDetectorLagThreshold    = 90 * time.Second
+	defaultDetectorLagAlertWindow  = 15 * time.Minute
+	defaultDetectorLagAlertThresh  = 12
+	defaultDetectorLagAlertBackoff = 5 * time.Minute
 	defaultDetectorWindowPadding   = 30 * time.Second
 	defaultDetectorMaxReplayWindow = 30 * time.Minute
 	defaultDetectorSafeDelay       = 10 * time.Second
@@ -44,6 +47,7 @@ type Detector struct {
 	publisher RequestPublisher
 	cfg       DetectorConfig
 	rng       *rand.Rand
+	lagAlerts *failureRateTracker
 }
 
 func DefaultDetectorConfig() DetectorConfig {
@@ -59,6 +63,9 @@ func DefaultDetectorConfig() DetectorConfig {
 		PollJitter:        defaultDetectorPollJitter,
 		LookbackWindow:    defaultDetectorLookbackWindow,
 		LagThreshold:      defaultDetectorLagThreshold,
+		LagAlertWindow:    defaultDetectorLagAlertWindow,
+		LagAlertThreshold: defaultDetectorLagAlertThresh,
+		LagAlertCooldown:  defaultDetectorLagAlertBackoff,
 		WindowPadding:     defaultDetectorWindowPadding,
 		MaxReplayWindow:   defaultDetectorMaxReplayWindow,
 		SafeDelay:         defaultDetectorSafeDelay,
@@ -102,6 +109,7 @@ func NewDetector(
 		publisher: publisher,
 		cfg:       cfg,
 		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
+		lagAlerts: newFailureRateTracker(cfg.LagAlertWindow, cfg.LagAlertThreshold, cfg.LagAlertCooldown),
 	}, nil
 }
 
@@ -119,6 +127,15 @@ func normalizeDetectorConfig(cfg DetectorConfig) DetectorConfig {
 	}
 	if out.LagThreshold <= 0 {
 		out.LagThreshold = defaultDetectorLagThreshold
+	}
+	if out.LagAlertWindow <= 0 {
+		out.LagAlertWindow = defaultDetectorLagAlertWindow
+	}
+	if out.LagAlertThreshold <= 0 {
+		out.LagAlertThreshold = defaultDetectorLagAlertThresh
+	}
+	if out.LagAlertCooldown <= 0 {
+		out.LagAlertCooldown = defaultDetectorLagAlertBackoff
 	}
 	if out.WindowPadding < 0 {
 		out.WindowPadding = 0
@@ -209,6 +226,19 @@ func (d *Detector) DetectAndEnqueue(ctx context.Context) (DetectorReport, error)
 		}
 		return strings.Compare(a.request.GetProviderDeviceId(), b.request.GetProviderDeviceId())
 	})
+	maxLagMS := plans[0].lagMs
+	lagEvents, lagEventsPerMin, spike := d.lagAlerts.Record(now)
+	if spike {
+		d.log.Warn("gap detector lag-candidate spike detected",
+			slog.Int("candidates", len(plans)),
+			slog.Int64("max_lag_ms", maxLagMS),
+			slog.Int("lag_events_in_window", lagEvents),
+			slog.Float64("lag_events_per_min", lagEventsPerMin),
+			slog.Duration("window", d.cfg.LagAlertWindow),
+			slog.Int("threshold", d.cfg.LagAlertThreshold),
+			slog.Duration("cooldown", d.cfg.LagAlertCooldown),
+		)
+	}
 
 	limit := d.cfg.MaxJobsPerCycle
 	if limit > len(plans) {
@@ -437,4 +467,45 @@ func sanitizeAssignment(a controlplane.IngestAssignment) controlplane.IngestAssi
 	a.ProviderDeviceID = strings.ToUpper(strings.TrimSpace(a.ProviderDeviceID))
 	a.DeviceID = strings.TrimSpace(a.DeviceID)
 	return a
+}
+
+type failureRateTracker struct {
+	window    time.Duration
+	threshold int
+	cooldown  time.Duration
+	lastAlert time.Time
+	events    []time.Time
+}
+
+func newFailureRateTracker(window time.Duration, threshold int, cooldown time.Duration) *failureRateTracker {
+	return &failureRateTracker{
+		window:    window,
+		threshold: threshold,
+		cooldown:  cooldown,
+		events:    make([]time.Time, 0, threshold*2),
+	}
+}
+
+func (t *failureRateTracker) Record(now time.Time) (count int, perMinute float64, spike bool) {
+	if t == nil || t.window <= 0 {
+		return 0, 0, false
+	}
+	cutoff := now.Add(-t.window)
+	keep := t.events[:0]
+	for _, ts := range t.events {
+		if !ts.Before(cutoff) {
+			keep = append(keep, ts)
+		}
+	}
+	t.events = append(keep, now)
+	count = len(t.events)
+	perMinute = float64(count) / t.window.Minutes()
+	if t.threshold <= 0 || count < t.threshold {
+		return count, perMinute, false
+	}
+	if !t.lastAlert.IsZero() && now.Sub(t.lastAlert) < t.cooldown {
+		return count, perMinute, false
+	}
+	t.lastAlert = now
+	return count, perMinute, true
 }

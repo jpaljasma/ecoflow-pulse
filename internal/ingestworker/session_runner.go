@@ -28,6 +28,9 @@ const (
 	defaultMQTTReconnectAlertWindow  = 5 * time.Minute
 	defaultMQTTReconnectAlertThresh  = 8
 	defaultMQTTReconnectAlertBackoff = 2 * time.Minute
+	defaultMQTTAuthAlertWindow       = 10 * time.Minute
+	defaultMQTTAuthAlertThresh       = 5
+	defaultMQTTAuthAlertCooldown     = 5 * time.Minute
 	ecoflowAccessKeyInvalidCode      = "8513"
 )
 
@@ -77,6 +80,9 @@ type EcoFlowSessionConfig struct {
 	ReconnectAlertWindow    time.Duration
 	ReconnectAlertThreshold int
 	ReconnectAlertCooldown  time.Duration
+	AuthAlertWindow         time.Duration
+	AuthAlertThreshold      int
+	AuthAlertCooldown       time.Duration
 
 	QuotaFetchTimeout    time.Duration
 	QuotaRefreshInterval time.Duration
@@ -108,6 +114,9 @@ func DefaultEcoFlowSessionConfig() EcoFlowSessionConfig {
 		ReconnectAlertWindow:      defaultMQTTReconnectAlertWindow,
 		ReconnectAlertThreshold:   defaultMQTTReconnectAlertThresh,
 		ReconnectAlertCooldown:    defaultMQTTReconnectAlertBackoff,
+		AuthAlertWindow:           defaultMQTTAuthAlertWindow,
+		AuthAlertThreshold:        defaultMQTTAuthAlertThresh,
+		AuthAlertCooldown:         defaultMQTTAuthAlertCooldown,
 		QuotaFetchTimeout:         10 * time.Second,
 		QuotaRefreshInterval:      30 * time.Second,
 		QuotaRefreshJitter:        0.20,
@@ -165,6 +174,15 @@ func (c EcoFlowSessionConfig) normalized() EcoFlowSessionConfig {
 	}
 	if cfg.ReconnectAlertCooldown <= 0 {
 		cfg.ReconnectAlertCooldown = defaultMQTTReconnectAlertBackoff
+	}
+	if cfg.AuthAlertWindow <= 0 {
+		cfg.AuthAlertWindow = defaultMQTTAuthAlertWindow
+	}
+	if cfg.AuthAlertThreshold <= 0 {
+		cfg.AuthAlertThreshold = defaultMQTTAuthAlertThresh
+	}
+	if cfg.AuthAlertCooldown <= 0 {
+		cfg.AuthAlertCooldown = defaultMQTTAuthAlertCooldown
 	}
 	if cfg.QuotaFetchTimeout <= 0 {
 		cfg.QuotaFetchTimeout = 10 * time.Second
@@ -260,6 +278,11 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 		cfg.ReconnectAlertThreshold,
 		cfg.ReconnectAlertCooldown,
 	)
+	authRejects := newReconnectRateTracker(
+		cfg.AuthAlertWindow,
+		cfg.AuthAlertThreshold,
+		cfg.AuthAlertCooldown,
+	)
 
 	for {
 		if ctx.Err() != nil {
@@ -282,11 +305,26 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 			return fmt.Errorf("%w: %v", ErrEcoFlowCredentialRejected, err)
 		}
 		if isMQTTConnectRejected(err) {
+			authRejectCount, authRejectsPerMin, spike := authRejects.Record(r.nowFn().UTC())
 			r.log.Warn("ecoflow mqtt connect rejected by broker; refreshing certification and retrying",
 				slog.String("provider", a.Provider),
 				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
 				slog.String("error", err.Error()),
+				slog.Int("auth_rejects_in_window", authRejectCount),
+				slog.Float64("auth_rejects_per_min", authRejectsPerMin),
+				slog.Duration("auth_reject_window", cfg.AuthAlertWindow),
 			)
+			if spike {
+				r.log.Warn("ecoflow mqtt auth-reject spike detected",
+					slog.String("provider", a.Provider),
+					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.Int("auth_rejects_in_window", authRejectCount),
+					slog.Float64("auth_rejects_per_min", authRejectsPerMin),
+					slog.Duration("window", cfg.AuthAlertWindow),
+					slog.Int("threshold", cfg.AuthAlertThreshold),
+					slog.Duration("cooldown", cfg.AuthAlertCooldown),
+				)
+			}
 		}
 
 		eofReconnectCount := 0

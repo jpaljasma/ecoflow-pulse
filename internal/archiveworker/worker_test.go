@@ -51,6 +51,21 @@ func TestProcessDeliveryFlushByMaxRecords(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigFailureAlertDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	if cfg.FailureAlertWindow != 10*time.Minute {
+		t.Fatalf("failure alert window mismatch: got=%s want=10m", cfg.FailureAlertWindow)
+	}
+	if cfg.FailureAlertThreshold != 6 {
+		t.Fatalf("failure alert threshold mismatch: got=%d want=6", cfg.FailureAlertThreshold)
+	}
+	if cfg.FailureAlertCooldown != 5*time.Minute {
+		t.Fatalf("failure alert cooldown mismatch: got=%s want=5m", cfg.FailureAlertCooldown)
+	}
+}
+
 func TestProcessDeliveryFlushByMaxRecordsWritesManifest(t *testing.T) {
 	t.Parallel()
 
@@ -309,6 +324,11 @@ func newTestWorker(store ObjectStore, now time.Time) *Worker {
 		nowFn:      func() time.Time { return now },
 		segments:   make(map[string]*archiveSegment),
 		partCounts: make(map[string]int),
+		failureAlerts: newFailureRateTracker(
+			cfg.FailureAlertWindow,
+			cfg.FailureAlertThreshold,
+			cfg.FailureAlertCooldown,
+		),
 	}
 }
 

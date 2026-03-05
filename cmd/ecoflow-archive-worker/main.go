@@ -73,6 +73,9 @@ func main() {
 	cfg.MaxAckPending = runtimecfg.IntMin("ARCHIVE_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
 	cfg.ProcessTimeout = runtimecfg.DurationPositive("ARCHIVE_PROCESS_TIMEOUT", cfg.ProcessTimeout)
 	cfg.DrainTimeout = runtimecfg.DurationPositive("ARCHIVE_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	cfg.FailureAlertWindow = runtimecfg.DurationPositive("ARCHIVE_FAILURE_ALERT_WINDOW", cfg.FailureAlertWindow)
+	cfg.FailureAlertThreshold = runtimecfg.IntPositive("ARCHIVE_FAILURE_ALERT_THRESHOLD", cfg.FailureAlertThreshold)
+	cfg.FailureAlertCooldown = runtimecfg.DurationPositive("ARCHIVE_FAILURE_ALERT_COOLDOWN", cfg.FailureAlertCooldown)
 	cfg.FlushInterval = runtimecfg.DurationPositive("ARCHIVE_FLUSH_INTERVAL", cfg.FlushInterval)
 	cfg.FlushTimeout = runtimecfg.DurationPositive("ARCHIVE_FLUSH_TIMEOUT", cfg.FlushTimeout)
 	cfg.MaxRecordsPerPart = runtimecfg.IntMin("ARCHIVE_MAX_RECORDS_PER_PART", cfg.MaxRecordsPerPart, 1)
@@ -126,6 +129,9 @@ func main() {
 		slog.String("queue_group", cfg.QueueGroup),
 		slog.Duration("ack_wait", cfg.AckWait),
 		slog.Int("max_ack_pending", cfg.MaxAckPending),
+		slog.Duration("failure_alert_window", cfg.FailureAlertWindow),
+		slog.Int("failure_alert_threshold", cfg.FailureAlertThreshold),
+		slog.Duration("failure_alert_cooldown", cfg.FailureAlertCooldown),
 		slog.Duration("flush_interval", cfg.FlushInterval),
 		slog.Int("max_records_per_part", cfg.MaxRecordsPerPart),
 		slog.Int("max_bytes_per_part", cfg.MaxBytesPerPart),

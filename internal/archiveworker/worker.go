@@ -22,19 +22,22 @@ import (
 )
 
 const (
-	defaultConsumerDurable = "archive-raw-v1"
-	defaultQueueGroup      = "archive-raw"
-	defaultAckWait         = 60 * time.Second
-	defaultMaxAckPending   = 4096
-	defaultProcessTimeout  = 3 * time.Second
-	defaultDrainTimeout    = 8 * time.Second
-	defaultFlushInterval   = 30 * time.Second
-	defaultFlushTimeout    = 12 * time.Second
-	defaultMaxRecords      = 1024
-	defaultMaxBytes        = 4 * 1024 * 1024
-	defaultObjectBucket    = "pulse-telemetry-raw"
-	defaultObjectPrefix    = "raw"
-	defaultStreamName      = "PULSE_TELEMETRY_INGEST"
+	defaultConsumerDurable      = "archive-raw-v1"
+	defaultQueueGroup           = "archive-raw"
+	defaultAckWait              = 60 * time.Second
+	defaultMaxAckPending        = 4096
+	defaultProcessTimeout       = 3 * time.Second
+	defaultDrainTimeout         = 8 * time.Second
+	defaultFailureAlertWindow   = 10 * time.Minute
+	defaultFailureAlertThresh   = 6
+	defaultFailureAlertCooldown = 5 * time.Minute
+	defaultFlushInterval        = 30 * time.Second
+	defaultFlushTimeout         = 12 * time.Second
+	defaultMaxRecords           = 1024
+	defaultMaxBytes             = 4 * 1024 * 1024
+	defaultObjectBucket         = "pulse-telemetry-raw"
+	defaultObjectPrefix         = "raw"
+	defaultStreamName           = "PULSE_TELEMETRY_INGEST"
 )
 
 type Config struct {
@@ -43,10 +46,13 @@ type Config struct {
 	Durable       string
 	QueueGroup    string
 
-	AckWait        time.Duration
-	MaxAckPending  int
-	ProcessTimeout time.Duration
-	DrainTimeout   time.Duration
+	AckWait               time.Duration
+	MaxAckPending         int
+	ProcessTimeout        time.Duration
+	DrainTimeout          time.Duration
+	FailureAlertWindow    time.Duration
+	FailureAlertThreshold int
+	FailureAlertCooldown  time.Duration
 
 	FlushInterval     time.Duration
 	FlushTimeout      time.Duration
@@ -68,21 +74,24 @@ func DefaultConfig() Config {
 			Prefix:     telemetrybus.DefaultSubjectPrefix,
 			ShardCount: telemetrybus.DefaultShardCount,
 		},
-		StreamName:        defaultStreamName,
-		Durable:           defaultConsumerDurable,
-		QueueGroup:        defaultQueueGroup,
-		AckWait:           defaultAckWait,
-		MaxAckPending:     defaultMaxAckPending,
-		ProcessTimeout:    defaultProcessTimeout,
-		DrainTimeout:      defaultDrainTimeout,
-		FlushInterval:     defaultFlushInterval,
-		FlushTimeout:      defaultFlushTimeout,
-		MaxRecordsPerPart: defaultMaxRecords,
-		MaxBytesPerPart:   defaultMaxBytes,
-		ObjectBucket:      defaultObjectBucket,
-		ObjectPrefix:      defaultObjectPrefix,
-		WriterID:          defaultWriterID(),
-		ZstdEncoderLevel:  3,
+		StreamName:            defaultStreamName,
+		Durable:               defaultConsumerDurable,
+		QueueGroup:            defaultQueueGroup,
+		AckWait:               defaultAckWait,
+		MaxAckPending:         defaultMaxAckPending,
+		ProcessTimeout:        defaultProcessTimeout,
+		DrainTimeout:          defaultDrainTimeout,
+		FailureAlertWindow:    defaultFailureAlertWindow,
+		FailureAlertThreshold: defaultFailureAlertThresh,
+		FailureAlertCooldown:  defaultFailureAlertCooldown,
+		FlushInterval:         defaultFlushInterval,
+		FlushTimeout:          defaultFlushTimeout,
+		MaxRecordsPerPart:     defaultMaxRecords,
+		MaxBytesPerPart:       defaultMaxBytes,
+		ObjectBucket:          defaultObjectBucket,
+		ObjectPrefix:          defaultObjectPrefix,
+		WriterID:              defaultWriterID(),
+		ZstdEncoderLevel:      3,
 	}
 }
 
@@ -109,6 +118,15 @@ func (c Config) normalized() Config {
 	}
 	if out.DrainTimeout <= 0 {
 		out.DrainTimeout = defaultDrainTimeout
+	}
+	if out.FailureAlertWindow <= 0 {
+		out.FailureAlertWindow = defaultFailureAlertWindow
+	}
+	if out.FailureAlertThreshold <= 0 {
+		out.FailureAlertThreshold = defaultFailureAlertThresh
+	}
+	if out.FailureAlertCooldown <= 0 {
+		out.FailureAlertCooldown = defaultFailureAlertCooldown
 	}
 	if out.FlushInterval <= 0 {
 		out.FlushInterval = defaultFlushInterval
@@ -190,11 +208,12 @@ type Worker struct {
 	manifestStore ManifestStore
 	cfg           Config
 
-	nowFn      func() time.Time
-	subscribe  func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
-	segments   map[string]*archiveSegment
-	partCounts map[string]int
-	mu         sync.Mutex
+	nowFn         func() time.Time
+	subscribe     func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
+	segments      map[string]*archiveSegment
+	partCounts    map[string]int
+	failureAlerts *failureRateTracker
+	mu            sync.Mutex
 }
 
 func New(log *slog.Logger, conn *nats.Conn, store ObjectStore, cfg Config, options ...WorkerOption) (*Worker, error) {
@@ -216,6 +235,11 @@ func New(log *slog.Logger, conn *nats.Conn, store ObjectStore, cfg Config, optio
 		nowFn:      time.Now,
 		segments:   make(map[string]*archiveSegment),
 		partCounts: make(map[string]int),
+		failureAlerts: newFailureRateTracker(
+			cfg.FailureAlertWindow,
+			cfg.FailureAlertThreshold,
+			cfg.FailureAlertCooldown,
+		),
 	}
 	w.subscribe = w.defaultSubscribe
 	for _, option := range options {
@@ -317,7 +341,24 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 	procCtx, cancel := context.WithTimeout(context.Background(), w.cfg.ProcessTimeout)
 	defer cancel()
 	if err := w.processDelivery(procCtx, natsDelivery{msg: msg}); err != nil {
-		w.log.Warn("archive process delivery failed", slog.String("error", err.Error()), slog.String("subject", msg.Subject))
+		failCount, failPerMin, spike := w.failureAlerts.Record(w.nowFn().UTC())
+		w.log.Warn("archive process delivery failed",
+			slog.String("error", err.Error()),
+			slog.String("subject", msg.Subject),
+			slog.Int("archive_failures_in_window", failCount),
+			slog.Float64("archive_failures_per_min", failPerMin),
+			slog.Duration("archive_failure_window", w.cfg.FailureAlertWindow),
+		)
+		if spike {
+			w.log.Warn("archive-failure spike detected",
+				slog.Int("archive_failures_in_window", failCount),
+				slog.Float64("archive_failures_per_min", failPerMin),
+				slog.Duration("window", w.cfg.FailureAlertWindow),
+				slog.Int("threshold", w.cfg.FailureAlertThreshold),
+				slog.Duration("cooldown", w.cfg.FailureAlertCooldown),
+				slog.String("subject", msg.Subject),
+			)
+		}
 	}
 }
 

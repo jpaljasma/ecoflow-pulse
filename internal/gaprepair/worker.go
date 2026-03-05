@@ -16,12 +16,15 @@ import (
 )
 
 const (
-	defaultWorkerQueueGroup     = "gap-repair-workers"
-	defaultWorkerDurable        = "gap-repair-v1"
-	defaultWorkerAckWait        = 2 * time.Minute
-	defaultWorkerMaxAckPending  = 1024
-	defaultWorkerProcessTimeout = 2 * time.Minute
-	defaultWorkerDrainTimeout   = 10 * time.Second
+	defaultWorkerQueueGroup       = "gap-repair-workers"
+	defaultWorkerDurable          = "gap-repair-v1"
+	defaultWorkerAckWait          = 2 * time.Minute
+	defaultWorkerMaxAckPending    = 1024
+	defaultWorkerProcessTimeout   = 2 * time.Minute
+	defaultWorkerDrainTimeout     = 10 * time.Second
+	defaultReplayFailAlertWindow  = 10 * time.Minute
+	defaultReplayFailAlertThresh  = 6
+	defaultReplayFailAlertBackoff = 5 * time.Minute
 )
 
 type delivery interface {
@@ -64,25 +67,29 @@ func (d natsDelivery) Term() error {
 }
 
 type Worker struct {
-	log        *slog.Logger
-	conn       *nats.Conn
-	runner     ReplayRunner
-	cfg        WorkerConfig
-	subjectCfg telemetrybus.SubjectConfig
-	subscribe  func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
+	log                 *slog.Logger
+	conn                *nats.Conn
+	runner              ReplayRunner
+	cfg                 WorkerConfig
+	subjectCfg          telemetrybus.SubjectConfig
+	subscribe           func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
+	replayFailureAlerts *failureRateTracker
 }
 
 func DefaultWorkerConfig() WorkerConfig {
 	streamCfg := telemetrybus.DefaultJetStreamGapRepairBootstrapConfig()
 	return WorkerConfig{
-		StreamName:        streamCfg.StreamName,
-		QueueGroup:        defaultWorkerQueueGroup,
-		Durable:           defaultWorkerDurable,
-		AckWait:           defaultWorkerAckWait,
-		MaxAckPending:     defaultWorkerMaxAckPending,
-		ProcessTimeout:    defaultWorkerProcessTimeout,
-		DrainTimeout:      defaultWorkerDrainTimeout,
-		DefaultMaxObjects: 0,
+		StreamName:                  streamCfg.StreamName,
+		QueueGroup:                  defaultWorkerQueueGroup,
+		Durable:                     defaultWorkerDurable,
+		AckWait:                     defaultWorkerAckWait,
+		MaxAckPending:               defaultWorkerMaxAckPending,
+		ProcessTimeout:              defaultWorkerProcessTimeout,
+		DrainTimeout:                defaultWorkerDrainTimeout,
+		DefaultMaxObjects:           0,
+		ReplayFailureAlertWindow:    defaultReplayFailAlertWindow,
+		ReplayFailureAlertThreshold: defaultReplayFailAlertThresh,
+		ReplayFailureAlertCooldown:  defaultReplayFailAlertBackoff,
 	}
 }
 
@@ -99,6 +106,7 @@ func NewWorker(log *slog.Logger, conn *nats.Conn, runner ReplayRunner, cfg Worke
 	cfg = normalizeWorkerConfig(cfg)
 	w := &Worker{log: log, conn: conn, runner: runner, cfg: cfg}
 	w.subscribe = w.defaultSubscribe
+	w.replayFailureAlerts = newFailureRateTracker(cfg.ReplayFailureAlertWindow, cfg.ReplayFailureAlertThreshold, cfg.ReplayFailureAlertCooldown)
 	return w, nil
 }
 
@@ -128,6 +136,15 @@ func normalizeWorkerConfig(cfg WorkerConfig) WorkerConfig {
 	}
 	if out.DefaultMaxObjects < 0 {
 		out.DefaultMaxObjects = 0
+	}
+	if out.ReplayFailureAlertWindow <= 0 {
+		out.ReplayFailureAlertWindow = defaultReplayFailAlertWindow
+	}
+	if out.ReplayFailureAlertThreshold <= 0 {
+		out.ReplayFailureAlertThreshold = defaultReplayFailAlertThresh
+	}
+	if out.ReplayFailureAlertCooldown <= 0 {
+		out.ReplayFailureAlertCooldown = defaultReplayFailAlertBackoff
 	}
 	return out
 }
@@ -229,12 +246,27 @@ func (w *Worker) handleDelivery(msg delivery) {
 	})
 	cancel()
 	if runErr != nil {
+		failCount, failPerMin, spike := w.replayFailureAlerts.Record(time.Now().UTC())
 		w.log.Warn("gap-repair replay failed; nacking",
 			slog.String("request_id", normalized.GetRequestId()),
 			slog.String("provider", normalized.GetProvider()),
 			slog.String("provider_device_id", normalized.GetProviderDeviceId()),
 			slog.String("error", runErr.Error()),
+			slog.Int("replay_failures_in_window", failCount),
+			slog.Float64("replay_failures_per_min", failPerMin),
+			slog.Duration("replay_failure_window", w.cfg.ReplayFailureAlertWindow),
 		)
+		if spike {
+			w.log.Warn("gap-repair replay-failure spike detected",
+				slog.Int("replay_failures_in_window", failCount),
+				slog.Float64("replay_failures_per_min", failPerMin),
+				slog.Duration("window", w.cfg.ReplayFailureAlertWindow),
+				slog.Int("threshold", w.cfg.ReplayFailureAlertThreshold),
+				slog.Duration("cooldown", w.cfg.ReplayFailureAlertCooldown),
+				slog.String("provider", normalized.GetProvider()),
+				slog.String("provider_device_id", normalized.GetProviderDeviceId()),
+			)
+		}
 		if nakErr := msg.Nak(); nakErr != nil {
 			w.log.Warn("gap-repair nak failed", slog.String("error", nakErr.Error()))
 		}
