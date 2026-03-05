@@ -553,6 +553,12 @@ Notes:
   - requires a running Docker daemon,
   - command:
     `PIPELINE_INTEGRATION=1 go test ./internal/pipelineintegration -tags integration -count=1 -v`.
+- `make test-proto-contract` runs Node↔Go protobuf contract tests for realtime
+  envelope compatibility:
+  - generates canonical envelope fixture bytes from Go generated protobuf types,
+  - verifies Node gateway decoder can parse Go-generated wire bytes correctly,
+  - verifies Node protobufjs-generated wire bytes decode correctly in Go,
+  - requires both `go` and `npm` toolchains available.
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.

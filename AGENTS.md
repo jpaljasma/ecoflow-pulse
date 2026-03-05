@@ -329,6 +329,9 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
 6. Protobuf contract changes must pass both local and CI lint:
    - local: `make lint` (includes `buf lint`)
    - CI: `proto-ci` GitHub Actions check (`buf lint`)
+7. Node↔Go protobuf compatibility must be validated with runtime contract tests:
+   - local: `make test-proto-contract`
+   - CI: `frontend-ci` must install Go and run realtime-gateway tests that execute the Go fixture tool (`cmd/proto-contract-fixture`) for cross-language wire compatibility.
 
 ## Local Development Principles (Developer Experience)
 These are mandatory implementation principles for local workflows and tooling quality.
