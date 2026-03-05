@@ -666,6 +666,15 @@ func TestDefaultEcoFlowSessionConfigReconnectAlertDefaults(t *testing.T) {
 	if cfg.ReconnectAlertCooldown != 2*time.Minute {
 		t.Fatalf("reconnect alert cooldown mismatch: got=%s want=2m", cfg.ReconnectAlertCooldown)
 	}
+	if cfg.AuthAlertWindow != 10*time.Minute {
+		t.Fatalf("auth alert window mismatch: got=%s want=10m", cfg.AuthAlertWindow)
+	}
+	if cfg.AuthAlertThreshold != 5 {
+		t.Fatalf("auth alert threshold mismatch: got=%d want=5", cfg.AuthAlertThreshold)
+	}
+	if cfg.AuthAlertCooldown != 5*time.Minute {
+		t.Fatalf("auth alert cooldown mismatch: got=%s want=5m", cfg.AuthAlertCooldown)
+	}
 	if cfg.QuotaFetchTimeout != 10*time.Second {
 		t.Fatalf("quota fetch timeout mismatch: got=%s want=10s", cfg.QuotaFetchTimeout)
 	}

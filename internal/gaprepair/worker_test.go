@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	replayv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/replay/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
@@ -50,7 +51,16 @@ func (d *fakeGapDelivery) Term() error {
 }
 
 func newTestWorker(runner ReplayRunner, cfg WorkerConfig) *Worker {
-	return &Worker{log: slog.Default(), runner: runner, cfg: cfg}
+	return &Worker{
+		log:    slog.Default(),
+		runner: runner,
+		cfg:    cfg,
+		replayFailureAlerts: newFailureRateTracker(
+			cfg.ReplayFailureAlertWindow,
+			cfg.ReplayFailureAlertThreshold,
+			cfg.ReplayFailureAlertCooldown,
+		),
+	}
 }
 
 func marshalGapRepairRequest(t *testing.T, req *replayv1.GapRepairRequest) []byte {
@@ -70,6 +80,21 @@ func TestWorkerHandleDeliveryInvalidPayloadTerms(t *testing.T) {
 	w.handleDelivery(d)
 	if d.termed != 1 || d.acked != 0 || d.nacked != 0 {
 		t.Fatalf("unexpected ack state term=%d ack=%d nak=%d", d.termed, d.acked, d.nacked)
+	}
+}
+
+func TestDefaultWorkerConfigReplayFailureAlertDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultWorkerConfig()
+	if cfg.ReplayFailureAlertWindow != 10*time.Minute {
+		t.Fatalf("replay failure alert window mismatch: got=%s want=10m", cfg.ReplayFailureAlertWindow)
+	}
+	if cfg.ReplayFailureAlertThreshold != 6 {
+		t.Fatalf("replay failure alert threshold mismatch: got=%d want=6", cfg.ReplayFailureAlertThreshold)
+	}
+	if cfg.ReplayFailureAlertCooldown != 5*time.Minute {
+		t.Fatalf("replay failure alert cooldown mismatch: got=%s want=5m", cfg.ReplayFailureAlertCooldown)
 	}
 }
 

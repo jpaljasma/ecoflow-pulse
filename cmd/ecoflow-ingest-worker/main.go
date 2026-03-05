@@ -148,6 +148,9 @@ func main() {
 	sessionCfg.ReconnectAlertWindow = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_ALERT_WINDOW", sessionCfg.ReconnectAlertWindow)
 	sessionCfg.ReconnectAlertThreshold = runtimecfg.IntPositive("INGEST_MQTT_RECONNECT_ALERT_THRESHOLD", sessionCfg.ReconnectAlertThreshold)
 	sessionCfg.ReconnectAlertCooldown = runtimecfg.DurationPositive("INGEST_MQTT_RECONNECT_ALERT_COOLDOWN", sessionCfg.ReconnectAlertCooldown)
+	sessionCfg.AuthAlertWindow = runtimecfg.DurationPositive("INGEST_MQTT_AUTH_ALERT_WINDOW", sessionCfg.AuthAlertWindow)
+	sessionCfg.AuthAlertThreshold = runtimecfg.IntPositive("INGEST_MQTT_AUTH_ALERT_THRESHOLD", sessionCfg.AuthAlertThreshold)
+	sessionCfg.AuthAlertCooldown = runtimecfg.DurationPositive("INGEST_MQTT_AUTH_ALERT_COOLDOWN", sessionCfg.AuthAlertCooldown)
 	sessionCfg.QuotaFetchTimeout = runtimecfg.DurationPositive("INGEST_QUOTA_FETCH_TIMEOUT", sessionCfg.QuotaFetchTimeout)
 	sessionCfg.QuotaRefreshInterval = runtimecfg.DurationPositive("INGEST_QUOTA_REFRESH_INTERVAL", sessionCfg.QuotaRefreshInterval)
 	sessionCfg.QuotaRefreshJitter = runtimecfg.Float64NonNegative("INGEST_QUOTA_REFRESH_JITTER", sessionCfg.QuotaRefreshJitter)
@@ -232,6 +235,9 @@ func main() {
 		slog.Duration("mqtt_reconnect_alert_window", sessionCfg.ReconnectAlertWindow),
 		slog.Int("mqtt_reconnect_alert_threshold", sessionCfg.ReconnectAlertThreshold),
 		slog.Duration("mqtt_reconnect_alert_cooldown", sessionCfg.ReconnectAlertCooldown),
+		slog.Duration("mqtt_auth_alert_window", sessionCfg.AuthAlertWindow),
+		slog.Int("mqtt_auth_alert_threshold", sessionCfg.AuthAlertThreshold),
+		slog.Duration("mqtt_auth_alert_cooldown", sessionCfg.AuthAlertCooldown),
 		slog.Duration("quota_fetch_timeout", sessionCfg.QuotaFetchTimeout),
 		slog.Duration("quota_refresh_interval", sessionCfg.QuotaRefreshInterval),
 		slog.Float64("quota_refresh_jitter", sessionCfg.QuotaRefreshJitter),

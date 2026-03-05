@@ -125,6 +125,9 @@ func main() {
 	cfg.ProcessTimeout = runtimecfg.DurationPositive("GAP_REPAIR_PROCESS_TIMEOUT", cfg.ProcessTimeout)
 	cfg.DrainTimeout = runtimecfg.DurationPositive("GAP_REPAIR_DRAIN_TIMEOUT", cfg.DrainTimeout)
 	cfg.DefaultMaxObjects = runtimecfg.IntMin("GAP_REPAIR_DEFAULT_MAX_OBJECTS", cfg.DefaultMaxObjects, 0)
+	cfg.ReplayFailureAlertWindow = runtimecfg.DurationPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_WINDOW", cfg.ReplayFailureAlertWindow)
+	cfg.ReplayFailureAlertThreshold = runtimecfg.IntPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_THRESHOLD", cfg.ReplayFailureAlertThreshold)
+	cfg.ReplayFailureAlertCooldown = runtimecfg.DurationPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_COOLDOWN", cfg.ReplayFailureAlertCooldown)
 
 	worker, err := gaprepair.NewWorker(log, natsConn, runner, cfg)
 	if err != nil {
@@ -154,6 +157,9 @@ func main() {
 		slog.Int("max_ack_pending", cfg.MaxAckPending),
 		slog.Duration("process_timeout", cfg.ProcessTimeout),
 		slog.Int("default_max_objects", cfg.DefaultMaxObjects),
+		slog.Duration("replay_failure_alert_window", cfg.ReplayFailureAlertWindow),
+		slog.Int("replay_failure_alert_threshold", cfg.ReplayFailureAlertThreshold),
+		slog.Duration("replay_failure_alert_cooldown", cfg.ReplayFailureAlertCooldown),
 		slog.Bool("nats_js_bootstrap_enabled", streamCfg.Enabled),
 	)
 	if err := worker.Run(ctx, subjectCfg); err != nil {

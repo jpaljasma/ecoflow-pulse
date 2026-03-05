@@ -51,6 +51,9 @@ type DetectorConfig struct {
 	PollJitter        float64
 	LookbackWindow    time.Duration
 	LagThreshold      time.Duration
+	LagAlertWindow    time.Duration
+	LagAlertThreshold int
+	LagAlertCooldown  time.Duration
 	WindowPadding     time.Duration
 	MaxReplayWindow   time.Duration
 	SafeDelay         time.Duration
@@ -70,12 +73,15 @@ type DetectorReport struct {
 }
 
 type WorkerConfig struct {
-	StreamName        string
-	QueueGroup        string
-	Durable           string
-	AckWait           time.Duration
-	MaxAckPending     int
-	ProcessTimeout    time.Duration
-	DrainTimeout      time.Duration
-	DefaultMaxObjects int
+	StreamName                  string
+	QueueGroup                  string
+	Durable                     string
+	AckWait                     time.Duration
+	MaxAckPending               int
+	ProcessTimeout              time.Duration
+	DrainTimeout                time.Duration
+	DefaultMaxObjects           int
+	ReplayFailureAlertWindow    time.Duration
+	ReplayFailureAlertThreshold int
+	ReplayFailureAlertCooldown  time.Duration
 }

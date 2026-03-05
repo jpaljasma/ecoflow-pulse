@@ -137,6 +137,9 @@ func main() {
 	cfg.PollJitter = runtimecfg.Float64NonNegative("GAP_REPAIR_POLL_JITTER", cfg.PollJitter)
 	cfg.LookbackWindow = runtimecfg.DurationPositive("GAP_REPAIR_LOOKBACK_WINDOW", cfg.LookbackWindow)
 	cfg.LagThreshold = runtimecfg.DurationPositive("GAP_REPAIR_LAG_THRESHOLD", cfg.LagThreshold)
+	cfg.LagAlertWindow = runtimecfg.DurationPositive("GAP_REPAIR_LAG_ALERT_WINDOW", cfg.LagAlertWindow)
+	cfg.LagAlertThreshold = runtimecfg.IntPositive("GAP_REPAIR_LAG_ALERT_THRESHOLD", cfg.LagAlertThreshold)
+	cfg.LagAlertCooldown = runtimecfg.DurationPositive("GAP_REPAIR_LAG_ALERT_COOLDOWN", cfg.LagAlertCooldown)
 	cfg.WindowPadding = runtimecfg.DurationNonNegative("GAP_REPAIR_WINDOW_PADDING", cfg.WindowPadding)
 	cfg.MaxReplayWindow = runtimecfg.DurationPositive("GAP_REPAIR_MAX_REPLAY_WINDOW", cfg.MaxReplayWindow)
 	cfg.SafeDelay = runtimecfg.DurationNonNegative("GAP_REPAIR_SAFE_DELAY", cfg.SafeDelay)
@@ -177,6 +180,9 @@ func main() {
 		slog.Float64("poll_jitter", cfg.PollJitter),
 		slog.Duration("lookback_window", cfg.LookbackWindow),
 		slog.Duration("lag_threshold", cfg.LagThreshold),
+		slog.Duration("lag_alert_window", cfg.LagAlertWindow),
+		slog.Int("lag_alert_threshold", cfg.LagAlertThreshold),
+		slog.Duration("lag_alert_cooldown", cfg.LagAlertCooldown),
 		slog.Duration("max_replay_window", cfg.MaxReplayWindow),
 		slog.Int("max_jobs_per_cycle", cfg.MaxJobsPerCycle),
 		slog.Int("evaluation_workers", cfg.EvaluationWorkers),
