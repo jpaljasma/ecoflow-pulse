@@ -70,6 +70,15 @@ ARCHIVE_INTEGRATION_SERVICE ?= pulse-platform-minio
 ARCHIVE_INTEGRATION_SECRET ?= pulse-platform-minio
 ARCHIVE_INTEGRATION_LOCAL_PORT ?= 9000
 ARCHIVE_INTEGRATION_ENDPOINT ?= 127.0.0.1:$(ARCHIVE_INTEGRATION_LOCAL_PORT)
+DR_BACKUP_ROOT ?= $(CURDIR)/.tmp/dr-backups
+DR_BACKUP_NAME ?= latest
+DR_BACKUP_DIR ?= $(DR_BACKUP_ROOT)/$(DR_BACKUP_NAME)
+DR_REPORT_FILE ?= $(DR_BACKUP_DIR)/report.env
+DR_ARCHIVE_BUCKET ?= pulse-telemetry-raw
+DR_MINIO_LOCAL_PORT ?= 19000
+DR_MINIO_ENDPOINT ?= 127.0.0.1:$(DR_MINIO_LOCAL_PORT)
+DR_MINIO_DOCKER_ENDPOINT ?= host.docker.internal:$(DR_MINIO_LOCAL_PORT)
+DR_MINIO_MC_IMAGE ?= minio/mc:latest
 SERVICES_IMAGE_REPO ?= ecoflow-pulse/services
 SERVICES_IMAGE_TAG ?= local
 SERVICES_IMAGE ?= $(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)
@@ -128,7 +137,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -721,6 +730,294 @@ db-seed-dev-local: db-migrate-up-local
 	ECOFLOW_DEV_USER_EMAIL="$(DB_SEED_USER_EMAIL)" \
 	ECOFLOW_DEV_SEED_SNS="$(DB_SEED_SERIALS)" \
 	$(GO) run ./cmd/ecoflow-dev-seed
+
+dr-backup-local:
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+		echo "$(DOCKER) not found. Install Docker first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	archive_ns="$(ARCHIVE_INTEGRATION_NAMESPACE)"; \
+	archive_secret="$(ARCHIVE_INTEGRATION_SECRET)"; \
+	backup_dir="$(DR_BACKUP_DIR)"; \
+	report_file="$(DR_REPORT_FILE)"; \
+	bucket="$(DR_ARCHIVE_BUCKET)"; \
+	primary="$$(kubectl --context "$$ctx" -n "$$ns" get pods -l cnpg.io/cluster="$$cluster",cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$$cluster in namespace=$$ns"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	root_user="$$(kubectl --context "$$ctx" -n "$$archive_ns" get secret "$$archive_secret" -o jsonpath='{.data.rootUser}' | base64 -d)"; \
+	root_pass="$$(kubectl --context "$$ctx" -n "$$archive_ns" get secret "$$archive_secret" -o jsonpath='{.data.rootPassword}' | base64 -d)"; \
+	mkdir -p "$$backup_dir/minio"; \
+	db_dump="$$backup_dir/postgres.data.sql"; \
+	echo "writing Postgres backup to $$db_dump"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" pg_dump -h "$$cluster-rw" -U "$$user" -d "$$db" \
+		--data-only --column-inserts \
+		--table=users \
+		--table=devices \
+		--table=user_devices \
+		--table=provider_credentials \
+		--table=provider_devices \
+		--table=archive_object_manifest > "$$db_dump"; \
+	pf_log="$$(mktemp -t ecoflow-dr-minio-backup-port-forward.XXXXXX.log)"; \
+	kubectl --context "$$ctx" -n "$$archive_ns" port-forward "svc/$(ARCHIVE_INTEGRATION_SERVICE)" "$(DR_MINIO_LOCAL_PORT):9000" >"$$pf_log" 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { \
+		kill "$$pf_pid" >/dev/null 2>&1 || true; \
+		wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	ready=0; \
+	for _ in {1..30}; do \
+		if grep -q "Forwarding from" "$$pf_log" 2>/dev/null; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "minio port-forward did not become ready; see $$pf_log"; \
+		exit 1; \
+	fi; \
+	echo "syncing MinIO bucket $$bucket to $$backup_dir/minio/$$bucket"; \
+	object_count="$$( $(DOCKER) run --rm \
+		--entrypoint /bin/sh \
+		-e DR_DOCKER_ENDPOINT="$(DR_MINIO_DOCKER_ENDPOINT)" \
+		-e DR_ROOT_USER="$$root_user" \
+		-e DR_ROOT_PASS="$$root_pass" \
+		-e DR_BUCKET="$$bucket" \
+		-v "$$backup_dir/minio:/backup" \
+		"$(DR_MINIO_MC_IMAGE)" \
+		-c 'set -e; mc alias set local "http://$$DR_DOCKER_ENDPOINT" "$$DR_ROOT_USER" "$$DR_ROOT_PASS" >/dev/null; mc mb --ignore-existing "local/$$DR_BUCKET" >/dev/null; mkdir -p "/backup/$$DR_BUCKET"; mc mirror --overwrite "local/$$DR_BUCKET" "/backup/$$DR_BUCKET" >/dev/null; mc ls --recursive "/backup/$$DR_BUCKET" | wc -l | tr -d " "' )"; \
+	counts="$$(kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT (SELECT COUNT(*) FROM users)::text || '|' || (SELECT COUNT(*) FROM devices)::text || '|' || (SELECT COUNT(*) FROM user_devices)::text || '|' || (SELECT COUNT(*) FROM provider_credentials)::text || '|' || (SELECT COUNT(*) FROM provider_devices)::text || '|' || (SELECT COUNT(*) FROM archive_object_manifest)::text;")"; \
+	IFS='|' read -r users_count devices_count user_devices_count provider_credentials_count provider_devices_count archive_manifest_count <<< "$$counts"; \
+	{ \
+		printf "backup_created_at_utc=%s\n" "$$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; \
+		printf "backup_name=%s\n" "$(DR_BACKUP_NAME)"; \
+		printf "archive_bucket=%s\n" "$$bucket"; \
+		printf "users_count=%s\n" "$$users_count"; \
+		printf "devices_count=%s\n" "$$devices_count"; \
+		printf "user_devices_count=%s\n" "$$user_devices_count"; \
+		printf "provider_credentials_count=%s\n" "$$provider_credentials_count"; \
+		printf "provider_devices_count=%s\n" "$$provider_devices_count"; \
+		printf "archive_manifest_count=%s\n" "$$archive_manifest_count"; \
+		printf "archive_object_count=%s\n" "$$object_count"; \
+	} > "$$report_file"; \
+	echo "backup report written to $$report_file"
+
+dr-restore-local:
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+		echo "$(DOCKER) not found. Install Docker first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	archive_ns="$(ARCHIVE_INTEGRATION_NAMESPACE)"; \
+	archive_secret="$(ARCHIVE_INTEGRATION_SECRET)"; \
+	backup_dir="$(DR_BACKUP_DIR)"; \
+	report_file="$(DR_REPORT_FILE)"; \
+	if [ ! -f "$$report_file" ]; then \
+		echo "backup report not found at $$report_file"; \
+		exit 1; \
+	fi; \
+	source "$$report_file"; \
+	bucket="$${archive_bucket:-$(DR_ARCHIVE_BUCKET)}"; \
+	db_dump="$$backup_dir/postgres.data.sql"; \
+	if [ ! -f "$$db_dump" ]; then \
+		echo "postgres backup file not found at $$db_dump"; \
+		exit 1; \
+	fi; \
+	if [ ! -d "$$backup_dir/minio/$$bucket" ]; then \
+		echo "minio backup directory not found at $$backup_dir/minio/$$bucket"; \
+		exit 1; \
+	fi; \
+	primary="$$(kubectl --context "$$ctx" -n "$$ns" get pods -l cnpg.io/cluster="$$cluster",cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$$cluster in namespace=$$ns"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	echo "restoring Postgres from $$db_dump"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "TRUNCATE archive_object_manifest, user_devices, provider_devices, provider_credentials, users, devices RESTART IDENTITY CASCADE;"; \
+	cat "$$db_dump" | kubectl --context "$$ctx" -n "$$ns" exec -i "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -f -; \
+	root_user="$$(kubectl --context "$$ctx" -n "$$archive_ns" get secret "$$archive_secret" -o jsonpath='{.data.rootUser}' | base64 -d)"; \
+	root_pass="$$(kubectl --context "$$ctx" -n "$$archive_ns" get secret "$$archive_secret" -o jsonpath='{.data.rootPassword}' | base64 -d)"; \
+	pf_log="$$(mktemp -t ecoflow-dr-minio-restore-port-forward.XXXXXX.log)"; \
+	kubectl --context "$$ctx" -n "$$archive_ns" port-forward "svc/$(ARCHIVE_INTEGRATION_SERVICE)" "$(DR_MINIO_LOCAL_PORT):9000" >"$$pf_log" 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { \
+		kill "$$pf_pid" >/dev/null 2>&1 || true; \
+		wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	ready=0; \
+	for _ in {1..30}; do \
+		if grep -q "Forwarding from" "$$pf_log" 2>/dev/null; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "minio port-forward did not become ready; see $$pf_log"; \
+		exit 1; \
+	fi; \
+	echo "restoring MinIO bucket $$bucket from $$backup_dir/minio/$$bucket"; \
+	$(DOCKER) run --rm \
+		--entrypoint /bin/sh \
+		-e DR_DOCKER_ENDPOINT="$(DR_MINIO_DOCKER_ENDPOINT)" \
+		-e DR_ROOT_USER="$$root_user" \
+		-e DR_ROOT_PASS="$$root_pass" \
+		-e DR_BUCKET="$$bucket" \
+		-v "$$backup_dir/minio:/backup" \
+		"$(DR_MINIO_MC_IMAGE)" \
+		-c 'set -e; if [ ! -d "/backup/$$DR_BUCKET" ]; then echo "missing backup directory: /backup/$$DR_BUCKET"; exit 1; fi; mc alias set local "http://$$DR_DOCKER_ENDPOINT" "$$DR_ROOT_USER" "$$DR_ROOT_PASS" >/dev/null; mc mb --ignore-existing "local/$$DR_BUCKET" >/dev/null; mc rm --recursive --force "local/$$DR_BUCKET" >/dev/null 2>&1 || true; mc mirror --overwrite "/backup/$$DR_BUCKET" "local/$$DR_BUCKET" >/dev/null'; \
+	echo "restore completed"
+
+dr-drill-local: dr-backup-local
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+		echo "$(DOCKER) not found. Install Docker first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	archive_ns="$(ARCHIVE_INTEGRATION_NAMESPACE)"; \
+	archive_secret="$(ARCHIVE_INTEGRATION_SECRET)"; \
+	report_file="$(DR_REPORT_FILE)"; \
+	if [ ! -f "$$report_file" ]; then \
+		echo "backup report not found at $$report_file"; \
+		exit 1; \
+	fi; \
+	source "$$report_file"; \
+	bucket="$${archive_bucket:-$(DR_ARCHIVE_BUCKET)}"; \
+	primary="$$(kubectl --context "$$ctx" -n "$$ns" get pods -l cnpg.io/cluster="$$cluster",cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$$cluster in namespace=$$ns"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	echo "simulating Postgres data loss"; \
+	kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "TRUNCATE archive_object_manifest, user_devices, provider_devices, provider_credentials, users, devices RESTART IDENTITY CASCADE;"; \
+	root_user="$$(kubectl --context "$$ctx" -n "$$archive_ns" get secret "$$archive_secret" -o jsonpath='{.data.rootUser}' | base64 -d)"; \
+	root_pass="$$(kubectl --context "$$ctx" -n "$$archive_ns" get secret "$$archive_secret" -o jsonpath='{.data.rootPassword}' | base64 -d)"; \
+	pf_log="$$(mktemp -t ecoflow-dr-minio-drill-port-forward.XXXXXX.log)"; \
+	kubectl --context "$$ctx" -n "$$archive_ns" port-forward "svc/$(ARCHIVE_INTEGRATION_SERVICE)" "$(DR_MINIO_LOCAL_PORT):9000" >"$$pf_log" 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { \
+		kill "$$pf_pid" >/dev/null 2>&1 || true; \
+		wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	ready=0; \
+	for _ in {1..30}; do \
+		if grep -q "Forwarding from" "$$pf_log" 2>/dev/null; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "minio port-forward did not become ready; see $$pf_log"; \
+		exit 1; \
+	fi; \
+	echo "simulating MinIO object loss for bucket $$bucket"; \
+	$(DOCKER) run --rm \
+		--entrypoint /bin/sh \
+		-e DR_DOCKER_ENDPOINT="$(DR_MINIO_DOCKER_ENDPOINT)" \
+		-e DR_ROOT_USER="$$root_user" \
+		-e DR_ROOT_PASS="$$root_pass" \
+		-e DR_BUCKET="$$bucket" \
+		"$(DR_MINIO_MC_IMAGE)" \
+		-c 'set -e; mc alias set local "http://$$DR_DOCKER_ENDPOINT" "$$DR_ROOT_USER" "$$DR_ROOT_PASS" >/dev/null; mc mb --ignore-existing "local/$$DR_BUCKET" >/dev/null; mc rm --recursive --force "local/$$DR_BUCKET" >/dev/null 2>&1 || true'; \
+	kill "$$pf_pid" >/dev/null 2>&1 || true; \
+	wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	trap - EXIT INT TERM; \
+	"$${MAKE:-make}" dr-restore-local DR_BACKUP_NAME="$(DR_BACKUP_NAME)"; \
+	"$${MAKE:-make}" db-migrate-verify-local; \
+	exp_users="$${users_count:-0}"; \
+	exp_devices="$${devices_count:-0}"; \
+	exp_user_devices="$${user_devices_count:-0}"; \
+	exp_provider_credentials="$${provider_credentials_count:-0}"; \
+	exp_provider_devices="$${provider_devices_count:-0}"; \
+	exp_archive_manifest="$${archive_manifest_count:-0}"; \
+	exp_archive_objects="$${archive_object_count:-0}"; \
+	actual_counts="$$(kubectl --context "$$ctx" -n "$$ns" exec "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -Atc "SELECT (SELECT COUNT(*) FROM users)::text || '|' || (SELECT COUNT(*) FROM devices)::text || '|' || (SELECT COUNT(*) FROM user_devices)::text || '|' || (SELECT COUNT(*) FROM provider_credentials)::text || '|' || (SELECT COUNT(*) FROM provider_devices)::text || '|' || (SELECT COUNT(*) FROM archive_object_manifest)::text;")"; \
+	IFS='|' read -r act_users act_devices act_user_devices act_provider_credentials act_provider_devices act_archive_manifest <<< "$$actual_counts"; \
+	pf_log="$$(mktemp -t ecoflow-dr-minio-validate-port-forward.XXXXXX.log)"; \
+	kubectl --context "$$ctx" -n "$$archive_ns" port-forward "svc/$(ARCHIVE_INTEGRATION_SERVICE)" "$(DR_MINIO_LOCAL_PORT):9000" >"$$pf_log" 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { \
+		kill "$$pf_pid" >/dev/null 2>&1 || true; \
+		wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	ready=0; \
+	for _ in {1..30}; do \
+		if grep -q "Forwarding from" "$$pf_log" 2>/dev/null; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "minio port-forward did not become ready; see $$pf_log"; \
+		exit 1; \
+	fi; \
+	act_archive_objects="$$( $(DOCKER) run --rm \
+		--entrypoint /bin/sh \
+		-e DR_DOCKER_ENDPOINT="$(DR_MINIO_DOCKER_ENDPOINT)" \
+		-e DR_ROOT_USER="$$root_user" \
+		-e DR_ROOT_PASS="$$root_pass" \
+		-e DR_BUCKET="$$bucket" \
+		"$(DR_MINIO_MC_IMAGE)" \
+		-c 'set -e; mc alias set local "http://$$DR_DOCKER_ENDPOINT" "$$DR_ROOT_USER" "$$DR_ROOT_PASS" >/dev/null; mc ls --recursive "local/$$DR_BUCKET" | wc -l | tr -d " "' )"; \
+	kill "$$pf_pid" >/dev/null 2>&1 || true; \
+	wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	trap - EXIT INT TERM; \
+	if [ "$$act_users" -lt "$$exp_users" ] || [ "$$act_devices" -lt "$$exp_devices" ] || [ "$$act_user_devices" -lt "$$exp_user_devices" ] || [ "$$act_provider_credentials" -lt "$$exp_provider_credentials" ] || [ "$$act_provider_devices" -lt "$$exp_provider_devices" ] || [ "$$act_archive_manifest" -lt "$$exp_archive_manifest" ] || [ "$$act_archive_objects" -lt "$$exp_archive_objects" ]; then \
+		echo "restore validation failed (actual counts dropped below backup baseline)"; \
+		echo "expected db counts: users=$$exp_users devices=$$exp_devices user_devices=$$exp_user_devices provider_credentials=$$exp_provider_credentials provider_devices=$$exp_provider_devices archive_manifest=$$exp_archive_manifest"; \
+		echo "actual db counts:   users=$$act_users devices=$$act_devices user_devices=$$act_user_devices provider_credentials=$$act_provider_credentials provider_devices=$$act_provider_devices archive_manifest=$$act_archive_manifest"; \
+		echo "expected archive objects=$$exp_archive_objects actual archive objects=$$act_archive_objects"; \
+		exit 1; \
+	fi; \
+	if [ "$$act_users" -gt "$$exp_users" ] || [ "$$act_devices" -gt "$$exp_devices" ] || [ "$$act_user_devices" -gt "$$exp_user_devices" ] || [ "$$act_provider_credentials" -gt "$$exp_provider_credentials" ] || [ "$$act_provider_devices" -gt "$$exp_provider_devices" ] || [ "$$act_archive_manifest" -gt "$$exp_archive_manifest" ] || [ "$$act_archive_objects" -gt "$$exp_archive_objects" ]; then \
+		echo "restore validation note: observed post-restore growth above backup baseline (likely live ingest during drill)"; \
+		echo "expected db counts: users=$$exp_users devices=$$exp_devices user_devices=$$exp_user_devices provider_credentials=$$exp_provider_credentials provider_devices=$$exp_provider_devices archive_manifest=$$exp_archive_manifest"; \
+		echo "actual db counts:   users=$$act_users devices=$$act_devices user_devices=$$act_user_devices provider_credentials=$$act_provider_credentials provider_devices=$$act_provider_devices archive_manifest=$$act_archive_manifest"; \
+		echo "expected archive objects=$$exp_archive_objects actual archive objects=$$act_archive_objects"; \
+	fi; \
+	echo "drill validation passed (db + archive object counts restored; actual >= backup baseline)"
 
 auth-keycloak-verify-local:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
