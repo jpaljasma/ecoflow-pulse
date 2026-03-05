@@ -22,6 +22,7 @@ go run ./cmd/ecoflow-archive-worker
 go run ./cmd/ecoflow-replay-cli
 go run ./cmd/ecoflow-gap-detector
 go run ./cmd/ecoflow-gap-repair-worker
+go run ./cmd/ecoflow-loadtest-ingest-bridge
 ```
 
 ## Node/Expo Auth Commands
@@ -56,6 +57,23 @@ Run E2E suites via repository make targets:
 ```bash
 make test-web-e2e
 MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e
+make test-load-k6
+```
+
+Run k6 load test coverage for ingest + websocket + query (M5 slice):
+
+```bash
+# prerequisites:
+# - local stack up (`make dev-up`, `make db-seed-dev-local`)
+# - k6 installed
+make test-load-k6
+
+# optional tuning overrides:
+K6_DURATION=2m \
+K6_INGEST_RATE=40 \
+K6_QUERY_RATE=2 \
+K6_WS_VUS=40 \
+make test-load-k6
 ```
 
 For mobile smoke with Maestro:
@@ -74,6 +92,8 @@ Notes:
 - `MAESTRO_APP_ID` defaults to `host.exp.Exponent` (Expo Go). Override it for custom dev-build bundle IDs.
 - `MAESTRO_EXPO_URL` defaults to `exp://127.0.0.1:8081` if unset.
 - `make test-mobile-e2e` auto-starts local mock API (`127.0.0.1:18081`) and mock WS (`127.0.0.1:8082`) when those ports are not already listening.
+- `make test-load-k6` opens a temporary NATS port-forward (`svc/pulse-platform-nats` -> `127.0.0.1:14222`) and runs a temporary local ingest bridge (`127.0.0.1:19090`) during the k6 run.
+- `make test-load-k6` defaults are tuned to stay below the BFF history rate limiter (`PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX=120/min`) while still exercising ingest + WS + query paths.
 
 Run the full local cluster-served web stack (default local workflow):
 
@@ -186,6 +206,15 @@ CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable
 VALKEY_ADDRS='127.0.0.1:6379' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-ingest-worker
+```
+
+Run local load-test ingest bridge (accepts `POST /ingest` JSON and publishes `TelemetryEnvelope` frames to NATS ingest subjects):
+
+```bash
+NATS_URLS='nats://127.0.0.1:4222' \
+TELEMETRY_SUBJECT_PREFIX='pulse' \
+LOADTEST_INGEST_BIND_ADDR='127.0.0.1:19090' \
+go run ./cmd/ecoflow-loadtest-ingest-bridge
 ```
 
 Run projection worker loop (consume ingest envelopes from JetStream and build Valkey live snapshots):
@@ -501,6 +530,9 @@ make test
 make bench
 make bench-ingestlease-integration
 make test-archive-integration
+make test-web-e2e
+make test-mobile-e2e
+make test-load-k6
 make build
 make smoke
 make mqtt
