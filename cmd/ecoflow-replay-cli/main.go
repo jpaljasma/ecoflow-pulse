@@ -45,6 +45,7 @@ func main() {
 		objectSecure      bool
 		natsURLsRaw       string
 		natsName          string
+		natsTarget        string
 		subjectPrefix     string
 		subjectShardCount uint
 	)
@@ -68,6 +69,7 @@ func main() {
 
 	flag.StringVar(&natsURLsRaw, "nats-urls", runtimecfg.EnvOrDefault("NATS_URLS", "nats://127.0.0.1:4222"), "Comma-delimited NATS URLs")
 	flag.StringVar(&natsName, "nats-name", runtimecfg.EnvOrDefault("NATS_NAME", "ecoflow-replay-cli"), "NATS client name")
+	flag.StringVar(&natsTarget, "nats-target", runtimecfg.EnvOrDefault("REPLAY_NATS_TARGET", string(replaycli.NATSPublishTargetReplay)), "NATS publish target: replay|ingest")
 	flag.StringVar(&subjectPrefix, "subject-prefix", runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix), "Telemetry subject prefix")
 	flag.UintVar(&subjectShardCount, "subject-shards", uint(runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount)), "Telemetry subject shard count")
 	flag.Parse()
@@ -108,6 +110,7 @@ func main() {
 		log.Error("invalid mode", slog.String("mode", mode))
 		os.Exit(1)
 	}
+	natsTarget = strings.ToLower(strings.TrimSpace(natsTarget))
 
 	fromUnixMS, toUnixMS, err := resolveWindow(fromRaw, toRaw, time.Now().UTC())
 	if err != nil {
@@ -157,7 +160,10 @@ func main() {
 			os.Exit(1)
 		}
 		defer natsConn.Close()
-		publisher, err = replaycli.NewNATSPublisher(natsConn, subjectCfg)
+		publisher, err = replaycli.NewNATSPublisherWithConfig(natsConn, replaycli.NATSPublisherConfig{
+			SubjectConfig: subjectCfg,
+			Target:        replaycli.NATSPublishTarget(natsTarget),
+		})
 		if err != nil {
 			log.Error("init replay publisher failed", slog.String("error", err.Error()))
 			os.Exit(1)
@@ -186,6 +192,7 @@ func main() {
 	log.Info("replay starting",
 		slog.String("mode", mode),
 		slog.Bool("dry_run", dryRun),
+		slog.String("nats_target", natsTarget),
 		slog.Time("from", time.UnixMilli(fromUnixMS).UTC()),
 		slog.Time("to", time.UnixMilli(toUnixMS).UTC()),
 		slog.Int("max_objects", maxObjects),

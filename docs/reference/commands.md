@@ -265,6 +265,14 @@ ARCHIVE_OBJECT_ACCESS_KEY='minio' \
 ARCHIVE_OBJECT_SECRET_KEY='minio123' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-replay-cli -mode fleet -shards 7,11 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z
+
+# Device replay backfill directly into ingest subjects (for rollup/projection rebuilds).
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
+ARCHIVE_OBJECT_ACCESS_KEY='minio' \
+ARCHIVE_OBJECT_SECRET_KEY='minio123' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-replay-cli -mode device -provider ecoflow -provider-device-ids R351ZABAPH331057 -from 2026-02-25T00:00:00Z -to 2026-02-26T00:00:00Z -nats-target ingest
 ```
 
 Run gap detector loop (projection lag detection + targeted replay enqueue):
@@ -378,6 +386,9 @@ export NATS_RECONNECT_JITTER=2s
 export NATS_PING_INTERVAL=20s
 export NATS_MAX_PINGS_OUT=3
 export NATS_MAX_RECONNECTS=-1
+
+# Replay CLI publish target (default replay subjects; set ingest for backfill)
+export REPLAY_NATS_TARGET='replay' # replay|ingest
 
 # Telemetry subject routing / deterministic shard mapping
 export TELEMETRY_SUBJECT_PREFIX='pulse'

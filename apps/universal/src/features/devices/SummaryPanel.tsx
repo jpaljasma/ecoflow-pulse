@@ -32,6 +32,36 @@ function formatPct(value: number | null): string {
   return `${value.toFixed(1)}%`;
 }
 
+function currentSolarPortWatts(device: DeviceSummary): number | undefined {
+  const ports = device.details?.solarPorts;
+  if (!ports?.length) {
+    return undefined;
+  }
+  return ports.reduce((sum, port) => sum + Math.max(0, port.watts ?? 0), 0);
+}
+
+function shouldSuppressFleetSolar(devices: DeviceSummary[]): boolean {
+  if (!devices.length) {
+    return false;
+  }
+
+  let hasSolarStateSignal = false;
+  for (const device of devices) {
+    const portWatts = currentSolarPortWatts(device);
+    const solarChargingOn = device.details?.solarChargingOn;
+
+    if (portWatts === undefined && solarChargingOn === undefined) {
+      return false;
+    }
+    hasSolarStateSignal = true;
+
+    if ((portWatts ?? 0) > 0 || solarChargingOn) {
+      return false;
+    }
+  }
+  return hasSolarStateSignal;
+}
+
 export function SummaryPanel({
   devices
 }: {
@@ -67,6 +97,16 @@ export function SummaryPanel({
     byId,
     useRemoteImage
   });
+  const suppressFleetSolar = useMemo(() => shouldSuppressFleetSolar(devices), [devices]);
+  const displayPvW = suppressFleetSolar ? 0 : summary.pvW;
+  const displayNetW =
+    suppressFleetSolar && typeof summary.netW === 'number' && typeof summary.pvW === 'number'
+      ? summary.netW - summary.pvW
+      : summary.netW;
+  const displayFleetTrendPv = useMemo(
+    () => (suppressFleetSolar ? fleetTrend.pv.map(() => 0) : fleetTrend.pv),
+    [suppressFleetSolar, fleetTrend.pv]
+  );
 
   const metricItems = [
     {
@@ -85,7 +125,7 @@ export function SummaryPanel({
     },
     {
       key: 'net',
-      content: <Stat label="⚖️ Net" value={formatW(summary.netW)} compact={isCompact} />
+      content: <Stat label="⚖️ Net" value={formatW(displayNetW)} compact={isCompact} />
     },
     {
       key: 'ac',
@@ -114,8 +154,8 @@ export function SummaryPanel({
       content: (
         <Stat
           label="☼ PV"
-          value={formatW(summary.pvW)}
-          tone={isMutedMetric(summary.pvW) ? 'muted' : 'default'}
+          value={formatW(displayPvW)}
+          tone={isMutedMetric(displayPvW) ? 'muted' : 'default'}
           compact={isCompact}
         />
       )
@@ -189,7 +229,7 @@ export function SummaryPanel({
             <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
               <ChartSection title="Power Trends">
                 <PowerTrendChart
-                  solar={fleetTrend.pv}
+                  solar={displayFleetTrendPv}
                   ac={fleetTrend.ac}
                   dc={fleetTrend.dc}
                   load={fleetTrend.load}
@@ -208,7 +248,7 @@ export function SummaryPanel({
             </ChartSection>
             <ChartSection title="Power Trends">
               <PowerTrendChart
-                solar={fleetTrend.pv}
+                solar={displayFleetTrendPv}
                 ac={fleetTrend.ac}
                 dc={fleetTrend.dc}
                 load={fleetTrend.load}
