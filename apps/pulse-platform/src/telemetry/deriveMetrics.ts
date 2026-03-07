@@ -27,11 +27,13 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
     'param.soc'
   ) ?? 0;
 
-  const pv = derivePv(raw);
+  const directAcIn =
+    sumIfPresent(raw, 'acW', 'params.inAcC20Pwr', 'params.inAc5p8Pwr') ??
+    firstNumber(raw, 'params.invInWatts');
+  const pv = derivePv(raw, directAcIn);
 
   const acIn =
-    sumIfPresent(raw, 'acW', 'params.inAcC20Pwr', 'params.inAc5p8Pwr') ??
-    firstNumber(raw, 'params.invInWatts') ??
+    directAcIn ??
     deriveAcFromInputMinusPv(raw, pv) ??
     0;
 
@@ -72,16 +74,17 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
   };
 }
 
-function derivePv(raw: RawMetrics): number {
-  return (
+function derivePv(raw: RawMetrics, directAcIn?: number): number {
+  const pv =
     // Prefer DPU MPPT fields first (including explicit zero), then D2M per-port
     // fields, then top-level pvW fallback.
     sumIfPresentCapped(raw, 10000, 'params.inLvMpptPwr', 'params.inHvMpptPwr') ??
     sumIfPresentCapped(raw, 10000, 'param.powGetPvL', 'param.powGetPvH') ??
     sumIfPresentCapped(raw, 10000, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts') ??
     firstNumberCapped(raw, 10000, 'pvW') ??
-    0
-  );
+    0;
+
+  return capPvByTotalInput(raw, pv, directAcIn);
 }
 
 function deriveDc(raw: RawMetrics): number {
@@ -140,6 +143,27 @@ function firstNumberCapped(raw: RawMetrics, maxAbs: number, ...keys: string[]): 
     return value;
   }
   return undefined;
+}
+
+function capPvByTotalInput(raw: RawMetrics, pv: number, directAcIn?: number): number {
+  if (!Number.isFinite(pv) || pv <= 0) {
+    return Math.max(0, pv || 0);
+  }
+
+  const wattsIn = firstNumber(raw, 'params.wattsInSum', 'param.wattsInSum');
+  if (wattsIn === undefined || !Number.isFinite(wattsIn) || wattsIn < 0) {
+    return pv;
+  }
+
+  const explicitAc = directAcIn !== undefined && Number.isFinite(directAcIn)
+    ? Math.max(0, directAcIn)
+    : 0;
+  const maxPossiblePv = Math.max(0, wattsIn - explicitAc);
+  const tolerance = Math.max(2, wattsIn * 0.05);
+  if (pv > maxPossiblePv + tolerance) {
+    return maxPossiblePv;
+  }
+  return pv;
 }
 
 export function deriveTelemetryState(batteryW: number): 'charging' | 'discharging' | 'idle' {
