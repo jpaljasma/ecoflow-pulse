@@ -144,8 +144,14 @@ Frontend rule:
 
 - solar history UI consumes `metrics.solarGeneratedWh` only; it does not derive
   solar energy from `pvAvgW`.
+- power-trend UI seeds the initial 5-minute chart window from recent minute
+  rollup history, then replaces the right-hand side with live websocket
+  sparkline coverage as fresh samples arrive.
 - raw MQTT logs are debugging aids only and are never a user-facing source of
   truth for history views.
+- local rollup regeneration may replay raw MQTT log capture, but solar energy is
+  always derived from canonical quota/MPPT PV updates using the same
+  interval-based integration logic in both live rollup append and rebuild paths.
 
 ## Minute History Buckets
 
@@ -165,6 +171,14 @@ Stored metrics:
 Persistence file:
 
 - `logs/telemetry_history.jsonl`
+
+Notes:
+
+- minute-history JSONL is a local reference/debug artifact, not the
+  user-facing history source of truth.
+- rollup tables may contain `sample_count = 0` rows for solar-only carry-forward
+  buckets when canonical PV input spans a bucket without any direct point sample
+  inside that bucket.
 
 ## Training Telemetry Capture
 

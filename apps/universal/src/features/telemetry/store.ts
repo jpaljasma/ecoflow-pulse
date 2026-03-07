@@ -10,7 +10,8 @@ const DEFAULT_FLEET_TREND: FleetTrendSnapshot = {
   load: Array.from({ length: 60 }, () => 0),
   pv: Array.from({ length: 60 }, () => 0),
   ac: Array.from({ length: 60 }, () => 0),
-  dc: Array.from({ length: 60 }, () => 0)
+  dc: Array.from({ length: 60 }, () => 0),
+  filledPoints: 0
 };
 
 function numberArrayEqual(a: number[], b: number[]): boolean {
@@ -27,7 +28,8 @@ function fleetTrendEqual(a: FleetTrendSnapshot, b: FleetTrendSnapshot): boolean 
     numberArrayEqual(a.load, b.load) &&
     numberArrayEqual(a.pv, b.pv) &&
     numberArrayEqual(a.ac, b.ac) &&
-    numberArrayEqual(a.dc, b.dc)
+    numberArrayEqual(a.dc, b.dc) &&
+    a.filledPoints === b.filledPoints
   );
 }
 

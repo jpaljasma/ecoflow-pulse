@@ -25,6 +25,7 @@ func main() {
 		provider        string
 		deviceIDsRaw    string
 		providerIDsRaw  string
+		rawLogsRaw      string
 		maxObjects      int
 		chunkSize       int
 		parallelism     int
@@ -41,6 +42,7 @@ func main() {
 	flag.StringVar(&provider, "provider", "", "Optional provider filter (for example ecoflow)")
 	flag.StringVar(&deviceIDsRaw, "device-ids", "", "Comma-delimited internal device ids to rebuild")
 	flag.StringVar(&providerIDsRaw, "provider-device-ids", "", "Comma-delimited provider device ids to rebuild")
+	flag.StringVar(&rawLogsRaw, "raw-logs", "", "Comma-delimited raw MQTT log paths or globs to rebuild from instead of archive objects")
 	flag.IntVar(&maxObjects, "max-objects", 0, "Optional object scan cap (0 means no limit)")
 	flag.IntVar(&chunkSize, "chunk-size", 500, "Bucket replacement chunk size per transaction")
 	flag.IntVar(&parallelism, "parallelism", 4, "Shard worker parallelism for archive object processing")
@@ -74,33 +76,40 @@ func main() {
 		os.Exit(1)
 	}
 
-	manifest, err := replaycli.NewPostgresManifestStore(dbDSN)
-	if err != nil {
-		log.Error("init manifest store failed", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	objectReader, err := replaycli.NewMinIOObjectReader(replaycli.MinIOObjectReaderConfig{
-		Endpoint:        objectEndpoint,
-		AccessKeyID:     objectAccessKey,
-		SecretAccessKey: objectSecretKey,
-		Region:          objectRegion,
-		Secure:          objectSecure,
-	})
-	if err != nil {
-		log.Error("init object reader failed", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
 	writer, err := rolluprebuild.NewPostgresWriter(dbDSN)
 	if err != nil {
 		log.Error("init postgres writer failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	runner, err := rolluprebuild.NewRunner(log, manifest, objectReader, writer, chunkSize, parallelism)
-	if err != nil {
-		log.Error("init rollup rebuild runner failed", slog.String("error", err.Error()))
-		os.Exit(1)
+	rawLogInputs := runtimecfg.SplitNonEmpty(rawLogsRaw)
+
+	var runner *rolluprebuild.Runner
+	if len(rawLogInputs) == 0 {
+		manifest, err := replaycli.NewPostgresManifestStore(dbDSN)
+		if err != nil {
+			log.Error("init manifest store failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		objectReader, err := replaycli.NewMinIOObjectReader(replaycli.MinIOObjectReaderConfig{
+			Endpoint:        objectEndpoint,
+			AccessKeyID:     objectAccessKey,
+			SecretAccessKey: objectSecretKey,
+			Region:          objectRegion,
+			Secure:          objectSecure,
+		})
+		if err != nil {
+			log.Error("init object reader failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		runner, err = rolluprebuild.NewRunner(log, manifest, objectReader, writer, chunkSize, parallelism)
+		if err != nil {
+			log.Error("init rollup rebuild runner failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer func() { _ = runner.Close() }()
+	} else {
+		defer func() { _ = writer.Close() }()
 	}
-	defer func() { _ = runner.Close() }()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -111,6 +120,7 @@ func main() {
 		slog.String("provider", strings.TrimSpace(provider)),
 		slog.Any("device_ids", runtimecfg.SplitNonEmpty(deviceIDsRaw)),
 		slog.Any("provider_device_ids", runtimecfg.SplitNonEmpty(providerIDsRaw)),
+		slog.Any("raw_logs", rawLogInputs),
 		slog.Int("max_objects", maxObjects),
 		slog.Int("chunk_size", chunkSize),
 		slog.Int("parallelism", parallelism),
@@ -118,7 +128,19 @@ func main() {
 	deviceIDs := runtimecfg.SplitNonEmpty(deviceIDsRaw)
 	providerDeviceIDs := runtimecfg.SplitNonEmpty(providerIDsRaw)
 	var report rolluprebuild.Report
-	if len(deviceIDs) > 0 || len(providerDeviceIDs) > 0 {
+	if len(rawLogInputs) > 0 {
+		report, err = rolluprebuild.RebuildFromRawLogs(
+			ctx,
+			writer,
+			strings.TrimSpace(provider),
+			time.UnixMilli(fromUnixMS).UTC(),
+			time.UnixMilli(toUnixMS).UTC(),
+			rawLogInputs,
+			deviceIDs,
+			providerDeviceIDs,
+			chunkSize,
+		)
+	} else if len(deviceIDs) > 0 || len(providerDeviceIDs) > 0 {
 		report, err = runner.RebuildDevices(ctx, replaycli.DeviceQuery{
 			Provider:           strings.TrimSpace(provider),
 			FromUnixMS:         fromUnixMS,

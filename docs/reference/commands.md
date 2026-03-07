@@ -279,6 +279,17 @@ ARCHIVE_OBJECT_ACCESS_KEY='minio' \
 ARCHIVE_OBJECT_SECRET_KEY='minio123' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-replay-cli -mode device -provider ecoflow -provider-device-ids R351ZABAPH331057 -from 2026-02-25T00:00:00Z -to 2026-02-26T00:00:00Z -nats-target ingest
+
+# Rebuild rollups directly from local raw MQTT log capture instead of archive objects.
+# This uses canonical quota/MPPT PV updates and the same interval-based solar
+# energy integration as the live rollup worker.
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+go run ./cmd/ecoflow-rollup-rebuild \
+  -provider ecoflow \
+  -provider-device-ids Y711ZABA9H2P0294 \
+  -from 2026-03-07T05:00:00Z \
+  -to 2026-03-07T18:00:00Z \
+  -raw-logs logs/mqtt_payload_raw-2026-03-07.log
 ```
 
 Run gap detector loop (projection lag detection + targeted replay enqueue):

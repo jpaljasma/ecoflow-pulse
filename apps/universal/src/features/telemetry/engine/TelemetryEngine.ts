@@ -80,7 +80,8 @@ export class TelemetryEngine {
     load: [],
     pv: [],
     ac: [],
-    dc: []
+    dc: [],
+    filledPoints: 0
   };
   private fleetTrendPending: {
     bucket: number;
@@ -115,7 +116,8 @@ export class TelemetryEngine {
       load: Array.from({ length: this.fleetTrendPoints }, () => 0),
       pv: Array.from({ length: this.fleetTrendPoints }, () => 0),
       ac: Array.from({ length: this.fleetTrendPoints }, () => 0),
-      dc: Array.from({ length: this.fleetTrendPoints }, () => 0)
+      dc: Array.from({ length: this.fleetTrendPoints }, () => 0),
+      filledPoints: 0
     };
   }
 
@@ -655,7 +657,8 @@ export class TelemetryEngine {
       load: append(this.fleetTrend.load, point.load),
       pv: append(this.fleetTrend.pv, point.pv),
       ac: append(this.fleetTrend.ac, point.ac),
-      dc: append(this.fleetTrend.dc, point.dc)
+      dc: append(this.fleetTrend.dc, point.dc),
+      filledPoints: Math.min(this.fleetTrend.filledPoints + 1, this.fleetTrendPoints)
     };
   }
 

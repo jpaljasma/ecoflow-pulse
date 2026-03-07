@@ -1,12 +1,24 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchDeviceSolarHistory, fetchFleetSolarHistory, type SolarHistoryView } from '@/features/history/api';
+import {
+  fetchDeviceHistory,
+  fetchDeviceSolarHistory,
+  fetchFleetSolarHistory,
+  type SolarHistoryView
+} from '@/features/history/api';
 import { ApiError } from '@/shared/api/restClient';
 import {
   buildTodayBounds,
   SOLAR_HISTORY_POINTS,
   historyRefreshIntervalMs
 } from '@/features/history/solar';
+import {
+  buildPowerTrendBounds,
+  buildPowerTrendView,
+  emptyPowerTrendView,
+  sumPowerTrendViews,
+  type PowerTrendView
+} from '@/features/history/powerTrend';
 
 type HistoryQueryOptions = {
   token?: string;
@@ -31,6 +43,10 @@ function emptySolarHistoryView(): SolarHistoryView {
     deltaPct: null,
     seriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0)
   };
+}
+
+function buildPowerTrendKey(): string {
+  return buildPowerTrendBounds().queryTo.toISOString().slice(0, 16);
 }
 
 export function useDeviceSolarHistory(
@@ -108,5 +124,92 @@ export function useFleetSolarHistory(
   return {
     ...query,
     data: query.data ?? emptySolarHistoryView()
+  };
+}
+
+export function useDevicePowerTrendHistory(
+  deviceId: string | undefined,
+  options: HistoryQueryOptions = {}
+) {
+  const { token, authKey = 'anonymous', enabled = true } = options;
+  const windowKey = buildPowerTrendKey();
+
+  return useQuery<PowerTrendView>({
+    queryKey: ['device-power-trend-history', deviceId, windowKey, authKey],
+    enabled: enabled && Boolean(deviceId),
+    queryFn: async () => {
+      const { queryFrom, queryTo } = buildPowerTrendBounds();
+      try {
+        const series = await fetchDeviceHistory({
+          deviceId: deviceId ?? '',
+          resolution: 'minute',
+          fromIso: queryFrom.toISOString(),
+          toIso: queryTo.toISOString(),
+          token
+        });
+        return buildPowerTrendView(series, queryTo);
+      } catch (error) {
+        if (isHistoryNotFound(error)) {
+          return emptyPowerTrendView();
+        }
+        throw error;
+      }
+    },
+    staleTime: 60_000,
+    gcTime: 10 * 60_000
+  });
+}
+
+export function useFleetPowerTrendHistory(
+  deviceIds: string[],
+  options: HistoryQueryOptions = {}
+) {
+  const { token, authKey = 'anonymous', enabled = true } = options;
+  const sortedIds = useMemo(() => [...deviceIds].sort(), [deviceIds]);
+  const windowKey = buildPowerTrendKey();
+
+  const query = useQuery<PowerTrendView>({
+    queryKey: ['fleet-power-trend-history', sortedIds, windowKey, authKey],
+    enabled: enabled && sortedIds.length > 0,
+    queryFn: async () => {
+      const { queryFrom, queryTo } = buildPowerTrendBounds();
+      try {
+        const seriesList = await Promise.all(
+          sortedIds.map(async (deviceId) => {
+            try {
+              return await fetchDeviceHistory({
+                deviceId,
+                resolution: 'minute',
+                fromIso: queryFrom.toISOString(),
+                toIso: queryTo.toISOString(),
+                token
+              });
+            } catch (error) {
+              if (isHistoryNotFound(error)) {
+                return null;
+              }
+              throw error;
+            }
+          })
+        );
+        return sumPowerTrendViews(
+          seriesList
+            .filter((series): series is NonNullable<typeof series> => Boolean(series))
+            .map((series) => buildPowerTrendView(series, queryTo))
+        );
+      } catch (error) {
+        if (isHistoryNotFound(error)) {
+          return emptyPowerTrendView();
+        }
+        throw error;
+      }
+    },
+    staleTime: 60_000,
+    gcTime: 10 * 60_000
+  });
+
+  return {
+    ...query,
+    data: query.data ?? emptyPowerTrendView()
   };
 }
