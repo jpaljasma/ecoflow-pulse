@@ -1,4 +1,5 @@
-import { create } from 'zustand';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { create } = require('zustand') as typeof import('zustand');
 import type {
   DeviceSnapshot,
   FleetTrendSnapshot,

@@ -348,24 +348,32 @@ func decodeQuotaMap(quota map[string]string) map[string]any {
 func normalizeQuotaUnits(decoded map[string]any) {
 	for key, value := range decoded {
 		switch key {
-		case "mppt.inVol", "mppt.pv2InVol", "mppt.outVol", "inv.invOutVol", "inv.acInVol":
-			if scaled, ok := scaleMilliValue(value, 1000); ok {
+		case "mppt.inVol", "mppt.pv2InVol":
+			if scaled, ok := scaleMetricValue(value, 100, 1000); ok {
 				decoded[key] = scaled
 			}
-		case "mppt.inAmp", "mppt.pv2InAmp", "mppt.outAmp", "inv.invOutAmp", "inv.acInAmp":
-			if scaled, ok := scaleMilliValue(value, 100); ok {
+		case "mppt.outVol", "inv.invOutVol", "inv.acInVol":
+			if scaled, ok := scaleMetricValue(value, 1000, 1000); ok {
+				decoded[key] = scaled
+			}
+		case "mppt.inAmp", "mppt.pv2InAmp":
+			if scaled, ok := scaleMetricValue(value, 1, 1000); ok {
+				decoded[key] = scaled
+			}
+		case "mppt.outAmp", "inv.invOutAmp", "inv.acInAmp":
+			if scaled, ok := scaleMetricValue(value, 100, 1000); ok {
 				decoded[key] = scaled
 			}
 		}
 	}
 }
 
-func scaleMilliValue(value any, threshold float64) (any, bool) {
+func scaleMetricValue(value any, threshold float64, divisor float64) (any, bool) {
 	number, ok := numberFromAny(value)
 	if !ok || math.Abs(number) < threshold {
 		return nil, false
 	}
-	scaled := number / 1000
+	scaled := number / divisor
 	if math.Trunc(scaled) == scaled {
 		return int64(scaled), true
 	}

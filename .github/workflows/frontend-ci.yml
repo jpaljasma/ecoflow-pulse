@@ -71,6 +71,9 @@ jobs:
       - name: Test auth middleware package
         run: npm run test --workspace @ecoflow-pulse/node-jwks-auth
 
+      - name: Build auth middleware package
+        run: npm run build --workspace @ecoflow-pulse/node-jwks-auth
+
       - name: Typecheck pulse-platform BFF
         run: npm run typecheck --workspace @ecoflow-pulse/pulse-platform
 

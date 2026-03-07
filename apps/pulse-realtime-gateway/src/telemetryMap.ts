@@ -10,6 +10,8 @@ export type DerivedTelemetryMetrics = {
   dcW: number;
 };
 
+const ANDERSON_POWER_NOISE_FLOOR_W = 0.5;
+
 export function mergeRawMetrics(
   current: RawTelemetryMetrics,
   changed: Record<string, number>,
@@ -48,25 +50,7 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
     deriveAcFromInputMinusPv(raw, pv) ??
     0;
 
-  const dc =
-    sumIfPresent(
-      raw,
-      'dcW',
-      'params.carWatts',
-      'params.wireWatts',
-      'params.usb1Watts',
-      'params.usb2Watts',
-      'params.qcUsb1Watts',
-      'params.qcUsb2Watts',
-      'params.typec1Watts',
-      'params.typec2Watts',
-      'params.outUsb1Pwr',
-      'params.outUsb2Pwr',
-      'params.outTypec1Pwr',
-      'params.outTypec2Pwr',
-      'params.outPrPwr',
-      'params.outAdsPwr'
-    ) ?? 0;
+  const dc = deriveDc(raw);
 
   const load =
     firstNumber(raw, 'loadW', 'params.wattsOutSum', 'param.wattsOutSum') ??
@@ -107,12 +91,58 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
 
 function derivePv(raw: RawTelemetryMetrics): number {
   return (
-    firstNumberCapped(raw, 10000, 'pvW') ??
-    sumIfPresentCapped(raw, 10000, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts') ??
+    // Prefer DPU MPPT fields first (including explicit zero), then D2M per-port
+    // fields, then top-level pvW fallback.
     sumIfPresentCapped(raw, 10000, 'params.inLvMpptPwr', 'params.inHvMpptPwr') ??
     sumIfPresentCapped(raw, 10000, 'param.powGetPvL', 'param.powGetPvH') ??
+    sumIfPresentCapped(raw, 10000, 'params.pv1ChargeWatts', 'params.pv2ChargeWatts') ??
+    firstNumberCapped(raw, 10000, 'pvW') ??
     0
   );
+}
+
+function deriveDc(raw: RawTelemetryMetrics): number {
+  const explicit = firstNumber(raw, 'dcW');
+  if (explicit !== undefined) {
+    return explicit;
+  }
+
+  const base =
+    sumIfPresent(
+      raw,
+      'params.carWatts',
+      'params.wireWatts',
+      'params.usb1Watts',
+      'params.usb2Watts',
+      'params.qcUsb1Watts',
+      'params.qcUsb2Watts',
+      'params.typec1Watts',
+      'params.typec2Watts',
+      'params.outUsb1Pwr',
+      'params.outUsb2Pwr',
+      'params.outTypec1Pwr',
+      'params.outTypec2Pwr',
+      'params.outPrPwr'
+    ) ?? 0;
+
+  return base + (deriveAndersonPower(raw) ?? 0);
+}
+
+function deriveAndersonPower(raw: RawTelemetryMetrics): number | undefined {
+  const explicit = firstNumber(raw, 'params.outAdsPwr');
+  const amp = firstNumber(raw, 'params.outAdsAmp');
+  const vol = firstNumber(raw, 'params.outAdsVol');
+  if (amp !== undefined && vol !== undefined) {
+    const watts = Math.max(0, amp * vol);
+    if (
+      watts > ANDERSON_POWER_NOISE_FLOOR_W ||
+      explicit === undefined ||
+      explicit <= ANDERSON_POWER_NOISE_FLOOR_W
+    ) {
+      return watts;
+    }
+  }
+  return explicit;
 }
 
 function firstNumberCapped(raw: RawTelemetryMetrics, maxAbs: number, ...keys: string[]): number | undefined {

@@ -8,6 +8,10 @@ node_modules/
 .expo/
 .expo-shared/
 apps/universal/dist/
+apps/universal/dist-check*/
+apps/pulse-platform/dist/
+apps/pulse-realtime-gateway/dist/
+packages/node-jwks-auth/dist/
 *.tsbuildinfo
 deploy/charts/*/charts/
 deploy/charts/*/tmpcharts-*/
