@@ -8,8 +8,6 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
 )
 
-const defaultSolarCarryForwardMaxGap = 90 * time.Second
-
 type Resolution string
 
 const (
@@ -68,6 +66,9 @@ type BucketRow struct {
 }
 
 type deviceState struct {
+	provider          string
+	providerDeviceID  string
+	deviceID          string
 	lastEnvelopeAt    time.Time
 	hasLastEnvelopeAt bool
 	lastPVAt          time.Time
@@ -91,7 +92,7 @@ func NewAggregator() *Aggregator {
 		hour:                          make(map[string]*BucketRow),
 		day:                           make(map[string]*BucketRow),
 		deviceStateByProviderDeviceID: make(map[string]deviceState),
-		maxSolarCarryForwardGap:       defaultSolarCarryForwardMaxGap,
+		maxSolarCarryForwardGap:       rollupworker.DefaultSolarCarryForwardMaxGap,
 	}
 }
 
@@ -102,6 +103,9 @@ func (a *Aggregator) ApplySample(sample *rollupworker.RollupSample) {
 
 	stateKey := sample.Provider + "|" + sample.ProviderDeviceID
 	state := a.deviceStateByProviderDeviceID[stateKey]
+	state.provider = sample.Provider
+	state.providerDeviceID = sample.ProviderDeviceID
+	state.deviceID = sample.DeviceID
 	if state.hasLastEnvelopeAt && sample.EventTime.After(state.lastEnvelopeAt) && state.hasPV {
 		a.integrateSolar(sample, state.lastEnvelopeAt, sample.EventTime, state.currentPV, state.lastPVAt)
 	}
@@ -127,6 +131,38 @@ func (a *Aggregator) ApplySample(sample *rollupworker.RollupSample) {
 	a.addPoint(a.minute, sample, sample.EventTime.Truncate(time.Minute))
 	a.addPoint(a.hour, sample, sample.EventTime.Truncate(time.Hour))
 	a.addPoint(a.day, sample, time.Date(sample.EventTime.Year(), sample.EventTime.Month(), sample.EventTime.Day(), 0, 0, 0, 0, time.UTC))
+}
+
+func (a *Aggregator) Finalize(windowEnd time.Time) {
+	if a == nil || windowEnd.IsZero() {
+		return
+	}
+	windowEnd = windowEnd.UTC()
+	for key, state := range a.deviceStateByProviderDeviceID {
+		if !state.hasLastEnvelopeAt || !state.hasPV || state.provider == "" || state.providerDeviceID == "" || state.deviceID == "" {
+			continue
+		}
+		end := windowEnd
+		if a.maxSolarCarryForwardGap > 0 {
+			maxEnd := state.lastPVAt.Add(a.maxSolarCarryForwardGap)
+			if end.After(maxEnd) {
+				end = maxEnd
+			}
+		}
+		if !end.After(state.lastEnvelopeAt) {
+			continue
+		}
+		sample := &rollupworker.RollupSample{
+			Provider:         state.provider,
+			ProviderDeviceID: state.providerDeviceID,
+			DeviceID:         state.deviceID,
+			EventTime:        end,
+			EventUnixMs:      end.UnixMilli(),
+		}
+		a.integrateSolar(sample, state.lastEnvelopeAt, end, state.currentPV, state.lastPVAt)
+		state.lastEnvelopeAt = end
+		a.deviceStateByProviderDeviceID[key] = state
+	}
 }
 
 func (a *Aggregator) Rows(resolution Resolution) []BucketRow {
@@ -197,39 +233,17 @@ func (a *Aggregator) integrateSolar(sample *rollupworker.RollupSample, start, en
 	if a == nil || sample == nil || !end.After(start) || pvWatts <= 0 {
 		return
 	}
-	if a.maxSolarCarryForwardGap > 0 {
-		maxEnd := lastPVAt.Add(a.maxSolarCarryForwardGap)
-		if end.After(maxEnd) {
-			end = maxEnd
-		}
-	}
-	if !end.After(start) {
-		return
-	}
-	a.integrateSolarAcrossBuckets(a.minute, sample, start, end, pvWatts, time.Minute)
-	a.integrateSolarAcrossBuckets(a.hour, sample, start, end, pvWatts, time.Hour)
-	a.integrateSolarAcrossBuckets(a.day, sample, start, end, pvWatts, 24*time.Hour)
+	a.integrateSolarAcrossBuckets(a.minute, sample, start, end, pvWatts, lastPVAt, time.Minute, false)
+	a.integrateSolarAcrossBuckets(a.hour, sample, start, end, pvWatts, lastPVAt, time.Hour, false)
+	a.integrateSolarAcrossBuckets(a.day, sample, start, end, pvWatts, lastPVAt, 24*time.Hour, true)
 }
 
-func (a *Aggregator) integrateSolarAcrossBuckets(target map[string]*BucketRow, sample *rollupworker.RollupSample, start, end time.Time, pvWatts float64, bucketWidth time.Duration) {
-	cursor := start
-	for cursor.Before(end) {
-		bucketStart := cursor.Truncate(bucketWidth)
-		if bucketWidth == 24*time.Hour {
-			bucketStart = time.Date(cursor.Year(), cursor.Month(), cursor.Day(), 0, 0, 0, 0, time.UTC)
-		}
-		segmentEnd := bucketStart.Add(bucketWidth)
-		if segmentEnd.After(end) {
-			segmentEnd = end
-		}
-		durationHours := segmentEnd.Sub(cursor).Hours()
-		if durationHours > 0 {
-			row := ensureBucketRow(target, sample, bucketStart)
-			row.SolarGeneratedWh += pvWatts * durationHours
-			row.HasSolarGeneratedWh = true
-		}
-		cursor = segmentEnd
-	}
+func (a *Aggregator) integrateSolarAcrossBuckets(target map[string]*BucketRow, sample *rollupworker.RollupSample, start, end time.Time, pvWatts float64, lastPVAt time.Time, bucketWidth time.Duration, dayBucket bool) {
+	rollupworker.IntegrateSolarWindow(start, end, lastPVAt, pvWatts, a.maxSolarCarryForwardGap, bucketWidth, dayBucket, func(bucketStart time.Time, _ time.Time, _ time.Time, wattHours float64) {
+		row := ensureBucketRow(target, sample, bucketStart)
+		row.SolarGeneratedWh += wattHours
+		row.HasSolarGeneratedWh = true
+	})
 }
 
 func ensureBucketRow(target map[string]*BucketRow, sample *rollupworker.RollupSample, bucketStart time.Time) *BucketRow {

@@ -42,6 +42,7 @@ export type FleetTrendSnapshot = {
   pv: number[];
   ac: number[];
   dc: number[];
+  filledPoints: number;
 };
 
 export type TelemetryEngineStatus =

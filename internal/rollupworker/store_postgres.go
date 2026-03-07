@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -17,11 +18,25 @@ type Store interface {
 }
 
 type PostgresStore struct {
-	db                *sql.DB
-	nowFn             func() time.Time
-	minuteUpsertQuery string
-	hourUpsertQuery   string
-	dayUpsertQuery    string
+	db                     *sql.DB
+	nowFn                  func() time.Time
+	minuteUpsertQuery      string
+	hourUpsertQuery        string
+	dayUpsertQuery         string
+	minuteSolarUpsertQuery string
+	hourSolarUpsertQuery   string
+	daySolarUpsertQuery    string
+	mu                     sync.Mutex
+	solarStateByDevice     map[string]solarIntegrationState
+}
+
+type solarIntegrationState struct {
+	lastEnvelopeAt    time.Time
+	hasLastEnvelopeAt bool
+	lastPVAt          time.Time
+	hasLastPVAt       bool
+	currentPV         float64
+	hasPV             bool
 }
 
 func NewPostgresStore(dsn string) (*PostgresStore, error) {
@@ -42,11 +57,15 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 
 func newPostgresStore(db *sql.DB) *PostgresStore {
 	return &PostgresStore{
-		db:                db,
-		nowFn:             time.Now,
-		minuteUpsertQuery: buildUpsertQuery("telemetry_rollup_minute"),
-		hourUpsertQuery:   buildUpsertQuery("telemetry_rollup_hour"),
-		dayUpsertQuery:    buildUpsertQuery("telemetry_rollup_day"),
+		db:                     db,
+		nowFn:                  time.Now,
+		minuteUpsertQuery:      buildUpsertQuery("telemetry_rollup_minute"),
+		hourUpsertQuery:        buildUpsertQuery("telemetry_rollup_hour"),
+		dayUpsertQuery:         buildUpsertQuery("telemetry_rollup_day"),
+		minuteSolarUpsertQuery: buildSolarUpsertQuery("telemetry_rollup_minute"),
+		hourSolarUpsertQuery:   buildSolarUpsertQuery("telemetry_rollup_hour"),
+		daySolarUpsertQuery:    buildSolarUpsertQuery("telemetry_rollup_day"),
+		solarStateByDevice:     make(map[string]solarIntegrationState),
 	}
 }
 
@@ -66,11 +85,17 @@ func (s *PostgresStore) ApplyEnvelope(ctx context.Context, env *envelopev1.Telem
 		return ErrNoRollupMetrics
 	}
 
+	sampleForMetrics := *sample
+	sampleForMetrics.Metrics.SolarGeneratedWh = optionalFloat{}
 	now := s.nowFn().UTC()
 	minuteBucket := sample.EventTime.Truncate(time.Minute)
 	hourBucket := sample.EventTime.Truncate(time.Hour)
 	dayBucket := time.Date(sample.EventTime.Year(), sample.EventTime.Month(), sample.EventTime.Day(), 0, 0, 0, 0, time.UTC)
+	stateKey := sample.Provider + "|" + sample.ProviderDeviceID
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state := s.solarStateByDevice[stateKey]
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin rollup transaction: %w", err)
@@ -79,19 +104,90 @@ func (s *PostgresStore) ApplyEnvelope(ctx context.Context, env *envelopev1.Telem
 		_ = tx.Rollback()
 	}()
 
-	if err := s.execUpsert(ctx, tx, s.minuteUpsertQuery, sample, minuteBucket, now); err != nil {
+	if err := s.execUpsert(ctx, tx, s.minuteUpsertQuery, &sampleForMetrics, minuteBucket, now); err != nil {
 		return err
 	}
-	if err := s.execUpsert(ctx, tx, s.hourUpsertQuery, sample, hourBucket, now); err != nil {
+	if err := s.execUpsert(ctx, tx, s.hourUpsertQuery, &sampleForMetrics, hourBucket, now); err != nil {
 		return err
 	}
-	if err := s.execUpsert(ctx, tx, s.dayUpsertQuery, sample, dayBucket, now); err != nil {
+	if err := s.execUpsert(ctx, tx, s.dayUpsertQuery, &sampleForMetrics, dayBucket, now); err != nil {
+		return err
+	}
+	if err := s.execSolarUpserts(ctx, tx, sample, state, now); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit rollup transaction: %w", err)
 	}
+	s.solarStateByDevice[stateKey] = advanceSolarState(state, sample)
 	return nil
+}
+
+func (s *PostgresStore) execSolarUpserts(ctx context.Context, tx *sql.Tx, sample *RollupSample, state solarIntegrationState, now time.Time) error {
+	if sample == nil || !state.hasLastEnvelopeAt || !sample.EventTime.After(state.lastEnvelopeAt) || !state.hasPV {
+		return nil
+	}
+	if err := s.execSolarUpsert(ctx, tx, s.minuteSolarUpsertQuery, sample, state, now, time.Minute, false); err != nil {
+		return err
+	}
+	if err := s.execSolarUpsert(ctx, tx, s.hourSolarUpsertQuery, sample, state, now, time.Hour, false); err != nil {
+		return err
+	}
+	if err := s.execSolarUpsert(ctx, tx, s.daySolarUpsertQuery, sample, state, now, 24*time.Hour, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresStore) execSolarUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, state solarIntegrationState, now time.Time, bucketWidth time.Duration, dayBucket bool) error {
+	var firstErr error
+	IntegrateSolarWindow(state.lastEnvelopeAt, sample.EventTime, state.lastPVAt, state.currentPV, DefaultSolarCarryForwardMaxGap, bucketWidth, dayBucket, func(bucketStart time.Time, segmentStart time.Time, segmentEnd time.Time, wattHours float64) {
+		if firstErr != nil {
+			return
+		}
+		firstTS := segmentStart.UnixMilli()
+		lastTS := segmentEnd.Add(-time.Millisecond).UnixMilli()
+		if lastTS < firstTS {
+			lastTS = firstTS
+		}
+		if _, err := tx.ExecContext(ctx, query,
+			sample.Provider,
+			sample.ProviderDeviceID,
+			sample.DeviceID,
+			bucketStart,
+			0,
+			firstTS,
+			lastTS,
+			wattHours,
+			now,
+			now,
+		); err != nil {
+			firstErr = fmt.Errorf("upsert solar rollup bucket %s: %w", bucketStart.Format(time.RFC3339), err)
+		}
+	})
+	return firstErr
+}
+
+func advanceSolarState(state solarIntegrationState, sample *RollupSample) solarIntegrationState {
+	if sample == nil {
+		return state
+	}
+	if !state.hasLastEnvelopeAt || sample.EventTime.After(state.lastEnvelopeAt) {
+		state.lastEnvelopeAt = sample.EventTime
+		state.hasLastEnvelopeAt = true
+	}
+	if sample.Metrics.PV.Valid {
+		state.lastPVAt = sample.EventTime
+		state.hasLastPVAt = true
+		if sample.Metrics.PV.Value > 0 {
+			state.currentPV = sample.Metrics.PV.Value
+			state.hasPV = true
+		} else {
+			state.currentPV = 0
+			state.hasPV = false
+		}
+	}
+	return state
 }
 
 func (s *PostgresStore) execUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, bucketStart time.Time, now time.Time) error {
@@ -170,8 +266,14 @@ func buildUpsertQuery(table string) string {
 	)
 	ON CONFLICT (provider, provider_device_id, bucket_start) DO UPDATE SET
 		sample_count = %s.sample_count + EXCLUDED.sample_count,
-		first_ts_unix_ms = LEAST(%s.first_ts_unix_ms, EXCLUDED.first_ts_unix_ms),
-		last_ts_unix_ms = GREATEST(%s.last_ts_unix_ms, EXCLUDED.last_ts_unix_ms),
+		first_ts_unix_ms = CASE
+			WHEN %s.sample_count = 0 THEN EXCLUDED.first_ts_unix_ms
+			ELSE LEAST(%s.first_ts_unix_ms, EXCLUDED.first_ts_unix_ms)
+		END,
+		last_ts_unix_ms = CASE
+			WHEN %s.sample_count = 0 THEN EXCLUDED.last_ts_unix_ms
+			ELSE GREATEST(%s.last_ts_unix_ms, EXCLUDED.last_ts_unix_ms)
+		END,
 		soc_avg_pct = %s,
 		soc_min_pct = %s,
 		soc_max_pct = %s,
@@ -198,6 +300,8 @@ func buildUpsertQuery(table string) string {
 		table,
 		table,
 		table,
+		table,
+		table,
 		weightedAverageExpr(table, "soc_avg_pct"),
 		minExpr(table, "soc_min_pct"),
 		maxExpr(table, "soc_max_pct"),
@@ -220,6 +324,39 @@ func buildUpsertQuery(table string) string {
 		maxExpr(table, "temp_max_c"),
 		sumExpr(table, "solar_generated_wh"),
 	)
+}
+
+func buildSolarUpsertQuery(table string) string {
+	return fmt.Sprintf(`INSERT INTO %s (
+		provider,
+		provider_device_id,
+		device_id,
+		bucket_start,
+		sample_count,
+		first_ts_unix_ms,
+		last_ts_unix_ms,
+		solar_generated_wh,
+		created_at,
+		updated_at
+	) VALUES (
+		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+	)
+	ON CONFLICT (provider, provider_device_id, bucket_start) DO UPDATE SET
+		device_id = EXCLUDED.device_id,
+		first_ts_unix_ms = CASE
+			WHEN %[1]s.sample_count = 0 THEN LEAST(%[1]s.first_ts_unix_ms, EXCLUDED.first_ts_unix_ms)
+			ELSE %[1]s.first_ts_unix_ms
+		END,
+		last_ts_unix_ms = CASE
+			WHEN %[1]s.sample_count = 0 THEN GREATEST(%[1]s.last_ts_unix_ms, EXCLUDED.last_ts_unix_ms)
+			ELSE %[1]s.last_ts_unix_ms
+		END,
+		solar_generated_wh = CASE
+			WHEN %[1]s.solar_generated_wh IS NULL THEN EXCLUDED.solar_generated_wh
+			WHEN EXCLUDED.solar_generated_wh IS NULL THEN %[1]s.solar_generated_wh
+			ELSE %[1]s.solar_generated_wh + EXCLUDED.solar_generated_wh
+		END,
+		updated_at = EXCLUDED.updated_at`, table)
 }
 
 func weightedAverageExpr(table, column string) string {

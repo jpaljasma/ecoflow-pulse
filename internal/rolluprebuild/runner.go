@@ -133,7 +133,7 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 			defer wg.Done()
 			sema <- struct{}{}
 			defer func() { <-sema }()
-			result := r.processObjectGroup(ctx, group, &objectsProcessed, report.ObjectsMatched, &messagesDecoded, &messagesApplied)
+			result := r.processObjectGroup(ctx, group, &objectsProcessed, report.ObjectsMatched, &messagesDecoded, &messagesApplied, toUnixMS)
 			results <- result
 		}()
 	}
@@ -210,6 +210,7 @@ func (r *Runner) processObjectGroup(
 	objectsMatched int,
 	messagesDecoded *atomic.Int64,
 	messagesApplied *atomic.Int64,
+	toUnixMS int64,
 ) shardResult {
 	aggregator := NewAggregator()
 	result := shardResult{
@@ -261,6 +262,7 @@ func (r *Runner) processObjectGroup(
 			)
 		}
 	}
+	aggregator.Finalize(time.UnixMilli(toUnixMS).UTC())
 	result.minuteRows = aggregator.Rows(ResolutionMinute)
 	result.hourRows = aggregator.Rows(ResolutionHour)
 	result.dayRows = aggregator.Rows(ResolutionDay)

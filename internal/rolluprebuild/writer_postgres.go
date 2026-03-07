@@ -380,12 +380,13 @@ func normalizeRowForWrite(row BucketRow, resolution Resolution) BucketRow {
 		return row
 	}
 	bucketDuration := bucketDurationForResolution(resolution)
-	lastTs := row.BucketStart.UTC().UnixMilli()
+	firstTs := row.BucketStart.UTC().UnixMilli()
+	lastTs := firstTs
 	if bucketDuration > 0 {
 		lastTs = row.BucketStart.Add(bucketDuration).Add(-time.Millisecond).UTC().UnixMilli()
 	}
-	row.SampleCount = 1
-	row.FirstTsUnixMS = row.BucketStart.UTC().UnixMilli()
+	row.SampleCount = 0
+	row.FirstTsUnixMS = firstTs
 	row.LastTsUnixMS = lastTs
 	return row
 }

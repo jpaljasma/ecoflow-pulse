@@ -181,4 +181,55 @@ describe('TelemetryEngine', () => {
     randomSpy.mockRestore();
     vi.useRealTimers();
   });
+
+  it('tracks how many fleet trend buckets contain real live data', () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({
+      createSocket,
+      snapshotIntervalMs: 20,
+      fleetTrendBucketMs: 100,
+      fleetTrendPoints: 5
+    });
+    let latestPayload:
+      | {
+          fleetTrend: {
+            load: number[];
+            pv: number[];
+            ac: number[];
+            dc: number[];
+            filledPoints: number;
+          };
+        }
+      | undefined;
+
+    engine.onSnapshot((payload) => {
+      latestPayload = payload;
+    });
+    engine.connect();
+    engine.subscribe(['device-1']);
+    sockets[0]?.triggerOpen();
+
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 1,
+        metrics: { soc: 50, pvW: 200, loadW: 90, batteryW: 25, tempC: 21, acW: 30, dcW: 10 }
+      })
+    } as MessageEvent);
+
+    vi.advanceTimersByTime(150);
+
+    expect(latestPayload?.fleetTrend.filledPoints).toBeGreaterThan(0);
+    expect(latestPayload?.fleetTrend.pv.at(-1)).toBeGreaterThan(0);
+
+    engine.disconnect();
+    vi.useRealTimers();
+  });
 });

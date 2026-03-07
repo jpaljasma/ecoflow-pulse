@@ -19,7 +19,11 @@ import { DeviceDetailBody } from '@/features/device-detail/components/DeviceDeta
 import { env } from '@/shared/config/env';
 import { ApiError } from '@/shared/api/restClient';
 import { Card } from '@/shared/ui/Card';
-import { useDeviceSolarHistory } from '@/features/history/hooks';
+import { useDevicePowerTrendHistory, useDeviceSolarHistory } from '@/features/history/hooks';
+import {
+  mergeTrendPrefill,
+  sparklineCoveragePoints
+} from '@/features/history/powerTrend';
 
 const DETAIL_TREND_POINTS = 60;
 const SOLAR_GENERATED_POINTS = 72;
@@ -111,6 +115,11 @@ export default function DeviceDetailScreen() {
     enabled: queryEnabled && Boolean(resolvedDeviceId),
     maxSolarWatts
   });
+  const powerTrendHistory = useDevicePowerTrendHistory(resolvedDeviceId, {
+    token,
+    authKey,
+    enabled: queryEnabled && Boolean(resolvedDeviceId)
+  });
   const device = mergeDeviceSources(deviceQuery.data, routeDevice);
   useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
   const telemetryConnectionStatus = useTelemetryConnectionStatus();
@@ -130,20 +139,28 @@ export default function DeviceDetailScreen() {
 
   const detailTrend = useMemo(
     () => ({
-      load:
-        snapshot?.sparkline.loadW.map((point) => point.value) ??
-        Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-      pv:
-        snapshot?.sparkline.pvW.map((point) => point.value) ??
-        Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-      ac:
-        snapshot?.sparkline.acW.map((point) => point.value) ??
-        Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-      dc:
-        snapshot?.sparkline.dcW.map((point) => point.value) ??
-        Array.from({ length: DETAIL_TREND_POINTS }, () => 0)
+      load: mergeTrendPrefill(
+        powerTrendHistory.data?.load ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
+        snapshot?.sparkline.loadW.map((point) => point.value) ?? [],
+        sparklineCoveragePoints(snapshot?.sparkline.loadW)
+      ),
+      pv: mergeTrendPrefill(
+        powerTrendHistory.data?.solar ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
+        snapshot?.sparkline.pvW.map((point) => point.value) ?? [],
+        sparklineCoveragePoints(snapshot?.sparkline.pvW)
+      ),
+      ac: mergeTrendPrefill(
+        powerTrendHistory.data?.ac ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
+        snapshot?.sparkline.acW.map((point) => point.value) ?? [],
+        sparklineCoveragePoints(snapshot?.sparkline.acW)
+      ),
+      dc: mergeTrendPrefill(
+        powerTrendHistory.data?.dc ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
+        snapshot?.sparkline.dcW.map((point) => point.value) ?? [],
+        sparklineCoveragePoints(snapshot?.sparkline.dcW)
+      )
     }),
-    [snapshot]
+    [powerTrendHistory.data, snapshot]
   );
 
   const vm = useDeviceDetailViewModel({

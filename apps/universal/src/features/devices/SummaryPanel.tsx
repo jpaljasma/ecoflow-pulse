@@ -17,7 +17,8 @@ import { useFleetSummaryViewModel } from '@/features/devices/view-model';
 import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { useTelemetryFleetTrend, useTelemetrySnapshotsByIds } from '@/features/telemetry/hooks';
 import { useAuthSession } from '@/features/auth/hooks';
-import { useFleetSolarHistory } from '@/features/history/hooks';
+import { useFleetPowerTrendHistory, useFleetSolarHistory } from '@/features/history/hooks';
+import { mergeTrendPrefill } from '@/features/history/powerTrend';
 
 const SUMMARY_TREND_POINTS = 60;
 const SOLAR_GENERATED_POINTS = 72;
@@ -91,6 +92,11 @@ export function SummaryPanel({
     enabled: historyEnabled,
     maxSolarWattsByDeviceId
   });
+  const fleetPowerTrendHistory = useFleetPowerTrendHistory(deviceIds, {
+    token,
+    authKey,
+    enabled: historyEnabled
+  });
 
   const { summary, uniqueTypes } = useFleetSummaryViewModel({
     devices,
@@ -103,9 +109,34 @@ export function SummaryPanel({
     suppressFleetSolar && typeof summary.netW === 'number' && typeof summary.pvW === 'number'
       ? summary.netW - summary.pvW
       : summary.netW;
+  const displayFleetTrend = useMemo(
+    () => ({
+      load: mergeTrendPrefill(
+        fleetPowerTrendHistory.data.load,
+        fleetTrend.load,
+        fleetTrend.filledPoints
+      ),
+      pv: mergeTrendPrefill(
+        fleetPowerTrendHistory.data.solar,
+        fleetTrend.pv,
+        fleetTrend.filledPoints
+      ),
+      ac: mergeTrendPrefill(
+        fleetPowerTrendHistory.data.ac,
+        fleetTrend.ac,
+        fleetTrend.filledPoints
+      ),
+      dc: mergeTrendPrefill(
+        fleetPowerTrendHistory.data.dc,
+        fleetTrend.dc,
+        fleetTrend.filledPoints
+      )
+    }),
+    [fleetPowerTrendHistory.data, fleetTrend]
+  );
   const displayFleetTrendPv = useMemo(
-    () => (suppressFleetSolar ? fleetTrend.pv.map(() => 0) : fleetTrend.pv),
-    [suppressFleetSolar, fleetTrend.pv]
+    () => (suppressFleetSolar ? displayFleetTrend.pv.map(() => 0) : displayFleetTrend.pv),
+    [displayFleetTrend.pv, suppressFleetSolar]
   );
 
   const metricItems = [
@@ -230,9 +261,9 @@ export function SummaryPanel({
               <ChartSection title="Power Trends">
                 <PowerTrendChart
                   solar={displayFleetTrendPv}
-                  ac={fleetTrend.ac}
-                  dc={fleetTrend.dc}
-                  load={fleetTrend.load}
+                  ac={displayFleetTrend.ac}
+                  dc={displayFleetTrend.dc}
+                  load={displayFleetTrend.load}
                   points={SUMMARY_TREND_POINTS}
                 />
               </ChartSection>
@@ -249,9 +280,9 @@ export function SummaryPanel({
             <ChartSection title="Power Trends">
               <PowerTrendChart
                 solar={displayFleetTrendPv}
-                ac={fleetTrend.ac}
-                dc={fleetTrend.dc}
-                load={fleetTrend.load}
+                ac={displayFleetTrend.ac}
+                dc={displayFleetTrend.dc}
+                load={displayFleetTrend.load}
                 points={SUMMARY_TREND_POINTS}
               />
             </ChartSection>
