@@ -439,6 +439,10 @@ These are mandatory implementation principles for local workflows and tooling qu
    - `kubectl wait --for=condition=Ready` for CRDs (for example CNPG cluster condition).
 5. Wait targets must be safe for optional workloads:
    - if a namespace/release has no pods yet, return success with a clear message instead of failing bringup.
+6. Keep local Helm dependency work off the hot redeploy path:
+   - for code-only local redeploys, do not refresh or rebuild Helm dependencies,
+   - for `pulse-platform`, reuse vendored chart packages in `deploy/charts/pulse-platform/charts` and only run `helm dependency build --skip-refresh` when `Chart.yaml` / `Chart.lock` changed or vendored tarballs are missing,
+   - for `pulse-services`, skip `helm dependency build` because the chart has no external dependencies.
 
 ### Valkey ingest lease baseline (ADR-0014)
 1. Lease operations must use Lua with token checks and fencing:
