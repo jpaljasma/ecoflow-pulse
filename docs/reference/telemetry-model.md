@@ -140,6 +140,23 @@ General derivation rules:
 - derived channels are intended to be source-agnostic across MQTT, quota, and
   replay envelopes.
 
+## Live Detail Derivation
+
+For websocket device-detail rendering, the realtime gateway also derives a
+small live-detail envelope from the merged raw snapshot:
+
+- `detail.signals`:
+  current AC/DC/USB/12V/EV/fan/solar/preconditioning booleans derived from the
+  same merged live raw metrics used for projected watts.
+- `detail.solarPorts`:
+  current per-port PV state/volts/amps/watts for D2M and DPU-style port pairs.
+
+Frontend rule:
+
+- on `/device/{id}`, `System Signals` and `Solar Inputs` must prefer websocket
+  `detail.*` when present and only fall back to REST `device.details.*` before
+  the first live detail snapshot arrives.
+
 Frontend rule:
 
 - solar history UI consumes `metrics.solarGeneratedWh` only; it does not derive

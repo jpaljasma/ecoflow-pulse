@@ -1,4 +1,9 @@
-import { deriveTelemetryMetrics, mergeRawMetrics, type RawTelemetryMetrics } from '../telemetryMap.js';
+import {
+  deriveTelemetryDetail,
+  deriveTelemetryMetrics,
+  mergeRawMetrics,
+  type RawTelemetryMetrics
+} from '../telemetryMap.js';
 import type { ServerDeviceStatusMessage, ServerTelemetryMessage } from '../schemas.js';
 
 export type DeliveryStage = 'fast' | 'steady' | 'slow' | 'key-only' | 'paused';
@@ -201,7 +206,8 @@ export class DeliveryLane {
       type: 'telemetry',
       deviceId: this.deviceId,
       ts,
-      metrics: deriveTelemetryMetrics(this.rawMetrics)
+      metrics: deriveTelemetryMetrics(this.rawMetrics),
+      detail: deriveTelemetryDetail(this.rawMetrics)
     });
   }
 

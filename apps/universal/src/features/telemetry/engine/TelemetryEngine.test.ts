@@ -232,4 +232,61 @@ describe('TelemetryEngine', () => {
     engine.disconnect();
     vi.useRealTimers();
   });
+
+  it('retains live detail signals and solar ports from websocket telemetry', () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({
+      createSocket,
+      snapshotIntervalMs: 20
+    });
+    let latestPayload:
+      | {
+          snapshots: Record<
+            string,
+            {
+              liveDetail?: {
+                signals?: { batteryHeatingOn?: boolean; solarChargingOn?: boolean };
+                solarPorts?: Array<{ id: string; state?: string; watts?: number }>;
+              };
+            }
+          >;
+        }
+      | undefined;
+
+    engine.onSnapshot((payload) => {
+      latestPayload = payload;
+    });
+    engine.connect();
+    engine.subscribe(['device-1']);
+    sockets[0]?.triggerOpen();
+
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 1,
+        metrics: { soc: 50, pvW: 120, loadW: 90, batteryW: 25, tempC: 21, acW: 0, dcW: 10 },
+        detail: {
+          signals: { batteryHeatingOn: false, solarChargingOn: true },
+          solarPorts: [{ id: 'pv-low', name: 'PV Low', state: 'charging', watts: 120 }]
+        }
+      })
+    } as MessageEvent);
+
+    vi.advanceTimersByTime(40);
+
+    expect(latestPayload?.snapshots['device-1']?.liveDetail).toEqual({
+      signals: { batteryHeatingOn: false, solarChargingOn: true },
+      solarPorts: [{ id: 'pv-low', name: 'PV Low', state: 'charging', watts: 120 }]
+    });
+
+    engine.disconnect();
+    vi.useRealTimers();
+  });
 });

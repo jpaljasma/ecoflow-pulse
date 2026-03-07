@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { deriveTelemetryMetrics, mergeRawMetrics } from '../src/telemetryMap.js';
+import {
+  deriveTelemetryDetail,
+  deriveTelemetryMetrics,
+  mergeRawMetrics
+} from '../src/telemetryMap.js';
 
 describe('telemetryMap', () => {
   it('derives UI telemetry metrics from flattened ecoflow metrics', () => {
@@ -187,5 +191,50 @@ describe('telemetryMap', () => {
     });
 
     expect(metrics.soc).toBeCloseTo(25.49, 2);
+  });
+
+  it('derives live D2M system signals and solar ports for device detail realtime updates', () => {
+    const detail = deriveTelemetryDetail({
+      'params.pv1ChargeWatts': 82,
+      'params.pv2ChargeWatts': 212,
+      'params.inVol': 16400,
+      'params.inAmp': 5000,
+      'params.pv2InVol': 40900,
+      'params.pv2InAmp': 5180,
+      'params.chgState': 2,
+      'params.pv2ChgState': 1,
+      'params.cfgAcEnabled': 1,
+      'params.dcOutState': 1,
+      'params.typec1Watts': 42,
+      'params.fanState': 1
+    });
+
+    expect(detail).toEqual({
+      signals: {
+        acOn: true,
+        dcOn: true,
+        usbOn: true,
+        dc12vOn: true,
+        fanOn: true,
+        solarChargingOn: true
+      },
+      solarPorts: [
+        { id: 'pv-1', name: 'PV 1', state: 'charging', volts: 16.4, amps: 5, watts: 82 },
+        { id: 'pv-2', name: 'PV 2', state: 'charging', volts: 40.9, amps: 5.18, watts: 212 }
+      ]
+    });
+  });
+
+  it('prefers explicit preconditioning state over stale heat-time fallback', () => {
+    const detail = deriveTelemetryDetail({
+      'params.bpInfo.0.heatTime': 9,
+      'params.ptcMosState': 0
+    });
+
+    expect(detail).toEqual({
+      signals: {
+        batteryHeatingOn: false
+      }
+    });
   });
 });

@@ -48,6 +48,26 @@ export type ServerTelemetryMessage = {
     acW?: number;
     dcW?: number;
   };
+  detail?: {
+    signals?: {
+      acOn?: boolean;
+      dcOn?: boolean;
+      usbOn?: boolean;
+      dc12vOn?: boolean;
+      evChargingOn?: boolean;
+      fanOn?: boolean;
+      solarChargingOn?: boolean;
+      batteryHeatingOn?: boolean;
+    };
+    solarPorts?: Array<{
+      id: string;
+      name: string;
+      state?: string;
+      volts?: number;
+      amps?: number;
+      watts?: number;
+    }>;
+  };
 };
 
 export type ServerDeviceStatusMessage = {
