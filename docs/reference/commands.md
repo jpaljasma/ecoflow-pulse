@@ -703,6 +703,8 @@ Notes:
   Like `platform-up`, local Helm upgrades use server-side apply with
   `--force-conflicts` to recover cleanly from manual field-manager drift during
   local iteration.
+  Because `pulse-services` has no external chart dependencies, local runs skip
+  `helm dependency build`.
 - `make services-image-build-local` builds local telemetry worker image
   `$(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)` from
   `deploy/docker/pulse-services.Dockerfile`.
@@ -729,6 +731,10 @@ Notes:
   using `deploy/env/local/values.services.yaml`. By default it auto-builds and
   imports the local worker image before Helm apply; set
   `SERVICES_AUTO_BUILD_IMAGE=0` to skip.
+- `make platform-up` reuses vendored chart packages under
+  `deploy/charts/pulse-platform/charts` and only runs
+  `helm dependency build --skip-refresh` when `Chart.yaml` / `Chart.lock`
+  changed locally or vendored chart tarballs are missing.
 - `make platform-wait` blocks until critical platform dependencies are ready:
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
@@ -748,6 +754,9 @@ Notes:
   By default (`DEV_DEPLOY_HELM=auto`) it skips Helm re-apply when local
   platform/services chart and local values files are unchanged and the releases
   already exist.
+  When Helm apply is needed, local chart dependency preparation stays local:
+  vendored platform dependencies are reused and any rebuild uses
+  `helm dependency build --skip-refresh` instead of refreshing remote repos.
   Use `DEV_DEPLOY_HELM=always make dev-deploy` to force full Helm re-apply, or
   `DEV_DEPLOY_HELM=never make dev-deploy` to skip it explicitly.
 - `make dev-regen-data` rebuilds the last 48 hours of archived telemetry for all

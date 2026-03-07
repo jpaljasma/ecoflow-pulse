@@ -146,7 +146,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -355,6 +355,42 @@ helm-local-ready:
 		exit 1; \
 	fi
 
+chart-deps-local: helm-local-ready
+	@if [ -z "$(CHART)" ]; then \
+		echo "CHART is required"; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+		chart="$(CHART)"; \
+		lock="$$chart/Chart.lock"; \
+		charts_dir="$$chart/charts"; \
+		if [ ! -f "$$lock" ]; then \
+			if grep -Eq '^[[:space:]]*repository:' "$$chart/Chart.yaml"; then \
+				echo "Chart.lock missing for $$chart; running helm dependency build --skip-refresh"; \
+				$(HELM) dependency build --skip-refresh "$$chart"; \
+			else \
+				echo "chart $$chart has no external dependencies; skipping helm dependency build"; \
+			fi; \
+			exit 0; \
+		fi; \
+		dep_count="$$(grep -Ec '^- name:' "$$lock" || true)"; \
+		if [ "$$dep_count" -eq 0 ]; then \
+			echo "chart $$chart has no external dependencies; skipping helm dependency build"; \
+			exit 0; \
+		fi; \
+		if [ -n "$$(git status --porcelain --untracked-files=all -- "$$chart/Chart.yaml" "$$lock")" ]; then \
+			echo "chart dependency metadata changed for $$chart; running helm dependency build --skip-refresh"; \
+			$(HELM) dependency build --skip-refresh "$$chart"; \
+			exit 0; \
+		fi; \
+		vendored_count="$$(find "$$charts_dir" -mindepth 1 -maxdepth 1 -name '*.tgz' 2>/dev/null | wc -l | tr -d '[:space:]')"; \
+		if [ "$$vendored_count" != "$$dep_count" ]; then \
+			echo "vendored chart packages missing for $$chart; running helm dependency build --skip-refresh"; \
+			$(HELM) dependency build --skip-refresh "$$chart"; \
+			exit 0; \
+		fi; \
+		echo "chart dependencies already vendored for $$chart; skipping helm dependency build"
+
 services-image-build-local: docker-local-ready
 	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
@@ -470,7 +506,7 @@ k3d-up:
 	$(LOCAL_KUBECTL) get nodes
 
 platform-up: helm-local-ready
-	$(HELM) dependency build $(PLATFORM_CHART)
+	@$(MAKE) --no-print-directory chart-deps-local CHART=$(PLATFORM_CHART)
 	@set -euo pipefail; \
 		$(LOCAL_KUBECTL) create namespace $(PLATFORM_NAMESPACE) --dry-run=client -o yaml | $(LOCAL_KUBECTL) apply -f -; \
 		echo "installing platform release via Helm"; \
@@ -546,7 +582,7 @@ services-up: helm-local-ready
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 		$(MAKE) services-image-local-up; \
 	fi
-	$(HELM) dependency build $(SERVICES_CHART)
+	@$(MAKE) --no-print-directory chart-deps-local CHART=$(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		$(LOCAL_HELM_UPGRADE_FLAGS) \
