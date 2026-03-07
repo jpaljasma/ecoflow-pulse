@@ -212,16 +212,29 @@ function deriveSummaryPvWatts(rawPvW: number, details?: DeviceTelemetryDetails):
     if (maxWatts !== undefined) {
       totalMaxWatts += maxWatts;
     }
-    const watts = sanePositive(port.watts);
+    const watts = saneNonNegative(port.watts);
+    const volts = saneNonNegative(port.volts);
+    const amps = saneNonNegative(port.amps);
     if (watts !== undefined) {
-      if (maxWatts === undefined || watts <= maxWatts * 2) {
-        sum += watts;
-        found = true;
+      if (watts > 0) {
+        if (maxWatts === undefined || watts <= maxWatts * 2) {
+          sum += watts;
+          found = true;
+        }
+        continue;
       }
+      if (volts !== undefined && amps !== undefined) {
+        const derivedWatts = volts * amps;
+        const candidate = derivedWatts > 0 ? derivedWatts : 0;
+        if (maxWatts === undefined || candidate <= maxWatts * 2) {
+          sum += candidate;
+          found = true;
+        }
+        continue;
+      }
+      found = true;
       continue;
     }
-    const volts = sanePositive(port.volts);
-    const amps = sanePositive(port.amps);
     if (volts !== undefined && amps !== undefined) {
       const derivedWatts = volts * amps;
       if (maxWatts === undefined || derivedWatts <= maxWatts * 2) {
@@ -232,7 +245,13 @@ function deriveSummaryPvWatts(rawPvW: number, details?: DeviceTelemetryDetails):
   }
   const detailPvW = found ? sum : 0;
   const saneRawPvW = sanePositive(rawPvW) ?? 0;
-  if (detailPvW > 0 && saneRawPvW > 0) {
+  if (found) {
+    if (detailPvW <= 0) {
+      return 0;
+    }
+    if (saneRawPvW <= 0) {
+      return detailPvW;
+    }
     if (totalMaxWatts > 0 && saneRawPvW > totalMaxWatts * 1.1) {
       return detailPvW;
     }
@@ -243,12 +262,13 @@ function deriveSummaryPvWatts(rawPvW: number, details?: DeviceTelemetryDetails):
     }
     return saneRawPvW;
   }
-  if (saneRawPvW > 0) {
-    return saneRawPvW;
-  }
-  return detailPvW;
+  return saneRawPvW;
 }
 
 function sanePositive(value: number | undefined): number | undefined {
   return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function saneNonNegative(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined;
 }

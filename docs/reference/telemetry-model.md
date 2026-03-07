@@ -69,6 +69,84 @@ The dashboard snapshot aggregates telemetry into these domains:
     detected/recommended panel is bifacial),
   - all-ports combined ETA impact summary rows when multiple PV ports are present.
 
+## PV Derivation Precedence
+
+For live snapshot/read-model derivation (`pulse-platform`, realtime gateway, and
+rollup extraction), PV watts follow this precedence:
+
+- DPU MPPT power fields first: `params.inLvMpptPwr + params.inHvMpptPwr` (or
+  `param.powGetPvL + param.powGetPvH`),
+- then D2M per-port watts: `params.pv1ChargeWatts + params.pv2ChargeWatts`,
+- top-level `pvW` only as fallback when canonical fields are absent.
+
+This preserves explicit zero PV states from canonical fields and prevents stale
+top-level `pvW` values from showing false solar input in live trends/history.
+
+For `/api/devices` summaries, when per-port solar telemetry is explicitly
+reported (including `0 W` on all ports), that per-port reading is authoritative
+over top-level snapshot `pvW` to avoid stale carry-over in device cards.
+
+## DC Derivation Precedence
+
+For live snapshot/read-model derivation, DC watts remain a summed output bucket:
+
+- explicit USB/USB-C/12V/24V/paralleling power fields are summed directly,
+- DPU Anderson output prefers backend electrical telemetry
+  `params.outAdsVol * params.outAdsAmp` when `params.outAdsPwr` is absent or
+  spuriously `0`,
+- `params.outAdsPwr` remains the fallback when backend Anderson volts/amps are
+  not available.
+
+This keeps DPU DC trends aligned with continuous backend Anderson telemetry
+instead of sparse appshow-only power pulses.
+
+## Live Metric Derivation
+
+For live snapshot/read-model derivation (`pulse-platform`, realtime gateway, and
+rollup extraction), the main projected watts metrics are derived as follows:
+
+- `soc`:
+  prefer aggregate display fields such as `params.f32LcdShowSoc`,
+  `params.f32ShowSoc`, `params.cmsBattSoc`, then plain `params.soc`.
+- `pvW`:
+  use the PV precedence described above.
+- `acW`:
+  prefer explicit AC input channels `params.inAcC20Pwr + params.inAc5p8Pwr`,
+  then `params.invInWatts`, then `params.wattsInSum - pvW` clamped at `0`.
+- `dcW`:
+  sum explicit DC-output channels:
+  `carWatts`, `wireWatts`, USB, USB-C, and parallel-output fields.
+  For DPU Anderson output, use backend `params.outAdsVol * params.outAdsAmp`
+  when `params.outAdsPwr` is absent or spuriously `0`; otherwise use
+  `params.outAdsPwr`.
+- `loadW`:
+  prefer `params.wattsOutSum`, then sum explicit output channels
+  (`outAc*`, USB, USB-C, `outPrPwr`, `outAdsPwr`), then fall back to
+  `params.invOutWatts`.
+- `batteryW`:
+  prefer direct battery fields
+  `params.bmsInputWatts/inputWatts - params.bmsOutputWatts/outputWatts`,
+  then `params.batAmp * params.batVol`, then fall back to `acW + pvW - loadW`.
+- `solarGeneratedWh`:
+  backend-owned authoritative history energy metric.
+  Query/read paths populate it from persisted rollup/query results and may
+  perform backend-side minute gap fill using persisted PV history so the UI
+  never derives solar energy client-side.
+
+General derivation rules:
+
+- explicit zero values are preserved so stale positive readings do not linger,
+- capped/canonical fields are preferred over obviously broken fallback values,
+- derived channels are intended to be source-agnostic across MQTT, quota, and
+  replay envelopes.
+
+Frontend rule:
+
+- solar history UI consumes `metrics.solarGeneratedWh` only; it does not derive
+  solar energy from `pvAvgW`.
+- raw MQTT logs are debugging aids only and are never a user-facing source of
+  truth for history views.
+
 ## Minute History Buckets
 
 Minute buckets aggregate many samples into one row.

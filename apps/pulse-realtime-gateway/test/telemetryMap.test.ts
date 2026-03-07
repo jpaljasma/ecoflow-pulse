@@ -26,6 +26,18 @@ describe('telemetryMap', () => {
     expect(metrics.tempC).toBe(20);
   });
 
+  it('derives DPU Anderson watts from backend volts and amps when appshow power is zero', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.outAdsPwr': 0,
+      'params.outAdsAmp': 0.69193053,
+      'params.outAdsVol': 12.95,
+      'params.outUsb1Pwr': 3,
+      'params.outTypec2Pwr': 5
+    });
+
+    expect(metrics.dcW).toBeCloseTo(16.96, 2);
+  });
+
   it('prefers canonical D2M quota PV fields over broken MPPT power fields', () => {
     const metrics = deriveTelemetryMetrics({
       'params.f32ShowSoc': 90,
@@ -74,6 +86,34 @@ describe('telemetryMap', () => {
     });
 
     expect(metrics.pvW).toBe(0);
+  });
+
+  it('prefers explicit zero canonical PV fields over stale top-level pvW', () => {
+    const metrics = deriveTelemetryMetrics({
+      pvW: 260,
+      'params.pv1ChargeWatts': 0,
+      'params.pv2ChargeWatts': 0,
+      'params.inLvMpptPwr': 0,
+      'params.inHvMpptPwr': 0,
+      'params.wattsInSum': 0,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBe(0);
+    expect(metrics.acW).toBe(0);
+  });
+
+  it('prefers explicit zero DPU MPPT fields over stale pv1ChargeWatts', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.pv1ChargeWatts': 260,
+      'params.inLvMpptPwr': 0,
+      'params.inHvMpptPwr': 0,
+      'params.wattsInSum': 0,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBe(0);
+    expect(metrics.acW).toBe(0);
   });
 
   it('does not sum duplicate DPU MPPT power representations', () => {

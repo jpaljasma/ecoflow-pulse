@@ -171,6 +171,63 @@ describe('device client', () => {
     expect(device?.netW).toBeCloseTo(-95.0025, 4);
   });
 
+  it('prefers explicit zero solar ports over stale raw snapshot pv watts', async () => {
+    const zeroSolarDevice = makeProviderDevice();
+    const groups = (zeroSolarDevice.metadata?.groups ?? {}) as Record<string, Record<string, number>>;
+    const mppt = groups.mppt ?? {};
+    mppt.inVol = 0;
+    mppt.inAmp = 0;
+    mppt.outWatts = 0;
+    mppt.pv2InVol = 0;
+    mppt.pv2InAmp = 0;
+    mppt.pv2InWatts = 0;
+    groups.mppt = mppt;
+    const pd = groups.pd ?? {};
+    pd.pv2ChargeWatts = 0;
+    groups.pd = pd;
+    zeroSolarDevice.metadata = {
+      ...(zeroSolarDevice.metadata ?? {}),
+      groups
+    };
+
+    const controlPlaneClient: ControlPlaneClient = {
+      listUserDevices: vi.fn(),
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [zeroSolarDevice]
+        }
+      ]),
+      close: vi.fn()
+    };
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            pvW: 260,
+            'params.soc': 53.53,
+            'params.wattsOutSum': 101,
+            'params.temp': 29
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [device] = await client.listDevices(makeRequest());
+
+    expect(device?.details?.solarPorts?.[0]?.watts).toBe(0);
+    expect(device?.details?.solarPorts?.[1]?.watts).toBe(0);
+    expect(device?.pvW).toBe(0);
+    expect(device?.netW).toBe(-101);
+  });
+
   it('prefers aggregate device soc from quota-derived details over main-pack target soc', async () => {
     const controlPlaneClient: ControlPlaneClient = {
       listUserDevices: vi.fn(),

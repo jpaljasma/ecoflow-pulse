@@ -72,6 +72,7 @@ export const CachedImage = memo(function CachedImage({
   contentFit = 'cover',
   onError
 }: CachedImageProps) {
+  const expoStyle = style as any;
   const isRemoteUri = useMemo(() => /^https?:\/\//i.test(uri), [uri]);
   const [resolvedUri, setResolvedUri] = useState(() => {
     if (Platform.OS !== 'web' || !isRemoteUri) return uri;
@@ -123,7 +124,7 @@ export const CachedImage = memo(function CachedImage({
     ) : (
       <ExpoImage
         source={resolvedUri}
-        style={style}
+        style={expoStyle}
         contentFit={contentFit}
         cachePolicy="memory-disk"
         transition={120}
