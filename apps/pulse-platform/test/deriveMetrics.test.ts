@@ -106,6 +106,31 @@ describe('deriveTelemetryMetrics', () => {
     expect(metrics.acW).toBe(0);
   });
 
+  it('caps stale live PV against total input when cached MPPT fields drift high', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.inLvMpptPwr': 582,
+      'params.inHvMpptPwr': 0,
+      'params.wattsInSum': 324,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBe(324);
+    expect(metrics.acW).toBe(0);
+  });
+
+  it('subtracts explicit AC input before capping stale live PV', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.inLvMpptPwr': 582,
+      'params.inHvMpptPwr': 0,
+      'params.inAcC20Pwr': 100,
+      'params.wattsInSum': 424,
+      'params.wattsOutSum': 0
+    });
+
+    expect(metrics.pvW).toBe(324);
+    expect(metrics.acW).toBe(100);
+  });
+
   it('does not sum duplicate DPU MPPT power representations', () => {
     const metrics = deriveTelemetryMetrics({
       'params.inLvMpptPwr': 157.1652,

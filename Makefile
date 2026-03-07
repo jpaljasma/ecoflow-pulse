@@ -8,6 +8,7 @@ K3D ?= k3d
 HELM ?= helm
 KUBECTL ?= kubectl
 DOCKER ?= docker
+DOCKER_BUILDKIT ?= 1
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 GCLOUD ?= gcloud
 K3D_CLUSTER_NAME ?= pulse-local
@@ -92,6 +93,7 @@ REALTIME_GATEWAY_IMAGE_TAG ?= local
 REALTIME_GATEWAY_IMAGE ?= $(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)
 REALTIME_GATEWAY_IMAGE_DOCKERFILE ?= deploy/docker/pulse-realtime-gateway.Dockerfile
 SERVICES_AUTO_BUILD_IMAGE ?= 1
+DEV_DEPLOY_HELM ?= auto
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
@@ -144,7 +146,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -164,8 +166,14 @@ lint:
 		echo "buf not found; install from https://buf.build/docs/installation/"; \
 		exit 1; \
 	fi
+	@if ! command -v actionlint >/dev/null 2>&1; then \
+		echo "actionlint not found; install with: brew install actionlint"; \
+		exit 1; \
+	fi
 	@echo "running buf lint"
 	@buf lint
+	@echo "running actionlint"
+	@actionlint
 	@echo "running markdownlint"
 	@git ls-files -z '*.md' | xargs -0 markdownlint --config .markdownlint.json
 
@@ -321,7 +329,7 @@ build:
 		$(GO) build -ldflags "$(LDFLAGS)" -o "bin/$$cmd" "./cmd/$$cmd"; \
 	done
 
-services-image-build-local:
+docker-local-ready:
 	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
 		echo "$(DOCKER) not found. Install Docker Desktop first."; \
 		exit 1; \
@@ -334,48 +342,97 @@ services-image-build-local:
 	@if [ ! -f "$(DOCKER_CONFIG_LOCAL)/config.json" ]; then \
 		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
 	fi
-	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
-	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .
 
-services-image-import-local:
+k3d-local-ready:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \
 		echo "$(K3D) not found. Install k3d first."; \
 		exit 1; \
 	fi
+
+helm-local-ready:
+	@if ! command -v $(HELM) >/dev/null 2>&1; then \
+		echo "$(HELM) not found. Install helm first."; \
+		exit 1; \
+	fi
+
+chart-deps-local: helm-local-ready
+	@if [ -z "$(CHART)" ]; then \
+		echo "CHART is required"; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+		chart="$(CHART)"; \
+		lock="$$chart/Chart.lock"; \
+		charts_dir="$$chart/charts"; \
+		if [ ! -f "$$lock" ]; then \
+			if grep -Eq '^[[:space:]]*repository:' "$$chart/Chart.yaml"; then \
+				echo "Chart.lock missing for $$chart; running helm dependency build --skip-refresh"; \
+				$(HELM) dependency build --skip-refresh "$$chart"; \
+			else \
+				echo "chart $$chart has no external dependencies; skipping helm dependency build"; \
+			fi; \
+			exit 0; \
+		fi; \
+		dep_count="$$(grep -Ec '^- name:' "$$lock" || true)"; \
+		if [ "$$dep_count" -eq 0 ]; then \
+			echo "chart $$chart has no external dependencies; skipping helm dependency build"; \
+			exit 0; \
+		fi; \
+		if [ -n "$$(git status --porcelain --untracked-files=all -- "$$chart/Chart.yaml" "$$lock")" ]; then \
+			echo "chart dependency metadata changed for $$chart; running helm dependency build --skip-refresh"; \
+			$(HELM) dependency build --skip-refresh "$$chart"; \
+			exit 0; \
+		fi; \
+		vendored_count="$$(find "$$charts_dir" -mindepth 1 -maxdepth 1 -name '*.tgz' 2>/dev/null | wc -l | tr -d '[:space:]')"; \
+		if [ "$$vendored_count" != "$$dep_count" ]; then \
+			echo "vendored chart packages missing for $$chart; running helm dependency build --skip-refresh"; \
+			$(HELM) dependency build --skip-refresh "$$chart"; \
+			exit 0; \
+		fi; \
+		echo "chart dependencies already vendored for $$chart; skipping helm dependency build"
+
+services-image-build-local: docker-local-ready
+	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
+	fi
+
+services-image-import-local: k3d-local-ready
 	@echo "importing services image $(SERVICES_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)"
 	$(K3D) image import $(SERVICES_IMAGE) -c $(K3D_CLUSTER_NAME)
 
-services-image-local-up: services-image-build-local services-image-import-local
+services-image-local-up:
+	@$(MAKE) --no-print-directory services-image-build-local
+	@$(MAKE) --no-print-directory services-image-import-local
+
+platform-app-image-build-local: docker-local-ready
+	@echo "building public app image $(PLATFORM_APP_IMAGE) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+	fi
+
+realtime-gateway-image-build-local: docker-local-ready
+	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
+	fi
 
 public-images-build-local:
-	@if ! command -v $(DOCKER) >/dev/null 2>&1; then \
-		echo "$(DOCKER) not found. Install Docker Desktop first."; \
-		exit 1; \
-	fi
-	@if ! $(DOCKER) info >/dev/null 2>&1; then \
-		echo "Docker daemon is not running. Start Docker Desktop and retry."; \
-		exit 1; \
-	fi
-	@mkdir -p "$(DOCKER_CONFIG_LOCAL)"
-	@if [ ! -f "$(DOCKER_CONFIG_LOCAL)/config.json" ]; then \
-		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
-	fi
-	@echo "building public app image $(PLATFORM_APP_IMAGE) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
-	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .
-	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
-	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .
+	@$(MAKE) --no-print-directory -j2 platform-app-image-build-local realtime-gateway-image-build-local
 
-public-images-import-local:
-	@if ! command -v $(K3D) >/dev/null 2>&1; then \
-		echo "$(K3D) not found. Install k3d first."; \
-		exit 1; \
-	fi
-	@echo "importing public app image $(PLATFORM_APP_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)"
-	$(K3D) image import $(PLATFORM_APP_IMAGE) -c $(K3D_CLUSTER_NAME)
-	@echo "importing realtime gateway image $(REALTIME_GATEWAY_IMAGE) into k3d cluster $(K3D_CLUSTER_NAME)"
-	$(K3D) image import $(REALTIME_GATEWAY_IMAGE) -c $(K3D_CLUSTER_NAME)
+public-images-import-local: k3d-local-ready
+	@echo "importing public app and realtime gateway images into k3d cluster $(K3D_CLUSTER_NAME)"
+	$(K3D) image import $(PLATFORM_APP_IMAGE) $(REALTIME_GATEWAY_IMAGE) -c $(K3D_CLUSTER_NAME)
 
-public-images-local-up: public-images-build-local public-images-import-local
+public-images-local-up:
+	@$(MAKE) --no-print-directory public-images-build-local
+	@$(MAKE) --no-print-directory public-images-import-local
 
 smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -448,12 +505,8 @@ k3d-up:
 	$(KUBECTL) config use-context $(K3D_CONTEXT)
 	$(LOCAL_KUBECTL) get nodes
 
-platform-up:
-	@if ! command -v $(HELM) >/dev/null 2>&1; then \
-		echo "$(HELM) not found. Install helm first."; \
-		exit 1; \
-	fi
-	$(HELM) dependency build $(PLATFORM_CHART)
+platform-up: helm-local-ready
+	@$(MAKE) --no-print-directory chart-deps-local CHART=$(PLATFORM_CHART)
 	@set -euo pipefail; \
 		$(LOCAL_KUBECTL) create namespace $(PLATFORM_NAMESPACE) --dry-run=client -o yaml | $(LOCAL_KUBECTL) apply -f -; \
 		echo "installing platform release via Helm"; \
@@ -525,15 +578,11 @@ platform-wait:
 	wait_rollout deployment $(PLATFORM_RELEASE)-public-app 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-realtime-gateway 300s
 
-services-up:
-	@if ! command -v $(HELM) >/dev/null 2>&1; then \
-		echo "$(HELM) not found. Install helm first."; \
-		exit 1; \
-	fi
+services-up: helm-local-ready
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 		$(MAKE) services-image-local-up; \
 	fi
-	$(HELM) dependency build $(SERVICES_CHART)
+	@$(MAKE) --no-print-directory chart-deps-local CHART=$(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		$(LOCAL_HELM_UPGRADE_FLAGS) \
@@ -583,16 +632,64 @@ dev-down:
 
 # public-images-local-up rebuilds and imports the updated pulse-platform and pulse-realtime-gateway images.
 # services-up re-applies Helm and, by default, auto-builds/imports the Go workers image.
+# dev-deploy defaults to a Helm fast path (`DEV_DEPLOY_HELM=auto`) that skips Helm re-apply unless the
+# local chart/values files changed or the release is missing. Use `DEV_DEPLOY_HELM=always` to force full Helm apply.
 # The rollout restart calls are important because the images use the same :local tag with IfNotPresent, so importing alone will not replace already-running pods.
-dev-deploy: public-images-local-up platform-up services-up
+dev-deploy:
+	@set -euo pipefail; \
+		helm_mode="$(DEV_DEPLOY_HELM)"; \
+		platform_apply=0; \
+		services_apply=0; \
+		case "$$helm_mode" in \
+			always|1|true) \
+				platform_apply=1; \
+				services_apply=1; \
+				;; \
+			never|0|false) \
+				;; \
+			auto) \
+				if ! $(LOCAL_HELM) status $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1; then \
+					platform_apply=1; \
+				fi; \
+				if ! $(LOCAL_HELM) status $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1; then \
+					services_apply=1; \
+				fi; \
+				if [ -n "$$(git status --porcelain --untracked-files=all -- $(PLATFORM_CHART) $(LOCAL_PLATFORM_VALUES))" ]; then \
+					platform_apply=1; \
+				fi; \
+				if [ -n "$$(git status --porcelain --untracked-files=all -- $(SERVICES_CHART) $(LOCAL_SERVICES_VALUES))" ]; then \
+					services_apply=1; \
+				fi; \
+				;; \
+			*) \
+				echo "unsupported DEV_DEPLOY_HELM=$$helm_mode (expected auto, always, or never)"; \
+				exit 1; \
+				;; \
+		esac; \
+		$(MAKE) --no-print-directory public-images-local-up; \
+		if [ "$$platform_apply" = "1" ]; then \
+			echo "applying platform Helm release"; \
+			$(MAKE) --no-print-directory platform-up; \
+		else \
+			echo "skipping platform Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
+		fi; \
+		if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
+			$(MAKE) --no-print-directory services-image-local-up; \
+		fi; \
+		if [ "$$services_apply" = "1" ]; then \
+			echo "applying services Helm release"; \
+			$(MAKE) --no-print-directory SERVICES_AUTO_BUILD_IMAGE=0 services-up; \
+		else \
+			echo "skipping services Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
+		fi
 	@echo "restarting updated local deployments"
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-public-app
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-realtime-gateway
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout restart deploy/pulse-services-go-rollup
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-realtime-gateway
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-public-app
 	@echo "waiting for restarted deployments"
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-public-app --timeout=300s
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-realtime-gateway --timeout=300s
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout status deploy/pulse-services-go-rollup --timeout=300s
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-realtime-gateway --timeout=300s
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-public-app --timeout=300s
 	@echo "showing deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy
