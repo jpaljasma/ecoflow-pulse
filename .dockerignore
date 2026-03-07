@@ -12,6 +12,10 @@ logs
 *.test
 *.tsbuildinfo
 apps/universal/dist
+apps/universal/dist-check*
+apps/pulse-platform/dist
+apps/pulse-realtime-gateway/dist
+packages/node-jwks-auth/dist
 apps/universal/.expo
 deploy/charts/*/charts
 deploy/charts/*/tmpcharts-*

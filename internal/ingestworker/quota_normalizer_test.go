@@ -172,10 +172,19 @@ func TestNormalizeEcoFlowQuotaScalesD2MMilliUnits(t *testing.T) {
 	if got, ok := numberFromAny(normalized.Params["inLvMpptPwr"]); !ok || math.Abs(got-(10.499*0.133)) > 1e-9 {
 		t.Fatalf("scaled inLvMpptPwr mismatch: got=%v ok=%v", got, ok)
 	}
+	if got, ok := numberFromAny(normalized.Params["inHvMpptAmp"]); !ok || got != 0.033 {
+		t.Fatalf("scaled inHvMpptAmp mismatch: got=%v ok=%v", got, ok)
+	}
+	if got, ok := numberFromAny(normalized.Params["inHvMpptPwr"]); !ok || math.Abs(got-(15.118*0.033)) > 1e-9 {
+		t.Fatalf("scaled inHvMpptPwr mismatch: got=%v ok=%v", got, ok)
+	}
 	groups, _ := normalized.Metadata["groups"].(map[string]any)
 	mppt, _ := groups["mppt"].(map[string]any)
 	if got := mppt["inVol"]; got != 10.499 {
 		t.Fatalf("grouped scaled mppt.inVol mismatch: got=%v", got)
+	}
+	if got := mppt["pv2InAmp"]; got != 0.033 {
+		t.Fatalf("grouped scaled mppt.pv2InAmp mismatch: got=%v", got)
 	}
 	inv, _ := groups["inv"].(map[string]any)
 	if got := inv["acInVol"]; got != 119.26 {
