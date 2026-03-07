@@ -220,10 +220,28 @@ describe('telemetryMap', () => {
         solarChargingOn: true
       },
       solarPorts: [
-        { id: 'pv-1', name: 'PV 1', state: 'charging', volts: 16.4, amps: 5, watts: 82 },
+        { id: 'pv-1', name: 'PV 1', state: 'charging', volts: 16.4, amps: 5, watts: 25 },
         { id: 'pv-2', name: 'PV 2', state: 'charging', volts: 40.9, amps: 5.18, watts: 212 }
       ]
     });
+  });
+
+  it('falls back to outWatts for D2M pv1 only when direct per-port watts are absent', () => {
+    const detail = deriveTelemetryDetail({
+      'params.outWatts': 82,
+      'params.pv2ChargeWatts': 212,
+      'params.inVol': 16400,
+      'params.inAmp': 5000,
+      'params.pv2InVol': 40900,
+      'params.pv2InAmp': 5180,
+      'params.chgState': 2,
+      'params.pv2ChgState': 1
+    });
+
+    expect(detail?.solarPorts).toEqual([
+      { id: 'pv-1', name: 'PV 1', state: 'charging', volts: 16.4, amps: 5, watts: 82 },
+      { id: 'pv-2', name: 'PV 2', state: 'charging', volts: 40.9, amps: 5.18, watts: 212 }
+    ]);
   });
 
   it('prefers explicit preconditioning state over stale heat-time fallback', () => {

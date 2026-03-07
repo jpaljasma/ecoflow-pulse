@@ -428,7 +428,7 @@ function deriveD2MSolarPortLow(raw: RawTelemetryMetrics): DerivedTelemetrySolarP
   const amps = normalizeMilliamps(firstNumber(raw, 'params.inAmp', 'params.inLvMpptAmp'), 15);
   const watts = sanitizeSolarWatts(
     firstDefined(
-      firstNumber(raw, 'params.outWatts', 'params.pv1ChargeWatts', 'params.inLvMpptPwr'),
+      firstNumber(raw, 'params.pv1ChargeWatts', 'params.outWatts', 'params.inLvMpptPwr'),
       multiplyNumbers(volts, amps)
     ),
     500
