@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -40,13 +41,13 @@ func TestMinuteTelemetryHistoryAggregatesByMinute(t *testing.T) {
 	if rows[0][0] != "2026-02-15 10:02" {
 		t.Fatalf("newest row time mismatch: got=%q want=%q", rows[0][0], "2026-02-15 10:02")
 	}
-	if rows[0][1] != "n/a" || rows[0][2] != "0.5" || rows[0][3] != "11.7" || rows[0][4] != "1.5" || rows[0][5] != "0.2" || rows[0][6] != "n/a" || rows[0][7] != "12.2" || rows[0][8] != "1.7" || rows[0][9] != "n/a" {
+	if rows[0][1] != "n/a" || rows[0][2] != "0.1" || rows[0][3] != "1.2" || rows[0][4] != "0.2" || rows[0][5] != "0.1" || rows[0][6] != "n/a" || rows[0][7] != "1.3" || rows[0][8] != "0.2" || rows[0][9] != "n/a" {
 		t.Fatalf("newest row metrics mismatch: got=%v", rows[0])
 	}
 	if rows[1][0] != "2026-02-15 10:01" {
 		t.Fatalf("older row time mismatch: got=%q want=%q", rows[1][0], "2026-02-15 10:01")
 	}
-	if rows[1][1] != "n/a" || rows[1][2] != "1.0" || rows[1][3] != "14.2" || rows[1][4] != "1.8" || rows[1][5] != "0.5" || rows[1][6] != "n/a" || rows[1][7] != "15.2" || rows[1][8] != "2.3" || rows[1][9] != "n/a" {
+	if rows[1][1] != "n/a" || rows[1][2] != "0.9" || rows[1][3] != "12.9" || rows[1][4] != "1.7" || rows[1][5] != "0.4" || rows[1][6] != "n/a" || rows[1][7] != "13.8" || rows[1][8] != "2.1" || rows[1][9] != "n/a" {
 		t.Fatalf("older row averages mismatch: got=%v", rows[1])
 	}
 }
@@ -82,17 +83,18 @@ func TestMinuteTelemetryRowsUseBatteryNetForChargeAndNetWh(t *testing.T) {
 	snapshot.HasBatteryOut = true
 	snapshot.BatteryOutWatts = 20
 	history.AddSample(at, snapshot)
+	history.AddSample(at.Add(time.Minute), snapshot)
 
-	rows := buildMinuteTelemetryRows(history, minuteTableConfig{Rows: 1, NewestFirst: true})
+	rows := buildMinuteTelemetryRows(history, minuteTableConfig{Rows: 1, NewestFirst: false})
 	if len(rows) != 1 {
 		t.Fatalf("row count mismatch: got=%d want=1", len(rows))
 	}
-	// Battery net is +100W => 100/60 = 1.666...Wh -> 1.7 in display.
-	if rows[0][6] != "1.7" {
-		t.Fatalf("battery charge wh mismatch: got=%s want=1.7 row=%v", rows[0][6], rows[0])
+	// Battery net is +100W over 50s of elapsed time in the 12:34 bucket.
+	if rows[0][6] != "1.4" {
+		t.Fatalf("battery charge wh mismatch: got=%s want=1.4 row=%v", rows[0][6], rows[0])
 	}
-	if rows[0][9] != "1.7" {
-		t.Fatalf("net wh mismatch: got=%s want=1.7 row=%v", rows[0][9], rows[0])
+	if rows[0][9] != "1.4" {
+		t.Fatalf("net wh mismatch: got=%s want=1.4 row=%v", rows[0][9], rows[0])
 	}
 }
 
@@ -244,5 +246,68 @@ func TestMinuteTelemetryTracksAverageSOCPerMinute(t *testing.T) {
 	}
 	if rows[0][1] != "15.00" {
 		t.Fatalf("soc minute average mismatch: got=%s want=15.00", rows[0][1])
+	}
+}
+
+func TestMinuteTelemetryIntegratesSolarEnergyByElapsedTime(t *testing.T) {
+	history := newMinuteTelemetryHistory(16)
+	snapshot := newEnergySnapshot()
+	snapshot.InPVWatts = 60
+	snapshot.HasInPV = true
+
+	start := time.Date(2026, time.February, 15, 12, 0, 0, 0, time.Local)
+	history.AddSample(start, snapshot)
+
+	snapshot.InPVWatts = 120
+	history.AddSample(start.Add(30*time.Second), snapshot)
+	history.AddSample(start.Add(time.Minute), snapshot)
+
+	bucket, ok := history.Bucket(start.Unix())
+	if !ok {
+		t.Fatalf("missing bucket for integrated minute")
+	}
+	if bucket.SolarWattSeconds != 5400 {
+		t.Fatalf("solar watt-seconds mismatch: got=%f want=5400", bucket.SolarWattSeconds)
+	}
+
+	rows := buildMinuteTelemetryRows(history, minuteTableConfig{Rows: 1, NewestFirst: false})
+	if len(rows) != 1 {
+		t.Fatalf("row count mismatch: got=%d want=1", len(rows))
+	}
+	if rows[0][2] != "1.5" {
+		t.Fatalf("solar Wh mismatch: got=%s want=1.5", rows[0][2])
+	}
+}
+
+func TestMinuteTelemetryStoreBackfillsLegacyEnergyFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "telemetry_history_legacy.jsonl")
+	record := `{"version":1,"device_sn":"SN-1","minute_start_unix":1739631600,"solar_sum_watts":1200,"solar_samples":5}` + "\n"
+	if err := os.WriteFile(path, []byte(record), 0o644); err != nil {
+		t.Fatalf("write legacy history: %v", err)
+	}
+
+	store, err := newMinuteTelemetryStore(path)
+	if err != nil {
+		t.Fatalf("new minute telemetry store: %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	loaded := newMinuteTelemetryHistory(32)
+	loadedCount, err := store.LoadInto("SN-1", loaded)
+	if err != nil {
+		t.Fatalf("load legacy history: %v", err)
+	}
+	if loadedCount != 1 {
+		t.Fatalf("loadedCount mismatch: got=%d want=1", loadedCount)
+	}
+
+	bucket, ok := loaded.Bucket(1739631600)
+	if !ok {
+		t.Fatalf("missing legacy bucket")
+	}
+	if bucket.SolarWattSeconds != 14400 {
+		t.Fatalf("legacy solar watt-seconds mismatch: got=%f want=14400", bucket.SolarWattSeconds)
 	}
 }

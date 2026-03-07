@@ -100,7 +100,8 @@ RACE_CRITICAL_PKGS ?= ./internal/ingestworker ./internal/ingestlease ./internal/
 RACE_STRESS_COUNT ?= 5
 LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
 LOCAL_HELM = $(HELM) --kube-context $(K3D_CONTEXT)
-PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace -f $(LOCAL_PLATFORM_VALUES)
+LOCAL_HELM_UPGRADE_FLAGS ?= --server-side=true --force-conflicts
+PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace $(LOCAL_HELM_UPGRADE_FLAGS) -f $(LOCAL_PLATFORM_VALUES)
 LOCAL_PLATFORM_MANIFEST ?= $(CURDIR)/.tmp/pulse-platform.rendered.yaml
 K6_SCRIPT ?= load/k6/main.js
 K6_API_BASE_URL ?= http://127.0.0.1
@@ -130,6 +131,12 @@ K6_NATS_SERVICE ?= pulse-platform-nats
 K6_NATS_LOCAL_PORT ?= 14222
 K6_INGEST_BRIDGE_ADDR ?= 127.0.0.1:19090
 K6_TELEMETRY_SUBJECT_PREFIX ?= pulse
+REGEN_DB_LOCAL_PORT ?= 15433
+REGEN_NATS_LOCAL_PORT ?= 14223
+REGEN_MINIO_LOCAL_PORT ?= 19001
+REGEN_FROM ?=
+REGEN_TO ?=
+REGEN_MAX_OBJECTS ?= 0
 
 export GOCACHE
 export GOMODCACHE
@@ -137,7 +144,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker services-image-build-local services-image-import-local services-image-local-up public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -529,6 +536,7 @@ services-up:
 	$(HELM) dependency build $(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
+		$(LOCAL_HELM_UPGRADE_FLAGS) \
 		-f $(LOCAL_SERVICES_VALUES)
 
 services-wait:
@@ -572,6 +580,94 @@ dev-down:
 	else \
 		echo "cluster preserved (set DELETE_CLUSTER=1 to delete)"; \
 	fi
+
+# public-images-local-up rebuilds and imports the updated pulse-platform and pulse-realtime-gateway images.
+# services-up re-applies Helm and, by default, auto-builds/imports the Go workers image.
+# The rollout restart calls are important because the images use the same :local tag with IfNotPresent, so importing alone will not replace already-running pods.
+dev-deploy: public-images-local-up platform-up services-up
+	@echo "restarting updated local deployments"
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-public-app
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-realtime-gateway
+	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout restart deploy/pulse-services-go-rollup
+	@echo "waiting for restarted deployments"
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-public-app --timeout=300s
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-realtime-gateway --timeout=300s
+	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout status deploy/pulse-services-go-rollup --timeout=300s
+	@echo "showing deployment state and recent realtime gateway logs"
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
+	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) logs deploy/pulse-platform-realtime-gateway --since=5m
+
+dev-regen-data:
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	db_log=/tmp/pulse-regen-db-portforward.log; \
+	nats_log=/tmp/pulse-regen-nats-portforward.log; \
+	minio_log=/tmp/pulse-regen-minio-portforward.log; \
+	echo "starting postgres port-forward on 127.0.0.1:$(REGEN_DB_LOCAL_PORT) (log: $$db_log)"; \
+	$(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) port-forward svc/$(DB_MIGRATION_CLUSTER)-rw $(REGEN_DB_LOCAL_PORT):5432 >$$db_log 2>&1 & \
+	db_pid=$$!; \
+	echo "starting minio port-forward on 127.0.0.1:$(REGEN_MINIO_LOCAL_PORT) (log: $$minio_log)"; \
+	$(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) port-forward svc/$(ARCHIVE_INTEGRATION_SERVICE) $(REGEN_MINIO_LOCAL_PORT):9000 >$$minio_log 2>&1 & \
+	minio_pid=$$!; \
+	cleanup() { \
+		kill $$db_pid >/dev/null 2>&1 || true; \
+		kill $$minio_pid >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	sleep 2; \
+	if [ -n "$(REGEN_FROM)" ]; then \
+		from="$(REGEN_FROM)"; \
+	else \
+		from="$$(date -u -v-48H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '-48 hours' '+%Y-%m-%dT%H:%M:%SZ')"; \
+	fi; \
+	if [ -n "$(REGEN_TO)" ]; then \
+		to="$(REGEN_TO)"; \
+	else \
+		to="$$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; \
+	fi; \
+	replay_started_at="$$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; \
+	db_user="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.username}' | base64 -d )"; \
+	db_pass="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.password}' | base64 -d )"; \
+	access_key="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootUser}' | base64 -d )"; \
+	secret_key="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootPassword}' | base64 -d )"; \
+	primary="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get pods -l cnpg.io/cluster=$(DB_MIGRATION_CLUSTER),cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}' )"; \
+	if [ -z "$$primary" ]; then \
+		echo "no CNPG primary pod found for cluster=$(DB_MIGRATION_CLUSTER) in namespace=$(PLATFORM_NAMESPACE)"; \
+		exit 1; \
+	fi; \
+	echo "rebuilding archive-backed rollups safely for all devices from $$from to $$to"; \
+	device_args=""; \
+	if [ -n "$(REGEN_PROVIDER)" ]; then device_args="$$device_args -provider '$(REGEN_PROVIDER)'"; fi; \
+	if [ -n "$(REGEN_DEVICE_IDS)" ]; then device_args="$$device_args -device-ids '$(REGEN_DEVICE_IDS)'"; fi; \
+	if [ -n "$(REGEN_PROVIDER_DEVICE_IDS)" ]; then device_args="$$device_args -provider-device-ids '$(REGEN_PROVIDER_DEVICE_IDS)'"; fi; \
+	if [ -n "$(REGEN_PARALLELISM)" ]; then device_args="$$device_args -parallelism $(REGEN_PARALLELISM)"; fi; \
+	CONTROL_PLANE_DB_DSN="postgresql://$$db_user:$$db_pass@127.0.0.1:$(REGEN_DB_LOCAL_PORT)/$(DB_MIGRATION_DB)" \
+	ARCHIVE_OBJECT_ENDPOINT="127.0.0.1:$(REGEN_MINIO_LOCAL_PORT)" \
+	ARCHIVE_OBJECT_ACCESS_KEY="$$access_key" \
+	ARCHIVE_OBJECT_SECRET_KEY="$$secret_key" \
+	sh -c "$(GO) run ./cmd/ecoflow-rollup-rebuild -from '$$from' -to '$$to' -max-objects $(REGEN_MAX_OBJECTS) $$device_args"; \
+	proof_sql="WITH bounds AS (SELECT '$$from'::timestamptz AS current_from, '$$to'::timestamptz AS current_to, ('$$to'::timestamptz - '$$from'::timestamptz) AS window_size), current_rows AS (SELECT provider_device_id, bucket_start, updated_at, COALESCE(solar_generated_wh, CASE WHEN COALESCE(pv_avg_w, 0) > 0 THEN pv_avg_w / 60.0 ELSE 0 END) AS derived_solar_generated_wh FROM telemetry_rollup_minute, bounds WHERE bucket_start >= bounds.current_from AND bucket_start < bounds.current_to), previous_rows AS (SELECT provider_device_id, COALESCE(solar_generated_wh, CASE WHEN COALESCE(pv_avg_w, 0) > 0 THEN pv_avg_w / 60.0 ELSE 0 END) AS derived_solar_generated_wh FROM telemetry_rollup_minute, bounds WHERE bucket_start >= bounds.current_from - bounds.window_size AND bucket_start < bounds.current_from), devices AS (SELECT provider_device_id FROM current_rows UNION SELECT provider_device_id FROM previous_rows) SELECT devices.provider_device_id || '|' || COALESCE(curr.touched_buckets, 0) || '|' || COALESCE(curr.total_buckets, 0) || '|' || COALESCE(curr.latest_bucket_utc, 'n/a') || '|' || ROUND(COALESCE(curr.current_wh, 0)::numeric, 2) || '|' || ROUND(COALESCE(prev.previous_wh, 0)::numeric, 2) || '|' || CASE WHEN COALESCE(prev.previous_wh, 0) > 0 THEN ROUND((((COALESCE(curr.current_wh, 0) - prev.previous_wh) / prev.previous_wh) * 100)::numeric, 2)::text ELSE 'n/a' END FROM devices LEFT JOIN (SELECT provider_device_id, COUNT(*) FILTER (WHERE updated_at >= '$$replay_started_at'::timestamptz) AS touched_buckets, COUNT(*) AS total_buckets, COALESCE(to_char(MAX(bucket_start) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), 'n/a') AS latest_bucket_utc, SUM(derived_solar_generated_wh) AS current_wh FROM current_rows GROUP BY provider_device_id) curr ON curr.provider_device_id = devices.provider_device_id LEFT JOIN (SELECT provider_device_id, SUM(derived_solar_generated_wh) AS previous_wh FROM previous_rows GROUP BY provider_device_id) prev ON prev.provider_device_id = devices.provider_device_id ORDER BY devices.provider_device_id;"; \
+	for attempt in $$(seq 1 30); do \
+		proof_rows="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) exec "$$primary" -- env PGPASSWORD="$$db_pass" psql -h "$(DB_MIGRATION_CLUSTER)-rw" -U "$$db_user" -d "$(DB_MIGRATION_DB)" -v ON_ERROR_STOP=1 -Atc "$$proof_sql" )"; \
+		touched="$$( printf '%s\n' "$$proof_rows" | awk -F'|' 'NF >= 5 { sum += $$2 } END { print sum + 0 }' )"; \
+		if [ "$$touched" -gt 0 ]; then \
+			echo "replay proof (provider_device_id|touched_buckets|total_buckets|latest_bucket_utc|current_window_derived_solar_generated_wh|previous_window_derived_solar_generated_wh|delta_pct)"; \
+			printf '%s\n' "$$proof_rows"; \
+			break; \
+		fi; \
+		if [ $$attempt -eq 30 ]; then \
+			echo "no rollup buckets updated after replay window $$from -> $$to"; \
+			echo "proof query returned:"; \
+			printf '%s\n' "$$proof_rows"; \
+			exit 1; \
+		fi; \
+		sleep 2; \
+	done
 
 db-migrate-up-local:
 	@set -euo pipefail; \

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -153,13 +154,14 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 		return Series{}, fmt.Errorf("iterate telemetry rollup rows: %w", err)
 	}
 
-	return Series{
+	series := Series{
 		DeviceID:   query.DeviceID,
 		Resolution: query.Resolution,
 		From:       from,
 		To:         to,
 		Points:     points,
-	}, nil
+	}
+	return enrichSolarEnergy(series), nil
 }
 
 func buildQuery(table string) string {
@@ -202,5 +204,50 @@ func nullableFloat64(value sql.NullFloat64) *float64 {
 		return nil
 	}
 	v := value.Float64
+	return &v
+}
+
+func enrichSolarEnergy(series Series) Series {
+	if len(series.Points) == 0 {
+		return series
+	}
+
+	points := make([]Point, 0, len(series.Points))
+	for _, point := range series.Points {
+		points = append(points, withDerivedSolarEnergy(point, series.Resolution))
+	}
+	series.Points = points
+	return series
+}
+
+func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
+	if point.Metrics.SolarGeneratedWh != nil {
+		return point
+	}
+	pvAvgW, ok := positiveMetricValue(point.Metrics.PVAvgW)
+	if !ok {
+		return point
+	}
+	durationHours := point.BucketEnd.Sub(point.BucketStart).Hours()
+	if resolution == ResolutionMinute && durationHours <= 0 {
+		durationHours = time.Minute.Hours()
+	}
+	if durationHours <= 0 {
+		return point
+	}
+	solarWh := pvAvgW * durationHours
+	point.Metrics.SolarGeneratedWh = floatPtr(solarWh)
+	return point
+}
+
+func positiveMetricValue(value *float64) (float64, bool) {
+	if value == nil || *value <= 0 {
+		return 0, false
+	}
+	return *value, true
+}
+
+func floatPtr(value float64) *float64 {
+	v := value
 	return &v
 }

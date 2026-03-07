@@ -74,6 +74,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - `make services-image-build-local`
    - `make services-image-import-local`
 4. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
+5. Historical rollup regeneration must be non-destructive by default:
+   - do not delete a requested rollup window before rebuilding it,
+   - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.
+6. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
 
 ## Go Lint Hygiene Rules
 1. `golangci-lint run ./...` must pass before commit.
@@ -662,6 +666,11 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
    - when OIDC is configured, gate both REST queries and websocket connect on persisted auth-store hydration,
    - expose explicit `auth_required` client transport state instead of attempting anonymous realtime fallback,
    - keep websocket lifecycle ownership in the provider/context layer so token refresh/reconnect does not clear per-screen subscriptions.
+
+12. Historical solar metric rules:
+   - `solar_generated_wh` from backend storage/query results is authoritative for history/comparison views,
+   - UI code must never derive historical solar energy from `pvAvgW` or raw power samples,
+   - any solar-history repair, gap-fill, or regeneration logic must live in backend ingestion/query/storage paths, not in React components.
 
 ## Realtime Gateway Workflow (M4)
 Use this when working on `apps/pulse-realtime-gateway` and the live telemetry delivery path.

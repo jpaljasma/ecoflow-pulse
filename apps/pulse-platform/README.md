@@ -9,3 +9,5 @@ Authenticated history endpoints are rate-limited per client IP to bound abuse an
 - `GET /healthz`
 - `GET /api/v1/devices/:deviceId/history`
 - `GET /api/v1/devices/:deviceId/history/compare`
+- `GET /api/v1/devices/:deviceId/history/solar`
+- `GET /api/v1/history/solar/fleet`

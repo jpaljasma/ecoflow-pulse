@@ -1,9 +1,10 @@
 # ADR-0014: Provider device integration model and distributed MQTT ingest leases
 
-**Status:** Accepted  
+**Status:** Superseded  
 **Date:** 2026-02-22  
 **Owners:** Jaan  
 **Related:** ADR-0003, ADR-0004, ADR-0012, ADR-0013
+**Superseded by:** ADR-0015 (quota archive exclusion rule only)
 
 ---
 

@@ -624,27 +624,36 @@ type minuteTableConfig struct {
 }
 
 type minuteTelemetryBucket struct {
-	MinuteStartUnix       int64
-	SOCSumPercent         float64
-	SOCSamples            int
-	SOCLastPercent        float64
-	SolarSumWatts         float64
-	SolarSamples          int
-	ACInSumWatts          float64
-	ACInSamples           int
-	ACOutSumWatts         float64
-	ACOutSamples          int
-	DCOutSumWatts         float64
-	DCOutSamples          int
-	BatteryChargeSumWatts float64
-	BatteryChargeSamples  int
-	BatteryNetSumWatts    float64
-	BatteryNetSamples     int
+	MinuteStartUnix          int64
+	SOCSumPercent            float64
+	SOCSamples               int
+	SOCLastPercent           float64
+	SolarSumWatts            float64
+	SolarSamples             int
+	SolarWattSeconds         float64
+	ACInSumWatts             float64
+	ACInSamples              int
+	ACInWattSeconds          float64
+	ACOutSumWatts            float64
+	ACOutSamples             int
+	ACOutWattSeconds         float64
+	DCOutSumWatts            float64
+	DCOutSamples             int
+	DCOutWattSeconds         float64
+	BatteryChargeSumWatts    float64
+	BatteryChargeSamples     int
+	BatteryChargeWattSeconds float64
+	BatteryNetSumWatts       float64
+	BatteryNetSamples        int
+	BatteryNetWattSeconds    float64
 }
 
 type minuteTelemetryHistory struct {
-	buckets    map[int64]*minuteTelemetryBucket
-	maxBuckets int
+	buckets        map[int64]*minuteTelemetryBucket
+	maxBuckets     int
+	lastSampleAt   time.Time
+	hasLastSample  bool
+	lastPowerState minuteTelemetryPowerState
 }
 
 type powerTelemetryBucket struct {
@@ -674,29 +683,49 @@ type powerTelemetryHistory struct {
 }
 
 type minuteTelemetryRecord struct {
-	Version               int     `json:"version"`
-	DeviceSN              string  `json:"device_sn"`
-	MinuteStartUnix       int64   `json:"minute_start_unix"`
-	SOCSumPercent         float64 `json:"soc_sum_percent"`
-	SOCSamples            int     `json:"soc_samples"`
-	SolarSumWatts         float64 `json:"solar_sum_watts"`
-	SolarSamples          int     `json:"solar_samples"`
-	ACInSumWatts          float64 `json:"ac_in_sum_watts"`
-	ACInSamples           int     `json:"ac_in_samples"`
-	ACOutSumWatts         float64 `json:"ac_out_sum_watts"`
-	ACOutSamples          int     `json:"ac_out_samples"`
-	DCOutSumWatts         float64 `json:"dc_out_sum_watts"`
-	DCOutSamples          int     `json:"dc_out_samples"`
-	BatteryChargeSumWatts float64 `json:"battery_charge_sum_watts"`
-	BatteryChargeSamples  int     `json:"battery_charge_samples"`
-	BatteryNetSumWatts    float64 `json:"battery_net_sum_watts"`
-	BatteryNetSamples     int     `json:"battery_net_samples"`
+	Version                  int     `json:"version"`
+	DeviceSN                 string  `json:"device_sn"`
+	MinuteStartUnix          int64   `json:"minute_start_unix"`
+	SOCSumPercent            float64 `json:"soc_sum_percent"`
+	SOCSamples               int     `json:"soc_samples"`
+	SolarSumWatts            float64 `json:"solar_sum_watts"`
+	SolarSamples             int     `json:"solar_samples"`
+	SolarWattSeconds         float64 `json:"solar_watt_seconds,omitempty"`
+	ACInSumWatts             float64 `json:"ac_in_sum_watts"`
+	ACInSamples              int     `json:"ac_in_samples"`
+	ACInWattSeconds          float64 `json:"ac_in_watt_seconds,omitempty"`
+	ACOutSumWatts            float64 `json:"ac_out_sum_watts"`
+	ACOutSamples             int     `json:"ac_out_samples"`
+	ACOutWattSeconds         float64 `json:"ac_out_watt_seconds,omitempty"`
+	DCOutSumWatts            float64 `json:"dc_out_sum_watts"`
+	DCOutSamples             int     `json:"dc_out_samples"`
+	DCOutWattSeconds         float64 `json:"dc_out_watt_seconds,omitempty"`
+	BatteryChargeSumWatts    float64 `json:"battery_charge_sum_watts"`
+	BatteryChargeSamples     int     `json:"battery_charge_samples"`
+	BatteryChargeWattSeconds float64 `json:"battery_charge_watt_seconds,omitempty"`
+	BatteryNetSumWatts       float64 `json:"battery_net_sum_watts"`
+	BatteryNetSamples        int     `json:"battery_net_samples"`
+	BatteryNetWattSeconds    float64 `json:"battery_net_watt_seconds,omitempty"`
 }
 
 type minuteTelemetryStore struct {
 	path  string
 	sink  *fileAppendSink
 	queue *asyncChunkQueue
+}
+
+type minuteTelemetryChannelPower struct {
+	value float64
+	ok    bool
+}
+
+type minuteTelemetryPowerState struct {
+	solar         minuteTelemetryChannelPower
+	acIn          minuteTelemetryChannelPower
+	acOut         minuteTelemetryChannelPower
+	dcOut         minuteTelemetryChannelPower
+	batteryCharge minuteTelemetryChannelPower
+	batteryNet    minuteTelemetryChannelPower
 }
 
 type rollingAverage struct {
@@ -1138,23 +1167,29 @@ func (s *minuteTelemetryStore) AppendBucket(deviceSN string, bucket minuteTeleme
 		return nil
 	}
 	record := minuteTelemetryRecord{
-		Version:               1,
-		DeviceSN:              strings.TrimSpace(deviceSN),
-		MinuteStartUnix:       bucket.MinuteStartUnix,
-		SOCSumPercent:         bucket.SOCSumPercent,
-		SOCSamples:            bucket.SOCSamples,
-		SolarSumWatts:         bucket.SolarSumWatts,
-		SolarSamples:          bucket.SolarSamples,
-		ACInSumWatts:          bucket.ACInSumWatts,
-		ACInSamples:           bucket.ACInSamples,
-		ACOutSumWatts:         bucket.ACOutSumWatts,
-		ACOutSamples:          bucket.ACOutSamples,
-		DCOutSumWatts:         bucket.DCOutSumWatts,
-		DCOutSamples:          bucket.DCOutSamples,
-		BatteryChargeSumWatts: bucket.BatteryChargeSumWatts,
-		BatteryChargeSamples:  bucket.BatteryChargeSamples,
-		BatteryNetSumWatts:    bucket.BatteryNetSumWatts,
-		BatteryNetSamples:     bucket.BatteryNetSamples,
+		Version:                  2,
+		DeviceSN:                 strings.TrimSpace(deviceSN),
+		MinuteStartUnix:          bucket.MinuteStartUnix,
+		SOCSumPercent:            bucket.SOCSumPercent,
+		SOCSamples:               bucket.SOCSamples,
+		SolarSumWatts:            bucket.SolarSumWatts,
+		SolarSamples:             bucket.SolarSamples,
+		SolarWattSeconds:         bucket.SolarWattSeconds,
+		ACInSumWatts:             bucket.ACInSumWatts,
+		ACInSamples:              bucket.ACInSamples,
+		ACInWattSeconds:          bucket.ACInWattSeconds,
+		ACOutSumWatts:            bucket.ACOutSumWatts,
+		ACOutSamples:             bucket.ACOutSamples,
+		ACOutWattSeconds:         bucket.ACOutWattSeconds,
+		DCOutSumWatts:            bucket.DCOutSumWatts,
+		DCOutSamples:             bucket.DCOutSamples,
+		DCOutWattSeconds:         bucket.DCOutWattSeconds,
+		BatteryChargeSumWatts:    bucket.BatteryChargeSumWatts,
+		BatteryChargeSamples:     bucket.BatteryChargeSamples,
+		BatteryChargeWattSeconds: bucket.BatteryChargeWattSeconds,
+		BatteryNetSumWatts:       bucket.BatteryNetSumWatts,
+		BatteryNetSamples:        bucket.BatteryNetSamples,
+		BatteryNetWattSeconds:    bucket.BatteryNetWattSeconds,
 	}
 	payload, err := json.Marshal(record)
 	if err != nil {
@@ -1218,22 +1253,29 @@ func (s *minuteTelemetryStore) LoadIntoWindow(deviceSN string, history *minuteTe
 		if deviceSN != "" && strings.TrimSpace(record.DeviceSN) != deviceSN {
 			continue
 		}
+		backfillLegacyMinuteTelemetryEnergy(&record)
 		history.UpsertBucket(minuteTelemetryBucket{
-			MinuteStartUnix:       record.MinuteStartUnix,
-			SOCSumPercent:         record.SOCSumPercent,
-			SOCSamples:            record.SOCSamples,
-			SolarSumWatts:         record.SolarSumWatts,
-			SolarSamples:          record.SolarSamples,
-			ACInSumWatts:          record.ACInSumWatts,
-			ACInSamples:           record.ACInSamples,
-			ACOutSumWatts:         record.ACOutSumWatts,
-			ACOutSamples:          record.ACOutSamples,
-			DCOutSumWatts:         record.DCOutSumWatts,
-			DCOutSamples:          record.DCOutSamples,
-			BatteryChargeSumWatts: record.BatteryChargeSumWatts,
-			BatteryChargeSamples:  record.BatteryChargeSamples,
-			BatteryNetSumWatts:    record.BatteryNetSumWatts,
-			BatteryNetSamples:     record.BatteryNetSamples,
+			MinuteStartUnix:          record.MinuteStartUnix,
+			SOCSumPercent:            record.SOCSumPercent,
+			SOCSamples:               record.SOCSamples,
+			SolarSumWatts:            record.SolarSumWatts,
+			SolarSamples:             record.SolarSamples,
+			SolarWattSeconds:         record.SolarWattSeconds,
+			ACInSumWatts:             record.ACInSumWatts,
+			ACInSamples:              record.ACInSamples,
+			ACInWattSeconds:          record.ACInWattSeconds,
+			ACOutSumWatts:            record.ACOutSumWatts,
+			ACOutSamples:             record.ACOutSamples,
+			ACOutWattSeconds:         record.ACOutWattSeconds,
+			DCOutSumWatts:            record.DCOutSumWatts,
+			DCOutSamples:             record.DCOutSamples,
+			DCOutWattSeconds:         record.DCOutWattSeconds,
+			BatteryChargeSumWatts:    record.BatteryChargeSumWatts,
+			BatteryChargeSamples:     record.BatteryChargeSamples,
+			BatteryChargeWattSeconds: record.BatteryChargeWattSeconds,
+			BatteryNetSumWatts:       record.BatteryNetSumWatts,
+			BatteryNetSamples:        record.BatteryNetSamples,
+			BatteryNetWattSeconds:    record.BatteryNetWattSeconds,
 		})
 		seenMinutes[record.MinuteStartUnix] = struct{}{}
 	}
@@ -1247,41 +1289,126 @@ func (h *minuteTelemetryHistory) AddSample(at time.Time, snapshot *energySnapsho
 	if h == nil || snapshot == nil {
 		return
 	}
-	if h.buckets == nil {
-		h.buckets = make(map[int64]*minuteTelemetryBucket)
-	}
-	minute := at.Truncate(time.Minute).Unix()
-	bucket := h.buckets[minute]
-	if bucket == nil {
-		bucket = &minuteTelemetryBucket{MinuteStartUnix: minute}
-		h.buckets[minute] = bucket
+	currentState := snapshot.minuteTelemetryPowerState()
+
+	if h.hasLastSample && at.After(h.lastSampleAt) {
+		h.integrateEnergyInterval(h.lastSampleAt, at, h.lastPowerState)
 	}
 
+	bucket := h.ensureMinuteBucket(at.Truncate(time.Minute).Unix())
 	if soc, ok := snapshot.displaySOC(); ok {
 		bucket.SOCSumPercent += soc
 		bucket.SOCSamples++
 		bucket.SOCLastPercent = soc
 	}
-	if pvInWatts, hasPVIn := snapshot.effectivePVInputWatts(); hasPVIn {
-		bucket.SolarSumWatts += pvInWatts
+	if currentState.solar.ok {
+		bucket.SolarSumWatts += currentState.solar.value
 		bucket.SolarSamples++
 	}
-	if snapshot.HasInAC {
-		bucket.ACInSumWatts += snapshot.InACWatts
+	if currentState.acIn.ok {
+		bucket.ACInSumWatts += currentState.acIn.value
 		bucket.ACInSamples++
 	}
-	if snapshot.HasOutAC {
-		bucket.ACOutSumWatts += snapshot.OutACWatts
+	if currentState.acOut.ok {
+		bucket.ACOutSumWatts += currentState.acOut.value
 		bucket.ACOutSamples++
 	}
-	if snapshot.HasOutDC {
-		bucket.DCOutSumWatts += snapshot.OutDCWatts
+	if currentState.dcOut.ok {
+		bucket.DCOutSumWatts += currentState.dcOut.value
 		bucket.DCOutSamples++
 	}
-	packChargeW, packDischargeW := packPowerTotals(snapshot.Packs)
+	if currentState.batteryNet.ok {
+		bucket.BatteryNetSumWatts += currentState.batteryNet.value
+		bucket.BatteryNetSamples++
+		chargeWatts := 0.0
+		if currentState.batteryCharge.ok {
+			chargeWatts = currentState.batteryCharge.value
+		}
+		bucket.BatteryChargeSumWatts += chargeWatts
+		bucket.BatteryChargeSamples++
+	}
+
+	h.lastSampleAt = at
+	h.hasLastSample = true
+	h.lastPowerState = currentState
+	h.pruneOldest()
+}
+
+func (h *minuteTelemetryHistory) ensureMinuteBucket(minuteStartUnix int64) *minuteTelemetryBucket {
+	if h == nil || minuteStartUnix <= 0 {
+		return nil
+	}
+	if h.buckets == nil {
+		h.buckets = make(map[int64]*minuteTelemetryBucket)
+	}
+	bucket := h.buckets[minuteStartUnix]
+	if bucket == nil {
+		bucket = &minuteTelemetryBucket{MinuteStartUnix: minuteStartUnix}
+		h.buckets[minuteStartUnix] = bucket
+	}
+	return bucket
+}
+
+func (h *minuteTelemetryHistory) integrateEnergyInterval(start, end time.Time, state minuteTelemetryPowerState) {
+	if h == nil || !end.After(start) {
+		return
+	}
+	cursor := start
+	for cursor.Before(end) {
+		minuteStart := cursor.Truncate(time.Minute)
+		segmentEnd := minuteStart.Add(time.Minute)
+		if segmentEnd.After(end) {
+			segmentEnd = end
+		}
+		durationSeconds := segmentEnd.Sub(cursor).Seconds()
+		if durationSeconds > 0 {
+			bucket := h.ensureMinuteBucket(minuteStart.Unix())
+			if bucket != nil {
+				if state.solar.ok {
+					bucket.SolarWattSeconds += state.solar.value * durationSeconds
+				}
+				if state.acIn.ok {
+					bucket.ACInWattSeconds += state.acIn.value * durationSeconds
+				}
+				if state.acOut.ok {
+					bucket.ACOutWattSeconds += state.acOut.value * durationSeconds
+				}
+				if state.dcOut.ok {
+					bucket.DCOutWattSeconds += state.dcOut.value * durationSeconds
+				}
+				if state.batteryCharge.ok {
+					bucket.BatteryChargeWattSeconds += state.batteryCharge.value * durationSeconds
+				}
+				if state.batteryNet.ok {
+					bucket.BatteryNetWattSeconds += state.batteryNet.value * durationSeconds
+				}
+			}
+		}
+		cursor = segmentEnd
+	}
+}
+
+func (s *energySnapshot) minuteTelemetryPowerState() minuteTelemetryPowerState {
+	if s == nil {
+		return minuteTelemetryPowerState{}
+	}
+	state := minuteTelemetryPowerState{}
+	if pvInWatts, hasPVIn := s.effectivePVInputWatts(); hasPVIn {
+		state.solar = minuteTelemetryChannelPower{value: pvInWatts, ok: true}
+	}
+	if s.HasInAC {
+		state.acIn = minuteTelemetryChannelPower{value: s.InACWatts, ok: true}
+	}
+	if s.HasOutAC {
+		state.acOut = minuteTelemetryChannelPower{value: s.OutACWatts, ok: true}
+	}
+	if s.HasOutDC {
+		state.dcOut = minuteTelemetryChannelPower{value: s.OutDCWatts, ok: true}
+	}
+	packChargeW, packDischargeW := packPowerTotals(s.Packs)
 	effectiveIn, hasEffectiveIn, effectiveOut, hasEffectiveOut :=
-		snapshot.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
-	batteryFlow := snapshot.batteryFlowForDisplay(
+		s.effectiveTotalsForDisplayWithPackTotals(packChargeW, packDischargeW)
+	batteryFlow := s.batteryFlowForDisplay(
 		effectiveIn,
 		hasEffectiveIn,
 		effectiveOut,
@@ -1290,16 +1417,31 @@ func (h *minuteTelemetryHistory) AddSample(at time.Time, snapshot *energySnapsho
 		packDischargeW,
 	)
 	if batteryFlow.hasNet {
-		bucket.BatteryNetSumWatts += batteryFlow.netWatts
-		bucket.BatteryNetSamples++
-		chargeWatts := 0.0
-		if batteryFlow.netWatts > 0 {
-			chargeWatts = batteryFlow.netWatts
-		}
-		bucket.BatteryChargeSumWatts += chargeWatts
-		bucket.BatteryChargeSamples++
+		state.batteryNet = minuteTelemetryChannelPower{value: batteryFlow.netWatts, ok: true}
 	}
-	h.pruneOldest()
+	if batteryFlow.hasNet && batteryFlow.netWatts > 0 {
+		state.batteryCharge = minuteTelemetryChannelPower{value: batteryFlow.netWatts, ok: true}
+	}
+	return state
+}
+
+func backfillLegacyMinuteTelemetryEnergy(record *minuteTelemetryRecord) {
+	if record == nil || record.Version >= 2 {
+		return
+	}
+	record.SolarWattSeconds = legacyMinuteWattSeconds(record.SolarSumWatts, record.SolarSamples)
+	record.ACInWattSeconds = legacyMinuteWattSeconds(record.ACInSumWatts, record.ACInSamples)
+	record.ACOutWattSeconds = legacyMinuteWattSeconds(record.ACOutSumWatts, record.ACOutSamples)
+	record.DCOutWattSeconds = legacyMinuteWattSeconds(record.DCOutSumWatts, record.DCOutSamples)
+	record.BatteryChargeWattSeconds = legacyMinuteWattSeconds(record.BatteryChargeSumWatts, record.BatteryChargeSamples)
+	record.BatteryNetWattSeconds = legacyMinuteWattSeconds(record.BatteryNetSumWatts, record.BatteryNetSamples)
+}
+
+func legacyMinuteWattSeconds(sum float64, samples int) float64 {
+	if samples <= 0 {
+		return 0
+	}
+	return (sum / float64(samples)) * 60.0
 }
 
 func (h *powerTelemetryHistory) AddSample(at time.Time, snapshot *energySnapshot) {
@@ -4923,12 +5065,12 @@ func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableCo
 			socPercent = bucket.SOCLastPercent
 			hasSOCPercent = true
 		}
-		solarWh, hasSolarWh := averageWh(bucket.SolarSumWatts, bucket.SolarSamples)
-		acInWh, hasACInWh := averageWh(bucket.ACInSumWatts, bucket.ACInSamples)
-		acOutWh, hasACOutWh := averageWh(bucket.ACOutSumWatts, bucket.ACOutSamples)
-		dcOutWh, hasDCOutWh := averageWh(bucket.DCOutSumWatts, bucket.DCOutSamples)
-		batteryChargeWh, hasBatteryChargeWh := averageWh(bucket.BatteryChargeSumWatts, bucket.BatteryChargeSamples)
-		batteryNetWh, hasBatteryNetWh := averageWh(bucket.BatteryNetSumWatts, bucket.BatteryNetSamples)
+		solarWh, hasSolarWh := wattSecondsToWh(bucket.SolarWattSeconds, bucket.SolarSamples > 0)
+		acInWh, hasACInWh := wattSecondsToWh(bucket.ACInWattSeconds, bucket.ACInSamples > 0)
+		acOutWh, hasACOutWh := wattSecondsToWh(bucket.ACOutWattSeconds, bucket.ACOutSamples > 0)
+		dcOutWh, hasDCOutWh := wattSecondsToWh(bucket.DCOutWattSeconds, bucket.DCOutSamples > 0)
+		batteryChargeWh, hasBatteryChargeWh := wattSecondsToWh(bucket.BatteryChargeWattSeconds, bucket.BatteryChargeSamples > 0)
+		batteryNetWh, hasBatteryNetWh := wattSecondsToWh(bucket.BatteryNetWattSeconds, bucket.BatteryNetSamples > 0)
 
 		totalInWh := 0.0
 		hasTotalInWh := false
@@ -4957,10 +5099,10 @@ func buildMinuteTelemetryRows(history *minuteTelemetryHistory, cfg minuteTableCo
 		out = append(out, []string{
 			time.Unix(bucket.MinuteStartUnix, 0).Local().Format("2006-01-02 15:04"),
 			formatPercentNoUnit(socPercent, hasSOCPercent),
-			formatAverageWhNoUnit(bucket.SolarSumWatts, bucket.SolarSamples),
-			formatAverageWhNoUnit(bucket.ACInSumWatts, bucket.ACInSamples),
-			formatAverageWhNoUnit(bucket.ACOutSumWatts, bucket.ACOutSamples),
-			formatAverageWhNoUnit(bucket.DCOutSumWatts, bucket.DCOutSamples),
+			formatWhNoUnit(solarWh, hasSolarWh),
+			formatWhNoUnit(acInWh, hasACInWh),
+			formatWhNoUnit(acOutWh, hasACOutWh),
+			formatWhNoUnit(dcOutWh, hasDCOutWh),
 			formatWhNoUnit(batteryChargeWh, hasBatteryChargeWh),
 			formatWhNoUnit(totalInWh, hasTotalInWh),
 			formatWhNoUnit(totalOutWh, hasTotalOutWh),

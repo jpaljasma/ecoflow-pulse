@@ -54,6 +54,15 @@ export type RollupPoint = z.infer<typeof RollupPointSchema>;
 export type RollupSeries = z.infer<typeof RollupSeriesSchema>;
 export type CompareRollupSeries = z.infer<typeof CompareRollupSeriesSchema>;
 
+export const SolarHistoryViewSchema = z.object({
+  todayWh: z.number(),
+  yesterdayWh: z.number(),
+  deltaPct: z.number().nullable(),
+  seriesWh: z.array(z.number())
+});
+
+export type SolarHistoryView = z.infer<typeof SolarHistoryViewSchema>;
+
 type HistoryRequest = {
   deviceId: string;
   resolution: RollupResolution;
@@ -94,4 +103,40 @@ export async function fetchCompareDeviceHistory({
     token
   });
   return CompareRollupSeriesSchema.parse(data);
+}
+
+export async function fetchDeviceSolarHistory({
+  deviceId,
+  fromIso,
+  toIso,
+  token
+}: Omit<HistoryRequest, 'resolution'>): Promise<SolarHistoryView> {
+  const params = new URLSearchParams({
+    from: fromIso,
+    to: toIso
+  });
+  const data = await requestJson<unknown>(`/api/v1/devices/${deviceId}/history/solar?${params.toString()}`, { token });
+  return SolarHistoryViewSchema.parse(data);
+}
+
+export async function fetchFleetSolarHistory({
+  deviceIds,
+  fromIso,
+  toIso,
+  token
+}: {
+  deviceIds: string[];
+  fromIso: string;
+  toIso: string;
+  token?: string;
+}): Promise<SolarHistoryView> {
+  const params = new URLSearchParams({
+    from: fromIso,
+    to: toIso
+  });
+  for (const deviceId of deviceIds) {
+    params.append('deviceId', deviceId);
+  }
+  const data = await requestJson<unknown>(`/api/v1/history/solar/fleet?${params.toString()}`, { token });
+  return SolarHistoryViewSchema.parse(data);
 }

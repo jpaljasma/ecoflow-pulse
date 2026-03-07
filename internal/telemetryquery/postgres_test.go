@@ -135,3 +135,66 @@ func TestPostgresReaderQueryRangeRejectsInvalidInput(t *testing.T) {
 		t.Fatalf("expected invalid input error")
 	}
 }
+
+func TestEnrichSolarEnergyDerivesExplicitWhWithoutFillingMinuteGaps(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, time.March, 6, 8, 7, 0, 0, time.UTC)
+	pv := 72.0
+	series := enrichSolarEnergy(Series{
+		DeviceID:   "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
+		Resolution: ResolutionMinute,
+		From:       from,
+		To:         from.Add(4 * time.Minute),
+		Points: []Point{
+			{
+				BucketStart: from,
+				BucketEnd:   from.Add(time.Minute),
+				SampleCount: 5,
+				Metrics: Metrics{
+					PVAvgW: &pv,
+				},
+			},
+		},
+	})
+
+	if got := len(series.Points); got != 1 {
+		t.Fatalf("expected only stored minute points, got=%d", got)
+	}
+	if series.Points[0].Metrics.SolarGeneratedWh == nil {
+		t.Fatalf("expected stored point to derive solar_generated_wh")
+	}
+	if *series.Points[0].Metrics.SolarGeneratedWh != 1.2 {
+		t.Fatalf("solar_generated_wh mismatch: got=%v want=1.2", *series.Points[0].Metrics.SolarGeneratedWh)
+	}
+}
+
+func TestEnrichSolarEnergyLeavesZeroPvWithoutSyntheticWh(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, time.March, 6, 8, 7, 0, 0, time.UTC)
+	zero := 0.0
+	series := enrichSolarEnergy(Series{
+		DeviceID:   "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
+		Resolution: ResolutionMinute,
+		From:       from,
+		To:         from.Add(3 * time.Minute),
+		Points: []Point{
+			{
+				BucketStart: from,
+				BucketEnd:   from.Add(time.Minute),
+				SampleCount: 1,
+				Metrics: Metrics{
+					PVAvgW: &zero,
+				},
+			},
+		},
+	})
+
+	if got := len(series.Points); got != 1 {
+		t.Fatalf("expected no synthetic zero-pv points, got=%d", got)
+	}
+	if series.Points[0].Metrics.SolarGeneratedWh != nil {
+		t.Fatalf("expected no derived solar_generated_wh for zero pv, got=%v", *series.Points[0].Metrics.SolarGeneratedWh)
+	}
+}

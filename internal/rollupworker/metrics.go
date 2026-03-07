@@ -1,6 +1,7 @@
 package rollupworker
 
 import (
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -9,6 +10,9 @@ import (
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/tidwall/gjson"
 )
+
+const andersonPowerNoiseFloorWatts = 0.5
+const solarPowerEstimateMinWatts = 0.5
 
 func SampleFromEnvelope(env *envelopev1.TelemetryEnvelope) (*RollupSample, error) {
 	if env == nil {
@@ -82,22 +86,9 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 		metrics.ACIn = optionalFloat{Value: acIn, Valid: true}
 	}
 
-	if dc, ok := sumIfPresent(root,
-		"params.carWatts",
-		"params.wireWatts",
-		"params.usb1Watts",
-		"params.usb2Watts",
-		"params.qcUsb1Watts",
-		"params.qcUsb2Watts",
-		"params.typec1Watts",
-		"params.typec2Watts",
-		"params.outUsb1Pwr",
-		"params.outUsb2Pwr",
-		"params.outTypec1Pwr",
-		"params.outTypec2Pwr",
-		"params.outPrPwr",
-		"params.outAdsPwr",
-	); ok {
+	if dc := firstNumber(root, "dcW"); dc.Valid {
+		metrics.DC = dc
+	} else if dc, ok := deriveDC(root); ok {
 		metrics.DC = optionalFloat{Value: dc, Valid: true}
 	}
 
@@ -148,22 +139,160 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 }
 
 func derivePV(root gjson.Result) (float64, bool) {
+	low, hasLow := derivePVChannel(root,
+		[]string{"params.inLvMpptPwr", "param.powGetPvL"},
+		[]string{"params.pv1ChargeWatts", "params.inWatts"},
+		[]string{"params.inVol", "params.inLvMpptVol"},
+		[]string{"params.inAmp", "params.inLvMpptAmp"},
+		[]string{"params.chgState"},
+	)
+	high, hasHigh := derivePVChannel(root,
+		[]string{"params.inHvMpptPwr", "param.powGetPvH"},
+		[]string{"params.pv2ChargeWatts", "params.pv2InWatts"},
+		[]string{"params.pv2InVol", "params.inHvMpptVol"},
+		[]string{"params.pv2InAmp", "params.inHvMpptAmp"},
+		[]string{"params.pv2ChgState"},
+	)
+	if hasLow || hasHigh {
+		return low + high, true
+	}
 	if pv := firstNumberCapped(root, 10_000, "pvW"); pv.Valid {
 		return pv.Value, true
 	}
-	if pv, ok := sumIfPresentCapped(root, 10_000,
-		"params.pv1ChargeWatts",
-		"params.pv2ChargeWatts",
-	); ok {
-		return pv, true
+	return 0, false
+}
+
+func derivePVChannel(root gjson.Result, primaryKeys, fallbackKeys, voltsKeys, ampsKeys, idleStateKeys []string) (float64, bool) {
+	primaryWatts, hasPrimary := maxPresentCapped(root, 10_000, primaryKeys...)
+	if hasPrimary && primaryWatts > solarPowerEstimateMinWatts {
+		return primaryWatts, true
 	}
-	if pv, ok := sumIfPresentCapped(root, 10_000,
-		"params.inLvMpptPwr",
-		"params.inHvMpptPwr",
-		"param.powGetPvL",
-		"param.powGetPvH",
-	); ok {
-		return pv, true
+	fallbackWatts, hasFallback := maxPresentCapped(root, 10_000, fallbackKeys...)
+	if hasFallback && fallbackWatts > solarPowerEstimateMinWatts {
+		return fallbackWatts, true
+	}
+
+	idle := false
+	for _, key := range idleStateKeys {
+		if state := firstNumber(root, key); state.Valid && int64(state.Value) <= 0 {
+			idle = true
+			break
+		}
+	}
+	volts := firstPresentNumber(root, voltsKeys...)
+	amps := firstPresentNumber(root, ampsKeys...)
+	if !volts.Valid || !amps.Valid {
+		if hasPrimary || hasFallback || idle {
+			return 0, true
+		}
+		return 0, false
+	}
+	power := math.Abs(normalizeMPPTVoltageVolts(volts.Value) * normalizeMPPTCurrentAmps(amps.Value))
+	if power > 10_000 {
+		if hasPrimary || hasFallback || idle {
+			return 0, true
+		}
+		return 0, false
+	}
+	if idle {
+		return 0, true
+	}
+	if power <= solarPowerEstimateMinWatts {
+		return 0, true
+	}
+	return power, true
+}
+
+func maxPresentCapped(root gjson.Result, maxAbs float64, paths ...string) (float64, bool) {
+	found := false
+	maxValue := 0.0
+	for _, path := range paths {
+		value := firstNumber(root, path)
+		if !value.Valid {
+			continue
+		}
+		if value.Value < -maxAbs || value.Value > maxAbs {
+			continue
+		}
+		normalized := math.Max(0, value.Value)
+		if !found || normalized > maxValue {
+			maxValue = normalized
+		}
+		found = true
+	}
+	return maxValue, found
+}
+
+func firstPresentNumber(root gjson.Result, paths ...string) optionalFloat {
+	for _, path := range paths {
+		value := firstNumber(root, path)
+		if value.Valid {
+			return value
+		}
+	}
+	return optionalFloat{}
+}
+
+func normalizeMPPTVoltageVolts(value float64) float64 {
+	abs := math.Abs(value)
+	if abs >= 100 && value == math.Trunc(value) {
+		return value / 1000.0
+	}
+	if abs > 1000 {
+		return value / 1000.0
+	}
+	return value
+}
+
+func normalizeMPPTCurrentAmps(value float64) float64 {
+	abs := math.Abs(value)
+	if abs >= 1 && value == math.Trunc(value) {
+		return value / 1000.0
+	}
+	if abs > 200 {
+		return value / 1000.0
+	}
+	return value
+}
+
+func deriveDC(root gjson.Result) (float64, bool) {
+	base, found := sumIfPresent(root,
+		"params.carWatts",
+		"params.wireWatts",
+		"params.usb1Watts",
+		"params.usb2Watts",
+		"params.qcUsb1Watts",
+		"params.qcUsb2Watts",
+		"params.typec1Watts",
+		"params.typec2Watts",
+		"params.outUsb1Pwr",
+		"params.outUsb2Pwr",
+		"params.outTypec1Pwr",
+		"params.outTypec2Pwr",
+		"params.outPrPwr",
+	)
+	if anderson, ok := deriveAndersonPower(root); ok {
+		base += anderson
+		found = true
+	}
+	return base, found
+}
+
+func deriveAndersonPower(root gjson.Result) (float64, bool) {
+	explicit := firstNumber(root, "params.outAdsPwr")
+	amp := firstNumber(root, "params.outAdsAmp")
+	vol := firstNumber(root, "params.outAdsVol")
+	if amp.Valid && vol.Valid {
+		watts := amp.Value * vol.Value
+		if watts < 0 {
+			watts = 0
+		}
+		if watts > andersonPowerNoiseFloorWatts || !explicit.Valid || explicit.Value <= andersonPowerNoiseFloorWatts {
+			return watts, true
+		}
+	}
+	if explicit.Valid {
+		return explicit.Value, true
 	}
 	return 0, false
 }
@@ -218,24 +347,6 @@ func sumIfPresent(root gjson.Result, paths ...string) (float64, bool) {
 			continue
 		}
 		sum += result.Float()
-		found = true
-	}
-	return sum, found
-}
-
-func sumIfPresentCapped(root gjson.Result, maxAbs float64, paths ...string) (float64, bool) {
-	var sum float64
-	var found bool
-	for _, path := range paths {
-		result := root.Get(path)
-		if !result.Exists() || !isNumericResult(result) {
-			continue
-		}
-		value := result.Float()
-		if value < -maxAbs || value > maxAbs {
-			continue
-		}
-		sum += value
 		found = true
 	}
 	return sum, found

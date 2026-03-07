@@ -62,6 +62,80 @@ function makeSeries(deviceId = '019c9f0e-4521-775d-873e-e80039f16d75'): RollupSe
   };
 }
 
+function makeMinuteSeries(
+  deviceId = '019c9f0e-4521-775d-873e-e80039f16d75',
+  from = Date.UTC(2026, 2, 6, 5, 0, 0)
+): RollupSeries {
+  return {
+    deviceId,
+    resolution: 'minute',
+    fromUnixMs: String(from),
+    toUnixMs: String(from + 3 * 60 * 60 * 1000),
+    points: [
+      {
+        bucketStartUnixMs: String(from + 6 * 60 * 60 * 1000),
+        bucketEndUnixMs: String(from + 6 * 60 * 60 * 1000 + 60_000),
+        sampleCount: 4,
+        firstTsUnixMs: String(from + 6 * 60 * 60 * 1000),
+        lastTsUnixMs: String(from + 6 * 60 * 60 * 1000 + 59_000),
+        metrics: {
+          socAvgPct: 50,
+          socMinPct: 49,
+          socMaxPct: 51,
+          acInAvgW: 0,
+          acInMaxW: 0,
+          pvAvgW: 120,
+          pvMaxW: 125,
+          dcAvgW: 0,
+          dcMaxW: 0,
+          loadAvgW: 0,
+          loadMaxW: 0,
+          netAvgW: 120,
+          netMinW: 118,
+          netMaxW: 122,
+          batteryAvgW: 100,
+          batteryMinW: 95,
+          batteryMaxW: 105,
+          tempAvgC: 24,
+          tempMinC: 23,
+          tempMaxC: 25,
+          solarGeneratedWh: 2
+        }
+      },
+      {
+        bucketStartUnixMs: String(from + 6 * 60 * 60 * 1000 + 10 * 60_000),
+        bucketEndUnixMs: String(from + 6 * 60 * 60 * 1000 + 11 * 60_000),
+        sampleCount: 4,
+        firstTsUnixMs: String(from + 6 * 60 * 60 * 1000 + 10 * 60_000),
+        lastTsUnixMs: String(from + 6 * 60 * 60 * 1000 + 10 * 60_000 + 59_000),
+        metrics: {
+          socAvgPct: 52,
+          socMinPct: 51,
+          socMaxPct: 53,
+          acInAvgW: 0,
+          acInMaxW: 0,
+          pvAvgW: 180,
+          pvMaxW: 185,
+          dcAvgW: 0,
+          dcMaxW: 0,
+          loadAvgW: 0,
+          loadMaxW: 0,
+          netAvgW: 180,
+          netMinW: 178,
+          netMaxW: 182,
+          batteryAvgW: 140,
+          batteryMinW: 135,
+          batteryMaxW: 145,
+          tempAvgC: 25,
+          tempMinC: 24,
+          tempMaxC: 26,
+          solarGeneratedWh: 3
+        }
+      }
+    ]
+  };
+}
+
 function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryHistoryClient {
   return {
     getSnapshot: vi.fn(async () => ({
@@ -137,6 +211,81 @@ describe('pulse-platform history routes', () => {
         usePreviousPeriod: true
       })
     );
+
+    await app.close();
+  });
+
+  it('returns backend-computed device solar history', async () => {
+    const current = makeMinuteSeries();
+    const previousFirstPoint = current.points[0]!;
+    const client = makeClient({
+      compareRollupRange: vi.fn(async () => ({
+        current,
+        previous: {
+          ...current,
+          points: [{ ...previousFirstPoint, metrics: { ...previousFirstPoint.metrics, solarGeneratedWh: 1 } }]
+        }
+      } satisfies CompareRollupSeries))
+    });
+    const app = buildApp(baseConfig(), client, makeDeviceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history/solar?from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.compareRollupRange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolution: 'minute',
+        usePreviousPeriod: true
+      })
+    );
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        todayWh: 5,
+        yesterdayWh: 1,
+        deltaPct: 400,
+        seriesWh: expect.arrayContaining([2, 3])
+      })
+    );
+
+    await app.close();
+  });
+
+  it('returns backend-computed fleet solar history', async () => {
+    const deviceA = '019c9f0e-4521-775d-873e-e80039f16d75';
+    const deviceB = '019c9f0e-452b-70eb-b3af-1c0f15c34416';
+    const seriesA = makeMinuteSeries(deviceA);
+    const seriesBBase = makeMinuteSeries(deviceB);
+    const seriesBFirstPoint = seriesBBase.points[0]!;
+    const seriesB: RollupSeries = {
+      ...seriesBBase,
+      points: [{ ...seriesBFirstPoint, metrics: { ...seriesBFirstPoint.metrics, solarGeneratedWh: 4 } }]
+    };
+    const client = makeClient({
+      compareRollupRange: vi.fn(async (input) => ({
+        current: input.deviceId === deviceA ? seriesA : seriesB,
+        previous: { ...makeMinuteSeries(input.deviceId), points: [] }
+      } satisfies CompareRollupSeries))
+    });
+    const app = buildApp(baseConfig(), client, makeDeviceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/history/solar/fleet?deviceId=${deviceA}&deviceId=${deviceB}&from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.compareRollupRange).toHaveBeenCalledTimes(2);
+    const body = response.json();
+    expect(body).toEqual(
+      expect.objectContaining({
+        todayWh: 9,
+        yesterdayWh: 0,
+        deltaPct: null
+      })
+    );
+    expect(body.seriesWh[0]).toBe(6);
+    expect(body.seriesWh[1]).toBe(3);
 
     await app.close();
   });

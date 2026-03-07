@@ -4,6 +4,10 @@ import type { ServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
 
 import type { TelemetryHistoryClient } from '../grpc/telemetryClient.js';
+import {
+  buildCompareSolarHistoryView,
+  combineSolarHistoryViews
+} from '../history/solarView.js';
 
 const resolutionSchema = z.enum(['minute', 'hour', 'day']);
 const timeParamSchema = z.union([z.string(), z.number()]);
@@ -15,6 +19,19 @@ const querySchema = z.object({
 });
 
 const compareQuerySchema = querySchema.extend({
+  compare: z.enum(['previous_period']).optional().default('previous_period')
+});
+
+const solarQuerySchema = z.object({
+  from: timeParamSchema,
+  to: timeParamSchema,
+  compare: z.enum(['previous_period']).optional().default('previous_period')
+});
+
+const solarFleetQuerySchema = z.object({
+  deviceId: z.union([z.string().uuid(), z.array(z.string().uuid()).nonempty()]),
+  from: timeParamSchema,
+  to: timeParamSchema,
   compare: z.enum(['previous_period']).optional().default('previous_period')
 });
 
@@ -80,6 +97,59 @@ export function registerHistoryRoutes(
       }
     }
   );
+
+  app.get(
+    '/api/v1/devices/:deviceId/history/solar',
+    { preHandler: historyPreHandlers },
+    async (request, reply) => {
+      try {
+        const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
+        const query = solarQuerySchema.parse(request.query);
+        const result = await historyClient.compareRollupRange({
+          deviceId: params.deviceId,
+          resolution: 'minute',
+          fromUnixMs: normalizeTime(query.from),
+          toUnixMs: normalizeTime(query.to),
+          usePreviousPeriod: query.compare === 'previous_period',
+          authHeader: extractAuthHeader(request),
+          requestID: request.id,
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return buildCompareSolarHistoryView(result);
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
+    }
+  );
+
+  app.get(
+    '/api/v1/history/solar/fleet',
+    { preHandler: historyPreHandlers },
+    async (request, reply) => {
+      try {
+        const query = solarFleetQuerySchema.parse(request.query);
+        const deviceIds = normalizeDeviceIDs(query.deviceId);
+        const views = await Promise.all(
+          deviceIds.map(async (deviceId) => {
+            const result = await historyClient.compareRollupRange({
+              deviceId,
+              resolution: 'minute',
+              fromUnixMs: normalizeTime(query.from),
+              toUnixMs: normalizeTime(query.to),
+              usePreviousPeriod: query.compare === 'previous_period',
+              authHeader: extractAuthHeader(request),
+              requestID: request.id,
+              deadlineMs: app.telemetryDeadlineMs
+            });
+            return buildCompareSolarHistoryView(result);
+          })
+        );
+        return combineSolarHistoryViews(views);
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
+    }
+  );
 }
 
 function normalizeTime(value: string | number): string {
@@ -102,6 +172,13 @@ function extractAuthHeader(request: { headers: Record<string, unknown> }): strin
   return undefined;
 }
 
+function normalizeDeviceIDs(deviceIDValue: string | string[]): string[] {
+  if (Array.isArray(deviceIDValue)) {
+    return deviceIDValue;
+  }
+  return [deviceIDValue];
+}
+
 function handleRouteError(reply: { code: (code: number) => { send: (body: unknown) => unknown } }, error: unknown) {
   if (error instanceof z.ZodError) {
     return reply.code(400).send({ error: 'invalid_request', issues: error.issues });
@@ -118,6 +195,7 @@ function handleRouteError(reply: { code: (code: number) => { send: (body: unknow
   }
   throw error;
 }
+
 
 function isServiceError(error: unknown): error is ServiceError {
   return typeof error === 'object' && error !== null && 'code' in error;

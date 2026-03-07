@@ -129,6 +129,7 @@ func TestMinuteTelemetryUsesDerivedPVWattsFromVoltsAndAmps(t *testing.T) {
 
 	at := time.Date(2026, time.February, 15, 10, 45, 0, 0, time.Local)
 	history.AddSample(at, snapshot)
+	history.AddSample(at.Add(55*time.Second), snapshot)
 
 	rows := buildMinuteTelemetryRows(history, minuteTableConfig{Rows: 1, NewestFirst: true})
 	if len(rows) != 1 {

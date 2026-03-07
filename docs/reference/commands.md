@@ -31,15 +31,18 @@ go run ./cmd/ecoflow-loadtest-ingest-bridge
 # Typecheck + test Node JWKS middleware package.
 npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth
 npm run test --workspace @ecoflow-pulse/node-jwks-auth
+npm run build --workspace @ecoflow-pulse/node-jwks-auth
 
 # Pulse platform Node REST BFF.
 npm run -w apps/pulse-platform typecheck
+npm run -w apps/pulse-platform build
 npm run -w apps/pulse-platform lint
 npm run -w apps/pulse-platform test
 npm run platform-bff
 
 # Pulse realtime WebSocket gateway.
 npm run -w apps/pulse-realtime-gateway typecheck
+npm run -w apps/pulse-realtime-gateway build
 npm run -w apps/pulse-realtime-gateway lint
 npm run -w apps/pulse-realtime-gateway test
 npm run realtime-gateway
@@ -51,6 +54,9 @@ npm run -w apps/universal test
 npm run -w apps/universal e2e:web
 MAESTRO_EXPO_URL='exp://127.0.0.1:8081' npm run -w apps/universal e2e:mobile
 ```
+
+- The Node workspace `build` commands above emit runtime JS to `dist/` for
+  container images; the `typecheck` commands remain no-emit validation paths.
 
 Run E2E suites via repository make targets:
 
@@ -657,6 +663,9 @@ Notes:
   It also switches `kubectl` context to `k3d-pulse-local`.
 - `make platform-up` updates Helm deps and installs/upgrades `pulse-platform` using `deploy/env/local/values.platform.yaml`.
   Local Helm/Kubernetes operations are pinned to `k3d-pulse-local` (`--kube-context` / `--context`) so local targets cannot accidentally apply to GKE.
+  Local Helm upgrades use server-side apply with `--force-conflicts` so
+  k3d redeploys can reclaim fields that were temporarily modified by manual
+  commands such as `kubectl set image`.
   MinIO credentials must be configured with MinIO-chart top-level keys
   (`minio.rootUser` / `minio.rootPassword`), not `minio.auth.*`, to keep
   `secret/pulse-platform-minio` in sync with services runtime credentials.
@@ -688,6 +697,9 @@ Notes:
   - `kubectl get nodes -o wide`
   - `kubectl get pods -n pulse-platform`
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services` using `deploy/env/local/values.services.yaml`.
+  Like `platform-up`, local Helm upgrades use server-side apply with
+  `--force-conflicts` to recover cleanly from manual field-manager drift during
+  local iteration.
 - `make services-image-build-local` builds local telemetry worker image
   `$(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)` from
   `deploy/docker/pulse-services.Dockerfile`.
@@ -710,6 +722,27 @@ Notes:
 - `make services-wait` blocks until `pulse-services` pods are `Ready` (if services workloads exist).
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
+- `make dev-deploy` is the incremental local redeploy path for code changes:
+  rebuild/import local public + services images, re-apply Helm, restart
+  `pulse-platform-public-app`, `pulse-platform-realtime-gateway`, and
+  `pulse-services-go-rollup`, then wait for those rollouts to finish.
+- `make dev-regen-data` rebuilds the last 48 hours of archived telemetry for all
+  devices into rollup tables on local k3d using a direct archive-to-rollup
+  rebuild path.
+  It does not delete the requested range first; rebuilt rows are written back in
+  bounded transactional chunks so charts do not go empty during regeneration.
+  It port-forwards CNPG and MinIO automatically, then prints proof from
+  `telemetry_rollup_minute` in this format:
+  `provider_device_id|touched_buckets|total_buckets|latest_bucket_utc|current_window_derived_solar_generated_wh|previous_window_derived_solar_generated_wh|delta_pct`.
+  The solar fields derive minute-bucket solar Wh from `pv_avg_w` when the raw
+  stored `solar_generated_wh` column is null, and compare the rebuilt window to
+  the immediately preceding window of the same duration.
+  `touched_buckets` counts minute buckets whose `updated_at` moved during this
+  rebuild run.
+  Optional overrides:
+  - `REGEN_FROM='2026-03-05T00:00:00Z'`
+  - `REGEN_TO='2026-03-06T00:00:00Z'`
+  - `REGEN_MAX_OBJECTS=500`
 - `make dev-down` uninstalls `pulse-services` and `pulse-platform`; preserves cluster by default.
   Set `DELETE_CLUSTER=1` to also delete the local k3d cluster.
 - `make db-migrate-up-local` applies all SQL up migrations from `deploy/db/migrations` to the local CNPG primary (`k3d-pulse-local`, namespace `pulse-platform`, service `pulse-platform-core-rw`).

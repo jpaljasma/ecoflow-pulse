@@ -18,6 +18,7 @@
 - [ADR-0012-control-plane-schema-uuidv7-and-utc-app-managed-timestamps.md](./ADR-0012-control-plane-schema-uuidv7-and-utc-app-managed-timestamps.md)
 - [ADR-0013-grpc-server-baseline-go-high-throughput.md](./ADR-0013-grpc-server-baseline-go-high-throughput.md)
 - [ADR-0014-provider-device-integration-and-distributed-mqtt-ingest-leases.md](./ADR-0014-provider-device-integration-and-distributed-mqtt-ingest-leases.md)
+- [ADR-0015-quota-archive-replayability-and-safe-rollup-regeneration.md](./ADR-0015-quota-archive-replayability-and-safe-rollup-regeneration.md)
 ---
 
 ## How to add an ADR
