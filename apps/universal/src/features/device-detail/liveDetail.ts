@@ -91,3 +91,20 @@ export function mergeDeviceDetailSolarPorts(
   }
   return staticPorts;
 }
+
+export function sumSolarPortWatts(
+  ports: Array<{ watts?: number }> | undefined
+): number | undefined {
+  if (!ports || ports.length === 0) {
+    return undefined;
+  }
+  let found = false;
+  let total = 0;
+  for (const port of ports) {
+    if (typeof port.watts === 'number' && Number.isFinite(port.watts)) {
+      total += port.watts;
+      found = true;
+    }
+  }
+  return found ? total : undefined;
+}

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   mergeDeviceDetailSolarPorts,
-  resolveLiveBatteryHeatingOn
+  resolveLiveBatteryHeatingOn,
+  sumSolarPortWatts
 } from '@/features/device-detail/liveDetail';
 
 describe('device detail live-detail helpers', () => {
@@ -115,5 +116,14 @@ describe('device detail live-detail helpers', () => {
         watts: 0
       })
     ]);
+  });
+
+  it('sums live solar port watts for display-total consistency', () => {
+    expect(
+      sumSolarPortWatts([
+        { watts: 6 },
+        { watts: 14 }
+      ])
+    ).toBe(20);
   });
 });

@@ -9,7 +9,8 @@ import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import {
   mergeDeviceDetailSolarPorts,
-  resolveLiveBatteryHeatingOn
+  resolveLiveBatteryHeatingOn,
+  sumSolarPortWatts
 } from '@/features/device-detail/liveDetail';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
@@ -96,6 +97,7 @@ export type DeviceDetailViewModel = {
   batterySummaryText?: string;
   isColdTemp: boolean;
   metricCells: DetailMetricCellVM[];
+  displayPvW?: number;
   batteryPacks: DetailBatteryPackVM[];
   solarPorts: DetailSolarPortVM[];
   signalPills: DetailSignalPillVM[];
@@ -183,15 +185,28 @@ export function useDeviceDetailViewModel({
   const details = device?.details;
   const liveDetail = snapshot?.liveDetail;
   const liveSignals = liveDetail?.signals;
+  const resolvedSolarPortDetails = useMemo(
+    () => mergeDeviceDetailSolarPorts(details?.solarPorts, liveDetail?.solarPorts),
+    [details?.solarPorts, liveDetail?.solarPorts]
+  );
+  const liveSolarPortTotalW = useMemo(
+    () => (liveDetail?.solarPorts && liveDetail.solarPorts.length > 0 ? sumSolarPortWatts(resolvedSolarPortDetails) : undefined),
+    [liveDetail?.solarPorts, resolvedSolarPortDetails]
+  );
 
   const acInW = snapshot?.metrics?.acW ?? device?.acInW;
   const dcW = snapshot?.metrics?.dcW ?? device?.dcW;
-  const pvW = snapshot?.metrics?.pvW ?? device?.pvW;
   const loadW = snapshot?.metrics?.loadW ?? device?.loadW;
+  const pvW = liveSolarPortTotalW ?? snapshot?.metrics?.pvW ?? device?.pvW;
   const batteryW = snapshot?.metrics?.batteryW;
   const tempC = snapshot?.metrics?.tempC ?? device?.tempC;
   const isColdTemp = typeof tempC === 'number' && tempC <= 2;
-  const netW = snapshot?.metrics ? snapshot.metrics.pvW - snapshot.metrics.loadW : device?.netW;
+  const netW =
+    typeof pvW === 'number' && typeof loadW === 'number'
+      ? pvW - loadW
+      : snapshot?.metrics
+        ? snapshot.metrics.pvW - snapshot.metrics.loadW
+        : device?.netW;
   const capacityKWh = device ? getCapacityKWh(device) : null;
 
   const detailState = useMemo<'charging' | 'discharging' | 'idle'>(() => {
@@ -246,11 +261,6 @@ export function useDeviceDetailViewModel({
     details?.batteryHeatingOn !== undefined;
 
   const preconditioningOn = resolveLiveBatteryHeatingOn(liveSignals, details);
-
-  const resolvedSolarPortDetails = useMemo(
-    () => mergeDeviceDetailSolarPorts(details?.solarPorts, liveDetail?.solarPorts),
-    [details?.solarPorts, liveDetail?.solarPorts]
-  );
 
   const metricCells = useMemo<DetailMetricCellVM[]>(() => {
     return [
@@ -402,6 +412,7 @@ export function useDeviceDetailViewModel({
     batterySummaryText,
     isColdTemp,
     metricCells,
+    displayPvW: pvW,
     batteryPacks,
     solarPorts,
     signalPills,
