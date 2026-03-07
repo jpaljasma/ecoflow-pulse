@@ -11,8 +11,8 @@ This runbook keeps merge protection aligned with ADR-0010.
 - `CodeQL`
 
 These names are treated as an architecture contract. Do not rename checks casually.
-The `frontend-ci` required check may aggregate multiple internal shard jobs, but
-the wrapper job name itself must stay stable.
+The `frontend-ci` and `CodeQL` required checks may aggregate multiple internal
+shard jobs, but the wrapper job name itself must stay stable.
 
 ## When workflows change
 
@@ -37,7 +37,7 @@ gh run list --limit 20
 
 Review CI performance on a regular cadence (weekly is enough for current scale):
 
-1. Inspect median and p95 durations for `go-test`, `go-test-race-critical`, `frontend-ci`, and `proto-ci`.
+1. Inspect median and p95 durations for `go-test`, `go-test-race-critical`, `frontend-ci`, `proto-ci`, and `CodeQL`.
 2. If developer latency increases, optimize in this order:
    - dependency/cache hit rates,
    - internal changed-files gating for required jobs,

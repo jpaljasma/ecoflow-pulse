@@ -1,0 +1,163 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - "**"
+  schedule:
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: codeql-inputs
+    runs-on: ubuntu-latest
+    outputs:
+      go_changed: ${{ steps.filter.outputs.go_changed }}
+      js_changed: ${{ steps.filter.outputs.js_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect CodeQL-relevant changes
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" || "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            echo "go_changed=true" >> "$GITHUB_OUTPUT"
+            echo "js_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+          fi
+
+          if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
+            echo "go_changed=true" >> "$GITHUB_OUTPUT"
+            echo "js_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only "${base_sha}" "${GITHUB_SHA}" > changed_files.txt
+
+          workflow_changed=false
+          if grep -Eq '^\.github/workflows/codeql\.yml$' changed_files.txt; then
+            workflow_changed=true
+          fi
+
+          go_changed=false
+          if [[ "${workflow_changed}" == "true" ]] || grep -Eq '(^|/).*\.go$|^go\.mod$|^go\.sum$|^Makefile$|^proto/|^gen/' changed_files.txt; then
+            go_changed=true
+          fi
+
+          js_changed=false
+          if [[ "${workflow_changed}" == "true" ]] || grep -Eq '(^apps/|^packages/|(^|/).*\.(js|jsx|mjs|cjs|ts|tsx)$|^package\.json$|^package-lock\.json$)' changed_files.txt; then
+            js_changed=true
+          fi
+
+          echo "go_changed=${go_changed}" >> "$GITHUB_OUTPUT"
+          echo "js_changed=${js_changed}" >> "$GITHUB_OUTPUT"
+
+  codeql-go:
+    name: codeql-go
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.go_changed == 'true'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Initialize CodeQL (Go)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: go
+          build-mode: manual
+
+      - name: Build Go packages for extraction
+        run: go build ./...
+
+      - name: Analyze Go
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:go
+
+  codeql-javascript-typescript:
+    name: codeql-javascript-typescript
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.js_changed == 'true'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL (JavaScript/TypeScript)
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Analyze JavaScript/TypeScript
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript
+
+  CodeQL:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - changes
+      - codeql-go
+      - codeql-javascript-typescript
+    steps:
+      - name: Verify CodeQL shard results
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "changes=${{ needs.changes.result }}"
+          echo "codeql-go=${{ needs.codeql-go.result }}"
+          echo "codeql-javascript-typescript=${{ needs.codeql-javascript-typescript.result }}"
+
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.codeql-go.result }}" != "success" && "${{ needs.codeql-go.result }}" != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.codeql-javascript-typescript.result }}" != "success" && "${{ needs.codeql-javascript-typescript.result }}" != "skipped" ]]; then
+            exit 1
+          fi
