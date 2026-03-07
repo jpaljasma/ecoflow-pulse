@@ -706,6 +706,8 @@ Notes:
 - `make services-image-build-local` builds local telemetry worker image
   `$(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)` from
   `deploy/docker/pulse-services.Dockerfile`.
+  Repeated local builds reuse Docker BuildKit Go module and Go build caches so
+  unchanged worker dependencies and object files do not recompile from scratch.
 - `make services-image-import-local` imports that local worker image into
   k3d cluster `$(K3D_CLUSTER_NAME)`.
 - `make services-image-local-up` runs build + import for local k3d in one step.
@@ -714,10 +716,13 @@ Notes:
   `$(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)` from
   `deploy/docker/pulse-platform.Dockerfile` and
   `deploy/docker/pulse-realtime-gateway.Dockerfile`.
-  Repeated local builds reuse a Docker BuildKit NPM cache mount, so `npm ci`
-  reruns can use previously downloaded packages instead of re-fetching them.
+  The two image builds run in parallel. Repeated local builds reuse Docker
+  BuildKit NPM, Expo, and Metro cache mounts, so `npm ci` and Expo web export
+  reruns can use previously downloaded packages and bundler state.
 - `make public-images-import-local` imports those local public images into k3d
   cluster `$(K3D_CLUSTER_NAME)`.
+  It imports both images in one `k3d image import` call to avoid repeated tools
+  container startup during local redeploys.
 - `make public-images-local-up` runs build + import for both public images in
   one step.
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services`
@@ -737,9 +742,14 @@ Notes:
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
 - `make dev-deploy` is the incremental local redeploy path for code changes:
-  rebuild/import local public + services images, re-apply Helm, restart
+  rebuild/import local public + services images, then restart
   `pulse-platform-public-app`, `pulse-platform-realtime-gateway`, and
   `pulse-services-go-rollup`, then wait for those rollouts to finish.
+  By default (`DEV_DEPLOY_HELM=auto`) it skips Helm re-apply when local
+  platform/services chart and local values files are unchanged and the releases
+  already exist.
+  Use `DEV_DEPLOY_HELM=always make dev-deploy` to force full Helm re-apply, or
+  `DEV_DEPLOY_HELM=never make dev-deploy` to skip it explicitly.
 - `make dev-regen-data` rebuilds the last 48 hours of archived telemetry for all
   devices into rollup tables on local k3d using a direct archive-to-rollup
   rebuild path.

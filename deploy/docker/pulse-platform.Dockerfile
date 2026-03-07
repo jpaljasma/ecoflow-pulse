@@ -24,7 +24,9 @@ COPY packages/tsconfig ./packages/tsconfig
 COPY proto ./proto
 RUN npm run build --workspace @ecoflow-pulse/node-jwks-auth
 RUN npm run build --workspace @ecoflow-pulse/pulse-platform
-RUN npm run -w apps/universal export:web -- --output-dir dist
+RUN --mount=type=cache,id=ecoflow-pulse-expo-node20-bookworm,target=/root/.expo,sharing=locked \
+    --mount=type=cache,id=ecoflow-pulse-metro-node20-bookworm,target=/tmp/metro-cache,sharing=locked \
+    CI=1 EXPO_NO_TELEMETRY=1 npm run -w apps/universal export:web:ci -- --output-dir dist
 RUN npm prune --omit=dev
 
 FROM node:20-bookworm-slim
