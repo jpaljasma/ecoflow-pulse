@@ -38,6 +38,16 @@ export type DerivedTelemetryDetail = {
 const ANDERSON_POWER_NOISE_FLOOR_W = 0.5;
 const APP_SHOW_FLAG_AC_ON_MASK = 0x4;
 const APP_SHOW_FLAG_DC_ON_MASK = 0x2;
+const D2M_SOLAR_HINT_KEYS = [
+  'params.inVol',
+  'params.inAmp',
+  'params.pv2InVol',
+  'params.pv2InAmp',
+  'params.outWatts',
+  'params.pv2InWatts',
+  'params.chgState',
+  'params.pv2ChgState'
+] as const;
 
 export function mergeRawMetrics(
   current: RawTelemetryMetrics,
@@ -392,17 +402,7 @@ function deriveBatteryHeatingOn(raw: RawTelemetryMetrics): boolean | undefined {
 }
 
 function deriveSolarPorts(raw: RawTelemetryMetrics): DerivedTelemetrySolarPort[] {
-  const d2mHints = hasAnyMetric(
-    raw,
-    'params.pv1ChargeWatts',
-    'params.pv2ChargeWatts',
-    'params.inVol',
-    'params.inAmp',
-    'params.pv2InVol',
-    'params.pv2InAmp',
-    'params.chgState',
-    'params.pv2ChgState'
-  );
+  const d2mHints = hasAnyMetric(raw, ...D2M_SOLAR_HINT_KEYS);
   if (d2mHints) {
     return [deriveD2MSolarPortLow(raw), deriveD2MSolarPortHigh(raw)].filter(hasSolarPortData);
   }
@@ -428,7 +428,7 @@ function deriveD2MSolarPortLow(raw: RawTelemetryMetrics): DerivedTelemetrySolarP
   const amps = normalizeMilliamps(firstNumber(raw, 'params.inAmp', 'params.inLvMpptAmp'), 15);
   const watts = sanitizeSolarWatts(
     firstDefined(
-      firstNumber(raw, 'params.pv1ChargeWatts', 'params.outWatts', 'params.inLvMpptPwr'),
+      firstNumber(raw, 'params.outWatts', 'params.pv1ChargeWatts', 'params.inLvMpptPwr'),
       multiplyNumbers(volts, amps)
     ),
     500

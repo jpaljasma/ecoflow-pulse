@@ -195,8 +195,9 @@ describe('telemetryMap', () => {
 
   it('derives live D2M system signals and solar ports for device detail realtime updates', () => {
     const detail = deriveTelemetryDetail({
-      'params.pv1ChargeWatts': 82,
+      'params.pv1ChargeWatts': 25,
       'params.pv2ChargeWatts': 212,
+      'params.outWatts': 82,
       'params.inVol': 16400,
       'params.inAmp': 5000,
       'params.pv2InVol': 40900,
@@ -235,6 +236,28 @@ describe('telemetryMap', () => {
       signals: {
         batteryHeatingOn: false
       }
+    });
+  });
+
+  it('prefers DPU live MPPT ports over stray pv1ChargeWatts fields without D2M status hints', () => {
+    const detail = deriveTelemetryDetail({
+      'params.inLvMpptPwr': 105.03,
+      'params.inHvMpptPwr': 0,
+      'params.inLvMpptVol': 65.18,
+      'params.inLvMpptAmp': 1.63,
+      'params.inHvMpptVol': 0,
+      'params.inHvMpptAmp': 0,
+      'params.pv1ChargeWatts': 260
+    });
+
+    expect(detail).toEqual({
+      signals: {
+        solarChargingOn: true
+      },
+      solarPorts: [
+        { id: 'pv-low', name: 'PV Low', state: 'charging', volts: 65.18, amps: 1.63, watts: 105.03 },
+        { id: 'pv-high', name: 'PV High', state: 'inactive', volts: 0, amps: 0, watts: 0 }
+      ]
     });
   });
 });
