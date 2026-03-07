@@ -7,14 +7,6 @@ import (
 	"strings"
 )
 
-func formatAverageWhNoUnit(sum float64, samples int) string {
-	wh, ok := averageWh(sum, samples)
-	if !ok {
-		return "n/a"
-	}
-	return fmt.Sprintf("%.1f", wh)
-}
-
 func formatPercentNoUnit(value float64, ok bool) string {
 	if !ok {
 		return "n/a"
@@ -29,12 +21,11 @@ func averageValue(sum float64, samples int) (float64, bool) {
 	return sum / float64(samples), true
 }
 
-func averageWh(sum float64, samples int) (float64, bool) {
-	if samples <= 0 {
+func wattSecondsToWh(wattSeconds float64, ok bool) (float64, bool) {
+	if !ok {
 		return 0, false
 	}
-	avgWatts := sum / float64(samples)
-	return avgWatts / 60.0, true
+	return wattSeconds / 3600.0, true
 }
 
 func formatWhNoUnit(value float64, ok bool) string {

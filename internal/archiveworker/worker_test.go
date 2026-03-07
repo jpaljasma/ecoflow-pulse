@@ -133,7 +133,7 @@ func TestProcessDeliveryInvalidEnvelopeTerms(t *testing.T) {
 	}
 }
 
-func TestProcessDeliverySkipsNormalizedQuotaEnvelope(t *testing.T) {
+func TestProcessDeliveryArchivesNormalizedQuotaEnvelope(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeObjectStore{}
@@ -151,22 +151,35 @@ func TestProcessDeliverySkipsNormalizedQuotaEnvelope(t *testing.T) {
 		PayloadType:        "ecoflow.quota.normalized",
 		PayloadEncoding:    envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
 		Payload:            []byte(`{"typeCode":"quota","params":{"soc":42}}`),
+		Labels:             map[string]string{"provider": "ecoflow"},
 	})
 
 	if err := worker.processDelivery(context.Background(), d); err != nil {
 		t.Fatalf("process quota delivery failed: %v", err)
 	}
-	if d.acked != 1 {
-		t.Fatalf("expected quota delivery acked once, got=%d", d.acked)
+	if d.acked != 0 {
+		t.Fatalf("expected quota delivery to remain pending before flush, got ack=%d", d.acked)
 	}
 	if d.nacked != 0 || d.termed != 0 {
 		t.Fatalf("unexpected nack/term counts: nak=%d term=%d", d.nacked, d.termed)
 	}
 	if len(store.requests) != 0 {
-		t.Fatalf("expected no archive writes for quota delivery, got=%d", len(store.requests))
+		t.Fatalf("expected no archive writes before flush, got=%d", len(store.requests))
 	}
-	if len(manifest.records) != 0 {
-		t.Fatalf("expected no manifest writes for quota delivery, got=%d", len(manifest.records))
+	if err := worker.flushAll(context.Background()); err != nil {
+		t.Fatalf("flush quota delivery failed: %v", err)
+	}
+	if d.acked != 1 {
+		t.Fatalf("expected quota delivery acked after flush, got=%d", d.acked)
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("expected one archive write for quota delivery, got=%d", len(store.requests))
+	}
+	if ids := decodeEnvelopeIDs(t, store.requests[0].Body); len(ids) != 1 || ids[0] != "quota-1" {
+		t.Fatalf("quota archive envelope ids mismatch: got=%v", ids)
+	}
+	if len(manifest.records) != 1 {
+		t.Fatalf("expected one manifest write for quota delivery, got=%d", len(manifest.records))
 	}
 }
 
