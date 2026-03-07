@@ -1,4 +1,4 @@
-const { create } = require('zustand') as typeof import('zustand');
+import { create } from 'zustand';
 import type {
   DeviceSnapshot,
   FleetTrendSnapshot,

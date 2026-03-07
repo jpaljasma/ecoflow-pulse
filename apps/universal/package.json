@@ -2,7 +2,7 @@
   "name": "@ecoflow-pulse/universal",
   "version": "0.0.1",
   "private": true,
-  "main": "index.js",
+  "main": "index.tsx",
   "scripts": {
     "dev": "expo start",
     "web": "expo start --web",
