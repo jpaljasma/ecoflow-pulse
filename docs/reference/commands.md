@@ -617,9 +617,12 @@ Notes:
   - `go fmt ./...`
   - `golangci-lint run ./...` (or `go vet ./...` fallback)
   - `buf lint`
+  - `actionlint`
   - `markdownlint` over tracked `*.md` files using `.markdownlint.json`
   - if `buf` is missing, it fails with install hint:
     `https://buf.build/docs/installation/`
+  - if `actionlint` is missing, it fails with install hint:
+    `brew install actionlint`
   - if `markdownlint` is missing, it fails with install hint:
     `brew install markdownlint-cli`
 - `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on
@@ -706,6 +709,17 @@ Notes:
 - `make services-image-import-local` imports that local worker image into
   k3d cluster `$(K3D_CLUSTER_NAME)`.
 - `make services-image-local-up` runs build + import for local k3d in one step.
+- `make public-images-build-local` builds the local public Node images
+  `$(PLATFORM_APP_IMAGE_REPO):$(PLATFORM_APP_IMAGE_TAG)` and
+  `$(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)` from
+  `deploy/docker/pulse-platform.Dockerfile` and
+  `deploy/docker/pulse-realtime-gateway.Dockerfile`.
+  Repeated local builds reuse a Docker BuildKit NPM cache mount, so `npm ci`
+  reruns can use previously downloaded packages instead of re-fetching them.
+- `make public-images-import-local` imports those local public images into k3d
+  cluster `$(K3D_CLUSTER_NAME)`.
+- `make public-images-local-up` runs build + import for both public images in
+  one step.
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services`
   using `deploy/env/local/values.services.yaml`. By default it auto-builds and
   imports the local worker image before Helm apply; set

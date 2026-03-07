@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const webPort = Number(process.env.PLAYWRIGHT_WEB_PORT ?? '4173');
+const exportScript = process.env.CI ? 'export:web:ci' : 'export:web';
 
 export default defineConfig({
   testDir: './e2e',
@@ -20,7 +21,7 @@ export default defineConfig({
     video: 'retain-on-failure'
   },
   webServer: {
-    command: `CI=1 npm run export:web && npx serve -s dist -l ${webPort}`,
+    command: `CI=1 npm run ${exportScript} && npx serve -s dist -l ${webPort}`,
     port: webPort,
     timeout: 240_000,
     reuseExistingServer: !process.env.CI

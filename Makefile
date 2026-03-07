@@ -8,6 +8,7 @@ K3D ?= k3d
 HELM ?= helm
 KUBECTL ?= kubectl
 DOCKER ?= docker
+DOCKER_BUILDKIT ?= 1
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 GCLOUD ?= gcloud
 K3D_CLUSTER_NAME ?= pulse-local
@@ -164,8 +165,14 @@ lint:
 		echo "buf not found; install from https://buf.build/docs/installation/"; \
 		exit 1; \
 	fi
+	@if ! command -v actionlint >/dev/null 2>&1; then \
+		echo "actionlint not found; install with: brew install actionlint"; \
+		exit 1; \
+	fi
 	@echo "running buf lint"
 	@buf lint
+	@echo "running actionlint"
+	@actionlint
 	@echo "running markdownlint"
 	@git ls-files -z '*.md' | xargs -0 markdownlint --config .markdownlint.json
 
@@ -335,7 +342,11 @@ services-image-build-local:
 		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
 	fi
 	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
-	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
+	fi
 
 services-image-import-local:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \
@@ -361,9 +372,17 @@ public-images-build-local:
 		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
 	fi
 	@echo "building public app image $(PLATFORM_APP_IMAGE) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
-	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+	fi
 	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
-	DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
+	fi
 
 public-images-import-local:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \
@@ -586,13 +605,13 @@ dev-down:
 # The rollout restart calls are important because the images use the same :local tag with IfNotPresent, so importing alone will not replace already-running pods.
 dev-deploy: public-images-local-up platform-up services-up
 	@echo "restarting updated local deployments"
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-public-app
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-realtime-gateway
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout restart deploy/pulse-services-go-rollup
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-realtime-gateway
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-public-app
 	@echo "waiting for restarted deployments"
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-public-app --timeout=300s
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-realtime-gateway --timeout=300s
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout status deploy/pulse-services-go-rollup --timeout=300s
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-realtime-gateway --timeout=300s
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-public-app --timeout=300s
 	@echo "showing deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy

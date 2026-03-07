@@ -11,6 +11,8 @@ This runbook keeps merge protection aligned with ADR-0010.
 - `CodeQL`
 
 These names are treated as an architecture contract. Do not rename checks casually.
+The `frontend-ci` required check may aggregate multiple internal shard jobs, but
+the wrapper job name itself must stay stable.
 
 ## When workflows change
 
@@ -21,6 +23,8 @@ Use this sequence whenever you add/rename workflows, jobs, or path filters:
 3. Update branch protection/ruleset required checks to match new names.
 4. Confirm the PR is still blocked when required checks fail.
 5. Update ADR/docs if the policy changed.
+6. Prefer internal no-op gating and wrapper jobs over broad workflow-level
+   filters when a required check name must remain present on the PR.
 
 ## Verify check names from CLI
 
@@ -36,6 +40,7 @@ Review CI performance on a regular cadence (weekly is enough for current scale):
 1. Inspect median and p95 durations for `go-test`, `go-test-race-critical`, `frontend-ci`, and `proto-ci`.
 2. If developer latency increases, optimize in this order:
    - dependency/cache hit rates,
+   - internal changed-files gating for required jobs,
    - path filters,
    - test splitting/parallelism,
    - flaky test remediation.

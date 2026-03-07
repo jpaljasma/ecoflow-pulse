@@ -7,6 +7,7 @@
     "dev": "expo start",
     "web": "expo start --web",
     "export:web": "expo export --platform web --clear",
+    "export:web:ci": "expo export --platform web",
     "ios": "expo start --ios",
     "android": "expo start --android",
     "typecheck": "tsc --noEmit",

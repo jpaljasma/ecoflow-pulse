@@ -325,6 +325,7 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
 4. When CI workflow scope changes (paths, jobs, check names), update:
    - ruleset/branch protection required checks,
    - relevant architecture docs/ADR status and references.
+   - use wrapper/aggregator jobs when sharding is needed so required check names can remain stable.
 5. Frontend CI must validate at minimum:
    - `npm run -w apps/universal typecheck`
    - `npm run -w apps/universal lint`
@@ -332,11 +333,14 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
    - Expo web build/export sanity check
    - Playwright web E2E smoke (`npm run -w apps/universal e2e:web`) with deterministic API route mocking at browser boundary
 6. Protobuf contract changes must pass both local and CI lint:
-   - local: `make lint` (includes `buf lint`)
+   - local: `make lint` (includes `buf lint` and `actionlint`)
    - CI: `proto-ci` GitHub Actions check (`buf lint`)
 7. Node↔Go protobuf compatibility must be validated with runtime contract tests:
    - local: `make test-proto-contract`
    - CI: `frontend-ci` must install Go and run realtime-gateway tests that execute the Go fixture tool (`cmd/proto-contract-fixture`) for cross-language wire compatibility.
+8. Any PR that edits `.github/workflows/*.yml` must run local workflow lint before push:
+   - preferred: `make lint`
+   - minimum: `actionlint`
 
 ## Local Development Principles (Developer Experience)
 These are mandatory implementation principles for local workflows and tooling quality.

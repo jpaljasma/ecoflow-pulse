@@ -1,8 +1,10 @@
+# syntax=docker/dockerfile:1.7
+
 FROM node:20-bookworm-slim AS build
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY tsconfig.json ./
 COPY apps/pulse-platform/package.json ./apps/pulse-platform/package.json
 COPY apps/universal/package.json ./apps/universal/package.json
@@ -12,7 +14,8 @@ COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
 RUN node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.workspaces=['apps/pulse-platform','apps/universal','packages/api-types','packages/node-jwks-auth','packages/tsconfig']; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2));"
 
-RUN npm ci
+RUN --mount=type=cache,id=ecoflow-pulse-npm-node20-bookworm,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline
 COPY apps/pulse-platform ./apps/pulse-platform
 COPY apps/universal ./apps/universal
 COPY packages/api-types ./packages/api-types
@@ -28,12 +31,13 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY apps/pulse-platform/package.json ./apps/pulse-platform/package.json
 COPY packages/node-jwks-auth/package.json ./packages/node-jwks-auth/package.json
 
 RUN node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.workspaces=['apps/pulse-platform','packages/node-jwks-auth']; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2));"
-RUN npm ci --omit=dev --workspace @ecoflow-pulse/pulse-platform --workspace @ecoflow-pulse/node-jwks-auth
+RUN --mount=type=cache,id=ecoflow-pulse-npm-node20-bookworm,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline --omit=dev --workspace @ecoflow-pulse/pulse-platform --workspace @ecoflow-pulse/node-jwks-auth
 
 COPY --from=build /app/apps/pulse-platform/dist ./apps/pulse-platform/dist
 COPY --from=build /app/apps/universal/dist ./apps/universal/dist
