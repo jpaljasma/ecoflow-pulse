@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { TokenResponse } from 'expo-auth-session';
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { create } = require('zustand') as typeof import('zustand');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createJSONStorage, persist } = require('zustand/middleware') as typeof import('zustand/middleware');
 
 export type StoredOidcSession = {
   issuerUrl: string;

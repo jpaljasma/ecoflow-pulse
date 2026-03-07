@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useShallow } = require('zustand/react/shallow') as typeof import('zustand/react/shallow');
 import { useTelemetryEngine } from '@/features/telemetry/TelemetryEngineContext';
 import { useTelemetryStore } from '@/features/telemetry/store';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
