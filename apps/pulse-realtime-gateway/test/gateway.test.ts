@@ -210,8 +210,7 @@ describe('pulse-realtime-gateway', () => {
           dcOn: true,
           usbOn: true,
           solarChargingOn: true
-        },
-        solarPorts: [{ id: 'pv-1', name: 'PV 1', state: 'charging', watts: 30 }]
+        }
       }
     });
 
