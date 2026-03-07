@@ -5,9 +5,11 @@ describe('solar history helpers', () => {
   it('builds a local-day window from midnight to now', () => {
     const now = new Date('2026-03-06T15:23:53-05:00');
     const { from, to } = buildTodayBounds(now);
+    const expectedFrom = new Date(now);
+    expectedFrom.setHours(0, 0, 0, 0);
 
-    expect(from.toISOString()).toBe('2026-03-06T05:00:00.000Z');
-    expect(to.toISOString()).toBe('2026-03-06T20:23:53.000Z');
+    expect(from.getTime()).toBe(expectedFrom.getTime());
+    expect(to.getTime()).toBe(now.getTime());
   });
 
   it('uses a stable refresh interval per key', () => {
