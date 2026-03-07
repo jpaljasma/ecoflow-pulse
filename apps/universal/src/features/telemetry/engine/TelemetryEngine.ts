@@ -350,6 +350,9 @@ export class TelemetryEngine {
       online: runtime.latest?.online ?? true,
       ...normalized
     };
+    if (message.detail) {
+      runtime.liveDetail = message.detail;
+    }
 
     for (const metric of METRIC_KEYS) {
       runtime.metrics[metric].push({ ts: message.ts, value: normalized[metric] });
@@ -368,6 +371,7 @@ export class TelemetryEngine {
 
     const runtime: DeviceRuntime = {
       latest: null,
+      liveDetail: null,
       metrics,
       lastMessageAt: 0
     };
@@ -391,6 +395,7 @@ export class TelemetryEngine {
           online: false,
           lastSeenAt: null,
           metrics: null,
+          liveDetail: undefined,
           status: 'stale',
           sparkline: { loadW: [], pvW: [], batteryW: [], soc: [], acW: [], dcW: [] }
         };
@@ -417,6 +422,7 @@ export class TelemetryEngine {
         online,
         lastSeenAt: runtime.lastMessageAt || latest?.ts || null,
         metrics: latest,
+        liveDetail: runtime.liveDetail ?? undefined,
         status,
         sparkline: {
           loadW: runtime.metrics.loadW.downsample(this.sparklinePoints),

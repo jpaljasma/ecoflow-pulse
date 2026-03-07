@@ -154,6 +154,12 @@ describe('pulse-realtime-gateway', () => {
         tempC: 20,
         acW: 6.760000000000002,
         dcW: 0
+      },
+      detail: {
+        signals: {
+          solarChargingOn: true
+        },
+        solarPorts: [{ id: 'pv-low', name: 'PV Low', state: 'charging', watts: 22.63 }]
       }
     });
 
@@ -198,6 +204,13 @@ describe('pulse-realtime-gateway', () => {
         tempC: 0,
         acW: 90,
         dcW: 8
+      },
+      detail: {
+        signals: {
+          dcOn: true,
+          usbOn: true,
+          solarChargingOn: true
+        }
       }
     });
 

@@ -1,9 +1,17 @@
 import { useMemo } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
-import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
+import type {
+  DeviceSnapshot,
+  TelemetryEngineStatus
+} from '@/features/telemetry/engine/types';
 import { formatEtaMinutes, formatSoc, formatW, formatWhAndKWh } from '@/features/telemetry/format';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
+import {
+  mergeDeviceDetailSolarPorts,
+  resolveLiveBatteryHeatingOn,
+  sumSolarPortWatts
+} from '@/features/device-detail/liveDetail';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 import { getStatusGlyph } from '@/shared/ui/statusGlyph';
@@ -89,6 +97,7 @@ export type DeviceDetailViewModel = {
   batterySummaryText?: string;
   isColdTemp: boolean;
   metricCells: DetailMetricCellVM[];
+  displayPvW?: number;
   batteryPacks: DetailBatteryPackVM[];
   solarPorts: DetailSolarPortVM[];
   signalPills: DetailSignalPillVM[];
@@ -106,6 +115,16 @@ function fallbackState(
   state: DeviceSummary['state'] | string | undefined
 ): 'charging' | 'discharging' | 'idle' {
   return state === 'charging' || state === 'discharging' || state === 'idle' ? state : 'idle';
+}
+
+function aggregateSignalState(...values: Array<boolean | undefined>): boolean | undefined {
+  if (values.some((value) => value === true)) {
+    return true;
+  }
+  if (values.some((value) => value !== undefined)) {
+    return false;
+  }
+  return undefined;
 }
 
 function solarPortView(port: {
@@ -164,15 +183,30 @@ export function useDeviceDetailViewModel({
 }): DeviceDetailViewModel {
   const modelLower = (device?.model ?? '').toLowerCase();
   const details = device?.details;
+  const liveDetail = snapshot?.liveDetail;
+  const liveSignals = liveDetail?.signals;
+  const resolvedSolarPortDetails = useMemo(
+    () => mergeDeviceDetailSolarPorts(details?.solarPorts, liveDetail?.solarPorts),
+    [details?.solarPorts, liveDetail?.solarPorts]
+  );
+  const liveSolarPortTotalW = useMemo(
+    () => (liveDetail?.solarPorts && liveDetail.solarPorts.length > 0 ? sumSolarPortWatts(resolvedSolarPortDetails) : undefined),
+    [liveDetail?.solarPorts, resolvedSolarPortDetails]
+  );
 
   const acInW = snapshot?.metrics?.acW ?? device?.acInW;
   const dcW = snapshot?.metrics?.dcW ?? device?.dcW;
-  const pvW = snapshot?.metrics?.pvW ?? device?.pvW;
   const loadW = snapshot?.metrics?.loadW ?? device?.loadW;
+  const pvW = liveSolarPortTotalW ?? snapshot?.metrics?.pvW ?? device?.pvW;
   const batteryW = snapshot?.metrics?.batteryW;
   const tempC = snapshot?.metrics?.tempC ?? device?.tempC;
   const isColdTemp = typeof tempC === 'number' && tempC <= 2;
-  const netW = snapshot?.metrics ? snapshot.metrics.pvW - snapshot.metrics.loadW : device?.netW;
+  const netW =
+    typeof pvW === 'number' && typeof loadW === 'number'
+      ? pvW - loadW
+      : snapshot?.metrics
+        ? snapshot.metrics.pvW - snapshot.metrics.loadW
+        : device?.netW;
   const capacityKWh = device ? getCapacityKWh(device) : null;
 
   const detailState = useMemo<'charging' | 'discharging' | 'idle'>(() => {
@@ -215,16 +249,18 @@ export function useDeviceDetailViewModel({
     modelLower.includes('delta pro ultra') ||
     (device?.capabilities as Record<string, unknown> | undefined)?.evCharging === true ||
     (device?.capabilities as Record<string, unknown> | undefined)?.evCharger === true ||
-    (device?.capabilities as Record<string, unknown> | undefined)?.evOutput === true;
+    (device?.capabilities as Record<string, unknown> | undefined)?.evOutput === true ||
+    liveSignals?.evChargingOn !== undefined ||
+    details?.evChargingOn !== undefined;
 
   const supportsBatteryHeating =
     modelLower.includes('delta pro ultra') ||
     (device?.capabilities as Record<string, unknown> | undefined)?.batteryHeating === true ||
-    (device?.capabilities as Record<string, unknown> | undefined)?.preconditioning === true;
+    (device?.capabilities as Record<string, unknown> | undefined)?.preconditioning === true ||
+    liveSignals?.batteryHeatingOn !== undefined ||
+    details?.batteryHeatingOn !== undefined;
 
-  const preconditioningOn =
-    details?.batteryHeatingOn === true ||
-    (details?.packs ?? []).some((pack) => pack.heatingOn === true);
+  const preconditioningOn = resolveLiveBatteryHeatingOn(liveSignals, details);
 
   const metricCells = useMemo<DetailMetricCellVM[]>(() => {
     return [
@@ -285,8 +321,8 @@ export function useDeviceDetailViewModel({
   );
 
   const solarPorts = useMemo<DetailSolarPortVM[]>(
-    () => (details?.solarPorts ?? []).map((port) => solarPortView(port)),
-    [details?.solarPorts]
+    () => (resolvedSolarPortDetails ?? []).map((port) => solarPortView(port)),
+    [resolvedSolarPortDetails]
   );
 
   const batterySummaryText = useMemo(() => {
@@ -333,19 +369,25 @@ export function useDeviceDetailViewModel({
   }, [details?.estimateMode, details?.estimateSource, details?.estimateEtaMin, details?.mqttQueueDepth, details?.mqttQueueDroppedOldest, device?.etaMinutes]);
 
   const signalPills = useMemo<DetailSignalPillVM[]>(() => {
-    if (!details) {
+    if (!details && !liveSignals) {
       return [];
     }
-    const dcSignalOn = details.dcOn === true || details.usbOn === true || details.dc12vOn === true;
+    const acOn = liveSignals?.acOn ?? details?.acOn;
+    const usbOn = liveSignals?.usbOn ?? details?.usbOn;
+    const dc12vOn = liveSignals?.dc12vOn ?? details?.dc12vOn;
+    const dcSignalOn = aggregateSignalState(liveSignals?.dcOn ?? details?.dcOn, usbOn, dc12vOn);
+    const evChargingOn = liveSignals?.evChargingOn ?? details?.evChargingOn;
+    const fanOn = liveSignals?.fanOn ?? details?.fanOn;
+    const solarChargingOn = liveSignals?.solarChargingOn ?? details?.solarChargingOn;
     const signals: Array<{ key: string; label: string; on?: boolean }> = [
-      { key: 'ac', label: 'AC On', on: details.acOn },
+      { key: 'ac', label: 'AC On', on: acOn },
       { key: 'dc', label: 'DC On', on: dcSignalOn },
-      { key: 'usb', label: 'USB On', on: details.usbOn },
-      { key: 'dc12', label: '12V On', on: details.dc12vOn },
-      ...(supportsEvCharging ? [{ key: 'ev', label: 'EV Charging', on: details.evChargingOn }] : []),
+      { key: 'usb', label: 'USB On', on: usbOn },
+      { key: 'dc12', label: '12V On', on: dc12vOn },
+      ...(supportsEvCharging ? [{ key: 'ev', label: 'EV Charging', on: evChargingOn }] : []),
       ...(supportsBatteryHeating ? [{ key: 'preconditioning', label: 'Preconditioning', on: preconditioningOn }] : []),
-      { key: 'fan', label: 'Fan', on: details.fanOn },
-      { key: 'solar', label: 'Solar Charging', on: details.solarChargingOn }
+      { key: 'fan', label: 'Fan', on: fanOn },
+      { key: 'solar', label: 'Solar Charging', on: solarChargingOn }
     ];
     return signals.map((signal) => ({
       key: signal.key,
@@ -353,7 +395,7 @@ export function useDeviceDetailViewModel({
       on: signal.on,
       tone: signalTone(signal.on)
     }));
-  }, [details, preconditioningOn, supportsBatteryHeating, supportsEvCharging]);
+  }, [details, liveSignals, preconditioningOn, supportsBatteryHeating, supportsEvCharging]);
 
   const isDelta2Max = modelLower.includes('delta 2 max');
   const isDeltaProUltra = modelLower.includes('delta pro ultra');
@@ -370,6 +412,7 @@ export function useDeviceDetailViewModel({
     batterySummaryText,
     isColdTemp,
     metricCells,
+    displayPvW: pvW,
     batteryPacks,
     solarPorts,
     signalPills,

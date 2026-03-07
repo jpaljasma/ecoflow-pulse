@@ -1,6 +1,9 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { create } = require('zustand') as typeof import('zustand');
 import type {
+  DeviceLiveDetail,
+  DeviceLiveSignals,
+  DeviceLiveSolarPort,
   DeviceSnapshot,
   FleetTrendSnapshot,
   TelemetryEngineStatus
@@ -48,6 +51,51 @@ function pointSeriesEqual(
   return true;
 }
 
+function liveSignalsEqual(a: DeviceLiveSignals | undefined, b: DeviceLiveSignals | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return !a && !b;
+  return (
+    a.acOn === b.acOn &&
+    a.dcOn === b.dcOn &&
+    a.usbOn === b.usbOn &&
+    a.dc12vOn === b.dc12vOn &&
+    a.evChargingOn === b.evChargingOn &&
+    a.fanOn === b.fanOn &&
+    a.solarChargingOn === b.solarChargingOn &&
+    a.batteryHeatingOn === b.batteryHeatingOn
+  );
+}
+
+function solarPortsEqual(a: DeviceLiveSolarPort[] | undefined, b: DeviceLiveSolarPort[] | undefined): boolean {
+  if (a === b) return true;
+  const left = a ?? [];
+  const right = b ?? [];
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    const l = left[i];
+    const r = right[i];
+    if (
+      !l ||
+      !r ||
+      l.id !== r.id ||
+      l.name !== r.name ||
+      l.state !== r.state ||
+      l.volts !== r.volts ||
+      l.amps !== r.amps ||
+      l.watts !== r.watts
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function liveDetailEqual(a: DeviceLiveDetail | undefined, b: DeviceLiveDetail | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return !a && !b;
+  return liveSignalsEqual(a.signals, b.signals) && solarPortsEqual(a.solarPorts, b.solarPorts);
+}
+
 function snapshotEqual(a: DeviceSnapshot | undefined, b: DeviceSnapshot): boolean {
   if (!a) return false;
   if (
@@ -55,7 +103,8 @@ function snapshotEqual(a: DeviceSnapshot | undefined, b: DeviceSnapshot): boolea
     a.inactive !== b.inactive ||
     a.online !== b.online ||
     a.lastSeenAt !== b.lastSeenAt ||
-    a.status !== b.status
+    a.status !== b.status ||
+    !liveDetailEqual(a.liveDetail, b.liveDetail)
   ) {
     return false;
   }

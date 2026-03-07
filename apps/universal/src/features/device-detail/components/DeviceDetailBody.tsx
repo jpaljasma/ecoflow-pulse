@@ -98,7 +98,7 @@ export function DeviceDetailBody({
                 {device ? (
                   <PowerFlowGlyph
                     status={vm.detailState}
-                    pvW={snapshot?.metrics?.pvW ?? device?.pvW}
+                    pvW={vm.displayPvW ?? snapshot?.metrics?.pvW ?? device?.pvW}
                     loadW={snapshot?.metrics?.loadW ?? device?.loadW}
                     fontSize="$6"
                     lineHeight={24}

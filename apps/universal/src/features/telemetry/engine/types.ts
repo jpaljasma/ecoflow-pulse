@@ -13,8 +13,34 @@ export type DeviceLatest = {
   dcW: number;
 };
 
+export type DeviceLiveSignals = {
+  acOn?: boolean;
+  dcOn?: boolean;
+  usbOn?: boolean;
+  dc12vOn?: boolean;
+  evChargingOn?: boolean;
+  fanOn?: boolean;
+  solarChargingOn?: boolean;
+  batteryHeatingOn?: boolean;
+};
+
+export type DeviceLiveSolarPort = {
+  id: string;
+  name: string;
+  state?: string;
+  volts?: number;
+  amps?: number;
+  watts?: number;
+};
+
+export type DeviceLiveDetail = {
+  signals?: DeviceLiveSignals;
+  solarPorts?: DeviceLiveSolarPort[];
+};
+
 export type DeviceRuntime = {
   latest: DeviceLatest | null;
+  liveDetail: DeviceLiveDetail | null;
   metrics: Record<MetricKey, RingBuffer>;
   lastMessageAt: number;
 };
@@ -26,6 +52,7 @@ export type DeviceSnapshot = {
   online: boolean;
   lastSeenAt: number | null;
   metrics: DeviceLatest | null;
+  liveDetail?: DeviceLiveDetail;
   status: 'charging' | 'discharging' | 'idle' | 'stale';
   sparkline: {
     loadW: TimePoint[];
