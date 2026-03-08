@@ -4,25 +4,9 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "apps/universal/**"
-      - "apps/pulse-platform/**"
-      - "apps/pulse-realtime-gateway/**"
-      - "packages/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/frontend-ci.yml"
   push:
     branches:
       - "**"
-    paths:
-      - "apps/universal/**"
-      - "apps/pulse-platform/**"
-      - "apps/pulse-realtime-gateway/**"
-      - "packages/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/frontend-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -39,9 +23,53 @@ env:
   EXPO_NO_TELEMETRY: "1"
 
 jobs:
+  changes:
+    name: frontend-ci-inputs
+    runs-on: ubuntu-latest
+    outputs:
+      frontend_changed: ${{ steps.filter.outputs.frontend_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect frontend-relevant changes
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "frontend_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+          fi
+
+          if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
+            echo "frontend_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only "${base_sha}" "${GITHUB_SHA}" > changed_files.txt
+
+          if grep -Eq '(^apps/universal/|^apps/pulse-platform/|^apps/pulse-realtime-gateway/|^packages/|^package\.json$|^package-lock\.json$|^\.github/workflows/frontend-ci\.yml$)' changed_files.txt; then
+            echo "frontend_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
   frontend-server-ci:
     name: frontend-server-ci
     runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.frontend_changed == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,6 +125,9 @@ jobs:
   frontend-universal-ci:
     name: frontend-universal-ci
     runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.frontend_changed == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -136,6 +167,9 @@ jobs:
   frontend-web-e2e:
     name: frontend-web-e2e
     runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.frontend_changed == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -179,6 +213,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ always() }}
     needs:
+      - changes
       - frontend-server-ci
       - frontend-universal-ci
       - frontend-web-e2e
@@ -187,16 +222,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "changes=${{ needs.changes.result }}"
           echo "frontend-server-ci=${{ needs.frontend-server-ci.result }}"
           echo "frontend-universal-ci=${{ needs.frontend-universal-ci.result }}"
           echo "frontend-web-e2e=${{ needs.frontend-web-e2e.result }}"
 
-          if [[ "${{ needs.frontend-server-ci.result }}" != "success" ]]; then
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
             exit 1
           fi
-          if [[ "${{ needs.frontend-universal-ci.result }}" != "success" ]]; then
+          if [[ "${{ needs.frontend-server-ci.result }}" != "success" && "${{ needs.frontend-server-ci.result }}" != "skipped" ]]; then
             exit 1
           fi
-          if [[ "${{ needs.frontend-web-e2e.result }}" != "success" ]]; then
+          if [[ "${{ needs.frontend-universal-ci.result }}" != "success" && "${{ needs.frontend-universal-ci.result }}" != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.frontend-web-e2e.result }}" != "success" && "${{ needs.frontend-web-e2e.result }}" != "skipped" ]]; then
             exit 1
           fi

@@ -1,6 +1,6 @@
 # Maintain Required CI Checks
 
-This runbook keeps merge protection aligned with ADR-0010.
+This runbook keeps merge protection aligned with ADR-0016.
 
 ## Required checks on `main`
 
@@ -9,10 +9,12 @@ This runbook keeps merge protection aligned with ADR-0010.
 - `frontend-ci`
 - `proto-ci`
 - `CodeQL`
+- `db-migrations-ci`
 
 These names are treated as an architecture contract. Do not rename checks casually.
-The `frontend-ci` required check may aggregate multiple internal shard jobs, but
-the wrapper job name itself must stay stable.
+The `frontend-ci`, `CodeQL`, and `db-migrations-ci` required checks may
+aggregate multiple internal shard jobs, but the wrapper job names themselves
+must stay stable.
 
 ## When workflows change
 
@@ -25,6 +27,9 @@ Use this sequence whenever you add/rename workflows, jobs, or path filters:
 5. Update ADR/docs if the policy changed.
 6. Prefer internal no-op gating and wrapper jobs over broad workflow-level
    filters when a required check name must remain present on the PR.
+7. Do not use workflow-level `paths:` filters for required checks like
+   `frontend-ci`, `proto-ci`, `CodeQL`, or `db-migrations-ci`; they must always
+   emit a status on every PR.
 
 ## Verify check names from CLI
 
@@ -37,7 +42,7 @@ gh run list --limit 20
 
 Review CI performance on a regular cadence (weekly is enough for current scale):
 
-1. Inspect median and p95 durations for `go-test`, `go-test-race-critical`, `frontend-ci`, and `proto-ci`.
+1. Inspect median and p95 durations for `go-test`, `go-test-race-critical`, `frontend-ci`, `proto-ci`, `CodeQL`, and `db-migrations-ci`.
 2. If developer latency increases, optimize in this order:
    - dependency/cache hit rates,
    - internal changed-files gating for required jobs,

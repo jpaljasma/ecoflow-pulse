@@ -1,7 +1,8 @@
 # ADR-0010: CI Gates — Required GitHub Actions Checks for Merge
 
-**Status:** Accepted  
+**Status:** Superseded  
 **Date:** 2026-02-20
+**Superseded by:** ADR-0016
 
 ## Context
 EcoFlow Pulse now has a split stack (Go backend/runtime + Expo universal client) and increasing architecture rigor via ADRs. The repository already enforces PR-based delivery and code scanning controls, but merge quality can still drift if frontend validation is optional.

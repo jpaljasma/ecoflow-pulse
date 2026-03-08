@@ -158,6 +158,30 @@ func StartStack(ctx context.Context, opts StackOptions) (*Stack, error) {
 	return stack, nil
 }
 
+func StartPostgresStack(ctx context.Context, opts StackOptions) (*Stack, error) {
+	opts = opts.normalized()
+	stack := &Stack{}
+	var err error
+	defer func() {
+		if err != nil {
+			_ = stack.Terminate(context.Background())
+		}
+	}()
+
+	stack.PostgresDSN, err = startTimescale(ctx, stack, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err = waitForPostgres(ctx, stack.PostgresDSN); err != nil {
+		return nil, err
+	}
+	if err = ApplyMigrations(ctx, stack.PostgresDSN, opts.MigrationsDir); err != nil {
+		return nil, err
+	}
+
+	return stack, nil
+}
+
 func (s *Stack) Terminate(ctx context.Context) error {
 	if s == nil {
 		return nil
@@ -303,6 +327,31 @@ func waitForPostgres(ctx context.Context, dsn string) error {
 }
 
 func ApplyMigrations(ctx context.Context, dsn string, migrationsDir string) error {
+	return applyMigrations(ctx, dsn, migrationsDir, ".up.sql")
+}
+
+func ApplyDownMigrations(ctx context.Context, dsn string, migrationsDir string) error {
+	return applyMigrations(ctx, dsn, migrationsDir, ".down.sql")
+}
+
+func OpenPostgres(ctx context.Context, dsn string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", strings.TrimSpace(dsn))
+	if err != nil {
+		return nil, fmt.Errorf("open postgres: %w", err)
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		closeErr := db.Close()
+		if closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+		return nil, fmt.Errorf("ping postgres: %w", err)
+	}
+	return db, nil
+}
+
+func applyMigrations(ctx context.Context, dsn string, migrationsDir string, suffix string) error {
 	root, err := resolveRepoRoot()
 	if err != nil {
 		return err
@@ -325,13 +374,16 @@ func ApplyMigrations(ctx context.Context, dsn string, migrationsDir string) erro
 			continue
 		}
 		name := strings.TrimSpace(entry.Name())
-		if strings.HasSuffix(name, ".up.sql") {
+		if strings.HasSuffix(name, suffix) {
 			files = append(files, filepath.Join(dir, name))
 		}
 	}
 	sort.Strings(files)
+	if suffix == ".down.sql" {
+		sort.Sort(sort.Reverse(sort.StringSlice(files)))
+	}
 	if len(files) == 0 {
-		return fmt.Errorf("no up migrations found in %q", dir)
+		return fmt.Errorf("no %s migrations found in %q", suffix, dir)
 	}
 
 	db, err := sql.Open("pgx", strings.TrimSpace(dsn))
@@ -341,8 +393,10 @@ func ApplyMigrations(ctx context.Context, dsn string, migrationsDir string) erro
 	defer func() {
 		_ = db.Close()
 	}()
-	if _, err := db.ExecContext(ctx, "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"); err != nil {
-		return fmt.Errorf("ensure timescaledb extension: %w", err)
+	if suffix == ".up.sql" {
+		if _, err := db.ExecContext(ctx, "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"); err != nil {
+			return fmt.Errorf("ensure timescaledb extension: %w", err)
+		}
 	}
 	for _, file := range files {
 		body, readErr := os.ReadFile(file)

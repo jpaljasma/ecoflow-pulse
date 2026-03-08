@@ -1,0 +1,101 @@
+name: DB Migrations CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-migrations-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: db-migrations-ci-inputs
+    runs-on: ubuntu-latest
+    outputs:
+      migrations_changed: ${{ steps.filter.outputs.migrations_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect migration-CI-relevant changes
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "migrations_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+          fi
+
+          if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
+            echo "migrations_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only "${base_sha}" "${GITHUB_SHA}" > changed_files.txt
+
+          if grep -Eq '(^deploy/db/migrations/.*\.sql$|^internal/integrationtest/|^Makefile$|^docs/reference/commands\.md$|^docs/how-to/maintain-ci-required-checks\.md$|^docs/architecture/README\.md$|^docs/architecture/adr/README\.md$|^docs/architecture/adr/ADR-0010-.*\.md$|^docs/architecture/adr/ADR-0016-.*\.md$|^\.github/workflows/db-migrations-ci\.yml$)' changed_files.txt; then
+            echo "migrations_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "migrations_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  db-migrations-ci-run:
+    name: db-migrations-ci-run
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.migrations_changed == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run migration cycle and e2e validation
+        run: make test-db-migrations-ci
+
+  db-migrations-ci:
+    name: db-migrations-ci
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - changes
+      - db-migrations-ci-run
+    steps:
+      - name: Verify migration CI result
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "changes=${{ needs.changes.result }}"
+          echo "db-migrations-ci-run=${{ needs.db-migrations-ci-run.result }}"
+
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.db-migrations-ci-run.result }}" != "success" && "${{ needs.db-migrations-ci-run.result }}" != "skipped" ]]; then
+            exit 1
+          fi
