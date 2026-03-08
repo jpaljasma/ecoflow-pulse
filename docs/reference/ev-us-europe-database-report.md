@@ -13,25 +13,25 @@ This package contains two machine-readable region layers:
 
 ### United States
 The EPA / FuelEconomy site publishes downloadable vehicle datasets covering model years **1984–2026**, and the download page was updated on **February 20, 2026**. That makes it the cleanest public machine-ingestible source for current U.S. BEV range and consumption data.  
-Source: FuelEconomy download page — https://www.fueleconomy.gov/feg/download.shtml
+Source: FuelEconomy download page — [fueleconomy.gov/feg/download.shtml](https://www.fueleconomy.gov/feg/download.shtml)
 
 Edmunds is useful as a **real-world** complement, not as the canonical machine-ingestible source. Their January 2026 EV range test page explicitly compares **EPA estimate vs. Edmunds tested range** and shows **EPA estimate vs. Edmunds tested consumption**.  
-Source: Edmunds — https://www.edmunds.com/car-news/electric-car-range-and-consumption-epa-vs-edmunds.html
+Source: Edmunds — [edmunds.com/car-news/electric-car-range-and-consumption-epa-vs-edmunds.html](https://www.edmunds.com/car-news/electric-car-range-and-consumption-epa-vs-edmunds.html)
 
 ### Europe
 For Europe, I found three strong public references:
 
 - **EAFO (European Alternative Fuels Observatory)** — official European Commission-operated page stating it tracks the electric passenger models **currently available in the EU**.  
-  Source: https://alternative-fuels-observatory.ec.europa.eu/markets-and-policy/market-and-consumer-insights/available-electric-vehicle-models
+  Source: [alternative-fuels-observatory.ec.europa.eu/.../available-electric-vehicle-models](https://alternative-fuels-observatory.ec.europa.eu/markets-and-policy/market-and-consumer-insights/available-electric-vehicle-models)
 
 - **BEV Database** — public Europe EV comparison site that describes itself as covering Europe EV efficiency / charging / WLTP-oriented comparison metrics and says its table is updated monthly.  
-  Source: https://bev-database.com/cars-list
+  Source: [bev-database.com/cars-list](https://bev-database.com/cars-list)
 
 - **EV Database** — public EU EV database that shows model availability plus technical fields like battery, fast charge and range.  
-  Source: https://ev-database.org/
+  Source: [ev-database.org](https://ev-database.org/)
 
 The problem is that the public Europe sites above are **great to browse**, but I did **not** surface a clean free bulk JSON / CSV export of all current Europe trims with explicit WLTP-per-trim fields. To still produce an ingestible file, I used **Open EV Data** as the technical Europe layer because it is downloadable and structured.  
-Source: Open EV Data raw JSON — https://raw.githubusercontent.com/KilowattApp/open-ev-data/master/data/ev-data.json
+Source: Open EV Data raw JSON — [raw.githubusercontent.com/KilowattApp/open-ev-data/master/data/ev-data.json](https://raw.githubusercontent.com/KilowattApp/open-ev-data/master/data/ev-data.json)
 
 ## Important caveats
 
@@ -111,25 +111,25 @@ ac_max_power_kw, ac_phases, ac_ports, availability_basis, availability_confidenc
 ## Source catalog
 
 ### 1) FuelEconomy / EPA
-- URL: https://www.fueleconomy.gov/feg/download.shtml
+- URL: [fueleconomy.gov/feg/download.shtml](https://www.fueleconomy.gov/feg/download.shtml)
 - Role: official U.S. machine-ingestible source
 
 ### 2) Edmunds Tested: Electric Car Range and Consumption
-- URL: https://www.edmunds.com/car-news/electric-car-range-and-consumption-epa-vs-edmunds.html
+- URL: [edmunds.com/car-news/electric-car-range-and-consumption-epa-vs-edmunds.html](https://www.edmunds.com/car-news/electric-car-range-and-consumption-epa-vs-edmunds.html)
 - Role: U.S. real-world validation / comparison
 
 ### 3) European Alternative Fuels Observatory (EAFO)
-- URL: https://alternative-fuels-observatory.ec.europa.eu/markets-and-policy/market-and-consumer-insights/available-electric-vehicle-models
+- URL: [alternative-fuels-observatory.ec.europa.eu/.../available-electric-vehicle-models](https://alternative-fuels-observatory.ec.europa.eu/markets-and-policy/market-and-consumer-insights/available-electric-vehicle-models)
 - Role: official EU current-availability reference
 
 ### 4) BEV Database
-- URL: https://bev-database.com/cars-list
+- URL: [bev-database.com/cars-list](https://bev-database.com/cars-list)
 - Role: Europe public comparison database
 
 ### 5) EV Database
-- URL: https://ev-database.org/
+- URL: [ev-database.org](https://ev-database.org/)
 - Role: Europe public technical comparison database
 
 ### 6) Open EV Data
-- URL: https://raw.githubusercontent.com/KilowattApp/open-ev-data/master/data/ev-data.json
+- URL: [raw.githubusercontent.com/KilowattApp/open-ev-data/master/data/ev-data.json](https://raw.githubusercontent.com/KilowattApp/open-ev-data/master/data/ev-data.json)
 - Role: downloadable structured technical EV dataset used for the Europe layer and U.S. enrichment

@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package pulse.inference.v1;
+
+option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1;inferencev1";
+
+import "google/protobuf/struct.proto";
+
+enum InsightKind {
+  INSIGHT_KIND_UNSPECIFIED = 0;
+  INSIGHT_KIND_BATTERY_EXPANSION = 1;
+  INSIGHT_KIND_SOLAR_ADD_ON = 2;
+  INSIGHT_KIND_SOLAR_UPGRADE = 3;
+  INSIGHT_KIND_ENERGY_SHIFT = 4;
+  INSIGHT_KIND_MAINTENANCE = 5;
+}
+
+enum InsightStatus {
+  INSIGHT_STATUS_UNSPECIFIED = 0;
+  INSIGHT_STATUS_PENDING = 1;
+  INSIGHT_STATUS_READY = 2;
+  INSIGHT_STATUS_STALE = 3;
+  INSIGHT_STATUS_UNAVAILABLE = 4;
+}
+
+enum InsightActionKind {
+  INSIGHT_ACTION_KIND_UNSPECIFIED = 0;
+  INSIGHT_ACTION_KIND_INTERNAL_ROUTE = 1;
+  INSIGHT_ACTION_KIND_EXTERNAL_URL = 2;
+  INSIGHT_ACTION_KIND_LEARN_MORE = 3;
+  INSIGHT_ACTION_KIND_DISMISS = 4;
+}
+
+enum InsightEvidenceSource {
+  INSIGHT_EVIDENCE_SOURCE_UNSPECIFIED = 0;
+  INSIGHT_EVIDENCE_SOURCE_LIVE_SNAPSHOT = 1;
+  INSIGHT_EVIDENCE_SOURCE_ROLLUP_HISTORY = 2;
+  INSIGHT_EVIDENCE_SOURCE_DEVICE_CAPABILITIES = 3;
+  INSIGHT_EVIDENCE_SOURCE_PROVIDER_METADATA = 4;
+  INSIGHT_EVIDENCE_SOURCE_MODEL_OUTPUT = 5;
+  INSIGHT_EVIDENCE_SOURCE_RULE_ENGINE = 6;
+  INSIGHT_EVIDENCE_SOURCE_USER_CONTEXT = 7;
+}
+
+message InsightFilter {
+  repeated InsightKind kinds = 1;
+  uint32 max_items = 2;
+}
+
+message InsightAction {
+  InsightActionKind kind = 1;
+  string label = 2;
+  // Route, URL, or action token interpreted according to kind.
+  string target = 3;
+  google.protobuf.Struct params = 4;
+}
+
+message InsightEvidence {
+  InsightEvidenceSource source = 1;
+  string summary = 2;
+  google.protobuf.Struct metrics = 3;
+}
+
+message DeviceInsight {
+  string id = 1;
+  string device_id = 2;
+  InsightKind kind = 3;
+  string title = 4;
+  string summary = 5;
+  // Normalized 0..1 ranking score from the serving model or rule engine.
+  double score = 6;
+  uint32 rank = 7;
+  string model_key = 8;
+  string model_version = 9;
+  int64 generated_at_unix_ms = 10;
+  int64 expires_at_unix_ms = 11;
+  repeated string tags = 12;
+  repeated InsightEvidence evidence = 13;
+  repeated InsightAction actions = 14;
+  google.protobuf.Struct attributes = 15;
+}
+
+message DeviceInsights {
+  string device_id = 1;
+  InsightStatus status = 2;
+  string status_detail = 3;
+  // Last successful refresh time for the device insight set.
+  int64 refreshed_at_unix_ms = 4;
+  repeated DeviceInsight insights = 5;
+}
+
+message GetDeviceInsightsRequest {
+  string device_id = 1;
+  InsightFilter filter = 2;
+}
+
+message GetDeviceInsightsResponse {
+  DeviceInsights insights = 1;
+}
+
+message ListFleetInsightsRequest {
+  // Optional explicit filter. If empty, the server uses all authorized devices
+  // visible to the caller when a user subject is available in auth context.
+  repeated string device_ids = 1;
+  InsightFilter filter = 2;
+}
+
+message ListFleetInsightsResponse {
+  repeated DeviceInsights devices = 1;
+}
+
+service InferenceService {
+  rpc GetDeviceInsights(GetDeviceInsightsRequest) returns (GetDeviceInsightsResponse);
+  rpc ListFleetInsights(ListFleetInsightsRequest) returns (ListFleetInsightsResponse);
+}
