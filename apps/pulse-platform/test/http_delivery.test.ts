@@ -4,7 +4,7 @@ import { buildHtmlDeliveryPlan, buildStaticHeaderPlan } from '../src/httpDeliver
 describe('pulse-platform http delivery helpers', () => {
   it('extracts preload hints and cross-origin preconnect headers from html', () => {
     const plan = buildHtmlDeliveryPlan(
-      '<!doctype html><html><head><link rel="stylesheet" href="/styles.css"><script src="/_expo/static/js/web/index-123.js" defer></script></head></html>',
+      '<!doctype html><html><head><link rel="stylesheet" href="/styles.css"><script src="/_expo/static/js/web/index-123.js" defer></script ></head></html>',
       ['https://api.example.com', 'wss://ws.example.com']
     );
 

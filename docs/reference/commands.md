@@ -691,6 +691,9 @@ Notes:
   Local Helm upgrades use server-side apply with `--force-conflicts` so
   k3d redeploys can reclaim fields that were temporarily modified by manual
   commands such as `kubectl set image`.
+  Local default public-runtime replica counts are:
+  - `pulse-platform-public-app`: `2`
+  - `pulse-platform-realtime-gateway`: `2`
   MinIO credentials must be configured with MinIO-chart top-level keys
   (`minio.rootUser` / `minio.rootPassword`), not `minio.auth.*`, to keep
   `secret/pulse-platform-minio` in sync with services runtime credentials.
@@ -742,6 +745,8 @@ Notes:
   local iteration.
   Because `pulse-services` has no external chart dependencies, local runs skip
   `helm dependency build`.
+  Local default API replica count is:
+  - `pulse-services-go-grpc-api`: `2`
 - `make services-image-build-local` builds local telemetry worker image
   `$(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)` from
   `deploy/docker/pulse-services.Dockerfile`.
@@ -764,6 +769,12 @@ Notes:
   container startup during local redeploys.
 - `make public-images-local-up` runs build + import for both public images in
   one step.
+- WebSocket note for local multi-replica testing:
+  - Kubernetes balances websocket traffic when the connection is established,
+    not on every message.
+  - To validate multi-pod realtime behavior locally, use multiple concurrent
+    clients or repeated reconnects rather than expecting one live socket to hop
+    between gateway pods.
 - `make services-up` updates Helm deps and installs/upgrades `pulse-services`
   using `deploy/env/local/values.services.yaml`. By default it auto-builds and
   imports the local worker image before Helm apply; set

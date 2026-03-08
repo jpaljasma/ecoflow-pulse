@@ -12,14 +12,12 @@ export function BatteryPacksSection({
   bpCount,
   summaryText,
   model,
-  serialNumber,
   minWidth
 }: {
   packs: DetailBatteryPackVM[];
   bpCount?: number;
   summaryText?: string;
   model?: string;
-  serialNumber?: string;
   minWidth?: number;
 }) {
   const stableBatteryCountRef = useRef<number>(0);
@@ -33,10 +31,9 @@ export function BatteryPacksSection({
     () =>
       getBatteryUpsellUrl({
         model,
-        serialNumber,
         batteryCount
       }),
-    [model, serialNumber, batteryCount]
+    [model, batteryCount]
   );
   const maxBatteries = useMemo(() => getMaxBatteryCount(model), [model]);
   return (

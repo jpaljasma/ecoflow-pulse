@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchDeviceHistory,
@@ -9,6 +9,7 @@ import {
 import { ApiError } from '@/shared/api/restClient';
 import {
   buildTodayBounds,
+  msUntilNextLocalDay,
   SOLAR_HISTORY_POINTS,
   historyRefreshIntervalMs
 } from '@/features/history/solar';
@@ -32,6 +33,22 @@ function buildDayKey(): string {
   return buildTodayBounds().from.toISOString().slice(0, 10);
 }
 
+function useSolarHistoryDayKey(): string {
+  const [dayKey, setDayKey] = useState(() => buildDayKey());
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDayKey(buildDayKey());
+    }, msUntilNextLocalDay());
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [dayKey]);
+
+  return dayKey;
+}
+
 function isHistoryNotFound(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
@@ -41,7 +58,8 @@ function emptySolarHistoryView(): SolarHistoryView {
     todayWh: 0,
     yesterdayWh: 0,
     deltaPct: null,
-    seriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0)
+    seriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0),
+    yesterdaySeriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0)
   };
 }
 
@@ -54,7 +72,7 @@ export function useDeviceSolarHistory(
   options: HistoryQueryOptions = {}
 ) {
   const { token, authKey = 'anonymous', enabled = true, maxSolarWatts } = options;
-  const dayKey = buildDayKey();
+  const dayKey = useSolarHistoryDayKey();
 
   return useQuery<SolarHistoryView>({
     queryKey: ['device-solar-history', deviceId, dayKey, authKey, maxSolarWatts ?? null],
@@ -87,7 +105,7 @@ export function useFleetSolarHistory(
 ) {
   const { token, authKey = 'anonymous', enabled = true, maxSolarWattsByDeviceId } = options;
   const sortedIds = useMemo(() => [...deviceIds].sort(), [deviceIds]);
-  const dayKey = buildDayKey();
+  const dayKey = useSolarHistoryDayKey();
   const maxSolarKey = useMemo(
     () =>
       sortedIds

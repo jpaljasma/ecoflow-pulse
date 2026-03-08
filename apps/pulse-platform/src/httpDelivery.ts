@@ -49,7 +49,7 @@ export function buildStaticHeaderPlan(publicDir: string, filePath: string): Stat
 function collectAssetHints(indexHtml: string): AssetHint[] {
   const hints: AssetHint[] = [];
 
-  const scriptRegex = /<script[^>]+src="([^"]+)"[^>]*><\/script>/g;
+  const scriptRegex = /<script\b[^>]*\bsrc="([^"]+)"[^>]*>\s*<\/script\s*>/g;
   for (const match of indexHtml.matchAll(scriptRegex)) {
     const href = match[1]?.trim();
     if (!href) continue;

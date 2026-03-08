@@ -79,6 +79,11 @@ Defaults:
     CA issuer.
   - on macOS, `make platform-up` auto-trusts the current localhost certificate
     authority in the login keychain by default (`LOCAL_PLATFORM_AUTO_TRUST_TLS=1`).
+- current local public app defaults keep the user-facing stack multi-replica for
+  round-robin validation:
+  - `pulse-platform-public-app`: `2` replicas
+  - `pulse-platform-realtime-gateway`: `2` replicas
+  - `pulse-services-go-grpc-api`: `2` replicas
 - current local services defaults enable containerized telemetry workers
   (`go-ingest`, `go-projection`, `go-archive`) using image
   `ecoflow-pulse/services:local`.

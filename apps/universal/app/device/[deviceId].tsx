@@ -24,6 +24,7 @@ import {
   mergeTrendPrefill,
   sparklineCoveragePoints
 } from '@/features/history/powerTrend';
+import { maskSerialNumber } from '@/features/telemetry/format';
 
 const DETAIL_TREND_POINTS = 60;
 const SOLAR_GENERATED_POINTS = 72;
@@ -40,14 +41,17 @@ function describeQueryError(error: unknown): string {
   return 'Unknown device detail error';
 }
 
+function describeRouteParam(value: string | undefined): string {
+  if (!value) return 'unknown';
+  return isUuid(value) ? value : maskSerialNumber(value);
+}
+
 function resolveRouteDevice(
   routeDeviceId: string | undefined,
   devices: DeviceSummary[] | undefined
 ): DeviceSummary | undefined {
   if (!routeDeviceId || !devices?.length) return undefined;
-  return devices.find(
-    (device) => device.id === routeDeviceId || device.serialNumber === routeDeviceId
-  );
+  return devices.find((device) => device.id === routeDeviceId);
 }
 
 function getMaxSolarWatts(device: DeviceSummary | undefined): number | undefined {
@@ -136,6 +140,8 @@ export default function DeviceDetailScreen() {
 
   const solarGeneratedTrend =
     solarHistory.data?.seriesWh ?? Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
+  const solarGeneratedYesterdayTrend =
+    solarHistory.data?.yesterdaySeriesWh ?? Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
 
   const detailTrend = useMemo(
     () => ({
@@ -195,6 +201,10 @@ export default function DeviceDetailScreen() {
       sparklineAC={detailTrend.ac}
       sparklineDC={detailTrend.dc}
       solarGeneratedTrend={solarGeneratedTrend}
+      solarGeneratedYesterdayTrend={solarGeneratedYesterdayTrend}
+      solarGeneratedTodayWh={solarHistory.data?.todayWh}
+      solarGeneratedYesterdayWh={solarHistory.data?.yesterdayWh}
+      solarGeneratedDeltaPct={solarHistory.data?.deltaPct}
     />
   );
 
@@ -230,7 +240,7 @@ export default function DeviceDetailScreen() {
                 Device not found
               </Text>
               <Text opacity={0.8}>
-                Route parameter `{routeDeviceId ?? 'unknown'}` did not match any loaded device id or serial number.
+                Route parameter `{describeRouteParam(routeDeviceId)}` did not match any loaded device id or serial number.
               </Text>
             </Card>
           ) : Platform.OS === 'web' ? (

@@ -161,6 +161,13 @@ Frontend rule:
 
 - solar history UI consumes `metrics.solarGeneratedWh` only; it does not derive
   solar energy from `pvAvgW`.
+- solar history charts on `/devices` and `/device/{id}` overlay the previous
+  day's bucket series as a thin dotted orange comparison line and show
+  `Yesterday` / `Today` legend totals in the chart corner.
+- solar history view models reuse one fetched payload for today's totals,
+  yesterday's totals, delta, and both chart series; the query is day-scoped and
+  refreshes again just after local midnight so the comparison rolls forward
+  automatically.
 - power-trend UI seeds the initial 5-minute chart window from recent minute
   rollup history, then replaces the right-hand side with live websocket
   sparkline coverage as fresh samples arrive.

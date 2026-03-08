@@ -10,6 +10,7 @@ export type SolarHistoryView = {
   yesterdayWh: number;
   deltaPct: number | null;
   seriesWh: number[];
+  yesterdaySeriesWh: number[];
 };
 
 export function buildCompareSolarHistoryView(series: CompareRollupSeries): SolarHistoryView {
@@ -19,12 +20,14 @@ export function buildCompareSolarHistoryView(series: CompareRollupSeries): Solar
     todayWh,
     yesterdayWh,
     deltaPct: computeDeltaPct(todayWh, yesterdayWh),
-    seriesWh: buildSeriesWh(series.current.points, series.current.fromUnixMs)
+    seriesWh: buildSeriesWh(series.current.points, series.current.fromUnixMs),
+    yesterdaySeriesWh: buildSeriesWh(series.previous.points, series.previous.fromUnixMs)
   };
 }
 
 export function combineSolarHistoryViews(views: Array<SolarHistoryView | undefined>): SolarHistoryView {
   const seriesWh = Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0);
+  const yesterdaySeriesWh = Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0);
   let todayWh = 0;
   let yesterdayWh = 0;
 
@@ -36,6 +39,8 @@ export function combineSolarHistoryViews(views: Array<SolarHistoryView | undefin
     yesterdayWh += view.yesterdayWh;
     for (let index = 0; index < seriesWh.length; index += 1) {
       seriesWh[index] = (seriesWh[index] ?? 0) + (view.seriesWh[index] ?? 0);
+      yesterdaySeriesWh[index] =
+        (yesterdaySeriesWh[index] ?? 0) + (view.yesterdaySeriesWh[index] ?? 0);
     }
   }
 
@@ -43,7 +48,8 @@ export function combineSolarHistoryViews(views: Array<SolarHistoryView | undefin
     todayWh,
     yesterdayWh,
     deltaPct: computeDeltaPct(todayWh, yesterdayWh),
-    seriesWh
+    seriesWh,
+    yesterdaySeriesWh
   };
 }
 
@@ -52,7 +58,8 @@ export function emptySolarHistoryView(): SolarHistoryView {
     todayWh: 0,
     yesterdayWh: 0,
     deltaPct: null,
-    seriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0)
+    seriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0),
+    yesterdaySeriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0)
   };
 }
 
