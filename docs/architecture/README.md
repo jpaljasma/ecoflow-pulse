@@ -456,7 +456,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 ## M6 — Online ML recommendations (v1)
 | Status | Task | Dependency |
 |---|---|---|
-| TODO | Define online inference contract (gRPC) | M2 |
+| DONE | Define online inference contract (gRPC)<br>- [x] Review locked architecture, ADR-0001, ADR-0013, and existing telemetry/recommendation surfaces<br>- [x] Add protobuf contract for inference/insight reads + generated stubs<br>- [x] Wire authz-aware gRPC service scaffold into `cmd/ecoflow-grpc-api`<br>- [x] Add regression tests and validation evidence<br>Validation evidence (2026-03-08): `buf generate` succeeded; `go test ./...` succeeded; `make lint` succeeded. | M2 |
 | TODO | Insights stream/projection | M2 |
 | TODO | Wire upsell modules to inference output | M4 |
 

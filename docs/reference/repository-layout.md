@@ -8,7 +8,7 @@ Top-level structure:
   - `universal`: Expo universal dashboard (Web/iOS/Android).
 - `cmd/`
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
-  - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane services).
+  - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane + inference services).
   - `ecoflow-ingest-worker`: distributed MQTT ingest assignment loop + session runner entrypoint.
   - `ecoflow-rollup-worker`: Timescale rollup pipeline worker (ingest envelopes -> minute/hour/day rollup upserts).
   - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects).
@@ -34,11 +34,13 @@ Top-level structure:
   - `rollupworker`: rollup pipeline primitives (durable ingest consumer + explicit metric extraction + Timescale upserts).
   - `replaycli`: manifest/object replay runtime (manifest query + object decode + replay publish runner).
   - `gaprepair`: projection lag detection + replay queue consumer/publisher primitives.
+  - `inference`: online inference read-model abstractions for device/fleet insight serving.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
   - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths.
 - `proto/`
   - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Activate credentials`, `ListDevices`, `DiscoverDevices`).
+  - `pulse/inference/v1/inference.proto`: online inference gRPC contract (`GetDeviceInsights`, `ListFleetInsights`).
   - `pulse/telemetry/v1/telemetry.proto`: telemetry gRPC contract (snapshot + server-stream updates).
   - `pulse/envelope/v1/envelope.proto`: canonical ingest/archive `TelemetryEnvelope` contract.
   - `pulse/replay/v1/replay.proto`: targeted replay request contract (`GapRepairRequest`).

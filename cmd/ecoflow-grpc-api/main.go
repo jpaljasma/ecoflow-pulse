@@ -9,6 +9,7 @@ import (
 	"time"
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
+	inferencev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"google.golang.org/grpc"
@@ -126,6 +127,7 @@ func main() {
 		),
 	)
 	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
+	inferencev1.RegisterInferenceServiceServer(s, NewInferenceService(log, controlPlaneStore, nil))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
