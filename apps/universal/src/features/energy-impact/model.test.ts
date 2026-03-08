@@ -7,6 +7,14 @@ import {
   formatTreeYears
 } from '@/features/energy-impact/model';
 
+function restoreTZ(value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env.TZ;
+    return;
+  }
+  process.env.TZ = value;
+}
+
 describe('energy impact model', () => {
   it('matches the NYUP 10,000 kWh/year worked example', () => {
     const impact = computeEnergyImpactFromSolarWh(10_000_000, 'NYUP');
@@ -44,11 +52,17 @@ describe('energy impact model', () => {
   });
 
   it('builds a rolling trailing 12-month range', () => {
-    const now = new Date('2026-03-08T09:30:00-05:00');
-    const { from, to } = buildPastTwelveMonthsBounds(now);
+    const originalTZ = process.env.TZ;
+    try {
+      process.env.TZ = 'America/New_York';
+      const now = new Date(2026, 2, 8, 9, 30, 0);
+      const { from, to } = buildPastTwelveMonthsBounds(now);
 
-    expect(from.toISOString()).toBe('2025-03-08T15:30:00.000Z');
-    expect(to.toISOString()).toBe('2026-03-08T14:30:00.000Z');
+      expect(from.toISOString()).toBe('2025-03-08T14:30:00.000Z');
+      expect(to.toISOString()).toBe('2026-03-08T13:30:00.000Z');
+    } finally {
+      restoreTZ(originalTZ);
+    }
   });
 
   it('formats period labels for UI copy', () => {
