@@ -1,4 +1,4 @@
-SHELL := /bin/zsh
+SHELL := $(shell command -v zsh 2>/dev/null || command -v bash 2>/dev/null || echo /bin/sh)
 
 GO ?= go
 NPM ?= npm
