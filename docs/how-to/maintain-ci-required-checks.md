@@ -28,6 +28,9 @@ Use this sequence whenever you add/rename workflows, jobs, or path filters:
 5. Update ADR/docs if the policy changed.
 6. Prefer internal no-op gating and wrapper jobs over broad workflow-level
    filters when a required check name must remain present on the PR.
+7. Do not use workflow-level `paths:` filters for required checks like
+   `frontend-ci`, `proto-ci`, `CodeQL`, or `db-migrations-ci`; they must always
+   emit a status on every PR.
 
 ## Verify check names from CLI
 
