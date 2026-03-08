@@ -1,0 +1,42 @@
+{{- $ingressController := lookup "apps/v1" "Deployment" .Release.Namespace (printf "%s-ingress-nginx-controller" .Release.Name) -}}
+{{- if and .Values.runtime.publicApp.enabled .Values.runtime.publicApp.ingress.enabled $ingressController }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-public-edge
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-edge
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: {{ .Values.runtime.publicApp.ingress.proxyReadTimeoutSeconds | quote }}
+    nginx.ingress.kubernetes.io/proxy-send-timeout: {{ .Values.runtime.publicApp.ingress.proxySendTimeoutSeconds | quote }}
+    nginx.ingress.kubernetes.io/ssl-redirect: {{ ternary "true" "false" .Values.runtime.publicApp.ingress.tls.enabled | quote }}
+    nginx.ingress.kubernetes.io/force-ssl-redirect: {{ ternary "true" "false" .Values.runtime.publicApp.ingress.tls.enabled | quote }}
+    {{- if and .Values.runtime.publicApp.ingress.tls.enabled .Values.runtime.publicApp.ingress.tls.localSelfSigned }}
+    cert-manager.io/issuer: {{ printf "%s-local-ca" (include "pulse-platform.fullname" .) | quote }}
+    {{- else if and .Values.runtime.publicApp.ingress.tls.enabled .Values.runtime.publicApp.ingress.tls.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ .Values.runtime.publicApp.ingress.tls.clusterIssuer | quote }}
+    {{- end }}
+    {{- with .Values.runtime.publicApp.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.runtime.publicApp.ingress.className | quote }}
+  rules:
+    - host: {{ .Values.runtime.publicApp.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pulse-platform.fullname" . }}-public-app
+                port:
+                  number: {{ .Values.runtime.publicApp.service.port }}
+  {{- if .Values.runtime.publicApp.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.runtime.publicApp.ingress.host | quote }}
+      secretName: {{ .Values.runtime.publicApp.ingress.tls.secretName | quote }}
+  {{- end }}
+{{- end }}

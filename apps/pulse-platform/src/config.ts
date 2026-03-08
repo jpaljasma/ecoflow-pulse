@@ -8,6 +8,7 @@ const envSchema = z.object({
   REALTIME_GATEWAY_UPSTREAM_URL: z.string().trim().default(''),
   GRPC_API_DEADLINE_MS: z.coerce.number().int().min(100).max(60000).default(10000),
   PULSE_PLATFORM_DEV_SUBJECT: z.string().trim().default(''),
+  PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS: z.string().trim().default(''),
   PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10000).default(120),
   PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   NODE_AUTH_MODE: z.enum(['noop', 'keycloak']).default('noop'),
@@ -27,6 +28,7 @@ export type AppConfig = {
   realtimeGatewayUpstreamUrl?: string;
   grpcDeadlineMs: number;
   devUserSubject?: string;
+  publicPreconnectOrigins: string[];
   historyRateLimit: {
     max: number;
     timeWindowMs: number;
@@ -55,6 +57,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       realtimeGatewayUpstreamUrl: parsed.REALTIME_GATEWAY_UPSTREAM_URL || undefined,
       grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
       devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,
+      publicPreconnectOrigins: splitCsvList(parsed.PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS),
       historyRateLimit: {
         max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
         timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
@@ -76,6 +79,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     realtimeGatewayUpstreamUrl: parsed.REALTIME_GATEWAY_UPSTREAM_URL || undefined,
     grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
     devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,
+    publicPreconnectOrigins: splitCsvList(parsed.PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS),
     historyRateLimit: {
       max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
       timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
@@ -88,4 +92,11 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       allowMissingJwt
     }
   };
+}
+
+function splitCsvList(input: string): string[] {
+  return input
+    .split(/[,\s]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
 }

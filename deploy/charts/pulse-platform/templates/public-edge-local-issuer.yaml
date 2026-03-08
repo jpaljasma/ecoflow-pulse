@@ -1,0 +1,47 @@
+{{- $issuerCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "issuers.cert-manager.io" -}}
+{{- $certificateCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "certificates.cert-manager.io" -}}
+{{- if and .Values.runtime.publicApp.enabled .Values.runtime.publicApp.ingress.enabled .Values.runtime.publicApp.ingress.tls.enabled .Values.runtime.publicApp.ingress.tls.localSelfSigned $issuerCRD $certificateCRD }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ printf "%s-local-selfsigned" (include "pulse-platform.fullname" .) | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-edge
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ printf "%s-local-ca" (include "pulse-platform.fullname" .) | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-edge
+spec:
+  isCA: true
+  commonName: {{ printf "%s-local-ca" (include "pulse-platform.fullname" .) | quote }}
+  secretName: {{ printf "%s-local-ca" (include "pulse-platform.fullname" .) | quote }}
+  duration: 87600h
+  renewBefore: 720h
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: {{ printf "%s-local-selfsigned" (include "pulse-platform.fullname" .) | quote }}
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ printf "%s-local-ca" (include "pulse-platform.fullname" .) | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-edge
+spec:
+  ca:
+    secretName: {{ printf "%s-local-ca" (include "pulse-platform.fullname" .) | quote }}
+{{- end }}

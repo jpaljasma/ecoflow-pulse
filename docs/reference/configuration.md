@@ -124,6 +124,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
 - `PULSE_PLATFORM_DEV_SUBJECT` (optional in local noop mode; recommended for local UI work so the BFF can resolve the current user's devices without request headers)
+- `PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS` (optional comma/whitespace-delimited browser-facing origins for `Link: rel=preconnect` / `dns-prefetch` headers when API/WS are cross-origin)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS` (default `60000`; rate-limit window for authenticated history endpoints)
 - `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
@@ -223,8 +224,16 @@ Runtime behavior:
   after local midnight so `today`/`yesterday` swap cleanly without requiring a
   manual reload.
 - fleet summary solar rendering is conservative when all visible devices report inactive solar inputs (`solarChargingOn=false` and per-port watts `0`): the summary PV stat and fleet solar trend are clamped to `0` to avoid stale/inconsistent spike artifacts.
+- the public app serves HTML with:
+  - `no-cache, no-store, must-revalidate` on HTML responses,
+  - immutable cache headers on hashed/static assets,
+  - `Link` preload headers for discovered script/style assets,
+  - optional `preconnect` / `dns-prefetch` hints for configured cross-origin endpoints,
+  - `103 Early Hints` when the runtime supports `writeEarlyHints`.
 - local k3d development is real-data and single-origin by default:
-  - the public app serves `/`
+  - the public app serves `/` through `https://localhost`
   - the Node BFF is reached through `/api`
   - the realtime gateway is reached through `/ws`
   - detail routes are UUID-only (`/device/<uuid>`); the UI must not pass serial numbers in route or query parameters
+  - browser-facing HTTP/2 is expected once TLS ingress is active
+  - browser-facing HTTP/3 is deferred with the current ingress-nginx controller path

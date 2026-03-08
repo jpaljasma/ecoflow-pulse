@@ -42,6 +42,8 @@ spec:
               value: {{ .Values.runtime.publicApp.env.nodeAuthMode | quote }}
             - name: PULSE_PLATFORM_DEV_SUBJECT
               value: {{ .Values.runtime.publicApp.env.devUserSubject | quote }}
+            - name: PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS
+              value: {{ .Values.runtime.publicApp.env.publicPreconnectOrigins | quote }}
           resources:
             {{- toYaml .Values.runtime.publicApp.resources | nindent 12 }}
           readinessProbe:

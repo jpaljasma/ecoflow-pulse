@@ -11,6 +11,7 @@ DOCKER ?= docker
 DOCKER_BUILDKIT ?= 1
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 GCLOUD ?= gcloud
+LOCAL_PLATFORM_AUTO_TRUST_TLS ?= 1
 K3D_CLUSTER_NAME ?= pulse-local
 K3D_CONTEXT ?= k3d-$(K3D_CLUSTER_NAME)
 K3D_CONFIG ?= deploy/tilt/k3d-config.yaml
@@ -146,7 +147,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait local-trust-platform-tls services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -514,6 +515,32 @@ platform-up: helm-local-ready
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(PLATFORM_CHART)
 	@set -euo pipefail; \
 		$(LOCAL_KUBECTL) create namespace $(PLATFORM_NAMESPACE) --dry-run=client -o yaml | $(LOCAL_KUBECTL) apply -f -; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-ingress-nginx-controller >/dev/null 2>&1; then \
+			echo "waiting for existing ingress-nginx controller to become ready before Helm apply"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-ingress-nginx-controller --timeout=180s; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc $(PLATFORM_RELEASE)-ingress-nginx-controller-admission >/dev/null 2>&1; then \
+			for _ in {1..36}; do \
+				webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints $(PLATFORM_RELEASE)-ingress-nginx-controller-admission -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+				if [ -n "$$webhook_eps" ]; then \
+					echo "ingress-nginx admission endpoints ready: $$webhook_eps"; \
+					break; \
+				fi; \
+				sleep 5; \
+			done; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager >/dev/null 2>&1; then \
+			echo "waiting for existing cert-manager controller to become ready before Helm apply"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager --timeout=180s; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager-webhook >/dev/null 2>&1; then \
+			echo "waiting for existing cert-manager webhook to become ready before Helm apply"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager-webhook --timeout=180s; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager-cainjector >/dev/null 2>&1; then \
+			echo "waiting for existing cert-manager cainjector to become ready before Helm apply"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager-cainjector --timeout=180s; \
+		fi; \
 		echo "installing platform release via Helm"; \
 		$(PLATFORM_HELM_APPLY); \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
@@ -530,8 +557,37 @@ platform-up: helm-local-ready
 				sleep 5; \
 			done; \
 		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager >/dev/null 2>&1; then \
+			echo "waiting for cert-manager controller to become ready"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager --timeout=180s; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager-webhook >/dev/null 2>&1; then \
+			echo "waiting for cert-manager webhook to become ready"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager-webhook --timeout=180s; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager-cainjector >/dev/null 2>&1; then \
+			echo "waiting for cert-manager cainjector to become ready"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager-cainjector --timeout=180s; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-ingress-nginx-controller >/dev/null 2>&1; then \
+			echo "waiting for ingress-nginx controller to become ready"; \
+			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-ingress-nginx-controller --timeout=180s; \
+		fi; \
+		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc $(PLATFORM_RELEASE)-ingress-nginx-controller-admission >/dev/null 2>&1; then \
+			for _ in {1..36}; do \
+				webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints $(PLATFORM_RELEASE)-ingress-nginx-controller-admission -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+				if [ -n "$$webhook_eps" ]; then \
+					echo "ingress-nginx admission endpoints ready: $$webhook_eps"; \
+					break; \
+				fi; \
+				sleep 5; \
+			done; \
+		fi; \
 		echo "running second platform Helm reconcile for CRD-backed resources"; \
-		$(PLATFORM_HELM_APPLY)
+		$(PLATFORM_HELM_APPLY); \
+		if [ "$$(uname -s)" = "Darwin" ] && [ "$(LOCAL_PLATFORM_AUTO_TRUST_TLS)" = "1" ] && $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get secret pulse-platform-local-tls >/dev/null 2>&1; then \
+			$(MAKE) --no-print-directory local-trust-platform-tls; \
+		fi
 
 platform-wait:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
@@ -582,6 +638,25 @@ platform-wait:
 	}; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-public-app 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-realtime-gateway 300s
+
+local-trust-platform-tls:
+	@set -euo pipefail; \
+	if [ "$$(uname -s)" != "Darwin" ]; then \
+		echo "local-trust-platform-tls is currently supported on macOS only"; \
+		exit 1; \
+	fi; \
+	tmp_cert="$$(mktemp /tmp/pulse-platform-local-tls.XXXXXX.crt)"; \
+	trap 'rm -f "$$tmp_cert"' EXIT INT TERM; \
+	echo "exporting pulse-platform local CA certificate from cluster"; \
+	kubectl --context "$(K3D_CONTEXT)" -n "$(PLATFORM_NAMESPACE)" get secret pulse-platform-local-ca -o jsonpath='{.data.tls\.crt}' | base64 -d > "$$tmp_cert"; \
+	fingerprint="$$(openssl x509 -in "$$tmp_cert" -noout -fingerprint -sha256 | sed 's/^.*=//; s/://g')"; \
+	if security find-certificate -a -Z "$$HOME/Library/Keychains/login.keychain-db" 2>/dev/null | tr '[:lower:]' '[:upper:]' | grep -q "$$fingerprint"; then \
+		echo "localhost TLS CA already trusted in login keychain"; \
+		exit 0; \
+	fi; \
+	echo "adding CA certificate to login keychain trust store"; \
+	security add-trusted-cert -d -r trustRoot -k "$$HOME/Library/Keychains/login.keychain-db" "$$tmp_cert"; \
+	echo "trusted localhost TLS CA for pulse-platform"
 
 services-up: helm-local-ready
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \

@@ -10,6 +10,11 @@ import { buildAuthPreHandler } from './auth.js';
 import type { AppConfig } from './config.js';
 import type { DeviceClient } from './grpc/deviceClient.js';
 import type { TelemetryHistoryClient } from './grpc/telemetryClient.js';
+import {
+  buildHtmlDeliveryPlan,
+  buildStaticHeaderPlan,
+  type HtmlDeliveryPlan
+} from './httpDelivery.js';
 import { registerDeviceRoutes } from './routes/devices.js';
 import { registerHistoryRoutes } from './routes/history.js';
 
@@ -42,16 +47,35 @@ export function buildApp(
     registerHistoryRoutes(scopedApp, historyClient, authPreHandler);
   });
   if (config.publicDir && fs.existsSync(config.publicDir)) {
+    const indexHtmlPath = path.join(config.publicDir, 'index.html');
+    const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
+    const htmlDeliveryPlan = buildHtmlDeliveryPlan(indexHtml, config.publicPreconnectOrigins);
+    app.addHook('onSend', async (request, reply, payload) => {
+      const contentType = String(reply.getHeader('content-type') ?? '');
+      if (request.method === 'GET' && contentType.startsWith('text/html')) {
+        applyHtmlDeliveryHeaders(reply, htmlDeliveryPlan);
+      }
+      return payload;
+    });
     void app.register(fastifyStatic, {
       root: config.publicDir,
       prefix: '/',
-      index: false
+      index: false,
+      cacheControl: false,
+      setHeaders: (res, filePath) => {
+        const plan = buildStaticHeaderPlan(config.publicDir!, filePath);
+        if (plan.cacheControl) {
+          res.setHeader('Cache-Control', plan.cacheControl);
+        }
+      }
     });
     app.get('/', async (request, reply) => {
-      if (request.method !== 'GET') {
-        return reply.code(405).send();
-      }
-      return reply.sendFile('index.html');
+      applyHtmlDeliveryHeaders(reply, htmlDeliveryPlan);
+      return reply.type('text/html; charset=utf-8').send(indexHtml);
+    });
+    app.head('/', async (_request, reply) => {
+      applyHtmlDeliveryHeaders(reply, htmlDeliveryPlan);
+      return reply.code(200).send();
     });
     app.setNotFoundHandler(async (request, reply) => {
       const requestedPath = request.raw.url?.replace(/^\//, '').trim() ?? '';
@@ -62,7 +86,8 @@ export function buildApp(
       if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
         return reply.sendFile(requestedPath);
       }
-      return reply.type('text/html; charset=utf-8').send(fs.readFileSync(path.join(config.publicDir!, 'index.html'), 'utf8'));
+      applyHtmlDeliveryHeaders(reply, htmlDeliveryPlan);
+      return reply.type('text/html; charset=utf-8').send(indexHtml);
     });
   }
   app.addHook('onClose', async () => {
@@ -70,6 +95,21 @@ export function buildApp(
     deviceClient.close();
   });
   return app;
+}
+
+function applyHtmlDeliveryHeaders(
+  reply: { header: (name: string, value: string) => unknown; raw: { writeEarlyHints?: (hints: Record<string, string | string[]>) => void } },
+  plan: HtmlDeliveryPlan
+): void {
+  reply.header('Cache-Control', plan.cacheControl);
+  if (plan.linkHeaderValues.length > 0) {
+    reply.header('Link', plan.linkHeaderValues.join(', '));
+    if (typeof reply.raw.writeEarlyHints === 'function') {
+      reply.raw.writeEarlyHints({
+        Link: plan.linkHeaderValues
+      });
+    }
+  }
 }
 
 function buildHistoryRateLimit(config: AppConfig): RateLimitOptions {

@@ -13,6 +13,7 @@ function baseConfig(): AppConfig {
     port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
+    publicPreconnectOrigins: [],
     historyRateLimit: {
       max: 120,
       timeWindowMs: 60000

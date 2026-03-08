@@ -38,6 +38,15 @@ Start with the same layout but increase capacity as needed.
 - `ingress-nginx`
 - `cert-manager` (Let’s Encrypt)
 
+Browser delivery policy:
+- prefer HTTP/2 at the TLS ingress/public edge,
+- keep static asset compression and cache policy at the ingress/public edge,
+- use preload / `103 Early Hints` and optional cross-origin `preconnect` where
+  they materially improve first render,
+- avoid HTTP/2 server push,
+- keep HTTP/3 deferred until the chosen ingress/controller runtime exposes a
+  stable QUIC/HTTP/3 path.
+
 Keep ingress portable to EKS.
 
 ---
