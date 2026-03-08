@@ -182,6 +182,9 @@ Frontend rule:
 - the same card also exposes a conservative mature-tree equivalent using PV
   lifecycle `CO2e` benchmark math. Methodology and constants live in
   [`tree-equivalent.md`](tree-equivalent.md).
+- the same card also exposes an EV driving-energy equivalent using a premium-EV
+  median consumption baseline derived from the bundled U.S.+Europe EV dataset.
+  Source report lives in [`ev-us-europe-database-report.md`](ev-us-europe-database-report.md).
 - `Energy Impact` exposes two periods:
   - `Today so far`: backed by the live-updating solar history path,
   - `Past 12 months`: day-rollup query loaded only on user selection and then

@@ -62,11 +62,14 @@ export function DeviceEnergyImpactCard({
     period === 'today'
       ? Math.max(0, todaySolarWh ?? 0)
       : pastTwelveMonthsQuery.data ?? Math.max(0, todaySolarWh ?? 0);
+  const displayPeriod =
+    period === 'past12Months' && pastTwelveMonthsQuery.data === undefined ? 'today' : period;
 
   return (
     <EnergyImpactCard
       solarWh={displaySolarWh}
       period={period}
+      displayPeriod={displayPeriod}
       onPeriodChange={setPeriod}
       isLoading={period === 'past12Months' && pastTwelveMonthsQuery.isFetching}
       errorText={period === 'past12Months' && pastTwelveMonthsQuery.error ? 'Past 12 months history unavailable.' : undefined}

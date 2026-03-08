@@ -36,6 +36,7 @@ This project uses the Diataxis framework for documentation structure.
 - [`reference/telemetry-model.md`](reference/telemetry-model.md)
 - [`reference/solar-avoided-emissions.md`](reference/solar-avoided-emissions.md)
 - [`reference/tree-equivalent.md`](reference/tree-equivalent.md)
+- [`reference/ev-us-europe-database-report.md`](reference/ev-us-europe-database-report.md)
 
 ### Explanation
 

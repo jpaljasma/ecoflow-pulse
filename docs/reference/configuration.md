@@ -239,6 +239,9 @@ Runtime behavior:
 - the same widget also includes a conservative mature-tree equivalent based on
   a `0.045 kg CO2e/kWh` PV lifecycle benchmark and `21.8 kg CO2/year` mature
   tree benchmark. See [`tree-equivalent.md`](tree-equivalent.md).
+- the same widget also includes an EV driving-energy equivalent using a
+  stored premium-EV median consumption baseline derived from the bundled
+  U.S.+Europe EV dataset. See [`ev-us-europe-database-report.md`](ev-us-europe-database-report.md).
 - `Energy Impact` period behavior:
   - `Today so far` stays on the normal live/history refresh path,
   - `Past 12 months` is lazy-loaded only after the user clicks it,

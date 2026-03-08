@@ -4,10 +4,18 @@ export const ENERGY_IMPACT_REFERENCE_DOC_URL =
   'https://github.com/jpaljasma/ecoflow-pulse/blob/main/docs/reference/solar-avoided-emissions.md';
 export const TREE_EQUIVALENT_REFERENCE_DOC_URL =
   'https://github.com/jpaljasma/ecoflow-pulse/blob/main/docs/reference/tree-equivalent.md';
+export const EV_RANGE_REFERENCE_DOC_URL =
+  'https://github.com/jpaljasma/ecoflow-pulse/blob/main/docs/reference/ev-us-europe-database-report.md';
 export const TREE_EQUIVALENT_FACTOR_VERSION = 'tree_eq_v1';
+export const EV_MILES_FACTOR_VERSION = 'premium_ev_median_v1';
 export const PV_LIFECYCLE_CO2E_KG_PER_KWH = 0.045;
 export const GENERIC_TREE_CO2_REMOVED_KG_PER_YEAR = 21.8;
 export const GENERIC_TREE_KWH_PER_YEAR = GENERIC_TREE_CO2_REMOVED_KG_PER_YEAR / PV_LIFECYCLE_CO2E_KG_PER_KWH;
+export const PREMIUM_EV_MEDIAN_CONSUMPTION_KWH_PER_100MI = 35.8185;
+export const PREMIUM_EV_MILES_PER_KWH = 100 / PREMIUM_EV_MEDIAN_CONSUMPTION_KWH_PER_100MI;
+export const PREMIUM_EV_MEDIAN_SAMPLE_COUNT = 567;
+export const PREMIUM_EV_REFERENCE_SCOPE =
+  'combined U.S.+Europe premium-brand BEV rows from the stored EV reference dataset';
 export const ENERGY_IMPACT_HISTORY_STALE_MS = Number.POSITIVE_INFINITY;
 export const ENERGY_IMPACT_HISTORY_GC_MS = 24 * 60 * 60_000;
 
@@ -37,16 +45,6 @@ export const AVOIDED_EMISSIONS_FACTORS = {
 export type AvoidedEmissionsFactorKey = keyof typeof AVOIDED_EMISSIONS_FACTORS;
 export type AvoidedEmissionsFactor = (typeof AVOIDED_EMISSIONS_FACTORS)[AvoidedEmissionsFactorKey];
 
-export type EnergyImpactMetric = {
-  key: 'co2e' | 'nox' | 'so2' | 'trees';
-  badge: 'CO2e' | 'NOx' | 'SO2' | 'Trees';
-  label: string;
-  detail: string;
-  grams?: number;
-  treeYears?: number;
-  displayAmount: string;
-};
-
 export type EnergyImpactResult = {
   solarWh: number;
   solarKWh: number;
@@ -59,7 +57,14 @@ export type EnergyImpactResult = {
   so2Grams: number;
   treeYearsEquivalent: number;
   solarLifecycleCo2eKg: number;
-  metrics: EnergyImpactMetric[];
+  evMilesEquivalent: number;
+};
+
+export type EnergyImpactUiRow = {
+  key: 'co2e' | 'air' | 'solar' | 'evMiles' | 'trees';
+  badge: 'CO2e' | 'Air' | 'Solar' | 'EV' | 'Trees';
+  headline: string;
+  detail: string;
 };
 
 export function buildPastTwelveMonthsBounds(now = new Date()): { from: Date; to: Date } {
@@ -71,6 +76,20 @@ export function buildPastTwelveMonthsBounds(now = new Date()): { from: Date; to:
 
 export function energyImpactPeriodLabel(period: EnergyImpactPeriod): string {
   return period === 'today' ? 'today so far' : 'the past 12 months';
+}
+
+export function formatMiles(value: number): string {
+  const positive = Math.max(0, value);
+  if (positive >= 100) {
+    return `${Math.round(positive)}`;
+  }
+  if (positive >= 10) {
+    return `${positive.toFixed(1)}`;
+  }
+  if (positive >= 1) {
+    return `${positive.toFixed(1)}`;
+  }
+  return `${positive.toFixed(2)}`;
 }
 
 export function formatTreeYears(value: number): string {
@@ -104,6 +123,63 @@ export function formatImpactMassFromGrams(grams: number): string {
   return `${positive.toFixed(3)} g`;
 }
 
+export function formatPollutantMass(grams: number): string {
+  const positive = Math.max(0, grams);
+  if (positive >= 1000) {
+    return `${(positive / 1000).toFixed(2)} kg`;
+  }
+  if (positive >= 1) {
+    return `${Math.round(positive)} g`;
+  }
+  return `${Math.round(positive * 1000)} mg`;
+}
+
+export function buildEnergyImpactRows(
+  impact: EnergyImpactResult,
+  period: EnergyImpactPeriod
+): EnergyImpactUiRow[] {
+  return [
+    {
+      key: 'co2e',
+      badge: 'CO2e',
+      headline: period === 'today' ? 'You made cleaner power today' : 'You made cleaner power over the past 12 months',
+      detail: `${formatImpactMassFromGrams(impact.co2eGrams)} CO2e displaced from the grid mix.`
+    },
+    {
+      key: 'air',
+      badge: 'Air',
+      headline: period === 'today' ? 'You helped keep air cleaner' : 'You helped keep air cleaner over the past 12 months',
+      detail: `${formatPollutantMass(impact.noxGrams)} NOx and ${formatPollutantMass(impact.so2Grams)} SO2 displaced.`
+    },
+    {
+      key: 'solar',
+      badge: 'Solar',
+      headline: period === 'today' ? 'You relied less on the grid' : 'You relied less on the grid over the past 12 months',
+      detail: `${formatWhAndKWhLocal(impact.solarWh)} generated with your own solar${period === 'today' ? ' today.' : '.'}`
+    },
+    {
+      key: 'evMiles',
+      badge: 'EV',
+      headline: 'Sunlight turned into something real',
+      detail: `About ${formatMiles(impact.evMilesEquivalent)} EV miles of driving energy.`
+    },
+    {
+      key: 'trees',
+      badge: 'Trees',
+      headline: 'A carbon benchmark you can picture',
+      detail: `About ${formatTreeYears(impact.treeYearsEquivalent).replace(' tree-years', '')} mature tree-years on a conservative lifecycle basis.`
+    }
+  ];
+}
+
+function formatWhAndKWhLocal(valueWh: number): string {
+  const positive = Math.max(0, valueWh);
+  if (positive < 1000) {
+    return `${Math.round(positive)} Wh`;
+  }
+  return `${(positive / 1000).toFixed(2)} kWh`;
+}
+
 export function computeEnergyImpactFromSolarWh(
   solarWh: number | undefined,
   factorKey: AvoidedEmissionsFactorKey = DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY
@@ -118,6 +194,7 @@ export function computeEnergyImpactFromSolarWh(
   const so2Grams = solarKWh * factor.so2GramsPerKWh;
   const solarLifecycleCo2eKg = solarKWh * PV_LIFECYCLE_CO2E_KG_PER_KWH;
   const treeYearsEquivalent = solarLifecycleCo2eKg / GENERIC_TREE_CO2_REMOVED_KG_PER_YEAR;
+  const evMilesEquivalent = solarKWh * PREMIUM_EV_MILES_PER_KWH;
 
   return {
     solarWh: normalizedSolarWh,
@@ -131,39 +208,6 @@ export function computeEnergyImpactFromSolarWh(
     so2Grams,
     treeYearsEquivalent,
     solarLifecycleCo2eKg,
-    metrics: [
-      {
-        key: 'co2e',
-        badge: 'CO2e',
-        label: `${formatImpactMassFromGrams(co2eGrams)} CO2e avoided`,
-        detail: 'Climate impact displaced by your solar generation for the selected period.',
-        grams: co2eGrams,
-        displayAmount: formatImpactMassFromGrams(co2eGrams)
-      },
-      {
-        key: 'nox',
-        badge: 'NOx',
-        label: `${formatImpactMassFromGrams(noxGrams)} NOx avoided`,
-        detail: 'Smog-forming nitrogen oxides displaced for the selected period.',
-        grams: noxGrams,
-        displayAmount: formatImpactMassFromGrams(noxGrams)
-      },
-      {
-        key: 'so2',
-        badge: 'SO2',
-        label: `${formatImpactMassFromGrams(so2Grams)} SO2 avoided`,
-        detail: 'Sulfur pollution displaced by solar generation for the selected period.',
-        grams: so2Grams,
-        displayAmount: formatImpactMassFromGrams(so2Grams)
-      },
-      {
-        key: 'trees',
-        badge: 'Trees',
-        label: `${formatTreeYears(treeYearsEquivalent).replace(' tree-years', '')} mature tree-years`,
-        detail: `Conservative lifecycle comparison only. 1 mature tree-year ≈ ${Math.round(GENERIC_TREE_KWH_PER_YEAR)} kWh.`,
-        treeYears: treeYearsEquivalent,
-        displayAmount: formatTreeYears(treeYearsEquivalent)
-      }
-    ]
+    evMilesEquivalent
   };
 }
