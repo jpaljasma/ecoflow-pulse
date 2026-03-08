@@ -29,6 +29,9 @@ runtime:
     ingest:
       enabled: true
       replicaCount: 1
+    inference:
+      enabled: true
+      replicaCount: 1
     projection:
       enabled: true
       replicaCount: 1

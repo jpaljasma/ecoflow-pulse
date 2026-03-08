@@ -17,6 +17,7 @@ RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26,target=/go/pkg/mod,sharing=l
     export CGO_ENABLED=0 GOOS=linux GOARCH=amd64; \
     for cmd in \
         ecoflow-ingest-worker \
+        ecoflow-inference-worker \
         ecoflow-rollup-worker \
         ecoflow-projection-worker \
         ecoflow-archive-worker \

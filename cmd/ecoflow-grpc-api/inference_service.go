@@ -90,7 +90,9 @@ func (s *InferenceService) GetDeviceInsights(ctx context.Context, req *inference
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "get device insights: %v", err)
 		}
-		if strings.TrimSpace(out.DeviceID) == "" {
+		if isEmptyDeviceInsights(out) {
+			out = pendingDeviceInsights(deviceID)
+		} else if strings.TrimSpace(out.DeviceID) == "" {
 			out.DeviceID = deviceID
 		}
 	}
@@ -138,7 +140,9 @@ func (s *InferenceService) ListFleetInsights(ctx context.Context, req *inference
 		if !ok {
 			row = pendingDeviceInsights(deviceID)
 		}
-		if strings.TrimSpace(row.DeviceID) == "" {
+		if isEmptyDeviceInsights(row) {
+			row = pendingDeviceInsights(deviceID)
+		} else if strings.TrimSpace(row.DeviceID) == "" {
 			row.DeviceID = deviceID
 		}
 		devices = append(devices, deviceInsightsToProto(row))
@@ -253,6 +257,14 @@ func pendingDeviceInsights(deviceID string) inference.DeviceInsights {
 		StatusDetail: "insight projection not initialized",
 		Insights:     []inference.Insight{},
 	}
+}
+
+func isEmptyDeviceInsights(in inference.DeviceInsights) bool {
+	return strings.TrimSpace(in.DeviceID) == "" &&
+		strings.TrimSpace(string(in.Status)) == "" &&
+		strings.TrimSpace(in.StatusDetail) == "" &&
+		in.RefreshedAt.IsZero() &&
+		len(in.Insights) == 0
 }
 
 func deviceInsightsToProto(in inference.DeviceInsights) *inferencev1.DeviceInsights {

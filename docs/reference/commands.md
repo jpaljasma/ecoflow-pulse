@@ -16,6 +16,7 @@ go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
 go run ./cmd/ecoflow-ingest-worker
+go run ./cmd/ecoflow-inference-worker
 go run ./cmd/ecoflow-rollup-worker
 go run ./cmd/ecoflow-projection-worker
 go run ./cmd/ecoflow-archive-worker
@@ -230,6 +231,15 @@ Run projection worker loop (consume ingest envelopes from JetStream and build Va
 VALKEY_ADDRS='127.0.0.1:6379' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-projection-worker
+```
+
+Run inference worker loop (consume ingest envelopes and build Valkey device insights):
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
+VALKEY_ADDRS='127.0.0.1:6379' \
+NATS_URLS='nats://127.0.0.1:4222' \
+go run ./cmd/ecoflow-inference-worker
 ```
 
 Run rollup worker loop (consume ingest envelopes from JetStream and upsert minute/hour/day Timescale rollups):
@@ -580,6 +590,7 @@ make build
 make smoke
 make mqtt
 make ingest-worker
+make inference-worker
 make projection-worker
 make archive-worker
 make replay-cli

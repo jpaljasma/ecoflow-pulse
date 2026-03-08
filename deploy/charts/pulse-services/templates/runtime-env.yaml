@@ -1,4 +1,4 @@
-{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled .Values.runtime.workers.grpcApi.enabled -}}
+{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.inference.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled .Values.runtime.workers.grpcApi.enabled -}}
 {{- if $workersEnabled }}
 apiVersion: v1
 kind: ConfigMap

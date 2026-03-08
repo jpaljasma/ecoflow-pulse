@@ -116,6 +116,10 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `CONTROL_PLANE_DB_DSN`
   - when set to a non-empty DSN, `cmd/ecoflow-grpc-api` uses Postgres-backed control-plane storage,
   - when unset (or whitespace), service falls back to in-memory control-plane storage for local bootstrap/testing.
+- `VALKEY_ADDRS` (comma/whitespace-delimited; enables the Valkey-backed inference reader when set)
+- `VALKEY_USERNAME` (optional)
+- `VALKEY_PASSWORD` (optional)
+- `INFERENCE_KEY_PREFIX` (default `pulse:inference`; Valkey device-insight read-model key prefix)
 
 ## Pulse Platform Node REST BFF (`apps/pulse-platform`)
 
@@ -182,6 +186,25 @@ Runtime behavior:
 - `ROLLUP_MAX_ACK_PENDING` (default `4096`)
 - `ROLLUP_PROCESS_TIMEOUT` (default `3s`)
 - `ROLLUP_DRAIN_TIMEOUT` (default `8s`)
+
+## Inference Worker (`cmd/ecoflow-inference-worker`)
+
+- `CONTROL_PLANE_DB_DSN` (required; used to resolve provider-device model/capability context)
+- `NATS_URLS`
+- `VALKEY_ADDRS`
+- `VALKEY_USERNAME` (optional)
+- `VALKEY_PASSWORD` (optional)
+- `INFERENCE_KEY_PREFIX` (default `pulse:inference`)
+- `INFERENCE_CONTEXT_CACHE_TTL` (default `1m`; control-plane device-context cache TTL)
+- `TELEMETRY_SUBJECT_PREFIX`
+- `TELEMETRY_SHARD_COUNT`
+- `INFERENCE_INGEST_STREAM_NAME` (default `PULSE_TELEMETRY_INGEST`)
+- `INFERENCE_CONSUMER_DURABLE` (default `inference-device-insights-v1`)
+- `INFERENCE_QUEUE_GROUP` (default `inference-device-insights`)
+- `INFERENCE_ACK_WAIT` (default `30s`)
+- `INFERENCE_MAX_ACK_PENDING` (default `4096`)
+- `INFERENCE_PROCESS_TIMEOUT` (default `3s`)
+- `INFERENCE_DRAIN_TIMEOUT` (default `8s`)
 
 ## Explicit Dev Seed (`cmd/ecoflow-dev-seed`)
 

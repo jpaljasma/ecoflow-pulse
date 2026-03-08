@@ -97,3 +97,17 @@ func TestNewAuthorizerFromEnvKeycloakMissingIssuer(t *testing.T) {
 		t.Fatalf("expected error when issuer is missing")
 	}
 }
+
+func TestNewInferenceReaderFromEnvFallback(t *testing.T) {
+	t.Setenv("VALKEY_ADDRS", "")
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	reader, cleanup, err := newInferenceReaderFromEnv(log)
+	if err != nil {
+		t.Fatalf("newInferenceReaderFromEnv returned error: %v", err)
+	}
+	defer cleanup()
+	if reader != nil {
+		t.Fatalf("expected nil reader fallback, got %T", reader)
+	}
+}
