@@ -46,47 +46,47 @@ const (
 )
 
 type Filter struct {
-	Kinds    []Kind
-	MaxItems int
+	Kinds    []Kind `json:"kinds,omitempty"`
+	MaxItems int    `json:"max_items,omitempty"`
 }
 
 type Action struct {
-	Kind   ActionKind
-	Label  string
-	Target string
-	Params map[string]any
+	Kind   ActionKind     `json:"kind"`
+	Label  string         `json:"label"`
+	Target string         `json:"target"`
+	Params map[string]any `json:"params,omitempty"`
 }
 
 type Evidence struct {
-	Source  EvidenceSource
-	Summary string
-	Metrics map[string]any
+	Source  EvidenceSource `json:"source"`
+	Summary string         `json:"summary"`
+	Metrics map[string]any `json:"metrics,omitempty"`
 }
 
 type Insight struct {
-	ID           string
-	DeviceID     string
-	Kind         Kind
-	Title        string
-	Summary      string
-	Score        float64
-	Rank         uint32
-	ModelKey     string
-	ModelVersion string
-	GeneratedAt  time.Time
-	ExpiresAt    time.Time
-	Tags         []string
-	Evidence     []Evidence
-	Actions      []Action
-	Attributes   map[string]any
+	ID           string         `json:"id"`
+	DeviceID     string         `json:"device_id"`
+	Kind         Kind           `json:"kind"`
+	Title        string         `json:"title"`
+	Summary      string         `json:"summary"`
+	Score        float64        `json:"score"`
+	Rank         uint32         `json:"rank"`
+	ModelKey     string         `json:"model_key,omitempty"`
+	ModelVersion string         `json:"model_version,omitempty"`
+	GeneratedAt  time.Time      `json:"generated_at,omitempty"`
+	ExpiresAt    time.Time      `json:"expires_at,omitempty"`
+	Tags         []string       `json:"tags,omitempty"`
+	Evidence     []Evidence     `json:"evidence,omitempty"`
+	Actions      []Action       `json:"actions,omitempty"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
 }
 
 type DeviceInsights struct {
-	DeviceID     string
-	Status       Status
-	StatusDetail string
-	RefreshedAt  time.Time
-	Insights     []Insight
+	DeviceID     string    `json:"device_id"`
+	Status       Status    `json:"status"`
+	StatusDetail string    `json:"status_detail,omitempty"`
+	RefreshedAt  time.Time `json:"refreshed_at,omitempty"`
+	Insights     []Insight `json:"insights,omitempty"`
 }
 
 type Reader interface {

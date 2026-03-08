@@ -331,6 +331,43 @@ func (s *MemoryStore) ListProviderDevices(_ context.Context, in ListProviderDevi
 	return out, nil
 }
 
+func (s *MemoryStore) GetProviderDeviceByDeviceID(_ context.Context, deviceID string) (ProviderDevice, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return ProviderDevice{}, ErrDeviceNotFound
+	}
+
+	var (
+		best     ProviderDevice
+		found    bool
+		bestRank = -1
+	)
+	for _, row := range s.providerDevices {
+		if strings.TrimSpace(row.DeviceID) != deviceID {
+			continue
+		}
+		rank := 0
+		if row.IsActive {
+			rank += 2
+		}
+		if strings.TrimSpace(strings.ToLower(row.IngestDesiredState)) == "active" {
+			rank++
+		}
+		if !found || rank > bestRank || (rank == bestRank && row.ProviderDeviceID < best.ProviderDeviceID) {
+			best = cloneProviderDevice(row)
+			bestRank = rank
+			found = true
+		}
+	}
+	if !found {
+		return ProviderDevice{}, ErrDeviceNotFound
+	}
+	return best, nil
+}
+
 func (s *MemoryStore) ListIngestAssignments(_ context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

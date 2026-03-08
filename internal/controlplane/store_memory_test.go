@@ -161,6 +161,40 @@ func TestMemoryStoreProviderDeviceCapabilitiesAndMetadata(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreGetProviderDeviceByDeviceIDPrefersActive(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	store.PutProviderDevice(ProviderDevice{
+		DeviceID:           "dev-1",
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "SN-paused",
+		CanonicalSN:        "SN-paused",
+		ProductName:        "Device Paused",
+		Model:              "DELTA 2 Max",
+		IsActive:           true,
+		IngestDesiredState: "paused",
+	})
+	store.PutProviderDevice(ProviderDevice{
+		DeviceID:           "dev-1",
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "SN-active",
+		CanonicalSN:        "SN-active",
+		ProductName:        "Device Active",
+		Model:              "DELTA 2 Max",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+
+	row, err := store.GetProviderDeviceByDeviceID(context.Background(), "dev-1")
+	if err != nil {
+		t.Fatalf("get provider device by device id failed: %v", err)
+	}
+	if row.ProviderDeviceID != "SN-ACTIVE" {
+		t.Fatalf("expected active provider device, got %q", row.ProviderDeviceID)
+	}
+}
+
 func TestMemoryStoreListIngestAssignmentsActiveOnly(t *testing.T) {
 	t.Parallel()
 

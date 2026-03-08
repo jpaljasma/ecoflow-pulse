@@ -12,6 +12,7 @@ Current state: **platform + telemetry worker runtime in local k3d**.
 - `charts/pulse-services/`: Pulse runtime services chart.
   - currently deploys Go telemetry workers:
     - `go-ingest`
+    - `go-inference`
     - `go-projection`
     - `go-archive`
   - Node BFF/WS gateway/query API remain staged for later milestones.
@@ -89,7 +90,7 @@ Defaults:
   - `pulse-platform-realtime-gateway`: `2` replicas
   - `pulse-services-go-grpc-api`: `2` replicas
 - current local services defaults enable containerized telemetry workers
-  (`go-ingest`, `go-projection`, `go-archive`) using image
+  (`go-ingest`, `go-inference`, `go-projection`, `go-archive`) using image
   `ecoflow-pulse/services:local`.
 - local/dev MinIO credentials are intentionally pinned for deterministic
   bring-up and service compatibility:

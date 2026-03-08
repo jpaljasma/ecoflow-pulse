@@ -598,6 +598,58 @@ ORDER BY pd.provider ASC, d.product_name ASC, d.ecoflow_sn ASC;
 	return out, nil
 }
 
+func (s *PostgresStore) GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (ProviderDevice, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return ProviderDevice{}, ErrDeviceNotFound
+	}
+	const query = `
+SELECT
+	pd.id::text,
+	pd.device_id::text,
+	pd.provider,
+	pd.provider_device_id,
+	pd.credential_id::text,
+	d.ecoflow_sn,
+	COALESCE(pd.product_name, d.product_name, ''),
+	COALESCE(pd.model, d.model, ''),
+	pd.capabilities,
+	pd.metadata,
+	pd.is_active,
+	pd.ingest_desired_state
+FROM provider_devices pd
+JOIN devices d ON d.id = pd.device_id
+WHERE pd.device_id = $1
+ORDER BY
+	CASE WHEN pd.is_active THEN 0 ELSE 1 END,
+	CASE WHEN pd.ingest_desired_state = 'active' THEN 0 ELSE 1 END,
+	pd.provider ASC,
+	pd.provider_device_id ASC
+LIMIT 1;
+`
+	var row ProviderDevice
+	if err := s.db.QueryRowContext(ctx, query, deviceID).Scan(
+		&row.ID,
+		&row.DeviceID,
+		&row.Provider,
+		&row.ProviderDeviceID,
+		&row.CredentialID,
+		&row.CanonicalSN,
+		&row.ProductName,
+		&row.Model,
+		(*jsonbMap)(&row.Capabilities),
+		(*jsonbMap)(&row.Metadata),
+		&row.IsActive,
+		&row.IngestDesiredState,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProviderDevice{}, ErrDeviceNotFound
+		}
+		return ProviderDevice{}, fmt.Errorf("query provider device by device id: %w", err)
+	}
+	return row, nil
+}
+
 func (s *PostgresStore) ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error) {
 	provider := NormalizeProvider(in.Provider)
 	query := `

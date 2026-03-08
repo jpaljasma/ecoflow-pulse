@@ -10,6 +10,7 @@ import (
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	inferencev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/inference"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"google.golang.org/grpc"
@@ -105,6 +106,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer cleanupQueryReader()
+	inferenceReader, cleanupInferenceReader, err := newInferenceReaderFromEnv(log)
+	if err != nil {
+		log.Error("inference reader init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer cleanupInferenceReader()
 
 	// Register services
 	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
@@ -127,7 +134,7 @@ func main() {
 		),
 	)
 	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
-	inferencev1.RegisterInferenceServiceServer(s, NewInferenceService(log, controlPlaneStore, nil))
+	inferencev1.RegisterInferenceServiceServer(s, NewInferenceService(log, controlPlaneStore, inferenceReader))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -239,4 +246,34 @@ func newTelemetryQueryReaderFromEnv(log *slog.Logger) (telemetryquery.Reader, fu
 
 	log.Info("telemetry query reader enabled", "source", "postgres")
 	return reader, func() { _ = reader.Close() }, nil
+}
+
+func newInferenceReaderFromEnv(log *slog.Logger) (inference.Reader, func(), error) {
+	valkeyAddrs := runtimecfg.SplitNonEmpty(strings.TrimSpace(os.Getenv("VALKEY_ADDRS")))
+	if len(valkeyAddrs) == 0 {
+		log.Info("inference reader disabled", "reason", "VALKEY_ADDRS not set")
+		return nil, func() {}, nil
+	}
+	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
+	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
+	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+
+	client, err := ingestlease.NewValkeyClient(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	store, err := inference.NewValkeyStore(client, inference.ValkeyStoreConfig{
+		KeyPrefix: strings.TrimSpace(runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference")),
+	})
+	if err != nil {
+		client.Close()
+		return nil, nil, err
+	}
+
+	log.Info("inference reader enabled",
+		"source", "valkey",
+		"valkey_addrs", strings.Join(valkeyAddrs, ","),
+		"key_prefix", strings.TrimSpace(runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference")),
+	)
+	return store, func() { client.Close() }, nil
 }

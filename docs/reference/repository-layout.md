@@ -9,6 +9,7 @@ Top-level structure:
 - `cmd/`
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane + inference services).
+  - `ecoflow-inference-worker`: online insight projection worker (ingest envelopes + control-plane metadata -> Valkey device insights read model).
   - `ecoflow-ingest-worker`: distributed MQTT ingest assignment loop + session runner entrypoint.
   - `ecoflow-rollup-worker`: Timescale rollup pipeline worker (ingest envelopes -> minute/hour/day rollup upserts).
   - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects).
@@ -29,12 +30,12 @@ Top-level structure:
   - `logger`: structured logging package.
 - `internal/`
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
+  - `inference`: online inference read-model store, derivation logic, control-plane context resolver, and worker runtime.
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
   - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + MinIO-compatible object writer).
   - `rollupworker`: rollup pipeline primitives (durable ingest consumer + explicit metric extraction + Timescale upserts).
   - `replaycli`: manifest/object replay runtime (manifest query + object decode + replay publish runner).
   - `gaprepair`: projection lag detection + replay queue consumer/publisher primitives.
-  - `inference`: online inference read-model abstractions for device/fleet insight serving.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
   - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths.

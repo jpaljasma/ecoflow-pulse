@@ -32,6 +32,40 @@ spec:
             {{- toYaml .Values.runtime.workers.ingest.resources | nindent 12 }}
 {{- end }}
 ---
+{{- if .Values.runtime.workers.inference.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-inference
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-inference
+spec:
+  replicas: {{ .Values.runtime.workers.inference.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-inference
+  template:
+    metadata:
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-inference
+    spec:
+      containers:
+        - name: go-inference
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-inference-worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.inference.resources | nindent 12 }}
+{{- end }}
+---
 {{- if .Values.runtime.workers.rollup.enabled }}
 apiVersion: apps/v1
 kind: Deployment

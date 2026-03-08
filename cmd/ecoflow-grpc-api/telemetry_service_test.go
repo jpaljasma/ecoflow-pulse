@@ -714,6 +714,10 @@ func (f *fakeControlPlaneStore) ListProviderDevices(context.Context, controlplan
 	return nil, errors.New("not implemented")
 }
 
+func (f *fakeControlPlaneStore) GetProviderDeviceByDeviceID(context.Context, string) (controlplane.ProviderDevice, error) {
+	return controlplane.ProviderDevice{}, errors.New("not implemented")
+}
+
 func (f *fakeControlPlaneStore) ListIngestAssignments(context.Context, controlplane.ListIngestAssignmentsInput) ([]controlplane.IngestAssignment, error) {
 	return nil, errors.New("not implemented")
 }

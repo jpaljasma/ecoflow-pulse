@@ -145,5 +145,6 @@ type Store interface {
 	ListUserDevices(ctx context.Context, in ListUserDevicesInput) ([]UserDevice, error)
 	UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error)
 	ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error)
+	GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (ProviderDevice, error)
 	ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error)
 }

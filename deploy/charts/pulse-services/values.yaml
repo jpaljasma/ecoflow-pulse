@@ -38,6 +38,16 @@ runtime:
         limits:
           cpu: 1
           memory: 1Gi
+    inference:
+      enabled: false
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
     projection:
       enabled: false
       replicaCount: 1

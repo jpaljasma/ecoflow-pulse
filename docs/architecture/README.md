@@ -457,7 +457,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | Status | Task | Dependency |
 |---|---|---|
 | DONE | Define online inference contract (gRPC)<br>- [x] Review locked architecture, ADR-0001, ADR-0013, and existing telemetry/recommendation surfaces<br>- [x] Add protobuf contract for inference/insight reads + generated stubs<br>- [x] Wire authz-aware gRPC service scaffold into `cmd/ecoflow-grpc-api`<br>- [x] Add regression tests and validation evidence<br>Validation evidence (2026-03-08): `buf generate` succeeded; `go test ./...` succeeded; `make lint` succeeded. | M2 |
-| TODO | Insights stream/projection | M2 |
+| DONE | Insights stream/projection<br>- [x] Review existing inference contract plus M2 projection/Valkey worker patterns<br>- [x] Add inference read-model store + derivation pipeline for first online insight slice (`BATTERY_EXPANSION` from provider-device capabilities + live ingest projection state)<br>- [x] Add runnable worker command and in-cluster services wiring (`cmd/ecoflow-inference-worker`, `pulse-services` worker deployment, local values, Docker image build)<br>- [x] Wire `InferenceService` to the persisted Valkey read model and add regression coverage (store, control-plane lookup, gRPC bootstrap fallback)<br>- [x] Validate locally and record evidence<br>Validation evidence (2026-03-08): `helm lint deploy/charts/pulse-services -f deploy/env/local/values.services.yaml` succeeded; `go test ./...` succeeded; `make lint` succeeded. | M2 |
 | TODO | Wire upsell modules to inference output | M4 |
 
 ---
