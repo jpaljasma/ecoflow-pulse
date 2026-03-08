@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
 import type { DeviceClient } from '../src/grpc/deviceClient.js';
+import type { InferenceClient } from '../src/grpc/inferenceClient.js';
 import type { CompareRollupSeries, RollupSeries, TelemetryHistoryClient } from '../src/grpc/telemetryClient.js';
 
 function baseConfig(): AppConfig {
@@ -164,6 +165,13 @@ function makeDeviceClient(): DeviceClient {
   };
 }
 
+function makeInferenceClient(): InferenceClient {
+  return {
+    getDeviceInsights: vi.fn(),
+    close: vi.fn()
+  } as unknown as InferenceClient;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -171,7 +179,7 @@ afterEach(() => {
 describe('pulse-platform history routes', () => {
   it('returns range history via grpc client', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history?resolution=hour&from=1772193600000&to=1772197200000',
@@ -197,7 +205,7 @@ describe('pulse-platform history routes', () => {
 
   it('parses ISO timestamps and compare requests', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history/compare?resolution=day&from=2026-02-27T00:00:00Z&to=2026-02-28T00:00:00Z'
@@ -228,7 +236,7 @@ describe('pulse-platform history routes', () => {
         }
       } satisfies CompareRollupSeries))
     });
-    const app = buildApp(baseConfig(), client, makeDeviceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history/solar?from=2026-03-08T00:00:00-05:00&to=2026-03-08T07:00:00-04:00&compareFrom=2026-03-07T00:00:00-05:00&compareTo=2026-03-08T00:00:00-05:00'
@@ -274,7 +282,7 @@ describe('pulse-platform history routes', () => {
         previous: { ...makeMinuteSeries(input.deviceId), points: [] }
       } satisfies CompareRollupSeries))
     });
-    const app = buildApp(baseConfig(), client, makeDeviceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
       url: `/api/v1/history/solar/fleet?deviceId=${deviceA}&deviceId=${deviceB}&from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00&compareFrom=2026-03-05T00:00:00-05:00&compareTo=2026-03-06T00:00:00-05:00`
@@ -306,7 +314,7 @@ describe('pulse-platform history routes', () => {
   });
 
   it('returns 400 for invalid query', async () => {
-    const app = buildApp(baseConfig(), makeClient(), makeDeviceClient());
+    const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/not-a-uuid/history?resolution=hour&from=1&to=2'
@@ -325,7 +333,7 @@ describe('pulse-platform history routes', () => {
         throw error;
       })
     });
-    const app = buildApp(baseConfig(), client, makeDeviceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history?resolution=hour&from=1&to=2'
@@ -350,7 +358,7 @@ describe('pulse-platform history routes', () => {
       }
     };
     const { makeVerifierPreHandler } = await import('../src/auth.js');
-    const app = buildApp(authConfig, makeClient(), makeDeviceClient(), {
+    const app = buildApp(authConfig, makeClient(), makeDeviceClient(), makeInferenceClient(), {
       authPreHandler: makeVerifierPreHandler(verifier, false)
     });
 
@@ -382,7 +390,7 @@ describe('pulse-platform history routes', () => {
         allowMissingJwt: false
       }
     };
-    const app = buildApp(authConfig, makeClient(), makeDeviceClient(), {
+    const app = buildApp(authConfig, makeClient(), makeDeviceClient(), makeInferenceClient(), {
       authPreHandler: async (request: { url: string }, reply: { code: (statusCode: number) => { send: (body: unknown) => void } }) => {
         if (request.url !== '/healthz') {
           void reply.code(401).send({ error: 'missing_bearer_token' });
@@ -406,7 +414,8 @@ describe('pulse-platform history routes', () => {
         }
       },
       makeClient(),
-      makeDeviceClient()
+      makeDeviceClient(),
+      makeInferenceClient()
     );
 
     const first = await app.inject({

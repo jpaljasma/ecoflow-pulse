@@ -9,6 +9,7 @@ import rateLimit, { type RateLimitOptions } from 'fastify-rate-limit';
 import { buildAuthPreHandler } from './auth.js';
 import type { AppConfig } from './config.js';
 import type { DeviceClient } from './grpc/deviceClient.js';
+import type { InferenceClient } from './grpc/inferenceClient.js';
 import type { TelemetryHistoryClient } from './grpc/telemetryClient.js';
 import {
   buildHtmlDeliveryPlan,
@@ -26,6 +27,7 @@ export function buildApp(
   config: AppConfig,
   historyClient: TelemetryHistoryClient,
   deviceClient: DeviceClient,
+  inferenceClient: InferenceClient,
   options: BuildAppOptions = {}
 ): FastifyInstance {
   const app = Fastify({ logger: false });
@@ -43,7 +45,7 @@ export function buildApp(
       global: false,
       hook: 'preHandler'
     });
-    registerDeviceRoutes(scopedApp, config, deviceClient, authPreHandler);
+    registerDeviceRoutes(scopedApp, config, deviceClient, inferenceClient, authPreHandler);
     registerHistoryRoutes(scopedApp, historyClient, authPreHandler);
   });
   if (config.publicDir && fs.existsSync(config.publicDir)) {
@@ -89,6 +91,7 @@ export function buildApp(
   app.addHook('onClose', async () => {
     historyClient.close();
     deviceClient.close();
+    inferenceClient.close();
   });
   return app;
 }

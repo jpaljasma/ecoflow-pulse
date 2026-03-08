@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
 import type { DeviceClient, DeviceSummary } from '../src/grpc/deviceClient.js';
+import type { DeviceInsights, InferenceClient } from '../src/grpc/inferenceClient.js';
 import type { TelemetryHistoryClient } from '../src/grpc/telemetryClient.js';
 
 function baseConfig(): AppConfig {
@@ -101,6 +102,54 @@ function makeDeviceClient(overrides: Partial<DeviceClient> = {}): DeviceClient {
   };
 }
 
+function sampleInsights(overrides: Partial<DeviceInsights> = {}): DeviceInsights {
+  return {
+    deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+    status: 'ready',
+    statusDetail: 'derived from live inference projection',
+    refreshedAtUnixMs: '1772197190000',
+    insights: [
+      {
+        id: 'ins-1',
+        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+        kind: 'battery_expansion',
+        title: 'Add extra battery capacity',
+        summary: 'Your DELTA Pro Ultra can add more battery packs.',
+        score: 0.9,
+        rank: 1,
+        modelKey: 'battery-expansion-rule',
+        modelVersion: 'v1',
+        generatedAtUnixMs: '1772197190000',
+        expiresAtUnixMs: '1772218790000',
+        tags: ['battery', 'upsell'],
+        evidence: [],
+        actions: [
+          {
+            kind: 'external_url',
+            label: 'Get More Batteries (3)',
+            target:
+              'https://us.ecoflow.com/products/delta-pro-ultra-battery?variant=41446274465865&inviteCode=ATH7F3EF1P'
+          }
+        ],
+        attributes: {
+          current_battery_packs: 2,
+          max_battery_packs: 5,
+          recommended_additional_packs: 3
+        }
+      }
+    ],
+    ...overrides
+  };
+}
+
+function makeInferenceClient(overrides: Partial<InferenceClient> = {}): InferenceClient {
+  return {
+    getDeviceInsights: vi.fn(async () => sampleInsights()),
+    close: vi.fn(),
+    ...overrides
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -108,7 +157,7 @@ afterEach(() => {
 describe('pulse-platform device routes', () => {
   it('returns user devices', async () => {
     const client = makeDeviceClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), client);
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
 
     const response = await app.inject({
       method: 'GET',
@@ -126,7 +175,7 @@ describe('pulse-platform device routes', () => {
 
   it('returns device detail by serial number', async () => {
     const client = makeDeviceClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), client);
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
 
     const response = await app.inject({
       method: 'GET',
@@ -142,7 +191,7 @@ describe('pulse-platform device routes', () => {
 
   it('returns device detail by uuid', async () => {
     const client = makeDeviceClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), client);
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
 
     const response = await app.inject({
       method: 'GET',
@@ -158,7 +207,7 @@ describe('pulse-platform device routes', () => {
 
   it('returns capabilities and detail payloads', async () => {
     const client = makeDeviceClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), client);
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
 
     const response = await app.inject({
       method: 'GET',
@@ -207,7 +256,7 @@ describe('pulse-platform device routes', () => {
     const client = makeDeviceClient({
       getDevice: vi.fn(async () => null)
     });
-    const app = buildApp(baseConfig(), makeHistoryClient(), client);
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
 
     const response = await app.inject({
       method: 'GET',
@@ -232,7 +281,8 @@ describe('pulse-platform device routes', () => {
         devUserSubject: undefined
       },
       makeHistoryClient(),
-      client
+      client,
+      makeInferenceClient()
     );
 
     const response = await app.inject({
@@ -246,6 +296,28 @@ describe('pulse-platform device routes', () => {
         error: 'missing_user_subject'
       })
     );
+
+    await app.close();
+  });
+
+  it('returns device insights', async () => {
+    const inferenceClient = makeInferenceClient();
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), inferenceClient);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/insights?kind=battery_expansion&maxItems=1'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(inferenceClient.getDeviceInsights).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+        kinds: ['battery_expansion'],
+        maxItems: 1
+      })
+    );
+    expect(response.json()).toEqual(sampleInsights());
 
     await app.close();
   });
