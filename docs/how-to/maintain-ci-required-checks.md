@@ -12,9 +12,11 @@ This runbook keeps merge protection aligned with ADR-0016.
 - `db-migrations-ci`
 
 These names are treated as an architecture contract. Do not rename checks casually.
-The `frontend-ci`, `CodeQL`, and `db-migrations-ci` required checks may
-aggregate multiple internal shard jobs, but the wrapper job names themselves
-must stay stable.
+The `frontend-ci` and `db-migrations-ci` required checks may aggregate multiple
+internal shard jobs, but the wrapper job names themselves must stay stable.
+The `CodeQL` required check is currently provided by GitHub's default CodeQL
+setup and code scanning integration. Do not add an advanced CodeQL workflow
+unless default setup is disabled first.
 
 ## When workflows change
 
