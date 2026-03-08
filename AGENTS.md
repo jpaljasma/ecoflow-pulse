@@ -88,6 +88,19 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.
 8. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
 
+## Browser Edge Learnings
+1. Browser-facing HTTP/2/HTTP/3 support is an ingress/public-edge concern, not a Node runtime concern.
+2. HTTP/3 at ingress requires all of:
+   - ingress runtime built with QUIC/HTTP/3 support,
+   - UDP `443` exposure at the edge,
+   - QUIC listener config in the generated server block,
+   - `Alt-Svc` advertising HTTP/3.
+3. Local trusted TLS should use a CA issuer plus leaf cert, then trust the CA; trusting a bare self-signed leaf cert is not reliable for browser/`curl` verification.
+4. For local `platform-up`, webhook-backed ingress/cert-manager resources need readiness gates before the second Helm reconcile:
+   - ingress-nginx controller + admission endpoints,
+   - cert-manager controller/webhook/cainjector.
+5. HTTP/2 server push remains out of scope; prefer preload / `103 Early Hints` and optional `preconnect`.
+
 ## Go Lint Hygiene Rules
 1. `golangci-lint run ./...` must pass before commit.
 2. Treat `errcheck` as mandatory: explicitly handle close errors (or intentionally ignore with `_ = ...`).

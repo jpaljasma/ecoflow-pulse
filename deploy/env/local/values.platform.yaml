@@ -57,6 +57,12 @@ runtime:
         secretName: pulse-platform-local-tls
         clusterIssuer: pulse-platform-local-selfsigned
         localSelfSigned: true
+      http3:
+        enabled: true
+        altSvcMaxAgeSeconds: 86400
+        service:
+          enabled: true
+          type: LoadBalancer
   realtimeGateway:
     enabled: true
     replicaCount: 2
@@ -208,6 +214,9 @@ minio:
 
 ingress-nginx:
   controller:
+    allowSnippetAnnotations: true
+    config:
+      annotations-risk-level: Critical
     replicaCount: 1
     service:
       type: LoadBalancer

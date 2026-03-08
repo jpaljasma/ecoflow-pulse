@@ -127,6 +127,9 @@ The control plane uses provider-aware entities while keeping ownership primitive
 - **Auth:** **Keycloak** (OIDC) with Google + Facebook
 - **S2S security:** mTLS via **Linkerd** (recommended; can be enabled after M1 if desired)
 - **GitOps:** **Argo CD**
+- **Browser edge:** TLS at ingress, browser-facing **HTTP/2** by default, and
+  **HTTP/3** when QUIC + UDP `443` are explicitly exposed at the ingress path
+  (ADR-0017)
 - **Observability:** OpenTelemetry Collector + Prometheus/Grafana; Loki/Tempo “lite” initially
 
 ### Why Valkey

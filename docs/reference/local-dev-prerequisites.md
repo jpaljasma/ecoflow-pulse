@@ -12,7 +12,7 @@ This page tracks required local tools for development workflows.
 | Helm | Kubernetes chart lint/install and dependency resolution | `make platform-up`, `make services-up` |
 | k3d | Local Kubernetes cluster bringup | `make k3d-up`, `make dev-up` |
 | kubectl | Kubernetes cluster inspection and validation | `make k3d-up`, local debugging |
-| macOS `security` CLI | Trust local localhost TLS CA in login keychain | `make local-trust-platform-tls`, auto-run from `make platform-up` on macOS |
+| macOS `security` CLI | Trust local localhost TLS CA in login or System keychain | `make local-trust-platform-tls`, `make local-trust-platform-tls-system` |
 | buf | Protobuf + gRPC code generation and linting | `buf generate`, `make lint` |
 | actionlint | GitHub Actions workflow linting | `make lint`, workflow edits |
 | markdownlint-cli | Markdown quality checks | `make lint`, docs updates |

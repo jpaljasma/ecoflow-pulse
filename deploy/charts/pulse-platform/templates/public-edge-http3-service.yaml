@@ -1,0 +1,21 @@
+{{- $ingressController := lookup "apps/v1" "Deployment" .Release.Namespace (printf "%s-ingress-nginx-controller" .Release.Name) -}}
+{{- if and .Values.runtime.publicApp.enabled .Values.runtime.publicApp.ingress.enabled .Values.runtime.publicApp.ingress.http3.enabled .Values.runtime.publicApp.ingress.http3.service.enabled $ingressController }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-public-edge-http3
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-edge-http3
+spec:
+  type: {{ default ((index .Values "ingress-nginx").controller.service.type) .Values.runtime.publicApp.ingress.http3.service.type }}
+  selector:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: ingress-nginx
+  ports:
+    - name: https-quic
+      port: 443
+      protocol: UDP
+      targetPort: 443
+{{- end }}

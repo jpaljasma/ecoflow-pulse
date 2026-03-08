@@ -79,6 +79,10 @@ Defaults:
     CA issuer.
   - on macOS, `make platform-up` auto-trusts the current localhost certificate
     authority in the login keychain by default (`LOCAL_PLATFORM_AUTO_TRUST_TLS=1`).
+  - optional HTTP/3/QUIC at the edge via:
+    - UDP 443 service `pulse-platform-public-edge-http3`,
+    - ingress `server-snippet` QUIC listeners,
+    - `Alt-Svc` response advertising `h3`.
 - current local public app defaults keep the user-facing stack multi-replica for
   round-robin validation:
   - `pulse-platform-public-app`: `2` replicas

@@ -44,8 +44,8 @@ Browser delivery policy:
 - use preload / `103 Early Hints` and optional cross-origin `preconnect` where
   they materially improve first render,
 - avoid HTTP/2 server push,
-- keep HTTP/3 deferred until the chosen ingress/controller runtime exposes a
-  stable QUIC/HTTP/3 path.
+- enable HTTP/3 only when the chosen ingress/controller runtime exposes a
+  stable QUIC/HTTP/3 path and the edge also exposes UDP 443 alongside TLS.
 
 Keep ingress portable to EKS.
 

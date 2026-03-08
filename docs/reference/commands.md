@@ -728,10 +728,16 @@ Notes:
   Browser edge examples:
   - `curl -kI https://localhost`
   - `curl -kI https://localhost/_expo/static/js/web/$(ls apps/universal/dist/_expo/static/js/web | head -n 1)`
+  - `kubectl get svc pulse-platform-public-edge-http3 -n pulse-platform`
+  - verify HTTP/3 in a browser network inspector, or with a curl build that
+    supports `--http3`
 - `make local-trust-platform-tls` (macOS only) exports the current
   `pulse-platform-local-ca` certificate authority from k3d and adds it to the
   login keychain trust store so `curl https://localhost` and the browser can
   trust the local TLS endpoint without `-k`.
+- `make local-trust-platform-tls-system` (macOS only) installs the same local
+  CA into the macOS System keychain using `sudo`. Use this when Chrome still
+  rejects `https://localhost` after the login-keychain trust step.
 - `make platform-up` now runs that trust step automatically on macOS when:
   - `LOCAL_PLATFORM_AUTO_TRUST_TLS=1` (default), and
   - `secret/pulse-platform-local-tls` exists after the platform reconcile.
