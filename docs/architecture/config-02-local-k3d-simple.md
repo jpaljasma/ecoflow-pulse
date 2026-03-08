@@ -65,4 +65,11 @@ Optional debugging mode:
 - Keycloak
 - MinIO (raw archive)
 
+## Local public/API runtime defaults
+- Node REST BFF/public app: 2 replicas
+- WebSocket gateway: 2 replicas
+- Go gRPC API: 2 replicas
+- WebSocket load balancing is per connection establishment; validate multi-pod
+  behavior with reconnects or multiple simultaneous clients.
+
 Keep observability “lite” locally.

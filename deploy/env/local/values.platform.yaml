@@ -30,7 +30,7 @@ components:
 runtime:
   publicApp:
     enabled: true
-    replicaCount: 1
+    replicaCount: 2
     image:
       repository: ecoflow-pulse/pulse-platform
       tag: local
@@ -48,7 +48,7 @@ runtime:
       devUserSubject: jpaljasma@gmail.com
   realtimeGateway:
     enabled: true
-    replicaCount: 1
+    replicaCount: 2
     image:
       repository: ecoflow-pulse/pulse-realtime-gateway
       tag: local

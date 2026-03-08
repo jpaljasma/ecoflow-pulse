@@ -71,6 +71,11 @@ Defaults:
 - `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).
+- current local public app defaults keep the user-facing stack multi-replica for
+  round-robin validation:
+  - `pulse-platform-public-app`: `2` replicas
+  - `pulse-platform-realtime-gateway`: `2` replicas
+  - `pulse-services-go-grpc-api`: `2` replicas
 - current local services defaults enable containerized telemetry workers
   (`go-ingest`, `go-projection`, `go-archive`) using image
   `ecoflow-pulse/services:local`.

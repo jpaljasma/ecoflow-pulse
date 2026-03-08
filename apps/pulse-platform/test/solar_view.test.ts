@@ -93,18 +93,32 @@ describe('backend solar history view', () => {
     expect(view.deltaPct).toBe(400);
     expect(view.seriesWh[0]).toBe(2);
     expect(view.seriesWh[1]).toBe(3);
+    expect(view.yesterdaySeriesWh[0]).toBe(1);
   });
 
   it('combines fleet views server-side', () => {
     const combined = combineSolarHistoryViews([
-      { todayWh: 100, yesterdayWh: 80, deltaPct: 25, seriesWh: [100, 0, 0] },
-      { todayWh: 50, yesterdayWh: 20, deltaPct: 150, seriesWh: [0, 50, 0] }
+      {
+        todayWh: 100,
+        yesterdayWh: 80,
+        deltaPct: 25,
+        seriesWh: [100, 0, 0],
+        yesterdaySeriesWh: [60, 20, 0]
+      },
+      {
+        todayWh: 50,
+        yesterdayWh: 20,
+        deltaPct: 150,
+        seriesWh: [0, 50, 0],
+        yesterdaySeriesWh: [0, 20, 0]
+      }
     ]);
 
     expect(combined.todayWh).toBe(150);
     expect(combined.yesterdayWh).toBe(100);
     expect(combined.deltaPct).toBe(50);
     expect(combined.seriesWh.slice(0, 3)).toEqual([100, 50, 0]);
+    expect(combined.yesterdaySeriesWh.slice(0, 3)).toEqual([60, 40, 0]);
   });
 
   it('returns an empty default view', () => {
@@ -112,7 +126,8 @@ describe('backend solar history view', () => {
       todayWh: 0,
       yesterdayWh: 0,
       deltaPct: null,
-      seriesWh: Array.from({ length: 72 }, () => 0)
+      seriesWh: Array.from({ length: 72 }, () => 0),
+      yesterdaySeriesWh: Array.from({ length: 72 }, () => 0)
     });
   });
 });

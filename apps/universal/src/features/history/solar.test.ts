@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildTodayBounds, historyRefreshIntervalMs, SOLAR_HISTORY_POINTS } from '@/features/history/solar';
+import {
+  buildTodayBounds,
+  historyRefreshIntervalMs,
+  msUntilNextLocalDay,
+  SOLAR_HISTORY_POINTS
+} from '@/features/history/solar';
 
 describe('solar history helpers', () => {
   it('builds a local-day window from midnight to now', () => {
@@ -21,6 +26,11 @@ describe('solar history helpers', () => {
     expect(first).toBeGreaterThanOrEqual(60_000);
     expect(first).toBeLessThan(67_500);
     expect(other).not.toBe(first);
+  });
+
+  it('computes the delay until the next local day rollover', () => {
+    const now = new Date('2026-03-06T23:59:30-05:00');
+    expect(msUntilNextLocalDay(now)).toBe(31_000);
   });
 
   it('keeps the chart bucket count fixed', () => {

@@ -20,6 +20,8 @@ type EngineOptions = {
   sparklinePoints?: number;
   heartbeatMs?: number;
   stalledReconnectMs?: number;
+  reconnectBaseMs?: number;
+  reconnectMaxMs?: number;
   fleetTrendPoints?: number;
   fleetTrendBucketMs?: number;
   createSocket?: (url: string) => WebSocketLike;
@@ -62,6 +64,8 @@ export class TelemetryEngine {
   private readonly sparklinePoints: number;
   private readonly heartbeatMs: number;
   private readonly stalledReconnectMs: number;
+  private readonly reconnectBaseMs: number;
+  private readonly reconnectMaxMs: number;
   private readonly fleetTrendPoints: number;
   private readonly fleetTrendBucketMs: number;
   private readonly createSocket: (url: string) => WebSocketLike;
@@ -109,6 +113,8 @@ export class TelemetryEngine {
     this.sparklinePoints = options.sparklinePoints ?? 60;
     this.heartbeatMs = options.heartbeatMs ?? 20_000;
     this.stalledReconnectMs = options.stalledReconnectMs ?? 20_000;
+    this.reconnectBaseMs = options.reconnectBaseMs ?? 1_000;
+    this.reconnectMaxMs = options.reconnectMaxMs ?? 30_000;
     this.fleetTrendPoints = options.fleetTrendPoints ?? 60;
     this.fleetTrendBucketMs = options.fleetTrendBucketMs ?? 5_000;
     this.createSocket = options.createSocket ?? ((url) => new WebSocket(url));
@@ -529,14 +535,14 @@ export class TelemetryEngine {
   }
 
   private scheduleReconnect(): void {
-    const base = Math.min(30_000, 1_000 * 2 ** this.reconnectAttempt);
-    // Full jitter: spread retries uniformly from 0..base to avoid
-    // synchronized reconnect storms and improve fleet stability.
-    const delay = Math.floor(Math.random() * (base + 1));
-
     this.reconnectAttempt += 1;
     this.setStatus('reconnecting');
     this.rotateWsCandidate();
+    const delay = computeReconnectBackoffWithJitter(
+      this.reconnectBaseMs,
+      this.reconnectMaxMs,
+      this.reconnectAttempt
+    );
 
     this.reconnectTimer = setTimeout(() => {
       this.openSocket();
@@ -715,4 +721,11 @@ export class TelemetryEngine {
       count: 1
     };
   }
+}
+
+function computeReconnectBackoffWithJitter(baseMs: number, maxMs: number, attempt: number): number {
+  const exponential = Math.min(maxMs, baseMs * 2 ** Math.max(0, attempt - 1));
+  const lowerBound = Math.max(250, Math.floor(exponential / 2));
+  const upperRange = Math.max(1, exponential - lowerBound);
+  return lowerBound + Math.floor(Math.random() * upperRange);
 }

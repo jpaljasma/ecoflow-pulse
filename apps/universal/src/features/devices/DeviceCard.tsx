@@ -8,7 +8,7 @@ import { Card } from '@/shared/ui/Card';
 import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
 import { Stat } from '@/shared/ui/Stat';
-import { formatAgo, formatEtaMinutes, formatKWh, formatW } from '@/features/telemetry/format';
+import { formatAgo, formatEtaMinutes, formatKWh, formatW, maskSerialNumber } from '@/features/telemetry/format';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { SocBar } from '@/shared/ui/SocBar';
@@ -263,7 +263,7 @@ export function DeviceCard({
               </XStack>
 
               <Text fontFamily="$body" fontSize={isPhoneCompact ? '$2' : '$3'} opacity={0.8} numberOfLines={1}>
-                {device.model} · SN {device.serialNumber}
+                {device.model} · SN {maskSerialNumber(device.serialNumber)}
               </Text>
 
               <YStack gap="$2">

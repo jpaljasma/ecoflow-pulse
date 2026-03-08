@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import {
-  D2M_DEVICE_ID,
   D2M_SERIAL,
   DPU_DEVICE_ID,
   mockApiRoutes
@@ -30,11 +29,10 @@ test.describe('Universal web E2E', () => {
     await expect(page.getByText('System Signals')).toBeVisible();
   });
 
-  test('resolves serial route to canonical UUID route', async ({ page }) => {
+  test('does not resolve serial route aliases', async ({ page }) => {
     await page.goto(`/device/${D2M_SERIAL}`);
 
-    await expect(page).toHaveURL(new RegExp(`/device/${D2M_DEVICE_ID}$`));
-    await expect(page.getByText('Kitchen Delta 2 Max')).toBeVisible();
-    await expect(page.getByText('☼ Solar Generated (6am-6pm, 10m buckets)')).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/device/${D2M_SERIAL}$`));
+    await expect(page.getByText('Device not found')).toBeVisible();
   });
 });

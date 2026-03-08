@@ -33,7 +33,11 @@ export function DeviceDetailBody({
   sparklinePV,
   sparklineAC,
   sparklineDC,
-  solarGeneratedTrend
+  solarGeneratedTrend,
+  solarGeneratedYesterdayTrend,
+  solarGeneratedTodayWh,
+  solarGeneratedYesterdayWh,
+  solarGeneratedDeltaPct
 }: {
   device?: DeviceSummary;
   snapshot?: DeviceSnapshot;
@@ -48,6 +52,10 @@ export function DeviceDetailBody({
   sparklineAC: number[];
   sparklineDC: number[];
   solarGeneratedTrend: number[];
+  solarGeneratedYesterdayTrend: number[];
+  solarGeneratedTodayWh?: number;
+  solarGeneratedYesterdayWh?: number;
+  solarGeneratedDeltaPct?: number | null;
 }) {
   const detailMetricItems: MetricsGridItem[] = vm.metricCells.map((cell) => {
     if (cell.kind === 'today') {
@@ -117,7 +125,14 @@ export function DeviceDetailBody({
         <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
           <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
             <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
-              <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+              <SolarGeneratedChart
+                valuesWh={solarGeneratedTrend}
+                yesterdayValuesWh={solarGeneratedYesterdayTrend}
+                todayWh={solarGeneratedTodayWh}
+                yesterdayWh={solarGeneratedYesterdayWh}
+                deltaPct={solarGeneratedDeltaPct}
+                points={SOLAR_GENERATED_POINTS}
+              />
             </ChartSection>
           </YStack>
           <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
@@ -135,7 +150,14 @@ export function DeviceDetailBody({
       ) : (
         <YStack gap="$3">
           <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
-            <SolarGeneratedChart valuesWh={solarGeneratedTrend} points={SOLAR_GENERATED_POINTS} />
+            <SolarGeneratedChart
+              valuesWh={solarGeneratedTrend}
+              yesterdayValuesWh={solarGeneratedYesterdayTrend}
+              todayWh={solarGeneratedTodayWh}
+              yesterdayWh={solarGeneratedYesterdayWh}
+              deltaPct={solarGeneratedDeltaPct}
+              points={SOLAR_GENERATED_POINTS}
+            />
           </ChartSection>
           <ChartSection title="Power Trends">
             <PowerTrendChart
@@ -157,7 +179,6 @@ export function DeviceDetailBody({
               bpCount={vm.details?.bpCount}
               summaryText={vm.batterySummaryText}
               model={device?.model}
-              serialNumber={device?.serialNumber}
               minWidth={isDesktop ? 320 : 280}
             />
           ) : null}

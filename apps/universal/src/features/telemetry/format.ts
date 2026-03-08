@@ -34,6 +34,20 @@ export function formatWhAndKWh(valueWh: number | undefined | null): string {
   return formatScaled(Math.max(0, valueWh), 'Wh', 'kWh');
 }
 
+export function maskSerialNumber(value: string | undefined | null): string {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '—';
+  }
+  if (trimmed.length <= 6) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 2)}••••••${trimmed.slice(-4)}`;
+}
+
 export function formatSoc(value: number | undefined | null): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return '—';

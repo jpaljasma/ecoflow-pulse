@@ -58,7 +58,8 @@ export const SolarHistoryViewSchema = z.object({
   todayWh: z.number(),
   yesterdayWh: z.number(),
   deltaPct: z.number().nullable(),
-  seriesWh: z.array(z.number())
+  seriesWh: z.array(z.number()),
+  yesterdaySeriesWh: z.array(z.number())
 });
 
 export type SolarHistoryView = z.infer<typeof SolarHistoryViewSchema>;

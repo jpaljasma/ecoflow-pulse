@@ -67,17 +67,26 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. For commits touching Markdown, run `make lint` before push.
 5. Markdown linting uses repo-level sane defaults in `.markdownlint.json`; avoid broad doc reflow/polish unless the task explicitly requires it.
 
+## Universal UI Data Rules
+1. Universal app routes, query params, and outbound UI links must use canonical UUID device IDs only; do not pass raw serial numbers in UI parameters.
+2. Solar history views must reuse a single fetched payload for today totals, yesterday totals, delta, and comparison series, and must refresh again after the local midnight boundary so day-over-day charts roll forward automatically.
+
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.
 2. Use `make dev-up` + `make services-up` as the default local runtime path for ingest/projection/archive.
 3. Keep worker image flow reproducible:
    - `make services-image-build-local`
    - `make services-image-import-local`
-4. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
-5. Historical rollup regeneration must be non-destructive by default:
+4. Keep the local public/API path multi-replica by default for round-robin validation:
+   - Node REST BFF/public app: `2` replicas,
+   - WebSocket gateway: `2` replicas,
+   - Go gRPC API: `2` replicas.
+5. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
+6. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
+7. Historical rollup regeneration must be non-destructive by default:
    - do not delete a requested rollup window before rebuilding it,
    - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.
-6. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
+8. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
 
 ## Go Lint Hygiene Rules
 1. `golangci-lint run ./...` must pass before commit.

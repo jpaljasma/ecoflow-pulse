@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
+import { formatWhAndKWh } from '@/features/telemetry/format';
 
 const CHART_HEIGHT = 170;
 const WEB_CHART_HEIGHT = 210;
 const PAD_X = 8;
 const PAD_Y = 14;
 const SOLAR_COLOR = '#ff9f0a';
+const YESTERDAY_COLOR = 'rgba(255,159,10,0.72)';
 const EPSILON = 1e-6;
 const Y_AXIS_WIDTH = 44;
 const X_AXIS_TICKS = ['06', '09', '12', '15', '18'] as const;
@@ -111,11 +113,126 @@ function buildSvgSmoothPath(points: Point[]): string {
   return d;
 }
 
+function buildDashedSvgPath(points: Point[], dashLength = 4, gapLength = 6): string {
+  if (points.length < 2) return '';
+
+  let d = '';
+  let drawing = true;
+  let remaining = dashLength;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const start = pointAt(points, index - 1);
+    const end = pointAt(points, index);
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const segmentLength = Math.hypot(dx, dy);
+    if (segmentLength <= EPSILON) {
+      continue;
+    }
+
+    let offset = 0;
+    while (offset < segmentLength - EPSILON) {
+      const chunk = Math.min(remaining, segmentLength - offset);
+      const fromRatio = offset / segmentLength;
+      const toRatio = (offset + chunk) / segmentLength;
+      const fromX = start.x + dx * fromRatio;
+      const fromY = start.y + dy * fromRatio;
+      const toX = start.x + dx * toRatio;
+      const toY = start.y + dy * toRatio;
+      if (drawing) {
+        d += ` M ${fromX.toFixed(2)} ${fromY.toFixed(2)} L ${toX.toFixed(2)} ${toY.toFixed(2)}`;
+      }
+      offset += chunk;
+      remaining -= chunk;
+      if (remaining <= EPSILON) {
+        drawing = !drawing;
+        remaining = drawing ? dashLength : gapLength;
+      }
+    }
+  }
+
+  return d.trim();
+}
+
+function buildDashedSkiaPath(points: Point[], dashLength = 4, gapLength = 6) {
+  if (points.length < 2) return null;
+
+  const path = Skia.Path.Make();
+  let drawing = true;
+  let remaining = dashLength;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const start = pointAt(points, index - 1);
+    const end = pointAt(points, index);
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const segmentLength = Math.hypot(dx, dy);
+    if (segmentLength <= EPSILON) {
+      continue;
+    }
+
+    let offset = 0;
+    while (offset < segmentLength - EPSILON) {
+      const chunk = Math.min(remaining, segmentLength - offset);
+      const fromRatio = offset / segmentLength;
+      const toRatio = (offset + chunk) / segmentLength;
+      const fromX = start.x + dx * fromRatio;
+      const fromY = start.y + dy * fromRatio;
+      const toX = start.x + dx * toRatio;
+      const toY = start.y + dy * toRatio;
+      if (drawing) {
+        path.moveTo(fromX, fromY);
+        path.lineTo(toX, toY);
+      }
+      offset += chunk;
+      remaining -= chunk;
+      if (remaining <= EPSILON) {
+        drawing = !drawing;
+        remaining = drawing ? dashLength : gapLength;
+      }
+    }
+  }
+
+  return path;
+}
+
+function formatLegendDelta(deltaPct: number | null | undefined): string {
+  if (deltaPct === null || deltaPct === undefined || !Number.isFinite(deltaPct)) {
+    return '';
+  }
+  const rounded = Math.round(deltaPct);
+  const sign = rounded > 0 ? '+' : '';
+  return ` (${sign}${rounded}%)`;
+}
+
+function LegendLine({ dotted = false }: { dotted?: boolean }) {
+  return (
+    <View
+      style={{
+        width: 18,
+        height: 0,
+        borderTopWidth: dotted ? 1.5 : 2.5,
+        borderColor: dotted ? YESTERDAY_COLOR : SOLAR_COLOR,
+        borderStyle: dotted ? 'dashed' : 'solid',
+        marginTop: 8
+      }}
+    />
+  );
+}
+
 export function SolarGeneratedChart({
   valuesWh,
+  yesterdayValuesWh,
+  todayWh,
+  yesterdayWh,
+  deltaPct,
   points = 72
 }: {
   valuesWh: number[] | undefined;
+  yesterdayValuesWh?: number[] | undefined;
+  todayWh?: number | null;
+  yesterdayWh?: number | null;
+  deltaPct?: number | null;
   points?: number;
 }) {
   const [width, setWidth] = useState(0);
@@ -127,16 +244,31 @@ export function SolarGeneratedChart({
         : [...Array.from({ length: points - trimmed.length }, () => 0), ...trimmed];
     return toBucketSeries(padded).map(toWattsFromWhPerBucket);
   }, [points, valuesWh]);
+  const yesterdaySeriesW = useMemo(() => {
+    const trimmed = (yesterdayValuesWh ?? []).slice(-points).map((v) => Math.max(0, v));
+    const padded =
+      trimmed.length >= points
+        ? trimmed
+        : [...Array.from({ length: points - trimmed.length }, () => 0), ...trimmed];
+    return toBucketSeries(padded).map(toWattsFromWhPerBucket);
+  }, [points, yesterdayValuesWh]);
   const maxVal = useMemo(
-    () => roundAxisMaxWatts(seriesW.reduce((acc, value) => Math.max(acc, value), 0)),
-    [seriesW]
+    () =>
+      roundAxisMaxWatts(
+        [...seriesW, ...yesterdaySeriesW].reduce((acc, value) => Math.max(acc, value), 0)
+      ),
+    [seriesW, yesterdaySeriesW]
   );
   const yAxisLabels = useMemo(() => [maxVal, maxVal / 2, 0], [maxVal]);
+  const legendToday = `${formatWhAndKWh(todayWh)}${formatLegendDelta(deltaPct)}`;
+  const legendYesterday = formatWhAndKWh(yesterdayWh);
 
   if (Platform.OS === 'web') {
     const webWidth = Math.max(300, width);
     const chartPoints = buildPoints(seriesW, webWidth, WEB_CHART_HEIGHT, maxVal);
+    const yesterdayChartPoints = buildPoints(yesterdaySeriesW, webWidth, WEB_CHART_HEIGHT, maxVal);
     const d = buildSvgSmoothPath(chartPoints);
+    const yesterdayD = buildDashedSvgPath(yesterdayChartPoints);
     const areaD = d
       ? `${d} L ${webWidth - PAD_X} ${WEB_CHART_HEIGHT - PAD_Y} L ${PAD_X} ${WEB_CHART_HEIGHT - PAD_Y} Z`
       : '';
@@ -151,6 +283,20 @@ export function SolarGeneratedChart({
         backgroundColor="rgba(255,159,10,0.04)"
         overflow="hidden"
       >
+        <YStack alignItems="flex-end" paddingHorizontal="$3" paddingTop="$3" paddingBottom="$1" gap="$1">
+          <XStack gap="$2" alignItems="center">
+            <LegendLine dotted />
+            <Text fontSize="$1" opacity={0.72}>
+              Yesterday: {legendYesterday}
+            </Text>
+          </XStack>
+          <XStack gap="$2" alignItems="center">
+            <LegendLine />
+            <Text fontSize="$1" opacity={0.9}>
+              Today: {legendToday}
+            </Text>
+          </XStack>
+        </YStack>
         <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
           <YStack width={Y_AXIS_WIDTH} height={WEB_CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
             {yAxisLabels.map((value, idx) => (
@@ -197,6 +343,16 @@ export function SolarGeneratedChart({
                     />
                   ))}
                   {areaD ? <path d={areaD} fill="url(#solar-generated-grad)" /> : null}
+                  {yesterdayD ? (
+                    <path
+                      d={yesterdayD}
+                      fill="none"
+                      stroke={SOLAR_COLOR}
+                      strokeOpacity="0.72"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                    />
+                  ) : null}
                   {d ? (
                     <path d={d} fill="none" stroke={SOLAR_COLOR} strokeWidth="2.4" strokeLinecap="round" />
                   ) : null}
@@ -217,7 +373,9 @@ export function SolarGeneratedChart({
   }
 
   const chartPoints = buildPoints(seriesW, Math.max(width, 1), CHART_HEIGHT, maxVal);
+  const yesterdayChartPoints = buildPoints(yesterdaySeriesW, Math.max(width, 1), CHART_HEIGHT, maxVal);
   const path = buildSkiaSmoothPath(chartPoints);
+  const yesterdayPath = buildDashedSkiaPath(yesterdayChartPoints);
   const horizontalGridY = [0, 0.5, 1].map((p) => PAD_Y + p * (CHART_HEIGHT - PAD_Y * 2));
   const verticalGridX = [0, 0.25, 0.5, 0.75, 1].map((p) => PAD_X + p * (Math.max(width, 1) - PAD_X * 2));
 
@@ -229,6 +387,20 @@ export function SolarGeneratedChart({
       backgroundColor="rgba(255,159,10,0.04)"
       overflow="hidden"
     >
+      <YStack alignItems="flex-end" paddingHorizontal="$3" paddingTop="$3" paddingBottom="$1" gap="$1">
+        <XStack gap="$2" alignItems="center">
+          <LegendLine dotted />
+          <Text fontSize="$1" opacity={0.72}>
+            Yesterday: {legendYesterday}
+          </Text>
+        </XStack>
+        <XStack gap="$2" alignItems="center">
+          <LegendLine />
+          <Text fontSize="$1" opacity={0.9}>
+            Today: {legendToday}
+          </Text>
+        </XStack>
+      </YStack>
       <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
         <YStack width={Y_AXIS_WIDTH} height={CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
           {yAxisLabels.map((value, idx) => (
@@ -274,6 +446,16 @@ export function SolarGeneratedChart({
                   />
                 );
               })}
+              {yesterdayPath ? (
+                <Path
+                  path={yesterdayPath}
+                  color={YESTERDAY_COLOR}
+                  style="stroke"
+                  strokeWidth={1.4}
+                  strokeCap="round"
+                  strokeJoin="round"
+                />
+              ) : null}
               {path ? (
                 <Path
                   path={path}
