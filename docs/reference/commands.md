@@ -23,6 +23,7 @@ go run ./cmd/ecoflow-replay-cli
 go run ./cmd/ecoflow-gap-detector
 go run ./cmd/ecoflow-gap-repair-worker
 go run ./cmd/ecoflow-loadtest-ingest-bridge
+make test-db-migrations-ci
 ```
 
 ## Node/Expo Auth Commands
@@ -665,6 +666,16 @@ Notes:
   - verifies Node gateway decoder can parse Go-generated wire bytes correctly,
   - verifies Node protobufjs-generated wire bytes decode correctly in Go,
   - requires both `go` and `npm` toolchains available.
+- `make test-db-migrations-ci` runs the migration validation gate with
+  Testcontainers:
+  - starts an isolated PostgreSQL 18 + TimescaleDB container,
+  - applies all `deploy/db/migrations/*.up.sql`,
+  - verifies expected schema tables, `uuidv7()` defaults, UTC timestamp
+    ownership, hypertables, and retention policies,
+  - applies all down migrations in reverse order, then reapplies all up
+    migrations,
+  - runs end-to-end ownership, uniqueness, and role guard checks,
+  - requires a running Docker daemon.
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.

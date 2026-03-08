@@ -58,7 +58,7 @@ EcoFlow Pulse is a resilient, multi-tier real-time monitor for streaming IoT tel
 - Media assets strategy
 
 ### CI/CD
-- GitHub Actions (Go tests, frontend CI, proto CI, CodeQL, issue auto-summary)
+- GitHub Actions (Go tests, frontend CI, proto CI, CodeQL, db-migrations-ci, issue auto-summary)
 - Makefile task orchestration
 
 ---
@@ -192,6 +192,7 @@ The `main` branch is protected by required CI checks. These check names are part
 - `frontend-ci`
 - `proto-ci`
 - `CodeQL`
+- `db-migrations-ci`
 
 If a workflow or check name changes, update repository branch protection/rulesets in the same change so merges are never silently unblocked.
 
@@ -243,7 +244,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - **DONE:** Hourly/daily rollups retention = **3 years**
 - **DONE:** Realtime = **WebSockets**
 - **DONE:** Auth = **Keycloak** w/ Google & Facebook
-- **DONE:** CI merge gates = **go-test + go-test-race-critical + frontend-ci + proto-ci + CodeQL**
+- **DONE:** CI merge gates = **go-test + go-test-race-critical + frontend-ci + proto-ci + CodeQL + db-migrations-ci**
 
 ---
 
@@ -294,11 +295,11 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 - [x] Forged access rejected by subject-boundary and RBAC checks in gRPC control plane
 
 **Post-M1 follow-up (explicitly deferred until M1 is DONE)**
-- Add GitHub `db-migrations-ci` workflow (up/verify/down/up/e2e) and make it a required check.
-- Define and implement schema migration rollout path for `dev -> staging -> prod` (Argo sync hook / migration job sequencing, backup gates, forward-only policy).
-- Adopt `pgroll` for safe reversible online PostgreSQL schema migrations with simultaneous multi-schema serving during transitions.
-- Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
-- Add Helm/Make startup sequencing hardening for Keycloak bootstrap dependencies to reduce first-boot restart/transient not-ready events.
+- [x] Add GitHub `db-migrations-ci` workflow (up/verify/down/up/e2e) and make it a required check.
+- [ ] Define and implement schema migration rollout path for `dev -> staging -> prod` (Argo sync hook / migration job sequencing, backup gates, forward-only policy).
+- [ ] Adopt `pgroll` for safe reversible online PostgreSQL schema migrations with simultaneous multi-schema serving during transitions.
+- [ ] Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
+- [ ] Add Helm/Make startup sequencing hardening for Keycloak bootstrap dependencies to reduce first-boot restart/transient not-ready events.
 
 ---
 

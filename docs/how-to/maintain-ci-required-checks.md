@@ -1,6 +1,6 @@
 # Maintain Required CI Checks
 
-This runbook keeps merge protection aligned with ADR-0010.
+This runbook keeps merge protection aligned with ADR-0016.
 
 ## Required checks on `main`
 
@@ -9,10 +9,11 @@ This runbook keeps merge protection aligned with ADR-0010.
 - `frontend-ci`
 - `proto-ci`
 - `CodeQL`
+- `db-migrations-ci`
 
 These names are treated as an architecture contract. Do not rename checks casually.
-The `frontend-ci` required check may aggregate multiple internal shard jobs, but
-the wrapper job name itself must stay stable.
+The `frontend-ci` and `db-migrations-ci` required checks may aggregate multiple
+internal shard jobs, but the wrapper job names themselves must stay stable.
 The `CodeQL` required check is currently provided by GitHub's default CodeQL
 setup and code scanning integration. Do not add an advanced CodeQL workflow
 unless default setup is disabled first.
@@ -43,7 +44,7 @@ gh run list --limit 20
 
 Review CI performance on a regular cadence (weekly is enough for current scale):
 
-1. Inspect median and p95 durations for `go-test`, `go-test-race-critical`, `frontend-ci`, `proto-ci`, and `CodeQL`.
+1. Inspect median and p95 durations for `go-test`, `go-test-race-critical`, `frontend-ci`, `proto-ci`, `CodeQL`, and `db-migrations-ci`.
 2. If developer latency increases, optimize in this order:
    - dependency/cache hit rates,
    - internal changed-files gating for required jobs,

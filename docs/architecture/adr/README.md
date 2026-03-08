@@ -19,6 +19,7 @@
 - [ADR-0013-grpc-server-baseline-go-high-throughput.md](./ADR-0013-grpc-server-baseline-go-high-throughput.md)
 - [ADR-0014-provider-device-integration-and-distributed-mqtt-ingest-leases.md](./ADR-0014-provider-device-integration-and-distributed-mqtt-ingest-leases.md)
 - [ADR-0015-quota-archive-replayability-and-safe-rollup-regeneration.md](./ADR-0015-quota-archive-replayability-and-safe-rollup-regeneration.md)
+- [ADR-0016-ci-gates-add-db-migrations-check.md](./ADR-0016-ci-gates-add-db-migrations-check.md)
 ---
 
 ## How to add an ADR
