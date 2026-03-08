@@ -29,7 +29,7 @@ describe('solar history helpers', () => {
   });
 
   it('computes the delay until the next local day rollover', () => {
-    const now = new Date('2026-03-06T23:59:30-05:00');
+    const now = new Date(2026, 2, 6, 23, 59, 30);
     expect(msUntilNextLocalDay(now)).toBe(31_000);
   });
 
