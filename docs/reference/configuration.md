@@ -236,4 +236,7 @@ Runtime behavior:
   - the realtime gateway is reached through `/ws`
   - detail routes are UUID-only (`/device/<uuid>`); the UI must not pass serial numbers in route or query parameters
   - browser-facing HTTP/2 is expected once TLS ingress is active
-  - browser-facing HTTP/3 is deferred with the current ingress-nginx controller path
+  - local browser-facing HTTP/3 is opt-in via ingress QUIC listener + UDP 443
+    service exposure when `runtime.publicApp.ingress.http3.enabled=true`
+  - practical verification still depends on a browser or `curl` build with
+    HTTP/3 support

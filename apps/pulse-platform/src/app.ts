@@ -73,10 +73,6 @@ export function buildApp(
       applyHtmlDeliveryHeaders(reply, htmlDeliveryPlan);
       return reply.type('text/html; charset=utf-8').send(indexHtml);
     });
-    app.head('/', async (_request, reply) => {
-      applyHtmlDeliveryHeaders(reply, htmlDeliveryPlan);
-      return reply.code(200).send();
-    });
     app.setNotFoundHandler(async (request, reply) => {
       const requestedPath = request.raw.url?.replace(/^\//, '').trim() ?? '';
       if (!requestedPath || requestedPath.startsWith('api/') || requestedPath === 'healthz' || requestedPath.startsWith('ws')) {

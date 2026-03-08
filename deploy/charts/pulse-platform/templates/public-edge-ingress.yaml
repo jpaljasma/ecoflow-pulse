@@ -12,6 +12,13 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: {{ .Values.runtime.publicApp.ingress.proxySendTimeoutSeconds | quote }}
     nginx.ingress.kubernetes.io/ssl-redirect: {{ ternary "true" "false" .Values.runtime.publicApp.ingress.tls.enabled | quote }}
     nginx.ingress.kubernetes.io/force-ssl-redirect: {{ ternary "true" "false" .Values.runtime.publicApp.ingress.tls.enabled | quote }}
+    {{- if and .Values.runtime.publicApp.ingress.tls.enabled .Values.runtime.publicApp.ingress.http3.enabled }}
+    nginx.ingress.kubernetes.io/server-snippet: |
+      listen 443 quic reuseport;
+      listen [::]:443 quic reuseport;
+      http3 on;
+      add_header Alt-Svc 'h3=":443"; ma={{ .Values.runtime.publicApp.ingress.http3.altSvcMaxAgeSeconds }}' always;
+    {{- end }}
     {{- if and .Values.runtime.publicApp.ingress.tls.enabled .Values.runtime.publicApp.ingress.tls.localSelfSigned }}
     cert-manager.io/issuer: {{ printf "%s-local-ca" (include "pulse-platform.fullname" .) | quote }}
     {{- else if and .Values.runtime.publicApp.ingress.tls.enabled .Values.runtime.publicApp.ingress.tls.clusterIssuer }}
