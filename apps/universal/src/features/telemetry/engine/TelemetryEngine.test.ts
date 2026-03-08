@@ -117,7 +117,7 @@ describe('TelemetryEngine', () => {
     expect(sockets[0]?.url).toContain('192.168.50.62');
 
     sockets[0]?.onclose?.({ code: 1006 } as CloseEvent);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(500);
 
     expect(createSocket).toHaveBeenCalledTimes(2);
     expect(sockets[1]?.url).toContain('127.0.0.1');
@@ -151,33 +151,131 @@ describe('TelemetryEngine', () => {
     expect(sockets[0]?.url).toContain('192.168.50.62:18081/ws');
 
     sockets[0]?.onclose?.({ code: 1006 } as CloseEvent);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(500);
     expect(sockets[1]?.url).toContain('127.0.0.1:18081/ws');
 
     sockets[1]?.onclose?.({ code: 1006 } as CloseEvent);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(1_000);
     expect(sockets[2]?.url).toContain('localhost:18081/ws');
 
     sockets[2]?.onclose?.({ code: 1006 } as CloseEvent);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(2_000);
     expect(sockets[3]?.url).toContain('192.168.50.62/ws');
 
     sockets[3]?.onclose?.({ code: 1006 } as CloseEvent);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(4_000);
     expect(sockets[4]?.url).toContain('127.0.0.1/ws');
 
     sockets[4]?.onclose?.({ code: 1006 } as CloseEvent);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(8_000);
     expect(sockets[5]?.url).toContain('localhost/ws');
 
     sockets[5]?.onclose?.({ code: 1006 } as CloseEvent);
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(16_000);
     expect(sockets[6]?.url).toContain('192.168.50.62:8082/ws');
 
     engine.disconnect();
     env.wsUrl = originalWsUrl;
     env.wsUrlExplicit = originalWsUrlExplicit;
     env.apiUrl = originalApiUrl;
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('reconnects with jitter and resubscribes after an unexpected close', () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({
+      createSocket,
+      reconnectBaseMs: 1_000,
+      reconnectMaxMs: 30_000
+    });
+
+    engine.connect();
+    engine.subscribe(['device-1', 'device-2']);
+    sockets[0]?.triggerOpen();
+
+    expect(sockets[0]?.sent).toContain(
+      JSON.stringify({ type: 'subscribe', deviceIds: ['device-1', 'device-2'] })
+    );
+    expect(engine.getStatus()).toBe('connected');
+
+    sockets[0]?.onclose?.({ code: 1006 } as CloseEvent);
+    expect(engine.getStatus()).toBe('reconnecting');
+
+    vi.advanceTimersByTime(749);
+    expect(createSocket).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1);
+    expect(createSocket).toHaveBeenCalledTimes(2);
+
+    sockets[1]?.triggerOpen();
+    expect(engine.getStatus()).toBe('connected');
+    expect(sockets[1]?.sent).toContain(
+      JSON.stringify({ type: 'subscribe', deviceIds: ['device-1', 'device-2'] })
+    );
+
+    engine.disconnect();
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('keeps the last snapshot and marks it stale while reconnecting', () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({
+      createSocket,
+      snapshotIntervalMs: 20,
+      staleAfterMs: 50,
+      reconnectBaseMs: 1_000
+    });
+    let latestPayload:
+      | {
+          status: string;
+          snapshots: Record<string, { stale: boolean; metrics: { pvW: number } | null }>;
+        }
+      | undefined;
+
+    engine.onSnapshot((payload) => {
+      latestPayload = payload as typeof latestPayload;
+    });
+
+    engine.connect();
+    engine.subscribe(['device-1']);
+    sockets[0]?.triggerOpen();
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 1,
+        metrics: { soc: 50, pvW: 200, loadW: 90, batteryW: 25, tempC: 21, acW: 30, dcW: 10 }
+      })
+    } as MessageEvent);
+
+    vi.advanceTimersByTime(20);
+    expect(latestPayload?.snapshots['device-1']?.metrics?.pvW).toBe(200);
+    expect(latestPayload?.snapshots['device-1']?.stale).toBe(false);
+
+    sockets[0]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(60);
+
+    expect(latestPayload?.status).toBe('reconnecting');
+    expect(latestPayload?.snapshots['device-1']?.metrics?.pvW).toBe(200);
+    expect(latestPayload?.snapshots['device-1']?.stale).toBe(true);
+
+    engine.disconnect();
     randomSpy.mockRestore();
     vi.useRealTimers();
   });

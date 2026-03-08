@@ -245,7 +245,8 @@ describe('pulse-platform history routes', () => {
         todayWh: 5,
         yesterdayWh: 1,
         deltaPct: 400,
-        seriesWh: expect.arrayContaining([2, 3])
+        seriesWh: expect.arrayContaining([2, 3]),
+        yesterdaySeriesWh: expect.arrayContaining([1])
       })
     );
 
@@ -286,6 +287,7 @@ describe('pulse-platform history routes', () => {
     );
     expect(body.seriesWh[0]).toBe(6);
     expect(body.seriesWh[1]).toBe(3);
+    expect(body.yesterdaySeriesWh).toEqual(expect.arrayContaining([0]));
 
     await app.close();
   });

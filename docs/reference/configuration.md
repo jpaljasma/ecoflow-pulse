@@ -217,9 +217,14 @@ Runtime behavior:
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
 - websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.
 - device solar history treats `404` from `/api/v1/devices/{id}/history/compare` as empty history (no blocking detail-page error banner).
+- device and fleet solar-history queries reuse one response payload for today's
+  total, yesterday's total, delta, and both chart series; they refresh on the
+  normal polling interval during the day and roll to a new query key shortly
+  after local midnight so `today`/`yesterday` swap cleanly without requiring a
+  manual reload.
 - fleet summary solar rendering is conservative when all visible devices report inactive solar inputs (`solarChargingOn=false` and per-port watts `0`): the summary PV stat and fleet solar trend are clamped to `0` to avoid stale/inconsistent spike artifacts.
 - local k3d development is real-data and single-origin by default:
   - the public app serves `/`
   - the Node BFF is reached through `/api`
   - the realtime gateway is reached through `/ws`
-  - detail routes accept `/device/<serial-number>` only as a compatibility alias and immediately resolve to canonical `/device/<uuid>`
+  - detail routes are UUID-only (`/device/<uuid>`); the UI must not pass serial numbers in route or query parameters

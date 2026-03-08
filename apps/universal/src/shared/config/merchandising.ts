@@ -2,7 +2,6 @@ export const ecoFlowInviteCode = 'ATH7F3EF1P';
 
 export type BatteryUpsellContext = {
   model?: string;
-  serialNumber?: string;
   batteryCount?: number;
 };
 

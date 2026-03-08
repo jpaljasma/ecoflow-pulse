@@ -253,6 +253,10 @@ export function SummaryPanel({
               <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
                 <SolarGeneratedChart
                   valuesWh={fleetSolarHistory.data.seriesWh}
+                  yesterdayValuesWh={fleetSolarHistory.data.yesterdaySeriesWh}
+                  todayWh={fleetSolarHistory.data.todayWh}
+                  yesterdayWh={fleetSolarHistory.data.yesterdayWh}
+                  deltaPct={fleetSolarHistory.data.deltaPct}
                   points={SOLAR_GENERATED_POINTS}
                 />
               </ChartSection>
@@ -274,6 +278,10 @@ export function SummaryPanel({
             <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
               <SolarGeneratedChart
                 valuesWh={fleetSolarHistory.data.seriesWh}
+                yesterdayValuesWh={fleetSolarHistory.data.yesterdaySeriesWh}
+                todayWh={fleetSolarHistory.data.todayWh}
+                yesterdayWh={fleetSolarHistory.data.yesterdayWh}
+                deltaPct={fleetSolarHistory.data.deltaPct}
                 points={SOLAR_GENERATED_POINTS}
               />
             </ChartSection>

@@ -40,7 +40,17 @@ export default [
     }
   },
   {
-    ignores: ['dist/**', '.expo/**', 'node_modules/**', '*.config.*', 'babel.config.js']
+    ignores: [
+      'dist/**',
+      'dist-check*/**',
+      '.expo/**',
+      '.tmp/**',
+      'node_modules/**',
+      'playwright-report/**',
+      'test-results/**',
+      '*.config.*',
+      'babel.config.js'
+    ]
   },
   {
     files: ['**/*.test.ts'],
