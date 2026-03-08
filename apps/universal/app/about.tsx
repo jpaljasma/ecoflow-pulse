@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Animated, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
@@ -17,24 +17,28 @@ export default function AboutScreen() {
   return (
     <Animated.View style={containerStyle} testID="screen-about">
       <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
-      <TopBar
-        left={<CloseToHomeButton onClose={closeToHome} />}
-        title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
-        subtitle="About EcoFlow Pulse"
-        right={
-          <YStack alignItems="flex-end">
-            <AppMenu />
+        <TopBar
+          left={<CloseToHomeButton onClose={closeToHome} />}
+          title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
+          subtitle="About EcoFlow Pulse"
+          right={
+            <YStack alignItems="flex-end">
+              <AppMenu />
+            </YStack>
+          }
+          titleFlex={compactHeader ? 1 : 3}
+          rightFlex={compactHeader ? 0 : 1}
+        />
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
+          <YStack gap="$4">
+            <Card gap="$2">
+              <Text fontSize="$6" fontWeight="700">
+                EcoFlow Pulse
+              </Text>
+              <Text opacity={0.8}>Universal telemetry dashboard for EcoFlow devices.</Text>
+            </Card>
           </YStack>
-        }
-        titleFlex={compactHeader ? 1 : 3}
-        rightFlex={compactHeader ? 0 : 1}
-      />
-      <Card gap="$2">
-        <Text fontSize="$6" fontWeight="700">
-          EcoFlow Pulse
-        </Text>
-        <Text opacity={0.8}>Universal telemetry dashboard for EcoFlow devices.</Text>
-      </Card>
+        </ScrollView>
       </YStack>
     </Animated.View>
   );

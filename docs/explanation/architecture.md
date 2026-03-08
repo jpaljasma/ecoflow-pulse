@@ -34,3 +34,20 @@ derivation, and UI projection.
 - allows per-domain telemetry improvements without changing runtime plumbing,
 - keeps UI output decoupled from ingestion hot paths,
 - keeps test coverage granular by domain and behavior class.
+
+## Universal App Shell
+
+For the Expo universal app, page layout should default to:
+
+- top bar fixed at the top of the screen,
+- scrollable body content below the top bar,
+- content that remains usable on mobile-height and split-screen layouts without
+  clipping.
+
+Practical rule:
+
+- information, settings, explainer, and other static/detail pages should use a
+  `ScrollView` (or equivalent web overflow container) for their main body by
+  default,
+- only opt out of scrolling when the primary interaction model requires a
+  fixed-viewport surface.

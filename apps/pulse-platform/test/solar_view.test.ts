@@ -96,6 +96,34 @@ describe('backend solar history view', () => {
     expect(view.yesterdaySeriesWh[0]).toBe(1);
   });
 
+  it('covers the 6am-8pm window and excludes 8pm+', () => {
+    const fromUnixMs = Date.UTC(2026, 2, 6, 5, 0, 0);
+    const current = series(
+      [
+        point({
+          bucketStartUnixMs: fromUnixMs + 19 * 60 * 60 * 1000 + 50 * 60_000,
+          bucketEndUnixMs: fromUnixMs + 19 * 60 * 60 * 1000 + 51 * 60_000,
+          solarGeneratedWh: 4
+        }),
+        point({
+          bucketStartUnixMs: fromUnixMs + 20 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs + 20 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 9
+        })
+      ],
+      fromUnixMs
+    );
+
+    const view = buildCompareSolarHistoryView({
+      current,
+      previous: series([], fromUnixMs - 24 * 60 * 60 * 1000)
+    } satisfies CompareRollupSeries);
+
+    expect(view.seriesWh).toHaveLength(84);
+    expect(view.seriesWh[83]).toBe(4);
+    expect(view.seriesWh).not.toContain(9);
+  });
+
   it('combines fleet views server-side', () => {
     const combined = combineSolarHistoryViews([
       {
@@ -126,8 +154,8 @@ describe('backend solar history view', () => {
       todayWh: 0,
       yesterdayWh: 0,
       deltaPct: null,
-      seriesWh: Array.from({ length: 72 }, () => 0),
-      yesterdaySeriesWh: Array.from({ length: 72 }, () => 0)
+      seriesWh: Array.from({ length: 84 }, () => 0),
+      yesterdaySeriesWh: Array.from({ length: 84 }, () => 0)
     });
   });
 });

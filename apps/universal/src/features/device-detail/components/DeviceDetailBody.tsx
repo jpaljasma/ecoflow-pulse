@@ -11,6 +11,8 @@ import { Stat } from '@/shared/ui/Stat';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
+import { DeviceEnergyImpactCard } from '@/features/energy-impact/DeviceEnergyImpactCard';
+import { SOLAR_HISTORY_CHART_TITLE, SOLAR_HISTORY_POINTS } from '@/features/history/solar';
 import { formatKWh } from '@/features/telemetry/format';
 import type { DeviceDetailViewModel } from '@/features/device-detail/view-model';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
@@ -18,8 +20,6 @@ import { SolarInputsSection } from '@/features/device-detail/components/SolarInp
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
 
 const DETAIL_TREND_POINTS = 60;
-const SOLAR_GENERATED_POINTS = 72;
-
 export function DeviceDetailBody({
   device,
   snapshot,
@@ -124,14 +124,14 @@ export function DeviceDetailBody({
       {isTablet ? (
         <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
           <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
-            <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
+            <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="1m refresh">
               <SolarGeneratedChart
                 valuesWh={solarGeneratedTrend}
                 yesterdayValuesWh={solarGeneratedYesterdayTrend}
                 todayWh={solarGeneratedTodayWh}
                 yesterdayWh={solarGeneratedYesterdayWh}
                 deltaPct={solarGeneratedDeltaPct}
-                points={SOLAR_GENERATED_POINTS}
+                points={SOLAR_HISTORY_POINTS}
               />
             </ChartSection>
           </YStack>
@@ -149,14 +149,14 @@ export function DeviceDetailBody({
         </XStack>
       ) : (
         <YStack gap="$3">
-          <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
+          <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="1m refresh">
             <SolarGeneratedChart
               valuesWh={solarGeneratedTrend}
               yesterdayValuesWh={solarGeneratedYesterdayTrend}
               todayWh={solarGeneratedTodayWh}
               yesterdayWh={solarGeneratedYesterdayWh}
               deltaPct={solarGeneratedDeltaPct}
-              points={SOLAR_GENERATED_POINTS}
+              points={SOLAR_HISTORY_POINTS}
             />
           </ChartSection>
           <ChartSection title="Power Trends">
@@ -170,6 +170,8 @@ export function DeviceDetailBody({
           </ChartSection>
         </YStack>
       )}
+
+      <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
 
       {hasBatteryPacks || hasSolarInputs ? (
         <XStack gap="$3" flexWrap="wrap">

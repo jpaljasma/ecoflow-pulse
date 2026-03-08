@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSolarHistoryBounds,
   buildTodayBounds,
   historyRefreshIntervalMs,
   msUntilNextLocalDay,
   SOLAR_HISTORY_POINTS
 } from '@/features/history/solar';
+
+function restoreTZ(value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env.TZ;
+    return;
+  }
+  process.env.TZ = value;
+}
 
 describe('solar history helpers', () => {
   it('builds a local-day window from midnight to now', () => {
@@ -34,6 +43,36 @@ describe('solar history helpers', () => {
   });
 
   it('keeps the chart bucket count fixed', () => {
-    expect(SOLAR_HISTORY_POINTS).toBe(72);
+    expect(SOLAR_HISTORY_POINTS).toBe(84);
+  });
+
+  it('builds a full previous local day across spring-forward', () => {
+    const originalTZ = process.env.TZ;
+    try {
+      process.env.TZ = 'America/New_York';
+      const now = new Date('2026-03-09T12:00:00-04:00');
+      const { from, compareFrom, compareTo } = buildSolarHistoryBounds(now);
+
+      expect(from.toISOString()).toBe('2026-03-09T04:00:00.000Z');
+      expect(compareFrom.toISOString()).toBe('2026-03-08T05:00:00.000Z');
+      expect(compareTo.toISOString()).toBe('2026-03-09T04:00:00.000Z');
+    } finally {
+      restoreTZ(originalTZ);
+    }
+  });
+
+  it('builds a full previous local day across fall-back', () => {
+    const originalTZ = process.env.TZ;
+    try {
+      process.env.TZ = 'America/New_York';
+      const now = new Date('2026-11-02T12:00:00-05:00');
+      const { from, compareFrom, compareTo } = buildSolarHistoryBounds(now);
+
+      expect(from.toISOString()).toBe('2026-11-02T05:00:00.000Z');
+      expect(compareFrom.toISOString()).toBe('2026-11-01T04:00:00.000Z');
+      expect(compareTo.toISOString()).toBe('2026-11-02T05:00:00.000Z');
+    } finally {
+      restoreTZ(originalTZ);
+    }
   });
 });

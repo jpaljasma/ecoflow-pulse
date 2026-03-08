@@ -110,12 +110,21 @@ export async function fetchDeviceSolarHistory({
   deviceId,
   fromIso,
   toIso,
+  compareFromIso,
+  compareToIso,
   token
-}: Omit<HistoryRequest, 'resolution'>): Promise<SolarHistoryView> {
+}: Omit<HistoryRequest, 'resolution'> & {
+  compareFromIso?: string;
+  compareToIso?: string;
+}): Promise<SolarHistoryView> {
   const params = new URLSearchParams({
     from: fromIso,
     to: toIso
   });
+  if (compareFromIso && compareToIso) {
+    params.set('compareFrom', compareFromIso);
+    params.set('compareTo', compareToIso);
+  }
   const data = await requestJson<unknown>(`/api/v1/devices/${deviceId}/history/solar?${params.toString()}`, { token });
   return SolarHistoryViewSchema.parse(data);
 }
@@ -124,17 +133,25 @@ export async function fetchFleetSolarHistory({
   deviceIds,
   fromIso,
   toIso,
+  compareFromIso,
+  compareToIso,
   token
 }: {
   deviceIds: string[];
   fromIso: string;
   toIso: string;
+  compareFromIso?: string;
+  compareToIso?: string;
   token?: string;
 }): Promise<SolarHistoryView> {
   const params = new URLSearchParams({
     from: fromIso,
     to: toIso
   });
+  if (compareFromIso && compareToIso) {
+    params.set('compareFrom', compareFromIso);
+    params.set('compareTo', compareToIso);
+  }
   for (const deviceId of deviceIds) {
     params.append('deviceId', deviceId);
   }

@@ -1,9 +1,9 @@
 import type { CompareRollupSeries, RollupPoint } from '../grpc/telemetryClient.js';
 
-export const SOLAR_HISTORY_POINTS = 72;
 const SOLAR_CHART_START_MS = 6 * 60 * 60 * 1000;
-const SOLAR_CHART_END_MS = 18 * 60 * 60 * 1000;
+const SOLAR_CHART_END_MS = 20 * 60 * 60 * 1000;
 const SOLAR_BUCKET_MS = 10 * 60 * 1000;
+export const SOLAR_HISTORY_POINTS = (SOLAR_CHART_END_MS - SOLAR_CHART_START_MS) / SOLAR_BUCKET_MS;
 
 export type SolarHistoryView = {
   todayWh: number;

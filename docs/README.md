@@ -34,6 +34,8 @@ This project uses the Diataxis framework for documentation structure.
 - [`reference/local-dev-prerequisites.md`](reference/local-dev-prerequisites.md)
 - [`reference/configuration.md`](reference/configuration.md)
 - [`reference/telemetry-model.md`](reference/telemetry-model.md)
+- [`reference/solar-avoided-emissions.md`](reference/solar-avoided-emissions.md)
+- [`reference/tree-equivalent.md`](reference/tree-equivalent.md)
 
 ### Explanation
 

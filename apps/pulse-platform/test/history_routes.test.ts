@@ -231,14 +231,18 @@ describe('pulse-platform history routes', () => {
     const app = buildApp(baseConfig(), client, makeDeviceClient());
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history/solar?from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00'
+      url: '/api/v1/devices/019c9f0e-4521-775d-873e-e80039f16d75/history/solar?from=2026-03-08T00:00:00-05:00&to=2026-03-08T07:00:00-04:00&compareFrom=2026-03-07T00:00:00-05:00&compareTo=2026-03-08T00:00:00-05:00'
     });
 
     expect(response.statusCode).toBe(200);
     expect(client.compareRollupRange).toHaveBeenCalledWith(
       expect.objectContaining({
         resolution: 'minute',
-        usePreviousPeriod: true
+        fromUnixMs: String(Date.parse('2026-03-08T00:00:00-05:00')),
+        toUnixMs: String(Date.parse('2026-03-08T07:00:00-04:00')),
+        compareFromUnixMs: String(Date.parse('2026-03-07T00:00:00-05:00')),
+        compareToUnixMs: String(Date.parse('2026-03-08T00:00:00-05:00')),
+        usePreviousPeriod: false
       })
     );
     expect(response.json()).toEqual(
@@ -273,11 +277,19 @@ describe('pulse-platform history routes', () => {
     const app = buildApp(baseConfig(), client, makeDeviceClient());
     const response = await app.inject({
       method: 'GET',
-      url: `/api/v1/history/solar/fleet?deviceId=${deviceA}&deviceId=${deviceB}&from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00`
+      url: `/api/v1/history/solar/fleet?deviceId=${deviceA}&deviceId=${deviceB}&from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00&compareFrom=2026-03-05T00:00:00-05:00&compareTo=2026-03-06T00:00:00-05:00`
     });
 
     expect(response.statusCode).toBe(200);
     expect(client.compareRollupRange).toHaveBeenCalledTimes(2);
+    expect(client.compareRollupRange).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        compareFromUnixMs: String(Date.parse('2026-03-05T00:00:00-05:00')),
+        compareToUnixMs: String(Date.parse('2026-03-06T00:00:00-05:00')),
+        usePreviousPeriod: false
+      })
+    );
     const body = response.json();
     expect(body).toEqual(
       expect.objectContaining({

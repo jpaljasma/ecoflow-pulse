@@ -24,10 +24,10 @@ import {
   mergeTrendPrefill,
   sparklineCoveragePoints
 } from '@/features/history/powerTrend';
+import { SOLAR_HISTORY_POINTS } from '@/features/history/solar';
 import { maskSerialNumber } from '@/features/telemetry/format';
 
 const DETAIL_TREND_POINTS = 60;
-const SOLAR_GENERATED_POINTS = 72;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -139,9 +139,9 @@ export default function DeviceDetailScreen() {
     !blockingRouteError;
 
   const solarGeneratedTrend =
-    solarHistory.data?.seriesWh ?? Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
+    solarHistory.data?.seriesWh ?? Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0);
   const solarGeneratedYesterdayTrend =
-    solarHistory.data?.yesterdaySeriesWh ?? Array.from({ length: SOLAR_GENERATED_POINTS }, () => 0);
+    solarHistory.data?.yesterdaySeriesWh ?? Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0);
 
   const detailTrend = useMemo(
     () => ({

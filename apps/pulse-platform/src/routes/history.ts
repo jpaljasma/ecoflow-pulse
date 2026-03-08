@@ -25,6 +25,8 @@ const compareQuerySchema = querySchema.extend({
 const solarQuerySchema = z.object({
   from: timeParamSchema,
   to: timeParamSchema,
+  compareFrom: timeParamSchema.optional(),
+  compareTo: timeParamSchema.optional(),
   compare: z.enum(['previous_period']).optional().default('previous_period')
 });
 
@@ -32,6 +34,8 @@ const solarFleetQuerySchema = z.object({
   deviceId: z.union([z.string().uuid(), z.array(z.string().uuid()).nonempty()]),
   from: timeParamSchema,
   to: timeParamSchema,
+  compareFrom: timeParamSchema.optional(),
+  compareTo: timeParamSchema.optional(),
   compare: z.enum(['previous_period']).optional().default('previous_period')
 });
 
@@ -105,12 +109,14 @@ export function registerHistoryRoutes(
       try {
         const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);
         const query = solarQuerySchema.parse(request.query);
+        const compareWindow = normalizeCompareWindow(query.compareFrom, query.compareTo);
         const result = await historyClient.compareRollupRange({
           deviceId: params.deviceId,
           resolution: 'minute',
           fromUnixMs: normalizeTime(query.from),
           toUnixMs: normalizeTime(query.to),
-          usePreviousPeriod: query.compare === 'previous_period',
+          usePreviousPeriod: !compareWindow && query.compare === 'previous_period',
+          ...(compareWindow ?? {}),
           authHeader: extractAuthHeader(request),
           requestID: request.id,
           deadlineMs: app.telemetryDeadlineMs
@@ -129,6 +135,7 @@ export function registerHistoryRoutes(
       try {
         const query = solarFleetQuerySchema.parse(request.query);
         const deviceIds = normalizeDeviceIDs(query.deviceId);
+        const compareWindow = normalizeCompareWindow(query.compareFrom, query.compareTo);
         const views = await Promise.all(
           deviceIds.map(async (deviceId) => {
             const result = await historyClient.compareRollupRange({
@@ -136,7 +143,8 @@ export function registerHistoryRoutes(
               resolution: 'minute',
               fromUnixMs: normalizeTime(query.from),
               toUnixMs: normalizeTime(query.to),
-              usePreviousPeriod: query.compare === 'previous_period',
+              usePreviousPeriod: !compareWindow && query.compare === 'previous_period',
+              ...(compareWindow ?? {}),
               authHeader: extractAuthHeader(request),
               requestID: request.id,
               deadlineMs: app.telemetryDeadlineMs
@@ -177,6 +185,22 @@ function normalizeDeviceIDs(deviceIDValue: string | string[]): string[] {
     return deviceIDValue;
   }
   return [deviceIDValue];
+}
+
+function normalizeCompareWindow(
+  compareFrom: string | number | undefined,
+  compareTo: string | number | undefined
+): { compareFromUnixMs: string; compareToUnixMs: string } | undefined {
+  if (compareFrom === undefined && compareTo === undefined) {
+    return undefined;
+  }
+  if (compareFrom === undefined || compareTo === undefined) {
+    throw new Error('invalid time value: compare_from and compare_to must both be set');
+  }
+  return {
+    compareFromUnixMs: normalizeTime(compareFrom),
+    compareToUnixMs: normalizeTime(compareTo)
+  };
 }
 
 function handleRouteError(reply: { code: (code: number) => { send: (body: unknown) => unknown } }, error: unknown) {

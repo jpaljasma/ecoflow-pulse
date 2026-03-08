@@ -1,12 +1,40 @@
-export const SOLAR_HISTORY_POINTS = 72;
+export const SOLAR_HISTORY_START_HOUR = 6;
+export const SOLAR_HISTORY_END_HOUR = 20;
+export const SOLAR_HISTORY_BUCKET_MINUTES = 10;
+export const SOLAR_HISTORY_TICK_HOURS = [6, 9, 12, 15, 18, 20] as const;
+export const SOLAR_HISTORY_POINTS =
+  ((SOLAR_HISTORY_END_HOUR - SOLAR_HISTORY_START_HOUR) * 60) / SOLAR_HISTORY_BUCKET_MINUTES;
+export const SOLAR_HISTORY_CHART_TITLE = '☼ Solar Generated (6am-8pm, 10m buckets)';
 const SOLAR_HISTORY_REFRESH_BASE_MS = 60_000;
 const SOLAR_HISTORY_REFRESH_JITTER_MS = 7_500;
 const NEXT_DAY_REFRESH_BUFFER_MS = 1_000;
 
-export function buildTodayBounds(now = new Date()): { from: Date; to: Date } {
+export type SolarHistoryBounds = {
+  from: Date;
+  to: Date;
+  compareFrom: Date;
+  compareTo: Date;
+};
+
+export function buildSolarHistoryBounds(now = new Date()): SolarHistoryBounds {
   const from = new Date(now);
   from.setHours(0, 0, 0, 0);
-  return { from, to: now };
+
+  const compareTo = new Date(from);
+  const compareFrom = new Date(compareTo);
+  compareFrom.setDate(compareFrom.getDate() - 1);
+
+  return {
+    from,
+    to: now,
+    compareFrom,
+    compareTo
+  };
+}
+
+export function buildTodayBounds(now = new Date()): { from: Date; to: Date } {
+  const { from, to } = buildSolarHistoryBounds(now);
+  return { from, to };
 }
 
 export function historyRefreshIntervalMs(key: string): number {
