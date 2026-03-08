@@ -165,9 +165,27 @@ Frontend rule:
   day's bucket series as a thin dotted orange comparison line and show
   `Yesterday` / `Today` legend totals in the chart corner.
 - solar history view models reuse one fetched payload for today's totals,
-  yesterday's totals, delta, and both chart series; the query is day-scoped and
-  refreshes again just after local midnight so the comparison rolls forward
-  automatically.
+  yesterday's totals, delta, and both chart series; the query is day-scoped,
+  compares against the full previous local day, and refreshes again just after
+  local midnight so the comparison rolls forward automatically even on
+  spring-forward and fall-back days.
+- solar history compare bounds are computed in the client using local calendar
+  day math and sent explicitly to the BFF; do not infer "yesterday" by
+  subtracting the current elapsed duration on the server.
+- solar history charts render `06:00` -> `20:00` local time in 10-minute
+  buckets and expose per-bucket inspection with hover (web) and tap (native)
+  using a crosshair/tooltip overlay for `Today` and `Yesterday`.
+- `Energy Impact` on `/devices` and `/device/{id}` is derived from the same
+  measured `todayWh` solar total; it currently estimates avoided `CO2e`, `NOx`,
+  and `SO2` for "today so far" using default `NYUP` factors. Methodology and
+  constants live in [`solar-avoided-emissions.md`](solar-avoided-emissions.md).
+- the same card also exposes a conservative mature-tree equivalent using PV
+  lifecycle `CO2e` benchmark math. Methodology and constants live in
+  [`tree-equivalent.md`](tree-equivalent.md).
+- `Energy Impact` exposes two periods:
+  - `Today so far`: backed by the live-updating solar history path,
+  - `Past 12 months`: day-rollup query loaded only on user selection and then
+    cached client-side as a non-realtime view.
 - power-trend UI seeds the initial 5-minute chart window from recent minute
   rollup history, then replaces the right-hand side with live websocket
   sparkline coverage as fresh samples arrive.

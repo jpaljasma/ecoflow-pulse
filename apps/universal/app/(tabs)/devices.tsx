@@ -12,6 +12,7 @@ import {
 } from '@/features/telemetry/hooks';
 import { SummaryPanel } from '@/features/devices/SummaryPanel';
 import { DeviceList } from '@/features/devices/DeviceList';
+import { FleetEnergyImpactCard } from '@/features/energy-impact/FleetEnergyImpactCard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
 
@@ -154,8 +155,9 @@ export default function DevicesScreen() {
             devices={devicesQuery.data.devices}
             connectionStatus={connectionStatus}
             header={(
-              <YStack marginTop={10} marginBottom="$3">
+              <YStack marginTop={10} marginBottom="$3" gap="$3">
                 <SummaryPanel devices={devicesQuery.data.devices} />
+                <FleetEnergyImpactCard devices={devicesQuery.data.devices} />
               </YStack>
             )}
           />

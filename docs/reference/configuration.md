@@ -223,6 +223,27 @@ Runtime behavior:
   normal polling interval during the day and roll to a new query key shortly
   after local midnight so `today`/`yesterday` swap cleanly without requiring a
   manual reload.
+- solar history compares against the full previous local day, not a truncated
+  "same elapsed duration" window, so `Yesterday` stays complete during the day
+  and remains correct across spring-forward and fall-back clock changes.
+- the universal client computes and sends explicit `compareFrom` / `compareTo`
+  local-day bounds for solar history; DST-sensitive "previous period"
+  subtraction on the server is not sufficient for the day after a clock shift.
+- the solar-generated chart renders the local `06:00` -> `20:00` window in
+  10-minute buckets and supports bucket inspection with hover on web and tap on
+  native via a shared crosshair/tooltip overlay.
+- the `Energy Impact` widget on `/devices` and `/device/{id}` uses real
+  measured solar generation from `todayWh` only; it does not annualize or
+  extrapolate. The current default factor is `NYUP` (`egrid2023_rev2`). See
+  [`solar-avoided-emissions.md`](solar-avoided-emissions.md).
+- the same widget also includes a conservative mature-tree equivalent based on
+  a `0.045 kg CO2e/kWh` PV lifecycle benchmark and `21.8 kg CO2/year` mature
+  tree benchmark. See [`tree-equivalent.md`](tree-equivalent.md).
+- `Energy Impact` period behavior:
+  - `Today so far` stays on the normal live/history refresh path,
+  - `Past 12 months` is lazy-loaded only after the user clicks it,
+  - once loaded, the 12-month value is cached client-side and is not treated as
+    a realtime-updating metric.
 - fleet summary solar rendering is conservative when all visible devices report inactive solar inputs (`solarChargingOn=false` and per-port watts `0`): the summary PV stat and fleet solar trend are clamped to `0` to avoid stale/inconsistent spike artifacts.
 - the public app serves HTML with:
   - `no-cache, no-store, must-revalidate` on HTML responses,

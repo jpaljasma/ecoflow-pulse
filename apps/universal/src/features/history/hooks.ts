@@ -8,7 +8,7 @@ import {
 } from '@/features/history/api';
 import { ApiError } from '@/shared/api/restClient';
 import {
-  buildTodayBounds,
+  buildSolarHistoryBounds,
   msUntilNextLocalDay,
   SOLAR_HISTORY_POINTS,
   historyRefreshIntervalMs
@@ -30,7 +30,7 @@ type HistoryQueryOptions = {
 };
 
 function buildDayKey(): string {
-  return buildTodayBounds().from.toISOString().slice(0, 10);
+  return buildSolarHistoryBounds().from.toISOString().slice(0, 10);
 }
 
 function useSolarHistoryDayKey(): string {
@@ -78,12 +78,14 @@ export function useDeviceSolarHistory(
     queryKey: ['device-solar-history', deviceId, dayKey, authKey, maxSolarWatts ?? null],
     enabled: enabled && Boolean(deviceId),
     queryFn: async () => {
-      const { from, to } = buildTodayBounds();
+      const { from, to, compareFrom, compareTo } = buildSolarHistoryBounds();
       try {
         return await fetchDeviceSolarHistory({
           deviceId: deviceId ?? '',
           fromIso: from.toISOString(),
           toIso: to.toISOString(),
+          compareFromIso: compareFrom.toISOString(),
+          compareToIso: compareTo.toISOString(),
           token
         });
       } catch (error) {
@@ -119,12 +121,14 @@ export function useFleetSolarHistory(
     queryKey: ['fleet-solar-history', sortedIds, dayKey, authKey, maxSolarKey],
     enabled: enabled && sortedIds.length > 0,
     queryFn: async () => {
-      const { from, to } = buildTodayBounds();
+      const { from, to, compareFrom, compareTo } = buildSolarHistoryBounds();
       try {
         return await fetchFleetSolarHistory({
           deviceIds: sortedIds,
           fromIso: from.toISOString(),
           toIso: to.toISOString(),
+          compareFromIso: compareFrom.toISOString(),
+          compareToIso: compareTo.toISOString(),
           token
         });
       } catch (error) {

@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
-import { formatWhAndKWh } from '@/features/telemetry/format';
+import {
+  SOLAR_HISTORY_BUCKET_MINUTES,
+  SOLAR_HISTORY_END_HOUR,
+  SOLAR_HISTORY_POINTS,
+  SOLAR_HISTORY_START_HOUR,
+  SOLAR_HISTORY_TICK_HOURS
+} from '@/features/history/solar';
+import { formatW, formatWhAndKWh } from '@/features/telemetry/format';
 
 const CHART_HEIGHT = 170;
 const WEB_CHART_HEIGHT = 210;
@@ -10,9 +17,24 @@ const PAD_X = 8;
 const PAD_Y = 14;
 const SOLAR_COLOR = '#ff9f0a';
 const YESTERDAY_COLOR = 'rgba(255,159,10,0.72)';
+const CROSSHAIR_COLOR = 'rgba(255,159,10,0.28)';
+const TOOLTIP_BG = 'rgba(255,248,238,0.98)';
+const TOOLTIP_BORDER = 'rgba(216,130,16,0.36)';
+const TOOLTIP_TITLE_COLOR = 'rgba(79,54,24,0.74)';
+const TOOLTIP_TODAY_COLOR = '#c76e00';
+const TOOLTIP_YESTERDAY_COLOR = '#9d6200';
 const EPSILON = 1e-6;
 const Y_AXIS_WIDTH = 44;
-const X_AXIS_TICKS = ['06', '09', '12', '15', '18'] as const;
+const X_AXIS_LABEL_WIDTH = 40;
+const TOOLTIP_WIDTH = 208;
+const TOOLTIP_TOP = 8;
+const SELECTION_DOT_SIZE = 8;
+const X_AXIS_TICKS = SOLAR_HISTORY_TICK_HOURS.map((hour) => ({
+  label: `${String(hour).padStart(2, '0')}:00`,
+  fraction: (hour - SOLAR_HISTORY_START_HOUR) / (SOLAR_HISTORY_END_HOUR - SOLAR_HISTORY_START_HOUR)
+}));
+const TOOLTIP_UP_COLOR = '#2f9e44';
+const TOOLTIP_DOWN_COLOR = '#c92a2a';
 type Point = { x: number; y: number };
 
 function looksCumulative(values: number[]): boolean {
@@ -72,6 +94,37 @@ function buildPoints(values: number[], width: number, height: number, max: numbe
     x: PAD_X + (idx / (values.length - 1)) * plotW,
     y: height - PAD_Y - (Math.max(0, value) / range) * plotH
   }));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function bucketIndexFromLocationX(locationX: number, width: number, points: number): number {
+  const plotW = Math.max(1, width - PAD_X * 2);
+  const fraction = clamp((locationX - PAD_X) / plotW, 0, 1);
+  return Math.round(fraction * Math.max(0, points - 1));
+}
+
+function bucketCenterX(index: number, width: number, points: number): number {
+  const plotW = Math.max(1, width - PAD_X * 2);
+  return PAD_X + (index / Math.max(1, points - 1)) * plotW;
+}
+
+function formatBucketClock(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function formatBucketRangeLabel(index: number): string {
+  const startMinutes = SOLAR_HISTORY_START_HOUR * 60 + index * SOLAR_HISTORY_BUCKET_MINUTES;
+  const endMinutes = startMinutes + SOLAR_HISTORY_BUCKET_MINUTES;
+  return `${formatBucketClock(startMinutes)} - ${formatBucketClock(endMinutes)}`;
+}
+
+function tooltipLeftForX(x: number, width: number): number {
+  return clamp(x - TOOLTIP_WIDTH / 2, 4, Math.max(4, width - TOOLTIP_WIDTH - 4));
 }
 
 function buildSkiaSmoothPath(points: Point[]) {
@@ -220,13 +273,116 @@ function LegendLine({ dotted = false }: { dotted?: boolean }) {
   );
 }
 
+function SelectionOverlay({
+  width,
+  height,
+  selectedX,
+  todayPoint,
+  yesterdayPoint,
+  bucketLabel,
+  todayBucketWh,
+  todayBucketW,
+  yesterdayBucketWh,
+  yesterdayBucketW
+}: {
+  width: number;
+  height: number;
+  selectedX: number;
+  todayPoint?: Point;
+  yesterdayPoint?: Point;
+  bucketLabel: string;
+  todayBucketWh: number;
+  todayBucketW: number;
+  yesterdayBucketWh: number;
+  yesterdayBucketW: number;
+}) {
+  const tooltipLeft = tooltipLeftForX(selectedX, width);
+  const todayBeatsYesterday = todayBucketWh >= yesterdayBucketWh;
+  const comparisonGlyph = todayBeatsYesterday ? '^' : 'v';
+  const comparisonColor = todayBeatsYesterday ? TOOLTIP_UP_COLOR : TOOLTIP_DOWN_COLOR;
+
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+      <View
+        style={{
+          position: 'absolute',
+          left: selectedX - 0.5,
+          top: PAD_Y,
+          width: 1,
+          height: Math.max(0, height - PAD_Y * 2),
+          backgroundColor: CROSSHAIR_COLOR
+        }}
+      />
+      {yesterdayPoint ? (
+        <View
+          style={{
+            position: 'absolute',
+            left: yesterdayPoint.x - SELECTION_DOT_SIZE / 2,
+            top: yesterdayPoint.y - SELECTION_DOT_SIZE / 2,
+            width: SELECTION_DOT_SIZE,
+            height: SELECTION_DOT_SIZE,
+            borderRadius: SELECTION_DOT_SIZE / 2,
+            backgroundColor: YESTERDAY_COLOR,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.45)'
+          }}
+        />
+      ) : null}
+      {todayPoint ? (
+        <View
+          style={{
+            position: 'absolute',
+            left: todayPoint.x - SELECTION_DOT_SIZE / 2,
+            top: todayPoint.y - SELECTION_DOT_SIZE / 2,
+            width: SELECTION_DOT_SIZE,
+            height: SELECTION_DOT_SIZE,
+            borderRadius: SELECTION_DOT_SIZE / 2,
+            backgroundColor: SOLAR_COLOR,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.55)'
+          }}
+        />
+      ) : null}
+      <View
+        style={{
+          position: 'absolute',
+          top: TOOLTIP_TOP,
+          left: tooltipLeft,
+          width: TOOLTIP_WIDTH,
+          paddingVertical: 8,
+          paddingHorizontal: 10,
+          borderRadius: 10,
+          backgroundColor: TOOLTIP_BG,
+          borderWidth: 1,
+          borderColor: TOOLTIP_BORDER
+        }}
+      >
+        <Text fontSize="$1" marginBottom="$1" color={TOOLTIP_TITLE_COLOR}>
+          {bucketLabel}
+        </Text>
+        <XStack alignItems="center" gap="$1">
+          <Text fontSize="$1" color={comparisonColor}>
+            {comparisonGlyph}
+          </Text>
+          <Text fontSize="$1" color={TOOLTIP_TODAY_COLOR}>
+            Today: {formatWhAndKWh(todayBucketWh)} · {formatW(todayBucketW)}
+          </Text>
+        </XStack>
+        <Text fontSize="$1" color={TOOLTIP_YESTERDAY_COLOR}>
+          Yesterday: {formatWhAndKWh(yesterdayBucketWh)} · {formatW(yesterdayBucketW)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export function SolarGeneratedChart({
   valuesWh,
   yesterdayValuesWh,
   todayWh,
   yesterdayWh,
   deltaPct,
-  points = 72
+  points = SOLAR_HISTORY_POINTS
 }: {
   valuesWh: number[] | undefined;
   yesterdayValuesWh?: number[] | undefined;
@@ -236,22 +392,28 @@ export function SolarGeneratedChart({
   points?: number;
 }) {
   const [width, setWidth] = useState(0);
-  const seriesW = useMemo(() => {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const seriesBucketWh = useMemo(() => {
     const trimmed = (valuesWh ?? []).slice(-points).map((v) => Math.max(0, v));
     const padded =
       trimmed.length >= points
         ? trimmed
         : [...Array.from({ length: points - trimmed.length }, () => 0), ...trimmed];
-    return toBucketSeries(padded).map(toWattsFromWhPerBucket);
+    return toBucketSeries(padded);
   }, [points, valuesWh]);
-  const yesterdaySeriesW = useMemo(() => {
+  const yesterdaySeriesBucketWh = useMemo(() => {
     const trimmed = (yesterdayValuesWh ?? []).slice(-points).map((v) => Math.max(0, v));
     const padded =
       trimmed.length >= points
         ? trimmed
         : [...Array.from({ length: points - trimmed.length }, () => 0), ...trimmed];
-    return toBucketSeries(padded).map(toWattsFromWhPerBucket);
+    return toBucketSeries(padded);
   }, [points, yesterdayValuesWh]);
+  const seriesW = useMemo(() => seriesBucketWh.map(toWattsFromWhPerBucket), [seriesBucketWh]);
+  const yesterdaySeriesW = useMemo(
+    () => yesterdaySeriesBucketWh.map(toWattsFromWhPerBucket),
+    [yesterdaySeriesBucketWh]
+  );
   const maxVal = useMemo(
     () =>
       roundAxisMaxWatts(
@@ -267,13 +429,16 @@ export function SolarGeneratedChart({
     const webWidth = Math.max(300, width);
     const chartPoints = buildPoints(seriesW, webWidth, WEB_CHART_HEIGHT, maxVal);
     const yesterdayChartPoints = buildPoints(yesterdaySeriesW, webWidth, WEB_CHART_HEIGHT, maxVal);
+    const activeIndex =
+      selectedIndex === null ? null : clamp(selectedIndex, 0, Math.max(0, points - 1));
+    const selectedX = activeIndex === null ? null : bucketCenterX(activeIndex, webWidth, points);
     const d = buildSvgSmoothPath(chartPoints);
     const yesterdayD = buildDashedSvgPath(yesterdayChartPoints);
     const areaD = d
       ? `${d} L ${webWidth - PAD_X} ${WEB_CHART_HEIGHT - PAD_Y} L ${PAD_X} ${WEB_CHART_HEIGHT - PAD_Y} Z`
       : '';
     const horizontalGrid = [0, 0.5, 1].map((p) => PAD_Y + p * (WEB_CHART_HEIGHT - PAD_Y * 2));
-    const verticalGrid = [0, 0.25, 0.5, 0.75, 1].map((p) => PAD_X + p * (webWidth - PAD_X * 2));
+    const verticalGrid = X_AXIS_TICKS.map((tick) => PAD_X + tick.fraction * (webWidth - PAD_X * 2));
 
     return (
       <YStack
@@ -310,10 +475,20 @@ export function SolarGeneratedChart({
               onLayout={(event) => {
                 setWidth(Math.round(event.nativeEvent.layout.width));
               }}
-              style={{ width: '100%', height: WEB_CHART_HEIGHT }}
+              style={{ width: '100%', height: WEB_CHART_HEIGHT, position: 'relative' }}
             >
               {width > 0 ? (
-                <svg width={webWidth} height={WEB_CHART_HEIGHT} viewBox={`0 0 ${webWidth} ${WEB_CHART_HEIGHT}`}>
+                <svg
+                  width={webWidth}
+                  height={WEB_CHART_HEIGHT}
+                  viewBox={`0 0 ${webWidth} ${WEB_CHART_HEIGHT}`}
+                  onMouseMove={(event) => {
+                    setSelectedIndex(bucketIndexFromLocationX(event.nativeEvent.offsetX, webWidth, points));
+                  }}
+                  onMouseLeave={() => {
+                    setSelectedIndex(null);
+                  }}
+                >
                   <defs>
                     <linearGradient id="solar-generated-grad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={SOLAR_COLOR} stopOpacity="0.24" />
@@ -358,14 +533,45 @@ export function SolarGeneratedChart({
                   ) : null}
                 </svg>
               ) : null}
+              {activeIndex !== null && selectedX !== null ? (
+                <SelectionOverlay
+                  width={webWidth}
+                  height={WEB_CHART_HEIGHT}
+                  selectedX={selectedX}
+                  todayPoint={chartPoints[activeIndex]}
+                  yesterdayPoint={yesterdayChartPoints[activeIndex]}
+                  bucketLabel={formatBucketRangeLabel(activeIndex)}
+                  todayBucketWh={seriesBucketWh[activeIndex] ?? 0}
+                  todayBucketW={seriesW[activeIndex] ?? 0}
+                  yesterdayBucketWh={yesterdaySeriesBucketWh[activeIndex] ?? 0}
+                  yesterdayBucketW={yesterdaySeriesW[activeIndex] ?? 0}
+                />
+              ) : null}
             </View>
-            <XStack justifyContent="space-between" paddingHorizontal="$2">
-              {X_AXIS_TICKS.map((label) => (
-                <Text key={`x-axis-${label}`} fontSize="$1" opacity={0.62}>
-                  {label}:00
-                </Text>
-              ))}
-            </XStack>
+            <View style={{ position: 'relative', height: 18 }}>
+              {X_AXIS_TICKS.map((tick) => {
+                const left = clamp(
+                  PAD_X + tick.fraction * (webWidth - PAD_X * 2) - X_AXIS_LABEL_WIDTH / 2,
+                  0,
+                  webWidth - X_AXIS_LABEL_WIDTH
+                );
+                return (
+                  <Text
+                    key={`x-axis-${tick.label}`}
+                    fontSize="$1"
+                    opacity={0.62}
+                    style={{
+                      position: 'absolute',
+                      left,
+                      width: X_AXIS_LABEL_WIDTH,
+                      textAlign: 'center'
+                    }}
+                  >
+                    {tick.label}
+                  </Text>
+                );
+              })}
+            </View>
           </YStack>
         </XStack>
       </YStack>
@@ -374,10 +580,14 @@ export function SolarGeneratedChart({
 
   const chartPoints = buildPoints(seriesW, Math.max(width, 1), CHART_HEIGHT, maxVal);
   const yesterdayChartPoints = buildPoints(yesterdaySeriesW, Math.max(width, 1), CHART_HEIGHT, maxVal);
+  const activeIndex = selectedIndex === null ? null : clamp(selectedIndex, 0, Math.max(0, points - 1));
+  const selectedX = activeIndex === null ? null : bucketCenterX(activeIndex, Math.max(width, 1), points);
   const path = buildSkiaSmoothPath(chartPoints);
   const yesterdayPath = buildDashedSkiaPath(yesterdayChartPoints);
   const horizontalGridY = [0, 0.5, 1].map((p) => PAD_Y + p * (CHART_HEIGHT - PAD_Y * 2));
-  const verticalGridX = [0, 0.25, 0.5, 0.75, 1].map((p) => PAD_X + p * (Math.max(width, 1) - PAD_X * 2));
+  const verticalGridX = X_AXIS_TICKS.map(
+    (tick) => PAD_X + tick.fraction * (Math.max(width, 1) - PAD_X * 2)
+  );
 
   return (
     <YStack
@@ -417,68 +627,107 @@ export function SolarGeneratedChart({
           }}
         >
           {width > 0 ? (
-            <Canvas style={{ width, height: CHART_HEIGHT }}>
-              {horizontalGridY.map((y, idx) => {
-                const grid = Skia.Path.Make();
-                grid.moveTo(PAD_X, y);
-                grid.lineTo(width - PAD_X, y);
-                return (
+            <View style={{ width, height: CHART_HEIGHT, position: 'relative' }}>
+              <Canvas style={{ width, height: CHART_HEIGHT }}>
+                {horizontalGridY.map((y, idx) => {
+                  const grid = Skia.Path.Make();
+                  grid.moveTo(PAD_X, y);
+                  grid.lineTo(width - PAD_X, y);
+                  return (
+                    <Path
+                      key={`h-grid-native-${idx}`}
+                      path={grid}
+                      color="rgba(255,255,255,0.07)"
+                      style="stroke"
+                      strokeWidth={1}
+                    />
+                  );
+                })}
+                {verticalGridX.map((x, idx) => {
+                  const grid = Skia.Path.Make();
+                  grid.moveTo(x, PAD_Y);
+                  grid.lineTo(x, CHART_HEIGHT - PAD_Y);
+                  return (
+                    <Path
+                      key={`v-grid-native-${idx}`}
+                      path={grid}
+                      color="rgba(255,255,255,0.045)"
+                      style="stroke"
+                      strokeWidth={1}
+                    />
+                  );
+                })}
+                {yesterdayPath ? (
                   <Path
-                    key={`h-grid-native-${idx}`}
-                    path={grid}
-                    color="rgba(255,255,255,0.07)"
+                    path={yesterdayPath}
+                    color={YESTERDAY_COLOR}
                     style="stroke"
-                    strokeWidth={1}
+                    strokeWidth={1.4}
+                    strokeCap="round"
+                    strokeJoin="round"
                   />
-                );
-              })}
-              {verticalGridX.map((x, idx) => {
-                const grid = Skia.Path.Make();
-                grid.moveTo(x, PAD_Y);
-                grid.lineTo(x, CHART_HEIGHT - PAD_Y);
-                return (
+                ) : null}
+                {path ? (
                   <Path
-                    key={`v-grid-native-${idx}`}
-                    path={grid}
-                    color="rgba(255,255,255,0.045)"
+                    path={path}
+                    color={SOLAR_COLOR}
                     style="stroke"
-                    strokeWidth={1}
+                    strokeWidth={2.4}
+                    strokeCap="round"
+                    strokeJoin="round"
                   />
-                );
-              })}
-              {yesterdayPath ? (
-                <Path
-                  path={yesterdayPath}
-                  color={YESTERDAY_COLOR}
-                  style="stroke"
-                  strokeWidth={1.4}
-                  strokeCap="round"
-                  strokeJoin="round"
+                ) : null}
+              </Canvas>
+              {activeIndex !== null && selectedX !== null ? (
+                <SelectionOverlay
+                  width={width}
+                  height={CHART_HEIGHT}
+                  selectedX={selectedX}
+                  todayPoint={chartPoints[activeIndex]}
+                  yesterdayPoint={yesterdayChartPoints[activeIndex]}
+                  bucketLabel={formatBucketRangeLabel(activeIndex)}
+                  todayBucketWh={seriesBucketWh[activeIndex] ?? 0}
+                  todayBucketW={seriesW[activeIndex] ?? 0}
+                  yesterdayBucketWh={yesterdaySeriesBucketWh[activeIndex] ?? 0}
+                  yesterdayBucketW={yesterdaySeriesW[activeIndex] ?? 0}
                 />
               ) : null}
-              {path ? (
-                <Path
-                  path={path}
-                  color={SOLAR_COLOR}
-                  style="stroke"
-                  strokeWidth={2.4}
-                  strokeCap="round"
-                  strokeJoin="round"
-                />
-              ) : null}
-            </Canvas>
+              <Pressable
+                style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+                onPress={(event) => {
+                  setSelectedIndex(bucketIndexFromLocationX(event.nativeEvent.locationX, width, points));
+                }}
+              />
+            </View>
           ) : (
             <Text opacity={0.6} textAlign="center">
               No solar data yet
             </Text>
           )}
-          <XStack justifyContent="space-between" paddingHorizontal="$2">
-            {X_AXIS_TICKS.map((label) => (
-              <Text key={`x-axis-native-${label}`} fontSize="$1" opacity={0.62}>
-                {label}:00
-              </Text>
-            ))}
-          </XStack>
+          <View style={{ position: 'relative', height: 18 }}>
+            {X_AXIS_TICKS.map((tick) => {
+              const left = clamp(
+                PAD_X + tick.fraction * (Math.max(width, 1) - PAD_X * 2) - X_AXIS_LABEL_WIDTH / 2,
+                0,
+                Math.max(width, 1) - X_AXIS_LABEL_WIDTH
+              );
+              return (
+                <Text
+                  key={`x-axis-native-${tick.label}`}
+                  fontSize="$1"
+                  opacity={0.62}
+                  style={{
+                    position: 'absolute',
+                    left,
+                    width: X_AXIS_LABEL_WIDTH,
+                    textAlign: 'center'
+                  }}
+                >
+                  {tick.label}
+                </Text>
+              );
+            })}
+          </View>
         </YStack>
       </XStack>
     </YStack>

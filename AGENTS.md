@@ -70,6 +70,51 @@ When starting any new milestone task from `docs/architecture/README.md`:
 ## Universal UI Data Rules
 1. Universal app routes, query params, and outbound UI links must use canonical UUID device IDs only; do not pass raw serial numbers in UI parameters.
 2. Solar history views must reuse a single fetched payload for today totals, yesterday totals, delta, and comparison series, and must refresh again after the local midnight boundary so day-over-day charts roll forward automatically.
+3. Solar history comparison windows must use explicit client-computed local-day bounds:
+   - `today`: current local midnight -> now
+   - `yesterday`: previous local midnight -> current local midnight
+   - do not derive yesterday by subtracting elapsed milliseconds from `now`; that breaks spring-forward and fall-back DST transitions.
+4. Energy-impact UI must use measured solar generation for the displayed period only; do not annualize, extrapolate, or invent month/year/lifetime avoided-emissions values unless those real solar totals exist in the app.
+5. Avoided-emissions factors must be versioned in code/docs and clearly labeled in the UI when using a default or fallback region.
+6. When energy-impact UI mixes methodologies (for example marginal-grid avoided emissions and tree-equivalent lifecycle comparisons), label the distinction explicitly in both the widget detail text and the explainer screen.
+
+## Time Handling Rules
+1. Persisted/backend timestamps use UTC semantics; user-facing day/month/year periods use local calendar semantics unless a feature explicitly says otherwise.
+2. For local period windows:
+   - build boundaries in local time first,
+   - then convert those boundaries to UTC/epoch values for transport and storage.
+3. Never derive previous day/month/year windows by subtracting elapsed milliseconds from `now` when the feature is meant to follow local calendar boundaries.
+   - use calendar arithmetic such as `setDate`, `setMonth`, or `setFullYear`,
+   - account for spring-forward and fall-back DST transitions explicitly.
+4. For rolling "past 12 months" style views, prefer calendar-year backshift (`setFullYear(-1)`) over fixed `365d` subtraction so leap years and DST shifts do not silently skew the intended local-period window.
+5. Any new date-range helper used by user-facing UI should have tests covering DST-sensitive boundaries when the logic depends on local calendar time.
+6. When a UI mixes UTC-backed storage with local-day presentation, document which parts are local-calendar math and which parts are UTC query transport.
+
+## Frontend Learnings
+1. For arbitrary rgba/hex colors on Tamagui components, prefer `style={{ ... }}` when prop typing is token-restricted; use theme-token props when a stable token exists.
+2. Prefer small in-app explainer screens over raw external doc jumps for user-facing methodology questions; external docs can remain a secondary "full reference" link.
+3. For environmental/energy widgets, visual styling should read as intentional and domain-specific:
+   - prefer green/teal/blue palettes for sustainability impact
+   - keep environmental icons simple and legible (for example a leaf badge)
+   - keep methodology text factual and non-marketing.
+4. When showing derived environmental metrics, keep the data provenance visible:
+   - identify the measured source period (`today so far`, month, etc.),
+   - identify the factor source/region,
+   - keep error/fallback states explicit rather than silently switching methodology.
+5. App pages should be scrollable by default:
+   - static/detail/info screens should use a `ScrollView` (or equivalent web overflow container) for the main body,
+   - do not assume desktop-height layouts fit on mobile or split-screen,
+   - treat non-scrollable pages as a bug unless there is a strong interaction reason not to scroll.
+6. Expensive long-range history views should be loaded on demand and cached:
+   - keep current-period widgets on the live refresh path,
+   - defer trailing-month/year fetches until the user explicitly selects them,
+   - once loaded, prefer cached results over realtime polling unless the feature explicitly requires live long-range refresh.
+7. Dynamic UI must not be jumpy:
+   - loading, toggle, and refresh states should preserve layout height/width whenever possible,
+   - prefer stale-while-refresh behavior over clearing content during async transitions,
+   - reserve space for status text, buttons, and badges that may change label,
+   - avoid scroll-position jumps, card collapse/expand flicker, and large reflow on routine state changes,
+   - treat visible layout jank during normal interaction as a bug, not cosmetic polish.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.

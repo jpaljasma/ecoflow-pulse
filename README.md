@@ -23,6 +23,13 @@ Actively validated:
   deltas) with backpressure/downsampling ladder and Expo reconnect hardening.
 - M5 in progress with key slices shipped: Testcontainers pipeline integration
   suite, Node↔Go protobuf contract tests, and Playwright web E2E smoke tests.
+- Solar history UI now ships a `06:00-20:00` local comparison chart with
+  10-minute buckets, prior-day overlay, and hover/tap bucket inspection.
+- `Energy Impact` now estimates today-so-far avoided `CO2e`, `NOx`, and `SO2`
+  plus conservative mature-tree equivalent on `/devices` and `/device/{id}`
+  using versioned EPA eGRID2023 and lifecycle/tree factors plus an in-app
+  explainer, with a lazy cached `Past 12 months` view in addition to the live
+  `Today so far` default.
 
 ## Core Capabilities
 
@@ -36,6 +43,8 @@ Actively validated:
   targeted gap repair.
 - ETA estimation with MPPT, profile-specific ML, and generic ML model fallback.
 - Solar telemetry and MPPT visibility (low/high inputs, volts/amps/watts, state).
+- Today-so-far avoided-emissions estimate for solar generation with EPA-based
+  methodology and in-app explanation.
 - Solar panel detection and upgrade recommendations using panel database + model.
 - Safe runtime behavior for reconnects, bounded queues, and distributed lease
   ownership across ingest worker replicas.
@@ -104,6 +113,8 @@ Developer docs follow Diataxis under `/docs`:
 - [Run MQTT Dashboard](docs/how-to/run-mqtt-dashboard.md)
 - [Configuration Reference](docs/reference/configuration.md)
 - [Telemetry Model](docs/reference/telemetry-model.md)
+- [Solar Avoided Emissions Reference](docs/reference/solar-avoided-emissions.md)
+- [Tree Equivalent Reference](docs/reference/tree-equivalent.md)
 - [Commands Reference](docs/reference/commands.md)
 
 ## Repository Layout

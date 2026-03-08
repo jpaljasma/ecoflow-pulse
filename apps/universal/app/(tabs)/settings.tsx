@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Animated, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import { KeycloakPkceCard } from '@/features/auth/KeycloakPkceCard';
 import { TopBar } from '@/shared/ui/TopBar';
@@ -36,16 +36,20 @@ export default function SettingsScreen() {
             </YStack>
           }
         />
-        <KeycloakPkceCard />
-        <Card gap="$2">
-          <Text fontSize="$5" fontWeight="700" testID="settings-api-endpoints">
-            API Endpoints
-          </Text>
-          <Text opacity={0.75}>
-            Set EXPO_PUBLIC_API_URL for non-default routing. EXPO_PUBLIC_WS_URL is optional and
-            defaults to API /ws.
-          </Text>
-        </Card>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
+          <YStack gap="$4">
+            <KeycloakPkceCard />
+            <Card gap="$2">
+              <Text fontSize="$5" fontWeight="700" testID="settings-api-endpoints">
+                API Endpoints
+              </Text>
+              <Text opacity={0.75}>
+                Set EXPO_PUBLIC_API_URL for non-default routing. EXPO_PUBLIC_WS_URL is optional and
+                defaults to API /ws.
+              </Text>
+            </Card>
+          </YStack>
+        </ScrollView>
       </YStack>
     </Animated.View>
   );

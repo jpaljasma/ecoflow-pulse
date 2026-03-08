@@ -19,9 +19,9 @@ import { useTelemetryFleetTrend, useTelemetrySnapshotsByIds } from '@/features/t
 import { useAuthSession } from '@/features/auth/hooks';
 import { useFleetPowerTrendHistory, useFleetSolarHistory } from '@/features/history/hooks';
 import { mergeTrendPrefill } from '@/features/history/powerTrend';
+import { SOLAR_HISTORY_CHART_TITLE, SOLAR_HISTORY_POINTS } from '@/features/history/solar';
 
 const SUMMARY_TREND_POINTS = 60;
-const SOLAR_GENERATED_POINTS = 72;
 
 function getMaxSolarWatts(device: DeviceSummary): number | undefined {
   const total = device.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
@@ -250,14 +250,14 @@ export function SummaryPanel({
         {isTabletUp ? (
           <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
             <YStack flexBasis="50%" minWidth="50%" maxWidth="50%">
-              <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
+              <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="1m refresh">
                 <SolarGeneratedChart
                   valuesWh={fleetSolarHistory.data.seriesWh}
                   yesterdayValuesWh={fleetSolarHistory.data.yesterdaySeriesWh}
                   todayWh={fleetSolarHistory.data.todayWh}
                   yesterdayWh={fleetSolarHistory.data.yesterdayWh}
                   deltaPct={fleetSolarHistory.data.deltaPct}
-                  points={SOLAR_GENERATED_POINTS}
+                  points={SOLAR_HISTORY_POINTS}
                 />
               </ChartSection>
             </YStack>
@@ -275,14 +275,14 @@ export function SummaryPanel({
           </XStack>
         ) : (
           <YStack gap="$3">
-            <ChartSection title="☼ Solar Generated (6am-6pm, 10m buckets)" subtitle="1m refresh">
+            <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="1m refresh">
               <SolarGeneratedChart
                 valuesWh={fleetSolarHistory.data.seriesWh}
                 yesterdayValuesWh={fleetSolarHistory.data.yesterdaySeriesWh}
                 todayWh={fleetSolarHistory.data.todayWh}
                 yesterdayWh={fleetSolarHistory.data.yesterdayWh}
                 deltaPct={fleetSolarHistory.data.deltaPct}
-                points={SOLAR_GENERATED_POINTS}
+                points={SOLAR_HISTORY_POINTS}
               />
             </ChartSection>
             <ChartSection title="Power Trends">

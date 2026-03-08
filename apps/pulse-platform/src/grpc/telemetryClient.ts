@@ -82,6 +82,8 @@ export type QueryRollupRangeInput = {
 
 export type CompareRollupRangeInput = QueryRollupRangeInput & {
   usePreviousPeriod: boolean;
+  compareFromUnixMs?: string;
+  compareToUnixMs?: string;
 };
 
 export interface TelemetryHistoryClient {
@@ -243,15 +245,22 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
       return normalizeSeries(response.series);
     },
     async compareRollupRange(input) {
+      const request: Record<string, unknown> = {
+        deviceId: input.deviceId,
+        resolution: resolutionMap[input.resolution],
+        fromUnixMs: input.fromUnixMs,
+        toUnixMs: input.toUnixMs,
+        usePreviousPeriod: input.usePreviousPeriod
+      };
+      if (input.compareFromUnixMs) {
+        request.compareFromUnixMs = input.compareFromUnixMs;
+      }
+      if (input.compareToUnixMs) {
+        request.compareToUnixMs = input.compareToUnixMs;
+      }
       const response = await unaryCall<RawCompareRollupRangeResponse>(
         client.CompareRollupRange.bind(client),
-        {
-          deviceId: input.deviceId,
-          resolution: resolutionMap[input.resolution],
-          fromUnixMs: input.fromUnixMs,
-          toUnixMs: input.toUnixMs,
-          usePreviousPeriod: input.usePreviousPeriod
-        },
+        request,
         input
       );
       return {
