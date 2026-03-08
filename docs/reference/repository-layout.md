@@ -58,6 +58,10 @@ Top-level structure:
   - `panel_purchase_links_v13.json`: curated panel-id to purchase-link override map
     used during panel DB regeneration.
   - `panel_select_model.json`: trained panel selection model artifact.
+- `data/ev/`
+  - `ev_us_europe_database.json`: stored U.S.+Europe EV reference dataset used
+    for future range/consumption equivalence work and current premium-EV miles
+    baseline derivation.
 - `deploy/`
   - `charts/pulse-platform`: platform umbrella chart scaffold.
     - includes chart-managed bootstrap resources such as CNPG contracts and

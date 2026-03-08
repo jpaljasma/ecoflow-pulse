@@ -8,9 +8,15 @@ import { AppMenu } from '@/shared/ui/AppMenu';
 import {
   AVOIDED_EMISSIONS_FACTORS,
   AVOIDED_EMISSIONS_FACTOR_VERSION,
+  EV_MILES_FACTOR_VERSION,
+  EV_RANGE_REFERENCE_DOC_URL,
   ENERGY_IMPACT_REFERENCE_DOC_URL,
   GENERIC_TREE_CO2_REMOVED_KG_PER_YEAR,
   GENERIC_TREE_KWH_PER_YEAR,
+  PREMIUM_EV_MEDIAN_CONSUMPTION_KWH_PER_100MI,
+  PREMIUM_EV_MEDIAN_SAMPLE_COUNT,
+  PREMIUM_EV_MILES_PER_KWH,
+  PREMIUM_EV_REFERENCE_SCOPE,
   PV_LIFECYCLE_CO2E_KG_PER_KWH,
   TREE_EQUIVALENT_FACTOR_VERSION,
   TREE_EQUIVALENT_REFERENCE_DOC_URL
@@ -84,11 +90,29 @@ export default function EnergyImpactScreen() {
             style={{ borderColor: highlightBorder(typeof focus === 'string' ? focus : undefined, 'co2e') }}
           >
             <Text fontSize="$5" fontWeight="700">
-              Pollutants shown
+              Cleaner power
             </Text>
-            <Text opacity={0.82}>CO2e: climate-warming emissions displaced by solar generation.</Text>
-            <Text opacity={0.82}>NOx: nitrogen oxides, a smog-forming pollutant displaced by solar generation.</Text>
-            <Text opacity={0.82}>SO2: sulfur dioxide displaced by solar generation.</Text>
+            <Text opacity={0.82}>CO2e is the climate-warming pollution displaced from the grid mix by your solar generation.</Text>
+          </Card>
+
+          <Card
+            gap="$2"
+            style={{ borderColor: highlightBorder(typeof focus === 'string' ? focus : undefined, 'air') }}
+          >
+            <Text fontSize="$5" fontWeight="700">
+              Cleaner air
+            </Text>
+            <Text opacity={0.82}>NOx and SO2 are air pollutants displaced from the grid mix by your solar generation.</Text>
+          </Card>
+
+          <Card
+            gap="$2"
+            style={{ borderColor: highlightBorder(typeof focus === 'string' ? focus : undefined, 'solar') }}
+          >
+            <Text fontSize="$5" fontWeight="700">
+              Your own energy
+            </Text>
+            <Text opacity={0.82}>This row is the measured solar generation for the selected period, shown directly rather than converted into an emissions factor.</Text>
           </Card>
 
           <Card gap="$2">
@@ -108,12 +132,31 @@ export default function EnergyImpactScreen() {
             style={{ borderColor: highlightBorder(typeof focus === 'string' ? focus : undefined, 'nox') }}
           >
             <Text fontSize="$5" fontWeight="700">
-              Formula
+              Emissions formulas
             </Text>
             <Text opacity={0.82}>solarKWh = solarWh / 1000</Text>
             <Text opacity={0.82}>avoidedCO2e = solarKWh * {nyup.co2eKgPerKWh} kg/kWh</Text>
             <Text opacity={0.82}>avoidedNOx = solarKWh * {nyup.noxGramsPerKWh} g/kWh</Text>
             <Text opacity={0.82}>avoidedSO2 = solarKWh * {nyup.so2GramsPerKWh} g/kWh</Text>
+          </Card>
+
+          <Card
+            gap="$3"
+            style={{ borderColor: highlightBorder(typeof focus === 'string' ? focus : undefined, 'evMiles') }}
+          >
+            <Text fontSize="$5" fontWeight="700">
+              EV miles equivalent
+            </Text>
+            <Text opacity={0.82}>
+              EV miles uses a median premium EV driving-energy baseline derived from the stored EV reference dataset.
+            </Text>
+            <Text opacity={0.82}>premiumEvMiles = solarKWh * {PREMIUM_EV_MILES_PER_KWH.toFixed(3)} miles/kWh</Text>
+            <Text opacity={0.82}>
+              Equivalent median consumption = {PREMIUM_EV_MEDIAN_CONSUMPTION_KWH_PER_100MI.toFixed(4)} kWh/100mi.
+            </Text>
+            <Text opacity={0.68}>
+              Baseline version: {EV_MILES_FACTOR_VERSION}. Current derived scope: {PREMIUM_EV_REFERENCE_SCOPE} ({PREMIUM_EV_MEDIAN_SAMPLE_COUNT} rows).
+            </Text>
           </Card>
 
           <Card
@@ -165,6 +208,16 @@ export default function EnergyImpactScreen() {
                 onPress={() => openReferenceDoc(TREE_EQUIVALENT_REFERENCE_DOC_URL)}
               >
                 Open tree doc
+              </Button>
+              <Button
+                size="$4"
+                borderRadius="$5"
+                backgroundColor="rgba(59,130,246,0.14)"
+                borderColor="rgba(59,130,246,0.34)"
+                borderWidth={1}
+                onPress={() => openReferenceDoc(EV_RANGE_REFERENCE_DOC_URL)}
+              >
+                Open EV doc
               </Button>
             </XStack>
           </Card>

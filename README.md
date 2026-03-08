@@ -27,9 +27,10 @@ Actively validated:
   10-minute buckets, prior-day overlay, and hover/tap bucket inspection.
 - `Energy Impact` now estimates today-so-far avoided `CO2e`, `NOx`, and `SO2`
   plus conservative mature-tree equivalent on `/devices` and `/device/{id}`
-  using versioned EPA eGRID2023 and lifecycle/tree factors plus an in-app
-  explainer, with a lazy cached `Past 12 months` view in addition to the live
-  `Today so far` default.
+  plus premium-EV driving-energy miles using versioned EPA eGRID2023,
+  lifecycle/tree, and EV-consumption factors plus an in-app explainer, with a
+  lazy cached `Past 12 months` view in addition to the live `Today so far`
+  default.
 
 ## Core Capabilities
 
@@ -115,6 +116,7 @@ Developer docs follow Diataxis under `/docs`:
 - [Telemetry Model](docs/reference/telemetry-model.md)
 - [Solar Avoided Emissions Reference](docs/reference/solar-avoided-emissions.md)
 - [Tree Equivalent Reference](docs/reference/tree-equivalent.md)
+- [EV Database Report Reference](docs/reference/ev-us-europe-database-report.md)
 - [Commands Reference](docs/reference/commands.md)
 
 ## Repository Layout

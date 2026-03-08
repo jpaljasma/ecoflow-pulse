@@ -3,6 +3,7 @@ import { Button, Text, XStack, YStack } from 'tamagui';
 import { Card } from '@/shared/ui/Card';
 import { formatWhAndKWh } from '@/features/telemetry/format';
 import {
+  buildEnergyImpactRows,
   computeEnergyImpactFromSolarWh,
   DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY,
   energyImpactPeriodLabel,
@@ -25,14 +26,16 @@ const PERIOD_IDLE_BORDER = 'rgba(120,120,128,0.24)';
 const PERIOD_IDLE_TEXT = 'rgba(70,70,74,0.92)';
 const PERIOD_BUTTON_WIDTH = 122;
 
-function badgeColors(metricKey: 'co2e' | 'nox' | 'so2' | 'trees') {
+function badgeColors(metricKey: 'co2e' | 'air' | 'solar' | 'evMiles' | 'trees') {
   switch (metricKey) {
     case 'co2e':
       return { bg: 'rgba(34,197,94,0.16)', color: '#15803d' };
-    case 'nox':
+    case 'air':
       return { bg: 'rgba(20,184,166,0.16)', color: '#0f766e' };
-    case 'so2':
+    case 'solar':
       return { bg: 'rgba(59,130,246,0.16)', color: '#1d4ed8' };
+    case 'evMiles':
+      return { bg: 'rgba(99,102,241,0.16)', color: '#4338ca' };
     case 'trees':
       return { bg: 'rgba(16,185,129,0.18)', color: '#047857' };
   }
@@ -43,6 +46,7 @@ export function EnergyImpactCard({
   title = 'Energy Impact',
   minWidth,
   period = 'today',
+  displayPeriod = period,
   onPeriodChange,
   isLoading = false,
   errorText
@@ -51,13 +55,14 @@ export function EnergyImpactCard({
   title?: string;
   minWidth?: number;
   period?: EnergyImpactPeriod;
+  displayPeriod?: EnergyImpactPeriod;
   onPeriodChange?: (period: EnergyImpactPeriod) => void;
   isLoading?: boolean;
   errorText?: string;
 }) {
   const router = useRouter();
   const impact = computeEnergyImpactFromSolarWh(solarWh ?? 0, DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY);
-  const periodLabel = energyImpactPeriodLabel(period);
+  const periodLabel = energyImpactPeriodLabel(displayPeriod);
   const periodButtons: Array<{ key: EnergyImpactPeriod; label: string }> = [
     { key: 'today', label: 'Today so far' },
     { key: 'past12Months', label: 'Past 12 months' }
@@ -134,7 +139,7 @@ export function EnergyImpactCard({
       </YStack>
 
       <YStack gap="$2" opacity={isLoading ? 0.86 : 1}>
-        {impact.metrics.map((metric) => {
+        {buildEnergyImpactRows(impact, displayPeriod).map((metric) => {
           const colors = badgeColors(metric.key);
           return (
             <XStack
@@ -166,7 +171,7 @@ export function EnergyImpactCard({
 
               <YStack flex={1} minWidth={0} gap="$1">
                 <Text fontWeight="700" numberOfLines={1}>
-                  {metric.label}
+                  {metric.headline}
                 </Text>
                 <Text fontSize="$2" opacity={0.68}>
                   {metric.detail}

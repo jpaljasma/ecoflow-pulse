@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildPastTwelveMonthsBounds,
+  buildEnergyImpactRows,
   computeEnergyImpactFromSolarWh,
   energyImpactPeriodLabel,
   formatImpactMassFromGrams,
+  formatMiles,
+  formatPollutantMass,
+  PREMIUM_EV_MILES_PER_KWH,
   formatTreeYears
 } from '@/features/energy-impact/model';
 
@@ -37,6 +41,8 @@ describe('energy impact model', () => {
     expect(formatImpactMassFromGrams(467.200141)).toBe('467 g');
     expect(formatImpactMassFromGrams(6.617)).toBe('6.6 g');
     expect(formatImpactMassFromGrams(0.0029)).toBe('0.003 g');
+    expect(formatPollutantMass(0.0123)).toBe('12 mg');
+    expect(formatPollutantMass(3.4)).toBe('3 g');
   });
 
   it('computes tree-years from lifecycle CO2 benchmark', () => {
@@ -44,11 +50,13 @@ describe('energy impact model', () => {
 
     expect(impact.solarLifecycleCo2eKg).toBeCloseTo(450, 6);
     expect(impact.treeYearsEquivalent).toBeCloseTo(20.64220183, 6);
+    expect(impact.evMilesEquivalent).toBeCloseTo(10_000 * PREMIUM_EV_MILES_PER_KWH, 6);
   });
 
   it('formats very small tree-year values for today-so-far UI', () => {
     expect(formatTreeYears(20.64220183)).toBe('20.6 tree-years');
     expect(formatTreeYears(0.0001197)).toBe('0.00012 tree-years');
+    expect(formatMiles(9.41)).toBe('9.4');
   });
 
   it('builds a rolling trailing 12-month range', () => {
@@ -68,6 +76,17 @@ describe('energy impact model', () => {
   it('formats period labels for UI copy', () => {
     expect(energyImpactPeriodLabel('today')).toBe('today so far');
     expect(energyImpactPeriodLabel('past12Months')).toBe('the past 12 months');
+  });
+
+  it('builds emotional widget rows', () => {
+    const impact = computeEnergyImpactFromSolarWh(1800, 'NYUP');
+    const rows = buildEnergyImpactRows(impact, 'today');
+
+    expect(rows[0]?.headline).toBe('You made cleaner power today');
+    expect(rows[1]?.detail).toContain('NOx');
+    expect(rows[2]?.detail).toContain('generated with your own solar');
+    expect(rows[3]?.headline).toBe('Sunlight turned into something real');
+    expect(rows[4]?.badge).toBe('Trees');
   });
 
   it('clamps negative or missing solar values to zero', () => {
