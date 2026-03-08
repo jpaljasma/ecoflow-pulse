@@ -12,6 +12,7 @@ function baseConfig(): AppConfig {
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
     devUserSubject: 'jpaljasma@gmail.com',
+    publicPreconnectOrigins: [],
     historyRateLimit: {
       max: 120,
       timeWindowMs: 60000

@@ -56,6 +56,19 @@ runtime:
       publicDir: /app/apps/universal/dist
       realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
       devUserSubject: jpaljasma@gmail.com
+      publicPreconnectOrigins: ""
+    ingress:
+      enabled: false
+      className: nginx
+      host: ""
+      annotations: {}
+      proxyReadTimeoutSeconds: 3600
+      proxySendTimeoutSeconds: 3600
+      tls:
+        enabled: false
+        secretName: ""
+        clusterIssuer: ""
+        localSelfSigned: false
   realtimeGateway:
     enabled: false
     replicaCount: 1
@@ -147,6 +160,16 @@ minio: {}
 ingress-nginx:
   controller:
     replicaCount: 1
+    config:
+      use-http2: "true"
+      use-gzip: "true"
+      gzip-level: "5"
+      gzip-min-length: "256"
+      gzip-types: application/javascript application/json image/svg+xml text/css text/javascript text/plain text/xml
+      enable-brotli: "true"
+      brotli-level: "5"
+      brotli-min-length: "256"
+      brotli-types: application/javascript application/json image/svg+xml text/css text/javascript text/plain text/xml
     ingressClassResource:
       default: false
     service:

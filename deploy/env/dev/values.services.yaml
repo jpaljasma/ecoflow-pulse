@@ -4,3 +4,9 @@ global:
 scaffold:
   enabled: true
   message: "pulse-services dev scaffold"
+
+runtime:
+  workers:
+    grpcApi:
+      enabled: true
+      replicaCount: 2

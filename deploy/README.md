@@ -71,6 +71,14 @@ Defaults:
 - `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).
+- local edge defaults now also enable:
+  - `ingress-nginx`,
+  - `cert-manager`,
+  - `https://localhost` ingress to `pulse-platform-public-app`,
+  - a cert-manager-generated localhost TLS secret signed by a local in-cluster
+    CA issuer.
+  - on macOS, `make platform-up` auto-trusts the current localhost certificate
+    authority in the login keychain by default (`LOCAL_PLATFORM_AUTO_TRUST_TLS=1`).
 - current local services defaults enable containerized telemetry workers
   (`go-ingest`, `go-projection`, `go-archive`) using image
   `ecoflow-pulse/services:local`.
@@ -81,10 +89,10 @@ Defaults:
   - services runtime secret uses matching
     `ARCHIVE_OBJECT_ACCESS_KEY` / `ARCHIVE_OBJECT_SECRET_KEY`
     (`minio` / `minio123`).
-- local keeps `ingress-nginx`, `cert-manager`, `external-secrets`, and
-  `observability-lite` disabled by default.
-- dev values enable `ingress-nginx` + `cert-manager` with cost-min settings
-  (`ClusterIP`, single replicas).
+- local keeps `external-secrets` and `observability-lite` disabled by default.
+- dev values enable `ingress-nginx` + `cert-manager` and expose the public app
+  ingress host as `pulse.dev.local` (TLS remains opt-in until a real issuer is
+  configured).
 - dev values also enable `external-secrets` + `observability-lite` using
   low-footprint resource limits.
 - GKE Argo CD bootstrap uses `deploy/env/dev/values.argocd.yaml`.

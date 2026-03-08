@@ -698,13 +698,18 @@ Notes:
   It runs a CRD-safe reconcile flow for CloudNativePG:
   1) initial Helm install/upgrade,
   2) wait for CNPG operator deployment readiness,
-  3) second Helm pass to apply CRD-backed resources (for example `Cluster`).
+  3) when local TLS ingress is enabled, wait for cert-manager
+     controller/webhook/cainjector readiness,
+  4) second Helm pass to apply CRD-backed resources (for example `Cluster`,
+     `ClusterIssuer`).
   Connection + bootstrap contract:
   - bootstrap app credentials are configured in `cloudnativepgCluster.bootstrap.*` and rendered to secret `pulse-platform-core-app`,
   - service-facing contract is exposed via configmap `pulse-platform-core-contract`,
   - DSN-style connection secret is exposed via `pulse-platform-core-connection`,
   - local Keycloak is configured to use CNPG (`keycloak.postgresql.enabled=false`, `keycloak.externalDatabase.*` -> `pulse-platform-core-rw`).
   Validation examples:
+  - `kubectl get ingress -n pulse-platform`
+  - `kubectl describe ingress pulse-platform-public-edge -n pulse-platform`
   - `kubectl get sts -n pulse-platform`
   - `kubectl get pods -n pulse-platform`
   - `kubectl get deploy -n pulse-platform`
@@ -717,6 +722,16 @@ Notes:
   - `kubectl exec -n pulse-platform "${CNPG_POD}" -- psql -U postgres -d pulse -tAc "SHOW shared_preload_libraries;"`
   - `kubectl exec -n pulse-platform "${CNPG_POD}" -- psql -U postgres -d pulse -tAc "SELECT extname FROM pg_extension WHERE extname='timescaledb';"`
   - `kubectl get pod pulse-platform-valkey-node-0 -n pulse-platform -o jsonpath='{.spec.containers[*].name}'`
+  Browser edge examples:
+  - `curl -kI https://localhost`
+  - `curl -kI https://localhost/_expo/static/js/web/$(ls apps/universal/dist/_expo/static/js/web | head -n 1)`
+- `make local-trust-platform-tls` (macOS only) exports the current
+  `pulse-platform-local-ca` certificate authority from k3d and adds it to the
+  login keychain trust store so `curl https://localhost` and the browser can
+  trust the local TLS endpoint without `-k`.
+- `make platform-up` now runs that trust step automatically on macOS when:
+  - `LOCAL_PLATFORM_AUTO_TRUST_TLS=1` (default), and
+  - `secret/pulse-platform-local-tls` exists after the platform reconcile.
   Recovery examples after Docker restart:
   - `docker restart k3d-pulse-local-agent-0`
   - `kubectl get nodes -o wide`

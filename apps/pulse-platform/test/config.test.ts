@@ -16,4 +16,15 @@ describe('pulse-platform config', () => {
 
     expect(config.devUserSubject).toBe('jpaljasma@gmail.com');
   });
+
+  it('parses optional public preconnect origins', () => {
+    const config = loadConfig({
+      PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS: 'https://api.example.com,wss://ws.example.com'
+    });
+
+    expect(config.publicPreconnectOrigins).toEqual([
+      'https://api.example.com',
+      'wss://ws.example.com'
+    ]);
+  });
 });

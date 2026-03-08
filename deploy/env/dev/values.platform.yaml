@@ -5,6 +5,28 @@ scaffold:
   enabled: true
   message: "pulse-platform dev scaffold"
 
+runtime:
+  publicApp:
+    enabled: true
+    replicaCount: 2
+    service:
+      type: ClusterIP
+    env:
+      publicPreconnectOrigins: ""
+    ingress:
+      enabled: true
+      host: pulse.dev.local
+      proxyReadTimeoutSeconds: 3600
+      proxySendTimeoutSeconds: 3600
+      tls:
+        enabled: false
+        secretName: pulse-platform-dev-tls
+        clusterIssuer: ""
+        localSelfSigned: false
+  realtimeGateway:
+    enabled: true
+    replicaCount: 2
+
 components:
   nats:
     enabled: false

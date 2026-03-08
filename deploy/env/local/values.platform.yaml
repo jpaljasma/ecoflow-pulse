@@ -19,9 +19,9 @@ components:
   minio:
     enabled: true
   ingressNginx:
-    enabled: false
+    enabled: true
   certManager:
-    enabled: false
+    enabled: true
   externalSecrets:
     enabled: false
   observabilityLite:
@@ -36,7 +36,7 @@ runtime:
       tag: local
       pullPolicy: IfNotPresent
     service:
-      type: LoadBalancer
+      type: ClusterIP
       port: 80
       targetPort: 8080
     env:
@@ -46,6 +46,17 @@ runtime:
       publicDir: /app/apps/universal/dist
       realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
       devUserSubject: jpaljasma@gmail.com
+      publicPreconnectOrigins: ""
+    ingress:
+      enabled: true
+      host: localhost
+      proxyReadTimeoutSeconds: 3600
+      proxySendTimeoutSeconds: 3600
+      tls:
+        enabled: true
+        secretName: pulse-platform-local-tls
+        clusterIssuer: pulse-platform-local-selfsigned
+        localSelfSigned: true
   realtimeGateway:
     enabled: true
     replicaCount: 1
@@ -199,7 +210,7 @@ ingress-nginx:
   controller:
     replicaCount: 1
     service:
-      type: ClusterIP
+      type: LoadBalancer
 
 cert-manager:
   crds:
