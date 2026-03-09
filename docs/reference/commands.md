@@ -746,6 +746,14 @@ Notes:
      controller/webhook/cainjector readiness,
   4) second Helm pass to apply CRD-backed resources (for example `Cluster`,
      `ClusterIssuer`).
+  On a fresh local bootstrap when `pulse-platform-keycloak` does not exist yet,
+  the first Helm pass now defers Keycloak entirely, waits for:
+  - CNPG cluster `pulse-platform-core` `Ready`,
+  - secret `pulse-platform-core-app`,
+  - `pulse-platform-core-rw` service endpoints,
+  then applies the full Keycloak-enabled release on the second pass. This
+  reduces first-boot Keycloak restart churn while the external CNPG database and
+  bootstrap credentials settle.
   Connection + bootstrap contract:
   - bootstrap app credentials are configured in `cloudnativepgCluster.bootstrap.*` and rendered to secret `pulse-platform-core-app`,
   - service-facing contract is exposed via configmap `pulse-platform-core-contract`,
@@ -834,6 +842,7 @@ Notes:
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
   - `nats`, `valkey-node`, and `keycloak` statefulsets,
+  - optional Keycloak bootstrap job `pulse-platform-keycloak-keycloak-config-cli` reaching `Complete`,
   - `minio` deployment,
   - optional `ingress-nginx` controller deployment,
   - optional `cert-manager` controller/webhook/cainjector deployments,
