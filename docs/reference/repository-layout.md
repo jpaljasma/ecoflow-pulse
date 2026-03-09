@@ -73,6 +73,7 @@ Top-level structure:
       Keycloak realm/provider bootstrap (`templates/keycloak-*.yaml`).
   - `charts/pulse-services`: services umbrella chart scaffold.
   - `db/migrations`: control-plane SQL migrations (M1+ schema evolution).
+  - `db/pgroll/plans`: reserved location for future `pgroll` migration plans.
   - `env/local` and `env/dev`: values files for local/dev deploys.
   - `env/dev/recommended`: recommended (non-auto-applied) runtime policies,
     including ingest worker HPA baseline manifests and migration-hook values.
