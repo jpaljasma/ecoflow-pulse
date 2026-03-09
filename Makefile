@@ -758,6 +758,18 @@ dev-deploy:
 				if [ -n "$$(git status --porcelain --untracked-files=all -- $(SERVICES_CHART) $(LOCAL_SERVICES_VALUES))" ]; then \
 					services_apply=1; \
 				fi; \
+				if [ "$$platform_apply" = "0" ]; then \
+					if ! $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-realtime-gateway >/dev/null 2>&1 || \
+					   ! $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-public-app >/dev/null 2>&1; then \
+						platform_apply=1; \
+					fi; \
+				fi; \
+				if [ "$$services_apply" = "0" ]; then \
+					if ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-inference >/dev/null 2>&1 || \
+					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-rollup >/dev/null 2>&1; then \
+						services_apply=1; \
+					fi; \
+				fi; \
 				;; \
 			*) \
 				echo "unsupported DEV_DEPLOY_HELM=$$helm_mode (expected auto, always, or never)"; \
@@ -780,14 +792,24 @@ dev-deploy:
 		else \
 			echo "skipping services Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
 		fi
-	@echo "restarting updated local deployments"
-	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout restart deploy/pulse-services-go-rollup
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-realtime-gateway
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout restart deploy/pulse-platform-public-app
-	@echo "waiting for restarted deployments"
-	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout status deploy/pulse-services-go-rollup --timeout=300s
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-realtime-gateway --timeout=300s
-	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/pulse-platform-public-app --timeout=300s
+	@set -euo pipefail; \
+		restart_and_wait_if_exists() { \
+			ns="$$1"; \
+			name="$$2"; \
+			if $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" >/dev/null 2>&1; then \
+				echo "restarting $$ns/$$name"; \
+				$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
+				echo "waiting for $$ns/$$name"; \
+				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
+			else \
+				echo "skipping missing deployment $$ns/$$name"; \
+			fi; \
+		}; \
+		echo "restarting updated local deployments"; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-inference; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-rollup; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app
 	@echo "showing deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy
