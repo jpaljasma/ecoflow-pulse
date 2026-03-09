@@ -13,6 +13,33 @@ runtime:
     repository: ecoflow-pulse/services
     tag: local
     pullPolicy: IfNotPresent
+  migrations:
+    enabled: false
+    namespace: pulse-platform
+    db:
+      host: pulse-platform-core-rw
+      port: 5432
+      name: pulse
+      sslmode: disable
+      credentialsSecretName: pulse-platform-core-app
+      usernameKey: username
+      passwordKey: password
+    policy:
+      rolloutEnv: dev
+      requireBackup: false
+      backupRef: ""
+      forwardOnly: true
+    job:
+      backoffLimit: 0
+      activeDeadlineSeconds: 900
+      ttlSecondsAfterFinished: 600
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
   env:
     controlPlaneDBDSN: ""
     archiveManifestDBDSN: ""

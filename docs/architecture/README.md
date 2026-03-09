@@ -299,7 +299,13 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 
 **Post-M1 follow-up (explicitly deferred until M1 is DONE)**
 - [x] Add GitHub `db-migrations-ci` workflow (up/verify/down/up/e2e) and make it a required check.
-- [ ] Define and implement schema migration rollout path for `dev -> staging -> prod` (Argo sync hook / migration job sequencing, backup gates, forward-only policy).
+- [x] DONE: Define and implement schema migration rollout path for `dev -> staging -> prod` (Argo sync hook / migration job sequencing, backup gates, forward-only policy).
+  - [x] Review architecture/config/ADR constraints for GitOps-driven environment rollout
+  - [x] Add a forward-only migration runner for in-cluster rollout jobs
+  - [x] Wire migration job sequencing into `pulse-services` Helm/Argo deploy flow
+  - [x] Add explicit dev/staging/prod rollout policy + backup gate configuration/docs
+  - [x] Validate render/test path and record acceptance evidence
+  - Validation evidence (2026-03-09): `helm lint deploy/charts/pulse-services -f deploy/env/local/values.services.yaml` succeeded; `helm lint deploy/charts/pulse-services -f deploy/env/dev/values.services.yaml` succeeded; `go test ./...` succeeded; `make lint` succeeded.
 - [ ] Adopt `pgroll` for safe reversible online PostgreSQL schema migrations with simultaneous multi-schema serving during transitions.
 - [ ] Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
 - [ ] Add Helm/Make startup sequencing hardening for Keycloak bootstrap dependencies to reduce first-boot restart/transient not-ready events.

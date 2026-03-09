@@ -11,6 +11,7 @@ Current state: **platform + telemetry worker runtime in local k3d**.
   cert-manager, External Secrets, observability-lite).
 - `charts/pulse-services/`: Pulse runtime services chart.
   - currently deploys Go telemetry workers:
+    - `db-migrate` hook job (disabled by default; forward-only rollout path)
     - `go-ingest`
     - `go-inference`
     - `go-projection`
@@ -22,6 +23,7 @@ Current state: **platform + telemetry worker runtime in local k3d**.
 - `env/dev/guardrails/`: dev namespace guardrails (`ResourceQuota`, `LimitRange`).
 - `env/dev/recommended/`: recommended runtime policies not auto-applied by scaffold.
   - `pulse-services-go-ingest-hpa.recommended.yaml`: ingest worker HPA baseline.
+  - `pulse-services-db-migrations.recommended.yaml`: dev rollout migration hook values.
 - `argocd/apps/`: direct Argo CD Applications:
   - `pulse-platform`
   - `pulse-services`

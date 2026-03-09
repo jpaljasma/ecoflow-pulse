@@ -1,13 +1,6 @@
-global:
-  environment: dev
-
-scaffold:
-  enabled: true
-  message: "pulse-services dev scaffold"
-
 runtime:
   migrations:
-    enabled: false
+    enabled: true
     namespace: pulse-platform
     db:
       host: pulse-platform-core-rw
@@ -22,7 +15,3 @@ runtime:
       requireBackup: false
       backupRef: ""
       forwardOnly: true
-  workers:
-    grpcApi:
-      enabled: true
-      replicaCount: 2

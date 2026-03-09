@@ -6,6 +6,22 @@ scaffold:
   message: "pulse-services local runtime"
 
 runtime:
+  migrations:
+    enabled: false
+    namespace: pulse-platform
+    db:
+      host: pulse-platform-core-rw
+      port: 5432
+      name: pulse
+      sslmode: disable
+      credentialsSecretName: pulse-platform-core-app
+      usernameKey: username
+      passwordKey: password
+    policy:
+      rolloutEnv: local
+      requireBackup: false
+      backupRef: ""
+      forwardOnly: true
   image:
     repository: ecoflow-pulse/services
     tag: local

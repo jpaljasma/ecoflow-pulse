@@ -16,6 +16,7 @@ RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26,target=/go/pkg/mod,sharing=l
     set -euo pipefail; \
     export CGO_ENABLED=0 GOOS=linux GOARCH=amd64; \
     for cmd in \
+        ecoflow-db-migrate-job \
         ecoflow-ingest-worker \
         ecoflow-inference-worker \
         ecoflow-rollup-worker \
@@ -31,5 +32,6 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 COPY --from=build /out/ /app/
+COPY deploy/db/migrations /app/deploy/db/migrations
 
 USER nonroot:nonroot
