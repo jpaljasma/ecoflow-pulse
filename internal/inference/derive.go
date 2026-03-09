@@ -13,6 +13,7 @@ const (
 	batteryExpansionModelKey     = "battery-expansion-rule"
 	batteryExpansionModelVersion = "v1"
 	defaultInsightTTL            = 6 * time.Hour
+	ecoFlowInviteCode            = "ATH7F3EF1P"
 )
 
 type DeriveInput struct {
@@ -107,6 +108,14 @@ func deriveBatteryExpansionInsight(now time.Time, device DeviceContext) (Insight
 	}
 
 	id := insightUUID(device.DeviceID, titleModel, KindBatteryExpansion)
+	actions := []Action{}
+	if target := batteryUpsellURL(model); target != "" {
+		actions = append(actions, Action{
+			Kind:   ActionKindExternalURL,
+			Label:  fmt.Sprintf("Get More Batteries (%d)", headroom),
+			Target: target,
+		})
+	}
 	return Insight{
 		ID:           id,
 		DeviceID:     strings.TrimSpace(device.DeviceID),
@@ -127,6 +136,7 @@ func deriveBatteryExpansionInsight(now time.Time, device DeviceContext) (Insight
 				Metrics: evidenceMetrics,
 			},
 		},
+		Actions:    actions,
 		Attributes: attrs,
 	}, true
 }
@@ -163,6 +173,17 @@ func batteryCapacityKWh(model string, batteryPacks int) (float64, bool) {
 		return 2.048 * float64(maxInt(batteryPacks, 1)), true
 	default:
 		return 0, false
+	}
+}
+
+func batteryUpsellURL(model string) string {
+	switch {
+	case strings.Contains(normalizeModel(model), "delta pro ultra"):
+		return "https://us.ecoflow.com/products/delta-pro-ultra-battery?variant=41446274465865&inviteCode=" + ecoFlowInviteCode
+	case strings.Contains(normalizeModel(model), "delta 2 max"):
+		return "https://us.ecoflow.com/products/delta-2-max-smart-extra-battery-flash-sales?_pos=1&_sid=ed8ecff75&_ss=r&variant=40573812310089&inviteCode=" + ecoFlowInviteCode
+	default:
+		return ""
 	}
 }
 

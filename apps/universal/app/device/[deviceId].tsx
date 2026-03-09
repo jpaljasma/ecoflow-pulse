@@ -9,6 +9,7 @@ import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { useDevice, useDevices } from '@/features/devices/hooks';
 import type { DeviceSummary } from '@/features/devices/api';
+import { useDeviceInsights } from '@/features/inference/hooks';
 import {
   useTelemetryConnectionStatus,
   useTelemetryDeviceSnapshot,
@@ -124,6 +125,11 @@ export default function DeviceDetailScreen() {
     authKey,
     enabled: queryEnabled && Boolean(resolvedDeviceId)
   });
+  const batteryInsightsQuery = useDeviceInsights(resolvedDeviceId, {
+    token,
+    authKey,
+    enabled: queryEnabled && Boolean(resolvedDeviceId)
+  });
   const device = mergeDeviceSources(deviceQuery.data, routeDevice);
   useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
   const telemetryConnectionStatus = useTelemetryConnectionStatus();
@@ -205,6 +211,8 @@ export default function DeviceDetailScreen() {
       solarGeneratedTodayWh={solarHistory.data?.todayWh}
       solarGeneratedYesterdayWh={solarHistory.data?.yesterdayWh}
       solarGeneratedDeltaPct={solarHistory.data?.deltaPct}
+      batteryInsights={batteryInsightsQuery.data}
+      batteryInsightsLoading={batteryInsightsQuery.isLoading}
     />
   );
 

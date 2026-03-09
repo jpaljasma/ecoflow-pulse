@@ -47,6 +47,12 @@ func TestValkeyStoreApplyEnvelopeBuildsBatteryExpansionInsight(t *testing.T) {
 	if insight.Kind != KindBatteryExpansion {
 		t.Fatalf("kind mismatch: got=%q want=%q", insight.Kind, KindBatteryExpansion)
 	}
+	if got := len(insight.Actions); got != 1 {
+		t.Fatalf("expected one action, got %d", got)
+	}
+	if insight.Actions[0].Kind != ActionKindExternalURL {
+		t.Fatalf("action kind mismatch: got=%q want=%q", insight.Actions[0].Kind, ActionKindExternalURL)
+	}
 	if got := insight.Attributes["current_battery_packs"]; got != 1 {
 		t.Fatalf("current_battery_packs mismatch: got=%v want=1", got)
 	}

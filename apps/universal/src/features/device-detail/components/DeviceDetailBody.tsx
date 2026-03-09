@@ -18,6 +18,7 @@ import type { DeviceDetailViewModel } from '@/features/device-detail/view-model'
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
+import type { DeviceInsights } from '@/features/inference/api';
 
 const DETAIL_TREND_POINTS = 60;
 export function DeviceDetailBody({
@@ -37,7 +38,9 @@ export function DeviceDetailBody({
   solarGeneratedYesterdayTrend,
   solarGeneratedTodayWh,
   solarGeneratedYesterdayWh,
-  solarGeneratedDeltaPct
+  solarGeneratedDeltaPct,
+  batteryInsights,
+  batteryInsightsLoading
 }: {
   device?: DeviceSummary;
   snapshot?: DeviceSnapshot;
@@ -56,6 +59,8 @@ export function DeviceDetailBody({
   solarGeneratedTodayWh?: number;
   solarGeneratedYesterdayWh?: number;
   solarGeneratedDeltaPct?: number | null;
+  batteryInsights?: DeviceInsights;
+  batteryInsightsLoading?: boolean;
 }) {
   const detailMetricItems: MetricsGridItem[] = vm.metricCells.map((cell) => {
     if (cell.kind === 'today') {
@@ -181,6 +186,8 @@ export function DeviceDetailBody({
               bpCount={vm.details?.bpCount}
               summaryText={vm.batterySummaryText}
               model={device?.model}
+              batteryInsights={batteryInsights}
+              batteryInsightsLoading={batteryInsightsLoading}
               minWidth={isDesktop ? 320 : 280}
             />
           ) : null}

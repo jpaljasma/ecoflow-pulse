@@ -5,19 +5,24 @@ import { SocBar } from '@/shared/ui/SocBar';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import type { DetailBatteryPackVM } from '@/features/device-detail/view-model';
 import { BatteryUpsellComponent } from '@/features/device-detail/components/BatteryUpsellComponent';
-import { getBatteryUpsellUrl, getMaxBatteryCount } from '@/shared/config/merchandising';
+import type { DeviceInsights } from '@/features/inference/api';
+import { buildBatteryUpsellView } from '@/features/inference/model';
 
 export function BatteryPacksSection({
   packs,
   bpCount,
   summaryText,
   model,
+  batteryInsights,
+  batteryInsightsLoading,
   minWidth
 }: {
   packs: DetailBatteryPackVM[];
   bpCount?: number;
   summaryText?: string;
   model?: string;
+  batteryInsights?: DeviceInsights;
+  batteryInsightsLoading?: boolean;
   minWidth?: number;
 }) {
   const stableBatteryCountRef = useRef<number>(0);
@@ -27,15 +32,16 @@ export function BatteryPacksSection({
   }
   const batteryCount = stableBatteryCountRef.current;
   const inferredOnlyCount = Math.max(0, batteryCount - packs.length);
-  const upsellHref = useMemo(
+  const batteryUpsell = useMemo(
     () =>
-      getBatteryUpsellUrl({
+      buildBatteryUpsellView({
+        insights: batteryInsights,
         model,
-        batteryCount
+        batteryCount,
+        allowFallback: !batteryInsightsLoading
       }),
-    [model, batteryCount]
+    [batteryCount, batteryInsights, batteryInsightsLoading, model]
   );
-  const maxBatteries = useMemo(() => getMaxBatteryCount(model), [model]);
   return (
     <SectionCard
       title="🔋 Battery Packs"
@@ -93,10 +99,11 @@ export function BatteryPacksSection({
         </Text>
       ) : null}
       <BatteryUpsellComponent
-        href={upsellHref}
-        modelName={model}
-        batteryCount={batteryCount}
-        maxBatteries={maxBatteries}
+        title={batteryUpsell?.title}
+        summary={batteryUpsell?.summary}
+        href={batteryUpsell?.href}
+        ctaLabel={batteryUpsell?.ctaLabel}
+        loading={batteryInsightsLoading}
       />
     </SectionCard>
   );

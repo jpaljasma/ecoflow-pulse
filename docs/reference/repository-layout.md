@@ -3,7 +3,7 @@
 Top-level structure:
 
 - `apps/`
-  - `pulse-platform`: Node REST BFF workspace (public history/query adapter over internal gRPC).
+  - `pulse-platform`: Node REST BFF workspace (public device/history/inference adapter over internal gRPC).
   - `pulse-realtime-gateway`: Node WebSocket gateway workspace (JWT/noop auth, gRPC authz, Valkey snapshot reads, NATS delta fanout, per-session backpressure ladder).
   - `universal`: Expo universal dashboard (Web/iOS/Android).
 - `cmd/`
