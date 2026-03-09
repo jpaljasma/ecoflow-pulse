@@ -133,4 +133,8 @@ This keeps the merge gate aligned with the current schema risk:
 
 ## Follow-ups
 - [ ] Update GitHub branch protection / rulesets so `db-migrations-ci` is required alongside the other locked checks.
-- [ ] Revisit this workflow after `pgroll` adoption to decide whether the gate should validate both raw SQL and `pgroll` rollout plans.
+- [x] DONE: Revisit this workflow after `pgroll` adoption to decide whether the gate should validate both raw SQL and `pgroll` rollout plans.
+  - [x] Decision: `db-migrations-ci` validates both the raw SQL migration cycle and the pgroll plan path
+  - [x] Workflow change detection now includes `deploy/db/pgroll/` and pgroll transition docs
+  - [x] CI installs `pgroll` and runs the pgroll smoke/repo-plan validation path through `make test-db-migrations-ci`
+  - Validation evidence (2026-03-09): `PATH="$(go env GOPATH)/bin:$PATH" PGROLL_REQUIRED=1 make test-db-migrations-ci` succeeded; `make lint` succeeded.

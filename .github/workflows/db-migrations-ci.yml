@@ -52,7 +52,7 @@ jobs:
 
           git diff --name-only "${base_sha}" "${GITHUB_SHA}" > changed_files.txt
 
-          if grep -Eq '(^deploy/db/migrations/.*\.sql$|^internal/integrationtest/|^Makefile$|^docs/reference/commands\.md$|^docs/how-to/maintain-ci-required-checks\.md$|^docs/architecture/README\.md$|^docs/architecture/adr/README\.md$|^docs/architecture/adr/ADR-0010-.*\.md$|^docs/architecture/adr/ADR-0016-.*\.md$|^\.github/workflows/db-migrations-ci\.yml$)' changed_files.txt; then
+          if grep -Eq '(^deploy/db/migrations/.*\.sql$|^deploy/db/pgroll/|^internal/integrationtest/|^Makefile$|^docs/reference/commands\.md$|^docs/how-to/maintain-ci-required-checks\.md$|^docs/how-to/prepare-pgroll-transition-local\.md$|^docs/architecture/README\.md$|^docs/architecture/adr/README\.md$|^docs/architecture/adr/ADR-0010-.*\.md$|^docs/architecture/adr/ADR-0016-.*\.md$|^\.github/workflows/db-migrations-ci\.yml$)' changed_files.txt; then
             echo "migrations_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "migrations_changed=false" >> "$GITHUB_OUTPUT"
@@ -74,8 +74,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install pgroll
+        run: |
+          set -euo pipefail
+          go install github.com/xataio/pgroll@v0.14.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Run migration cycle and e2e validation
-        run: make test-db-migrations-ci
+        run: PGROLL_REQUIRED=1 make test-db-migrations-ci
 
   db-migrations-ci:
     name: db-migrations-ci

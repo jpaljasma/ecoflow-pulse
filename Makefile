@@ -9,6 +9,7 @@ HELM ?= helm
 KUBECTL ?= kubectl
 DOCKER ?= docker
 PGROLL ?= pgroll
+PGROLL_REQUIRED ?= 0
 DOCKER_BUILDKIT ?= 1
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 GCLOUD ?= gcloud
@@ -251,8 +252,9 @@ test-proto-contract:
 
 test-db-migrations-ci:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
-	@echo "running migration cycle + e2e validation suite with Testcontainers"
-	$(GO) test ./internal/integrationtest -run TestMigrationsCycleAndE2E -count=1 -v
+	@echo "running migration cycle + pgroll + e2e validation suite with Testcontainers"
+	PGROLL_REQUIRED="$(PGROLL_REQUIRED)" PGROLL_BIN="$(PGROLL)" \
+	$(GO) test ./internal/integrationtest -run 'Test(MigrationsCycleAndE2E|PgrollPlansCycleAndRollback)' -count=1 -v
 
 test-web-e2e:
 	@echo "running Playwright web E2E suite"
