@@ -34,8 +34,11 @@ type Runner struct {
 type Report struct {
 	ObjectsMatched   int
 	ObjectsProcessed int
+	ObjectBytes      int64
+	ObjectRecords    int
 	MessagesDecoded  int
 	MessagesApplied  int
+	QuotaMessages    int
 	MinuteRows       int
 	HourRows         int
 	DayRows          int
@@ -113,6 +116,10 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 		StartedAt:      time.Now().UTC(),
 		ObjectsMatched: len(objects),
 	}
+	for _, object := range objects {
+		report.ObjectBytes += object.ObjectSizeBytes
+		report.ObjectRecords += object.RecordCount
+	}
 	if len(objects) == 0 {
 		report.FinishedAt = time.Now().UTC()
 		return report, nil
@@ -125,6 +132,7 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 	var objectsProcessed atomic.Int64
 	var messagesDecoded atomic.Int64
 	var messagesApplied atomic.Int64
+	var quotaMessages atomic.Int64
 
 	for _, group := range groups {
 		group := group
@@ -133,7 +141,7 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 			defer wg.Done()
 			sema <- struct{}{}
 			defer func() { <-sema }()
-			result := r.processObjectGroup(ctx, group, &objectsProcessed, report.ObjectsMatched, &messagesDecoded, &messagesApplied, toUnixMS)
+			result := r.processObjectGroup(ctx, group, &objectsProcessed, report.ObjectsMatched, &messagesDecoded, &messagesApplied, &quotaMessages, toUnixMS)
 			results <- result
 		}()
 	}
@@ -154,6 +162,7 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 		report.ObjectsProcessed += result.objectsProcessed
 		report.MessagesDecoded += result.messagesDecoded
 		report.MessagesApplied += result.messagesApplied
+		report.QuotaMessages += result.quotaMessages
 		affected = append(affected, result.affected...)
 		minuteRowsAll = append(minuteRowsAll, result.minuteRows...)
 		hourRowsAll = append(hourRowsAll, result.hourRows...)
@@ -196,6 +205,7 @@ type shardResult struct {
 	objectsProcessed int
 	messagesDecoded  int
 	messagesApplied  int
+	quotaMessages    int
 	minuteRows       []BucketRow
 	hourRows         []BucketRow
 	dayRows          []BucketRow
@@ -210,6 +220,7 @@ func (r *Runner) processObjectGroup(
 	objectsMatched int,
 	messagesDecoded *atomic.Int64,
 	messagesApplied *atomic.Int64,
+	quotaMessages *atomic.Int64,
 	toUnixMS int64,
 ) shardResult {
 	aggregator := NewAggregator()
@@ -242,6 +253,10 @@ func (r *Runner) processObjectGroup(
 			if err := proto.Unmarshal(frame, &env); err != nil {
 				result.err = fmt.Errorf("unmarshal archived envelope: %w", err)
 				return result
+			}
+			if env.GetSourceKind() == envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA {
+				result.quotaMessages++
+				quotaMessages.Add(1)
 			}
 			sample, err := rollupworker.SampleFromEnvelope(&env)
 			if err == nil {

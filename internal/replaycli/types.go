@@ -17,6 +17,8 @@ type ManifestObject struct {
 	TSMaxUnixMS       int64
 	ObjectBucket      string
 	ObjectKey         string
+	ObjectSizeBytes   int64
+	RecordCount       int
 	DeviceIDs         []string
 	ProviderDeviceIDs []string
 }
