@@ -766,6 +766,7 @@ dev-deploy:
 				fi; \
 				if [ "$$services_apply" = "0" ]; then \
 					if ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-inference >/dev/null 2>&1 || \
+					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-grpc-api >/dev/null 2>&1 || \
 					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-rollup >/dev/null 2>&1; then \
 						services_apply=1; \
 					fi; \
@@ -807,6 +808,7 @@ dev-deploy:
 		}; \
 		echo "restarting updated local deployments"; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-inference; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-grpc-api; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-rollup; \
 		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
 		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app

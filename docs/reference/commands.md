@@ -815,13 +815,14 @@ Notes:
 - `make dev-deploy` is the incremental local redeploy path for code changes:
   rebuild/import local public + services images, then restart
   `pulse-platform-public-app`, `pulse-platform-realtime-gateway`, and
-  `pulse-services-go-inference` and `pulse-services-go-rollup`, then wait for
-  those rollouts to finish.
+  `pulse-services-go-inference`, `pulse-services-go-grpc-api`, and
+  `pulse-services-go-rollup`, then wait for those rollouts to finish.
   By default (`DEV_DEPLOY_HELM=auto`) it skips Helm re-apply when local
   platform/services chart and local values files are unchanged, the releases
   already exist, and the expected restart-target deployments are already
-  present. If an expected deployment such as `pulse-services-go-inference` is
-  missing, `auto` now forces the relevant Helm re-apply before restart.
+  present. If an expected deployment such as `pulse-services-go-inference` or
+  `pulse-services-go-grpc-api` is missing, `auto` now forces the relevant Helm
+  re-apply before restart.
   When Helm apply is needed, local chart dependency preparation stays local:
   vendored platform dependencies are reused and any rebuild uses
   `helm dependency build --skip-refresh` instead of refreshing remote repos.
