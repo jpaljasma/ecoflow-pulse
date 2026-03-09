@@ -26,6 +26,11 @@ go run ./cmd/ecoflow-gap-detector
 go run ./cmd/ecoflow-gap-repair-worker
 go run ./cmd/ecoflow-loadtest-ingest-bridge
 make test-db-migrations-ci
+make pgroll-init-local
+make pgroll-status-local
+make pgroll-start-local PGROLL_PLAN=deploy/db/pgroll/plans/<plan-file>
+make pgroll-complete-local
+make pgroll-rollback-local
 ```
 
 Run the forward-only rollout migration runner directly (the same binary used by
@@ -40,6 +45,16 @@ DB_MIGRATION_DB_USER='pulse' \
 DB_MIGRATION_DB_PASSWORD='pulse-local-dev-password' \
 DB_MIGRATIONS_DIR='deploy/db/migrations' \
 go run ./cmd/ecoflow-db-migrate-job
+```
+
+Prepare the local CNPG database for future `pgroll` transition work:
+
+```bash
+make pgroll-init-local
+make pgroll-status-local
+make pgroll-start-local PGROLL_PLAN=deploy/db/pgroll/plans/<plan-file>
+make pgroll-complete-local
+make pgroll-rollback-local
 ```
 
 ## Node/Expo Auth Commands

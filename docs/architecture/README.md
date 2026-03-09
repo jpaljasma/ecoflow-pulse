@@ -306,7 +306,11 @@ Legend: **TODO | PROGRESS | DONE | HELP**
   - [x] Add explicit dev/staging/prod rollout policy + backup gate configuration/docs
   - [x] Validate render/test path and record acceptance evidence
   - Validation evidence (2026-03-09): `helm lint deploy/charts/pulse-services -f deploy/env/local/values.services.yaml` succeeded; `helm lint deploy/charts/pulse-services -f deploy/env/dev/values.services.yaml` succeeded; `go test ./...` succeeded; `make lint` succeeded.
-- [ ] Adopt `pgroll` for safe reversible online PostgreSQL schema migrations with simultaneous multi-schema serving during transitions.
+- [ ] PROGRESS: Adopt `pgroll` for safe reversible online PostgreSQL schema migrations with simultaneous multi-schema serving during transitions.
+  - [x] Add minimal repo adoption: local `pgroll` Make targets, plan directory, and transition documentation
+  - [x] Keep the current raw SQL rollout job as the active environment path until runtime/search-path versioning exists
+  - [x] Validate minimal adoption path (`make -n pgroll-init-local`, `make -n pgroll-start-local PGROLL_PLAN=deploy/db/pgroll/plans/example.json`, `make lint`)
+  - [ ] Switch service/runtime DB access to version-aware schema cutover so simultaneous old/new schema serving is real, not only planned
 - [ ] Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
 - [ ] Add Helm/Make startup sequencing hardening for Keycloak bootstrap dependencies to reduce first-boot restart/transient not-ready events.
 

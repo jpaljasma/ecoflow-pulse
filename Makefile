@@ -8,6 +8,7 @@ K3D ?= k3d
 HELM ?= helm
 KUBECTL ?= kubectl
 DOCKER ?= docker
+PGROLL ?= pgroll
 DOCKER_BUILDKIT ?= 1
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 GCLOUD ?= gcloud
@@ -57,6 +58,8 @@ DB_MIGRATION_NAMESPACE ?= pulse-platform
 DB_MIGRATION_CLUSTER ?= pulse-platform-core
 DB_MIGRATION_SECRET ?= pulse-platform-core-app
 DB_MIGRATION_DB ?= pulse
+PGROLL_LOCAL_PORT ?= 15433
+PGROLL_PLAN ?=
 DB_SEED_LOCAL_PORT ?= 15432
 DB_SEED_USER_SUBJECT ?= jpaljasma@gmail.com
 DB_SEED_USER_EMAIL ?= jpaljasma@gmail.com
@@ -147,7 +150,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -1045,6 +1048,87 @@ db-seed-dev-local: db-migrate-up-local
 	ECOFLOW_DEV_USER_EMAIL="$(DB_SEED_USER_EMAIL)" \
 	ECOFLOW_DEV_SEED_SNS="$(DB_SEED_SERIALS)" \
 	$(GO) run ./cmd/ecoflow-dev-seed
+
+_pgroll-local:
+	@set -euo pipefail; \
+	action="$(PGROLL_ACTION)"; \
+	if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi; \
+	if ! command -v $(PGROLL) >/dev/null 2>&1; then \
+		echo "$(PGROLL) not found. Install pgroll first."; \
+		exit 1; \
+	fi; \
+	ctx="$(K3D_CONTEXT)"; \
+	ns="$(DB_MIGRATION_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	secret="$(DB_MIGRATION_SECRET)"; \
+	db="$(DB_MIGRATION_DB)"; \
+	port="$(PGROLL_LOCAL_PORT)"; \
+	log_file="$$(mktemp -t pulse-pgroll-port-forward.XXXXXX.log)"; \
+	$(LOCAL_KUBECTL) -n "$$ns" port-forward "svc/$$cluster-rw" "$$port:5432" >"$$log_file" 2>&1 & \
+	pf_pid=$$!; \
+	cleanup() { \
+		kill "$$pf_pid" >/dev/null 2>&1 || true; \
+		wait "$$pf_pid" >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	ready=0; \
+	for _ in {1..30}; do \
+		if grep -q "Forwarding from" "$$log_file" 2>/dev/null; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ready" -ne 1 ]; then \
+		echo "port-forward did not become ready; see $$log_file"; \
+		exit 1; \
+	fi; \
+	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
+	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
+	url="postgres://$$user:$$pass@127.0.0.1:$$port/$$db?sslmode=disable"; \
+	case "$$action" in \
+		init) \
+			$(PGROLL) init --postgres-url "$$url"; \
+			;; \
+		status) \
+			$(PGROLL) --postgres-url "$$url" status; \
+			;; \
+		start) \
+			if [ -z "$(PGROLL_PLAN)" ]; then \
+				echo "PGROLL_PLAN is required for pgroll-start-local"; \
+				exit 1; \
+			fi; \
+			$(PGROLL) --postgres-url "$$url" start "$(PGROLL_PLAN)"; \
+			;; \
+		complete) \
+			$(PGROLL) --postgres-url "$$url" complete; \
+			;; \
+		rollback) \
+			$(PGROLL) --postgres-url "$$url" rollback; \
+			;; \
+		*) \
+			echo "unsupported PGROLL_ACTION=$$action"; \
+			exit 1; \
+			;; \
+	esac
+
+pgroll-init-local:
+	@$(MAKE) --no-print-directory PGROLL_ACTION=init _pgroll-local
+
+pgroll-status-local:
+	@$(MAKE) --no-print-directory PGROLL_ACTION=status _pgroll-local
+
+pgroll-start-local:
+	@$(MAKE) --no-print-directory PGROLL_ACTION=start _pgroll-local
+
+pgroll-complete-local:
+	@$(MAKE) --no-print-directory PGROLL_ACTION=complete _pgroll-local
+
+pgroll-rollback-local:
+	@$(MAKE) --no-print-directory PGROLL_ACTION=rollback _pgroll-local
 
 dr-backup-local:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
