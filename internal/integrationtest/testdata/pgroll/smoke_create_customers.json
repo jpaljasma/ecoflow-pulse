@@ -1,0 +1,23 @@
+{
+  "name": "smoke_create_customers",
+  "operations": [
+    {
+      "create_table": {
+        "name": "pgroll_smoke_customers",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false,
+            "default": "1"
+          },
+          {
+            "name": "email",
+            "type": "text",
+            "nullable": false
+          }
+        ]
+      }
+    }
+  ]
+}

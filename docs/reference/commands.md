@@ -716,6 +716,10 @@ Notes:
   - applies all down migrations in reverse order, then reapplies all up
     migrations,
   - runs end-to-end ownership, uniqueness, and role guard checks,
+  - runs a `pgroll` smoke `init -> start -> rollback` cycle when `pgroll` is
+    installed,
+  - validates repo `deploy/db/pgroll/plans/*.{json,yaml,yml}` plans
+    sequentially (`start -> complete`) when they exist,
   - requires a running Docker daemon.
   This is the CI-aligned local gate that should stay green before enabling
   environment rollout automation for schema changes.
