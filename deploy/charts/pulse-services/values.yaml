@@ -43,6 +43,7 @@ runtime:
   env:
     controlPlaneDBDSN: ""
     archiveManifestDBDSN: ""
+    dbSchemaSearchPath: ""
     natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
     valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
     grpcAuthMode: "noop"

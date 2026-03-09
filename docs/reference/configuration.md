@@ -103,6 +103,14 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `ECOFLOW_SERVER_BROTLI_LEVEL` (default `5`, `moderncompress` builds)
 - `ECOFLOW_SERVER_ZSTD_LEVEL` (default `3`, `moderncompress` builds)
 
+## Shared Postgres Search-Path Cutover
+
+- `DB_SCHEMA_SEARCH_PATH` (optional)
+  - when set, Go Postgres clients in the runtime path connect with
+    `search_path=<value>`
+  - this is the runtime cutover knob intended for future `pgroll` transitions
+  - when unset, services keep the database default schema behavior
+
 ## Internal gRPC API Runtime
 
 - `PULSE_ENV` (`local|dev|staging|prod`, default `local`)

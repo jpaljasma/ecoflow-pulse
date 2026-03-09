@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
 type PostgresReader struct {
@@ -18,6 +19,11 @@ func NewPostgresReader(dsn string) (*PostgresReader, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
 		return nil, fmt.Errorf("telemetry query postgres dsn is required")
+	}
+	var err error
+	dsn, err = pgsearchpath.ApplyFromEnv(dsn, "")
+	if err != nil {
+		return nil, fmt.Errorf("apply telemetry query postgres search_path: %w", err)
 	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

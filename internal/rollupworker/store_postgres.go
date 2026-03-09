@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
 type Store interface {
@@ -43,6 +44,11 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
 		return nil, fmt.Errorf("rollup postgres dsn is required")
+	}
+	var err error
+	dsn, err = pgsearchpath.ApplyFromEnv(dsn, "")
+	if err != nil {
+		return nil, fmt.Errorf("apply rollup postgres search_path: %w", err)
 	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

@@ -33,6 +33,7 @@ Top-level structure:
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
   - `dbmigrate`: forward-only SQL migration loader/runner used by rollout jobs.
   - `inference`: online inference read-model store, derivation logic, control-plane context resolver, and worker runtime.
+  - `pgsearchpath`: shared Postgres DSN helper for versioned `search_path` cutovers.
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
   - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + MinIO-compatible object writer).
   - `rollupworker`: rollup pipeline primitives (durable ingest consumer + explicit metric extraction + Timescale upserts).
