@@ -12,20 +12,15 @@ import {
   resolveLiveBatteryHeatingOn,
   sumSolarPortWatts
 } from '@/features/device-detail/liveDetail';
+import { solarPortView } from '@/features/device-detail/solarPort';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 import { getStatusGlyph } from '@/shared/ui/statusGlyph';
 import {
-  clampPercent,
-  formatSolarState,
-  isInactivePvPort,
   isMutedMetric,
   signalTone,
-  toneFromState,
-  toPctOfMax,
-  type MetricTone,
-  type UiTone
 } from '@/shared/ui/uiMappings';
+import type { MetricTone, UiTone } from '@/shared/ui/uiMappings';
 
 export type DetailMetricCellVM =
   | {
@@ -125,45 +120,6 @@ function aggregateSignalState(...values: Array<boolean | undefined>): boolean | 
     return false;
   }
   return undefined;
-}
-
-function solarPortView(port: {
-  id: string;
-  name: string;
-  state?: string;
-  volts?: number;
-  amps?: number;
-  watts?: number;
-  maxVolts?: number;
-  maxAmps?: number;
-  maxWatts?: number;
-}): DetailSolarPortVM {
-  const inactive = isInactivePvPort(port.volts);
-  const stateLabelRaw = formatSolarState(port.state).toLowerCase();
-  const hasFlow =
-    (Number.isFinite(port.watts as number) && (port.watts as number) > 1) ||
-    (Number.isFinite(port.amps as number) && (port.amps as number) > 0.03);
-  const stateLabel = inactive ? 'inactive' : stateLabelRaw === 'unknown' && hasFlow ? 'active' : stateLabelRaw;
-  const stateTone = inactive ? 'neutral' : toneFromState(stateLabel);
-  const pvLoadPct = toPctOfMax(port.watts, port.maxWatts);
-
-  return {
-    id: port.id,
-    name: port.name,
-    stateLabel,
-    stateTone,
-    inactive,
-    wattsText: formatW(port.watts),
-    voltsText: Number.isFinite(port.volts as number) ? `${port.volts?.toFixed(1)}V` : '—',
-    ampsText: Number.isFinite(port.amps as number) ? `${port.amps?.toFixed(2)}A` : '—',
-    capText: port.maxWatts ? `${port.maxWatts}W · ${port.maxVolts ?? '—'}V · ${port.maxAmps ?? '—'}A` : '—',
-    watts: port.watts,
-    volts: port.volts,
-    amps: port.amps,
-    maxWatts: port.maxWatts,
-    pvLoadPct,
-    pvLoadClamped: clampPercent(pvLoadPct ?? 0)
-  };
 }
 
 export function useDeviceDetailViewModel({
