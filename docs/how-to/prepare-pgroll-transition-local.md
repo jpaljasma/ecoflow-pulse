@@ -5,6 +5,8 @@ This repository now carries **minimal** `pgroll` adoption:
 - local developer commands to run `pgroll` against the local CNPG primary
 - an in-repo directory for future `pgroll` plans
 - documentation for the transition path
+- runtime support for an explicit Postgres `search_path` cutover via
+  `DB_SCHEMA_SEARCH_PATH`
 
 It does **not** switch the runtime over to `pgroll` yet. The active rollout
 path remains the forward-only SQL hook job (`ecoflow-db-migrate-job`).
@@ -49,11 +51,18 @@ make pgroll-rollback-local
 ## Important limitations
 
 - These commands are for local experimentation and planning only.
-- The application does not yet set version-aware schema search paths, so this
-  repo is **not** using `pgroll`’s simultaneous multi-schema serving mode in
-  production paths.
-- Until that runtime work lands, keep environment rollout on the raw SQL
-  migration job and continue validating schema changes with:
+- The environment rollout path is still the raw SQL migration hook job by
+  default; `pgroll` plan execution remains an explicit operator action.
+- To run two application versions against different schemas during a pgroll
+  transition, set `DB_SCHEMA_SEARCH_PATH` per runtime deployment revision.
+- Continue validating schema changes with:
   - `make db-migrate-cycle-local`
   - `make db-migrate-e2e-local`
   - `make test-db-migrations-ci`
+
+## Runtime cutover note
+
+The services chart now exposes `runtime.env.dbSchemaSearchPath`, which maps to
+`DB_SCHEMA_SEARCH_PATH` in the runtime containers. During a future `pgroll`
+transition, that is the explicit knob used to move old and new runtime
+deployments onto different schema search paths without changing the base DSN.

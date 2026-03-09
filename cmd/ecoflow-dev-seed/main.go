@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
@@ -97,7 +98,12 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	db, err := sql.Open("pgx", cfg.DSN)
+	dsn, err := pgsearchpath.ApplyFromEnv(cfg.DSN, "")
+	if err != nil {
+		log.Error("apply postgres search_path failed", "error", err.Error())
+		os.Exit(1)
+	}
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		log.Error("open postgres connection failed", "error", err.Error())
 		os.Exit(1)

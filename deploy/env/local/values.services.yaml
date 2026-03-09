@@ -29,6 +29,7 @@ runtime:
   env:
     controlPlaneDBDSN: "postgres://pulse:pulse-local-dev-password@pulse-platform-core-rw.pulse-platform.svc.cluster.local:5432/pulse?sslmode=disable"
     archiveManifestDBDSN: "postgres://pulse:pulse-local-dev-password@pulse-platform-core-rw.pulse-platform.svc.cluster.local:5432/pulse?sslmode=disable"
+    dbSchemaSearchPath: ""
     natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
     # Valkey chart is replication+sentinel. For write-heavy lease/snapshot paths we target the current primary endpoint.
     valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"

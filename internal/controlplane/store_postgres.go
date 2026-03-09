@@ -10,6 +10,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
 type PostgresStore struct {
@@ -18,6 +19,11 @@ type PostgresStore struct {
 }
 
 func NewPostgresStore(dsn string) (*PostgresStore, error) {
+	var err error
+	dsn, err = pgsearchpath.ApplyFromEnv(dsn, "")
+	if err != nil {
+		return nil, fmt.Errorf("apply postgres search_path: %w", err)
+	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)

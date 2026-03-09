@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
 const defaultReplaceChunkSize = 500
@@ -27,6 +28,11 @@ func NewPostgresWriter(dsn string) (*PostgresWriter, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
 		return nil, fmt.Errorf("rollup rebuild postgres dsn is required")
+	}
+	var err error
+	dsn, err = pgsearchpath.ApplyFromEnv(dsn, "")
+	if err != nil {
+		return nil, fmt.Errorf("apply rollup rebuild postgres search_path: %w", err)
 	}
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {

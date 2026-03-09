@@ -6,6 +6,8 @@ scaffold:
   message: "pulse-services dev scaffold"
 
 runtime:
+  env:
+    dbSchemaSearchPath: ""
   migrations:
     enabled: false
     namespace: pulse-platform

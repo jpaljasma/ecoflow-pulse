@@ -12,6 +12,7 @@ import (
 	inferencev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/inference"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
+	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -166,6 +167,11 @@ func newControlPlaneStoreFromEnv(log *slog.Logger) (controlplane.Store, func(), 
 		store.EnsureUser("dev-user")
 		return store, func() {}, nil
 	}
+	var err error
+	dsn, err = pgsearchpath.ApplyFromEnv(dsn, "")
+	if err != nil {
+		return nil, nil, err
+	}
 	store, err := controlplane.NewPostgresStore(dsn)
 	if err != nil {
 		return nil, nil, err
@@ -237,6 +243,11 @@ func newTelemetryQueryReaderFromEnv(log *slog.Logger) (telemetryquery.Reader, fu
 	if dsn == "" {
 		log.Info("telemetry query reader disabled", "reason", "CONTROL_PLANE_DB_DSN not set")
 		return nil, func() {}, nil
+	}
+	var err error
+	dsn, err = pgsearchpath.ApplyFromEnv(dsn, "")
+	if err != nil {
+		return nil, nil, err
 	}
 
 	reader, err := telemetryquery.NewPostgresReader(dsn)
