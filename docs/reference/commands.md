@@ -717,6 +717,8 @@ Notes:
     migrations,
   - runs end-to-end ownership, uniqueness, and role guard checks,
   - requires a running Docker daemon.
+  This is the CI-aligned local gate that should stay green before enabling
+  environment rollout automation for schema changes.
 - `make web` restarts Expo web by first stopping any process listening on
   `WEB_PORT` (default `8081`), then running:
   `npm run -w apps/universal web -- --port $(WEB_PORT) --clear`.
