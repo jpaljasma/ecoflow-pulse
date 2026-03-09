@@ -521,20 +521,64 @@ k3d-up:
 platform-up: helm-local-ready
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(PLATFORM_CHART)
 	@set -euo pipefail; \
+		ns="$(PLATFORM_NAMESPACE)"; \
+		wait_endpoints() { \
+			name="$$1"; attempts="$$2"; label="$$3"; \
+			if ! $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" >/dev/null 2>&1; then \
+				echo "skipping endpoint wait for $$label ($$name not found yet)"; \
+				return 0; \
+			fi; \
+			for _ in $$(seq 1 "$$attempts"); do \
+				endpoint_ips="$$( $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+				if [ -n "$$endpoint_ips" ]; then \
+					echo "$$label endpoints ready: $$endpoint_ips"; \
+					return 0; \
+				fi; \
+				sleep 5; \
+			done; \
+			echo "$$label endpoints did not become ready"; \
+			exit 1; \
+		}; \
+		wait_secret() { \
+			name="$$1"; attempts="$$2"; \
+			for _ in $$(seq 1 "$$attempts"); do \
+				if $(LOCAL_KUBECTL) -n "$$ns" get secret "$$name" >/dev/null 2>&1; then \
+					echo "secret/$$name is ready"; \
+					return 0; \
+				fi; \
+				sleep 5; \
+			done; \
+			echo "secret/$$name did not become ready"; \
+			exit 1; \
+		}; \
+		wait_condition_obj() { \
+			kind="$$1"; name="$$2"; condition="$$3"; timeout="$$4"; \
+			if $(LOCAL_KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
+				echo "waiting for $$kind/$$name condition=$$condition"; \
+				$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
+			fi; \
+		}; \
+		keycloak_bootstrap_override="$$(mktemp /tmp/pulse-platform-keycloak-bootstrap.XXXXXX).yaml"; \
+		cleanup() { rm -f "$$keycloak_bootstrap_override"; }; \
+		trap cleanup EXIT INT TERM; \
+		printf '%s\n' \
+			'components:' \
+			'  keycloak:' \
+			'    enabled: false' \
+			'keycloakRealm:' \
+			'  enabled: false' > "$$keycloak_bootstrap_override"; \
+		keycloak_first_pass_flags=""; \
+		if ! $(LOCAL_KUBECTL) -n "$$ns" get statefulset $(PLATFORM_RELEASE)-keycloak >/dev/null 2>&1; then \
+			echo "fresh Keycloak bootstrap detected; deferring Keycloak until CNPG and bootstrap prerequisites are ready"; \
+			keycloak_first_pass_flags="-f $$keycloak_bootstrap_override"; \
+		fi; \
 		$(LOCAL_KUBECTL) create namespace $(PLATFORM_NAMESPACE) --dry-run=client -o yaml | $(LOCAL_KUBECTL) apply -f -; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-ingress-nginx-controller >/dev/null 2>&1; then \
 			echo "waiting for existing ingress-nginx controller to become ready before Helm apply"; \
 			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-ingress-nginx-controller --timeout=180s; \
 		fi; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc $(PLATFORM_RELEASE)-ingress-nginx-controller-admission >/dev/null 2>&1; then \
-			for _ in {1..36}; do \
-				webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints $(PLATFORM_RELEASE)-ingress-nginx-controller-admission -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
-				if [ -n "$$webhook_eps" ]; then \
-					echo "ingress-nginx admission endpoints ready: $$webhook_eps"; \
-					break; \
-				fi; \
-				sleep 5; \
-			done; \
+			wait_endpoints $(PLATFORM_RELEASE)-ingress-nginx-controller-admission 36 "ingress-nginx admission"; \
 		fi; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager >/dev/null 2>&1; then \
 			echo "waiting for existing cert-manager controller to become ready before Helm apply"; \
@@ -549,20 +593,13 @@ platform-up: helm-local-ready
 			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager-cainjector --timeout=180s; \
 		fi; \
 		echo "installing platform release via Helm"; \
-		$(PLATFORM_HELM_APPLY); \
+		$(PLATFORM_HELM_APPLY) $$keycloak_first_pass_flags; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
 			echo "waiting for CloudNativePG operator to become ready"; \
 			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
 		fi; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc cnpg-webhook-service >/dev/null 2>&1; then \
-			for _ in {1..36}; do \
-				webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints cnpg-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
-				if [ -n "$$webhook_eps" ]; then \
-					echo "CNPG webhook endpoints ready: $$webhook_eps"; \
-					break; \
-				fi; \
-				sleep 5; \
-			done; \
+			wait_endpoints cnpg-webhook-service 36 "CNPG webhook"; \
 		fi; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager >/dev/null 2>&1; then \
 			echo "waiting for cert-manager controller to become ready"; \
@@ -581,14 +618,12 @@ platform-up: helm-local-ready
 			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-ingress-nginx-controller --timeout=180s; \
 		fi; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc $(PLATFORM_RELEASE)-ingress-nginx-controller-admission >/dev/null 2>&1; then \
-			for _ in {1..36}; do \
-				webhook_eps="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get endpoints $(PLATFORM_RELEASE)-ingress-nginx-controller-admission -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
-				if [ -n "$$webhook_eps" ]; then \
-					echo "ingress-nginx admission endpoints ready: $$webhook_eps"; \
-					break; \
-				fi; \
-				sleep 5; \
-			done; \
+			wait_endpoints $(PLATFORM_RELEASE)-ingress-nginx-controller-admission 36 "ingress-nginx admission"; \
+		fi; \
+		if [ -n "$$keycloak_first_pass_flags" ]; then \
+			wait_condition_obj cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready $(WAIT_TIMEOUT); \
+			wait_secret $(DB_MIGRATION_SECRET) 36; \
+			wait_endpoints $(DB_MIGRATION_CLUSTER)-rw 36 "CNPG rw service"; \
 		fi; \
 		echo "running second platform Helm reconcile for CRD-backed resources"; \
 		$(PLATFORM_HELM_APPLY); \
@@ -617,11 +652,19 @@ platform-wait:
 			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
+	wait_job_complete() { \
+		name="$$1"; timeout="$$2"; \
+		if $(LOCAL_KUBECTL) -n "$$ns" get job "$$name" >/dev/null 2>&1; then \
+			echo "waiting for job/$$name condition=complete"; \
+			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=complete job/"$$name" --timeout="$$timeout"; \
+		fi; \
+	}; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cloudnative-pg 180s; \
 	wait_condition cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-nats $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-valkey-node $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-keycloak $(WAIT_TIMEOUT); \
+	wait_job_complete $(PLATFORM_RELEASE)-keycloak-keycloak-config-cli 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-minio 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-ingress-nginx-controller 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cert-manager 300s; \

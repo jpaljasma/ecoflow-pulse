@@ -312,7 +312,12 @@ Legend: **TODO | PROGRESS | DONE | HELP**
   - [x] Validate minimal adoption path (`make -n pgroll-init-local`, `make -n pgroll-start-local PGROLL_PLAN=deploy/db/pgroll/plans/example.json`, `make lint`)
   - [ ] Switch service/runtime DB access to version-aware schema cutover so simultaneous old/new schema serving is real, not only planned
 - [ ] Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
-- [ ] Add Helm/Make startup sequencing hardening for Keycloak bootstrap dependencies to reduce first-boot restart/transient not-ready events.
+- [x] DONE: Add Helm/Make startup sequencing hardening for Keycloak bootstrap dependencies to reduce first-boot restart/transient not-ready events.
+  - [x] Review current `platform-up` / `platform-wait` flow and Keycloak chart bootstrap resources
+  - [x] Defer first-pass Keycloak apply until CNPG/bootstrap prerequisites are ready
+  - [x] Wait for Keycloak config-cli bootstrap job completion when present
+  - [x] Update local bringup/docs and record validation evidence
+  - Validation evidence (2026-03-09): `rg -n "fresh Keycloak bootstrap detected|keycloak_bootstrap_override|wait_secret|keycloak_first_pass_flags" Makefile` showed the first-pass Keycloak deferral path; `rg -n "condition=complete job/|keycloak-keycloak-config-cli" Makefile` showed the config-cli completion wait; `make lint` succeeded.
 
 ---
 

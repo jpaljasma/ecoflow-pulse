@@ -42,6 +42,13 @@ make platform-up
 make platform-wait
 ```
 
+Local sequencing note:
+- `make platform-up` now defers the very first Keycloak install pass until the
+  external CNPG database service and bootstrap secret are ready, then reconciles
+  Keycloak on the second pass.
+- `make platform-wait` now also waits for the Keycloak config-cli bootstrap job
+  to reach `Complete` when that job exists.
+
 ## 3) Verify realm + providers
 
 ```bash
