@@ -187,6 +187,21 @@ Runtime behavior:
 - `ROLLUP_PROCESS_TIMEOUT` (default `3s`)
 - `ROLLUP_DRAIN_TIMEOUT` (default `8s`)
 
+## Rollout Migration Job (`cmd/ecoflow-db-migrate-job`)
+
+- `CONTROL_PLANE_DB_DSN` (optional override; if unset, the runner builds a DSN from the `DB_MIGRATION_DB_*` fields below)
+- `DB_MIGRATION_DB_HOST` (required when `CONTROL_PLANE_DB_DSN` is unset)
+- `DB_MIGRATION_DB_PORT` (default `5432`)
+- `DB_MIGRATION_DB_NAME` (default `pulse`)
+- `DB_MIGRATION_DB_USER` (required when `CONTROL_PLANE_DB_DSN` is unset)
+- `DB_MIGRATION_DB_PASSWORD` (required when `CONTROL_PLANE_DB_DSN` is unset)
+- `DB_MIGRATION_DB_SSLMODE` (default `disable`)
+- `DB_MIGRATIONS_DIR` (default `/app/deploy/db/migrations`)
+- `DB_MIGRATION_ENVIRONMENT` (`local|dev|staging|prod`, default `dev`)
+- `DB_MIGRATION_REQUIRE_BACKUP` (default `false`; should be `true` in staging/prod rollout policy)
+- `DB_MIGRATION_BACKUP_REF` (required when `DB_MIGRATION_REQUIRE_BACKUP=true`)
+- `DB_MIGRATION_FORWARD_ONLY` (default `true`; the rollout path intentionally rejects non-forward-only configuration)
+
 ## Inference Worker (`cmd/ecoflow-inference-worker`)
 
 - `CONTROL_PLANE_DB_DSN` (required; used to resolve provider-device model/capability context)

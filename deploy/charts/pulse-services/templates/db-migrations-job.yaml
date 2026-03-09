@@ -1,0 +1,64 @@
+{{- if .Values.runtime.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-db-migrate
+  namespace: {{ .Values.runtime.migrations.namespace | default .Values.global.namespaces.platform | quote }}
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-10"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.runtime.migrations.job.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.runtime.migrations.job.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.runtime.migrations.job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: db-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-migrate
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-db-migrate-job"]
+          env:
+            - name: DB_MIGRATION_DB_HOST
+              value: {{ .Values.runtime.migrations.db.host | quote }}
+            - name: DB_MIGRATION_DB_PORT
+              value: {{ printf "%v" .Values.runtime.migrations.db.port | quote }}
+            - name: DB_MIGRATION_DB_NAME
+              value: {{ .Values.runtime.migrations.db.name | quote }}
+            - name: DB_MIGRATION_DB_SSLMODE
+              value: {{ .Values.runtime.migrations.db.sslmode | quote }}
+            - name: DB_MIGRATION_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtime.migrations.db.credentialsSecretName | quote }}
+                  key: {{ .Values.runtime.migrations.db.usernameKey | quote }}
+            - name: DB_MIGRATION_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtime.migrations.db.credentialsSecretName | quote }}
+                  key: {{ .Values.runtime.migrations.db.passwordKey | quote }}
+            - name: DB_MIGRATION_ENVIRONMENT
+              value: {{ .Values.runtime.migrations.policy.rolloutEnv | quote }}
+            - name: DB_MIGRATION_REQUIRE_BACKUP
+              value: {{ ternary "true" "false" .Values.runtime.migrations.policy.requireBackup | quote }}
+            - name: DB_MIGRATION_BACKUP_REF
+              value: {{ .Values.runtime.migrations.policy.backupRef | quote }}
+            - name: DB_MIGRATION_FORWARD_ONLY
+              value: {{ ternary "true" "false" .Values.runtime.migrations.policy.forwardOnly | quote }}
+            - name: DB_MIGRATIONS_DIR
+              value: /app/deploy/db/migrations
+          resources:
+            {{- toYaml .Values.runtime.migrations.job.resources | nindent 12 }}
+{{- end }}

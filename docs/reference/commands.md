@@ -13,6 +13,7 @@ go run ./cmd/ecoflow-pv-fingerprint
 go run ./cmd/ecoflow-panel-db-import
 go run ./cmd/ecoflow-panel-csv-backfill
 go run ./cmd/ecoflow-panel-select-train
+go run ./cmd/ecoflow-db-migrate-job
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
 go run ./cmd/ecoflow-ingest-worker
@@ -25,6 +26,20 @@ go run ./cmd/ecoflow-gap-detector
 go run ./cmd/ecoflow-gap-repair-worker
 go run ./cmd/ecoflow-loadtest-ingest-bridge
 make test-db-migrations-ci
+```
+
+Run the forward-only rollout migration runner directly (the same binary used by
+the Helm/Argo hook job):
+
+```bash
+DB_MIGRATION_ENVIRONMENT='dev' \
+DB_MIGRATION_DB_HOST='127.0.0.1' \
+DB_MIGRATION_DB_PORT='15432' \
+DB_MIGRATION_DB_NAME='pulse' \
+DB_MIGRATION_DB_USER='pulse' \
+DB_MIGRATION_DB_PASSWORD='pulse-local-dev-password' \
+DB_MIGRATIONS_DIR='deploy/db/migrations' \
+go run ./cmd/ecoflow-db-migrate-job
 ```
 
 ## Node/Expo Auth Commands

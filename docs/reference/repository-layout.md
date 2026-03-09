@@ -7,6 +7,7 @@ Top-level structure:
   - `pulse-realtime-gateway`: Node WebSocket gateway workspace (JWT/noop auth, gRPC authz, Valkey snapshot reads, NATS delta fanout, per-session backpressure ladder).
   - `universal`: Expo universal dashboard (Web/iOS/Android).
 - `cmd/`
+  - `ecoflow-db-migrate-job`: forward-only in-cluster schema migration runner for Helm/Argo rollout hooks.
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane + inference services).
   - `ecoflow-inference-worker`: online insight projection worker (ingest envelopes + control-plane metadata -> Valkey device insights read model).
@@ -30,6 +31,7 @@ Top-level structure:
   - `logger`: structured logging package.
 - `internal/`
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
+  - `dbmigrate`: forward-only SQL migration loader/runner used by rollout jobs.
   - `inference`: online inference read-model store, derivation logic, control-plane context resolver, and worker runtime.
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
   - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + MinIO-compatible object writer).
@@ -73,7 +75,7 @@ Top-level structure:
   - `db/migrations`: control-plane SQL migrations (M1+ schema evolution).
   - `env/local` and `env/dev`: values files for local/dev deploys.
   - `env/dev/recommended`: recommended (non-auto-applied) runtime policies,
-    including ingest worker HPA baseline manifests.
+    including ingest worker HPA baseline manifests and migration-hook values.
   - `argocd/apps`: direct Argo CD apps (`pulse-platform`, `pulse-services`).
   - `tilt/k3d-config.yaml`: k3d local cluster config.
 - `docs/`: developer documentation in Diataxis layout.

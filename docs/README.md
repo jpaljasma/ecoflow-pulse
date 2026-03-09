@@ -26,6 +26,7 @@ This project uses the Diataxis framework for documentation structure.
 - [`how-to/configure-keycloak-social-providers-local.md`](how-to/configure-keycloak-social-providers-local.md)
 - [`how-to/seed-local-provider-data.md`](how-to/seed-local-provider-data.md)
 - [`how-to/dr-backup-restore-local.md`](how-to/dr-backup-restore-local.md)
+- [`how-to/rollout-schema-migrations-dev-staging-prod.md`](how-to/rollout-schema-migrations-dev-staging-prod.md)
 
 ### Reference
 
