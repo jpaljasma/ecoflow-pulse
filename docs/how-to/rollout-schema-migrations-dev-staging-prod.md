@@ -15,6 +15,13 @@ migrations after local and CI validation already passed.
   - a Kubernetes secret with DB app credentials,
   - the `pulse-services` Argo/Helm release wired to the current branch or `main`
 
+Local-first rule:
+
+- do **not** enable the environment migration hook until the local CNPG path
+  and CI gate are both green on the same branch/commit set
+- treat the environment rollout as promotion of an already-validated schema
+  change, not as the first place the migration is exercised
+
 ## Rollout shape
 
 The rollout path is **forward-only**:

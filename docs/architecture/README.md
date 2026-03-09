@@ -315,7 +315,11 @@ Legend: **TODO | PROGRESS | DONE | HELP**
   - [x] Wire Go service/runtime DB access to version-aware schema cutover so simultaneous old/new schema serving is real, not only planned
   - [x] Expose the runtime schema-selection contract in charts/docs and record validation evidence
   - Validation evidence (2026-03-09): `helm lint deploy/charts/pulse-services -f deploy/env/local/values.services.yaml` succeeded; `helm lint deploy/charts/pulse-services -f deploy/env/dev/values.services.yaml` succeeded; `go test ./...` succeeded; `make lint` succeeded.
-- [ ] Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
+- [x] DONE: Keep M1 implementation local-first: continue validating schema changes in local k3d/CNPG before enabling environment rollout automation.
+  - [x] Local-first gating is explicit in `docs/how-to/rollout-schema-migrations-dev-staging-prod.md`
+  - [x] pgroll transition docs keep local validation as the prerequisite path before any env rollout
+  - [x] `docs/reference/commands.md` now calls out `make test-db-migrations-ci` as the CI-aligned local gate
+  - Validation evidence (2026-03-09): `make lint` succeeded.
 - [x] DONE: Add Helm/Make startup sequencing hardening for Keycloak bootstrap dependencies to reduce first-boot restart/transient not-ready events.
   - [x] Review current `platform-up` / `platform-wait` flow and Keycloak chart bootstrap resources
   - [x] Defer first-pass Keycloak apply until CNPG/bootstrap prerequisites are ready

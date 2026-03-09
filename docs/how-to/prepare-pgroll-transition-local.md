@@ -16,6 +16,10 @@ path remains the forward-only SQL hook job (`ecoflow-db-migrate-job`).
 - local k3d stack is up
 - `pgroll` is installed locally
 - the local CNPG primary is reachable through `kubectl port-forward`
+- the raw SQL migration validation path is already green:
+  - `make db-migrate-cycle-local`
+  - `make db-migrate-e2e-local`
+  - `make test-db-migrations-ci`
 
 Official install/usage reference:
 
@@ -55,10 +59,8 @@ make pgroll-rollback-local
   default; `pgroll` plan execution remains an explicit operator action.
 - To run two application versions against different schemas during a pgroll
   transition, set `DB_SCHEMA_SEARCH_PATH` per runtime deployment revision.
-- Continue validating schema changes with:
-  - `make db-migrate-cycle-local`
-  - `make db-migrate-e2e-local`
-  - `make test-db-migrations-ci`
+- Continue treating those local/CI commands as the promotion gate before any
+  environment rollout automation is enabled.
 
 ## Runtime cutover note
 
