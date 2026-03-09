@@ -278,4 +278,25 @@ describe('telemetryMap', () => {
       ]
     });
   });
+
+  it('treats positive DPU solar watts as charging even if a stale frame still reports zero volts and amps', () => {
+    const detail = deriveTelemetryDetail({
+      'params.inLvMpptPwr': 121,
+      'params.inLvMpptVol': 0,
+      'params.inLvMpptAmp': 0,
+      'params.inHvMpptPwr': 0,
+      'params.inHvMpptVol': 0,
+      'params.inHvMpptAmp': 0
+    });
+
+    expect(detail).toEqual({
+      signals: {
+        solarChargingOn: true
+      },
+      solarPorts: [
+        { id: 'pv-low', name: 'PV Low', state: 'charging', volts: 0, amps: 0, watts: 121 },
+        { id: 'pv-high', name: 'PV High', state: 'inactive', volts: 0, amps: 0, watts: 0 }
+      ]
+    });
+  });
 });
