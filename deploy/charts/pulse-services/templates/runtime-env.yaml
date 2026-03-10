@@ -17,6 +17,7 @@ data:
   ARCHIVE_OBJECT_REGION: {{ .Values.runtime.env.archiveObjectRegion | quote }}
   ARCHIVE_OBJECT_SECURE: {{ .Values.runtime.env.archiveObjectSecure | quote }}
   ARCHIVE_OBJECT_AUTO_CREATE_BUCKET: {{ .Values.runtime.env.archiveObjectAutoCreateBucket | quote }}
+  INGEST_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.ingest.metrics.service.port) "" .Values.runtime.workers.ingest.metrics.enabled | quote }}
 ---
 apiVersion: v1
 kind: Secret

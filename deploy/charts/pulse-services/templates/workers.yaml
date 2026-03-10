@@ -23,6 +23,11 @@ spec:
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-ingest-worker"]
+          {{- if .Values.runtime.workers.ingest.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.ingest.metrics.service.port }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -30,6 +35,46 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.ingest.resources | nindent 12 }}
+---
+{{- if .Values.runtime.workers.ingest.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-ingest-metrics
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-ingest
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-ingest
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workers.ingest.metrics.service.port }}
+      targetPort: metrics
+{{- end }}
+---
+{{- if and .Values.runtime.workers.ingest.metrics.enabled .Values.runtime.workers.ingest.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-ingest
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-ingest
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-ingest
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.ingest.metrics.serviceMonitor.interval }}
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.inference.enabled }}

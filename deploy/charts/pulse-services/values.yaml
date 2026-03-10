@@ -59,6 +59,13 @@ runtime:
     ingest:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 200m

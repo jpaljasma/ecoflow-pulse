@@ -1,0 +1,60 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: pulse-services-go-ingest
+  namespace: pulse-services
+  labels:
+    app.kubernetes.io/name: pulse-services-go-ingest
+    app.kubernetes.io/part-of: ecoflow-pulse
+  annotations:
+    pulse.ecoflow.dev/policy: "recommended"
+    pulse.ecoflow.dev/notes: "Prometheus-backed custom ingest autoscaling signals; requires KEDA and ingest metrics scraping"
+spec:
+  scaleTargetRef:
+    name: pulse-services-go-ingest
+  minReplicaCount: 2
+  maxReplicaCount: 24
+  pollingInterval: 30
+  cooldownPeriod: 900
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 15
+          selectPolicy: Max
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 60
+            - type: Pods
+              value: 8
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 900
+          selectPolicy: Min
+          policies:
+            - type: Percent
+              value: 20
+              periodSeconds: 60
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://pulse-platform-kube-prometheus-stack-prometheus.pulse-platform.svc.cluster.local:9090
+        metricName: ingest_unassigned_active_devices
+        query: max(max_over_time(ingest_unassigned_active_devices{namespace="pulse-services"}[2m]))
+        threshold: "0.5"
+    - type: prometheus
+      metadata:
+        serverAddress: http://pulse-platform-kube-prometheus-stack-prometheus.pulse-platform.svc.cluster.local:9090
+        metricName: ingest_reconcile_duration_p95_seconds
+        query: max(max_over_time(ingest_reconcile_duration_p95_seconds{namespace="pulse-services"}[5m]))
+        threshold: "3.5"
+    - type: prometheus
+      metadata:
+        serverAddress: http://pulse-platform-kube-prometheus-stack-prometheus.pulse-platform.svc.cluster.local:9090
+        metricName: ingest_lease_acquire_latency_p95_seconds
+        query: max(max_over_time(ingest_lease_acquire_latency_p95_seconds{namespace="pulse-services"}[5m]))
+        threshold: "0.25"

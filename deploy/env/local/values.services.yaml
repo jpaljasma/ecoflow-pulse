@@ -46,6 +46,10 @@ runtime:
     ingest:
       enabled: true
       replicaCount: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     inference:
       enabled: true
       replicaCount: 1
