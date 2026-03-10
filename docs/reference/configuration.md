@@ -309,6 +309,9 @@ Runtime behavior:
   - browser-facing HTTP/2 is expected once TLS ingress is active
   - local browser-facing HTTP/3 is opt-in via ingress QUIC listener + UDP 443
     service exposure when `runtime.publicApp.ingress.http3.enabled=true`
+  - local observability-lite is enabled by default, so Prometheus, Grafana,
+    and the OpenTelemetry collector should come up with the standard
+    `make platform-up` path
   - dev/GKE keeps HTTP/3 opt-in by default; leave
     `runtime.publicApp.ingress.http3.enabled=false` unless the environment is
     explicitly validating a real TLS/domain edge with UDP 443 exposed

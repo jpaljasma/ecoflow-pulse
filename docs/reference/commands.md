@@ -900,8 +900,11 @@ Notes:
   - optional `ingress-nginx` controller deployment,
   - optional `cert-manager` controller/webhook/cainjector deployments,
   - optional External Secrets deployments (`external-secrets`, webhook, cert-controller),
-  - optional observability-lite deployments (`kube-promet-operator`, `grafana`, `opentelemetry-collector`).
+  - local-by-default observability-lite deployments (`kube-promet-operator`, `grafana`, `opentelemetry-collector`).
 - `make services-wait` blocks until `pulse-services` pods are `Ready` (if services workloads exist).
+- local observability access examples after `make platform-up` / `make platform-wait`:
+  - `kubectl -n pulse-platform port-forward svc/pulse-platform-kube-promet-prometheus 9090:9090`
+  - `kubectl -n pulse-platform port-forward svc/pulse-platform-grafana 3000:80`
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
 - `make dev-deploy` is the incremental local redeploy path for code changes:

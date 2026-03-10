@@ -25,7 +25,7 @@ components:
   externalSecrets:
     enabled: false
   observabilityLite:
-    enabled: false
+    enabled: true
 
 runtime:
   publicApp:

@@ -20,5 +20,14 @@ dependencies:
 - name: cert-manager
   repository: https://charts.jetstack.io
   version: v1.19.3
-digest: sha256:49b10592602bf4d91f28c82429c304c24b150a2c0e517bf1e675fe725917cb89
-generated: "2026-03-07T20:57:57.270583-05:00"
+- name: external-secrets
+  repository: https://charts.external-secrets.io
+  version: 2.0.1
+- name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 82.2.0
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.145.0
+digest: sha256:16c08b681f7a76710f3b479fae90d8f2cf325da002568523ac21122c97dd7fa8
+generated: "2026-03-10T07:50:30.285669-04:00"
