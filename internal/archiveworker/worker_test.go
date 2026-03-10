@@ -112,6 +112,70 @@ func TestProcessDeliveryFlushByMaxRecordsWritesManifest(t *testing.T) {
 	}
 }
 
+func TestProcessDeliveryDuplicateBeforeFlushAckedAndSkipped(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeObjectStore{}
+	now := time.Date(2026, time.February, 24, 18, 0, 0, 0, time.UTC)
+	worker := newTestWorker(store, now)
+	worker.cfg.MaxRecordsPerPart = 10
+	worker.cfg.FlushInterval = 5 * time.Minute
+
+	d1 := newFakeDelivery(t, envelope(1, "env-dup", 1000))
+	d2 := newFakeDelivery(t, envelope(1, "env-dup", 1000))
+	if err := worker.processDelivery(context.Background(), d1); err != nil {
+		t.Fatalf("process first delivery failed: %v", err)
+	}
+	if err := worker.processDelivery(context.Background(), d2); err != nil {
+		t.Fatalf("process duplicate delivery failed: %v", err)
+	}
+
+	if d1.acked != 0 {
+		t.Fatalf("first delivery should remain pending before flush, got ack=%d", d1.acked)
+	}
+	if d2.acked != 1 {
+		t.Fatalf("duplicate delivery should be acked immediately, got ack=%d", d2.acked)
+	}
+	if err := worker.flushAll(context.Background()); err != nil {
+		t.Fatalf("flush duplicate delivery failed: %v", err)
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("expected one stored object after duplicate suppression, got=%d", len(store.requests))
+	}
+	ids := decodeEnvelopeIDs(t, store.requests[0].Body)
+	if len(ids) != 1 || ids[0] != "env-dup" {
+		t.Fatalf("decoded envelope ids mismatch after dedup: got=%v", ids)
+	}
+}
+
+func TestProcessDeliveryDuplicateAfterFlushAckedAndSkipped(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeObjectStore{}
+	now := time.Date(2026, time.February, 24, 18, 0, 0, 0, time.UTC)
+	worker := newTestWorker(store, now)
+	worker.cfg.MaxRecordsPerPart = 1
+
+	d1 := newFakeDelivery(t, envelope(1, "env-post-flush-dup", 1000))
+	if err := worker.processDelivery(context.Background(), d1); err != nil {
+		t.Fatalf("process first delivery failed: %v", err)
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("expected initial flush write, got=%d", len(store.requests))
+	}
+
+	d2 := newFakeDelivery(t, envelope(1, "env-post-flush-dup", 1000))
+	if err := worker.processDelivery(context.Background(), d2); err != nil {
+		t.Fatalf("process duplicate delivery failed: %v", err)
+	}
+	if d2.acked != 1 {
+		t.Fatalf("duplicate post-flush delivery should be acked immediately, got=%d", d2.acked)
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("duplicate post-flush delivery should not create a second object, got=%d", len(store.requests))
+	}
+}
+
 func TestProcessDeliveryInvalidEnvelopeTerms(t *testing.T) {
 	t.Parallel()
 
@@ -337,6 +401,7 @@ func newTestWorker(store ObjectStore, now time.Time) *Worker {
 		nowFn:      func() time.Time { return now },
 		segments:   make(map[string]*archiveSegment),
 		partCounts: make(map[string]int),
+		deduper:    newRecentEnvelopeDeduper(cfg.DedupWindow, cfg.DedupMaxEntries),
 		failureAlerts: newFailureRateTracker(
 			cfg.FailureAlertWindow,
 			cfg.FailureAlertThreshold,

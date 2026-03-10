@@ -274,7 +274,10 @@ Graceful drain as event-driven desired state avoids abrupt disconnect churn and 
 ---
 
 ## Follow-ups
-- [ ] Add end-to-end dedup strategy at projection/archive stages.
+- [x] DONE: Add end-to-end dedup strategy at projection/archive stages.
+  - [x] Projection keeps snapshot idempotence via `envelope_id` + ingest-timestamp stale guards
+  - [x] Archive adds bounded recent-envelope suppression keyed by `envelope_id` (with `message_id` fallback) so immediate redeliveries are acked but not re-archived
+  - [x] Validation evidence (2026-03-09): `go test ./internal/archiveworker ./internal/projectionworker` succeeded; `go test ./...` succeeded; `make lint` succeeded.
 - [ ] Generalize provider adapters beyond EcoFlow.
 - [ ] Add chaos tests for lease loss, worker crash, and reconnect storms.
 - [ ] Add autoscaling custom metrics pipeline (Prometheus Adapter/KEDA) for
