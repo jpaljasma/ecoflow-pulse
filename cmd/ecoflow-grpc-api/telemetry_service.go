@@ -131,7 +131,7 @@ func (s *TelemetryService) GetSnapshot(ctx context.Context, req *telemetryv1.Get
 	snap := &telemetryv1.Snapshot{
 		DeviceId: req.DeviceId,
 		Cursor:   &telemetryv1.Cursor{Seq: 1, TsUnixMs: nowMs},
-		Metrics:  defaultSnapshotMetrics,
+		Metrics:  cloneMetrics(defaultSnapshotMetrics),
 	}
 
 	return &telemetryv1.GetSnapshotResponse{Snapshot: snap}, nil

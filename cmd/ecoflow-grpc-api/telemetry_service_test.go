@@ -84,6 +84,30 @@ func TestGetSnapshotOK(t *testing.T) {
 	}
 }
 
+func TestGetSnapshotFallbackMetricsAreClonedPerRequest(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestService()
+
+	first, err := svc.GetSnapshot(context.Background(), &telemetryv1.GetSnapshotRequest{DeviceId: "dev-1"})
+	if err != nil {
+		t.Fatalf("first GetSnapshot() error = %v", err)
+	}
+	first.GetSnapshot().GetMetrics()["soc"] = 99
+	first.GetSnapshot().GetMetrics()["custom"] = 123
+
+	second, err := svc.GetSnapshot(context.Background(), &telemetryv1.GetSnapshotRequest{DeviceId: "dev-1"})
+	if err != nil {
+		t.Fatalf("second GetSnapshot() error = %v", err)
+	}
+	if got := second.GetSnapshot().GetMetrics()["soc"]; got != defaultSnapshotMetrics["soc"] {
+		t.Fatalf("expected fallback soc=%v, got=%v", defaultSnapshotMetrics["soc"], got)
+	}
+	if _, ok := second.GetSnapshot().GetMetrics()["custom"]; ok {
+		t.Fatal("expected fallback metrics map to be isolated per request")
+	}
+}
+
 func TestShouldCompressHistoryResponse(t *testing.T) {
 	t.Parallel()
 
