@@ -521,6 +521,9 @@ function deriveSolarPortState(
   if (rawState === undefined && volts === undefined && watts === undefined && amps === undefined) {
     return undefined;
   }
+  if ((watts ?? 0) > 1 || (amps ?? 0) > 0.03) {
+    return 'charging';
+  }
   if (volts !== undefined && volts <= 0.1) {
     return 'inactive';
   }

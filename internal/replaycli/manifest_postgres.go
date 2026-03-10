@@ -64,7 +64,7 @@ func (s *PostgresManifestStore) ListByDevices(ctx context.Context, query DeviceQ
 		return nil, errors.New("manifest device query requires at least one id filter")
 	}
 	sql := `
-SELECT provider, shard, shard_count, partition_hour, ts_min_unix_ms, ts_max_unix_ms, object_bucket, object_key, device_ids, provider_device_ids
+SELECT provider, shard, shard_count, partition_hour, ts_min_unix_ms, ts_max_unix_ms, object_bucket, object_key, object_size_bytes, record_count, device_ids, provider_device_ids
 FROM archive_object_manifest
 WHERE ts_max_unix_ms >= $1
   AND ts_min_unix_ms <= $2
@@ -104,7 +104,7 @@ func (s *PostgresManifestStore) ListByFleetRange(ctx context.Context, query Flee
 	}
 	var (
 		sql = `
-SELECT provider, shard, shard_count, partition_hour, ts_min_unix_ms, ts_max_unix_ms, object_bucket, object_key, device_ids, provider_device_ids
+SELECT provider, shard, shard_count, partition_hour, ts_min_unix_ms, ts_max_unix_ms, object_bucket, object_key, object_size_bytes, record_count, device_ids, provider_device_ids
 FROM archive_object_manifest
 WHERE ts_max_unix_ms >= $1
   AND ts_min_unix_ms <= $2
@@ -152,6 +152,8 @@ func scanManifestRows(rows pgx.Rows) ([]ManifestObject, error) {
 			&record.TSMaxUnixMS,
 			&record.ObjectBucket,
 			&record.ObjectKey,
+			&record.ObjectSizeBytes,
+			&record.RecordCount,
 			&deviceIDs,
 			&providerDevices,
 		); err != nil {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -82,6 +83,23 @@ func main() {
 		os.Exit(1)
 	}
 	rawLogInputs := runtimecfg.SplitNonEmpty(rawLogsRaw)
+	deviceIDs := runtimecfg.SplitNonEmpty(deviceIDsRaw)
+	providerDeviceIDs := runtimecfg.SplitNonEmpty(providerIDsRaw)
+	reportFilter := rolluprebuild.ReportFilter{
+		Provider:          strings.TrimSpace(provider),
+		DeviceIDs:         deviceIDs,
+		ProviderDeviceIDs: providerDeviceIDs,
+		From:              time.UnixMilli(fromUnixMS).UTC(),
+		To:                time.UnixMilli(toUnixMS).UTC(),
+	}
+	preArchiveFootprint, err := writer.ArchiveFootprint(context.Background(), reportFilter)
+	if err != nil {
+		log.Warn("archive footprint precheck failed", slog.String("error", err.Error()))
+	}
+	preMinuteSummary, err := writer.MinuteWindowSummary(context.Background(), reportFilter)
+	if err != nil {
+		log.Warn("pre-rebuild minute summary failed", slog.String("error", err.Error()))
+	}
 
 	var runner *rolluprebuild.Runner
 	if len(rawLogInputs) == 0 {
@@ -125,8 +143,6 @@ func main() {
 		slog.Int("chunk_size", chunkSize),
 		slog.Int("parallelism", parallelism),
 	)
-	deviceIDs := runtimecfg.SplitNonEmpty(deviceIDsRaw)
-	providerDeviceIDs := runtimecfg.SplitNonEmpty(providerIDsRaw)
 	var report rolluprebuild.Report
 	if len(rawLogInputs) > 0 {
 		report, err = rolluprebuild.RebuildFromRawLogs(
@@ -163,13 +179,55 @@ func main() {
 	log.Info("rollup rebuild completed",
 		slog.Int("objects_matched", report.ObjectsMatched),
 		slog.Int("objects_processed", report.ObjectsProcessed),
+		slog.Int64("object_bytes", report.ObjectBytes),
+		slog.Int("object_records", report.ObjectRecords),
 		slog.Int("messages_decoded", report.MessagesDecoded),
 		slog.Int("messages_applied", report.MessagesApplied),
+		slog.Int("quota_messages", report.QuotaMessages),
 		slog.Int("minute_rows", report.MinuteRows),
 		slog.Int("hour_rows", report.HourRows),
 		slog.Int("day_rows", report.DayRows),
 		slog.Duration("duration", report.FinishedAt.Sub(report.StartedAt)),
 	)
+	log.Info("archive footprint before rebuild",
+		slog.Int("objects", preArchiveFootprint.Objects),
+		slog.Int64("total_bytes", preArchiveFootprint.TotalBytes),
+		slog.Int("total_records", preArchiveFootprint.TotalRecords),
+		slog.Int("provider_devices", preArchiveFootprint.ProviderDevices),
+		slog.Int64("window_ts_min_unix_ms", preArchiveFootprint.WindowTSMinMS),
+		slog.Int64("window_ts_max_unix_ms", preArchiveFootprint.WindowTSMaxMS),
+	)
+	postArchiveFootprint, err := writer.ArchiveFootprint(context.Background(), reportFilter)
+	if err != nil {
+		log.Warn("post-rebuild archive footprint failed", slog.String("error", err.Error()))
+	} else {
+		log.Info("archive footprint after rebuild",
+			slog.Int("objects", postArchiveFootprint.Objects),
+			slog.Int64("total_bytes", postArchiveFootprint.TotalBytes),
+			slog.Int("total_records", postArchiveFootprint.TotalRecords),
+			slog.Int("provider_devices", postArchiveFootprint.ProviderDevices),
+			slog.Int64("window_ts_min_unix_ms", postArchiveFootprint.WindowTSMinMS),
+			slog.Int64("window_ts_max_unix_ms", postArchiveFootprint.WindowTSMaxMS),
+		)
+	}
+	postMinuteSummary, err := writer.MinuteWindowSummary(context.Background(), reportFilter)
+	if err != nil {
+		log.Warn("post-rebuild minute summary failed", slog.String("error", err.Error()))
+	} else {
+		for _, line := range diffMinuteSummaries(preMinuteSummary, postMinuteSummary) {
+			log.Info("rollup bucket diff",
+				slog.String("provider_device_id", line.ProviderDeviceID),
+				slog.Int("pre_total_buckets", line.PreTotalBuckets),
+				slog.Int("post_total_buckets", line.PostTotalBuckets),
+				slog.Int("bucket_delta", line.PostTotalBuckets-line.PreTotalBuckets),
+				slog.Float64("pre_current_wh", line.PreCurrentWh),
+				slog.Float64("post_current_wh", line.PostCurrentWh),
+				slog.Float64("current_wh_delta", line.PostCurrentWh-line.PreCurrentWh),
+				slog.String("pre_latest_bucket_utc", line.PreLatestBucketUTC),
+				slog.String("post_latest_bucket_utc", line.PostLatestBucketUTC),
+			)
+		}
+	}
 }
 
 func resolveWindow(fromRaw string, toRaw string, now time.Time) (int64, int64, error) {
@@ -229,4 +287,45 @@ func isDigits(raw string) bool {
 		}
 	}
 	return raw != ""
+}
+
+type bucketDiffLine struct {
+	ProviderDeviceID    string
+	PreTotalBuckets     int
+	PostTotalBuckets    int
+	PreCurrentWh        float64
+	PostCurrentWh       float64
+	PreLatestBucketUTC  string
+	PostLatestBucketUTC string
+}
+
+func diffMinuteSummaries(
+	pre map[string]rolluprebuild.BucketWindowSummary,
+	post map[string]rolluprebuild.BucketWindowSummary,
+) []bucketDiffLine {
+	keys := map[string]struct{}{}
+	for key := range pre {
+		keys[key] = struct{}{}
+	}
+	for key := range post {
+		keys[key] = struct{}{}
+	}
+	out := make([]bucketDiffLine, 0, len(keys))
+	for key := range keys {
+		preRow := pre[key]
+		postRow := post[key]
+		out = append(out, bucketDiffLine{
+			ProviderDeviceID:    key,
+			PreTotalBuckets:     preRow.TotalBuckets,
+			PostTotalBuckets:    postRow.TotalBuckets,
+			PreCurrentWh:        preRow.CurrentWh,
+			PostCurrentWh:       postRow.CurrentWh,
+			PreLatestBucketUTC:  preRow.LatestBucketUTC,
+			PostLatestBucketUTC: postRow.LatestBucketUTC,
+		})
+	}
+	slices.SortFunc(out, func(a, b bucketDiffLine) int {
+		return strings.Compare(a.ProviderDeviceID, b.ProviderDeviceID)
+	})
+	return out
 }

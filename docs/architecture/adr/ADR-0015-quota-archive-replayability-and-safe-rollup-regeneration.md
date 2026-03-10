@@ -130,5 +130,8 @@ This is the only option that addresses both correctness and UX:
 ---
 
 ## Follow-ups
-- [ ] Measure archive growth after quota-frame inclusion.
-- [ ] Add bucket-diff reporting between pre-rebuild and post-rebuild local windows.
+- [x] DONE: Measure archive growth after quota-frame inclusion.
+- [x] DONE: Add bucket-diff reporting between pre-rebuild and post-rebuild local windows.
+  - [x] `cmd/ecoflow-rollup-rebuild` now reports matched archive footprint (`objects`, `total_bytes`, `total_records`, `provider_devices`, `window_ts_*`)
+  - [x] rebuild reporting now includes decoded quota-frame counts for the matched archive set
+  - [x] rebuild reporting now includes pre/post minute-bucket diffs per provider device

@@ -878,6 +878,13 @@ Notes:
   rebuild path.
   It does not delete the requested range first; rebuilt rows are written back in
   bounded transactional chunks so charts do not go empty during regeneration.
+  The rebuild command now also logs:
+  - archive footprint for the matched manifest window (`objects`, `total_bytes`,
+    `total_records`, `provider_devices`, `window_ts_*`),
+  - decoded quota-frame count inside the matched archive set,
+  - pre/post minute-bucket diffs per provider device
+    (`pre_total_buckets`, `post_total_buckets`, `bucket_delta`,
+    `pre_current_wh`, `post_current_wh`, `current_wh_delta`).
   It port-forwards CNPG and MinIO automatically, then prints proof from
   `telemetry_rollup_minute` in this format:
   `provider_device_id|touched_buckets|total_buckets|latest_bucket_utc|current_window_derived_solar_generated_wh|previous_window_derived_solar_generated_wh|delta_pct`.
