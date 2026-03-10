@@ -47,6 +47,7 @@ runtime:
     dbSchemaSearchPath: ""
     natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
     valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
+    valkeySentinelMasterSet: ""
     grpcAuthMode: "noop"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
@@ -147,6 +148,13 @@ runtime:
       replicaCount: 1
       service:
         port: 9090
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m

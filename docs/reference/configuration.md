@@ -126,6 +126,9 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
   - when set to a non-empty DSN, `cmd/ecoflow-grpc-api` uses Postgres-backed control-plane storage,
   - when unset (or whitespace), service falls back to in-memory control-plane storage for local bootstrap/testing.
 - `VALKEY_ADDRS` (comma/whitespace-delimited; enables the Valkey-backed inference reader when set)
+- `VALKEY_SENTINEL_MASTER_SET` (optional; when set, Go Valkey clients resolve the current primary through Sentinel instead of treating `VALKEY_ADDRS` as direct node addresses)
+- `VALKEY_SENTINEL_USERNAME` (optional)
+- `VALKEY_SENTINEL_PASSWORD` (optional)
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`; Valkey device-insight read-model key prefix)
@@ -157,7 +160,10 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `GRPC_RECONNECT_BASE_MS` (default `250`)
 - `GRPC_RECONNECT_MAX_MS` (default `2000`)
 - `NATS_URLS` (comma/whitespace-delimited; default `nats://127.0.0.1:4222`)
-- `VALKEY_ADDRS` (comma/whitespace-delimited; default `127.0.0.1:6379`; for local standalone gateway debugging, prefer a stable node port-forward such as `127.0.0.1:6380`)
+- `VALKEY_ADDRS` (comma/whitespace-delimited; default `127.0.0.1:6379`; when `VALKEY_SENTINEL_MASTER_SET` is set, point this at Sentinel endpoints such as `127.0.0.1:26379`)
+- `VALKEY_SENTINEL_MASTER_SET` (optional; when set, the gateway discovers the writable Valkey primary via Sentinel)
+- `VALKEY_SENTINEL_USERNAME` (optional)
+- `VALKEY_SENTINEL_PASSWORD` (optional)
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `PROJECTION_KEY_PREFIX` (default `pulse:projection`; Valkey live snapshot key prefix)
@@ -216,6 +222,9 @@ Runtime behavior:
 - `CONTROL_PLANE_DB_DSN` (required; used to resolve provider-device model/capability context)
 - `NATS_URLS`
 - `VALKEY_ADDRS`
+- `VALKEY_SENTINEL_MASTER_SET` (optional)
+- `VALKEY_SENTINEL_USERNAME` (optional)
+- `VALKEY_SENTINEL_PASSWORD` (optional)
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`)

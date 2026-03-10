@@ -34,6 +34,7 @@ type ValkeyClientConfig struct {
 	Username      string
 	Password      string
 	TLSConfig     *tls.Config
+	Sentinel      valkey.SentinelOption
 
 	DialTimeout      time.Duration
 	TCPKeepAlive     time.Duration
@@ -91,6 +92,7 @@ func NewValkeyClient(cfg ValkeyClientConfig) (valkey.Client, error) {
 		Username:            strings.TrimSpace(cfg.Username),
 		Password:            cfg.Password,
 		TLSConfig:           cfg.TLSConfig,
+		Sentinel:            cfg.Sentinel,
 		Dialer:              net.Dialer{Timeout: chooseDuration(cfg.DialTimeout, defaultDialTimeout), KeepAlive: chooseDuration(cfg.TCPKeepAlive, defaultTCPKeepAlive)},
 		ConnWriteTimeout:    chooseDuration(cfg.ConnWriteTimeout, defaultConnWriteTimeout),
 		ReadBufferEachConn:  chooseInt(cfg.ReadBufferEachConn, defaultReadBufferEachConn),

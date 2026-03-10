@@ -112,6 +112,8 @@ Defaults:
     - `Pulse Pipeline Overview`
     - `Pulse Ingest Health`
     - `Pulse Storage & History Pipeline`
+    - `Pulse gRPC SLOs`
+    - `Pulse Platform Infra`
 - dev values enable `ingress-nginx` + `cert-manager` and expose the public app
   ingress host as `pulse.dev.local` (TLS remains opt-in until a real issuer is
   configured).

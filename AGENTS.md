@@ -165,6 +165,13 @@ When starting any new milestone task from `docs/architecture/README.md`:
 9. Every Go program under `cmd/` should keep at least one regression test covering real bootstrap behavior (for example env/config parsing, argument normalization, or helper logic); do not leave main packages completely untested.
 10. When a package owns a hot request/worker path, keep at least one benchmark in that package and update it when the hot path changes materially.
 
+## SLO Rules
+1. When defining SLOs, follow the Google SRE service-level objective model: choose user-relevant SLIs first, then define objective targets/error budgets separately from the dashboard presentation.
+2. For gRPC APIs, the default SLI set is request-based availability plus latency distributions; use throughput as context, not as the objective itself.
+3. Availability/error-rate SLO views must be request-based (`good / total`) over gRPC status codes, not process uptime.
+4. Latency SLO views should include at least `P95` and `P99`, and when a target is claimed (for example `99.9%` availability), show the target/error budget on the dashboard explicitly.
+5. SLO dashboards should support filtering by endpoint or method so per-RPC behavior is inspectable without cloning whole dashboards.
+
 ## Service Logging Throughput Rules
 1. All long-running services/workers and operational CLIs must use `pkg/logger` (`BuildServiceLogger`) for consistent structured logging behavior.
 2. Keep high-volume payload logs off the hot path:

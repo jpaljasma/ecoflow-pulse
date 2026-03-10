@@ -14,6 +14,9 @@ spec:
       app.kubernetes.io/component: go-ingest
   template:
     metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-ingest
@@ -94,6 +97,9 @@ spec:
       app.kubernetes.io/component: go-inference
   template:
     metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-inference
@@ -174,6 +180,9 @@ spec:
       app.kubernetes.io/component: go-rollup
   template:
     metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-rollup
@@ -254,6 +263,9 @@ spec:
       app.kubernetes.io/component: go-projection
   template:
     metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-projection
@@ -334,6 +346,9 @@ spec:
       app.kubernetes.io/component: go-archive
   template:
     metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-archive
@@ -414,6 +429,9 @@ spec:
       app.kubernetes.io/component: go-grpc-api
   template:
     metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-grpc-api
@@ -426,6 +444,10 @@ spec:
           ports:
             - name: grpc
               containerPort: {{ .Values.runtime.workers.grpcApi.service.port }}
+            {{- if .Values.runtime.workers.grpcApi.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.grpcApi.metrics.service.port }}
+            {{- end }}
           env:
             - name: GRPC_LISTEN_ADDR
               value: {{ printf ":%v" .Values.runtime.workers.grpcApi.service.port | quote }}
@@ -462,4 +484,32 @@ spec:
     - name: grpc
       port: {{ .Values.runtime.workers.grpcApi.service.port }}
       targetPort: grpc
+{{- if .Values.runtime.workers.grpcApi.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.runtime.workers.grpcApi.metrics.service.port }}
+      targetPort: metrics
+{{- end }}
+{{- if .Values.runtime.workers.grpcApi.metrics.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-grpc-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-grpc-api
+    release: {{ .Values.global.platformReleaseName }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-grpc-api
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.grpcApi.metrics.serviceMonitor.interval }}
+{{- end }}
 {{- end }}
