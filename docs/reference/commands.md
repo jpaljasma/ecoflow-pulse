@@ -799,6 +799,14 @@ Notes:
   - `kubectl get svc pulse-platform-public-edge-http3 -n pulse-platform`
   - verify HTTP/3 in a browser network inspector, or with a curl build that
     supports `--http3`
+- `make edge-verify-http3-local` verifies the localhost browser edge using an
+  HTTP/3-capable `curl` build:
+  - checks the current `curl -V` `Features:` line for `HTTP3`
+  - verifies `service/pulse-platform-public-edge-http3` exists in
+    `pulse-platform`
+  - verifies `Alt-Svc: h3=...` is advertised on `https://localhost`
+  - verifies `curl --http3-only` negotiates HTTP version `3`
+  - optional override: `HTTP3_VERIFY_URL=https://localhost make edge-verify-http3-local`
 - `make local-trust-platform-tls` (macOS only) exports the current
   `pulse-platform-local-ca` certificate authority from k3d and adds it to the
   login keychain trust store so `curl https://localhost` and the browser can
