@@ -54,6 +54,7 @@ type Config struct {
 	LeaseMissingAlertWindow    time.Duration
 	LeaseMissingAlertThreshold int
 	LeaseMissingAlertCooldown  time.Duration
+	AutoscaleMetrics           *AutoscaleMetrics
 }
 
 func DefaultConfig(workerID string) Config {
@@ -112,6 +113,7 @@ type Loop struct {
 	runDone chan struct{}
 
 	leaseMissingTracker *reconnectRateTracker
+	autoscaleMetrics    *AutoscaleMetrics
 }
 
 type runningSession struct {
@@ -183,10 +185,14 @@ func NewLoop(log *slog.Logger, store AssignmentStore, leases LeaseManager, runne
 			cfg.LeaseMissingAlertThreshold,
 			cfg.LeaseMissingAlertCooldown,
 		),
+		autoscaleMetrics: cfg.AutoscaleMetrics,
 	}, nil
 }
 
 func (l *Loop) Run(ctx context.Context) error {
+	if l.autoscaleMetrics != nil {
+		l.autoscaleMetrics.SetPollInterval(l.cfg.PollInterval)
+	}
 	defer close(l.runDone)
 	if err := l.reconcile(ctx); err != nil {
 		l.log.Warn("ingest worker initial reconcile failed", slog.String("error", err.Error()))
@@ -214,6 +220,12 @@ func (l *Loop) Run(ctx context.Context) error {
 }
 
 func (l *Loop) reconcile(ctx context.Context) error {
+	startedAt := time.Now()
+	defer func() {
+		if l.autoscaleMetrics != nil {
+			l.autoscaleMetrics.ObserveReconcileDuration(time.Since(startedAt))
+		}
+	}()
 	l.drainTerminated()
 
 	assignments, err := l.store.ListIngestAssignments(ctx, controlplane.ListIngestAssignmentsInput{
@@ -278,6 +290,9 @@ func (l *Loop) reconcile(ctx context.Context) error {
 			continue
 		}
 		toStart = append(toStart, a)
+	}
+	if l.autoscaleMetrics != nil {
+		l.autoscaleMetrics.SetUnassignedActiveDevices(len(toStart))
 	}
 	l.startSessions(ctx, toStart)
 
@@ -350,10 +365,14 @@ func (l *Loop) startSessions(ctx context.Context, assignments []controlplane.Ing
 func (l *Loop) startSession(ctx context.Context, a controlplane.IngestAssignment) {
 	token := l.nextToken()
 
+	acquireStarted := time.Now()
 	result, err := l.leases.Acquire(ctx, ingestlease.LeaseRef{
 		Provider:         a.Provider,
 		ProviderDeviceID: a.ProviderDeviceID,
 	}, l.cfg.WorkerID, token, ingestlease.CallOptions{})
+	if l.autoscaleMetrics != nil {
+		l.autoscaleMetrics.ObserveLeaseAcquireLatency(time.Since(acquireStarted))
+	}
 	if err != nil {
 		l.log.Warn("lease acquire failed",
 			slog.String("provider", a.Provider),

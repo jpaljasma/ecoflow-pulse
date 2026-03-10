@@ -285,7 +285,10 @@ Graceful drain as event-driven desired state avoids abrupt disconnect churn and 
 - [x] Add chaos tests for lease loss, worker crash, and reconnect storms.
   - [x] Added `internal/ingestworker/chaos_test.go` coverage for lease-loss reacquire, cross-worker crash handoff, and reconnect-storm subscriber serialization.
   - [x] Validation evidence (2026-03-10): `go test ./internal/ingestworker -run 'TestLoopChaos|TestEcoFlowSessionRunnerChaos' -count=1` succeeded.
-- [ ] Add autoscaling custom metrics pipeline (Prometheus Adapter/KEDA) for
+- [x] Add autoscaling custom metrics pipeline (Prometheus Adapter/KEDA) for
   `ingest_unassigned_active_devices`, `ingest_reconcile_duration_p95_seconds`,
   and `ingest_lease_acquire_latency_p95_seconds`.
+  - [x] Added ingest-worker autoscaling metrics emission and Prometheus scrape endpoint/service wiring in the `pulse-services` chart.
+  - [x] Added recommended KEDA `ScaledObject` policy at `deploy/env/dev/recommended/pulse-services-go-ingest-keda.recommended.yaml`.
+  - [x] Validation evidence (2026-03-10): `go test ./...` succeeded; `helm lint deploy/charts/pulse-services -f deploy/env/local/values.services.yaml` succeeded; `helm lint deploy/charts/pulse-services -f deploy/env/dev/values.services.yaml` succeeded; `make lint` succeeded.
 - [x] Extend provider metadata APIs/tests so quota-derived capabilities and metadata can be surfaced without provider-specific parsing at read time.
