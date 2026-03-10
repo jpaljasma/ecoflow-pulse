@@ -132,7 +132,10 @@ This keeps the merge gate aligned with the current schema risk:
 ---
 
 ## Follow-ups
-- [ ] Update GitHub branch protection / rulesets so `db-migrations-ci` is required alongside the other locked checks.
+- [x] DONE: Update GitHub branch protection / rulesets so `db-migrations-ci` is required alongside the other locked checks.
+  - [x] Verified active repository ruleset `Required status checks for main`
+  - [x] Confirmed required status checks include `db-migrations-ci` with strict mode enabled
+  - Validation evidence (2026-03-09): `gh api repos/jpaljasma/ecoflow-pulse/rulesets/13619948` returned the active required-check ruleset with `db-migrations-ci`; `make lint` succeeded.
 - [x] DONE: Revisit this workflow after `pgroll` adoption to decide whether the gate should validate both raw SQL and `pgroll` rollout plans.
   - [x] Decision: `db-migrations-ci` validates both the raw SQL migration cycle and the pgroll plan path
   - [x] Workflow change detection now includes `deploy/db/pgroll/` and pgroll transition docs
