@@ -96,6 +96,8 @@ Run E2E suites via repository make targets:
 make test-web-e2e
 MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e
 make test-load-k6
+make test-grpc-load-harness
+make test-grpc-soak-10k
 ```
 
 Run k6 load test coverage for ingest + websocket + query (M5 slice):
@@ -553,6 +555,10 @@ buf lint
 ## gRPC Profiling / Benchmarks
 
 ```bash
+# Stable local make wrappers
+make test-grpc-load-harness
+make test-grpc-soak-10k
+
 # Baseline grpc benchmarks (unary path)
 go test ./cmd/ecoflow-grpc-api -run '^$' -bench 'BenchmarkTelemetry(GetSnapshotParallel|GetSnapshot)$' -benchmem -benchtime=5s
 
