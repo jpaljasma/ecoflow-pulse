@@ -309,5 +309,8 @@ Runtime behavior:
   - browser-facing HTTP/2 is expected once TLS ingress is active
   - local browser-facing HTTP/3 is opt-in via ingress QUIC listener + UDP 443
     service exposure when `runtime.publicApp.ingress.http3.enabled=true`
+  - dev/GKE keeps HTTP/3 opt-in by default; leave
+    `runtime.publicApp.ingress.http3.enabled=false` unless the environment is
+    explicitly validating a real TLS/domain edge with UDP 443 exposed
   - practical verification still depends on a browser or `curl` build with
     HTTP/3 support

@@ -24,6 +24,8 @@ runtime:
         clusterIssuer: ""
         localSelfSigned: false
       http3:
+        # Dev keeps HTTP/3 opt-in until a real issuer/domain + UDP 443 edge is
+        # intentionally being exercised.
         enabled: false
         altSvcMaxAgeSeconds: 86400
         service:
