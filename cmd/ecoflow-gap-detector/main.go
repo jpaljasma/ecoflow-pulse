@@ -64,6 +64,7 @@ func main() {
 	valkeyCfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	valkeyCfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	valkeyCfg.Password = os.Getenv("VALKEY_PASSWORD")
+	ingestlease.ConfigureSentinelFromEnv(&valkeyCfg)
 	valkeyClient, err := ingestlease.NewValkeyClient(valkeyCfg)
 	if err != nil {
 		log.Error("init valkey client failed", slog.String("error", err.Error()))

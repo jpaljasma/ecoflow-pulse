@@ -1,0 +1,24 @@
+{{- if and .Values.components.observabilityLite.enabled .Values.cloudnativepgCluster.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-core
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: core-db
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: {{ .Values.cloudnativepgCluster.name }}
+      cnpg.io/podRole: instance
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+{{- end }}

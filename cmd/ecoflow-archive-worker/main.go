@@ -10,6 +10,7 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/archiveworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
@@ -78,7 +79,8 @@ func main() {
 		}()
 	}
 
-	worker, err := archiveworker.New(log, natsConn, objectStore, cfg, archiveworker.WithManifestStore(manifestStore))
+	metrics := workermetrics.New("archive")
+	worker, err := archiveworker.New(log, natsConn, objectStore, cfg, archiveworker.WithManifestStore(manifestStore), archiveworker.WithMetrics(metrics))
 	if err != nil {
 		log.Error("init archive worker failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -87,8 +89,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	metricsListenAddr := strings.TrimSpace(os.Getenv("ARCHIVE_METRICS_LISTEN_ADDR"))
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "archive-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
+	stopMetricsServer := workermetrics.StartServer(ctx, log, metrics.Registry(), metricsListenAddr)
+	defer stopMetricsServer()
 
 	log.Info("archive worker starting",
 		slog.String("log_level", logCfg.Level.String()),
@@ -96,6 +101,7 @@ func main() {
 		slog.Int("log_async_queue_size", logCfg.AsyncQueueSize),
 		slog.String("log_async_bypass_level", logCfg.AsyncBypassLevel.String()),
 		slog.Duration("log_metrics_interval", logMetricsInterval),
+		slog.String("metrics_listen_addr", metricsListenAddr),
 		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
 		slog.String("subject_prefix", cfg.SubjectConfig.Prefix),
 		slog.Uint64("shards", uint64(cfg.SubjectConfig.ShardCount)),

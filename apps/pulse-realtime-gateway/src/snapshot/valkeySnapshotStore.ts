@@ -1,10 +1,10 @@
-import { createClient } from 'redis';
+import { createClient, createSentinel } from 'redis';
 
 import type { LiveSnapshot } from '../live/types.js';
 
 type RedisLike = {
   get(key: string): Promise<string | null>;
-  quit(): Promise<unknown>;
+  close(): Promise<void>;
 };
 
 export interface SnapshotStore {
@@ -14,6 +14,9 @@ export interface SnapshotStore {
 
 export type ValkeySnapshotStoreConfig = {
   addrs: string[];
+  sentinelMasterSet?: string;
+  sentinelUsername?: string;
+  sentinelPassword?: string;
   username?: string;
   password?: string;
   keyPrefix: string;
@@ -66,7 +69,7 @@ export class ValkeySnapshotStore implements SnapshotStore {
     this.clientPromises = null;
     for (const client of clients) {
       if (client) {
-        await client.quit().catch(() => undefined);
+        await client.close().catch(() => undefined);
       }
     }
   }
@@ -80,21 +83,39 @@ export class ValkeySnapshotStore implements SnapshotStore {
 
   private createClients(): Promise<RedisLike>[] {
     const addrs = this.cfg.addrs.filter((value) => value.trim() !== '');
-    const hosts = addrs.length > 0 ? addrs : ['127.0.0.1:6379'];
+    const hosts = addrs.length > 0 ? addrs : [this.cfg.sentinelMasterSet ? '127.0.0.1:26379' : '127.0.0.1:6379'];
+    if (this.cfg.sentinelMasterSet) {
+      return [this.createSentinelClient(hosts)];
+    }
     return hosts.map(async (host) => {
       const client = createClient({
         url: toRedisUrl(host),
         username: this.cfg.username,
         password: this.cfg.password,
-        socket: {
-          reconnectStrategy(retries) {
-            return Math.min(5_000, 250 * 2 ** retries);
-          }
-        }
+        socket: sharedSocketOptions()
       });
       await client.connect();
       return client;
     });
+  }
+
+  private async createSentinelClient(hosts: string[]): Promise<RedisLike> {
+    const client = createSentinel({
+      name: this.cfg.sentinelMasterSet!,
+      sentinelRootNodes: hosts.map((host) => toRedisNode(host)),
+      nodeClientOptions: {
+        username: this.cfg.username,
+        password: this.cfg.password,
+        socket: sharedSocketOptions()
+      },
+      sentinelClientOptions: {
+        username: this.cfg.sentinelUsername,
+        password: this.cfg.sentinelPassword,
+        socket: sharedSocketOptions()
+      }
+    });
+    await client.connect();
+    return client;
   }
 }
 
@@ -116,4 +137,20 @@ function toRedisUrl(input: string): string {
     return trimmed;
   }
   return `redis://${trimmed}`;
+}
+
+function toRedisNode(input: string): { host: string; port: number } {
+  const parsed = new URL(toRedisUrl(input));
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 6379
+  };
+}
+
+function sharedSocketOptions() {
+  return {
+    reconnectStrategy(retries: number) {
+      return Math.min(5_000, 250 * 2 ** retries);
+    }
+  };
 }

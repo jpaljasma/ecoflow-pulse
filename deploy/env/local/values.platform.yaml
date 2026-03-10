@@ -78,7 +78,8 @@ runtime:
       grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
       natsURLs: nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222
-      valkeyAddrs: pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379
+      valkeyAddrs: pulse-platform-valkey.pulse-platform.svc.cluster.local:26379
+      valkeySentinelMasterSet: myprimary
       projectionKeyPrefix: pulse:projection
       telemetrySubjectPrefix: pulse.telemetry
       nodeAuthMode: noop
@@ -96,6 +97,14 @@ nats:
         pvc:
           enabled: true
           size: 10Gi
+  promExporter:
+    enabled: true
+    podMonitor:
+      enabled: true
+      patch:
+        - op: add
+          path: /metadata/labels/release
+          value: pulse-platform
 
 cloudnative-pg: {}
 cloudnativepgCluster:
@@ -143,6 +152,12 @@ valkey:
   architecture: replication
   auth:
     enabled: false
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: pulse-platform
   primary:
     persistence:
       enabled: false

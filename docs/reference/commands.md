@@ -173,12 +173,13 @@ npm run platform-bff
 Run the realtime WebSocket gateway against the local authz API + live Valkey/NATS data plane:
 
 ```bash
-# Port-forward a stable Valkey node for local snapshot reads first.
-kubectl -n pulse-platform port-forward pod/pulse-platform-valkey-node-0 6380:6379
+# Port-forward the local Valkey Sentinel service first so clients can resolve the current primary.
+kubectl -n pulse-platform port-forward svc/pulse-platform-valkey 26379:26379
 
 GRPC_API_ADDR='127.0.0.1:9090' \
 NATS_URLS='nats://127.0.0.1:4222' \
-VALKEY_ADDRS='127.0.0.1:6380' \
+VALKEY_ADDRS='127.0.0.1:26379' \
+VALKEY_SENTINEL_MASTER_SET='myprimary' \
 PROJECTION_KEY_PREFIX='pulse:projection' \
 TELEMETRY_SUBJECT_PREFIX='pulse.telemetry' \
 NODE_AUTH_MODE='noop' \
@@ -228,7 +229,8 @@ Run gRPC API with live snapshot reads from Valkey (used by `TelemetryService.Get
 
 ```bash
 CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' \
-VALKEY_ADDRS='127.0.0.1:6380' \
+VALKEY_ADDRS='127.0.0.1:26379' \
+VALKEY_SENTINEL_MASTER_SET='myprimary' \
 PROJECTION_KEY_PREFIX='pulse:projection' \
 go run ./cmd/ecoflow-grpc-api
 ```
@@ -243,7 +245,8 @@ Run distributed ingest worker loop (poll active assignments, claim lease, start 
 
 ```bash
 CONTROL_PLANE_DB_DSN='postgres://<user>:<pass>@<host>:5432/pulse?sslmode=disable' \
-VALKEY_ADDRS='127.0.0.1:6379' \
+VALKEY_ADDRS='127.0.0.1:26379' \
+VALKEY_SENTINEL_MASTER_SET='myprimary' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-ingest-worker
 ```
@@ -260,7 +263,8 @@ go run ./cmd/ecoflow-loadtest-ingest-bridge
 Run projection worker loop (consume ingest envelopes from JetStream and build Valkey live snapshots):
 
 ```bash
-VALKEY_ADDRS='127.0.0.1:6379' \
+VALKEY_ADDRS='127.0.0.1:26379' \
+VALKEY_SENTINEL_MASTER_SET='myprimary' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-projection-worker
 ```
@@ -269,7 +273,8 @@ Run inference worker loop (consume ingest envelopes and build Valkey device insi
 
 ```bash
 CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
-VALKEY_ADDRS='127.0.0.1:6379' \
+VALKEY_ADDRS='127.0.0.1:26379' \
+VALKEY_SENTINEL_MASTER_SET='myprimary' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-inference-worker
 ```
@@ -339,7 +344,8 @@ Run gap detector loop (projection lag detection + targeted replay enqueue):
 
 ```bash
 CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
-VALKEY_ADDRS='127.0.0.1:6379' \
+VALKEY_ADDRS='127.0.0.1:26379' \
+VALKEY_SENTINEL_MASTER_SET='myprimary' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-gap-detector
 ```
@@ -895,6 +901,8 @@ Notes:
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
   - `nats`, `valkey-node`, and `keycloak` statefulsets,
+  - service endpoints for `pulse-platform-core-rw`, `pulse-platform-nats`,
+    `pulse-platform-valkey`, `pulse-platform-minio`, and `pulse-platform-keycloak-headless` when present,
   - optional Keycloak bootstrap job `pulse-platform-keycloak-keycloak-config-cli` reaching `Complete`,
   - `minio` deployment,
   - optional `ingress-nginx` controller deployment,
@@ -905,8 +913,26 @@ Notes:
 - local observability access examples after `make platform-up` / `make platform-wait`:
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-kube-promet-prometheus 9090:9090`
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-grafana 3000:80`
+  - worker metrics endpoints exposed in local `pulse-services`:
+    - `pulse-services-go-ingest-metrics`
+    - `pulse-services-go-inference-metrics`
+    - `pulse-services-go-projection-metrics`
+    - `pulse-services-go-rollup-metrics`
+    - `pulse-services-go-archive-metrics`
+  - bundled Grafana dashboards:
+    - `Pulse Pipeline Overview`
+    - `Pulse Ingest Health`
+    - `Pulse Storage & History Pipeline`
+    - `Pulse gRPC SLOs`
+    - `Pulse Platform Infra`
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
+- `make services-up` upgrades the `pulse-services` Helm release and, when
+  `SERVICES_AUTO_BUILD_IMAGE=1` (the default local path), also restarts the
+  `pulse-services` deployments so the freshly imported `ecoflow-pulse/services:local`
+  image is picked up even though the tag stays constant.
+  Before applying the release it now also waits for the platform dependency
+  endpoints consumed by the services layer: CNPG rw, NATS, Valkey, and MinIO.
 - `make dev-deploy` is the incremental local redeploy path for code changes:
   rebuild/import local public + services images, then restart
   `pulse-platform-public-app`, `pulse-platform-realtime-gateway`, and

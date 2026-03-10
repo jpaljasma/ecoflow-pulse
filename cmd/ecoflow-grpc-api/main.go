@@ -24,6 +24,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
@@ -62,19 +63,22 @@ func main() {
 		log.Error("grpc auth init failed", "error", err.Error())
 		os.Exit(1)
 	}
+	grpcMetrics := grpcmw.NewMetrics()
 
 	// Middleware chain (order matters):
-	// request-id -> recovery -> auth -> logging
+	// request-id -> recovery -> auth -> metrics -> logging
 	unary := []grpc.UnaryServerInterceptor{
 		grpcmw.RequestIDUnary(),
 		grpcmw.RecoveryUnary(),
 		grpcmw.AuthUnary(authorizer),
+		grpcMetrics.UnaryServerInterceptor(),
 		grpcmw.LoggingUnary(log),
 	}
 	stream := []grpc.StreamServerInterceptor{
 		grpcmw.RequestIDStream(),
 		grpcmw.RecoveryStream(),
 		grpcmw.AuthStream(authorizer),
+		grpcMetrics.StreamServerInterceptor(),
 		grpcmw.LoggingStream(log),
 	}
 
@@ -142,8 +146,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	metricsListenAddr := strings.TrimSpace(os.Getenv("GRPC_METRICS_LISTEN_ADDR"))
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "grpc-api", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
+	stopGRPCMetrics := workermetrics.StartServer(ctx, log, grpcMetrics.Registry(), metricsListenAddr)
+	defer stopGRPCMetrics()
 
 	log.Info("grpc server starting",
 		"addr", cfg.ListenAddr,
@@ -153,6 +160,7 @@ func main() {
 		"log_async_queue_size", logCfg.AsyncQueueSize,
 		"log_async_bypass_level", logCfg.AsyncBypassLevel.String(),
 		"log_metrics_interval", logMetricsInterval,
+		"metrics_listen_addr", metricsListenAddr,
 	)
 
 	if err := grpcserver.ServeWithSignal(ctx, s, lis, 15*time.Second); err != nil {
@@ -219,6 +227,7 @@ func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.Snaps
 	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+	ingestlease.ConfigureSentinelFromEnv(&cfg)
 
 	client, err := ingestlease.NewValkeyClient(cfg)
 	if err != nil {
@@ -270,6 +279,7 @@ func newInferenceReaderFromEnv(log *slog.Logger) (inference.Reader, func(), erro
 	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+	ingestlease.ConfigureSentinelFromEnv(&cfg)
 
 	client, err := ingestlease.NewValkeyClient(cfg)
 	if err != nil {

@@ -31,8 +31,10 @@ runtime:
     archiveManifestDBDSN: "postgres://pulse:pulse-local-dev-password@pulse-platform-core-rw.pulse-platform.svc.cluster.local:5432/pulse?sslmode=disable"
     dbSchemaSearchPath: ""
     natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
-    # Valkey chart is replication+sentinel. For write-heavy lease/snapshot paths we target the current primary endpoint.
-    valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
+    # Local Valkey is sentinel-backed; use the sentinel service so write paths can
+    # resolve the current primary instead of pinning a pod hostname.
+    valkeyAddrs: "pulse-platform-valkey.pulse-platform.svc.cluster.local:26379"
+    valkeySentinelMasterSet: "myprimary"
     grpcAuthMode: "noop"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
@@ -45,23 +47,43 @@ runtime:
   workers:
     ingest:
       enabled: true
-      replicaCount: 1
+      replicaCount: 3
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
     inference:
       enabled: true
-      replicaCount: 1
+      replicaCount: 3
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     projection:
       enabled: true
-      replicaCount: 1
+      replicaCount: 3
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     rollup:
       enabled: true
-      replicaCount: 1
+      replicaCount: 3
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     archive:
       enabled: true
-      replicaCount: 1
+      replicaCount: 3
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     grpcApi:
       enabled: true
-      replicaCount: 2
+      replicaCount: 3
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true

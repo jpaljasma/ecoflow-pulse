@@ -10,6 +10,7 @@ import (
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/proto"
 )
@@ -104,6 +105,7 @@ type Worker struct {
 	cfg       Config
 	subscribe func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
 	tracker   *telemetrybus.MsgHandlerTracker
+	metrics   *workermetrics.Metrics
 }
 
 func New(log *slog.Logger, conn *nats.Conn, store Store, cfg Config) (*Worker, error) {
@@ -160,6 +162,13 @@ func (w *Worker) Run(ctx context.Context) error {
 	return nil
 }
 
+func (w *Worker) SetMetrics(metrics *workermetrics.Metrics) {
+	if w == nil {
+		return
+	}
+	w.metrics = metrics
+}
+
 func (w *Worker) defaultSubscribe(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error) {
 	return js.QueueSubscribe(
 		telemetrybus.IngestWildcardSubject(w.cfg.SubjectConfig),
@@ -184,11 +193,18 @@ func (w *Worker) processDelivery(ctx context.Context, msg delivery) error {
 	if msg == nil {
 		return nil
 	}
+	finish := func(string) {}
+	if w.metrics != nil {
+		finish = w.metrics.StartMessage()
+	}
+	outcome := "acked"
+	defer func() { finish(outcome) }()
 	procCtx, cancel := context.WithTimeout(ctx, w.cfg.ProcessTimeout)
 	defer cancel()
 
 	var env envelopev1.TelemetryEnvelope
 	if err := proto.Unmarshal(msg.Data(), &env); err != nil {
+		outcome = "termed_invalid_proto"
 		w.log.Warn("rollup received invalid telemetry envelope; terminating message",
 			slog.String("subject", msg.Subject()),
 			slog.String("error", err.Error()),
@@ -202,11 +218,14 @@ func (w *Worker) processDelivery(ctx context.Context, msg delivery) error {
 	if err := w.store.ApplyEnvelope(procCtx, &env); err != nil {
 		switch {
 		case errors.Is(err, ErrNoRollupMetrics):
+			outcome = "acked_no_metrics"
 			if ackErr := msg.Ack(); ackErr != nil {
+				outcome = "ack_failed"
 				w.log.Warn("rollup ack failed", slog.String("error", ackErr.Error()))
 			}
 			return nil
 		case errors.Is(err, ErrInvalidRollupEnvelope):
+			outcome = "termed_invalid_envelope"
 			w.log.Warn("rollup received invalid telemetry sample; terminating message",
 				slog.String("subject", msg.Subject()),
 				slog.String("device_id", strings.TrimSpace(env.GetDeviceId())),
@@ -218,6 +237,7 @@ func (w *Worker) processDelivery(ctx context.Context, msg delivery) error {
 			}
 			return err
 		default:
+			outcome = "nacked_apply_failed"
 			w.log.Warn("rollup apply envelope failed; nacking for retry",
 				slog.String("subject", msg.Subject()),
 				slog.String("device_id", strings.TrimSpace(env.GetDeviceId())),
@@ -232,6 +252,7 @@ func (w *Worker) processDelivery(ctx context.Context, msg delivery) error {
 	}
 
 	if ackErr := msg.Ack(); ackErr != nil {
+		outcome = "ack_failed"
 		w.log.Warn("rollup ack failed", slog.String("error", ackErr.Error()))
 	}
 	return nil

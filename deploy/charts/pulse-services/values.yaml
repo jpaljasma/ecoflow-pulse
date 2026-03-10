@@ -1,5 +1,6 @@
 global:
   environment: local
+  platformReleaseName: pulse-platform
   namespaces:
     platform: pulse-platform
     services: pulse-services
@@ -46,6 +47,7 @@ runtime:
     dbSchemaSearchPath: ""
     natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
     valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
+    valkeySentinelMasterSet: ""
     grpcAuthMode: "noop"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
@@ -76,6 +78,13 @@ runtime:
     inference:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m
@@ -86,6 +95,13 @@ runtime:
     projection:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m
@@ -96,6 +112,13 @@ runtime:
     rollup:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m
@@ -106,6 +129,13 @@ runtime:
     archive:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m
@@ -118,6 +148,13 @@ runtime:
       replicaCount: 1
       service:
         port: 9090
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m

@@ -125,13 +125,17 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Keep the local public/API path multi-replica by default for round-robin validation:
    - Node REST BFF/public app: `2` replicas,
    - WebSocket gateway: `2` replicas,
-   - Go gRPC API: `2` replicas.
-5. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
-6. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
-7. Historical rollup regeneration must be non-destructive by default:
+   - Go gRPC API: `3` replicas.
+5. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps:
+   - ingest, inference, projection, rollup, archive: `3` replicas each in local/dev defaults.
+6. Service rollouts must wait on the platform dependency endpoints they consume before applying/restarting workloads:
+   - at minimum: CNPG rw service, NATS, Valkey, and MinIO.
+7. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
+8. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
+9. Historical rollup regeneration must be non-destructive by default:
    - do not delete a requested rollup window before rebuilding it,
    - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.
-8. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
+10. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
 
 ## Browser Edge Learnings
 1. Browser-facing HTTP/2/HTTP/3 support is an ingress/public-edge concern, not a Node runtime concern.
@@ -164,6 +168,13 @@ When starting any new milestone task from `docs/architecture/README.md`:
 8. When exposing queue-depth telemetry for async pipelines, prefer a single source of truth (for example the buffered channel length) over separate producer/consumer depth counters that can race under load.
 9. Every Go program under `cmd/` should keep at least one regression test covering real bootstrap behavior (for example env/config parsing, argument normalization, or helper logic); do not leave main packages completely untested.
 10. When a package owns a hot request/worker path, keep at least one benchmark in that package and update it when the hot path changes materially.
+
+## SLO Rules
+1. When defining SLOs, follow the Google SRE service-level objective model: choose user-relevant SLIs first, then define objective targets/error budgets separately from the dashboard presentation.
+2. For gRPC APIs, the default SLI set is request-based availability plus latency distributions; use throughput as context, not as the objective itself.
+3. Availability/error-rate SLO views must be request-based (`good / total`) over gRPC status codes, not process uptime.
+4. Latency SLO views should include at least `P95` and `P99`, and when a target is claimed (for example `99.9%` availability), show the target/error budget on the dashboard explicitly.
+5. SLO dashboards should support filtering by endpoint or method so per-RPC behavior is inspectable without cloning whole dashboards.
 
 ## Service Logging Throughput Rules
 1. All long-running services/workers and operational CLIs must use `pkg/logger` (`BuildServiceLogger`) for consistent structured logging behavior.
@@ -516,6 +527,9 @@ These are mandatory implementation principles for local workflows and tooling qu
    - for code-only local redeploys, do not refresh or rebuild Helm dependencies,
    - for `pulse-platform`, reuse vendored chart packages in `deploy/charts/pulse-platform/charts` and only run `helm dependency build --skip-refresh` when `Chart.yaml` / `Chart.lock` changed or vendored tarballs are missing,
    - for `pulse-services`, skip `helm dependency build` because the chart has no external dependencies.
+7. Local image-import targets must refresh running workloads when tags stay constant:
+   - if `services-up` or a similar local target rebuilds/imports a `:local` image without changing the tag,
+   - it must also restart the affected deployments (or force an equivalent pod-template change) so pods actually run the imported image.
 
 ### Valkey ingest lease baseline (ADR-0014)
 1. Lease operations must use Lua with token checks and fencing:

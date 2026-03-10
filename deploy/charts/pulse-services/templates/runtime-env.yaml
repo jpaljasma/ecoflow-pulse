@@ -10,6 +10,7 @@ data:
   DB_SCHEMA_SEARCH_PATH: {{ .Values.runtime.env.dbSchemaSearchPath | quote }}
   NATS_URLS: {{ .Values.runtime.env.natsURLs | quote }}
   VALKEY_ADDRS: {{ .Values.runtime.env.valkeyAddrs | quote }}
+  VALKEY_SENTINEL_MASTER_SET: {{ .Values.runtime.env.valkeySentinelMasterSet | quote }}
   GRPC_AUTH_MODE: {{ .Values.runtime.env.grpcAuthMode | quote }}
   ARCHIVE_OBJECT_ENDPOINT: {{ .Values.runtime.env.archiveObjectEndpoint | quote }}
   ARCHIVE_OBJECT_BUCKET: {{ .Values.runtime.env.archiveObjectBucket | quote }}
@@ -18,6 +19,11 @@ data:
   ARCHIVE_OBJECT_SECURE: {{ .Values.runtime.env.archiveObjectSecure | quote }}
   ARCHIVE_OBJECT_AUTO_CREATE_BUCKET: {{ .Values.runtime.env.archiveObjectAutoCreateBucket | quote }}
   INGEST_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.ingest.metrics.service.port) "" .Values.runtime.workers.ingest.metrics.enabled | quote }}
+  INFERENCE_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.inference.metrics.service.port) "" .Values.runtime.workers.inference.metrics.enabled | quote }}
+  PROJECTION_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.projection.metrics.service.port) "" .Values.runtime.workers.projection.metrics.enabled | quote }}
+  ROLLUP_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.rollup.metrics.service.port) "" .Values.runtime.workers.rollup.metrics.enabled | quote }}
+  ARCHIVE_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.archive.metrics.service.port) "" .Values.runtime.workers.archive.metrics.enabled | quote }}
+  GRPC_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.grpcApi.metrics.service.port) "" .Values.runtime.workers.grpcApi.metrics.enabled | quote }}
 ---
 apiVersion: v1
 kind: Secret

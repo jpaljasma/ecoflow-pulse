@@ -91,10 +91,11 @@ Defaults:
   round-robin validation:
   - `pulse-platform-public-app`: `2` replicas
   - `pulse-platform-realtime-gateway`: `2` replicas
-  - `pulse-services-go-grpc-api`: `2` replicas
+  - `pulse-services-go-grpc-api`: `3` replicas
 - current local services defaults enable containerized telemetry workers
-  (`go-ingest`, `go-inference`, `go-projection`, `go-archive`) using image
-  `ecoflow-pulse/services:local`.
+  (`go-ingest`, `go-inference`, `go-projection`, `go-rollup`, `go-archive`)
+  using image `ecoflow-pulse/services:local`, with `3` replicas per service to
+  keep local rollouts disruption-tolerant.
 - local/dev MinIO credentials are intentionally pinned for deterministic
   bring-up and service compatibility:
   - platform chart uses `minio.rootUser` / `minio.rootPassword`
@@ -108,6 +109,12 @@ Defaults:
 - local observability access examples:
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-kube-promet-prometheus 9090:9090`
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-grafana 3000:80`
+  - local Grafana dashboards now include:
+    - `Pulse Pipeline Overview`
+    - `Pulse Ingest Health`
+    - `Pulse Storage & History Pipeline`
+    - `Pulse gRPC SLOs`
+    - `Pulse Platform Infra`
 - dev values enable `ingress-nginx` + `cert-manager` and expose the public app
   ingress host as `pulse.dev.local` (TLS remains opt-in until a real issuer is
   configured).

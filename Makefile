@@ -678,6 +678,23 @@ platform-wait:
 	fi
 	@set -euo pipefail; \
 	ns="$(PLATFORM_NAMESPACE)"; \
+	wait_endpoints() { \
+		name="$$1"; attempts="$$2"; label="$$3"; \
+		if ! $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" >/dev/null 2>&1; then \
+			echo "skipping endpoint wait for $$label ($$name not found)"; \
+			return 0; \
+		fi; \
+		for _ in $$(seq 1 "$$attempts"); do \
+			endpoint_ips="$$( $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+			if [ -n "$$endpoint_ips" ]; then \
+				echo "$$label endpoints ready: $$endpoint_ips"; \
+				return 0; \
+			fi; \
+			sleep 5; \
+		done; \
+		echo "$$label endpoints did not become ready"; \
+		exit 1; \
+	}; \
 	wait_rollout() { \
 		kind="$$1"; name="$$2"; timeout="$$3"; \
 		if $(LOCAL_KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
@@ -716,6 +733,11 @@ platform-wait:
 	wait_rollout deployment $(PLATFORM_RELEASE)-kube-promet-operator 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-grafana 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-opentelemetry-collector 300s; \
+	wait_endpoints $(PLATFORM_RELEASE)-core-rw 36 "CNPG rw service"; \
+	wait_endpoints $(PLATFORM_RELEASE)-nats 36 "NATS service"; \
+	wait_endpoints $(PLATFORM_RELEASE)-valkey 36 "Valkey service"; \
+	wait_endpoints $(PLATFORM_RELEASE)-minio 36 "MinIO service"; \
+	wait_endpoints $(PLATFORM_RELEASE)-keycloak-headless 36 "Keycloak service"; \
 	echo "platform dependencies are ready"
 	@set -euo pipefail; \
 	ns="$(PLATFORM_NAMESPACE)"; \
@@ -798,11 +820,39 @@ services-up: helm-local-ready
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 		$(MAKE) services-image-local-up; \
 	fi
+	@set -euo pipefail; \
+		ns="$(PLATFORM_NAMESPACE)"; \
+		wait_endpoints() { \
+			name="$$1"; attempts="$$2"; label="$$3"; \
+			if ! $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" >/dev/null 2>&1; then \
+				echo "$$label endpoint object ($$name) not found"; \
+				exit 1; \
+			fi; \
+			for _ in $$(seq 1 "$$attempts"); do \
+				endpoint_ips="$$( $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+				if [ -n "$$endpoint_ips" ]; then \
+					echo "$$label endpoints ready: $$endpoint_ips"; \
+					return 0; \
+				fi; \
+				sleep 5; \
+			done; \
+			echo "$$label endpoints did not become ready"; \
+			exit 1; \
+		}; \
+		echo "verifying platform dependency endpoints before services rollout"; \
+		wait_endpoints $(PLATFORM_RELEASE)-core-rw 36 "CNPG rw service"; \
+		wait_endpoints $(PLATFORM_RELEASE)-nats 36 "NATS service"; \
+		wait_endpoints $(PLATFORM_RELEASE)-valkey 36 "Valkey service"; \
+		wait_endpoints $(PLATFORM_RELEASE)-minio 36 "MinIO service"
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		$(LOCAL_HELM_UPGRADE_FLAGS) \
 		-f $(LOCAL_SERVICES_VALUES)
+	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
+		echo "restarting $(SERVICES_RELEASE) deployments to pick up imported :local image"; \
+		$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout restart deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE); \
+	fi
 
 services-wait:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
@@ -815,12 +865,19 @@ services-wait:
 		echo "namespace $$ns does not exist yet, skipping services wait"; \
 		exit 0; \
 	fi; \
-	if [ -z "$$( $(LOCAL_KUBECTL) -n "$$ns" get pods -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
+	if [ -z "$$( $(LOCAL_KUBECTL) -n "$$ns" get deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
 		echo "no services workloads found for instance $(SERVICES_RELEASE) in $$ns"; \
 		exit 0; \
 	fi; \
-	echo "waiting for services pods to become Ready"; \
-	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod -l app.kubernetes.io/instance=$(SERVICES_RELEASE) --timeout=$(WAIT_TIMEOUT); \
+	echo "waiting for services deployments to finish rolling out"; \
+	for deploy in $$($(LOCAL_KUBECTL) -n "$$ns" get deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name); do \
+		$(LOCAL_KUBECTL) -n "$$ns" rollout status "$$deploy" --timeout=$(WAIT_TIMEOUT); \
+	done; \
+	echo "waiting for current services pods to become Ready"; \
+	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod \
+		-l app.kubernetes.io/instance=$(SERVICES_RELEASE) \
+		--field-selector=status.phase=Running \
+		--timeout=$(WAIT_TIMEOUT); \
 	echo "services dependencies are ready"
 
 dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait

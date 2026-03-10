@@ -38,6 +38,8 @@ spec:
               value: {{ .Values.runtime.realtimeGateway.env.natsURLs | quote }}
             - name: VALKEY_ADDRS
               value: {{ .Values.runtime.realtimeGateway.env.valkeyAddrs | quote }}
+            - name: VALKEY_SENTINEL_MASTER_SET
+              value: {{ .Values.runtime.realtimeGateway.env.valkeySentinelMasterSet | quote }}
             - name: PROJECTION_KEY_PREFIX
               value: {{ .Values.runtime.realtimeGateway.env.projectionKeyPrefix | quote }}
             - name: TELEMETRY_SUBJECT_PREFIX

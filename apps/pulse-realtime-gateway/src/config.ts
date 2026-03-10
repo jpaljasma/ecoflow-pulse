@@ -11,6 +11,9 @@ const envSchema = z.object({
   GRPC_RECONNECT_MAX_MS: z.coerce.number().int().min(10).max(60000).default(2000),
   NATS_URLS: z.string().trim().default('nats://127.0.0.1:4222'),
   VALKEY_ADDRS: z.string().trim().default('127.0.0.1:6379'),
+  VALKEY_SENTINEL_MASTER_SET: z.string().trim().default(''),
+  VALKEY_SENTINEL_USERNAME: z.string().trim().default(''),
+  VALKEY_SENTINEL_PASSWORD: z.string().trim().default(''),
   VALKEY_USERNAME: z.string().trim().default(''),
   VALKEY_PASSWORD: z.string().trim().default(''),
   PROJECTION_KEY_PREFIX: z.string().trim().min(1).default('pulse:projection'),
@@ -42,6 +45,9 @@ export type AppConfig = {
   natsUrls: string[];
   valkey: {
     addrs: string[];
+    sentinelMasterSet?: string;
+    sentinelUsername?: string;
+    sentinelPassword?: string;
     username?: string;
     password?: string;
     keyPrefix: string;
@@ -71,7 +77,10 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
   const allowMissingJwt =
     parsed.KEYCLOAK_ALLOW_MISSING_JWT === 'true' || parsed.KEYCLOAK_ALLOW_MISSING_JWT === '1';
   const natsUrls = splitCsvList(parsed.NATS_URLS, ['nats://127.0.0.1:4222']);
-  const valkeyAddrs = preferredLocalValkeyAddrs(splitCsvList(parsed.VALKEY_ADDRS, ['127.0.0.1:6379']));
+  const sentinelMasterSet = parsed.VALKEY_SENTINEL_MASTER_SET || undefined;
+  const valkeyAddrs = sentinelMasterSet
+    ? splitCsvList(parsed.VALKEY_ADDRS, ['127.0.0.1:26379'])
+    : preferredLocalValkeyAddrs(splitCsvList(parsed.VALKEY_ADDRS, ['127.0.0.1:6379']));
   const delivery = {
     fastIntervalMs: parsed.WS_DELIVERY_FAST_INTERVAL_MS,
     steadyIntervalMs: parsed.WS_DELIVERY_STEADY_INTERVAL_MS,
@@ -94,6 +103,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       natsUrls,
       valkey: {
         addrs: valkeyAddrs,
+        sentinelMasterSet,
+        sentinelUsername: parsed.VALKEY_SENTINEL_USERNAME || undefined,
+        sentinelPassword: parsed.VALKEY_SENTINEL_PASSWORD || undefined,
         username: parsed.VALKEY_USERNAME || undefined,
         password: parsed.VALKEY_PASSWORD || undefined,
         keyPrefix: parsed.PROJECTION_KEY_PREFIX
@@ -123,6 +135,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     natsUrls,
     valkey: {
       addrs: valkeyAddrs,
+      sentinelMasterSet,
+      sentinelUsername: parsed.VALKEY_SENTINEL_USERNAME || undefined,
+      sentinelPassword: parsed.VALKEY_SENTINEL_PASSWORD || undefined,
       username: parsed.VALKEY_USERNAME || undefined,
       password: parsed.VALKEY_PASSWORD || undefined,
       keyPrefix: parsed.PROJECTION_KEY_PREFIX

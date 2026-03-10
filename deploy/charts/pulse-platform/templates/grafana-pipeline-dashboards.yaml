@@ -1,0 +1,696 @@
+{{- if .Values.components.observabilityLite.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-pipeline-overview
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-pipeline-overview.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (service, outcome) (rate(pulse_worker_messages_total{namespace=\"$namespace\"}[5m]) * on(pod, namespace) group_left() max by (pod, namespace) (kube_pod_status_phase{namespace=\"$namespace\",phase=\"Running\"} == 1))",
+              "legendFormat": "{{"{{"}}service{{"}}"}} {{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Worker Message Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, service) (rate(pulse_worker_process_duration_seconds_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}service{{"}}"}} p95",
+              "refId": "A"
+            }
+          ],
+          "title": "Worker Process Duration p95",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (service) (pulse_worker_inflight_messages{namespace=\"$namespace\"} * on(pod, namespace) group_left() max by (pod, namespace) (kube_pod_status_phase{namespace=\"$namespace\",phase=\"Running\"} == 1))",
+              "legendFormat": "{{"{{"}}service{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Inflight Worker Handlers",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "pulse_worker_last_flush_records{namespace=\"$namespace\",service=\"pulse-services-go-archive-metrics\"}",
+              "legendFormat": "records",
+              "refId": "A"
+            },
+            {
+              "expr": "pulse_worker_last_flush_bytes{namespace=\"$namespace\",service=\"pulse-services-go-archive-metrics\"}",
+              "legendFormat": "bytes",
+              "refId": "B"
+            }
+          ],
+          "title": "Archive Last Flush Size",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",pod=~\"pulse-services-go-(ingest|projection|rollup|archive|inference).*\",container!=\"\",image!=\"\"}[5m]))",
+              "legendFormat": "{{"{{"}}pod{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Pipeline Pod CPU",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\",pod=~\"pulse-services-go-(ingest|projection|rollup|archive|inference).*\",container!=\"\",image!=\"\"})",
+              "legendFormat": "{{"{{"}}pod{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Pipeline Pod Memory",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "pipeline"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "pulse-services", "value": "pulse-services"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "pulse-services",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "title": "Pulse Pipeline Overview",
+      "uid": "pulse-pipeline-overview",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-ingest-health
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-ingest-health.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "max(ingest_unassigned_active_devices{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Unassigned Active Devices",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+          "id": 2,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "max(ingest_reconcile_duration_p95_seconds{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Reconcile p95",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+          "id": 3,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "max(ingest_lease_acquire_latency_p95_seconds{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Lease Acquire p95",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 10, "w": 12, "x": 0, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "max(ingest_reconcile_duration_p95_seconds{namespace=\"$namespace\"})",
+              "legendFormat": "reconcile p95",
+              "refId": "A"
+            },
+            {
+              "expr": "max(ingest_poll_interval_seconds{namespace=\"$namespace\"})",
+              "legendFormat": "poll interval",
+              "refId": "B"
+            }
+          ],
+          "title": "Reconcile p95 vs Poll Interval",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 10, "w": 12, "x": 12, "y": 8},
+          "id": 5,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (outcome) (rate(pulse_worker_messages_total{namespace=\"$namespace\",service=\"pulse-services-go-ingest-metrics\"}[5m]) * on(pod, namespace) group_left() max by (pod, namespace) (kube_pod_status_phase{namespace=\"$namespace\",phase=\"Running\"} == 1))",
+              "legendFormat": "{{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Ingest Worker Message Outcomes",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "ingest"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "pulse-services", "value": "pulse-services"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "pulse-services",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "title": "Pulse Ingest Health",
+      "uid": "pulse-ingest-health",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-storage-history
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-storage-history.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (outcome) (rate(pulse_worker_messages_total{namespace=\"$namespace\",service=\"pulse-services-go-rollup-metrics\"}[5m]) * on(pod, namespace) group_left() max by (pod, namespace) (kube_pod_status_phase{namespace=\"$namespace\",phase=\"Running\"} == 1))",
+              "legendFormat": "{{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Rollup Message Outcomes",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (outcome) (rate(pulse_worker_messages_total{namespace=\"$namespace\",service=\"pulse-services-go-archive-metrics\"}[5m]) * on(pod, namespace) group_left() max by (pod, namespace) (kube_pod_status_phase{namespace=\"$namespace\",phase=\"Running\"} == 1))",
+              "legendFormat": "{{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Archive Message Outcomes",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(pulse_worker_flush_duration_seconds_bucket{namespace=\"$namespace\",service=\"pulse-services-go-archive-metrics\"}[5m])))",
+              "legendFormat": "archive flush p95",
+              "refId": "A"
+            }
+          ],
+          "title": "Archive Flush Duration p95",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "rate(pulse_worker_flush_total{namespace=\"$namespace\",service=\"pulse-services-go-archive-metrics\",outcome=\"success\"}[5m])",
+              "legendFormat": "archive flush success",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(pulse_worker_flush_total{namespace=\"$namespace\",service=\"pulse-services-go-archive-metrics\",outcome!=\"success\"}[5m])",
+              "legendFormat": "archive flush non-success",
+              "refId": "B"
+            }
+          ],
+          "title": "Archive Flush Outcome Rate",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "archive", "rollup"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "pulse-services", "value": "pulse-services"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "pulse-services",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "title": "Pulse Storage & History Pipeline",
+      "uid": "pulse-storage-history",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-grpc-slos
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-grpc-slos.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\",grpc_code=\"OK\"}[5m])) / sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m]))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}}",
+              "refId": "A"
+            },
+            {
+              "expr": "vector(0.999)",
+              "legendFormat": "99.9% target",
+              "refId": "B"
+            }
+          ],
+          "title": "Availability by gRPC Method",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, grpc_method) (rate(pulse_grpc_server_duration_seconds_bucket{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m])))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}} p95",
+              "refId": "A"
+            }
+          ],
+          "title": "Latency p95 by gRPC Method",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 6,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum by (le, grpc_method) (rate(pulse_grpc_server_duration_seconds_bucket{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m])))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}} p99",
+              "refId": "A"
+            }
+          ],
+          "title": "Latency p99 by gRPC Method",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 3,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (grpc_method, grpc_code) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\",grpc_code!=\"OK\"}[5m]))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}} {{"{{"}}grpc_code{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Errors by gRPC Method",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 4,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m]))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput by gRPC Method",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 7,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "1 - (sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\",grpc_code=\"OK\"}[5m])) / sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m])))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}} error budget burn",
+              "refId": "A"
+            },
+            {
+              "expr": "vector(0.001)",
+              "legendFormat": "0.1% error budget",
+              "refId": "B"
+            }
+          ],
+          "title": "Error Budget Consumption by Method",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 24},
+          "id": 5,
+          "options": {
+            "showHeader": true,
+            "sortBy": [{"desc": false, "displayName": "grpc_method"}]
+          },
+          "targets": [
+            {
+              "expr": "sum by (grpc_method, grpc_code) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m]))",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, grpc_method) (rate(pulse_grpc_server_duration_seconds_bucket{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m])))",
+              "format": "table",
+              "instant": true,
+              "refId": "B"
+            },
+            {
+              "expr": "sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\",grpc_code=\"OK\"}[5m])) / sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\"$grpc_method\"}[5m]))",
+              "format": "table",
+              "instant": true,
+              "refId": "C"
+            }
+          ],
+          "title": "gRPC SLO Summary",
+          "transformations": [
+            {
+              "id": "joinByField",
+              "options": {"byField": "grpc_method", "mode": "outer"}
+            }
+          ],
+          "type": "table"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "grpc", "slo"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "pulse-services", "value": "pulse-services"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "pulse-services",
+            "type": "constant"
+          },
+          {
+            "allValue": ".*",
+            "current": {"selected": true, "text": "All", "value": ".*"},
+            "datasource": {"type": "prometheus", "uid": "prometheus"},
+            "definition": "label_values(pulse_grpc_server_requests_total{namespace=\"$namespace\"}, grpc_method)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "gRPC Method",
+            "multi": true,
+            "name": "grpc_method",
+            "options": [],
+            "query": {"qryType": 1, "query": "label_values(pulse_grpc_server_requests_total{namespace=\"$namespace\"}, grpc_method)", "refId": "grpc_method"},
+            "refresh": 1,
+            "regex": "",
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "title": "Pulse gRPC SLOs",
+      "uid": "pulse-grpc-slos",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-platform-infra
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-platform-infra.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [{"expr": "sum(nats_connz_num_connections)", "refId": "A"}],
+          "title": "NATS Connections",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+          "id": 2,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [{"expr": "sum(redis_memory_used_bytes)", "refId": "A"}],
+          "title": "Valkey Memory Used",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+          "id": 3,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [{"expr": "sum(cnpg_collector_up)", "refId": "A"}],
+          "title": "CNPG Instances Up",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum(rate(nats_varz_in_msgs[5m]))", "legendFormat": "in msgs/s", "refId": "A"},
+            {"expr": "sum(rate(nats_varz_out_msgs[5m]))", "legendFormat": "out msgs/s", "refId": "B"}
+          ],
+          "title": "NATS Message Throughput",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 5,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (consumer_name) (nats_consumer_num_ack_pending)", "legendFormat": "{{"{{"}}consumer_name{{"}}"}}", "refId": "A"}
+          ],
+          "title": "NATS Consumer Ack Pending",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 6,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum(rate(redis_commands_processed_total[5m]))", "legendFormat": "commands/s", "refId": "A"},
+            {"expr": "sum(redis_connected_clients)", "legendFormat": "clients", "refId": "B"}
+          ],
+          "title": "Valkey Activity",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 7,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "max(cnpg_pg_replication_lag)", "legendFormat": "replication lag", "refId": "A"},
+            {"expr": "sum(cnpg_backends_waiting_total)", "legendFormat": "backends waiting", "refId": "B"}
+          ],
+          "title": "CNPG Replication & Waiting",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+          "id": 8,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_commit[5m]))", "legendFormat": "{{"{{"}}datname{{"}}"}} commits/s", "refId": "A"},
+            {"expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_rollback[5m]))", "legendFormat": "{{"{{"}}datname{{"}}"}} rollbacks/s", "refId": "B"}
+          ],
+          "title": "CNPG Transaction Throughput",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "infra", "nats", "valkey", "cnpg"],
+      "templating": {"list": []},
+      "time": {"from": "now-1h", "to": "now"},
+      "title": "Pulse Platform Infra",
+      "uid": "pulse-platform-infra",
+      "version": 1
+    }
+{{- end }}

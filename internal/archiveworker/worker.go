@@ -16,6 +16,7 @@ import (
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	"github.com/klauspost/compress/zstd"
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/proto"
@@ -227,6 +228,7 @@ type Worker struct {
 	failureAlerts *failureRateTracker
 	deduper       *recentEnvelopeDeduper
 	tracker       *telemetrybus.MsgHandlerTracker
+	metrics       *workermetrics.Metrics
 	mu            sync.Mutex
 }
 
@@ -275,6 +277,16 @@ func WithManifestStore(store ManifestStore) WorkerOption {
 			return errors.New("archive worker is not initialized")
 		}
 		w.manifestStore = store
+		return nil
+	}
+}
+
+func WithMetrics(metrics *workermetrics.Metrics) WorkerOption {
+	return func(w *Worker) error {
+		if w == nil {
+			return errors.New("archive worker is not initialized")
+		}
+		w.metrics = metrics
 		return nil
 	}
 }
@@ -384,8 +396,15 @@ func (w *Worker) processDelivery(_ context.Context, d delivery) error {
 	if d == nil {
 		return nil
 	}
+	finish := func(string) {}
+	if w.metrics != nil {
+		finish = w.metrics.StartMessage()
+	}
+	outcome := "buffered"
+	defer func() { finish(outcome) }()
 	var env envelopev1.TelemetryEnvelope
 	if err := proto.Unmarshal(d.Data(), &env); err != nil {
+		outcome = "termed_invalid_proto"
 		if termErr := d.Term(); termErr != nil {
 			w.log.Warn("archive term invalid envelope failed", slog.String("error", termErr.Error()))
 		}
@@ -400,6 +419,7 @@ func (w *Worker) processDelivery(_ context.Context, d delivery) error {
 
 	payload, err := proto.Marshal(&env)
 	if err != nil {
+		outcome = "termed_marshal_failed"
 		if termErr := d.Term(); termErr != nil {
 			w.log.Warn("archive term envelope with marshal failure failed", slog.String("error", termErr.Error()))
 		}
@@ -410,16 +430,19 @@ func (w *Worker) processDelivery(_ context.Context, d delivery) error {
 	defer w.mu.Unlock()
 	if dedupKey := archiveDedupKey(&env); dedupKey != "" {
 		if !w.deduper.Add(w.nowFn().UTC(), dedupKey) {
+			outcome = "acked_duplicate"
 			_ = d.Ack()
 			return nil
 		}
 	}
 	segment, err := w.segmentForKeyLocked(key)
 	if err != nil {
+		outcome = "nacked_segment_failed"
 		_ = d.Nak()
 		return err
 	}
 	if err := segment.append(payload, d, w.recordTimestampUnixMilli(&env), manifestRecordMetaFromEnvelope(&env)); err != nil {
+		outcome = "nacked_append_failed"
 		_ = d.Nak()
 		_ = w.dropSegmentLocked(segment)
 		return fmt.Errorf("append envelope to archive segment: %w", err)
@@ -430,8 +453,10 @@ func (w *Worker) processDelivery(_ context.Context, d delivery) error {
 		err := w.flushSegmentLocked(flushCtx, segment)
 		cancel()
 		if err != nil {
+			outcome = "nacked_flush_failed"
 			return err
 		}
+		outcome = "flushed"
 	}
 	return nil
 }
@@ -507,6 +532,7 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 	if segment == nil {
 		return nil
 	}
+	startedAt := time.Now()
 	defer func() {
 		delete(w.segments, segment.key.mapKey())
 	}()
@@ -517,6 +543,9 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 		ackErr := w.nakPending(segment.pending)
 		if ackErr != nil {
 			w.log.Warn("archive segment close failed and nak failed", slog.String("error", ackErr.Error()))
+		}
+		if w.metrics != nil {
+			w.metrics.ObserveFlush("nack_close_failed", time.Since(startedAt), segment.records, segment.buffer.Len())
 		}
 		return fmt.Errorf("close zstd encoder: %w", err)
 	}
@@ -547,6 +576,9 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 	}
 	if err := w.store.PutObject(ctx, req); err != nil {
 		_ = w.nakPending(segment.pending)
+		if w.metrics != nil {
+			w.metrics.ObserveFlush("nack_put_failed", time.Since(startedAt), segment.records, len(body))
+		}
 		return fmt.Errorf("write archive object %q: %w", objectKey, err)
 	}
 	if w.manifestStore != nil {
@@ -570,10 +602,16 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 		}
 		if err := w.manifestStore.UpsertObjectManifest(ctx, record); err != nil {
 			_ = w.nakPending(segment.pending)
+			if w.metrics != nil {
+				w.metrics.ObserveFlush("nack_manifest_failed", time.Since(startedAt), segment.records, len(body))
+			}
 			return fmt.Errorf("persist archive manifest %q: %w", objectKey, err)
 		}
 	}
 	_ = w.ackPending(segment.pending)
+	if w.metrics != nil {
+		w.metrics.ObserveFlush("success", time.Since(startedAt), segment.records, len(body))
+	}
 	return nil
 }
 
