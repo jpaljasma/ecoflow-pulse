@@ -38,6 +38,8 @@ const (
 	defaultObjectBucket         = "pulse-telemetry-raw"
 	defaultObjectPrefix         = "raw"
 	defaultStreamName           = "PULSE_TELEMETRY_INGEST"
+	defaultDedupWindow          = 30 * time.Minute
+	defaultDedupMaxEntries      = 250_000
 )
 
 type Config struct {
@@ -62,6 +64,8 @@ type Config struct {
 	ObjectPrefix      string
 	WriterID          string
 	ZstdEncoderLevel  int
+	DedupWindow       time.Duration
+	DedupMaxEntries   int
 }
 
 type SubjectConfig = telemetrybus.SubjectConfig
@@ -92,6 +96,8 @@ func DefaultConfig() Config {
 		ObjectPrefix:          defaultObjectPrefix,
 		WriterID:              defaultWriterID(),
 		ZstdEncoderLevel:      3,
+		DedupWindow:           defaultDedupWindow,
+		DedupMaxEntries:       defaultDedupMaxEntries,
 	}
 }
 
@@ -139,6 +145,12 @@ func (c Config) normalized() Config {
 	}
 	if out.MaxBytesPerPart <= 0 {
 		out.MaxBytesPerPart = defaultMaxBytes
+	}
+	if out.DedupWindow <= 0 {
+		out.DedupWindow = defaultDedupWindow
+	}
+	if out.DedupMaxEntries <= 0 {
+		out.DedupMaxEntries = defaultDedupMaxEntries
 	}
 	if strings.TrimSpace(out.ObjectBucket) == "" {
 		out.ObjectBucket = defaultObjectBucket
@@ -213,6 +225,7 @@ type Worker struct {
 	segments      map[string]*archiveSegment
 	partCounts    map[string]int
 	failureAlerts *failureRateTracker
+	deduper       *recentEnvelopeDeduper
 	mu            sync.Mutex
 }
 
@@ -235,6 +248,7 @@ func New(log *slog.Logger, conn *nats.Conn, store ObjectStore, cfg Config, optio
 		nowFn:      time.Now,
 		segments:   make(map[string]*archiveSegment),
 		partCounts: make(map[string]int),
+		deduper:    newRecentEnvelopeDeduper(cfg.DedupWindow, cfg.DedupMaxEntries),
 		failureAlerts: newFailureRateTracker(
 			cfg.FailureAlertWindow,
 			cfg.FailureAlertThreshold,
@@ -306,6 +320,8 @@ func (w *Worker) Run(ctx context.Context) error {
 		slog.Duration("flush_interval", w.cfg.FlushInterval),
 		slog.Int("max_records_per_part", w.cfg.MaxRecordsPerPart),
 		slog.Int("max_bytes_per_part", w.cfg.MaxBytesPerPart),
+		slog.Duration("dedup_window", w.cfg.DedupWindow),
+		slog.Int("dedup_max_entries", w.cfg.DedupMaxEntries),
 	)
 
 	<-ctx.Done()
@@ -390,6 +406,12 @@ func (w *Worker) processDelivery(_ context.Context, d delivery) error {
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if dedupKey := archiveDedupKey(&env); dedupKey != "" {
+		if !w.deduper.Add(w.nowFn().UTC(), dedupKey) {
+			_ = d.Ack()
+			return nil
+		}
+	}
 	segment, err := w.segmentForKeyLocked(key)
 	if err != nil {
 		_ = d.Nak()
