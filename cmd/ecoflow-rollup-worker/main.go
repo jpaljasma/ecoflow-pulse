@@ -63,18 +63,7 @@ func main() {
 	}
 	defer natsConn.Close()
 
-	cfg := rollupworker.DefaultConfig()
-	cfg.SubjectConfig = rollupworker.SubjectConfig{
-		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
-		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
-	}
-	cfg.StreamName = runtimecfg.EnvOrDefault("ROLLUP_INGEST_STREAM_NAME", cfg.StreamName)
-	cfg.Durable = runtimecfg.EnvOrDefault("ROLLUP_CONSUMER_DURABLE", cfg.Durable)
-	cfg.QueueGroup = runtimecfg.EnvOrDefault("ROLLUP_QUEUE_GROUP", cfg.QueueGroup)
-	cfg.AckWait = runtimecfg.DurationPositive("ROLLUP_ACK_WAIT", cfg.AckWait)
-	cfg.MaxAckPending = runtimecfg.IntMin("ROLLUP_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
-	cfg.ProcessTimeout = runtimecfg.DurationPositive("ROLLUP_PROCESS_TIMEOUT", cfg.ProcessTimeout)
-	cfg.DrainTimeout = runtimecfg.DurationPositive("ROLLUP_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	cfg := loadRollupWorkerConfigFromEnv()
 
 	worker, err := rollupworker.New(log, natsConn, store, cfg)
 	if err != nil {
@@ -110,4 +99,20 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("rollup worker stopped")
+}
+
+func loadRollupWorkerConfigFromEnv() rollupworker.Config {
+	cfg := rollupworker.DefaultConfig()
+	cfg.SubjectConfig = rollupworker.SubjectConfig{
+		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+	}
+	cfg.StreamName = runtimecfg.EnvOrDefault("ROLLUP_INGEST_STREAM_NAME", cfg.StreamName)
+	cfg.Durable = runtimecfg.EnvOrDefault("ROLLUP_CONSUMER_DURABLE", cfg.Durable)
+	cfg.QueueGroup = runtimecfg.EnvOrDefault("ROLLUP_QUEUE_GROUP", cfg.QueueGroup)
+	cfg.AckWait = runtimecfg.DurationPositive("ROLLUP_ACK_WAIT", cfg.AckWait)
+	cfg.MaxAckPending = runtimecfg.IntMin("ROLLUP_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
+	cfg.ProcessTimeout = runtimecfg.DurationPositive("ROLLUP_PROCESS_TIMEOUT", cfg.ProcessTimeout)
+	cfg.DrainTimeout = runtimecfg.DurationPositive("ROLLUP_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	return cfg
 }

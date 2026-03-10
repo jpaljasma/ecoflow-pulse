@@ -160,6 +160,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Keep stress race checks opt-in (manual) and avoid making them mandatory per-PR unless explicitly requested by maintainers.
 5. Do not reuse package-level mutable maps/slices in gRPC fallback responses; clone shared defaults per request so concurrent RPCs never share writable state.
 6. For bounded async worker queues, shutdown must signal cancellation/closed state before or alongside channel close so concurrent `Publish`/`Close` paths cannot panic or hang on send/close races.
+7. For JetStream worker shutdown, do not spawn timeout-abandoned `sub.Drain()` goroutines; stop new deliveries first and wait on explicit in-flight handler tracking with a bounded timeout.
+8. When exposing queue-depth telemetry for async pipelines, prefer a single source of truth (for example the buffered channel length) over separate producer/consumer depth counters that can race under load.
+9. Every Go program under `cmd/` should keep at least one regression test covering real bootstrap behavior (for example env/config parsing, argument normalization, or helper logic); do not leave main packages completely untested.
+10. When a package owns a hot request/worker path, keep at least one benchmark in that package and update it when the hot path changes materially.
 
 ## Service Logging Throughput Rules
 1. All long-running services/workers and operational CLIs must use `pkg/logger` (`BuildServiceLogger`) for consistent structured logging behavior.

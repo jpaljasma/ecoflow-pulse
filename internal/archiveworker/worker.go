@@ -226,6 +226,7 @@ type Worker struct {
 	partCounts    map[string]int
 	failureAlerts *failureRateTracker
 	deduper       *recentEnvelopeDeduper
+	tracker       *telemetrybus.MsgHandlerTracker
 	mu            sync.Mutex
 }
 
@@ -249,6 +250,7 @@ func New(log *slog.Logger, conn *nats.Conn, store ObjectStore, cfg Config, optio
 		segments:   make(map[string]*archiveSegment),
 		partCounts: make(map[string]int),
 		deduper:    newRecentEnvelopeDeduper(cfg.DedupWindow, cfg.DedupMaxEntries),
+		tracker:    telemetrybus.NewMsgHandlerTracker(),
 		failureAlerts: newFailureRateTracker(
 			cfg.FailureAlertWindow,
 			cfg.FailureAlertThreshold,
@@ -282,7 +284,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("init jetstream context: %w", err)
 	}
-	sub, err := w.subscribe(js, w.handleMessage)
+	sub, err := w.subscribe(js, w.tracker.Wrap(w.handleMessage))
 	if err != nil {
 		return fmt.Errorf("subscribe archive consumer: %w", err)
 	}
@@ -590,17 +592,11 @@ func (w *Worker) drainSubscription(sub *nats.Subscription) {
 	if sub == nil {
 		return
 	}
-	drainCtx, cancel := context.WithTimeout(context.Background(), w.cfg.DrainTimeout)
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		_ = sub.Drain()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-drainCtx.Done():
-		_ = sub.Unsubscribe()
+	if err := sub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrBadSubscription) {
+		w.log.Warn("archive unsubscribe failed", slog.String("error", err.Error()))
+	}
+	if !w.tracker.WaitForIdle(w.cfg.DrainTimeout) {
+		w.log.Warn("archive handler drain timeout")
 	}
 }
 

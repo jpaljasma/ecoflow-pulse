@@ -88,18 +88,7 @@ func main() {
 	}
 	defer natsConn.Close()
 
-	cfg := inference.DefaultWorkerConfig()
-	cfg.SubjectConfig = inference.SubjectConfig{
-		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
-		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
-	}
-	cfg.StreamName = runtimecfg.EnvOrDefault("INFERENCE_INGEST_STREAM_NAME", cfg.StreamName)
-	cfg.Durable = runtimecfg.EnvOrDefault("INFERENCE_CONSUMER_DURABLE", cfg.Durable)
-	cfg.QueueGroup = runtimecfg.EnvOrDefault("INFERENCE_QUEUE_GROUP", cfg.QueueGroup)
-	cfg.AckWait = runtimecfg.DurationPositive("INFERENCE_ACK_WAIT", cfg.AckWait)
-	cfg.MaxAckPending = runtimecfg.IntMin("INFERENCE_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
-	cfg.ProcessTimeout = runtimecfg.DurationPositive("INFERENCE_PROCESS_TIMEOUT", cfg.ProcessTimeout)
-	cfg.DrainTimeout = runtimecfg.DurationPositive("INFERENCE_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	cfg := loadInferenceWorkerConfigFromEnv()
 
 	worker, err := inference.NewWorker(log, natsConn, store, resolver, cfg)
 	if err != nil {
@@ -136,4 +125,20 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("inference worker stopped")
+}
+
+func loadInferenceWorkerConfigFromEnv() inference.Config {
+	cfg := inference.DefaultWorkerConfig()
+	cfg.SubjectConfig = inference.SubjectConfig{
+		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+	}
+	cfg.StreamName = runtimecfg.EnvOrDefault("INFERENCE_INGEST_STREAM_NAME", cfg.StreamName)
+	cfg.Durable = runtimecfg.EnvOrDefault("INFERENCE_CONSUMER_DURABLE", cfg.Durable)
+	cfg.QueueGroup = runtimecfg.EnvOrDefault("INFERENCE_QUEUE_GROUP", cfg.QueueGroup)
+	cfg.AckWait = runtimecfg.DurationPositive("INFERENCE_ACK_WAIT", cfg.AckWait)
+	cfg.MaxAckPending = runtimecfg.IntMin("INFERENCE_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
+	cfg.ProcessTimeout = runtimecfg.DurationPositive("INFERENCE_PROCESS_TIMEOUT", cfg.ProcessTimeout)
+	cfg.DrainTimeout = runtimecfg.DurationPositive("INFERENCE_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	return cfg
 }

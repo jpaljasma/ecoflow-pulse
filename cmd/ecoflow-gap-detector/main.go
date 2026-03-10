@@ -131,23 +131,7 @@ func main() {
 		}
 	}()
 
-	cfg := gaprepair.DefaultDetectorConfig()
-	cfg.ProviderFilter = controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("GAP_REPAIR_PROVIDER")))
-	cfg.PollInterval = runtimecfg.DurationPositive("GAP_REPAIR_POLL_INTERVAL", cfg.PollInterval)
-	cfg.PollJitter = runtimecfg.Float64NonNegative("GAP_REPAIR_POLL_JITTER", cfg.PollJitter)
-	cfg.LookbackWindow = runtimecfg.DurationPositive("GAP_REPAIR_LOOKBACK_WINDOW", cfg.LookbackWindow)
-	cfg.LagThreshold = runtimecfg.DurationPositive("GAP_REPAIR_LAG_THRESHOLD", cfg.LagThreshold)
-	cfg.LagAlertWindow = runtimecfg.DurationPositive("GAP_REPAIR_LAG_ALERT_WINDOW", cfg.LagAlertWindow)
-	cfg.LagAlertThreshold = runtimecfg.IntPositive("GAP_REPAIR_LAG_ALERT_THRESHOLD", cfg.LagAlertThreshold)
-	cfg.LagAlertCooldown = runtimecfg.DurationPositive("GAP_REPAIR_LAG_ALERT_COOLDOWN", cfg.LagAlertCooldown)
-	cfg.WindowPadding = runtimecfg.DurationNonNegative("GAP_REPAIR_WINDOW_PADDING", cfg.WindowPadding)
-	cfg.MaxReplayWindow = runtimecfg.DurationPositive("GAP_REPAIR_MAX_REPLAY_WINDOW", cfg.MaxReplayWindow)
-	cfg.SafeDelay = runtimecfg.DurationNonNegative("GAP_REPAIR_SAFE_DELAY", cfg.SafeDelay)
-	cfg.MaxObjectsPerJob = runtimecfg.IntMin("GAP_REPAIR_MAX_OBJECTS_PER_JOB", cfg.MaxObjectsPerJob, 0)
-	cfg.MaxJobsPerCycle = runtimecfg.IntMin("GAP_REPAIR_MAX_JOBS_PER_CYCLE", cfg.MaxJobsPerCycle, 1)
-	cfg.EvaluationWorkers = runtimecfg.IntMin("GAP_REPAIR_EVAL_WORKERS", cfg.EvaluationWorkers, 1)
-	cfg.SubjectShardCount = subjectCfg.ShardCount
-	cfg.DryRun = runtimecfg.Bool("GAP_REPAIR_DRY_RUN", false)
+	cfg := loadGapDetectorConfigFromEnv(subjectCfg)
 
 	if cfg.EvaluationWorkers <= 0 {
 		cfg.EvaluationWorkers = minInt(maxInt(runtime.GOMAXPROCS(0)*2, 16), 64)
@@ -202,6 +186,27 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func loadGapDetectorConfigFromEnv(subjectCfg telemetrybus.SubjectConfig) gaprepair.DetectorConfig {
+	cfg := gaprepair.DefaultDetectorConfig()
+	cfg.ProviderFilter = controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("GAP_REPAIR_PROVIDER")))
+	cfg.PollInterval = runtimecfg.DurationPositive("GAP_REPAIR_POLL_INTERVAL", cfg.PollInterval)
+	cfg.PollJitter = runtimecfg.Float64NonNegative("GAP_REPAIR_POLL_JITTER", cfg.PollJitter)
+	cfg.LookbackWindow = runtimecfg.DurationPositive("GAP_REPAIR_LOOKBACK_WINDOW", cfg.LookbackWindow)
+	cfg.LagThreshold = runtimecfg.DurationPositive("GAP_REPAIR_LAG_THRESHOLD", cfg.LagThreshold)
+	cfg.LagAlertWindow = runtimecfg.DurationPositive("GAP_REPAIR_LAG_ALERT_WINDOW", cfg.LagAlertWindow)
+	cfg.LagAlertThreshold = runtimecfg.IntPositive("GAP_REPAIR_LAG_ALERT_THRESHOLD", cfg.LagAlertThreshold)
+	cfg.LagAlertCooldown = runtimecfg.DurationPositive("GAP_REPAIR_LAG_ALERT_COOLDOWN", cfg.LagAlertCooldown)
+	cfg.WindowPadding = runtimecfg.DurationNonNegative("GAP_REPAIR_WINDOW_PADDING", cfg.WindowPadding)
+	cfg.MaxReplayWindow = runtimecfg.DurationPositive("GAP_REPAIR_MAX_REPLAY_WINDOW", cfg.MaxReplayWindow)
+	cfg.SafeDelay = runtimecfg.DurationNonNegative("GAP_REPAIR_SAFE_DELAY", cfg.SafeDelay)
+	cfg.MaxObjectsPerJob = runtimecfg.IntMin("GAP_REPAIR_MAX_OBJECTS_PER_JOB", cfg.MaxObjectsPerJob, 0)
+	cfg.MaxJobsPerCycle = runtimecfg.IntMin("GAP_REPAIR_MAX_JOBS_PER_CYCLE", cfg.MaxJobsPerCycle, 1)
+	cfg.EvaluationWorkers = runtimecfg.IntMin("GAP_REPAIR_EVAL_WORKERS", cfg.EvaluationWorkers, 1)
+	cfg.SubjectShardCount = subjectCfg.ShardCount
+	cfg.DryRun = runtimecfg.Bool("GAP_REPAIR_DRY_RUN", false)
+	return cfg
 }
 
 func maxInt(a, b int) int {

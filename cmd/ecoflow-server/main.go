@@ -12,6 +12,23 @@ import (
 )
 
 func main() {
+	cfg := loadServerConfigFromEnv()
+
+	server, err := ecoflowserver.New(cfg)
+	if err != nil {
+		log.Fatalf("server initialization failed: %v", err)
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	log.Printf("ecoflow server listening on %s", cfg.Address)
+	if err := server.ListenAndServe(ctx); err != nil && err != context.Canceled {
+		log.Fatalf("server stopped with error: %v", err)
+	}
+}
+
+func loadServerConfigFromEnv() ecoflowserver.Config {
 	cfg := ecoflowserver.DefaultConfig()
 	if addr := os.Getenv("ECOFLOW_SERVER_ADDR"); addr != "" {
 		cfg.Address = addr
@@ -41,17 +58,5 @@ func main() {
 			cfg.Compression.ZstdLevel = value
 		}
 	}
-
-	server, err := ecoflowserver.New(cfg)
-	if err != nil {
-		log.Fatalf("server initialization failed: %v", err)
-	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-
-	log.Printf("ecoflow server listening on %s", cfg.Address)
-	if err := server.ListenAndServe(ctx); err != nil && err != context.Canceled {
-		log.Fatalf("server stopped with error: %v", err)
-	}
+	return cfg
 }

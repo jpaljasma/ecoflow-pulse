@@ -87,6 +87,7 @@ type Worker struct {
 	resolver  DeviceContextResolver
 	cfg       Config
 	subscribe func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
+	tracker   *telemetrybus.MsgHandlerTracker
 }
 
 func NewWorker(log *slog.Logger, conn *nats.Conn, store Store, resolver DeviceContextResolver, cfg Config) (*Worker, error) {
@@ -109,6 +110,7 @@ func NewWorker(log *slog.Logger, conn *nats.Conn, store Store, resolver DeviceCo
 		store:    store,
 		resolver: resolver,
 		cfg:      cfg,
+		tracker:  telemetrybus.NewMsgHandlerTracker(),
 	}
 	w.subscribe = w.defaultSubscribe
 	return w, nil
@@ -119,22 +121,16 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("init jetstream context: %w", err)
 	}
-	sub, err := w.subscribe(js, w.handleMessage)
+	sub, err := w.subscribe(js, w.tracker.Wrap(w.handleMessage))
 	if err != nil {
 		return fmt.Errorf("subscribe inference consumer: %w", err)
 	}
 	defer func() {
-		drainCtx, cancel := context.WithTimeout(context.Background(), w.cfg.DrainTimeout)
-		defer cancel()
-		done := make(chan struct{})
-		go func() {
-			_ = sub.Drain()
-			close(done)
-		}()
-		select {
-		case <-done:
-		case <-drainCtx.Done():
-			_ = sub.Unsubscribe()
+		if err := sub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrBadSubscription) {
+			w.log.Warn("inference unsubscribe failed", slog.String("error", err.Error()))
+		}
+		if !w.tracker.WaitForIdle(w.cfg.DrainTimeout) {
+			w.log.Warn("inference handler drain timeout")
 		}
 	}()
 

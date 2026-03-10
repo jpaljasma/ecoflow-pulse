@@ -116,18 +116,7 @@ func main() {
 	}
 	defer func() { _ = runner.Close() }()
 
-	cfg := gaprepair.DefaultWorkerConfig()
-	cfg.StreamName = runtimecfg.EnvOrDefault("GAP_REPAIR_STREAM_NAME", cfg.StreamName)
-	cfg.Durable = runtimecfg.EnvOrDefault("GAP_REPAIR_CONSUMER_DURABLE", cfg.Durable)
-	cfg.QueueGroup = runtimecfg.EnvOrDefault("GAP_REPAIR_QUEUE_GROUP", cfg.QueueGroup)
-	cfg.AckWait = runtimecfg.DurationPositive("GAP_REPAIR_ACK_WAIT", cfg.AckWait)
-	cfg.MaxAckPending = runtimecfg.IntMin("GAP_REPAIR_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
-	cfg.ProcessTimeout = runtimecfg.DurationPositive("GAP_REPAIR_PROCESS_TIMEOUT", cfg.ProcessTimeout)
-	cfg.DrainTimeout = runtimecfg.DurationPositive("GAP_REPAIR_DRAIN_TIMEOUT", cfg.DrainTimeout)
-	cfg.DefaultMaxObjects = runtimecfg.IntMin("GAP_REPAIR_DEFAULT_MAX_OBJECTS", cfg.DefaultMaxObjects, 0)
-	cfg.ReplayFailureAlertWindow = runtimecfg.DurationPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_WINDOW", cfg.ReplayFailureAlertWindow)
-	cfg.ReplayFailureAlertThreshold = runtimecfg.IntPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_THRESHOLD", cfg.ReplayFailureAlertThreshold)
-	cfg.ReplayFailureAlertCooldown = runtimecfg.DurationPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_COOLDOWN", cfg.ReplayFailureAlertCooldown)
+	cfg := loadGapRepairWorkerConfigFromEnv()
 
 	worker, err := gaprepair.NewWorker(log, natsConn, runner, cfg)
 	if err != nil {
@@ -167,4 +156,20 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("gap-repair worker stopped")
+}
+
+func loadGapRepairWorkerConfigFromEnv() gaprepair.WorkerConfig {
+	cfg := gaprepair.DefaultWorkerConfig()
+	cfg.StreamName = runtimecfg.EnvOrDefault("GAP_REPAIR_STREAM_NAME", cfg.StreamName)
+	cfg.Durable = runtimecfg.EnvOrDefault("GAP_REPAIR_CONSUMER_DURABLE", cfg.Durable)
+	cfg.QueueGroup = runtimecfg.EnvOrDefault("GAP_REPAIR_QUEUE_GROUP", cfg.QueueGroup)
+	cfg.AckWait = runtimecfg.DurationPositive("GAP_REPAIR_ACK_WAIT", cfg.AckWait)
+	cfg.MaxAckPending = runtimecfg.IntMin("GAP_REPAIR_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
+	cfg.ProcessTimeout = runtimecfg.DurationPositive("GAP_REPAIR_PROCESS_TIMEOUT", cfg.ProcessTimeout)
+	cfg.DrainTimeout = runtimecfg.DurationPositive("GAP_REPAIR_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	cfg.DefaultMaxObjects = runtimecfg.IntMin("GAP_REPAIR_DEFAULT_MAX_OBJECTS", cfg.DefaultMaxObjects, 0)
+	cfg.ReplayFailureAlertWindow = runtimecfg.DurationPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_WINDOW", cfg.ReplayFailureAlertWindow)
+	cfg.ReplayFailureAlertThreshold = runtimecfg.IntPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_THRESHOLD", cfg.ReplayFailureAlertThreshold)
+	cfg.ReplayFailureAlertCooldown = runtimecfg.DurationPositive("GAP_REPAIR_REPLAY_FAILURE_ALERT_COOLDOWN", cfg.ReplayFailureAlertCooldown)
+	return cfg
 }

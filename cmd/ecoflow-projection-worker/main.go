@@ -68,18 +68,7 @@ func main() {
 	}
 	defer natsConn.Close()
 
-	cfg := projectionworker.DefaultConfig()
-	cfg.SubjectConfig = projectionworker.SubjectConfig{
-		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
-		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
-	}
-	cfg.StreamName = runtimecfg.EnvOrDefault("PROJECTION_INGEST_STREAM_NAME", cfg.StreamName)
-	cfg.Durable = runtimecfg.EnvOrDefault("PROJECTION_CONSUMER_DURABLE", cfg.Durable)
-	cfg.QueueGroup = runtimecfg.EnvOrDefault("PROJECTION_QUEUE_GROUP", cfg.QueueGroup)
-	cfg.AckWait = runtimecfg.DurationPositive("PROJECTION_ACK_WAIT", cfg.AckWait)
-	cfg.MaxAckPending = runtimecfg.IntMin("PROJECTION_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
-	cfg.ProcessTimeout = runtimecfg.DurationPositive("PROJECTION_PROCESS_TIMEOUT", cfg.ProcessTimeout)
-	cfg.DrainTimeout = runtimecfg.DurationPositive("PROJECTION_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	cfg := loadProjectionWorkerConfigFromEnv()
 
 	worker, err := projectionworker.New(log, natsConn, snapshotStore, cfg)
 	if err != nil {
@@ -114,4 +103,20 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("projection worker stopped")
+}
+
+func loadProjectionWorkerConfigFromEnv() projectionworker.Config {
+	cfg := projectionworker.DefaultConfig()
+	cfg.SubjectConfig = projectionworker.SubjectConfig{
+		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+	}
+	cfg.StreamName = runtimecfg.EnvOrDefault("PROJECTION_INGEST_STREAM_NAME", cfg.StreamName)
+	cfg.Durable = runtimecfg.EnvOrDefault("PROJECTION_CONSUMER_DURABLE", cfg.Durable)
+	cfg.QueueGroup = runtimecfg.EnvOrDefault("PROJECTION_QUEUE_GROUP", cfg.QueueGroup)
+	cfg.AckWait = runtimecfg.DurationPositive("PROJECTION_ACK_WAIT", cfg.AckWait)
+	cfg.MaxAckPending = runtimecfg.IntMin("PROJECTION_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
+	cfg.ProcessTimeout = runtimecfg.DurationPositive("PROJECTION_PROCESS_TIMEOUT", cfg.ProcessTimeout)
+	cfg.DrainTimeout = runtimecfg.DurationPositive("PROJECTION_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	return cfg
 }

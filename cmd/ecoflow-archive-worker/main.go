@@ -61,34 +61,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg := archiveworker.DefaultConfig()
-	cfg.SubjectConfig = archiveworker.SubjectConfig{
-		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
-		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
-	}
-	cfg.StreamName = runtimecfg.EnvOrDefault("ARCHIVE_INGEST_STREAM_NAME", cfg.StreamName)
-	cfg.Durable = runtimecfg.EnvOrDefault("ARCHIVE_CONSUMER_DURABLE", cfg.Durable)
-	cfg.QueueGroup = runtimecfg.EnvOrDefault("ARCHIVE_QUEUE_GROUP", cfg.QueueGroup)
-	cfg.AckWait = runtimecfg.DurationPositive("ARCHIVE_ACK_WAIT", cfg.AckWait)
-	cfg.MaxAckPending = runtimecfg.IntMin("ARCHIVE_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
-	cfg.ProcessTimeout = runtimecfg.DurationPositive("ARCHIVE_PROCESS_TIMEOUT", cfg.ProcessTimeout)
-	cfg.DrainTimeout = runtimecfg.DurationPositive("ARCHIVE_DRAIN_TIMEOUT", cfg.DrainTimeout)
-	cfg.FailureAlertWindow = runtimecfg.DurationPositive("ARCHIVE_FAILURE_ALERT_WINDOW", cfg.FailureAlertWindow)
-	cfg.FailureAlertThreshold = runtimecfg.IntPositive("ARCHIVE_FAILURE_ALERT_THRESHOLD", cfg.FailureAlertThreshold)
-	cfg.FailureAlertCooldown = runtimecfg.DurationPositive("ARCHIVE_FAILURE_ALERT_COOLDOWN", cfg.FailureAlertCooldown)
-	cfg.FlushInterval = runtimecfg.DurationPositive("ARCHIVE_FLUSH_INTERVAL", cfg.FlushInterval)
-	cfg.FlushTimeout = runtimecfg.DurationPositive("ARCHIVE_FLUSH_TIMEOUT", cfg.FlushTimeout)
-	cfg.MaxRecordsPerPart = runtimecfg.IntMin("ARCHIVE_MAX_RECORDS_PER_PART", cfg.MaxRecordsPerPart, 1)
-	cfg.MaxBytesPerPart = runtimecfg.IntMin("ARCHIVE_MAX_BYTES_PER_PART", cfg.MaxBytesPerPart, 1024)
-	cfg.ObjectBucket = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_BUCKET", cfg.ObjectBucket)
-	cfg.ObjectPrefix = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PREFIX", cfg.ObjectPrefix)
-	cfg.WriterID = runtimecfg.EnvOrDefault("ARCHIVE_WRITER_ID", cfg.WriterID)
-	cfg.ZstdEncoderLevel = runtimecfg.IntAny("ARCHIVE_ZSTD_LEVEL", cfg.ZstdEncoderLevel)
+	cfg := loadArchiveWorkerConfigFromEnv()
 
-	manifestDSN := strings.TrimSpace(os.Getenv("ARCHIVE_MANIFEST_DB_DSN"))
-	if manifestDSN == "" {
-		manifestDSN = strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
-	}
+	manifestDSN := resolveArchiveManifestDSN()
 	var manifestStore archiveworker.ManifestStore
 	if manifestDSN != "" {
 		manifestStore, err = archiveworker.NewPostgresManifestStore(manifestDSN)
@@ -147,4 +122,39 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("archive worker stopped")
+}
+
+func loadArchiveWorkerConfigFromEnv() archiveworker.Config {
+	cfg := archiveworker.DefaultConfig()
+	cfg.SubjectConfig = archiveworker.SubjectConfig{
+		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+	}
+	cfg.StreamName = runtimecfg.EnvOrDefault("ARCHIVE_INGEST_STREAM_NAME", cfg.StreamName)
+	cfg.Durable = runtimecfg.EnvOrDefault("ARCHIVE_CONSUMER_DURABLE", cfg.Durable)
+	cfg.QueueGroup = runtimecfg.EnvOrDefault("ARCHIVE_QUEUE_GROUP", cfg.QueueGroup)
+	cfg.AckWait = runtimecfg.DurationPositive("ARCHIVE_ACK_WAIT", cfg.AckWait)
+	cfg.MaxAckPending = runtimecfg.IntMin("ARCHIVE_MAX_ACK_PENDING", cfg.MaxAckPending, 1)
+	cfg.ProcessTimeout = runtimecfg.DurationPositive("ARCHIVE_PROCESS_TIMEOUT", cfg.ProcessTimeout)
+	cfg.DrainTimeout = runtimecfg.DurationPositive("ARCHIVE_DRAIN_TIMEOUT", cfg.DrainTimeout)
+	cfg.FailureAlertWindow = runtimecfg.DurationPositive("ARCHIVE_FAILURE_ALERT_WINDOW", cfg.FailureAlertWindow)
+	cfg.FailureAlertThreshold = runtimecfg.IntPositive("ARCHIVE_FAILURE_ALERT_THRESHOLD", cfg.FailureAlertThreshold)
+	cfg.FailureAlertCooldown = runtimecfg.DurationPositive("ARCHIVE_FAILURE_ALERT_COOLDOWN", cfg.FailureAlertCooldown)
+	cfg.FlushInterval = runtimecfg.DurationPositive("ARCHIVE_FLUSH_INTERVAL", cfg.FlushInterval)
+	cfg.FlushTimeout = runtimecfg.DurationPositive("ARCHIVE_FLUSH_TIMEOUT", cfg.FlushTimeout)
+	cfg.MaxRecordsPerPart = runtimecfg.IntMin("ARCHIVE_MAX_RECORDS_PER_PART", cfg.MaxRecordsPerPart, 1)
+	cfg.MaxBytesPerPart = runtimecfg.IntMin("ARCHIVE_MAX_BYTES_PER_PART", cfg.MaxBytesPerPart, 1024)
+	cfg.ObjectBucket = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_BUCKET", cfg.ObjectBucket)
+	cfg.ObjectPrefix = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PREFIX", cfg.ObjectPrefix)
+	cfg.WriterID = runtimecfg.EnvOrDefault("ARCHIVE_WRITER_ID", cfg.WriterID)
+	cfg.ZstdEncoderLevel = runtimecfg.IntAny("ARCHIVE_ZSTD_LEVEL", cfg.ZstdEncoderLevel)
+	return cfg
+}
+
+func resolveArchiveManifestDSN() string {
+	manifestDSN := strings.TrimSpace(os.Getenv("ARCHIVE_MANIFEST_DB_DSN"))
+	if manifestDSN == "" {
+		manifestDSN = strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
+	}
+	return manifestDSN
 }
