@@ -145,7 +145,9 @@ This keeps ownership aligned with the actual deployment boundary:
 ---
 
 ## Follow-ups
-- [ ] Add an HTTP/3-capable client verification step to local automation when a
+- [x] Add an HTTP/3-capable client verification step to local automation when a
   suitable tool is available in the repo/toolchain.
+  - [x] Added `make edge-verify-http3-local` with explicit preflight for `curl -V` `Features: HTTP3`, local HTTP/3 service presence, `Alt-Svc` advertising, and `curl --http3-only` verification.
+  - [x] Validation evidence (2026-03-10): `make edge-verify-http3-local` failed fast with `curl is installed, but the linked libcurl lacks HTTP/3 support; install an HTTP/3-capable curl before running this check.`
 - [ ] Decide whether dev/GKE should enable HTTP/3 by default or keep it opt-in
   per environment.

@@ -153,7 +153,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -735,6 +735,38 @@ local-trust-platform-tls-system:
 	echo "adding CA certificate to System keychain trust store (admin password may be required)"; \
 	sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$$tmp_cert"; \
 	echo "trusted localhost TLS CA for pulse-platform in System keychain"
+
+edge-verify-http3-local:
+	@set -euo pipefail; \
+	if ! command -v curl >/dev/null 2>&1; then \
+		echo "curl not found. Install a curl build with HTTP/3 support."; \
+		exit 1; \
+	fi; \
+	if ! curl -V 2>/dev/null | grep -q 'Features:.*HTTP3'; then \
+		echo "curl is installed, but the linked libcurl lacks HTTP/3 support; install an HTTP/3-capable curl before running this check."; \
+		exit 1; \
+	fi; \
+	if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi; \
+	url="$${HTTP3_VERIFY_URL:-https://localhost}"; \
+	echo "verifying local HTTP/3 edge at $$url"; \
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get svc $(PLATFORM_RELEASE)-public-edge-http3 >/dev/null 2>&1 || { \
+		echo "service/$(PLATFORM_RELEASE)-public-edge-http3 not found in $(PLATFORM_NAMESPACE); local HTTP/3 appears disabled"; \
+		exit 1; \
+	}; \
+	headers="$$(curl --http2 -sS -I "$$url")"; \
+	printf '%s\n' "$$headers" | grep -qi '^alt-svc: .*h3=' || { \
+		echo "Alt-Svc h3 advertisement missing from $$url"; \
+		exit 1; \
+	}; \
+	version="$$(curl --http3-only -sS -o /dev/null -w '%{http_version}' "$$url")"; \
+	if [ "$$version" != "3" ]; then \
+		echo "expected curl HTTP version 3, got $$version"; \
+		exit 1; \
+	fi; \
+	echo "verified HTTP/3 via curl (--http3-only) and Alt-Svc on $$url"
 
 services-up: helm-local-ready
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
