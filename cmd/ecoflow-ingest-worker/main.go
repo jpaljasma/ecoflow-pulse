@@ -172,34 +172,20 @@ func main() {
 	runner := ingestworker.NewProviderSessionRunner()
 	runner.Register(controlplane.ProviderEcoFlow, ecoFlowRunner)
 
-	workerID := strings.TrimSpace(os.Getenv("INGEST_WORKER_ID"))
-	if workerID == "" {
-		hostname, _ := os.Hostname()
-		workerID = fmt.Sprintf("%s-%d", hostname, os.Getpid())
-	}
-	pollInterval := runtimecfg.DurationPositive("INGEST_POLL_INTERVAL", 4*time.Second)
-	pollJitter := runtimecfg.Float64NonNegative("INGEST_POLL_JITTER", 0.20)
-	stopTimeout := runtimecfg.DurationPositive("INGEST_STOP_TIMEOUT", 8*time.Second)
-	startWorkersDefault := ingestworker.RecommendedStartWorkers(runtime.GOMAXPROCS(0))
-	startWorkers := runtimecfg.IntPositive("INGEST_START_WORKERS", startWorkersDefault)
-	startQueueDefault := ingestworker.RecommendedStartQueueSize(startWorkers)
-	startQueueSize := runtimecfg.IntPositive("INGEST_START_QUEUE_SIZE", startQueueDefault)
-	leaseMissingAlertWindow := runtimecfg.DurationPositive("INGEST_LEASE_MISSING_ALERT_WINDOW", 5*time.Minute)
-	leaseMissingAlertThreshold := runtimecfg.IntPositive("INGEST_LEASE_MISSING_ALERT_THRESHOLD", 4)
-	leaseMissingAlertCooldown := runtimecfg.DurationPositive("INGEST_LEASE_MISSING_ALERT_COOLDOWN", 2*time.Minute)
+	loopCfg := loadIngestLoopConfigFromEnv()
 	autoscaleMetrics := ingestworker.NewAutoscaleMetrics()
 
 	loop, err := ingestworker.NewLoop(log, store, leaseMgr, runner, ingestworker.Config{
-		WorkerID:                   workerID,
-		ProviderFilter:             controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("INGEST_PROVIDER"))),
-		PollInterval:               pollInterval,
-		PollJitter:                 pollJitter,
-		StopTimeout:                stopTimeout,
-		StartWorkers:               startWorkers,
-		StartQueueSize:             startQueueSize,
-		LeaseMissingAlertWindow:    leaseMissingAlertWindow,
-		LeaseMissingAlertThreshold: leaseMissingAlertThreshold,
-		LeaseMissingAlertCooldown:  leaseMissingAlertCooldown,
+		WorkerID:                   loopCfg.WorkerID,
+		ProviderFilter:             loopCfg.ProviderFilter,
+		PollInterval:               loopCfg.PollInterval,
+		PollJitter:                 loopCfg.PollJitter,
+		StopTimeout:                loopCfg.StopTimeout,
+		StartWorkers:               loopCfg.StartWorkers,
+		StartQueueSize:             loopCfg.StartQueueSize,
+		LeaseMissingAlertWindow:    loopCfg.LeaseMissingAlertWindow,
+		LeaseMissingAlertThreshold: loopCfg.LeaseMissingAlertThreshold,
+		LeaseMissingAlertCooldown:  loopCfg.LeaseMissingAlertCooldown,
 		AutoscaleMetrics:           autoscaleMetrics,
 	})
 	if err != nil {
@@ -227,17 +213,17 @@ func main() {
 		slog.Duration("log_metrics_interval", logMetricsInterval),
 		slog.Duration("quota_metrics_interval", quotaMetricsInterval),
 		slog.String("metrics_listen_addr", metricsListenAddr),
-		slog.String("worker_id", workerID),
+		slog.String("worker_id", loopCfg.WorkerID),
 		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
 		slog.String("subject_prefix", subjectCfg.Prefix),
 		slog.Uint64("shards", uint64(subjectCfg.ShardCount)),
-		slog.Duration("poll_interval", pollInterval),
-		slog.Float64("poll_jitter", pollJitter),
-		slog.Int("start_workers", startWorkers),
-		slog.Int("start_queue_size", startQueueSize),
-		slog.Duration("lease_missing_alert_window", leaseMissingAlertWindow),
-		slog.Int("lease_missing_alert_threshold", leaseMissingAlertThreshold),
-		slog.Duration("lease_missing_alert_cooldown", leaseMissingAlertCooldown),
+		slog.Duration("poll_interval", loopCfg.PollInterval),
+		slog.Float64("poll_jitter", loopCfg.PollJitter),
+		slog.Int("start_workers", loopCfg.StartWorkers),
+		slog.Int("start_queue_size", loopCfg.StartQueueSize),
+		slog.Duration("lease_missing_alert_window", loopCfg.LeaseMissingAlertWindow),
+		slog.Int("lease_missing_alert_threshold", loopCfg.LeaseMissingAlertThreshold),
+		slog.Duration("lease_missing_alert_cooldown", loopCfg.LeaseMissingAlertCooldown),
 		slog.Int("publish_queue_size", sessionCfg.PublishQueueSize),
 		slog.Int("publish_workers", sessionCfg.PublishWorkers),
 		slog.Duration("publish_enqueue_timeout", sessionCfg.PublishEnqueueTimeout),
@@ -273,6 +259,36 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("ingest worker stopped")
+}
+
+func loadIngestLoopConfigFromEnv() ingestworker.Config {
+	workerID := strings.TrimSpace(os.Getenv("INGEST_WORKER_ID"))
+	if workerID == "" {
+		hostname, _ := os.Hostname()
+		workerID = fmt.Sprintf("%s-%d", hostname, os.Getpid())
+	}
+	pollInterval := runtimecfg.DurationPositive("INGEST_POLL_INTERVAL", 4*time.Second)
+	pollJitter := runtimecfg.Float64NonNegative("INGEST_POLL_JITTER", 0.20)
+	stopTimeout := runtimecfg.DurationPositive("INGEST_STOP_TIMEOUT", 8*time.Second)
+	startWorkersDefault := ingestworker.RecommendedStartWorkers(runtime.GOMAXPROCS(0))
+	startWorkers := runtimecfg.IntPositive("INGEST_START_WORKERS", startWorkersDefault)
+	startQueueDefault := ingestworker.RecommendedStartQueueSize(startWorkers)
+	startQueueSize := runtimecfg.IntPositive("INGEST_START_QUEUE_SIZE", startQueueDefault)
+	leaseMissingAlertWindow := runtimecfg.DurationPositive("INGEST_LEASE_MISSING_ALERT_WINDOW", 5*time.Minute)
+	leaseMissingAlertThreshold := runtimecfg.IntPositive("INGEST_LEASE_MISSING_ALERT_THRESHOLD", 4)
+	leaseMissingAlertCooldown := runtimecfg.DurationPositive("INGEST_LEASE_MISSING_ALERT_COOLDOWN", 2*time.Minute)
+	return ingestworker.Config{
+		WorkerID:                   workerID,
+		ProviderFilter:             controlplane.NormalizeProvider(strings.TrimSpace(os.Getenv("INGEST_PROVIDER"))),
+		PollInterval:               pollInterval,
+		PollJitter:                 pollJitter,
+		StopTimeout:                stopTimeout,
+		StartWorkers:               startWorkers,
+		StartQueueSize:             startQueueSize,
+		LeaseMissingAlertWindow:    leaseMissingAlertWindow,
+		LeaseMissingAlertThreshold: leaseMissingAlertThreshold,
+		LeaseMissingAlertCooldown:  leaseMissingAlertCooldown,
+	}
 }
 
 func startAutoscaleMetricsServer(ctx context.Context, log *slog.Logger, registry *prometheus.Registry, listenAddr string) func() {

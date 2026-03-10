@@ -12,6 +12,7 @@ type recordingHandler struct {
 	delay time.Duration
 	mu    sync.Mutex
 	count int
+	block <-chan struct{}
 }
 
 func (h *recordingHandler) Enabled(context.Context, slog.Level) bool {
@@ -19,6 +20,9 @@ func (h *recordingHandler) Enabled(context.Context, slog.Level) bool {
 }
 
 func (h *recordingHandler) Handle(_ context.Context, _ slog.Record) error {
+	if h.block != nil {
+		<-h.block
+	}
 	if h.delay > 0 {
 		time.Sleep(h.delay)
 	}
@@ -109,4 +113,28 @@ func TestAsyncHandlerBypassesWarningLevel(t *testing.T) {
 	if snapshot.BypassedTotal == 0 {
 		t.Fatalf("expected warn to bypass async queue")
 	}
+}
+
+func TestAsyncHandlerSnapshotReportsBufferedQueueDepth(t *testing.T) {
+	block := make(chan struct{})
+	base := &recordingHandler{block: block}
+	handler, err := NewAsyncHandler(base, AsyncHandlerConfig{
+		QueueSize:   4,
+		BypassLevel: slog.LevelWarn,
+	})
+	if err != nil {
+		t.Fatalf("new async handler: %v", err)
+	}
+
+	log := slog.New(handler)
+	for i := 0; i < 3; i++ {
+		log.Info("queued message", slog.Int("i", i))
+	}
+	snapshot := handler.Snapshot()
+	if snapshot.QueueDepth < 2 || snapshot.QueueDepth > 3 {
+		t.Fatalf("expected buffered queue depth between 2 and 3, got=%d", snapshot.QueueDepth)
+	}
+
+	close(block)
+	handler.Close()
 }

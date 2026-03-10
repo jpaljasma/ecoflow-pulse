@@ -74,6 +74,7 @@ type Worker struct {
 	subjectCfg          telemetrybus.SubjectConfig
 	subscribe           func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
 	replayFailureAlerts *failureRateTracker
+	tracker             *telemetrybus.MsgHandlerTracker
 }
 
 func DefaultWorkerConfig() WorkerConfig {
@@ -104,7 +105,7 @@ func NewWorker(log *slog.Logger, conn *nats.Conn, runner ReplayRunner, cfg Worke
 		return nil, errors.New("replay runner is required")
 	}
 	cfg = normalizeWorkerConfig(cfg)
-	w := &Worker{log: log, conn: conn, runner: runner, cfg: cfg}
+	w := &Worker{log: log, conn: conn, runner: runner, cfg: cfg, tracker: telemetrybus.NewMsgHandlerTracker()}
 	w.subscribe = w.defaultSubscribe
 	w.replayFailureAlerts = newFailureRateTracker(cfg.ReplayFailureAlertWindow, cfg.ReplayFailureAlertThreshold, cfg.ReplayFailureAlertCooldown)
 	return w, nil
@@ -156,22 +157,16 @@ func (w *Worker) Run(ctx context.Context, subjectCfg telemetrybus.SubjectConfig)
 	}
 	subjectCfg = subjectCfg.Normalized()
 	w.subjectCfg = subjectCfg
-	sub, err := w.subscribe(js, w.handleMsg)
+	sub, err := w.subscribe(js, w.tracker.Wrap(w.handleMsg))
 	if err != nil {
 		return fmt.Errorf("subscribe gap-repair consumer: %w", err)
 	}
 	defer func() {
-		drainCtx, cancel := context.WithTimeout(context.Background(), w.cfg.DrainTimeout)
-		defer cancel()
-		drainDone := make(chan error, 1)
-		go func() { drainDone <- sub.Drain() }()
-		select {
-		case <-drainCtx.Done():
-			w.log.Warn("gap-repair subscription drain timeout")
-		case err := <-drainDone:
-			if err != nil {
-				w.log.Warn("gap-repair subscription drain failed", slog.String("error", err.Error()))
-			}
+		if err := sub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrBadSubscription) {
+			w.log.Warn("gap-repair unsubscribe failed", slog.String("error", err.Error()))
+		}
+		if !w.tracker.WaitForIdle(w.cfg.DrainTimeout) {
+			w.log.Warn("gap-repair handler drain timeout")
 		}
 	}()
 

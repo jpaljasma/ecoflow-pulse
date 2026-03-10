@@ -151,3 +151,31 @@ func setupInferenceStore(tb testing.TB) *ValkeyStore {
 	}
 	return store
 }
+
+func BenchmarkValkeyStoreApplyEnvelope(b *testing.B) {
+	store := setupInferenceStore(b)
+	ctx := context.Background()
+	deviceCtx := DeviceContext{
+		DeviceID:     "dev-bench",
+		EcoflowSN:    "SN-BENCH",
+		ProductName:  "DELTA Pro Ultra",
+		Model:        "DELTA Pro Ultra",
+		Capabilities: map[string]any{"battery_pack_count": float64(2), "supports_extra_battery": true},
+	}
+	env := &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-bench",
+		DeviceId:           "dev-bench",
+		EcoflowSn:          "SN-BENCH",
+		IngestedTimeUnixMs: 1,
+		Payload:            []byte(`{"params":{"soc":54,"wattsInSum":120,"batteryWatts":-80}}`),
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		env.IngestedTimeUnixMs = int64(i + 1)
+		if _, err := store.ApplyEnvelope(ctx, env, deviceCtx); err != nil {
+			b.Fatalf("ApplyEnvelope failed: %v", err)
+		}
+	}
+}

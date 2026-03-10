@@ -605,6 +605,32 @@ go tool pprof -top /tmp/ingestworker.cpu.out
 go tool pprof -top -alloc_space /tmp/ingestworker.mem.out
 ```
 
+## Worker Hot-Path Benchmarks
+
+```bash
+# projection snapshot apply hot path
+go test ./internal/projectionworker -run '^$' -bench BenchmarkValkeySnapshotStoreApplyEnvelope -benchmem -count=1
+
+# inference read-model apply hot path
+go test ./internal/inference -run '^$' -bench BenchmarkValkeyStoreApplyEnvelope -benchmem -count=1
+
+# rollup worker delivery apply path
+go test ./internal/rollupworker -run '^$' -bench BenchmarkProcessDeliverySuccess -benchmem -count=1
+
+# gap-repair worker request handling path
+go test ./internal/gaprepair -run '^$' -bench BenchmarkWorkerHandleDeliverySuccess -benchmem -count=1
+```
+
+## Command Regression Tests
+
+```bash
+# all Go programs under cmd/ have regression coverage
+go test ./cmd/...
+
+# focused bootstrap/config regression suites for worker-style entrypoints
+go test ./cmd/ecoflow-archive-worker ./cmd/ecoflow-db-migrate-job ./cmd/ecoflow-gap-detector ./cmd/ecoflow-gap-repair-worker ./cmd/ecoflow-inference-worker ./cmd/ecoflow-ingest-worker ./cmd/ecoflow-projection-worker ./cmd/ecoflow-rollup-worker -count=1
+```
+
 ## Helper Scripts
 
 ```bash

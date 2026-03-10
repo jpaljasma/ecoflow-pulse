@@ -28,7 +28,7 @@ Top-level structure:
   - `ecoflowmqtt`: MQTT subscriber primitives.
   - `panelselect`: panel selection model, feature tracker, and predictor.
   - `ecoflowserver`: server helpers and middleware.
-  - `logger`: structured logging package.
+  - `logger`: structured logging package with bounded async queueing and queue-depth metrics.
 - `internal/`
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
   - `dbmigrate`: forward-only SQL migration loader/runner used by rollout jobs.
@@ -42,7 +42,7 @@ Top-level structure:
   - `gaprepair`: projection lag detection + replay queue consumer/publisher primitives.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
-  - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths.
+  - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths, plus shared JetStream handler-drain tracking used during worker shutdown.
 - `proto/`
   - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Activate credentials`, `ListDevices`, `DiscoverDevices`).
   - `pulse/inference/v1/inference.proto`: online inference gRPC contract (`GetDeviceInsights`, `ListFleetInsights`).

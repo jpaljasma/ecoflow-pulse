@@ -31,23 +31,21 @@ type AsyncHandlerSnapshot struct {
 // AsyncHandlerStats stores counters for log pipeline SLO visibility.
 type AsyncHandlerStats struct {
 	queueCapacity  int
-	queueDepth     atomic.Int64
 	enqueuedTotal  atomic.Uint64
 	processedTotal atomic.Uint64
 	droppedTotal   atomic.Uint64
 	bypassedTotal  atomic.Uint64
 }
 
-func (s *AsyncHandlerStats) snapshot() AsyncHandlerSnapshot {
+func (s *AsyncHandlerStats) snapshot(queueDepth int) AsyncHandlerSnapshot {
 	if s == nil {
 		return AsyncHandlerSnapshot{}
 	}
-	depth := int(s.queueDepth.Load())
-	if depth < 0 {
-		depth = 0
+	if queueDepth < 0 {
+		queueDepth = 0
 	}
 	return AsyncHandlerSnapshot{
-		QueueDepth:     depth,
+		QueueDepth:     queueDepth,
 		QueueCapacity:  s.queueCapacity,
 		EnqueuedTotal:  s.enqueuedTotal.Load(),
 		ProcessedTotal: s.processedTotal.Load(),
@@ -109,7 +107,6 @@ func (c *asyncCore) run() {
 }
 
 func (c *asyncCore) process(rec asyncRecord) {
-	c.stats.queueDepth.Add(-1)
 	if rec.handler != nil {
 		_ = rec.handler.Handle(rec.ctx, rec.record)
 	}
@@ -131,7 +128,7 @@ func (c *asyncCore) statsSnapshot() AsyncHandlerSnapshot {
 	if c == nil {
 		return AsyncHandlerSnapshot{}
 	}
-	return c.stats.snapshot()
+	return c.stats.snapshot(len(c.queue))
 }
 
 // AsyncHandler wraps a slog handler with bounded async queueing.
@@ -180,7 +177,6 @@ func (h *AsyncHandler) Handle(ctx context.Context, record slog.Record) error {
 		handler: h.base,
 	}:
 		h.core.stats.enqueuedTotal.Add(1)
-		h.core.stats.queueDepth.Add(1)
 		return nil
 	default:
 		h.core.stats.droppedTotal.Add(1)

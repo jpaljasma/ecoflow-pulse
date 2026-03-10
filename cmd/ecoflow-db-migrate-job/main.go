@@ -31,19 +31,7 @@ func main() {
 		}
 	}()
 
-	cfg := dbmigrate.DefaultConfig()
-	cfg.DSN = strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
-	cfg.DBHost = strings.TrimSpace(os.Getenv("DB_MIGRATION_DB_HOST"))
-	cfg.DBPort = runtimecfg.IntMin("DB_MIGRATION_DB_PORT", cfg.DBPort, 1)
-	cfg.DBUser = strings.TrimSpace(os.Getenv("DB_MIGRATION_DB_USER"))
-	cfg.DBPassword = os.Getenv("DB_MIGRATION_DB_PASSWORD")
-	cfg.DBName = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATION_DB_NAME", "pulse"))
-	cfg.DBSSLMode = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATION_DB_SSLMODE", cfg.DBSSLMode))
-	cfg.MigrationsDir = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATIONS_DIR", "/app/deploy/db/migrations"))
-	cfg.RolloutEnv = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATION_ENVIRONMENT", "dev"))
-	cfg.RequireBackup = runtimecfg.Bool("DB_MIGRATION_REQUIRE_BACKUP", false)
-	cfg.BackupRef = strings.TrimSpace(os.Getenv("DB_MIGRATION_BACKUP_REF"))
-	cfg.ForwardOnly = runtimecfg.Bool("DB_MIGRATION_FORWARD_ONLY", true)
+	cfg := loadMigrationConfigFromEnv()
 
 	if err := cfg.Validate(); err != nil {
 		log.Error("invalid migration rollout config", "error", err.Error())
@@ -81,4 +69,21 @@ func main() {
 		"applied_versions", strings.Join(result.AppliedVersions, ","),
 		"skipped_versions", strings.Join(result.SkippedVersions, ","),
 	)
+}
+
+func loadMigrationConfigFromEnv() dbmigrate.Config {
+	cfg := dbmigrate.DefaultConfig()
+	cfg.DSN = strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
+	cfg.DBHost = strings.TrimSpace(os.Getenv("DB_MIGRATION_DB_HOST"))
+	cfg.DBPort = runtimecfg.IntMin("DB_MIGRATION_DB_PORT", cfg.DBPort, 1)
+	cfg.DBUser = strings.TrimSpace(os.Getenv("DB_MIGRATION_DB_USER"))
+	cfg.DBPassword = os.Getenv("DB_MIGRATION_DB_PASSWORD")
+	cfg.DBName = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATION_DB_NAME", "pulse"))
+	cfg.DBSSLMode = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATION_DB_SSLMODE", cfg.DBSSLMode))
+	cfg.MigrationsDir = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATIONS_DIR", "/app/deploy/db/migrations"))
+	cfg.RolloutEnv = strings.TrimSpace(runtimecfg.EnvOrDefault("DB_MIGRATION_ENVIRONMENT", "dev"))
+	cfg.RequireBackup = runtimecfg.Bool("DB_MIGRATION_REQUIRE_BACKUP", false)
+	cfg.BackupRef = strings.TrimSpace(os.Getenv("DB_MIGRATION_BACKUP_REF"))
+	cfg.ForwardOnly = runtimecfg.Bool("DB_MIGRATION_FORWARD_ONLY", true)
+	return cfg
 }
