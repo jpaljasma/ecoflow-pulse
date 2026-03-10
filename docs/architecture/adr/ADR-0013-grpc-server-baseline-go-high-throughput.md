@@ -279,5 +279,10 @@ func Serve(ctx context.Context, s *grpc.Server, lis net.Listener, grace time.Dur
   - [x] Added stable Make targets `test-grpc-load-harness` and `test-grpc-soak-10k`
   - [x] Updated command docs so the harness is runnable without bespoke benchmark flags
   - Validation evidence (2026-03-09): `GRPC_LOAD_BENCH_TIME=1x make test-grpc-load-harness` succeeded; `GRPC_LOAD_10K_BENCH_TIME=1x make test-grpc-soak-10k` succeeded; `make lint` succeeded.
-- [ ] Decide per-method compression rules (thresholds)
+- [x] DONE: Decide per-method compression rules (thresholds)
+  - [x] History unary RPCs (`QueryRollupRange`, `CompareRollupRange`) enable gzip only when the serialized response is at least `16 KiB`
+  - [x] `GetSnapshot` stays uncompressed by default
+  - [x] streaming telemetry (`Subscribe`) stays uncompressed by default so heartbeats/deltas are not penalized by per-message compression overhead
+  - [x] threshold is configurable via `GRPC_HISTORY_GZIP_MIN_BYTES`
+  - Validation evidence (2026-03-09): `go test ./cmd/ecoflow-grpc-api` succeeded; `make lint` succeeded.
 - [x] Replace `NoopAuthorizer` with Keycloak JWKS JWT validation + RBAC enforcement at Go boundary
