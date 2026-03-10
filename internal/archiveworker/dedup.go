@@ -3,6 +3,7 @@ package archiveworker
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
@@ -11,8 +12,10 @@ import (
 type recentEnvelopeDeduper struct {
 	window     time.Duration
 	maxEntries int
+	mu         sync.Mutex
 	entries    map[string]time.Time
 	order      []dedupEntry
+	head       int
 }
 
 type dedupEntry struct {
@@ -44,6 +47,8 @@ func (d *recentEnvelopeDeduper) Add(now time.Time, key string) bool {
 		return true
 	}
 	now = now.UTC()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.evictExpired(now)
 	if expiresAt, ok := d.entries[key]; ok && now.Before(expiresAt) {
 		return false
@@ -56,22 +61,20 @@ func (d *recentEnvelopeDeduper) Add(now time.Time, key string) bool {
 }
 
 func (d *recentEnvelopeDeduper) evictExpired(now time.Time) {
-	if d == nil || len(d.order) == 0 {
+	if d == nil || d.head >= len(d.order) {
 		return
 	}
-	cut := 0
-	for _, entry := range d.order {
+	for d.head < len(d.order) {
+		entry := d.order[d.head]
 		currentExpiresAt, ok := d.entries[entry.key]
 		if !ok || currentExpiresAt != entry.expiresAt || !currentExpiresAt.After(now) {
 			delete(d.entries, entry.key)
-			cut++
+			d.head++
 			continue
 		}
 		break
 	}
-	if cut > 0 {
-		d.order = append([]dedupEntry(nil), d.order[cut:]...)
-	}
+	d.compact()
 }
 
 func (d *recentEnvelopeDeduper) evictOverflow() {
@@ -79,23 +82,36 @@ func (d *recentEnvelopeDeduper) evictOverflow() {
 		return
 	}
 	remove := len(d.entries) - d.maxEntries
-	cut := 0
-	for _, entry := range d.order {
+	for d.head < len(d.order) && remove > 0 {
+		entry := d.order[d.head]
 		currentExpiresAt, ok := d.entries[entry.key]
 		if !ok || currentExpiresAt != entry.expiresAt {
-			cut++
+			d.head++
 			continue
 		}
 		delete(d.entries, entry.key)
-		cut++
+		d.head++
 		remove--
-		if remove <= 0 {
-			break
-		}
 	}
-	if cut > 0 {
-		d.order = append([]dedupEntry(nil), d.order[cut:]...)
+	d.compact()
+}
+
+func (d *recentEnvelopeDeduper) compact() {
+	if d == nil || d.head == 0 {
+		return
 	}
+	if d.head < cap(d.order)/2 && len(d.order)-d.head <= d.maxEntries {
+		return
+	}
+	remaining := len(d.order) - d.head
+	if remaining <= 0 {
+		d.order = d.order[:0]
+		d.head = 0
+		return
+	}
+	copy(d.order, d.order[d.head:])
+	d.order = d.order[:remaining]
+	d.head = 0
 }
 
 func archiveDedupKey(env *envelopev1.TelemetryEnvelope) string {
