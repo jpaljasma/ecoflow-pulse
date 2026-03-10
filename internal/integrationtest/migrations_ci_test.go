@@ -84,11 +84,24 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 	assertStringsEqual(t, gotRetention, wantRetention, "retention policies")
 
 	wantTimestampDefaults := []string{
-		"created_at|",
-		"updated_at|",
+		"devices.created_at|",
+		"devices.updated_at|",
+		"provider_credentials.created_at|",
+		"provider_credentials.updated_at|",
+		"provider_devices.created_at|",
+		"provider_devices.updated_at|",
+		"users.created_at|",
+		"users.updated_at|",
 	}
-	gotTimestampDefaults := queryStrings(t, ctx, db, "SELECT a.attname || '|' || COALESCE(pg_get_expr(d.adbin,d.adrelid), '') FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum JOIN pg_class c ON c.oid=a.attrelid WHERE c.relname='users' AND a.attname IN ('created_at','updated_at') ORDER BY a.attname")
-	assertStringsEqual(t, gotTimestampDefaults, wantTimestampDefaults, "users timestamp defaults")
+	gotTimestampDefaults := queryStrings(t, ctx, db, `
+SELECT c.relname || '.' || a.attname || '|' || COALESCE(pg_get_expr(d.adbin,d.adrelid), '')
+FROM pg_attribute a
+LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+JOIN pg_class c ON c.oid=a.attrelid
+WHERE c.relname IN ('users','devices','provider_credentials','provider_devices')
+  AND a.attname IN ('created_at','updated_at')
+ORDER BY c.relname, a.attname`)
+	assertStringsEqual(t, gotTimestampDefaults, wantTimestampDefaults, "timestamp defaults")
 
 	wantConstraints := []string{
 		"chk_archive_manifest_ts_order",

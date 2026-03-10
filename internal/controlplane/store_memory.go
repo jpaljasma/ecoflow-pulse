@@ -31,6 +31,7 @@ type MemoryStore struct {
 	userDevices map[string]map[string]string // userID -> deviceID -> role
 
 	idCounter uint64
+	now       func() time.Time
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -43,6 +44,7 @@ func NewMemoryStore() *MemoryStore {
 		devicesByID:     map[string]memoryDevice{},
 		deviceBySN:      map[string]string{},
 		userDevices:     map[string]map[string]string{},
+		now:             utcNow,
 	}
 }
 
@@ -85,7 +87,7 @@ func (s *MemoryStore) CreateProviderCredential(_ context.Context, in CreateProvi
 	if !ok {
 		return ProviderCredential{}, ErrUserNotFound
 	}
-	now := utcNow()
+	now := normalizeWriteTime(s.now())
 	row := ProviderCredential{
 		ID:            s.nextID("cred"),
 		UserID:        userID,
@@ -142,7 +144,7 @@ func (s *MemoryStore) SetProviderCredentialActive(_ context.Context, in SetProvi
 		return ProviderCredential{}, ErrCredentialNotFound
 	}
 	row.IsActive = in.IsActive
-	row.UpdatedAt = utcNow()
+	row.UpdatedAt = normalizeWriteTime(s.now())
 	s.credentials[row.ID] = row
 	return row, nil
 }
@@ -173,7 +175,7 @@ func (s *MemoryStore) CreateDevice(_ context.Context, in CreateDeviceInput) (Use
 	if !ok {
 		return UserDevice{}, ErrUserNotFound
 	}
-	now := utcNow()
+	now := normalizeWriteTime(s.now())
 	dev, created := s.ensureDeviceLocked(in.EcoflowSN, in.ProductName, in.Model, now)
 	if !created {
 		dev.UpdatedAt = now
