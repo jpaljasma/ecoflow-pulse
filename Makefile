@@ -803,6 +803,10 @@ services-up: helm-local-ready
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		$(LOCAL_HELM_UPGRADE_FLAGS) \
 		-f $(LOCAL_SERVICES_VALUES)
+	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
+		echo "restarting $(SERVICES_RELEASE) deployments to pick up imported :local image"; \
+		$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout restart deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE); \
+	fi
 
 services-wait:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \

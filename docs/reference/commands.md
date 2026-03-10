@@ -925,6 +925,10 @@ Notes:
     - `Pulse Platform Infra`
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
+- `make services-up` upgrades the `pulse-services` Helm release and, when
+  `SERVICES_AUTO_BUILD_IMAGE=1` (the default local path), also restarts the
+  `pulse-services` deployments so the freshly imported `ecoflow-pulse/services:local`
+  image is picked up even though the tag stays constant.
 - `make dev-deploy` is the incremental local redeploy path for code changes:
   rebuild/import local public + services images, then restart
   `pulse-platform-public-app`, `pulse-platform-realtime-gateway`, and
