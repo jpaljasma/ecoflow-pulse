@@ -279,7 +279,9 @@ Graceful drain as event-driven desired state avoids abrupt disconnect churn and 
   - [x] Archive adds bounded recent-envelope suppression keyed by `envelope_id` (with `message_id` fallback) so immediate redeliveries are acked but not re-archived
   - [x] Validation evidence (2026-03-09): `go test ./internal/archiveworker ./internal/projectionworker` succeeded; `go test ./...` succeeded; `make lint` succeeded.
 - [ ] Generalize provider adapters beyond EcoFlow.
-- [ ] Add chaos tests for lease loss, worker crash, and reconnect storms.
+- [x] Add chaos tests for lease loss, worker crash, and reconnect storms.
+  - [x] Added `internal/ingestworker/chaos_test.go` coverage for lease-loss reacquire, cross-worker crash handoff, and reconnect-storm subscriber serialization.
+  - [x] Validation evidence (2026-03-10): `go test ./internal/ingestworker -run 'TestLoopChaos|TestEcoFlowSessionRunnerChaos' -count=1` succeeded.
 - [ ] Add autoscaling custom metrics pipeline (Prometheus Adapter/KEDA) for
   `ingest_unassigned_active_devices`, `ingest_reconcile_duration_p95_seconds`,
   and `ingest_lease_acquire_latency_p95_seconds`.
