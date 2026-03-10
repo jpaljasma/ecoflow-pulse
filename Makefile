@@ -572,6 +572,28 @@ platform-up: helm-local-ready
 				$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
 			fi; \
 		}; \
+		wait_crd_established() { \
+			name="$$1"; timeout="$$2"; \
+			if $(LOCAL_KUBECTL) get crd "$$name" >/dev/null 2>&1; then \
+				echo "waiting for crd/$$name condition=Established"; \
+				$(LOCAL_KUBECTL) wait --for=condition=Established "crd/$$name" --timeout="$$timeout"; \
+			fi; \
+		}; \
+		ensure_prometheus_operator_crds() { \
+			missing=0; \
+			for crd in alertmanagerconfigs.monitoring.coreos.com alertmanagers.monitoring.coreos.com podmonitors.monitoring.coreos.com probes.monitoring.coreos.com prometheusagents.monitoring.coreos.com prometheuses.monitoring.coreos.com prometheusrules.monitoring.coreos.com scrapeconfigs.monitoring.coreos.com servicemonitors.monitoring.coreos.com thanosrulers.monitoring.coreos.com; do \
+				if ! $(LOCAL_KUBECTL) get crd "$$crd" >/dev/null 2>&1; then \
+					missing=1; \
+				fi; \
+			done; \
+			if [ "$$missing" = "1" ]; then \
+				echo "pre-installing Prometheus Operator CRDs before Helm apply"; \
+				helm show crds $(PLATFORM_CHART)/charts/kube-prometheus-stack-82.2.0.tgz | $(LOCAL_KUBECTL) apply --server-side=true --force-conflicts -f -; \
+			fi; \
+			for crd in alertmanagerconfigs.monitoring.coreos.com alertmanagers.monitoring.coreos.com podmonitors.monitoring.coreos.com probes.monitoring.coreos.com prometheusagents.monitoring.coreos.com prometheuses.monitoring.coreos.com prometheusrules.monitoring.coreos.com scrapeconfigs.monitoring.coreos.com servicemonitors.monitoring.coreos.com thanosrulers.monitoring.coreos.com; do \
+				wait_crd_established "$$crd" 180s; \
+			done; \
+		}; \
 		keycloak_bootstrap_override="$$(mktemp /tmp/pulse-platform-keycloak-bootstrap.XXXXXX).yaml"; \
 		cleanup() { rm -f "$$keycloak_bootstrap_override"; }; \
 		trap cleanup EXIT INT TERM; \
@@ -605,6 +627,10 @@ platform-up: helm-local-ready
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cert-manager-cainjector >/dev/null 2>&1; then \
 			echo "waiting for existing cert-manager cainjector to become ready before Helm apply"; \
 			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager-cainjector --timeout=180s; \
+		fi; \
+		obs_enabled="$$(python3 -c 'import yaml; from pathlib import Path; vals = yaml.safe_load(Path("$(LOCAL_PLATFORM_VALUES)").read_text()); print(bool(vals.get("components", {}).get("observabilityLite", {}).get("enabled", False)))')"; \
+		if [ "$$obs_enabled" = "True" ]; then \
+			ensure_prometheus_operator_crds; \
 		fi; \
 		echo "installing platform release via Helm"; \
 		$(PLATFORM_HELM_APPLY) $$keycloak_first_pass_flags; \

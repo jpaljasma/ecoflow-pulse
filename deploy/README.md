@@ -102,7 +102,12 @@ Defaults:
   - services runtime secret uses matching
     `ARCHIVE_OBJECT_ACCESS_KEY` / `ARCHIVE_OBJECT_SECRET_KEY`
     (`minio` / `minio123`).
-- local keeps `external-secrets` and `observability-lite` disabled by default.
+- local keeps `external-secrets` disabled by default, but now enables
+  `observability-lite` by default so Prometheus, Grafana, and the
+  OpenTelemetry collector are available in the standard k3d stack.
+- local observability access examples:
+  - `kubectl -n pulse-platform port-forward svc/pulse-platform-kube-promet-prometheus 9090:9090`
+  - `kubectl -n pulse-platform port-forward svc/pulse-platform-grafana 3000:80`
 - dev values enable `ingress-nginx` + `cert-manager` and expose the public app
   ingress host as `pulse.dev.local` (TLS remains opt-in until a real issuer is
   configured).
