@@ -15,6 +15,7 @@ const (
 	defaultPublishWorkers        = 1
 	defaultPublishEnqueueTimeout = 2 * time.Second
 	asyncPublishPollInterval     = time.Millisecond
+	asyncPublishCloseTimeoutCap  = 100 * time.Millisecond
 )
 
 var errAsyncPublisherClosed = errors.New("async envelope publisher is closed")
@@ -144,10 +145,24 @@ func (p *asyncEnvelopePublisher) Close() error {
 		p.mu.Lock()
 		p.closed = true
 		close(p.done)
-		p.cancel()
 		close(p.jobs)
 		p.mu.Unlock()
-		p.wg.Wait()
+		drained := make(chan struct{})
+		go func() {
+			p.wg.Wait()
+			close(drained)
+		}()
+		closeTimeout := p.enqueueTimeout
+		if closeTimeout <= 0 || closeTimeout > asyncPublishCloseTimeoutCap {
+			closeTimeout = asyncPublishCloseTimeoutCap
+		}
+		select {
+		case <-drained:
+			p.cancel()
+		case <-time.After(closeTimeout):
+			p.cancel()
+			<-drained
+		}
 	})
 	return nil
 }
