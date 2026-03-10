@@ -14,18 +14,25 @@ const (
 	defaultPublishQueueSize      = 256
 	defaultPublishWorkers        = 1
 	defaultPublishEnqueueTimeout = 2 * time.Second
+	asyncPublishPollInterval     = time.Millisecond
+	asyncPublishCloseTimeoutCap  = 100 * time.Millisecond
 )
+
+var errAsyncPublisherClosed = errors.New("async envelope publisher is closed")
 
 type asyncEnvelopePublisher struct {
 	publisher telemetrybus.EnvelopePublisher
 	jobs      chan *envelopev1.TelemetryEnvelope
 	errors    chan error
 	cancel    context.CancelFunc
+	done      chan struct{}
 
 	enqueueTimeout time.Duration
 
-	once sync.Once
-	wg   sync.WaitGroup
+	mu     sync.RWMutex
+	closed bool
+	once   sync.Once
+	wg     sync.WaitGroup
 }
 
 func newAsyncEnvelopePublisher(
@@ -51,6 +58,7 @@ func newAsyncEnvelopePublisher(
 		jobs:           make(chan *envelopev1.TelemetryEnvelope, queueSize),
 		errors:         make(chan error, queueSize),
 		cancel:         cancel,
+		done:           make(chan struct{}),
 		enqueueTimeout: enqueueTimeout,
 	}
 
@@ -93,14 +101,32 @@ func (p *asyncEnvelopePublisher) Publish(ctx context.Context, envelope *envelope
 
 	timer := time.NewTimer(p.enqueueTimeout)
 	defer timer.Stop()
+	poll := time.NewTicker(asyncPublishPollInterval)
+	defer poll.Stop()
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return errors.New("enqueue telemetry envelope timeout")
-	case p.jobs <- envelope:
-		return nil
+	for {
+		p.mu.RLock()
+		if p.closed {
+			p.mu.RUnlock()
+			return errAsyncPublisherClosed
+		}
+		select {
+		case p.jobs <- envelope:
+			p.mu.RUnlock()
+			return nil
+		default:
+			p.mu.RUnlock()
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return errors.New("enqueue telemetry envelope timeout")
+		case <-p.done:
+			return errAsyncPublisherClosed
+		case <-poll.C:
+		}
 	}
 }
 
@@ -116,9 +142,27 @@ func (p *asyncEnvelopePublisher) Close() error {
 		return nil
 	}
 	p.once.Do(func() {
+		p.mu.Lock()
+		p.closed = true
+		close(p.done)
 		close(p.jobs)
-		p.wg.Wait()
-		p.cancel()
+		p.mu.Unlock()
+		drained := make(chan struct{})
+		go func() {
+			p.wg.Wait()
+			close(drained)
+		}()
+		closeTimeout := p.enqueueTimeout
+		if closeTimeout <= 0 || closeTimeout > asyncPublishCloseTimeoutCap {
+			closeTimeout = asyncPublishCloseTimeoutCap
+		}
+		select {
+		case <-drained:
+			p.cancel()
+		case <-time.After(closeTimeout):
+			p.cancel()
+			<-drained
+		}
 	})
 	return nil
 }

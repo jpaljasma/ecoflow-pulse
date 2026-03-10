@@ -221,7 +221,7 @@ type EcoFlowSessionRunner struct {
 
 func NewEcoFlowSessionRunner(
 	log *slog.Logger,
-	adapter *provideradapter.EcoFlowAdapter,
+	adapter ecoFlowCertificationResolver,
 	publisher telemetrybus.EnvelopePublisher,
 	providerDevices providerDeviceUpdater,
 	cfg EcoFlowSessionConfig,

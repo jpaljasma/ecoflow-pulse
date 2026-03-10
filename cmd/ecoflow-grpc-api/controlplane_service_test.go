@@ -9,6 +9,7 @@ import (
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
+	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -25,7 +26,9 @@ func newControlPlaneServiceForTest() (*ControlPlaneService, *controlplane.Memory
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := controlplane.NewMemoryStore()
 	store.EnsureUser("dev-user")
-	return NewControlPlaneService(log, store), store
+	registry := provideradapter.NewRegistry()
+	registry.RegisterProvider(controlplane.ProviderEcoFlow)
+	return NewControlPlaneService(log, store, registry), store
 }
 
 func TestCreateProviderCredentialValidation(t *testing.T) {
@@ -41,6 +44,31 @@ func TestCreateProviderCredentialValidation(t *testing.T) {
 	})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("expected InvalidArgument, got %v", err)
+	}
+}
+
+func TestCreateProviderCredentialUsesRegistryBackedProviderSupport(t *testing.T) {
+	t.Parallel()
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("dev-user")
+	registry := provideradapter.NewRegistry()
+	registry.RegisterProvider("victron")
+	svc := NewControlPlaneService(log, store, registry)
+
+	resp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    "victron",
+		AccessKey:   "AK1234567890",
+		SecretKey:   "SK1234567890",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	if got := resp.GetCredential().GetProvider(); got != "victron" {
+		t.Fatalf("credential provider=%q want victron", got)
 	}
 }
 

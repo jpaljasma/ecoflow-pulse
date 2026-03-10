@@ -278,7 +278,10 @@ Graceful drain as event-driven desired state avoids abrupt disconnect churn and 
   - [x] Projection keeps snapshot idempotence via `envelope_id` + ingest-timestamp stale guards
   - [x] Archive adds bounded recent-envelope suppression keyed by `envelope_id` (with `message_id` fallback) so immediate redeliveries are acked but not re-archived
   - [x] Validation evidence (2026-03-09): `go test ./internal/archiveworker ./internal/projectionworker` succeeded; `go test ./...` succeeded; `make lint` succeeded.
-- [ ] Generalize provider adapters beyond EcoFlow.
+- [x] Generalize provider adapters beyond EcoFlow.
+  - [x] Added `internal/provideradapter.Registry` so supported providers and discoverers are registered once and reused by control-plane validation/discovery wiring.
+  - [x] Added `internal/ingestworker.ProviderSessionRunner` so ingest session dispatch is registered per provider instead of hardcoded to a single EcoFlow runner path.
+  - [x] Validation evidence (2026-03-10): `go test ./internal/provideradapter ./cmd/ecoflow-grpc-api ./internal/ingestworker` succeeded.
 - [x] Add chaos tests for lease loss, worker crash, and reconnect storms.
   - [x] Added `internal/ingestworker/chaos_test.go` coverage for lease-loss reacquire, cross-worker crash handoff, and reconnect-storm subscriber serialization.
   - [x] Validation evidence (2026-03-10): `go test ./internal/ingestworker -run 'TestLoopChaos|TestEcoFlowSessionRunnerChaos' -count=1` succeeded.

@@ -161,11 +161,13 @@ func main() {
 	sessionCfg.DisableEnvelopeLabels = disableEnvelopeLabels
 	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
 	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
-	runner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
+	ecoFlowRunner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
 	if err != nil {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	runner := ingestworker.NewProviderSessionRunner()
+	runner.Register(controlplane.ProviderEcoFlow, ecoFlowRunner)
 
 	workerID := strings.TrimSpace(os.Getenv("INGEST_WORKER_ID"))
 	if workerID == "" {
@@ -206,7 +208,7 @@ func main() {
 	quotaMetricsInterval := runtimecfg.DurationNonNegative("INGEST_QUOTA_METRICS_INTERVAL", ingestworker.DefaultQuotaMetricsInterval())
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "ingest-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
-	stopQuotaMetrics := ingestworker.StartQuotaMetricsReporter(ctx, log, "ingest-worker", runner.QuotaMetrics(), quotaMetricsInterval)
+	stopQuotaMetrics := ingestworker.StartQuotaMetricsReporter(ctx, log, "ingest-worker", ecoFlowRunner.QuotaMetrics(), quotaMetricsInterval)
 	defer stopQuotaMetrics()
 
 	log.Info("ingest worker starting",

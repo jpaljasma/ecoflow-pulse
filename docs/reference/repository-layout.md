@@ -35,6 +35,7 @@ Top-level structure:
   - `inference`: online inference read-model store, derivation logic, control-plane context resolver, and worker runtime.
   - `pgsearchpath`: shared Postgres DSN helper for versioned `search_path` cutovers.
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
+  - `provideradapter`: provider discovery/certification clients plus registry-backed adapter wiring for control-plane and ingest runtime dispatch.
   - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + MinIO-compatible object writer).
   - `rollupworker`: rollup pipeline primitives (durable ingest consumer + explicit metric extraction + Timescale upserts).
   - `replaycli`: manifest/object replay runtime (manifest query + object decode + replay publish runner).

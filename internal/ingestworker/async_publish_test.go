@@ -101,3 +101,94 @@ func TestAsyncEnvelopePublisherTimeoutWhenQueueIsFull(t *testing.T) {
 		t.Fatal("expected timeout when queue is full")
 	}
 }
+
+func TestAsyncEnvelopePublisherCloseCancelsBlockedWorker(t *testing.T) {
+	t.Parallel()
+
+	pub := &blockingContextPublisher{started: make(chan struct{}, 1)}
+
+	ap := newAsyncEnvelopePublisher(context.Background(), pub, 1, 1, time.Second)
+	if err := ap.Publish(context.Background(), &envelopev1.TelemetryEnvelope{EnvelopeId: "id-1"}); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	select {
+	case <-pub.started:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("expected worker publish to start")
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- ap.Close()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("expected Close() to return after canceling blocked worker")
+	}
+}
+
+func TestAsyncEnvelopePublisherPublishReturnsClosedDuringConcurrentClose(t *testing.T) {
+	t.Parallel()
+
+	pub := &blockingContextPublisher{started: make(chan struct{}, 1)}
+	ap := newAsyncEnvelopePublisher(context.Background(), pub, 1, 1, time.Second)
+	defer func() {
+		_ = ap.Close()
+	}()
+
+	if err := ap.Publish(context.Background(), &envelopev1.TelemetryEnvelope{EnvelopeId: "id-1"}); err != nil {
+		t.Fatalf("first Publish() error = %v", err)
+	}
+	select {
+	case <-pub.started:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("expected worker publish to start")
+	}
+	if err := ap.Publish(context.Background(), &envelopev1.TelemetryEnvelope{EnvelopeId: "id-2"}); err != nil {
+		t.Fatalf("second Publish() error = %v", err)
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				result <- errors.New("publish panicked during close")
+			}
+		}()
+		result <- ap.Publish(context.Background(), &envelopev1.TelemetryEnvelope{EnvelopeId: "id-3"})
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	if err := ap.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, errAsyncPublisherClosed) {
+			t.Fatalf("expected errAsyncPublisherClosed, got %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("expected concurrent Publish() to return after Close()")
+	}
+}
+
+type blockingContextPublisher struct {
+	started chan struct{}
+}
+
+func (p *blockingContextPublisher) PublishEnvelope(ctx context.Context, _ *envelopev1.TelemetryEnvelope) error {
+	select {
+	case p.started <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (p *blockingContextPublisher) Close() error { return nil }

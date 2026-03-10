@@ -576,6 +576,10 @@ ECOFLOW_GRPC_10K_SOAK=1 GOGC=200 GOMEMLIMIT=128MiB go test ./cmd/ecoflow-grpc-ap
 # Optional threshold overrides (milliseconds / MiB):
 # ECOFLOW_GRPC_P99_STEADY_MAX_MS=50 ECOFLOW_GRPC_P99_BURST_MAX_MS=250 ECOFLOW_GRPC_MAX_HEAP_DELTA_MB=64
 
+# race detection for streaming/snapshot concurrency paths
+go test -race ./cmd/ecoflow-grpc-api -count=1
+go test -race ./internal/grpcserver -count=1
+
 # CPU/heap profiles
 go test ./cmd/ecoflow-grpc-api -run '^$' -bench BenchmarkTelemetryGetSnapshotParallel -benchtime=10s -cpuprofile /tmp/ecoflow-grpc-api.cpu.out
 go tool pprof -top /tmp/ecoflow-grpc-api.cpu.out
@@ -591,6 +595,9 @@ go test ./internal/ingestworker -run '^$' -bench BenchmarkLoopReconcileStartBatc
 
 # race detection for lease/session lifecycle and concurrency edges
 go test -race ./internal/ingestworker -count=1
+
+# focused shutdown/queue race checks for async publish and loop drain behavior
+go test ./internal/ingestworker -run 'TestAsyncEnvelopePublisher|TestProviderSessionRunner|TestLoopNoGoroutineLeakOnShutdown|TestLoopCancelDuringBurstStart' -count=1
 
 # focused cpu/heap profile (10k, high-concurrency startup path)
 go test ./internal/ingestworker -run '^$' -bench BenchmarkLoopReconcileStartBatch/10k_workers48_delay50us -benchtime=3x -cpuprofile /tmp/ingestworker.cpu.out -memprofile /tmp/ingestworker.mem.out
