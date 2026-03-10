@@ -106,6 +106,9 @@ Defaults:
 - dev values enable `ingress-nginx` + `cert-manager` and expose the public app
   ingress host as `pulse.dev.local` (TLS remains opt-in until a real issuer is
   configured).
+- dev/GKE keeps HTTP/3 opt-in by default (`runtime.publicApp.ingress.http3.enabled=false`);
+  only enable QUIC + UDP `443` there when the environment is intentionally
+  exercising a real browser-facing TLS edge.
 - dev values also enable `external-secrets` + `observability-lite` using
   low-footprint resource limits.
 - GKE Argo CD bootstrap uses `deploy/env/dev/values.argocd.yaml`.
