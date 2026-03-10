@@ -905,6 +905,16 @@ Notes:
 - local observability access examples after `make platform-up` / `make platform-wait`:
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-kube-promet-prometheus 9090:9090`
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-grafana 3000:80`
+  - worker metrics endpoints exposed in local `pulse-services`:
+    - `pulse-services-go-ingest-metrics`
+    - `pulse-services-go-inference-metrics`
+    - `pulse-services-go-projection-metrics`
+    - `pulse-services-go-rollup-metrics`
+    - `pulse-services-go-archive-metrics`
+  - bundled Grafana dashboards:
+    - `Pulse Pipeline Overview`
+    - `Pulse Ingest Health`
+    - `Pulse Storage & History Pipeline`
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
 - `make dev-deploy` is the incremental local redeploy path for code changes:

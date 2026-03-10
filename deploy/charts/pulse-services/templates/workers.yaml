@@ -102,6 +102,11 @@ spec:
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-inference-worker"]
+          {{- if .Values.runtime.workers.inference.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.inference.metrics.service.port }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -109,6 +114,46 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.inference.resources | nindent 12 }}
+---
+{{- if .Values.runtime.workers.inference.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-inference-metrics
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-inference
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-inference
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workers.inference.metrics.service.port }}
+      targetPort: metrics
+{{- end }}
+---
+{{- if and .Values.runtime.workers.inference.metrics.enabled .Values.runtime.workers.inference.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-inference
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-inference
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-inference
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.inference.metrics.serviceMonitor.interval }}
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.rollup.enabled }}
@@ -136,6 +181,11 @@ spec:
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-rollup-worker"]
+          {{- if .Values.runtime.workers.rollup.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.rollup.metrics.service.port }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -143,6 +193,46 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.rollup.resources | nindent 12 }}
+---
+{{- if .Values.runtime.workers.rollup.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-rollup-metrics
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-rollup
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-rollup
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workers.rollup.metrics.service.port }}
+      targetPort: metrics
+{{- end }}
+---
+{{- if and .Values.runtime.workers.rollup.metrics.enabled .Values.runtime.workers.rollup.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-rollup
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-rollup
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-rollup
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.rollup.metrics.serviceMonitor.interval }}
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.projection.enabled }}
@@ -170,6 +260,11 @@ spec:
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-projection-worker"]
+          {{- if .Values.runtime.workers.projection.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.projection.metrics.service.port }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -177,6 +272,46 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.projection.resources | nindent 12 }}
+---
+{{- if .Values.runtime.workers.projection.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-projection-metrics
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-projection
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-projection
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workers.projection.metrics.service.port }}
+      targetPort: metrics
+{{- end }}
+---
+{{- if and .Values.runtime.workers.projection.metrics.enabled .Values.runtime.workers.projection.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-projection
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-projection
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-projection
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.projection.metrics.serviceMonitor.interval }}
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.archive.enabled }}
@@ -204,6 +339,11 @@ spec:
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-archive-worker"]
+          {{- if .Values.runtime.workers.archive.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.archive.metrics.service.port }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -211,6 +351,46 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
+---
+{{- if .Values.runtime.workers.archive.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-archive-metrics
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-archive
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-archive
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workers.archive.metrics.service.port }}
+      targetPort: metrics
+{{- end }}
+---
+{{- if and .Values.runtime.workers.archive.metrics.enabled .Values.runtime.workers.archive.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-archive
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-archive
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-archive
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.archive.metrics.serviceMonitor.interval }}
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.grpcApi.enabled }}

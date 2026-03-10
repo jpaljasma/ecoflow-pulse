@@ -11,6 +11,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
@@ -75,18 +76,24 @@ func main() {
 		log.Error("init projection worker failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	metrics := workermetrics.New("projection")
+	worker.SetMetrics(metrics)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
+	metricsListenAddr := strings.TrimSpace(os.Getenv("PROJECTION_METRICS_LISTEN_ADDR"))
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "projection-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
+	stopMetricsServer := workermetrics.StartServer(ctx, log, metrics.Registry(), metricsListenAddr)
+	defer stopMetricsServer()
 	log.Info("projection worker starting",
 		slog.String("log_level", logCfg.Level.String()),
 		slog.Bool("log_async_enabled", logCfg.AsyncEnabled),
 		slog.Int("log_async_queue_size", logCfg.AsyncQueueSize),
 		slog.String("log_async_bypass_level", logCfg.AsyncBypassLevel.String()),
 		slog.Duration("log_metrics_interval", logMetricsInterval),
+		slog.String("metrics_listen_addr", metricsListenAddr),
 		slog.String("nats_urls", strings.Join(natsCfg.URLs, ",")),
 		slog.String("subject_prefix", cfg.SubjectConfig.Prefix),
 		slog.Uint64("shards", uint64(cfg.SubjectConfig.ShardCount)),

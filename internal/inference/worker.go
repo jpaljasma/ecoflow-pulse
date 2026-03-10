@@ -11,6 +11,7 @@ import (
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/proto"
 )
@@ -88,6 +89,7 @@ type Worker struct {
 	cfg       Config
 	subscribe func(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error)
 	tracker   *telemetrybus.MsgHandlerTracker
+	metrics   *workermetrics.Metrics
 }
 
 func NewWorker(log *slog.Logger, conn *nats.Conn, store Store, resolver DeviceContextResolver, cfg Config) (*Worker, error) {
@@ -148,6 +150,13 @@ func (w *Worker) Run(ctx context.Context) error {
 	return nil
 }
 
+func (w *Worker) SetMetrics(metrics *workermetrics.Metrics) {
+	if w == nil {
+		return
+	}
+	w.metrics = metrics
+}
+
 func (w *Worker) defaultSubscribe(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error) {
 	return js.QueueSubscribe(
 		telemetrybus.IngestWildcardSubject(w.cfg.SubjectConfig),
@@ -165,11 +174,18 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 	if msg == nil {
 		return
 	}
+	finish := func(string) {}
+	if w.metrics != nil {
+		finish = w.metrics.StartMessage()
+	}
+	outcome := "acked"
+	defer func() { finish(outcome) }()
 	procCtx, cancel := context.WithTimeout(context.Background(), w.cfg.ProcessTimeout)
 	defer cancel()
 
 	var env envelopev1.TelemetryEnvelope
 	if err := proto.Unmarshal(msg.Data, &env); err != nil {
+		outcome = "termed_invalid_proto"
 		w.log.Warn("inference received invalid telemetry envelope; terminating message",
 			slog.String("subject", msg.Subject),
 			slog.String("error", err.Error()),
@@ -182,6 +198,7 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 
 	deviceID := strings.TrimSpace(env.GetDeviceId())
 	if deviceID == "" {
+		outcome = "termed_missing_device_id"
 		w.log.Warn("inference received envelope without device_id; terminating message",
 			slog.String("subject", msg.Subject),
 			slog.String("ecoflow_sn", strings.ToUpper(strings.TrimSpace(env.GetEcoflowSn()))),
@@ -195,6 +212,7 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 	deviceCtx, err := w.resolver.ResolveDeviceContext(procCtx, deviceID)
 	if err != nil {
 		if errors.Is(err, controlplane.ErrDeviceNotFound) {
+			outcome = "termed_device_not_found"
 			w.log.Warn("inference device context not found; terminating message",
 				slog.String("device_id", deviceID),
 			)
@@ -203,6 +221,7 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 			}
 			return
 		}
+		outcome = "nacked_resolve_failed"
 		w.log.Warn("inference resolve device context failed; nacking for retry",
 			slog.String("device_id", deviceID),
 			slog.String("error", err.Error()),
@@ -214,6 +233,7 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 	}
 
 	if _, err := w.store.ApplyEnvelope(procCtx, &env, deviceCtx); err != nil {
+		outcome = "nacked_apply_failed"
 		w.log.Warn("inference apply envelope failed; nacking for retry",
 			slog.String("subject", msg.Subject),
 			slog.String("device_id", deviceID),
@@ -226,6 +246,7 @@ func (w *Worker) handleMessage(msg *nats.Msg) {
 	}
 
 	if ackErr := msg.Ack(); ackErr != nil {
+		outcome = "ack_failed"
 		w.log.Warn("inference ack failed", slog.String("error", ackErr.Error()))
 	}
 }

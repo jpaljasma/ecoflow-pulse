@@ -76,6 +76,13 @@ runtime:
     inference:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m
@@ -86,6 +93,13 @@ runtime:
     projection:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m
@@ -96,6 +110,13 @@ runtime:
     rollup:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m
@@ -106,6 +127,13 @@ runtime:
     archive:
       enabled: false
       replicaCount: 1
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       resources:
         requests:
           cpu: 100m

@@ -53,15 +53,31 @@ runtime:
     inference:
       enabled: true
       replicaCount: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     projection:
       enabled: true
       replicaCount: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     rollup:
       enabled: true
       replicaCount: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     archive:
       enabled: true
       replicaCount: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     grpcApi:
       enabled: true
       replicaCount: 2
