@@ -62,6 +62,7 @@ metadata:
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-ingest
+    release: {{ .Values.global.platformReleaseName }}
 spec:
   selector:
     matchLabels:
@@ -141,6 +142,7 @@ metadata:
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-inference
+    release: {{ .Values.global.platformReleaseName }}
 spec:
   selector:
     matchLabels:
@@ -220,6 +222,7 @@ metadata:
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-rollup
+    release: {{ .Values.global.platformReleaseName }}
 spec:
   selector:
     matchLabels:
@@ -299,6 +302,7 @@ metadata:
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-projection
+    release: {{ .Values.global.platformReleaseName }}
 spec:
   selector:
     matchLabels:
@@ -378,6 +382,7 @@ metadata:
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-archive
+    release: {{ .Values.global.platformReleaseName }}
 spec:
   selector:
     matchLabels:

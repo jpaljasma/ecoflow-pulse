@@ -1,5 +1,6 @@
 global:
   environment: local
+  platformReleaseName: pulse-platform
   namespaces:
     platform: pulse-platform
     services: pulse-services
