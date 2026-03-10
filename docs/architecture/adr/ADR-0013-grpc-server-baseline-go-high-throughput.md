@@ -275,6 +275,9 @@ func Serve(ctx context.Context, s *grpc.Server, lis net.Listener, grace time.Dur
 - [x] Add workload-calibrated benchmark harness (observed fleet mix + startup burst)
 - [x] Add 10k synthetic fleet soak gate with p99/heap thresholds (opt-in)
 - [x] Add contention/allocation profiling workflow (`pprof`, mutex/block profiles, gc tuning)
-- [ ] Add load test harness for unary + streaming (k6 or ghz)
+- [x] DONE: Add load test harness for unary + streaming (bench/soak wrappers over the observed-fleet gRPC benchmark harness)
+  - [x] Added stable Make targets `test-grpc-load-harness` and `test-grpc-soak-10k`
+  - [x] Updated command docs so the harness is runnable without bespoke benchmark flags
+  - Validation evidence (2026-03-09): `GRPC_LOAD_BENCH_TIME=1x make test-grpc-load-harness` succeeded; `GRPC_LOAD_10K_BENCH_TIME=1x make test-grpc-soak-10k` succeeded; `make lint` succeeded.
 - [ ] Decide per-method compression rules (thresholds)
 - [x] Replace `NoopAuthorizer` with Keycloak JWKS JWT validation + RBAC enforcement at Go boundary

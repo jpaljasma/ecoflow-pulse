@@ -122,6 +122,8 @@ K6_QUERY_RATE ?= 1
 K6_QUERY_PRE_ALLOCATED_VUS ?= 2
 K6_QUERY_MAX_VUS ?= 8
 K6_WS_VUS ?= 20
+GRPC_LOAD_BENCH_TIME ?= 3s
+GRPC_LOAD_10K_BENCH_TIME ?= 2s
 K6_WS_SESSION_TIMEOUT_MS ?= 4000
 K6_WS_POST_TELEMETRY_HOLD_MS ?= 200
 K6_WS_THINK_TIME_MS ?= 100
@@ -151,7 +153,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -255,6 +257,16 @@ test-db-migrations-ci:
 	@echo "running migration cycle + pgroll + e2e validation suite with Testcontainers"
 	PGROLL_REQUIRED="$(PGROLL_REQUIRED)" PGROLL_BIN="$(PGROLL)" \
 	$(GO) test ./internal/integrationtest -run 'Test(MigrationsCycleAndE2E|PgrollPlansCycleAndRollback)' -count=1 -v
+
+test-grpc-load-harness:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	@echo "running grpc unary + streaming load harness"
+	$(GO) test ./cmd/ecoflow-grpc-api -run '^$$' -bench 'BenchmarkTelemetry(GetSnapshotObservedFleetMix|SubscribeObservedBurst)$$' -benchmem -benchtime=$(GRPC_LOAD_BENCH_TIME)
+
+test-grpc-soak-10k:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	@echo "running opt-in grpc 10k synthetic soak harness"
+	ECOFLOW_GRPC_10K_SOAK=1 $(GO) test ./cmd/ecoflow-grpc-api -run '^$$' -bench 'BenchmarkTelemetry(GetSnapshotObservedFleetMix10k|SubscribeObservedStartupSpike10k)$$' -benchmem -benchtime=$(GRPC_LOAD_10K_BENCH_TIME)
 
 test-web-e2e:
 	@echo "running Playwright web E2E suite"
