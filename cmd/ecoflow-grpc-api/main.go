@@ -128,13 +128,14 @@ func main() {
 	ecoflowClientConfig.Logging.DebugLogHeaders = false
 	ecoflowClientConfig.Logging.Logger = log
 
-	controlPlaneService := NewControlPlaneService(log, controlPlaneStore)
-	controlPlaneService.RegisterDiscoverer(
+	adapterRegistry := provideradapter.NewRegistry()
+	adapterRegistry.RegisterDiscoverer(
 		controlplane.ProviderEcoFlow,
 		provideradapter.NewEcoFlowAdapter(
 			provideradapter.NewDefaultEcoFlowClientFactory(ecoflowClientConfig),
 		),
 	)
+	controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
 	inferencev1.RegisterInferenceServiceServer(s, NewInferenceService(log, controlPlaneStore, inferenceReader))
 

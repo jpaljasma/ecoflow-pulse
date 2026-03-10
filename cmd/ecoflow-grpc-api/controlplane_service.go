@@ -9,39 +9,54 @@ import (
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
+	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-type ProviderDiscoverer interface {
-	DiscoverDevices(ctx context.Context, credential controlplane.ProviderCredential) ([]controlplane.ProviderDevice, error)
-}
-
 type ControlPlaneService struct {
 	controlplanev1.UnimplementedControlPlaneServiceServer
 
-	log         *slog.Logger
-	store       controlplane.Store
-	discoverers map[string]ProviderDiscoverer
+	log      *slog.Logger
+	store    controlplane.Store
+	adapters *provideradapter.Registry
 }
 
-func NewControlPlaneService(log *slog.Logger, store controlplane.Store) *ControlPlaneService {
+func NewControlPlaneService(log *slog.Logger, store controlplane.Store, adapters *provideradapter.Registry) *ControlPlaneService {
+	if adapters == nil {
+		adapters = provideradapter.NewRegistry()
+	}
 	return &ControlPlaneService{
-		log:         log,
-		store:       store,
-		discoverers: map[string]ProviderDiscoverer{},
+		log:      log,
+		store:    store,
+		adapters: adapters,
 	}
 }
 
-func (s *ControlPlaneService) RegisterDiscoverer(provider string, discoverer ProviderDiscoverer) {
-	if s == nil || discoverer == nil {
+func (s *ControlPlaneService) RegisterProvider(provider string) {
+	if s == nil || s.adapters == nil {
 		return
 	}
-	if s.discoverers == nil {
-		s.discoverers = map[string]ProviderDiscoverer{}
+	s.adapters.RegisterProvider(provider)
+}
+
+func (s *ControlPlaneService) RegisterDiscoverer(provider string, discoverer provideradapter.Discoverer) {
+	if s == nil || s.adapters == nil {
+		return
 	}
-	s.discoverers[controlplane.NormalizeProvider(provider)] = discoverer
+	s.adapters.RegisterDiscoverer(provider, discoverer)
+}
+
+func (s *ControlPlaneService) supportsProvider(provider string) bool {
+	provider = controlplane.NormalizeProvider(provider)
+	if provider == "" {
+		return false
+	}
+	if s != nil && s.adapters != nil && s.adapters.Supports(provider) {
+		return true
+	}
+	return controlplane.IsSupportedProvider(provider)
 }
 
 func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req *controlplanev1.CreateProviderCredentialRequest) (*controlplanev1.CreateProviderCredentialResponse, error) {
@@ -50,7 +65,7 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
-	if !controlplane.IsSupportedProvider(provider) {
+	if !s.supportsProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
 	}
 	if strings.TrimSpace(req.GetAccessKey()) == "" {
@@ -83,7 +98,7 @@ func (s *ControlPlaneService) ListProviderCredentials(ctx context.Context, req *
 		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
-	if provider != "" && !controlplane.IsSupportedProvider(provider) {
+	if provider != "" && !s.supportsProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
 	}
 	rows, err := s.store.ListProviderCredentials(ctx, controlplane.ListProviderCredentialsInput{
@@ -204,7 +219,7 @@ func (s *ControlPlaneService) ListDevices(ctx context.Context, req *controlplane
 		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
-	if provider != "" && !controlplane.IsSupportedProvider(provider) {
+	if provider != "" && !s.supportsProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
 	}
 	rows, err := s.store.ListProviderDevices(ctx, controlplane.ListProviderDevicesInput{
@@ -259,7 +274,7 @@ func (s *ControlPlaneService) DiscoverDevices(ctx context.Context, req *controlp
 	if provider != cred.Provider {
 		return nil, status.Error(codes.InvalidArgument, "provider does not match credential provider")
 	}
-	discoverer, ok := s.discoverers[provider]
+	discoverer, ok := s.adapters.Discoverer(provider)
 	if !ok {
 		return &controlplanev1.DiscoverDevicesResponse{
 			Accepted:        false,
