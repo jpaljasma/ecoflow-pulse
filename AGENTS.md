@@ -523,6 +523,9 @@ These are mandatory implementation principles for local workflows and tooling qu
    - for code-only local redeploys, do not refresh or rebuild Helm dependencies,
    - for `pulse-platform`, reuse vendored chart packages in `deploy/charts/pulse-platform/charts` and only run `helm dependency build --skip-refresh` when `Chart.yaml` / `Chart.lock` changed or vendored tarballs are missing,
    - for `pulse-services`, skip `helm dependency build` because the chart has no external dependencies.
+7. Local image-import targets must refresh running workloads when tags stay constant:
+   - if `services-up` or a similar local target rebuilds/imports a `:local` image without changing the tag,
+   - it must also restart the affected deployments (or force an equivalent pod-template change) so pods actually run the imported image.
 
 ### Valkey ingest lease baseline (ADR-0014)
 1. Lease operations must use Lua with token checks and fencing:
