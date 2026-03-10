@@ -34,5 +34,9 @@ For control-plane schema and future relational tables:
 - UUID-based foreign keys require consistent type handling in all services.
 
 ## Follow-ups
-- [ ] Apply these rules to all new M1+ control-plane tables.
-- [ ] Add service-level validation/tests that enforce UTC timestamp writes.
+- [x] DONE: Apply these rules to all new M1+ control-plane tables.
+  - [x] Migration/integration validation now checks `created_at` / `updated_at` default absence for `users`, `devices`, `provider_credentials`, and `provider_devices`
+- [x] DONE: Add service-level validation/tests that enforce UTC timestamp writes.
+  - [x] Added UTC normalization tests for control-plane write timestamps in `internal/controlplane`
+  - [x] Added UTC normalization test for `cmd/ecoflow-dev-seed`
+  - Validation evidence (2026-03-09): `go test ./internal/controlplane ./cmd/ecoflow-dev-seed ./internal/integrationtest` succeeded; `go test ./...` succeeded; `make lint` succeeded.

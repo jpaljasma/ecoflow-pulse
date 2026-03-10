@@ -47,7 +47,7 @@ func (s *PostgresStore) Close() error {
 
 func (s *PostgresStore) CreateProviderCredential(ctx context.Context, in CreateProviderCredentialInput) (ProviderCredential, error) {
 	provider := NormalizeProvider(in.Provider)
-	now := s.now()
+	now := normalizeWriteTime(s.now())
 	query := `
 WITH target_user AS (
 	SELECT id
@@ -165,7 +165,7 @@ WHERE pc.id = $1::uuid
 RETURNING pc.id::text, pc.user_id::text, pc.provider, pc.access_key_mask, pc.is_active, pc.created_at, pc.updated_at;
 `
 	var out ProviderCredential
-	row := s.db.QueryRowContext(ctx, query, in.CredentialID, in.UserSubject, in.IsActive, s.now())
+	row := s.db.QueryRowContext(ctx, query, in.CredentialID, in.UserSubject, in.IsActive, normalizeWriteTime(s.now()))
 	if err := row.Scan(
 		&out.ID,
 		&out.UserID,
@@ -226,7 +226,7 @@ WHERE pc.id = $1::uuid
 }
 
 func (s *PostgresStore) CreateDevice(ctx context.Context, in CreateDeviceInput) (UserDevice, error) {
-	now := s.now()
+	now := normalizeWriteTime(s.now())
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return UserDevice{}, fmt.Errorf("begin create device tx: %w", err)
@@ -302,7 +302,7 @@ DO UPDATE SET role = 'admin', updated_at = EXCLUDED.updated_at;
 }
 
 func (s *PostgresStore) LinkDevice(ctx context.Context, in LinkDeviceInput) (UserDevice, error) {
-	now := s.now()
+	now := normalizeWriteTime(s.now())
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return UserDevice{}, fmt.Errorf("begin link device tx: %w", err)
@@ -449,7 +449,7 @@ ORDER BY d.product_name ASC, d.ecoflow_sn ASC;
 }
 
 func (s *PostgresStore) UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
-	now := s.now()
+	now := normalizeWriteTime(s.now())
 	query := `
 INSERT INTO provider_devices (
 	device_id,
@@ -760,4 +760,8 @@ func marshalJSONBMap(value map[string]any) ([]byte, error) {
 
 func utcNow() time.Time {
 	return time.Now().UTC()
+}
+
+func normalizeWriteTime(value time.Time) time.Time {
+	return value.UTC()
 }

@@ -252,7 +252,7 @@ func seedDevData(ctx context.Context, db *sql.DB, cfg seedConfig) (seedResult, e
 		}
 	}()
 
-	now := time.Now().UTC()
+	now := normalizeSeedWriteTime(time.Now())
 
 	userID, err := upsertUser(ctx, tx, cfg.UserSubject, cfg.UserEmail, now)
 	if err != nil {
@@ -475,4 +475,8 @@ SET device_id = EXCLUDED.device_id,
 		return fmt.Errorf("upsert provider device %s: %w", binding.SN, err)
 	}
 	return nil
+}
+
+func normalizeSeedWriteTime(value time.Time) time.Time {
+	return value.UTC()
 }
