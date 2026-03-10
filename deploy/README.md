@@ -91,10 +91,11 @@ Defaults:
   round-robin validation:
   - `pulse-platform-public-app`: `2` replicas
   - `pulse-platform-realtime-gateway`: `2` replicas
-  - `pulse-services-go-grpc-api`: `2` replicas
+  - `pulse-services-go-grpc-api`: `3` replicas
 - current local services defaults enable containerized telemetry workers
-  (`go-ingest`, `go-inference`, `go-projection`, `go-archive`) using image
-  `ecoflow-pulse/services:local`.
+  (`go-ingest`, `go-inference`, `go-projection`, `go-rollup`, `go-archive`)
+  using image `ecoflow-pulse/services:local`, with `3` replicas per service to
+  keep local rollouts disruption-tolerant.
 - local/dev MinIO credentials are intentionally pinned for deterministic
   bring-up and service compatibility:
   - platform chart uses `minio.rootUser` / `minio.rootPassword`

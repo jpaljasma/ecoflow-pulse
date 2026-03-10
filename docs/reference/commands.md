@@ -901,6 +901,8 @@ Notes:
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
   - `nats`, `valkey-node`, and `keycloak` statefulsets,
+  - service endpoints for `pulse-platform-core-rw`, `pulse-platform-nats`,
+    `pulse-platform-valkey`, `pulse-platform-minio`, and `pulse-platform-keycloak-headless` when present,
   - optional Keycloak bootstrap job `pulse-platform-keycloak-keycloak-config-cli` reaching `Complete`,
   - `minio` deployment,
   - optional `ingress-nginx` controller deployment,
@@ -929,6 +931,8 @@ Notes:
   `SERVICES_AUTO_BUILD_IMAGE=1` (the default local path), also restarts the
   `pulse-services` deployments so the freshly imported `ecoflow-pulse/services:local`
   image is picked up even though the tag stays constant.
+  Before applying the release it now also waits for the platform dependency
+  endpoints consumed by the services layer: CNPG rw, NATS, Valkey, and MinIO.
 - `make dev-deploy` is the incremental local redeploy path for code changes:
   rebuild/import local public + services images, then restart
   `pulse-platform-public-app`, `pulse-platform-realtime-gateway`, and

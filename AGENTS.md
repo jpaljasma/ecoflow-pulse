@@ -125,13 +125,17 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Keep the local public/API path multi-replica by default for round-robin validation:
    - Node REST BFF/public app: `2` replicas,
    - WebSocket gateway: `2` replicas,
-   - Go gRPC API: `2` replicas.
-5. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
-6. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
-7. Historical rollup regeneration must be non-destructive by default:
+   - Go gRPC API: `3` replicas.
+5. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps:
+   - ingest, inference, projection, rollup, archive: `3` replicas each in local/dev defaults.
+6. Service rollouts must wait on the platform dependency endpoints they consume before applying/restarting workloads:
+   - at minimum: CNPG rw service, NATS, Valkey, and MinIO.
+7. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
+8. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
+9. Historical rollup regeneration must be non-destructive by default:
    - do not delete a requested rollup window before rebuilding it,
    - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.
-8. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
+10. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
 
 ## Browser Edge Learnings
 1. Browser-facing HTTP/2/HTTP/3 support is an ingress/public-edge concern, not a Node runtime concern.

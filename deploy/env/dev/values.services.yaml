@@ -26,33 +26,38 @@ runtime:
       forwardOnly: true
   workers:
     ingest:
+      replicaCount: 3
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
     inference:
+      replicaCount: 3
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
     projection:
+      replicaCount: 3
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
     rollup:
+      replicaCount: 3
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
     archive:
+      replicaCount: 3
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
     grpcApi:
       enabled: true
-      replicaCount: 2
+      replicaCount: 3
       metrics:
         enabled: true
         serviceMonitor:
