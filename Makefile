@@ -819,12 +819,19 @@ services-wait:
 		echo "namespace $$ns does not exist yet, skipping services wait"; \
 		exit 0; \
 	fi; \
-	if [ -z "$$( $(LOCAL_KUBECTL) -n "$$ns" get pods -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
+	if [ -z "$$( $(LOCAL_KUBECTL) -n "$$ns" get deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name 2>/dev/null )" ]; then \
 		echo "no services workloads found for instance $(SERVICES_RELEASE) in $$ns"; \
 		exit 0; \
 	fi; \
-	echo "waiting for services pods to become Ready"; \
-	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod -l app.kubernetes.io/instance=$(SERVICES_RELEASE) --timeout=$(WAIT_TIMEOUT); \
+	echo "waiting for services deployments to finish rolling out"; \
+	for deploy in $$($(LOCAL_KUBECTL) -n "$$ns" get deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name); do \
+		$(LOCAL_KUBECTL) -n "$$ns" rollout status "$$deploy" --timeout=$(WAIT_TIMEOUT); \
+	done; \
+	echo "waiting for current services pods to become Ready"; \
+	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod \
+		-l app.kubernetes.io/instance=$(SERVICES_RELEASE) \
+		--field-selector=status.phase=Running \
+		--timeout=$(WAIT_TIMEOUT); \
 	echo "services dependencies are ready"
 
 dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait
