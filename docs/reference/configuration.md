@@ -121,6 +121,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `KEYCLOAK_ISSUER_URL` (required when `GRPC_AUTH_MODE=keycloak`)
 - `KEYCLOAK_AUDIENCE` (optional; when set, JWT audience must match)
 - `GRPC_AUTH_ALLOW_MISSING_JWT` (default `false`; optional only for controlled local bootstrap)
+- `GRPC_HISTORY_GZIP_MIN_BYTES` (default `16384`; when a `QueryRollupRange` or `CompareRollupRange` response is at least this serialized size, grpc-api enables gzip for that unary response)
 - `CONTROL_PLANE_DB_DSN`
   - when set to a non-empty DSN, `cmd/ecoflow-grpc-api` uses Postgres-backed control-plane storage,
   - when unset (or whitespace), service falls back to in-memory control-plane storage for local bootstrap/testing.

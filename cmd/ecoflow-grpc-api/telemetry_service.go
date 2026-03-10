@@ -15,8 +15,10 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // TelemetryService serves live snapshots/streams and historical rollup queries.
@@ -24,19 +26,21 @@ import (
 // Timescale rollup tables through the telemetryquery reader.
 type TelemetryService struct {
 	telemetryv1.UnimplementedTelemetryServiceServer
-	log               *slog.Logger
-	snapshotReader    projectionworker.SnapshotReader
-	queryReader       telemetryquery.Reader
-	controlPlaneStore controlplane.Store
-	maxQueryBuckets   int
+	log                 *slog.Logger
+	snapshotReader      projectionworker.SnapshotReader
+	queryReader         telemetryquery.Reader
+	controlPlaneStore   controlplane.Store
+	maxQueryBuckets     int
+	historyGzipMinBytes int
 }
 
 type TelemetryServiceDeps struct {
-	Log               *slog.Logger
-	SnapshotReader    projectionworker.SnapshotReader
-	QueryReader       telemetryquery.Reader
-	ControlPlaneStore controlplane.Store
-	MaxQueryBuckets   int
+	Log                 *slog.Logger
+	SnapshotReader      projectionworker.SnapshotReader
+	QueryReader         telemetryquery.Reader
+	ControlPlaneStore   controlplane.Store
+	MaxQueryBuckets     int
+	HistoryGzipMinBytes int
 }
 
 var defaultSnapshotMetrics = map[string]float64{
@@ -46,9 +50,10 @@ var defaultSnapshotMetrics = map[string]float64{
 }
 
 const (
-	defaultSubscribeUpdateHz uint32 = 4
-	maxSubscribeUpdateHz     uint32 = 50
-	defaultMaxQueryBuckets          = 10_000
+	defaultSubscribeUpdateHz   uint32 = 4
+	maxSubscribeUpdateHz       uint32 = 50
+	defaultMaxQueryBuckets            = 10_000
+	defaultHistoryGzipMinBytes        = 16 << 10 // 16 KiB
 )
 
 func NewTelemetryService(log *slog.Logger) *TelemetryService {
@@ -71,12 +76,17 @@ func NewTelemetryServiceWithDeps(deps TelemetryServiceDeps) *TelemetryService {
 	if maxQueryBuckets <= 0 {
 		maxQueryBuckets = defaultMaxQueryBuckets
 	}
+	historyGzipMinBytes := deps.HistoryGzipMinBytes
+	if historyGzipMinBytes <= 0 {
+		historyGzipMinBytes = defaultHistoryGzipMinBytes
+	}
 	return &TelemetryService{
-		log:               log,
-		snapshotReader:    deps.SnapshotReader,
-		queryReader:       deps.QueryReader,
-		controlPlaneStore: deps.ControlPlaneStore,
-		maxQueryBuckets:   maxQueryBuckets,
+		log:                 log,
+		snapshotReader:      deps.SnapshotReader,
+		queryReader:         deps.QueryReader,
+		controlPlaneStore:   deps.ControlPlaneStore,
+		maxQueryBuckets:     maxQueryBuckets,
+		historyGzipMinBytes: historyGzipMinBytes,
 	}
 }
 
@@ -197,9 +207,11 @@ func (s *TelemetryService) QueryRollupRange(ctx context.Context, req *telemetryv
 	if err != nil {
 		return nil, s.mapQueryError(err)
 	}
-	return &telemetryv1.QueryRollupRangeResponse{
+	resp := &telemetryv1.QueryRollupRangeResponse{
 		Series: seriesToProto(series),
-	}, nil
+	}
+	s.maybeEnableHistoryCompression(ctx, resp)
+	return resp, nil
 }
 
 func (s *TelemetryService) CompareRollupRange(ctx context.Context, req *telemetryv1.CompareRollupRangeRequest) (*telemetryv1.CompareRollupRangeResponse, error) {
@@ -228,10 +240,30 @@ func (s *TelemetryService) CompareRollupRange(ctx context.Context, req *telemetr
 		return nil, s.mapQueryError(err)
 	}
 
-	return &telemetryv1.CompareRollupRangeResponse{
+	resp := &telemetryv1.CompareRollupRangeResponse{
 		Current:  seriesToProto(current),
 		Previous: seriesToProto(previous),
-	}, nil
+	}
+	s.maybeEnableHistoryCompression(ctx, resp)
+	return resp, nil
+}
+
+func (s *TelemetryService) maybeEnableHistoryCompression(ctx context.Context, message proto.Message) {
+	if s == nil || !shouldCompressHistoryResponse(message, s.historyGzipMinBytes) {
+		return
+	}
+	if err := grpc.SetSendCompressor(ctx, "gzip"); err != nil {
+		if s.log != nil {
+			s.log.Warn("set history response compressor failed", "error", err.Error())
+		}
+	}
+}
+
+func shouldCompressHistoryResponse(message proto.Message, minBytes int) bool {
+	if message == nil || minBytes <= 0 {
+		return false
+	}
+	return proto.Size(message) >= minBytes
 }
 
 func (s *TelemetryService) subscribeFromReadModel(

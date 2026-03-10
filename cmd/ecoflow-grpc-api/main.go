@@ -116,10 +116,11 @@ func main() {
 
 	// Register services
 	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
-		Log:               log,
-		SnapshotReader:    snapshotReader,
-		QueryReader:       queryReader,
-		ControlPlaneStore: controlPlaneStore,
+		Log:                 log,
+		SnapshotReader:      snapshotReader,
+		QueryReader:         queryReader,
+		ControlPlaneStore:   controlPlaneStore,
+		HistoryGzipMinBytes: runtimecfg.IntMin("GRPC_HISTORY_GZIP_MIN_BYTES", defaultHistoryGzipMinBytes, 0),
 	}))
 	ecoflowClientConfig := ecoflow.DefaultConfig()
 	ecoflowClientConfig.Logging.Debug = false

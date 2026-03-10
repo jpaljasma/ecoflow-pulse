@@ -54,6 +54,10 @@ func newTestService() *TelemetryService {
 	return NewTelemetryService(slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
+func numberPtr(value float64) *float64 {
+	return &value
+}
+
 func TestGetSnapshotValidation(t *testing.T) {
 	t.Parallel()
 
@@ -77,6 +81,52 @@ func TestGetSnapshotOK(t *testing.T) {
 	}
 	if _, ok := resp.GetSnapshot().GetMetrics()["soc"]; !ok {
 		t.Fatalf("expected soc metric")
+	}
+}
+
+func TestShouldCompressHistoryResponse(t *testing.T) {
+	t.Parallel()
+
+	if shouldCompressHistoryResponse(nil, defaultHistoryGzipMinBytes) {
+		t.Fatalf("expected nil message to skip compression")
+	}
+	small := &telemetryv1.QueryRollupRangeResponse{
+		Series: &telemetryv1.RollupSeries{
+			DeviceId: "dev-1",
+			Points: []*telemetryv1.RollupPoint{
+				{
+					BucketStartUnixMs: 1,
+					Metrics: &telemetryv1.RollupMetrics{
+						PvAvgW: numberPtr(10),
+					},
+				},
+			},
+		},
+	}
+	if shouldCompressHistoryResponse(small, defaultHistoryGzipMinBytes) {
+		t.Fatalf("expected small response to skip compression")
+	}
+	largePoints := make([]*telemetryv1.RollupPoint, 0, 512)
+	for i := 0; i < 512; i++ {
+		largePoints = append(largePoints, &telemetryv1.RollupPoint{
+			BucketStartUnixMs: int64(i),
+			Metrics: &telemetryv1.RollupMetrics{
+				SocAvgPct:        numberPtr(50),
+				AcInAvgW:         numberPtr(100),
+				PvAvgW:           numberPtr(200),
+				LoadAvgW:         numberPtr(150),
+				SolarGeneratedWh: numberPtr(3),
+			},
+		})
+	}
+	large := &telemetryv1.QueryRollupRangeResponse{
+		Series: &telemetryv1.RollupSeries{
+			DeviceId: "dev-1",
+			Points:   largePoints,
+		},
+	}
+	if !shouldCompressHistoryResponse(large, defaultHistoryGzipMinBytes) {
+		t.Fatalf("expected large response to enable compression")
 	}
 }
 
