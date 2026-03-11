@@ -39,7 +39,7 @@ EcoFlow Pulse is a resilient, multi-tier real-time monitor for streaming IoT tel
 - EcoFlow API client + signing: `pkg/ecoflow`
 - MQTT ingestion/subscription: `pkg/ecoflowmqtt`
 - HTTP server: `pkg/ecoflowserver`, `cmd/ecoflow-server`
-- Realtime runtime/subscriber: `cmd/ecoflow-mqtt-sub`
+- Distributed ingest runtime: `cmd/ecoflow-ingest-worker`
 - Operational patterns: reconnect/backoff, queueing, graceful shutdown, multi-instance safety
 - Compression libs: `klauspost/compress`, `andybalholm/brotli`
 

@@ -140,27 +140,14 @@ If the panel key is not present, re-check `EcoFlow_compatibility` text formattin
 
 ```bash
 go test ./cmd/ecoflow-panel-db-import
-go test ./cmd/ecoflow-mqtt-sub
 go test ./...
 make lint
 ```
 
-## 7. Verify Runtime Recommendations
+## 7. Optional: Make Detection Model Recognize the New Panel Setup
 
-Run dashboard with candidate matrix enabled:
-
-```bash
-ECOFLOW_MQTT_SHOW_SOLAR_CANDIDATES=true make mqtt
-```
-
-Check in UI:
-
-- `Solar Recommendations` table includes your panel in upgrade/add paths when safe.
-- `Solar Candidate Matrix` lists your panel under the correct PV port.
-
-## 8. Optional: Make Detection Model Recognize the New Panel Setup
-
-This is only needed for the `Detected` row (panel identification), not for static DB recommendations.
+This is only needed for the panel-identification model, not for the static DB
+compatibility artifacts.
 
 1. Collect telemetry with the panel connected (`logs/telemetry_training.csv`).
 2. Optionally provide panel labels via panel map JSON.
@@ -170,9 +157,9 @@ This is only needed for the `Detected` row (panel identification), not for stati
 ./scripts/train_panel_select_model.sh
 ```
 
-4. Re-run dashboard and verify `Detected` confidence/output improves.
+4. Re-run trainer replay metrics and verify the dominant class/output improves.
 
-## 9. Commit Required Files
+## 8. Commit Required Files
 
 Include in your branch:
 

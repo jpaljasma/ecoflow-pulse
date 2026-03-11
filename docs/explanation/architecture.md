@@ -1,39 +1,34 @@
 # Explanation: Architecture
 
-Ecoflow-Pulse separates concerns between API access, MQTT ingestion, state
-derivation, and UI projection.
+EcoFlow Pulse separates concerns between provider API access, distributed
+ingestion, snapshot/history serving, and universal client rendering.
 
 ## Layers
 
 - Ingestion
-  HTTP API via `pkg/ecoflow` and MQTT transport via `pkg/ecoflowmqtt`.
+  Provider API access via `pkg/ecoflow`, MQTT transport primitives via
+  `pkg/ecoflowmqtt`, and distributed worker orchestration in
+  `cmd/ecoflow-ingest-worker` / `internal/ingestworker`.
 
-- Runtime orchestration
-  Connection lifecycle, retry/backoff, bounded ingress queue, read loop, and graceful shutdown.
-  Implemented in `cmd/ecoflow-mqtt-sub/mqtt_runtime.go` and `cmd/ecoflow-mqtt-sub/main.go`.
+- Streaming and storage
+  Canonical telemetry envelopes flow through NATS JetStream, then into Valkey
+  live snapshots, Timescale rollups, and object archive.
 
-- Mapping and state derivation
-  Raw payload parsing + typed mapping, split by telemetry domains:
-  `battery_logic.go`, `pv_logic.go`, `mppt_logic.go`.
+- Public delivery
+  Node REST (`apps/pulse-platform`) serves browser/app API requests and the
+  dedicated websocket gateway (`apps/pulse-realtime-gateway`) handles
+  snapshot-on-connect plus live deltas.
 
-- Projection and rendering
-  View-model projection in `viewmodel.go` and table rendering in `renderer.go`.
-  Dashboard writes are asynchronous through `ui_async.go` (bounded queue, drop-oldest)
-  so UI output does not block telemetry processing.
-
-- Persistence and estimates
-  File-safe append sinks in `file_locking.go` are used for concurrent-safe process/thread writes.
-  History/training file writes use asynchronous bounded queues so telemetry processing does
-  not block on disk I/O.
-  Minute-bucket history + training telemetry capture + ETA models are implemented across
-  `training_csv.go`, `estimates.go`, and `estimates_profiled.go`.
+- Universal client
+  Expo/Tamagui renders the operator-facing web/iOS/Android experience with
+  snapshot-first realtime, rollup-backed history, and auth-aware routing.
 
 ## Why this shape
 
-- minimizes coupling between transport and business mapping,
-- allows per-domain telemetry improvements without changing runtime plumbing,
-- keeps UI output decoupled from ingestion hot paths,
-- keeps test coverage granular by domain and behavior class.
+- keeps provider transport concerns isolated from product-facing delivery paths,
+- lets ingest, projection, archive, and history evolve independently,
+- preserves a clean boundary between public Node entrypoints and internal Go services,
+- keeps the universal client focused on presentation rather than backend orchestration.
 
 ## Universal App Shell
 

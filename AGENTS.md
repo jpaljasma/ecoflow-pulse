@@ -139,6 +139,7 @@ When starting any new milestone task from `docs/architecture/README.md`:
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.
 2. Use `make dev-up` + `make services-up` as the default local runtime path for ingest/projection/archive.
+3. Do not reintroduce the deleted terminal-based telemetry dashboard/runtime (`cmd/ecoflow-mqtt-sub` / `make mqtt`); local product validation should happen through the universal web/app surface backed by the k3d platform.
 3. Keep worker image flow reproducible:
    - `make services-image-build-local`
    - `make services-image-import-local`
@@ -617,13 +618,8 @@ go run ./cmd/ecoflow-ml-train -csv logs/telemetry_training.csv -profile generic 
 3. If quality is close, prefer the simpler/stabler window configuration.
 
 ### Applying trained params
-1. Update profile constants in `cmd/ecoflow-mqtt-sub/estimates_profiled.go`.
-2. Keep model selection priority:
-   - device-specific profile
-   - generic profile
-   - unit (MPPT/device) estimate fallback
-3. Run:
-   - `go test ./cmd/ecoflow-mqtt-sub`
+1. Keep training outputs reproducible and record the exact winning seed/params.
+2. Validate with:
    - `go test ./cmd/ecoflow-ml-train`
    - `go test ./...`
 
@@ -670,8 +666,6 @@ Use this when panel metadata/schema changes (for example new fields like `purcha
 1. Treat panel DB updates as end-to-end schema changes:
    - importer (`cmd/ecoflow-panel-db-import`),
    - compact index (`data/solar_panels/solar_panel_specs_v13.index.json`),
-   - runtime loader + snapshot mapping (`cmd/ecoflow-mqtt-sub/panel_db.go`, `main.go`),
-   - recommendation structs (`cmd/ecoflow-mqtt-sub/viewmodel.go`),
    - tests and docs.
 
 2. For panel purchase links, use this source priority:
@@ -685,7 +679,6 @@ Use this when panel metadata/schema changes (for example new fields like `purcha
 
 4. Validate after regeneration:
    - `go test ./cmd/ecoflow-panel-db-import`
-   - `go test ./cmd/ecoflow-mqtt-sub`
    - `go test ./...`
    - `make lint`
    - verify non-empty link coverage with `jq`.

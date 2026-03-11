@@ -1,7 +1,7 @@
 # Tutorial: Get Started Locally
 
-This tutorial walks through a first local run of Ecoflow-Pulse with API checks
-and MQTT telemetry.
+This tutorial walks through a first local run of EcoFlow Pulse using the
+supported local platform and universal web app flow.
 
 ## Outcome
 
@@ -9,13 +9,16 @@ By the end you will:
 
 - run unit tests,
 - run a smoke API check,
-- launch the MQTT dashboard for a target device.
+- boot the local k3d stack,
+- open the web app against the local platform.
 
 ## Prerequisites
 
 - Go installed (matching project `go.mod` toolchain/runtime support).
+- Node.js + npm installed.
+- Docker Desktop running.
+- `k3d`, `helm`, and `kubectl` installed.
 - EcoFlow API credentials.
-- At least one online EcoFlow device on your account.
 
 ## 1. Configure Environment
 
@@ -26,7 +29,7 @@ cat > .env <<'EOF'
 ECOFLOW_ACCESS_KEY=your_access_key
 ECOFLOW_SECRET_KEY=your_secret_key
 ECOFLOW_ENV=prod
-ECOFLOW_MQTT_SN=your_device_sn
+PULSE_PLATFORM_DEV_SUBJECT=your_user_subject
 EOF
 ```
 
@@ -46,22 +49,20 @@ go run ./cmd/ecoflow-smoke
 
 Expected result: device list and API connectivity details print successfully.
 
-## 4. Run MQTT Dashboard
+## 4. Boot the Local Platform
 
 ```bash
-make mqtt
+make dev-up
 ```
 
-Expected result: live dashboard updates with telemetry for the selected SN.
+Expected result: local k3d platform and services come up successfully.
 
-Controls:
+## 5. Open the Universal Web App
 
-- press `q` to quit gracefully,
-- `Ctrl+C` also exits cleanly.
+```bash
+make dev-web-deploy
+```
 
-## 5. Review Logs
-
-After running, inspect:
-
-- `logs/mqtt.log` for raw and parsed telemetry,
-- `logs/telemetry_history.jsonl` for minute buckets used by trends and ETA warm start.
+Then open `https://localhost` and verify your devices load through the local
+platform. In local noop-auth mode, `PULSE_PLATFORM_DEV_SUBJECT` should match
+the `users.keycloak_subject` value seeded in the control plane.

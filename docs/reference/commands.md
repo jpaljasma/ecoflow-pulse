@@ -8,7 +8,6 @@ make test-race
 make test-race-stress
 go run ./cmd/ecoflow-smoke
 go run ./cmd/ecoflow-server
-go run ./cmd/ecoflow-mqtt-sub
 go run ./cmd/ecoflow-pv-fingerprint
 go run ./cmd/ecoflow-panel-db-import
 go run ./cmd/ecoflow-panel-csv-backfill
@@ -663,7 +662,6 @@ make test-mobile-e2e
 make test-load-k6
 make build
 make smoke
-make mqtt
 make ingest-worker
 make inference-worker
 make projection-worker
@@ -723,8 +721,6 @@ Notes:
     `brew install actionlint`
   - if `markdownlint` is missing, it fails with install hint:
     `brew install markdownlint-cli`
-- `make mqtt` exits cleanly on `q`/`Ctrl+C` and does not return non-zero on
-  intentional stop.
 - `make bench-ingestlease-integration` runs Valkey lease manager integration
   leak/throughput checks against a live Valkey service via temporary
   `kubectl port-forward`.

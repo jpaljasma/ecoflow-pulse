@@ -140,7 +140,7 @@ Android.
 
 ```bash
 go test ./...
-make mqtt
+make dev-up
 ```
 
 ## Platform Quick Start (Local)
@@ -159,7 +159,6 @@ Developer docs follow Diataxis under `/docs`:
 - [Developer Documentation Index](docs/README.md)
 - [Architecture (Locked Plan)](docs/architecture/README.md)
 - [Architecture Decision Records (ADR Index)](docs/architecture/adr/README.md)
-- [Run MQTT Dashboard](docs/how-to/run-mqtt-dashboard.md)
 - [Configuration Reference](docs/reference/configuration.md)
 - [Telemetry Model](docs/reference/telemetry-model.md)
 - [Solar Avoided Emissions Reference](docs/reference/solar-avoided-emissions.md)
@@ -173,7 +172,6 @@ Developer docs follow Diataxis under `/docs`:
 - `apps/pulse-realtime-gateway`: public WS gateway (JWT auth, Valkey snapshot,
   NATS delta fanout, backpressure ladder)
 - `apps/universal`: Expo universal dashboard (Web/iOS/Android)
-- `cmd/ecoflow-mqtt-sub`: real-time MQTT telemetry dashboard
 - `cmd/ecoflow-grpc-api`: internal high-throughput gRPC API
 - `cmd/ecoflow-ingest-worker`: distributed MQTT ingest worker
 - `cmd/ecoflow-projection-worker`: NATS -> Valkey live snapshot projector
