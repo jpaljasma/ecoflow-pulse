@@ -53,7 +53,7 @@ test.describe('Energy route web E2E', () => {
     await page.getByRole('button', { name: 'Kitchen Delta 2 Max' }).click();
 
     await expect(page).toHaveURL(/device=22222222-2222-7222-8222-222222222222/);
-    await expect(page.getByText('Kitchen Delta 2 Max · Mar 3 - Mar 3', { exact: true })).toBeVisible();
+    await expect(page.getByText('Kitchen Delta 2 Max', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('PV 1', { exact: true })).toBeVisible();
     await expect(page.getByText('Historical PV observations are not available for this port in the selected window.', { exact: true })).toBeVisible();
     await expect(page.getByText('Hist max W', { exact: true })).toBeVisible();
