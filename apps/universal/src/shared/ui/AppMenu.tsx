@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Image, Platform, ScrollView, useColorScheme } from 'react-native';
+import { Image, Platform, ScrollView } from 'react-native';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
 import { Sheet } from '@/shared/ui/Sheet';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
+import { useAppTheme } from '@/shared/theme/useAppTheme';
 
 export function AppMenu() {
   const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const scheme = useColorScheme();
-  const menuMark = getBundledBrandMark(scheme === 'dark' ? 'dark' : 'light');
+  const { isDark } = useAppTheme();
+  const menuMark = getBundledBrandMark(isDark ? 'dark' : 'light');
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { ActivityIndicator, Animated, Image, Platform, useColorScheme, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, Image, Platform, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
@@ -15,18 +15,18 @@ import { DeviceList } from '@/features/devices/DeviceList';
 import { FleetEnergyImpactCard } from '@/features/energy-impact/FleetEnergyImpactCard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
-
-function statusDotColor(status: string): string {
-  if (status === 'connected') return '#30d158';
-  if (status === 'auth_required') return '#ff9f0a';
-  if (status === 'reconnecting' || status === 'connecting') return '#ff9f0a';
-  return '#ff453a';
-}
+import { useAppTheme } from '@/shared/theme/useAppTheme';
+import {
+  getConnectionStatusColor,
+  useThemeSemantics,
+  type ConnectionStatus
+} from '@/shared/theme/semantic';
 
 export default function DevicesScreen() {
   const { width } = useWindowDimensions();
-  const scheme = useColorScheme();
-  const loadingMark = getBundledBrandMark(scheme === 'dark' ? 'dark' : 'light');
+  const { isDark } = useAppTheme();
+  const semantics = useThemeSemantics();
+  const loadingMark = getBundledBrandMark(isDark ? 'dark' : 'light');
   const compactHeader = width < 430;
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
   const devicesQuery = useDevices({
@@ -84,7 +84,7 @@ export default function DevicesScreen() {
           />
         }
         subtitle={
-          <Text fontSize={10} opacity={0.5} numberOfLines={1}>
+          <Text fontSize={11} color="$colorMuted" opacity={0.92} numberOfLines={1}>
             {authConfigured && !authReady
               ? 'Restoring session…'
               : formatConnectionStatus(connectionStatus)}
@@ -100,7 +100,7 @@ export default function DevicesScreen() {
                 height: compactHeader ? 12 : 14,
                 borderRadius: compactHeader ? 6 : 7,
                 marginTop: compactHeader ? 2 : 1,
-                backgroundColor: statusDotColor(connectionStatus),
+                backgroundColor: getConnectionStatusColor(connectionStatus as ConnectionStatus, semantics),
                 transform: [{ scale: dotScale }],
                 opacity: dotOpacity
               }}
@@ -118,12 +118,16 @@ export default function DevicesScreen() {
             borderRadius="$4"
             alignItems="center"
             justifyContent="center"
-            backgroundColor="rgba(120,120,128,0.12)"
+            style={{
+              backgroundColor: semantics.mutedPanelBackground,
+              borderColor: semantics.mutedPanelBorder
+            }}
+            borderWidth={1}
           >
             <Image source={loadingMark} style={{ width: 34, height: 34 }} resizeMode="contain" />
           </YStack>
           <ActivityIndicator size="large" />
-          <Text opacity={0.82} fontSize="$5" fontWeight="600">
+          <Text color="$color" opacity={0.96} fontSize="$5" fontWeight="700">
             Loading...
           </Text>
         </YStack>
@@ -134,7 +138,7 @@ export default function DevicesScreen() {
           <Text fontSize="$5" fontWeight="700">
             Failed to load devices
           </Text>
-          <Text opacity={0.75}>{String(devicesQuery.error)}</Text>
+          <Text color="$colorMuted" opacity={0.96}>{String(devicesQuery.error)}</Text>
         </YStack>
       ) : null}
 
@@ -143,7 +147,7 @@ export default function DevicesScreen() {
           <Text fontSize="$5" fontWeight="700">
             Sign in required
           </Text>
-          <Text opacity={0.75}>
+          <Text color="$colorMuted" opacity={0.96}>
             Open Settings and sign in to load devices and live telemetry.
           </Text>
         </YStack>

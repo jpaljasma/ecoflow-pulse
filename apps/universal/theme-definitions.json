@@ -1,0 +1,154 @@
+{
+  "defaultFamily": "new",
+  "defaultVariant": "new-dark",
+  "metadata": {
+    "title": "EcoFlow Pulse",
+    "tagline": "Live solar, battery, and backup power intelligence.",
+    "subject": "Smarter EcoFlow energy at a glance",
+    "description": "Track live solar input, battery state, load flow, and device health in one sharp control room for your EcoFlow fleet.",
+    "shareTitle": "EcoFlow Pulse: Your live energy control room",
+    "shareDescription": "See solar, battery, load, and backup power in real time with a cleaner, faster EcoFlow dashboard."
+  },
+  "themes": {
+    "original-light": {
+      "label": "Original Light",
+      "family": "original",
+      "mode": "light",
+      "colors": {
+        "background": "#f5f5f7",
+        "backgroundHover": "#ebedf1",
+        "backgroundPress": "#dfe2e8",
+        "backgroundFocus": "#d9dce4",
+        "backgroundElevated": "#ffffff",
+        "color": "#111216",
+        "colorHover": "#000000",
+        "colorPress": "#1d1f23",
+        "colorFocus": "#111216",
+        "colorMuted": "#61646c",
+        "borderColor": "#d8dae0",
+        "shadowColor": "#000000",
+        "accentColor": "#0a84ff"
+      },
+      "semantic": {
+        "success": "#30d158",
+        "warning": "#ff9f0a",
+        "danger": "#ff453a",
+        "info": "#0a84ff",
+        "solar": "#ff9f0a",
+        "ac": "#0a84ff",
+        "dc": "#bf5af2",
+        "load": "#ff453a",
+        "co2e": "#22c55e",
+        "air": "#14b8a6",
+        "evMiles": "#6366f1",
+        "trees": "#10b981",
+        "metricCold": "#2f80ed"
+      }
+    },
+    "original-dark": {
+      "label": "Original Dark",
+      "family": "original",
+      "mode": "dark",
+      "colors": {
+        "background": "#08090a",
+        "backgroundHover": "#121418",
+        "backgroundPress": "#1a1d22",
+        "backgroundFocus": "#1b1e24",
+        "backgroundElevated": "#111214",
+        "color": "#f4f6f8",
+        "colorHover": "#ffffff",
+        "colorPress": "#e9edf2",
+        "colorFocus": "#f2f6fb",
+        "colorMuted": "#9aa1ad",
+        "borderColor": "#26282d",
+        "shadowColor": "#000000",
+        "accentColor": "#0a84ff"
+      },
+      "semantic": {
+        "success": "#30d158",
+        "warning": "#ff9f0a",
+        "danger": "#ff453a",
+        "info": "#0a84ff",
+        "solar": "#ffb340",
+        "ac": "#5aa8ff",
+        "dc": "#d08cff",
+        "load": "#ff6f66",
+        "co2e": "#4ade80",
+        "air": "#2dd4bf",
+        "evMiles": "#818cf8",
+        "trees": "#34d399",
+        "metricCold": "#7ab8ff"
+      }
+    },
+    "new-light": {
+      "label": "New Light",
+      "family": "new",
+      "mode": "light",
+      "colors": {
+        "background": "#e9f7f2",
+        "backgroundHover": "#d8efe7",
+        "backgroundPress": "#c9e8de",
+        "backgroundFocus": "#bddfd4",
+        "backgroundElevated": "#f7fffc",
+        "color": "#072422",
+        "colorHover": "#031614",
+        "colorPress": "#0c312d",
+        "colorFocus": "#072422",
+        "colorMuted": "#325650",
+        "borderColor": "#84c5b3",
+        "shadowColor": "#031412",
+        "accentColor": "#0f8c79"
+      },
+      "semantic": {
+        "success": "#0b8f4f",
+        "warning": "#c87400",
+        "danger": "#c93c32",
+        "info": "#0d6fe7",
+        "solar": "#d78810",
+        "ac": "#0d6fe7",
+        "dc": "#8b5cf6",
+        "load": "#de4a3e",
+        "co2e": "#198754",
+        "air": "#0f8c79",
+        "evMiles": "#4f46e5",
+        "trees": "#0d9b6c",
+        "metricCold": "#236fd8"
+      }
+    },
+    "new-dark": {
+      "label": "New Dark",
+      "family": "new",
+      "mode": "dark",
+      "colors": {
+        "background": "#082a27",
+        "backgroundHover": "#0d3934",
+        "backgroundPress": "#114740",
+        "backgroundFocus": "#145148",
+        "backgroundElevated": "#123732",
+        "color": "#f6fffc",
+        "colorHover": "#ffffff",
+        "colorPress": "#dcfffa",
+        "colorFocus": "#f6fffc",
+        "colorMuted": "#c0e8de",
+        "borderColor": "#2a7a6d",
+        "shadowColor": "#000000",
+        "accentColor": "#59f0cb"
+      },
+      "semantic": {
+        "success": "#30d158",
+        "warning": "#ffad33",
+        "danger": "#ff6259",
+        "info": "#59a9ff",
+        "solar": "#ffad33",
+        "ac": "#2596ff",
+        "dc": "#cf70ff",
+        "load": "#ff5147",
+        "co2e": "#4ade80",
+        "air": "#45d4c6",
+        "evMiles": "#9aa3ff",
+        "trees": "#53dea7",
+        "metricCold": "#66b7ff"
+      }
+    }
+  }
+}

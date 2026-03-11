@@ -9,37 +9,8 @@ import {
   energyImpactPeriodLabel,
   type EnergyImpactPeriod
 } from '@/features/energy-impact/model';
-
-const CARD_BG = 'rgba(20,184,166,0.05)';
-const CARD_BORDER = 'rgba(45,212,191,0.32)';
-const LEAF_BADGE_BG = 'rgba(45,212,191,0.14)';
-const LEAF_BADGE_BORDER = 'rgba(45,212,191,0.30)';
-const LEAF_BADGE_TEXT = '#0f766e';
-const ACTION_BG = 'rgba(59,130,246,0.08)';
-const ACTION_BORDER = 'rgba(59,130,246,0.24)';
-const ACTION_TEXT = '#155e75';
-const PERIOD_ACTIVE_BG = 'rgba(13,148,136,0.14)';
-const PERIOD_ACTIVE_BORDER = 'rgba(13,148,136,0.34)';
-const PERIOD_ACTIVE_TEXT = '#0f766e';
-const PERIOD_IDLE_BG = 'rgba(120,120,128,0.08)';
-const PERIOD_IDLE_BORDER = 'rgba(120,120,128,0.24)';
-const PERIOD_IDLE_TEXT = 'rgba(70,70,74,0.92)';
+import { getEnergyImpactBadgeColors, useThemeSemantics } from '@/shared/theme/semantic';
 const PERIOD_BUTTON_WIDTH = 122;
-
-function badgeColors(metricKey: 'co2e' | 'air' | 'solar' | 'evMiles' | 'trees') {
-  switch (metricKey) {
-    case 'co2e':
-      return { bg: 'rgba(34,197,94,0.16)', color: '#15803d' };
-    case 'air':
-      return { bg: 'rgba(20,184,166,0.16)', color: '#0f766e' };
-    case 'solar':
-      return { bg: 'rgba(59,130,246,0.16)', color: '#1d4ed8' };
-    case 'evMiles':
-      return { bg: 'rgba(99,102,241,0.16)', color: '#4338ca' };
-    case 'trees':
-      return { bg: 'rgba(16,185,129,0.18)', color: '#047857' };
-  }
-}
 
 export function EnergyImpactCard({
   solarWh,
@@ -61,6 +32,7 @@ export function EnergyImpactCard({
   errorText?: string;
 }) {
   const router = useRouter();
+  const semantics = useThemeSemantics();
   const impact = computeEnergyImpactFromSolarWh(solarWh ?? 0, DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY);
   const periodLabel = energyImpactPeriodLabel(displayPeriod);
   const periodButtons: Array<{ key: EnergyImpactPeriod; label: string }> = [
@@ -70,7 +42,7 @@ export function EnergyImpactCard({
   const statusMessage = errorText ?? (isLoading ? `Loading ${periodLabel} solar history…` : ' ');
 
   return (
-    <Card gap="$3" minWidth={minWidth} style={{ backgroundColor: CARD_BG, borderColor: CARD_BORDER }}>
+    <Card gap="$3" minWidth={minWidth} style={{ backgroundColor: semantics.energyCardBackground, borderColor: semantics.energyCardBorder }}>
       <XStack justifyContent="space-between" alignItems="flex-start" gap="$2">
         <XStack alignItems="center" gap="$2">
           <YStack
@@ -80,9 +52,9 @@ export function EnergyImpactCard({
             alignItems="center"
             justifyContent="center"
             borderWidth={1}
-            style={{ backgroundColor: LEAF_BADGE_BG, borderColor: LEAF_BADGE_BORDER }}
+            style={{ backgroundColor: semantics.energyLeafBackground, borderColor: semantics.energyLeafBorder }}
           >
-            <Text fontSize="$4" style={{ color: LEAF_BADGE_TEXT }}>
+            <Text fontSize="$4" style={{ color: semantics.energyLeafText }}>
               🍃
             </Text>
           </YStack>
@@ -90,7 +62,7 @@ export function EnergyImpactCard({
             <Text fontSize="$4" fontWeight="700">
               {title}
             </Text>
-            <Text fontSize="$1" opacity={0.62}>
+            <Text fontSize="$1" opacity={0.82}>
               Pollution avoided + lifecycle equivalents
             </Text>
           </YStack>
@@ -106,8 +78,8 @@ export function EnergyImpactCard({
                 borderRadius="$5"
                 borderWidth={1}
                 style={{
-                  backgroundColor: active ? PERIOD_ACTIVE_BG : PERIOD_IDLE_BG,
-                  borderColor: active ? PERIOD_ACTIVE_BORDER : PERIOD_IDLE_BORDER,
+                  backgroundColor: active ? semantics.periodActiveBackground : semantics.periodIdleBackground,
+                  borderColor: active ? semantics.periodActiveBorder : semantics.periodIdleBorder,
                   opacity: isLoading && item.key === 'past12Months' && active ? 0.74 : 1
                 }}
                 onPress={() => {
@@ -116,7 +88,7 @@ export function EnergyImpactCard({
               >
                 <Text
                   fontWeight="700"
-                  style={{ color: active ? PERIOD_ACTIVE_TEXT : PERIOD_IDLE_TEXT }}
+                  style={{ color: active ? semantics.periodActiveText : semantics.periodIdleText }}
                 >
                   {item.label}
                 </Text>
@@ -127,20 +99,24 @@ export function EnergyImpactCard({
       </XStack>
 
       <YStack gap="$1">
-        <Text opacity={0.84}>
+        <Text opacity={0.96}>
           Estimated avoided grid emissions from {formatWhAndKWh(impact.solarWh)} of solar generated over {periodLabel}.
         </Text>
-        <Text fontSize="$1" opacity={0.6}>
+        <Text fontSize="$1" style={{ color: semantics.subtleStrongText }}>
           Avoided pollutants use {impact.factor.label} default factors from {impact.factor.source} ({impact.factorKey}). Tree equivalent uses a separate conservative lifecycle benchmark.
         </Text>
-        <Text fontSize="$1" opacity={statusMessage.trim() ? 0.68 : 0} minHeight={16}>
+        <Text
+          fontSize="$1"
+          style={{ color: semantics.subtleStrongText, opacity: statusMessage.trim() ? 1 : 0 }}
+          minHeight={16}
+        >
           {statusMessage}
         </Text>
       </YStack>
 
       <YStack gap="$2" opacity={isLoading ? 0.86 : 1}>
         {buildEnergyImpactRows(impact, displayPeriod).map((metric) => {
-          const colors = badgeColors(metric.key);
+          const colors = getEnergyImpactBadgeColors(metric.key, semantics);
           return (
             <XStack
               key={metric.key}
@@ -149,7 +125,7 @@ export function EnergyImpactCard({
               padding="$2"
               borderRadius="$3"
               borderWidth={1}
-              borderColor="rgba(120,120,128,0.24)"
+              style={{ borderColor: semantics.mutedPanelBorder }}
             >
               <YStack
                 width={50}
@@ -173,7 +149,7 @@ export function EnergyImpactCard({
                 <Text fontWeight="700" numberOfLines={1}>
                   {metric.headline}
                 </Text>
-                <Text fontSize="$2" opacity={0.68}>
+                <Text fontSize="$2" style={{ color: semantics.subtleStrongText }}>
                   {metric.detail}
                 </Text>
               </YStack>
@@ -183,7 +159,7 @@ export function EnergyImpactCard({
                 minWidth={84}
                 borderRadius="$5"
                 borderWidth={1}
-                style={{ borderColor: ACTION_BORDER, backgroundColor: ACTION_BG }}
+                style={{ borderColor: semantics.actionBorder, backgroundColor: semantics.actionBackground }}
                 onPress={() => {
                   router.push({
                     pathname: '/energy-impact',
@@ -191,7 +167,7 @@ export function EnergyImpactCard({
                   });
                 }}
               >
-                <Text fontWeight="700" style={{ color: ACTION_TEXT }}>
+                <Text fontWeight="700" style={{ color: semantics.actionText }}>
                   Explain
                 </Text>
               </Button>

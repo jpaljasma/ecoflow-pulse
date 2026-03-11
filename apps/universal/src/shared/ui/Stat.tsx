@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Text, YStack } from 'tamagui';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 
 export function Stat({
   label,
@@ -12,18 +13,22 @@ export function Stat({
   tone?: 'default' | 'muted' | 'cold';
   compact?: boolean;
 }) {
-  const mutedColor = 'rgba(168,168,176,0.95)';
-  const coldColor = '#2f80ed';
-  const resolvedColor = tone === 'muted' ? mutedColor : tone === 'cold' ? coldColor : '$color';
-  const labelOpacity = tone === 'default' ? 0.75 : 1;
+  const semantics = useThemeSemantics();
+  const resolvedColor =
+    tone === 'muted'
+      ? semantics.subtleText
+      : tone === 'cold'
+        ? semantics.metricCold
+        : undefined;
+  const labelOpacity = tone === 'default' ? 0.92 : 1;
   return (
     <YStack gap="$1" minWidth={96}>
       <Text
         fontFamily="$body"
-        color={resolvedColor}
+        style={resolvedColor ? { color: resolvedColor } : undefined}
         opacity={labelOpacity}
         fontSize={compact ? '$1' : '$3'}
-        fontWeight="500"
+        fontWeight="600"
         numberOfLines={1}
       >
         {label}
@@ -31,9 +36,9 @@ export function Stat({
       <Text
         fontFamily="$body"
         fontSize={compact ? '$3' : '$4'}
-        fontWeight="700"
+        fontWeight="800"
         letterSpacing={-0.1}
-        color={resolvedColor}
+        style={resolvedColor ? { color: resolvedColor } : undefined}
         opacity={1}
         numberOfLines={1}
       >

@@ -153,7 +153,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke mqtt ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -905,18 +905,17 @@ dev-down:
 
 # public-images-local-up rebuilds and imports the updated pulse-platform and pulse-realtime-gateway images.
 # services-up re-applies Helm and, by default, auto-builds/imports the Go workers image.
+# dev-web-deploy owns the public web app + realtime gateway local redeploy path for k3d.
 # dev-deploy defaults to a Helm fast path (`DEV_DEPLOY_HELM=auto`) that skips Helm re-apply unless the
 # local chart/values files changed or the release is missing. Use `DEV_DEPLOY_HELM=always` to force full Helm apply.
 # The rollout restart calls are important because the images use the same :local tag with IfNotPresent, so importing alone will not replace already-running pods.
-dev-deploy:
+dev-web-deploy:
 	@set -euo pipefail; \
 		helm_mode="$(DEV_DEPLOY_HELM)"; \
 		platform_apply=0; \
-		services_apply=0; \
 		case "$$helm_mode" in \
 			always|1|true) \
 				platform_apply=1; \
-				services_apply=1; \
 				;; \
 			never|0|false) \
 				;; \
@@ -924,20 +923,66 @@ dev-deploy:
 				if ! $(LOCAL_HELM) status $(PLATFORM_RELEASE) --namespace $(PLATFORM_NAMESPACE) >/dev/null 2>&1; then \
 					platform_apply=1; \
 				fi; \
-				if ! $(LOCAL_HELM) status $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1; then \
-					services_apply=1; \
-				fi; \
 				if [ -n "$$(git status --porcelain --untracked-files=all -- $(PLATFORM_CHART) $(LOCAL_PLATFORM_VALUES))" ]; then \
 					platform_apply=1; \
-				fi; \
-				if [ -n "$$(git status --porcelain --untracked-files=all -- $(SERVICES_CHART) $(LOCAL_SERVICES_VALUES))" ]; then \
-					services_apply=1; \
 				fi; \
 				if [ "$$platform_apply" = "0" ]; then \
 					if ! $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-realtime-gateway >/dev/null 2>&1 || \
 					   ! $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-public-app >/dev/null 2>&1; then \
 						platform_apply=1; \
 					fi; \
+				fi; \
+				;; \
+			*) \
+				echo "unsupported DEV_DEPLOY_HELM=$$helm_mode (expected auto, always, or never)"; \
+				exit 1; \
+				;; \
+		esac; \
+		$(MAKE) --no-print-directory k3d-up; \
+		$(MAKE) --no-print-directory public-images-local-up; \
+		if [ "$$platform_apply" = "1" ]; then \
+			echo "applying platform Helm release"; \
+			$(MAKE) --no-print-directory platform-up; \
+		else \
+			echo "skipping platform Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
+		fi; \
+		$(MAKE) --no-print-directory platform-wait
+	@set -euo pipefail; \
+		restart_and_wait_if_exists() { \
+			ns="$$1"; \
+			name="$$2"; \
+			if $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" >/dev/null 2>&1; then \
+				echo "restarting $$ns/$$name"; \
+				$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
+				echo "waiting for $$ns/$$name"; \
+				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
+			else \
+				echo "skipping missing deployment $$ns/$$name"; \
+			fi; \
+		}; \
+		echo "restarting updated public deployments"; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app
+	@echo "showing platform deployment state and recent realtime gateway logs"
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
+	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) logs deploy/pulse-platform-realtime-gateway --since=5m
+
+dev-deploy:
+	@set -euo pipefail; \
+		helm_mode="$(DEV_DEPLOY_HELM)"; \
+		services_apply=0; \
+		case "$$helm_mode" in \
+			always|1|true) \
+				services_apply=1; \
+				;; \
+			never|0|false) \
+				;; \
+			auto) \
+				if ! $(LOCAL_HELM) status $(SERVICES_RELEASE) --namespace $(SERVICES_NAMESPACE) >/dev/null 2>&1; then \
+					services_apply=1; \
+				fi; \
+				if [ -n "$$(git status --porcelain --untracked-files=all -- $(SERVICES_CHART) $(LOCAL_SERVICES_VALUES))" ]; then \
+					services_apply=1; \
 				fi; \
 				if [ "$$services_apply" = "0" ]; then \
 					if ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-inference >/dev/null 2>&1 || \
@@ -952,13 +997,7 @@ dev-deploy:
 				exit 1; \
 				;; \
 		esac; \
-		$(MAKE) --no-print-directory public-images-local-up; \
-		if [ "$$platform_apply" = "1" ]; then \
-			echo "applying platform Helm release"; \
-			$(MAKE) --no-print-directory platform-up; \
-		else \
-			echo "skipping platform Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
-		fi; \
+		$(MAKE) --no-print-directory DEV_DEPLOY_HELM="$$helm_mode" dev-web-deploy; \
 		if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 			$(MAKE) --no-print-directory services-image-local-up; \
 		fi; \
@@ -984,9 +1023,7 @@ dev-deploy:
 		echo "restarting updated local deployments"; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-inference; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-grpc-api; \
-		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-rollup; \
-		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
-		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-rollup
 	@echo "showing deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy

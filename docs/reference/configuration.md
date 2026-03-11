@@ -273,6 +273,14 @@ Runtime behavior:
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
 - websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.
+- on web, websocket reconnect must retry the current browser-origin endpoint directly; browser sessions should not rotate through native-dev fallback hosts such as `127.0.0.1` or `localhost` after deploy-induced disconnects.
+- universal-app theming contract:
+  - the persisted user preference stores the palette family (`original` or `new`), not a fixed light/dark override,
+  - light vs dark mode still follows system appearance automatically,
+  - the root Tamagui provider must stay on base `light` / `dark` themes, with palette-specific themes (`original-*`, `new-*`) applied as nested theme layers,
+  - on web, dark-mode resolution must follow `window.matchMedia('(prefers-color-scheme: dark)')` and update when the browser appearance changes,
+  - when the resolved web theme changes, the app must also update `html`, `body`, and the app root background/color-scheme so browser chrome and page background stay aligned with the active theme,
+  - reusable UI colors should be defined once in the theme catalog semantic palette and consumed through shared theme helpers instead of repeated inline `hex`/`rgba` literals in feature components.
 - device solar history treats `404` from `/api/v1/devices/{id}/history/compare` as empty history (no blocking detail-page error banner).
 - device and fleet solar-history queries reuse one response payload for today's
   total, yesterday's total, delta, and both chart series; they refresh on the
