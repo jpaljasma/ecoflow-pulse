@@ -83,8 +83,8 @@ func TestEcoFlowAdapterDiscoverDevicesMapsAndSorts(t *testing.T) {
 
 	generalInfo := &fakeGeneralInfo{
 		devices: []ecoflow.GeneralInfoDevice{
-			{SN: " y711zaba9h2p0294 ", DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra"},
-			{SN: "r351zabaph331057", DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max"},
+			{SN: " demodpu0000294 ", DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra"},
+			{SN: "demod2m00001057", DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max"},
 			{SN: "   "},
 		},
 	}
@@ -105,10 +105,10 @@ func TestEcoFlowAdapterDiscoverDevicesMapsAndSorts(t *testing.T) {
 	if got := len(devices); got != 2 {
 		t.Fatalf("expected 2 discovered devices, got %d", got)
 	}
-	if devices[0].ProviderDeviceID != "R351ZABAPH331057" {
+	if devices[0].ProviderDeviceID != "DEMOD2M00001057" {
 		t.Fatalf("unexpected first device SN: %q", devices[0].ProviderDeviceID)
 	}
-	if devices[1].ProviderDeviceID != "Y711ZABA9H2P0294" {
+	if devices[1].ProviderDeviceID != "DEMODPU0000294" {
 		t.Fatalf("unexpected second device SN: %q", devices[1].ProviderDeviceID)
 	}
 	if devices[0].CredentialID != "cred-1" || devices[1].CredentialID != "cred-1" {
@@ -124,7 +124,7 @@ func TestEcoFlowAdapterGetMQTTCertificationSuccess(t *testing.T) {
 
 	generalInfo := &fakeGeneralInfo{
 		devices: []ecoflow.GeneralInfoDevice{
-			{SN: "R351ZABAPH331057"},
+			{SN: "DEMOD2M00001057"},
 		},
 		cert: ecoflow.GeneralInfoMQTTCertification{
 			CertificateAccount:  "account",
@@ -141,7 +141,7 @@ func TestEcoFlowAdapterGetMQTTCertificationSuccess(t *testing.T) {
 		SecretKey: "sk",
 		IsActive:  true,
 	}
-	cert, err := adapter.GetMQTTCertification(context.Background(), cred, "r351zabaph331057")
+	cert, err := adapter.GetMQTTCertification(context.Background(), cred, "demod2m00001057")
 	if err != nil {
 		t.Fatalf("GetMQTTCertification() error = %v", err)
 	}
@@ -158,7 +158,7 @@ func TestEcoFlowAdapterGetMQTTCertificationDeviceNotFound(t *testing.T) {
 
 	generalInfo := &fakeGeneralInfo{
 		devices: []ecoflow.GeneralInfoDevice{
-			{SN: "Y711ZABA9H2P0294"},
+			{SN: "DEMODPU0000294"},
 		},
 	}
 	adapter := NewEcoFlowAdapter(&fakeEcoFlowFactory{client: fakeEcoFlowClient{generalInfo: generalInfo}})
@@ -168,7 +168,7 @@ func TestEcoFlowAdapterGetMQTTCertificationDeviceNotFound(t *testing.T) {
 		SecretKey: "sk",
 		IsActive:  true,
 	}
-	_, err := adapter.GetMQTTCertification(context.Background(), cred, "R351ZABAPH331057")
+	_, err := adapter.GetMQTTCertification(context.Background(), cred, "DEMOD2M00001057")
 	if !errors.Is(err, ErrProviderDeviceNotFound) {
 		t.Fatalf("expected ErrProviderDeviceNotFound, got %v", err)
 	}
@@ -233,7 +233,7 @@ func TestEcoFlowAdapterInvalidMQTTCertificationPayload(t *testing.T) {
 	t.Parallel()
 
 	generalInfo := &fakeGeneralInfo{
-		devices: []ecoflow.GeneralInfoDevice{{SN: "R351ZABAPH331057"}},
+		devices: []ecoflow.GeneralInfoDevice{{SN: "DEMOD2M00001057"}},
 		cert: ecoflow.GeneralInfoMQTTCertification{
 			CertificateAccount: "account",
 			URL:                "mqtt.ecoflow.com",
@@ -247,7 +247,7 @@ func TestEcoFlowAdapterInvalidMQTTCertificationPayload(t *testing.T) {
 		SecretKey: "sk",
 		IsActive:  true,
 	}
-	_, err := adapter.GetMQTTCertification(context.Background(), cred, "R351ZABAPH331057")
+	_, err := adapter.GetMQTTCertification(context.Background(), cred, "DEMOD2M00001057")
 	if !errors.Is(err, ErrInvalidMQTTCertification) {
 		t.Fatalf("expected ErrInvalidMQTTCertification, got %v", err)
 	}
@@ -257,7 +257,7 @@ func TestEcoFlowAdapterGetDeviceAllQuotaSuccess(t *testing.T) {
 	t.Parallel()
 
 	generalInfo := &fakeGeneralInfo{
-		devices: []ecoflow.GeneralInfoDevice{{SN: "R351ZABAPH331057"}},
+		devices: []ecoflow.GeneralInfoDevice{{SN: "DEMOD2M00001057"}},
 		quota: map[string]string{
 			"pd.soc":          "54",
 			"pd.wattsInSum":   "138.5",
@@ -274,14 +274,14 @@ func TestEcoFlowAdapterGetDeviceAllQuotaSuccess(t *testing.T) {
 		IsActive:  true,
 	}
 
-	quota, err := adapter.GetDeviceAllQuota(context.Background(), cred, "r351zabaph331057")
+	quota, err := adapter.GetDeviceAllQuota(context.Background(), cred, "demod2m00001057")
 	if err != nil {
 		t.Fatalf("GetDeviceAllQuota() error = %v", err)
 	}
 	if got := quota["pd.soc"]; got != "54" {
 		t.Fatalf("unexpected quota soc=%q", got)
 	}
-	if got := quota["__requested_sn"]; got != "R351ZABAPH331057" {
+	if got := quota["__requested_sn"]; got != "DEMOD2M00001057" {
 		t.Fatalf("unexpected requested sn propagation=%q", got)
 	}
 	if generalInfo.listCalls != 1 || generalInfo.quotaCalls != 1 {
@@ -293,7 +293,7 @@ func TestEcoFlowAdapterGetDeviceAllQuotaDeviceNotFound(t *testing.T) {
 	t.Parallel()
 
 	generalInfo := &fakeGeneralInfo{
-		devices: []ecoflow.GeneralInfoDevice{{SN: "Y711ZABA9H2P0294"}},
+		devices: []ecoflow.GeneralInfoDevice{{SN: "DEMODPU0000294"}},
 	}
 	adapter := NewEcoFlowAdapter(&fakeEcoFlowFactory{client: fakeEcoFlowClient{generalInfo: generalInfo}})
 	cred := controlplane.ProviderCredential{
@@ -302,7 +302,7 @@ func TestEcoFlowAdapterGetDeviceAllQuotaDeviceNotFound(t *testing.T) {
 		SecretKey: "sk",
 		IsActive:  true,
 	}
-	_, err := adapter.GetDeviceAllQuota(context.Background(), cred, "R351ZABAPH331057")
+	_, err := adapter.GetDeviceAllQuota(context.Background(), cred, "DEMOD2M00001057")
 	if !errors.Is(err, ErrProviderDeviceNotFound) {
 		t.Fatalf("expected ErrProviderDeviceNotFound, got %v", err)
 	}
@@ -315,7 +315,7 @@ func TestEcoFlowAdapterGetDeviceAllQuotaUpstreamError(t *testing.T) {
 	t.Parallel()
 
 	generalInfo := &fakeGeneralInfo{
-		devices:  []ecoflow.GeneralInfoDevice{{SN: "R351ZABAPH331057"}},
+		devices:  []ecoflow.GeneralInfoDevice{{SN: "DEMOD2M00001057"}},
 		quotaErr: errors.New("upstream quota failed"),
 	}
 	adapter := NewEcoFlowAdapter(&fakeEcoFlowFactory{client: fakeEcoFlowClient{generalInfo: generalInfo}})
@@ -325,7 +325,7 @@ func TestEcoFlowAdapterGetDeviceAllQuotaUpstreamError(t *testing.T) {
 		SecretKey: "sk",
 		IsActive:  true,
 	}
-	_, err := adapter.GetDeviceAllQuota(context.Background(), cred, "R351ZABAPH331057")
+	_, err := adapter.GetDeviceAllQuota(context.Background(), cred, "DEMOD2M00001057")
 	if err == nil || !strings.Contains(err.Error(), "get device all quota") {
 		t.Fatalf("expected wrapped quota error, got %v", err)
 	}

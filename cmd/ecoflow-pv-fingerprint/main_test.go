@@ -92,7 +92,7 @@ func TestLoadPanelHintsOverridesDefaultBySN(t *testing.T) {
 	path := filepath.Join(dir, "panel_map.json")
 	content := `[
   {
-    "device_sn": "Y711ZABA9H2P0294",
+    "device_sn": "DEMODPU0000294",
     "port": "low",
     "panel_setup": "OVERRIDE",
     "panel_count": 9,
@@ -107,7 +107,7 @@ func TestLoadPanelHintsOverridesDefaultBySN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load panel hints: %v", err)
 	}
-	hint, ok := hints.Resolve("Y711ZABA9H2P0294", "DELTA Pro Ultra", "low")
+	hint, ok := hints.Resolve("DEMODPU0000294", "DELTA Pro Ultra", "low")
 	if !ok {
 		t.Fatalf("expected hint to resolve")
 	}

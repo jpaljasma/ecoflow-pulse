@@ -16,7 +16,7 @@ func BenchmarkPublishEnvelope(b *testing.B) {
 		EnvelopeId:         "0190f4b2-a336-7aa8-b9fa-98c7d5aa8e6b",
 		EnvelopeVersion:    1,
 		DeviceId:           "device-1",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		Shard:              7,
 		ShardCount:         128,
 		MessageId:          "8222878",
@@ -30,7 +30,7 @@ func BenchmarkPublishEnvelope(b *testing.B) {
 		Payload:            []byte(`{"cmdId":1,"cmdFunc":2,"typeCode":"pdStatus","params":{"wattsInSum":100}}`),
 		Labels: map[string]string{
 			"provider":           "ecoflow",
-			"provider_device_id": "R351ZABAPH331057",
+			"provider_device_id": "DEMOD2M00001057",
 			"credential_id":      "cred-1",
 			"device_id":          "device-1",
 			"cmd_id":             "1",

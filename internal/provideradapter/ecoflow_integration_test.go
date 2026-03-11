@@ -26,7 +26,7 @@ func TestEcoFlowAdapterGetMQTTCertificationSeededSNsIntegration(t *testing.T) {
 
 	seedSNs := parseSeedSNs(strings.TrimSpace(os.Getenv("ECOFLOW_DEV_SEED_SNS")))
 	if len(seedSNs) == 0 {
-		seedSNs = []string{"R351ZABAPH331057", "Y711ZABA9H2P0294"}
+		seedSNs = []string{"DEMOD2M00001057", "DEMODPU0000294"}
 	}
 
 	cfg := ecoflow.DefaultConfig()

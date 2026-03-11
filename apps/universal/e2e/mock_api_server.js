@@ -8,8 +8,8 @@ const port = Number(process.env.MAESTRO_MOCK_API_PORT || '18081');
 
 const devices = [
   {
-    id: '019cab9d-bcb3-7587-8dc9-9a57deb48d30',
-    serialNumber: 'Y711ZABA9H2P0294',
+    id: '11111111-1111-7111-8111-111111111111',
+    serialNumber: 'DEMODPU0000294',
     name: 'DPU A 12 kWh',
     model: 'DELTA Pro Ultra',
     online: true,
@@ -25,8 +25,8 @@ const devices = [
     telemetryTsMs: Date.UTC(2026, 2, 5, 11, 0, 0)
   },
   {
-    id: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
-    serialNumber: 'R351ZABAPH331057',
+    id: '22222222-2222-7222-8222-222222222222',
+    serialNumber: 'DEMOD2M00001057',
     name: 'Kitchen Delta 2 Max',
     model: 'DELTA 2 Max',
     online: true,

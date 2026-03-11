@@ -30,7 +30,7 @@ func TestHandleMessageValidEnvelopeAppliesStore(t *testing.T) {
 	env := &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "env-1",
 		DeviceId:           "dev-1",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		IngestedTimeUnixMs: 1234,
 		Payload:            []byte(`{"params":{"wattsOutSum":35}}`),
 	}
@@ -85,7 +85,7 @@ func TestHandleMessageCheckpointRecoveryAcrossWorkerRestart(t *testing.T) {
 		})
 	}
 
-	identity := SnapshotIdentity{DeviceID: "dev-recovery", EcoflowSN: "R351ZABAPH331057"}
+	identity := SnapshotIdentity{DeviceID: "dev-recovery", EcoflowSN: "DEMOD2M00001057"}
 
 	push(t, &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "env-r1",

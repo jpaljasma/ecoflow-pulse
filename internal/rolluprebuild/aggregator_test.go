@@ -65,7 +65,7 @@ func TestAggregatorFinalizeCarriesSolarToWindowEnd(t *testing.T) {
 func testEnvelope(at time.Time, payload string) *envelopev1.TelemetryEnvelope {
 	return &envelopev1.TelemetryEnvelope{
 		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
-		EcoflowSn:          "Y711ZABA9H2P0294",
+		EcoflowSn:          "DEMODPU0000294",
 		ObservedTimeUnixMs: at.UnixMilli(),
 		Payload:            []byte(payload),
 		Labels:             map[string]string{"provider": "ecoflow"},

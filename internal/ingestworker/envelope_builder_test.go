@@ -15,12 +15,12 @@ func TestBuildTelemetryEnvelopeFromMQTTPayload(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:         "ecoflow",
-		ProviderDeviceID: "r351zabaph331057",
+		ProviderDeviceID: "demod2m00001057",
 		DeviceID:         "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:     "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 	}
 	message := ecoflowmqtt.Message{
-		Topic:   "/open/account/R351ZABAPH331057/quota",
+		Topic:   "/open/account/DEMOD2M00001057/quota",
 		Payload: []byte(`{"id":38553260,"time":17089842,"typeCode":"kitInfo","addr":"d_addr","cmdId":1,"cmdFunc":2}`),
 	}
 	observedAt := time.UnixMilli(1771119926522)
@@ -35,7 +35,7 @@ func TestBuildTelemetryEnvelopeFromMQTTPayload(t *testing.T) {
 	if envelope.GetEnvelopeId() == "" {
 		t.Fatalf("envelope_id should be generated")
 	}
-	if envelope.GetEcoflowSn() != "R351ZABAPH331057" {
+	if envelope.GetEcoflowSn() != "DEMOD2M00001057" {
 		t.Fatalf("ecoflow_sn mismatch: got=%q", envelope.GetEcoflowSn())
 	}
 	if envelope.GetSourceKind() != envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA {
@@ -78,10 +78,10 @@ func TestBuildTelemetryEnvelopeWithInvalidJSONPayload(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:         "ecoflow",
-		ProviderDeviceID: "Y711ZABA9H2P0294",
+		ProviderDeviceID: "DEMODPU0000294",
 	}
 	message := ecoflowmqtt.Message{
-		Topic:   "/open/account/Y711ZABA9H2P0294/quota",
+		Topic:   "/open/account/DEMODPU0000294/quota",
 		Payload: []byte("{not json"),
 	}
 
@@ -102,12 +102,12 @@ func TestBuildTelemetryEnvelopeWithLabelsDisabled(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:         "ecoflow",
-		ProviderDeviceID: "R351ZABAPH331057",
+		ProviderDeviceID: "DEMOD2M00001057",
 		DeviceID:         "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:     "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 	}
 	message := ecoflowmqtt.Message{
-		Topic:   "/open/account/R351ZABAPH331057/quota",
+		Topic:   "/open/account/DEMOD2M00001057/quota",
 		Payload: []byte(`{"id":1,"time":17089842,"typeCode":"kitInfo","cmdId":1,"cmdFunc":2}`),
 	}
 
@@ -127,7 +127,7 @@ func TestBuildQuotaTelemetryEnvelope(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:         "ecoflow",
-		ProviderDeviceID: "R351ZABAPH331057",
+		ProviderDeviceID: "DEMOD2M00001057",
 		DeviceID:         "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:     "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 	}

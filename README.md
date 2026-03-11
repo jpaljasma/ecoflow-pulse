@@ -1,16 +1,34 @@
-# Ecoflow-Pulse
+# EcoFlow Pulse
 
-Ecoflow-Pulse is a real-time pulse monitor for EcoFlow devices, built on the
-official API and MQTT telemetry streams.
+<img src="apps/universal/assets/icon.png" alt="EcoFlow Pulse app icon" style="width:50%; height:auto;">
+
+EcoFlow Pulse is a realtime energy control room for EcoFlow devices. It turns
+live solar input, battery state, load flow, device health, and historical power
+telemetry into a clean operator-grade experience across web, iPhone, iPad, and
+Android.
+
+> [!NOTE]
+> The product is built around the official EcoFlow API, MQTT telemetry streams, and a Kubernetes-first platform that supports live snapshots, durable archive, replay, and long-range rollup history.
+
+## Product Summary
+
+- Realtime telemetry dashboard for solar, SOC, charge/discharge, AC/DC, load,
+  pack-level state, and device health.
+- Universal app experience with auth-aware realtime, history, and comparison
+  views across web, iOS, and Android.
+- Operator-focused UX with snapshot-first updates, trend charts, fleet summary,
+  device detail views, and energy-impact explainers.
+- Durable platform architecture for ingest, archive, replay, rollups, and
+  resilient websocket delivery.
 
 ## Supported Devices
 
-Actively validated:
+> [!IMPORTANT]
+> **Actively validated:**
+> - DELTA Pro Ultra (DPU)
+> - DELTA 2 Max (D2M)
 
-- DELTA 2 Max (D2M)
-- DELTA Pro Ultra (DPU)
-
-## Latest Implemented Features (Mar 2026)
+## Latest Delivered Work (Mar 2026)
 
 - M1 closed: Keycloak OIDC + Expo PKCE auth, Node JWKS middleware, Go gRPC JWT
   auth/interceptors, and `viewer/admin` RBAC for device registry APIs.
@@ -21,72 +39,102 @@ Actively validated:
   gRPC range/compare query APIs, and public Node REST history endpoints.
 - M4 closed: dedicated realtime WebSocket gateway (snapshot-on-connect + NATS
   deltas) with backpressure/downsampling ladder and Expo reconnect hardening.
-- M5 in progress with key slices shipped: Testcontainers pipeline integration
-  suite, Node↔Go protobuf contract tests, and Playwright web E2E smoke tests.
+- M5 in progress with shipped slices: Testcontainers pipeline integration,
+  Node↔Go protobuf contract tests, and Playwright web E2E smoke tests.
+- Universal app branding refresh: generated high-resolution iOS, Android, web,
+  and social-share assets, theme-family support, and a redesigned About /
+  Appearance experience.
 - Solar history UI now ships a `06:00-20:00` local comparison chart with
   10-minute buckets, prior-day overlay, and hover/tap bucket inspection.
-- `Energy Impact` now estimates today-so-far avoided `CO2e`, `NOx`, and `SO2`
-  plus conservative mature-tree equivalent on `/devices` and `/device/{id}`
-  plus premium-EV driving-energy miles using versioned EPA eGRID2023,
-  lifecycle/tree, and EV-consumption factors plus an in-app explainer, with a
-  lazy cached `Past 12 months` view in addition to the live `Today so far`
-  default.
+- `Energy Impact` now estimates today-so-far avoided `CO2e`, `NOx`, and `SO2`,
+  plus conservative mature-tree equivalent and premium-EV driving-energy miles,
+  with versioned methodology and an in-app explainer.
 
-## Core Capabilities
+## App Features
 
-- Live terminal dashboard for power, SOC, states, and per-pack battery telemetry.
-- Expo universal dashboard (Web/iOS/Android) with auth-aware realtime + history.
-- Persistent telemetry history with minute/hour/day Timescale rollups.
-- Server-side prior-period comparison APIs for history windows.
-- Dedicated realtime WS delivery (snapshot-first, then deltas) with graceful
-  degradation under pressure.
-- Durable replay model: protobuf+zstd archive, manifest index, replay CLI, and
-  targeted gap repair.
-- ETA estimation with MPPT, profile-specific ML, and generic ML model fallback.
-- Solar telemetry and MPPT visibility (low/high inputs, volts/amps/watts, state).
-- Today-so-far avoided-emissions estimate for solar generation with EPA-based
-  methodology and in-app explanation.
-- Solar panel detection and upgrade recommendations using panel database + model.
-- Safe runtime behavior for reconnects, bounded queues, and distributed lease
-  ownership across ingest worker replicas.
+- Realtime fleet and device dashboards with snapshot-first websocket delivery.
+- Historical minute/hour/day views backed by Timescale rollups and comparison
+  APIs.
+- Solar-specific telemetry visibility including MPPT state, watts, volts, amps,
+  and local-day generation comparison.
+- Auth-aware universal client with Keycloak OIDC, Expo PKCE, persisted session
+  hydration, and reconnect-safe realtime subscriptions.
+- `Energy Impact` insights using versioned EPA eGRID2023, lifecycle/tree, and
+  EV-consumption factors.
+- Theme-family support (`Original` / `New`) with system-controlled light/dark
+  mode and modern app/share branding assets.
 
-## Platform Features (Enabled)
+## Platform Features
+
+### Local and deployment model
 
 - Kubernetes-first local stack (`k3d`) with Helm-managed `pulse-platform` and
   `pulse-services` releases.
-- Core platform dependencies running in-cluster:
-  - CloudNativePG Postgres (with Timescale extension support)
-  - NATS JetStream cluster (telemetry streams + work queues)
-  - Valkey cluster (live snapshots + distributed ingest leases)
-  - MinIO object storage (raw telemetry archive)
-  - Keycloak (auth plane, local/dev)
-- Distributed ingest runtime:
-  - one MQTT session globally per `(provider, provider_device_id)` via Valkey
-    lease + fencing
-  - EcoFlow certification-based reconnect flow per device
-  - startup quota bootstrap + periodic metadata/capability refresh publish path
-  - sharded `TelemetryEnvelope` publish to NATS (`pulse.telemetry.ingest.sNNN`)
-- Live read model:
-  - projection worker consumes NATS and writes Valkey snapshots/cursors
-  - gRPC snapshot and realtime subscription flow from the same read model
-- Rollup and history model:
-  - rollup worker upserts minute/hour/day Timescale buckets from ingest stream
-  - retention policies: minute=90d, hour/day=3y
-- Public query/API layer:
-  - Node REST BFF (`apps/pulse-platform`) validates JWTs and forwards history
-    range/compare queries to internal gRPC
-  - dedicated realtime WS gateway (`apps/pulse-realtime-gateway`) serves
-    snapshot-first stream + per-session backpressure ladder
-- Durable archive and replay:
-  - archive worker writes protobuf+zstd objects to MinIO
-  - manifest index persisted in Postgres for replay lookup
-  - replay CLI supports `list-devices`, `device`, and `fleet` modes
-  - gap detector + gap-repair worker perform targeted replay, not full replays
-- Shipped quality gates:
-  - Testcontainers pipeline integration suite (`make test-pipeline-integration`)
-  - Node↔Go proto compatibility tests (`make test-proto-contract`)
-  - Playwright web E2E smoke (`make test-web-e2e`)
-  - Maestro mobile E2E smoke (`MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e`)
+- Multi-replica local public edge and services for safer rollout validation and
+  less disruption during restarts.
+- One-command local bring-up and targeted redeploy paths including
+  `make dev-up`, `make services-up`, and `make dev-web-deploy`.
+
+### Data plane
+
+- Distributed ingest runtime with one MQTT session globally per
+  `(provider, provider_device_id)` via Valkey lease + fencing.
+- EcoFlow certification-based reconnect flow per device plus startup quota
+  bootstrap and periodic metadata/capability refresh publish path.
+- Sharded `TelemetryEnvelope` publish to NATS
+  (`pulse.telemetry.ingest.sNNN`).
+- Projection worker consumes NATS and writes Valkey live snapshots/cursors.
+- Rollup worker upserts minute/hour/day Timescale buckets from ingest streams.
+- Archive worker writes protobuf+zstd objects to MinIO with manifest index in
+  Postgres for replay lookup.
+- Replay CLI plus gap detector/gap-repair workers for targeted repair instead of
+  destructive full replay.
+
+### Query and delivery layer
+
+- Internal Go gRPC API for high-throughput snapshot, history, and control-plane
+  operations.
+- Public Node REST BFF (`apps/pulse-platform`) for JWT validation and browser /
+  app query access.
+- Dedicated realtime WebSocket gateway (`apps/pulse-realtime-gateway`) with
+  snapshot-on-connect, delta fanout, and staged backpressure degradation.
+
+## Technology Stack
+
+### Client and UX
+
+- Expo + React Native + Expo Router
+- Tamagui design system
+- Expo Image for cacheable product and app imagery
+- Vitest, Playwright, and Maestro for app validation
+
+### Services and APIs
+
+- Go for ingest, gRPC API, projection, archive, replay, gap repair, and rollups
+- Node/TypeScript for the public REST BFF and realtime WebSocket gateway
+- Buf / Protobuf contracts shared across Node and Go
+
+### Platform and storage
+
+- CloudNativePG Postgres with Timescale support
+- NATS JetStream for telemetry streams and work queues
+- Valkey + Sentinel for live snapshots and distributed lease ownership
+- MinIO for local object archive
+- Keycloak for auth in local/dev
+- Helm + k3d for local cluster lifecycle
+
+## Quality and Operability
+
+- Testcontainers pipeline integration suite:
+  `make test-pipeline-integration`
+- Node↔Go proto compatibility tests:
+  `make test-proto-contract`
+- Playwright web E2E smoke:
+  `make test-web-e2e`
+- Maestro mobile E2E smoke:
+  `MAESTRO_EXPO_URL='exp://127.0.0.1:8081' make test-mobile-e2e`
+- Durable replay model, bounded queues, distributed lease ownership, and
+  reconnect-aware websocket delivery designed for operational resilience
 
 ## Quick Start
 

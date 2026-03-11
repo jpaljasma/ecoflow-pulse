@@ -10,13 +10,13 @@ func TestBuildClientIDFromSNDeterministicCRC32(t *testing.T) {
 	}{
 		{
 			name: "d2m",
-			sn:   "R351ZABAPH331057",
-			want: "ecoflow-pulse-29f3a572",
+			sn:   "DEMOD2M00001057",
+			want: "ecoflow-pulse-31d7d5e0",
 		},
 		{
 			name: "dpu",
-			sn:   "Y711ZABA9H2P0294",
-			want: "ecoflow-pulse-b416aca2",
+			sn:   "DEMODPU0000294",
+			want: "ecoflow-pulse-cf79c985",
 		},
 		{
 			name: "empty",
@@ -35,8 +35,8 @@ func TestBuildClientIDFromSNDeterministicCRC32(t *testing.T) {
 }
 
 func TestBuildClientIDFromSNStableForWhitespace(t *testing.T) {
-	a := BuildClientIDFromSN(" R351ZABAPH331057 ")
-	b := BuildClientIDFromSN("R351ZABAPH331057")
+	a := BuildClientIDFromSN(" DEMOD2M00001057 ")
+	b := BuildClientIDFromSN("DEMOD2M00001057")
 	if a != b {
 		t.Fatalf("expected whitespace-trimmed stable id, got %q vs %q", a, b)
 	}

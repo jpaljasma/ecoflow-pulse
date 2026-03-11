@@ -473,28 +473,28 @@ func loadPanelHints(path string) (panelHintIndex, error) {
 func defaultPanelHints() []panelHint {
 	return []panelHint{
 		{
-			DeviceSN:      "Y711ZABA9H2P0294",
+			DeviceSN:      "DEMODPU0000294",
 			Port:          "low",
 			PanelSetup:    "2x400W JA Solar bifacial",
 			PanelCount:    2,
 			NominalTotalW: 800,
 		},
 		{
-			DeviceSN:      "Y711ZABA9H2P0294",
+			DeviceSN:      "DEMODPU0000294",
 			Port:          "high",
 			PanelSetup:    "(none connected)",
 			PanelCount:    0,
 			NominalTotalW: 0,
 		},
 		{
-			DeviceSN:      "R351ZABAPH331057",
+			DeviceSN:      "DEMOD2M00001057",
 			Port:          "high",
 			PanelSetup:    "4x125W EcoFlow Bifacial Modular",
 			PanelCount:    4,
 			NominalTotalW: 500,
 		},
 		{
-			DeviceSN:      "R351ZABAPH331057",
+			DeviceSN:      "DEMOD2M00001057",
 			Port:          "low",
 			PanelSetup:    "EcoFlow 220W Bifacial Portable",
 			PanelCount:    1,

@@ -12,7 +12,7 @@ function baseConfig(): AppConfig {
     port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
-    devUserSubject: 'jpaljasma@gmail.com',
+    devUserSubject: 'dev-user@example.com',
     publicPreconnectOrigins: [],
     historyRateLimit: {
       max: 120,
@@ -32,11 +32,11 @@ function makeRequest(): FastifyRequest {
 function makeProviderDevice(): ProviderDevice {
   return {
     id: 'pdev-1',
-    deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+    deviceId: '22222222-2222-7222-8222-222222222222',
     provider: 'ecoflow',
-    providerDeviceId: 'R351ZABAPH331057',
+    providerDeviceId: 'DEMOD2M00001057',
     credentialId: 'cred-1',
-    canonicalSn: 'R351ZABAPH331057',
+    canonicalSn: 'DEMOD2M00001057',
     productName: 'Kitchen Delta 2 Max',
     model: 'DELTA 2 Max',
     isActive: true,
@@ -104,7 +104,7 @@ describe('device client', () => {
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {
-          deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+          deviceId: '22222222-2222-7222-8222-222222222222',
           cursor: {
             seq: '1',
             tsUnixMs: String(Date.now())
@@ -148,7 +148,7 @@ describe('device client', () => {
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {
-          deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+          deviceId: '22222222-2222-7222-8222-222222222222',
           cursor: {
             seq: '1',
             tsUnixMs: String(Date.now())
@@ -204,7 +204,7 @@ describe('device client', () => {
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {
-          deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+          deviceId: '22222222-2222-7222-8222-222222222222',
           cursor: {
             seq: '1',
             tsUnixMs: String(Date.now())
@@ -243,7 +243,7 @@ describe('device client', () => {
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {
-          deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+          deviceId: '22222222-2222-7222-8222-222222222222',
           cursor: {
             seq: '1',
             tsUnixMs: String(Date.now())

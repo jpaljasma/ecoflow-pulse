@@ -102,7 +102,7 @@ func TestWorkerHandleDeliveryInvalidFieldsTerms(t *testing.T) {
 	t.Parallel()
 
 	w := newTestWorker(&fakeReplayRunner{}, DefaultWorkerConfig())
-	req := &replayv1.GapRepairRequest{Provider: "ecoflow", ProviderDeviceId: "R351ZABAPH331057", FromUnixMs: 2000, ToUnixMs: 1000}
+	req := &replayv1.GapRepairRequest{Provider: "ecoflow", ProviderDeviceId: "DEMOD2M00001057", FromUnixMs: 2000, ToUnixMs: 1000}
 	d := &fakeGapDelivery{data: marshalGapRepairRequest(t, req)}
 	w.handleDelivery(d)
 	if d.termed != 1 || d.acked != 0 || d.nacked != 0 {
@@ -115,7 +115,7 @@ func TestWorkerHandleDeliveryRunnerErrorNaks(t *testing.T) {
 
 	runner := &fakeReplayRunner{err: errors.New("boom")}
 	w := newTestWorker(runner, DefaultWorkerConfig())
-	req := &replayv1.GapRepairRequest{Provider: "ecoflow", ProviderDeviceId: "R351ZABAPH331057", FromUnixMs: 1000, ToUnixMs: 2000}
+	req := &replayv1.GapRepairRequest{Provider: "ecoflow", ProviderDeviceId: "DEMOD2M00001057", FromUnixMs: 1000, ToUnixMs: 2000}
 	d := &fakeGapDelivery{data: marshalGapRepairRequest(t, req)}
 	w.handleDelivery(d)
 	if d.nacked != 1 || d.acked != 0 || d.termed != 0 {
@@ -133,7 +133,7 @@ func TestWorkerHandleDeliveryAcksOnSuccess(t *testing.T) {
 	w := newTestWorker(runner, DefaultWorkerConfig())
 	req := &replayv1.GapRepairRequest{
 		Provider:         " ecoflow ",
-		ProviderDeviceId: " r351zabaph331057 ",
+		ProviderDeviceId: " demod2m00001057 ",
 		FromUnixMs:       1000,
 		ToUnixMs:         2000,
 		MaxObjects:       17,
@@ -150,7 +150,7 @@ func TestWorkerHandleDeliveryAcksOnSuccess(t *testing.T) {
 	if got.Provider != "ecoflow" {
 		t.Fatalf("provider mismatch: got=%s", got.Provider)
 	}
-	if len(got.ProviderDeviceIDs) != 1 || got.ProviderDeviceIDs[0] != "R351ZABAPH331057" {
+	if len(got.ProviderDeviceIDs) != 1 || got.ProviderDeviceIDs[0] != "DEMOD2M00001057" {
 		t.Fatalf("provider_device_ids mismatch: %#v", got.ProviderDeviceIDs)
 	}
 	if got.MaxObjects != 17 {
@@ -165,7 +165,7 @@ func TestWorkerHandleDeliveryUsesDefaultMaxObjects(t *testing.T) {
 	cfg := DefaultWorkerConfig()
 	cfg.DefaultMaxObjects = 42
 	w := newTestWorker(runner, cfg)
-	req := &replayv1.GapRepairRequest{Provider: "ecoflow", ProviderDeviceId: "R351ZABAPH331057", FromUnixMs: 1000, ToUnixMs: 2000, MaxObjects: 0}
+	req := &replayv1.GapRepairRequest{Provider: "ecoflow", ProviderDeviceId: "DEMOD2M00001057", FromUnixMs: 1000, ToUnixMs: 2000, MaxObjects: 0}
 	d := &fakeGapDelivery{data: marshalGapRepairRequest(t, req)}
 	w.handleDelivery(d)
 	if d.acked != 1 || d.nacked != 0 || d.termed != 0 {
@@ -184,7 +184,7 @@ func TestNormalizeGapRequest(t *testing.T) {
 
 	normalized, err := normalizeGapRequest(&replayv1.GapRepairRequest{
 		Provider:         " ecoflow ",
-		ProviderDeviceId: " r351zabaph331057 ",
+		ProviderDeviceId: " demod2m00001057 ",
 		FromUnixMs:       1000,
 		ToUnixMs:         2000,
 		MaxObjects:       -1,
@@ -195,7 +195,7 @@ func TestNormalizeGapRequest(t *testing.T) {
 	if normalized.GetProvider() != "ecoflow" {
 		t.Fatalf("provider mismatch: got=%s", normalized.GetProvider())
 	}
-	if normalized.GetProviderDeviceId() != "R351ZABAPH331057" {
+	if normalized.GetProviderDeviceId() != "DEMOD2M00001057" {
 		t.Fatalf("provider_device_id mismatch: got=%s", normalized.GetProviderDeviceId())
 	}
 	if normalized.GetMaxObjects() != 0 {

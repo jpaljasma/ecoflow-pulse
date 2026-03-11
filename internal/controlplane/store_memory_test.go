@@ -65,15 +65,15 @@ func TestMemoryStoreListProviderDevices(t *testing.T) {
 	store := NewMemoryStore()
 	store.PutProviderDevice(ProviderDevice{
 		Provider:           ProviderEcoFlow,
-		ProviderDeviceID:   "R351ZABAPH331057",
-		CanonicalSN:        "R351ZABAPH331057",
+		ProviderDeviceID:   "DEMOD2M00001057",
+		CanonicalSN:        "DEMOD2M00001057",
 		IsActive:           true,
 		IngestDesiredState: "active",
 	})
 	store.PutProviderDevice(ProviderDevice{
 		Provider:           ProviderEcoFlow,
-		ProviderDeviceID:   "Y711ZABA9H2P0294",
-		CanonicalSN:        "Y711ZABA9H2P0294",
+		ProviderDeviceID:   "DEMODPU0000294",
+		CanonicalSN:        "DEMODPU0000294",
 		IsActive:           false,
 		IngestDesiredState: "paused",
 	})
@@ -97,7 +97,7 @@ func TestMemoryStoreProviderDeviceCapabilitiesAndMetadata(t *testing.T) {
 	device, err := store.UpsertProviderDevice(context.Background(), UpsertProviderDeviceInput{
 		DeviceID:         "dev-1",
 		Provider:         ProviderEcoFlow,
-		ProviderDeviceID: "R351ZABAPH331057",
+		ProviderDeviceID: "DEMOD2M00001057",
 		CredentialID:     "cred-1",
 		ProductName:      "Kitchen Delta 2 Max",
 		Model:            "DELTA 2 Max",
@@ -143,7 +143,7 @@ func TestMemoryStoreProviderDeviceCapabilitiesAndMetadata(t *testing.T) {
 	updated, err := store.UpsertProviderDevice(context.Background(), UpsertProviderDeviceInput{
 		DeviceID:           "dev-1",
 		Provider:           ProviderEcoFlow,
-		ProviderDeviceID:   "R351ZABAPH331057",
+		ProviderDeviceID:   "DEMOD2M00001057",
 		CredentialID:       "cred-1",
 		ProductName:        "Kitchen Delta 2 Max",
 		Model:              "DELTA 2 Max",
@@ -277,7 +277,7 @@ func TestMemoryStoreDeviceRegistryRBAC(t *testing.T) {
 
 	created, err := store.CreateDevice(context.Background(), CreateDeviceInput{
 		UserSubject: "owner",
-		EcoflowSN:   "R351ZABAPH331057",
+		EcoflowSN:   "DEMOD2M00001057",
 		ProductName: "Kitchen Delta 2 Max",
 		Model:       "DELTA 2 Max",
 	})

@@ -3,7 +3,7 @@ export function loadConfig(env) {
     apiBaseUrl: trimTrailingSlash(env.LOADTEST_API_BASE_URL || 'http://127.0.0.1'),
     wsUrl: (env.LOADTEST_WS_URL || 'ws://127.0.0.1/ws').trim(),
     ingestUrl: (env.LOADTEST_INGEST_URL || 'http://127.0.0.1:19090/ingest').trim(),
-    userSubject: (env.LOADTEST_USER_SUBJECT || 'jpaljasma@gmail.com').trim(),
+    userSubject: (env.LOADTEST_USER_SUBJECT || 'dev-user@example.com').trim(),
     authHeader: (env.LOADTEST_AUTH_HEADER || '').trim(),
     requestTimeout: (env.LOADTEST_REQUEST_TIMEOUT || '5s').trim(),
     duration: (env.LOADTEST_DURATION || '1m').trim(),

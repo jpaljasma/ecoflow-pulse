@@ -29,13 +29,13 @@ func TestPublisherMsgIDStableWithinBucket(t *testing.T) {
 	p := &NATSPublisher{bucketMS: int64(time.Minute / time.Millisecond)}
 	first := p.msgID(&replayv1.GapRepairRequest{
 		Provider:         "ecoflow",
-		ProviderDeviceId: "R351ZABAPH331057",
+		ProviderDeviceId: "DEMOD2M00001057",
 		FromUnixMs:       120_000,
 		ToUnixMs:         179_999,
 	})
 	second := p.msgID(&replayv1.GapRepairRequest{
 		Provider:         "ecoflow",
-		ProviderDeviceId: "R351ZABAPH331057",
+		ProviderDeviceId: "DEMOD2M00001057",
 		FromUnixMs:       120_111,
 		ToUnixMs:         179_500,
 	})
@@ -50,7 +50,7 @@ func TestNormalizeRequestValidatesAndFillsShard(t *testing.T) {
 	p := &NATSPublisher{cfg: DefaultNATSPublisherConfig(telemetrybus.SubjectConfig{Prefix: "pulse", ShardCount: 128}), bucketMS: int64(time.Minute / time.Millisecond)}
 	req, err := p.normalizeRequest(&replayv1.GapRepairRequest{
 		Provider:         " ecoflow ",
-		ProviderDeviceId: " r351zabaph331057 ",
+		ProviderDeviceId: " demod2m00001057 ",
 		FromUnixMs:       1000,
 		ToUnixMs:         4000,
 	})
@@ -60,7 +60,7 @@ func TestNormalizeRequestValidatesAndFillsShard(t *testing.T) {
 	if req.GetProvider() != "ecoflow" {
 		t.Fatalf("provider not normalized: %s", req.GetProvider())
 	}
-	if req.GetProviderDeviceId() != "R351ZABAPH331057" {
+	if req.GetProviderDeviceId() != "DEMOD2M00001057" {
 		t.Fatalf("provider device id not normalized: %s", req.GetProviderDeviceId())
 	}
 	if req.GetShardCount() != 128 {

@@ -32,7 +32,7 @@ func TestPostgresStoreApplyEnvelopeUpsertsAllBuckets(t *testing.T) {
 	store.nowFn = func() time.Time { return now }
 	env := &envelopev1.TelemetryEnvelope{
 		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		ObservedTimeUnixMs: time.Date(2026, time.February, 27, 12, 34, 56, 0, time.UTC).UnixMilli(),
 		Payload:            []byte(`{"params":{"wattsInSum":259,"pv1ChargeWatts":52,"wattsOutSum":217,"f32ShowSoc":25.5}}`),
 		Labels:             map[string]string{"provider": "ecoflow"},
@@ -65,7 +65,7 @@ func TestPostgresStoreApplyEnvelopeRollsBackOnExecFailure(t *testing.T) {
 	store := newPostgresStore(db)
 	env := &envelopev1.TelemetryEnvelope{
 		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		ObservedTimeUnixMs: time.Date(2026, time.February, 27, 12, 34, 56, 0, time.UTC).UnixMilli(),
 		Payload:            []byte(`{"params":{"wattsOutSum":217}}`),
 		Labels:             map[string]string{"provider": "ecoflow"},
@@ -99,14 +99,14 @@ func TestPostgresStoreApplyEnvelopeIntegratesSolarAcrossSparseMinuteBoundary(t *
 	store.nowFn = func() time.Time { return now }
 	first := &envelopev1.TelemetryEnvelope{
 		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
-		EcoflowSn:          "Y711ZABA9H2P0294",
+		EcoflowSn:          "DEMODPU0000294",
 		ObservedTimeUnixMs: time.Date(2026, time.March, 7, 12, 0, 30, 0, time.UTC).UnixMilli(),
 		Payload:            []byte(`{"params":{"inLvMpptPwr":120}}`),
 		Labels:             map[string]string{"provider": "ecoflow"},
 	}
 	second := &envelopev1.TelemetryEnvelope{
 		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
-		EcoflowSn:          "Y711ZABA9H2P0294",
+		EcoflowSn:          "DEMODPU0000294",
 		ObservedTimeUnixMs: time.Date(2026, time.March, 7, 12, 1, 15, 0, time.UTC).UnixMilli(),
 		Payload:            []byte(`{"params":{"inLvMpptPwr":60}}`),
 		Labels:             map[string]string{"provider": "ecoflow"},

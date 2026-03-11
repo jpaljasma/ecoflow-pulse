@@ -154,7 +154,7 @@ func TestDeviceRegistryCreateLinkListAndRBAC(t *testing.T) {
 
 	created, err := svc.CreateDevice(context.Background(), &controlplanev1.CreateDeviceRequest{
 		UserSubject: "dev-user",
-		EcoflowSn:   "r351zabaph331057",
+		EcoflowSn:   "demod2m00001057",
 		ProductName: "Kitchen Delta 2 Max",
 		Model:       "DELTA 2 Max",
 	})
@@ -231,8 +231,8 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 	svc, store := newControlPlaneServiceForTest()
 	store.PutProviderDevice(controlplane.ProviderDevice{
 		Provider:         controlplane.ProviderEcoFlow,
-		ProviderDeviceID: "R351ZABAPH331057",
-		CanonicalSN:      "R351ZABAPH331057",
+		ProviderDeviceID: "DEMOD2M00001057",
+		CanonicalSN:      "DEMOD2M00001057",
 		ProductName:      "Kitchen Delta 2 Max",
 		Model:            "DELTA 2 Max",
 		Capabilities: map[string]any{
@@ -248,8 +248,8 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 	})
 	store.PutProviderDevice(controlplane.ProviderDevice{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "Y711ZABA9H2P0294",
-		CanonicalSN:        "Y711ZABA9H2P0294",
+		ProviderDeviceID:   "DEMODPU0000294",
+		CanonicalSN:        "DEMODPU0000294",
 		ProductName:        "DPU A 12 kWh",
 		Model:              "DELTA Pro Ultra",
 		IsActive:           true,
@@ -272,7 +272,7 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 	}
 	var found bool
 	for _, device := range resp.GetGroups()[0].GetDevices() {
-		if device.GetProviderDeviceId() != "R351ZABAPH331057" {
+		if device.GetProviderDeviceId() != "DEMOD2M00001057" {
 			continue
 		}
 		found = true
@@ -320,9 +320,9 @@ func TestDiscoverDevicesConfiguredAndUnconfigured(t *testing.T) {
 			{
 				ID:                 "pdev-1",
 				Provider:           controlplane.ProviderEcoFlow,
-				ProviderDeviceID:   "R351ZABAPH331057",
+				ProviderDeviceID:   "DEMOD2M00001057",
 				CredentialID:       createResp.GetCredential().GetId(),
-				CanonicalSN:        "R351ZABAPH331057",
+				CanonicalSN:        "DEMOD2M00001057",
 				ProductName:        "Kitchen Delta 2 Max",
 				Model:              "DELTA 2 Max",
 				IsActive:           true,

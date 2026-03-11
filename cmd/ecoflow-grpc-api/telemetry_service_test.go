@@ -461,7 +461,7 @@ func TestGetSnapshotPermissionDenied(t *testing.T) {
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f50"
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
-		"owner": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+		"owner": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -481,7 +481,7 @@ func TestSubscribePermissionDenied(t *testing.T) {
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f51"
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
-		"owner": {{DeviceID: deviceID, EcoflowSN: "Y711ZABA9H2P0294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
+		"owner": {{DeviceID: deviceID, EcoflowSN: "DEMODPU0000294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
 	})
 	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -520,7 +520,7 @@ func TestQueryRollupRangeUnavailableWithoutReader(t *testing.T) {
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52"
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
-		"dev-user": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 
 	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
@@ -544,7 +544,7 @@ func TestQueryRollupRangePermissionDenied(t *testing.T) {
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f53"
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
-		"owner": {{DeviceID: deviceID, EcoflowSN: "Y711ZABA9H2P0294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
+		"owner": {{DeviceID: deviceID, EcoflowSN: "DEMODPU0000294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
 	})
 
 	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
@@ -569,7 +569,7 @@ func TestQueryRollupRangeReturnsSeries(t *testing.T) {
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f54"
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
-		"dev-user": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 
 	from := time.Date(2026, time.February, 27, 12, 0, 0, 0, time.UTC)
@@ -634,7 +634,7 @@ func TestCompareRollupRangeUsesPreviousPeriod(t *testing.T) {
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f55"
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
-		"dev-user": {{DeviceID: deviceID, EcoflowSN: "R351ZABAPH331057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 
 	from := time.Date(2026, time.February, 27, 12, 0, 0, 0, time.UTC)

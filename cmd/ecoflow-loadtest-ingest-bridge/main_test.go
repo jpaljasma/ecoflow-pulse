@@ -28,7 +28,7 @@ func TestNormalizeRequestSetsDefaultsAndCanonicalFields(t *testing.T) {
 	deviceID := uuid.NewString()
 	req, err := normalizeRequest(ingestRequest{
 		DeviceID:     "  " + deviceID + " ",
-		SerialNumber: " r351zabaph331057 ",
+		SerialNumber: " demod2m00001057 ",
 	})
 	if err != nil {
 		t.Fatalf("normalizeRequest failed: %v", err)
@@ -36,7 +36,7 @@ func TestNormalizeRequestSetsDefaultsAndCanonicalFields(t *testing.T) {
 	if req.DeviceID != deviceID {
 		t.Fatalf("device_id mismatch: got=%q want=%q", req.DeviceID, deviceID)
 	}
-	if req.SerialNumber != "R351ZABAPH331057" {
+	if req.SerialNumber != "DEMOD2M00001057" {
 		t.Fatalf("serial_number mismatch: got=%q", req.SerialNumber)
 	}
 	if req.ObservedUnixM <= 0 {
@@ -89,7 +89,7 @@ func TestBuildEnvelopeSetsRequiredFieldsForRollups(t *testing.T) {
 		subject:  telemetrybus.SubjectConfig{Prefix: "pulse", ShardCount: 128},
 	}, ingestRequest{
 		DeviceID:      deviceID,
-		SerialNumber:  "R351ZABAPH331057",
+		SerialNumber:  "DEMOD2M00001057",
 		ObservedUnixM: now.UnixMilli(),
 		MessageID:     "msg-1",
 	}, now)
@@ -102,7 +102,7 @@ func TestBuildEnvelopeSetsRequiredFieldsForRollups(t *testing.T) {
 	if env.GetDeviceId() != deviceID {
 		t.Fatalf("device id mismatch: got=%q want=%q", env.GetDeviceId(), deviceID)
 	}
-	if env.GetEcoflowSn() != "R351ZABAPH331057" {
+	if env.GetEcoflowSn() != "DEMOD2M00001057" {
 		t.Fatalf("serial mismatch: got=%q", env.GetEcoflowSn())
 	}
 	if env.GetLabels()["provider"] != "ecoflow" {

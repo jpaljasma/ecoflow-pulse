@@ -45,7 +45,7 @@ JSON schema:
 ```json
 [
   {
-    "device_sn": "R351ZABAPH331057",
+    "device_sn": "DEMOD2M00001057",
     "product_name": "DELTA 2 Max",
     "port": "high",
     "panel_setup": "4x125W EcoFlow Bifacial Modular",

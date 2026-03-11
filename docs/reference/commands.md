@@ -165,7 +165,7 @@ Run the Node REST BFF against the local gRPC API:
 ```bash
 GRPC_API_ADDR='127.0.0.1:9090' \
 NODE_AUTH_MODE='noop' \
-PULSE_PLATFORM_DEV_SUBJECT='jpaljasma@gmail.com' \
+PULSE_PLATFORM_DEV_SUBJECT='dev-user@example.com' \
 PULSE_PLATFORM_PORT='18081' \
 npm run platform-bff
 ```
@@ -310,7 +310,7 @@ CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disa
 ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
 ARCHIVE_OBJECT_ACCESS_KEY='minio' \
 ARCHIVE_OBJECT_SECRET_KEY='minio123' \
-go run ./cmd/ecoflow-replay-cli -mode device -provider-device-ids R351ZABAPH331057 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z -dry-run
+go run ./cmd/ecoflow-replay-cli -mode device -provider-device-ids DEMOD2M00001057 -from 2026-02-26T08:00:00Z -to 2026-02-26T09:00:00Z -dry-run
 
 # Fleet shard/time replay (publishes TelemetryEnvelope bytes to pulse.telemetry.replay.sNNN).
 CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
@@ -326,7 +326,7 @@ ARCHIVE_OBJECT_ENDPOINT='127.0.0.1:9000' \
 ARCHIVE_OBJECT_ACCESS_KEY='minio' \
 ARCHIVE_OBJECT_SECRET_KEY='minio123' \
 NATS_URLS='nats://127.0.0.1:4222' \
-go run ./cmd/ecoflow-replay-cli -mode device -provider ecoflow -provider-device-ids R351ZABAPH331057 -from 2026-02-25T00:00:00Z -to 2026-02-26T00:00:00Z -nats-target ingest
+go run ./cmd/ecoflow-replay-cli -mode device -provider ecoflow -provider-device-ids DEMOD2M00001057 -from 2026-02-25T00:00:00Z -to 2026-02-26T00:00:00Z -nats-target ingest
 
 # Rebuild rollups directly from local raw MQTT log capture instead of archive objects.
 # This uses canonical quota/MPPT PV updates and the same interval-based solar
@@ -334,7 +334,7 @@ go run ./cmd/ecoflow-replay-cli -mode device -provider ecoflow -provider-device-
 CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
 go run ./cmd/ecoflow-rollup-rebuild \
   -provider ecoflow \
-  -provider-device-ids Y711ZABA9H2P0294 \
+  -provider-device-ids DEMODPU0000294 \
   -from 2026-03-07T05:00:00Z \
   -to 2026-03-07T18:00:00Z \
   -raw-logs logs/mqtt_payload_raw-2026-03-07.log
@@ -1013,9 +1013,9 @@ Notes:
     - `ECOFLOW_DEV_USER_SUBJECT`, `ECOFLOW_DEV_USER_EMAIL`,
     - `ECOFLOW_DEV_SEED_SNS`.
   - defaults:
-    - `DB_SEED_USER_SUBJECT=jpaljasma@gmail.com`,
-    - `DB_SEED_USER_EMAIL=jpaljasma@gmail.com`,
-    - `DB_SEED_SERIALS=R351ZABAPH331057,Y711ZABA9H2P0294`.
+    - `DB_SEED_USER_SUBJECT=dev-user@example.com`,
+    - `DB_SEED_USER_EMAIL=dev-user@example.com`,
+    - `DB_SEED_SERIALS=DEMOD2M00001057,DEMODPU0000294`.
   - after credential rotation, recycle ingest sessions so workers immediately
     reconnect with fresh provider credentials:
     - `kubectl -n pulse-services rollout restart deploy/pulse-services-go-ingest`

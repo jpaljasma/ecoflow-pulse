@@ -12,7 +12,7 @@ func BenchmarkValkeySnapshotStoreApplyEnvelope(b *testing.B) {
 	env := &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "env-bench",
 		DeviceId:           "dev-bench",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		IngestedTimeUnixMs: 1234,
 		Payload:            []byte(`{"params":{"wattsOutSum":35,"soc":54.2}}`),
 	}

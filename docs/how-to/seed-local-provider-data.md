@@ -21,10 +21,10 @@ make db-seed-dev-local
 
 Defaults:
 
-- user subject/email: `jpaljasma@gmail.com`
+- user subject/email: `dev-user@example.com`
 - serials:
-  - `R351ZABAPH331057`
-  - `Y711ZABA9H2P0294`
+  - `DEMOD2M00001057`
+  - `DEMODPU0000294`
 
 ## Override seed inputs
 
@@ -32,7 +32,7 @@ Defaults:
 make db-seed-dev-local \
   DB_SEED_USER_SUBJECT=me@example.com \
   DB_SEED_USER_EMAIL=me@example.com \
-  DB_SEED_SERIALS=R351ZABAPH331057,Y711ZABA9H2P0294
+  DB_SEED_SERIALS=DEMOD2M00001057,DEMODPU0000294
 ```
 
 ## What gets upserted

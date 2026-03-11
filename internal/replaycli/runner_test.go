@@ -29,7 +29,7 @@ func TestRunnerReplayDevicesFiltersAndPublishes(t *testing.T) {
 		byPath: map[string][]byte{
 			"raw/obj-1": encodeFramedZstdPayload(t, [][]byte{
 				mustEnvelopeBytes(t, &envelopev1.TelemetryEnvelope{DeviceId: "device-a", EcoflowSn: "SN-A", IngestedTimeUnixMs: 100, Shard: 7, ShardCount: 128}),
-				mustEnvelopeBytes(t, &envelopev1.TelemetryEnvelope{DeviceId: "device-b", EcoflowSn: "r351zabaph331057", IngestedTimeUnixMs: 200, Shard: 7, ShardCount: 128}),
+				mustEnvelopeBytes(t, &envelopev1.TelemetryEnvelope{DeviceId: "device-b", EcoflowSn: "demod2m00001057", IngestedTimeUnixMs: 200, Shard: 7, ShardCount: 128}),
 				mustEnvelopeBytes(t, &envelopev1.TelemetryEnvelope{DeviceId: "device-c", EcoflowSn: "SN-C", IngestedTimeUnixMs: 300, Shard: 7, ShardCount: 128}),
 			}),
 		},
@@ -46,7 +46,7 @@ func TestRunnerReplayDevicesFiltersAndPublishes(t *testing.T) {
 		FromUnixMS:        1,
 		ToUnixMS:          1000,
 		DeviceIDs:         []string{"device-a"},
-		ProviderDeviceIDs: []string{"r351zabaph331057"},
+		ProviderDeviceIDs: []string{"demod2m00001057"},
 	})
 	if err != nil {
 		t.Fatalf("replay devices: %v", err)

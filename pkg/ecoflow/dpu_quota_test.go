@@ -84,7 +84,7 @@ func TestGeneralInfoService_GetDPUQuota(t *testing.T) {
 			if req.URL.Path != deviceQuotaAllPath {
 				t.Fatalf("request path mismatch: got %q", req.URL.Path)
 			}
-			if got := req.URL.Query().Get("sn"); got != "Y711ZABA9H2P0294" {
+			if got := req.URL.Query().Get("sn"); got != "DEMODPU0000294" {
 				t.Fatalf("sn query mismatch: got %q", got)
 			}
 			return &http.Response{
@@ -107,7 +107,7 @@ func TestGeneralInfoService_GetDPUQuota(t *testing.T) {
 		t.Fatalf("NewClient() error = %v", err)
 	}
 
-	quota, response, err := client.GeneralInfo().GetDPUQuota(context.Background(), "Y711ZABA9H2P0294")
+	quota, response, err := client.GeneralInfo().GetDPUQuota(context.Background(), "DEMODPU0000294")
 	if err != nil {
 		t.Fatalf("GetDPUQuota() error = %v", err)
 	}

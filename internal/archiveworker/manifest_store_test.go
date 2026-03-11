@@ -33,7 +33,7 @@ func TestNormalizeManifestRecordAppliesDefaults(t *testing.T) {
 		ChecksumCRC32:     " AABBCCDD ",
 		WriterID:          " writer-a ",
 		DeviceIDs:         []string{" dev-2 ", "dev-1", "dev-2"},
-		ProviderDeviceIDs: []string{" r351zabaph331057 ", "R351ZABAPH331057"},
+		ProviderDeviceIDs: []string{" demod2m00001057 ", "DEMOD2M00001057"},
 	}, now)
 
 	if record.Provider != defaultManifestProvider {
@@ -63,7 +63,7 @@ func TestNormalizeManifestRecordAppliesDefaults(t *testing.T) {
 	if strings.Join(record.DeviceIDs, ",") != "dev-1,dev-2" {
 		t.Fatalf("device ids mismatch: got=%v", record.DeviceIDs)
 	}
-	if strings.Join(record.ProviderDeviceIDs, ",") != "R351ZABAPH331057" {
+	if strings.Join(record.ProviderDeviceIDs, ",") != "DEMOD2M00001057" {
 		t.Fatalf("provider device ids mismatch: got=%v", record.ProviderDeviceIDs)
 	}
 	if !record.CreatedAt.Equal(now) || !record.UpdatedAt.Equal(now) {
