@@ -33,6 +33,19 @@ func (r Resolution) BucketDuration() time.Duration {
 	}
 }
 
+func (r Resolution) String() string {
+	switch r {
+	case ResolutionMinute:
+		return "minute"
+	case ResolutionHour:
+		return "hour"
+	case ResolutionDay:
+		return "day"
+	default:
+		return "unknown"
+	}
+}
+
 func (r Resolution) TableName() (string, error) {
 	switch r {
 	case ResolutionMinute:
@@ -87,12 +100,20 @@ type Point struct {
 	Metrics       Metrics
 }
 
+type EnergyBucketCoverage struct {
+	PointCount          int
+	PersistedValueCount int
+	DerivedValueCount   int
+	DerivedPointCount   int
+}
+
 type Series struct {
-	DeviceID   string
-	Resolution Resolution
-	From       time.Time
-	To         time.Time
-	Points     []Point
+	DeviceID             string
+	Resolution           Resolution
+	From                 time.Time
+	To                   time.Time
+	Points               []Point
+	EnergyBucketCoverage EnergyBucketCoverage
 }
 
 type RangeQuery struct {

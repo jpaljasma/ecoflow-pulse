@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -407,11 +408,37 @@ func applyMigrations(ctx context.Context, dsn string, migrationsDir string, suff
 		if sqlBody == "" {
 			continue
 		}
-		if _, execErr := db.ExecContext(ctx, sqlBody); execErr != nil {
+		if execErr := execMigrationSQL(ctx, db, sqlBody, suffix == ".down.sql"); execErr != nil {
 			return fmt.Errorf("apply migration %q: %w", file, execErr)
 		}
 	}
 	return nil
+}
+
+func execMigrationSQL(ctx context.Context, db *sql.DB, sqlBody string, allowRetry bool) error {
+	const maxAttempts = 3
+	for attempt := 1; ; attempt++ {
+		if _, err := db.ExecContext(ctx, sqlBody); err != nil {
+			if allowRetry && attempt < maxAttempts && isRetryableMigrationError(err) {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(time.Duration(attempt) * 200 * time.Millisecond):
+				}
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+}
+
+func isRetryableMigrationError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "40P01"
+	}
+	return strings.Contains(err.Error(), "deadlock detected")
 }
 
 func resolveRepoRoot() (string, error) {

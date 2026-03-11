@@ -246,20 +246,31 @@ func enrichSolarEnergy(series Series) Series {
 	}
 
 	points := make([]Point, 0, len(series.Points))
+	coverage := EnergyBucketCoverage{PointCount: len(series.Points)}
 	for _, point := range series.Points {
-		points = append(points, withDerivedSolarEnergy(point, series.Resolution))
+		enriched, pointCoverage := withDerivedSolarEnergy(point, series.Resolution)
+		points = append(points, enriched)
+		coverage.PersistedValueCount += pointCoverage.PersistedValueCount
+		coverage.DerivedValueCount += pointCoverage.DerivedValueCount
+		if pointCoverage.DerivedValueCount > 0 {
+			coverage.DerivedPointCount++
+		}
 	}
 	series.Points = points
+	series.EnergyBucketCoverage = coverage
 	return series
 }
 
-func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
+func withDerivedSolarEnergy(point Point, resolution Resolution) (Point, EnergyBucketCoverage) {
+	coverage := EnergyBucketCoverage{
+		PersistedValueCount: storedEnergyValueCount(point.Metrics),
+	}
 	durationHours := point.BucketEnd.Sub(point.BucketStart).Hours()
 	if resolution == ResolutionMinute && durationHours <= 0 {
 		durationHours = time.Minute.Hours()
 	}
 	if durationHours <= 0 {
-		return point
+		return point, coverage
 	}
 
 	if point.Metrics.SolarGeneratedWh == nil {
@@ -267,12 +278,14 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
 		if ok {
 			solarWh := pvAvgW * durationHours
 			point.Metrics.SolarGeneratedWh = floatPtr(solarWh)
+			coverage.DerivedValueCount++
 		}
 	}
 
 	if point.Metrics.ACInputEnergyWh == nil {
 		if acInAvgW, ok := positiveMetricValue(point.Metrics.ACInAvgW); ok {
 			point.Metrics.ACInputEnergyWh = floatPtr(acInAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.ACOutputAvgW == nil {
@@ -288,16 +301,19 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
 	if point.Metrics.ACOutputEnergyWh == nil {
 		if acOutputAvgW, ok := positiveMetricValue(point.Metrics.ACOutputAvgW); ok {
 			point.Metrics.ACOutputEnergyWh = floatPtr(acOutputAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.DCOutputEnergyWh == nil {
 		if dcAvgW, ok := positiveMetricValue(point.Metrics.DCAvgW); ok {
 			point.Metrics.DCOutputEnergyWh = floatPtr(dcAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.LoadEnergyWh == nil {
 		if loadAvgW, ok := positiveMetricValue(point.Metrics.LoadAvgW); ok {
 			point.Metrics.LoadEnergyWh = floatPtr(loadAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.BatteryChargeEnergyWh == nil || point.Metrics.BatteryDischargeEnergyWh == nil {
@@ -305,13 +321,33 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
 			batteryAvgW := *point.Metrics.BatteryAvgW
 			if batteryAvgW > 0 && point.Metrics.BatteryChargeEnergyWh == nil {
 				point.Metrics.BatteryChargeEnergyWh = floatPtr(batteryAvgW * durationHours)
+				coverage.DerivedValueCount++
 			}
 			if batteryAvgW < 0 && point.Metrics.BatteryDischargeEnergyWh == nil {
 				point.Metrics.BatteryDischargeEnergyWh = floatPtr(math.Abs(batteryAvgW) * durationHours)
+				coverage.DerivedValueCount++
 			}
 		}
 	}
-	return point
+	return point, coverage
+}
+
+func storedEnergyValueCount(metrics Metrics) int {
+	count := 0
+	for _, value := range []*float64{
+		metrics.SolarGeneratedWh,
+		metrics.ACInputEnergyWh,
+		metrics.ACOutputEnergyWh,
+		metrics.DCOutputEnergyWh,
+		metrics.LoadEnergyWh,
+		metrics.BatteryChargeEnergyWh,
+		metrics.BatteryDischargeEnergyWh,
+	} {
+		if value != nil {
+			count++
+		}
+	}
+	return count
 }
 
 func positiveMetricValue(value *float64) (float64, bool) {

@@ -145,6 +145,15 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 	if point.Metrics.BatteryDischargeEnergyWh == nil || *point.Metrics.BatteryDischargeEnergyWh != 6.5 {
 		t.Fatalf("battery_discharge_energy_wh mismatch: got=%v", point.Metrics.BatteryDischargeEnergyWh)
 	}
+	if series.EnergyBucketCoverage.PointCount != 1 {
+		t.Fatalf("coverage point count mismatch: got=%d want=1", series.EnergyBucketCoverage.PointCount)
+	}
+	if series.EnergyBucketCoverage.PersistedValueCount != 7 {
+		t.Fatalf("coverage persisted values mismatch: got=%d want=7", series.EnergyBucketCoverage.PersistedValueCount)
+	}
+	if series.EnergyBucketCoverage.DerivedValueCount != 0 {
+		t.Fatalf("coverage derived values mismatch: got=%d want=0", series.EnergyBucketCoverage.DerivedValueCount)
+	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)
 	}
@@ -295,5 +304,17 @@ func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
 	second := series.Points[1].Metrics
 	if second.BatteryDischargeEnergyWh == nil || *second.BatteryDischargeEnergyWh != 20 {
 		t.Fatalf("battery_discharge_energy_wh mismatch: got=%v want=20", second.BatteryDischargeEnergyWh)
+	}
+	if series.EnergyBucketCoverage.PointCount != 2 {
+		t.Fatalf("coverage point count mismatch: got=%d want=2", series.EnergyBucketCoverage.PointCount)
+	}
+	if series.EnergyBucketCoverage.PersistedValueCount != 0 {
+		t.Fatalf("coverage persisted values mismatch: got=%d want=0", series.EnergyBucketCoverage.PersistedValueCount)
+	}
+	if series.EnergyBucketCoverage.DerivedValueCount != 6 {
+		t.Fatalf("coverage derived values mismatch: got=%d want=6", series.EnergyBucketCoverage.DerivedValueCount)
+	}
+	if series.EnergyBucketCoverage.DerivedPointCount != 2 {
+		t.Fatalf("coverage derived points mismatch: got=%d want=2", series.EnergyBucketCoverage.DerivedPointCount)
 	}
 }

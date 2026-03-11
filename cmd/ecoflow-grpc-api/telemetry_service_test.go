@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -699,6 +701,55 @@ func TestCompareRollupRangeUsesPreviousPeriod(t *testing.T) {
 	}
 	if reader.queries[1].From != from.Add(-2*time.Hour) || reader.queries[1].To != from {
 		t.Fatalf("previous window mismatch: got=[%s,%s)", reader.queries[1].From, reader.queries[1].To)
+	}
+}
+
+func TestQueryRollupRangeLogsEnergyFallbackUsage(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f5a"
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+
+	from := time.Date(2026, time.February, 27, 12, 0, 0, 0, time.UTC)
+	to := from.Add(time.Hour)
+	reader := &fakeQueryReader{
+		series: []telemetryquery.Series{{
+			DeviceID:   deviceID,
+			Resolution: telemetryquery.ResolutionHour,
+			From:       from,
+			To:         to,
+			EnergyBucketCoverage: telemetryquery.EnergyBucketCoverage{
+				PointCount:          1,
+				PersistedValueCount: 2,
+				DerivedValueCount:   3,
+				DerivedPointCount:   1,
+			},
+		}},
+	}
+	var logs bytes.Buffer
+	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(&logs, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+	})
+
+	_, err := svc.QueryRollupRange(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.QueryRollupRangeRequest{
+		DeviceId:   deviceID,
+		Resolution: telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
+		FromUnixMs: from.UnixMilli(),
+		ToUnixMs:   to.UnixMilli(),
+	})
+	if err != nil {
+		t.Fatalf("QueryRollupRange failed: %v", err)
+	}
+	logText := logs.String()
+	if !strings.Contains(logText, "telemetry history used derived energy fallback") {
+		t.Fatalf("expected fallback log, got %q", logText)
+	}
+	if !strings.Contains(logText, "derived_values=3") {
+		t.Fatalf("expected derived values count in log, got %q", logText)
 	}
 }
 
