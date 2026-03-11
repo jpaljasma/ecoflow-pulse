@@ -558,6 +558,10 @@ export class TelemetryEngine {
   }
 
   private buildWsCandidates(primary: string): string[] {
+    if (env.isWeb) {
+      return [primary];
+    }
+
     if (this.wsUrlExplicit) {
       return [primary];
     }

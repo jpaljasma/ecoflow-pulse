@@ -1,4 +1,5 @@
 import { createFont, createTamagui, createTokens } from 'tamagui';
+import { themeCatalog } from './src/shared/theme/catalog';
 
 const tokens = createTokens({
   color: {
@@ -62,32 +63,12 @@ const tokens = createTokens({
 });
 
 const themes = {
-  light: {
-    background: tokens.color.bg,
-    backgroundHover: '#ebedf1',
-    backgroundPress: '#dfe2e8',
-    backgroundFocus: '#d9dce4',
-    color: tokens.color.text,
-    colorHover: '#000000',
-    colorPress: '#1d1f23',
-    colorFocus: '#111216',
-    borderColor: tokens.color.border,
-    shadowColor: '#000000',
-    accentColor: tokens.color.accent
-  },
-  dark: {
-    background: tokens.color.bgDark,
-    backgroundHover: '#121418',
-    backgroundPress: '#1a1d22',
-    backgroundFocus: '#1b1e24',
-    color: tokens.color.textDark,
-    colorHover: '#ffffff',
-    colorPress: '#e9edf2',
-    colorFocus: '#f2f6fb',
-    borderColor: tokens.color.borderDark,
-    shadowColor: '#000000',
-    accentColor: tokens.color.accent
-  }
+  light: themeCatalog['new-light'].colors,
+  dark: themeCatalog['new-dark'].colors,
+  'original-light': themeCatalog['original-light'].colors,
+  'original-dark': themeCatalog['original-dark'].colors,
+  'new-light': themeCatalog['new-light'].colors,
+  'new-dark': themeCatalog['new-dark'].colors
 };
 
 const bodyFont = createFont({
@@ -177,7 +158,7 @@ const config = createTamagui({
     shouldAddPrefersColorThemes: true,
     allowedStyleValues: 'somewhat-strict-web'
   },
-  defaultTheme: 'light'
+  defaultTheme: 'new-dark'
 });
 
 export type AppTamaguiConfig = typeof config;

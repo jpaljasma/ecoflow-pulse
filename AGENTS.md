@@ -115,6 +115,26 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - reserve space for status text, buttons, and badges that may change label,
    - avoid scroll-position jumps, card collapse/expand flicker, and large reflow on routine state changes,
    - treat visible layout jank during normal interaction as a bug, not cosmetic polish.
+8. Universal app theming must preserve the working root-theme contract:
+   - the root Tamagui provider follows base `light` / `dark` from system appearance,
+   - palette variants such as `original-*` / `new-*` are applied as nested themes, not as the root provider theme names,
+   - do not replace the root `light` / `dark` provider path with custom theme names unless the web root/theme-class behavior is revalidated end-to-end.
+9. Web dark mode must use browser-native appearance signals explicitly:
+   - on web, resolve dark mode from `window.matchMedia('(prefers-color-scheme: dark)')` and subscribe to changes,
+   - do not assume `useColorScheme()` alone is sufficient for browser dark-mode scheduling/updates,
+   - when applying theme changes on web, ensure `html`, `body`, and the app root receive the resolved background/color-scheme so the page cannot stay visually light while the app theme says dark.
+10. Theme changes require regression coverage:
+   - keep tests for default family/variant resolution,
+   - keep tests for persisted theme preference migration and storage,
+   - when changing root theme wiring, verify the universal web app still follows system dark mode before merge.
+11. Theme color usage must stay semantic and centralized:
+   - keep reusable UI colors in the shared theme catalog/semantic theme layer, not duplicated inline across components,
+   - derive component states (hover, muted fills, chart frames, badge backgrounds) from named theme colors instead of inventing new ad-hoc hex/rgba literals in feature code,
+   - treat repeated raw color literals in Expo/Tamagui feature components as theme debt to eliminate, not as an acceptable steady state.
+12. Universal web telemetry reconnect must stay browser-native:
+   - on web, websocket reconnect should retry the current browser-origin endpoint directly,
+   - do not rotate through native-dev host fallbacks such as `127.0.0.1` or `localhost` after a browser disconnect,
+   - keep regression coverage for the web reconnect path so deploy rollouts do not silently reintroduce multi-second reconnect delays.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.

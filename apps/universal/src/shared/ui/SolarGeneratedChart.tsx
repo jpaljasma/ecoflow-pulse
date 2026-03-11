@@ -10,19 +10,12 @@ import {
   SOLAR_HISTORY_TICK_HOURS
 } from '@/features/history/solar';
 import { formatW, formatWhAndKWh } from '@/features/telemetry/format';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 
 const CHART_HEIGHT = 170;
 const WEB_CHART_HEIGHT = 210;
 const PAD_X = 8;
 const PAD_Y = 14;
-const SOLAR_COLOR = '#ff9f0a';
-const YESTERDAY_COLOR = 'rgba(255,159,10,0.72)';
-const CROSSHAIR_COLOR = 'rgba(255,159,10,0.28)';
-const TOOLTIP_BG = 'rgba(255,248,238,0.98)';
-const TOOLTIP_BORDER = 'rgba(216,130,16,0.36)';
-const TOOLTIP_TITLE_COLOR = 'rgba(79,54,24,0.74)';
-const TOOLTIP_TODAY_COLOR = '#c76e00';
-const TOOLTIP_YESTERDAY_COLOR = '#9d6200';
 const EPSILON = 1e-6;
 const Y_AXIS_WIDTH = 44;
 const X_AXIS_LABEL_WIDTH = 40;
@@ -33,8 +26,6 @@ const X_AXIS_TICKS = SOLAR_HISTORY_TICK_HOURS.map((hour) => ({
   label: `${String(hour).padStart(2, '0')}:00`,
   fraction: (hour - SOLAR_HISTORY_START_HOUR) / (SOLAR_HISTORY_END_HOUR - SOLAR_HISTORY_START_HOUR)
 }));
-const TOOLTIP_UP_COLOR = '#2f9e44';
-const TOOLTIP_DOWN_COLOR = '#c92a2a';
 type Point = { x: number; y: number };
 
 function looksCumulative(values: number[]): boolean {
@@ -258,14 +249,14 @@ function formatLegendDelta(deltaPct: number | null | undefined): string {
   return ` (${sign}${rounded}%)`;
 }
 
-function LegendLine({ dotted = false }: { dotted?: boolean }) {
+function LegendLine({ color, dotted = false }: { color: string; dotted?: boolean }) {
   return (
     <View
       style={{
         width: 18,
         height: 0,
         borderTopWidth: dotted ? 1.5 : 2.5,
-        borderColor: dotted ? YESTERDAY_COLOR : SOLAR_COLOR,
+        borderColor: color,
         borderStyle: dotted ? 'dashed' : 'solid',
         marginTop: 8
       }}
@@ -283,7 +274,8 @@ function SelectionOverlay({
   todayBucketWh,
   todayBucketW,
   yesterdayBucketWh,
-  yesterdayBucketW
+  yesterdayBucketW,
+  colors
 }: {
   width: number;
   height: number;
@@ -295,11 +287,25 @@ function SelectionOverlay({
   todayBucketW: number;
   yesterdayBucketWh: number;
   yesterdayBucketW: number;
+  colors: {
+    crosshair: string;
+    yesterdaySeries: string;
+    selectionRingSoft: string;
+    selectionRingStrong: string;
+    solarSeries: string;
+    tooltipBackground: string;
+    tooltipBorder: string;
+    tooltipTitle: string;
+    tooltipToday: string;
+    tooltipYesterday: string;
+    tooltipUp: string;
+    tooltipDown: string;
+  };
 }) {
   const tooltipLeft = tooltipLeftForX(selectedX, width);
   const todayBeatsYesterday = todayBucketWh >= yesterdayBucketWh;
   const comparisonGlyph = todayBeatsYesterday ? '^' : 'v';
-  const comparisonColor = todayBeatsYesterday ? TOOLTIP_UP_COLOR : TOOLTIP_DOWN_COLOR;
+  const comparisonColor = todayBeatsYesterday ? colors.tooltipUp : colors.tooltipDown;
 
   return (
     <View pointerEvents="none" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -310,7 +316,7 @@ function SelectionOverlay({
           top: PAD_Y,
           width: 1,
           height: Math.max(0, height - PAD_Y * 2),
-          backgroundColor: CROSSHAIR_COLOR
+          backgroundColor: colors.crosshair
         }}
       />
       {yesterdayPoint ? (
@@ -322,9 +328,9 @@ function SelectionOverlay({
             width: SELECTION_DOT_SIZE,
             height: SELECTION_DOT_SIZE,
             borderRadius: SELECTION_DOT_SIZE / 2,
-            backgroundColor: YESTERDAY_COLOR,
+            backgroundColor: colors.yesterdaySeries,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.45)'
+            borderColor: colors.selectionRingSoft
           }}
         />
       ) : null}
@@ -337,9 +343,9 @@ function SelectionOverlay({
             width: SELECTION_DOT_SIZE,
             height: SELECTION_DOT_SIZE,
             borderRadius: SELECTION_DOT_SIZE / 2,
-            backgroundColor: SOLAR_COLOR,
+            backgroundColor: colors.solarSeries,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.55)'
+            borderColor: colors.selectionRingStrong
           }}
         />
       ) : null}
@@ -352,23 +358,23 @@ function SelectionOverlay({
           paddingVertical: 8,
           paddingHorizontal: 10,
           borderRadius: 10,
-          backgroundColor: TOOLTIP_BG,
+          backgroundColor: colors.tooltipBackground,
           borderWidth: 1,
-          borderColor: TOOLTIP_BORDER
+          borderColor: colors.tooltipBorder
         }}
       >
-        <Text fontSize="$1" marginBottom="$1" color={TOOLTIP_TITLE_COLOR}>
+        <Text fontSize="$1" marginBottom="$1" style={{ color: colors.tooltipTitle }}>
           {bucketLabel}
         </Text>
         <XStack alignItems="center" gap="$1">
-          <Text fontSize="$1" color={comparisonColor}>
+          <Text fontSize="$1" style={{ color: comparisonColor }}>
             {comparisonGlyph}
           </Text>
-          <Text fontSize="$1" color={TOOLTIP_TODAY_COLOR}>
+          <Text fontSize="$1" style={{ color: colors.tooltipToday }}>
             Today: {formatWhAndKWh(todayBucketWh)} · {formatW(todayBucketW)}
           </Text>
         </XStack>
-        <Text fontSize="$1" color={TOOLTIP_YESTERDAY_COLOR}>
+        <Text fontSize="$1" style={{ color: colors.tooltipYesterday }}>
           Yesterday: {formatWhAndKWh(yesterdayBucketWh)} · {formatW(yesterdayBucketW)}
         </Text>
       </View>
@@ -393,6 +399,7 @@ export function SolarGeneratedChart({
 }) {
   const [width, setWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const semantics = useThemeSemantics();
   const seriesBucketWh = useMemo(() => {
     const trimmed = (valuesWh ?? []).slice(-points).map((v) => Math.max(0, v));
     const padded =
@@ -444,19 +451,21 @@ export function SolarGeneratedChart({
       <YStack
         borderRadius="$4"
         borderWidth={1}
-        borderColor="rgba(255,159,10,0.18)"
-        backgroundColor="rgba(255,159,10,0.04)"
+        style={{
+          borderColor: semantics.chartFrameBorder,
+          backgroundColor: semantics.chartFrameBackground
+        }}
         overflow="hidden"
       >
         <YStack alignItems="flex-end" paddingHorizontal="$3" paddingTop="$3" paddingBottom="$1" gap="$1">
           <XStack gap="$2" alignItems="center">
-            <LegendLine dotted />
+            <LegendLine dotted color={semantics.chartSolarMuted} />
             <Text fontSize="$1" opacity={0.72}>
               Yesterday: {legendYesterday}
             </Text>
           </XStack>
           <XStack gap="$2" alignItems="center">
-            <LegendLine />
+            <LegendLine color={semantics.chartSolar} />
             <Text fontSize="$1" opacity={0.9}>
               Today: {legendToday}
             </Text>
@@ -491,8 +500,8 @@ export function SolarGeneratedChart({
                 >
                   <defs>
                     <linearGradient id="solar-generated-grad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={SOLAR_COLOR} stopOpacity="0.24" />
-                      <stop offset="100%" stopColor={SOLAR_COLOR} stopOpacity="0.02" />
+                      <stop offset="0%" stopColor={semantics.chartSolar} stopOpacity="0.24" />
+                      <stop offset="100%" stopColor={semantics.chartSolar} stopOpacity="0.02" />
                     </linearGradient>
                   </defs>
                   {horizontalGrid.map((y, idx) => (
@@ -502,7 +511,7 @@ export function SolarGeneratedChart({
                       y1={y}
                       x2={webWidth - PAD_X}
                       y2={y}
-                      stroke="rgba(255,255,255,0.07)"
+                      stroke={semantics.chartGridMajor}
                       strokeWidth="1"
                     />
                   ))}
@@ -513,7 +522,7 @@ export function SolarGeneratedChart({
                       y1={PAD_Y}
                       x2={x}
                       y2={WEB_CHART_HEIGHT - PAD_Y}
-                      stroke="rgba(255,255,255,0.045)"
+                      stroke={semantics.chartGridMinor}
                       strokeWidth="1"
                     />
                   ))}
@@ -522,14 +531,14 @@ export function SolarGeneratedChart({
                     <path
                       d={yesterdayD}
                       fill="none"
-                      stroke={SOLAR_COLOR}
+                      stroke={semantics.chartSolar}
                       strokeOpacity="0.72"
                       strokeWidth="1.4"
                       strokeLinecap="round"
                     />
                   ) : null}
                   {d ? (
-                    <path d={d} fill="none" stroke={SOLAR_COLOR} strokeWidth="2.4" strokeLinecap="round" />
+                    <path d={d} fill="none" stroke={semantics.chartSolar} strokeWidth="2.4" strokeLinecap="round" />
                   ) : null}
                 </svg>
               ) : null}
@@ -545,6 +554,20 @@ export function SolarGeneratedChart({
                   todayBucketW={seriesW[activeIndex] ?? 0}
                   yesterdayBucketWh={yesterdaySeriesBucketWh[activeIndex] ?? 0}
                   yesterdayBucketW={yesterdaySeriesW[activeIndex] ?? 0}
+                  colors={{
+                    crosshair: semantics.chartSolarCrosshair,
+                    yesterdaySeries: semantics.chartSolarMuted,
+                    selectionRingSoft: semantics.chartSelectionRingSoft,
+                    selectionRingStrong: semantics.chartSelectionRingStrong,
+                    solarSeries: semantics.chartSolar,
+                    tooltipBackground: semantics.tooltipBackground,
+                    tooltipBorder: semantics.tooltipBorder,
+                    tooltipTitle: semantics.tooltipTitle,
+                    tooltipToday: semantics.tooltipToday,
+                    tooltipYesterday: semantics.tooltipYesterday,
+                    tooltipUp: semantics.tooltipUp,
+                    tooltipDown: semantics.tooltipDown
+                  }}
                 />
               ) : null}
             </View>
@@ -593,19 +616,21 @@ export function SolarGeneratedChart({
     <YStack
       borderRadius="$4"
       borderWidth={1}
-      borderColor="rgba(255,159,10,0.18)"
-      backgroundColor="rgba(255,159,10,0.04)"
+      style={{
+        borderColor: semantics.chartFrameBorder,
+        backgroundColor: semantics.chartFrameBackground
+      }}
       overflow="hidden"
     >
       <YStack alignItems="flex-end" paddingHorizontal="$3" paddingTop="$3" paddingBottom="$1" gap="$1">
         <XStack gap="$2" alignItems="center">
-          <LegendLine dotted />
+          <LegendLine dotted color={semantics.chartSolarMuted} />
           <Text fontSize="$1" opacity={0.72}>
             Yesterday: {legendYesterday}
           </Text>
         </XStack>
         <XStack gap="$2" alignItems="center">
-          <LegendLine />
+          <LegendLine color={semantics.chartSolar} />
           <Text fontSize="$1" opacity={0.9}>
             Today: {legendToday}
           </Text>
@@ -637,7 +662,7 @@ export function SolarGeneratedChart({
                     <Path
                       key={`h-grid-native-${idx}`}
                       path={grid}
-                      color="rgba(255,255,255,0.07)"
+                      color={semantics.chartGridMajor}
                       style="stroke"
                       strokeWidth={1}
                     />
@@ -651,7 +676,7 @@ export function SolarGeneratedChart({
                     <Path
                       key={`v-grid-native-${idx}`}
                       path={grid}
-                      color="rgba(255,255,255,0.045)"
+                      color={semantics.chartGridMinor}
                       style="stroke"
                       strokeWidth={1}
                     />
@@ -660,7 +685,7 @@ export function SolarGeneratedChart({
                 {yesterdayPath ? (
                   <Path
                     path={yesterdayPath}
-                    color={YESTERDAY_COLOR}
+                    color={semantics.chartSolarMuted}
                     style="stroke"
                     strokeWidth={1.4}
                     strokeCap="round"
@@ -670,7 +695,7 @@ export function SolarGeneratedChart({
                 {path ? (
                   <Path
                     path={path}
-                    color={SOLAR_COLOR}
+                    color={semantics.chartSolar}
                     style="stroke"
                     strokeWidth={2.4}
                     strokeCap="round"
@@ -690,6 +715,20 @@ export function SolarGeneratedChart({
                   todayBucketW={seriesW[activeIndex] ?? 0}
                   yesterdayBucketWh={yesterdaySeriesBucketWh[activeIndex] ?? 0}
                   yesterdayBucketW={yesterdaySeriesW[activeIndex] ?? 0}
+                  colors={{
+                    crosshair: semantics.chartSolarCrosshair,
+                    yesterdaySeries: semantics.chartSolarMuted,
+                    selectionRingSoft: semantics.chartSelectionRingSoft,
+                    selectionRingStrong: semantics.chartSelectionRingStrong,
+                    solarSeries: semantics.chartSolar,
+                    tooltipBackground: semantics.tooltipBackground,
+                    tooltipBorder: semantics.tooltipBorder,
+                    tooltipTitle: semantics.tooltipTitle,
+                    tooltipToday: semantics.tooltipToday,
+                    tooltipYesterday: semantics.tooltipYesterday,
+                    tooltipUp: semantics.tooltipUp,
+                    tooltipDown: semantics.tooltipDown
+                  }}
                 />
               ) : null}
               <Pressable

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TamaguiProvider, Theme } from 'tamagui';
-import { useColorScheme } from 'react-native';
 import {
   Roboto_400Regular,
   Roboto_500Medium,
@@ -16,6 +16,7 @@ import {
 } from '@expo-google-fonts/inter';
 import { TelemetryEngineProvider } from '@/features/telemetry/TelemetryEngineContext';
 import { tamaguiConfig } from '@/shared/ui/theme';
+import { useAppTheme } from '@/shared/theme/useAppTheme';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,7 +28,6 @@ const queryClient = new QueryClient({
 });
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const scheme = useColorScheme();
   const [fontsLoaded] = useFonts({
     Roboto_400Regular,
     Roboto_500Medium,
@@ -37,17 +37,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     Inter_700Bold,
     Inter_800ExtraBold
   });
+  const { hydrated, variant, spec, isDark } = useAppTheme();
+  const rootTheme = isDark ? 'dark' : 'light';
 
   useEffect(() => {
     // Ensure query cache starts warm and stable before heavy telemetry arrives.
     queryClient.resumePausedMutations().catch(() => undefined);
   }, []);
 
-  if (!fontsLoaded) return null;
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return;
+    }
+
+    const root = document.documentElement;
+    const body = document.body;
+    const appRoot = document.getElementById('root');
+
+    root.style.backgroundColor = spec.colors.background;
+    root.style.colorScheme = isDark ? 'dark' : 'light';
+    body.style.backgroundColor = spec.colors.background;
+    body.style.color = spec.colors.color;
+    if (appRoot) {
+      appRoot.style.backgroundColor = spec.colors.background;
+      appRoot.style.color = spec.colors.color;
+    }
+
+    root.dataset.pulseTheme = variant;
+    return () => {
+      delete root.dataset.pulseTheme;
+    };
+  }, [isDark, spec, variant]);
+
+  if (!fontsLoaded || !hydrated) return null;
 
   return (
-    <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme === 'dark' ? 'dark' : 'light'}>
-      <Theme name={scheme === 'dark' ? 'dark' : 'light'}>
+    <TamaguiProvider config={tamaguiConfig} defaultTheme={rootTheme} themeClassNameOnRoot>
+      <Theme name={variant} forceClassName>
         <QueryClientProvider client={queryClient}>
           <TelemetryEngineProvider>{children}</TelemetryEngineProvider>
         </QueryClientProvider>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 
 type SeriesConfig = {
   key: 'solar' | 'ac' | 'dc' | 'load';
@@ -113,6 +114,7 @@ export function PowerTrendChart({
   bucketSeconds?: number;
 }) {
   const [width, setWidth] = useState(0);
+  const semantics = useThemeSemantics();
   const [visible, setVisible] = useState<Record<SeriesConfig['key'], boolean>>({
     solar: true,
     ac: true,
@@ -121,12 +123,12 @@ export function PowerTrendChart({
   });
   const series = useMemo<SeriesConfig[]>(
     () => [
-      { key: 'solar', label: 'Solar', color: '#ff9f0a', values: solar.slice(-points) },
-      { key: 'ac', label: 'AC In', color: '#0a84ff', values: ac.slice(-points) },
-      { key: 'dc', label: 'DC', color: '#bf5af2', values: dc.slice(-points) },
-      { key: 'load', label: 'Load', color: '#ff453a', values: load.slice(-points) }
+      { key: 'solar', label: 'Solar', color: semantics.chartSolar, values: solar.slice(-points) },
+      { key: 'ac', label: 'AC In', color: semantics.chartAc, values: ac.slice(-points) },
+      { key: 'dc', label: 'DC', color: semantics.chartDc, values: dc.slice(-points) },
+      { key: 'load', label: 'Load', color: semantics.chartLoad, values: load.slice(-points) }
     ],
-    [ac, dc, load, points, solar]
+    [ac, dc, load, points, semantics.chartAc, semantics.chartDc, semantics.chartLoad, semantics.chartSolar, solar]
   );
   const activeSeries = useMemo(
     () => series.filter((s) => visible[s.key]),
@@ -179,8 +181,10 @@ export function PowerTrendChart({
         <YStack
           borderRadius="$4"
           borderWidth={1}
-          borderColor="rgba(255,159,10,0.18)"
-          backgroundColor="rgba(255,159,10,0.04)"
+          style={{
+            borderColor: semantics.chartFrameBorder,
+            backgroundColor: semantics.chartFrameBackground
+          }}
           overflow="hidden"
         >
           <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
@@ -207,7 +211,7 @@ export function PowerTrendChart({
                         y1={y}
                         x2={webWidth - PAD_X}
                         y2={y}
-                        stroke="rgba(255,255,255,0.07)"
+                        stroke={semantics.chartGridMajor}
                         strokeWidth="1"
                       />
                     ))}
@@ -218,7 +222,7 @@ export function PowerTrendChart({
                         y1={PAD_Y}
                         x2={x}
                         y2={WEB_CHART_HEIGHT - PAD_Y}
-                        stroke="rgba(255,255,255,0.045)"
+                        stroke={semantics.chartGridMinor}
                         strokeWidth="1"
                       />
                     ))}
@@ -291,8 +295,10 @@ export function PowerTrendChart({
         <XStack
           borderRadius="$4"
           borderWidth={1}
-          borderColor="rgba(255,159,10,0.18)"
-          backgroundColor="rgba(255,159,10,0.04)"
+          style={{
+            borderColor: semantics.chartFrameBorder,
+            backgroundColor: semantics.chartFrameBackground
+          }}
           overflow="hidden"
           padding="$2"
           paddingBottom="$1"
@@ -317,7 +323,7 @@ export function PowerTrendChart({
                     <Path
                       key={`h-grid-native-${idx}`}
                       path={line}
-                      color="rgba(255,255,255,0.07)"
+                      color={semantics.chartGridMajor}
                       style="stroke"
                       strokeWidth={1}
                     />
@@ -332,7 +338,7 @@ export function PowerTrendChart({
                     <Path
                       key={`v-grid-native-${idx}`}
                       path={line}
-                      color="rgba(255,255,255,0.045)"
+                      color={semantics.chartGridMinor}
                       style="stroke"
                       strokeWidth={1}
                     />

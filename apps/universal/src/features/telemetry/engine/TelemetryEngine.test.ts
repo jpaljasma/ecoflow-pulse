@@ -127,6 +127,35 @@ describe('TelemetryEngine', () => {
     vi.useRealTimers();
   });
 
+  it('retries the current websocket origin only on web', () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const originalIsWeb = env.isWeb;
+    env.isWeb = true;
+
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({ createSocket });
+
+    engine.connect();
+    expect(sockets[0]?.url).toBe('ws://192.168.50.62:8082/ws');
+
+    sockets[0]?.onclose?.({ code: 1006 } as CloseEvent);
+    vi.advanceTimersByTime(500);
+
+    expect(createSocket).toHaveBeenCalledTimes(2);
+    expect(sockets[1]?.url).toBe('ws://192.168.50.62:8082/ws');
+
+    engine.disconnect();
+    env.isWeb = originalIsWeb;
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
   it('tries api-proxy websocket first and then standalone gateway fallback', () => {
     vi.useFakeTimers();
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);

@@ -1,0 +1,190 @@
+import { useMemo } from 'react';
+import { useAppTheme } from './useAppTheme';
+
+export type ConnectionStatus =
+  | 'connected'
+  | 'auth_required'
+  | 'reconnecting'
+  | 'connecting'
+  | 'disconnected';
+
+export type EnergyImpactMetricKey = 'co2e' | 'air' | 'solar' | 'evMiles' | 'trees';
+
+export function useThemeSemantics() {
+  const { spec, isDark } = useAppTheme();
+
+  return useMemo(() => {
+    const neutralBase = isDark ? spec.colors.colorMuted : spec.colors.borderColor;
+    const solar = spec.semantic.solar;
+    const info = spec.semantic.info;
+    const solarBadgeBase = isDark
+      ? mix(spec.colors.backgroundElevated, solar, 0.12)
+      : mix(spec.colors.backgroundElevated, solar, 0.06);
+
+    return {
+      mutedPanelBackground: withAlpha(neutralBase, isDark ? 0.14 : 0.12),
+      mutedPanelBorder: withAlpha(neutralBase, isDark ? 0.3 : 0.26),
+      sectionBorder: spec.colors.borderColor,
+      sectionBackground: spec.colors.backgroundHover,
+      subtleText: spec.colors.colorMuted,
+      subtleStrongText: mix(spec.colors.colorMuted, spec.colors.color, isDark ? 0.24 : 0.38),
+      energyCardBackground: withAlpha(spec.colors.accentColor, isDark ? 0.1 : 0.08),
+      energyCardBorder: withAlpha(spec.colors.accentColor, isDark ? 0.42 : 0.38),
+      energyLeafBackground: withAlpha(spec.semantic.air, isDark ? 0.18 : 0.14),
+      energyLeafBorder: withAlpha(spec.semantic.air, isDark ? 0.36 : 0.3),
+      energyLeafText: emphasize(spec.semantic.air, isDark),
+      actionBackground: withAlpha(info, isDark ? 0.14 : 0.08),
+      actionBorder: withAlpha(info, isDark ? 0.34 : 0.24),
+      actionText: emphasize(info, isDark),
+      periodActiveBackground: withAlpha(spec.colors.accentColor, isDark ? 0.2 : 0.14),
+      periodActiveBorder: withAlpha(spec.colors.accentColor, isDark ? 0.38 : 0.34),
+      periodActiveText: emphasize(spec.colors.accentColor, isDark),
+      periodIdleBackground: withAlpha(neutralBase, isDark ? 0.12 : 0.08),
+      periodIdleBorder: withAlpha(neutralBase, isDark ? 0.36 : 0.34),
+      periodIdleText: isDark ? spec.colors.colorMuted : mix(spec.colors.color, spec.colors.colorMuted, 0.18),
+      solarBadgeBorder: withAlpha(solar, isDark ? 0.52 : 0.5),
+      solarBadgeBackground: solarBadgeBase,
+      solarBadgeGradientStart: withAlpha(solar, isDark ? 0.14 : 0.12),
+      solarBadgeGradientEnd: withAlpha(solar, isDark ? 0.03 : 0.02),
+      solarBadgeTitle: isDark ? mix(solar, '#ffffff', 0.3) : mix(solar, '#000000', 0.26),
+      solarBadgeValue: isDark ? mix(spec.colors.color, solar, 0.08) : mix(spec.colors.color, solar, 0.16),
+      solarBadgeDelta: isDark ? mix(solar, '#ffffff', 0.18) : mix(solar, '#000000', 0.16),
+      statusSuccess: spec.semantic.success,
+      statusWarning: spec.semantic.warning,
+      statusDanger: spec.semantic.danger,
+      metricCold: spec.semantic.metricCold,
+      chartFrameBorder: withAlpha(solar, isDark ? 0.2 : 0.18),
+      chartFrameBackground: withAlpha(solar, isDark ? 0.05 : 0.04),
+      chartGridMajor: withAlpha(spec.colors.color, isDark ? 0.12 : 0.1),
+      chartGridMinor: withAlpha(spec.colors.color, isDark ? 0.075 : 0.065),
+      chartSelectionRingSoft: withAlpha(spec.colors.color, isDark ? 0.45 : 0.36),
+      chartSelectionRingStrong: withAlpha(spec.colors.color, isDark ? 0.58 : 0.48),
+      chartSolar: spec.semantic.solar,
+      chartSolarMuted: withAlpha(spec.semantic.solar, 0.72),
+      chartSolarCrosshair: withAlpha(spec.semantic.solar, isDark ? 0.32 : 0.28),
+      chartAc: spec.semantic.ac,
+      chartDc: spec.semantic.dc,
+      chartLoad: spec.semantic.load,
+      metricCo2eBase: spec.semantic.co2e,
+      metricAirBase: spec.semantic.air,
+      metricEvMilesBase: spec.semantic.evMiles,
+      metricTreesBase: spec.semantic.trees,
+      tooltipBackground: withAlpha(spec.colors.backgroundElevated, isDark ? 0.98 : 0.98),
+      tooltipBorder: withAlpha(spec.semantic.solar, isDark ? 0.34 : 0.3),
+      tooltipTitle: mix(spec.colors.colorMuted, spec.semantic.solar, isDark ? 0.28 : 0.18),
+      tooltipToday: emphasize(spec.semantic.solar, isDark),
+      tooltipYesterday: isDark
+        ? mix(spec.semantic.solar, '#ffffff', 0.36)
+        : mix(spec.semantic.solar, '#000000', 0.42),
+      tooltipUp: emphasize(spec.semantic.success, isDark),
+      tooltipDown: emphasize(spec.semantic.danger, isDark)
+    };
+  }, [isDark, spec]);
+}
+
+export function getConnectionStatusColor(
+  status: ConnectionStatus,
+  semantics: ReturnType<typeof useThemeSemantics>
+): string {
+  if (status === 'connected') return semantics.statusSuccess;
+  if (status === 'auth_required') return semantics.statusWarning;
+  if (status === 'reconnecting' || status === 'connecting') return semantics.statusWarning;
+  return semantics.statusDanger;
+}
+
+export function getEnergyImpactBadgeColors(
+  metricKey: EnergyImpactMetricKey,
+  semantics: ReturnType<typeof useThemeSemantics>
+) {
+  const base = getEnergyImpactBaseColor(metricKey, semantics);
+  const darkSurface = isLikelyDarkTextSurface(semantics);
+  return {
+    bg: withAlpha(base, darkSurface ? 0.2 : 0.14),
+    color: emphasize(base, darkSurface)
+  };
+}
+
+function getEnergyImpactBaseColor(
+  metricKey: EnergyImpactMetricKey,
+  semantics: ReturnType<typeof useThemeSemantics>
+): string {
+  switch (metricKey) {
+    case 'co2e':
+      return semantics.metricCo2eBase;
+    case 'air':
+      return semantics.metricAirBase;
+    case 'solar':
+      return semantics.chartSolar;
+    case 'evMiles':
+      return semantics.metricEvMilesBase;
+    case 'trees':
+      return semantics.metricTreesBase;
+  }
+}
+
+function isLikelyDarkTextSurface(semantics: ReturnType<typeof useThemeSemantics>): boolean {
+  return brightness(semantics.sectionBackground) < 0.45;
+}
+
+function emphasize(hex: string, isDarkOrStrength: boolean | number): string {
+  if (typeof isDarkOrStrength === 'number') {
+    return mix(hex, '#ffffff', isDarkOrStrength);
+  }
+  return isDarkOrStrength ? mix(hex, '#ffffff', 0.4) : mix(hex, '#000000', 0.22);
+}
+
+function mix(hexA: string, hexB: string, ratio: number): string {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  const clamped = clamp(ratio, 0, 1);
+  return rgbToHex({
+    red: Math.round(a.red + (b.red - a.red) * clamped),
+    green: Math.round(a.green + (b.green - a.green) * clamped),
+    blue: Math.round(a.blue + (b.blue - a.blue) * clamped)
+  });
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const { red, green, blue } = hexToRgb(hex);
+  return `rgba(${red}, ${green}, ${blue}, ${clamp(alpha, 0, 1)})`;
+}
+
+function brightness(hex: string): number {
+  const { red, green, blue } = hexToRgb(hex);
+  return (red * 299 + green * 587 + blue * 114) / 255000;
+}
+
+function hexToRgb(hex: string): { red: number; green: number; blue: number } {
+  const normalized = hex.replace('#', '');
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((part) => part + part)
+          .join('')
+      : normalized;
+
+  return {
+    red: Number.parseInt(value.slice(0, 2), 16),
+    green: Number.parseInt(value.slice(2, 4), 16),
+    blue: Number.parseInt(value.slice(4, 6), 16)
+  };
+}
+
+function rgbToHex({
+  red,
+  green,
+  blue
+}: {
+  red: number;
+  green: number;
+  blue: number;
+}): string {
+  return `#${[red, green, blue]
+    .map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}

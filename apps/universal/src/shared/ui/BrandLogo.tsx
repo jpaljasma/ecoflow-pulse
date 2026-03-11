@@ -1,7 +1,7 @@
 import { Image, Platform, Pressable } from 'react-native';
-import { useColorScheme } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { getBundledBrandWordmark } from '@/shared/assets/brandBundled';
+import { useAppTheme } from '@/shared/theme/useAppTheme';
 
 export function BrandLogo({
   compact = false,
@@ -12,8 +12,8 @@ export function BrandLogo({
   dense?: boolean;
   onPress?: () => void;
 }) {
-  const scheme = useColorScheme();
-  const theme = scheme === 'dark' ? 'dark' : 'light';
+  const { isDark } = useAppTheme();
+  const theme = isDark ? 'dark' : 'light';
   const logoWidth = dense ? 122 : compact ? 150 : 210;
   const logoHeight = dense ? 22 : compact ? 26 : 36;
   const pulseSize = logoHeight;

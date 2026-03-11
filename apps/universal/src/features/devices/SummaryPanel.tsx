@@ -20,6 +20,7 @@ import { useAuthSession } from '@/features/auth/hooks';
 import { useFleetPowerTrendHistory, useFleetSolarHistory } from '@/features/history/hooks';
 import { mergeTrendPrefill } from '@/features/history/powerTrend';
 import { SOLAR_HISTORY_CHART_TITLE, SOLAR_HISTORY_POINTS } from '@/features/history/solar';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 
 const SUMMARY_TREND_POINTS = 60;
 
@@ -68,6 +69,7 @@ export function SummaryPanel({
 }: {
   devices: DeviceSummary[];
 }) {
+  const semantics = useThemeSemantics();
   const { width } = useWindowDimensions();
   const isTabletUp = width >= 768;
   const isCompact = width < 720;
@@ -229,10 +231,14 @@ export function SummaryPanel({
               height={40}
               borderRadius="$2"
               overflow="hidden"
-              backgroundColor="rgba(120,120,128,0.12)"
+              style={{
+                backgroundColor: semantics.mutedPanelBackground,
+                borderColor: semantics.mutedPanelBorder
+              }}
+              borderWidth={1}
               alignItems="center"
               justifyContent="center"
-              opacity={item.active ? 1 : 0.42}
+              opacity={item.active ? 1 : 0.6}
             >
               {item.uri ? (
                 <CachedImage uri={item.uri} style={{ width: 34, height: 34 }} contentFit="cover" />
@@ -245,7 +251,7 @@ export function SummaryPanel({
           ))}
         </XStack>
         <MetricsGrid items={metricItems} columns={isCompact ? 3 : 9} />
-        <YStack height={1} backgroundColor="rgba(120,120,128,0.24)" />
+        <YStack height={1} style={{ backgroundColor: semantics.sectionBorder }} />
 
         {isTabletUp ? (
           <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">

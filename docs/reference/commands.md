@@ -883,6 +883,14 @@ Notes:
   container startup during local redeploys.
 - `make public-images-local-up` runs build + import for both public images in
   one step.
+- `make dev-web-deploy` rebuilds/imports the local public app + realtime
+  gateway images into k3d, re-applies the `pulse-platform` Helm release only
+  when needed (`DEV_DEPLOY_HELM=auto|always|never`), waits for platform
+  readiness, then rollout-restarts:
+  - `pulse-platform-public-app`
+  - `pulse-platform-realtime-gateway`
+  Use this when you want to push just the local web/public edge changes into
+  the k3d stack without touching `pulse-services`.
 - WebSocket note for local multi-replica testing:
   - Kubernetes balances websocket traffic when the connection is established,
     not on every message.
@@ -927,6 +935,8 @@ Notes:
     - `Pulse Platform Infra`
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
+- `make dev-deploy` now reuses `make dev-web-deploy` for the public/web rollout
+  path, then updates only the selected `pulse-services` deployments.
 - `make services-up` upgrades the `pulse-services` Helm release and, when
   `SERVICES_AUTO_BUILD_IMAGE=1` (the default local path), also restarts the
   `pulse-services` deployments so the freshly imported `ecoflow-pulse/services:local`
