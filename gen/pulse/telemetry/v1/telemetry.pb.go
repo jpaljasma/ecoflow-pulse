@@ -569,30 +569,38 @@ func (*SubscribeResponse_Delta) isSubscribeResponse_Payload() {}
 func (*SubscribeResponse_Heartbeat) isSubscribeResponse_Payload() {}
 
 type RollupMetrics struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	SocAvgPct        *float64               `protobuf:"fixed64,1,opt,name=soc_avg_pct,json=socAvgPct,proto3,oneof" json:"soc_avg_pct,omitempty"`
-	SocMinPct        *float64               `protobuf:"fixed64,2,opt,name=soc_min_pct,json=socMinPct,proto3,oneof" json:"soc_min_pct,omitempty"`
-	SocMaxPct        *float64               `protobuf:"fixed64,3,opt,name=soc_max_pct,json=socMaxPct,proto3,oneof" json:"soc_max_pct,omitempty"`
-	AcInAvgW         *float64               `protobuf:"fixed64,4,opt,name=ac_in_avg_w,json=acInAvgW,proto3,oneof" json:"ac_in_avg_w,omitempty"`
-	AcInMaxW         *float64               `protobuf:"fixed64,5,opt,name=ac_in_max_w,json=acInMaxW,proto3,oneof" json:"ac_in_max_w,omitempty"`
-	PvAvgW           *float64               `protobuf:"fixed64,6,opt,name=pv_avg_w,json=pvAvgW,proto3,oneof" json:"pv_avg_w,omitempty"`
-	PvMaxW           *float64               `protobuf:"fixed64,7,opt,name=pv_max_w,json=pvMaxW,proto3,oneof" json:"pv_max_w,omitempty"`
-	DcAvgW           *float64               `protobuf:"fixed64,8,opt,name=dc_avg_w,json=dcAvgW,proto3,oneof" json:"dc_avg_w,omitempty"`
-	DcMaxW           *float64               `protobuf:"fixed64,9,opt,name=dc_max_w,json=dcMaxW,proto3,oneof" json:"dc_max_w,omitempty"`
-	LoadAvgW         *float64               `protobuf:"fixed64,10,opt,name=load_avg_w,json=loadAvgW,proto3,oneof" json:"load_avg_w,omitempty"`
-	LoadMaxW         *float64               `protobuf:"fixed64,11,opt,name=load_max_w,json=loadMaxW,proto3,oneof" json:"load_max_w,omitempty"`
-	NetAvgW          *float64               `protobuf:"fixed64,12,opt,name=net_avg_w,json=netAvgW,proto3,oneof" json:"net_avg_w,omitempty"`
-	NetMinW          *float64               `protobuf:"fixed64,13,opt,name=net_min_w,json=netMinW,proto3,oneof" json:"net_min_w,omitempty"`
-	NetMaxW          *float64               `protobuf:"fixed64,14,opt,name=net_max_w,json=netMaxW,proto3,oneof" json:"net_max_w,omitempty"`
-	BatteryAvgW      *float64               `protobuf:"fixed64,15,opt,name=battery_avg_w,json=batteryAvgW,proto3,oneof" json:"battery_avg_w,omitempty"`
-	BatteryMinW      *float64               `protobuf:"fixed64,16,opt,name=battery_min_w,json=batteryMinW,proto3,oneof" json:"battery_min_w,omitempty"`
-	BatteryMaxW      *float64               `protobuf:"fixed64,17,opt,name=battery_max_w,json=batteryMaxW,proto3,oneof" json:"battery_max_w,omitempty"`
-	TempAvgC         *float64               `protobuf:"fixed64,18,opt,name=temp_avg_c,json=tempAvgC,proto3,oneof" json:"temp_avg_c,omitempty"`
-	TempMinC         *float64               `protobuf:"fixed64,19,opt,name=temp_min_c,json=tempMinC,proto3,oneof" json:"temp_min_c,omitempty"`
-	TempMaxC         *float64               `protobuf:"fixed64,20,opt,name=temp_max_c,json=tempMaxC,proto3,oneof" json:"temp_max_c,omitempty"`
-	SolarGeneratedWh *float64               `protobuf:"fixed64,21,opt,name=solar_generated_wh,json=solarGeneratedWh,proto3,oneof" json:"solar_generated_wh,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	SocAvgPct                *float64               `protobuf:"fixed64,1,opt,name=soc_avg_pct,json=socAvgPct,proto3,oneof" json:"soc_avg_pct,omitempty"`
+	SocMinPct                *float64               `protobuf:"fixed64,2,opt,name=soc_min_pct,json=socMinPct,proto3,oneof" json:"soc_min_pct,omitempty"`
+	SocMaxPct                *float64               `protobuf:"fixed64,3,opt,name=soc_max_pct,json=socMaxPct,proto3,oneof" json:"soc_max_pct,omitempty"`
+	AcInAvgW                 *float64               `protobuf:"fixed64,4,opt,name=ac_in_avg_w,json=acInAvgW,proto3,oneof" json:"ac_in_avg_w,omitempty"`
+	AcInMaxW                 *float64               `protobuf:"fixed64,5,opt,name=ac_in_max_w,json=acInMaxW,proto3,oneof" json:"ac_in_max_w,omitempty"`
+	PvAvgW                   *float64               `protobuf:"fixed64,6,opt,name=pv_avg_w,json=pvAvgW,proto3,oneof" json:"pv_avg_w,omitempty"`
+	PvMaxW                   *float64               `protobuf:"fixed64,7,opt,name=pv_max_w,json=pvMaxW,proto3,oneof" json:"pv_max_w,omitempty"`
+	DcAvgW                   *float64               `protobuf:"fixed64,8,opt,name=dc_avg_w,json=dcAvgW,proto3,oneof" json:"dc_avg_w,omitempty"`
+	DcMaxW                   *float64               `protobuf:"fixed64,9,opt,name=dc_max_w,json=dcMaxW,proto3,oneof" json:"dc_max_w,omitempty"`
+	LoadAvgW                 *float64               `protobuf:"fixed64,10,opt,name=load_avg_w,json=loadAvgW,proto3,oneof" json:"load_avg_w,omitempty"`
+	LoadMaxW                 *float64               `protobuf:"fixed64,11,opt,name=load_max_w,json=loadMaxW,proto3,oneof" json:"load_max_w,omitempty"`
+	NetAvgW                  *float64               `protobuf:"fixed64,12,opt,name=net_avg_w,json=netAvgW,proto3,oneof" json:"net_avg_w,omitempty"`
+	NetMinW                  *float64               `protobuf:"fixed64,13,opt,name=net_min_w,json=netMinW,proto3,oneof" json:"net_min_w,omitempty"`
+	NetMaxW                  *float64               `protobuf:"fixed64,14,opt,name=net_max_w,json=netMaxW,proto3,oneof" json:"net_max_w,omitempty"`
+	BatteryAvgW              *float64               `protobuf:"fixed64,15,opt,name=battery_avg_w,json=batteryAvgW,proto3,oneof" json:"battery_avg_w,omitempty"`
+	BatteryMinW              *float64               `protobuf:"fixed64,16,opt,name=battery_min_w,json=batteryMinW,proto3,oneof" json:"battery_min_w,omitempty"`
+	BatteryMaxW              *float64               `protobuf:"fixed64,17,opt,name=battery_max_w,json=batteryMaxW,proto3,oneof" json:"battery_max_w,omitempty"`
+	TempAvgC                 *float64               `protobuf:"fixed64,18,opt,name=temp_avg_c,json=tempAvgC,proto3,oneof" json:"temp_avg_c,omitempty"`
+	TempMinC                 *float64               `protobuf:"fixed64,19,opt,name=temp_min_c,json=tempMinC,proto3,oneof" json:"temp_min_c,omitempty"`
+	TempMaxC                 *float64               `protobuf:"fixed64,20,opt,name=temp_max_c,json=tempMaxC,proto3,oneof" json:"temp_max_c,omitempty"`
+	SolarGeneratedWh         *float64               `protobuf:"fixed64,21,opt,name=solar_generated_wh,json=solarGeneratedWh,proto3,oneof" json:"solar_generated_wh,omitempty"`
+	AcInputEnergyWh          *float64               `protobuf:"fixed64,22,opt,name=ac_input_energy_wh,json=acInputEnergyWh,proto3,oneof" json:"ac_input_energy_wh,omitempty"`
+	DcOutputEnergyWh         *float64               `protobuf:"fixed64,23,opt,name=dc_output_energy_wh,json=dcOutputEnergyWh,proto3,oneof" json:"dc_output_energy_wh,omitempty"`
+	LoadEnergyWh             *float64               `protobuf:"fixed64,24,opt,name=load_energy_wh,json=loadEnergyWh,proto3,oneof" json:"load_energy_wh,omitempty"`
+	BatteryChargeEnergyWh    *float64               `protobuf:"fixed64,25,opt,name=battery_charge_energy_wh,json=batteryChargeEnergyWh,proto3,oneof" json:"battery_charge_energy_wh,omitempty"`
+	BatteryDischargeEnergyWh *float64               `protobuf:"fixed64,26,opt,name=battery_discharge_energy_wh,json=batteryDischargeEnergyWh,proto3,oneof" json:"battery_discharge_energy_wh,omitempty"`
+	AcOutputAvgW             *float64               `protobuf:"fixed64,27,opt,name=ac_output_avg_w,json=acOutputAvgW,proto3,oneof" json:"ac_output_avg_w,omitempty"`
+	AcOutputMaxW             *float64               `protobuf:"fixed64,28,opt,name=ac_output_max_w,json=acOutputMaxW,proto3,oneof" json:"ac_output_max_w,omitempty"`
+	AcOutputEnergyWh         *float64               `protobuf:"fixed64,29,opt,name=ac_output_energy_wh,json=acOutputEnergyWh,proto3,oneof" json:"ac_output_energy_wh,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *RollupMetrics) Reset() {
@@ -768,6 +776,62 @@ func (x *RollupMetrics) GetTempMaxC() float64 {
 func (x *RollupMetrics) GetSolarGeneratedWh() float64 {
 	if x != nil && x.SolarGeneratedWh != nil {
 		return *x.SolarGeneratedWh
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetAcInputEnergyWh() float64 {
+	if x != nil && x.AcInputEnergyWh != nil {
+		return *x.AcInputEnergyWh
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetDcOutputEnergyWh() float64 {
+	if x != nil && x.DcOutputEnergyWh != nil {
+		return *x.DcOutputEnergyWh
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetLoadEnergyWh() float64 {
+	if x != nil && x.LoadEnergyWh != nil {
+		return *x.LoadEnergyWh
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetBatteryChargeEnergyWh() float64 {
+	if x != nil && x.BatteryChargeEnergyWh != nil {
+		return *x.BatteryChargeEnergyWh
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetBatteryDischargeEnergyWh() float64 {
+	if x != nil && x.BatteryDischargeEnergyWh != nil {
+		return *x.BatteryDischargeEnergyWh
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetAcOutputAvgW() float64 {
+	if x != nil && x.AcOutputAvgW != nil {
+		return *x.AcOutputAvgW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetAcOutputMaxW() float64 {
+	if x != nil && x.AcOutputMaxW != nil {
+		return *x.AcOutputMaxW
+	}
+	return 0
+}
+
+func (x *RollupMetrics) GetAcOutputEnergyWh() float64 {
+	if x != nil && x.AcOutputEnergyWh != nil {
+		return *x.AcOutputEnergyWh
 	}
 	return 0
 }
@@ -1195,6 +1259,726 @@ func (x *CompareRollupRangeResponse) GetPrevious() *RollupSeries {
 	return nil
 }
 
+type EnergyScope struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Mode              string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	DeviceId          string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	ResolvedDeviceIds []string               `protobuf:"bytes,3,rep,name=resolved_device_ids,json=resolvedDeviceIds,proto3" json:"resolved_device_ids,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EnergyScope) Reset() {
+	*x = EnergyScope{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyScope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyScope) ProtoMessage() {}
+
+func (x *EnergyScope) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyScope.ProtoReflect.Descriptor instead.
+func (*EnergyScope) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *EnergyScope) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *EnergyScope) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *EnergyScope) GetResolvedDeviceIds() []string {
+	if x != nil {
+		return x.ResolvedDeviceIds
+	}
+	return nil
+}
+
+type EnergyWindow struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Preset             string                 `protobuf:"bytes,1,opt,name=preset,proto3" json:"preset,omitempty"`
+	Timezone           string                 `protobuf:"bytes,2,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	FromUnixMs         int64                  `protobuf:"varint,3,opt,name=from_unix_ms,json=fromUnixMs,proto3" json:"from_unix_ms,omitempty"`
+	ToUnixMs           int64                  `protobuf:"varint,4,opt,name=to_unix_ms,json=toUnixMs,proto3" json:"to_unix_ms,omitempty"`
+	PreviousFromUnixMs int64                  `protobuf:"varint,5,opt,name=previous_from_unix_ms,json=previousFromUnixMs,proto3" json:"previous_from_unix_ms,omitempty"`
+	PreviousToUnixMs   int64                  `protobuf:"varint,6,opt,name=previous_to_unix_ms,json=previousToUnixMs,proto3" json:"previous_to_unix_ms,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *EnergyWindow) Reset() {
+	*x = EnergyWindow{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyWindow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyWindow) ProtoMessage() {}
+
+func (x *EnergyWindow) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyWindow.ProtoReflect.Descriptor instead.
+func (*EnergyWindow) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *EnergyWindow) GetPreset() string {
+	if x != nil {
+		return x.Preset
+	}
+	return ""
+}
+
+func (x *EnergyWindow) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *EnergyWindow) GetFromUnixMs() int64 {
+	if x != nil {
+		return x.FromUnixMs
+	}
+	return 0
+}
+
+func (x *EnergyWindow) GetToUnixMs() int64 {
+	if x != nil {
+		return x.ToUnixMs
+	}
+	return 0
+}
+
+func (x *EnergyWindow) GetPreviousFromUnixMs() int64 {
+	if x != nil {
+		return x.PreviousFromUnixMs
+	}
+	return 0
+}
+
+func (x *EnergyWindow) GetPreviousToUnixMs() int64 {
+	if x != nil {
+		return x.PreviousToUnixMs
+	}
+	return 0
+}
+
+type EnergyValueComparison struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Current       float64                `protobuf:"fixed64,1,opt,name=current,proto3" json:"current,omitempty"`
+	Previous      float64                `protobuf:"fixed64,2,opt,name=previous,proto3" json:"previous,omitempty"`
+	Delta         float64                `protobuf:"fixed64,3,opt,name=delta,proto3" json:"delta,omitempty"`
+	DeltaPct      *float64               `protobuf:"fixed64,4,opt,name=delta_pct,json=deltaPct,proto3,oneof" json:"delta_pct,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnergyValueComparison) Reset() {
+	*x = EnergyValueComparison{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyValueComparison) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyValueComparison) ProtoMessage() {}
+
+func (x *EnergyValueComparison) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyValueComparison.ProtoReflect.Descriptor instead.
+func (*EnergyValueComparison) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *EnergyValueComparison) GetCurrent() float64 {
+	if x != nil {
+		return x.Current
+	}
+	return 0
+}
+
+func (x *EnergyValueComparison) GetPrevious() float64 {
+	if x != nil {
+		return x.Previous
+	}
+	return 0
+}
+
+func (x *EnergyValueComparison) GetDelta() float64 {
+	if x != nil {
+		return x.Delta
+	}
+	return 0
+}
+
+func (x *EnergyValueComparison) GetDeltaPct() float64 {
+	if x != nil && x.DeltaPct != nil {
+		return *x.DeltaPct
+	}
+	return 0
+}
+
+type EnergySummary struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	SolarGeneratedKwh    *EnergyValueComparison `protobuf:"bytes,1,opt,name=solar_generated_kwh,json=solarGeneratedKwh,proto3" json:"solar_generated_kwh,omitempty"`
+	LoadConsumedKwh      *EnergyValueComparison `protobuf:"bytes,2,opt,name=load_consumed_kwh,json=loadConsumedKwh,proto3" json:"load_consumed_kwh,omitempty"`
+	SelfSufficiencyPct   *EnergyValueComparison `protobuf:"bytes,3,opt,name=self_sufficiency_pct,json=selfSufficiencyPct,proto3" json:"self_sufficiency_pct,omitempty"`
+	BatteryNetKwh        *EnergyValueComparison `protobuf:"bytes,4,opt,name=battery_net_kwh,json=batteryNetKwh,proto3" json:"battery_net_kwh,omitempty"`
+	EstimatedValue       *EnergyValueComparison `protobuf:"bytes,5,opt,name=estimated_value,json=estimatedValue,proto3" json:"estimated_value,omitempty"`
+	EstimatedAcInputCost *EnergyValueComparison `protobuf:"bytes,6,opt,name=estimated_ac_input_cost,json=estimatedAcInputCost,proto3" json:"estimated_ac_input_cost,omitempty"`
+	Currency             string                 `protobuf:"bytes,7,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *EnergySummary) Reset() {
+	*x = EnergySummary{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergySummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergySummary) ProtoMessage() {}
+
+func (x *EnergySummary) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergySummary.ProtoReflect.Descriptor instead.
+func (*EnergySummary) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *EnergySummary) GetSolarGeneratedKwh() *EnergyValueComparison {
+	if x != nil {
+		return x.SolarGeneratedKwh
+	}
+	return nil
+}
+
+func (x *EnergySummary) GetLoadConsumedKwh() *EnergyValueComparison {
+	if x != nil {
+		return x.LoadConsumedKwh
+	}
+	return nil
+}
+
+func (x *EnergySummary) GetSelfSufficiencyPct() *EnergyValueComparison {
+	if x != nil {
+		return x.SelfSufficiencyPct
+	}
+	return nil
+}
+
+func (x *EnergySummary) GetBatteryNetKwh() *EnergyValueComparison {
+	if x != nil {
+		return x.BatteryNetKwh
+	}
+	return nil
+}
+
+func (x *EnergySummary) GetEstimatedValue() *EnergyValueComparison {
+	if x != nil {
+		return x.EstimatedValue
+	}
+	return nil
+}
+
+func (x *EnergySummary) GetEstimatedAcInputCost() *EnergyValueComparison {
+	if x != nil {
+		return x.EstimatedAcInputCost
+	}
+	return nil
+}
+
+func (x *EnergySummary) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+type BatterySummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChargeKwh     float64                `protobuf:"fixed64,1,opt,name=charge_kwh,json=chargeKwh,proto3" json:"charge_kwh,omitempty"`
+	DischargeKwh  float64                `protobuf:"fixed64,2,opt,name=discharge_kwh,json=dischargeKwh,proto3" json:"discharge_kwh,omitempty"`
+	NetKwh        float64                `protobuf:"fixed64,3,opt,name=net_kwh,json=netKwh,proto3" json:"net_kwh,omitempty"`
+	SocStartPct   float64                `protobuf:"fixed64,4,opt,name=soc_start_pct,json=socStartPct,proto3" json:"soc_start_pct,omitempty"`
+	SocEndPct     float64                `protobuf:"fixed64,5,opt,name=soc_end_pct,json=socEndPct,proto3" json:"soc_end_pct,omitempty"`
+	SocMinPct     float64                `protobuf:"fixed64,6,opt,name=soc_min_pct,json=socMinPct,proto3" json:"soc_min_pct,omitempty"`
+	SocMaxPct     float64                `protobuf:"fixed64,7,opt,name=soc_max_pct,json=socMaxPct,proto3" json:"soc_max_pct,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatterySummary) Reset() {
+	*x = BatterySummary{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatterySummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatterySummary) ProtoMessage() {}
+
+func (x *BatterySummary) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatterySummary.ProtoReflect.Descriptor instead.
+func (*BatterySummary) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *BatterySummary) GetChargeKwh() float64 {
+	if x != nil {
+		return x.ChargeKwh
+	}
+	return 0
+}
+
+func (x *BatterySummary) GetDischargeKwh() float64 {
+	if x != nil {
+		return x.DischargeKwh
+	}
+	return 0
+}
+
+func (x *BatterySummary) GetNetKwh() float64 {
+	if x != nil {
+		return x.NetKwh
+	}
+	return 0
+}
+
+func (x *BatterySummary) GetSocStartPct() float64 {
+	if x != nil {
+		return x.SocStartPct
+	}
+	return 0
+}
+
+func (x *BatterySummary) GetSocEndPct() float64 {
+	if x != nil {
+		return x.SocEndPct
+	}
+	return 0
+}
+
+func (x *BatterySummary) GetSocMinPct() float64 {
+	if x != nil {
+		return x.SocMinPct
+	}
+	return 0
+}
+
+func (x *BatterySummary) GetSocMaxPct() float64 {
+	if x != nil {
+		return x.SocMaxPct
+	}
+	return 0
+}
+
+type EnergyPVPortHistory struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId           string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	PortId             string                 `protobuf:"bytes,2,opt,name=port_id,json=portId,proto3" json:"port_id,omitempty"`
+	PortLabel          string                 `protobuf:"bytes,3,opt,name=port_label,json=portLabel,proto3" json:"port_label,omitempty"`
+	MaxObservedVolts   float64                `protobuf:"fixed64,4,opt,name=max_observed_volts,json=maxObservedVolts,proto3" json:"max_observed_volts,omitempty"`
+	MaxObservedAmps    float64                `protobuf:"fixed64,5,opt,name=max_observed_amps,json=maxObservedAmps,proto3" json:"max_observed_amps,omitempty"`
+	MaxObservedWatts   float64                `protobuf:"fixed64,6,opt,name=max_observed_watts,json=maxObservedWatts,proto3" json:"max_observed_watts,omitempty"`
+	LastObservedVolts  float64                `protobuf:"fixed64,7,opt,name=last_observed_volts,json=lastObservedVolts,proto3" json:"last_observed_volts,omitempty"`
+	LastObservedAmps   float64                `protobuf:"fixed64,8,opt,name=last_observed_amps,json=lastObservedAmps,proto3" json:"last_observed_amps,omitempty"`
+	LastObservedWatts  float64                `protobuf:"fixed64,9,opt,name=last_observed_watts,json=lastObservedWatts,proto3" json:"last_observed_watts,omitempty"`
+	LastObservedUnixMs int64                  `protobuf:"varint,10,opt,name=last_observed_unix_ms,json=lastObservedUnixMs,proto3" json:"last_observed_unix_ms,omitempty"`
+	SampleCount        uint32                 `protobuf:"varint,11,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *EnergyPVPortHistory) Reset() {
+	*x = EnergyPVPortHistory{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyPVPortHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyPVPortHistory) ProtoMessage() {}
+
+func (x *EnergyPVPortHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyPVPortHistory.ProtoReflect.Descriptor instead.
+func (*EnergyPVPortHistory) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *EnergyPVPortHistory) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *EnergyPVPortHistory) GetPortId() string {
+	if x != nil {
+		return x.PortId
+	}
+	return ""
+}
+
+func (x *EnergyPVPortHistory) GetPortLabel() string {
+	if x != nil {
+		return x.PortLabel
+	}
+	return ""
+}
+
+func (x *EnergyPVPortHistory) GetMaxObservedVolts() float64 {
+	if x != nil {
+		return x.MaxObservedVolts
+	}
+	return 0
+}
+
+func (x *EnergyPVPortHistory) GetMaxObservedAmps() float64 {
+	if x != nil {
+		return x.MaxObservedAmps
+	}
+	return 0
+}
+
+func (x *EnergyPVPortHistory) GetMaxObservedWatts() float64 {
+	if x != nil {
+		return x.MaxObservedWatts
+	}
+	return 0
+}
+
+func (x *EnergyPVPortHistory) GetLastObservedVolts() float64 {
+	if x != nil {
+		return x.LastObservedVolts
+	}
+	return 0
+}
+
+func (x *EnergyPVPortHistory) GetLastObservedAmps() float64 {
+	if x != nil {
+		return x.LastObservedAmps
+	}
+	return 0
+}
+
+func (x *EnergyPVPortHistory) GetLastObservedWatts() float64 {
+	if x != nil {
+		return x.LastObservedWatts
+	}
+	return 0
+}
+
+func (x *EnergyPVPortHistory) GetLastObservedUnixMs() int64 {
+	if x != nil {
+		return x.LastObservedUnixMs
+	}
+	return 0
+}
+
+func (x *EnergyPVPortHistory) GetSampleCount() uint32 {
+	if x != nil {
+		return x.SampleCount
+	}
+	return 0
+}
+
+type GetEnergyDashboardRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId          string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	UseAllDevices     bool                   `protobuf:"varint,2,opt,name=use_all_devices,json=useAllDevices,proto3" json:"use_all_devices,omitempty"`
+	Preset            string                 `protobuf:"bytes,3,opt,name=preset,proto3" json:"preset,omitempty"`
+	Timezone          string                 `protobuf:"bytes,4,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	IncludeComparison bool                   `protobuf:"varint,5,opt,name=include_comparison,json=includeComparison,proto3" json:"include_comparison,omitempty"`
+	GridPricePerKwh   float64                `protobuf:"fixed64,6,opt,name=grid_price_per_kwh,json=gridPricePerKwh,proto3" json:"grid_price_per_kwh,omitempty"`
+	Currency          string                 `protobuf:"bytes,7,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetEnergyDashboardRequest) Reset() {
+	*x = GetEnergyDashboardRequest{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyDashboardRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyDashboardRequest) ProtoMessage() {}
+
+func (x *GetEnergyDashboardRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyDashboardRequest.ProtoReflect.Descriptor instead.
+func (*GetEnergyDashboardRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetEnergyDashboardRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *GetEnergyDashboardRequest) GetUseAllDevices() bool {
+	if x != nil {
+		return x.UseAllDevices
+	}
+	return false
+}
+
+func (x *GetEnergyDashboardRequest) GetPreset() string {
+	if x != nil {
+		return x.Preset
+	}
+	return ""
+}
+
+func (x *GetEnergyDashboardRequest) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *GetEnergyDashboardRequest) GetIncludeComparison() bool {
+	if x != nil {
+		return x.IncludeComparison
+	}
+	return false
+}
+
+func (x *GetEnergyDashboardRequest) GetGridPricePerKwh() float64 {
+	if x != nil {
+		return x.GridPricePerKwh
+	}
+	return 0
+}
+
+func (x *GetEnergyDashboardRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+type GetEnergyDashboardResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Scope                *EnergyScope           `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	Window               *EnergyWindow          `protobuf:"bytes,2,opt,name=window,proto3" json:"window,omitempty"`
+	Summary              *EnergySummary         `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	Battery              *BatterySummary        `protobuf:"bytes,4,opt,name=battery,proto3" json:"battery,omitempty"`
+	CurrentEnergyPoints  []*RollupPoint         `protobuf:"bytes,5,rep,name=current_energy_points,json=currentEnergyPoints,proto3" json:"current_energy_points,omitempty"`
+	PreviousEnergyPoints []*RollupPoint         `protobuf:"bytes,6,rep,name=previous_energy_points,json=previousEnergyPoints,proto3" json:"previous_energy_points,omitempty"`
+	CurrentPowerPoints   []*RollupPoint         `protobuf:"bytes,7,rep,name=current_power_points,json=currentPowerPoints,proto3" json:"current_power_points,omitempty"`
+	PreviousPowerPoints  []*RollupPoint         `protobuf:"bytes,8,rep,name=previous_power_points,json=previousPowerPoints,proto3" json:"previous_power_points,omitempty"`
+	PvPortHistory        []*EnergyPVPortHistory `protobuf:"bytes,9,rep,name=pv_port_history,json=pvPortHistory,proto3" json:"pv_port_history,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GetEnergyDashboardResponse) Reset() {
+	*x = GetEnergyDashboardResponse{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyDashboardResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyDashboardResponse) ProtoMessage() {}
+
+func (x *GetEnergyDashboardResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyDashboardResponse.ProtoReflect.Descriptor instead.
+func (*GetEnergyDashboardResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GetEnergyDashboardResponse) GetScope() *EnergyScope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetWindow() *EnergyWindow {
+	if x != nil {
+		return x.Window
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetSummary() *EnergySummary {
+	if x != nil {
+		return x.Summary
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetBattery() *BatterySummary {
+	if x != nil {
+		return x.Battery
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetCurrentEnergyPoints() []*RollupPoint {
+	if x != nil {
+		return x.CurrentEnergyPoints
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetPreviousEnergyPoints() []*RollupPoint {
+	if x != nil {
+		return x.PreviousEnergyPoints
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetCurrentPowerPoints() []*RollupPoint {
+	if x != nil {
+		return x.CurrentPowerPoints
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetPreviousPowerPoints() []*RollupPoint {
+	if x != nil {
+		return x.PreviousPowerPoints
+	}
+	return nil
+}
+
+func (x *GetEnergyDashboardResponse) GetPvPortHistory() []*EnergyPVPortHistory {
+	if x != nil {
+		return x.PvPortHistory
+	}
+	return nil
+}
+
 var File_pulse_telemetry_v1_telemetry_proto protoreflect.FileDescriptor
 
 const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
@@ -1235,7 +2019,7 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\bsnapshot\x18\x01 \x01(\v2\x1c.pulse.telemetry.v1.SnapshotH\x00R\bsnapshot\x121\n" +
 	"\x05delta\x18\x02 \x01(\v2\x19.pulse.telemetry.v1.DeltaH\x00R\x05delta\x12=\n" +
 	"\theartbeat\x18\x03 \x01(\v2\x1d.pulse.telemetry.v1.HeartbeatH\x00R\theartbeatB\t\n" +
-	"\apayload\"\xc8\b\n" +
+	"\apayload\"\xa6\r\n" +
 	"\rRollupMetrics\x12#\n" +
 	"\vsoc_avg_pct\x18\x01 \x01(\x01H\x00R\tsocAvgPct\x88\x01\x01\x12#\n" +
 	"\vsoc_min_pct\x18\x02 \x01(\x01H\x01R\tsocMinPct\x88\x01\x01\x12#\n" +
@@ -1264,7 +2048,15 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"temp_min_c\x18\x13 \x01(\x01H\x12R\btempMinC\x88\x01\x01\x12!\n" +
 	"\n" +
 	"temp_max_c\x18\x14 \x01(\x01H\x13R\btempMaxC\x88\x01\x01\x121\n" +
-	"\x12solar_generated_wh\x18\x15 \x01(\x01H\x14R\x10solarGeneratedWh\x88\x01\x01B\x0e\n" +
+	"\x12solar_generated_wh\x18\x15 \x01(\x01H\x14R\x10solarGeneratedWh\x88\x01\x01\x120\n" +
+	"\x12ac_input_energy_wh\x18\x16 \x01(\x01H\x15R\x0facInputEnergyWh\x88\x01\x01\x122\n" +
+	"\x13dc_output_energy_wh\x18\x17 \x01(\x01H\x16R\x10dcOutputEnergyWh\x88\x01\x01\x12)\n" +
+	"\x0eload_energy_wh\x18\x18 \x01(\x01H\x17R\floadEnergyWh\x88\x01\x01\x12<\n" +
+	"\x18battery_charge_energy_wh\x18\x19 \x01(\x01H\x18R\x15batteryChargeEnergyWh\x88\x01\x01\x12B\n" +
+	"\x1bbattery_discharge_energy_wh\x18\x1a \x01(\x01H\x19R\x18batteryDischargeEnergyWh\x88\x01\x01\x12*\n" +
+	"\x0fac_output_avg_w\x18\x1b \x01(\x01H\x1aR\facOutputAvgW\x88\x01\x01\x12*\n" +
+	"\x0fac_output_max_w\x18\x1c \x01(\x01H\x1bR\facOutputMaxW\x88\x01\x01\x122\n" +
+	"\x13ac_output_energy_wh\x18\x1d \x01(\x01H\x1cR\x10acOutputEnergyWh\x88\x01\x01B\x0e\n" +
 	"\f_soc_avg_pctB\x0e\n" +
 	"\f_soc_min_pctB\x0e\n" +
 	"\f_soc_max_pctB\x0e\n" +
@@ -1288,7 +2080,15 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\v_temp_avg_cB\r\n" +
 	"\v_temp_min_cB\r\n" +
 	"\v_temp_max_cB\x15\n" +
-	"\x13_solar_generated_wh\"\x9b\x02\n" +
+	"\x13_solar_generated_whB\x15\n" +
+	"\x13_ac_input_energy_whB\x16\n" +
+	"\x14_dc_output_energy_whB\x11\n" +
+	"\x0f_load_energy_whB\x1b\n" +
+	"\x19_battery_charge_energy_whB\x1e\n" +
+	"\x1c_battery_discharge_energy_whB\x12\n" +
+	"\x10_ac_output_avg_wB\x12\n" +
+	"\x10_ac_output_max_wB\x16\n" +
+	"\x14_ac_output_energy_wh\"\x9b\x02\n" +
 	"\vRollupPoint\x12/\n" +
 	"\x14bucket_start_unix_ms\x18\x01 \x01(\x03R\x11bucketStartUnixMs\x12+\n" +
 	"\x12bucket_end_unix_ms\x18\x02 \x01(\x03R\x0fbucketEndUnixMs\x12!\n" +
@@ -1331,17 +2131,87 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x12compare_to_unix_ms\x18\a \x01(\x03R\x0fcompareToUnixMs\"\x96\x01\n" +
 	"\x1aCompareRollupRangeResponse\x12:\n" +
 	"\acurrent\x18\x01 \x01(\v2 .pulse.telemetry.v1.RollupSeriesR\acurrent\x12<\n" +
-	"\bprevious\x18\x02 \x01(\v2 .pulse.telemetry.v1.RollupSeriesR\bprevious*\x8a\x01\n" +
+	"\bprevious\x18\x02 \x01(\v2 .pulse.telemetry.v1.RollupSeriesR\bprevious\"n\n" +
+	"\vEnergyScope\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x1b\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12.\n" +
+	"\x13resolved_device_ids\x18\x03 \x03(\tR\x11resolvedDeviceIds\"\xe4\x01\n" +
+	"\fEnergyWindow\x12\x16\n" +
+	"\x06preset\x18\x01 \x01(\tR\x06preset\x12\x1a\n" +
+	"\btimezone\x18\x02 \x01(\tR\btimezone\x12 \n" +
+	"\ffrom_unix_ms\x18\x03 \x01(\x03R\n" +
+	"fromUnixMs\x12\x1c\n" +
+	"\n" +
+	"to_unix_ms\x18\x04 \x01(\x03R\btoUnixMs\x121\n" +
+	"\x15previous_from_unix_ms\x18\x05 \x01(\x03R\x12previousFromUnixMs\x12-\n" +
+	"\x13previous_to_unix_ms\x18\x06 \x01(\x03R\x10previousToUnixMs\"\x93\x01\n" +
+	"\x15EnergyValueComparison\x12\x18\n" +
+	"\acurrent\x18\x01 \x01(\x01R\acurrent\x12\x1a\n" +
+	"\bprevious\x18\x02 \x01(\x01R\bprevious\x12\x14\n" +
+	"\x05delta\x18\x03 \x01(\x01R\x05delta\x12 \n" +
+	"\tdelta_pct\x18\x04 \x01(\x01H\x00R\bdeltaPct\x88\x01\x01B\f\n" +
+	"\n" +
+	"_delta_pct\"\xc3\x04\n" +
+	"\rEnergySummary\x12Y\n" +
+	"\x13solar_generated_kwh\x18\x01 \x01(\v2).pulse.telemetry.v1.EnergyValueComparisonR\x11solarGeneratedKwh\x12U\n" +
+	"\x11load_consumed_kwh\x18\x02 \x01(\v2).pulse.telemetry.v1.EnergyValueComparisonR\x0floadConsumedKwh\x12[\n" +
+	"\x14self_sufficiency_pct\x18\x03 \x01(\v2).pulse.telemetry.v1.EnergyValueComparisonR\x12selfSufficiencyPct\x12Q\n" +
+	"\x0fbattery_net_kwh\x18\x04 \x01(\v2).pulse.telemetry.v1.EnergyValueComparisonR\rbatteryNetKwh\x12R\n" +
+	"\x0festimated_value\x18\x05 \x01(\v2).pulse.telemetry.v1.EnergyValueComparisonR\x0eestimatedValue\x12`\n" +
+	"\x17estimated_ac_input_cost\x18\x06 \x01(\v2).pulse.telemetry.v1.EnergyValueComparisonR\x14estimatedAcInputCost\x12\x1a\n" +
+	"\bcurrency\x18\a \x01(\tR\bcurrency\"\xf1\x01\n" +
+	"\x0eBatterySummary\x12\x1d\n" +
+	"\n" +
+	"charge_kwh\x18\x01 \x01(\x01R\tchargeKwh\x12#\n" +
+	"\rdischarge_kwh\x18\x02 \x01(\x01R\fdischargeKwh\x12\x17\n" +
+	"\anet_kwh\x18\x03 \x01(\x01R\x06netKwh\x12\"\n" +
+	"\rsoc_start_pct\x18\x04 \x01(\x01R\vsocStartPct\x12\x1e\n" +
+	"\vsoc_end_pct\x18\x05 \x01(\x01R\tsocEndPct\x12\x1e\n" +
+	"\vsoc_min_pct\x18\x06 \x01(\x01R\tsocMinPct\x12\x1e\n" +
+	"\vsoc_max_pct\x18\a \x01(\x01R\tsocMaxPct\"\xd6\x03\n" +
+	"\x13EnergyPVPortHistory\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x17\n" +
+	"\aport_id\x18\x02 \x01(\tR\x06portId\x12\x1d\n" +
+	"\n" +
+	"port_label\x18\x03 \x01(\tR\tportLabel\x12,\n" +
+	"\x12max_observed_volts\x18\x04 \x01(\x01R\x10maxObservedVolts\x12*\n" +
+	"\x11max_observed_amps\x18\x05 \x01(\x01R\x0fmaxObservedAmps\x12,\n" +
+	"\x12max_observed_watts\x18\x06 \x01(\x01R\x10maxObservedWatts\x12.\n" +
+	"\x13last_observed_volts\x18\a \x01(\x01R\x11lastObservedVolts\x12,\n" +
+	"\x12last_observed_amps\x18\b \x01(\x01R\x10lastObservedAmps\x12.\n" +
+	"\x13last_observed_watts\x18\t \x01(\x01R\x11lastObservedWatts\x121\n" +
+	"\x15last_observed_unix_ms\x18\n" +
+	" \x01(\x03R\x12lastObservedUnixMs\x12!\n" +
+	"\fsample_count\x18\v \x01(\rR\vsampleCount\"\x8c\x02\n" +
+	"\x19GetEnergyDashboardRequest\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12&\n" +
+	"\x0fuse_all_devices\x18\x02 \x01(\bR\ruseAllDevices\x12\x16\n" +
+	"\x06preset\x18\x03 \x01(\tR\x06preset\x12\x1a\n" +
+	"\btimezone\x18\x04 \x01(\tR\btimezone\x12-\n" +
+	"\x12include_comparison\x18\x05 \x01(\bR\x11includeComparison\x12+\n" +
+	"\x12grid_price_per_kwh\x18\x06 \x01(\x01R\x0fgridPricePerKwh\x12\x1a\n" +
+	"\bcurrency\x18\a \x01(\tR\bcurrency\"\xad\x05\n" +
+	"\x1aGetEnergyDashboardResponse\x125\n" +
+	"\x05scope\x18\x01 \x01(\v2\x1f.pulse.telemetry.v1.EnergyScopeR\x05scope\x128\n" +
+	"\x06window\x18\x02 \x01(\v2 .pulse.telemetry.v1.EnergyWindowR\x06window\x12;\n" +
+	"\asummary\x18\x03 \x01(\v2!.pulse.telemetry.v1.EnergySummaryR\asummary\x12<\n" +
+	"\abattery\x18\x04 \x01(\v2\".pulse.telemetry.v1.BatterySummaryR\abattery\x12S\n" +
+	"\x15current_energy_points\x18\x05 \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x13currentEnergyPoints\x12U\n" +
+	"\x16previous_energy_points\x18\x06 \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x14previousEnergyPoints\x12Q\n" +
+	"\x14current_power_points\x18\a \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x12currentPowerPoints\x12S\n" +
+	"\x15previous_power_points\x18\b \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x13previousPowerPoints\x12O\n" +
+	"\x0fpv_port_history\x18\t \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory*\x8a\x01\n" +
 	"\x10RollupResolution\x12!\n" +
 	"\x1dROLLUP_RESOLUTION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18ROLLUP_RESOLUTION_MINUTE\x10\x01\x12\x1a\n" +
 	"\x16ROLLUP_RESOLUTION_HOUR\x10\x02\x12\x19\n" +
-	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xb2\x03\n" +
+	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xa7\x04\n" +
 	"\x10TelemetryService\x12^\n" +
 	"\vGetSnapshot\x12&.pulse.telemetry.v1.GetSnapshotRequest\x1a'.pulse.telemetry.v1.GetSnapshotResponse\x12Z\n" +
 	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x01\x12m\n" +
 	"\x10QueryRollupRange\x12+.pulse.telemetry.v1.QueryRollupRangeRequest\x1a,.pulse.telemetry.v1.QueryRollupRangeResponse\x12s\n" +
-	"\x12CompareRollupRange\x12-.pulse.telemetry.v1.CompareRollupRangeRequest\x1a..pulse.telemetry.v1.CompareRollupRangeResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
+	"\x12CompareRollupRange\x12-.pulse.telemetry.v1.CompareRollupRangeRequest\x1a..pulse.telemetry.v1.CompareRollupRangeResponse\x12s\n" +
+	"\x12GetEnergyDashboard\x12-.pulse.telemetry.v1.GetEnergyDashboardRequest\x1a..pulse.telemetry.v1.GetEnergyDashboardResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
 
 var (
 	file_pulse_telemetry_v1_telemetry_proto_rawDescOnce sync.Once
@@ -1356,7 +2226,7 @@ func file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP() []byte {
 }
 
 var file_pulse_telemetry_v1_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_pulse_telemetry_v1_telemetry_proto_goTypes = []any{
 	(RollupResolution)(0),              // 0: pulse.telemetry.v1.RollupResolution
 	(*Cursor)(nil),                     // 1: pulse.telemetry.v1.Cursor
@@ -1374,14 +2244,22 @@ var file_pulse_telemetry_v1_telemetry_proto_goTypes = []any{
 	(*QueryRollupRangeResponse)(nil),   // 13: pulse.telemetry.v1.QueryRollupRangeResponse
 	(*CompareRollupRangeRequest)(nil),  // 14: pulse.telemetry.v1.CompareRollupRangeRequest
 	(*CompareRollupRangeResponse)(nil), // 15: pulse.telemetry.v1.CompareRollupRangeResponse
-	nil,                                // 16: pulse.telemetry.v1.Snapshot.MetricsEntry
-	nil,                                // 17: pulse.telemetry.v1.Delta.ChangedEntry
+	(*EnergyScope)(nil),                // 16: pulse.telemetry.v1.EnergyScope
+	(*EnergyWindow)(nil),               // 17: pulse.telemetry.v1.EnergyWindow
+	(*EnergyValueComparison)(nil),      // 18: pulse.telemetry.v1.EnergyValueComparison
+	(*EnergySummary)(nil),              // 19: pulse.telemetry.v1.EnergySummary
+	(*BatterySummary)(nil),             // 20: pulse.telemetry.v1.BatterySummary
+	(*EnergyPVPortHistory)(nil),        // 21: pulse.telemetry.v1.EnergyPVPortHistory
+	(*GetEnergyDashboardRequest)(nil),  // 22: pulse.telemetry.v1.GetEnergyDashboardRequest
+	(*GetEnergyDashboardResponse)(nil), // 23: pulse.telemetry.v1.GetEnergyDashboardResponse
+	nil,                                // 24: pulse.telemetry.v1.Snapshot.MetricsEntry
+	nil,                                // 25: pulse.telemetry.v1.Delta.ChangedEntry
 }
 var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	1,  // 0: pulse.telemetry.v1.Snapshot.cursor:type_name -> pulse.telemetry.v1.Cursor
-	16, // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
+	24, // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
 	1,  // 2: pulse.telemetry.v1.Delta.cursor:type_name -> pulse.telemetry.v1.Cursor
-	17, // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
+	25, // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
 	1,  // 4: pulse.telemetry.v1.Heartbeat.cursor:type_name -> pulse.telemetry.v1.Cursor
 	2,  // 5: pulse.telemetry.v1.GetSnapshotResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
 	1,  // 6: pulse.telemetry.v1.SubscribeRequest.from:type_name -> pulse.telemetry.v1.Cursor
@@ -1396,19 +2274,36 @@ var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	0,  // 15: pulse.telemetry.v1.CompareRollupRangeRequest.resolution:type_name -> pulse.telemetry.v1.RollupResolution
 	11, // 16: pulse.telemetry.v1.CompareRollupRangeResponse.current:type_name -> pulse.telemetry.v1.RollupSeries
 	11, // 17: pulse.telemetry.v1.CompareRollupRangeResponse.previous:type_name -> pulse.telemetry.v1.RollupSeries
-	5,  // 18: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
-	7,  // 19: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
-	12, // 20: pulse.telemetry.v1.TelemetryService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
-	14, // 21: pulse.telemetry.v1.TelemetryService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
-	6,  // 22: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
-	8,  // 23: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
-	13, // 24: pulse.telemetry.v1.TelemetryService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
-	15, // 25: pulse.telemetry.v1.TelemetryService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
-	22, // [22:26] is the sub-list for method output_type
-	18, // [18:22] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	18, // 18: pulse.telemetry.v1.EnergySummary.solar_generated_kwh:type_name -> pulse.telemetry.v1.EnergyValueComparison
+	18, // 19: pulse.telemetry.v1.EnergySummary.load_consumed_kwh:type_name -> pulse.telemetry.v1.EnergyValueComparison
+	18, // 20: pulse.telemetry.v1.EnergySummary.self_sufficiency_pct:type_name -> pulse.telemetry.v1.EnergyValueComparison
+	18, // 21: pulse.telemetry.v1.EnergySummary.battery_net_kwh:type_name -> pulse.telemetry.v1.EnergyValueComparison
+	18, // 22: pulse.telemetry.v1.EnergySummary.estimated_value:type_name -> pulse.telemetry.v1.EnergyValueComparison
+	18, // 23: pulse.telemetry.v1.EnergySummary.estimated_ac_input_cost:type_name -> pulse.telemetry.v1.EnergyValueComparison
+	16, // 24: pulse.telemetry.v1.GetEnergyDashboardResponse.scope:type_name -> pulse.telemetry.v1.EnergyScope
+	17, // 25: pulse.telemetry.v1.GetEnergyDashboardResponse.window:type_name -> pulse.telemetry.v1.EnergyWindow
+	19, // 26: pulse.telemetry.v1.GetEnergyDashboardResponse.summary:type_name -> pulse.telemetry.v1.EnergySummary
+	20, // 27: pulse.telemetry.v1.GetEnergyDashboardResponse.battery:type_name -> pulse.telemetry.v1.BatterySummary
+	10, // 28: pulse.telemetry.v1.GetEnergyDashboardResponse.current_energy_points:type_name -> pulse.telemetry.v1.RollupPoint
+	10, // 29: pulse.telemetry.v1.GetEnergyDashboardResponse.previous_energy_points:type_name -> pulse.telemetry.v1.RollupPoint
+	10, // 30: pulse.telemetry.v1.GetEnergyDashboardResponse.current_power_points:type_name -> pulse.telemetry.v1.RollupPoint
+	10, // 31: pulse.telemetry.v1.GetEnergyDashboardResponse.previous_power_points:type_name -> pulse.telemetry.v1.RollupPoint
+	21, // 32: pulse.telemetry.v1.GetEnergyDashboardResponse.pv_port_history:type_name -> pulse.telemetry.v1.EnergyPVPortHistory
+	5,  // 33: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
+	7,  // 34: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
+	12, // 35: pulse.telemetry.v1.TelemetryService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
+	14, // 36: pulse.telemetry.v1.TelemetryService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
+	22, // 37: pulse.telemetry.v1.TelemetryService.GetEnergyDashboard:input_type -> pulse.telemetry.v1.GetEnergyDashboardRequest
+	6,  // 38: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
+	8,  // 39: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
+	13, // 40: pulse.telemetry.v1.TelemetryService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
+	15, // 41: pulse.telemetry.v1.TelemetryService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
+	23, // 42: pulse.telemetry.v1.TelemetryService.GetEnergyDashboard:output_type -> pulse.telemetry.v1.GetEnergyDashboardResponse
+	38, // [38:43] is the sub-list for method output_type
+	33, // [33:38] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_pulse_telemetry_v1_telemetry_proto_init() }
@@ -1422,13 +2317,14 @@ func file_pulse_telemetry_v1_telemetry_proto_init() {
 		(*SubscribeResponse_Heartbeat)(nil),
 	}
 	file_pulse_telemetry_v1_telemetry_proto_msgTypes[8].OneofWrappers = []any{}
+	file_pulse_telemetry_v1_telemetry_proto_msgTypes[17].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_telemetry_v1_telemetry_proto_rawDesc), len(file_pulse_telemetry_v1_telemetry_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   17,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

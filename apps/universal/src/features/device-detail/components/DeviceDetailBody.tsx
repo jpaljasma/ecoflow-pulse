@@ -1,4 +1,5 @@
-import { Text, XStack, YStack } from 'tamagui';
+import { router } from 'expo-router';
+import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { Card } from '@/shared/ui/Card';
@@ -96,6 +97,31 @@ export function DeviceDetailBody({
           emojiFallback={vm.deviceAsset?.emoji}
           right={(
             <YStack gap="$3" flex={1} minWidth={0}>
+              {device ? (
+                <XStack justifyContent="flex-end">
+                  <Button
+                    size="$2"
+                    borderRadius={999}
+                    borderWidth={1}
+                    paddingHorizontal="$3"
+                    minHeight={32}
+                    backgroundColor="rgba(10,132,255,0.08)"
+                    borderColor="rgba(10,132,255,0.18)"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(tabs)/energy',
+                        params: {
+                          device: device.id,
+                          preset: 'today',
+                          compare: '1'
+                        }
+                      })
+                    }
+                  >
+                    ⚡ Energy
+                  </Button>
+                </XStack>
+              ) : null}
               <XStack alignItems="flex-end" gap="$3">
                 <XStack flex={1} minWidth={0}>
                   <SocBar value={snapshot?.metrics?.soc ?? device?.batteryPct} fullWidth />
@@ -147,6 +173,7 @@ export function DeviceDetailBody({
                 ac={sparklineAC}
                 dc={sparklineDC}
                 load={sparklineLoad}
+                battery={sparklineLoad.map(() => 0)}
                 points={DETAIL_TREND_POINTS}
               />
             </ChartSection>
@@ -170,6 +197,7 @@ export function DeviceDetailBody({
               ac={sparklineAC}
               dc={sparklineDC}
               load={sparklineLoad}
+              battery={sparklineLoad.map(() => 0)}
               points={DETAIL_TREND_POINTS}
             />
           </ChartSection>

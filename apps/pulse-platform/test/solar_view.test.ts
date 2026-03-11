@@ -27,6 +27,8 @@ function point({
       socMaxPct: 0,
       acInAvgW: 0,
       acInMaxW: 0,
+      acOutputAvgW: 0,
+      acOutputMaxW: 0,
       pvAvgW: 0,
       pvMaxW: 0,
       dcAvgW: 0,
@@ -42,7 +44,13 @@ function point({
       tempAvgC: 0,
       tempMinC: 0,
       tempMaxC: 0,
-      solarGeneratedWh
+      solarGeneratedWh,
+      acInputEnergyWh: 0,
+      acOutputEnergyWh: 0,
+      dcOutputEnergyWh: 0,
+      loadEnergyWh: 0,
+      batteryChargeEnergyWh: 0,
+      batteryDischargeEnergyWh: 0
     }
   };
 }

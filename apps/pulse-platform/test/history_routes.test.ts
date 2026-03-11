@@ -6,7 +6,16 @@ import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
 import type { DeviceClient } from '../src/grpc/deviceClient.js';
 import type { InferenceClient } from '../src/grpc/inferenceClient.js';
-import type { CompareRollupSeries, RollupSeries, TelemetryHistoryClient } from '../src/grpc/telemetryClient.js';
+import type {
+  BatterySummary,
+  CompareRollupSeries,
+  EnergyDashboard,
+  EnergySummary,
+  EnergyValueComparison,
+  RollupPoint,
+  RollupSeries,
+  TelemetryHistoryClient
+} from '../src/grpc/telemetryClient.js';
 
 function baseConfig(): AppConfig {
   return {
@@ -14,6 +23,7 @@ function baseConfig(): AppConfig {
     port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
+    devUserSubject: 'dev-user-subject',
     publicPreconnectOrigins: [],
     historyRateLimit: {
       max: 120,
@@ -42,6 +52,8 @@ function makeSeries(deviceId = '019c9f0e-4521-775d-873e-e80039f16d75'): RollupSe
           socMaxPct: 55,
           acInAvgW: 10,
           acInMaxW: 12,
+          acOutputAvgW: 30,
+          acOutputMaxW: 36,
           pvAvgW: 20,
           pvMaxW: 24,
           dcAvgW: 0,
@@ -57,7 +69,13 @@ function makeSeries(deviceId = '019c9f0e-4521-775d-873e-e80039f16d75'): RollupSe
           tempAvgC: 25,
           tempMinC: 22,
           tempMaxC: 28,
-          solarGeneratedWh: 12
+          solarGeneratedWh: 12,
+          acInputEnergyWh: 10,
+          acOutputEnergyWh: 30,
+          dcOutputEnergyWh: 0,
+          loadEnergyWh: 30,
+          batteryChargeEnergyWh: 40,
+          batteryDischargeEnergyWh: 0
         }
       }
     ]
@@ -86,6 +104,8 @@ function makeMinuteSeries(
           socMaxPct: 51,
           acInAvgW: 0,
           acInMaxW: 0,
+          acOutputAvgW: 0,
+          acOutputMaxW: 0,
           pvAvgW: 120,
           pvMaxW: 125,
           dcAvgW: 0,
@@ -101,7 +121,13 @@ function makeMinuteSeries(
           tempAvgC: 24,
           tempMinC: 23,
           tempMaxC: 25,
-          solarGeneratedWh: 2
+          solarGeneratedWh: 2,
+          acInputEnergyWh: 0,
+          acOutputEnergyWh: 0,
+          dcOutputEnergyWh: 0,
+          loadEnergyWh: 0,
+          batteryChargeEnergyWh: 2,
+          batteryDischargeEnergyWh: 0
         }
       },
       {
@@ -116,6 +142,8 @@ function makeMinuteSeries(
           socMaxPct: 53,
           acInAvgW: 0,
           acInMaxW: 0,
+          acOutputAvgW: 0,
+          acOutputMaxW: 0,
           pvAvgW: 180,
           pvMaxW: 185,
           dcAvgW: 0,
@@ -131,10 +159,114 @@ function makeMinuteSeries(
           tempAvgC: 25,
           tempMinC: 24,
           tempMaxC: 26,
-          solarGeneratedWh: 3
+          solarGeneratedWh: 3,
+          acInputEnergyWh: 0,
+          acOutputEnergyWh: 0,
+          dcOutputEnergyWh: 0,
+          loadEnergyWh: 0,
+          batteryChargeEnergyWh: 3,
+          batteryDischargeEnergyWh: 0
         }
       }
     ]
+  };
+}
+
+function makeEnergyValueComparison(current: number, previous: number, deltaPct: number | null): EnergyValueComparison {
+  return {
+    current,
+    previous,
+    delta: current - previous,
+    deltaPct
+  };
+}
+
+function makeBatterySummary(): BatterySummary {
+  return {
+    chargeKwh: 1.2,
+    dischargeKwh: 0.8,
+    netKwh: 0.4,
+    socStartPct: 42,
+    socEndPct: 57,
+    socMinPct: 40,
+    socMaxPct: 60
+  };
+}
+
+function makeEnergySummary(): EnergySummary {
+  return {
+    solarGeneratedKwh: makeEnergyValueComparison(2.4, 1.6, 50),
+    loadConsumedKwh: makeEnergyValueComparison(3.2, 3, 6.6667),
+    selfSufficiencyPct: makeEnergyValueComparison(75, 53.33, 40.625),
+    batteryNetKwh: makeEnergyValueComparison(0.4, -0.2, null),
+    estimatedValue: makeEnergyValueComparison(0.72, 0.48, 50),
+    estimatedAcInputCost: makeEnergyValueComparison(0.24, 0.3, -20),
+    currency: 'USD'
+  };
+}
+
+function makeEnergyDashboard(overrides: Partial<EnergyDashboard> = {}): EnergyDashboard {
+  const currentEnergyPoint: RollupPoint = {
+    bucketStartUnixMs: '1772715600000',
+    bucketEndUnixMs: '1772719200000',
+    sampleCount: 3,
+    firstTsUnixMs: '1772715610000',
+    lastTsUnixMs: '1772719190000',
+    metrics: {
+      socAvgPct: 51,
+      socMinPct: 48,
+      socMaxPct: 57,
+      acInAvgW: 20,
+      acInMaxW: 28,
+      acOutputAvgW: 145,
+      acOutputMaxW: 170,
+      pvAvgW: 180,
+      pvMaxW: 220,
+      dcAvgW: 15,
+      dcMaxW: 20,
+      loadAvgW: 160,
+      loadMaxW: 190,
+      netAvgW: 20,
+      netMinW: -10,
+      netMaxW: 45,
+      batteryAvgW: 55,
+      batteryMinW: -30,
+      batteryMaxW: 90,
+      tempAvgC: 24,
+      tempMinC: 22,
+      tempMaxC: 26,
+      solarGeneratedWh: 240,
+      acInputEnergyWh: 20,
+      acOutputEnergyWh: 145,
+      dcOutputEnergyWh: 15,
+      loadEnergyWh: 160,
+      batteryChargeEnergyWh: 55,
+      batteryDischargeEnergyWh: 0
+    }
+  };
+
+  return {
+    scope: {
+      mode: 'device',
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+      resolvedDeviceIds: ['019c9f0e-4521-775d-873e-e80039f16d75']
+    },
+    window: {
+      preset: 'today',
+      timezone: 'America/New_York',
+      fromUnixMs: '1772686800000',
+      toUnixMs: '1772719200000',
+      previousFromUnixMs: '1772600400000',
+      previousToUnixMs: '1772632800000'
+    },
+    summary: makeEnergySummary(),
+    battery: makeBatterySummary(),
+    currentEnergyPoints: [currentEnergyPoint],
+    previousEnergyPoints: [],
+    currentPowerPoints: [currentEnergyPoint],
+    previousPowerPoints: [],
+    pvPortHistory: [],
+    ...overrides
   };
 }
 
@@ -152,6 +284,7 @@ function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryH
       current: makeSeries(),
       previous: { ...makeSeries(), points: [] }
     } satisfies CompareRollupSeries)),
+    getEnergyDashboard: vi.fn(async () => makeEnergyDashboard()),
     close: vi.fn(),
     ...overrides
   };
@@ -321,6 +454,109 @@ describe('pulse-platform history routes', () => {
     });
 
     expect(response.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('returns energy dashboard for a single device', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=device&deviceId=019c9f0e-4521-775d-873e-e80039f16d75&preset=today&timezone=America%2FNew_York&gridPricePerKwh=0.30&currency=USD',
+      headers: {
+        authorization: 'Bearer dashboard-token'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+        useAllDevices: false,
+        preset: 'today',
+        timezone: 'America/New_York',
+        includeComparison: true,
+        gridPricePerKwh: 0.3,
+        currency: 'USD',
+        authHeader: 'Bearer dashboard-token',
+        userSubject: 'dev-user-subject',
+        deadlineMs: 2500
+      })
+    );
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        scope: expect.objectContaining({
+          mode: 'device'
+        }),
+        summary: expect.objectContaining({
+          currency: 'USD'
+        })
+      })
+    );
+
+    await app.close();
+  });
+
+  it('returns energy dashboard for all visible devices', async () => {
+    const dashboard = makeEnergyDashboard({
+      scope: {
+        mode: 'all',
+        deviceId: '',
+        resolvedDeviceIds: [
+          '019c9f0e-4521-775d-873e-e80039f16d75',
+          '019c9f0e-452b-70eb-b3af-1c0f15c34416'
+        ]
+      }
+    });
+    const client = makeClient({
+      getEnergyDashboard: vi.fn(async () => dashboard)
+    });
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=last7d&timezone=America%2FLos_Angeles&includeComparison=false'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'last7d',
+        timezone: 'America/Los_Angeles',
+        includeComparison: false,
+        userSubject: 'dev-user-subject'
+      })
+    );
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        scope: expect.objectContaining({
+          mode: 'all',
+          resolvedDeviceIds: expect.arrayContaining([
+            '019c9f0e-4521-775d-873e-e80039f16d75',
+            '019c9f0e-452b-70eb-b3af-1c0f15c34416'
+          ])
+        })
+      })
+    );
+
+    await app.close();
+  });
+
+  it('rejects energy dashboard device scope without a device id', async () => {
+    const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=device&preset=today&timezone=America%2FNew_York'
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        error: 'invalid_request'
+      })
+    );
+
     await app.close();
   });
 

@@ -14,6 +14,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
+	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -111,6 +112,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer cleanupQueryReader()
+	archiveManifestStore, archiveObjectReader, cleanupArchiveReaders, err := newArchiveReadersFromEnv(log)
+	if err != nil {
+		log.Error("archive history reader init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer cleanupArchiveReaders()
 	inferenceReader, cleanupInferenceReader, err := newInferenceReaderFromEnv(log)
 	if err != nil {
 		log.Error("inference reader init failed", "error", err.Error())
@@ -120,11 +127,13 @@ func main() {
 
 	// Register services
 	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
-		Log:                 log,
-		SnapshotReader:      snapshotReader,
-		QueryReader:         queryReader,
-		ControlPlaneStore:   controlPlaneStore,
-		HistoryGzipMinBytes: runtimecfg.IntMin("GRPC_HISTORY_GZIP_MIN_BYTES", defaultHistoryGzipMinBytes, 0),
+		Log:                  log,
+		SnapshotReader:       snapshotReader,
+		QueryReader:          queryReader,
+		ControlPlaneStore:    controlPlaneStore,
+		ArchiveManifestStore: archiveManifestStore,
+		ArchiveObjectReader:  archiveObjectReader,
+		HistoryGzipMinBytes:  runtimecfg.IntMin("GRPC_HISTORY_GZIP_MIN_BYTES", defaultHistoryGzipMinBytes, 0),
 	}))
 	ecoflowClientConfig := ecoflow.DefaultConfig()
 	ecoflowClientConfig.Logging.Debug = false
@@ -268,6 +277,38 @@ func newTelemetryQueryReaderFromEnv(log *slog.Logger) (telemetryquery.Reader, fu
 
 	log.Info("telemetry query reader enabled", "source", "postgres")
 	return reader, func() { _ = reader.Close() }, nil
+}
+
+func newArchiveReadersFromEnv(log *slog.Logger) (replaycli.ManifestStore, replaycli.ObjectReader, func(), error) {
+	dsn := strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
+	endpoint := strings.TrimSpace(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint))
+	accessKey := strings.TrimSpace(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID))
+	secretKey := strings.TrimSpace(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey))
+	if dsn == "" || endpoint == "" || accessKey == "" || secretKey == "" {
+		log.Info("archive history readers disabled", "reason", "archive or postgres env not fully configured")
+		return nil, nil, func() {}, nil
+	}
+
+	manifestStore, err := replaycli.NewPostgresManifestStore(dsn)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	objectReader, err := replaycli.NewMinIOObjectReader(replaycli.MinIOObjectReaderConfig{
+		Endpoint:        endpoint,
+		AccessKeyID:     accessKey,
+		SecretAccessKey: secretKey,
+		Region:          runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region),
+		Secure:          runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure),
+	})
+	if err != nil {
+		_ = manifestStore.Close()
+		return nil, nil, nil, err
+	}
+	log.Info("archive history readers enabled", "source", "manifest+minio", "endpoint", endpoint)
+	return manifestStore, objectReader, func() {
+		_ = objectReader.Close()
+		_ = manifestStore.Close()
+	}, nil
 }
 
 func newInferenceReaderFromEnv(log *slog.Logger) (inference.Reader, func(), error) {

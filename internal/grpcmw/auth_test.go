@@ -178,3 +178,17 @@ func TestAuthStreamDenied(t *testing.T) {
 		t.Fatalf("expected permission denied, got %v", err)
 	}
 }
+
+func TestNoopAuthorizerCopiesUserSubjectFromMetadata(t *testing.T) {
+	t.Parallel()
+
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-user-subject", "dev-user-1"))
+	claims := &Claims{}
+
+	if err := (NoopAuthorizer{}).Authorize(ctx, "/pulse.test/Unary", claims); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if claims.Subject != "dev-user-1" {
+		t.Fatalf("unexpected subject: got=%q want=%q", claims.Subject, "dev-user-1")
+	}
+}

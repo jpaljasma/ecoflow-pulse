@@ -99,6 +99,14 @@ message RollupMetrics {
   optional double temp_max_c = 20;
 
   optional double solar_generated_wh = 21;
+  optional double ac_input_energy_wh = 22;
+  optional double dc_output_energy_wh = 23;
+  optional double load_energy_wh = 24;
+  optional double battery_charge_energy_wh = 25;
+  optional double battery_discharge_energy_wh = 26;
+  optional double ac_output_avg_w = 27;
+  optional double ac_output_max_w = 28;
+  optional double ac_output_energy_wh = 29;
 }
 
 message RollupPoint {
@@ -153,9 +161,88 @@ message CompareRollupRangeResponse {
   RollupSeries previous = 2;
 }
 
+message EnergyScope {
+  string mode = 1;
+  string device_id = 2;
+  repeated string resolved_device_ids = 3;
+}
+
+message EnergyWindow {
+  string preset = 1;
+  string timezone = 2;
+  int64 from_unix_ms = 3;
+  int64 to_unix_ms = 4;
+  int64 previous_from_unix_ms = 5;
+  int64 previous_to_unix_ms = 6;
+}
+
+message EnergyValueComparison {
+  double current = 1;
+  double previous = 2;
+  double delta = 3;
+  optional double delta_pct = 4;
+}
+
+message EnergySummary {
+  EnergyValueComparison solar_generated_kwh = 1;
+  EnergyValueComparison load_consumed_kwh = 2;
+  EnergyValueComparison self_sufficiency_pct = 3;
+  EnergyValueComparison battery_net_kwh = 4;
+  EnergyValueComparison estimated_value = 5;
+  EnergyValueComparison estimated_ac_input_cost = 6;
+  string currency = 7;
+}
+
+message BatterySummary {
+  double charge_kwh = 1;
+  double discharge_kwh = 2;
+  double net_kwh = 3;
+  double soc_start_pct = 4;
+  double soc_end_pct = 5;
+  double soc_min_pct = 6;
+  double soc_max_pct = 7;
+}
+
+message EnergyPVPortHistory {
+  string device_id = 1;
+  string port_id = 2;
+  string port_label = 3;
+  double max_observed_volts = 4;
+  double max_observed_amps = 5;
+  double max_observed_watts = 6;
+  double last_observed_volts = 7;
+  double last_observed_amps = 8;
+  double last_observed_watts = 9;
+  int64 last_observed_unix_ms = 10;
+  uint32 sample_count = 11;
+}
+
+message GetEnergyDashboardRequest {
+  string device_id = 1;
+  bool use_all_devices = 2;
+  string preset = 3;
+  string timezone = 4;
+  bool include_comparison = 5;
+  double grid_price_per_kwh = 6;
+  string currency = 7;
+}
+
+message GetEnergyDashboardResponse {
+  EnergyScope scope = 1;
+  EnergyWindow window = 2;
+  EnergySummary summary = 3;
+  BatterySummary battery = 4;
+  repeated RollupPoint current_energy_points = 5;
+  repeated RollupPoint previous_energy_points = 6;
+  repeated RollupPoint current_power_points = 7;
+  repeated RollupPoint previous_power_points = 8;
+  repeated EnergyPVPortHistory pv_port_history = 9;
+}
+
 service TelemetryService {
   rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
   rpc QueryRollupRange(QueryRollupRangeRequest) returns (QueryRollupRangeResponse);
   rpc CompareRollupRange(CompareRollupRangeRequest) returns (CompareRollupRangeResponse);
+  rpc GetEnergyDashboard(GetEnergyDashboardRequest) returns (GetEnergyDashboardResponse);
 }

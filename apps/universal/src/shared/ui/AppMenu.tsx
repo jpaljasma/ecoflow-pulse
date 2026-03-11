@@ -57,6 +57,16 @@ export function AppMenu() {
                 justifyContent="flex-start"
                 onPress={() => {
                   setOpen(false);
+                  router.push('/(tabs)/energy');
+                }}
+              >
+                Energy
+              </Button>
+              <Button
+                size="$5"
+                justifyContent="flex-start"
+                onPress={() => {
+                  setOpen(false);
                   router.push('/settings');
                 }}
               >

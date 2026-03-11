@@ -12,6 +12,8 @@ export type RollupMetrics = {
   socMaxPct: number;
   acInAvgW: number;
   acInMaxW: number;
+  acOutputAvgW: number;
+  acOutputMaxW: number;
   pvAvgW: number;
   pvMaxW: number;
   dcAvgW: number;
@@ -28,6 +30,12 @@ export type RollupMetrics = {
   tempMinC: number;
   tempMaxC: number;
   solarGeneratedWh: number;
+  acInputEnergyWh: number;
+  acOutputEnergyWh: number;
+  dcOutputEnergyWh: number;
+  loadEnergyWh: number;
+  batteryChargeEnergyWh: number;
+  batteryDischargeEnergyWh: number;
 };
 
 export type RollupPoint = {
@@ -50,6 +58,74 @@ export type RollupSeries = {
 export type CompareRollupSeries = {
   current: RollupSeries;
   previous: RollupSeries;
+};
+
+export type EnergyValueComparison = {
+  current: number;
+  previous: number;
+  delta: number;
+  deltaPct: number | null;
+};
+
+export type EnergyScope = {
+  mode: string;
+  deviceId: string;
+  resolvedDeviceIds: string[];
+};
+
+export type EnergyWindow = {
+  preset: string;
+  timezone: string;
+  fromUnixMs: string;
+  toUnixMs: string;
+  previousFromUnixMs: string;
+  previousToUnixMs: string;
+};
+
+export type EnergySummary = {
+  solarGeneratedKwh: EnergyValueComparison;
+  loadConsumedKwh: EnergyValueComparison;
+  selfSufficiencyPct: EnergyValueComparison;
+  batteryNetKwh: EnergyValueComparison;
+  estimatedValue: EnergyValueComparison;
+  estimatedAcInputCost: EnergyValueComparison;
+  currency: string;
+};
+
+export type BatterySummary = {
+  chargeKwh: number;
+  dischargeKwh: number;
+  netKwh: number;
+  socStartPct: number;
+  socEndPct: number;
+  socMinPct: number;
+  socMaxPct: number;
+};
+
+export type EnergyDashboard = {
+  scope: EnergyScope;
+  window: EnergyWindow;
+  summary: EnergySummary;
+  battery: BatterySummary;
+  currentEnergyPoints: RollupPoint[];
+  previousEnergyPoints: RollupPoint[];
+  currentPowerPoints: RollupPoint[];
+  previousPowerPoints: RollupPoint[];
+  pvPortHistory: EnergyPVPortHistory[];
+};
+
+export type EnergyPVPortHistory = {
+  deviceId: string;
+  portId: string;
+  portLabel: string;
+  maxObservedVolts: number;
+  maxObservedAmps: number;
+  maxObservedWatts: number;
+  lastObservedVolts: number;
+  lastObservedAmps: number;
+  lastObservedWatts: number;
+  lastObservedUnixMs: string;
+  sampleCount: number;
 };
 
 export type SnapshotRequestInput = {
@@ -86,10 +162,25 @@ export type CompareRollupRangeInput = QueryRollupRangeInput & {
   compareToUnixMs?: string;
 };
 
+export type GetEnergyDashboardInput = {
+  deviceId?: string;
+  useAllDevices: boolean;
+  preset: string;
+  timezone: string;
+  includeComparison: boolean;
+  gridPricePerKwh?: number;
+  currency?: string;
+  authHeader?: string;
+  userSubject?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
 export interface TelemetryHistoryClient {
   getSnapshot(input: SnapshotRequestInput): Promise<{ snapshot: Snapshot }>;
   queryRollupRange(input: QueryRollupRangeInput): Promise<RollupSeries>;
   compareRollupRange(input: CompareRollupRangeInput): Promise<CompareRollupSeries>;
+  getEnergyDashboard(input: GetEnergyDashboardInput): Promise<EnergyDashboard>;
   close(): void;
 }
 
@@ -109,6 +200,7 @@ type GrpcTelemetryClient = {
   GetSnapshot: GrpcUnaryMethod;
   QueryRollupRange: GrpcUnaryMethod;
   CompareRollupRange: GrpcUnaryMethod;
+  GetEnergyDashboard: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -167,6 +259,74 @@ type RawCompareRollupRangeResponse = {
   previous?: RawRollupSeries;
 };
 
+type RawEnergyValueComparison = {
+  current?: unknown;
+  previous?: unknown;
+  delta?: unknown;
+  deltaPct?: unknown;
+};
+
+type RawEnergySummary = {
+  solarGeneratedKwh?: RawEnergyValueComparison;
+  loadConsumedKwh?: RawEnergyValueComparison;
+  selfSufficiencyPct?: RawEnergyValueComparison;
+  batteryNetKwh?: RawEnergyValueComparison;
+  estimatedValue?: RawEnergyValueComparison;
+  estimatedAcInputCost?: RawEnergyValueComparison;
+  currency?: unknown;
+};
+
+type RawBatterySummary = {
+  chargeKwh?: unknown;
+  dischargeKwh?: unknown;
+  netKwh?: unknown;
+  socStartPct?: unknown;
+  socEndPct?: unknown;
+  socMinPct?: unknown;
+  socMaxPct?: unknown;
+};
+
+type RawEnergyScope = {
+  mode?: unknown;
+  deviceId?: unknown;
+  resolvedDeviceIds?: unknown;
+};
+
+type RawEnergyWindow = {
+  preset?: unknown;
+  timezone?: unknown;
+  fromUnixMs?: unknown;
+  toUnixMs?: unknown;
+  previousFromUnixMs?: unknown;
+  previousToUnixMs?: unknown;
+};
+
+type RawEnergyPVPortHistory = {
+  deviceId?: unknown;
+  portId?: unknown;
+  portLabel?: unknown;
+  maxObservedVolts?: unknown;
+  maxObservedAmps?: unknown;
+  maxObservedWatts?: unknown;
+  lastObservedVolts?: unknown;
+  lastObservedAmps?: unknown;
+  lastObservedWatts?: unknown;
+  lastObservedUnixMs?: unknown;
+  sampleCount?: unknown;
+};
+
+type RawGetEnergyDashboardResponse = {
+  scope?: RawEnergyScope;
+  window?: RawEnergyWindow;
+  summary?: RawEnergySummary;
+  battery?: RawBatterySummary;
+  currentEnergyPoints?: unknown;
+  previousEnergyPoints?: unknown;
+  currentPowerPoints?: unknown;
+  previousPowerPoints?: unknown;
+  pvPortHistory?: unknown;
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../../../../');
@@ -195,6 +355,8 @@ const metricsKeys: (keyof RollupMetrics)[] = [
   'socMaxPct',
   'acInAvgW',
   'acInMaxW',
+  'acOutputAvgW',
+  'acOutputMaxW',
   'pvAvgW',
   'pvMaxW',
   'dcAvgW',
@@ -210,7 +372,13 @@ const metricsKeys: (keyof RollupMetrics)[] = [
   'tempAvgC',
   'tempMinC',
   'tempMaxC',
-  'solarGeneratedWh'
+  'solarGeneratedWh',
+  'acInputEnergyWh',
+  'acOutputEnergyWh',
+  'dcOutputEnergyWh',
+  'loadEnergyWh',
+  'batteryChargeEnergyWh',
+  'batteryDischargeEnergyWh'
 ];
 
 export function createTelemetryHistoryClient(address: string): TelemetryHistoryClient {
@@ -268,6 +436,22 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
         previous: normalizeSeries(response.previous)
       };
     },
+    async getEnergyDashboard(input) {
+      const response = await unaryCall<RawGetEnergyDashboardResponse>(
+        client.GetEnergyDashboard.bind(client),
+        {
+          deviceId: input.deviceId ?? '',
+          useAllDevices: input.useAllDevices,
+          preset: input.preset,
+          timezone: input.timezone,
+          includeComparison: input.includeComparison,
+          gridPricePerKwh: input.gridPricePerKwh ?? 0,
+          currency: input.currency ?? ''
+        },
+        input
+      );
+      return normalizeEnergyDashboard(response);
+    },
     close() {
       client.close();
     }
@@ -285,11 +469,14 @@ export function createTelemetrySnapshotClient(address: string): TelemetrySnapsho
 function unaryCall<T>(
   method: GrpcUnaryMethod,
   request: Record<string, unknown>,
-  input: { authHeader?: string; requestID?: string; deadlineMs: number }
+  input: { authHeader?: string; userSubject?: string; requestID?: string; deadlineMs: number }
 ): Promise<T> {
   const metadata = new grpc.Metadata();
   if (input.authHeader) {
     metadata.set('authorization', input.authHeader);
+  }
+  if (input.userSubject) {
+    metadata.set('x-user-subject', input.userSubject);
   }
   if (input.requestID) {
     metadata.set('x-request-id', input.requestID);
@@ -364,6 +551,92 @@ function normalizeMetrics(metrics: RawRollupMetrics | undefined): RollupMetrics 
   return normalized;
 }
 
+function normalizeEnergyDashboard(response: RawGetEnergyDashboardResponse): EnergyDashboard {
+  return {
+    scope: {
+      mode: normalizeString(response.scope?.mode),
+      deviceId: normalizeString(response.scope?.deviceId),
+      resolvedDeviceIds: Array.isArray(response.scope?.resolvedDeviceIds)
+        ? response.scope.resolvedDeviceIds.map((value) => normalizeString(value))
+        : []
+    },
+    window: {
+      preset: normalizeString(response.window?.preset),
+      timezone: normalizeString(response.window?.timezone),
+      fromUnixMs: normalizeString(response.window?.fromUnixMs),
+      toUnixMs: normalizeString(response.window?.toUnixMs),
+      previousFromUnixMs: normalizeString(response.window?.previousFromUnixMs),
+      previousToUnixMs: normalizeString(response.window?.previousToUnixMs)
+    },
+    summary: normalizeEnergySummary(response.summary),
+    battery: normalizeBatterySummary(response.battery),
+    currentEnergyPoints: normalizePoints(response.currentEnergyPoints),
+    previousEnergyPoints: normalizePoints(response.previousEnergyPoints),
+    currentPowerPoints: normalizePoints(response.currentPowerPoints),
+    previousPowerPoints: normalizePoints(response.previousPowerPoints),
+    pvPortHistory: normalizePVPortHistoryRows(response.pvPortHistory)
+  };
+}
+
+function normalizeEnergySummary(summary: RawEnergySummary | undefined): EnergySummary {
+  return {
+    solarGeneratedKwh: normalizeEnergyValueComparison(summary?.solarGeneratedKwh),
+    loadConsumedKwh: normalizeEnergyValueComparison(summary?.loadConsumedKwh),
+    selfSufficiencyPct: normalizeEnergyValueComparison(summary?.selfSufficiencyPct),
+    batteryNetKwh: normalizeEnergyValueComparison(summary?.batteryNetKwh),
+    estimatedValue: normalizeEnergyValueComparison(summary?.estimatedValue),
+    estimatedAcInputCost: normalizeEnergyValueComparison(summary?.estimatedAcInputCost),
+    currency: normalizeString(summary?.currency)
+  };
+}
+
+function normalizeEnergyValueComparison(value: RawEnergyValueComparison | undefined): EnergyValueComparison {
+  return {
+    current: normalizeNumber(value?.current),
+    previous: normalizeNumber(value?.previous),
+    delta: normalizeNumber(value?.delta),
+    deltaPct: normalizeNullableNumber(value?.deltaPct)
+  };
+}
+
+function normalizeBatterySummary(summary: RawBatterySummary | undefined): BatterySummary {
+  return {
+    chargeKwh: normalizeNumber(summary?.chargeKwh),
+    dischargeKwh: normalizeNumber(summary?.dischargeKwh),
+    netKwh: normalizeNumber(summary?.netKwh),
+    socStartPct: normalizeNumber(summary?.socStartPct),
+    socEndPct: normalizeNumber(summary?.socEndPct),
+    socMinPct: normalizeNumber(summary?.socMinPct),
+    socMaxPct: normalizeNumber(summary?.socMaxPct)
+  };
+}
+
+function normalizePoints(points: unknown): RollupPoint[] {
+  return Array.isArray(points) ? points.map((point) => normalizePoint(point as RawRollupPoint)) : [];
+}
+
+function normalizePVPortHistoryRows(rows: unknown): EnergyPVPortHistory[] {
+  return Array.isArray(rows)
+    ? rows.map((row) => normalizePVPortHistoryRow(row as RawEnergyPVPortHistory))
+    : [];
+}
+
+function normalizePVPortHistoryRow(row: RawEnergyPVPortHistory): EnergyPVPortHistory {
+  return {
+    deviceId: normalizeString(row.deviceId),
+    portId: normalizeString(row.portId),
+    portLabel: normalizeString(row.portLabel),
+    maxObservedVolts: normalizeNumber(row.maxObservedVolts),
+    maxObservedAmps: normalizeNumber(row.maxObservedAmps),
+    maxObservedWatts: normalizeNumber(row.maxObservedWatts),
+    lastObservedVolts: normalizeNumber(row.lastObservedVolts),
+    lastObservedAmps: normalizeNumber(row.lastObservedAmps),
+    lastObservedWatts: normalizeNumber(row.lastObservedWatts),
+    lastObservedUnixMs: normalizeString(row.lastObservedUnixMs),
+    sampleCount: normalizeInt(row.sampleCount)
+  };
+}
+
 function normalizeResolution(value: unknown): RollupResolution {
   switch (String(value)) {
     case 'ROLLUP_RESOLUTION_MINUTE':
@@ -408,4 +681,18 @@ function normalizeNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
