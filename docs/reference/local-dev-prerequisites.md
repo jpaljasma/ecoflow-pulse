@@ -6,7 +6,7 @@ This page tracks required local tools for development workflows.
 
 | Tool | Why it is needed | Used by |
 |---|---|---|
-| Go | Build/test backend services and CLIs | `go test`, `make test`, `make mqtt` |
+| Go | Build/test backend services and CLIs | `go test`, `make test`, worker CLIs |
 | Node.js + npm | Build/test universal app | `npm run -w apps/universal ...`, `make web` |
 | Docker Desktop (daemon running) | Runtime backend for k3d clusters | `make k3d-up`, `make dev-up` |
 | Helm | Kubernetes chart lint/install and dependency resolution | `make platform-up`, `make services-up` |

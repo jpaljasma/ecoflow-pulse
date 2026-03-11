@@ -18,7 +18,6 @@ Top-level structure:
   - `ecoflow-loadtest-ingest-bridge`: local load-test helper that accepts HTTP ingest payloads and publishes canonical telemetry envelopes to NATS.
   - `ecoflow-gap-detector`: projection lag detector that enqueues targeted replay jobs.
   - `ecoflow-gap-repair-worker`: gap-repair queue consumer that replays missing windows back into ingest subjects.
-  - `ecoflow-mqtt-sub`: live MQTT dashboard and telemetry processing runtime.
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
   - `ecoflow-panel-select-train`: panel selection model training + replay.
   - `ecoflow-smoke`: smoke checks against EcoFlow API.
@@ -86,13 +85,8 @@ Top-level structure:
 
 Key dashboard-focused files:
 
-- `cmd/ecoflow-mqtt-sub/main.go`: entrypoint and orchestration.
-- `cmd/ecoflow-mqtt-sub/mqtt_runtime.go`: MQTT connect/reconnect/read runtime.
-- `cmd/ecoflow-mqtt-sub/file_locking.go`: safe append sinks and per-device lock files.
-- `cmd/ecoflow-mqtt-sub/ui_async.go`: asynchronous UI output writer with bounded queue.
-- `cmd/ecoflow-mqtt-sub/viewmodel.go`: dashboard projection logic.
-- `cmd/ecoflow-mqtt-sub/renderer.go`: ASCII table rendering.
-- `cmd/ecoflow-mqtt-sub/estimates.go`: ETA and ML estimation logic.
-- `cmd/ecoflow-mqtt-sub/formatters.go`: display and unit formatting helpers.
-- `cmd/ecoflow-mqtt-sub/*_logic.go`: domain-specific mapping helpers
-  (battery, PV, MPPT).
+- `apps/universal/app/index.tsx`: universal fleet dashboard route.
+- `apps/universal/src/shared/providers/AppProvider.tsx`: root providers, theme, and query wiring.
+- `apps/pulse-platform/src/routes/devices.ts`: public REST device endpoints consumed by the app.
+- `apps/pulse-realtime-gateway/src/server.ts`: websocket gateway bootstrap and auth mode wiring.
+- `apps/pulse-realtime-gateway/src/live/*`: realtime snapshot + delta delivery pipeline.

@@ -1,7 +1,7 @@
 # How-To: Train Solar Panel Selection Model
 
-Train a per-port panel selection model from `logs/telemetry_training.csv` and
-use replay metrics to validate fit.
+Train a per-port panel selection model from telemetry CSV and use replay
+metrics to validate fit.
 
 ## Input
 
@@ -44,16 +44,8 @@ Optional overrides:
   panel_map.json
 ```
 
-## Runtime Usage in MQTT Dashboard
+## Output Usage
 
-Model loading is enabled by default in `cmd/ecoflow-mqtt-sub`.
-
-Environment controls:
-
-- `ECOFLOW_MQTT_PANEL_MODEL_ENABLED` (default `true`)
-- `ECOFLOW_MQTT_PANEL_MODEL_PATH` (default `data/solar_panels/panel_select_model.json`)
-- `ECOFLOW_MQTT_PANEL_MODEL_WINDOW` (default `240`)
-- `ECOFLOW_MQTT_PANEL_MODEL_MIN_SAMPLES` (default `20`)
-
-When loaded, the dashboard annotates both PV rows (`low` and `high`) with
-real-time panel prediction + confidence.
+The generated `data/solar_panels/panel_select_model.json` artifact is retained
+for offline analysis and future runtime integrations. Keep it reproducible and
+versioned in the same branch when retraining materially changes model behavior.

@@ -13,59 +13,44 @@ ECOFLOW_BASE_URL=https://api.ecoflow.com
 EOF
 ```
 
-## 2. Set Target Device for MQTT
+## 2. Optional Local Noop-Auth User Mapping
 
-Add one of:
-
-- explicit serial:
-
-```bash
-ECOFLOW_MQTT_SN=<your-device-serial>
-```
-
-- name matching fallback:
+When running the local platform without full auth wired, set the user subject
+that the Node BFF should use to resolve owned devices:
 
 ```bash
-ECOFLOW_MQTT_DEVICE_MATCH=delta pro ultra
+PULSE_PLATFORM_DEV_SUBJECT=<your-user-subject>
 ```
-
-If both are set, `ECOFLOW_MQTT_SN` is authoritative.
 
 Keep your real device serials and provider credentials in `.env` or shell
 environment only; do not commit them into tracked config or docs.
 
-## 3. Optional Runtime Tuning
+## 3. Optional Seed Inputs
 
-Common MQTT tuning keys:
+For explicit local provider seeding:
 
-- `ECOFLOW_MQTT_KEEPALIVE`
-- `ECOFLOW_MQTT_CONNECT_TIMEOUT`
-- `ECOFLOW_MQTT_READ_TIMEOUT`
-- `ECOFLOW_MQTT_WRITE_TIMEOUT`
-- `ECOFLOW_MQTT_QUEUE_CAPACITY`
-- `ECOFLOW_MQTT_UI_QUEUE_CAPACITY`
-- `ECOFLOW_MQTT_UI_REFRESH_INTERVAL`
-- `ECOFLOW_MQTT_IDLE_RECONNECT_AFTER`
-- `ECOFLOW_MQTT_LOG_QUEUE_CAPACITY`
-- `ECOFLOW_MQTT_LOCK_DIR`
+- `ECOFLOW_DEV_ACCESS_KEY`
+- `ECOFLOW_DEV_SECRET_KEY`
+- `ECOFLOW_DEV_USER_SUBJECT`
+- `ECOFLOW_DEV_USER_EMAIL`
+- `ECOFLOW_DEV_SEED_SNS`
 
-History and fallback:
-
-- `ECOFLOW_MQTT_HISTORY_PATH`
-- `ECOFLOW_MQTT_HISTORY_LOAD_WINDOW_MINUTES`
-- `ECOFLOW_MQTT_AUTH_REJECT_THRESHOLD`
-- `ECOFLOW_MQTT_FALLBACK_POLL_INTERVAL`
-- `ECOFLOW_MQTT_FALLBACK_POLL_TIMEOUT`
-
-## 4. Verify
+## 4. Verify API Connectivity
 
 ```bash
 go run ./cmd/ecoflow-smoke
 ```
 
-If smoke passes, configuration is valid enough for dashboard startup.
+If smoke passes, configuration is valid enough for API access.
 
-## 5. Enable Expo Keycloak PKCE Login (optional)
+## 5. Boot the Local Platform (optional)
+
+```bash
+make dev-up
+make dev-web-deploy
+```
+
+## 6. Enable Expo Keycloak PKCE Login (optional)
 
 To enable the Settings -> Authentication (PKCE) card in the universal app:
 

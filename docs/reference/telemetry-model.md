@@ -213,14 +213,8 @@ Stored metrics:
 - total input and total output (Wh/min),
 - net (Wh/min).
 
-Persistence file:
-
-- `logs/telemetry_history.jsonl`
-
 Notes:
 
-- minute-history JSONL is a local reference/debug artifact, not the
-  user-facing history source of truth.
 - rollup tables may contain `sample_count = 0` rows for solar-only carry-forward
   buckets when canonical PV input spans a bucket without any direct point sample
   inside that bucket.
@@ -230,9 +224,7 @@ Notes:
 ML training data is persisted as CSV for offline model tuning.
 
 - file: `logs/telemetry_training.csv`
-- capture cadence: every power-related MQTT update, plus periodic sampled rows
-  using `ECOFLOW_MQTT_TRAINING_CSV_INTERVAL` + jitter.
-- writes are append-safe across processes and threads.
+- source: captured or curated telemetry exported for offline model work.
 
 PV fingerprint features can be generated from training telemetry:
 
@@ -246,37 +238,17 @@ Panel selection model can be trained from telemetry:
 - command: `go run ./cmd/ecoflow-panel-select-train`
 - output file: `data/solar_panels/panel_select_model.json`
 - replay mode reports per-port prediction accuracy and confidence.
-
-When loaded by `cmd/ecoflow-mqtt-sub`, PV low/high rows include:
-
-- predicted panel setup label,
-- confidence score,
-- sample count used by the runtime tracker.
-- Runtime model updates are gated by per-port PV voltage presence. When PV voltage
-  is absent, the dashboard keeps the last known panel detection/recommendation
-  instead of re-running prediction on no-input samples.
-- Trainer-side panel hint inference uses an irradiance-aware fit (volts/amps +
+- trainer-side panel hint inference uses an irradiance-aware fit (volts/amps +
   shoulder-hours weighting + MPPT clipping/safety constraints) to reduce
   low-sun misclassification into undersized panel classes.
 
-The dashboard recommendation table combines runtime panel predictions with
-device PV capability limits and panel DB compatibility metadata loaded at startup.
-
 ## Raw MQTT Replay Log
 
-For replay/training pipelines, MQTT payload ingress can be mirrored to a dedicated
-daily-rotated append-safe log:
+Historical raw MQTT capture logs remain useful for replay/training pipelines:
 
-- base path: `ECOFLOW_MQTT_RAW_PAYLOAD_LOG_PATH` (default `logs/mqtt_payload_raw.log`)
 - runtime files: `logs/mqtt_payload_raw-YYYY-MM-DD.log`
 - payload format: timestamped `topic=... payload_raw=...` lines
-- safety: same chunked file-lock append strategy as other runtime logs, safe for
-  multi-thread and multi-process append.
-
-## Units
-
-- Instantaneous dashboard channel values are watts (`W` or `kW`).
-- Minute table values are energy per minute (`Wh` or `kWh`).
+- use them as benchmark/replay inputs rather than as an active runtime output contract.
 
 ## Supported Device Behaviors
 
