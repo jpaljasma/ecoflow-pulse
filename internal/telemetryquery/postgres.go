@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -137,6 +138,8 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 			SOCMaxPct:        nullableFloat64(socMaxPct),
 			ACInAvgW:         nullableFloat64(acInAvgW),
 			ACInMaxW:         nullableFloat64(acInMaxW),
+			ACOutputAvgW:     nil,
+			ACOutputMaxW:     nil,
 			PVAvgW:           nullableFloat64(pvAvgW),
 			PVMaxW:           nullableFloat64(pvMaxW),
 			DCAvgW:           nullableFloat64(dcAvgW),
@@ -227,13 +230,6 @@ func enrichSolarEnergy(series Series) Series {
 }
 
 func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
-	if point.Metrics.SolarGeneratedWh != nil {
-		return point
-	}
-	pvAvgW, ok := positiveMetricValue(point.Metrics.PVAvgW)
-	if !ok {
-		return point
-	}
 	durationHours := point.BucketEnd.Sub(point.BucketStart).Hours()
 	if resolution == ResolutionMinute && durationHours <= 0 {
 		durationHours = time.Minute.Hours()
@@ -241,8 +237,56 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
 	if durationHours <= 0 {
 		return point
 	}
-	solarWh := pvAvgW * durationHours
-	point.Metrics.SolarGeneratedWh = floatPtr(solarWh)
+
+	if point.Metrics.SolarGeneratedWh == nil {
+		pvAvgW, ok := positiveMetricValue(point.Metrics.PVAvgW)
+		if ok {
+			solarWh := pvAvgW * durationHours
+			point.Metrics.SolarGeneratedWh = floatPtr(solarWh)
+		}
+	}
+
+	if point.Metrics.ACInputEnergyWh == nil {
+		if acInAvgW, ok := positiveMetricValue(point.Metrics.ACInAvgW); ok {
+			point.Metrics.ACInputEnergyWh = floatPtr(acInAvgW * durationHours)
+		}
+	}
+	if point.Metrics.ACOutputAvgW == nil {
+		if acOutputAvgW, ok := deriveACOutputPower(point.Metrics.LoadAvgW, point.Metrics.DCAvgW, nil, nil); ok {
+			point.Metrics.ACOutputAvgW = floatPtr(acOutputAvgW)
+		}
+	}
+	if point.Metrics.ACOutputMaxW == nil {
+		if acOutputMaxW, ok := deriveACOutputPower(point.Metrics.LoadMaxW, point.Metrics.DCMaxW, point.Metrics.LoadAvgW, point.Metrics.DCAvgW); ok {
+			point.Metrics.ACOutputMaxW = floatPtr(acOutputMaxW)
+		}
+	}
+	if point.Metrics.ACOutputEnergyWh == nil {
+		if acOutputAvgW, ok := positiveMetricValue(point.Metrics.ACOutputAvgW); ok {
+			point.Metrics.ACOutputEnergyWh = floatPtr(acOutputAvgW * durationHours)
+		}
+	}
+	if point.Metrics.DCOutputEnergyWh == nil {
+		if dcAvgW, ok := positiveMetricValue(point.Metrics.DCAvgW); ok {
+			point.Metrics.DCOutputEnergyWh = floatPtr(dcAvgW * durationHours)
+		}
+	}
+	if point.Metrics.LoadEnergyWh == nil {
+		if loadAvgW, ok := positiveMetricValue(point.Metrics.LoadAvgW); ok {
+			point.Metrics.LoadEnergyWh = floatPtr(loadAvgW * durationHours)
+		}
+	}
+	if point.Metrics.BatteryChargeEnergyWh == nil || point.Metrics.BatteryDischargeEnergyWh == nil {
+		if point.Metrics.BatteryAvgW != nil {
+			batteryAvgW := *point.Metrics.BatteryAvgW
+			if batteryAvgW > 0 && point.Metrics.BatteryChargeEnergyWh == nil {
+				point.Metrics.BatteryChargeEnergyWh = floatPtr(batteryAvgW * durationHours)
+			}
+			if batteryAvgW < 0 && point.Metrics.BatteryDischargeEnergyWh == nil {
+				point.Metrics.BatteryDischargeEnergyWh = floatPtr(math.Abs(batteryAvgW) * durationHours)
+			}
+		}
+	}
 	return point
 }
 
@@ -251,6 +295,32 @@ func positiveMetricValue(value *float64) (float64, bool) {
 		return 0, false
 	}
 	return *value, true
+}
+
+func deriveACOutputPower(primaryLoad, primaryDC, fallbackLoad, fallbackDC *float64) (float64, bool) {
+	loadW, loadOK := positiveMetricValue(primaryLoad)
+	dcW, dcOK := positiveMetricValue(primaryDC)
+	if loadOK {
+		if dcOK {
+			return math.Max(loadW-dcW, 0), true
+		}
+		if fallbackLoad != nil || fallbackDC != nil {
+			loadW, loadOK = positiveMetricValue(fallbackLoad)
+			dcW, _ = positiveMetricValue(fallbackDC)
+			if loadOK {
+				return math.Max(loadW-dcW, 0), true
+			}
+		}
+		return loadW, true
+	}
+	if fallbackLoad != nil || fallbackDC != nil {
+		loadW, loadOK = positiveMetricValue(fallbackLoad)
+		dcW, _ = positiveMetricValue(fallbackDC)
+		if loadOK {
+			return math.Max(loadW-dcW, 0), true
+		}
+	}
+	return 0, false
 }
 
 func floatPtr(value float64) *float64 {

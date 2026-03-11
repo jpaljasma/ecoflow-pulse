@@ -24,7 +24,12 @@ const RollupMetricsSchema = z.object({
   tempAvgC: z.number(),
   tempMinC: z.number(),
   tempMaxC: z.number(),
-  solarGeneratedWh: z.number()
+  solarGeneratedWh: z.number(),
+  acInputEnergyWh: z.number(),
+  dcOutputEnergyWh: z.number(),
+  loadEnergyWh: z.number(),
+  batteryChargeEnergyWh: z.number(),
+  batteryDischargeEnergyWh: z.number()
 });
 
 const RollupPointSchema = z.object({

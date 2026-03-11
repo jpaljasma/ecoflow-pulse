@@ -29,6 +29,15 @@ type Claims struct {
 type NoopAuthorizer struct{}
 
 func (NoopAuthorizer) Authorize(ctx context.Context, fullMethod string, claims *Claims) error {
+	if claims != nil {
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if claims.Subject == "" {
+				if vals := md.Get("x-user-subject"); len(vals) > 0 {
+					claims.Subject = strings.TrimSpace(vals[0])
+				}
+			}
+		}
+	}
 	return nil
 }
 

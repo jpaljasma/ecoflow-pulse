@@ -46,7 +46,7 @@ export function buildApp(
       hook: 'preHandler'
     });
     registerDeviceRoutes(scopedApp, config, deviceClient, inferenceClient, authPreHandler);
-    registerHistoryRoutes(scopedApp, historyClient, authPreHandler);
+    registerHistoryRoutes(scopedApp, config, historyClient, authPreHandler);
   });
   if (config.publicDir && fs.existsSync(config.publicDir)) {
     const indexHtmlPath = path.join(config.publicDir, 'index.html');

@@ -1,0 +1,365 @@
+import { useMemo, useState } from 'react';
+import { Platform, View } from 'react-native';
+import { Text, XStack, YStack } from 'tamagui';
+import { Canvas, Path, Skia } from '@shopify/react-native-skia';
+import { useThemeSemantics } from '@/shared/theme/semantic';
+
+type SeriesConfig = {
+  key: 'solar' | 'grid' | 'acOutput' | 'load' | 'dcOutput' | 'batteryCharge' | 'batteryDischarge';
+  label: string;
+  color: string;
+  values: number[];
+};
+
+const CHART_HEIGHT = 170;
+const PAD_X = 8;
+const PAD_Y = 14;
+const WEB_CHART_HEIGHT = 210;
+const Y_AXIS_WIDTH = 44;
+const X_AXIS_TICKS = 5;
+
+type Point = { x: number; y: number };
+
+function pointAt(points: Point[], idx: number): Point {
+  const clamped = Math.max(0, Math.min(points.length - 1, idx));
+  return points[clamped] ?? { x: 0, y: 0 };
+}
+
+function buildPoints(values: number[], width: number, height: number, min: number, max: number): Point[] {
+  if (values.length < 2 || width <= 0 || height <= 0) return [];
+  const plotW = Math.max(1, width - PAD_X * 2);
+  const plotH = Math.max(1, height - PAD_Y * 2);
+  const range = Math.max(1e-9, max - min);
+  return values.map((value, idx) => ({
+    x: PAD_X + (idx / (values.length - 1)) * plotW,
+    y: height - PAD_Y - ((value - min) / range) * plotH
+  }));
+}
+
+function buildSkiaSmoothPath(points: Point[]) {
+  if (points.length < 2) return null;
+  const path = Skia.Path.Make();
+  const first = pointAt(points, 0);
+  path.moveTo(first.x, first.y);
+
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = pointAt(points, i - 1);
+    const p1 = pointAt(points, i);
+    const p2 = pointAt(points, i + 1);
+    const p3 = pointAt(points, i + 2);
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  }
+
+  return path
+}
+
+function buildSvgSmoothPath(points: Point[]): string {
+  if (points.length < 2) return '';
+  const first = pointAt(points, 0);
+  let d = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = pointAt(points, i - 1);
+    const p1 = pointAt(points, i);
+    const p2 = pointAt(points, i + 1);
+    const p3 = pointAt(points, i + 2);
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)} ${cp2x.toFixed(2)} ${cp2y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  }
+  return d;
+}
+
+function formatAxisKWh(value: number): string {
+  if (Math.abs(value) >= 10) {
+    return `${value.toFixed(0)}kWh`;
+  }
+  return `${value.toFixed(1)}kWh`;
+}
+
+function formatAgoSeconds(seconds: number): string {
+  if (seconds <= 0) return 'now';
+  if (seconds >= 86400) return `${Math.round(seconds / 86400)}d`;
+  if (seconds >= 3600) return `${Math.round(seconds / 3600)}h`;
+  if (seconds >= 60) return `${Math.round(seconds / 60)}m`;
+  return `${Math.round(seconds)}s`;
+}
+
+function buildXAxisLabels(points: number, bucketSeconds: number): string[] {
+  const totalSeconds = Math.max(0, (points - 1) * bucketSeconds);
+  return Array.from({ length: X_AXIS_TICKS }, (_, idx) => {
+    const fraction = 1 - idx / (X_AXIS_TICKS - 1);
+    const secondsAgo = totalSeconds * fraction;
+    return formatAgoSeconds(secondsAgo);
+  });
+}
+
+export function EnergyTrendChart({
+  solar,
+  grid,
+  acOutput,
+  load,
+  dcOutput,
+  batteryCharge,
+  batteryDischarge,
+  points = 24,
+  bucketSeconds = 3600
+}: {
+  solar: number[];
+  grid: number[];
+  acOutput: number[];
+  load: number[];
+  dcOutput: number[];
+  batteryCharge: number[];
+  batteryDischarge: number[];
+  points?: number;
+  bucketSeconds?: number;
+}) {
+  const [width, setWidth] = useState(0);
+  const semantics = useThemeSemantics();
+  const [visible, setVisible] = useState<Record<SeriesConfig['key'], boolean>>({
+    solar: true,
+    grid: true,
+    acOutput: false,
+    load: true,
+    dcOutput: false,
+    batteryCharge: false,
+    batteryDischarge: false
+  });
+  const series = useMemo<SeriesConfig[]>(
+    () => [
+      { key: 'solar', label: 'Solar', color: semantics.chartSolar, values: solar.slice(-points) },
+      { key: 'grid', label: 'AC input', color: semantics.chartAc, values: grid.slice(-points) },
+      { key: 'acOutput', label: 'AC output', color: semantics.chartAcOutput, values: acOutput.slice(-points) },
+      { key: 'load', label: 'Load', color: semantics.chartLoad, values: load.slice(-points) },
+      { key: 'dcOutput', label: 'DC output', color: semantics.chartDc, values: dcOutput.slice(-points) },
+      {
+        key: 'batteryCharge',
+        label: 'Battery charge',
+        color: semantics.chartBatteryCharge,
+        values: batteryCharge.slice(-points)
+      },
+      {
+        key: 'batteryDischarge',
+        label: 'Battery discharge',
+        color: semantics.chartBatteryDischarge,
+        values: batteryDischarge.slice(-points)
+      }
+    ],
+    [
+      acOutput,
+      batteryCharge,
+      batteryDischarge,
+      dcOutput,
+      grid,
+      load,
+      points,
+      semantics.chartAc,
+      semantics.chartAcOutput,
+      semantics.chartBatteryCharge,
+      semantics.chartBatteryDischarge,
+      semantics.chartDc,
+      semantics.chartLoad,
+      semantics.chartSolar,
+      solar
+    ]
+  );
+  const activeSeries = useMemo(() => series.filter((item) => visible[item.key]), [series, visible]);
+  const allValues = useMemo(
+    () => activeSeries.flatMap((item) => item.values).filter((value) => Number.isFinite(value)),
+    [activeSeries]
+  );
+  const minVal = allValues.length ? Math.min(0, ...allValues) : 0;
+  const maxVal = allValues.length ? Math.max(1, ...allValues) : 1;
+  const yAxisLabels = useMemo(() => [maxVal, (maxVal + minVal) / 2, minVal], [maxVal, minVal]);
+  const xAxisLabels = useMemo(() => buildXAxisLabels(points, bucketSeconds), [points, bucketSeconds]);
+
+  if (Platform.OS === 'web') {
+    const webWidth = Math.max(300, width);
+    const horizontalGrid = [0, 0.5, 1].map((p) => PAD_Y + p * (WEB_CHART_HEIGHT - PAD_Y * 2));
+    const verticalGrid = [0, 0.25, 0.5, 0.75, 1].map((p) => PAD_X + p * (webWidth - PAD_X * 2));
+
+    return (
+      <YStack gap="$2">
+        <XStack gap="$3" flexWrap="wrap">
+          {series.map((item) => (
+            <XStack
+              key={item.key}
+              alignItems="center"
+              gap="$2"
+              opacity={visible[item.key] ? 1 : 0.38}
+              onPress={() => {
+                setVisible((prev) => ({ ...prev, [item.key]: !prev[item.key] }));
+              }}
+              cursor="pointer"
+            >
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: item.color }} />
+              <Text fontSize="$2" opacity={0.78}>
+                {item.label}
+              </Text>
+            </XStack>
+          ))}
+        </XStack>
+        <YStack
+          borderRadius="$4"
+          borderWidth={1}
+          style={{
+            borderColor: semantics.chartFrameBorder,
+            backgroundColor: semantics.chartFrameBackground
+          }}
+          overflow="hidden"
+        >
+          <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
+            <YStack width={Y_AXIS_WIDTH} height={WEB_CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
+              {yAxisLabels.map((value, idx) => (
+                <Text key={`energy-y-axis-web-${idx}`} fontSize="$1" opacity={0.62}>
+                  {formatAxisKWh(value)}
+                </Text>
+              ))}
+            </YStack>
+            <YStack flex={1} minWidth={0}>
+              <View
+                onLayout={(event) => {
+                  setWidth(Math.round(event.nativeEvent.layout.width));
+                }}
+                style={{ width: '100%', height: WEB_CHART_HEIGHT }}
+              >
+                {width > 0 ? (
+                  <svg width={webWidth} height={WEB_CHART_HEIGHT} viewBox={`0 0 ${webWidth} ${WEB_CHART_HEIGHT}`}>
+                    {horizontalGrid.map((y, idx) => (
+                      <line key={`energy-h-grid-${idx}`} x1={PAD_X} y1={y} x2={webWidth - PAD_X} y2={y} stroke={semantics.chartGridMajor} strokeWidth="1" />
+                    ))}
+                    {verticalGrid.map((x, idx) => (
+                      <line key={`energy-v-grid-${idx}`} x1={x} y1={PAD_Y} x2={x} y2={WEB_CHART_HEIGHT - PAD_Y} stroke={semantics.chartGridMinor} strokeWidth="1" />
+                    ))}
+                    {activeSeries.map((item) => {
+                      const pointsList = buildPoints(item.values, webWidth, WEB_CHART_HEIGHT, minVal, maxVal);
+                      const d = buildSvgSmoothPath(pointsList);
+                      if (!d) return null;
+                      return (
+                        <path
+                          key={`energy-line-${item.key}`}
+                          d={d}
+                          fill="none"
+                          stroke={item.color}
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      );
+                    })}
+                  </svg>
+                ) : null}
+              </View>
+              <XStack justifyContent="space-between" paddingHorizontal="$2">
+                {xAxisLabels.map((label, idx) => (
+                  <Text key={`energy-x-axis-web-${idx}`} fontSize="$1" opacity={0.62}>
+                    {label}
+                  </Text>
+                ))}
+              </XStack>
+            </YStack>
+          </XStack>
+        </YStack>
+      </YStack>
+    );
+  }
+
+  return (
+    <YStack gap="$2">
+      <XStack gap="$3" flexWrap="wrap">
+        {series.map((item) => (
+          <XStack
+            key={item.key}
+            alignItems="center"
+            gap="$2"
+            opacity={visible[item.key] ? 1 : 0.38}
+            onPress={() => {
+              setVisible((prev) => ({ ...prev, [item.key]: !prev[item.key] }));
+            }}
+          >
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: item.color }} />
+            <Text fontSize="$2" opacity={0.78}>
+              {item.label}
+            </Text>
+          </XStack>
+        ))}
+      </XStack>
+      <View
+        onLayout={(event) => {
+          setWidth(Math.round(event.nativeEvent.layout.width));
+        }}
+        style={{ width: '100%' }}
+      >
+        <XStack
+          borderRadius="$4"
+          borderWidth={1}
+          style={{
+            borderColor: semantics.chartFrameBorder,
+            backgroundColor: semantics.chartFrameBackground
+          }}
+          overflow="hidden"
+          padding="$2"
+          paddingBottom="$1"
+          alignItems="flex-start"
+        >
+          <YStack width={Y_AXIS_WIDTH} height={CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
+            {yAxisLabels.map((value, idx) => (
+              <Text key={`energy-y-axis-native-${idx}`} fontSize="$1" opacity={0.62}>
+                {formatAxisKWh(value)}
+              </Text>
+            ))}
+          </YStack>
+          <YStack flex={1} minWidth={0}>
+            {width > 0 ? (
+              <Canvas style={{ width, height: CHART_HEIGHT }}>
+                {[0, 0.5, 1].map((p, idx) => {
+                  const y = PAD_Y + p * (CHART_HEIGHT - PAD_Y * 2);
+                  const line = Skia.Path.Make();
+                  line.moveTo(PAD_X, y);
+                  line.lineTo(width - PAD_X, y);
+                  return <Path key={`energy-h-grid-native-${idx}`} path={line} color={semantics.chartGridMajor} style="stroke" strokeWidth={1} />;
+                })}
+                {[0, 0.25, 0.5, 0.75, 1].map((p, idx) => {
+                  const x = PAD_X + p * (width - PAD_X * 2);
+                  const line = Skia.Path.Make();
+                  line.moveTo(x, PAD_Y);
+                  line.lineTo(x, CHART_HEIGHT - PAD_Y);
+                  return <Path key={`energy-v-grid-native-${idx}`} path={line} color={semantics.chartGridMinor} style="stroke" strokeWidth={1} />;
+                })}
+                {activeSeries.map((item) => {
+                  const pointsList = buildPoints(item.values, width, CHART_HEIGHT, minVal, maxVal);
+                  const path = buildSkiaSmoothPath(pointsList);
+                  if (!path) return null;
+                  return (
+                    <Path
+                      key={item.key}
+                      path={path}
+                      color={item.color}
+                      style="stroke"
+                      strokeWidth={2}
+                      strokeCap="round"
+                      strokeJoin="round"
+                    />
+                  );
+                })}
+              </Canvas>
+            ) : null}
+            <XStack justifyContent="space-between" paddingHorizontal="$2">
+              {xAxisLabels.map((label, idx) => (
+                <Text key={`energy-x-axis-native-${idx}`} fontSize="$1" opacity={0.62}>
+                  {label}
+                </Text>
+              ))}
+            </XStack>
+          </YStack>
+        </XStack>
+      </View>
+    </YStack>
+  );
+}

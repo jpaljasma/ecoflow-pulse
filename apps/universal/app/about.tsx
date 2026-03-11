@@ -19,6 +19,10 @@ const capabilityItems = [
     body: 'See solar input, battery state, load flow, and device health in a single operator-grade view.'
   },
   {
+    title: 'Energy dashboard',
+    body: 'Compare solar, load, battery movement, PV envelope, and estimated value across local-calendar windows for one device or the whole fleet.'
+  },
+  {
     title: 'Cross-platform by default',
     body: 'One experience across web, iPhone, iPad, and Android without giving up fast telemetry feedback.'
   },
@@ -30,7 +34,7 @@ const capabilityItems = [
 
 const trustItems = [
   'Live telemetry with system-aware light and dark presentation',
-  'Professional device summaries, trends, and solar performance context',
+  'Professional device summaries, trends, Energy dashboard views, and solar performance context',
   'Fast local and cloud-ready workflows for modern energy operations'
 ] as const;
 
@@ -138,8 +142,8 @@ export default function AboutScreen() {
                       style={{ color: spec.colors.color }}
                     >
                       EcoFlow Pulse turns live device telemetry into a clean energy operations interface.
-                      It brings solar, storage, backup power, and fleet awareness into one refined control
-                      room that feels immediate on web and native.
+                      It brings solar, storage, backup power, fleet awareness, and a dedicated Energy
+                      dashboard into one refined control room that feels immediate on web and native.
                     </Text>
 
                     <XStack gap="$2" flexWrap="wrap">
@@ -182,7 +186,7 @@ export default function AboutScreen() {
                         }}
                       >
                         <Text fontSize="$2" fontWeight="700" style={{ color: semantics.periodActiveText }}>
-                          Professional dashboard
+                          Energy dashboard
                         </Text>
                       </YStack>
                     </XStack>

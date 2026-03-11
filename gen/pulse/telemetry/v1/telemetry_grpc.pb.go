@@ -23,6 +23,7 @@ const (
 	TelemetryService_Subscribe_FullMethodName          = "/pulse.telemetry.v1.TelemetryService/Subscribe"
 	TelemetryService_QueryRollupRange_FullMethodName   = "/pulse.telemetry.v1.TelemetryService/QueryRollupRange"
 	TelemetryService_CompareRollupRange_FullMethodName = "/pulse.telemetry.v1.TelemetryService/CompareRollupRange"
+	TelemetryService_GetEnergyDashboard_FullMethodName = "/pulse.telemetry.v1.TelemetryService/GetEnergyDashboard"
 )
 
 // TelemetryServiceClient is the client API for TelemetryService service.
@@ -33,6 +34,7 @@ type TelemetryServiceClient interface {
 	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SubscribeResponse], error)
 	QueryRollupRange(ctx context.Context, in *QueryRollupRangeRequest, opts ...grpc.CallOption) (*QueryRollupRangeResponse, error)
 	CompareRollupRange(ctx context.Context, in *CompareRollupRangeRequest, opts ...grpc.CallOption) (*CompareRollupRangeResponse, error)
+	GetEnergyDashboard(ctx context.Context, in *GetEnergyDashboardRequest, opts ...grpc.CallOption) (*GetEnergyDashboardResponse, error)
 }
 
 type telemetryServiceClient struct {
@@ -92,6 +94,16 @@ func (c *telemetryServiceClient) CompareRollupRange(ctx context.Context, in *Com
 	return out, nil
 }
 
+func (c *telemetryServiceClient) GetEnergyDashboard(ctx context.Context, in *GetEnergyDashboardRequest, opts ...grpc.CallOption) (*GetEnergyDashboardResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEnergyDashboardResponse)
+	err := c.cc.Invoke(ctx, TelemetryService_GetEnergyDashboard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TelemetryServiceServer is the server API for TelemetryService service.
 // All implementations must embed UnimplementedTelemetryServiceServer
 // for forward compatibility.
@@ -100,6 +112,7 @@ type TelemetryServiceServer interface {
 	Subscribe(*SubscribeRequest, grpc.ServerStreamingServer[SubscribeResponse]) error
 	QueryRollupRange(context.Context, *QueryRollupRangeRequest) (*QueryRollupRangeResponse, error)
 	CompareRollupRange(context.Context, *CompareRollupRangeRequest) (*CompareRollupRangeResponse, error)
+	GetEnergyDashboard(context.Context, *GetEnergyDashboardRequest) (*GetEnergyDashboardResponse, error)
 	mustEmbedUnimplementedTelemetryServiceServer()
 }
 
@@ -121,6 +134,9 @@ func (UnimplementedTelemetryServiceServer) QueryRollupRange(context.Context, *Qu
 }
 func (UnimplementedTelemetryServiceServer) CompareRollupRange(context.Context, *CompareRollupRangeRequest) (*CompareRollupRangeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompareRollupRange not implemented")
+}
+func (UnimplementedTelemetryServiceServer) GetEnergyDashboard(context.Context, *GetEnergyDashboardRequest) (*GetEnergyDashboardResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEnergyDashboard not implemented")
 }
 func (UnimplementedTelemetryServiceServer) mustEmbedUnimplementedTelemetryServiceServer() {}
 func (UnimplementedTelemetryServiceServer) testEmbeddedByValue()                          {}
@@ -208,6 +224,24 @@ func _TelemetryService_CompareRollupRange_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TelemetryService_GetEnergyDashboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEnergyDashboardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelemetryServiceServer).GetEnergyDashboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelemetryService_GetEnergyDashboard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelemetryServiceServer).GetEnergyDashboard(ctx, req.(*GetEnergyDashboardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TelemetryService_ServiceDesc is the grpc.ServiceDesc for TelemetryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -226,6 +260,10 @@ var TelemetryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompareRollupRange",
 			Handler:    _TelemetryService_CompareRollupRange_Handler,
+		},
+		{
+			MethodName: "GetEnergyDashboard",
+			Handler:    _TelemetryService_GetEnergyDashboard_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

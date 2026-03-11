@@ -220,6 +220,231 @@ function buildRollupPoint(bucketStartMs: number, durationMinutes: number, pvAvgW
   };
 }
 
+function buildEnergyRollupPoint(bucketStartMs: number, durationMinutes: number, values: {
+  solarGeneratedWh: number;
+  acInputEnergyWh: number;
+  loadEnergyWh: number;
+  pvAvgW: number;
+  acInAvgW: number;
+  loadAvgW: number;
+}): Record<string, unknown> {
+  const bucketEndMs = bucketStartMs + durationMinutes * 60_000;
+  return {
+    bucketStartUnixMs: toUnixMsString(bucketStartMs),
+    bucketEndUnixMs: toUnixMsString(bucketEndMs),
+    sampleCount: 1,
+    firstTsUnixMs: toUnixMsString(bucketStartMs),
+    lastTsUnixMs: toUnixMsString(bucketEndMs - 1000),
+    metrics: {
+      socAvgPct: 42,
+      socMinPct: 39,
+      socMaxPct: 46,
+      acInAvgW: values.acInAvgW,
+      acInMaxW: values.acInAvgW + 18,
+      acOutputAvgW: Math.max(values.loadAvgW - 18, 0),
+      acOutputMaxW: Math.max(values.loadAvgW + 4, 0),
+      pvAvgW: values.pvAvgW,
+      pvMaxW: values.pvAvgW + 30,
+      dcAvgW: 18,
+      dcMaxW: 24,
+      loadAvgW: values.loadAvgW,
+      loadMaxW: values.loadAvgW + 22,
+      netAvgW: values.pvAvgW - values.loadAvgW,
+      netMinW: -120,
+      netMaxW: 160,
+      batteryAvgW: -36,
+      batteryMinW: -82,
+      batteryMaxW: 12,
+      tempAvgC: 23,
+      tempMinC: 22,
+      tempMaxC: 24,
+      solarGeneratedWh: values.solarGeneratedWh,
+      acInputEnergyWh: values.acInputEnergyWh,
+      acOutputEnergyWh: Math.max(values.loadEnergyWh - 18, 0),
+      dcOutputEnergyWh: 18,
+      loadEnergyWh: values.loadEnergyWh,
+      batteryChargeEnergyWh: 0,
+      batteryDischargeEnergyWh: 36
+    }
+  };
+}
+
+function clonePoint<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function buildEnergyDashboard({
+  includeComparison = true,
+  scope = 'all',
+  deviceId,
+  preset = 'today',
+  timezone = 'UTC'
+}: {
+  includeComparison?: boolean;
+  scope?: 'all' | 'device';
+  deviceId?: string;
+  preset?: string;
+  timezone?: string;
+}) {
+  const currentBase = Date.UTC(2026, 2, 4, 0, 0, 0);
+  const previousBase = Date.UTC(2026, 2, 3, 0, 0, 0);
+  const currentEnergyPoints = [
+    buildEnergyRollupPoint(currentBase, 60, {
+      solarGeneratedWh: 280,
+      acInputEnergyWh: 60,
+      loadEnergyWh: 240,
+      pvAvgW: 280,
+      acInAvgW: 60,
+      loadAvgW: 240
+    }),
+    buildEnergyRollupPoint(currentBase + 60 * 60_000, 60, {
+      solarGeneratedWh: 520,
+      acInputEnergyWh: 40,
+      loadEnergyWh: 310,
+      pvAvgW: 520,
+      acInAvgW: 40,
+      loadAvgW: 310
+    }),
+    buildEnergyRollupPoint(currentBase + 2 * 60 * 60_000, 60, {
+      solarGeneratedWh: 460,
+      acInputEnergyWh: 30,
+      loadEnergyWh: 280,
+      pvAvgW: 460,
+      acInAvgW: 30,
+      loadAvgW: 280
+    })
+  ];
+  const previousEnergyPoints = [
+    buildEnergyRollupPoint(previousBase, 60, {
+      solarGeneratedWh: 140,
+      acInputEnergyWh: 90,
+      loadEnergyWh: 230,
+      pvAvgW: 140,
+      acInAvgW: 90,
+      loadAvgW: 230
+    }),
+    buildEnergyRollupPoint(previousBase + 60 * 60_000, 60, {
+      solarGeneratedWh: 260,
+      acInputEnergyWh: 80,
+      loadEnergyWh: 260,
+      pvAvgW: 260,
+      acInAvgW: 80,
+      loadAvgW: 260
+    })
+  ];
+
+  const resolvedDeviceIds =
+    scope === 'device' && deviceId && DEVICE_BY_KEY.has(deviceId)
+      ? [deviceId]
+      : [DPU_DEVICE_ID, D2M_DEVICE_ID];
+  const selectedDevice = resolvedDeviceIds[0];
+  const scopedCurrentEnergyPoints =
+    scope === 'device' && selectedDevice === D2M_DEVICE_ID
+      ? currentEnergyPoints.slice(0, 2)
+      : currentEnergyPoints;
+  const scopedPreviousEnergyPoints =
+    scope === 'device' && selectedDevice === D2M_DEVICE_ID
+      ? previousEnergyPoints.slice(0, 1)
+      : previousEnergyPoints;
+  const scopedPVHistory =
+    scope === 'device'
+      ? [
+          {
+            deviceId: selectedDevice,
+            portId: selectedDevice === D2M_DEVICE_ID ? 'pv1' : 'pv-low',
+            portLabel: selectedDevice === D2M_DEVICE_ID ? 'PV 1' : 'PV Low',
+            maxObservedVolts: selectedDevice === D2M_DEVICE_ID ? 29.5 : 72.5,
+            maxObservedAmps: selectedDevice === D2M_DEVICE_ID ? 2.1 : 1.15,
+            maxObservedWatts: selectedDevice === D2M_DEVICE_ID ? 61.9 : 83.3,
+            lastObservedVolts: selectedDevice === D2M_DEVICE_ID ? 24.1 : 66.3,
+            lastObservedAmps: selectedDevice === D2M_DEVICE_ID ? 0.0 : 0.79,
+            lastObservedWatts: selectedDevice === D2M_DEVICE_ID ? 0.0 : 52.4,
+            lastObservedUnixMs: toUnixMsString(currentBase + 2 * 60 * 60_000),
+            sampleCount: selectedDevice === D2M_DEVICE_ID ? 2 : 3
+          }
+        ]
+      : [
+          {
+            deviceId: DPU_DEVICE_ID,
+            portId: 'pv-low',
+            portLabel: 'PV Low',
+            maxObservedVolts: 72.5,
+            maxObservedAmps: 1.15,
+            maxObservedWatts: 83.3,
+            lastObservedVolts: 66.3,
+            lastObservedAmps: 0.79,
+            lastObservedWatts: 52.4,
+            lastObservedUnixMs: toUnixMsString(currentBase + 2 * 60 * 60_000),
+            sampleCount: 3
+          },
+          {
+            deviceId: DPU_DEVICE_ID,
+            portId: 'pv-high',
+            portLabel: 'PV High',
+            maxObservedVolts: 335.9,
+            maxObservedAmps: 0.75,
+            maxObservedWatts: 252.0,
+            lastObservedVolts: 322.1,
+            lastObservedAmps: 0.63,
+            lastObservedWatts: 201.0,
+            lastObservedUnixMs: toUnixMsString(currentBase + 2 * 60 * 60_000),
+            sampleCount: 3
+          }
+        ];
+
+  const scopedSummary =
+    scope === 'device' && selectedDevice === D2M_DEVICE_ID
+      ? {
+          solarGeneratedKwh: { current: 0.26, previous: includeComparison ? 0.12 : 0, delta: includeComparison ? 0.14 : 0.26, deltaPct: includeComparison ? 116.7 : null },
+          loadConsumedKwh: { current: 0.51, previous: includeComparison ? 0.44 : 0, delta: includeComparison ? 0.07 : 0.51, deltaPct: includeComparison ? 15.9 : null },
+          selfSufficiencyPct: { current: 22.0, previous: includeComparison ? 18.5 : 0, delta: includeComparison ? 3.5 : 22.0, deltaPct: includeComparison ? 18.9 : null },
+          batteryNetKwh: { current: -0.08, previous: includeComparison ? -0.04 : 0, delta: includeComparison ? -0.04 : -0.08, deltaPct: includeComparison ? -100 : null },
+          estimatedValue: { current: 0.05, previous: includeComparison ? 0.02 : 0, delta: includeComparison ? 0.03 : 0.05, deltaPct: includeComparison ? 150 : null },
+          estimatedAcInputCost: { current: 0.08, previous: includeComparison ? 0.07 : 0, delta: includeComparison ? 0.01 : 0.08, deltaPct: includeComparison ? 14.3 : null },
+          currency: 'USD'
+        }
+      : {
+          solarGeneratedKwh: { current: 1.26, previous: includeComparison ? 0.4 : 0, delta: includeComparison ? 0.86 : 1.26, deltaPct: includeComparison ? 215 : null },
+          loadConsumedKwh: { current: 0.83, previous: includeComparison ? 0.49 : 0, delta: includeComparison ? 0.34 : 0.83, deltaPct: includeComparison ? 69.4 : null },
+          selfSufficiencyPct: { current: 84.5, previous: includeComparison ? 61.3 : 0, delta: includeComparison ? 23.2 : 84.5, deltaPct: includeComparison ? 37.8 : null },
+          batteryNetKwh: { current: -0.11, previous: includeComparison ? -0.05 : 0, delta: includeComparison ? -0.06 : -0.11, deltaPct: includeComparison ? -120 : null },
+          estimatedValue: { current: 0.24, previous: includeComparison ? 0.09 : 0, delta: includeComparison ? 0.15 : 0.24, deltaPct: includeComparison ? 166.7 : null },
+          estimatedAcInputCost: { current: 0.04, previous: includeComparison ? 0.05 : 0, delta: includeComparison ? -0.01 : 0.04, deltaPct: includeComparison ? -20 : null },
+          currency: 'USD'
+        };
+
+  return {
+    scope: {
+      mode: scope,
+      deviceId: scope === 'device' ? selectedDevice : '',
+      resolvedDeviceIds
+    },
+    window: {
+      preset,
+      timezone,
+      fromUnixMs: toUnixMsString(currentBase),
+      toUnixMs: toUnixMsString(currentBase + 3 * 60 * 60_000),
+      previousFromUnixMs: toUnixMsString(previousBase),
+      previousToUnixMs: toUnixMsString(previousBase + 3 * 60 * 60_000)
+    },
+    summary: scopedSummary,
+    battery: {
+      chargeKwh: scope === 'device' && selectedDevice === D2M_DEVICE_ID ? 0.02 : 0,
+      dischargeKwh: scope === 'device' && selectedDevice === D2M_DEVICE_ID ? 0.1 : 0.11,
+      netKwh: scope === 'device' && selectedDevice === D2M_DEVICE_ID ? -0.08 : -0.11,
+      socStartPct: scope === 'device' && selectedDevice === D2M_DEVICE_ID ? 34 : 44,
+      socEndPct: scope === 'device' && selectedDevice === D2M_DEVICE_ID ? 29 : 39,
+      socMinPct: scope === 'device' && selectedDevice === D2M_DEVICE_ID ? 29 : 39,
+      socMaxPct: scope === 'device' && selectedDevice === D2M_DEVICE_ID ? 35 : 46
+    },
+    currentEnergyPoints: clonePoint(scopedCurrentEnergyPoints),
+    previousEnergyPoints: includeComparison ? clonePoint(scopedPreviousEnergyPoints) : [],
+    currentPowerPoints: clonePoint(scopedCurrentEnergyPoints),
+    previousPowerPoints: includeComparison ? clonePoint(scopedPreviousEnergyPoints) : [],
+    pvPortHistory: scopedPVHistory
+  };
+}
+
 function buildCompareHistory(deviceId: string) {
   const isDpu = deviceId === DPU_DEVICE_ID;
   const currentBase = Date.UTC(2026, 2, 4, 6, 0, 0);
@@ -290,6 +515,22 @@ export async function mockApiRoutes(page: Page): Promise<void> {
         return;
       }
       await fulfillJson(route, buildCompareHistory(deviceId));
+      return;
+    }
+
+    if (pathname === '/api/v1/energy/dashboard') {
+      const scopeParam = url.searchParams.get('scope');
+      const scope = scopeParam === 'device' ? 'device' : 'all';
+      await fulfillJson(
+        route,
+        buildEnergyDashboard({
+          includeComparison: url.searchParams.get('includeComparison') !== 'false',
+          scope,
+          deviceId: url.searchParams.get('deviceId') ?? undefined,
+          preset: url.searchParams.get('preset') ?? 'today',
+          timezone: url.searchParams.get('timezone') ?? 'UTC'
+        })
+      );
       return;
     }
 

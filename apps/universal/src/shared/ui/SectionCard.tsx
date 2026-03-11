@@ -7,16 +7,18 @@ export function SectionCard({
   right,
   children,
   minWidth,
-  flex = 1
+  flex = 1,
+  fullWidth = false
 }: {
   title: ReactNode;
   right?: ReactNode;
   children: ReactNode;
   minWidth?: number;
   flex?: number;
+  fullWidth?: boolean;
 }) {
   return (
-    <Card gap="$3" flex={flex} minWidth={minWidth}>
+    <Card gap="$3" flex={fullWidth ? undefined : flex} minWidth={minWidth} width={fullWidth ? '100%' : undefined} alignSelf={fullWidth ? 'stretch' : undefined}>
       <XStack justifyContent="space-between" alignItems="center">
         <Text fontSize="$4" fontWeight="700">
           {title}
@@ -27,4 +29,3 @@ export function SectionCard({
     </Card>
   );
 }
-

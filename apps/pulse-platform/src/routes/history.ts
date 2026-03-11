@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
 
+import type { AppConfig } from '../config.js';
 import type { TelemetryHistoryClient } from '../grpc/telemetryClient.js';
 import {
   buildCompareSolarHistoryView,
@@ -11,6 +12,9 @@ import {
 
 const resolutionSchema = z.enum(['minute', 'hour', 'day']);
 const timeParamSchema = z.union([z.string(), z.number()]);
+const booleanQuerySchema = z
+  .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
+  .transform((value) => value === true || value === 'true' || value === '1');
 
 const querySchema = z.object({
   resolution: resolutionSchema,
@@ -39,8 +43,29 @@ const solarFleetQuerySchema = z.object({
   compare: z.enum(['previous_period']).optional().default('previous_period')
 });
 
+const energyDashboardQuerySchema = z
+  .object({
+    deviceId: z.string().uuid().optional(),
+    scope: z.enum(['device', 'all']).optional().default('device'),
+    preset: z.enum(['today', 'yesterday', 'last7d', 'thisWeek', 'previousWeek', 'thisMonth', 'last12m']),
+    timezone: z.string().trim().min(1),
+    includeComparison: booleanQuerySchema.optional().default(true),
+    gridPricePerKwh: z.coerce.number().finite().nonnegative().optional(),
+    currency: z.string().trim().min(1).max(8).optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.scope === 'device' && !value.deviceId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['deviceId'],
+        message: 'deviceId is required when scope=device'
+      });
+    }
+  });
+
 export function registerHistoryRoutes(
   app: FastifyInstance,
+  config: AppConfig,
   historyClient: TelemetryHistoryClient,
   authPreHandler: preHandlerHookHandler
 ): void {
@@ -158,6 +183,32 @@ export function registerHistoryRoutes(
       }
     }
   );
+
+  app.get(
+    '/api/v1/energy/dashboard',
+    { preHandler: historyPreHandlers },
+    async (request, reply) => {
+      try {
+        const query = energyDashboardQuerySchema.parse(request.query);
+        const result = await historyClient.getEnergyDashboard({
+          deviceId: query.scope === 'device' ? query.deviceId : undefined,
+          useAllDevices: query.scope === 'all',
+          preset: query.preset,
+          timezone: query.timezone,
+          includeComparison: query.includeComparison,
+          gridPricePerKwh: query.gridPricePerKwh,
+          currency: query.currency,
+          authHeader: extractAuthHeader(request),
+          userSubject: resolveUserSubject(config, request),
+          requestID: request.id,
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return result;
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
+    }
+  );
 }
 
 function normalizeTime(value: string | number): string {
@@ -178,6 +229,23 @@ function extractAuthHeader(request: { headers: Record<string, unknown> }): strin
     return raw.trim();
   }
   return undefined;
+}
+
+function resolveUserSubject(
+  config: AppConfig,
+  request: { auth?: { subject?: string }; headers: Record<string, unknown> }
+): string | undefined {
+  if (request.auth?.subject) {
+    return request.auth.subject;
+  }
+  if (config.auth.mode !== 'noop') {
+    return undefined;
+  }
+  const fromHeader = request.headers['x-user-subject'];
+  if (typeof fromHeader === 'string' && fromHeader.trim()) {
+    return fromHeader.trim();
+  }
+  return config.devUserSubject;
 }
 
 function normalizeDeviceIDs(deviceIDValue: string | string[]): string[] {

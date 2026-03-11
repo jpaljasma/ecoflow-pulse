@@ -36,9 +36,13 @@ export function useThemeSemantics() {
       actionBackground: withAlpha(info, isDark ? 0.14 : 0.08),
       actionBorder: withAlpha(info, isDark ? 0.34 : 0.24),
       actionText: emphasize(info, isDark),
-      periodActiveBackground: withAlpha(spec.colors.accentColor, isDark ? 0.2 : 0.14),
-      periodActiveBorder: withAlpha(spec.colors.accentColor, isDark ? 0.38 : 0.34),
-      periodActiveText: emphasize(spec.colors.accentColor, isDark),
+      periodActiveBackground: isDark
+        ? mix(spec.semantic.success, '#000000', 0.26)
+        : mix(spec.semantic.success, '#000000', 0.12),
+      periodActiveBorder: isDark
+        ? mix(spec.semantic.success, '#ffffff', 0.12)
+        : mix(spec.semantic.success, '#000000', 0.22),
+      periodActiveText: isDark ? '#f4fff8' : '#f8fffb',
       periodIdleBackground: withAlpha(neutralBase, isDark ? 0.12 : 0.08),
       periodIdleBorder: withAlpha(neutralBase, isDark ? 0.36 : 0.34),
       periodIdleText: isDark ? spec.colors.colorMuted : mix(spec.colors.color, spec.colors.colorMuted, 0.18),
@@ -63,8 +67,20 @@ export function useThemeSemantics() {
       chartSolarMuted: withAlpha(spec.semantic.solar, 0.72),
       chartSolarCrosshair: withAlpha(spec.semantic.solar, isDark ? 0.32 : 0.28),
       chartAc: spec.semantic.ac,
+      chartAcOutput: mix(spec.semantic.ac, spec.semantic.load, isDark ? 0.32 : 0.38),
       chartDc: spec.semantic.dc,
       chartLoad: spec.semantic.load,
+      chartBatteryPower: isDark
+        ? mix(spec.semantic.success, spec.semantic.solar, 0.24)
+        : mix(spec.semantic.success, spec.semantic.solar, 0.16),
+      batteryFlowCharge: emphasize(spec.semantic.success, isDark),
+      batteryFlowDischarge: isDark
+        ? mix(spec.colors.colorMuted, '#ffffff', 0.1)
+        : mix(spec.colors.color, spec.colors.colorMuted, 0.22),
+      chartBatteryCharge: emphasize(spec.semantic.success, isDark),
+      chartBatteryDischarge: isDark
+        ? mix(spec.colors.colorMuted, '#ffffff', 0.1)
+        : mix(spec.colors.color, spec.colors.colorMuted, 0.22),
       metricCo2eBase: spec.semantic.co2e,
       metricAirBase: spec.semantic.air,
       metricEvMilesBase: spec.semantic.evMiles,

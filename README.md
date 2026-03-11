@@ -46,6 +46,10 @@ Android.
   Appearance experience.
 - Solar history UI now ships a `06:00-20:00` local comparison chart with
   10-minute buckets, prior-day overlay, and hover/tap bucket inspection.
+- `Energy` dashboard now ships end-to-end with fleet or single-device scope,
+  local-calendar windows, comparison mode, power and energy history charts,
+  battery-flow summary, PV operating envelope diagnostics, and estimated value
+  cards.
 - `Energy Impact` now estimates today-so-far avoided `CO2e`, `NOx`, and `SO2`,
   plus conservative mature-tree equivalent and premium-EV driving-energy miles,
   with versioned methodology and an in-app explainer.
@@ -55,6 +59,8 @@ Android.
 - Realtime fleet and device dashboards with snapshot-first websocket delivery.
 - Historical minute/hour/day views backed by Timescale rollups and comparison
   APIs.
+- Dedicated `Energy` dashboard for multi-window solar, load, battery, PV
+  envelope, and value analysis across one device or the whole fleet.
 - Solar-specific telemetry visibility including MPPT state, watts, volts, amps,
   and local-day generation comparison.
 - Auth-aware universal client with Keycloak OIDC, Expo PKCE, persisted session

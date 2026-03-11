@@ -167,6 +167,9 @@ func TestEnrichSolarEnergyDerivesExplicitWhWithoutFillingMinuteGaps(t *testing.T
 	if *series.Points[0].Metrics.SolarGeneratedWh != 1.2 {
 		t.Fatalf("solar_generated_wh mismatch: got=%v want=1.2", *series.Points[0].Metrics.SolarGeneratedWh)
 	}
+	if series.Points[0].Metrics.LoadEnergyWh != nil {
+		t.Fatalf("expected no derived load_energy_wh without load avg, got=%v", *series.Points[0].Metrics.LoadEnergyWh)
+	}
 }
 
 func TestEnrichSolarEnergyLeavesZeroPvWithoutSyntheticWh(t *testing.T) {
@@ -196,5 +199,71 @@ func TestEnrichSolarEnergyLeavesZeroPvWithoutSyntheticWh(t *testing.T) {
 	}
 	if series.Points[0].Metrics.SolarGeneratedWh != nil {
 		t.Fatalf("expected no derived solar_generated_wh for zero pv, got=%v", *series.Points[0].Metrics.SolarGeneratedWh)
+	}
+}
+
+func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, time.March, 6, 8, 0, 0, 0, time.UTC)
+	acIn := 120.0
+	dc := 30.0
+	load := 180.0
+	batteryCharge := 45.0
+	batteryDischarge := -20.0
+	series := enrichSolarEnergy(Series{
+		DeviceID:   "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
+		Resolution: ResolutionHour,
+		From:       from,
+		To:         from.Add(2 * time.Hour),
+		Points: []Point{
+			{
+				BucketStart: from,
+				BucketEnd:   from.Add(time.Hour),
+				SampleCount: 4,
+				Metrics: Metrics{
+					ACInAvgW:    &acIn,
+					DCAvgW:      &dc,
+					LoadAvgW:    &load,
+					BatteryAvgW: &batteryCharge,
+				},
+			},
+			{
+				BucketStart: from.Add(time.Hour),
+				BucketEnd:   from.Add(2 * time.Hour),
+				SampleCount: 4,
+				Metrics: Metrics{
+					BatteryAvgW: &batteryDischarge,
+				},
+			},
+		},
+	})
+
+	first := series.Points[0].Metrics
+	if first.ACInputEnergyWh == nil || *first.ACInputEnergyWh != 120 {
+		t.Fatalf("ac_input_energy_wh mismatch: got=%v want=120", first.ACInputEnergyWh)
+	}
+	if first.ACOutputAvgW == nil || *first.ACOutputAvgW != 150 {
+		t.Fatalf("ac_output_avg_w mismatch: got=%v want=150", first.ACOutputAvgW)
+	}
+	if first.ACOutputMaxW == nil || *first.ACOutputMaxW != 150 {
+		t.Fatalf("ac_output_max_w mismatch: got=%v want=150", first.ACOutputMaxW)
+	}
+	if first.ACOutputEnergyWh == nil || *first.ACOutputEnergyWh != 150 {
+		t.Fatalf("ac_output_energy_wh mismatch: got=%v want=150", first.ACOutputEnergyWh)
+	}
+	if first.DCOutputEnergyWh == nil || *first.DCOutputEnergyWh != 30 {
+		t.Fatalf("dc_output_energy_wh mismatch: got=%v want=30", first.DCOutputEnergyWh)
+	}
+	if first.LoadEnergyWh == nil || *first.LoadEnergyWh != 180 {
+		t.Fatalf("load_energy_wh mismatch: got=%v want=180", first.LoadEnergyWh)
+	}
+	if first.BatteryChargeEnergyWh == nil || *first.BatteryChargeEnergyWh != 45 {
+		t.Fatalf("battery_charge_energy_wh mismatch: got=%v want=45", first.BatteryChargeEnergyWh)
+	}
+
+	second := series.Points[1].Metrics
+	if second.BatteryDischargeEnergyWh == nil || *second.BatteryDischargeEnergyWh != 20 {
+		t.Fatalf("battery_discharge_energy_wh mismatch: got=%v want=20", second.BatteryDischargeEnergyWh)
 	}
 }

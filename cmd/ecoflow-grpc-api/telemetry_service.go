@@ -14,6 +14,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
+	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -26,21 +27,25 @@ import (
 // Timescale rollup tables through the telemetryquery reader.
 type TelemetryService struct {
 	telemetryv1.UnimplementedTelemetryServiceServer
-	log                 *slog.Logger
-	snapshotReader      projectionworker.SnapshotReader
-	queryReader         telemetryquery.Reader
-	controlPlaneStore   controlplane.Store
-	maxQueryBuckets     int
-	historyGzipMinBytes int
+	log                  *slog.Logger
+	snapshotReader       projectionworker.SnapshotReader
+	queryReader          telemetryquery.Reader
+	controlPlaneStore    controlplane.Store
+	archiveManifestStore replaycli.ManifestStore
+	archiveObjectReader  replaycli.ObjectReader
+	maxQueryBuckets      int
+	historyGzipMinBytes  int
 }
 
 type TelemetryServiceDeps struct {
-	Log                 *slog.Logger
-	SnapshotReader      projectionworker.SnapshotReader
-	QueryReader         telemetryquery.Reader
-	ControlPlaneStore   controlplane.Store
-	MaxQueryBuckets     int
-	HistoryGzipMinBytes int
+	Log                  *slog.Logger
+	SnapshotReader       projectionworker.SnapshotReader
+	QueryReader          telemetryquery.Reader
+	ControlPlaneStore    controlplane.Store
+	ArchiveManifestStore replaycli.ManifestStore
+	ArchiveObjectReader  replaycli.ObjectReader
+	MaxQueryBuckets      int
+	HistoryGzipMinBytes  int
 }
 
 var defaultSnapshotMetrics = map[string]float64{
@@ -81,12 +86,14 @@ func NewTelemetryServiceWithDeps(deps TelemetryServiceDeps) *TelemetryService {
 		historyGzipMinBytes = defaultHistoryGzipMinBytes
 	}
 	return &TelemetryService{
-		log:                 log,
-		snapshotReader:      deps.SnapshotReader,
-		queryReader:         deps.QueryReader,
-		controlPlaneStore:   deps.ControlPlaneStore,
-		maxQueryBuckets:     maxQueryBuckets,
-		historyGzipMinBytes: historyGzipMinBytes,
+		log:                  log,
+		snapshotReader:       deps.SnapshotReader,
+		queryReader:          deps.QueryReader,
+		controlPlaneStore:    deps.ControlPlaneStore,
+		archiveManifestStore: deps.ArchiveManifestStore,
+		archiveObjectReader:  deps.ArchiveObjectReader,
+		maxQueryBuckets:      maxQueryBuckets,
+		historyGzipMinBytes:  historyGzipMinBytes,
 	}
 }
 
@@ -539,6 +546,8 @@ func metricsToProto(metrics telemetryquery.Metrics) *telemetryv1.RollupMetrics {
 	out.SocMaxPct = metrics.SOCMaxPct
 	out.AcInAvgW = metrics.ACInAvgW
 	out.AcInMaxW = metrics.ACInMaxW
+	out.AcOutputAvgW = metrics.ACOutputAvgW
+	out.AcOutputMaxW = metrics.ACOutputMaxW
 	out.PvAvgW = metrics.PVAvgW
 	out.PvMaxW = metrics.PVMaxW
 	out.DcAvgW = metrics.DCAvgW
@@ -555,6 +564,12 @@ func metricsToProto(metrics telemetryquery.Metrics) *telemetryv1.RollupMetrics {
 	out.TempMinC = metrics.TempMinC
 	out.TempMaxC = metrics.TempMaxC
 	out.SolarGeneratedWh = metrics.SolarGeneratedWh
+	out.AcInputEnergyWh = metrics.ACInputEnergyWh
+	out.AcOutputEnergyWh = metrics.ACOutputEnergyWh
+	out.DcOutputEnergyWh = metrics.DCOutputEnergyWh
+	out.LoadEnergyWh = metrics.LoadEnergyWh
+	out.BatteryChargeEnergyWh = metrics.BatteryChargeEnergyWh
+	out.BatteryDischargeEnergyWh = metrics.BatteryDischargeEnergyWh
 	return out
 }
 
@@ -564,6 +579,8 @@ func isEmptyMetrics(metrics telemetryquery.Metrics) bool {
 		metrics.SOCMaxPct == nil &&
 		metrics.ACInAvgW == nil &&
 		metrics.ACInMaxW == nil &&
+		metrics.ACOutputAvgW == nil &&
+		metrics.ACOutputMaxW == nil &&
 		metrics.PVAvgW == nil &&
 		metrics.PVMaxW == nil &&
 		metrics.DCAvgW == nil &&
@@ -579,7 +596,13 @@ func isEmptyMetrics(metrics telemetryquery.Metrics) bool {
 		metrics.TempAvgC == nil &&
 		metrics.TempMinC == nil &&
 		metrics.TempMaxC == nil &&
-		metrics.SolarGeneratedWh == nil
+		metrics.SolarGeneratedWh == nil &&
+		metrics.ACInputEnergyWh == nil &&
+		metrics.ACOutputEnergyWh == nil &&
+		metrics.DCOutputEnergyWh == nil &&
+		metrics.LoadEnergyWh == nil &&
+		metrics.BatteryChargeEnergyWh == nil &&
+		metrics.BatteryDischargeEnergyWh == nil
 }
 
 func resolutionToProto(resolution telemetryquery.Resolution) telemetryv1.RollupResolution {

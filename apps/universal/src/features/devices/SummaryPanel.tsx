@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
+import { router } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
-import { Text, XStack, YStack } from 'tamagui';
+import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import { Card } from '@/shared/ui/Card';
 import { ChartSection } from '@/shared/ui/ChartSection';
@@ -220,9 +221,32 @@ export function SummaryPanel({
   return (
     <Card>
       <YStack gap="$3">
-        <Text fontSize="$5" fontWeight="700">
-          Fleet Summary
-        </Text>
+        <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
+          <Text fontSize="$5" fontWeight="700">
+            Fleet Summary
+          </Text>
+          <Button
+            size="$2"
+            borderRadius={999}
+            borderWidth={1}
+            paddingHorizontal="$3"
+            minHeight={32}
+            backgroundColor="rgba(10,132,255,0.08)"
+            borderColor="rgba(10,132,255,0.18)"
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/energy',
+                params: {
+                  device: 'all',
+                  preset: 'today',
+                  compare: '1'
+                }
+              })
+            }
+          >
+            ⚡ Energy
+          </Button>
+        </XStack>
         <XStack gap="$2" alignItems="center" flexWrap="wrap">
           {uniqueTypes.map((item) => (
             <YStack
@@ -274,6 +298,7 @@ export function SummaryPanel({
                   ac={displayFleetTrend.ac}
                   dc={displayFleetTrend.dc}
                   load={displayFleetTrend.load}
+                  battery={displayFleetTrend.load.map(() => 0)}
                   points={SUMMARY_TREND_POINTS}
                 />
               </ChartSection>
@@ -297,6 +322,7 @@ export function SummaryPanel({
                 ac={displayFleetTrend.ac}
                 dc={displayFleetTrend.dc}
                 load={displayFleetTrend.load}
+                battery={displayFleetTrend.load.map(() => 0)}
                 points={SUMMARY_TREND_POINTS}
               />
             </ChartSection>

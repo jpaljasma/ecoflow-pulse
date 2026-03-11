@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
-import { Text, XStack, YStack } from 'tamagui';
+import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { Card } from '@/shared/ui/Card';
@@ -255,6 +255,28 @@ export function DeviceCard({
                 >
                   {device.name}
                 </Text>
+                <Button
+                  size="$2"
+                  borderRadius={999}
+                  borderWidth={1}
+                  paddingHorizontal="$3"
+                  minHeight={32}
+                  backgroundColor="rgba(10,132,255,0.08)"
+                  borderColor="rgba(10,132,255,0.18)"
+                  onPress={(event: any) => {
+                    event?.stopPropagation?.();
+                    router.push({
+                      pathname: '/(tabs)/energy',
+                      params: {
+                        device: device.id,
+                        preset: 'today',
+                        compare: '1'
+                      }
+                    });
+                  }}
+                >
+                  ⚡ Energy
+                </Button>
                 {isInactive ? (
                   <Text fontSize="$2" color="rgba(60,60,67,0.65)" marginTop="$1" flexShrink={0}>
                     (inactive)

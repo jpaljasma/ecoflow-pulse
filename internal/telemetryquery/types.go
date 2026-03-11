@@ -47,27 +47,35 @@ func (r Resolution) TableName() (string, error) {
 }
 
 type Metrics struct {
-	SOCAvgPct        *float64
-	SOCMinPct        *float64
-	SOCMaxPct        *float64
-	ACInAvgW         *float64
-	ACInMaxW         *float64
-	PVAvgW           *float64
-	PVMaxW           *float64
-	DCAvgW           *float64
-	DCMaxW           *float64
-	LoadAvgW         *float64
-	LoadMaxW         *float64
-	NetAvgW          *float64
-	NetMinW          *float64
-	NetMaxW          *float64
-	BatteryAvgW      *float64
-	BatteryMinW      *float64
-	BatteryMaxW      *float64
-	TempAvgC         *float64
-	TempMinC         *float64
-	TempMaxC         *float64
-	SolarGeneratedWh *float64
+	SOCAvgPct                *float64
+	SOCMinPct                *float64
+	SOCMaxPct                *float64
+	ACInAvgW                 *float64
+	ACInMaxW                 *float64
+	ACOutputAvgW             *float64
+	ACOutputMaxW             *float64
+	PVAvgW                   *float64
+	PVMaxW                   *float64
+	DCAvgW                   *float64
+	DCMaxW                   *float64
+	LoadAvgW                 *float64
+	LoadMaxW                 *float64
+	NetAvgW                  *float64
+	NetMinW                  *float64
+	NetMaxW                  *float64
+	BatteryAvgW              *float64
+	BatteryMinW              *float64
+	BatteryMaxW              *float64
+	TempAvgC                 *float64
+	TempMinC                 *float64
+	TempMaxC                 *float64
+	SolarGeneratedWh         *float64
+	ACInputEnergyWh          *float64
+	ACOutputEnergyWh         *float64
+	DCOutputEnergyWh         *float64
+	LoadEnergyWh             *float64
+	BatteryChargeEnergyWh    *float64
+	BatteryDischargeEnergyWh *float64
 }
 
 type Point struct {

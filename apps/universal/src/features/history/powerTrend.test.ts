@@ -57,7 +57,12 @@ describe('power trend helpers', () => {
           tempAvgC: 0,
           tempMinC: 0,
           tempMaxC: 0,
-          solarGeneratedWh: 0
+          solarGeneratedWh: 0,
+          acInputEnergyWh: 0,
+          dcOutputEnergyWh: 0,
+          loadEnergyWh: 0,
+          batteryChargeEnergyWh: 0,
+          batteryDischargeEnergyWh: 0
         }
       }
     ]);

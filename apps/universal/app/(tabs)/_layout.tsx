@@ -17,6 +17,10 @@ export default function TabsLayout() {
         options={{ title: 'Devices', tabBarButtonTestID: 'tab-devices' }}
       />
       <Tabs.Screen
+        name="energy"
+        options={{ title: 'Energy', tabBarButtonTestID: 'tab-energy' }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{ title: 'Settings', tabBarButtonTestID: 'tab-settings' }}
       />

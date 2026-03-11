@@ -5,7 +5,7 @@ import { Canvas, Path, Skia } from '@shopify/react-native-skia';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
 type SeriesConfig = {
-  key: 'solar' | 'ac' | 'dc' | 'load';
+  key: 'solar' | 'ac' | 'dc' | 'load' | 'battery';
   label: string;
   color: string;
   values: number[];
@@ -85,6 +85,8 @@ function formatAxisWatts(value: number): string {
 
 function formatAgoSeconds(seconds: number): string {
   if (seconds <= 0) return 'now';
+  if (seconds >= 86400) return `${Math.round(seconds / 86400)}d`;
+  if (seconds >= 3600) return `${Math.round(seconds / 3600)}h`;
   if (seconds >= 60) return `${Math.round(seconds / 60)}m`;
   return `${Math.round(seconds)}s`;
 }
@@ -103,6 +105,12 @@ export function PowerTrendChart({
   ac,
   dc,
   load,
+  battery,
+  previousSolar,
+  previousAc,
+  previousDc,
+  previousLoad,
+  previousBattery,
   points = 60,
   bucketSeconds = 5
 }: {
@@ -110,6 +118,12 @@ export function PowerTrendChart({
   ac: number[];
   dc: number[];
   load: number[];
+  battery: number[];
+  previousSolar?: number[];
+  previousAc?: number[];
+  previousDc?: number[];
+  previousLoad?: number[];
+  previousBattery?: number[];
   points?: number;
   bucketSeconds?: number;
 }) {
@@ -119,26 +133,71 @@ export function PowerTrendChart({
     solar: true,
     ac: true,
     dc: true,
-    load: true
+    load: true,
+    battery: true
   });
   const series = useMemo<SeriesConfig[]>(
     () => [
       { key: 'solar', label: 'Solar', color: semantics.chartSolar, values: solar.slice(-points) },
       { key: 'ac', label: 'AC In', color: semantics.chartAc, values: ac.slice(-points) },
       { key: 'dc', label: 'DC', color: semantics.chartDc, values: dc.slice(-points) },
-      { key: 'load', label: 'Load', color: semantics.chartLoad, values: load.slice(-points) }
+      { key: 'load', label: 'Load', color: semantics.chartLoad, values: load.slice(-points) },
+      { key: 'battery', label: 'Battery', color: semantics.chartBatteryPower, values: battery.slice(-points) }
     ],
-    [ac, dc, load, points, semantics.chartAc, semantics.chartDc, semantics.chartLoad, semantics.chartSolar, solar]
+    [
+      ac,
+      battery,
+      dc,
+      load,
+      points,
+      semantics.chartAc,
+      semantics.chartBatteryPower,
+      semantics.chartDc,
+      semantics.chartLoad,
+      semantics.chartSolar,
+      solar
+    ]
   );
   const activeSeries = useMemo(
     () => series.filter((s) => visible[s.key]),
     [series, visible]
   );
+  const previousSeries = useMemo<SeriesConfig[]>(
+    () => [
+      { key: 'solar', label: 'Solar', color: semantics.chartSolar, values: (previousSolar ?? []).slice(-points) },
+      { key: 'ac', label: 'AC In', color: semantics.chartAc, values: (previousAc ?? []).slice(-points) },
+      { key: 'dc', label: 'DC', color: semantics.chartDc, values: (previousDc ?? []).slice(-points) },
+      { key: 'load', label: 'Load', color: semantics.chartLoad, values: (previousLoad ?? []).slice(-points) },
+      {
+        key: 'battery',
+        label: 'Battery',
+        color: semantics.chartBatteryPower,
+        values: (previousBattery ?? []).slice(-points)
+      }
+    ],
+    [
+      points,
+      previousAc,
+      previousBattery,
+      previousDc,
+      previousLoad,
+      previousSolar,
+      semantics.chartAc,
+      semantics.chartBatteryPower,
+      semantics.chartDc,
+      semantics.chartLoad,
+      semantics.chartSolar
+    ]
+  );
+  const activePreviousSeries = useMemo(
+    () => previousSeries.filter((s) => visible[s.key] && s.values.length > 1),
+    [previousSeries, visible]
+  );
 
   const allValues = useMemo(
     () =>
-      activeSeries.flatMap((s) => s.values).filter((v) => Number.isFinite(v)),
-    [activeSeries]
+      [...activeSeries, ...activePreviousSeries].flatMap((s) => s.values).filter((v) => Number.isFinite(v)),
+    [activePreviousSeries, activeSeries]
   );
   const minVal = allValues.length ? Math.min(0, ...allValues) : 0;
   const maxVal = allValues.length ? Math.max(1, ...allValues) : 1;
@@ -178,6 +237,11 @@ export function PowerTrendChart({
             </XStack>
           ))}
         </XStack>
+        {activePreviousSeries.length ? (
+          <Text fontSize="$1" opacity={0.62}>
+            Current period uses solid lines. Previous period uses lighter overlays.
+          </Text>
+        ) : null}
         <YStack
           borderRadius="$4"
           borderWidth={1}
@@ -242,6 +306,24 @@ export function PowerTrendChart({
                         />
                       );
                     })}
+                    {activePreviousSeries.map((s) => {
+                      const pointsList = buildPoints(s.values, webWidth, WEB_CHART_HEIGHT, minVal, maxVal);
+                      const d = buildSvgSmoothPath(pointsList);
+                      if (!d) return null;
+                      return (
+                        <path
+                          key={`prev-line-${s.key}`}
+                          d={d}
+                          fill="none"
+                          stroke={s.color}
+                          strokeOpacity="0.42"
+                          strokeWidth="1.6"
+                          strokeDasharray="5 4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      );
+                    })}
                   </svg>
                 ) : null}
               </View>
@@ -286,6 +368,11 @@ export function PowerTrendChart({
           </XStack>
         ))}
       </XStack>
+      {activePreviousSeries.length ? (
+        <Text fontSize="$1" opacity={0.62}>
+          Current period uses solid lines. Previous period uses lighter overlays.
+        </Text>
+      ) : null}
       <View
         onLayout={(event) => {
           setWidth(Math.round(event.nativeEvent.layout.width));
@@ -355,6 +442,23 @@ export function PowerTrendChart({
                       color={s.color}
                       style="stroke"
                       strokeWidth={2}
+                      strokeCap="round"
+                      strokeJoin="round"
+                    />
+                  );
+                })}
+                {activePreviousSeries.map((s) => {
+                  const pointsList = buildPoints(s.values, width, CHART_HEIGHT, minVal, maxVal);
+                  const path = buildSkiaSmoothPath(pointsList);
+                  if (!path) return null;
+                  return (
+                    <Path
+                      key={`prev-${s.key}`}
+                      path={path}
+                      color={s.color}
+                      opacity={0.42}
+                      style="stroke"
+                      strokeWidth={1.5}
                       strokeCap="round"
                       strokeJoin="round"
                     />
