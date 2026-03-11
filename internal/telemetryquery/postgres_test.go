@@ -57,6 +57,12 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 		"temp_min_c",
 		"temp_max_c",
 		"solar_generated_wh",
+		"ac_input_energy_wh",
+		"ac_output_energy_wh",
+		"dc_output_energy_wh",
+		"load_energy_wh",
+		"battery_charge_energy_wh",
+		"battery_discharge_energy_wh",
 	}).AddRow(
 		from,
 		42,
@@ -83,6 +89,12 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 		7.0,
 		9.0,
 		0.75,
+		1.5,
+		2.5,
+		3.5,
+		4.5,
+		5.5,
+		6.5,
 	)
 
 	mock.ExpectQuery(regexp.QuoteMeta(buildQuery("telemetry_rollup_hour"))).
@@ -114,6 +126,24 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 	}
 	if point.Metrics.SolarGeneratedWh == nil || *point.Metrics.SolarGeneratedWh != 0.75 {
 		t.Fatalf("solar_generated_wh mismatch: got=%v", point.Metrics.SolarGeneratedWh)
+	}
+	if point.Metrics.ACInputEnergyWh == nil || *point.Metrics.ACInputEnergyWh != 1.5 {
+		t.Fatalf("ac_input_energy_wh mismatch: got=%v", point.Metrics.ACInputEnergyWh)
+	}
+	if point.Metrics.ACOutputEnergyWh == nil || *point.Metrics.ACOutputEnergyWh != 2.5 {
+		t.Fatalf("ac_output_energy_wh mismatch: got=%v", point.Metrics.ACOutputEnergyWh)
+	}
+	if point.Metrics.DCOutputEnergyWh == nil || *point.Metrics.DCOutputEnergyWh != 3.5 {
+		t.Fatalf("dc_output_energy_wh mismatch: got=%v", point.Metrics.DCOutputEnergyWh)
+	}
+	if point.Metrics.LoadEnergyWh == nil || *point.Metrics.LoadEnergyWh != 4.5 {
+		t.Fatalf("load_energy_wh mismatch: got=%v", point.Metrics.LoadEnergyWh)
+	}
+	if point.Metrics.BatteryChargeEnergyWh == nil || *point.Metrics.BatteryChargeEnergyWh != 5.5 {
+		t.Fatalf("battery_charge_energy_wh mismatch: got=%v", point.Metrics.BatteryChargeEnergyWh)
+	}
+	if point.Metrics.BatteryDischargeEnergyWh == nil || *point.Metrics.BatteryDischargeEnergyWh != 6.5 {
+		t.Fatalf("battery_discharge_energy_wh mismatch: got=%v", point.Metrics.BatteryDischargeEnergyWh)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)

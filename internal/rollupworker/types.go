@@ -25,6 +25,7 @@ func (o optionalFloat) sqlValue() any {
 type RollupMetrics struct {
 	SOC              optionalFloat
 	ACIn             optionalFloat
+	ACOutput         optionalFloat
 	PV               optionalFloat
 	DC               optionalFloat
 	Load             optionalFloat
@@ -37,6 +38,7 @@ type RollupMetrics struct {
 func (m RollupMetrics) HasAny() bool {
 	return m.SOC.Valid ||
 		m.ACIn.Valid ||
+		m.ACOutput.Valid ||
 		m.PV.Valid ||
 		m.DC.Valid ||
 		m.Load.Valid ||

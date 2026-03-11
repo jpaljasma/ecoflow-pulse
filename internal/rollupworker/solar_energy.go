@@ -7,21 +7,21 @@ import "time"
 // overnight solar when the provider stops emitting PV fields after sunset.
 const DefaultSolarCarryForwardMaxGap = 20 * time.Minute
 
-func IntegrateSolarWindow(
+func IntegratePowerWindow(
 	start time.Time,
 	end time.Time,
-	lastPVAt time.Time,
-	pvWatts float64,
+	lastPowerAt time.Time,
+	powerWatts float64,
 	maxGap time.Duration,
 	bucketWidth time.Duration,
 	dayBucket bool,
 	fn func(bucketStart time.Time, segmentStart time.Time, segmentEnd time.Time, wattHours float64),
 ) {
-	if !end.After(start) || pvWatts <= 0 || fn == nil {
+	if !end.After(start) || powerWatts <= 0 || fn == nil {
 		return
 	}
 	if maxGap > 0 {
-		maxEnd := lastPVAt.Add(maxGap)
+		maxEnd := lastPowerAt.Add(maxGap)
 		if end.After(maxEnd) {
 			end = maxEnd
 		}
@@ -42,8 +42,21 @@ func IntegrateSolarWindow(
 		}
 		durationHours := segmentEnd.Sub(cursor).Hours()
 		if durationHours > 0 {
-			fn(bucketStart.UTC(), cursor.UTC(), segmentEnd.UTC(), pvWatts*durationHours)
+			fn(bucketStart.UTC(), cursor.UTC(), segmentEnd.UTC(), powerWatts*durationHours)
 		}
 		cursor = segmentEnd
 	}
+}
+
+func IntegrateSolarWindow(
+	start time.Time,
+	end time.Time,
+	lastPVAt time.Time,
+	pvWatts float64,
+	maxGap time.Duration,
+	bucketWidth time.Duration,
+	dayBucket bool,
+	fn func(bucketStart time.Time, segmentStart time.Time, segmentEnd time.Time, wattHours float64),
+) {
+	IntegratePowerWindow(start, end, lastPVAt, pvWatts, maxGap, bucketWidth, dayBucket, fn)
 }

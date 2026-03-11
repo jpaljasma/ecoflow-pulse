@@ -114,6 +114,10 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 		metrics.Load = invOut
 	}
 
+	if acOutput, ok := deriveACOutput(metrics.Load, metrics.DC); ok {
+		metrics.ACOutput = optionalFloat{Value: acOutput, Valid: true}
+	}
+
 	if metrics.Load.Valid && (metrics.ACIn.Valid || metrics.PV.Valid) {
 		metrics.Net = optionalFloat{Value: metrics.ACIn.Value + metrics.PV.Value - metrics.Load.Value, Valid: true}
 	}
@@ -350,6 +354,16 @@ func sumIfPresent(root gjson.Result, paths ...string) (float64, bool) {
 		found = true
 	}
 	return sum, found
+}
+
+func deriveACOutput(load, dc optionalFloat) (float64, bool) {
+	if !load.Valid || load.Value <= 0 {
+		return 0, false
+	}
+	if dc.Valid && dc.Value > 0 {
+		return math.Max(load.Value-dc.Value, 0), true
+	}
+	return load.Value, true
 }
 
 func batteryMetric(root gjson.Result) (float64, bool) {

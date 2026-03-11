@@ -118,6 +118,35 @@ ORDER BY c.relname, a.attname`)
 	}
 	gotConstraints := queryStrings(t, ctx, db, "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order','pk_rollup_minute','pk_rollup_hour','pk_rollup_day','chk_rollup_minute_sample_count_nonnegative','chk_rollup_hour_sample_count_nonnegative','chk_rollup_day_sample_count_nonnegative') ORDER BY conname")
 	assertStringsEqual(t, gotConstraints, wantConstraints, "schema constraints")
+
+	wantEnergyColumns := []string{
+		"telemetry_rollup_day.ac_input_energy_wh",
+		"telemetry_rollup_day.ac_output_energy_wh",
+		"telemetry_rollup_day.battery_charge_energy_wh",
+		"telemetry_rollup_day.battery_discharge_energy_wh",
+		"telemetry_rollup_day.dc_output_energy_wh",
+		"telemetry_rollup_day.load_energy_wh",
+		"telemetry_rollup_hour.ac_input_energy_wh",
+		"telemetry_rollup_hour.ac_output_energy_wh",
+		"telemetry_rollup_hour.battery_charge_energy_wh",
+		"telemetry_rollup_hour.battery_discharge_energy_wh",
+		"telemetry_rollup_hour.dc_output_energy_wh",
+		"telemetry_rollup_hour.load_energy_wh",
+		"telemetry_rollup_minute.ac_input_energy_wh",
+		"telemetry_rollup_minute.ac_output_energy_wh",
+		"telemetry_rollup_minute.battery_charge_energy_wh",
+		"telemetry_rollup_minute.battery_discharge_energy_wh",
+		"telemetry_rollup_minute.dc_output_energy_wh",
+		"telemetry_rollup_minute.load_energy_wh",
+	}
+	gotEnergyColumns := queryStrings(t, ctx, db, `
+SELECT table_name || '.' || column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('telemetry_rollup_minute', 'telemetry_rollup_hour', 'telemetry_rollup_day')
+  AND column_name IN ('ac_input_energy_wh', 'ac_output_energy_wh', 'dc_output_energy_wh', 'load_energy_wh', 'battery_charge_energy_wh', 'battery_discharge_energy_wh')
+ORDER BY table_name, column_name`)
+	assertStringsEqual(t, gotEnergyColumns, wantEnergyColumns, "explicit energy columns")
 }
 
 func assertTablesAbsent(t *testing.T, ctx context.Context, db *sql.DB) {
