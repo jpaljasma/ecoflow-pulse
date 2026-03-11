@@ -11,10 +11,10 @@ describe('pulse-platform config', () => {
 
   it('supports optional noop dev subject override', () => {
     const config = loadConfig({
-      PULSE_PLATFORM_DEV_SUBJECT: 'jpaljasma@gmail.com'
+      PULSE_PLATFORM_DEV_SUBJECT: 'dev-user@example.com'
     });
 
-    expect(config.devUserSubject).toBe('jpaljasma@gmail.com');
+    expect(config.devUserSubject).toBe('dev-user@example.com');
   });
 
   it('parses optional public preconnect origins', () => {

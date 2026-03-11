@@ -101,7 +101,7 @@ func TestBuildTrainingTelemetryCSVRowIncludesRequestedFields(t *testing.T) {
 
 	at := time.Date(2026, time.February, 16, 11, 45, 0, 0, time.UTC)
 	device := ecoflow.GeneralInfoDevice{
-		SN:         "R351ZABAPH331057",
+		SN:         "DEMOD2M00001057",
 		DeviceName: "Kitchen Delta 2 Max",
 	}
 	envelope := telemetryEnvelope{

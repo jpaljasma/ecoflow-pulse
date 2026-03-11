@@ -246,7 +246,7 @@ func TestSampleFromEnvelopeRejectsInvalidIdentity(t *testing.T) {
 	t.Parallel()
 	env := &envelopev1.TelemetryEnvelope{
 		DeviceId:           "not-a-uuid",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		ObservedTimeUnixMs: 1,
 		Payload:            []byte(`{"params":{"wattsOutSum":1}}`),
 		Labels:             map[string]string{"provider": "ecoflow"},
@@ -261,7 +261,7 @@ func TestSampleFromEnvelopeRejectsInvalidIdentity(t *testing.T) {
 func testEnvelope(payload string) *envelopev1.TelemetryEnvelope {
 	return &envelopev1.TelemetryEnvelope{
 		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		ObservedTimeUnixMs: 1770000000000,
 		Payload:            []byte(payload),
 		Labels:             map[string]string{"provider": "ecoflow"},

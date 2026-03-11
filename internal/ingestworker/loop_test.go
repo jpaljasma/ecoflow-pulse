@@ -23,7 +23,7 @@ func TestLoopStartsAndStopsOnPause(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "R351ZABAPH331057",
+			ProviderDeviceID:   "DEMOD2M00001057",
 			DeviceIsActive:     true,
 			CredentialIsActive: true,
 			IngestDesiredState: "active",
@@ -51,7 +51,7 @@ func TestLoopStartsAndStopsOnPause(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "R351ZABAPH331057",
+			ProviderDeviceID:   "DEMOD2M00001057",
 			DeviceIsActive:     true,
 			CredentialIsActive: true,
 			IngestDesiredState: "paused",
@@ -120,7 +120,7 @@ func TestLoopStopsOnCredentialDisable(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "Y711ZABA9H2P0294",
+			ProviderDeviceID:   "DEMODPU0000294",
 			DeviceIsActive:     true,
 			CredentialIsActive: true,
 			IngestDesiredState: "active",
@@ -148,7 +148,7 @@ func TestLoopStopsOnCredentialDisable(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "Y711ZABA9H2P0294",
+			ProviderDeviceID:   "DEMODPU0000294",
 			DeviceIsActive:     true,
 			CredentialIsActive: false,
 			IngestDesiredState: "active",
@@ -166,7 +166,7 @@ func TestLoopRestartsWhenCredentialIDChanges(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "Y711ZABA9H2P0294",
+			ProviderDeviceID:   "DEMODPU0000294",
 			CredentialID:       "cred-1",
 			AccessKey:          "ak-1",
 			SecretKey:          "sk-1",
@@ -197,7 +197,7 @@ func TestLoopRestartsWhenCredentialIDChanges(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "Y711ZABA9H2P0294",
+			ProviderDeviceID:   "DEMODPU0000294",
 			CredentialID:       "cred-2",
 			AccessKey:          "ak-2",
 			SecretKey:          "sk-2",
@@ -219,7 +219,7 @@ func TestLoopRestartsWhenCredentialMaterialChanges(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "R351ZABAPH331057",
+			ProviderDeviceID:   "DEMOD2M00001057",
 			CredentialID:       "cred-1",
 			AccessKey:          "ak-1",
 			SecretKey:          "sk-1",
@@ -250,7 +250,7 @@ func TestLoopRestartsWhenCredentialMaterialChanges(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "R351ZABAPH331057",
+			ProviderDeviceID:   "DEMOD2M00001057",
 			CredentialID:       "cred-1",
 			AccessKey:          "ak-rotated",
 			SecretKey:          "sk-rotated",
@@ -308,8 +308,8 @@ func TestLoopDedupesDuplicateAssignments(t *testing.T) {
 
 	store := &fakeStore{}
 	store.set([]controlplane.IngestAssignment{
-		{Provider: "ecoflow", ProviderDeviceID: " r351zabaph331057 ", DeviceIsActive: true, CredentialIsActive: true, IngestDesiredState: "active"},
-		{Provider: "ECOFLOW", ProviderDeviceID: "R351ZABAPH331057", DeviceIsActive: true, CredentialIsActive: true, IngestDesiredState: "active"},
+		{Provider: "ecoflow", ProviderDeviceID: " demod2m00001057 ", DeviceIsActive: true, CredentialIsActive: true, IngestDesiredState: "active"},
+		{Provider: "ECOFLOW", ProviderDeviceID: "DEMOD2M00001057", DeviceIsActive: true, CredentialIsActive: true, IngestDesiredState: "active"},
 	})
 	leases := &fakeLeaseManager{}
 	runner := &fakeSessionRunner{}

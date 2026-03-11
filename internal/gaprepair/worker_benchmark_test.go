@@ -15,7 +15,7 @@ func BenchmarkWorkerHandleDeliverySuccess(b *testing.B) {
 	worker.log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	req := &replayv1.GapRepairRequest{
 		Provider:         "ecoflow",
-		ProviderDeviceId: "R351ZABAPH331057",
+		ProviderDeviceId: "DEMOD2M00001057",
 		FromUnixMs:       1000,
 		ToUnixMs:         2000,
 		MaxObjects:       17,

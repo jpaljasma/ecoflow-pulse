@@ -46,7 +46,7 @@ func TestEnergySnapshotETAEstimatesRow(t *testing.T) {
 	}
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,

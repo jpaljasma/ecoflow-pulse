@@ -15,7 +15,7 @@ func TestLoopReconcileUpdatesAutoscaleMetrics(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "R351ZABAPH331057",
+			ProviderDeviceID:   "DEMOD2M00001057",
 			DeviceIsActive:     true,
 			CredentialIsActive: true,
 			IngestDesiredState: "active",

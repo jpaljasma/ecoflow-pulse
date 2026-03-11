@@ -27,7 +27,7 @@ func TestRenderDashboardIncludesSummaryAndPackRows(t *testing.T) {
 	pack.HasPower = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "kitInfo"},
 		snapshot,
@@ -74,7 +74,7 @@ func TestRenderDashboardShowsPassthroughAndGroundedWhenACInOutEquivalent(t *test
 	snapshot.OutACWatts = 890
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -336,7 +336,7 @@ func TestRenderDashboardShowsSmoothedPVButSummaryStaysRaw(t *testing.T) {
 	applyPV(50, 80)
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -381,7 +381,7 @@ func TestRenderDashboardShowsSmoothedTotalsButSummaryStaysRaw(t *testing.T) {
 	applyTotals(100, 100)
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -408,7 +408,7 @@ func TestRenderDashboardShowsSmoothedTotalsButSummaryStaysRaw(t *testing.T) {
 func TestRenderDashboardHidesPreconditioningForD2M(t *testing.T) {
 	snapshot := newEnergySnapshot()
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -423,7 +423,7 @@ func TestRenderDashboardHidesPreconditioningForD2M(t *testing.T) {
 func TestRenderDashboardShowsPreconditioningForDPU(t *testing.T) {
 	snapshot := newEnergySnapshot()
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -494,7 +494,7 @@ func TestRenderDashboardShowsMQTTQueueRow(t *testing.T) {
 	snapshot.MQTTQueueDroppedOldest = 2
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -529,7 +529,7 @@ func TestRenderDashboardShowsMQTTDegradedStatus(t *testing.T) {
 	snapshot.MQTTFallbackActive = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "n/a"},
 		snapshot,
@@ -590,7 +590,7 @@ func TestRenderDashboardShowsSolarRecommendations(t *testing.T) {
 	snapshot.HasPVHighAltPanelWatts = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -644,7 +644,7 @@ func TestRenderDashboardPrefersNonClippingSecondUpgradeRecommendation(t *testing
 	snapshot.HasPVLowAltPanelWatts = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -687,7 +687,7 @@ func TestRenderDashboardPromotesSecondUpgradeWhenFirstIsUnsafe(t *testing.T) {
 	snapshot.HasPVLowAltPanelImpA = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -734,7 +734,7 @@ func TestRenderDashboardPrefersPeerPortDetectedSetupForTwinPVPorts(t *testing.T)
 	snapshot.HasPVLowBestPanelWatts = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -770,7 +770,7 @@ func TestRenderDashboardSupportsJASolar400RecommendationForD2M(t *testing.T) {
 	snapshot.HasPVHighPanelNominal = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -797,7 +797,7 @@ func TestRenderDashboardSupportsJASolar400RecommendationForDPULow(t *testing.T) 
 	snapshot.HasPVLowPanelNominal = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -824,7 +824,7 @@ func TestRenderDashboardUsesPeerDetectedFallbackWhenPrimaryRecommendationMissing
 	snapshot.HasPVLowPanelNominal = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -851,7 +851,7 @@ func TestRenderDashboardAddPanelsUsesPeerDetectionFallbackLowToHigh(t *testing.T
 	snapshot.HasPVLowPanelNominal = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -881,7 +881,7 @@ func TestRenderDashboardAddPanelsUsesPeerDetectionFallbackHighToLow(t *testing.T
 	snapshot.HasPVHighPanelNominal = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -927,7 +927,7 @@ func TestRenderDashboardShowsDPUHighCandidateElectricalData(t *testing.T) {
 	}
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -975,7 +975,7 @@ func TestRenderDashboardShowsD2MSafeEcoFlowCandidatePanels(t *testing.T) {
 	}
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "R351ZABAPH331057"},
+		ecoflow.GeneralInfoDevice{DeviceName: "Kitchen Delta 2 Max", ProductName: "DELTA 2 Max", SN: "DEMOD2M00001057"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,
@@ -1018,7 +1018,7 @@ func TestRenderDashboardSkipsTrivialSamePanelAltLayout(t *testing.T) {
 	snapshot.HasPVHighBestPanelImpA = true
 
 	output := renderDashboard(
-		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "Y711ZABA9H2P0294"},
+		ecoflow.GeneralInfoDevice{DeviceName: "DPU A 12 kWh", ProductName: "DELTA Pro Ultra", SN: "DEMODPU0000294"},
 		"/open/a/b/quota",
 		telemetryEnvelope{TypeCode: "pdStatus"},
 		snapshot,

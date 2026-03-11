@@ -16,7 +16,7 @@ func TestValkeySnapshotStoreReadSnapshotContract(t *testing.T) {
 	_, err := store.ApplyEnvelope(ctx, &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "env-read-1",
 		DeviceId:           "dev-read-1",
-		EcoflowSn:          "r351zabaph331057",
+		EcoflowSn:          "demod2m00001057",
 		IngestedTimeUnixMs: 1000,
 		Payload:            []byte(`{"params":{"load":35,"pv":20}}`),
 	})
@@ -61,7 +61,7 @@ func TestValkeySnapshotStoreCheckpointRecoveryAcrossStoreRestart(t *testing.T) {
 	store := setupSnapshotStore(t)
 	ctx := context.Background()
 
-	identity := SnapshotIdentity{DeviceID: "dev-checkpoint", EcoflowSN: "R351ZABAPH331057"}
+	identity := SnapshotIdentity{DeviceID: "dev-checkpoint", EcoflowSN: "DEMOD2M00001057"}
 
 	_, err := store.ApplyEnvelope(ctx, &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "env-checkpoint-1",

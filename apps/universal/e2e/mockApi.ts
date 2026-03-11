@@ -1,9 +1,9 @@
 import type { Page, Route } from '@playwright/test';
 
-export const DPU_DEVICE_ID = '019cab9d-bcb3-7587-8dc9-9a57deb48d30';
-export const D2M_DEVICE_ID = '019cab9d-bcab-75c0-9c02-db3ae1105d61';
-export const DPU_SERIAL = 'Y711ZABA9H2P0294';
-export const D2M_SERIAL = 'R351ZABAPH331057';
+export const DPU_DEVICE_ID = '11111111-1111-7111-8111-111111111111';
+export const D2M_DEVICE_ID = '22222222-2222-7222-8222-222222222222';
+export const DPU_SERIAL = 'DEMODPU0000294';
+export const D2M_SERIAL = 'DEMOD2M00001057';
 
 type DevicePayload = {
   id: string;

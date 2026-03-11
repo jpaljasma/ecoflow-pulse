@@ -45,7 +45,7 @@ runtime:
       nodeAuthMode: noop
       publicDir: /app/apps/universal/dist
       realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
-      devUserSubject: jpaljasma@gmail.com
+      devUserSubject: dev-user@example.com
       publicPreconnectOrigins: ""
     ingress:
       enabled: true

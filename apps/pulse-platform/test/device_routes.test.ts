@@ -12,7 +12,7 @@ function baseConfig(): AppConfig {
     port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
     grpcDeadlineMs: 2500,
-    devUserSubject: 'jpaljasma@gmail.com',
+    devUserSubject: 'dev-user@example.com',
     publicPreconnectOrigins: [],
     historyRateLimit: {
       max: 120,
@@ -34,7 +34,7 @@ function makeHistoryClient(): TelemetryHistoryClient {
 function sampleDevice(overrides: Partial<DeviceSummary> = {}): DeviceSummary {
   return {
     id: '019c9f0e-4521-775d-873e-e80039f16d75',
-    serialNumber: 'Y711ZABA9H2P0294',
+    serialNumber: 'DEMODPU0000294',
     name: 'DPU A 12 kWh',
     model: 'DELTA Pro Ultra',
     online: true,
@@ -179,11 +179,11 @@ describe('pulse-platform device routes', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/devices/Y711ZABA9H2P0294'
+      url: '/api/devices/DEMODPU0000294'
     });
 
     expect(response.statusCode).toBe(200);
-    expect(client.getDevice).toHaveBeenCalledWith(expect.anything(), 'Y711ZABA9H2P0294');
+    expect(client.getDevice).toHaveBeenCalledWith(expect.anything(), 'DEMODPU0000294');
     expect(response.json()).toEqual(sampleDevice());
 
     await app.close();

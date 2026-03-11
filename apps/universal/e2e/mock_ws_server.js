@@ -7,8 +7,8 @@ const host = process.env.MAESTRO_MOCK_WS_HOST || '127.0.0.1';
 const port = Number(process.env.MAESTRO_MOCK_WS_PORT || '8082');
 
 const DEFAULT_DEVICE_IDS = [
-  '019cab9d-bcb3-7587-8dc9-9a57deb48d30',
-  '019cab9d-bcab-75c0-9c02-db3ae1105d61'
+  '11111111-1111-7111-8111-111111111111',
+  '22222222-2222-7222-8222-222222222222'
 ];
 
 function nowUnixMs() {

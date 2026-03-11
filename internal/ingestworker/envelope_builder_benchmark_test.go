@@ -13,12 +13,12 @@ func BenchmarkBuildTelemetryEnvelope(b *testing.B) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:         "ecoflow",
-		ProviderDeviceID: "R351ZABAPH331057",
+		ProviderDeviceID: "DEMOD2M00001057",
 		CredentialID:     "cred-1",
 		DeviceID:         "device-1",
 	}
 	message := ecoflowmqtt.Message{
-		Topic: "/open/open-demo/R351ZABAPH331057/quota",
+		Topic: "/open/open-demo/DEMOD2M00001057/quota",
 		Payload: []byte(`{
 			"moduleType":1,
 			"needAck":0,

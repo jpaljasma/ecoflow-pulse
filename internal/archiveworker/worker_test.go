@@ -107,7 +107,7 @@ func TestProcessDeliveryFlushByMaxRecordsWritesManifest(t *testing.T) {
 	if len(record.DeviceIDs) != 1 || record.DeviceIDs[0] != "device-1" {
 		t.Fatalf("manifest device ids mismatch: got=%v", record.DeviceIDs)
 	}
-	if len(record.ProviderDeviceIDs) != 1 || record.ProviderDeviceIDs[0] != "R351ZABAPH331057" {
+	if len(record.ProviderDeviceIDs) != 1 || record.ProviderDeviceIDs[0] != "DEMOD2M00001057" {
 		t.Fatalf("manifest provider device ids mismatch: got=%v", record.ProviderDeviceIDs)
 	}
 }
@@ -207,7 +207,7 @@ func TestProcessDeliveryArchivesNormalizedQuotaEnvelope(t *testing.T) {
 	d := newFakeDelivery(t, &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "quota-1",
 		DeviceId:           "device-1",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		Shard:              1,
 		ShardCount:         128,
 		IngestedTimeUnixMs: 1000,
@@ -414,7 +414,7 @@ func envelope(shard uint32, id string, ingested int64) *envelopev1.TelemetryEnve
 	return &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         id,
 		DeviceId:           "device-1",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		Shard:              shard,
 		ShardCount:         128,
 		IngestedTimeUnixMs: ingested,

@@ -8,9 +8,9 @@ function baseProviderDevice(overrides: Partial<ProviderDevice> = {}): ProviderDe
     id: 'pdev-1',
     deviceId: '019ca747-392b-720e-9ff3-09c4130c838f',
     provider: 'ecoflow',
-    providerDeviceId: 'Y711ZABA9H2P0294',
+    providerDeviceId: 'DEMODPU0000294',
     credentialId: 'cred-1',
-    canonicalSn: 'Y711ZABA9H2P0294',
+    canonicalSn: 'DEMODPU0000294',
     productName: 'DPU A 12 kWh',
     model: 'DELTA Pro Ultra',
     isActive: true,
@@ -89,7 +89,7 @@ describe('provider device mapper', () => {
       })
     );
 
-    expect(presentation.serialNumber).toBe('Y711ZABA9H2P0294');
+    expect(presentation.serialNumber).toBe('DEMODPU0000294');
     expect(presentation.capabilities).toEqual(
       expect.objectContaining({
         batteryPacks: 2,
@@ -146,8 +146,8 @@ describe('provider device mapper', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({
         deviceId: '019ca747-3923-7d05-ac88-090bb4c7b562',
-        providerDeviceId: 'R351ZABAPH331057',
-        canonicalSn: 'R351ZABAPH331057',
+        providerDeviceId: 'DEMOD2M00001057',
+        canonicalSn: 'DEMOD2M00001057',
         productName: 'Kitchen Delta 2 Max',
         model: 'DELTA 2 Max',
         capabilities: {
@@ -216,7 +216,7 @@ describe('provider device mapper', () => {
       })
     );
 
-    expect(presentation.serialNumber).toBe('R351ZABAPH331057');
+    expect(presentation.serialNumber).toBe('DEMOD2M00001057');
     expect(presentation.capabilities).toEqual(
       expect.objectContaining({
         batteryPacks: 2,
@@ -270,8 +270,8 @@ describe('provider device mapper', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({
         deviceId: '019ca747-3923-7d05-ac88-090bb4c7b562',
-        providerDeviceId: 'R351ZABAPH331057',
-        canonicalSn: 'R351ZABAPH331057',
+        providerDeviceId: 'DEMOD2M00001057',
+        canonicalSn: 'DEMOD2M00001057',
         productName: 'Kitchen Delta 2 Max',
         model: 'DELTA 2 Max',
         metadata: {

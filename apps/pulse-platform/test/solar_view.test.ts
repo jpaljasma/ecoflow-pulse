@@ -49,7 +49,7 @@ function point({
 
 function series(points: RollupPoint[], fromUnixMs: number): RollupSeries {
   return {
-    deviceId: '019cab9d-bcab-75c0-9c02-db3ae1105d61',
+    deviceId: '22222222-2222-7222-8222-222222222222',
     resolution: 'minute',
     fromUnixMs: String(fromUnixMs),
     toUnixMs: points.at(-1)?.bucketEndUnixMs ?? String(fromUnixMs),

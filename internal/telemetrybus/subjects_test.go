@@ -6,7 +6,7 @@ func TestShardForDeviceDeterministic(t *testing.T) {
 	t.Parallel()
 
 	const shards = 128
-	const device = "R351ZABAPH331057"
+	const device = "DEMOD2M00001057"
 
 	a := ShardForDevice(device, shards)
 	b := ShardForDevice(device, shards)
@@ -21,7 +21,7 @@ func TestShardForDeviceDeterministic(t *testing.T) {
 func TestShardForDeviceUsesDefaultShardCount(t *testing.T) {
 	t.Parallel()
 
-	shard := ShardForDevice("Y711ZABA9H2P0294", 0)
+	shard := ShardForDevice("DEMODPU0000294", 0)
 	if shard >= DefaultShardCount {
 		t.Fatalf("expected shard in range [0,%d); got %d", DefaultShardCount, shard)
 	}

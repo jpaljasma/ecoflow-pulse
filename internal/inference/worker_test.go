@@ -56,7 +56,7 @@ func TestHandleMessageSuccessAcks(t *testing.T) {
 		resolver: &fakeResolver{ctx: DeviceContext{DeviceID: "dev-1"}},
 		cfg:      DefaultWorkerConfig(),
 	}
-	env := &envelopev1.TelemetryEnvelope{DeviceId: "dev-1", EcoflowSn: "R351ZABAPH331057", Payload: []byte(`{"params":{"soc":54.2}}`)}
+	env := &envelopev1.TelemetryEnvelope{DeviceId: "dev-1", EcoflowSn: "DEMOD2M00001057", Payload: []byte(`{"params":{"soc":54.2}}`)}
 	data, err := proto.Marshal(env)
 	if err != nil {
 		t.Fatalf("marshal envelope: %v", err)

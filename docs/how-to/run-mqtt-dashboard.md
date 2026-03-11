@@ -87,7 +87,7 @@ go run ./cmd/ecoflow-mqtt-sub
 ## Useful Environment Overrides
 
 ```bash
-ECOFLOW_MQTT_SN=R351ZABAPH331057 \
+ECOFLOW_MQTT_SN=<your-device-serial> \
 ECOFLOW_MQTT_QUEUE_CAPACITY=64 \
 ECOFLOW_MQTT_IDLE_RECONNECT_AFTER=120s \
 ECOFLOW_MQTT_STALE_AFTER=30s \

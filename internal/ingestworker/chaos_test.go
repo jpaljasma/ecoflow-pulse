@@ -21,7 +21,7 @@ func TestLoopChaosReacquiresAfterLeaseLoss(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "R351ZABAPH331057",
+			ProviderDeviceID:   "DEMOD2M00001057",
 			DeviceIsActive:     true,
 			CredentialIsActive: true,
 			IngestDesiredState: "active",
@@ -45,7 +45,7 @@ func TestLoopChaosReacquiresAfterLeaseLoss(t *testing.T) {
 	done := runLoop(ctx, loop)
 
 	waitForAtLeast(t, &runner.starts, 1, time.Second, "initial session start")
-	key := assignmentKey(controlplane.ProviderEcoFlow, "R351ZABAPH331057")
+	key := assignmentKey(controlplane.ProviderEcoFlow, "DEMOD2M00001057")
 	firstToken := waitForRunningToken(t, loop, key, time.Second)
 	if firstToken == "" {
 		t.Fatal("expected running session token")
@@ -68,7 +68,7 @@ func TestLoopChaosWorkerCrashHandsLeaseToPeer(t *testing.T) {
 	store.set([]controlplane.IngestAssignment{
 		{
 			Provider:           controlplane.ProviderEcoFlow,
-			ProviderDeviceID:   "Y711ZABA9H2P0294",
+			ProviderDeviceID:   "DEMODPU0000294",
 			DeviceIsActive:     true,
 			CredentialIsActive: true,
 			IngestDesiredState: "active",
@@ -177,7 +177,7 @@ func TestEcoFlowSessionRunnerChaosSerializesReconnectStorm(t *testing.T) {
 		reads: []fakeReadResult{
 			{
 				msg: ecoflowmqtt.Message{
-					Topic:   "/open/open-account/Y711ZABA9H2P0294/quota",
+					Topic:   "/open/open-account/DEMODPU0000294/quota",
 					Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`),
 				},
 			},
@@ -202,7 +202,7 @@ func TestEcoFlowSessionRunnerChaosSerializesReconnectStorm(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		ProviderDeviceID:   "DEMODPU0000294",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",

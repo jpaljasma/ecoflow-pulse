@@ -83,8 +83,8 @@ func TestDetectorDetectAndEnqueueSnapshotMissing(t *testing.T) {
 	publisher := &fakeRequestPublisher{}
 	detector, err := NewDetector(
 		slog.Default(),
-		fakeAssignmentStore{rows: []controlplane.IngestAssignment{{Provider: "ecoflow", ProviderDeviceID: "R351ZABAPH331057", DeviceID: "dev-1"}}},
-		fakeCoverageStore{rows: map[string]map[string]CoverageWindow{"ecoflow": {"R351ZABAPH331057": {ProviderDeviceID: "R351ZABAPH331057", MinUnixMS: 1000, MaxUnixMS: 8000, ObjectCount: 2}}}},
+		fakeAssignmentStore{rows: []controlplane.IngestAssignment{{Provider: "ecoflow", ProviderDeviceID: "DEMOD2M00001057", DeviceID: "dev-1"}}},
+		fakeCoverageStore{rows: map[string]map[string]CoverageWindow{"ecoflow": {"DEMOD2M00001057": {ProviderDeviceID: "DEMOD2M00001057", MinUnixMS: 1000, MaxUnixMS: 8000, ObjectCount: 2}}}},
 		fakeSnapshotReader{},
 		publisher,
 		DetectorConfig{NowFn: func() time.Time { return time.UnixMilli(9000).UTC() }, SubjectShardCount: 128, LookbackWindow: time.Hour, LagThreshold: time.Second, MaxReplayWindow: time.Hour, MaxJobsPerCycle: 10, PollInterval: time.Second},
@@ -174,9 +174,9 @@ func TestDetectorSkipsWhenProjectionCaughtUp(t *testing.T) {
 	publisher := &fakeRequestPublisher{}
 	detector, err := NewDetector(
 		slog.Default(),
-		fakeAssignmentStore{rows: []controlplane.IngestAssignment{{Provider: "ecoflow", ProviderDeviceID: "R351ZABAPH331057", DeviceID: "dev-1"}}},
-		fakeCoverageStore{rows: map[string]map[string]CoverageWindow{"ecoflow": {"R351ZABAPH331057": {ProviderDeviceID: "R351ZABAPH331057", MinUnixMS: 1000, MaxUnixMS: 8000, ObjectCount: 2}}}},
-		fakeSnapshotReader{rows: map[string]*projectionworker.SnapshotReadModel{"dev-1|R351ZABAPH331057": {Cursor: projectionworker.SnapshotCursor{TsUnixMs: 7950}}}},
+		fakeAssignmentStore{rows: []controlplane.IngestAssignment{{Provider: "ecoflow", ProviderDeviceID: "DEMOD2M00001057", DeviceID: "dev-1"}}},
+		fakeCoverageStore{rows: map[string]map[string]CoverageWindow{"ecoflow": {"DEMOD2M00001057": {ProviderDeviceID: "DEMOD2M00001057", MinUnixMS: 1000, MaxUnixMS: 8000, ObjectCount: 2}}}},
+		fakeSnapshotReader{rows: map[string]*projectionworker.SnapshotReadModel{"dev-1|DEMOD2M00001057": {Cursor: projectionworker.SnapshotCursor{TsUnixMs: 7950}}}},
 		publisher,
 		DetectorConfig{NowFn: func() time.Time { return time.UnixMilli(9000).UTC() }, SubjectShardCount: 128, LookbackWindow: time.Hour, LagThreshold: 100 * time.Millisecond, MaxReplayWindow: time.Hour, MaxJobsPerCycle: 10, PollInterval: time.Second},
 	)

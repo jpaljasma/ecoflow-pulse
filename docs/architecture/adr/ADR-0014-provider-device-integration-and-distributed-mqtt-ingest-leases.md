@@ -185,10 +185,10 @@ Recommended follow-up custom metrics for autoscaling:
 ### 7) Development seed policy
 Initial seed is explicit-only (no automatic startup seed):
 - read `ECOFLOW_DEV_ACCESS_KEY` / `ECOFLOW_DEV_SECRET_KEY`,
-- tie to user `jpaljasma@gmail.com`,
+- tie to user `dev-user@example.com`,
 - register initial SNs:
-  - `R351ZABAPH331057`
-  - `Y711ZABA9H2P0294`.
+  - `DEMOD2M00001057`
+  - `DEMODPU0000294`.
 
 ### 8) EcoFlow quota bootstrap and refresh policy
 Quota bootstrap is part of the ingest contract for EcoFlow provider devices:

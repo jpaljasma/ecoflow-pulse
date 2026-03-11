@@ -23,7 +23,7 @@ func TestAcquireRenewRelease(t *testing.T) {
 		HeartbeatJitter:   0,
 	})
 	ctx := context.Background()
-	ref := LeaseRef{Provider: "ecoflow", ProviderDeviceID: "R351ZABAPH331057"}
+	ref := LeaseRef{Provider: "ecoflow", ProviderDeviceID: "DEMOD2M00001057"}
 
 	acquired, err := manager.Acquire(ctx, ref, "worker-a", "token-a", CallOptions{})
 	if err != nil {
@@ -70,7 +70,7 @@ func TestAcquireFenceIncrementsAfterReacquire(t *testing.T) {
 
 	_, _, manager := setupTestManager(t, DefaultConfig())
 	ctx := context.Background()
-	ref := LeaseRef{Provider: "ecoflow", ProviderDeviceID: "Y711ZABA9H2P0294"}
+	ref := LeaseRef{Provider: "ecoflow", ProviderDeviceID: "DEMODPU0000294"}
 
 	first, err := manager.Acquire(ctx, ref, "worker-a", "token-a", CallOptions{})
 	if err != nil {

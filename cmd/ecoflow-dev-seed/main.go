@@ -19,13 +19,13 @@ import (
 )
 
 const (
-	defaultUserSubject = "jpaljasma@gmail.com"
+	defaultUserSubject = "dev-user@example.com"
 	defaultProvider    = controlplane.ProviderEcoFlow
 )
 
 var defaultSeedSerials = []string{
-	"R351ZABAPH331057",
-	"Y711ZABA9H2P0294",
+	"DEMOD2M00001057",
+	"DEMODPU0000294",
 }
 
 type deviceSeed struct {
@@ -35,13 +35,13 @@ type deviceSeed struct {
 }
 
 var knownSeedDevices = map[string]deviceSeed{
-	"R351ZABAPH331057": {
-		SN:          "R351ZABAPH331057",
+	"DEMOD2M00001057": {
+		SN:          "DEMOD2M00001057",
 		ProductName: "Kitchen Delta 2 Max",
 		Model:       "DELTA 2 Max",
 	},
-	"Y711ZABA9H2P0294": {
-		SN:          "Y711ZABA9H2P0294",
+	"DEMODPU0000294": {
+		SN:          "DEMODPU0000294",
 		ProductName: "DPU A 12 kWh",
 		Model:       "DELTA Pro Ultra",
 	},

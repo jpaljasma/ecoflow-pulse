@@ -18,7 +18,7 @@ func TestValkeySnapshotStoreApplyAndMerge(t *testing.T) {
 	first, err := store.ApplyEnvelope(ctx, &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "env-1",
 		DeviceId:           "dev-1",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		Shard:              7,
 		ShardCount:         128,
 		IngestedTimeUnixMs: 1000,
@@ -39,7 +39,7 @@ func TestValkeySnapshotStoreApplyAndMerge(t *testing.T) {
 	second, err := store.ApplyEnvelope(ctx, &envelopev1.TelemetryEnvelope{
 		EnvelopeId:         "env-2",
 		DeviceId:           "dev-1",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		Shard:              7,
 		ShardCount:         128,
 		IngestedTimeUnixMs: 2000,

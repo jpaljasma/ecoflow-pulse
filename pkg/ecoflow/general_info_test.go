@@ -35,7 +35,7 @@ func TestGeneralInfoService_ListDevices_DecodesTypedResponse(t *testing.T) {
 					"message":"Success",
 					"data":[
 						{"sn":"PR12ZA1CDHAW0498","deviceName":"TV Delta 1000 Air","online":1},
-						{"sn":"R351ZABAPH331057","deviceName":"Kitchen Delta 2 Max","online":1,"productName":"DELTA 2 Max"}
+						{"sn":"DEMOD2M00001057","deviceName":"Kitchen Delta 2 Max","online":1,"productName":"DELTA 2 Max"}
 					]
 				}`)),
 			}, nil
@@ -195,7 +195,7 @@ func TestGeneralInfoService_GetDeviceAllQuota_DecodesMapResponse(t *testing.T) {
 			if req.URL.Path != deviceQuotaAllPath {
 				t.Fatalf("request path mismatch: got %q", req.URL.Path)
 			}
-			if got := req.URL.Query().Get("sn"); got != "Y711ZABA9H2P0294" {
+			if got := req.URL.Query().Get("sn"); got != "DEMODPU0000294" {
 				t.Fatalf("sn query mismatch: got %q", got)
 			}
 			return &http.Response{
@@ -219,7 +219,7 @@ func TestGeneralInfoService_GetDeviceAllQuota_DecodesMapResponse(t *testing.T) {
 		t.Fatalf("NewClient() error = %v", err)
 	}
 
-	quota, response, err := client.GeneralInfo().GetDeviceAllQuota(context.Background(), "Y711ZABA9H2P0294")
+	quota, response, err := client.GeneralInfo().GetDeviceAllQuota(context.Background(), "DEMODPU0000294")
 	if err != nil {
 		t.Fatalf("GetDeviceAllQuota() error = %v", err)
 	}

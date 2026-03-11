@@ -244,10 +244,10 @@ Runtime behavior:
 - `ECOFLOW_DEV_ACCESS_KEY` (required)
 - `ECOFLOW_DEV_SECRET_KEY` (required)
 - `CONTROL_PLANE_DB_DSN` (required)
-- `ECOFLOW_DEV_USER_SUBJECT` (default `jpaljasma@gmail.com`)
+- `ECOFLOW_DEV_USER_SUBJECT` (default `dev-user@example.com`)
 - `ECOFLOW_DEV_USER_EMAIL` (default = `ECOFLOW_DEV_USER_SUBJECT`)
 - `ECOFLOW_DEV_PROVIDER` (default `ecoflow`)
-- `ECOFLOW_DEV_SEED_SNS` (comma/whitespace-delimited serials, default `R351ZABAPH331057,Y711ZABA9H2P0294`)
+- `ECOFLOW_DEV_SEED_SNS` (comma/whitespace-delimited serials, default `DEMOD2M00001057,DEMODPU0000294`)
 
 ## Universal App (Expo)
 

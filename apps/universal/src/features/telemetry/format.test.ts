@@ -3,7 +3,7 @@ import { maskSerialNumber } from '@/features/telemetry/format';
 
 describe('maskSerialNumber', () => {
   it('keeps the first two and last four characters visible', () => {
-    expect(maskSerialNumber('R351ZABAPH331057')).toBe('R3••••••1057');
+    expect(maskSerialNumber('DEMOD2M00001057')).toBe('DE••••••1057');
   });
 
   it('returns short serials unchanged', () => {

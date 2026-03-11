@@ -20,7 +20,7 @@ Add one of:
 - explicit serial:
 
 ```bash
-ECOFLOW_MQTT_SN=Y711ZABA9H2P0294
+ECOFLOW_MQTT_SN=<your-device-serial>
 ```
 
 - name matching fallback:
@@ -30,6 +30,9 @@ ECOFLOW_MQTT_DEVICE_MATCH=delta pro ultra
 ```
 
 If both are set, `ECOFLOW_MQTT_SN` is authoritative.
+
+Keep your real device serials and provider credentials in `.env` or shell
+environment only; do not commit them into tracked config or docs.
 
 ## 3. Optional Runtime Tuning
 

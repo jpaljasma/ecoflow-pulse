@@ -89,7 +89,7 @@ func TestEcoFlowSessionRunnerRunPublishesEnvelope(t *testing.T) {
 		reads: []fakeReadResult{
 			{
 				msg: ecoflowmqtt.Message{
-					Topic:   "/open/open-account/R351ZABAPH331057/quota",
+					Topic:   "/open/open-account/DEMOD2M00001057/quota",
 					Payload: []byte(`{"id":8221,"time":17072442,"typeCode":"pdStatus","cmdId":1,"cmdFunc":2}`),
 				},
 			},
@@ -103,7 +103,7 @@ func TestEcoFlowSessionRunnerRunPublishesEnvelope(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "R351ZABAPH331057",
+		ProviderDeviceID:   "DEMOD2M00001057",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",
@@ -170,7 +170,7 @@ func TestEcoFlowSessionRunnerReconnectsAfterReadFailure(t *testing.T) {
 		reads: []fakeReadResult{
 			{
 				msg: ecoflowmqtt.Message{
-					Topic:   "/open/open-account/Y711ZABA9H2P0294/quota",
+					Topic:   "/open/open-account/DEMODPU0000294/quota",
 					Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`),
 				},
 			},
@@ -183,7 +183,7 @@ func TestEcoFlowSessionRunnerReconnectsAfterReadFailure(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		ProviderDeviceID:   "DEMODPU0000294",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",
@@ -237,8 +237,8 @@ func TestEcoFlowSessionRunnerDoesNotReconnectOnPublishFailure(t *testing.T) {
 	}
 	subscriber := &fakeMQTTSubscriber{
 		reads: []fakeReadResult{
-			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`)}},
-			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":2,"typeCode":"pdStatus"}`)}},
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/DEMODPU0000294/quota", Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`)}},
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/DEMODPU0000294/quota", Payload: []byte(`{"id":2,"typeCode":"pdStatus"}`)}},
 		},
 	}
 	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
@@ -248,7 +248,7 @@ func TestEcoFlowSessionRunnerDoesNotReconnectOnPublishFailure(t *testing.T) {
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		ProviderDeviceID:   "DEMODPU0000294",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",
@@ -298,7 +298,7 @@ func TestEcoFlowSessionRunnerStopsOnInvalidAccessKeyBusinessError(t *testing.T) 
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		ProviderDeviceID:   "DEMODPU0000294",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",
@@ -376,7 +376,7 @@ func TestEcoFlowSessionRunnerPublishesQuotaBootstrapAndUpsertsMetadata(t *testin
 		reads: []fakeReadResult{
 			{
 				msg: ecoflowmqtt.Message{
-					Topic:   "/open/open-account/R351ZABAPH331057/quota",
+					Topic:   "/open/open-account/DEMOD2M00001057/quota",
 					Payload: []byte(`{"id":8221,"typeCode":"pdStatus"}`),
 				},
 			},
@@ -389,7 +389,7 @@ func TestEcoFlowSessionRunnerPublishesQuotaBootstrapAndUpsertsMetadata(t *testin
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "R351ZABAPH331057",
+		ProviderDeviceID:   "DEMOD2M00001057",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		ProductName:        "Kitchen Delta 2 Max",
@@ -476,7 +476,7 @@ func TestEcoFlowSessionRunnerQuotaFetchErrorIsNonFatal(t *testing.T) {
 	}
 	subscriber := &fakeMQTTSubscriber{
 		reads: []fakeReadResult{
-			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/R351ZABAPH331057/quota", Payload: []byte(`{"id":1,"typeCode":"pdStatus"}`)}},
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/DEMOD2M00001057/quota", Payload: []byte(`{"id":1,"typeCode":"pdStatus"}`)}},
 		},
 	}
 	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
@@ -486,7 +486,7 @@ func TestEcoFlowSessionRunnerQuotaFetchErrorIsNonFatal(t *testing.T) {
 
 	if err := runner.Run(ctx, controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "R351ZABAPH331057",
+		ProviderDeviceID:   "DEMOD2M00001057",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",
@@ -550,7 +550,7 @@ func TestEcoFlowSessionRunnerPeriodicQuotaRefresh(t *testing.T) {
 
 	_ = runner.Run(ctx, controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "R351ZABAPH331057",
+		ProviderDeviceID:   "DEMOD2M00001057",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",
@@ -604,7 +604,7 @@ func TestEcoFlowSessionRunnerRefreshesQuotaOnReadFailureBeforeReconnect(t *testi
 	}
 	subscriber2 := &fakeMQTTSubscriber{
 		reads: []fakeReadResult{
-			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/Y711ZABA9H2P0294/quota", Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`)}},
+			{msg: ecoflowmqtt.Message{Topic: "/open/open-account/DEMODPU0000294/quota", Payload: []byte(`{"id":1,"typeCode":"kitInfo"}`)}},
 		},
 	}
 	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber1, subscriber2}}
@@ -614,7 +614,7 @@ func TestEcoFlowSessionRunnerRefreshesQuotaOnReadFailureBeforeReconnect(t *testi
 
 	assignment := controlplane.IngestAssignment{
 		Provider:           controlplane.ProviderEcoFlow,
-		ProviderDeviceID:   "Y711ZABA9H2P0294",
+		ProviderDeviceID:   "DEMODPU0000294",
 		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
 		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
 		AccessKey:          "ak",

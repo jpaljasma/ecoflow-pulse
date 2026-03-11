@@ -15,7 +15,7 @@ func TestParseSeedSerialsDefault(t *testing.T) {
 	if got, want := len(serials), 2; got != want {
 		t.Fatalf("serial count mismatch: got=%d want=%d", got, want)
 	}
-	if serials[0] != "R351ZABAPH331057" || serials[1] != "Y711ZABA9H2P0294" {
+	if serials[0] != "DEMOD2M00001057" || serials[1] != "DEMODPU0000294" {
 		t.Fatalf("unexpected defaults: %#v", serials)
 	}
 }
@@ -23,14 +23,14 @@ func TestParseSeedSerialsDefault(t *testing.T) {
 func TestParseSeedSerialsNormalizeAndDedupe(t *testing.T) {
 	t.Parallel()
 
-	serials, err := parseSeedSerials(" r351zabaph331057, Y711zaba9h2p0294 ; r351zabaph331057 ")
+	serials, err := parseSeedSerials(" demod2m00001057, demodpu0000294 ; demod2m00001057 ")
 	if err != nil {
 		t.Fatalf("parseSeedSerials returned error: %v", err)
 	}
 	if got, want := len(serials), 2; got != want {
 		t.Fatalf("serial count mismatch: got=%d want=%d", got, want)
 	}
-	if serials[0] != "R351ZABAPH331057" || serials[1] != "Y711ZABA9H2P0294" {
+	if serials[0] != "DEMOD2M00001057" || serials[1] != "DEMODPU0000294" {
 		t.Fatalf("unexpected normalized serials: %#v", serials)
 	}
 }
@@ -97,7 +97,7 @@ func TestConfigFromEnvDefaults(t *testing.T) {
 func TestBuildSeedDevicesKnownModel(t *testing.T) {
 	t.Parallel()
 
-	devices := buildSeedDevices([]string{"R351ZABAPH331057", "Y711ZABA9H2P0294"})
+	devices := buildSeedDevices([]string{"DEMOD2M00001057", "DEMODPU0000294"})
 	if got, want := len(devices), 2; got != want {
 		t.Fatalf("device count mismatch: got=%d want=%d", got, want)
 	}

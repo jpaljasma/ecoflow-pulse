@@ -62,9 +62,9 @@ DB_MIGRATION_DB ?= pulse
 PGROLL_LOCAL_PORT ?= 15433
 PGROLL_PLAN ?=
 DB_SEED_LOCAL_PORT ?= 15432
-DB_SEED_USER_SUBJECT ?= jpaljasma@gmail.com
-DB_SEED_USER_EMAIL ?= jpaljasma@gmail.com
-DB_SEED_SERIALS ?= R351ZABAPH331057,Y711ZABA9H2P0294
+DB_SEED_USER_SUBJECT ?= dev-user@example.com
+DB_SEED_USER_EMAIL ?= dev-user@example.com
+DB_SEED_SERIALS ?= DEMOD2M00001057,DEMODPU0000294
 KEYCLOAK_REALM_NAME ?= pulse
 KEYCLOAK_ADMIN_USER ?= admin
 VALKEY_BENCH_NAMESPACE ?= pulse-platform
@@ -113,7 +113,7 @@ LOCAL_PLATFORM_MANIFEST ?= $(CURDIR)/.tmp/pulse-platform.rendered.yaml
 K6_SCRIPT ?= load/k6/main.js
 K6_API_BASE_URL ?= http://127.0.0.1
 K6_WS_URL ?= ws://127.0.0.1/ws
-K6_USER_SUBJECT ?= jpaljasma@gmail.com
+K6_USER_SUBJECT ?= dev-user@example.com
 K6_DURATION ?= 1m
 K6_INGEST_RATE ?= 20
 K6_INGEST_PRE_ALLOCATED_VUS ?= 8
@@ -535,7 +535,23 @@ k3d-up:
 platform-up: helm-local-ready
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(PLATFORM_CHART)
 	@set -euo pipefail; \
+		if [ -f .env ]; then \
+			set -a; source ./.env; set +a; \
+		fi; \
 		ns="$(PLATFORM_NAMESPACE)"; \
+		run_platform_helm() { \
+			if [ -n "$${PULSE_PLATFORM_DEV_SUBJECT:-}" ]; then \
+				echo "using local noop subject override for pulse-platform public app"; \
+				$(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
+					--namespace $(PLATFORM_NAMESPACE) --create-namespace \
+					$(LOCAL_HELM_UPGRADE_FLAGS) \
+					-f $(LOCAL_PLATFORM_VALUES) \
+					--set-string "runtime.publicApp.env.devUserSubject=$${PULSE_PLATFORM_DEV_SUBJECT}" \
+					"$$@"; \
+			else \
+				$(PLATFORM_HELM_APPLY) "$$@"; \
+			fi; \
+		}; \
 		wait_endpoints() { \
 			name="$$1"; attempts="$$2"; label="$$3"; \
 			if ! $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" >/dev/null 2>&1; then \
@@ -633,7 +649,7 @@ platform-up: helm-local-ready
 			ensure_prometheus_operator_crds; \
 		fi; \
 		echo "installing platform release via Helm"; \
-		$(PLATFORM_HELM_APPLY) $$keycloak_first_pass_flags; \
+		run_platform_helm $$keycloak_first_pass_flags; \
 		if $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy $(PLATFORM_RELEASE)-cloudnative-pg >/dev/null 2>&1; then \
 			echo "waiting for CloudNativePG operator to become ready"; \
 			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cloudnative-pg --timeout=180s; \
@@ -666,7 +682,7 @@ platform-up: helm-local-ready
 			wait_endpoints $(DB_MIGRATION_CLUSTER)-rw 36 "CNPG rw service"; \
 		fi; \
 		echo "running second platform Helm reconcile for CRD-backed resources"; \
-		$(PLATFORM_HELM_APPLY); \
+		run_platform_helm; \
 		if [ "$$(uname -s)" = "Darwin" ] && [ "$(LOCAL_PLATFORM_AUTO_TRUST_TLS)" = "1" ] && $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get secret pulse-platform-local-tls >/dev/null 2>&1; then \
 			$(MAKE) --no-print-directory local-trust-platform-tls; \
 		fi
@@ -911,6 +927,9 @@ dev-down:
 # The rollout restart calls are important because the images use the same :local tag with IfNotPresent, so importing alone will not replace already-running pods.
 dev-web-deploy:
 	@set -euo pipefail; \
+		if [ -f .env ]; then \
+			set -a; source ./.env; set +a; \
+		fi; \
 		helm_mode="$(DEV_DEPLOY_HELM)"; \
 		platform_apply=0; \
 		case "$$helm_mode" in \
@@ -929,6 +948,13 @@ dev-web-deploy:
 				if [ "$$platform_apply" = "0" ]; then \
 					if ! $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-realtime-gateway >/dev/null 2>&1 || \
 					   ! $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-public-app >/dev/null 2>&1; then \
+						platform_apply=1; \
+					fi; \
+				fi; \
+				if [ "$$platform_apply" = "0" ] && [ -n "$${PULSE_PLATFORM_DEV_SUBJECT:-}" ]; then \
+					current_subject="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-public-app -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="PULSE_PLATFORM_DEV_SUBJECT")].value}' 2>/dev/null || true )"; \
+					if [ "$$current_subject" != "$${PULSE_PLATFORM_DEV_SUBJECT}" ]; then \
+						echo "detected changed local noop subject override for pulse-platform public app"; \
 						platform_apply=1; \
 					fi; \
 				fi; \
@@ -1216,6 +1242,9 @@ db-seed-dev-local: db-migrate-up-local
 	if [ -f .env ]; then \
 		set -a; source ./.env; set +a; \
 	fi; \
+	seed_user_subject="$${DB_SEED_USER_SUBJECT:-$${ECOFLOW_DEV_USER_SUBJECT:-$${PULSE_PLATFORM_DEV_SUBJECT:-$(DB_SEED_USER_SUBJECT)}}}"; \
+	seed_user_email="$${DB_SEED_USER_EMAIL:-$${ECOFLOW_DEV_USER_EMAIL:-$$seed_user_subject}}"; \
+	seed_serials="$${DB_SEED_SERIALS:-$${ECOFLOW_DEV_SEED_SNS:-$(DB_SEED_SERIALS)}}"; \
 	if [ -z "$${ECOFLOW_DEV_ACCESS_KEY:-}" ]; then \
 		echo "ECOFLOW_DEV_ACCESS_KEY is required (export it or set it in .env)"; \
 		exit 1; \
@@ -1253,9 +1282,9 @@ db-seed-dev-local: db-migrate-up-local
 		exit 1; \
 	fi; \
 	CONTROL_PLANE_DB_DSN="host=127.0.0.1 port=$$port user=$$user password=$$pass dbname=$$db sslmode=disable" \
-	ECOFLOW_DEV_USER_SUBJECT="$(DB_SEED_USER_SUBJECT)" \
-	ECOFLOW_DEV_USER_EMAIL="$(DB_SEED_USER_EMAIL)" \
-	ECOFLOW_DEV_SEED_SNS="$(DB_SEED_SERIALS)" \
+	ECOFLOW_DEV_USER_SUBJECT="$$seed_user_subject" \
+	ECOFLOW_DEV_USER_EMAIL="$$seed_user_email" \
+	ECOFLOW_DEV_SEED_SNS="$$seed_serials" \
 	$(GO) run ./cmd/ecoflow-dev-seed
 
 _pgroll-local:

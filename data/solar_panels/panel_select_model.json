@@ -1492,7 +1492,7 @@
       "nominal_total_w": 435,
       "sample_count": 61061,
       "device_sns": [
-        "R351ZABAPH331057"
+        "DEMOD2M00001057"
       ],
       "centroid": [
         66.16662,
@@ -1553,7 +1553,7 @@
       "nominal_total_w": 200,
       "sample_count": 61061,
       "device_sns": [
-        "R351ZABAPH331057"
+        "DEMOD2M00001057"
       ],
       "centroid": [
         28.71174,
@@ -4694,7 +4694,7 @@
       "nominal_total_w": 840,
       "sample_count": 10528,
       "device_sns": [
-        "Y711ZABA9H2P0294"
+        "DEMODPU0000294"
       ],
       "centroid": [
         175.542581,

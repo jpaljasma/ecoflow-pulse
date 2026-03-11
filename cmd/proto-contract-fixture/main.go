@@ -76,7 +76,7 @@ func sampleEnvelope() *envelopev1.TelemetryEnvelope {
 		EnvelopeId:         "019caaf0-a123-7b3f-84c1-cf2a1337abcd",
 		EnvelopeVersion:    1,
 		DeviceId:           "019caaf0-b456-7e77-b356-3a2f12bcdeff",
-		EcoflowSn:          "R351ZABAPH331057",
+		EcoflowSn:          "DEMOD2M00001057",
 		Shard:              12,
 		ShardCount:         128,
 		MessageId:          "mqtt-msg-001",
