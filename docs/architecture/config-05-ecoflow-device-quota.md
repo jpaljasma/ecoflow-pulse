@@ -6,6 +6,7 @@ This enables realtime metadata and telemetry mapping.
 ---
 
 High-level shape:
+- `Delta 2`: single-PV, `bmsMaster` + `bmsSlave1` + `ems`
 - `Delta Pro 3`: 112 fields
 - `Delta Pro Ultra`: 91 fields
 - `Delta 2 Max`: 187 fields
@@ -110,6 +111,7 @@ Common meaning:
 - PV watts, volts, amps, charge state/type, configured charge source
 
 Examples:
+- `Delta 2`: `mppt.inVol`, `mppt.inAmp`, `mppt.outWatts`, `pd.bpPowerSoc`, `pd.minAcSoc`, `ems.maxChargeSoc`, `bmsMaster.fullCap`
 - `Delta Pro 3`: `powGetPvH`, `powGetPvL`, `plugInInfoPvH*`, `plugInInfoPvL*`, `flowInfoPvH`, `flowInfoPvL`
 - `Delta Pro Ultra`: `...appshow_addr.inHvMpptPwr`, `inLvMpptPwr`, `...backend_addr.inHvMpptVol`, `inHvMpptAmp`, `inLvMpptVol`, `inLvMpptAmp`
 - `Delta 2 Max`: `mppt.inVol`, `mppt.inAmp`, `mppt.outWatts`, `mppt.outVol`, `mppt.outAmp`, `mppt.pv2InVol`, `mppt.pv2InAmp`, `pd.pv1ChargeWatts`, `pd.pv1ChargeType`, `pd.pv2ChargeType`, `mppt.chgState`, `mppt.pv2ChgState`, `mppt.chgType`, `mppt.pv2ChgType`

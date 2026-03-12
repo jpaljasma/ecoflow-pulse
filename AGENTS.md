@@ -331,6 +331,10 @@ These rules are mandatory for all new platform work and are sourced from:
 5. Initial dev seeding:
    - explicit command only (no automatic startup seeding),
    - seed from env-provided credentials and configured SN list.
+6. Provider-device mapping:
+   - do not assume adjacent models share the same quota group layout,
+   - verify field families against official provider docs before reusing another model's mapper path,
+   - when field families differ, add/keep model-specific regression tests instead of relying on naming similarity.
 
 ### Migration safety follow-up (locked direction)
 1. After M1 baseline lands, adopt `pgroll` for safe online PostgreSQL schema migrations with reversible rollout and simultaneous multi-schema serving during transitions.
