@@ -97,7 +97,9 @@ const DEVICES: DevicePayload[] = [
       usbOn: false,
       dc12vOn: false,
       fanOn: false,
-      solarChargingOn: true
+      solarChargingOn: true,
+      stormGuardActive: true,
+      stormGuardEndsAtUnixMs: Date.now() + 2 * 60 * 60 * 1000
     }
   },
   {

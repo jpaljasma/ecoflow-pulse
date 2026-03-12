@@ -158,6 +158,23 @@ Store target:
 - metadata: yes
 - also useful as periodic telemetry so UI stays fresh
 
+**11a. Storm Guard**
+Common meaning:
+- device-reported weather-protection mode that pre-charges supported EcoFlow systems ahead of outage risk
+
+Examples:
+- `Delta Pro 3` / `Delta 3 Plus` / `Delta 3 Max Plus` / `Delta Pro Ultra`: `stormPatternEnable`, `stormPatternOpenFlag`, `stormPatternEndTime`
+- other documented EcoFlow variants: `stormIsEnable`, `inStormMode`, `stormEndTimestamp`
+
+Implementation rule:
+- treat Storm Guard as active only when the device reports both enable + open/in-storm flags
+- do not infer Storm Guard from weak PV/MPPT values alone
+- use the reported end timestamp when present for user-facing copy such as `Storm Guard active for ~2h more`
+
+Store target:
+- live telemetry/device details: yes
+- metadata/capabilities: no special static capability flag required if the field family is already present in normalized groups
+
 **12. Smart Generator / EV / Ecosystem Features**
 Common meaning:
 - Smart Generator thresholds, EV charging, extra battery ports, parallel box

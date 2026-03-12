@@ -42,6 +42,8 @@ export type DeviceTelemetryDetails = {
   fanOn?: boolean;
   solarChargingOn?: boolean;
   batteryHeatingOn?: boolean;
+  stormGuardActive?: boolean;
+  stormGuardEndsAtUnixMs?: number;
 };
 
 export type ProviderDevicePresentation = {
@@ -115,11 +117,13 @@ function buildDetails(device: ProviderDevice, capabilities: DeviceCapabilities):
   const modelLower = device.model.toLowerCase();
   const metadata = device.metadata ?? {};
   const groups = asRecord(metadata.groups);
+  const baseStormGuard = deriveStormGuardDetails(groups);
   const details: DeviceTelemetryDetails = {
     bpCount:
       toPositiveNumber(capabilities.batteryPacks) ??
       toPositiveNumber(device.capabilities?.battery_pack_count) ??
-      deriveBatteryPacksFromMetadata(metadata)
+      deriveBatteryPacksFromMetadata(metadata),
+    ...baseStormGuard
   };
 
   if (modelLower.includes('delta pro ultra')) {
@@ -481,6 +485,13 @@ function toBoolean(value: unknown): boolean {
   return value === true || value === 1 || value === '1';
 }
 
+function toBooleanFlag(value: unknown): boolean | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  return toBoolean(value);
+}
+
 function truthyNumber(value: unknown): boolean {
   const parsed = toNumber(value);
   return parsed !== undefined && parsed > 0;
@@ -520,6 +531,31 @@ function sanitizeSolarWatts(value: number | undefined, maxWatts: number): number
     return undefined;
   }
   return value > maxWatts * 2 ? undefined : value;
+}
+
+function deriveStormGuardDetails(groups: GenericRecord): Pick<DeviceTelemetryDetails, 'stormGuardActive' | 'stormGuardEndsAtUnixMs'> {
+  const groupRecords = Object.values(groups).map((value) => asRecord(value));
+  // EcoFlow currently exposes Storm Guard with at least two field families across
+  // supported products. Scan all normalized metadata groups so new supported
+  // models do not require another model-specific mapper patch.
+  const stormPatternEnable = firstDefined(
+    ...groupRecords.map((group) => toBooleanFlag(group.stormPatternEnable)),
+    ...groupRecords.map((group) => toBooleanFlag(group.stormIsEnable))
+  );
+  const stormPatternOpen = firstDefined(
+    ...groupRecords.map((group) => toBooleanFlag(group.stormPatternOpenFlag)),
+    ...groupRecords.map((group) => toBooleanFlag(group.inStormMode))
+  );
+  const stormPatternEndTimeSeconds = firstDefined(
+    ...groupRecords.map((group) => toPositiveNumber(group.stormPatternEndTime)),
+    ...groupRecords.map((group) => toPositiveNumber(group.stormEndTimestamp))
+  );
+
+  return {
+    stormGuardActive: stormPatternEnable === true && stormPatternOpen === true,
+    stormGuardEndsAtUnixMs:
+      stormPatternEndTimeSeconds !== undefined ? stormPatternEndTimeSeconds * 1000 : undefined
+  };
 }
 
 function firstDefined<T>(...values: (T | undefined)[]): T | undefined {

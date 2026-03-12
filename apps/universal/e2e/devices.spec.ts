@@ -14,7 +14,8 @@ test.describe('Universal web E2E', () => {
     await page.goto('/devices');
 
     await expect(page.getByText('Fleet Summary')).toBeVisible();
-    await expect(page.getByText('DPU A 12 kWh')).toBeVisible();
+    await expect(page.getByText('Storm Guard active for ~2h more')).toBeVisible();
+    await expect(page.getByText('DPU A 12 kWh', { exact: true })).toBeVisible();
     await expect(page.getByText('Kitchen Delta 2 Max')).toBeVisible();
     await expect(page.getByText('☼ Today').first()).toBeVisible();
   });
@@ -23,7 +24,7 @@ test.describe('Universal web E2E', () => {
     await page.goto(`/device/${DPU_DEVICE_ID}`);
 
     await expect(page).toHaveURL(new RegExp(`/device/${DPU_DEVICE_ID}$`));
-    await expect(page.getByText('DPU A 12 kWh')).toBeVisible();
+    await expect(page.getByText('DPU A 12 kWh', { exact: true })).toBeVisible();
     await expect(page.getByText('Battery Packs')).toBeVisible();
     await expect(page.getByText('Solar Inputs')).toBeVisible();
     await expect(page.getByText('System Signals')).toBeVisible();

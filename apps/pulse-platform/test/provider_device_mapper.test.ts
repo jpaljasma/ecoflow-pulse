@@ -41,7 +41,10 @@ describe('provider device mapper', () => {
               inHvMpptPwr: 0,
               outAdsPwr: 24,
               outUsb1Pwr: 18,
-              outPrPwr: 0
+              outPrPwr: 0,
+              stormPatternEnable: 1,
+              stormPatternOpenFlag: 1,
+              stormPatternEndTime: 1773306000
             },
             hs_yj751_pd_backend_addr: {
               inLvMpptVol: 64.2,
@@ -137,7 +140,9 @@ describe('provider device mapper', () => {
         solarPorts: [
           expect.objectContaining({ id: 'pv-low', state: 'charging', maxWatts: 1600 }),
           expect.objectContaining({ id: 'pv-high', state: 'inactive', maxWatts: 4000 })
-        ]
+        ],
+        stormGuardActive: true,
+        stormGuardEndsAtUnixMs: 1773306000 * 1000
       })
     );
   });
@@ -298,5 +303,32 @@ describe('provider device mapper', () => {
       expect.objectContaining({ id: 'pv-1', state: 'locked', volts: 22, amps: 0, watts: 0 }),
       expect.objectContaining({ id: 'pv-2', state: 'idle', volts: 26, amps: 0, watts: 0 })
     ]);
+  });
+
+  it('derives storm guard from alternate EcoFlow storm field names for future devices', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        providerDeviceId: 'DEMOSTREAM0001',
+        canonicalSn: 'DEMOSTREAM0001',
+        productName: 'Stream Ultra',
+        model: 'STREAM Ultra',
+        metadata: {
+          groups: {
+            pd: {
+              stormIsEnable: 1,
+              inStormMode: 1,
+              stormEndTimestamp: 1773306000
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        stormGuardActive: true,
+        stormGuardEndsAtUnixMs: 1773306000 * 1000
+      })
+    );
   });
 });
