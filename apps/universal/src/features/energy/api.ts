@@ -3,11 +3,14 @@ import { requestJson } from '@/shared/api/restClient';
 
 export const EnergyPresetSchema = z.enum([
   'today',
+  'past24h',
   'yesterday',
   'last7d',
+  'last30d',
   'thisWeek',
   'previousWeek',
   'thisMonth',
+  'lastMonth',
   'last12m'
 ]);
 
@@ -108,6 +111,10 @@ const EnergyPVPortHistorySchema = z.object({
   sampleCount: z.number().int()
 });
 
+const EnergyPVPortHistoryResponseSchema = z.object({
+  pvPortHistory: z.array(EnergyPVPortHistorySchema)
+});
+
 export const EnergyDashboardSchema = z.object({
   scope: EnergyScopeSchema,
   window: EnergyWindowSchema,
@@ -162,4 +169,29 @@ export async function fetchEnergyDashboard({
   }
   const data = await requestJson<unknown>(`/api/v1/energy/dashboard?${params.toString()}`, { token });
   return EnergyDashboardSchema.parse(data);
+}
+
+export async function fetchEnergyPvPortHistory({
+  scope,
+  deviceId,
+  preset,
+  timezone,
+  token
+}: {
+  scope: 'device' | 'all';
+  deviceId?: string;
+  preset: EnergyPreset;
+  timezone: string;
+  token?: string;
+}): Promise<EnergyPVPortHistory[]> {
+  const params = new URLSearchParams({
+    scope,
+    preset,
+    timezone
+  });
+  if (scope === 'device' && deviceId) {
+    params.set('deviceId', deviceId);
+  }
+  const data = await requestJson<unknown>(`/api/v1/energy/pv-history?${params.toString()}`, { token });
+  return EnergyPVPortHistoryResponseSchema.parse(data).pvPortHistory;
 }

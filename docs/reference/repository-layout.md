@@ -9,7 +9,7 @@ Top-level structure:
 - `cmd/`
   - `ecoflow-db-migrate-job`: forward-only in-cluster schema migration runner for Helm/Argo rollout hooks.
   - `ecoflow-dev-seed`: explicit local/dev control-plane seeding command (user + provider credentials + initial provider-device bindings).
-  - `ecoflow-grpc-api`: internal gRPC API bootstrap server (health + telemetry + control-plane + inference services).
+  - `ecoflow-grpc-api`: internal gRPC API bootstrap server reused for both `telemetry` mode (health + telemetry + control-plane + inference services) and `energy` mode (health + energy/history services).
   - `ecoflow-inference-worker`: online insight projection worker (ingest envelopes + control-plane metadata -> Valkey device insights read model).
   - `ecoflow-ingest-worker`: distributed MQTT ingest assignment loop + session runner entrypoint.
   - `ecoflow-rollup-worker`: Timescale rollup pipeline worker (ingest envelopes -> minute/hour/day rollup upserts).

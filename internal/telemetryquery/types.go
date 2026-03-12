@@ -16,6 +16,7 @@ type Resolution int
 const (
 	ResolutionUnknown Resolution = iota
 	ResolutionMinute
+	ResolutionFiveMinutes
 	ResolutionHour
 	ResolutionDay
 )
@@ -24,6 +25,8 @@ func (r Resolution) BucketDuration() time.Duration {
 	switch r {
 	case ResolutionMinute:
 		return time.Minute
+	case ResolutionFiveMinutes:
+		return 5 * time.Minute
 	case ResolutionHour:
 		return time.Hour
 	case ResolutionDay:
@@ -37,6 +40,8 @@ func (r Resolution) String() string {
 	switch r {
 	case ResolutionMinute:
 		return "minute"
+	case ResolutionFiveMinutes:
+		return "five_minute"
 	case ResolutionHour:
 		return "hour"
 	case ResolutionDay:
@@ -49,6 +54,8 @@ func (r Resolution) String() string {
 func (r Resolution) TableName() (string, error) {
 	switch r {
 	case ResolutionMinute:
+		return "telemetry_rollup_minute", nil
+	case ResolutionFiveMinutes:
 		return "telemetry_rollup_minute", nil
 	case ResolutionHour:
 		return "telemetry_rollup_hour", nil
@@ -124,7 +131,20 @@ type RangeQuery struct {
 	Limit      int
 }
 
+type AggregateRangeQuery struct {
+	DeviceIDs   []string
+	Resolution  Resolution
+	From        time.Time
+	To          time.Time
+	Limit       int
+	AggregateID string
+}
+
 type Reader interface {
 	QueryRange(ctx context.Context, query RangeQuery) (Series, error)
 	Close() error
+}
+
+type AggregateReader interface {
+	QueryRangeMany(ctx context.Context, query AggregateRangeQuery) (Series, error)
 }

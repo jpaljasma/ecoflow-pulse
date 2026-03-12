@@ -58,6 +58,9 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 
 - `PULSE_ENV` (`local|dev|staging|prod`, default `local`)
 - `GRPC_LISTEN_ADDR` (default from grpc server profile; typically `:9090` in local/dev)
+- `GRPC_SERVICE_MODE` (`telemetry|energy`, default `telemetry`)
+  - `telemetry`: serves `TelemetryService` live snapshot/stream RPCs plus control-plane and inference services.
+  - `energy`: serves `EnergyService` history/dashboard RPCs on a separately deployable internal gRPC workload.
 - `GRPC_AUTH_MODE` (`noop|keycloak`, default `noop`)
   - `noop`: development-only pass-through auth mode.
   - `keycloak`: validates bearer JWTs via Keycloak OIDC/JWKS and injects claims into gRPC context.
@@ -81,6 +84,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `PULSE_PLATFORM_HOST` (default `0.0.0.0`)
 - `PULSE_PLATFORM_PORT` (default `18081`; standalone/debug-only port when running the BFF outside the cluster)
 - `GRPC_API_ADDR` (default `127.0.0.1:9090`; internal Go gRPC API target)
+- `ENERGY_GRPC_API_ADDR` (default empty -> falls back to `GRPC_API_ADDR`; dedicated internal Go gRPC energy/history target)
 - `GRPC_API_DEADLINE_MS` (default `10000`)
 - `PULSE_PLATFORM_DEV_SUBJECT` (optional in local noop mode; recommended for local UI work so the BFF can resolve the current user's devices without request headers)
 - `PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS` (optional comma/whitespace-delimited browser-facing origins for `Link: rel=preconnect` / `dns-prefetch` headers when API/WS are cross-origin)

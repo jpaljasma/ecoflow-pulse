@@ -52,14 +52,15 @@ type BucketRow struct {
 	FirstTsUnixMS    int64
 	LastTsUnixMS     int64
 
-	SOC     metricAccumulator
-	ACIn    metricAccumulator
-	PV      metricAccumulator
-	DC      metricAccumulator
-	Load    metricAccumulator
-	Net     metricAccumulator
-	Battery metricAccumulator
-	Temp    metricAccumulator
+	SOC      metricAccumulator
+	ACIn     metricAccumulator
+	ACOutput metricAccumulator
+	PV       metricAccumulator
+	DC       metricAccumulator
+	Load     metricAccumulator
+	Net      metricAccumulator
+	Battery  metricAccumulator
+	Temp     metricAccumulator
 
 	SolarGeneratedWh      float64
 	HasSolarGeneratedWh   bool
@@ -245,6 +246,9 @@ func (a *Aggregator) addPoint(target map[string]*BucketRow, sample *rollupworker
 	}
 	if sample.Metrics.ACIn.Valid {
 		row.ACIn.add(sample.Metrics.ACIn.Value)
+	}
+	if sample.Metrics.ACOutput.Valid {
+		row.ACOutput.add(sample.Metrics.ACOutput.Value)
 	}
 	if sample.Metrics.PV.Valid {
 		row.PV.add(sample.Metrics.PV.Value)

@@ -66,6 +66,7 @@ When starting any new milestone task from `docs/architecture/README.md`:
 3. Treat documentation updates as part of the same feature branch and commit series; do not defer doc sync to later cleanup commits.
 4. For commits touching Markdown, run `make lint` before push.
 5. Markdown linting uses repo-level sane defaults in `.markdownlint.json`; avoid broad doc reflow/polish unless the task explicitly requires it.
+6. Before committing, inspect `git status` for accidental duplicate/editor-backup files (for example `* 2.go`, `* 2.tsx`, `* 2.sql`, `* 2.md`) and remove them from the branch; do not ship cleanup debt or stray copies in PRs.
 
 ## Universal UI Data Rules
 1. Universal app routes, query params, and outbound UI links must use canonical UUID device IDs only; do not pass raw serial numbers in UI parameters.

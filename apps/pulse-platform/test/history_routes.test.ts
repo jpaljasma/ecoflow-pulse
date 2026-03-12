@@ -22,6 +22,7 @@ function baseConfig(): AppConfig {
     host: '127.0.0.1',
     port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
+    energyGrpcApiAddr: '127.0.0.1:9091',
     grpcDeadlineMs: 2500,
     devUserSubject: 'dev-user-subject',
     publicPreconnectOrigins: [],
@@ -272,19 +273,13 @@ function makeEnergyDashboard(overrides: Partial<EnergyDashboard> = {}): EnergyDa
 
 function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryHistoryClient {
   return {
-    getSnapshot: vi.fn(async () => ({
-      snapshot: {
-        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
-        cursor: { seq: '1', tsUnixMs: String(Date.now()) },
-        metrics: {}
-      }
-    })),
     queryRollupRange: vi.fn(async () => makeSeries()),
     compareRollupRange: vi.fn(async () => ({
       current: makeSeries(),
       previous: { ...makeSeries(), points: [] }
     } satisfies CompareRollupSeries)),
     getEnergyDashboard: vi.fn(async () => makeEnergyDashboard()),
+    getEnergyPvPortHistory: vi.fn(async () => makeEnergyDashboard().pvPortHistory),
     close: vi.fn(),
     ...overrides
   };
@@ -543,6 +538,99 @@ describe('pulse-platform history routes', () => {
     await app.close();
   });
 
+  it('returns energy pv history separately from the dashboard payload', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/pv-history?scope=all&preset=last7d&timezone=America%2FLos_Angeles'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyPvPortHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'last7d',
+        timezone: 'America/Los_Angeles',
+        userSubject: 'dev-user-subject'
+      })
+    );
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        pvPortHistory: expect.any(Array)
+      })
+    );
+
+    await app.close();
+  });
+
+  it('accepts the rolling past24h energy preset', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=past24h&timezone=America%2FNew_York&includeComparison=true'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'past24h',
+        timezone: 'America/New_York',
+        includeComparison: true
+      })
+    );
+
+    await app.close();
+  });
+
+  it('accepts the completed last30d energy preset', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=last30d&timezone=America%2FNew_York&includeComparison=true'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'last30d',
+        timezone: 'America/New_York',
+        includeComparison: true
+      })
+    );
+
+    await app.close();
+  });
+
+  it('accepts the calendar lastMonth energy preset', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=lastMonth&timezone=America%2FNew_York&includeComparison=true'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'lastMonth',
+        timezone: 'America/New_York',
+        includeComparison: true
+      })
+    );
+
+    await app.close();
+  });
+
   it('rejects energy dashboard device scope without a device id', async () => {
     const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
@@ -586,6 +674,7 @@ describe('pulse-platform history routes', () => {
     const verifier = vi.fn(async () => ({ subject: 'sub-1', roles: [], rawJwt: 'jwt' }));
     const authConfig: AppConfig = {
       ...baseConfig(),
+      energyGrpcApiAddr: '127.0.0.1:9091',
       auth: {
         mode: 'keycloak',
         issuerUrl: 'https://issuer.example',
@@ -619,6 +708,7 @@ describe('pulse-platform history routes', () => {
     const verifier = vi.fn();
     const authConfig: AppConfig = {
       ...baseConfig(),
+      energyGrpcApiAddr: '127.0.0.1:9091',
       auth: {
         mode: 'keycloak',
         issuerUrl: 'https://issuer.example',

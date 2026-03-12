@@ -13,80 +13,77 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
-func (s *TelemetryService) GetEnergyDashboard(ctx context.Context, req *telemetryv1.GetEnergyDashboardRequest) (*telemetryv1.GetEnergyDashboardResponse, error) {
+func (s *EnergyService) GetEnergyDashboard(ctx context.Context, req *telemetryv1.GetEnergyDashboardRequest) (*telemetryv1.GetEnergyDashboardResponse, error) {
 	if s.queryReader == nil {
 		return nil, status.Error(codes.Unavailable, "telemetry history unavailable")
 	}
-
-	preset, err := energydashboard.ParsePreset(req.GetPreset())
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	loc := time.UTC
-	if tz := strings.TrimSpace(req.GetTimezone()); tz != "" {
-		loc, err = time.LoadLocation(tz)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid timezone: %v", err)
-		}
-	}
-
-	visibleDeviceIDs, err := s.resolveVisibleDeviceIDs(ctx, req.GetDeviceId(), req.GetUseAllDevices())
+	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone())
 	if err != nil {
 		return nil, err
-	}
-	scope, err := energydashboard.ResolveScope(scopeRequestValue(req.GetDeviceId(), req.GetUseAllDevices()), visibleDeviceIDs)
-	if err != nil {
-		return nil, status.Error(codes.PermissionDenied, err.Error())
-	}
-	window, err := energydashboard.ResolveWindow(time.Now(), loc, preset)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	energyResolution := energyResolutionForPreset(preset)
-	currentSeries, err := s.queryScopeSeries(ctx, scope.ResolvedDeviceIDs, energyResolution, window.From, window.To)
-	if err != nil {
-		return nil, err
-	}
+	powerResolution := powerResolutionForPreset(preset)
 	previousSeries := telemetryquery.Series{
-		DeviceID:   currentSeries.DeviceID,
-		Resolution: currentSeries.Resolution,
+		DeviceID:   scope.SeriesDeviceID(),
+		Resolution: energyResolution,
 		From:       window.PreviousFrom.UTC(),
 		To:         window.PreviousTo.UTC(),
 		Points:     []telemetryquery.Point{},
-	}
-	if req.GetIncludeComparison() {
-		previousSeries, err = s.queryScopeSeries(ctx, scope.ResolvedDeviceIDs, energyResolution, window.PreviousFrom, window.PreviousTo)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	powerResolution := powerResolutionForPreset(preset)
-	currentPowerSeries, err := s.queryScopeSeries(ctx, scope.ResolvedDeviceIDs, powerResolution, window.From, window.To)
-	if err != nil {
-		return nil, err
 	}
 	previousPowerSeries := telemetryquery.Series{
-		DeviceID:   currentPowerSeries.DeviceID,
-		Resolution: currentPowerSeries.Resolution,
+		DeviceID:   scope.SeriesDeviceID(),
+		Resolution: powerResolution,
 		From:       window.PreviousFrom.UTC(),
 		To:         window.PreviousTo.UTC(),
 		Points:     []telemetryquery.Point{},
 	}
-	if req.GetIncludeComparison() {
-		previousPowerSeries, err = s.queryScopeSeries(ctx, scope.ResolvedDeviceIDs, powerResolution, window.PreviousFrom, window.PreviousTo)
-		if err != nil {
-			return nil, err
+	var (
+		currentSeries      telemetryquery.Series
+		currentPowerSeries telemetryquery.Series
+	)
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		series, queryErr := s.queryScopeSeries(groupCtx, scope, energyResolution, window.From, window.To)
+		if queryErr != nil {
+			return queryErr
 		}
+		currentSeries = series
+		return nil
+	})
+	group.Go(func() error {
+		series, queryErr := s.queryScopeSeries(groupCtx, scope, powerResolution, window.From, window.To)
+		if queryErr != nil {
+			return queryErr
+		}
+		currentPowerSeries = series
+		return nil
+	})
+	if req.GetIncludeComparison() {
+		group.Go(func() error {
+			series, queryErr := s.queryScopeSeries(groupCtx, scope, energyResolution, window.PreviousFrom, window.PreviousTo)
+			if queryErr != nil {
+				return queryErr
+			}
+			previousSeries = series
+			return nil
+		})
+		group.Go(func() error {
+			series, queryErr := s.queryScopeSeries(groupCtx, scope, powerResolution, window.PreviousFrom, window.PreviousTo)
+			if queryErr != nil {
+				return queryErr
+			}
+			previousPowerSeries = series
+			return nil
+		})
 	}
-	pvPortHistory, err := s.queryScopePVPortHistory(ctx, scope.ResolvedDeviceIDs, window.From, window.To)
-	if err != nil {
+	if err := group.Wait(); err != nil {
 		return nil, err
 	}
 
@@ -110,13 +107,69 @@ func (s *TelemetryService) GetEnergyDashboard(ctx context.Context, req *telemetr
 		PreviousEnergyPoints: pointsToProto(previousSeries.Points),
 		CurrentPowerPoints:   pointsToProto(currentPowerSeries.Points),
 		PreviousPowerPoints:  pointsToProto(previousPowerSeries.Points),
-		PvPortHistory:        pvPortHistoryToProto(pvPortHistory),
+		PvPortHistory:        []*telemetryv1.EnergyPVPortHistory{},
 	}
 	s.maybeEnableHistoryCompression(ctx, resp)
 	return resp, nil
 }
 
-func (s *TelemetryService) queryScopePVPortHistory(ctx context.Context, deviceIDs []string, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
+func (s *EnergyService) GetEnergyPvPortHistory(ctx context.Context, req *telemetryv1.GetEnergyPvPortHistoryRequest) (*telemetryv1.GetEnergyPvPortHistoryResponse, error) {
+	scope, window, loc, _, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone())
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.queryScopePVPortHistory(ctx, scope.ResolvedDeviceIDs, window.From, window.To)
+	if err != nil {
+		return nil, err
+	}
+	resp := &telemetryv1.GetEnergyPvPortHistoryResponse{
+		Scope: &telemetryv1.EnergyScope{
+			Mode:              scope.Mode,
+			DeviceId:          scope.DeviceID,
+			ResolvedDeviceIds: append([]string(nil), scope.ResolvedDeviceIDs...),
+		},
+		Window: &telemetryv1.EnergyWindow{
+			Preset:             string(req.GetPreset()),
+			Timezone:           loc.String(),
+			FromUnixMs:         window.From.UnixMilli(),
+			ToUnixMs:           window.To.UnixMilli(),
+			PreviousFromUnixMs: window.PreviousFrom.UnixMilli(),
+			PreviousToUnixMs:   window.PreviousTo.UnixMilli(),
+		},
+		PvPortHistory: pvPortHistoryToProto(rows),
+	}
+	s.maybeEnableHistoryCompression(ctx, resp)
+	return resp, nil
+}
+
+func (s *EnergyService) resolveEnergyScopeWindow(ctx context.Context, deviceID string, useAllDevices bool, presetRaw, timezone string) (energydashboard.Scope, energydashboard.Window, *time.Location, energydashboard.Preset, error) {
+	preset, err := energydashboard.ParsePreset(presetRaw)
+	if err != nil {
+		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.InvalidArgument, err.Error())
+	}
+	loc := time.UTC
+	if tz := strings.TrimSpace(timezone); tz != "" {
+		loc, err = time.LoadLocation(tz)
+		if err != nil {
+			return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Errorf(codes.InvalidArgument, "invalid timezone: %v", err)
+		}
+	}
+	visibleDeviceIDs, err := s.resolveVisibleDeviceIDs(ctx, deviceID, useAllDevices)
+	if err != nil {
+		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", err
+	}
+	scope, err := energydashboard.ResolveScope(scopeRequestValue(deviceID, useAllDevices), visibleDeviceIDs)
+	if err != nil {
+		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.PermissionDenied, err.Error())
+	}
+	window, err := energydashboard.ResolveWindow(s.now(), loc, preset)
+	if err != nil {
+		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.InvalidArgument, err.Error())
+	}
+	return scope, window, loc, preset, nil
+}
+
+func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs []string, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
 	if s.archiveManifestStore == nil || s.archiveObjectReader == nil || s.controlPlaneStore == nil || len(deviceIDs) == 0 {
 		return nil, nil
 	}
@@ -229,13 +282,13 @@ func envelopeTimestamp(env *envelopev1.TelemetryEnvelope) time.Time {
 	}
 }
 
-func (s *TelemetryService) resolveVisibleDeviceIDs(ctx context.Context, requestedDeviceID string, useAllDevices bool) ([]string, error) {
+func (s *EnergyService) resolveVisibleDeviceIDs(ctx context.Context, requestedDeviceID string, useAllDevices bool) ([]string, error) {
 	requestedDeviceID = strings.TrimSpace(requestedDeviceID)
 	if !useAllDevices {
 		if requestedDeviceID == "" {
 			return nil, status.Error(codes.InvalidArgument, "device_id required when use_all_devices is false")
 		}
-		if err := s.authorizeDeviceAccess(ctx, requestedDeviceID); err != nil {
+		if err := authorizeDeviceAccess(ctx, s.controlPlaneStore, requestedDeviceID); err != nil {
 			return nil, err
 		}
 		return []string{requestedDeviceID}, nil
@@ -269,8 +322,10 @@ func scopeRequestValue(deviceID string, useAllDevices bool) string {
 
 func energyResolutionForPreset(preset energydashboard.Preset) telemetryquery.Resolution {
 	switch preset {
-	case energydashboard.PresetToday, energydashboard.PresetYesterday:
+	case energydashboard.PresetToday, energydashboard.PresetPast24Hours, energydashboard.PresetYesterday:
 		return telemetryquery.ResolutionHour
+	case energydashboard.PresetLast30Days, energydashboard.PresetLastMonth:
+		return telemetryquery.ResolutionDay
 	default:
 		return telemetryquery.ResolutionDay
 	}
@@ -278,24 +333,53 @@ func energyResolutionForPreset(preset energydashboard.Preset) telemetryquery.Res
 
 func powerResolutionForPreset(preset energydashboard.Preset) telemetryquery.Resolution {
 	switch preset {
-	case energydashboard.PresetToday, energydashboard.PresetYesterday:
-		return telemetryquery.ResolutionMinute
-	case energydashboard.PresetLast7Days, energydashboard.PresetThisWeek, energydashboard.PresetPreviousWeek, energydashboard.PresetThisMonth:
+	case energydashboard.PresetToday, energydashboard.PresetPast24Hours, energydashboard.PresetYesterday:
+		return telemetryquery.ResolutionFiveMinutes
+	case energydashboard.PresetThisWeek, energydashboard.PresetPreviousWeek, energydashboard.PresetThisMonth, energydashboard.PresetLast7Days:
 		return telemetryquery.ResolutionHour
+	case energydashboard.PresetLast30Days, energydashboard.PresetLastMonth:
+		return telemetryquery.ResolutionDay
 	default:
 		return telemetryquery.ResolutionDay
 	}
 }
 
-func (s *TelemetryService) queryScopeSeries(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) (telemetryquery.Series, error) {
+func (s *EnergyService) queryScopeSeries(ctx context.Context, scope energydashboard.Scope, resolution telemetryquery.Resolution, from, to time.Time) (telemetryquery.Series, error) {
+	if len(scope.ResolvedDeviceIDs) == 1 {
+		series, err := s.queryReader.QueryRange(ctx, telemetryquery.RangeQuery{
+			DeviceID:   scope.ResolvedDeviceIDs[0],
+			Resolution: resolution,
+			From:       from.UTC(),
+			To:         to.UTC(),
+			Limit:      s.maxQueryBuckets,
+		})
+		if err != nil {
+			return telemetryquery.Series{}, s.mapQueryError(err)
+		}
+		return series, nil
+	}
+	if aggregateReader, ok := s.queryReader.(telemetryquery.AggregateReader); ok {
+		series, err := aggregateReader.QueryRangeMany(ctx, telemetryquery.AggregateRangeQuery{
+			DeviceIDs:   scope.ResolvedDeviceIDs,
+			Resolution:  resolution,
+			From:        from.UTC(),
+			To:          to.UTC(),
+			Limit:       s.maxQueryBuckets,
+			AggregateID: scope.SeriesDeviceID(),
+		})
+		if err != nil {
+			return telemetryquery.Series{}, s.mapQueryError(err)
+		}
+		return series, nil
+	}
 	aggregated := telemetryquery.Series{
-		DeviceID:   "all",
+		DeviceID:   scope.SeriesDeviceID(),
 		Resolution: resolution,
 		From:       from.UTC(),
 		To:         to.UTC(),
 		Points:     []telemetryquery.Point{},
 	}
-	for _, deviceID := range deviceIDs {
+	for _, deviceID := range scope.ResolvedDeviceIDs {
 		series, err := s.queryReader.QueryRange(ctx, telemetryquery.RangeQuery{
 			DeviceID:   deviceID,
 			Resolution: resolution,
@@ -307,9 +391,6 @@ func (s *TelemetryService) queryScopeSeries(ctx context.Context, deviceIDs []str
 			return telemetryquery.Series{}, s.mapQueryError(err)
 		}
 		aggregated = mergeSeries(aggregated, series)
-	}
-	if len(deviceIDs) == 1 {
-		aggregated.DeviceID = deviceIDs[0]
 	}
 	return aggregated, nil
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -27,25 +28,38 @@ import (
 // Timescale rollup tables through the telemetryquery reader.
 type TelemetryService struct {
 	telemetryv1.UnimplementedTelemetryServiceServer
+	log               *slog.Logger
+	snapshotReader    projectionworker.SnapshotReader
+	controlPlaneStore controlplane.Store
+}
+
+type TelemetryServiceDeps struct {
+	Log               *slog.Logger
+	SnapshotReader    projectionworker.SnapshotReader
+	ControlPlaneStore controlplane.Store
+}
+
+type EnergyService struct {
+	telemetryv1.UnimplementedEnergyServiceServer
 	log                  *slog.Logger
-	snapshotReader       projectionworker.SnapshotReader
 	queryReader          telemetryquery.Reader
 	controlPlaneStore    controlplane.Store
 	archiveManifestStore replaycli.ManifestStore
 	archiveObjectReader  replaycli.ObjectReader
 	maxQueryBuckets      int
 	historyGzipMinBytes  int
+	now                  func() time.Time
 }
 
-type TelemetryServiceDeps struct {
+type EnergyServiceDeps struct {
 	Log                  *slog.Logger
-	SnapshotReader       projectionworker.SnapshotReader
 	QueryReader          telemetryquery.Reader
 	ControlPlaneStore    controlplane.Store
 	ArchiveManifestStore replaycli.ManifestStore
 	ArchiveObjectReader  replaycli.ObjectReader
 	MaxQueryBuckets      int
 	HistoryGzipMinBytes  int
+	Now                  func() time.Time
 }
 
 var defaultSnapshotMetrics = map[string]float64{
@@ -77,6 +91,22 @@ func NewTelemetryServiceWithDeps(deps TelemetryServiceDeps) *TelemetryService {
 	if log == nil {
 		log = slog.Default()
 	}
+	return &TelemetryService{
+		log:               log,
+		snapshotReader:    deps.SnapshotReader,
+		controlPlaneStore: deps.ControlPlaneStore,
+	}
+}
+
+func NewEnergyService(log *slog.Logger) *EnergyService {
+	return NewEnergyServiceWithDeps(EnergyServiceDeps{Log: log})
+}
+
+func NewEnergyServiceWithDeps(deps EnergyServiceDeps) *EnergyService {
+	log := deps.Log
+	if log == nil {
+		log = slog.Default()
+	}
 	maxQueryBuckets := deps.MaxQueryBuckets
 	if maxQueryBuckets <= 0 {
 		maxQueryBuckets = defaultMaxQueryBuckets
@@ -85,15 +115,19 @@ func NewTelemetryServiceWithDeps(deps TelemetryServiceDeps) *TelemetryService {
 	if historyGzipMinBytes <= 0 {
 		historyGzipMinBytes = defaultHistoryGzipMinBytes
 	}
-	return &TelemetryService{
+	nowFn := deps.Now
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	return &EnergyService{
 		log:                  log,
-		snapshotReader:       deps.SnapshotReader,
 		queryReader:          deps.QueryReader,
 		controlPlaneStore:    deps.ControlPlaneStore,
 		archiveManifestStore: deps.ArchiveManifestStore,
 		archiveObjectReader:  deps.ArchiveObjectReader,
 		maxQueryBuckets:      maxQueryBuckets,
 		historyGzipMinBytes:  historyGzipMinBytes,
+		now:                  nowFn,
 	}
 }
 
@@ -101,7 +135,7 @@ func (s *TelemetryService) GetSnapshot(ctx context.Context, req *telemetryv1.Get
 	if req.GetDeviceId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "device_id required")
 	}
-	if err := s.authorizeDeviceAccess(ctx, req.GetDeviceId()); err != nil {
+	if err := authorizeDeviceAccess(ctx, s.controlPlaneStore, req.GetDeviceId()); err != nil {
 		return nil, err
 	}
 
@@ -148,7 +182,7 @@ func (s *TelemetryService) Subscribe(req *telemetryv1.SubscribeRequest, stream t
 	if req.GetDeviceId() == "" {
 		return status.Error(codes.InvalidArgument, "device_id required")
 	}
-	if err := s.authorizeDeviceAccess(stream.Context(), req.GetDeviceId()); err != nil {
+	if err := authorizeDeviceAccess(stream.Context(), s.controlPlaneStore, req.GetDeviceId()); err != nil {
 		return err
 	}
 
@@ -198,12 +232,12 @@ func (s *TelemetryService) Subscribe(req *telemetryv1.SubscribeRequest, stream t
 	}
 }
 
-func (s *TelemetryService) QueryRollupRange(ctx context.Context, req *telemetryv1.QueryRollupRangeRequest) (*telemetryv1.QueryRollupRangeResponse, error) {
+func (s *EnergyService) QueryRollupRange(ctx context.Context, req *telemetryv1.QueryRollupRangeRequest) (*telemetryv1.QueryRollupRangeResponse, error) {
 	query, err := s.buildRangeQuery(req.GetDeviceId(), req.GetResolution(), req.GetFromUnixMs(), req.GetToUnixMs())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.authorizeDeviceAccess(ctx, query.DeviceID); err != nil {
+	if err := authorizeDeviceAccess(ctx, s.controlPlaneStore, query.DeviceID); err != nil {
 		return nil, err
 	}
 	if s.queryReader == nil {
@@ -222,32 +256,48 @@ func (s *TelemetryService) QueryRollupRange(ctx context.Context, req *telemetryv
 	return resp, nil
 }
 
-func (s *TelemetryService) CompareRollupRange(ctx context.Context, req *telemetryv1.CompareRollupRangeRequest) (*telemetryv1.CompareRollupRangeResponse, error) {
+func (s *EnergyService) CompareRollupRange(ctx context.Context, req *telemetryv1.CompareRollupRangeRequest) (*telemetryv1.CompareRollupRangeResponse, error) {
 	currentQuery, err := s.buildRangeQuery(req.GetDeviceId(), req.GetResolution(), req.GetFromUnixMs(), req.GetToUnixMs())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.authorizeDeviceAccess(ctx, currentQuery.DeviceID); err != nil {
+	if err := authorizeDeviceAccess(ctx, s.controlPlaneStore, currentQuery.DeviceID); err != nil {
 		return nil, err
 	}
 	if s.queryReader == nil {
 		return nil, status.Error(codes.Unavailable, "telemetry history unavailable")
 	}
 
-	current, err := s.queryReader.QueryRange(ctx, currentQuery)
-	if err != nil {
-		return nil, s.mapQueryError(err)
-	}
-	s.logEnergyBucketFallback("compare_rollup_range_current", current)
-
 	previousQuery, err := s.buildCompareQuery(req, currentQuery)
 	if err != nil {
 		return nil, err
 	}
-	previous, err := s.queryReader.QueryRange(ctx, previousQuery)
-	if err != nil {
+
+	var (
+		current  telemetryquery.Series
+		previous telemetryquery.Series
+	)
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		series, queryErr := s.queryReader.QueryRange(groupCtx, currentQuery)
+		if queryErr != nil {
+			return queryErr
+		}
+		current = series
+		return nil
+	})
+	group.Go(func() error {
+		series, queryErr := s.queryReader.QueryRange(groupCtx, previousQuery)
+		if queryErr != nil {
+			return queryErr
+		}
+		previous = series
+		return nil
+	})
+	if err := group.Wait(); err != nil {
 		return nil, s.mapQueryError(err)
 	}
+	s.logEnergyBucketFallback("compare_rollup_range_current", current)
 	s.logEnergyBucketFallback("compare_rollup_range_previous", previous)
 
 	resp := &telemetryv1.CompareRollupRangeResponse{
@@ -258,7 +308,7 @@ func (s *TelemetryService) CompareRollupRange(ctx context.Context, req *telemetr
 	return resp, nil
 }
 
-func (s *TelemetryService) maybeEnableHistoryCompression(ctx context.Context, message proto.Message) {
+func (s *EnergyService) maybeEnableHistoryCompression(ctx context.Context, message proto.Message) {
 	if s == nil || !shouldCompressHistoryResponse(message, s.historyGzipMinBytes) {
 		return
 	}
@@ -269,7 +319,7 @@ func (s *TelemetryService) maybeEnableHistoryCompression(ctx context.Context, me
 	}
 }
 
-func (s *TelemetryService) logEnergyBucketFallback(operation string, series telemetryquery.Series) {
+func (s *EnergyService) logEnergyBucketFallback(operation string, series telemetryquery.Series) {
 	if s == nil || s.log == nil {
 		return
 	}
@@ -411,7 +461,7 @@ func (s *TelemetryService) subscribeFromReadModel(
 	}
 }
 
-func (s *TelemetryService) buildRangeQuery(deviceID string, resolution telemetryv1.RollupResolution, fromUnixMs int64, toUnixMs int64) (telemetryquery.RangeQuery, error) {
+func (s *EnergyService) buildRangeQuery(deviceID string, resolution telemetryv1.RollupResolution, fromUnixMs int64, toUnixMs int64) (telemetryquery.RangeQuery, error) {
 	deviceID = strings.TrimSpace(deviceID)
 	if deviceID == "" {
 		return telemetryquery.RangeQuery{}, status.Error(codes.InvalidArgument, "device_id required")
@@ -446,7 +496,7 @@ func (s *TelemetryService) buildRangeQuery(deviceID string, resolution telemetry
 	}, nil
 }
 
-func (s *TelemetryService) buildCompareQuery(req *telemetryv1.CompareRollupRangeRequest, current telemetryquery.RangeQuery) (telemetryquery.RangeQuery, error) {
+func (s *EnergyService) buildCompareQuery(req *telemetryv1.CompareRollupRangeRequest, current telemetryquery.RangeQuery) (telemetryquery.RangeQuery, error) {
 	explicitFrom := req.GetCompareFromUnixMs()
 	explicitTo := req.GetCompareToUnixMs()
 	if explicitFrom > 0 || explicitTo > 0 {
@@ -468,15 +518,15 @@ func (s *TelemetryService) buildCompareQuery(req *telemetryv1.CompareRollupRange
 	)
 }
 
-func (s *TelemetryService) authorizeDeviceAccess(ctx context.Context, deviceID string) error {
-	if s.controlPlaneStore == nil {
+func authorizeDeviceAccess(ctx context.Context, store controlplane.Store, deviceID string) error {
+	if store == nil {
 		return nil
 	}
 	claims, ok := grpcmw.ClaimsFromContext(ctx)
 	if !ok || strings.TrimSpace(claims.Subject) == "" {
 		return nil
 	}
-	rows, err := s.controlPlaneStore.ListUserDevices(ctx, controlplane.ListUserDevicesInput{UserSubject: claims.Subject})
+	rows, err := store.ListUserDevices(ctx, controlplane.ListUserDevicesInput{UserSubject: claims.Subject})
 	if err != nil {
 		return status.Errorf(codes.Internal, "authorize telemetry device access: %v", err)
 	}
@@ -488,7 +538,7 @@ func (s *TelemetryService) authorizeDeviceAccess(ctx context.Context, deviceID s
 	return status.Error(codes.PermissionDenied, "device access denied")
 }
 
-func (s *TelemetryService) mapQueryError(err error) error {
+func (s *EnergyService) mapQueryError(err error) error {
 	switch err {
 	case nil:
 		return nil

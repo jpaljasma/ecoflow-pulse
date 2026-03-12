@@ -11,6 +11,7 @@ function baseConfig(): AppConfig {
     host: '127.0.0.1',
     port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
+    energyGrpcApiAddr: '127.0.0.1:9091',
     grpcDeadlineMs: 2500,
     devUserSubject: 'dev-user@example.com',
     publicPreconnectOrigins: [],

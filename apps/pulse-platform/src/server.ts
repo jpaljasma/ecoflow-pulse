@@ -8,7 +8,7 @@ import { createInferenceClient } from './grpc/inferenceClient.js';
 import { createTelemetryHistoryClient, createTelemetrySnapshotClient } from './grpc/telemetryClient.js';
 
 const config = loadConfig(process.env);
-const historyClient = createTelemetryHistoryClient(config.grpcApiAddr);
+const historyClient = createTelemetryHistoryClient(config.energyGrpcApiAddr);
 const controlPlaneClient = createControlPlaneClient(config.grpcApiAddr);
 const snapshotClient = createTelemetrySnapshotClient(config.grpcApiAddr);
 const deviceClient = createDeviceClient(config, controlPlaneClient, snapshotClient);

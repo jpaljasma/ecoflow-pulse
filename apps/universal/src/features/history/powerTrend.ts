@@ -86,6 +86,47 @@ export function mergeTrendPrefill(prefill: number[], live: number[], liveCoverag
   ];
 }
 
+export function mergeTrendPrefillWithLivePoints(
+  prefill: number[],
+  livePoints: TimePoint[] | undefined,
+  now = new Date()
+): number[] {
+  const normalizedPrefill = normalizeSeries(prefill);
+  if (!livePoints?.length) {
+    return normalizedPrefill;
+  }
+
+  const bounds = buildPowerTrendBounds(now);
+  const relevantPoints = livePoints
+    .filter((point) => point.ts >= bounds.slotFromMs && point.ts <= bounds.slotToMs)
+    .sort((left, right) => left.ts - right.ts);
+  if (!relevantPoints.length) {
+    return normalizedPrefill;
+  }
+
+  const merged = [...normalizedPrefill];
+  let pointIdx = 0;
+  let lastLiveValue: number | null = null;
+  let firstLiveSlot = POWER_TREND_POINTS;
+
+  for (let i = 0; i < POWER_TREND_POINTS; i += 1) {
+    const slotStartMs = bounds.slotFromMs + i * POWER_TREND_BUCKET_MS;
+    const slotEndMs = slotStartMs + POWER_TREND_BUCKET_MS;
+
+    while (pointIdx < relevantPoints.length && relevantPoints[pointIdx]!.ts < slotEndMs) {
+      lastLiveValue = relevantPoints[pointIdx]!.value;
+      firstLiveSlot = Math.min(firstLiveSlot, i);
+      pointIdx += 1;
+    }
+
+    if (i >= firstLiveSlot && lastLiveValue !== null) {
+      merged[i] = lastLiveValue;
+    }
+  }
+
+  return merged;
+}
+
 export function sparklineCoveragePoints(points: TimePoint[] | undefined): number {
   if (!points?.length) {
     return 0;

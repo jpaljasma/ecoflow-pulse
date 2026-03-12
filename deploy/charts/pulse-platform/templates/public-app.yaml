@@ -34,6 +34,8 @@ spec:
               value: {{ .Values.runtime.publicApp.env.publicDir | quote }}
             - name: GRPC_API_ADDR
               value: {{ .Values.runtime.publicApp.env.grpcApiAddr | quote }}
+            - name: ENERGY_GRPC_API_ADDR
+              value: {{ .Values.runtime.publicApp.env.energyGrpcApiAddr | quote }}
             - name: GRPC_API_DEADLINE_MS
               value: {{ .Values.runtime.publicApp.env.grpcDeadlineMs | quote }}
             - name: REALTIME_GATEWAY_UPSTREAM_URL

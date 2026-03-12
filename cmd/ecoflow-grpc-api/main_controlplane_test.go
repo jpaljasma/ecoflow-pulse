@@ -98,6 +98,39 @@ func TestNewAuthorizerFromEnvKeycloakMissingIssuer(t *testing.T) {
 	}
 }
 
+func TestGRPCServiceModeFromEnvDefaultsTelemetry(t *testing.T) {
+	t.Setenv("GRPC_SERVICE_MODE", "")
+
+	mode, err := grpcServiceModeFromEnv()
+	if err != nil {
+		t.Fatalf("grpcServiceModeFromEnv returned error: %v", err)
+	}
+	if mode != grpcServiceModeTelemetry {
+		t.Fatalf("expected telemetry mode by default, got %q", mode)
+	}
+}
+
+func TestGRPCServiceModeFromEnvSupportsEnergy(t *testing.T) {
+	t.Setenv("GRPC_SERVICE_MODE", "energy")
+
+	mode, err := grpcServiceModeFromEnv()
+	if err != nil {
+		t.Fatalf("grpcServiceModeFromEnv returned error: %v", err)
+	}
+	if mode != grpcServiceModeEnergy {
+		t.Fatalf("expected energy mode, got %q", mode)
+	}
+}
+
+func TestGRPCServiceModeFromEnvRejectsUnknownMode(t *testing.T) {
+	t.Setenv("GRPC_SERVICE_MODE", "invalid")
+
+	_, err := grpcServiceModeFromEnv()
+	if err == nil {
+		t.Fatal("expected error for unsupported service mode")
+	}
+}
+
 func TestNewInferenceReaderFromEnvFallback(t *testing.T) {
 	t.Setenv("VALKEY_ADDRS", "")
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))

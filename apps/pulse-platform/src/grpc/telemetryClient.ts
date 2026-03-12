@@ -176,11 +176,22 @@ export type GetEnergyDashboardInput = {
   deadlineMs: number;
 };
 
+export type GetEnergyPvPortHistoryInput = {
+  deviceId?: string;
+  useAllDevices: boolean;
+  preset: string;
+  timezone: string;
+  authHeader?: string;
+  userSubject?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
 export interface TelemetryHistoryClient {
-  getSnapshot(input: SnapshotRequestInput): Promise<{ snapshot: Snapshot }>;
   queryRollupRange(input: QueryRollupRangeInput): Promise<RollupSeries>;
   compareRollupRange(input: CompareRollupRangeInput): Promise<CompareRollupSeries>;
   getEnergyDashboard(input: GetEnergyDashboardInput): Promise<EnergyDashboard>;
+  getEnergyPvPortHistory(input: GetEnergyPvPortHistoryInput): Promise<EnergyPVPortHistory[]>;
   close(): void;
 }
 
@@ -198,9 +209,14 @@ type GrpcUnaryMethod = (
 
 type GrpcTelemetryClient = {
   GetSnapshot: GrpcUnaryMethod;
+  close: () => void;
+};
+
+type GrpcEnergyClient = {
   QueryRollupRange: GrpcUnaryMethod;
   CompareRollupRange: GrpcUnaryMethod;
   GetEnergyDashboard: GrpcUnaryMethod;
+  GetEnergyPvPortHistory: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -213,6 +229,11 @@ type TelemetryProto = {
           credentials: grpc.ChannelCredentials,
           options?: Record<string, unknown>
         ) => GrpcTelemetryClient;
+        EnergyService: new (
+          address: string,
+          credentials: grpc.ChannelCredentials,
+          options?: Record<string, unknown>
+        ) => GrpcEnergyClient;
       };
     };
   };
@@ -327,6 +348,10 @@ type RawGetEnergyDashboardResponse = {
   pvPortHistory?: unknown;
 };
 
+type RawGetEnergyPvPortHistoryResponse = {
+  pvPortHistory?: unknown;
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../../../../');
@@ -382,23 +407,11 @@ const metricsKeys: (keyof RollupMetrics)[] = [
 ];
 
 export function createTelemetryHistoryClient(address: string): TelemetryHistoryClient {
-  const client = new telemetryProto.pulse.telemetry.v1.TelemetryService(
+  const client = new telemetryProto.pulse.telemetry.v1.EnergyService(
     address,
     grpc.credentials.createInsecure()
   );
   return {
-    async getSnapshot(input) {
-      const response = await unaryCall<RawGetSnapshotResponse>(
-        client.GetSnapshot.bind(client),
-        {
-          deviceId: input.deviceId
-        },
-        input
-      );
-      return {
-        snapshot: normalizeSnapshot(response.snapshot)
-      };
-    },
     async queryRollupRange(input) {
       const response = await unaryCall<RawQueryRollupRangeResponse>(
         client.QueryRollupRange.bind(client),
@@ -452,6 +465,19 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
       );
       return normalizeEnergyDashboard(response);
     },
+    async getEnergyPvPortHistory(input) {
+      const response = await unaryCall<RawGetEnergyPvPortHistoryResponse>(
+        client.GetEnergyPvPortHistory.bind(client),
+        {
+          deviceId: input.deviceId ?? '',
+          useAllDevices: input.useAllDevices,
+          preset: input.preset,
+          timezone: input.timezone
+        },
+        input
+      );
+      return normalizePVPortHistoryRows(response.pvPortHistory);
+    },
     close() {
       client.close();
     }
@@ -459,10 +485,26 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
 }
 
 export function createTelemetrySnapshotClient(address: string): TelemetrySnapshotClient {
-  const client = createTelemetryHistoryClient(address);
+  const client = new telemetryProto.pulse.telemetry.v1.TelemetryService(
+    address,
+    grpc.credentials.createInsecure()
+  );
   return {
-    getSnapshot: client.getSnapshot,
-    close: client.close
+    async getSnapshot(input) {
+      const response = await unaryCall<RawGetSnapshotResponse>(
+        client.GetSnapshot.bind(client),
+        {
+          deviceId: input.deviceId
+        },
+        input
+      );
+      return {
+        snapshot: normalizeSnapshot(response.snapshot)
+      };
+    },
+    close() {
+      client.close();
+    }
   };
 }
 

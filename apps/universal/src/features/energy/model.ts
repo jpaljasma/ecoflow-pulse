@@ -4,10 +4,13 @@ import type { EnergyDashboard, EnergyPreset, EnergyRollupPoint } from '@/feature
 export const ENERGY_PRESETS: EnergyPreset[] = [
   'today',
   'yesterday',
+  'past24h',
   'last7d',
+  'last30d',
   'thisWeek',
   'previousWeek',
   'thisMonth',
+  'lastMonth',
   'last12m'
 ];
 
@@ -84,18 +87,24 @@ export function energyPresetLabel(preset: EnergyPreset): string {
   switch (preset) {
     case 'today':
       return 'Today';
+    case 'past24h':
+      return 'Last 24h';
     case 'yesterday':
       return 'Yesterday';
     case 'last7d':
       return 'Last 7d';
+    case 'last30d':
+      return 'Last 30d';
     case 'thisWeek':
       return 'This week';
     case 'previousWeek':
       return 'Previous week';
     case 'thisMonth':
       return 'This month';
+    case 'lastMonth':
+      return 'Last month';
     case 'last12m':
-      return 'Last 12m';
+      return 'Last 12 months';
   }
 }
 
@@ -331,13 +340,16 @@ function parseBooleanParam(value: string | undefined, fallback: boolean): boolea
 function presetLabelForInsight(preset: EnergyPreset): string {
   switch (preset) {
     case 'today':
+    case 'past24h':
     case 'yesterday':
       return 'minute';
     case 'last7d':
+    case 'last30d':
     case 'thisWeek':
     case 'previousWeek':
     case 'thisMonth':
       return 'hour';
+    case 'lastMonth':
     case 'last12m':
       return 'day';
   }

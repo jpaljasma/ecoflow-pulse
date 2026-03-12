@@ -17,6 +17,13 @@ type Scope struct {
 	ResolvedDeviceIDs []string
 }
 
+func (s Scope) SeriesDeviceID() string {
+	if s.Mode == ScopeModeSingle && strings.TrimSpace(s.DeviceID) != "" {
+		return strings.TrimSpace(s.DeviceID)
+	}
+	return ScopeModeAll
+}
+
 func ResolveScope(requested string, visibleDeviceIDs []string) (Scope, error) {
 	resolved := uniqueSortedDeviceIDs(visibleDeviceIDs)
 	if len(resolved) == 0 {

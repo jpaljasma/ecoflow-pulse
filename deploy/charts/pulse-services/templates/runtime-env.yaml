@@ -1,5 +1,11 @@
-{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.inference.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled .Values.runtime.workers.grpcApi.enabled -}}
+{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.inference.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled .Values.runtime.workers.grpcApi.enabled .Values.runtime.workers.energyApi.enabled -}}
 {{- if $workersEnabled }}
+{{- $grpcMetricsPort := "" -}}
+{{- if .Values.runtime.workers.energyApi.metrics.enabled -}}
+{{- $grpcMetricsPort = printf ":%v" .Values.runtime.workers.energyApi.metrics.service.port -}}
+{{- else if .Values.runtime.workers.grpcApi.metrics.enabled -}}
+{{- $grpcMetricsPort = printf ":%v" .Values.runtime.workers.grpcApi.metrics.service.port -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -23,7 +29,7 @@ data:
   PROJECTION_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.projection.metrics.service.port) "" .Values.runtime.workers.projection.metrics.enabled | quote }}
   ROLLUP_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.rollup.metrics.service.port) "" .Values.runtime.workers.rollup.metrics.enabled | quote }}
   ARCHIVE_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.archive.metrics.service.port) "" .Values.runtime.workers.archive.metrics.enabled | quote }}
-  GRPC_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.grpcApi.metrics.service.port) "" .Values.runtime.workers.grpcApi.metrics.enabled | quote }}
+  GRPC_METRICS_LISTEN_ADDR: {{ $grpcMetricsPort | quote }}
 ---
 apiVersion: v1
 kind: Secret

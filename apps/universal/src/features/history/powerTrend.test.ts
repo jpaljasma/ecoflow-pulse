@@ -4,6 +4,7 @@ import {
   buildPowerTrendBounds,
   buildPowerTrendView,
   mergeTrendPrefill,
+  mergeTrendPrefillWithLivePoints,
   POWER_TREND_POINTS,
   sparklineCoveragePoints
 } from '@/features/history/powerTrend';
@@ -86,6 +87,24 @@ describe('power trend helpers', () => {
     expect(merged).toHaveLength(POWER_TREND_POINTS);
     expect(merged.slice(0, 40)).toEqual(prefill.slice(0, 40));
     expect(merged.slice(40)).toEqual(Array.from({ length: 20 }, () => 999));
+  });
+
+  it('overlays realtime points by timestamp without creating a gap before live data starts', () => {
+    const now = new Date('2026-03-07T13:04:55.000Z');
+    const prefill = Array.from({ length: POWER_TREND_POINTS }, () => 262);
+
+    const merged = mergeTrendPrefillWithLivePoints(
+      prefill,
+      [
+        { ts: Date.parse('2026-03-07T13:04:45.000Z'), value: 262 },
+        { ts: Date.parse('2026-03-07T13:04:50.000Z'), value: 265 },
+        { ts: Date.parse('2026-03-07T13:04:55.000Z'), value: 262 }
+      ],
+      now
+    );
+
+    expect(merged.slice(0, 57).every((value) => value === 262)).toBe(true);
+    expect(merged.slice(57)).toEqual([262, 265, 262]);
   });
 
   it('derives coverage buckets from sparkline timestamps instead of raw point count', () => {

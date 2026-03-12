@@ -57,6 +57,10 @@ func newTestService() *TelemetryService {
 	return NewTelemetryService(slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
+func newTestEnergyService() *EnergyService {
+	return NewEnergyService(slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
 func numberPtr(value float64) *float64 {
 	return &value
 }
@@ -533,7 +537,7 @@ func TestSubscribePermissionDenied(t *testing.T) {
 func TestQueryRollupRangeValidation(t *testing.T) {
 	t.Parallel()
 
-	svc := newTestService()
+	svc := newTestEnergyService()
 	_, err := svc.QueryRollupRange(context.Background(), &telemetryv1.QueryRollupRangeRequest{
 		DeviceId:   "not-a-uuid",
 		Resolution: telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
@@ -553,7 +557,7 @@ func TestQueryRollupRangeUnavailableWithoutReader(t *testing.T) {
 		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 	})
@@ -577,7 +581,7 @@ func TestQueryRollupRangePermissionDenied(t *testing.T) {
 		"owner": {{DeviceID: deviceID, EcoflowSN: "DEMODPU0000294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
 	})
 
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       &fakeQueryReader{},
@@ -628,7 +632,7 @@ func TestQueryRollupRangeReturnsSeries(t *testing.T) {
 		},
 	}
 
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -675,7 +679,7 @@ func TestCompareRollupRangeUsesPreviousPeriod(t *testing.T) {
 			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionHour, From: from.Add(-2 * time.Hour), To: from},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -699,8 +703,15 @@ func TestCompareRollupRangeUsesPreviousPeriod(t *testing.T) {
 	if got := len(reader.queries); got != 2 {
 		t.Fatalf("query count mismatch: got=%d want=2", got)
 	}
-	if reader.queries[1].From != from.Add(-2*time.Hour) || reader.queries[1].To != from {
-		t.Fatalf("previous window mismatch: got=[%s,%s)", reader.queries[1].From, reader.queries[1].To)
+	var foundPrevious bool
+	for _, query := range reader.queries {
+		if query.From.Equal(from.Add(-2*time.Hour)) && query.To.Equal(from) {
+			foundPrevious = true
+			break
+		}
+	}
+	if !foundPrevious {
+		t.Fatalf("expected previous window query [%s,%s), got=%v", from.Add(-2*time.Hour), from, reader.queries)
 	}
 }
 
@@ -729,7 +740,7 @@ func TestQueryRollupRangeLogsEnergyFallbackUsage(t *testing.T) {
 		}},
 	}
 	var logs bytes.Buffer
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(&logs, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -757,11 +768,14 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 	t.Parallel()
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f56"
+	now := time.Date(2026, time.March, 11, 12, 0, 0, 0, time.UTC)
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
 		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 	from := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
-	to := from.Add(12 * time.Hour)
+	to := now
+	previousFrom := from.AddDate(0, 0, -1)
+	previousTo := from
 	currentPV := 400.0
 	currentLoad := 300.0
 	currentACIn := 90.0
@@ -800,11 +814,11 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 			{
 				DeviceID:   deviceID,
 				Resolution: telemetryquery.ResolutionHour,
-				From:       from.Add(-24 * time.Hour),
-				To:         from.Add(-12 * time.Hour),
+				From:       previousFrom,
+				To:         previousTo,
 				Points: []telemetryquery.Point{{
-					BucketStart: from.Add(-24 * time.Hour),
-					BucketEnd:   from.Add(-12 * time.Hour),
+					BucketStart: previousFrom,
+					BucketEnd:   previousTo,
 					Metrics: telemetryquery.Metrics{
 						SolarGeneratedWh: &previousPV,
 						LoadAvgW:         &previousLoad,
@@ -816,12 +830,12 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       from,
 				To:         to,
 				Points: []telemetryquery.Point{{
 					BucketStart: from,
-					BucketEnd:   from.Add(time.Minute),
+					BucketEnd:   from.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW:      &currentMinutePV,
 						LoadAvgW:    &currentLoad,
@@ -832,12 +846,12 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
-				From:       from.Add(-24 * time.Hour),
-				To:         from.Add(-12 * time.Hour),
+				Resolution: telemetryquery.ResolutionFiveMinutes,
+				From:       previousFrom,
+				To:         previousTo,
 				Points: []telemetryquery.Point{{
-					BucketStart: from.Add(-24 * time.Hour),
-					BucketEnd:   from.Add(-24*time.Hour + time.Minute),
+					BucketStart: previousFrom,
+					BucketEnd:   previousFrom.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW:   &previousMinutePV,
 						LoadAvgW: &previousLoad,
@@ -847,10 +861,11 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 			},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
+		Now:               func() time.Time { return now },
 	})
 
 	resp, err := svc.GetEnergyDashboard(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyDashboardRequest{
@@ -898,6 +913,7 @@ func TestGetEnergyDashboardUsesVisibleDevicesForAllScope(t *testing.T) {
 
 	deviceA := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f57"
 	deviceB := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f58"
+	now := time.Date(2026, time.March, 2, 0, 0, 0, 0, time.UTC)
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
 		"dev-user": {
 			{DeviceID: deviceA, EcoflowSN: "A", ProductName: "A", Model: "DELTA 2 Max", Role: "admin"},
@@ -905,7 +921,8 @@ func TestGetEnergyDashboardUsesVisibleDevicesForAllScope(t *testing.T) {
 		},
 	})
 	from := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
-	to := from.Add(24 * time.Hour)
+	to := now
+	previousFrom := from.AddDate(0, -1, 0)
 	loadA := 200.0
 	loadB := 300.0
 	loadEnergyA := 4800.0
@@ -914,14 +931,15 @@ func TestGetEnergyDashboardUsesVisibleDevicesForAllScope(t *testing.T) {
 		series: []telemetryquery.Series{
 			{DeviceID: deviceA, Resolution: telemetryquery.ResolutionDay, From: from, To: to, Points: []telemetryquery.Point{{BucketStart: from, BucketEnd: to, Metrics: telemetryquery.Metrics{LoadAvgW: &loadA, LoadEnergyWh: &loadEnergyA}}}},
 			{DeviceID: deviceB, Resolution: telemetryquery.ResolutionDay, From: from, To: to, Points: []telemetryquery.Point{{BucketStart: from, BucketEnd: to, Metrics: telemetryquery.Metrics{LoadAvgW: &loadB, LoadEnergyWh: &loadEnergyB}}}},
-			{DeviceID: deviceA, Resolution: telemetryquery.ResolutionDay, From: from.AddDate(0, -1, 0), To: from, Points: []telemetryquery.Point{}},
-			{DeviceID: deviceB, Resolution: telemetryquery.ResolutionDay, From: from.AddDate(0, -1, 0), To: from, Points: []telemetryquery.Point{}},
+			{DeviceID: deviceA, Resolution: telemetryquery.ResolutionDay, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
+			{DeviceID: deviceB, Resolution: telemetryquery.ResolutionDay, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
+		Now:               func() time.Time { return now },
 	})
 
 	resp, err := svc.GetEnergyDashboard(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyDashboardRequest{
@@ -945,17 +963,23 @@ func TestGetEnergyDashboardUsesVisibleDevicesForAllScope(t *testing.T) {
 	if got := resp.GetCurrentEnergyPoints()[0].GetMetrics().GetLoadEnergyWh(); got != loadEnergyA+loadEnergyB {
 		t.Fatalf("aggregate current load energy mismatch: got=%v want=%v", got, loadEnergyA+loadEnergyB)
 	}
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got := len(reader.aggregateQueries); got != 4 {
+		t.Fatalf("aggregate query count mismatch: got=%d want=4", got)
+	}
 }
 
 func TestGetEnergyDashboardSkipsPreviousQueriesWhenComparisonDisabled(t *testing.T) {
 	t.Parallel()
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f59"
+	now := time.Date(2026, time.March, 11, 12, 0, 0, 0, time.UTC)
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
 		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 	from := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
-	to := from.Add(12 * time.Hour)
+	to := now
 	currentPV := 400.0
 	currentMinutePV := 320.0
 	reader := &fakeQueryReader{
@@ -975,12 +999,12 @@ func TestGetEnergyDashboardSkipsPreviousQueriesWhenComparisonDisabled(t *testing
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       from,
 				To:         to,
 				Points: []telemetryquery.Point{{
 					BucketStart: from,
-					BucketEnd:   from.Add(time.Minute),
+					BucketEnd:   from.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW: &currentMinutePV,
 					},
@@ -988,10 +1012,11 @@ func TestGetEnergyDashboardSkipsPreviousQueriesWhenComparisonDisabled(t *testing
 			},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
+		Now:               func() time.Time { return now },
 	})
 
 	resp, err := svc.GetEnergyDashboard(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyDashboardRequest{
@@ -1016,11 +1041,12 @@ func TestGetEnergyDashboardSkipsPreviousQueriesWhenComparisonDisabled(t *testing
 	}
 }
 
-func TestGetEnergyDashboardSkipsMissingArchiveObjectsForPVHistory(t *testing.T) {
+func TestGetEnergyPvPortHistorySkipsMissingArchiveObjects(t *testing.T) {
 	t.Parallel()
 
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f60"
 	providerDeviceID := "PROVIDER-DEVICE-1"
+	now := time.Date(2026, time.March, 2, 0, 0, 0, 0, time.UTC)
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
 		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
 	})
@@ -1030,7 +1056,8 @@ func TestGetEnergyDashboardSkipsMissingArchiveObjectsForPVHistory(t *testing.T) 
 		ProviderDeviceID: providerDeviceID,
 	}
 	from := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
-	to := from.Add(24 * time.Hour)
+	to := now
+	previousFrom := from.AddDate(0, -1, 0)
 	solarGenerated := 2400.0
 	pvAvg := 120.0
 	reader := &fakeQueryReader{
@@ -1050,25 +1077,26 @@ func TestGetEnergyDashboardSkipsMissingArchiveObjectsForPVHistory(t *testing.T) 
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       from,
 				To:         to,
 				Points: []telemetryquery.Point{{
 					BucketStart: from,
-					BucketEnd:   from.Add(time.Minute),
+					BucketEnd:   from.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW: &pvAvg,
 					},
 				}},
 			},
-			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionDay, From: from.AddDate(0, 0, -1), To: from, Points: []telemetryquery.Point{}},
-			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionMinute, From: from.AddDate(0, 0, -1), To: from, Points: []telemetryquery.Point{}},
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionDay, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionFiveMinutes, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
+		Now:               func() time.Time { return now },
 		ArchiveManifestStore: fakeManifestStore{
 			objects: []replaycli.ManifestObject{{
 				Provider:          controlplane.ProviderEcoFlow,
@@ -1084,10 +1112,78 @@ func TestGetEnergyDashboardSkipsMissingArchiveObjectsForPVHistory(t *testing.T) 
 		},
 	})
 
+	resp, err := svc.GetEnergyPvPortHistory(
+		grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}),
+		&telemetryv1.GetEnergyPvPortHistoryRequest{
+			UseAllDevices: true,
+			Preset:        "thisMonth",
+			Timezone:      "UTC",
+		},
+	)
+	if err != nil {
+		t.Fatalf("GetEnergyPvPortHistory failed: %v", err)
+	}
+	if got := len(resp.GetPvPortHistory()); got != 0 {
+		t.Fatalf("expected missing archive object to be skipped, got pv history rows=%d", got)
+	}
+}
+
+func TestGetEnergyDashboardLeavesPVHistoryForLazyLoad(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f60"
+	now := time.Date(2026, time.March, 2, 0, 0, 0, 0, time.UTC)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	from := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	to := now
+	previousFrom := from.AddDate(0, -1, 0)
+	solarGenerated := 2400.0
+	pvAvg := 120.0
+	reader := &fakeQueryReader{
+		series: []telemetryquery.Series{
+			{
+				DeviceID:   deviceID,
+				Resolution: telemetryquery.ResolutionDay,
+				From:       from,
+				To:         to,
+				Points: []telemetryquery.Point{{
+					BucketStart: from,
+					BucketEnd:   to,
+					Metrics: telemetryquery.Metrics{
+						SolarGeneratedWh: &solarGenerated,
+					},
+				}},
+			},
+			{
+				DeviceID:   deviceID,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
+				From:       from,
+				To:         to,
+				Points: []telemetryquery.Point{{
+					BucketStart: from,
+					BucketEnd:   from.Add(5 * time.Minute),
+					Metrics: telemetryquery.Metrics{
+						PVAvgW: &pvAvg,
+					},
+				}},
+			},
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionDay, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionFiveMinutes, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
+		},
+	}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+
 	resp, err := svc.GetEnergyDashboard(
 		grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}),
 		&telemetryv1.GetEnergyDashboardRequest{
-			UseAllDevices:     true,
+			DeviceId:          deviceID,
 			Preset:            "thisMonth",
 			Timezone:          "UTC",
 			IncludeComparison: true,
@@ -1097,10 +1193,7 @@ func TestGetEnergyDashboardSkipsMissingArchiveObjectsForPVHistory(t *testing.T) 
 		t.Fatalf("GetEnergyDashboard failed: %v", err)
 	}
 	if got := len(resp.GetPvPortHistory()); got != 0 {
-		t.Fatalf("expected missing archive object to be skipped, got pv history rows=%d", got)
-	}
-	if got := resp.GetSummary().GetSolarGeneratedKwh().GetCurrent(); got != 2.4 {
-		t.Fatalf("unexpected summary after skipping missing object: got=%v want=2.4", got)
+		t.Fatalf("expected dashboard PV history to stay empty for lazy load, got pv history rows=%d", got)
 	}
 }
 
@@ -1140,10 +1233,11 @@ func (s *sequenceSnapshotReader) ReadSnapshot(context.Context, projectionworker.
 }
 
 type fakeQueryReader struct {
-	mu      sync.Mutex
-	queries []telemetryquery.RangeQuery
-	series  []telemetryquery.Series
-	err     error
+	mu               sync.Mutex
+	queries          []telemetryquery.RangeQuery
+	aggregateQueries []telemetryquery.AggregateRangeQuery
+	series           []telemetryquery.Series
+	err              error
 }
 
 func (f *fakeQueryReader) QueryRange(_ context.Context, query telemetryquery.RangeQuery) (telemetryquery.Series, error) {
@@ -1162,13 +1256,82 @@ func (f *fakeQueryReader) QueryRange(_ context.Context, query telemetryquery.Ran
 			To:         query.To,
 		}, nil
 	}
-	next := f.series[0]
-	f.series = f.series[1:]
-	return next, nil
+	for idx, candidate := range f.series {
+		if candidate.DeviceID == query.DeviceID &&
+			candidate.Resolution == query.Resolution &&
+			candidate.From.Equal(query.From) &&
+			candidate.To.Equal(query.To) {
+			f.series = append(f.series[:idx], f.series[idx+1:]...)
+			return candidate, nil
+		}
+	}
+	return telemetryquery.Series{
+		DeviceID:   query.DeviceID,
+		Resolution: query.Resolution,
+		From:       query.From,
+		To:         query.To,
+		Points:     []telemetryquery.Point{},
+	}, nil
 }
 
 func (f *fakeQueryReader) Close() error {
 	return nil
+}
+
+func (f *fakeQueryReader) QueryRangeMany(_ context.Context, query telemetryquery.AggregateRangeQuery) (telemetryquery.Series, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.aggregateQueries = append(f.aggregateQueries, query)
+	if f.err != nil {
+		return telemetryquery.Series{}, f.err
+	}
+	if len(f.series) == 0 {
+		return telemetryquery.Series{
+			DeviceID:   query.AggregateID,
+			Resolution: query.Resolution,
+			From:       query.From,
+			To:         query.To,
+		}, nil
+	}
+	deviceFilter := make(map[string]struct{}, len(query.DeviceIDs))
+	for _, deviceID := range query.DeviceIDs {
+		deviceFilter[deviceID] = struct{}{}
+	}
+	aggregated := telemetryquery.Series{
+		DeviceID:   query.AggregateID,
+		Resolution: query.Resolution,
+		From:       query.From,
+		To:         query.To,
+		Points:     []telemetryquery.Point{},
+	}
+	consumed := make([]int, 0, len(query.DeviceIDs))
+	for idx, candidate := range f.series {
+		if _, ok := deviceFilter[candidate.DeviceID]; !ok {
+			continue
+		}
+		if candidate.Resolution != query.Resolution ||
+			!candidate.From.Equal(query.From) ||
+			!candidate.To.Equal(query.To) {
+			continue
+		}
+		aggregated = mergeSeries(aggregated, candidate)
+		consumed = append(consumed, idx)
+	}
+	if len(consumed) == 0 {
+		return telemetryquery.Series{
+			DeviceID:   query.AggregateID,
+			Resolution: query.Resolution,
+			From:       query.From,
+			To:         query.To,
+			Points:     []telemetryquery.Point{},
+		}, nil
+	}
+	for i := len(consumed) - 1; i >= 0; i-- {
+		idx := consumed[i]
+		f.series = append(f.series[:idx], f.series[idx+1:]...)
+	}
+	return aggregated, nil
 }
 
 type fakeControlPlaneStore struct {

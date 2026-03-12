@@ -47,7 +47,7 @@ const energyDashboardQuerySchema = z
   .object({
     deviceId: z.string().uuid().optional(),
     scope: z.enum(['device', 'all']).optional().default('device'),
-    preset: z.enum(['today', 'yesterday', 'last7d', 'thisWeek', 'previousWeek', 'thisMonth', 'last12m']),
+    preset: z.enum(['today', 'past24h', 'yesterday', 'last7d', 'last30d', 'thisWeek', 'previousWeek', 'thisMonth', 'lastMonth', 'last12m']),
     timezone: z.string().trim().min(1),
     includeComparison: booleanQuerySchema.optional().default(true),
     gridPricePerKwh: z.coerce.number().finite().nonnegative().optional(),
@@ -204,6 +204,29 @@ export function registerHistoryRoutes(
           deadlineMs: app.telemetryDeadlineMs
         });
         return result;
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
+    }
+  );
+
+  app.get(
+    '/api/v1/energy/pv-history',
+    { preHandler: historyPreHandlers },
+    async (request, reply) => {
+      try {
+        const query = energyDashboardQuerySchema.parse(request.query);
+        const result = await historyClient.getEnergyPvPortHistory({
+          deviceId: query.scope === 'device' ? query.deviceId : undefined,
+          useAllDevices: query.scope === 'all',
+          preset: query.preset,
+          timezone: query.timezone,
+          authHeader: extractAuthHeader(request),
+          userSubject: resolveUserSubject(config, request),
+          requestID: request.id,
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return { pvPortHistory: result };
       } catch (error) {
         return handleRouteError(reply, error);
       }

@@ -451,6 +451,8 @@ spec:
           env:
             - name: GRPC_LISTEN_ADDR
               value: {{ printf ":%v" .Values.runtime.workers.grpcApi.service.port | quote }}
+            - name: GRPC_SERVICE_MODE
+              value: "telemetry"
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -511,5 +513,108 @@ spec:
     - port: metrics
       path: /metrics
       interval: {{ .Values.runtime.workers.grpcApi.metrics.serviceMonitor.interval }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.runtime.workers.energyApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-energy-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-energy-api
+spec:
+  replicas: {{ .Values.runtime.workers.energyApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-energy-api
+  template:
+    metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-energy-api
+    spec:
+      containers:
+        - name: go-energy-api
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-grpc-api"]
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.runtime.workers.energyApi.service.port }}
+            {{- if .Values.runtime.workers.energyApi.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.energyApi.metrics.service.port }}
+            {{- end }}
+          env:
+            - name: GRPC_LISTEN_ADDR
+              value: {{ printf ":%v" .Values.runtime.workers.energyApi.service.port | quote }}
+            - name: GRPC_SERVICE_MODE
+              value: "energy"
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.energyApi.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-energy-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-energy-api
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-energy-api
+  ports:
+    - name: grpc
+      port: {{ .Values.runtime.workers.energyApi.service.port }}
+      targetPort: grpc
+{{- if .Values.runtime.workers.energyApi.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.runtime.workers.energyApi.metrics.service.port }}
+      targetPort: metrics
+{{- end }}
+{{- if .Values.runtime.workers.energyApi.metrics.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-energy-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-energy-api
+    release: {{ .Values.global.platformReleaseName }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-energy-api
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.energyApi.metrics.serviceMonitor.interval }}
 {{- end }}
 {{- end }}

@@ -36,41 +36,27 @@ function buildPoints(values: number[], width: number, height: number, min: numbe
   }));
 }
 
-function buildSkiaSmoothPath(points: Point[]) {
+function buildSkiaLinePath(points: Point[]) {
   if (points.length < 2) return null;
   const path = Skia.Path.Make();
   const first = pointAt(points, 0);
   path.moveTo(first.x, first.y);
 
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const p0 = pointAt(points, i - 1);
-    const p1 = pointAt(points, i);
-    const p2 = pointAt(points, i + 1);
-    const p3 = pointAt(points, i + 2);
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  for (let i = 1; i < points.length; i += 1) {
+    const point = pointAt(points, i);
+    path.lineTo(point.x, point.y);
   }
 
   return path;
 }
 
-function buildSvgSmoothPath(points: Point[]): string {
+function buildSvgLinePath(points: Point[]): string {
   if (points.length < 2) return '';
   const first = pointAt(points, 0);
   let d = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const p0 = pointAt(points, i - 1);
-    const p1 = pointAt(points, i);
-    const p2 = pointAt(points, i + 1);
-    const p3 = pointAt(points, i + 2);
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)} ${cp2x.toFixed(2)} ${cp2y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  for (let i = 1; i < points.length; i += 1) {
+    const point = pointAt(points, i);
+    d += ` L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
   }
   return d;
 }
@@ -292,7 +278,7 @@ export function PowerTrendChart({
                     ))}
                     {activeSeries.map((s) => {
                       const pointsList = buildPoints(s.values, webWidth, WEB_CHART_HEIGHT, minVal, maxVal);
-                      const d = buildSvgSmoothPath(pointsList);
+                      const d = buildSvgLinePath(pointsList);
                       if (!d) return null;
                       return (
                         <path
@@ -308,7 +294,7 @@ export function PowerTrendChart({
                     })}
                     {activePreviousSeries.map((s) => {
                       const pointsList = buildPoints(s.values, webWidth, WEB_CHART_HEIGHT, minVal, maxVal);
-                      const d = buildSvgSmoothPath(pointsList);
+                      const d = buildSvgLinePath(pointsList);
                       if (!d) return null;
                       return (
                         <path
@@ -433,7 +419,7 @@ export function PowerTrendChart({
                 })}
                 {activeSeries.map((s) => {
                   const pointsList = buildPoints(s.values, width, CHART_HEIGHT, minVal, maxVal);
-                  const path = buildSkiaSmoothPath(pointsList);
+                  const path = buildSkiaLinePath(pointsList);
                   if (!path) return null;
                   return (
                     <Path
@@ -449,7 +435,7 @@ export function PowerTrendChart({
                 })}
                 {activePreviousSeries.map((s) => {
                   const pointsList = buildPoints(s.values, width, CHART_HEIGHT, minVal, maxVal);
-                  const path = buildSkiaSmoothPath(pointsList);
+                  const path = buildSkiaLinePath(pointsList);
                   if (!path) return null;
                   return (
                     <Path

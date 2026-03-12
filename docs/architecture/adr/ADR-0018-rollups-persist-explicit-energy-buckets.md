@@ -1,8 +1,9 @@
 # ADR-0018: Rollups Persist Explicit Energy Buckets for Energy Dashboard and Historical Analytics
 
-**Status:** Accepted  
+**Status:** Superseded  
 **Date:** 2026-03-11  
 **Owners:** Platform / Data Plane  
+**Superseded by:** ADR-0019 (service-boundary non-goal only)  
 **Related:** [ADR-0005-databases-postgres-timescaledb-for-control-plane-rollups.md](./ADR-0005-databases-postgres-timescaledb-for-control-plane-rollups.md), [ADR-0006-replay-raw-archive-in-object-storage-protobuf-zstd-as-source-of-truth.md](./ADR-0006-replay-raw-archive-in-object-storage-protobuf-zstd-as-source-of-truth.md), [ADR-0015-quota-archive-replayability-and-safe-rollup-regeneration.md](./ADR-0015-quota-archive-replayability-and-safe-rollup-regeneration.md), [../README.md](../README.md)
 
 ---

@@ -5,6 +5,7 @@ const envSchema = z.object({
   PULSE_PLATFORM_PORT: z.coerce.number().int().min(1).max(65535).default(18081),
   PULSE_PLATFORM_PUBLIC_DIR: z.string().trim().default(''),
   GRPC_API_ADDR: z.string().trim().min(1).default('127.0.0.1:9090'),
+  ENERGY_GRPC_API_ADDR: z.string().trim().default(''),
   REALTIME_GATEWAY_UPSTREAM_URL: z.string().trim().default(''),
   GRPC_API_DEADLINE_MS: z.coerce.number().int().min(100).max(60000).default(10000),
   PULSE_PLATFORM_DEV_SUBJECT: z.string().trim().default(''),
@@ -25,6 +26,7 @@ export type AppConfig = {
   port: number;
   publicDir?: string;
   grpcApiAddr: string;
+  energyGrpcApiAddr: string;
   realtimeGatewayUpstreamUrl?: string;
   grpcDeadlineMs: number;
   devUserSubject?: string;
@@ -54,6 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       port: parsed.PULSE_PLATFORM_PORT,
       publicDir: parsed.PULSE_PLATFORM_PUBLIC_DIR || undefined,
       grpcApiAddr: parsed.GRPC_API_ADDR,
+      energyGrpcApiAddr: parsed.ENERGY_GRPC_API_ADDR || parsed.GRPC_API_ADDR,
       realtimeGatewayUpstreamUrl: parsed.REALTIME_GATEWAY_UPSTREAM_URL || undefined,
       grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
       devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,
@@ -76,6 +79,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     port: parsed.PULSE_PLATFORM_PORT,
     publicDir: parsed.PULSE_PLATFORM_PUBLIC_DIR || undefined,
     grpcApiAddr: parsed.GRPC_API_ADDR,
+    energyGrpcApiAddr: parsed.ENERGY_GRPC_API_ADDR || parsed.GRPC_API_ADDR,
     realtimeGatewayUpstreamUrl: parsed.REALTIME_GATEWAY_UPSTREAM_URL || undefined,
     grpcDeadlineMs: parsed.GRPC_API_DEADLINE_MS,
     devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,

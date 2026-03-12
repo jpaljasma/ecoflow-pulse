@@ -1979,6 +1979,134 @@ func (x *GetEnergyDashboardResponse) GetPvPortHistory() []*EnergyPVPortHistory {
 	return nil
 }
 
+type GetEnergyPvPortHistoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId      string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	UseAllDevices bool                   `protobuf:"varint,2,opt,name=use_all_devices,json=useAllDevices,proto3" json:"use_all_devices,omitempty"`
+	Preset        string                 `protobuf:"bytes,3,opt,name=preset,proto3" json:"preset,omitempty"`
+	Timezone      string                 `protobuf:"bytes,4,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEnergyPvPortHistoryRequest) Reset() {
+	*x = GetEnergyPvPortHistoryRequest{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyPvPortHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyPvPortHistoryRequest) ProtoMessage() {}
+
+func (x *GetEnergyPvPortHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyPvPortHistoryRequest.ProtoReflect.Descriptor instead.
+func (*GetEnergyPvPortHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *GetEnergyPvPortHistoryRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *GetEnergyPvPortHistoryRequest) GetUseAllDevices() bool {
+	if x != nil {
+		return x.UseAllDevices
+	}
+	return false
+}
+
+func (x *GetEnergyPvPortHistoryRequest) GetPreset() string {
+	if x != nil {
+		return x.Preset
+	}
+	return ""
+}
+
+func (x *GetEnergyPvPortHistoryRequest) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+type GetEnergyPvPortHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Scope         *EnergyScope           `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	Window        *EnergyWindow          `protobuf:"bytes,2,opt,name=window,proto3" json:"window,omitempty"`
+	PvPortHistory []*EnergyPVPortHistory `protobuf:"bytes,3,rep,name=pv_port_history,json=pvPortHistory,proto3" json:"pv_port_history,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEnergyPvPortHistoryResponse) Reset() {
+	*x = GetEnergyPvPortHistoryResponse{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyPvPortHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyPvPortHistoryResponse) ProtoMessage() {}
+
+func (x *GetEnergyPvPortHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyPvPortHistoryResponse.ProtoReflect.Descriptor instead.
+func (*GetEnergyPvPortHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetEnergyPvPortHistoryResponse) GetScope() *EnergyScope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *GetEnergyPvPortHistoryResponse) GetWindow() *EnergyWindow {
+	if x != nil {
+		return x.Window
+	}
+	return nil
+}
+
+func (x *GetEnergyPvPortHistoryResponse) GetPvPortHistory() []*EnergyPVPortHistory {
+	if x != nil {
+		return x.PvPortHistory
+	}
+	return nil
+}
+
 var File_pulse_telemetry_v1_telemetry_proto protoreflect.FileDescriptor
 
 const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
@@ -2200,18 +2328,29 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x16previous_energy_points\x18\x06 \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x14previousEnergyPoints\x12Q\n" +
 	"\x14current_power_points\x18\a \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x12currentPowerPoints\x12S\n" +
 	"\x15previous_power_points\x18\b \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x13previousPowerPoints\x12O\n" +
-	"\x0fpv_port_history\x18\t \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory*\x8a\x01\n" +
+	"\x0fpv_port_history\x18\t \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory\"\x98\x01\n" +
+	"\x1dGetEnergyPvPortHistoryRequest\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12&\n" +
+	"\x0fuse_all_devices\x18\x02 \x01(\bR\ruseAllDevices\x12\x16\n" +
+	"\x06preset\x18\x03 \x01(\tR\x06preset\x12\x1a\n" +
+	"\btimezone\x18\x04 \x01(\tR\btimezone\"\xe2\x01\n" +
+	"\x1eGetEnergyPvPortHistoryResponse\x125\n" +
+	"\x05scope\x18\x01 \x01(\v2\x1f.pulse.telemetry.v1.EnergyScopeR\x05scope\x128\n" +
+	"\x06window\x18\x02 \x01(\v2 .pulse.telemetry.v1.EnergyWindowR\x06window\x12O\n" +
+	"\x0fpv_port_history\x18\x03 \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory*\x8a\x01\n" +
 	"\x10RollupResolution\x12!\n" +
 	"\x1dROLLUP_RESOLUTION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18ROLLUP_RESOLUTION_MINUTE\x10\x01\x12\x1a\n" +
 	"\x16ROLLUP_RESOLUTION_HOUR\x10\x02\x12\x19\n" +
-	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xa7\x04\n" +
+	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xce\x01\n" +
 	"\x10TelemetryService\x12^\n" +
 	"\vGetSnapshot\x12&.pulse.telemetry.v1.GetSnapshotRequest\x1a'.pulse.telemetry.v1.GetSnapshotResponse\x12Z\n" +
-	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x01\x12m\n" +
+	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x012\xe9\x03\n" +
+	"\rEnergyService\x12m\n" +
 	"\x10QueryRollupRange\x12+.pulse.telemetry.v1.QueryRollupRangeRequest\x1a,.pulse.telemetry.v1.QueryRollupRangeResponse\x12s\n" +
 	"\x12CompareRollupRange\x12-.pulse.telemetry.v1.CompareRollupRangeRequest\x1a..pulse.telemetry.v1.CompareRollupRangeResponse\x12s\n" +
-	"\x12GetEnergyDashboard\x12-.pulse.telemetry.v1.GetEnergyDashboardRequest\x1a..pulse.telemetry.v1.GetEnergyDashboardResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
+	"\x12GetEnergyDashboard\x12-.pulse.telemetry.v1.GetEnergyDashboardRequest\x1a..pulse.telemetry.v1.GetEnergyDashboardResponse\x12\x7f\n" +
+	"\x16GetEnergyPvPortHistory\x121.pulse.telemetry.v1.GetEnergyPvPortHistoryRequest\x1a2.pulse.telemetry.v1.GetEnergyPvPortHistoryResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
 
 var (
 	file_pulse_telemetry_v1_telemetry_proto_rawDescOnce sync.Once
@@ -2226,40 +2365,42 @@ func file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP() []byte {
 }
 
 var file_pulse_telemetry_v1_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_pulse_telemetry_v1_telemetry_proto_goTypes = []any{
-	(RollupResolution)(0),              // 0: pulse.telemetry.v1.RollupResolution
-	(*Cursor)(nil),                     // 1: pulse.telemetry.v1.Cursor
-	(*Snapshot)(nil),                   // 2: pulse.telemetry.v1.Snapshot
-	(*Delta)(nil),                      // 3: pulse.telemetry.v1.Delta
-	(*Heartbeat)(nil),                  // 4: pulse.telemetry.v1.Heartbeat
-	(*GetSnapshotRequest)(nil),         // 5: pulse.telemetry.v1.GetSnapshotRequest
-	(*GetSnapshotResponse)(nil),        // 6: pulse.telemetry.v1.GetSnapshotResponse
-	(*SubscribeRequest)(nil),           // 7: pulse.telemetry.v1.SubscribeRequest
-	(*SubscribeResponse)(nil),          // 8: pulse.telemetry.v1.SubscribeResponse
-	(*RollupMetrics)(nil),              // 9: pulse.telemetry.v1.RollupMetrics
-	(*RollupPoint)(nil),                // 10: pulse.telemetry.v1.RollupPoint
-	(*RollupSeries)(nil),               // 11: pulse.telemetry.v1.RollupSeries
-	(*QueryRollupRangeRequest)(nil),    // 12: pulse.telemetry.v1.QueryRollupRangeRequest
-	(*QueryRollupRangeResponse)(nil),   // 13: pulse.telemetry.v1.QueryRollupRangeResponse
-	(*CompareRollupRangeRequest)(nil),  // 14: pulse.telemetry.v1.CompareRollupRangeRequest
-	(*CompareRollupRangeResponse)(nil), // 15: pulse.telemetry.v1.CompareRollupRangeResponse
-	(*EnergyScope)(nil),                // 16: pulse.telemetry.v1.EnergyScope
-	(*EnergyWindow)(nil),               // 17: pulse.telemetry.v1.EnergyWindow
-	(*EnergyValueComparison)(nil),      // 18: pulse.telemetry.v1.EnergyValueComparison
-	(*EnergySummary)(nil),              // 19: pulse.telemetry.v1.EnergySummary
-	(*BatterySummary)(nil),             // 20: pulse.telemetry.v1.BatterySummary
-	(*EnergyPVPortHistory)(nil),        // 21: pulse.telemetry.v1.EnergyPVPortHistory
-	(*GetEnergyDashboardRequest)(nil),  // 22: pulse.telemetry.v1.GetEnergyDashboardRequest
-	(*GetEnergyDashboardResponse)(nil), // 23: pulse.telemetry.v1.GetEnergyDashboardResponse
-	nil,                                // 24: pulse.telemetry.v1.Snapshot.MetricsEntry
-	nil,                                // 25: pulse.telemetry.v1.Delta.ChangedEntry
+	(RollupResolution)(0),                  // 0: pulse.telemetry.v1.RollupResolution
+	(*Cursor)(nil),                         // 1: pulse.telemetry.v1.Cursor
+	(*Snapshot)(nil),                       // 2: pulse.telemetry.v1.Snapshot
+	(*Delta)(nil),                          // 3: pulse.telemetry.v1.Delta
+	(*Heartbeat)(nil),                      // 4: pulse.telemetry.v1.Heartbeat
+	(*GetSnapshotRequest)(nil),             // 5: pulse.telemetry.v1.GetSnapshotRequest
+	(*GetSnapshotResponse)(nil),            // 6: pulse.telemetry.v1.GetSnapshotResponse
+	(*SubscribeRequest)(nil),               // 7: pulse.telemetry.v1.SubscribeRequest
+	(*SubscribeResponse)(nil),              // 8: pulse.telemetry.v1.SubscribeResponse
+	(*RollupMetrics)(nil),                  // 9: pulse.telemetry.v1.RollupMetrics
+	(*RollupPoint)(nil),                    // 10: pulse.telemetry.v1.RollupPoint
+	(*RollupSeries)(nil),                   // 11: pulse.telemetry.v1.RollupSeries
+	(*QueryRollupRangeRequest)(nil),        // 12: pulse.telemetry.v1.QueryRollupRangeRequest
+	(*QueryRollupRangeResponse)(nil),       // 13: pulse.telemetry.v1.QueryRollupRangeResponse
+	(*CompareRollupRangeRequest)(nil),      // 14: pulse.telemetry.v1.CompareRollupRangeRequest
+	(*CompareRollupRangeResponse)(nil),     // 15: pulse.telemetry.v1.CompareRollupRangeResponse
+	(*EnergyScope)(nil),                    // 16: pulse.telemetry.v1.EnergyScope
+	(*EnergyWindow)(nil),                   // 17: pulse.telemetry.v1.EnergyWindow
+	(*EnergyValueComparison)(nil),          // 18: pulse.telemetry.v1.EnergyValueComparison
+	(*EnergySummary)(nil),                  // 19: pulse.telemetry.v1.EnergySummary
+	(*BatterySummary)(nil),                 // 20: pulse.telemetry.v1.BatterySummary
+	(*EnergyPVPortHistory)(nil),            // 21: pulse.telemetry.v1.EnergyPVPortHistory
+	(*GetEnergyDashboardRequest)(nil),      // 22: pulse.telemetry.v1.GetEnergyDashboardRequest
+	(*GetEnergyDashboardResponse)(nil),     // 23: pulse.telemetry.v1.GetEnergyDashboardResponse
+	(*GetEnergyPvPortHistoryRequest)(nil),  // 24: pulse.telemetry.v1.GetEnergyPvPortHistoryRequest
+	(*GetEnergyPvPortHistoryResponse)(nil), // 25: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse
+	nil,                                    // 26: pulse.telemetry.v1.Snapshot.MetricsEntry
+	nil,                                    // 27: pulse.telemetry.v1.Delta.ChangedEntry
 }
 var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	1,  // 0: pulse.telemetry.v1.Snapshot.cursor:type_name -> pulse.telemetry.v1.Cursor
-	24, // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
+	26, // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
 	1,  // 2: pulse.telemetry.v1.Delta.cursor:type_name -> pulse.telemetry.v1.Cursor
-	25, // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
+	27, // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
 	1,  // 4: pulse.telemetry.v1.Heartbeat.cursor:type_name -> pulse.telemetry.v1.Cursor
 	2,  // 5: pulse.telemetry.v1.GetSnapshotResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
 	1,  // 6: pulse.telemetry.v1.SubscribeRequest.from:type_name -> pulse.telemetry.v1.Cursor
@@ -2289,21 +2430,26 @@ var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	10, // 30: pulse.telemetry.v1.GetEnergyDashboardResponse.current_power_points:type_name -> pulse.telemetry.v1.RollupPoint
 	10, // 31: pulse.telemetry.v1.GetEnergyDashboardResponse.previous_power_points:type_name -> pulse.telemetry.v1.RollupPoint
 	21, // 32: pulse.telemetry.v1.GetEnergyDashboardResponse.pv_port_history:type_name -> pulse.telemetry.v1.EnergyPVPortHistory
-	5,  // 33: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
-	7,  // 34: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
-	12, // 35: pulse.telemetry.v1.TelemetryService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
-	14, // 36: pulse.telemetry.v1.TelemetryService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
-	22, // 37: pulse.telemetry.v1.TelemetryService.GetEnergyDashboard:input_type -> pulse.telemetry.v1.GetEnergyDashboardRequest
-	6,  // 38: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
-	8,  // 39: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
-	13, // 40: pulse.telemetry.v1.TelemetryService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
-	15, // 41: pulse.telemetry.v1.TelemetryService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
-	23, // 42: pulse.telemetry.v1.TelemetryService.GetEnergyDashboard:output_type -> pulse.telemetry.v1.GetEnergyDashboardResponse
-	38, // [38:43] is the sub-list for method output_type
-	33, // [33:38] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	16, // 33: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse.scope:type_name -> pulse.telemetry.v1.EnergyScope
+	17, // 34: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse.window:type_name -> pulse.telemetry.v1.EnergyWindow
+	21, // 35: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse.pv_port_history:type_name -> pulse.telemetry.v1.EnergyPVPortHistory
+	5,  // 36: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
+	7,  // 37: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
+	12, // 38: pulse.telemetry.v1.EnergyService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
+	14, // 39: pulse.telemetry.v1.EnergyService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
+	22, // 40: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:input_type -> pulse.telemetry.v1.GetEnergyDashboardRequest
+	24, // 41: pulse.telemetry.v1.EnergyService.GetEnergyPvPortHistory:input_type -> pulse.telemetry.v1.GetEnergyPvPortHistoryRequest
+	6,  // 42: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
+	8,  // 43: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
+	13, // 44: pulse.telemetry.v1.EnergyService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
+	15, // 45: pulse.telemetry.v1.EnergyService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
+	23, // 46: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:output_type -> pulse.telemetry.v1.GetEnergyDashboardResponse
+	25, // 47: pulse.telemetry.v1.EnergyService.GetEnergyPvPortHistory:output_type -> pulse.telemetry.v1.GetEnergyPvPortHistoryResponse
+	42, // [42:48] is the sub-list for method output_type
+	36, // [36:42] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_pulse_telemetry_v1_telemetry_proto_init() }
@@ -2324,9 +2470,9 @@ func file_pulse_telemetry_v1_telemetry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_telemetry_v1_telemetry_proto_rawDesc), len(file_pulse_telemetry_v1_telemetry_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_pulse_telemetry_v1_telemetry_proto_goTypes,
 		DependencyIndexes: file_pulse_telemetry_v1_telemetry_proto_depIdxs,

@@ -183,6 +183,10 @@ describe('energy route model', () => {
   });
 
   it('formats preset labels and comparison text', () => {
+    expect(energyPresetLabel('past24h')).toBe('Last 24h');
+    expect(energyPresetLabel('last30d')).toBe('Last 30d');
+    expect(energyPresetLabel('lastMonth')).toBe('Last month');
+    expect(energyPresetLabel('last12m')).toBe('Last 12 months');
     expect(energyPresetLabel('previousWeek')).toBe('Previous week');
     expect(formatDeltaPct(12.34)).toBe('+12.3% vs previous');
     expect(formatDeltaPct(null)).toBe('No prior baseline');
