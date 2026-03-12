@@ -328,8 +328,9 @@ NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-replay-cli -mode device -provider ecoflow -provider-device-ids DEMOD2M00001057 -from 2026-02-25T00:00:00Z -to 2026-02-26T00:00:00Z -nats-target ingest
 
 # Rebuild rollups directly from local raw MQTT log capture instead of archive objects.
-# This uses canonical quota/MPPT PV updates and the same interval-based solar
-# energy integration as the live rollup worker.
+# This is the bounded backfill path for explicit energy bucket columns on
+# historical windows and uses canonical quota/MPPT updates plus the same
+# interval-based energy integration as the live rollup worker.
 CONTROL_PLANE_DB_DSN='postgres://pulse_app:...@127.0.0.1:5432/pulse?sslmode=disable' \
 go run ./cmd/ecoflow-rollup-rebuild \
   -provider ecoflow \
@@ -960,6 +961,9 @@ Notes:
   rebuild path.
   It does not delete the requested range first; rebuilt rows are written back in
   bounded transactional chunks so charts do not go empty during regeneration.
+  The rebuild now repopulates explicit energy bucket columns alongside the
+  existing power/SOC/temp fields, so it is the supported local/dev backfill path
+  for ADR-0018 historical coverage after migration.
   The rebuild command now also logs:
   - archive footprint for the matched manifest window (`objects`, `total_bytes`,
     `total_records`, `provider_devices`, `window_ts_*`),
@@ -973,6 +977,10 @@ Notes:
   The solar fields derive minute-bucket solar Wh from `pv_avg_w` when the raw
   stored `solar_generated_wh` column is null, and compare the rebuilt window to
   the immediately preceding window of the same duration.
+  For migrated schemas, the rebuilt rows also populate:
+  `ac_input_energy_wh`, `ac_output_energy_wh`, `dc_output_energy_wh`,
+  `load_energy_wh`, `battery_charge_energy_wh`, and
+  `battery_discharge_energy_wh`.
   `touched_buckets` counts minute buckets whose `updated_at` moved during this
   rebuild run.
   Optional overrides:

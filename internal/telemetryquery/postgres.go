@@ -77,27 +77,33 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 		var (
 			point Point
 
-			socAvgPct        sql.NullFloat64
-			socMinPct        sql.NullFloat64
-			socMaxPct        sql.NullFloat64
-			acInAvgW         sql.NullFloat64
-			acInMaxW         sql.NullFloat64
-			pvAvgW           sql.NullFloat64
-			pvMaxW           sql.NullFloat64
-			dcAvgW           sql.NullFloat64
-			dcMaxW           sql.NullFloat64
-			loadAvgW         sql.NullFloat64
-			loadMaxW         sql.NullFloat64
-			netAvgW          sql.NullFloat64
-			netMinW          sql.NullFloat64
-			netMaxW          sql.NullFloat64
-			batteryAvgW      sql.NullFloat64
-			batteryMinW      sql.NullFloat64
-			batteryMaxW      sql.NullFloat64
-			tempAvgC         sql.NullFloat64
-			tempMinC         sql.NullFloat64
-			tempMaxC         sql.NullFloat64
-			solarGeneratedWh sql.NullFloat64
+			socAvgPct          sql.NullFloat64
+			socMinPct          sql.NullFloat64
+			socMaxPct          sql.NullFloat64
+			acInAvgW           sql.NullFloat64
+			acInMaxW           sql.NullFloat64
+			pvAvgW             sql.NullFloat64
+			pvMaxW             sql.NullFloat64
+			dcAvgW             sql.NullFloat64
+			dcMaxW             sql.NullFloat64
+			loadAvgW           sql.NullFloat64
+			loadMaxW           sql.NullFloat64
+			netAvgW            sql.NullFloat64
+			netMinW            sql.NullFloat64
+			netMaxW            sql.NullFloat64
+			batteryAvgW        sql.NullFloat64
+			batteryMinW        sql.NullFloat64
+			batteryMaxW        sql.NullFloat64
+			tempAvgC           sql.NullFloat64
+			tempMinC           sql.NullFloat64
+			tempMaxC           sql.NullFloat64
+			solarGeneratedWh   sql.NullFloat64
+			acInputEnergyWh    sql.NullFloat64
+			acOutputEnergyWh   sql.NullFloat64
+			dcOutputEnergyWh   sql.NullFloat64
+			loadEnergyWh       sql.NullFloat64
+			batteryChargeWh    sql.NullFloat64
+			batteryDischargeWh sql.NullFloat64
 		)
 
 		if err := rows.Scan(
@@ -126,6 +132,12 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 			&tempMinC,
 			&tempMaxC,
 			&solarGeneratedWh,
+			&acInputEnergyWh,
+			&acOutputEnergyWh,
+			&dcOutputEnergyWh,
+			&loadEnergyWh,
+			&batteryChargeWh,
+			&batteryDischargeWh,
 		); err != nil {
 			return Series{}, fmt.Errorf("scan telemetry rollup row: %w", err)
 		}
@@ -133,29 +145,35 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 		point.BucketStart = point.BucketStart.UTC()
 		point.BucketEnd = point.BucketStart.Add(bucketWidth)
 		point.Metrics = Metrics{
-			SOCAvgPct:        nullableFloat64(socAvgPct),
-			SOCMinPct:        nullableFloat64(socMinPct),
-			SOCMaxPct:        nullableFloat64(socMaxPct),
-			ACInAvgW:         nullableFloat64(acInAvgW),
-			ACInMaxW:         nullableFloat64(acInMaxW),
-			ACOutputAvgW:     nil,
-			ACOutputMaxW:     nil,
-			PVAvgW:           nullableFloat64(pvAvgW),
-			PVMaxW:           nullableFloat64(pvMaxW),
-			DCAvgW:           nullableFloat64(dcAvgW),
-			DCMaxW:           nullableFloat64(dcMaxW),
-			LoadAvgW:         nullableFloat64(loadAvgW),
-			LoadMaxW:         nullableFloat64(loadMaxW),
-			NetAvgW:          nullableFloat64(netAvgW),
-			NetMinW:          nullableFloat64(netMinW),
-			NetMaxW:          nullableFloat64(netMaxW),
-			BatteryAvgW:      nullableFloat64(batteryAvgW),
-			BatteryMinW:      nullableFloat64(batteryMinW),
-			BatteryMaxW:      nullableFloat64(batteryMaxW),
-			TempAvgC:         nullableFloat64(tempAvgC),
-			TempMinC:         nullableFloat64(tempMinC),
-			TempMaxC:         nullableFloat64(tempMaxC),
-			SolarGeneratedWh: nullableFloat64(solarGeneratedWh),
+			SOCAvgPct:                nullableFloat64(socAvgPct),
+			SOCMinPct:                nullableFloat64(socMinPct),
+			SOCMaxPct:                nullableFloat64(socMaxPct),
+			ACInAvgW:                 nullableFloat64(acInAvgW),
+			ACInMaxW:                 nullableFloat64(acInMaxW),
+			ACOutputAvgW:             nil,
+			ACOutputMaxW:             nil,
+			PVAvgW:                   nullableFloat64(pvAvgW),
+			PVMaxW:                   nullableFloat64(pvMaxW),
+			DCAvgW:                   nullableFloat64(dcAvgW),
+			DCMaxW:                   nullableFloat64(dcMaxW),
+			LoadAvgW:                 nullableFloat64(loadAvgW),
+			LoadMaxW:                 nullableFloat64(loadMaxW),
+			NetAvgW:                  nullableFloat64(netAvgW),
+			NetMinW:                  nullableFloat64(netMinW),
+			NetMaxW:                  nullableFloat64(netMaxW),
+			BatteryAvgW:              nullableFloat64(batteryAvgW),
+			BatteryMinW:              nullableFloat64(batteryMinW),
+			BatteryMaxW:              nullableFloat64(batteryMaxW),
+			TempAvgC:                 nullableFloat64(tempAvgC),
+			TempMinC:                 nullableFloat64(tempMinC),
+			TempMaxC:                 nullableFloat64(tempMaxC),
+			SolarGeneratedWh:         nullableFloat64(solarGeneratedWh),
+			ACInputEnergyWh:          nullableFloat64(acInputEnergyWh),
+			ACOutputEnergyWh:         nullableFloat64(acOutputEnergyWh),
+			DCOutputEnergyWh:         nullableFloat64(dcOutputEnergyWh),
+			LoadEnergyWh:             nullableFloat64(loadEnergyWh),
+			BatteryChargeEnergyWh:    nullableFloat64(batteryChargeWh),
+			BatteryDischargeEnergyWh: nullableFloat64(batteryDischargeWh),
 		}
 		points = append(points, point)
 	}
@@ -199,7 +217,13 @@ func buildQuery(table string) string {
 	temp_avg_c,
 	temp_min_c,
 	temp_max_c,
-	solar_generated_wh
+	solar_generated_wh,
+	ac_input_energy_wh,
+	ac_output_energy_wh,
+	dc_output_energy_wh,
+	load_energy_wh,
+	battery_charge_energy_wh,
+	battery_discharge_energy_wh
 FROM %s
 WHERE device_id = $1::uuid
   AND bucket_start >= $2
@@ -222,20 +246,31 @@ func enrichSolarEnergy(series Series) Series {
 	}
 
 	points := make([]Point, 0, len(series.Points))
+	coverage := EnergyBucketCoverage{PointCount: len(series.Points)}
 	for _, point := range series.Points {
-		points = append(points, withDerivedSolarEnergy(point, series.Resolution))
+		enriched, pointCoverage := withDerivedSolarEnergy(point, series.Resolution)
+		points = append(points, enriched)
+		coverage.PersistedValueCount += pointCoverage.PersistedValueCount
+		coverage.DerivedValueCount += pointCoverage.DerivedValueCount
+		if pointCoverage.DerivedValueCount > 0 {
+			coverage.DerivedPointCount++
+		}
 	}
 	series.Points = points
+	series.EnergyBucketCoverage = coverage
 	return series
 }
 
-func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
+func withDerivedSolarEnergy(point Point, resolution Resolution) (Point, EnergyBucketCoverage) {
+	coverage := EnergyBucketCoverage{
+		PersistedValueCount: storedEnergyValueCount(point.Metrics),
+	}
 	durationHours := point.BucketEnd.Sub(point.BucketStart).Hours()
 	if resolution == ResolutionMinute && durationHours <= 0 {
 		durationHours = time.Minute.Hours()
 	}
 	if durationHours <= 0 {
-		return point
+		return point, coverage
 	}
 
 	if point.Metrics.SolarGeneratedWh == nil {
@@ -243,12 +278,14 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
 		if ok {
 			solarWh := pvAvgW * durationHours
 			point.Metrics.SolarGeneratedWh = floatPtr(solarWh)
+			coverage.DerivedValueCount++
 		}
 	}
 
 	if point.Metrics.ACInputEnergyWh == nil {
 		if acInAvgW, ok := positiveMetricValue(point.Metrics.ACInAvgW); ok {
 			point.Metrics.ACInputEnergyWh = floatPtr(acInAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.ACOutputAvgW == nil {
@@ -264,16 +301,19 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
 	if point.Metrics.ACOutputEnergyWh == nil {
 		if acOutputAvgW, ok := positiveMetricValue(point.Metrics.ACOutputAvgW); ok {
 			point.Metrics.ACOutputEnergyWh = floatPtr(acOutputAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.DCOutputEnergyWh == nil {
 		if dcAvgW, ok := positiveMetricValue(point.Metrics.DCAvgW); ok {
 			point.Metrics.DCOutputEnergyWh = floatPtr(dcAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.LoadEnergyWh == nil {
 		if loadAvgW, ok := positiveMetricValue(point.Metrics.LoadAvgW); ok {
 			point.Metrics.LoadEnergyWh = floatPtr(loadAvgW * durationHours)
+			coverage.DerivedValueCount++
 		}
 	}
 	if point.Metrics.BatteryChargeEnergyWh == nil || point.Metrics.BatteryDischargeEnergyWh == nil {
@@ -281,13 +321,33 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) Point {
 			batteryAvgW := *point.Metrics.BatteryAvgW
 			if batteryAvgW > 0 && point.Metrics.BatteryChargeEnergyWh == nil {
 				point.Metrics.BatteryChargeEnergyWh = floatPtr(batteryAvgW * durationHours)
+				coverage.DerivedValueCount++
 			}
 			if batteryAvgW < 0 && point.Metrics.BatteryDischargeEnergyWh == nil {
 				point.Metrics.BatteryDischargeEnergyWh = floatPtr(math.Abs(batteryAvgW) * durationHours)
+				coverage.DerivedValueCount++
 			}
 		}
 	}
-	return point
+	return point, coverage
+}
+
+func storedEnergyValueCount(metrics Metrics) int {
+	count := 0
+	for _, value := range []*float64{
+		metrics.SolarGeneratedWh,
+		metrics.ACInputEnergyWh,
+		metrics.ACOutputEnergyWh,
+		metrics.DCOutputEnergyWh,
+		metrics.LoadEnergyWh,
+		metrics.BatteryChargeEnergyWh,
+		metrics.BatteryDischargeEnergyWh,
+	} {
+		if value != nil {
+			count++
+		}
+	}
+	return count
 }
 
 func positiveMetricValue(value *float64) (float64, bool) {

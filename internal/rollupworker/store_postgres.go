@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -19,25 +20,41 @@ type Store interface {
 }
 
 type PostgresStore struct {
-	db                     *sql.DB
-	nowFn                  func() time.Time
-	minuteUpsertQuery      string
-	hourUpsertQuery        string
-	dayUpsertQuery         string
-	minuteSolarUpsertQuery string
-	hourSolarUpsertQuery   string
-	daySolarUpsertQuery    string
-	mu                     sync.Mutex
-	solarStateByDevice     map[string]solarIntegrationState
+	db                       *sql.DB
+	nowFn                    func() time.Time
+	minuteUpsertQuery        string
+	hourUpsertQuery          string
+	dayUpsertQuery           string
+	minuteSolarUpsertQuery   string
+	hourSolarUpsertQuery     string
+	daySolarUpsertQuery      string
+	minuteEnergyUpsertQuery  string
+	hourEnergyUpsertQuery    string
+	dayEnergyUpsertQuery     string
+	mu                       sync.Mutex
+	integrationStateByDevice map[string]integrationState
 }
 
-type solarIntegrationState struct {
+type powerChannelState struct {
+	lastAt    time.Time
+	hasLastAt bool
+	watts     float64
+	hasWatts  bool
+}
+
+type integrationState struct {
 	lastEnvelopeAt    time.Time
 	hasLastEnvelopeAt bool
 	lastPVAt          time.Time
 	hasLastPVAt       bool
 	currentPV         float64
 	hasPV             bool
+	acIn              powerChannelState
+	acOutput          powerChannelState
+	dcOutput          powerChannelState
+	load              powerChannelState
+	batteryCharge     powerChannelState
+	batteryDischarge  powerChannelState
 }
 
 func NewPostgresStore(dsn string) (*PostgresStore, error) {
@@ -63,15 +80,18 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 
 func newPostgresStore(db *sql.DB) *PostgresStore {
 	return &PostgresStore{
-		db:                     db,
-		nowFn:                  time.Now,
-		minuteUpsertQuery:      buildUpsertQuery("telemetry_rollup_minute"),
-		hourUpsertQuery:        buildUpsertQuery("telemetry_rollup_hour"),
-		dayUpsertQuery:         buildUpsertQuery("telemetry_rollup_day"),
-		minuteSolarUpsertQuery: buildSolarUpsertQuery("telemetry_rollup_minute"),
-		hourSolarUpsertQuery:   buildSolarUpsertQuery("telemetry_rollup_hour"),
-		daySolarUpsertQuery:    buildSolarUpsertQuery("telemetry_rollup_day"),
-		solarStateByDevice:     make(map[string]solarIntegrationState),
+		db:                       db,
+		nowFn:                    time.Now,
+		minuteUpsertQuery:        buildUpsertQuery("telemetry_rollup_minute"),
+		hourUpsertQuery:          buildUpsertQuery("telemetry_rollup_hour"),
+		dayUpsertQuery:           buildUpsertQuery("telemetry_rollup_day"),
+		minuteSolarUpsertQuery:   buildSolarUpsertQuery("telemetry_rollup_minute"),
+		hourSolarUpsertQuery:     buildSolarUpsertQuery("telemetry_rollup_hour"),
+		daySolarUpsertQuery:      buildSolarUpsertQuery("telemetry_rollup_day"),
+		minuteEnergyUpsertQuery:  buildEnergyUpsertQuery("telemetry_rollup_minute"),
+		hourEnergyUpsertQuery:    buildEnergyUpsertQuery("telemetry_rollup_hour"),
+		dayEnergyUpsertQuery:     buildEnergyUpsertQuery("telemetry_rollup_day"),
+		integrationStateByDevice: make(map[string]integrationState),
 	}
 }
 
@@ -101,7 +121,7 @@ func (s *PostgresStore) ApplyEnvelope(ctx context.Context, env *envelopev1.Telem
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	state := s.solarStateByDevice[stateKey]
+	state := s.integrationStateByDevice[stateKey]
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin rollup transaction: %w", err)
@@ -122,14 +142,17 @@ func (s *PostgresStore) ApplyEnvelope(ctx context.Context, env *envelopev1.Telem
 	if err := s.execSolarUpserts(ctx, tx, sample, state, now); err != nil {
 		return err
 	}
+	if err := s.execEnergyUpserts(ctx, tx, sample, state, now); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit rollup transaction: %w", err)
 	}
-	s.solarStateByDevice[stateKey] = advanceSolarState(state, sample)
+	s.integrationStateByDevice[stateKey] = advanceIntegrationState(state, sample)
 	return nil
 }
 
-func (s *PostgresStore) execSolarUpserts(ctx context.Context, tx *sql.Tx, sample *RollupSample, state solarIntegrationState, now time.Time) error {
+func (s *PostgresStore) execSolarUpserts(ctx context.Context, tx *sql.Tx, sample *RollupSample, state integrationState, now time.Time) error {
 	if sample == nil || !state.hasLastEnvelopeAt || !sample.EventTime.After(state.lastEnvelopeAt) || !state.hasPV {
 		return nil
 	}
@@ -145,7 +168,7 @@ func (s *PostgresStore) execSolarUpserts(ctx context.Context, tx *sql.Tx, sample
 	return nil
 }
 
-func (s *PostgresStore) execSolarUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, state solarIntegrationState, now time.Time, bucketWidth time.Duration, dayBucket bool) error {
+func (s *PostgresStore) execSolarUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, state integrationState, now time.Time, bucketWidth time.Duration, dayBucket bool) error {
 	var firstErr error
 	IntegrateSolarWindow(state.lastEnvelopeAt, sample.EventTime, state.lastPVAt, state.currentPV, DefaultSolarCarryForwardMaxGap, bucketWidth, dayBucket, func(bucketStart time.Time, segmentStart time.Time, segmentEnd time.Time, wattHours float64) {
 		if firstErr != nil {
@@ -174,7 +197,121 @@ func (s *PostgresStore) execSolarUpsert(ctx context.Context, tx *sql.Tx, query s
 	return firstErr
 }
 
-func advanceSolarState(state solarIntegrationState, sample *RollupSample) solarIntegrationState {
+type energyDelta struct {
+	firstTSUnixMs            int64
+	lastTSUnixMs             int64
+	hasTimeRange             bool
+	acInputEnergyWh          float64
+	acOutputEnergyWh         float64
+	dcOutputEnergyWh         float64
+	loadEnergyWh             float64
+	batteryChargeEnergyWh    float64
+	batteryDischargeEnergyWh float64
+}
+
+func (s *PostgresStore) execEnergyUpserts(ctx context.Context, tx *sql.Tx, sample *RollupSample, state integrationState, now time.Time) error {
+	if sample == nil || !state.hasLastEnvelopeAt || !sample.EventTime.After(state.lastEnvelopeAt) {
+		return nil
+	}
+	if err := s.execEnergyUpsert(ctx, tx, s.minuteEnergyUpsertQuery, sample, state, now, time.Minute, false); err != nil {
+		return err
+	}
+	if err := s.execEnergyUpsert(ctx, tx, s.hourEnergyUpsertQuery, sample, state, now, time.Hour, false); err != nil {
+		return err
+	}
+	if err := s.execEnergyUpsert(ctx, tx, s.dayEnergyUpsertQuery, sample, state, now, 24*time.Hour, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresStore) execEnergyUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, state integrationState, now time.Time, bucketWidth time.Duration, dayBucket bool) error {
+	accumulated := make(map[time.Time]*energyDelta)
+	integrateEnergyChannel(accumulated, state.lastEnvelopeAt, sample.EventTime, state.acIn, bucketWidth, dayBucket, func(delta *energyDelta, wattHours float64) {
+		delta.acInputEnergyWh += wattHours
+	})
+	integrateEnergyChannel(accumulated, state.lastEnvelopeAt, sample.EventTime, state.acOutput, bucketWidth, dayBucket, func(delta *energyDelta, wattHours float64) {
+		delta.acOutputEnergyWh += wattHours
+	})
+	integrateEnergyChannel(accumulated, state.lastEnvelopeAt, sample.EventTime, state.dcOutput, bucketWidth, dayBucket, func(delta *energyDelta, wattHours float64) {
+		delta.dcOutputEnergyWh += wattHours
+	})
+	integrateEnergyChannel(accumulated, state.lastEnvelopeAt, sample.EventTime, state.load, bucketWidth, dayBucket, func(delta *energyDelta, wattHours float64) {
+		delta.loadEnergyWh += wattHours
+	})
+	integrateEnergyChannel(accumulated, state.lastEnvelopeAt, sample.EventTime, state.batteryCharge, bucketWidth, dayBucket, func(delta *energyDelta, wattHours float64) {
+		delta.batteryChargeEnergyWh += wattHours
+	})
+	integrateEnergyChannel(accumulated, state.lastEnvelopeAt, sample.EventTime, state.batteryDischarge, bucketWidth, dayBucket, func(delta *energyDelta, wattHours float64) {
+		delta.batteryDischargeEnergyWh += wattHours
+	})
+	if len(accumulated) == 0 {
+		return nil
+	}
+
+	bucketStarts := make([]time.Time, 0, len(accumulated))
+	for bucketStart := range accumulated {
+		bucketStarts = append(bucketStarts, bucketStart)
+	}
+	sort.Slice(bucketStarts, func(i, j int) bool {
+		return bucketStarts[i].Before(bucketStarts[j])
+	})
+
+	for _, bucketStart := range bucketStarts {
+		delta := accumulated[bucketStart]
+		if delta == nil || !delta.hasTimeRange {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, query,
+			sample.Provider,
+			sample.ProviderDeviceID,
+			sample.DeviceID,
+			bucketStart,
+			0,
+			delta.firstTSUnixMs,
+			delta.lastTSUnixMs,
+			nullableEnergyValue(delta.acInputEnergyWh),
+			nullableEnergyValue(delta.acOutputEnergyWh),
+			nullableEnergyValue(delta.dcOutputEnergyWh),
+			nullableEnergyValue(delta.loadEnergyWh),
+			nullableEnergyValue(delta.batteryChargeEnergyWh),
+			nullableEnergyValue(delta.batteryDischargeEnergyWh),
+			now,
+			now,
+		); err != nil {
+			return fmt.Errorf("upsert energy rollup bucket %s: %w", bucketStart.Format(time.RFC3339), err)
+		}
+	}
+	return nil
+}
+
+func integrateEnergyChannel(accumulated map[time.Time]*energyDelta, start time.Time, end time.Time, channel powerChannelState, bucketWidth time.Duration, dayBucket bool, apply func(delta *energyDelta, wattHours float64)) {
+	if accumulated == nil || apply == nil || !channel.hasWatts || !channel.hasLastAt {
+		return
+	}
+	IntegratePowerWindow(start, end, channel.lastAt, channel.watts, DefaultSolarCarryForwardMaxGap, bucketWidth, dayBucket, func(bucketStart time.Time, segmentStart time.Time, segmentEnd time.Time, wattHours float64) {
+		delta := accumulated[bucketStart]
+		if delta == nil {
+			delta = &energyDelta{}
+			accumulated[bucketStart] = delta
+		}
+		firstTS := segmentStart.UnixMilli()
+		lastTS := segmentEnd.Add(-time.Millisecond).UnixMilli()
+		if lastTS < firstTS {
+			lastTS = firstTS
+		}
+		if !delta.hasTimeRange || firstTS < delta.firstTSUnixMs {
+			delta.firstTSUnixMs = firstTS
+		}
+		if !delta.hasTimeRange || lastTS > delta.lastTSUnixMs {
+			delta.lastTSUnixMs = lastTS
+		}
+		delta.hasTimeRange = true
+		apply(delta, wattHours)
+	})
+}
+
+func advanceIntegrationState(state integrationState, sample *RollupSample) integrationState {
 	if sample == nil {
 		return state
 	}
@@ -193,7 +330,50 @@ func advanceSolarState(state solarIntegrationState, sample *RollupSample) solarI
 			state.hasPV = false
 		}
 	}
+	state.acIn = advancePowerChannelState(state.acIn, sample.EventTime, sample.Metrics.ACIn)
+	state.acOutput = advancePowerChannelState(state.acOutput, sample.EventTime, sample.Metrics.ACOutput)
+	state.dcOutput = advancePowerChannelState(state.dcOutput, sample.EventTime, sample.Metrics.DC)
+	state.load = advancePowerChannelState(state.load, sample.EventTime, sample.Metrics.Load)
+	state.batteryCharge = advancePowerChannelState(state.batteryCharge, sample.EventTime, positiveOptionalFloat(sample.Metrics.Battery))
+	state.batteryDischarge = advancePowerChannelState(state.batteryDischarge, sample.EventTime, negativeOptionalFloat(sample.Metrics.Battery))
 	return state
+}
+
+func advancePowerChannelState(state powerChannelState, at time.Time, metric optionalFloat) powerChannelState {
+	if !metric.Valid {
+		return state
+	}
+	state.lastAt = at
+	state.hasLastAt = true
+	if metric.Value > 0 {
+		state.watts = metric.Value
+		state.hasWatts = true
+	} else {
+		state.watts = 0
+		state.hasWatts = false
+	}
+	return state
+}
+
+func positiveOptionalFloat(metric optionalFloat) optionalFloat {
+	if !metric.Valid || metric.Value <= 0 {
+		return optionalFloat{Valid: true}
+	}
+	return optionalFloat{Value: metric.Value, Valid: true}
+}
+
+func negativeOptionalFloat(metric optionalFloat) optionalFloat {
+	if !metric.Valid || metric.Value >= 0 {
+		return optionalFloat{Valid: true}
+	}
+	return optionalFloat{Value: -metric.Value, Valid: true}
+}
+
+func nullableEnergyValue(value float64) any {
+	if value <= 0 {
+		return nil
+	}
+	return value
 }
 
 func (s *PostgresStore) execUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, bucketStart time.Time, now time.Time) error {
@@ -363,6 +543,52 @@ func buildSolarUpsertQuery(table string) string {
 			ELSE %[1]s.solar_generated_wh + EXCLUDED.solar_generated_wh
 		END,
 		updated_at = EXCLUDED.updated_at`, table)
+}
+
+func buildEnergyUpsertQuery(table string) string {
+	return fmt.Sprintf(`INSERT INTO %s (
+		provider,
+		provider_device_id,
+		device_id,
+		bucket_start,
+		sample_count,
+		first_ts_unix_ms,
+		last_ts_unix_ms,
+		ac_input_energy_wh,
+		ac_output_energy_wh,
+		dc_output_energy_wh,
+		load_energy_wh,
+		battery_charge_energy_wh,
+		battery_discharge_energy_wh,
+		created_at,
+		updated_at
+	) VALUES (
+		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+	)
+	ON CONFLICT (provider, provider_device_id, bucket_start) DO UPDATE SET
+		device_id = EXCLUDED.device_id,
+		first_ts_unix_ms = CASE
+			WHEN %[1]s.sample_count = 0 THEN LEAST(%[1]s.first_ts_unix_ms, EXCLUDED.first_ts_unix_ms)
+			ELSE %[1]s.first_ts_unix_ms
+		END,
+		last_ts_unix_ms = CASE
+			WHEN %[1]s.sample_count = 0 THEN GREATEST(%[1]s.last_ts_unix_ms, EXCLUDED.last_ts_unix_ms)
+			ELSE %[1]s.last_ts_unix_ms
+		END,
+		ac_input_energy_wh = %[2]s,
+		ac_output_energy_wh = %[3]s,
+		dc_output_energy_wh = %[4]s,
+		load_energy_wh = %[5]s,
+		battery_charge_energy_wh = %[6]s,
+		battery_discharge_energy_wh = %[7]s,
+		updated_at = EXCLUDED.updated_at`, table,
+		sumExpr(table, "ac_input_energy_wh"),
+		sumExpr(table, "ac_output_energy_wh"),
+		sumExpr(table, "dc_output_energy_wh"),
+		sumExpr(table, "load_energy_wh"),
+		sumExpr(table, "battery_charge_energy_wh"),
+		sumExpr(table, "battery_discharge_energy_wh"),
+	)
 }
 
 func weightedAverageExpr(table, column string) string {

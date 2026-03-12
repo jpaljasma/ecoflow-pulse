@@ -61,8 +61,27 @@ type BucketRow struct {
 	Battery metricAccumulator
 	Temp    metricAccumulator
 
-	SolarGeneratedWh    float64
-	HasSolarGeneratedWh bool
+	SolarGeneratedWh      float64
+	HasSolarGeneratedWh   bool
+	ACInputEnergyWh       float64
+	HasACInputEnergyWh    bool
+	ACOutputEnergyWh      float64
+	HasACOutputEnergyWh   bool
+	DCOutputEnergyWh      float64
+	HasDCOutputEnergyWh   bool
+	LoadEnergyWh          float64
+	HasLoadEnergyWh       bool
+	BatteryChargeWh       float64
+	HasBatteryChargeWh    bool
+	BatteryDischargeWh    float64
+	HasBatteryDischargeWh bool
+}
+
+type powerState struct {
+	lastAt    time.Time
+	hasLastAt bool
+	watts     float64
+	hasWatts  bool
 }
 
 type deviceState struct {
@@ -75,6 +94,12 @@ type deviceState struct {
 	hasLastPVAt       bool
 	currentPV         float64
 	hasPV             bool
+	acIn              powerState
+	acOutput          powerState
+	dcOutput          powerState
+	load              powerState
+	batteryCharge     powerState
+	batteryDischarge  powerState
 }
 
 type Aggregator struct {
@@ -109,6 +134,9 @@ func (a *Aggregator) ApplySample(sample *rollupworker.RollupSample) {
 	if state.hasLastEnvelopeAt && sample.EventTime.After(state.lastEnvelopeAt) && state.hasPV {
 		a.integrateSolar(sample, state.lastEnvelopeAt, sample.EventTime, state.currentPV, state.lastPVAt)
 	}
+	if state.hasLastEnvelopeAt && sample.EventTime.After(state.lastEnvelopeAt) {
+		a.integrateEnergy(sample, state, state.lastEnvelopeAt, sample.EventTime)
+	}
 
 	if !state.hasLastEnvelopeAt || sample.EventTime.After(state.lastEnvelopeAt) {
 		state.lastEnvelopeAt = sample.EventTime
@@ -126,6 +154,14 @@ func (a *Aggregator) ApplySample(sample *rollupworker.RollupSample) {
 			state.hasPV = false
 		}
 	}
+	state.acIn = advancePowerState(state.acIn, sample.EventTime, sample.Metrics.ACIn.Value, sample.Metrics.ACIn.Valid)
+	state.acOutput = advancePowerState(state.acOutput, sample.EventTime, sample.Metrics.ACOutput.Value, sample.Metrics.ACOutput.Valid)
+	state.dcOutput = advancePowerState(state.dcOutput, sample.EventTime, sample.Metrics.DC.Value, sample.Metrics.DC.Valid)
+	state.load = advancePowerState(state.load, sample.EventTime, sample.Metrics.Load.Value, sample.Metrics.Load.Valid)
+	chargeValue, chargeValid := positiveMetricValue(sample.Metrics.Battery.Value, sample.Metrics.Battery.Valid)
+	dischargeValue, dischargeValid := negativeMetricValue(sample.Metrics.Battery.Value, sample.Metrics.Battery.Valid)
+	state.batteryCharge = advancePowerState(state.batteryCharge, sample.EventTime, chargeValue, chargeValid)
+	state.batteryDischarge = advancePowerState(state.batteryDischarge, sample.EventTime, dischargeValue, dischargeValid)
 	a.deviceStateByProviderDeviceID[stateKey] = state
 
 	a.addPoint(a.minute, sample, sample.EventTime.Truncate(time.Minute))
@@ -160,6 +196,7 @@ func (a *Aggregator) Finalize(windowEnd time.Time) {
 			EventUnixMs:      end.UnixMilli(),
 		}
 		a.integrateSolar(sample, state.lastEnvelopeAt, end, state.currentPV, state.lastPVAt)
+		a.integrateEnergy(sample, state, state.lastEnvelopeAt, end)
 		state.lastEnvelopeAt = end
 		a.deviceStateByProviderDeviceID[key] = state
 	}
@@ -244,6 +281,129 @@ func (a *Aggregator) integrateSolarAcrossBuckets(target map[string]*BucketRow, s
 		row.SolarGeneratedWh += wattHours
 		row.HasSolarGeneratedWh = true
 	})
+}
+
+func (a *Aggregator) integrateEnergy(sample *rollupworker.RollupSample, state deviceState, start, end time.Time) {
+	if a == nil || sample == nil || !end.After(start) {
+		return
+	}
+	a.integrateEnergyAcrossBuckets(a.minute, sample, start, end, state.acIn, time.Minute, false, func(row *BucketRow, wattHours float64) {
+		row.ACInputEnergyWh += wattHours
+		row.HasACInputEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.hour, sample, start, end, state.acIn, time.Hour, false, func(row *BucketRow, wattHours float64) {
+		row.ACInputEnergyWh += wattHours
+		row.HasACInputEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.day, sample, start, end, state.acIn, 24*time.Hour, true, func(row *BucketRow, wattHours float64) {
+		row.ACInputEnergyWh += wattHours
+		row.HasACInputEnergyWh = true
+	})
+
+	a.integrateEnergyAcrossBuckets(a.minute, sample, start, end, state.acOutput, time.Minute, false, func(row *BucketRow, wattHours float64) {
+		row.ACOutputEnergyWh += wattHours
+		row.HasACOutputEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.hour, sample, start, end, state.acOutput, time.Hour, false, func(row *BucketRow, wattHours float64) {
+		row.ACOutputEnergyWh += wattHours
+		row.HasACOutputEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.day, sample, start, end, state.acOutput, 24*time.Hour, true, func(row *BucketRow, wattHours float64) {
+		row.ACOutputEnergyWh += wattHours
+		row.HasACOutputEnergyWh = true
+	})
+
+	a.integrateEnergyAcrossBuckets(a.minute, sample, start, end, state.dcOutput, time.Minute, false, func(row *BucketRow, wattHours float64) {
+		row.DCOutputEnergyWh += wattHours
+		row.HasDCOutputEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.hour, sample, start, end, state.dcOutput, time.Hour, false, func(row *BucketRow, wattHours float64) {
+		row.DCOutputEnergyWh += wattHours
+		row.HasDCOutputEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.day, sample, start, end, state.dcOutput, 24*time.Hour, true, func(row *BucketRow, wattHours float64) {
+		row.DCOutputEnergyWh += wattHours
+		row.HasDCOutputEnergyWh = true
+	})
+
+	a.integrateEnergyAcrossBuckets(a.minute, sample, start, end, state.load, time.Minute, false, func(row *BucketRow, wattHours float64) {
+		row.LoadEnergyWh += wattHours
+		row.HasLoadEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.hour, sample, start, end, state.load, time.Hour, false, func(row *BucketRow, wattHours float64) {
+		row.LoadEnergyWh += wattHours
+		row.HasLoadEnergyWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.day, sample, start, end, state.load, 24*time.Hour, true, func(row *BucketRow, wattHours float64) {
+		row.LoadEnergyWh += wattHours
+		row.HasLoadEnergyWh = true
+	})
+
+	a.integrateEnergyAcrossBuckets(a.minute, sample, start, end, state.batteryCharge, time.Minute, false, func(row *BucketRow, wattHours float64) {
+		row.BatteryChargeWh += wattHours
+		row.HasBatteryChargeWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.hour, sample, start, end, state.batteryCharge, time.Hour, false, func(row *BucketRow, wattHours float64) {
+		row.BatteryChargeWh += wattHours
+		row.HasBatteryChargeWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.day, sample, start, end, state.batteryCharge, 24*time.Hour, true, func(row *BucketRow, wattHours float64) {
+		row.BatteryChargeWh += wattHours
+		row.HasBatteryChargeWh = true
+	})
+
+	a.integrateEnergyAcrossBuckets(a.minute, sample, start, end, state.batteryDischarge, time.Minute, false, func(row *BucketRow, wattHours float64) {
+		row.BatteryDischargeWh += wattHours
+		row.HasBatteryDischargeWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.hour, sample, start, end, state.batteryDischarge, time.Hour, false, func(row *BucketRow, wattHours float64) {
+		row.BatteryDischargeWh += wattHours
+		row.HasBatteryDischargeWh = true
+	})
+	a.integrateEnergyAcrossBuckets(a.day, sample, start, end, state.batteryDischarge, 24*time.Hour, true, func(row *BucketRow, wattHours float64) {
+		row.BatteryDischargeWh += wattHours
+		row.HasBatteryDischargeWh = true
+	})
+}
+
+func (a *Aggregator) integrateEnergyAcrossBuckets(target map[string]*BucketRow, sample *rollupworker.RollupSample, start, end time.Time, state powerState, bucketWidth time.Duration, dayBucket bool, apply func(row *BucketRow, wattHours float64)) {
+	if apply == nil || !state.hasWatts || !state.hasLastAt {
+		return
+	}
+	rollupworker.IntegratePowerWindow(start, end, state.lastAt, state.watts, a.maxSolarCarryForwardGap, bucketWidth, dayBucket, func(bucketStart time.Time, _ time.Time, _ time.Time, wattHours float64) {
+		row := ensureBucketRow(target, sample, bucketStart)
+		apply(row, wattHours)
+	})
+}
+
+func advancePowerState(state powerState, at time.Time, value float64, valid bool) powerState {
+	if !valid {
+		return state
+	}
+	state.lastAt = at
+	state.hasLastAt = true
+	if value > 0 {
+		state.watts = value
+		state.hasWatts = true
+	} else {
+		state.watts = 0
+		state.hasWatts = false
+	}
+	return state
+}
+
+func positiveMetricValue(value float64, valid bool) (float64, bool) {
+	if !valid || value <= 0 {
+		return 0, true
+	}
+	return value, true
+}
+
+func negativeMetricValue(value float64, valid bool) (float64, bool) {
+	if !valid || value >= 0 {
+		return 0, true
+	}
+	return -value, true
 }
 
 func ensureBucketRow(target map[string]*BucketRow, sample *rollupworker.RollupSample, bucketStart time.Time) *BucketRow {

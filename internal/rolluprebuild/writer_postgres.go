@@ -142,6 +142,12 @@ func (w *PostgresWriter) replaceChunk(ctx context.Context, table string, rows []
 			minValue(normalizedRow.Temp),
 			maxValue(normalizedRow.Temp),
 			solarGeneratedValue(normalizedRow),
+			energyValue(normalizedRow.HasACInputEnergyWh, normalizedRow.ACInputEnergyWh),
+			energyValue(normalizedRow.HasACOutputEnergyWh, normalizedRow.ACOutputEnergyWh),
+			energyValue(normalizedRow.HasDCOutputEnergyWh, normalizedRow.DCOutputEnergyWh),
+			energyValue(normalizedRow.HasLoadEnergyWh, normalizedRow.LoadEnergyWh),
+			energyValue(normalizedRow.HasBatteryChargeWh, normalizedRow.BatteryChargeWh),
+			energyValue(normalizedRow.HasBatteryDischargeWh, normalizedRow.BatteryDischargeWh),
 			now,
 			now,
 		})
@@ -178,6 +184,12 @@ func (w *PostgresWriter) replaceChunk(ctx context.Context, table string, rows []
 			"temp_min_c",
 			"temp_max_c",
 			"solar_generated_wh",
+			"ac_input_energy_wh",
+			"ac_output_energy_wh",
+			"dc_output_energy_wh",
+			"load_energy_wh",
+			"battery_charge_energy_wh",
+			"battery_discharge_energy_wh",
 			"created_at",
 			"updated_at",
 		},
@@ -220,6 +232,12 @@ INSERT INTO %[1]s (
 	temp_min_c,
 	temp_max_c,
 	solar_generated_wh,
+	ac_input_energy_wh,
+	ac_output_energy_wh,
+	dc_output_energy_wh,
+	load_energy_wh,
+	battery_charge_energy_wh,
+	battery_discharge_energy_wh,
 	created_at,
 	updated_at
 )
@@ -252,6 +270,12 @@ SELECT
 	temp_min_c,
 	temp_max_c,
 	solar_generated_wh,
+	ac_input_energy_wh,
+	ac_output_energy_wh,
+	dc_output_energy_wh,
+	load_energy_wh,
+	battery_charge_energy_wh,
+	battery_discharge_energy_wh,
 	created_at,
 	updated_at
 FROM %[2]s
@@ -326,6 +350,13 @@ func solarGeneratedValue(row BucketRow) any {
 		return nil
 	}
 	return row.SolarGeneratedWh
+}
+
+func energyValue(valid bool, value float64) any {
+	if !valid {
+		return nil
+	}
+	return value
 }
 
 func groupRowsByDevice(rows []BucketRow) map[string][]BucketRow {
