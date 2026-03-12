@@ -7,6 +7,7 @@ describe('pulse-platform config', () => {
     const config = loadConfig({});
 
     expect(config.port).toBe(18081);
+    expect(config.energyGrpcApiAddr).toBe('127.0.0.1:9090');
   });
 
   it('supports optional noop dev subject override', () => {
@@ -26,5 +27,15 @@ describe('pulse-platform config', () => {
       'https://api.example.com',
       'wss://ws.example.com'
     ]);
+  });
+
+  it('supports a dedicated energy grpc upstream override', () => {
+    const config = loadConfig({
+      GRPC_API_ADDR: '127.0.0.1:9090',
+      ENERGY_GRPC_API_ADDR: '127.0.0.1:9191'
+    });
+
+    expect(config.grpcApiAddr).toBe('127.0.0.1:9090');
+    expect(config.energyGrpcApiAddr).toBe('127.0.0.1:9191');
   });
 });

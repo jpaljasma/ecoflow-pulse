@@ -57,6 +57,10 @@ func newTestService() *TelemetryService {
 	return NewTelemetryService(slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
+func newTestEnergyService() *EnergyService {
+	return NewEnergyService(slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
 func numberPtr(value float64) *float64 {
 	return &value
 }
@@ -533,7 +537,7 @@ func TestSubscribePermissionDenied(t *testing.T) {
 func TestQueryRollupRangeValidation(t *testing.T) {
 	t.Parallel()
 
-	svc := newTestService()
+	svc := newTestEnergyService()
 	_, err := svc.QueryRollupRange(context.Background(), &telemetryv1.QueryRollupRangeRequest{
 		DeviceId:   "not-a-uuid",
 		Resolution: telemetryv1.RollupResolution_ROLLUP_RESOLUTION_HOUR,
@@ -553,7 +557,7 @@ func TestQueryRollupRangeUnavailableWithoutReader(t *testing.T) {
 		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
 	})
 
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 	})
@@ -577,7 +581,7 @@ func TestQueryRollupRangePermissionDenied(t *testing.T) {
 		"owner": {{DeviceID: deviceID, EcoflowSN: "DEMODPU0000294", ProductName: "DPU A 12 kWh", Model: "DELTA Pro Ultra", Role: "admin"}},
 	})
 
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       &fakeQueryReader{},
@@ -628,7 +632,7 @@ func TestQueryRollupRangeReturnsSeries(t *testing.T) {
 		},
 	}
 
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -675,7 +679,7 @@ func TestCompareRollupRangeUsesPreviousPeriod(t *testing.T) {
 			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionHour, From: from.Add(-2 * time.Hour), To: from},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -729,7 +733,7 @@ func TestQueryRollupRangeLogsEnergyFallbackUsage(t *testing.T) {
 		}},
 	}
 	var logs bytes.Buffer
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(&logs, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -847,7 +851,7 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 			},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -918,7 +922,7 @@ func TestGetEnergyDashboardUsesVisibleDevicesForAllScope(t *testing.T) {
 			{DeviceID: deviceB, Resolution: telemetryquery.ResolutionDay, From: from.AddDate(0, -1, 0), To: from, Points: []telemetryquery.Point{}},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -988,7 +992,7 @@ func TestGetEnergyDashboardSkipsPreviousQueriesWhenComparisonDisabled(t *testing
 			},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,
@@ -1065,7 +1069,7 @@ func TestGetEnergyDashboardSkipsMissingArchiveObjectsForPVHistory(t *testing.T) 
 			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionMinute, From: from.AddDate(0, 0, -1), To: from, Points: []telemetryquery.Point{}},
 		},
 	}
-	svc := NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ControlPlaneStore: store,
 		QueryReader:       reader,

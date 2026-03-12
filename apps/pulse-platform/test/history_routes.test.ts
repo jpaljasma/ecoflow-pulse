@@ -22,6 +22,7 @@ function baseConfig(): AppConfig {
     host: '127.0.0.1',
     port: 18081,
     grpcApiAddr: '127.0.0.1:9090',
+    energyGrpcApiAddr: '127.0.0.1:9091',
     grpcDeadlineMs: 2500,
     devUserSubject: 'dev-user-subject',
     publicPreconnectOrigins: [],
@@ -272,13 +273,6 @@ function makeEnergyDashboard(overrides: Partial<EnergyDashboard> = {}): EnergyDa
 
 function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryHistoryClient {
   return {
-    getSnapshot: vi.fn(async () => ({
-      snapshot: {
-        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
-        cursor: { seq: '1', tsUnixMs: String(Date.now()) },
-        metrics: {}
-      }
-    })),
     queryRollupRange: vi.fn(async () => makeSeries()),
     compareRollupRange: vi.fn(async () => ({
       current: makeSeries(),
@@ -586,6 +580,7 @@ describe('pulse-platform history routes', () => {
     const verifier = vi.fn(async () => ({ subject: 'sub-1', roles: [], rawJwt: 'jwt' }));
     const authConfig: AppConfig = {
       ...baseConfig(),
+      energyGrpcApiAddr: '127.0.0.1:9091',
       auth: {
         mode: 'keycloak',
         issuerUrl: 'https://issuer.example',
@@ -619,6 +614,7 @@ describe('pulse-platform history routes', () => {
     const verifier = vi.fn();
     const authConfig: AppConfig = {
       ...baseConfig(),
+      energyGrpcApiAddr: '127.0.0.1:9091',
       auth: {
         mode: 'keycloak',
         issuerUrl: 'https://issuer.example',

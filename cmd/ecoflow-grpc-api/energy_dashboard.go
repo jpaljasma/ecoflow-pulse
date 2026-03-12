@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func (s *TelemetryService) GetEnergyDashboard(ctx context.Context, req *telemetryv1.GetEnergyDashboardRequest) (*telemetryv1.GetEnergyDashboardResponse, error) {
+func (s *EnergyService) GetEnergyDashboard(ctx context.Context, req *telemetryv1.GetEnergyDashboardRequest) (*telemetryv1.GetEnergyDashboardResponse, error) {
 	if s.queryReader == nil {
 		return nil, status.Error(codes.Unavailable, "telemetry history unavailable")
 	}
@@ -116,7 +116,7 @@ func (s *TelemetryService) GetEnergyDashboard(ctx context.Context, req *telemetr
 	return resp, nil
 }
 
-func (s *TelemetryService) queryScopePVPortHistory(ctx context.Context, deviceIDs []string, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
+func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs []string, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
 	if s.archiveManifestStore == nil || s.archiveObjectReader == nil || s.controlPlaneStore == nil || len(deviceIDs) == 0 {
 		return nil, nil
 	}
@@ -229,13 +229,13 @@ func envelopeTimestamp(env *envelopev1.TelemetryEnvelope) time.Time {
 	}
 }
 
-func (s *TelemetryService) resolveVisibleDeviceIDs(ctx context.Context, requestedDeviceID string, useAllDevices bool) ([]string, error) {
+func (s *EnergyService) resolveVisibleDeviceIDs(ctx context.Context, requestedDeviceID string, useAllDevices bool) ([]string, error) {
 	requestedDeviceID = strings.TrimSpace(requestedDeviceID)
 	if !useAllDevices {
 		if requestedDeviceID == "" {
 			return nil, status.Error(codes.InvalidArgument, "device_id required when use_all_devices is false")
 		}
-		if err := s.authorizeDeviceAccess(ctx, requestedDeviceID); err != nil {
+		if err := authorizeDeviceAccess(ctx, s.controlPlaneStore, requestedDeviceID); err != nil {
 			return nil, err
 		}
 		return []string{requestedDeviceID}, nil
@@ -287,7 +287,7 @@ func powerResolutionForPreset(preset energydashboard.Preset) telemetryquery.Reso
 	}
 }
 
-func (s *TelemetryService) queryScopeSeries(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) (telemetryquery.Series, error) {
+func (s *EnergyService) queryScopeSeries(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) (telemetryquery.Series, error) {
 	aggregated := telemetryquery.Series{
 		DeviceID:   "all",
 		Resolution: resolution,

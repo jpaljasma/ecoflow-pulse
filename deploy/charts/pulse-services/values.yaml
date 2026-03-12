@@ -162,3 +162,22 @@ runtime:
         limits:
           cpu: 500m
           memory: 1Gi
+    energyApi:
+      enabled: false
+      replicaCount: 1
+      service:
+        port: 9090
+      metrics:
+        enabled: false
+        service:
+          port: 9095
+        serviceMonitor:
+          enabled: false
+          interval: 30s
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi

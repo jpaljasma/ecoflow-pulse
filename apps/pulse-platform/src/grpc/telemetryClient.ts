@@ -177,7 +177,6 @@ export type GetEnergyDashboardInput = {
 };
 
 export interface TelemetryHistoryClient {
-  getSnapshot(input: SnapshotRequestInput): Promise<{ snapshot: Snapshot }>;
   queryRollupRange(input: QueryRollupRangeInput): Promise<RollupSeries>;
   compareRollupRange(input: CompareRollupRangeInput): Promise<CompareRollupSeries>;
   getEnergyDashboard(input: GetEnergyDashboardInput): Promise<EnergyDashboard>;
@@ -198,6 +197,10 @@ type GrpcUnaryMethod = (
 
 type GrpcTelemetryClient = {
   GetSnapshot: GrpcUnaryMethod;
+  close: () => void;
+};
+
+type GrpcEnergyClient = {
   QueryRollupRange: GrpcUnaryMethod;
   CompareRollupRange: GrpcUnaryMethod;
   GetEnergyDashboard: GrpcUnaryMethod;
@@ -213,6 +216,11 @@ type TelemetryProto = {
           credentials: grpc.ChannelCredentials,
           options?: Record<string, unknown>
         ) => GrpcTelemetryClient;
+        EnergyService: new (
+          address: string,
+          credentials: grpc.ChannelCredentials,
+          options?: Record<string, unknown>
+        ) => GrpcEnergyClient;
       };
     };
   };
@@ -382,23 +390,11 @@ const metricsKeys: (keyof RollupMetrics)[] = [
 ];
 
 export function createTelemetryHistoryClient(address: string): TelemetryHistoryClient {
-  const client = new telemetryProto.pulse.telemetry.v1.TelemetryService(
+  const client = new telemetryProto.pulse.telemetry.v1.EnergyService(
     address,
     grpc.credentials.createInsecure()
   );
   return {
-    async getSnapshot(input) {
-      const response = await unaryCall<RawGetSnapshotResponse>(
-        client.GetSnapshot.bind(client),
-        {
-          deviceId: input.deviceId
-        },
-        input
-      );
-      return {
-        snapshot: normalizeSnapshot(response.snapshot)
-      };
-    },
     async queryRollupRange(input) {
       const response = await unaryCall<RawQueryRollupRangeResponse>(
         client.QueryRollupRange.bind(client),
@@ -459,10 +455,26 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
 }
 
 export function createTelemetrySnapshotClient(address: string): TelemetrySnapshotClient {
-  const client = createTelemetryHistoryClient(address);
+  const client = new telemetryProto.pulse.telemetry.v1.TelemetryService(
+    address,
+    grpc.credentials.createInsecure()
+  );
   return {
-    getSnapshot: client.getSnapshot,
-    close: client.close
+    async getSnapshot(input) {
+      const response = await unaryCall<RawGetSnapshotResponse>(
+        client.GetSnapshot.bind(client),
+        {
+          deviceId: input.deviceId
+        },
+        input
+      );
+      return {
+        snapshot: normalizeSnapshot(response.snapshot)
+      };
+    },
+    close() {
+      client.close();
+    }
   };
 }
 

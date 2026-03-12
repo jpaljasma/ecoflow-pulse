@@ -242,6 +242,9 @@ message GetEnergyDashboardResponse {
 service TelemetryService {
   rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+}
+
+service EnergyService {
   rpc QueryRollupRange(QueryRollupRangeRequest) returns (QueryRollupRangeResponse);
   rpc CompareRollupRange(CompareRollupRangeRequest) returns (CompareRollupRangeResponse);
   rpc GetEnergyDashboard(GetEnergyDashboardRequest) returns (GetEnergyDashboardResponse);

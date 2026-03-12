@@ -2205,10 +2205,11 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x1dROLLUP_RESOLUTION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18ROLLUP_RESOLUTION_MINUTE\x10\x01\x12\x1a\n" +
 	"\x16ROLLUP_RESOLUTION_HOUR\x10\x02\x12\x19\n" +
-	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xa7\x04\n" +
+	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xce\x01\n" +
 	"\x10TelemetryService\x12^\n" +
 	"\vGetSnapshot\x12&.pulse.telemetry.v1.GetSnapshotRequest\x1a'.pulse.telemetry.v1.GetSnapshotResponse\x12Z\n" +
-	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x01\x12m\n" +
+	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x012\xe8\x02\n" +
+	"\rEnergyService\x12m\n" +
 	"\x10QueryRollupRange\x12+.pulse.telemetry.v1.QueryRollupRangeRequest\x1a,.pulse.telemetry.v1.QueryRollupRangeResponse\x12s\n" +
 	"\x12CompareRollupRange\x12-.pulse.telemetry.v1.CompareRollupRangeRequest\x1a..pulse.telemetry.v1.CompareRollupRangeResponse\x12s\n" +
 	"\x12GetEnergyDashboard\x12-.pulse.telemetry.v1.GetEnergyDashboardRequest\x1a..pulse.telemetry.v1.GetEnergyDashboardResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
@@ -2291,14 +2292,14 @@ var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	21, // 32: pulse.telemetry.v1.GetEnergyDashboardResponse.pv_port_history:type_name -> pulse.telemetry.v1.EnergyPVPortHistory
 	5,  // 33: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
 	7,  // 34: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
-	12, // 35: pulse.telemetry.v1.TelemetryService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
-	14, // 36: pulse.telemetry.v1.TelemetryService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
-	22, // 37: pulse.telemetry.v1.TelemetryService.GetEnergyDashboard:input_type -> pulse.telemetry.v1.GetEnergyDashboardRequest
+	12, // 35: pulse.telemetry.v1.EnergyService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
+	14, // 36: pulse.telemetry.v1.EnergyService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
+	22, // 37: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:input_type -> pulse.telemetry.v1.GetEnergyDashboardRequest
 	6,  // 38: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
 	8,  // 39: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
-	13, // 40: pulse.telemetry.v1.TelemetryService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
-	15, // 41: pulse.telemetry.v1.TelemetryService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
-	23, // 42: pulse.telemetry.v1.TelemetryService.GetEnergyDashboard:output_type -> pulse.telemetry.v1.GetEnergyDashboardResponse
+	13, // 40: pulse.telemetry.v1.EnergyService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
+	15, // 41: pulse.telemetry.v1.EnergyService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
+	23, // 42: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:output_type -> pulse.telemetry.v1.GetEnergyDashboardResponse
 	38, // [38:43] is the sub-list for method output_type
 	33, // [33:38] is the sub-list for method input_type
 	33, // [33:33] is the sub-list for extension type_name
@@ -2326,7 +2327,7 @@ func file_pulse_telemetry_v1_telemetry_proto_init() {
 			NumEnums:      1,
 			NumMessages:   25,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_pulse_telemetry_v1_telemetry_proto_goTypes,
 		DependencyIndexes: file_pulse_telemetry_v1_telemetry_proto_depIdxs,

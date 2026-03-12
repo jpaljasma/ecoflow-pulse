@@ -31,13 +31,30 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
+type grpcServiceMode string
+
+const (
+	grpcServiceModeTelemetry grpcServiceMode = "telemetry"
+	grpcServiceModeEnergy    grpcServiceMode = "energy"
+)
+
 func main() {
 	env := os.Getenv("PULSE_ENV")
 	if env == "" {
 		env = "local"
 	}
 
-	logCfg := pulselog.DefaultServiceConfig("grpc-api")
+	serviceMode, err := grpcServiceModeFromEnv()
+	if err != nil {
+		_, _ = os.Stderr.WriteString("invalid grpc service mode: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+
+	serviceName := "grpc-api"
+	if serviceMode == grpcServiceModeEnergy {
+		serviceName = "energy-api"
+	}
+	logCfg := pulselog.DefaultServiceConfig(serviceName)
 	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
 	logCfg.AsyncEnabled = !runtimecfg.Bool("LOG_ASYNC_DISABLED", false)
 	logCfg.AsyncQueueSize = runtimecfg.IntMin("LOG_ASYNC_QUEUE_SIZE", logCfg.AsyncQueueSize, 128)
@@ -94,69 +111,79 @@ func main() {
 	healthpb.RegisterHealthServer(s, hs)
 	hs.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
-	snapshotReader, cleanupSnapshotReader, err := newTelemetrySnapshotReaderFromEnv(log)
-	if err != nil {
-		log.Error("telemetry snapshot reader init failed", "error", err.Error())
-		os.Exit(1)
-	}
-	defer cleanupSnapshotReader()
 	controlPlaneStore, cleanupStore, err := newControlPlaneStoreFromEnv(log)
 	if err != nil {
 		log.Error("control-plane store init failed", "error", err.Error())
 		os.Exit(1)
 	}
 	defer cleanupStore()
-	queryReader, cleanupQueryReader, err := newTelemetryQueryReaderFromEnv(log)
-	if err != nil {
-		log.Error("telemetry query reader init failed", "error", err.Error())
-		os.Exit(1)
-	}
-	defer cleanupQueryReader()
-	archiveManifestStore, archiveObjectReader, cleanupArchiveReaders, err := newArchiveReadersFromEnv(log)
-	if err != nil {
-		log.Error("archive history reader init failed", "error", err.Error())
-		os.Exit(1)
-	}
-	defer cleanupArchiveReaders()
-	inferenceReader, cleanupInferenceReader, err := newInferenceReaderFromEnv(log)
-	if err != nil {
-		log.Error("inference reader init failed", "error", err.Error())
-		os.Exit(1)
-	}
-	defer cleanupInferenceReader()
+	switch serviceMode {
+	case grpcServiceModeTelemetry:
+		snapshotReader, cleanupSnapshotReader, snapshotErr := newTelemetrySnapshotReaderFromEnv(log)
+		if snapshotErr != nil {
+			log.Error("telemetry snapshot reader init failed", "error", snapshotErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupSnapshotReader()
 
-	// Register services
-	telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
-		Log:                  log,
-		SnapshotReader:       snapshotReader,
-		QueryReader:          queryReader,
-		ControlPlaneStore:    controlPlaneStore,
-		ArchiveManifestStore: archiveManifestStore,
-		ArchiveObjectReader:  archiveObjectReader,
-		HistoryGzipMinBytes:  runtimecfg.IntMin("GRPC_HISTORY_GZIP_MIN_BYTES", defaultHistoryGzipMinBytes, 0),
-	}))
-	ecoflowClientConfig := ecoflow.DefaultConfig()
-	ecoflowClientConfig.Logging.Debug = false
-	ecoflowClientConfig.Logging.AdvancedDebugTelemetry = false
-	ecoflowClientConfig.Logging.DebugLogHeaders = false
-	ecoflowClientConfig.Logging.Logger = log
+		inferenceReader, cleanupInferenceReader, inferenceErr := newInferenceReaderFromEnv(log)
+		if inferenceErr != nil {
+			log.Error("inference reader init failed", "error", inferenceErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupInferenceReader()
 
-	adapterRegistry := provideradapter.NewRegistry()
-	adapterRegistry.RegisterDiscoverer(
-		controlplane.ProviderEcoFlow,
-		provideradapter.NewEcoFlowAdapter(
-			provideradapter.NewDefaultEcoFlowClientFactory(ecoflowClientConfig),
-		),
-	)
-	controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
-	controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
-	inferencev1.RegisterInferenceServiceServer(s, NewInferenceService(log, controlPlaneStore, inferenceReader))
+		telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
+			Log:               log,
+			SnapshotReader:    snapshotReader,
+			ControlPlaneStore: controlPlaneStore,
+		}))
+		ecoflowClientConfig := ecoflow.DefaultConfig()
+		ecoflowClientConfig.Logging.Debug = false
+		ecoflowClientConfig.Logging.AdvancedDebugTelemetry = false
+		ecoflowClientConfig.Logging.DebugLogHeaders = false
+		ecoflowClientConfig.Logging.Logger = log
+
+		adapterRegistry := provideradapter.NewRegistry()
+		adapterRegistry.RegisterDiscoverer(
+			controlplane.ProviderEcoFlow,
+			provideradapter.NewEcoFlowAdapter(
+				provideradapter.NewDefaultEcoFlowClientFactory(ecoflowClientConfig),
+			),
+		)
+		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
+		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
+		inferencev1.RegisterInferenceServiceServer(s, NewInferenceService(log, controlPlaneStore, inferenceReader))
+	case grpcServiceModeEnergy:
+		queryReader, cleanupQueryReader, queryErr := newTelemetryQueryReaderFromEnv(log)
+		if queryErr != nil {
+			log.Error("telemetry query reader init failed", "error", queryErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupQueryReader()
+
+		archiveManifestStore, archiveObjectReader, cleanupArchiveReaders, archiveErr := newArchiveReadersFromEnv(log)
+		if archiveErr != nil {
+			log.Error("archive history reader init failed", "error", archiveErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupArchiveReaders()
+
+		telemetryv1.RegisterEnergyServiceServer(s, NewEnergyServiceWithDeps(EnergyServiceDeps{
+			Log:                  log,
+			QueryReader:          queryReader,
+			ControlPlaneStore:    controlPlaneStore,
+			ArchiveManifestStore: archiveManifestStore,
+			ArchiveObjectReader:  archiveObjectReader,
+			HistoryGzipMinBytes:  runtimecfg.IntMin("GRPC_HISTORY_GZIP_MIN_BYTES", defaultHistoryGzipMinBytes, 0),
+		}))
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
 	metricsListenAddr := strings.TrimSpace(os.Getenv("GRPC_METRICS_LISTEN_ADDR"))
-	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "grpc-api", asyncLogHandler, logMetricsInterval)
+	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, serviceName, asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
 	stopGRPCMetrics := workermetrics.StartServer(ctx, log, grpcMetrics.Registry(), metricsListenAddr)
 	defer stopGRPCMetrics()
@@ -170,11 +197,21 @@ func main() {
 		"log_async_bypass_level", logCfg.AsyncBypassLevel.String(),
 		"log_metrics_interval", logMetricsInterval,
 		"metrics_listen_addr", metricsListenAddr,
+		"service_mode", serviceMode,
 	)
 
 	if err := grpcserver.ServeWithSignal(ctx, s, lis, 15*time.Second); err != nil {
 		log.Error("grpc server stopped", "error", err.Error())
 		os.Exit(1)
+	}
+}
+
+func grpcServiceModeFromEnv() (grpcServiceMode, error) {
+	switch mode := grpcServiceMode(strings.ToLower(strings.TrimSpace(runtimecfg.EnvOrDefault("GRPC_SERVICE_MODE", string(grpcServiceModeTelemetry))))); mode {
+	case grpcServiceModeTelemetry, grpcServiceModeEnergy:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("unsupported GRPC_SERVICE_MODE %q", mode)
 	}
 }
 
