@@ -26,6 +26,10 @@ export function detectLocalTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
+export function detectDevicesTimezone(devices: DeviceSummary[]): string | undefined {
+  return devices.find((device) => device.details?.timezoneId)?.details?.timezoneId;
+}
+
 export function resolveEnergyRouteState(
   params: Record<string, string | string[] | undefined>,
   availableDeviceIds: string[] = [],

@@ -14,6 +14,7 @@ import {
   buildEnergyRouteParams,
   buildPowerTrendSeries,
   buildWindowLabel,
+  detectDevicesTimezone,
   ENERGY_PRESETS,
   energyPresetLabel,
   formatDeltaPct,
@@ -119,9 +120,13 @@ export default function EnergyScreen() {
     () => buildStormGuardBanner(devicesQuery.data?.devices),
     [devicesQuery.data?.devices]
   );
+  const fallbackTimezone = useMemo(
+    () => detectDevicesTimezone(devices) || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    [devices]
+  );
   const routeState = useMemo(
-    () => resolveEnergyRouteState(params, devices.map((device) => device.id)),
-    [devices, params]
+    () => resolveEnergyRouteState(params, devices.map((device) => device.id), fallbackTimezone),
+    [devices, fallbackTimezone, params]
   );
   const selectedDevice = devices.find((device) => device.id === routeState.deviceId);
   const dashboardQuery = useEnergyDashboard(

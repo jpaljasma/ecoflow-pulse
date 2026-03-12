@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type { DeviceSummary } from '@/features/devices/api';
 import {
   buildEnergyInsights,
   buildEnergyTrendSeries,
   buildEnergyRouteParams,
   buildPvEnvelopeSummary,
   buildPowerTrendSeries,
+  detectDevicesTimezone,
   energyPresetLabel,
   formatDeltaPct,
   resolveEnergyRouteState
@@ -32,6 +34,48 @@ describe('energy route model', () => {
     expect(state.scope).toBe('device');
     expect(state.deviceId).toBe('019c9f0e-4521-775d-873e-e80039f16d75');
     expect(state.preset).toBe('last7d');
+  });
+
+  it('uses the first device-reported timezone when the route does not specify one', () => {
+    const devices: DeviceSummary[] = [
+      {
+        id: '019c9f0e-4521-775d-873e-e80039f16d75',
+        serialNumber: 'SN-1',
+        name: 'DPU',
+        model: 'DELTA Pro Ultra',
+        online: true,
+        batteryPct: 50,
+        state: 'idle',
+        etaMinutes: 0,
+        details: {
+          timezoneId: 'America/New_York'
+        }
+      },
+      {
+        id: '019c9f0e-4521-775d-873e-e80039f16d76',
+        serialNumber: 'SN-2',
+        name: 'D2M',
+        model: 'DELTA 2 Max',
+        online: true,
+        batteryPct: 60,
+        state: 'idle',
+        etaMinutes: 0,
+        details: {
+          timezoneId: 'America/Los_Angeles'
+        }
+      }
+    ];
+
+    expect(detectDevicesTimezone(devices)).toBe('America/New_York');
+    expect(
+      resolveEnergyRouteState({}, devices.map((device) => device.id), detectDevicesTimezone(devices))
+    ).toEqual({
+      scope: 'all',
+      deviceId: undefined,
+      preset: 'today',
+      timezone: 'America/New_York',
+      includeComparison: true
+    });
   });
 
   it('omits deviceId from route params for all-device mode', () => {

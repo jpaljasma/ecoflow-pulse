@@ -57,7 +57,10 @@ describe('provider device mapper', () => {
               bmsModeSet: 1,
               dsgMinSoc: 12,
               chgMaxSoc: 95,
-              sysBackupSoc: 18
+              sysBackupSoc: 18,
+              sysTimezone: -500,
+              sysTimezoneId: 'America/New_York',
+              timezoneSettype: 0
             },
             hs_yj751_pd_bp_addr: {
               bpInfo: {
@@ -142,7 +145,44 @@ describe('provider device mapper', () => {
           expect.objectContaining({ id: 'pv-high', state: 'inactive', maxWatts: 4000 })
         ],
         stormGuardActive: true,
-        stormGuardEndsAtUnixMs: 1773306000 * 1000
+        stormGuardEndsAtUnixMs: 1773306000 * 1000,
+        timezoneId: 'America/New_York',
+        timezoneOffsetMinutes: -300,
+        timezoneMode: 'manual'
+      })
+    );
+  });
+
+  it('treats DPU L14 and Power I/O AC outputs as active AC output paths', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        metadata: {
+          groups: {
+            hs_yj751_pd_appshow_addr: {
+              outAcL14Pwr: 320,
+              outAc_5p8Pwr: 0
+            },
+            hs_yj751_pd_backend_addr: {
+              inLvMpptVol: 0,
+              inLvMpptAmp: 0,
+              inHvMpptVol: 0,
+              inHvMpptAmp: 0,
+              fanState: 0
+            },
+            hs_yj751_pd_app_set_info_addr: {},
+            hs_yj751_pd_bp_addr: {
+              bpInfo: {
+                values: []
+              }
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        acOn: true
       })
     );
   });
