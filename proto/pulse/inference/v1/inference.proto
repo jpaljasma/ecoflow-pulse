@@ -13,6 +13,7 @@ enum InsightKind {
   INSIGHT_KIND_SOLAR_UPGRADE = 3;
   INSIGHT_KIND_ENERGY_SHIFT = 4;
   INSIGHT_KIND_MAINTENANCE = 5;
+  INSIGHT_KIND_ENERGY_COMPARISON = 6;
 }
 
 enum InsightStatus {
@@ -109,7 +110,70 @@ message ListFleetInsightsResponse {
   repeated DeviceInsights devices = 1;
 }
 
+message EnergyComparisonScope {
+  string mode = 1;
+  string device_id = 2;
+  repeated string resolved_device_ids = 3;
+}
+
+enum EnergyComparisonCardCategory {
+  ENERGY_COMPARISON_CARD_CATEGORY_UNSPECIFIED = 0;
+  ENERGY_COMPARISON_CARD_CATEGORY_SELF_SUFFICIENCY = 1;
+  ENERGY_COMPARISON_CARD_CATEGORY_SOLAR = 2;
+  ENERGY_COMPARISON_CARD_CATEGORY_LOAD = 3;
+  ENERGY_COMPARISON_CARD_CATEGORY_BATTERY = 4;
+  ENERGY_COMPARISON_CARD_CATEGORY_GRID = 5;
+  ENERGY_COMPARISON_CARD_CATEGORY_VALUE = 6;
+}
+
+message EnergyComparisonCard {
+  EnergyComparisonCardCategory category = 1;
+  string title = 2;
+  string summary = 3;
+  string recommendation = 4;
+  double score = 5;
+  double confidence = 6;
+  repeated InsightEvidence evidence = 7;
+  google.protobuf.Struct attributes = 8;
+}
+
+message EnergyComparisonInsight {
+  string id = 1;
+  EnergyComparisonScope scope = 2;
+  string preset = 3;
+  string timezone = 4;
+  string verdict_class = 5;
+  string headline = 6;
+  string summary = 7;
+  double score = 8;
+  double confidence = 9;
+  string model_key = 10;
+  string model_version = 11;
+  int64 generated_at_unix_ms = 12;
+  int64 expires_at_unix_ms = 13;
+  repeated string tags = 14;
+  repeated EnergyComparisonCard cards = 15;
+  repeated InsightEvidence evidence = 16;
+  google.protobuf.Struct attributes = 17;
+}
+
+message GetEnergyComparisonInsightRequest {
+  string device_id = 1;
+  bool use_all_devices = 2;
+  string preset = 3;
+  string timezone = 4;
+  double grid_price_per_kwh = 5;
+  string currency = 6;
+}
+
+message GetEnergyComparisonInsightResponse {
+  InsightStatus status = 1;
+  string status_detail = 2;
+  EnergyComparisonInsight insight = 3;
+}
+
 service InferenceService {
   rpc GetDeviceInsights(GetDeviceInsightsRequest) returns (GetDeviceInsightsResponse);
   rpc ListFleetInsights(ListFleetInsightsRequest) returns (ListFleetInsightsResponse);
+  rpc GetEnergyComparisonInsight(GetEnergyComparisonInsightRequest) returns (GetEnergyComparisonInsightResponse);
 }

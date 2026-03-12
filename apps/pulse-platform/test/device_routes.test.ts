@@ -146,6 +146,10 @@ function sampleInsights(overrides: Partial<DeviceInsights> = {}): DeviceInsights
 function makeInferenceClient(overrides: Partial<InferenceClient> = {}): InferenceClient {
   return {
     getDeviceInsights: vi.fn(async () => sampleInsights()),
+    getEnergyComparisonInsight: vi.fn(async () => ({
+      status: 'ready' as const,
+      statusDetail: 'ok'
+    })),
     close: vi.fn(),
     ...overrides
   };

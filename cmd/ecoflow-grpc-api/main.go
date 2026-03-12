@@ -133,6 +133,13 @@ func main() {
 		}
 		defer cleanupInferenceReader()
 
+		inferenceQueryReader, cleanupInferenceQueryReader, inferenceQueryErr := newTelemetryQueryReaderFromEnv(log)
+		if inferenceQueryErr != nil {
+			log.Error("inference telemetry query reader init failed", "error", inferenceQueryErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupInferenceQueryReader()
+
 		telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
 			Log:               log,
 			SnapshotReader:    snapshotReader,
@@ -153,7 +160,17 @@ func main() {
 		)
 		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
-		inferencev1.RegisterInferenceServiceServer(s, NewInferenceService(log, controlPlaneStore, inferenceReader))
+		var comparisonCache inference.EnergyComparisonCache
+		if cache, ok := inferenceReader.(inference.EnergyComparisonCache); ok {
+			comparisonCache = cache
+		}
+		inferencev1.RegisterInferenceServiceServer(s, NewInferenceServiceWithDeps(InferenceServiceDeps{
+			Log:               log,
+			Reader:            inferenceReader,
+			ComparisonCache:   comparisonCache,
+			QueryReader:       inferenceQueryReader,
+			ControlPlaneStore: controlPlaneStore,
+		}))
 	case grpcServiceModeEnergy:
 		queryReader, cleanupQueryReader, queryErr := newTelemetryQueryReaderFromEnv(log)
 		if queryErr != nil {

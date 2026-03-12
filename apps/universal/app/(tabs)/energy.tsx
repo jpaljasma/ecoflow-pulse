@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useDevices } from '@/features/devices/hooks';
-import { useEnergyDashboard, useEnergyPvPortHistory } from '@/features/energy/hooks';
+import { useEnergyComparisonInsight, useEnergyDashboard, useEnergyPvPortHistory } from '@/features/energy/hooks';
 import type { EnergyPVPortHistory } from '@/features/energy/api';
 import {
   buildEnergyInsights,
@@ -28,6 +28,7 @@ import { Card } from '@/shared/ui/Card';
 import { ChartSection } from '@/shared/ui/ChartSection';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { EnergyTrendChart } from '@/shared/ui/EnergyTrendChart';
+import { EnergyComparisonWidget } from '@/shared/ui/EnergyComparisonWidget';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { Stat } from '@/shared/ui/Stat';
@@ -144,6 +145,21 @@ export default function EnergyScreen() {
     {
       authKey,
       enabled: authReady && (!authConfigured || sessionValid) && dashboardQuery.isSuccess
+    }
+  );
+  const comparisonInsightQuery = useEnergyComparisonInsight(
+    {
+      scope: routeState.scope,
+      deviceId: routeState.deviceId,
+      preset: routeState.preset,
+      timezone: routeState.timezone,
+      gridPricePerKwh: Number.parseFloat(gridPricePerKwhInput) || undefined,
+      currency,
+      token
+    },
+    {
+      authKey,
+      enabled: authReady && (!authConfigured || sessionValid)
     }
   );
 
@@ -390,6 +406,11 @@ export default function EnergyScreen() {
 
         {dashboardQuery.data ? (
           <>
+            <EnergyComparisonWidget
+              data={comparisonInsightQuery.data}
+              loading={comparisonInsightQuery.isLoading}
+            />
+
             <XStack gap="$3" flexWrap="wrap">
               <SectionCard title="Solar generated" minWidth={220}>
                 <Stat label="Current" value={formatKWh(dashboardQuery.data.summary.solarGeneratedKwh.current)} />

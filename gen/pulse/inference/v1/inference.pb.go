@@ -31,6 +31,7 @@ const (
 	InsightKind_INSIGHT_KIND_SOLAR_UPGRADE     InsightKind = 3
 	InsightKind_INSIGHT_KIND_ENERGY_SHIFT      InsightKind = 4
 	InsightKind_INSIGHT_KIND_MAINTENANCE       InsightKind = 5
+	InsightKind_INSIGHT_KIND_ENERGY_COMPARISON InsightKind = 6
 )
 
 // Enum value maps for InsightKind.
@@ -42,6 +43,7 @@ var (
 		3: "INSIGHT_KIND_SOLAR_UPGRADE",
 		4: "INSIGHT_KIND_ENERGY_SHIFT",
 		5: "INSIGHT_KIND_MAINTENANCE",
+		6: "INSIGHT_KIND_ENERGY_COMPARISON",
 	}
 	InsightKind_value = map[string]int32{
 		"INSIGHT_KIND_UNSPECIFIED":       0,
@@ -50,6 +52,7 @@ var (
 		"INSIGHT_KIND_SOLAR_UPGRADE":     3,
 		"INSIGHT_KIND_ENERGY_SHIFT":      4,
 		"INSIGHT_KIND_MAINTENANCE":       5,
+		"INSIGHT_KIND_ENERGY_COMPARISON": 6,
 	}
 )
 
@@ -252,6 +255,67 @@ func (x InsightEvidenceSource) Number() protoreflect.EnumNumber {
 // Deprecated: Use InsightEvidenceSource.Descriptor instead.
 func (InsightEvidenceSource) EnumDescriptor() ([]byte, []int) {
 	return file_pulse_inference_v1_inference_proto_rawDescGZIP(), []int{3}
+}
+
+type EnergyComparisonCardCategory int32
+
+const (
+	EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_UNSPECIFIED      EnergyComparisonCardCategory = 0
+	EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_SELF_SUFFICIENCY EnergyComparisonCardCategory = 1
+	EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_SOLAR            EnergyComparisonCardCategory = 2
+	EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_LOAD             EnergyComparisonCardCategory = 3
+	EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_BATTERY          EnergyComparisonCardCategory = 4
+	EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_GRID             EnergyComparisonCardCategory = 5
+	EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_VALUE            EnergyComparisonCardCategory = 6
+)
+
+// Enum value maps for EnergyComparisonCardCategory.
+var (
+	EnergyComparisonCardCategory_name = map[int32]string{
+		0: "ENERGY_COMPARISON_CARD_CATEGORY_UNSPECIFIED",
+		1: "ENERGY_COMPARISON_CARD_CATEGORY_SELF_SUFFICIENCY",
+		2: "ENERGY_COMPARISON_CARD_CATEGORY_SOLAR",
+		3: "ENERGY_COMPARISON_CARD_CATEGORY_LOAD",
+		4: "ENERGY_COMPARISON_CARD_CATEGORY_BATTERY",
+		5: "ENERGY_COMPARISON_CARD_CATEGORY_GRID",
+		6: "ENERGY_COMPARISON_CARD_CATEGORY_VALUE",
+	}
+	EnergyComparisonCardCategory_value = map[string]int32{
+		"ENERGY_COMPARISON_CARD_CATEGORY_UNSPECIFIED":      0,
+		"ENERGY_COMPARISON_CARD_CATEGORY_SELF_SUFFICIENCY": 1,
+		"ENERGY_COMPARISON_CARD_CATEGORY_SOLAR":            2,
+		"ENERGY_COMPARISON_CARD_CATEGORY_LOAD":             3,
+		"ENERGY_COMPARISON_CARD_CATEGORY_BATTERY":          4,
+		"ENERGY_COMPARISON_CARD_CATEGORY_GRID":             5,
+		"ENERGY_COMPARISON_CARD_CATEGORY_VALUE":            6,
+	}
+)
+
+func (x EnergyComparisonCardCategory) Enum() *EnergyComparisonCardCategory {
+	p := new(EnergyComparisonCardCategory)
+	*p = x
+	return p
+}
+
+func (x EnergyComparisonCardCategory) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EnergyComparisonCardCategory) Descriptor() protoreflect.EnumDescriptor {
+	return file_pulse_inference_v1_inference_proto_enumTypes[4].Descriptor()
+}
+
+func (EnergyComparisonCardCategory) Type() protoreflect.EnumType {
+	return &file_pulse_inference_v1_inference_proto_enumTypes[4]
+}
+
+func (x EnergyComparisonCardCategory) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EnergyComparisonCardCategory.Descriptor instead.
+func (EnergyComparisonCardCategory) EnumDescriptor() ([]byte, []int) {
+	return file_pulse_inference_v1_inference_proto_rawDescGZIP(), []int{4}
 }
 
 type InsightFilter struct {
@@ -863,6 +927,482 @@ func (x *ListFleetInsightsResponse) GetDevices() []*DeviceInsights {
 	return nil
 }
 
+type EnergyComparisonScope struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Mode              string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	DeviceId          string                 `protobuf:"bytes,2,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	ResolvedDeviceIds []string               `protobuf:"bytes,3,rep,name=resolved_device_ids,json=resolvedDeviceIds,proto3" json:"resolved_device_ids,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EnergyComparisonScope) Reset() {
+	*x = EnergyComparisonScope{}
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyComparisonScope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyComparisonScope) ProtoMessage() {}
+
+func (x *EnergyComparisonScope) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyComparisonScope.ProtoReflect.Descriptor instead.
+func (*EnergyComparisonScope) Descriptor() ([]byte, []int) {
+	return file_pulse_inference_v1_inference_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *EnergyComparisonScope) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *EnergyComparisonScope) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *EnergyComparisonScope) GetResolvedDeviceIds() []string {
+	if x != nil {
+		return x.ResolvedDeviceIds
+	}
+	return nil
+}
+
+type EnergyComparisonCard struct {
+	state          protoimpl.MessageState       `protogen:"open.v1"`
+	Category       EnergyComparisonCardCategory `protobuf:"varint,1,opt,name=category,proto3,enum=pulse.inference.v1.EnergyComparisonCardCategory" json:"category,omitempty"`
+	Title          string                       `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Summary        string                       `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	Recommendation string                       `protobuf:"bytes,4,opt,name=recommendation,proto3" json:"recommendation,omitempty"`
+	Score          float64                      `protobuf:"fixed64,5,opt,name=score,proto3" json:"score,omitempty"`
+	Confidence     float64                      `protobuf:"fixed64,6,opt,name=confidence,proto3" json:"confidence,omitempty"`
+	Evidence       []*InsightEvidence           `protobuf:"bytes,7,rep,name=evidence,proto3" json:"evidence,omitempty"`
+	Attributes     *structpb.Struct             `protobuf:"bytes,8,opt,name=attributes,proto3" json:"attributes,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *EnergyComparisonCard) Reset() {
+	*x = EnergyComparisonCard{}
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyComparisonCard) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyComparisonCard) ProtoMessage() {}
+
+func (x *EnergyComparisonCard) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyComparisonCard.ProtoReflect.Descriptor instead.
+func (*EnergyComparisonCard) Descriptor() ([]byte, []int) {
+	return file_pulse_inference_v1_inference_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *EnergyComparisonCard) GetCategory() EnergyComparisonCardCategory {
+	if x != nil {
+		return x.Category
+	}
+	return EnergyComparisonCardCategory_ENERGY_COMPARISON_CARD_CATEGORY_UNSPECIFIED
+}
+
+func (x *EnergyComparisonCard) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EnergyComparisonCard) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *EnergyComparisonCard) GetRecommendation() string {
+	if x != nil {
+		return x.Recommendation
+	}
+	return ""
+}
+
+func (x *EnergyComparisonCard) GetScore() float64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *EnergyComparisonCard) GetConfidence() float64 {
+	if x != nil {
+		return x.Confidence
+	}
+	return 0
+}
+
+func (x *EnergyComparisonCard) GetEvidence() []*InsightEvidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *EnergyComparisonCard) GetAttributes() *structpb.Struct {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
+type EnergyComparisonInsight struct {
+	state             protoimpl.MessageState  `protogen:"open.v1"`
+	Id                string                  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Scope             *EnergyComparisonScope  `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
+	Preset            string                  `protobuf:"bytes,3,opt,name=preset,proto3" json:"preset,omitempty"`
+	Timezone          string                  `protobuf:"bytes,4,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	VerdictClass      string                  `protobuf:"bytes,5,opt,name=verdict_class,json=verdictClass,proto3" json:"verdict_class,omitempty"`
+	Headline          string                  `protobuf:"bytes,6,opt,name=headline,proto3" json:"headline,omitempty"`
+	Summary           string                  `protobuf:"bytes,7,opt,name=summary,proto3" json:"summary,omitempty"`
+	Score             float64                 `protobuf:"fixed64,8,opt,name=score,proto3" json:"score,omitempty"`
+	Confidence        float64                 `protobuf:"fixed64,9,opt,name=confidence,proto3" json:"confidence,omitempty"`
+	ModelKey          string                  `protobuf:"bytes,10,opt,name=model_key,json=modelKey,proto3" json:"model_key,omitempty"`
+	ModelVersion      string                  `protobuf:"bytes,11,opt,name=model_version,json=modelVersion,proto3" json:"model_version,omitempty"`
+	GeneratedAtUnixMs int64                   `protobuf:"varint,12,opt,name=generated_at_unix_ms,json=generatedAtUnixMs,proto3" json:"generated_at_unix_ms,omitempty"`
+	ExpiresAtUnixMs   int64                   `protobuf:"varint,13,opt,name=expires_at_unix_ms,json=expiresAtUnixMs,proto3" json:"expires_at_unix_ms,omitempty"`
+	Tags              []string                `protobuf:"bytes,14,rep,name=tags,proto3" json:"tags,omitempty"`
+	Cards             []*EnergyComparisonCard `protobuf:"bytes,15,rep,name=cards,proto3" json:"cards,omitempty"`
+	Evidence          []*InsightEvidence      `protobuf:"bytes,16,rep,name=evidence,proto3" json:"evidence,omitempty"`
+	Attributes        *structpb.Struct        `protobuf:"bytes,17,opt,name=attributes,proto3" json:"attributes,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EnergyComparisonInsight) Reset() {
+	*x = EnergyComparisonInsight{}
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyComparisonInsight) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyComparisonInsight) ProtoMessage() {}
+
+func (x *EnergyComparisonInsight) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyComparisonInsight.ProtoReflect.Descriptor instead.
+func (*EnergyComparisonInsight) Descriptor() ([]byte, []int) {
+	return file_pulse_inference_v1_inference_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *EnergyComparisonInsight) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetScope() *EnergyComparisonScope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *EnergyComparisonInsight) GetPreset() string {
+	if x != nil {
+		return x.Preset
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetVerdictClass() string {
+	if x != nil {
+		return x.VerdictClass
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetHeadline() string {
+	if x != nil {
+		return x.Headline
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetScore() float64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *EnergyComparisonInsight) GetConfidence() float64 {
+	if x != nil {
+		return x.Confidence
+	}
+	return 0
+}
+
+func (x *EnergyComparisonInsight) GetModelKey() string {
+	if x != nil {
+		return x.ModelKey
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetModelVersion() string {
+	if x != nil {
+		return x.ModelVersion
+	}
+	return ""
+}
+
+func (x *EnergyComparisonInsight) GetGeneratedAtUnixMs() int64 {
+	if x != nil {
+		return x.GeneratedAtUnixMs
+	}
+	return 0
+}
+
+func (x *EnergyComparisonInsight) GetExpiresAtUnixMs() int64 {
+	if x != nil {
+		return x.ExpiresAtUnixMs
+	}
+	return 0
+}
+
+func (x *EnergyComparisonInsight) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *EnergyComparisonInsight) GetCards() []*EnergyComparisonCard {
+	if x != nil {
+		return x.Cards
+	}
+	return nil
+}
+
+func (x *EnergyComparisonInsight) GetEvidence() []*InsightEvidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *EnergyComparisonInsight) GetAttributes() *structpb.Struct {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
+type GetEnergyComparisonInsightRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId        string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	UseAllDevices   bool                   `protobuf:"varint,2,opt,name=use_all_devices,json=useAllDevices,proto3" json:"use_all_devices,omitempty"`
+	Preset          string                 `protobuf:"bytes,3,opt,name=preset,proto3" json:"preset,omitempty"`
+	Timezone        string                 `protobuf:"bytes,4,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	GridPricePerKwh float64                `protobuf:"fixed64,5,opt,name=grid_price_per_kwh,json=gridPricePerKwh,proto3" json:"grid_price_per_kwh,omitempty"`
+	Currency        string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GetEnergyComparisonInsightRequest) Reset() {
+	*x = GetEnergyComparisonInsightRequest{}
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyComparisonInsightRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyComparisonInsightRequest) ProtoMessage() {}
+
+func (x *GetEnergyComparisonInsightRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyComparisonInsightRequest.ProtoReflect.Descriptor instead.
+func (*GetEnergyComparisonInsightRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_inference_v1_inference_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetEnergyComparisonInsightRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *GetEnergyComparisonInsightRequest) GetUseAllDevices() bool {
+	if x != nil {
+		return x.UseAllDevices
+	}
+	return false
+}
+
+func (x *GetEnergyComparisonInsightRequest) GetPreset() string {
+	if x != nil {
+		return x.Preset
+	}
+	return ""
+}
+
+func (x *GetEnergyComparisonInsightRequest) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *GetEnergyComparisonInsightRequest) GetGridPricePerKwh() float64 {
+	if x != nil {
+		return x.GridPricePerKwh
+	}
+	return 0
+}
+
+func (x *GetEnergyComparisonInsightRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+type GetEnergyComparisonInsightResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Status        InsightStatus            `protobuf:"varint,1,opt,name=status,proto3,enum=pulse.inference.v1.InsightStatus" json:"status,omitempty"`
+	StatusDetail  string                   `protobuf:"bytes,2,opt,name=status_detail,json=statusDetail,proto3" json:"status_detail,omitempty"`
+	Insight       *EnergyComparisonInsight `protobuf:"bytes,3,opt,name=insight,proto3" json:"insight,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEnergyComparisonInsightResponse) Reset() {
+	*x = GetEnergyComparisonInsightResponse{}
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyComparisonInsightResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyComparisonInsightResponse) ProtoMessage() {}
+
+func (x *GetEnergyComparisonInsightResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_inference_v1_inference_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyComparisonInsightResponse.ProtoReflect.Descriptor instead.
+func (*GetEnergyComparisonInsightResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_inference_v1_inference_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetEnergyComparisonInsightResponse) GetStatus() InsightStatus {
+	if x != nil {
+		return x.Status
+	}
+	return InsightStatus_INSIGHT_STATUS_UNSPECIFIED
+}
+
+func (x *GetEnergyComparisonInsightResponse) GetStatusDetail() string {
+	if x != nil {
+		return x.StatusDetail
+	}
+	return ""
+}
+
+func (x *GetEnergyComparisonInsightResponse) GetInsight() *EnergyComparisonInsight {
+	if x != nil {
+		return x.Insight
+	}
+	return nil
+}
+
 var File_pulse_inference_v1_inference_proto protoreflect.FileDescriptor
 
 const file_pulse_inference_v1_inference_proto_rawDesc = "" +
@@ -915,14 +1455,66 @@ const file_pulse_inference_v1_inference_proto_rawDesc = "" +
 	"device_ids\x18\x01 \x03(\tR\tdeviceIds\x129\n" +
 	"\x06filter\x18\x02 \x01(\v2!.pulse.inference.v1.InsightFilterR\x06filter\"Y\n" +
 	"\x19ListFleetInsightsResponse\x12<\n" +
-	"\adevices\x18\x01 \x03(\v2\".pulse.inference.v1.DeviceInsightsR\adevices*\xcb\x01\n" +
+	"\adevices\x18\x01 \x03(\v2\".pulse.inference.v1.DeviceInsightsR\adevices\"x\n" +
+	"\x15EnergyComparisonScope\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x1b\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12.\n" +
+	"\x13resolved_device_ids\x18\x03 \x03(\tR\x11resolvedDeviceIds\"\xec\x02\n" +
+	"\x14EnergyComparisonCard\x12L\n" +
+	"\bcategory\x18\x01 \x01(\x0e20.pulse.inference.v1.EnergyComparisonCardCategoryR\bcategory\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12&\n" +
+	"\x0erecommendation\x18\x04 \x01(\tR\x0erecommendation\x12\x14\n" +
+	"\x05score\x18\x05 \x01(\x01R\x05score\x12\x1e\n" +
+	"\n" +
+	"confidence\x18\x06 \x01(\x01R\n" +
+	"confidence\x12?\n" +
+	"\bevidence\x18\a \x03(\v2#.pulse.inference.v1.InsightEvidenceR\bevidence\x127\n" +
+	"\n" +
+	"attributes\x18\b \x01(\v2\x17.google.protobuf.StructR\n" +
+	"attributes\"\x9d\x05\n" +
+	"\x17EnergyComparisonInsight\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12?\n" +
+	"\x05scope\x18\x02 \x01(\v2).pulse.inference.v1.EnergyComparisonScopeR\x05scope\x12\x16\n" +
+	"\x06preset\x18\x03 \x01(\tR\x06preset\x12\x1a\n" +
+	"\btimezone\x18\x04 \x01(\tR\btimezone\x12#\n" +
+	"\rverdict_class\x18\x05 \x01(\tR\fverdictClass\x12\x1a\n" +
+	"\bheadline\x18\x06 \x01(\tR\bheadline\x12\x18\n" +
+	"\asummary\x18\a \x01(\tR\asummary\x12\x14\n" +
+	"\x05score\x18\b \x01(\x01R\x05score\x12\x1e\n" +
+	"\n" +
+	"confidence\x18\t \x01(\x01R\n" +
+	"confidence\x12\x1b\n" +
+	"\tmodel_key\x18\n" +
+	" \x01(\tR\bmodelKey\x12#\n" +
+	"\rmodel_version\x18\v \x01(\tR\fmodelVersion\x12/\n" +
+	"\x14generated_at_unix_ms\x18\f \x01(\x03R\x11generatedAtUnixMs\x12+\n" +
+	"\x12expires_at_unix_ms\x18\r \x01(\x03R\x0fexpiresAtUnixMs\x12\x12\n" +
+	"\x04tags\x18\x0e \x03(\tR\x04tags\x12>\n" +
+	"\x05cards\x18\x0f \x03(\v2(.pulse.inference.v1.EnergyComparisonCardR\x05cards\x12?\n" +
+	"\bevidence\x18\x10 \x03(\v2#.pulse.inference.v1.InsightEvidenceR\bevidence\x127\n" +
+	"\n" +
+	"attributes\x18\x11 \x01(\v2\x17.google.protobuf.StructR\n" +
+	"attributes\"\xe5\x01\n" +
+	"!GetEnergyComparisonInsightRequest\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12&\n" +
+	"\x0fuse_all_devices\x18\x02 \x01(\bR\ruseAllDevices\x12\x16\n" +
+	"\x06preset\x18\x03 \x01(\tR\x06preset\x12\x1a\n" +
+	"\btimezone\x18\x04 \x01(\tR\btimezone\x12+\n" +
+	"\x12grid_price_per_kwh\x18\x05 \x01(\x01R\x0fgridPricePerKwh\x12\x1a\n" +
+	"\bcurrency\x18\x06 \x01(\tR\bcurrency\"\xcb\x01\n" +
+	"\"GetEnergyComparisonInsightResponse\x129\n" +
+	"\x06status\x18\x01 \x01(\x0e2!.pulse.inference.v1.InsightStatusR\x06status\x12#\n" +
+	"\rstatus_detail\x18\x02 \x01(\tR\fstatusDetail\x12E\n" +
+	"\ainsight\x18\x03 \x01(\v2+.pulse.inference.v1.EnergyComparisonInsightR\ainsight*\xef\x01\n" +
 	"\vInsightKind\x12\x1c\n" +
 	"\x18INSIGHT_KIND_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eINSIGHT_KIND_BATTERY_EXPANSION\x10\x01\x12\x1d\n" +
 	"\x19INSIGHT_KIND_SOLAR_ADD_ON\x10\x02\x12\x1e\n" +
 	"\x1aINSIGHT_KIND_SOLAR_UPGRADE\x10\x03\x12\x1d\n" +
 	"\x19INSIGHT_KIND_ENERGY_SHIFT\x10\x04\x12\x1c\n" +
-	"\x18INSIGHT_KIND_MAINTENANCE\x10\x05*\x9f\x01\n" +
+	"\x18INSIGHT_KIND_MAINTENANCE\x10\x05\x12\"\n" +
+	"\x1eINSIGHT_KIND_ENERGY_COMPARISON\x10\x06*\x9f\x01\n" +
 	"\rInsightStatus\x12\x1e\n" +
 	"\x1aINSIGHT_STATUS_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16INSIGHT_STATUS_PENDING\x10\x01\x12\x18\n" +
@@ -943,10 +1535,19 @@ const file_pulse_inference_v1_inference_proto_rawDesc = "" +
 	")INSIGHT_EVIDENCE_SOURCE_PROVIDER_METADATA\x10\x04\x12(\n" +
 	"$INSIGHT_EVIDENCE_SOURCE_MODEL_OUTPUT\x10\x05\x12'\n" +
 	"#INSIGHT_EVIDENCE_SOURCE_RULE_ENGINE\x10\x06\x12(\n" +
-	"$INSIGHT_EVIDENCE_SOURCE_USER_CONTEXT\x10\a2\xf6\x01\n" +
+	"$INSIGHT_EVIDENCE_SOURCE_USER_CONTEXT\x10\a*\xdc\x02\n" +
+	"\x1cEnergyComparisonCardCategory\x12/\n" +
+	"+ENERGY_COMPARISON_CARD_CATEGORY_UNSPECIFIED\x10\x00\x124\n" +
+	"0ENERGY_COMPARISON_CARD_CATEGORY_SELF_SUFFICIENCY\x10\x01\x12)\n" +
+	"%ENERGY_COMPARISON_CARD_CATEGORY_SOLAR\x10\x02\x12(\n" +
+	"$ENERGY_COMPARISON_CARD_CATEGORY_LOAD\x10\x03\x12+\n" +
+	"'ENERGY_COMPARISON_CARD_CATEGORY_BATTERY\x10\x04\x12(\n" +
+	"$ENERGY_COMPARISON_CARD_CATEGORY_GRID\x10\x05\x12)\n" +
+	"%ENERGY_COMPARISON_CARD_CATEGORY_VALUE\x10\x062\x84\x03\n" +
 	"\x10InferenceService\x12p\n" +
 	"\x11GetDeviceInsights\x12,.pulse.inference.v1.GetDeviceInsightsRequest\x1a-.pulse.inference.v1.GetDeviceInsightsResponse\x12p\n" +
-	"\x11ListFleetInsights\x12,.pulse.inference.v1.ListFleetInsightsRequest\x1a-.pulse.inference.v1.ListFleetInsightsResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1;inferencev1b\x06proto3"
+	"\x11ListFleetInsights\x12,.pulse.inference.v1.ListFleetInsightsRequest\x1a-.pulse.inference.v1.ListFleetInsightsResponse\x12\x8b\x01\n" +
+	"\x1aGetEnergyComparisonInsight\x125.pulse.inference.v1.GetEnergyComparisonInsightRequest\x1a6.pulse.inference.v1.GetEnergyComparisonInsightResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1;inferencev1b\x06proto3"
 
 var (
 	file_pulse_inference_v1_inference_proto_rawDescOnce sync.Once
@@ -960,49 +1561,66 @@ func file_pulse_inference_v1_inference_proto_rawDescGZIP() []byte {
 	return file_pulse_inference_v1_inference_proto_rawDescData
 }
 
-var file_pulse_inference_v1_inference_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_pulse_inference_v1_inference_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_pulse_inference_v1_inference_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_pulse_inference_v1_inference_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_pulse_inference_v1_inference_proto_goTypes = []any{
-	(InsightKind)(0),                  // 0: pulse.inference.v1.InsightKind
-	(InsightStatus)(0),                // 1: pulse.inference.v1.InsightStatus
-	(InsightActionKind)(0),            // 2: pulse.inference.v1.InsightActionKind
-	(InsightEvidenceSource)(0),        // 3: pulse.inference.v1.InsightEvidenceSource
-	(*InsightFilter)(nil),             // 4: pulse.inference.v1.InsightFilter
-	(*InsightAction)(nil),             // 5: pulse.inference.v1.InsightAction
-	(*InsightEvidence)(nil),           // 6: pulse.inference.v1.InsightEvidence
-	(*DeviceInsight)(nil),             // 7: pulse.inference.v1.DeviceInsight
-	(*DeviceInsights)(nil),            // 8: pulse.inference.v1.DeviceInsights
-	(*GetDeviceInsightsRequest)(nil),  // 9: pulse.inference.v1.GetDeviceInsightsRequest
-	(*GetDeviceInsightsResponse)(nil), // 10: pulse.inference.v1.GetDeviceInsightsResponse
-	(*ListFleetInsightsRequest)(nil),  // 11: pulse.inference.v1.ListFleetInsightsRequest
-	(*ListFleetInsightsResponse)(nil), // 12: pulse.inference.v1.ListFleetInsightsResponse
-	(*structpb.Struct)(nil),           // 13: google.protobuf.Struct
+	(InsightKind)(0),                           // 0: pulse.inference.v1.InsightKind
+	(InsightStatus)(0),                         // 1: pulse.inference.v1.InsightStatus
+	(InsightActionKind)(0),                     // 2: pulse.inference.v1.InsightActionKind
+	(InsightEvidenceSource)(0),                 // 3: pulse.inference.v1.InsightEvidenceSource
+	(EnergyComparisonCardCategory)(0),          // 4: pulse.inference.v1.EnergyComparisonCardCategory
+	(*InsightFilter)(nil),                      // 5: pulse.inference.v1.InsightFilter
+	(*InsightAction)(nil),                      // 6: pulse.inference.v1.InsightAction
+	(*InsightEvidence)(nil),                    // 7: pulse.inference.v1.InsightEvidence
+	(*DeviceInsight)(nil),                      // 8: pulse.inference.v1.DeviceInsight
+	(*DeviceInsights)(nil),                     // 9: pulse.inference.v1.DeviceInsights
+	(*GetDeviceInsightsRequest)(nil),           // 10: pulse.inference.v1.GetDeviceInsightsRequest
+	(*GetDeviceInsightsResponse)(nil),          // 11: pulse.inference.v1.GetDeviceInsightsResponse
+	(*ListFleetInsightsRequest)(nil),           // 12: pulse.inference.v1.ListFleetInsightsRequest
+	(*ListFleetInsightsResponse)(nil),          // 13: pulse.inference.v1.ListFleetInsightsResponse
+	(*EnergyComparisonScope)(nil),              // 14: pulse.inference.v1.EnergyComparisonScope
+	(*EnergyComparisonCard)(nil),               // 15: pulse.inference.v1.EnergyComparisonCard
+	(*EnergyComparisonInsight)(nil),            // 16: pulse.inference.v1.EnergyComparisonInsight
+	(*GetEnergyComparisonInsightRequest)(nil),  // 17: pulse.inference.v1.GetEnergyComparisonInsightRequest
+	(*GetEnergyComparisonInsightResponse)(nil), // 18: pulse.inference.v1.GetEnergyComparisonInsightResponse
+	(*structpb.Struct)(nil),                    // 19: google.protobuf.Struct
 }
 var file_pulse_inference_v1_inference_proto_depIdxs = []int32{
 	0,  // 0: pulse.inference.v1.InsightFilter.kinds:type_name -> pulse.inference.v1.InsightKind
 	2,  // 1: pulse.inference.v1.InsightAction.kind:type_name -> pulse.inference.v1.InsightActionKind
-	13, // 2: pulse.inference.v1.InsightAction.params:type_name -> google.protobuf.Struct
+	19, // 2: pulse.inference.v1.InsightAction.params:type_name -> google.protobuf.Struct
 	3,  // 3: pulse.inference.v1.InsightEvidence.source:type_name -> pulse.inference.v1.InsightEvidenceSource
-	13, // 4: pulse.inference.v1.InsightEvidence.metrics:type_name -> google.protobuf.Struct
+	19, // 4: pulse.inference.v1.InsightEvidence.metrics:type_name -> google.protobuf.Struct
 	0,  // 5: pulse.inference.v1.DeviceInsight.kind:type_name -> pulse.inference.v1.InsightKind
-	6,  // 6: pulse.inference.v1.DeviceInsight.evidence:type_name -> pulse.inference.v1.InsightEvidence
-	5,  // 7: pulse.inference.v1.DeviceInsight.actions:type_name -> pulse.inference.v1.InsightAction
-	13, // 8: pulse.inference.v1.DeviceInsight.attributes:type_name -> google.protobuf.Struct
+	7,  // 6: pulse.inference.v1.DeviceInsight.evidence:type_name -> pulse.inference.v1.InsightEvidence
+	6,  // 7: pulse.inference.v1.DeviceInsight.actions:type_name -> pulse.inference.v1.InsightAction
+	19, // 8: pulse.inference.v1.DeviceInsight.attributes:type_name -> google.protobuf.Struct
 	1,  // 9: pulse.inference.v1.DeviceInsights.status:type_name -> pulse.inference.v1.InsightStatus
-	7,  // 10: pulse.inference.v1.DeviceInsights.insights:type_name -> pulse.inference.v1.DeviceInsight
-	4,  // 11: pulse.inference.v1.GetDeviceInsightsRequest.filter:type_name -> pulse.inference.v1.InsightFilter
-	8,  // 12: pulse.inference.v1.GetDeviceInsightsResponse.insights:type_name -> pulse.inference.v1.DeviceInsights
-	4,  // 13: pulse.inference.v1.ListFleetInsightsRequest.filter:type_name -> pulse.inference.v1.InsightFilter
-	8,  // 14: pulse.inference.v1.ListFleetInsightsResponse.devices:type_name -> pulse.inference.v1.DeviceInsights
-	9,  // 15: pulse.inference.v1.InferenceService.GetDeviceInsights:input_type -> pulse.inference.v1.GetDeviceInsightsRequest
-	11, // 16: pulse.inference.v1.InferenceService.ListFleetInsights:input_type -> pulse.inference.v1.ListFleetInsightsRequest
-	10, // 17: pulse.inference.v1.InferenceService.GetDeviceInsights:output_type -> pulse.inference.v1.GetDeviceInsightsResponse
-	12, // 18: pulse.inference.v1.InferenceService.ListFleetInsights:output_type -> pulse.inference.v1.ListFleetInsightsResponse
-	17, // [17:19] is the sub-list for method output_type
-	15, // [15:17] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	8,  // 10: pulse.inference.v1.DeviceInsights.insights:type_name -> pulse.inference.v1.DeviceInsight
+	5,  // 11: pulse.inference.v1.GetDeviceInsightsRequest.filter:type_name -> pulse.inference.v1.InsightFilter
+	9,  // 12: pulse.inference.v1.GetDeviceInsightsResponse.insights:type_name -> pulse.inference.v1.DeviceInsights
+	5,  // 13: pulse.inference.v1.ListFleetInsightsRequest.filter:type_name -> pulse.inference.v1.InsightFilter
+	9,  // 14: pulse.inference.v1.ListFleetInsightsResponse.devices:type_name -> pulse.inference.v1.DeviceInsights
+	4,  // 15: pulse.inference.v1.EnergyComparisonCard.category:type_name -> pulse.inference.v1.EnergyComparisonCardCategory
+	7,  // 16: pulse.inference.v1.EnergyComparisonCard.evidence:type_name -> pulse.inference.v1.InsightEvidence
+	19, // 17: pulse.inference.v1.EnergyComparisonCard.attributes:type_name -> google.protobuf.Struct
+	14, // 18: pulse.inference.v1.EnergyComparisonInsight.scope:type_name -> pulse.inference.v1.EnergyComparisonScope
+	15, // 19: pulse.inference.v1.EnergyComparisonInsight.cards:type_name -> pulse.inference.v1.EnergyComparisonCard
+	7,  // 20: pulse.inference.v1.EnergyComparisonInsight.evidence:type_name -> pulse.inference.v1.InsightEvidence
+	19, // 21: pulse.inference.v1.EnergyComparisonInsight.attributes:type_name -> google.protobuf.Struct
+	1,  // 22: pulse.inference.v1.GetEnergyComparisonInsightResponse.status:type_name -> pulse.inference.v1.InsightStatus
+	16, // 23: pulse.inference.v1.GetEnergyComparisonInsightResponse.insight:type_name -> pulse.inference.v1.EnergyComparisonInsight
+	10, // 24: pulse.inference.v1.InferenceService.GetDeviceInsights:input_type -> pulse.inference.v1.GetDeviceInsightsRequest
+	12, // 25: pulse.inference.v1.InferenceService.ListFleetInsights:input_type -> pulse.inference.v1.ListFleetInsightsRequest
+	17, // 26: pulse.inference.v1.InferenceService.GetEnergyComparisonInsight:input_type -> pulse.inference.v1.GetEnergyComparisonInsightRequest
+	11, // 27: pulse.inference.v1.InferenceService.GetDeviceInsights:output_type -> pulse.inference.v1.GetDeviceInsightsResponse
+	13, // 28: pulse.inference.v1.InferenceService.ListFleetInsights:output_type -> pulse.inference.v1.ListFleetInsightsResponse
+	18, // 29: pulse.inference.v1.InferenceService.GetEnergyComparisonInsight:output_type -> pulse.inference.v1.GetEnergyComparisonInsightResponse
+	27, // [27:30] is the sub-list for method output_type
+	24, // [24:27] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_pulse_inference_v1_inference_proto_init() }
@@ -1015,8 +1633,8 @@ func file_pulse_inference_v1_inference_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_inference_v1_inference_proto_rawDesc), len(file_pulse_inference_v1_inference_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   9,
+			NumEnums:      5,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

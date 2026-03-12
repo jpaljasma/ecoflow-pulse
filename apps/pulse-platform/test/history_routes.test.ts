@@ -296,6 +296,32 @@ function makeDeviceClient(): DeviceClient {
 function makeInferenceClient(): InferenceClient {
   return {
     getDeviceInsights: vi.fn(),
+    getEnergyComparisonInsight: vi.fn(async () => ({
+      status: 'ready' as const,
+      statusDetail: 'cached',
+      insight: {
+        id: 'insight-1',
+        scope: {
+          mode: 'all',
+          deviceId: '',
+          resolvedDeviceIds: ['019c9f0e-4521-775d-873e-e80039f16d75']
+        },
+        preset: 'last7d',
+        timezone: 'America/New_York',
+        verdictClass: 'solar_freedom_up',
+        headline: 'More solar freedom',
+        summary: 'Self-sufficiency improved.',
+        score: 0.44,
+        confidence: 0.81,
+        modelKey: 'energy-comparison-score',
+        modelVersion: 'v1',
+        generatedAtUnixMs: '1772719200000',
+        expiresAtUnixMs: '1772722800000',
+        tags: ['energy', 'comparison'],
+        cards: [],
+        evidence: []
+      }
+    })),
     close: vi.fn()
   } as unknown as InferenceClient;
 }
@@ -559,6 +585,43 @@ describe('pulse-platform history routes', () => {
     expect(response.json()).toEqual(
       expect.objectContaining({
         pvPortHistory: expect.any(Array)
+      })
+    );
+
+    await app.close();
+  });
+
+  it('returns cached energy comparison insight independently from the dashboard payload', async () => {
+    const inferenceClient = makeInferenceClient();
+    const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), inferenceClient);
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/comparison-insight?scope=all&preset=last7d&timezone=America%2FLos_Angeles&gridPricePerKwh=0.30&currency=USD',
+      headers: {
+        authorization: 'Bearer comparison-token'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(inferenceClient.getEnergyComparisonInsight).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'last7d',
+        timezone: 'America/Los_Angeles',
+        gridPricePerKwh: 0.3,
+        currency: 'USD',
+        authHeader: 'Bearer comparison-token',
+        deadlineMs: 2500
+      })
+    );
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        status: 'ready',
+        insight: expect.objectContaining({
+          verdictClass: 'solar_freedom_up',
+          headline: 'More solar freedom'
+        })
       })
     );
 

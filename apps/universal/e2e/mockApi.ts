@@ -548,6 +548,57 @@ export async function mockApiRoutes(page: Page): Promise<void> {
       return;
     }
 
+    if (pathname === '/api/v1/energy/comparison-insight') {
+      const scopeParam = url.searchParams.get('scope');
+      const scope = scopeParam === 'device' ? 'device' : 'all';
+      await fulfillJson(route, {
+        status: 'ready',
+        statusDetail: 'cached',
+        insight: {
+          id: 'energy-comparison-1',
+          scope: {
+            mode: scope,
+            deviceId: scope === 'device' ? url.searchParams.get('deviceId') ?? DPU_DEVICE_ID : '',
+            resolvedDeviceIds: scope === 'device' ? [url.searchParams.get('deviceId') ?? DPU_DEVICE_ID] : [DPU_DEVICE_ID, D2M_DEVICE_ID]
+          },
+          preset: url.searchParams.get('preset') ?? 'today',
+          timezone: url.searchParams.get('timezone') ?? 'UTC',
+          verdictClass: 'solar_freedom_up',
+          headline: 'More solar freedom',
+          summary: 'Self-sufficiency improved versus the previous window.',
+          score: 0.52,
+          confidence: 0.83,
+          modelKey: 'energy-comparison-score',
+          modelVersion: 'v1',
+          generatedAtUnixMs: String(NOW_UNIX_MS),
+          expiresAtUnixMs: String(NOW_UNIX_MS + 60 * 60 * 1000),
+          tags: ['energy', 'comparison'],
+          cards: [
+            {
+              category: 'self_sufficiency',
+              title: 'Self-sufficiency',
+              summary: 'Self-sufficiency changed by 12.0 percentage points.',
+              recommendation: 'Keep flexible loads aligned to the solar window to preserve the self-sufficiency gain.',
+              score: 0.67,
+              confidence: 0.83,
+              evidence: []
+            },
+            {
+              category: 'solar',
+              title: 'Solar generation',
+              summary: 'Solar generation changed by 0.92kWh.',
+              recommendation: 'Keep high-draw tasks inside the strongest solar window when generation climbs.',
+              score: 0.44,
+              confidence: 0.83,
+              evidence: []
+            }
+          ],
+          evidence: []
+        }
+      });
+      return;
+    }
+
     await fulfillJson(route, { error: `unhandled_mock_path:${pathname}` }, 404);
   });
 }

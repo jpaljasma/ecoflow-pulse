@@ -115,6 +115,53 @@ const EnergyPVPortHistoryResponseSchema = z.object({
   pvPortHistory: z.array(EnergyPVPortHistorySchema)
 });
 
+const InsightEvidenceSchema = z.object({
+  source: z.string(),
+  summary: z.string(),
+  metrics: z.record(z.unknown()).optional()
+});
+
+const EnergyComparisonCardSchema = z.object({
+  category: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  recommendation: z.string(),
+  score: z.number(),
+  confidence: z.number(),
+  evidence: z.array(InsightEvidenceSchema),
+  attributes: z.record(z.unknown()).optional()
+});
+
+const EnergyComparisonInsightSchema = z.object({
+  id: z.string(),
+  scope: z.object({
+    mode: z.string(),
+    deviceId: z.string(),
+    resolvedDeviceIds: z.array(z.string())
+  }),
+  preset: z.string(),
+  timezone: z.string(),
+  verdictClass: z.string(),
+  headline: z.string(),
+  summary: z.string(),
+  score: z.number(),
+  confidence: z.number(),
+  modelKey: z.string(),
+  modelVersion: z.string(),
+  generatedAtUnixMs: z.string(),
+  expiresAtUnixMs: z.string(),
+  tags: z.array(z.string()),
+  cards: z.array(EnergyComparisonCardSchema),
+  evidence: z.array(InsightEvidenceSchema),
+  attributes: z.record(z.unknown()).optional()
+});
+
+const EnergyComparisonInsightResponseSchema = z.object({
+  status: z.string(),
+  statusDetail: z.string(),
+  insight: EnergyComparisonInsightSchema.optional()
+});
+
 export const EnergyDashboardSchema = z.object({
   scope: EnergyScopeSchema,
   window: EnergyWindowSchema,
@@ -132,6 +179,8 @@ export type EnergyValueComparison = z.infer<typeof EnergyValueComparisonSchema>;
 export type EnergyDashboard = z.infer<typeof EnergyDashboardSchema>;
 export type EnergyRollupPoint = z.infer<typeof RollupPointSchema>;
 export type EnergyPVPortHistory = z.infer<typeof EnergyPVPortHistorySchema>;
+export type EnergyComparisonInsight = z.infer<typeof EnergyComparisonInsightSchema>;
+export type EnergyComparisonInsightResponse = z.infer<typeof EnergyComparisonInsightResponseSchema>;
 
 export async function fetchEnergyDashboard({
   scope,
@@ -194,4 +243,39 @@ export async function fetchEnergyPvPortHistory({
   }
   const data = await requestJson<unknown>(`/api/v1/energy/pv-history?${params.toString()}`, { token });
   return EnergyPVPortHistoryResponseSchema.parse(data).pvPortHistory;
+}
+
+export async function fetchEnergyComparisonInsight({
+  scope,
+  deviceId,
+  preset,
+  timezone,
+  gridPricePerKwh,
+  currency,
+  token
+}: {
+  scope: 'device' | 'all';
+  deviceId?: string;
+  preset: EnergyPreset;
+  timezone: string;
+  gridPricePerKwh?: number;
+  currency?: string;
+  token?: string;
+}): Promise<EnergyComparisonInsightResponse> {
+  const params = new URLSearchParams({
+    scope,
+    preset,
+    timezone
+  });
+  if (scope === 'device' && deviceId) {
+    params.set('deviceId', deviceId);
+  }
+  if (gridPricePerKwh !== undefined && Number.isFinite(gridPricePerKwh)) {
+    params.set('gridPricePerKwh', String(gridPricePerKwh));
+  }
+  if (currency) {
+    params.set('currency', currency);
+  }
+  const data = await requestJson<unknown>(`/api/v1/energy/comparison-insight?${params.toString()}`, { token });
+  return EnergyComparisonInsightResponseSchema.parse(data);
 }
