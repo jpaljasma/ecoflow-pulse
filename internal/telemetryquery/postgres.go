@@ -71,8 +71,41 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 	}
 	defer func() { _ = rows.Close() }()
 
+	return scanSeriesRows(rows, query.DeviceID, query.Resolution, from, to)
+}
+
+func (r *PostgresReader) QueryRangeMany(ctx context.Context, query AggregateRangeQuery) (Series, error) {
+	table, err := query.Resolution.TableName()
+	if err != nil {
+		return Series{}, err
+	}
+	deviceIDs := normalizeAggregateDeviceIDs(query.DeviceIDs)
+	if len(deviceIDs) == 0 {
+		return Series{}, ErrInvalidRange
+	}
+	from := query.From.UTC()
+	to := query.To.UTC()
+	if !from.Before(to) || query.Limit <= 0 {
+		return Series{}, ErrInvalidRange
+	}
+
+	sqlQuery, args := buildAggregateQuery(table, deviceIDs, from, to, query.Limit)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return Series{}, fmt.Errorf("query aggregated telemetry rollup range: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	aggregateID := strings.TrimSpace(query.AggregateID)
+	if aggregateID == "" {
+		aggregateID = "all"
+	}
+	return scanSeriesRows(rows, aggregateID, query.Resolution, from, to)
+}
+
+func scanSeriesRows(rows *sql.Rows, deviceID string, resolution Resolution, from, to time.Time) (Series, error) {
 	points := make([]Point, 0, 64)
-	bucketWidth := query.Resolution.BucketDuration()
+	bucketWidth := resolution.BucketDuration()
 	for rows.Next() {
 		var (
 			point Point
@@ -82,6 +115,8 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 			socMaxPct          sql.NullFloat64
 			acInAvgW           sql.NullFloat64
 			acInMaxW           sql.NullFloat64
+			acOutputAvgW       sql.NullFloat64
+			acOutputMaxW       sql.NullFloat64
 			pvAvgW             sql.NullFloat64
 			pvMaxW             sql.NullFloat64
 			dcAvgW             sql.NullFloat64
@@ -116,6 +151,8 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 			&socMaxPct,
 			&acInAvgW,
 			&acInMaxW,
+			&acOutputAvgW,
+			&acOutputMaxW,
 			&pvAvgW,
 			&pvMaxW,
 			&dcAvgW,
@@ -150,8 +187,8 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 			SOCMaxPct:                nullableFloat64(socMaxPct),
 			ACInAvgW:                 nullableFloat64(acInAvgW),
 			ACInMaxW:                 nullableFloat64(acInMaxW),
-			ACOutputAvgW:             nil,
-			ACOutputMaxW:             nil,
+			ACOutputAvgW:             nullableFloat64(acOutputAvgW),
+			ACOutputMaxW:             nullableFloat64(acOutputMaxW),
 			PVAvgW:                   nullableFloat64(pvAvgW),
 			PVMaxW:                   nullableFloat64(pvMaxW),
 			DCAvgW:                   nullableFloat64(dcAvgW),
@@ -182,8 +219,8 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 	}
 
 	series := Series{
-		DeviceID:   query.DeviceID,
-		Resolution: query.Resolution,
+		DeviceID:   deviceID,
+		Resolution: resolution,
 		From:       from,
 		To:         to,
 		Points:     points,
@@ -202,6 +239,8 @@ func buildQuery(table string) string {
 	soc_max_pct,
 	ac_in_avg_w,
 	ac_in_max_w,
+	ac_output_avg_w,
+	ac_output_max_w,
 	pv_avg_w,
 	pv_max_w,
 	dc_avg_w,
@@ -230,6 +269,77 @@ WHERE device_id = $1::uuid
   AND bucket_start < $3
 ORDER BY bucket_start ASC
 LIMIT $4;`, table)
+}
+
+func buildAggregateQuery(table string, deviceIDs []string, from, to time.Time, limit int) (string, []any) {
+	placeholders := make([]string, 0, len(deviceIDs))
+	args := make([]any, 0, len(deviceIDs)+3)
+	for idx, deviceID := range deviceIDs {
+		placeholders = append(placeholders, fmt.Sprintf("$%d::uuid", idx+1))
+		args = append(args, deviceID)
+	}
+	fromIdx := len(args) + 1
+	toIdx := len(args) + 2
+	limitIdx := len(args) + 3
+	args = append(args, from, to, limit)
+	return fmt.Sprintf(`SELECT
+	bucket_start,
+	SUM(sample_count) AS sample_count,
+	MIN(first_ts_unix_ms) AS first_ts_unix_ms,
+	MAX(last_ts_unix_ms) AS last_ts_unix_ms,
+	AVG(soc_avg_pct) AS soc_avg_pct,
+	MIN(soc_min_pct) AS soc_min_pct,
+	MAX(soc_max_pct) AS soc_max_pct,
+	SUM(ac_in_avg_w) AS ac_in_avg_w,
+	SUM(ac_in_max_w) AS ac_in_max_w,
+	SUM(ac_output_avg_w) AS ac_output_avg_w,
+	SUM(ac_output_max_w) AS ac_output_max_w,
+	SUM(pv_avg_w) AS pv_avg_w,
+	SUM(pv_max_w) AS pv_max_w,
+	SUM(dc_avg_w) AS dc_avg_w,
+	SUM(dc_max_w) AS dc_max_w,
+	SUM(load_avg_w) AS load_avg_w,
+	SUM(load_max_w) AS load_max_w,
+	SUM(net_avg_w) AS net_avg_w,
+	SUM(net_min_w) AS net_min_w,
+	SUM(net_max_w) AS net_max_w,
+	SUM(battery_avg_w) AS battery_avg_w,
+	SUM(battery_min_w) AS battery_min_w,
+	SUM(battery_max_w) AS battery_max_w,
+	AVG(temp_avg_c) AS temp_avg_c,
+	MIN(temp_min_c) AS temp_min_c,
+	MAX(temp_max_c) AS temp_max_c,
+	SUM(solar_generated_wh) AS solar_generated_wh,
+	SUM(ac_input_energy_wh) AS ac_input_energy_wh,
+	SUM(ac_output_energy_wh) AS ac_output_energy_wh,
+	SUM(dc_output_energy_wh) AS dc_output_energy_wh,
+	SUM(load_energy_wh) AS load_energy_wh,
+	SUM(battery_charge_energy_wh) AS battery_charge_energy_wh,
+	SUM(battery_discharge_energy_wh) AS battery_discharge_energy_wh
+FROM %s
+WHERE device_id IN (%s)
+  AND bucket_start >= $%d
+  AND bucket_start < $%d
+GROUP BY bucket_start
+ORDER BY bucket_start ASC
+LIMIT $%d;`, table, strings.Join(placeholders, ", "), fromIdx, toIdx, limitIdx), args
+}
+
+func normalizeAggregateDeviceIDs(deviceIDs []string) []string {
+	out := make([]string, 0, len(deviceIDs))
+	seen := make(map[string]struct{}, len(deviceIDs))
+	for _, deviceID := range deviceIDs {
+		trimmed := strings.TrimSpace(deviceID)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func nullableFloat64(value sql.NullFloat64) *float64 {

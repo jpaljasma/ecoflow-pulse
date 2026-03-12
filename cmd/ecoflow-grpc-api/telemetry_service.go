@@ -16,6 +16,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -47,6 +48,7 @@ type EnergyService struct {
 	archiveObjectReader  replaycli.ObjectReader
 	maxQueryBuckets      int
 	historyGzipMinBytes  int
+	now                  func() time.Time
 }
 
 type EnergyServiceDeps struct {
@@ -57,6 +59,7 @@ type EnergyServiceDeps struct {
 	ArchiveObjectReader  replaycli.ObjectReader
 	MaxQueryBuckets      int
 	HistoryGzipMinBytes  int
+	Now                  func() time.Time
 }
 
 var defaultSnapshotMetrics = map[string]float64{
@@ -112,6 +115,10 @@ func NewEnergyServiceWithDeps(deps EnergyServiceDeps) *EnergyService {
 	if historyGzipMinBytes <= 0 {
 		historyGzipMinBytes = defaultHistoryGzipMinBytes
 	}
+	nowFn := deps.Now
+	if nowFn == nil {
+		nowFn = time.Now
+	}
 	return &EnergyService{
 		log:                  log,
 		queryReader:          deps.QueryReader,
@@ -120,6 +127,7 @@ func NewEnergyServiceWithDeps(deps EnergyServiceDeps) *EnergyService {
 		archiveObjectReader:  deps.ArchiveObjectReader,
 		maxQueryBuckets:      maxQueryBuckets,
 		historyGzipMinBytes:  historyGzipMinBytes,
+		now:                  nowFn,
 	}
 }
 
@@ -260,20 +268,36 @@ func (s *EnergyService) CompareRollupRange(ctx context.Context, req *telemetryv1
 		return nil, status.Error(codes.Unavailable, "telemetry history unavailable")
 	}
 
-	current, err := s.queryReader.QueryRange(ctx, currentQuery)
-	if err != nil {
-		return nil, s.mapQueryError(err)
-	}
-	s.logEnergyBucketFallback("compare_rollup_range_current", current)
-
 	previousQuery, err := s.buildCompareQuery(req, currentQuery)
 	if err != nil {
 		return nil, err
 	}
-	previous, err := s.queryReader.QueryRange(ctx, previousQuery)
-	if err != nil {
+
+	var (
+		current  telemetryquery.Series
+		previous telemetryquery.Series
+	)
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		series, queryErr := s.queryReader.QueryRange(groupCtx, currentQuery)
+		if queryErr != nil {
+			return queryErr
+		}
+		current = series
+		return nil
+	})
+	group.Go(func() error {
+		series, queryErr := s.queryReader.QueryRange(groupCtx, previousQuery)
+		if queryErr != nil {
+			return queryErr
+		}
+		previous = series
+		return nil
+	})
+	if err := group.Wait(); err != nil {
 		return nil, s.mapQueryError(err)
 	}
+	s.logEnergyBucketFallback("compare_rollup_range_current", current)
 	s.logEnergyBucketFallback("compare_rollup_range_previous", previous)
 
 	resp := &telemetryv1.CompareRollupRangeResponse{

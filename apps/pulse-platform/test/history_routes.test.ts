@@ -279,6 +279,7 @@ function makeClient(overrides: Partial<TelemetryHistoryClient> = {}): TelemetryH
       previous: { ...makeSeries(), points: [] }
     } satisfies CompareRollupSeries)),
     getEnergyDashboard: vi.fn(async () => makeEnergyDashboard()),
+    getEnergyPvPortHistory: vi.fn(async () => makeEnergyDashboard().pvPortHistory),
     close: vi.fn(),
     ...overrides
   };
@@ -531,6 +532,33 @@ describe('pulse-platform history routes', () => {
             '019c9f0e-452b-70eb-b3af-1c0f15c34416'
           ])
         })
+      })
+    );
+
+    await app.close();
+  });
+
+  it('returns energy pv history separately from the dashboard payload', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/pv-history?scope=all&preset=last7d&timezone=America%2FLos_Angeles'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyPvPortHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'last7d',
+        timezone: 'America/Los_Angeles',
+        userSubject: 'dev-user-subject'
+      })
+    );
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        pvPortHistory: expect.any(Array)
       })
     );
 

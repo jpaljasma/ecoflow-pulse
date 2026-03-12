@@ -534,6 +534,20 @@ export async function mockApiRoutes(page: Page): Promise<void> {
       return;
     }
 
+    if (pathname === '/api/v1/energy/pv-history') {
+      const scopeParam = url.searchParams.get('scope');
+      const scope = scopeParam === 'device' ? 'device' : 'all';
+      const dashboard = buildEnergyDashboard({
+        includeComparison: false,
+        scope,
+        deviceId: url.searchParams.get('deviceId') ?? undefined,
+        preset: url.searchParams.get('preset') ?? 'today',
+        timezone: url.searchParams.get('timezone') ?? 'UTC'
+      });
+      await fulfillJson(route, { pvPortHistory: dashboard.pvPortHistory });
+      return;
+    }
+
     await fulfillJson(route, { error: `unhandled_mock_path:${pathname}` }, 404);
   });
 }

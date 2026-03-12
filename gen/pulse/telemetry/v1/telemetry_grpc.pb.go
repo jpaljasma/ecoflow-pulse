@@ -163,9 +163,10 @@ var TelemetryService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	EnergyService_QueryRollupRange_FullMethodName   = "/pulse.telemetry.v1.EnergyService/QueryRollupRange"
-	EnergyService_CompareRollupRange_FullMethodName = "/pulse.telemetry.v1.EnergyService/CompareRollupRange"
-	EnergyService_GetEnergyDashboard_FullMethodName = "/pulse.telemetry.v1.EnergyService/GetEnergyDashboard"
+	EnergyService_QueryRollupRange_FullMethodName       = "/pulse.telemetry.v1.EnergyService/QueryRollupRange"
+	EnergyService_CompareRollupRange_FullMethodName     = "/pulse.telemetry.v1.EnergyService/CompareRollupRange"
+	EnergyService_GetEnergyDashboard_FullMethodName     = "/pulse.telemetry.v1.EnergyService/GetEnergyDashboard"
+	EnergyService_GetEnergyPvPortHistory_FullMethodName = "/pulse.telemetry.v1.EnergyService/GetEnergyPvPortHistory"
 )
 
 // EnergyServiceClient is the client API for EnergyService service.
@@ -175,6 +176,7 @@ type EnergyServiceClient interface {
 	QueryRollupRange(ctx context.Context, in *QueryRollupRangeRequest, opts ...grpc.CallOption) (*QueryRollupRangeResponse, error)
 	CompareRollupRange(ctx context.Context, in *CompareRollupRangeRequest, opts ...grpc.CallOption) (*CompareRollupRangeResponse, error)
 	GetEnergyDashboard(ctx context.Context, in *GetEnergyDashboardRequest, opts ...grpc.CallOption) (*GetEnergyDashboardResponse, error)
+	GetEnergyPvPortHistory(ctx context.Context, in *GetEnergyPvPortHistoryRequest, opts ...grpc.CallOption) (*GetEnergyPvPortHistoryResponse, error)
 }
 
 type energyServiceClient struct {
@@ -215,6 +217,16 @@ func (c *energyServiceClient) GetEnergyDashboard(ctx context.Context, in *GetEne
 	return out, nil
 }
 
+func (c *energyServiceClient) GetEnergyPvPortHistory(ctx context.Context, in *GetEnergyPvPortHistoryRequest, opts ...grpc.CallOption) (*GetEnergyPvPortHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEnergyPvPortHistoryResponse)
+	err := c.cc.Invoke(ctx, EnergyService_GetEnergyPvPortHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EnergyServiceServer is the server API for EnergyService service.
 // All implementations must embed UnimplementedEnergyServiceServer
 // for forward compatibility.
@@ -222,6 +234,7 @@ type EnergyServiceServer interface {
 	QueryRollupRange(context.Context, *QueryRollupRangeRequest) (*QueryRollupRangeResponse, error)
 	CompareRollupRange(context.Context, *CompareRollupRangeRequest) (*CompareRollupRangeResponse, error)
 	GetEnergyDashboard(context.Context, *GetEnergyDashboardRequest) (*GetEnergyDashboardResponse, error)
+	GetEnergyPvPortHistory(context.Context, *GetEnergyPvPortHistoryRequest) (*GetEnergyPvPortHistoryResponse, error)
 	mustEmbedUnimplementedEnergyServiceServer()
 }
 
@@ -240,6 +253,9 @@ func (UnimplementedEnergyServiceServer) CompareRollupRange(context.Context, *Com
 }
 func (UnimplementedEnergyServiceServer) GetEnergyDashboard(context.Context, *GetEnergyDashboardRequest) (*GetEnergyDashboardResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetEnergyDashboard not implemented")
+}
+func (UnimplementedEnergyServiceServer) GetEnergyPvPortHistory(context.Context, *GetEnergyPvPortHistoryRequest) (*GetEnergyPvPortHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEnergyPvPortHistory not implemented")
 }
 func (UnimplementedEnergyServiceServer) mustEmbedUnimplementedEnergyServiceServer() {}
 func (UnimplementedEnergyServiceServer) testEmbeddedByValue()                       {}
@@ -316,6 +332,24 @@ func _EnergyService_GetEnergyDashboard_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EnergyService_GetEnergyPvPortHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEnergyPvPortHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EnergyServiceServer).GetEnergyPvPortHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EnergyService_GetEnergyPvPortHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EnergyServiceServer).GetEnergyPvPortHistory(ctx, req.(*GetEnergyPvPortHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EnergyService_ServiceDesc is the grpc.ServiceDesc for EnergyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -334,6 +368,10 @@ var EnergyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetEnergyDashboard",
 			Handler:    _EnergyService_GetEnergyDashboard_Handler,
+		},
+		{
+			MethodName: "GetEnergyPvPortHistory",
+			Handler:    _EnergyService_GetEnergyPvPortHistory_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

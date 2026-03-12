@@ -239,6 +239,19 @@ message GetEnergyDashboardResponse {
   repeated EnergyPVPortHistory pv_port_history = 9;
 }
 
+message GetEnergyPvPortHistoryRequest {
+  string device_id = 1;
+  bool use_all_devices = 2;
+  string preset = 3;
+  string timezone = 4;
+}
+
+message GetEnergyPvPortHistoryResponse {
+  EnergyScope scope = 1;
+  EnergyWindow window = 2;
+  repeated EnergyPVPortHistory pv_port_history = 3;
+}
+
 service TelemetryService {
   rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
@@ -248,4 +261,5 @@ service EnergyService {
   rpc QueryRollupRange(QueryRollupRangeRequest) returns (QueryRollupRangeResponse);
   rpc CompareRollupRange(CompareRollupRangeRequest) returns (CompareRollupRangeResponse);
   rpc GetEnergyDashboard(GetEnergyDashboardRequest) returns (GetEnergyDashboardResponse);
+  rpc GetEnergyPvPortHistory(GetEnergyPvPortHistoryRequest) returns (GetEnergyPvPortHistoryResponse);
 }

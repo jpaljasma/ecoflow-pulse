@@ -390,6 +390,8 @@ func (s *PostgresStore) execUpsert(ctx context.Context, tx *sql.Tx, query string
 		sample.Metrics.SOC.sqlValue(),
 		sample.Metrics.ACIn.sqlValue(),
 		sample.Metrics.ACIn.sqlValue(),
+		sample.Metrics.ACOutput.sqlValue(),
+		sample.Metrics.ACOutput.sqlValue(),
 		sample.Metrics.PV.sqlValue(),
 		sample.Metrics.PV.sqlValue(),
 		sample.Metrics.DC.sqlValue(),
@@ -429,6 +431,8 @@ func buildUpsertQuery(table string) string {
 		soc_max_pct,
 		ac_in_avg_w,
 		ac_in_max_w,
+		ac_output_avg_w,
+		ac_output_max_w,
 		pv_avg_w,
 		pv_max_w,
 		dc_avg_w,
@@ -448,7 +452,7 @@ func buildUpsertQuery(table string) string {
 		created_at,
 		updated_at
 	) VALUES (
-		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30
+		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32
 	)
 	ON CONFLICT (provider, provider_device_id, bucket_start) DO UPDATE SET
 		sample_count = %s.sample_count + EXCLUDED.sample_count,
@@ -465,6 +469,8 @@ func buildUpsertQuery(table string) string {
 		soc_max_pct = %s,
 		ac_in_avg_w = %s,
 		ac_in_max_w = %s,
+		ac_output_avg_w = %s,
+		ac_output_max_w = %s,
 		pv_avg_w = %s,
 		pv_max_w = %s,
 		dc_avg_w = %s,
@@ -493,6 +499,8 @@ func buildUpsertQuery(table string) string {
 		maxExpr(table, "soc_max_pct"),
 		weightedAverageExpr(table, "ac_in_avg_w"),
 		maxExpr(table, "ac_in_max_w"),
+		weightedAverageExpr(table, "ac_output_avg_w"),
+		maxExpr(table, "ac_output_max_w"),
 		weightedAverageExpr(table, "pv_avg_w"),
 		maxExpr(table, "pv_max_w"),
 		weightedAverageExpr(table, "dc_avg_w"),

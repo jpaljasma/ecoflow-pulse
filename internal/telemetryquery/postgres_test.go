@@ -41,6 +41,8 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 		"soc_max_pct",
 		"ac_in_avg_w",
 		"ac_in_max_w",
+		"ac_output_avg_w",
+		"ac_output_max_w",
 		"pv_avg_w",
 		"pv_max_w",
 		"dc_avg_w",
@@ -73,6 +75,8 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 		26.0,
 		150.0,
 		200.0,
+		140.0,
+		220.0,
 		50.0,
 		60.0,
 		nil,
@@ -130,6 +134,12 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 	if point.Metrics.ACInputEnergyWh == nil || *point.Metrics.ACInputEnergyWh != 1.5 {
 		t.Fatalf("ac_input_energy_wh mismatch: got=%v", point.Metrics.ACInputEnergyWh)
 	}
+	if point.Metrics.ACOutputAvgW == nil || *point.Metrics.ACOutputAvgW != 140.0 {
+		t.Fatalf("ac_output_avg_w mismatch: got=%v", point.Metrics.ACOutputAvgW)
+	}
+	if point.Metrics.ACOutputMaxW == nil || *point.Metrics.ACOutputMaxW != 220.0 {
+		t.Fatalf("ac_output_max_w mismatch: got=%v", point.Metrics.ACOutputMaxW)
+	}
 	if point.Metrics.ACOutputEnergyWh == nil || *point.Metrics.ACOutputEnergyWh != 2.5 {
 		t.Fatalf("ac_output_energy_wh mismatch: got=%v", point.Metrics.ACOutputEnergyWh)
 	}
@@ -172,6 +182,123 @@ func TestPostgresReaderQueryRangeRejectsInvalidInput(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected invalid input error")
+	}
+}
+
+func TestPostgresReaderQueryRangeManyAggregatesBuckets(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	reader := newPostgresReader(db)
+	from := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+	rows := sqlmock.NewRows([]string{
+		"bucket_start",
+		"sample_count",
+		"first_ts_unix_ms",
+		"last_ts_unix_ms",
+		"soc_avg_pct",
+		"soc_min_pct",
+		"soc_max_pct",
+		"ac_in_avg_w",
+		"ac_in_max_w",
+		"ac_output_avg_w",
+		"ac_output_max_w",
+		"pv_avg_w",
+		"pv_max_w",
+		"dc_avg_w",
+		"dc_max_w",
+		"load_avg_w",
+		"load_max_w",
+		"net_avg_w",
+		"net_min_w",
+		"net_max_w",
+		"battery_avg_w",
+		"battery_min_w",
+		"battery_max_w",
+		"temp_avg_c",
+		"temp_min_c",
+		"temp_max_c",
+		"solar_generated_wh",
+		"ac_input_energy_wh",
+		"ac_output_energy_wh",
+		"dc_output_energy_wh",
+		"load_energy_wh",
+		"battery_charge_energy_wh",
+		"battery_discharge_energy_wh",
+	}).AddRow(
+		from,
+		84,
+		from.UnixMilli(),
+		from.Add(59*time.Minute).UnixMilli(),
+		52.0,
+		45.0,
+		60.0,
+		300.0,
+		400.0,
+		180.0,
+		240.0,
+		120.0,
+		150.0,
+		40.0,
+		55.0,
+		360.0,
+		430.0,
+		-20.0,
+		-30.0,
+		10.0,
+		80.0,
+		-10.0,
+		95.0,
+		22.5,
+		20.0,
+		25.0,
+		720.0,
+		180.0,
+		150.0,
+		40.0,
+		360.0,
+		90.0,
+		70.0,
+	)
+
+	querySQL, _ := buildAggregateQuery("telemetry_rollup_day", []string{"dev-a", "dev-b"}, from, to, 14)
+	mock.ExpectQuery(regexp.QuoteMeta(querySQL)).
+		WithArgs("dev-a", "dev-b", from, to, 14).
+		WillReturnRows(rows)
+
+	series, err := reader.QueryRangeMany(context.Background(), AggregateRangeQuery{
+		DeviceIDs:   []string{"dev-a", "dev-b"},
+		Resolution:  ResolutionDay,
+		From:        from,
+		To:          to,
+		Limit:       14,
+		AggregateID: "all",
+	})
+	if err != nil {
+		t.Fatalf("QueryRangeMany failed: %v", err)
+	}
+	if got := series.DeviceID; got != "all" {
+		t.Fatalf("aggregate device id mismatch: got=%s want=all", got)
+	}
+	if got := len(series.Points); got != 1 {
+		t.Fatalf("points mismatch: got=%d want=1", got)
+	}
+	if series.Points[0].Metrics.LoadEnergyWh == nil || *series.Points[0].Metrics.LoadEnergyWh != 360.0 {
+		t.Fatalf("load_energy_wh mismatch: got=%v", series.Points[0].Metrics.LoadEnergyWh)
+	}
+	if series.Points[0].Metrics.ACOutputAvgW == nil || *series.Points[0].Metrics.ACOutputAvgW != 180.0 {
+		t.Fatalf("ac_output_avg_w mismatch: got=%v", series.Points[0].Metrics.ACOutputAvgW)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
 	}
 }
 

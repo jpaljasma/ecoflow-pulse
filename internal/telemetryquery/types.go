@@ -124,7 +124,20 @@ type RangeQuery struct {
 	Limit      int
 }
 
+type AggregateRangeQuery struct {
+	DeviceIDs   []string
+	Resolution  Resolution
+	From        time.Time
+	To          time.Time
+	Limit       int
+	AggregateID string
+}
+
 type Reader interface {
 	QueryRange(ctx context.Context, query RangeQuery) (Series, error)
 	Close() error
+}
+
+type AggregateReader interface {
+	QueryRangeMany(ctx context.Context, query AggregateRangeQuery) (Series, error)
 }

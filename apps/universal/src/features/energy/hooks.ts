@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchEnergyDashboard, type EnergyPreset } from '@/features/energy/api';
+import { fetchEnergyDashboard, fetchEnergyPvPortHistory, type EnergyPreset } from '@/features/energy/api';
 
 export function useEnergyDashboard(
   {
@@ -50,6 +50,44 @@ export function useEnergyDashboard(
         includeComparison,
         gridPricePerKwh,
         currency,
+        token
+      }),
+    enabled: enabled && (scope === 'all' || Boolean(deviceId)),
+    staleTime: 30_000,
+    gcTime: 10 * 60_000
+  });
+}
+
+export function useEnergyPvPortHistory(
+  {
+    scope,
+    deviceId,
+    preset,
+    timezone,
+    token
+  }: {
+    scope: 'device' | 'all';
+    deviceId?: string;
+    preset: EnergyPreset;
+    timezone: string;
+    token?: string;
+  },
+  {
+    authKey = 'anonymous',
+    enabled = true
+  }: {
+    authKey?: string;
+    enabled?: boolean;
+  } = {}
+) {
+  return useQuery({
+    queryKey: ['energy-pv-history', authKey, scope, deviceId ?? null, preset, timezone],
+    queryFn: () =>
+      fetchEnergyPvPortHistory({
+        scope,
+        deviceId,
+        preset,
+        timezone,
         token
       }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),

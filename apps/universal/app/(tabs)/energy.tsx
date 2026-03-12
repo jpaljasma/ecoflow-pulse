@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useDevices } from '@/features/devices/hooks';
-import { useEnergyDashboard } from '@/features/energy/hooks';
+import { useEnergyDashboard, useEnergyPvPortHistory } from '@/features/energy/hooks';
 import type { EnergyPVPortHistory } from '@/features/energy/api';
 import {
   buildEnergyInsights,
@@ -133,6 +133,19 @@ export default function EnergyScreen() {
       enabled: authReady && (!authConfigured || sessionValid)
     }
   );
+  const pvHistoryQuery = useEnergyPvPortHistory(
+    {
+      scope: routeState.scope,
+      deviceId: routeState.deviceId,
+      preset: routeState.preset,
+      timezone: routeState.timezone,
+      token
+    },
+    {
+      authKey,
+      enabled: authReady && (!authConfigured || sessionValid) && dashboardQuery.isSuccess
+    }
+  );
 
   const powerSeries = useMemo(
     () => buildPowerTrendSeries(dashboardQuery.data?.currentPowerPoints ?? []),
@@ -150,6 +163,7 @@ export default function EnergyScreen() {
     () => buildPvEnvelopeSummary(devices, routeState.scope, routeState.deviceId),
     [devices, routeState.deviceId, routeState.scope]
   );
+  const pvHistoryRows = pvHistoryQuery.data ?? dashboardQuery.data?.pvPortHistory ?? [];
   const insights = useMemo(
     () =>
       buildEnergyInsights(
@@ -603,7 +617,7 @@ export default function EnergyScreen() {
                   <XStack gap="$2" flexWrap="wrap">
                     {pvEnvelope.rows.map((row) => {
                       const historyRow = findPVHistoryRow(
-                        dashboardQuery.data.pvPortHistory,
+                        pvHistoryRows,
                         row.deviceId,
                         row.portId
                       );
@@ -650,20 +664,22 @@ export default function EnergyScreen() {
                             />
                             <Stat
                               label="Last seen"
-                              value={historyRow ? formatObservedAtLabel(historyRow.lastObservedUnixMs) : '—'}
+                              value={pvHistoryQuery.isLoading ? '…' : historyRow ? formatObservedAtLabel(historyRow.lastObservedUnixMs) : '—'}
                               compact
                             />
                           </XStack>
                           <XStack gap="$3" flexWrap="wrap">
                             <Stat
                               label="Hist max"
-                              value={historyRow ? `${Math.round(historyRow.maxObservedWatts)}W` : '—'}
+                              value={pvHistoryQuery.isLoading ? '…' : historyRow ? `${Math.round(historyRow.maxObservedWatts)}W` : '—'}
                               compact
                             />
                             <Stat
                               label="Hist V/A"
                               value={
-                                historyRow
+                                pvHistoryQuery.isLoading
+                                  ? 'Loading…'
+                                  : historyRow
                                   ? `${historyRow.maxObservedVolts.toFixed(1)}V · ${historyRow.maxObservedAmps.toFixed(2)}A`
                                   : 'No history'
                               }
@@ -678,7 +694,7 @@ export default function EnergyScreen() {
                   <YStack gap="$2">
                     {pvEnvelope.rows.map((row) => {
                       const historyRow = findPVHistoryRow(
-                        dashboardQuery.data.pvPortHistory,
+                        pvHistoryRows,
                         row.deviceId,
                         row.portId
                       );
@@ -705,7 +721,11 @@ export default function EnergyScreen() {
                             <Stat label="Headroom V" value={row.voltageHeadroom === null ? '—' : `${row.voltageHeadroom.toFixed(1)}V`} compact />
                             <Stat label="Headroom A" value={row.currentHeadroom === null ? '—' : `${row.currentHeadroom.toFixed(1)}A`} compact />
                           </XStack>
-                          {historyRow ? (
+                          {pvHistoryQuery.isLoading ? (
+                            <Text color="$colorMuted">
+                              Loading historical PV observations…
+                            </Text>
+                          ) : historyRow ? (
                             <XStack gap="$3" flexWrap="wrap">
                               <Stat label="Hist max W" value={`${Math.round(historyRow.maxObservedWatts)}W`} compact />
                               <Stat label="Hist max V" value={`${historyRow.maxObservedVolts.toFixed(1)}V`} compact />
@@ -743,6 +763,7 @@ function resolveBucketSeconds(preset: EnergyRouteState['preset']): number {
     case 'yesterday':
       return 60;
     case 'last7d':
+      return 86400;
     case 'thisWeek':
     case 'previousWeek':
     case 'thisMonth':

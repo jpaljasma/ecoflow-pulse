@@ -209,6 +209,29 @@ export function registerHistoryRoutes(
       }
     }
   );
+
+  app.get(
+    '/api/v1/energy/pv-history',
+    { preHandler: historyPreHandlers },
+    async (request, reply) => {
+      try {
+        const query = energyDashboardQuerySchema.parse(request.query);
+        const result = await historyClient.getEnergyPvPortHistory({
+          deviceId: query.scope === 'device' ? query.deviceId : undefined,
+          useAllDevices: query.scope === 'all',
+          preset: query.preset,
+          timezone: query.timezone,
+          authHeader: extractAuthHeader(request),
+          userSubject: resolveUserSubject(config, request),
+          requestID: request.id,
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return { pvPortHistory: result };
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
+    }
+  );
 }
 
 function normalizeTime(value: string | number): string {
