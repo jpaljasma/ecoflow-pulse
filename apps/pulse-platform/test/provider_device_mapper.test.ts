@@ -187,6 +187,40 @@ describe('provider device mapper', () => {
     );
   });
 
+  it('treats DPU L14 and Power I/O AC outputs as active AC output paths', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        metadata: {
+          groups: {
+            hs_yj751_pd_appshow_addr: {
+              outAcL14Pwr: 320,
+              outAc_5p8Pwr: 0
+            },
+            hs_yj751_pd_backend_addr: {
+              inLvMpptVol: 0,
+              inLvMpptAmp: 0,
+              inHvMpptVol: 0,
+              inHvMpptAmp: 0,
+              fanState: 0
+            },
+            hs_yj751_pd_app_set_info_addr: {},
+            hs_yj751_pd_bp_addr: {
+              bpInfo: {
+                values: []
+              }
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        acOn: true
+      })
+    );
+  });
+
   it('maps D2M quota metadata into capabilities and details', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({
