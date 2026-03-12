@@ -210,7 +210,15 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     socWindowMinPct: toNumber(appset.dsgMinSoc),
     socWindowMaxPct: toNumber(appset.chgMaxSoc),
     backupReservePct: firstDefined(toNumber(appset.sysBackupSoc), toNumber(appset.backupRatio)),
-    acOn: anyPositive(appshow.outAcTtPwr, appshow.outAcL11Pwr, appshow.outAcL12Pwr, appshow.outAcL21Pwr, appshow.outAcL22Pwr),
+    acOn: anyPositive(
+      appshow.outAcTtPwr,
+      appshow.outAcL11Pwr,
+      appshow.outAcL12Pwr,
+      appshow.outAcL21Pwr,
+      appshow.outAcL22Pwr,
+      appshow.outAcL14Pwr,
+      appshow.outAc_5p8Pwr
+    ),
     dcOn: dc12vOn,
     usbOn,
     dc12vOn,

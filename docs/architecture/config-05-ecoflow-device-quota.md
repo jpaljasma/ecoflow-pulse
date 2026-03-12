@@ -85,7 +85,7 @@ Common meaning:
 
 Examples:
 - `Delta Pro 3`: `powGetAc`, `powGetAcHvOut`, `powGetTypec1`, `powGetTypec2`, `powGet12v`, `powGet24v`, `powGet5p8`, `powGet4p81`, `powGet4p82`
-- `Delta Pro Ultra`: `...appshow_addr.outAcTtPwr`, `outAcL11Pwr`, `outAcL12Pwr`, `outAcL21Pwr`, `outAcL22Pwr`, `outAdsPwr`, `outUsb1Pwr`, `outUsb2Pwr`, `outTypec1Pwr`, `outTypec2Pwr`
+- `Delta Pro Ultra`: `...appshow_addr.outAcTtPwr`, `outAcL11Pwr`, `outAcL12Pwr`, `outAcL21Pwr`, `outAcL22Pwr`, `outAcL14Pwr`, `outAc_5p8Pwr`, `outAdsPwr`, `outUsb1Pwr`, `outUsb2Pwr`, `outTypec1Pwr`, `outTypec2Pwr`
 - `Delta 2 Max`: `inv.outputWatts`, `pd.typec1Watts`, `pd.typec2Watts`, `pd.qcUsb2Watts`, `pd.wireWatts`
 
 Store target:
