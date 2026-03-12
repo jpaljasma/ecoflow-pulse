@@ -12,9 +12,11 @@ import {
 } from '@/features/telemetry/hooks';
 import { SummaryPanel } from '@/features/devices/SummaryPanel';
 import { DeviceList } from '@/features/devices/DeviceList';
+import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { FleetEnergyImpactCard } from '@/features/energy-impact/FleetEnergyImpactCard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
+import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import {
   getConnectionStatusColor,
@@ -36,6 +38,10 @@ export default function DevicesScreen() {
   });
   const deviceIds = useMemo(
     () => devicesQuery.data?.devices.map((d) => d.id) ?? [],
+    [devicesQuery.data?.devices]
+  );
+  const stormGuardBanner = useMemo(
+    () => buildStormGuardBanner(devicesQuery.data?.devices),
     [devicesQuery.data?.devices]
   );
   useTelemetrySubscription(deviceIds);
@@ -160,6 +166,7 @@ export default function DevicesScreen() {
             connectionStatus={connectionStatus}
             header={(
               <YStack marginTop={10} marginBottom="$3" gap="$3">
+                {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
                 <SummaryPanel devices={devicesQuery.data.devices} />
                 <FleetEnergyImpactCard devices={devicesQuery.data.devices} />
               </YStack>

@@ -10,6 +10,7 @@ test.describe('Energy route web E2E', () => {
     await page.goto('/energy?tz=UTC');
 
     await expect(page.getByText('Solar against load', { exact: true })).toBeVisible();
+    await expect(page.getByText('Storm Guard active for ~2h more', { exact: true })).toBeVisible();
     await expect(page.getByText('Estimated value', { exact: true })).toBeVisible();
     await expect(page.getByText('Comparison status', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('More solar freedom', { exact: true })).toBeVisible();

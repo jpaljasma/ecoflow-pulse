@@ -49,6 +49,8 @@ const DeviceTelemetryDetailsSchema = z.object({
   fanOn: z.boolean().optional(),
   solarChargingOn: z.boolean().optional(),
   batteryHeatingOn: z.boolean().optional(),
+  stormGuardActive: z.boolean().optional(),
+  stormGuardEndsAtUnixMs: z.number().optional(),
   mqttQueueDepth: z.number().int().optional(),
   mqttQueueDroppedOldest: z.number().int().optional()
 });

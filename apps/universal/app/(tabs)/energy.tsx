@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useDevices } from '@/features/devices/hooks';
+import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { useEnergyComparisonInsight, useEnergyDashboard, useEnergyPvPortHistory } from '@/features/energy/hooks';
 import type { EnergyPVPortHistory } from '@/features/energy/api';
 import {
@@ -32,6 +33,7 @@ import { EnergyComparisonWidget } from '@/shared/ui/EnergyComparisonWidget';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { Stat } from '@/shared/ui/Stat';
+import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { TopBar } from '@/shared/ui/TopBar';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { useThemeSemantics } from '@/shared/theme/semantic';
@@ -113,6 +115,10 @@ export default function EnergyScreen() {
     enabled: authReady && (!authConfigured || sessionValid)
   });
   const devices = devicesQuery.data?.devices ?? [];
+  const stormGuardBanner = useMemo(
+    () => buildStormGuardBanner(devicesQuery.data?.devices),
+    [devicesQuery.data?.devices]
+  );
   const routeState = useMemo(
     () => resolveEnergyRouteState(params, devices.map((device) => device.id)),
     [devices, params]
@@ -228,6 +234,7 @@ export default function EnergyScreen() {
       />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 28, gap: 18 }}>
+        {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
         <Card
           gap="$4"
           style={{

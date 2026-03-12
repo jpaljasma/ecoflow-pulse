@@ -9,6 +9,7 @@ import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { useDevice, useDevices } from '@/features/devices/hooks';
 import type { DeviceSummary } from '@/features/devices/api';
+import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { useDeviceInsights } from '@/features/inference/hooks';
 import {
   useTelemetryConnectionStatus,
@@ -20,6 +21,7 @@ import { DeviceDetailBody } from '@/features/device-detail/components/DeviceDeta
 import { env } from '@/shared/config/env';
 import { ApiError } from '@/shared/api/restClient';
 import { Card } from '@/shared/ui/Card';
+import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { useDevicePowerTrendHistory, useDeviceSolarHistory } from '@/features/history/hooks';
 import {
   mergeTrendPrefillWithLivePoints
@@ -99,6 +101,10 @@ export default function DeviceDetailScreen() {
     [routeDeviceId, devicesQuery.data?.devices]
   );
   const resolvedDeviceId = routeDevice?.id ?? (isUuid(routeDeviceId) ? routeDeviceId : undefined);
+  const stormGuardBanner = useMemo(
+    () => buildStormGuardBanner(devicesQuery.data?.devices),
+    [devicesQuery.data?.devices]
+  );
 
   useEffect(() => {
     if (!routeDeviceId || !routeDevice || routeDevice.id === routeDeviceId) {
@@ -257,6 +263,7 @@ export default function DeviceDetailScreen() {
               }}
             >
               <YStack gap="$3">
+                {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
                 {detailWarningError ? (
                   <Card gap="$2">
                     <Text fontSize="$5" fontWeight="700">
@@ -274,6 +281,7 @@ export default function DeviceDetailScreen() {
           ) : (
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
               <YStack gap="$3">
+                {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
                 {detailWarningError ? (
                   <Card gap="$2">
                     <Text fontSize="$5" fontWeight="700">
