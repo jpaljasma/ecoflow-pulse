@@ -37,19 +37,26 @@ func (w *PostgresWriter) ArchiveFootprint(ctx context.Context, filter ReportFilt
 	}
 	filter = normalizeReportFilter(filter)
 	sql := `
+WITH matched AS (
+  SELECT *
+  FROM archive_object_manifest
+  WHERE ts_max_unix_ms >= $1
+    AND ts_min_unix_ms <= $2
+    AND ($3::text = '' OR provider = $3::text)
+    AND (COALESCE(cardinality($4::text[]), 0) = 0 OR device_ids && $4::text[])
+    AND (COALESCE(cardinality($5::text[]), 0) = 0 OR provider_device_ids && $5::text[])
+)
 SELECT
   COUNT(*)::int,
   COALESCE(SUM(object_size_bytes), 0)::bigint,
   COALESCE(SUM(record_count), 0)::int,
-  COUNT(DISTINCT provider_device_id)::int,
+  COALESCE((
+    SELECT COUNT(DISTINCT provider_device_id)::int
+    FROM matched, unnest(provider_device_ids) AS provider_device_id
+  ), 0)::int,
   COALESCE(MIN(ts_min_unix_ms), 0)::bigint,
   COALESCE(MAX(ts_max_unix_ms), 0)::bigint
-FROM archive_object_manifest
-WHERE ts_max_unix_ms >= $1
-  AND ts_min_unix_ms <= $2
-  AND ($3::text = '' OR provider = $3::text)
-  AND (COALESCE(cardinality($4::text[]), 0) = 0 OR device_ids && $4::text[])
-  AND (COALESCE(cardinality($5::text[]), 0) = 0 OR provider_device_ids && $5::text[])
+FROM matched
 `
 	var out ArchiveFootprint
 	err := w.pool.QueryRow(

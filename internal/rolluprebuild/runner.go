@@ -2,10 +2,12 @@ package rolluprebuild
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -232,6 +234,15 @@ func (r *Runner) processObjectGroup(
 		body, err := r.objectReader.ReadObject(objectCtx, object.ObjectBucket, object.ObjectKey)
 		cancel()
 		if err != nil {
+			if isMissingArchiveObjectError(err) {
+				r.log.Warn(
+					"skipping missing archive object during rollup rebuild",
+					slog.String("bucket", object.ObjectBucket),
+					slog.String("key", object.ObjectKey),
+					slog.String("error", err.Error()),
+				)
+				continue
+			}
 			result.err = fmt.Errorf("read archive object %s/%s: %w", object.ObjectBucket, object.ObjectKey, err)
 			return result
 		}
@@ -282,6 +293,17 @@ func (r *Runner) processObjectGroup(
 	result.hourRows = aggregator.Rows(ResolutionHour)
 	result.dayRows = aggregator.Rows(ResolutionDay)
 	return result
+}
+
+func isMissingArchiveObjectError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return !errors.Is(err, context.Canceled) &&
+		(strings.Contains(message, "specified key does not exist") ||
+			strings.Contains(message, "no such key") ||
+			strings.Contains(message, "not found"))
 }
 
 func groupObjectsByShard(objects []replaycli.ManifestObject) [][]replaycli.ManifestObject {
