@@ -44,6 +44,9 @@ export type DeviceTelemetryDetails = {
   batteryHeatingOn?: boolean;
   stormGuardActive?: boolean;
   stormGuardEndsAtUnixMs?: number;
+  timezoneId?: string;
+  timezoneOffsetMinutes?: number;
+  timezoneMode?: 'manual' | 'auto';
 };
 
 export type ProviderDevicePresentation = {
@@ -117,13 +120,16 @@ function buildDetails(device: ProviderDevice, capabilities: DeviceCapabilities):
   const modelLower = device.model.toLowerCase();
   const metadata = device.metadata ?? {};
   const groups = asRecord(metadata.groups);
-  const baseStormGuard = deriveStormGuardDetails(groups);
+  const baseProviderDetails = {
+    ...deriveStormGuardDetails(groups),
+    ...deriveTimezoneDetails(groups)
+  };
   const details: DeviceTelemetryDetails = {
     bpCount:
       toPositiveNumber(capabilities.batteryPacks) ??
       toPositiveNumber(device.capabilities?.battery_pack_count) ??
       deriveBatteryPacksFromMetadata(metadata),
-    ...baseStormGuard
+    ...baseProviderDetails
   };
 
   if (modelLower.includes('delta pro ultra')) {
@@ -706,6 +712,32 @@ function deriveStormGuardDetails(groups: GenericRecord): Pick<DeviceTelemetryDet
     stormGuardActive: stormPatternEnable === true && stormPatternOpen === true,
     stormGuardEndsAtUnixMs:
       stormPatternEndTimeSeconds !== undefined ? stormPatternEndTimeSeconds * 1000 : undefined
+  };
+}
+
+function deriveTimezoneDetails(
+  groups: GenericRecord
+): Pick<DeviceTelemetryDetails, 'timezoneId' | 'timezoneOffsetMinutes' | 'timezoneMode'> {
+  const groupRecords = Object.values(groups).map((value) => asRecord(value));
+  const timezoneId = firstDefined(
+    ...groupRecords.map((group) => {
+      const raw = group.sysTimezoneId;
+      return typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : undefined;
+    })
+  );
+  const timezoneHundredthHours = firstDefined(
+    ...groupRecords.map((group) => toNumber(group.sysTimezone))
+  );
+  const timezoneSetType = firstDefined(
+    ...groupRecords.map((group) => toNumber(group.timezoneSettype))
+  );
+
+  return {
+    timezoneId,
+    timezoneOffsetMinutes:
+      timezoneHundredthHours !== undefined ? Math.round((timezoneHundredthHours / 100) * 60) : undefined,
+    timezoneMode:
+      timezoneSetType === 1 ? 'auto' : timezoneSetType === 0 ? 'manual' : undefined
   };
 }
 

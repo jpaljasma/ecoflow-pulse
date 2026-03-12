@@ -203,6 +203,15 @@ Store target:
 - metadata: yes
 - capabilities: some versioned capability flags
 
+Implementation note:
+- treat timezone fields as optional generic provider metadata, not a model whitelist
+- when present, map `sysTimezoneId` to a user-facing IANA timezone id
+- convert `sysTimezone` from EcoFlow's `0.01h` unit into minutes for normalized offset storage
+- map `timezoneSettype` as timezone mode:
+  - `0` = `manual`
+  - `1` = `auto`
+- do not assume Delta 2 / Delta 2 Max expose these fields unless observed in official docs or payloads
+
 Implementation guidance from this grouping:
 
 **Publish into telemetry pipeline**

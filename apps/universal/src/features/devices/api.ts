@@ -51,6 +51,9 @@ const DeviceTelemetryDetailsSchema = z.object({
   batteryHeatingOn: z.boolean().optional(),
   stormGuardActive: z.boolean().optional(),
   stormGuardEndsAtUnixMs: z.number().optional(),
+  timezoneId: z.string().optional(),
+  timezoneOffsetMinutes: z.number().int().optional(),
+  timezoneMode: z.enum(['manual', 'auto']).optional(),
   mqttQueueDepth: z.number().int().optional(),
   mqttQueueDroppedOldest: z.number().int().optional()
 });
