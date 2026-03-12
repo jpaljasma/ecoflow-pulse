@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	InferenceService_GetDeviceInsights_FullMethodName = "/pulse.inference.v1.InferenceService/GetDeviceInsights"
-	InferenceService_ListFleetInsights_FullMethodName = "/pulse.inference.v1.InferenceService/ListFleetInsights"
+	InferenceService_GetDeviceInsights_FullMethodName          = "/pulse.inference.v1.InferenceService/GetDeviceInsights"
+	InferenceService_ListFleetInsights_FullMethodName          = "/pulse.inference.v1.InferenceService/ListFleetInsights"
+	InferenceService_GetEnergyComparisonInsight_FullMethodName = "/pulse.inference.v1.InferenceService/GetEnergyComparisonInsight"
 )
 
 // InferenceServiceClient is the client API for InferenceService service.
@@ -29,6 +30,7 @@ const (
 type InferenceServiceClient interface {
 	GetDeviceInsights(ctx context.Context, in *GetDeviceInsightsRequest, opts ...grpc.CallOption) (*GetDeviceInsightsResponse, error)
 	ListFleetInsights(ctx context.Context, in *ListFleetInsightsRequest, opts ...grpc.CallOption) (*ListFleetInsightsResponse, error)
+	GetEnergyComparisonInsight(ctx context.Context, in *GetEnergyComparisonInsightRequest, opts ...grpc.CallOption) (*GetEnergyComparisonInsightResponse, error)
 }
 
 type inferenceServiceClient struct {
@@ -59,12 +61,23 @@ func (c *inferenceServiceClient) ListFleetInsights(ctx context.Context, in *List
 	return out, nil
 }
 
+func (c *inferenceServiceClient) GetEnergyComparisonInsight(ctx context.Context, in *GetEnergyComparisonInsightRequest, opts ...grpc.CallOption) (*GetEnergyComparisonInsightResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEnergyComparisonInsightResponse)
+	err := c.cc.Invoke(ctx, InferenceService_GetEnergyComparisonInsight_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InferenceServiceServer is the server API for InferenceService service.
 // All implementations must embed UnimplementedInferenceServiceServer
 // for forward compatibility.
 type InferenceServiceServer interface {
 	GetDeviceInsights(context.Context, *GetDeviceInsightsRequest) (*GetDeviceInsightsResponse, error)
 	ListFleetInsights(context.Context, *ListFleetInsightsRequest) (*ListFleetInsightsResponse, error)
+	GetEnergyComparisonInsight(context.Context, *GetEnergyComparisonInsightRequest) (*GetEnergyComparisonInsightResponse, error)
 	mustEmbedUnimplementedInferenceServiceServer()
 }
 
@@ -80,6 +93,9 @@ func (UnimplementedInferenceServiceServer) GetDeviceInsights(context.Context, *G
 }
 func (UnimplementedInferenceServiceServer) ListFleetInsights(context.Context, *ListFleetInsightsRequest) (*ListFleetInsightsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFleetInsights not implemented")
+}
+func (UnimplementedInferenceServiceServer) GetEnergyComparisonInsight(context.Context, *GetEnergyComparisonInsightRequest) (*GetEnergyComparisonInsightResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEnergyComparisonInsight not implemented")
 }
 func (UnimplementedInferenceServiceServer) mustEmbedUnimplementedInferenceServiceServer() {}
 func (UnimplementedInferenceServiceServer) testEmbeddedByValue()                          {}
@@ -138,6 +154,24 @@ func _InferenceService_ListFleetInsights_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _InferenceService_GetEnergyComparisonInsight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEnergyComparisonInsightRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InferenceServiceServer).GetEnergyComparisonInsight(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InferenceService_GetEnergyComparisonInsight_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InferenceServiceServer).GetEnergyComparisonInsight(ctx, req.(*GetEnergyComparisonInsightRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // InferenceService_ServiceDesc is the grpc.ServiceDesc for InferenceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +186,10 @@ var InferenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListFleetInsights",
 			Handler:    _InferenceService_ListFleetInsights_Handler,
+		},
+		{
+			MethodName: "GetEnergyComparisonInsight",
+			Handler:    _InferenceService_GetEnergyComparisonInsight_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

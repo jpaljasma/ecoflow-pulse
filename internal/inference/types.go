@@ -13,6 +13,7 @@ const (
 	KindSolarUpgrade     Kind = "solar_upgrade"
 	KindEnergyShift      Kind = "energy_shift"
 	KindMaintenance      Kind = "maintenance"
+	KindEnergyComparison Kind = "energy_comparison"
 )
 
 type Status string

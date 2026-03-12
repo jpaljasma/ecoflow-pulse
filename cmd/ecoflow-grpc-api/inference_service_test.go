@@ -189,6 +189,43 @@ func TestInferenceGetDeviceInsightsUsesReader(t *testing.T) {
 	}
 }
 
+func TestInferenceGetEnergyComparisonInsightUsesBoundedRollupQueries(t *testing.T) {
+	t.Parallel()
+
+	ctx, deviceID, store := newAuthorizedDeviceContext(t, "energy-user")
+	queryReader := &fakeQueryReader{}
+	svc := NewInferenceServiceWithDeps(InferenceServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		QueryReader:       queryReader,
+		ControlPlaneStore: store,
+		NowFn: func() time.Time {
+			return time.Date(2026, time.March, 12, 15, 0, 0, 0, time.UTC)
+		},
+	})
+
+	resp, err := svc.GetEnergyComparisonInsight(ctx, &inferencev1.GetEnergyComparisonInsightRequest{
+		DeviceId:        deviceID,
+		Preset:          "last7d",
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	})
+	if err != nil {
+		t.Fatalf("GetEnergyComparisonInsight failed: %v", err)
+	}
+	if resp.GetInsight() == nil {
+		t.Fatal("expected energy comparison insight response")
+	}
+	if got := len(queryReader.queries); got != 4 {
+		t.Fatalf("query count mismatch: got=%d want=4", got)
+	}
+	for idx, query := range queryReader.queries {
+		if query.Limit <= 0 {
+			t.Fatalf("query %d used non-positive limit: %+v", idx, query)
+		}
+	}
+}
+
 func TestInferenceListFleetInsightsUsesVisibleDevicesWhenRequestOmitted(t *testing.T) {
 	t.Parallel()
 

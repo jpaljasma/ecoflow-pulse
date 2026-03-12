@@ -10,7 +10,8 @@ export type InsightKind =
   | 'solar_add_on'
   | 'solar_upgrade'
   | 'energy_shift'
-  | 'maintenance';
+  | 'maintenance'
+  | 'energy_comparison';
 
 export type InsightStatus = 'pending' | 'ready' | 'stale' | 'unavailable' | 'unspecified';
 
@@ -65,17 +66,82 @@ export type DeviceInsights = {
   insights: DeviceInsight[];
 };
 
+export type EnergyComparisonCardCategory =
+  | 'unspecified'
+  | 'self_sufficiency'
+  | 'solar'
+  | 'load'
+  | 'battery'
+  | 'grid'
+  | 'value';
+
+export type EnergyComparisonCard = {
+  category: EnergyComparisonCardCategory;
+  title: string;
+  summary: string;
+  recommendation: string;
+  score: number;
+  confidence: number;
+  evidence: InsightEvidence[];
+  attributes?: Record<string, unknown>;
+};
+
+export type EnergyComparisonInsight = {
+  id: string;
+  scope: {
+    mode: string;
+    deviceId: string;
+    resolvedDeviceIds: string[];
+  };
+  preset: string;
+  timezone: string;
+  verdictClass: string;
+  headline: string;
+  summary: string;
+  score: number;
+  confidence: number;
+  modelKey: string;
+  modelVersion: string;
+  generatedAtUnixMs: string;
+  expiresAtUnixMs: string;
+  tags: string[];
+  cards: EnergyComparisonCard[];
+  evidence: InsightEvidence[];
+  attributes?: Record<string, unknown>;
+};
+
+export type EnergyComparisonInsightResponse = {
+  status: InsightStatus;
+  statusDetail: string;
+  insight?: EnergyComparisonInsight;
+};
+
 export type GetDeviceInsightsInput = {
   deviceId: string;
   kinds?: InsightKind[];
   maxItems?: number;
   authHeader?: string;
+  userSubject?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type GetEnergyComparisonInsightInput = {
+  deviceId?: string;
+  useAllDevices: boolean;
+  preset: string;
+  timezone: string;
+  gridPricePerKwh?: number;
+  currency?: string;
+  authHeader?: string;
+  userSubject?: string;
   requestID?: string;
   deadlineMs: number;
 };
 
 export interface InferenceClient {
   getDeviceInsights(input: GetDeviceInsightsInput): Promise<DeviceInsights>;
+  getEnergyComparisonInsight(input: GetEnergyComparisonInsightInput): Promise<EnergyComparisonInsightResponse>;
   close(): void;
 }
 
@@ -88,6 +154,7 @@ type GrpcUnaryMethod = (
 
 type GrpcInferenceClient = {
   GetDeviceInsights: GrpcUnaryMethod;
+  GetEnergyComparisonInsight: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -112,6 +179,17 @@ type RawDeviceInsights = Partial<Record<keyof DeviceInsights, unknown>>;
 type RawGetDeviceInsightsResponse = {
   insights?: RawDeviceInsights;
 };
+type RawEnergyComparisonCard = Partial<Record<keyof EnergyComparisonCard, unknown>>;
+type RawEnergyComparisonInsight = Partial<Record<keyof EnergyComparisonInsight, unknown>> & {
+  scope?: { mode?: unknown; deviceId?: unknown; resolvedDeviceIds?: unknown };
+  cards?: unknown;
+  evidence?: unknown;
+};
+type RawGetEnergyComparisonInsightResponse = {
+  status?: unknown;
+  statusDetail?: unknown;
+  insight?: RawEnergyComparisonInsight;
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -135,6 +213,8 @@ const kindToProtoValue: Partial<Record<InsightKind, string>> = {
   solar_upgrade: 'INSIGHT_KIND_SOLAR_UPGRADE',
   energy_shift: 'INSIGHT_KIND_ENERGY_SHIFT',
   maintenance: 'INSIGHT_KIND_MAINTENANCE'
+  ,
+  energy_comparison: 'INSIGHT_KIND_ENERGY_COMPARISON'
 };
 
 export function createInferenceClient(address: string): InferenceClient {
@@ -163,6 +243,24 @@ export function createInferenceClient(address: string): InferenceClient {
       );
       return normalizeDeviceInsights(response.insights);
     },
+    async getEnergyComparisonInsight(input) {
+      const request: Record<string, unknown> = {
+        useAllDevices: input.useAllDevices,
+        preset: input.preset,
+        timezone: input.timezone,
+        gridPricePerKwh: input.gridPricePerKwh ?? 0,
+        currency: input.currency ?? ''
+      };
+      if (input.deviceId) {
+        request.deviceId = input.deviceId;
+      }
+      const response = await unaryCall<RawGetEnergyComparisonInsightResponse>(
+        client.GetEnergyComparisonInsight.bind(client),
+        request,
+        input
+      );
+      return normalizeEnergyComparisonInsightResponse(response);
+    },
     close() {
       client.close();
     }
@@ -172,11 +270,14 @@ export function createInferenceClient(address: string): InferenceClient {
 function unaryCall<T>(
   method: GrpcUnaryMethod,
   request: Record<string, unknown>,
-  input: { authHeader?: string; requestID?: string; deadlineMs: number }
+  input: { authHeader?: string; userSubject?: string; requestID?: string; deadlineMs: number }
 ): Promise<T> {
   const metadata = new grpc.Metadata();
   if (input.authHeader) {
     metadata.set('authorization', input.authHeader);
+  }
+  if (input.userSubject) {
+    metadata.set('x-user-subject', input.userSubject);
   }
   if (input.requestID) {
     metadata.set('x-request-id', input.requestID);
@@ -262,6 +363,84 @@ function normalizeInsightKind(value: unknown): InsightKind {
       return 'energy_shift';
     case 'INSIGHT_KIND_MAINTENANCE':
       return 'maintenance';
+    case 'INSIGHT_KIND_ENERGY_COMPARISON':
+      return 'energy_comparison';
+    default:
+      return 'unspecified';
+  }
+}
+
+function normalizeEnergyComparisonInsightResponse(
+  value: RawGetEnergyComparisonInsightResponse | undefined
+): EnergyComparisonInsightResponse {
+  return {
+    status: normalizeInsightStatus(value?.status),
+    statusDetail: normalizeString(value?.statusDetail),
+    insight: value?.insight ? normalizeEnergyComparisonInsight(value.insight) : undefined
+  };
+}
+
+function normalizeEnergyComparisonInsight(value: RawEnergyComparisonInsight): EnergyComparisonInsight {
+  return {
+    id: normalizeString(value.id),
+    scope: {
+      mode: normalizeString(value.scope?.mode),
+      deviceId: normalizeString(value.scope?.deviceId),
+      resolvedDeviceIds: Array.isArray(value.scope?.resolvedDeviceIds)
+        ? value.scope!.resolvedDeviceIds.filter((entry): entry is string => typeof entry === 'string')
+        : []
+    },
+    preset: normalizeString(value.preset),
+    timezone: normalizeString(value.timezone),
+    verdictClass: normalizeString(value.verdictClass),
+    headline: normalizeString(value.headline),
+    summary: normalizeString(value.summary),
+    score: normalizeNumber(value.score),
+    confidence: normalizeNumber(value.confidence),
+    modelKey: normalizeString(value.modelKey),
+    modelVersion: normalizeString(value.modelVersion),
+    generatedAtUnixMs: normalizeString(value.generatedAtUnixMs),
+    expiresAtUnixMs: normalizeString(value.expiresAtUnixMs),
+    tags: Array.isArray(value.tags) ? value.tags.filter((entry): entry is string => typeof entry === 'string') : [],
+    cards: Array.isArray(value.cards)
+      ? value.cards.map((entry) => normalizeEnergyComparisonCard(entry as RawEnergyComparisonCard))
+      : [],
+    evidence: Array.isArray(value.evidence)
+      ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence))
+      : [],
+    attributes: normalizeRecord(value.attributes)
+  };
+}
+
+function normalizeEnergyComparisonCard(value: RawEnergyComparisonCard): EnergyComparisonCard {
+  return {
+    category: normalizeEnergyComparisonCardCategory(value.category),
+    title: normalizeString(value.title),
+    summary: normalizeString(value.summary),
+    recommendation: normalizeString(value.recommendation),
+    score: normalizeNumber(value.score),
+    confidence: normalizeNumber(value.confidence),
+    evidence: Array.isArray(value.evidence)
+      ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence))
+      : [],
+    attributes: normalizeRecord(value.attributes)
+  };
+}
+
+function normalizeEnergyComparisonCardCategory(value: unknown): EnergyComparisonCardCategory {
+  switch (value) {
+    case 'ENERGY_COMPARISON_CARD_CATEGORY_SELF_SUFFICIENCY':
+      return 'self_sufficiency';
+    case 'ENERGY_COMPARISON_CARD_CATEGORY_SOLAR':
+      return 'solar';
+    case 'ENERGY_COMPARISON_CARD_CATEGORY_LOAD':
+      return 'load';
+    case 'ENERGY_COMPARISON_CARD_CATEGORY_BATTERY':
+      return 'battery';
+    case 'ENERGY_COMPARISON_CARD_CATEGORY_GRID':
+      return 'grid';
+    case 'ENERGY_COMPARISON_CARD_CATEGORY_VALUE':
+      return 'value';
     default:
       return 'unspecified';
   }

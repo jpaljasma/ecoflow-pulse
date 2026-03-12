@@ -4,6 +4,7 @@ import type { ServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
 
 import type { AppConfig } from '../config.js';
+import type { InferenceClient } from '../grpc/inferenceClient.js';
 import type { TelemetryHistoryClient } from '../grpc/telemetryClient.js';
 import {
   buildCompareSolarHistoryView,
@@ -67,6 +68,7 @@ export function registerHistoryRoutes(
   app: FastifyInstance,
   config: AppConfig,
   historyClient: TelemetryHistoryClient,
+  inferenceClient: InferenceClient,
   authPreHandler: preHandlerHookHandler
 ): void {
   const historyPreHandlers = [app.rateLimit(app.historyRateLimit), authPreHandler];
@@ -227,6 +229,31 @@ export function registerHistoryRoutes(
           deadlineMs: app.telemetryDeadlineMs
         });
         return { pvPortHistory: result };
+      } catch (error) {
+        return handleRouteError(reply, error);
+      }
+    }
+  );
+
+  app.get(
+    '/api/v1/energy/comparison-insight',
+    { preHandler: historyPreHandlers },
+    async (request, reply) => {
+      try {
+        const query = energyDashboardQuerySchema.parse(request.query);
+        const result = await inferenceClient.getEnergyComparisonInsight({
+          deviceId: query.scope === 'device' ? query.deviceId : undefined,
+          useAllDevices: query.scope === 'all',
+          preset: query.preset,
+          timezone: query.timezone,
+          gridPricePerKwh: query.gridPricePerKwh,
+          currency: query.currency,
+          authHeader: extractAuthHeader(request),
+          userSubject: resolveUserSubject(config, request),
+          requestID: request.id,
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return result;
       } catch (error) {
         return handleRouteError(reply, error);
       }
