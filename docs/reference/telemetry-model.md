@@ -254,5 +254,6 @@ Historical raw MQTT capture logs remain useful for replay/training pipelines:
 
 Validated mappings and dashboard behavior are currently maintained for:
 
+- DELTA 2 (D2)
 - DELTA 2 Max (D2M)
 - DELTA Pro Ultra (DPU)

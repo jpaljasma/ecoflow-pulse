@@ -26,6 +26,7 @@ Android.
 > [!IMPORTANT]
 > **Actively validated:**
 > - DELTA Pro Ultra (DPU)
+> - DELTA 2 (D2)
 > - DELTA 2 Max (D2M)
 
 ## Latest Delivered Work (Mar 2026)

@@ -136,6 +136,11 @@ function buildDetails(device: ProviderDevice, capabilities: DeviceCapabilities):
     return { ...details, ...d2m };
   }
 
+  if (modelLower.includes('delta 2')) {
+    const d2 = buildDelta2Details(groups, details.bpCount);
+    return { ...details, ...d2 };
+  }
+
   return details;
 }
 
@@ -318,6 +323,130 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
   };
 }
 
+function buildDelta2Details(groups: GenericRecord, bpCount?: number): DeviceTelemetryDetails {
+  const pd = asRecord(groups.pd);
+  const inv = asRecord(groups.inv);
+  const mppt = asRecord(groups.mppt);
+  const ems = asRecord(groups.ems);
+  const bmsMaster = asRecord(groups.bmsMaster);
+  const bmsSlave1 = asRecord(groups.bmsSlave1);
+
+  const packs: BatteryPackDetail[] = [];
+  const mainSoc = firstDefined(toNumber(bmsMaster.soc), toNumber(pd.soc));
+  const mainPower = deriveBatteryNetPower(bmsMaster);
+  const mainTemp = firstDefined(
+    toNumber(bmsMaster.temp),
+    toNumber(bmsMaster.maxCellTemp),
+    toNumber(bmsMaster.minCellTemp)
+  );
+  if (mainSoc !== undefined || mainPower !== undefined || mainTemp !== undefined) {
+    packs.push({
+      id: 'main',
+      socPct: mainSoc,
+      powerW: mainPower,
+      tempC: mainTemp,
+      heatingOn: false,
+      energyWh: toNumber(bmsMaster.fullCap),
+      remainMinutes: firstDefined(toNumber(bmsMaster.remainTime), toNumber(pd.remainTime)),
+      socMinPct: firstDefined(
+        toNumber(ems.minDsgSoc),
+        toNumber(pd.bpPowerSoc),
+        toNumber(pd.minAcSoc),
+        toNumber(pd.minAcoutSoc)
+      ),
+      socMaxPct: firstDefined(toNumber(ems.maxChargeSoc))
+    });
+  }
+
+  const extraSoc = toNumber(bmsSlave1.soc);
+  const extraPower = deriveBatteryNetPower(bmsSlave1);
+  const extraTemp = firstDefined(
+    toNumber(bmsSlave1.temp),
+    toNumber(bmsSlave1.maxCellTemp),
+    toNumber(bmsSlave1.minCellTemp)
+  );
+  if (extraSoc !== undefined || extraPower !== undefined || extraTemp !== undefined) {
+    packs.push({
+      id: 'bp1',
+      socPct: extraSoc,
+      powerW: extraPower,
+      tempC: extraTemp,
+      heatingOn: false,
+      energyWh: toNumber(bmsSlave1.fullCap),
+      remainMinutes: toNumber(bmsSlave1.remainTime),
+      socMinPct: firstDefined(
+        toNumber(ems.minDsgSoc),
+        toNumber(pd.bpPowerSoc),
+        toNumber(pd.minAcSoc),
+        toNumber(pd.minAcoutSoc)
+      ),
+      socMaxPct: firstDefined(toNumber(ems.maxChargeSoc))
+    });
+  }
+
+  const pv1Volts = normalizeMillivolts(mppt.inVol, 60);
+  const pv1Amps = normalizeMilliamps(mppt.inAmp, 15);
+  const pv1Watts = sanitizeSolarWatts(
+    firstDefined(toNumber(mppt.outWatts), toNumber(mppt.inWatts), multiplyNumbers(pv1Volts, pv1Amps)),
+    500
+  );
+  const pv1 = makeSolarPort({
+    id: 'pv-1',
+    name: 'PV 1',
+    volts: pv1Volts,
+    amps: pv1Amps,
+    watts: pv1Watts,
+    maxWatts: 500,
+    maxVolts: 60,
+    maxAmps: 15,
+    rawState: toNumber(mppt.chgState)
+  });
+
+  const usbOn = anyPositive(
+    pd.typec1Watts,
+    pd.typec2Watts,
+    pd.usb1Watts,
+    pd.usb2Watts,
+    pd.qcUsb1Watts,
+    pd.qcUsb2Watts
+  );
+  const dc12vOn = truthyNumber(pd.dcOutState) || anyPositive(pd.wireWatts, pd.carWatts);
+  const solarChargingOn = pv1.state === 'charging';
+
+  return {
+    bpCount: bpCount ?? Math.max(1, packs.length),
+    packs,
+    solarPorts: [pv1],
+    overallSocPct: firstDefined(
+      toNumber(ems.f32LcdShowSoc),
+      toNumber(ems.lcdShowSoc),
+      toNumber(pd.soc),
+      toNumber(bmsMaster.soc)
+    ),
+    socWindowMinPct: firstDefined(
+      toNumber(ems.minDsgSoc),
+      toNumber(pd.bpPowerSoc),
+      toNumber(pd.minAcSoc),
+      toNumber(pd.minAcoutSoc)
+    ),
+    socWindowMaxPct: firstDefined(toNumber(ems.maxChargeSoc)),
+    backupReservePct: firstDefined(
+      toNumber(pd.bpPowerSoc),
+      toNumber(ems.minOpenOilEb),
+      toNumber(pd.minAcSoc),
+      toNumber(pd.minAcoutSoc)
+    ),
+    acOn: truthyNumber(inv.cfgAcEnabled) || truthyNumber(pd.acEnabled) || anyPositive(inv.outputWatts, pd.outputWatts),
+    dcOn: dc12vOn || truthyNumber(pd.carState),
+    usbOn,
+    dc12vOn,
+    evChargingOn: false,
+    fanOn: truthyNumber(inv.fanState) || truthyNumber(ems.fanLevel),
+    solarChargingOn,
+    batteryHeatingOn: false
+  };
+}
+
 function makeSolarPort(input: {
   id: string;
   name: string;
@@ -399,6 +528,10 @@ function deriveBatteryCapacityKWh(modelLower: string, batteryPacks?: number): nu
     const packs = Math.max(1, batteryPacks ?? 2);
     return packs * 2.048;
   }
+  if (modelLower.includes('delta 2')) {
+    const packs = Math.max(1, batteryPacks ?? 1);
+    return packs * 1.024;
+  }
   return undefined;
 }
 
@@ -409,7 +542,17 @@ function deriveBatteryPacksFromMetadata(metadata?: GenericRecord): number | unde
     return bpInfo.length;
   }
   const d2mKit = asRecord(groups.bms_kitInfo);
-  return firstDefined(toPositiveNumber(d2mKit.kitNum), toPositiveNumber(asRecord(metadata?.capabilities).battery_pack_count));
+  const derived = firstDefined(
+    toPositiveNumber(d2mKit.kitNum),
+    toPositiveNumber(asRecord(metadata?.capabilities).battery_pack_count)
+  );
+  if (derived !== undefined) {
+    return derived;
+  }
+  if (Object.keys(asRecord(groups.bmsMaster)).length > 0) {
+    return 1;
+  }
+  return undefined;
 }
 
 function derivePVInputCountFromMetadata(metadata?: GenericRecord): number | undefined {
@@ -420,7 +563,7 @@ function derivePVInputCountFromMetadata(metadata?: GenericRecord): number | unde
   }
   const mppt = asRecord(groups.mppt);
   if (Object.keys(mppt).length > 0) {
-    return 2;
+    return toNumber(mppt.pv2InVol) !== undefined || toNumber(mppt.pv2InAmp) !== undefined ? 2 : 1;
   }
   return undefined;
 }

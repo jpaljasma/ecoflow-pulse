@@ -271,6 +271,102 @@ describe('provider device mapper', () => {
     );
   });
 
+  it('maps Delta 2 quota metadata into capabilities and details', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        deviceId: '019ca747-3923-7d05-ac88-090bb4c7b563',
+        providerDeviceId: 'DEMODELTA200001',
+        canonicalSn: 'DEMODELTA200001',
+        productName: 'Office Delta 2',
+        model: 'DELTA 2',
+        capabilities: {
+          battery_pack_count: 1,
+          pv_input_count: 1,
+          supports_ac_output: true,
+          supports_dc_output: true,
+          supports_usb_output: true,
+          supports_extra_battery: true
+        },
+        metadata: {
+          groups: {
+            pd: {
+              soc: 62,
+              bpPowerSoc: 27,
+              minAcSoc: 21,
+              dcOutState: 1,
+              typec1Watts: 58,
+              usb1Watts: 12,
+              wireWatts: 19
+            },
+            inv: {
+              cfgAcEnabled: 1,
+              outputWatts: 184,
+              fanState: 1
+            },
+            mppt: {
+              inVol: 23100,
+              inAmp: 4200,
+              outWatts: 91,
+              chgState: 1
+            },
+            ems: {
+              f32LcdShowSoc: 61.8,
+              minDsgSoc: 15,
+              maxChargeSoc: 92
+            },
+            bmsMaster: {
+              soc: 61,
+              inputWatts: 45,
+              outputWatts: 133,
+              temp: 19,
+              fullCap: 1024,
+              remainTime: 211
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.capabilities).toEqual(
+      expect.objectContaining({
+        batteryPacks: 1,
+        pvInputCount: 1,
+        batteryCapacityKWh: 1.024,
+        acOutput: true,
+        dcOutput: true,
+        usbOutput: true,
+        extraBattery: true
+      })
+    );
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        bpCount: 1,
+        acOn: true,
+        dcOn: true,
+        usbOn: true,
+        fanOn: true,
+        solarChargingOn: true,
+        batteryHeatingOn: false,
+        overallSocPct: 61.8,
+        socWindowMinPct: 15,
+        socWindowMaxPct: 92,
+        backupReservePct: 27,
+        packs: [
+          expect.objectContaining({
+            id: 'main',
+            socPct: 61,
+            powerW: -88,
+            energyWh: 1024,
+            remainMinutes: 211,
+            socMinPct: 15,
+            socMaxPct: 92
+          })
+        ],
+        solarPorts: [expect.objectContaining({ id: 'pv-1', state: 'charging', watts: 91, volts: 23.1, amps: 4.2 })]
+      })
+    );
+  });
+
   it('treats zero-amp locked D2M PV ports as non-producing', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({
