@@ -322,8 +322,10 @@ func scopeRequestValue(deviceID string, useAllDevices bool) string {
 
 func energyResolutionForPreset(preset energydashboard.Preset) telemetryquery.Resolution {
 	switch preset {
-	case energydashboard.PresetToday, energydashboard.PresetYesterday:
+	case energydashboard.PresetToday, energydashboard.PresetPast24Hours, energydashboard.PresetYesterday:
 		return telemetryquery.ResolutionHour
+	case energydashboard.PresetLast30Days, energydashboard.PresetLastMonth:
+		return telemetryquery.ResolutionDay
 	default:
 		return telemetryquery.ResolutionDay
 	}
@@ -331,11 +333,11 @@ func energyResolutionForPreset(preset energydashboard.Preset) telemetryquery.Res
 
 func powerResolutionForPreset(preset energydashboard.Preset) telemetryquery.Resolution {
 	switch preset {
-	case energydashboard.PresetToday, energydashboard.PresetYesterday:
-		return telemetryquery.ResolutionMinute
-	case energydashboard.PresetThisWeek, energydashboard.PresetPreviousWeek, energydashboard.PresetThisMonth:
+	case energydashboard.PresetToday, energydashboard.PresetPast24Hours, energydashboard.PresetYesterday:
+		return telemetryquery.ResolutionFiveMinutes
+	case energydashboard.PresetThisWeek, energydashboard.PresetPreviousWeek, energydashboard.PresetThisMonth, energydashboard.PresetLast7Days:
 		return telemetryquery.ResolutionHour
-	case energydashboard.PresetLast7Days:
+	case energydashboard.PresetLast30Days, energydashboard.PresetLastMonth:
 		return telemetryquery.ResolutionDay
 	default:
 		return telemetryquery.ResolutionDay

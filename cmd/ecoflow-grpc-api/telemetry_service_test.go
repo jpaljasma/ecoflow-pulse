@@ -830,12 +830,12 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       from,
 				To:         to,
 				Points: []telemetryquery.Point{{
 					BucketStart: from,
-					BucketEnd:   from.Add(time.Minute),
+					BucketEnd:   from.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW:      &currentMinutePV,
 						LoadAvgW:    &currentLoad,
@@ -846,12 +846,12 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       previousFrom,
 				To:         previousTo,
 				Points: []telemetryquery.Point{{
 					BucketStart: previousFrom,
-					BucketEnd:   previousFrom.Add(time.Minute),
+					BucketEnd:   previousFrom.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW:   &previousMinutePV,
 						LoadAvgW: &previousLoad,
@@ -999,12 +999,12 @@ func TestGetEnergyDashboardSkipsPreviousQueriesWhenComparisonDisabled(t *testing
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       from,
 				To:         to,
 				Points: []telemetryquery.Point{{
 					BucketStart: from,
-					BucketEnd:   from.Add(time.Minute),
+					BucketEnd:   from.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW: &currentMinutePV,
 					},
@@ -1077,19 +1077,19 @@ func TestGetEnergyPvPortHistorySkipsMissingArchiveObjects(t *testing.T) {
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       from,
 				To:         to,
 				Points: []telemetryquery.Point{{
 					BucketStart: from,
-					BucketEnd:   from.Add(time.Minute),
+					BucketEnd:   from.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW: &pvAvg,
 					},
 				}},
 			},
 			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionDay, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
-			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionMinute, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionFiveMinutes, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
 		},
 	}
 	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
@@ -1158,19 +1158,19 @@ func TestGetEnergyDashboardLeavesPVHistoryForLazyLoad(t *testing.T) {
 			},
 			{
 				DeviceID:   deviceID,
-				Resolution: telemetryquery.ResolutionMinute,
+				Resolution: telemetryquery.ResolutionFiveMinutes,
 				From:       from,
 				To:         to,
 				Points: []telemetryquery.Point{{
 					BucketStart: from,
-					BucketEnd:   from.Add(time.Minute),
+					BucketEnd:   from.Add(5 * time.Minute),
 					Metrics: telemetryquery.Metrics{
 						PVAvgW: &pvAvg,
 					},
 				}},
 			},
 			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionDay, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
-			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionMinute, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
+			{DeviceID: deviceID, Resolution: telemetryquery.ResolutionFiveMinutes, From: previousFrom, To: from, Points: []telemetryquery.Point{}},
 		},
 	}
 	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{

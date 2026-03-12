@@ -909,6 +909,8 @@ dev-down:
 # public-images-local-up rebuilds and imports the updated pulse-platform and pulse-realtime-gateway images.
 # services-up re-applies Helm and, by default, auto-builds/imports the Go workers image.
 # dev-web-deploy owns the public web app + realtime gateway local redeploy path for k3d.
+# Set DEV_DEPLOY_SKIP_PUBLIC_RESTART=1 when another target needs platform prep/image import without
+# immediately restarting the public deployments.
 # dev-deploy defaults to a Helm fast path (`DEV_DEPLOY_HELM=auto`) that skips Helm re-apply unless the
 # local chart/values files changed or the release is missing. Use `DEV_DEPLOY_HELM=always` to force full Helm apply.
 # The rollout restart calls are important because the images use the same :local tag with IfNotPresent, so importing alone will not replace already-running pods.
@@ -961,21 +963,25 @@ dev-web-deploy:
 		fi; \
 		$(MAKE) --no-print-directory platform-wait
 	@set -euo pipefail; \
-		restart_and_wait_if_exists() { \
-			ns="$$1"; \
-			name="$$2"; \
-			if $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" >/dev/null 2>&1; then \
-				echo "restarting $$ns/$$name"; \
-				$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
-				echo "waiting for $$ns/$$name"; \
-				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
-			else \
-				echo "skipping missing deployment $$ns/$$name"; \
-			fi; \
-		}; \
-		echo "restarting updated public deployments"; \
-		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
-		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app
+		if [ "$${DEV_DEPLOY_SKIP_PUBLIC_RESTART:-0}" = "1" ]; then \
+			echo "skipping public deployment restart (DEV_DEPLOY_SKIP_PUBLIC_RESTART=1)"; \
+		else \
+			restart_and_wait_if_exists() { \
+				ns="$$1"; \
+				name="$$2"; \
+				if $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" >/dev/null 2>&1; then \
+					echo "restarting $$ns/$$name"; \
+					$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
+					echo "waiting for $$ns/$$name"; \
+					$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
+				else \
+					echo "skipping missing deployment $$ns/$$name"; \
+				fi; \
+			}; \
+			echo "restarting updated public deployments"; \
+			restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
+			restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app; \
+		fi
 	@echo "showing platform deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) logs deploy/pulse-platform-realtime-gateway --since=5m
@@ -998,7 +1004,10 @@ dev-deploy:
 					services_apply=1; \
 				fi; \
 				if [ "$$services_apply" = "0" ]; then \
-					if ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-inference >/dev/null 2>&1 || \
+					if ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-ingest >/dev/null 2>&1 || \
+					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-projection >/dev/null 2>&1 || \
+					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-archive >/dev/null 2>&1 || \
+					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-inference >/dev/null 2>&1 || \
 					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-grpc-api >/dev/null 2>&1 || \
 					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-energy-api >/dev/null 2>&1 || \
 					   ! $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy/pulse-services-go-rollup >/dev/null 2>&1; then \
@@ -1011,7 +1020,7 @@ dev-deploy:
 				exit 1; \
 				;; \
 		esac; \
-		$(MAKE) --no-print-directory DEV_DEPLOY_HELM="$$helm_mode" dev-web-deploy; \
+		$(MAKE) --no-print-directory DEV_DEPLOY_HELM="$$helm_mode" DEV_DEPLOY_SKIP_PUBLIC_RESTART=1 dev-web-deploy; \
 		if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 			$(MAKE) --no-print-directory services-image-local-up; \
 		fi; \
@@ -1034,11 +1043,21 @@ dev-deploy:
 				echo "skipping missing deployment $$ns/$$name"; \
 			fi; \
 		}; \
-		echo "restarting updated local deployments"; \
+		echo "restarting updated local deployments in dependency order"; \
+		echo "phase: ingest"; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-ingest; \
+		echo "phase: transform"; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-projection; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-rollup; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-archive; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-inference; \
+		echo "phase: go services"; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-grpc-api; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-energy-api; \
-		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-rollup
+		echo "phase: rest services"; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
+		echo "phase: frontend"; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app
 	@echo "showing deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy

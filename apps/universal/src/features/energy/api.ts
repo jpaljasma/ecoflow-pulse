@@ -3,11 +3,14 @@ import { requestJson } from '@/shared/api/restClient';
 
 export const EnergyPresetSchema = z.enum([
   'today',
+  'past24h',
   'yesterday',
   'last7d',
+  'last30d',
   'thisWeek',
   'previousWeek',
   'thisMonth',
+  'lastMonth',
   'last12m'
 ]);
 

@@ -22,8 +22,7 @@ import { ApiError } from '@/shared/api/restClient';
 import { Card } from '@/shared/ui/Card';
 import { useDevicePowerTrendHistory, useDeviceSolarHistory } from '@/features/history/hooks';
 import {
-  mergeTrendPrefill,
-  sparklineCoveragePoints
+  mergeTrendPrefillWithLivePoints
 } from '@/features/history/powerTrend';
 import { SOLAR_HISTORY_POINTS } from '@/features/history/solar';
 import { maskSerialNumber } from '@/features/telemetry/format';
@@ -151,25 +150,21 @@ export default function DeviceDetailScreen() {
 
   const detailTrend = useMemo(
     () => ({
-      load: mergeTrendPrefill(
+      load: mergeTrendPrefillWithLivePoints(
         powerTrendHistory.data?.load ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.loadW.map((point) => point.value) ?? [],
-        sparklineCoveragePoints(snapshot?.sparkline.loadW)
+        snapshot?.sparkline.loadW
       ),
-      pv: mergeTrendPrefill(
+      pv: mergeTrendPrefillWithLivePoints(
         powerTrendHistory.data?.solar ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.pvW.map((point) => point.value) ?? [],
-        sparklineCoveragePoints(snapshot?.sparkline.pvW)
+        snapshot?.sparkline.pvW
       ),
-      ac: mergeTrendPrefill(
+      ac: mergeTrendPrefillWithLivePoints(
         powerTrendHistory.data?.ac ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.acW.map((point) => point.value) ?? [],
-        sparklineCoveragePoints(snapshot?.sparkline.acW)
+        snapshot?.sparkline.acW
       ),
-      dc: mergeTrendPrefill(
+      dc: mergeTrendPrefillWithLivePoints(
         powerTrendHistory.data?.dc ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.dcW.map((point) => point.value) ?? [],
-        sparklineCoveragePoints(snapshot?.sparkline.dcW)
+        snapshot?.sparkline.dcW
       )
     }),
     [powerTrendHistory.data, snapshot]

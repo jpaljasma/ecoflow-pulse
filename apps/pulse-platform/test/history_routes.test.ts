@@ -565,6 +565,72 @@ describe('pulse-platform history routes', () => {
     await app.close();
   });
 
+  it('accepts the rolling past24h energy preset', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=past24h&timezone=America%2FNew_York&includeComparison=true'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'past24h',
+        timezone: 'America/New_York',
+        includeComparison: true
+      })
+    );
+
+    await app.close();
+  });
+
+  it('accepts the completed last30d energy preset', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=last30d&timezone=America%2FNew_York&includeComparison=true'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'last30d',
+        timezone: 'America/New_York',
+        includeComparison: true
+      })
+    );
+
+    await app.close();
+  });
+
+  it('accepts the calendar lastMonth energy preset', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=lastMonth&timezone=America%2FNew_York&includeComparison=true'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'lastMonth',
+        timezone: 'America/New_York',
+        includeComparison: true
+      })
+    );
+
+    await app.close();
+  });
+
   it('rejects energy dashboard device scope without a device id', async () => {
     const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({

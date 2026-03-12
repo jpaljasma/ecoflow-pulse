@@ -101,7 +101,7 @@ func TestPostgresReaderQueryRangeUsesHourTableAndScansMetrics(t *testing.T) {
 		6.5,
 	)
 
-	mock.ExpectQuery(regexp.QuoteMeta(buildQuery("telemetry_rollup_hour"))).
+	mock.ExpectQuery(regexp.QuoteMeta(buildQuery(ResolutionHour, "telemetry_rollup_hour"))).
 		WithArgs("018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52", from, to, 2).
 		WillReturnRows(rows)
 
@@ -182,6 +182,118 @@ func TestPostgresReaderQueryRangeRejectsInvalidInput(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected invalid input error")
+	}
+}
+
+func TestPostgresReaderQueryRangeFiveMinuteAggregatesMinuteTable(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	reader := newPostgresReader(db)
+	from := time.Date(2026, time.March, 12, 12, 0, 0, 0, time.UTC)
+	to := from.Add(15 * time.Minute)
+	rows := sqlmock.NewRows([]string{
+		"bucket_start",
+		"sample_count",
+		"first_ts_unix_ms",
+		"last_ts_unix_ms",
+		"soc_avg_pct",
+		"soc_min_pct",
+		"soc_max_pct",
+		"ac_in_avg_w",
+		"ac_in_max_w",
+		"ac_output_avg_w",
+		"ac_output_max_w",
+		"pv_avg_w",
+		"pv_max_w",
+		"dc_avg_w",
+		"dc_max_w",
+		"load_avg_w",
+		"load_max_w",
+		"net_avg_w",
+		"net_min_w",
+		"net_max_w",
+		"battery_avg_w",
+		"battery_min_w",
+		"battery_max_w",
+		"temp_avg_c",
+		"temp_min_c",
+		"temp_max_c",
+		"solar_generated_wh",
+		"ac_input_energy_wh",
+		"ac_output_energy_wh",
+		"dc_output_energy_wh",
+		"load_energy_wh",
+		"battery_charge_energy_wh",
+		"battery_discharge_energy_wh",
+	}).AddRow(
+		from,
+		250,
+		from.UnixMilli(),
+		from.Add(4*time.Minute+59*time.Second).UnixMilli(),
+		50.0,
+		49.0,
+		51.0,
+		120.0,
+		180.0,
+		80.0,
+		100.0,
+		60.0,
+		75.0,
+		10.0,
+		15.0,
+		130.0,
+		160.0,
+		-20.0,
+		-25.0,
+		-10.0,
+		40.0,
+		-5.0,
+		50.0,
+		21.0,
+		20.0,
+		22.0,
+		5.0,
+		10.0,
+		6.5,
+		0.8,
+		10.8,
+		1.6,
+		0.9,
+	)
+
+	mock.ExpectQuery(regexp.QuoteMeta(buildQuery(ResolutionFiveMinutes, "telemetry_rollup_minute"))).
+		WithArgs("018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52", from, to, 16).
+		WillReturnRows(rows)
+
+	series, err := reader.QueryRange(context.Background(), RangeQuery{
+		DeviceID:   "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
+		Resolution: ResolutionFiveMinutes,
+		From:       from,
+		To:         to,
+		Limit:      16,
+	})
+	if err != nil {
+		t.Fatalf("QueryRange failed: %v", err)
+	}
+	if got := len(series.Points); got != 1 {
+		t.Fatalf("points mismatch: got=%d want=1", got)
+	}
+	if got := series.Points[0].BucketEnd; got != from.Add(5*time.Minute) {
+		t.Fatalf("bucket end mismatch: got=%s want=%s", got, from.Add(5*time.Minute))
+	}
+	if got := series.Resolution; got != ResolutionFiveMinutes {
+		t.Fatalf("resolution mismatch: got=%v want=%v", got, ResolutionFiveMinutes)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
 	}
 }
 
@@ -269,7 +381,7 @@ func TestPostgresReaderQueryRangeManyAggregatesBuckets(t *testing.T) {
 		70.0,
 	)
 
-	querySQL, _ := buildAggregateQuery("telemetry_rollup_day", []string{"dev-a", "dev-b"}, from, to, 14)
+	querySQL, _ := buildAggregateQuery(ResolutionDay, "telemetry_rollup_day", []string{"dev-a", "dev-b"}, from, to, 14)
 	mock.ExpectQuery(regexp.QuoteMeta(querySQL)).
 		WithArgs("dev-a", "dev-b", from, to, 14).
 		WillReturnRows(rows)
@@ -296,6 +408,117 @@ func TestPostgresReaderQueryRangeManyAggregatesBuckets(t *testing.T) {
 	}
 	if series.Points[0].Metrics.ACOutputAvgW == nil || *series.Points[0].Metrics.ACOutputAvgW != 180.0 {
 		t.Fatalf("ac_output_avg_w mismatch: got=%v", series.Points[0].Metrics.ACOutputAvgW)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresReaderQueryRangeManyFiveMinuteAggregatesMinuteTable(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	reader := newPostgresReader(db)
+	from := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
+	to := from.Add(15 * time.Minute)
+	rows := sqlmock.NewRows([]string{
+		"bucket_start",
+		"sample_count",
+		"first_ts_unix_ms",
+		"last_ts_unix_ms",
+		"soc_avg_pct",
+		"soc_min_pct",
+		"soc_max_pct",
+		"ac_in_avg_w",
+		"ac_in_max_w",
+		"ac_output_avg_w",
+		"ac_output_max_w",
+		"pv_avg_w",
+		"pv_max_w",
+		"dc_avg_w",
+		"dc_max_w",
+		"load_avg_w",
+		"load_max_w",
+		"net_avg_w",
+		"net_min_w",
+		"net_max_w",
+		"battery_avg_w",
+		"battery_min_w",
+		"battery_max_w",
+		"temp_avg_c",
+		"temp_min_c",
+		"temp_max_c",
+		"solar_generated_wh",
+		"ac_input_energy_wh",
+		"ac_output_energy_wh",
+		"dc_output_energy_wh",
+		"load_energy_wh",
+		"battery_charge_energy_wh",
+		"battery_discharge_energy_wh",
+	}).AddRow(
+		from,
+		500,
+		from.UnixMilli(),
+		from.Add(4*time.Minute+59*time.Second).UnixMilli(),
+		52.0,
+		45.0,
+		60.0,
+		300.0,
+		400.0,
+		180.0,
+		240.0,
+		120.0,
+		150.0,
+		40.0,
+		55.0,
+		360.0,
+		430.0,
+		-20.0,
+		-30.0,
+		10.0,
+		80.0,
+		-10.0,
+		95.0,
+		22.5,
+		21.0,
+		24.0,
+		12.0,
+		3.5,
+		4.0,
+		1.2,
+		6.5,
+		2.0,
+		1.4,
+	)
+
+	querySQL, _ := buildAggregateQuery(ResolutionFiveMinutes, "telemetry_rollup_minute", []string{"dev-a", "dev-b"}, from, to, 32)
+	mock.ExpectQuery(regexp.QuoteMeta(querySQL)).
+		WithArgs("dev-a", "dev-b", from, to, 32).
+		WillReturnRows(rows)
+
+	series, err := reader.QueryRangeMany(context.Background(), AggregateRangeQuery{
+		DeviceIDs:   []string{"dev-a", "dev-b"},
+		Resolution:  ResolutionFiveMinutes,
+		From:        from,
+		To:          to,
+		Limit:       32,
+		AggregateID: "all",
+	})
+	if err != nil {
+		t.Fatalf("QueryRangeMany failed: %v", err)
+	}
+	if got := len(series.Points); got != 1 {
+		t.Fatalf("points mismatch: got=%d want=1", got)
+	}
+	if got := series.Points[0].BucketEnd; got != from.Add(5*time.Minute) {
+		t.Fatalf("bucket end mismatch: got=%s want=%s", got, from.Add(5*time.Minute))
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)

@@ -760,14 +760,17 @@ export default function EnergyScreen() {
 function resolveBucketSeconds(preset: EnergyRouteState['preset']): number {
   switch (preset) {
     case 'today':
+    case 'past24h':
     case 'yesterday':
-      return 60;
-    case 'last7d':
-      return 86400;
+      return 300;
     case 'thisWeek':
     case 'previousWeek':
-    case 'thisMonth':
+    case 'last7d':
       return 3600;
+    case 'last30d':
+    case 'lastMonth':
+    case 'thisMonth':
+      return 86400;
     case 'last12m':
       return 86400;
   }
@@ -776,12 +779,15 @@ function resolveBucketSeconds(preset: EnergyRouteState['preset']): number {
 function resolveEnergyBucketSeconds(preset: EnergyRouteState['preset']): number {
   switch (preset) {
     case 'today':
+    case 'past24h':
     case 'yesterday':
       return 3600;
     case 'last7d':
+    case 'last30d':
     case 'thisWeek':
     case 'previousWeek':
     case 'thisMonth':
+    case 'lastMonth':
     case 'last12m':
       return 86400;
   }

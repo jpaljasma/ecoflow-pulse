@@ -10,11 +10,14 @@ type Preset string
 
 const (
 	PresetToday        Preset = "today"
+	PresetPast24Hours  Preset = "past24h"
 	PresetYesterday    Preset = "yesterday"
 	PresetLast7Days    Preset = "last7d"
+	PresetLast30Days   Preset = "last30d"
 	PresetThisWeek     Preset = "thisWeek"
 	PresetPreviousWeek Preset = "previousWeek"
 	PresetThisMonth    Preset = "thisMonth"
+	PresetLastMonth    Preset = "lastMonth"
 	PresetLast12Months Preset = "last12m"
 )
 
@@ -28,11 +31,14 @@ type Window struct {
 func ParsePreset(raw string) (Preset, error) {
 	switch Preset(strings.TrimSpace(raw)) {
 	case PresetToday,
+		PresetPast24Hours,
 		PresetYesterday,
 		PresetLast7Days,
+		PresetLast30Days,
 		PresetThisWeek,
 		PresetPreviousWeek,
 		PresetThisMonth,
+		PresetLastMonth,
 		PresetLast12Months:
 		return Preset(raw), nil
 	default:
@@ -49,13 +55,21 @@ func ResolveWindow(now time.Time, loc *time.Location, preset Preset) (Window, er
 	case PresetToday:
 		from := startOfDay(localNow)
 		return newWindow(from, localNow, from.AddDate(0, 0, -1), from), nil
+	case PresetPast24Hours:
+		from := localNow.Add(-24 * time.Hour)
+		return newWindow(from, localNow, from.Add(-24*time.Hour), from), nil
 	case PresetYesterday:
 		to := startOfDay(localNow)
 		from := to.AddDate(0, 0, -1)
 		return newWindow(from, to, from.AddDate(0, 0, -1), from), nil
 	case PresetLast7Days:
-		from := startOfDay(localNow).AddDate(0, 0, -6)
-		return newWindow(from, localNow, from.AddDate(0, 0, -7), from), nil
+		to := startOfDay(localNow)
+		from := to.AddDate(0, 0, -7)
+		return newWindow(from, to, from.AddDate(0, 0, -7), from), nil
+	case PresetLast30Days:
+		to := startOfDay(localNow)
+		from := to.AddDate(0, 0, -30)
+		return newWindow(from, to, from.AddDate(0, 0, -30), from), nil
 	case PresetThisWeek:
 		from := startOfWeek(localNow)
 		return newWindow(from, localNow, from.AddDate(0, 0, -7), from), nil
@@ -66,6 +80,10 @@ func ResolveWindow(now time.Time, loc *time.Location, preset Preset) (Window, er
 	case PresetThisMonth:
 		from := startOfMonth(localNow)
 		return newWindow(from, localNow, from.AddDate(0, -1, 0), from), nil
+	case PresetLastMonth:
+		to := startOfMonth(localNow)
+		from := to.AddDate(0, -1, 0)
+		return newWindow(from, to, from.AddDate(0, -1, 0), from), nil
 	case PresetLast12Months:
 		from := startOfMonth(localNow).AddDate(0, -11, 0)
 		return newWindow(from, localNow, from.AddDate(-1, 0, 0), from), nil

@@ -47,7 +47,7 @@ const energyDashboardQuerySchema = z
   .object({
     deviceId: z.string().uuid().optional(),
     scope: z.enum(['device', 'all']).optional().default('device'),
-    preset: z.enum(['today', 'yesterday', 'last7d', 'thisWeek', 'previousWeek', 'thisMonth', 'last12m']),
+    preset: z.enum(['today', 'past24h', 'yesterday', 'last7d', 'last30d', 'thisWeek', 'previousWeek', 'thisMonth', 'lastMonth', 'last12m']),
     timezone: z.string().trim().min(1),
     includeComparison: booleanQuerySchema.optional().default(true),
     gridPricePerKwh: z.coerce.number().finite().nonnegative().optional(),

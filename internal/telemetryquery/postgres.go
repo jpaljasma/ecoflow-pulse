@@ -65,7 +65,7 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 		return Series{}, ErrInvalidRange
 	}
 
-	rows, err := r.db.QueryContext(ctx, buildQuery(table), query.DeviceID, from, to, query.Limit)
+	rows, err := r.db.QueryContext(ctx, buildQuery(query.Resolution, table), query.DeviceID, from, to, query.Limit)
 	if err != nil {
 		return Series{}, fmt.Errorf("query telemetry rollup range: %w", err)
 	}
@@ -89,7 +89,7 @@ func (r *PostgresReader) QueryRangeMany(ctx context.Context, query AggregateRang
 		return Series{}, ErrInvalidRange
 	}
 
-	sqlQuery, args := buildAggregateQuery(table, deviceIDs, from, to, query.Limit)
+	sqlQuery, args := buildAggregateQuery(query.Resolution, table, deviceIDs, from, to, query.Limit)
 	rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return Series{}, fmt.Errorf("query aggregated telemetry rollup range: %w", err)
@@ -228,7 +228,87 @@ func scanSeriesRows(rows *sql.Rows, deviceID string, resolution Resolution, from
 	return enrichSolarEnergy(series), nil
 }
 
-func buildQuery(table string) string {
+func buildQuery(resolution Resolution, table string) string {
+	if resolution == ResolutionFiveMinutes {
+		return fmt.Sprintf(`WITH grouped AS (
+	SELECT
+		date_bin('5 minutes', bucket_start, TIMESTAMPTZ '2001-01-01 00:00:00+00') AS bucket_start,
+		SUM(sample_count) AS sample_count,
+		MIN(first_ts_unix_ms) AS first_ts_unix_ms,
+		MAX(last_ts_unix_ms) AS last_ts_unix_ms,
+		AVG(soc_avg_pct) AS soc_avg_pct,
+		MIN(soc_min_pct) AS soc_min_pct,
+		MAX(soc_max_pct) AS soc_max_pct,
+		AVG(ac_in_avg_w) AS ac_in_avg_w,
+		MAX(ac_in_max_w) AS ac_in_max_w,
+		AVG(ac_output_avg_w) AS ac_output_avg_w,
+		MAX(ac_output_max_w) AS ac_output_max_w,
+		AVG(pv_avg_w) AS pv_avg_w,
+		MAX(pv_max_w) AS pv_max_w,
+		AVG(dc_avg_w) AS dc_avg_w,
+		MAX(dc_max_w) AS dc_max_w,
+		AVG(load_avg_w) AS load_avg_w,
+		MAX(load_max_w) AS load_max_w,
+		AVG(net_avg_w) AS net_avg_w,
+		MIN(net_min_w) AS net_min_w,
+		MAX(net_max_w) AS net_max_w,
+		AVG(battery_avg_w) AS battery_avg_w,
+		MIN(battery_min_w) AS battery_min_w,
+		MAX(battery_max_w) AS battery_max_w,
+		AVG(temp_avg_c) AS temp_avg_c,
+		MIN(temp_min_c) AS temp_min_c,
+		MAX(temp_max_c) AS temp_max_c,
+		SUM(solar_generated_wh) AS solar_generated_wh,
+		SUM(ac_input_energy_wh) AS ac_input_energy_wh,
+		SUM(ac_output_energy_wh) AS ac_output_energy_wh,
+		SUM(dc_output_energy_wh) AS dc_output_energy_wh,
+		SUM(load_energy_wh) AS load_energy_wh,
+		SUM(battery_charge_energy_wh) AS battery_charge_energy_wh,
+		SUM(battery_discharge_energy_wh) AS battery_discharge_energy_wh
+	FROM %s
+	WHERE device_id = $1::uuid
+	  AND bucket_start >= $2
+	  AND bucket_start < $3
+	GROUP BY 1
+)
+SELECT
+	bucket_start,
+	sample_count,
+	first_ts_unix_ms,
+	last_ts_unix_ms,
+	soc_avg_pct,
+	soc_min_pct,
+	soc_max_pct,
+	ac_in_avg_w,
+	ac_in_max_w,
+	ac_output_avg_w,
+	ac_output_max_w,
+	pv_avg_w,
+	pv_max_w,
+	dc_avg_w,
+	dc_max_w,
+	load_avg_w,
+	load_max_w,
+	net_avg_w,
+	net_min_w,
+	net_max_w,
+	battery_avg_w,
+	battery_min_w,
+	battery_max_w,
+	temp_avg_c,
+	temp_min_c,
+	temp_max_c,
+	solar_generated_wh,
+	ac_input_energy_wh,
+	ac_output_energy_wh,
+	dc_output_energy_wh,
+	load_energy_wh,
+	battery_charge_energy_wh,
+	battery_discharge_energy_wh
+FROM grouped
+ORDER BY bucket_start ASC
+LIMIT $4;`, table)
+	}
 	return fmt.Sprintf(`SELECT
 	bucket_start,
 	sample_count,
@@ -271,7 +351,7 @@ ORDER BY bucket_start ASC
 LIMIT $4;`, table)
 }
 
-func buildAggregateQuery(table string, deviceIDs []string, from, to time.Time, limit int) (string, []any) {
+func buildAggregateQuery(resolution Resolution, table string, deviceIDs []string, from, to time.Time, limit int) (string, []any) {
 	placeholders := make([]string, 0, len(deviceIDs))
 	args := make([]any, 0, len(deviceIDs)+3)
 	for idx, deviceID := range deviceIDs {
@@ -282,6 +362,88 @@ func buildAggregateQuery(table string, deviceIDs []string, from, to time.Time, l
 	toIdx := len(args) + 2
 	limitIdx := len(args) + 3
 	args = append(args, from, to, limit)
+	if resolution == ResolutionFiveMinutes {
+		return fmt.Sprintf(`WITH device_grouped AS (
+	SELECT
+		device_id,
+		date_bin('5 minutes', bucket_start, TIMESTAMPTZ '2001-01-01 00:00:00+00') AS bucket_start,
+		SUM(sample_count) AS sample_count,
+		MIN(first_ts_unix_ms) AS first_ts_unix_ms,
+		MAX(last_ts_unix_ms) AS last_ts_unix_ms,
+		AVG(soc_avg_pct) AS soc_avg_pct,
+		MIN(soc_min_pct) AS soc_min_pct,
+		MAX(soc_max_pct) AS soc_max_pct,
+		AVG(ac_in_avg_w) AS ac_in_avg_w,
+		MAX(ac_in_max_w) AS ac_in_max_w,
+		AVG(ac_output_avg_w) AS ac_output_avg_w,
+		MAX(ac_output_max_w) AS ac_output_max_w,
+		AVG(pv_avg_w) AS pv_avg_w,
+		MAX(pv_max_w) AS pv_max_w,
+		AVG(dc_avg_w) AS dc_avg_w,
+		MAX(dc_max_w) AS dc_max_w,
+		AVG(load_avg_w) AS load_avg_w,
+		MAX(load_max_w) AS load_max_w,
+		AVG(net_avg_w) AS net_avg_w,
+		MIN(net_min_w) AS net_min_w,
+		MAX(net_max_w) AS net_max_w,
+		AVG(battery_avg_w) AS battery_avg_w,
+		MIN(battery_min_w) AS battery_min_w,
+		MAX(battery_max_w) AS battery_max_w,
+		AVG(temp_avg_c) AS temp_avg_c,
+		MIN(temp_min_c) AS temp_min_c,
+		MAX(temp_max_c) AS temp_max_c,
+		SUM(solar_generated_wh) AS solar_generated_wh,
+		SUM(ac_input_energy_wh) AS ac_input_energy_wh,
+		SUM(ac_output_energy_wh) AS ac_output_energy_wh,
+		SUM(dc_output_energy_wh) AS dc_output_energy_wh,
+		SUM(load_energy_wh) AS load_energy_wh,
+		SUM(battery_charge_energy_wh) AS battery_charge_energy_wh,
+		SUM(battery_discharge_energy_wh) AS battery_discharge_energy_wh
+	FROM %s
+	WHERE device_id IN (%s)
+	  AND bucket_start >= $%d
+	  AND bucket_start < $%d
+	GROUP BY device_id, 2
+)
+SELECT
+	bucket_start,
+	SUM(sample_count) AS sample_count,
+	MIN(first_ts_unix_ms) AS first_ts_unix_ms,
+	MAX(last_ts_unix_ms) AS last_ts_unix_ms,
+	AVG(soc_avg_pct) AS soc_avg_pct,
+	MIN(soc_min_pct) AS soc_min_pct,
+	MAX(soc_max_pct) AS soc_max_pct,
+	SUM(ac_in_avg_w) AS ac_in_avg_w,
+	SUM(ac_in_max_w) AS ac_in_max_w,
+	SUM(ac_output_avg_w) AS ac_output_avg_w,
+	SUM(ac_output_max_w) AS ac_output_max_w,
+	SUM(pv_avg_w) AS pv_avg_w,
+	SUM(pv_max_w) AS pv_max_w,
+	SUM(dc_avg_w) AS dc_avg_w,
+	SUM(dc_max_w) AS dc_max_w,
+	SUM(load_avg_w) AS load_avg_w,
+	SUM(load_max_w) AS load_max_w,
+	SUM(net_avg_w) AS net_avg_w,
+	SUM(net_min_w) AS net_min_w,
+	SUM(net_max_w) AS net_max_w,
+	SUM(battery_avg_w) AS battery_avg_w,
+	SUM(battery_min_w) AS battery_min_w,
+	SUM(battery_max_w) AS battery_max_w,
+	AVG(temp_avg_c) AS temp_avg_c,
+	MIN(temp_min_c) AS temp_min_c,
+	MAX(temp_max_c) AS temp_max_c,
+	SUM(solar_generated_wh) AS solar_generated_wh,
+	SUM(ac_input_energy_wh) AS ac_input_energy_wh,
+	SUM(ac_output_energy_wh) AS ac_output_energy_wh,
+	SUM(dc_output_energy_wh) AS dc_output_energy_wh,
+	SUM(load_energy_wh) AS load_energy_wh,
+	SUM(battery_charge_energy_wh) AS battery_charge_energy_wh,
+	SUM(battery_discharge_energy_wh) AS battery_discharge_energy_wh
+FROM device_grouped
+GROUP BY bucket_start
+ORDER BY bucket_start ASC
+LIMIT $%d;`, table, strings.Join(placeholders, ", "), fromIdx, toIdx, limitIdx), args
+	}
 	return fmt.Sprintf(`SELECT
 	bucket_start,
 	SUM(sample_count) AS sample_count,
