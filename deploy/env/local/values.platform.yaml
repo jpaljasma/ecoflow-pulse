@@ -48,6 +48,7 @@ runtime:
       realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
       devUserSubject: dev-user@example.com
       publicPreconnectOrigins: ""
+      corsAllowedOrigins: "http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
     ingress:
       enabled: true
       host: localhost

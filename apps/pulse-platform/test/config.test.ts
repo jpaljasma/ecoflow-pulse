@@ -8,6 +8,7 @@ describe('pulse-platform config', () => {
 
     expect(config.port).toBe(18081);
     expect(config.energyGrpcApiAddr).toBe('127.0.0.1:9090');
+    expect(config.corsAllowedOrigins).toEqual([]);
   });
 
   it('supports optional noop dev subject override', () => {
@@ -26,6 +27,17 @@ describe('pulse-platform config', () => {
     expect(config.publicPreconnectOrigins).toEqual([
       'https://api.example.com',
       'wss://ws.example.com'
+    ]);
+  });
+
+  it('parses optional cors allowed origins', () => {
+    const config = loadConfig({
+      PULSE_PLATFORM_CORS_ALLOWED_ORIGINS: 'http://localhost:8081,https://localhost:8081'
+    });
+
+    expect(config.corsAllowedOrigins).toEqual([
+      'http://localhost:8081',
+      'https://localhost:8081'
     ]);
   });
 
