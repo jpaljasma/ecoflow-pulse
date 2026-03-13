@@ -15,7 +15,6 @@ function baseConfig(): AppConfig {
     grpcDeadlineMs: 2500,
     devUserSubject: 'dev-user@example.com',
     publicPreconnectOrigins: [],
-    corsAllowedOrigins: [],
     historyRateLimit: {
       max: 120,
       timeWindowMs: 60000
