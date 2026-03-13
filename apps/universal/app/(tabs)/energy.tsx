@@ -22,6 +22,7 @@ import {
   type EnergyRouteState
 } from '@/features/energy/model';
 import { useEnergySettingsStore } from '@/features/energy/store';
+import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
 import { formatKWh, formatSoc } from '@/features/telemetry/format';
 import { ApiError } from '@/shared/api/restClient';
 import { AppMenu } from '@/shared/ui/AppMenu';
@@ -421,6 +422,12 @@ export default function EnergyScreen() {
             <EnergyComparisonWidget
               data={comparisonInsightQuery.data}
               loading={comparisonInsightQuery.isLoading}
+            />
+
+            <EnergyImpactCard
+              solarWh={dashboardQuery.data.summary.solarGeneratedKwh.current * 1000}
+              displayPeriodLabel={buildWindowLabel(dashboardQuery.data)}
+              showPeriodControls={false}
             />
 
             <XStack gap="$3" flexWrap="wrap">

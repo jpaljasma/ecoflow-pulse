@@ -89,6 +89,14 @@ describe('energy impact model', () => {
     expect(rows[4]?.badge).toBe('Trees');
   });
 
+  it('supports explicit window labels for reused Energy-page copy', () => {
+    const impact = computeEnergyImpactFromSolarWh(1800, 'NYUP');
+    const rows = buildEnergyImpactRows(impact, 'today', 'Mar 1 - Mar 7');
+
+    expect(rows[0]?.headline).toBe('You made cleaner power over Mar 1 - Mar 7');
+    expect(rows[2]?.detail).toContain('generated over Mar 1 - Mar 7');
+  });
+
   it('clamps negative or missing solar values to zero', () => {
     expect(computeEnergyImpactFromSolarWh(undefined).co2eGrams).toBe(0);
     expect(computeEnergyImpactFromSolarWh(-50).noxGrams).toBe(0);

@@ -67,6 +67,27 @@ export type EnergyImpactUiRow = {
   detail: string;
 };
 
+function describeImpactWindow(period: EnergyImpactPeriod, labelOverride?: string): {
+  contextPhrase: string;
+  generatedPhrase: string;
+} {
+  if (labelOverride && labelOverride.trim() !== '') {
+    return {
+      contextPhrase: `over ${labelOverride}`,
+      generatedPhrase: ` generated over ${labelOverride}.`
+    };
+  }
+  return period === 'today'
+    ? {
+        contextPhrase: 'today',
+        generatedPhrase: ' generated with your own solar today.'
+      }
+    : {
+        contextPhrase: 'over the past 12 months',
+        generatedPhrase: ' generated with your own solar.'
+      };
+}
+
 export function buildPastTwelveMonthsBounds(now = new Date()): { from: Date; to: Date } {
   const to = new Date(now);
   const from = new Date(now);
@@ -136,26 +157,28 @@ export function formatPollutantMass(grams: number): string {
 
 export function buildEnergyImpactRows(
   impact: EnergyImpactResult,
-  period: EnergyImpactPeriod
+  period: EnergyImpactPeriod,
+  labelOverride?: string
 ): EnergyImpactUiRow[] {
+  const windowCopy = describeImpactWindow(period, labelOverride);
   return [
     {
       key: 'co2e',
       badge: 'CO2e',
-      headline: period === 'today' ? 'You made cleaner power today' : 'You made cleaner power over the past 12 months',
+      headline: `You made cleaner power ${windowCopy.contextPhrase}`,
       detail: `${formatImpactMassFromGrams(impact.co2eGrams)} CO2e displaced from the grid mix.`
     },
     {
       key: 'air',
       badge: 'Air',
-      headline: period === 'today' ? 'You helped keep air cleaner' : 'You helped keep air cleaner over the past 12 months',
+      headline: `You helped keep air cleaner ${windowCopy.contextPhrase}`,
       detail: `${formatPollutantMass(impact.noxGrams)} NOx and ${formatPollutantMass(impact.so2Grams)} SO2 displaced.`
     },
     {
       key: 'solar',
       badge: 'Solar',
-      headline: period === 'today' ? 'You relied less on the grid' : 'You relied less on the grid over the past 12 months',
-      detail: `${formatWhAndKWhLocal(impact.solarWh)} generated with your own solar${period === 'today' ? ' today.' : '.'}`
+      headline: `You relied less on the grid ${windowCopy.contextPhrase}`,
+      detail: `${formatWhAndKWhLocal(impact.solarWh)}${windowCopy.generatedPhrase}`
     },
     {
       key: 'evMiles',

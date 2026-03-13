@@ -71,7 +71,7 @@ export function EnergyComparisonWidget({ data, loading = false }: Props) {
         <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
           <YStack gap="$1" flex={1}>
             <Text fontSize="$5" fontWeight="800">
-              Comparison status
+              State of Energy
             </Text>
           </YStack>
           {insight ? (

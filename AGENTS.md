@@ -136,6 +136,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - on web, websocket reconnect should retry the current browser-origin endpoint directly,
    - do not rotate through native-dev host fallbacks such as `127.0.0.1` or `localhost` after a browser disconnect,
    - keep regression coverage for the web reconnect path so deploy rollouts do not silently reintroduce multi-second reconnect delays.
+13. Expo web-dev on loopback must prefer the secure local edge when the platform ingress terminates TLS:
+   - if the browser app is served from loopback `:8081` and no explicit `EXPO_PUBLIC_API_URL` / `EXPO_PUBLIC_WS_URL` override is set, default browser API/WS traffic to `https://localhost` / `wss://localhost`,
+   - do not rely on `http://localhost` requests that immediately redirect to HTTPS, because browser cross-origin redirects can surface as misleading CORS failures,
+   - when local browser-origin support changes, keep explicit docs/tests for the `http://localhost:8081` -> `https://localhost/api/*` path.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.

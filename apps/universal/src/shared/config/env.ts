@@ -38,6 +38,10 @@ function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1';
 }
 
+export function shouldPreferSecureLocalEdge(host: string, port: string | undefined): boolean {
+  return isLoopbackHost(host) && port === '8081';
+}
+
 function collectNativeHostHints(): string[] {
   if (Platform.OS === 'web') return [];
 
@@ -82,8 +86,13 @@ const defaultWebLocation =
   Platform.OS === 'web' && typeof window !== 'undefined' ? window.location : undefined;
 const defaultWebAssetBaseUrl = defaultWebLocation?.origin ?? '';
 const defaultWebHost = defaultWebLocation?.hostname || '127.0.0.1';
-const defaultWebHttpScheme = defaultWebLocation?.protocol === 'https:' ? 'https' : 'http';
-const defaultWebWsScheme = defaultWebLocation?.protocol === 'https:' ? 'wss' : 'ws';
+const prefersSecureLocalEdge =
+  Platform.OS === 'web' &&
+  shouldPreferSecureLocalEdge(defaultWebHost, defaultWebLocation?.port);
+const defaultWebHttpScheme =
+  defaultWebLocation?.protocol === 'https:' || prefersSecureLocalEdge ? 'https' : 'http';
+const defaultWebWsScheme =
+  defaultWebLocation?.protocol === 'https:' || prefersSecureLocalEdge ? 'wss' : 'ws';
 const defaultHttpHost = Platform.OS === 'web' ? defaultWebHost : preferredNativeHost;
 const defaultWsHost = defaultHttpHost;
 const defaultApiBase =

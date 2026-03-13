@@ -88,6 +88,8 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `GRPC_API_DEADLINE_MS` (default `10000`)
 - `PULSE_PLATFORM_DEV_SUBJECT` (optional in local noop mode; recommended for local UI work so the BFF can resolve the current user's devices without request headers)
 - `PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS` (optional comma/whitespace-delimited browser-facing origins for `Link: rel=preconnect` / `dns-prefetch` headers when API/WS are cross-origin)
+- `PULSE_PLATFORM_CORS_ALLOWED_ORIGINS` (optional comma/whitespace-delimited exact origins to allow for browser CORS requests; when unset, the public app keeps the existing permissive origin reflection behavior. Local/dev defaults include `http://localhost:8081` and `https://localhost:8081` for Expo web-dev access to `/api/*`.)
+- Expo web-dev note: when the universal app is served from loopback `:8081` and no explicit `EXPO_PUBLIC_API_URL` is set, the browser client now prefers `https://localhost` / `wss://localhost` automatically so local ingress redirects do not surface as browser CORS failures.
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS` (default `60000`; rate-limit window for authenticated history endpoints)
 - `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
@@ -247,6 +249,10 @@ Runtime behavior:
   measured solar generation from `todayWh` only; it does not annualize or
   extrapolate. The current default factor is `NYUP` (`egrid2023_rev2`). See
   [`solar-avoided-emissions.md`](solar-avoided-emissions.md).
+- `/energy` also embeds the same `Energy Impact` card, but that copy is driven
+  by the page's global device/window controls instead of a separate local
+  period switch, so the impact wording always follows the selected Energy
+  dashboard scope and date range.
 - the same widget also includes a conservative mature-tree equivalent based on
   a `0.045 kg CO2e/kWh` PV lifecycle benchmark and `21.8 kg CO2/year` mature
   tree benchmark. See [`tree-equivalent.md`](tree-equivalent.md).

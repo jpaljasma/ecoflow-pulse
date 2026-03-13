@@ -18,23 +18,27 @@ export function EnergyImpactCard({
   minWidth,
   period = 'today',
   displayPeriod = period,
+  displayPeriodLabel,
   onPeriodChange,
   isLoading = false,
-  errorText
+  errorText,
+  showPeriodControls = true
 }: {
   solarWh?: number;
   title?: string;
   minWidth?: number;
   period?: EnergyImpactPeriod;
   displayPeriod?: EnergyImpactPeriod;
+  displayPeriodLabel?: string;
   onPeriodChange?: (period: EnergyImpactPeriod) => void;
   isLoading?: boolean;
   errorText?: string;
+  showPeriodControls?: boolean;
 }) {
   const router = useRouter();
   const semantics = useThemeSemantics();
   const impact = computeEnergyImpactFromSolarWh(solarWh ?? 0, DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY);
-  const periodLabel = energyImpactPeriodLabel(displayPeriod);
+  const periodLabel = displayPeriodLabel || energyImpactPeriodLabel(displayPeriod);
   const periodButtons: Array<{ key: EnergyImpactPeriod; label: string }> = [
     { key: 'today', label: 'Today so far' },
     { key: 'past12Months', label: 'Past 12 months' }
@@ -67,35 +71,37 @@ export function EnergyImpactCard({
             </Text>
           </YStack>
         </XStack>
-        <XStack gap="$2" flexWrap="wrap" justifyContent="flex-end" maxWidth={260}>
-          {periodButtons.map((item) => {
-            const active = period === item.key;
-            return (
-              <Button
-                key={item.key}
-                size="$3"
-                minWidth={PERIOD_BUTTON_WIDTH}
-                borderRadius="$5"
-                borderWidth={1}
-                style={{
-                  backgroundColor: active ? semantics.periodActiveBackground : semantics.periodIdleBackground,
-                  borderColor: active ? semantics.periodActiveBorder : semantics.periodIdleBorder,
-                  opacity: isLoading && item.key === 'past12Months' && active ? 0.74 : 1
-                }}
-                onPress={() => {
-                  onPeriodChange?.(item.key);
-                }}
-              >
-                <Text
-                  fontWeight="700"
-                  style={{ color: active ? semantics.periodActiveText : semantics.periodIdleText }}
+        {showPeriodControls ? (
+          <XStack gap="$2" flexWrap="wrap" justifyContent="flex-end" maxWidth={260}>
+            {periodButtons.map((item) => {
+              const active = period === item.key;
+              return (
+                <Button
+                  key={item.key}
+                  size="$3"
+                  minWidth={PERIOD_BUTTON_WIDTH}
+                  borderRadius="$5"
+                  borderWidth={1}
+                  style={{
+                    backgroundColor: active ? semantics.periodActiveBackground : semantics.periodIdleBackground,
+                    borderColor: active ? semantics.periodActiveBorder : semantics.periodIdleBorder,
+                    opacity: isLoading && item.key === 'past12Months' && active ? 0.74 : 1
+                  }}
+                  onPress={() => {
+                    onPeriodChange?.(item.key);
+                  }}
                 >
-                  {item.label}
-                </Text>
-              </Button>
-            );
-          })}
-        </XStack>
+                  <Text
+                    fontWeight="700"
+                    style={{ color: active ? semantics.periodActiveText : semantics.periodIdleText }}
+                  >
+                    {item.label}
+                  </Text>
+                </Button>
+              );
+            })}
+          </XStack>
+        ) : null}
       </XStack>
 
       <YStack gap="$1">
@@ -115,7 +121,7 @@ export function EnergyImpactCard({
       </YStack>
 
       <YStack gap="$2" opacity={isLoading ? 0.86 : 1}>
-        {buildEnergyImpactRows(impact, displayPeriod).map((metric) => {
+        {buildEnergyImpactRows(impact, displayPeriod, displayPeriodLabel).map((metric) => {
           const colors = getEnergyImpactBadgeColors(metric.key, semantics);
           return (
             <XStack

@@ -155,7 +155,9 @@ export function buildWindowLabel(dashboard: EnergyDashboard): string {
     month: 'short',
     day: 'numeric'
   });
-  return `${formatter.format(from)} - ${formatter.format(to)}`;
+  const fromLabel = formatter.format(from);
+  const toLabel = formatter.format(to);
+  return fromLabel === toLabel ? fromLabel : `${fromLabel} - ${toLabel}`;
 }
 
 export function formatDeltaPct(deltaPct: number | null): string {

@@ -15,6 +15,7 @@ function baseConfig(): AppConfig {
     grpcDeadlineMs: 2500,
     devUserSubject: 'dev-user@example.com',
     publicPreconnectOrigins: [],
+    corsAllowedOrigins: [],
     historyRateLimit: {
       max: 120,
       timeWindowMs: 60000
@@ -174,6 +175,46 @@ describe('pulse-platform device routes', () => {
     expect(response.json()).toEqual({
       devices: [sampleDevice()]
     });
+
+    await app.close();
+  });
+
+  it('allows browser cors requests from configured localhost dev origins', async () => {
+    const client = makeDeviceClient();
+    const app = buildApp(
+      {
+        ...baseConfig(),
+        corsAllowedOrigins: ['http://localhost:8081', 'https://localhost:8081']
+      },
+      makeHistoryClient(),
+      client,
+      makeInferenceClient()
+    );
+
+    const preflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/devices',
+      headers: {
+        origin: 'http://localhost:8081',
+        'access-control-request-method': 'GET'
+      }
+    });
+
+    expect(preflight.statusCode).toBe(204);
+    expect(preflight.headers['access-control-allow-origin']).toBe('http://localhost:8081');
+    expect(preflight.headers['access-control-allow-credentials']).toBe('true');
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/devices',
+      headers: {
+        origin: 'http://localhost:8081'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe('http://localhost:8081');
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
 
     await app.close();
   });

@@ -38,7 +38,9 @@ export function buildApp(
   app.get('/healthz', async () => ({ ok: true }));
   void app.register(async (scopedApp) => {
     await scopedApp.register(cors, {
-      origin: true,
+      origin: (origin, callback) => {
+        callback(null, isAllowedCorsOrigin(origin, config.corsAllowedOrigins));
+      },
       credentials: true
     });
     await scopedApp.register(rateLimit, {
@@ -94,6 +96,16 @@ export function buildApp(
     inferenceClient.close();
   });
   return app;
+}
+
+function isAllowedCorsOrigin(origin: string | undefined, allowedOrigins: string[]): boolean {
+  if (!origin) {
+    return true;
+  }
+  if (allowedOrigins.length === 0) {
+    return true;
+  }
+  return allowedOrigins.includes(origin);
 }
 
 function applyHtmlDeliveryHeaders(
