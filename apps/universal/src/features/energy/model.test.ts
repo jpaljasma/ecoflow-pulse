@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DeviceSummary } from '@/features/devices/api';
 import {
   buildEnergyInsights,
+  buildWindowLabel,
   buildEnergyTrendSeries,
   buildEnergyRouteParams,
   buildPvEnvelopeSummary,
@@ -171,6 +172,17 @@ describe('energy route model', () => {
       load: [90],
       battery: [20]
     });
+  });
+
+  it('collapses single-day window labels to one date', () => {
+    expect(
+      buildWindowLabel({
+        window: {
+          fromUnixMs: String(Date.UTC(2026, 2, 12, 5, 0, 0)),
+          toUnixMs: String(Date.UTC(2026, 2, 12, 23, 59, 59))
+        }
+      } as never)
+    ).toBe('Mar 12');
   });
 
   it('maps rollup points into energy trend arrays', () => {
