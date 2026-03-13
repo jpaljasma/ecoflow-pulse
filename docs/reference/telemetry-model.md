@@ -179,6 +179,9 @@ Frontend rule:
   measured `todayWh` solar total; it currently estimates avoided `CO2e`, `NOx`,
   and `SO2` for "today so far" using default `NYUP` factors. Methodology and
   constants live in [`solar-avoided-emissions.md`](solar-avoided-emissions.md).
+- `/energy` reuses the same impact methodology, but binds it to the active
+  Energy dashboard scope/window so the card reflects the currently selected
+  device/fleet range instead of exposing its own independent period controls.
 - the same card also exposes a conservative mature-tree equivalent using PV
   lifecycle `CO2e` benchmark math. Methodology and constants live in
   [`tree-equivalent.md`](tree-equivalent.md).

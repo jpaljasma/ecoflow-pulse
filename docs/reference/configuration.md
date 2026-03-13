@@ -247,6 +247,10 @@ Runtime behavior:
   measured solar generation from `todayWh` only; it does not annualize or
   extrapolate. The current default factor is `NYUP` (`egrid2023_rev2`). See
   [`solar-avoided-emissions.md`](solar-avoided-emissions.md).
+- `/energy` also embeds the same `Energy Impact` card, but that copy is driven
+  by the page's global device/window controls instead of a separate local
+  period switch, so the impact wording always follows the selected Energy
+  dashboard scope and date range.
 - the same widget also includes a conservative mature-tree equivalent based on
   a `0.045 kg CO2e/kWh` PV lifecycle benchmark and `21.8 kg CO2/year` mature
   tree benchmark. See [`tree-equivalent.md`](tree-equivalent.md).
