@@ -1,9 +1,10 @@
-import { ActivityIndicator, Animated, Image, Platform, useWindowDimensions } from 'react-native';
+import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
+import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { useDevices } from '@/features/devices/hooks';
 import {
@@ -15,9 +16,7 @@ import { DeviceList } from '@/features/devices/DeviceList';
 import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { FleetEnergyImpactCard } from '@/features/energy-impact/FleetEnergyImpactCard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
-import { getBundledBrandMark } from '@/shared/assets/brandBundled';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
-import { useAppTheme } from '@/shared/theme/useAppTheme';
 import {
   getConnectionStatusColor,
   useThemeSemantics,
@@ -26,9 +25,7 @@ import {
 
 export default function DevicesScreen() {
   const { width } = useWindowDimensions();
-  const { isDark } = useAppTheme();
   const semantics = useThemeSemantics();
-  const loadingMark = getBundledBrandMark(isDark ? 'dark' : 'light');
   const compactHeader = width < 430;
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
   const devicesQuery = useDevices({
@@ -117,26 +114,7 @@ export default function DevicesScreen() {
       />
 
       {devicesQuery.isLoading ? (
-        <YStack flex={1} alignItems="center" justifyContent="center" gap="$4">
-          <YStack
-            width={68}
-            height={68}
-            borderRadius="$4"
-            alignItems="center"
-            justifyContent="center"
-            style={{
-              backgroundColor: semantics.mutedPanelBackground,
-              borderColor: semantics.mutedPanelBorder
-            }}
-            borderWidth={1}
-          >
-            <Image source={loadingMark} style={{ width: 34, height: 34 }} resizeMode="contain" />
-          </YStack>
-          <ActivityIndicator size="large" />
-          <Text color="$color" opacity={0.96} fontSize="$5" fontWeight="700">
-            Loading...
-          </Text>
-        </YStack>
+        <BrandedLoadingState minHeight={240} message="Loading devices…" />
       ) : null}
 
       {devicesQuery.isError ? (
