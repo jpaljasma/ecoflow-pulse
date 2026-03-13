@@ -1,5 +1,5 @@
 import { startTransition, useMemo } from 'react';
-import { Animated, ActivityIndicator, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
@@ -32,6 +32,7 @@ import { ChartSection } from '@/shared/ui/ChartSection';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { EnergyTrendChart } from '@/shared/ui/EnergyTrendChart';
 import { EnergyComparisonWidget } from '@/shared/ui/EnergyComparisonWidget';
+import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { Stat } from '@/shared/ui/Stat';
@@ -380,10 +381,7 @@ export default function EnergyScreen() {
         </Card>
 
         {devicesQuery.isLoading && !devices.length ? (
-          <YStack minHeight={200} alignItems="center" justifyContent="center" gap="$3">
-            <ActivityIndicator size="large" />
-            <Text>Loading energy scope…</Text>
-          </YStack>
+          <BrandedLoadingState minHeight={200} message="Loading energy scope…" />
         ) : null}
 
         {!devicesQuery.isLoading && authConfigured && authReady && !sessionValid ? (
@@ -398,10 +396,7 @@ export default function EnergyScreen() {
         ) : null}
 
         {dashboardQuery.isLoading && !dashboardQuery.data ? (
-          <YStack minHeight={220} alignItems="center" justifyContent="center" gap="$3">
-            <ActivityIndicator size="large" />
-            <Text>Loading energy dashboard…</Text>
-          </YStack>
+          <BrandedLoadingState minHeight={220} message="Loading energy dashboard…" />
         ) : null}
 
         {dashboardQuery.isError ? (
