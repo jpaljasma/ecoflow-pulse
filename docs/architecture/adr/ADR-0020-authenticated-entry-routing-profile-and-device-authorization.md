@@ -259,6 +259,14 @@ This is the right balance between UX quality, privacy, implementation cost, and 
 
 ### Risks & mitigations
 
+- Routine deploy and restart churn can look like auth bugs if readiness/drain behavior is weak.
+  Mitigation:
+  - public auth/bootstrap/realtime workloads use zero-downtime RollingUpdate settings,
+  - signed-in sessions refresh automatically before token expiry,
+  - authenticated views keep prior successful data during refetch,
+  - websocket shutdown coverage now verifies sessions/subscriptions close cleanly during app shutdown,
+  - local cold-start acceptance includes full platform recovery without manual pod intervention.
+
 - **Risk:** open redirect bugs through `returnTo`.  
   **Mitigation:** allow only internal relative paths and fall back to `/devices`.
 

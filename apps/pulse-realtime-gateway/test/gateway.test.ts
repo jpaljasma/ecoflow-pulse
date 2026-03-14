@@ -335,6 +335,24 @@ describe('pulse-realtime-gateway', () => {
     await closeWebSocket(ws);
     await app.close();
   });
+
+  it('closes websocket sessions and releases subscriptions during app shutdown', async () => {
+    const client = new FakeLiveClient();
+    const app = buildApp(baseConfig(), client);
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(JSON.stringify({ type: 'subscribe', deviceIds: ['dev-1'] }));
+    await waitFor(() => client.subscriptions.has('dev-1'));
+
+    const closed = new Promise<void>((resolve) => {
+      ws.once('close', () => resolve());
+    });
+
+    await app.close();
+    await closed;
+
+    expect(client.subscriptions.has('dev-1')).toBe(false);
+  });
 });
 
 async function openWebSocket(app: ReturnType<typeof buildApp>, route: string): Promise<WebSocket> {
