@@ -12,4 +12,3 @@
 ## Next step
 
 - Reuse the existing auth pre-handler, add strict request validation, and keep error mapping aligned with gRPC status codes.
-

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -306,8 +307,21 @@ func startAutoscaleMetricsServer(ctx context.Context, log *slog.Logger, registry
 		return func() {}
 	}
 
+	var draining atomic.Bool
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	mux.HandleFunc("/livez", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+		if draining.Load() {
+			http.Error(w, "draining", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
 	server := &http.Server{
 		Addr:              listenAddr,
 		Handler:           mux,
@@ -319,6 +333,10 @@ func startAutoscaleMetricsServer(ctx context.Context, log *slog.Logger, registry
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Warn("ingest autoscale metrics server stopped", slog.String("error", err.Error()))
 		}
+	}()
+	go func() {
+		<-ctx.Done()
+		draining.Store(true)
 	}()
 
 	return func() {

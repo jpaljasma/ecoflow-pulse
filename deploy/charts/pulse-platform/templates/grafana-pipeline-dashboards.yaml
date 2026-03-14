@@ -400,8 +400,8 @@ data:
               "refId": "A"
             },
             {
-              "expr": "vector(0.999)",
-              "legendFormat": "99.9% target",
+              "expr": "vector(0.9999)",
+              "legendFormat": "99.99% target",
               "refId": "B"
             }
           ],
@@ -485,8 +485,8 @@ data:
               "refId": "A"
             },
             {
-              "expr": "vector(0.001)",
-              "legendFormat": "0.1% error budget",
+              "expr": "vector(0.0001)",
+              "legendFormat": "0.01% error budget",
               "refId": "B"
             }
           ],
@@ -691,6 +691,215 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "title": "Pulse Platform Infra",
       "uid": "pulse-platform-infra",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-rollouts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-rollouts-availability.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\",deployment=~\"$deployment\"})",
+              "legendFormat": "{{"{{"}}deployment{{"}}"}} desired",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\",deployment=~\"$deployment\"})",
+              "legendFormat": "{{"{{"}}deployment{{"}}"}} available",
+              "refId": "B"
+            }
+          ],
+          "title": "Desired vs Available Replicas",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\",deployment=~\"$deployment\"})",
+              "legendFormat": "{{"{{"}}deployment{{"}}"}} desired",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (deployment) (kube_deployment_status_replicas_updated{namespace=~\"$namespace\",deployment=~\"$deployment\"})",
+              "legendFormat": "{{"{{"}}deployment{{"}}"}} updated",
+              "refId": "B"
+            }
+          ],
+          "title": "Desired vs Updated Replicas",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(kube_deployment_status_replicas_unavailable{namespace=~\"$namespace\",deployment=~\"$deployment\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Unavailable Replicas",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+          "id": 4,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(max by (namespace, pod, container) (kube_pod_container_status_waiting_reason{namespace=~\"$namespace\",pod=~\"$pod\",reason=\"CrashLoopBackOff\"}))",
+              "refId": "A"
+            }
+          ],
+          "title": "CrashLoopBackOff Containers",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+          "id": 5,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(kube_pod_deletion_timestamp{namespace=~\"$namespace\",pod=~\"$pod\"} > 0)",
+              "refId": "A"
+            }
+          ],
+          "title": "Terminating Pods",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 6,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$pod\"}[5m]))",
+              "legendFormat": "{{"{{"}}pod{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Pod Restart Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 7,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "max by (deployment) (clamp_min(kube_deployment_metadata_generation{namespace=~\"$namespace\",deployment=~\"$deployment\"} - kube_deployment_status_observed_generation{namespace=~\"$namespace\",deployment=~\"$deployment\"}, 0))",
+              "legendFormat": "{{"{{"}}deployment{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Deployment Generation Lag",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+          "id": 8,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (pod) (max by (namespace, pod) (kube_pod_status_ready{namespace=~\"$namespace\",pod=~\"$pod\",condition=\"false\"}))",
+              "legendFormat": "{{"{{"}}pod{{"}}"}} not ready",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (pod) (max by (namespace, pod) (kube_pod_status_phase{namespace=~\"$namespace\",pod=~\"$pod\",phase=~\"Pending|Unknown|Failed\"}))",
+              "legendFormat": "{{"{{"}}pod{{"}}"}} unhealthy phase",
+              "refId": "B"
+            }
+          ],
+          "title": "Non-Ready or Unhealthy Pods",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "15s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "rollout", "availability", "kubernetes"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": ["pulse-platform", "pulse-services"], "value": ["pulse-platform", "pulse-services"]},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Namespaces",
+            "multi": true,
+            "name": "namespace",
+            "options": [],
+            "query": "label_values(kube_deployment_spec_replicas{namespace=~\"pulse-platform|pulse-services\"}, namespace)",
+            "refresh": 1,
+            "type": "query"
+          },
+          {
+            "allValue": "pulse-platform-(public-app|realtime-gateway|grafana|keycloak|minio|ingress-nginx-controller)|pulse-services-go-(ingest|projection|rollup|archive|inference|grpc-api|energy-api)",
+            "current": {"selected": true, "text": "All critical deployments", "value": "pulse-platform-(public-app|realtime-gateway|grafana|keycloak|minio|ingress-nginx-controller)|pulse-services-go-(ingest|projection|rollup|archive|inference|grpc-api|energy-api)"},
+            "hide": 0,
+            "includeAll": true,
+            "label": "Deployments",
+            "multi": true,
+            "name": "deployment",
+            "options": [],
+            "query": "label_values(kube_deployment_spec_replicas{namespace=~\"$namespace\",deployment=~\"pulse-platform-.*|pulse-services-.*\"}, deployment)",
+            "refresh": 1,
+            "type": "query"
+          },
+          {
+            "allValue": "pulse-platform-(public-app|realtime-gateway|grafana|keycloak|minio|ingress-nginx-controller)-.*|pulse-services-go-(ingest|projection|rollup|archive|inference|grpc-api|energy-api)-.*",
+            "current": {"selected": true, "text": "All critical pods", "value": "pulse-platform-(public-app|realtime-gateway|grafana|keycloak|minio|ingress-nginx-controller)-.*|pulse-services-go-(ingest|projection|rollup|archive|inference|grpc-api|energy-api)-.*"},
+            "hide": 0,
+            "includeAll": true,
+            "label": "Pods",
+            "multi": true,
+            "name": "pod",
+            "options": [],
+            "query": "label_values(kube_pod_info{namespace=~\"$namespace\",pod=~\"pulse-platform-.*|pulse-services-.*\"}, pod)",
+            "refresh": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "title": "Pulse Rollouts & Availability",
+      "uid": "pulse-rollouts-availability",
       "version": 1
     }
 ---

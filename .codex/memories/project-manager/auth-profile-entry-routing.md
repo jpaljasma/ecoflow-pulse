@@ -14,4 +14,3 @@
 ## Next step
 
 - Keep schema/API work ahead of protected-route UI so the login flow has a real bootstrap target.
-

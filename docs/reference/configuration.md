@@ -141,6 +141,23 @@ Runtime behavior:
 - serves the initial snapshot from Valkey projection state,
 - then streams live deltas from NATS with staged backpressure degradation.
 
+## Local/dev Valkey durability baseline
+
+For `pulse-platform` local/dev, Valkey is configured in replication + Sentinel mode with
+PVC-backed persistence enabled on the Valkey data nodes. The current baseline is:
+
+- AOF enabled (`appendonly yes`)
+- primary persistence enabled
+- replica persistence enabled
+- Sentinel enabled with `quorum=2`
+- Sentinel graceful primary shutdown wait enabled
+- Sentinel automated cluster recovery enabled for cold-restart edge cases
+- PVC retention set to `Retain` on scale/delete for Valkey data PVCs
+
+This means cold restarts are expected to preserve Valkey-backed cache/snapshot state as long as
+the underlying PVCs remain intact. Valkey is still not the system of record for authoritative
+business data; Postgres / Timescale / archive storage remain authoritative.
+
 ## Rollup Worker (`cmd/ecoflow-rollup-worker`)
 
 - `ROLLUP_DB_DSN` (optional override; falls back to `CONTROL_PLANE_DB_DSN`)

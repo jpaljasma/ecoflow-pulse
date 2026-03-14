@@ -49,7 +49,7 @@ spec:
           {{- if .Values.runtime.workers.ingest.startupProbe.enabled }}
           startupProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: {{ .Values.runtime.workers.ingest.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.runtime.workers.ingest.startupProbe.periodSeconds }}
@@ -57,13 +57,13 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /metrics
+              path: /readyz
               port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -178,7 +178,7 @@ spec:
           {{- if .Values.runtime.workers.inference.startupProbe.enabled }}
           startupProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: {{ .Values.runtime.workers.inference.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.runtime.workers.inference.startupProbe.periodSeconds }}
@@ -186,13 +186,13 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /metrics
+              path: /readyz
               port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -307,7 +307,7 @@ spec:
           {{- if .Values.runtime.workers.rollup.startupProbe.enabled }}
           startupProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: {{ .Values.runtime.workers.rollup.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.runtime.workers.rollup.startupProbe.periodSeconds }}
@@ -315,13 +315,13 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /metrics
+              path: /readyz
               port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -436,7 +436,7 @@ spec:
           {{- if .Values.runtime.workers.projection.startupProbe.enabled }}
           startupProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: {{ .Values.runtime.workers.projection.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.runtime.workers.projection.startupProbe.periodSeconds }}
@@ -444,13 +444,13 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /metrics
+              path: /readyz
               port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -565,7 +565,7 @@ spec:
           {{- if .Values.runtime.workers.archive.startupProbe.enabled }}
           startupProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: {{ .Values.runtime.workers.archive.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.runtime.workers.archive.startupProbe.periodSeconds }}
@@ -573,13 +573,13 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /metrics
+              path: /readyz
               port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /metrics
+              path: /livez
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20

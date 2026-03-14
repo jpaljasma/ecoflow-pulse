@@ -186,6 +186,11 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - at minimum: CNPG rw service, NATS, Valkey, and MinIO.
 7. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
 8. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
+9. Valkey durability for the default 99.99% baseline must not rely on ephemeral memory-only pods:
+   - keep AOF enabled,
+   - back Valkey data nodes with PVCs,
+   - use Sentinel-managed failover/recovery settings that preserve service continuity across cold restarts,
+   - treat PVC loss as a storage incident, not normal restart behavior.
 9. Historical rollup regeneration must be non-destructive by default:
    - do not delete a requested rollup window before rebuilding it,
    - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.

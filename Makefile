@@ -153,7 +153,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -547,8 +547,18 @@ platform-up: helm-local-ready
 			set -a; source ./.env; set +a; \
 		fi; \
 		ns="$(PLATFORM_NAMESPACE)"; \
+		valkey_recreate_for_immutable_upgrade() { \
+			sts_name="$(PLATFORM_RELEASE)-valkey-node"; \
+			if ! $(LOCAL_KUBECTL) -n "$$ns" get statefulset "$$sts_name" >/dev/null 2>&1; then \
+				return 1; \
+			fi; \
+			echo "detected immutable Valkey StatefulSet change; recreating $$sts_name to apply durable storage topology"; \
+			$(LOCAL_KUBECTL) -n "$$ns" delete statefulset "$$sts_name" --wait=true; \
+			$(LOCAL_KUBECTL) -n "$$ns" delete pod -l app.kubernetes.io/instance=$(PLATFORM_RELEASE),app.kubernetes.io/name=valkey,app.kubernetes.io/component=node --ignore-not-found=true --wait=true; \
+		}; \
 		run_platform_helm() { \
 			set -- "$$@"; \
+			helm_log="$$(mktemp)"; \
 			if [ -n "$${PULSE_PLATFORM_DEV_SUBJECT:-}" ]; then \
 				set -- "$$@" --set-string "runtime.publicApp.env.devUserSubject=$${PULSE_PLATFORM_DEV_SUBJECT}"; \
 			fi; \
@@ -559,14 +569,38 @@ platform-up: helm-local-ready
 			fi; \
 			if [ -n "$${PULSE_PLATFORM_DEV_SUBJECT:-}" ]; then \
 				echo "using local noop subject override for pulse-platform public app"; \
-				$(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
+				if $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
 					--namespace $(PLATFORM_NAMESPACE) --create-namespace \
 					$(LOCAL_HELM_UPGRADE_FLAGS) \
 					-f $(LOCAL_PLATFORM_VALUES) \
-					"$$@"; \
+					"$$@" 2>&1 | tee "$$helm_log"; then \
+					rm -f "$$helm_log"; \
+					return 0; \
+				fi; \
 			else \
-				$(PLATFORM_HELM_APPLY) "$$@"; \
+				if $(PLATFORM_HELM_APPLY) "$$@" 2>&1 | tee "$$helm_log"; then \
+					rm -f "$$helm_log"; \
+					return 0; \
+				fi; \
 			fi; \
+			if grep -q 'StatefulSet.apps ".*-valkey-node" is invalid: spec: Forbidden' "$$helm_log"; then \
+				valkey_recreate_for_immutable_upgrade; \
+				rm -f "$$helm_log"; \
+				if [ -n "$${PULSE_PLATFORM_DEV_SUBJECT:-}" ]; then \
+					echo "retrying pulse-platform helm apply after Valkey StatefulSet recreation"; \
+					$(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
+						--namespace $(PLATFORM_NAMESPACE) --create-namespace \
+						$(LOCAL_HELM_UPGRADE_FLAGS) \
+						-f $(LOCAL_PLATFORM_VALUES) \
+						"$$@"; \
+				else \
+					echo "retrying pulse-platform helm apply after Valkey StatefulSet recreation"; \
+					$(PLATFORM_HELM_APPLY) "$$@"; \
+				fi; \
+				return 0; \
+			fi; \
+			rm -f "$$helm_log"; \
+			return 1; \
 		}; \
 		wait_endpoints() { \
 			name="$$1"; attempts="$$2"; label="$$3"; \
@@ -710,15 +744,26 @@ platform-wait:
 	fi
 	@set -euo pipefail; \
 	ns="$(PLATFORM_NAMESPACE)"; \
+	describe_cluster() { \
+		echo "current node state:"; \
+		$(LOCAL_KUBECTL) get nodes -o wide || true; \
+		echo "current platform pod state:"; \
+		$(LOCAL_KUBECTL) -n "$$ns" get pods -o wide || true; \
+	}; \
 	wait_nodes_ready() { \
 		echo "waiting for k3d nodes to become Ready"; \
-		$(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT); \
+		if ! $(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT); then \
+			echo "k3d node readiness failed"; \
+			describe_cluster; \
+			exit 1; \
+		fi; \
 	}; \
-	wait_endpoints() { \
+	wait_endpoints_required() { \
 		name="$$1"; attempts="$$2"; label="$$3"; \
 		if ! $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" >/dev/null 2>&1; then \
-			echo "skipping endpoint wait for $$label ($$name not found)"; \
-			return 0; \
+			echo "$$label endpoint object ($$name) not found"; \
+			describe_cluster; \
+			exit 1; \
 		fi; \
 		for _ in $$(seq 1 "$$attempts"); do \
 			endpoint_ips="$$( $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
@@ -729,6 +774,7 @@ platform-wait:
 			sleep 5; \
 		done; \
 		echo "$$label endpoints did not become ready"; \
+		describe_cluster; \
 		exit 1; \
 	}; \
 	wait_rollout() { \
@@ -770,11 +816,11 @@ platform-wait:
 	wait_rollout deployment $(PLATFORM_RELEASE)-kube-promet-operator 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-grafana 300s; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-opentelemetry-collector 300s; \
-	wait_endpoints $(PLATFORM_RELEASE)-core-rw 36 "CNPG rw service"; \
-	wait_endpoints $(PLATFORM_RELEASE)-nats 36 "NATS service"; \
-	wait_endpoints $(PLATFORM_RELEASE)-valkey 36 "Valkey service"; \
-	wait_endpoints $(PLATFORM_RELEASE)-minio 36 "MinIO service"; \
-	wait_endpoints $(PLATFORM_RELEASE)-keycloak-headless 36 "Keycloak service"; \
+	wait_endpoints_required $(PLATFORM_RELEASE)-core-rw 36 "CNPG rw service"; \
+	wait_endpoints_required $(PLATFORM_RELEASE)-nats 36 "NATS service"; \
+	wait_endpoints_required $(PLATFORM_RELEASE)-valkey 36 "Valkey service"; \
+	wait_endpoints_required $(PLATFORM_RELEASE)-minio 36 "MinIO service"; \
+	wait_endpoints_required $(PLATFORM_RELEASE)-keycloak-headless 36 "Keycloak service"; \
 	echo "platform dependencies are ready"
 	@set -euo pipefail; \
 	ns="$(PLATFORM_NAMESPACE)"; \
@@ -904,6 +950,12 @@ services-wait:
 	fi
 	@set -euo pipefail; \
 	ns="$(SERVICES_NAMESPACE)"; \
+	describe_services() { \
+		echo "current services deployment state:"; \
+		$(LOCAL_KUBECTL) -n "$$ns" get deploy -o wide || true; \
+		echo "current services pod state:"; \
+		$(LOCAL_KUBECTL) -n "$$ns" get pods -o wide || true; \
+	}; \
 	echo "waiting for k3d nodes to become Ready"; \
 	$(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT); \
 	if ! $(LOCAL_KUBECTL) get ns "$$ns" >/dev/null 2>&1; then \
@@ -917,13 +969,52 @@ services-wait:
 	echo "waiting for services deployments to finish rolling out"; \
 	for deploy in $$($(LOCAL_KUBECTL) -n "$$ns" get deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE) -o name); do \
 		$(LOCAL_KUBECTL) -n "$$ns" rollout status "$$deploy" --timeout=$(WAIT_TIMEOUT); \
+		desired="$$( $(LOCAL_KUBECTL) -n "$$ns" get "$$deploy" -o jsonpath='{.spec.replicas}' )"; \
+		ready="$$( $(LOCAL_KUBECTL) -n "$$ns" get "$$deploy" -o jsonpath='{.status.readyReplicas}' )"; \
+		available="$$( $(LOCAL_KUBECTL) -n "$$ns" get "$$deploy" -o jsonpath='{.status.availableReplicas}' )"; \
+		desired="$${desired:-0}"; \
+		ready="$${ready:-0}"; \
+		available="$${available:-0}"; \
+		if [ "$$ready" != "$$desired" ] || [ "$$available" != "$$desired" ]; then \
+			echo "$$deploy is not fully healthy after rollout (desired=$$desired ready=$$ready available=$$available)"; \
+			describe_services; \
+			exit 1; \
+		fi; \
 	done; \
-	echo "waiting for current services pods to become Ready"; \
-	$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready pod \
-		-l app.kubernetes.io/instance=$(SERVICES_RELEASE) \
-		--field-selector=status.phase=Running \
-		--timeout=$(WAIT_TIMEOUT); \
 	echo "services dependencies are ready"
+
+platform-recover-local:
+	@set -euo pipefail; \
+	echo "starting local cluster recovery flow"; \
+	$(MAKE) --no-print-directory k3d-up; \
+	if $(LOCAL_KUBECTL) get ns "$(PLATFORM_NAMESPACE)" >/dev/null 2>&1; then \
+		echo "restarting critical local platform workloads to clear stranded cold-start state"; \
+		for workload in \
+			"statefulset/$(PLATFORM_RELEASE)-nats" \
+			"statefulset/$(PLATFORM_RELEASE)-valkey-node" \
+			"statefulset/$(PLATFORM_RELEASE)-keycloak" \
+			"deployment/$(PLATFORM_RELEASE)-minio"; do \
+			if $(LOCAL_KUBECTL) -n "$(PLATFORM_NAMESPACE)" get "$$workload" >/dev/null 2>&1; then \
+				$(LOCAL_KUBECTL) -n "$(PLATFORM_NAMESPACE)" rollout restart "$$workload"; \
+			fi; \
+		done; \
+	fi; \
+	$(MAKE) --no-print-directory platform-up; \
+	$(MAKE) --no-print-directory platform-wait; \
+	$(MAKE) --no-print-directory services-up; \
+	$(MAKE) --no-print-directory services-wait
+
+dev-grafana:
+	@$(MAKE) --no-print-directory platform-up
+	@set -euo pipefail; \
+	ns="$(PLATFORM_NAMESPACE)"; \
+	deploy_name="$(PLATFORM_RELEASE)-grafana"; \
+	if ! $(LOCAL_KUBECTL) -n "$$ns" get deploy "$$deploy_name" >/dev/null 2>&1; then \
+		echo "deployment/$$deploy_name not found in namespace $$ns"; \
+		exit 1; \
+	fi; \
+	echo "waiting for deployment/$$deploy_name"; \
+	$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$deploy_name" --timeout=$(WAIT_TIMEOUT)
 
 dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait
 

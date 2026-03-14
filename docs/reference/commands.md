@@ -904,18 +904,41 @@ Notes:
   `helm dependency build --skip-refresh` when `Chart.yaml` / `Chart.lock`
   changed locally or vendored chart tarballs are missing.
 - `make platform-wait` blocks until critical platform dependencies are ready:
+  - k3d nodes must reach `Ready`, otherwise the command now dumps node + pod
+    state and fails instead of passing with a partially recovered cluster,
   - CNPG operator deployment,
   - CNPG cluster `pulse-platform-core` `Ready` condition,
   - `nats`, `valkey-node`, and `keycloak` statefulsets,
   - service endpoints for `pulse-platform-core-rw`, `pulse-platform-nats`,
-    `pulse-platform-valkey`, `pulse-platform-minio`, and `pulse-platform-keycloak-headless` when present,
+    `pulse-platform-valkey`, `pulse-platform-minio`, and
+    `pulse-platform-keycloak-headless` are now required and no longer silently skipped,
   - optional Keycloak bootstrap job `pulse-platform-keycloak-keycloak-config-cli` reaching `Complete`,
   - `minio` deployment,
   - optional `ingress-nginx` controller deployment,
   - optional `cert-manager` controller/webhook/cainjector deployments,
   - optional External Secrets deployments (`external-secrets`, webhook, cert-controller),
   - local-by-default observability-lite deployments (`kube-promet-operator`, `grafana`, `opentelemetry-collector`).
-- `make services-wait` blocks until `pulse-services` pods are `Ready` (if services workloads exist).
+- `make platform-recover-local` is the supported local cold-start recovery path
+  when Docker/k3d restarts leave core stateful workloads stranded:
+  - runs `make k3d-up`,
+  - safely rollout-restarts critical local platform workloads when they exist
+    (`nats`, `valkey-node`, `keycloak`, `minio`),
+  - reapplies `pulse-platform`,
+  - if a local Valkey durability change hits Kubernetes StatefulSet immutability,
+    recreates the Valkey StatefulSet automatically and retries Helm,
+  - waits for platform readiness,
+  - reapplies `pulse-services`,
+  - waits for services readiness.
+- `make dev-grafana` reapplies the local `pulse-platform` chart and waits only
+  for `deployment/pulse-platform-grafana`. Use this for Grafana dashboard/config
+  iterations when you do not need a full `platform-wait` or services rollout.
+- `make services-wait` blocks until `pulse-services` deployments finish rolling
+  out and each deployment reports `readyReplicas == availableReplicas == spec.replicas`.
+  This avoids flaky pod-level waits during cold-start or restart churn while still
+  failing with deployment + pod state dumps if a worker set is genuinely unhealthy.
+  Worker metrics-backed readiness now uses `/readyz` and flips to `503` during
+  shutdown, while `/livez` stays healthy during drain, so rollout replacement
+  stops sending new work to terminating worker pods before process exit.
 - local observability access examples after `make platform-up` / `make platform-wait`:
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-kube-promet-prometheus 9090:9090`
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-grafana 3000:80`
@@ -931,6 +954,8 @@ Notes:
     - `Pulse Storage & History Pipeline`
     - `Pulse gRPC SLOs`
     - `Pulse Platform Infra`
+    - `Pulse Rollouts & Availability`
+    - `Pulse Auth & Profile`
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
 - `make dev-deploy` now reuses `make dev-web-deploy` for the public/web rollout
