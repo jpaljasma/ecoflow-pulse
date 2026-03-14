@@ -1,8 +1,9 @@
 import { startTransition, useMemo } from 'react';
 import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Button, Input, Text, XStack, YStack } from 'tamagui';
+import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
+import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { useDevices } from '@/features/devices/hooks';
 import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { useEnergyComparisonInsight, useEnergyDashboard, useEnergyPvPortHistory } from '@/features/energy/hooks';
@@ -26,6 +27,7 @@ import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
 import { formatKWh, formatSoc } from '@/features/telemetry/format';
 import { ApiError } from '@/shared/api/restClient';
 import { AppMenu } from '@/shared/ui/AppMenu';
+import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { BatteryWindowSummary } from '@/shared/ui/BatteryWindowSummary';
 import { Card } from '@/shared/ui/Card';
 import { ChartSection } from '@/shared/ui/ChartSection';
@@ -107,7 +109,8 @@ export default function EnergyScreen() {
   const params = useLocalSearchParams();
   const semantics = useThemeSemantics();
   const { width } = useWindowDimensions();
-  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
+  const { authReady, authKey, token } = useAuthSession();
+  const { allowed, waiting } = useRequireAuth();
   const gridPricePerKwhInput = useEnergySettingsStore((state) => state.gridPricePerKwh);
   const currency = useEnergySettingsStore((state) => state.currency);
   const setGridPricePerKwh = useEnergySettingsStore((state) => state.setGridPricePerKwh);
@@ -115,7 +118,7 @@ export default function EnergyScreen() {
   const devicesQuery = useDevices({
     token,
     authKey,
-    enabled: authReady && (!authConfigured || sessionValid)
+    enabled: authReady && allowed
   });
   const devices = devicesQuery.data?.devices ?? [];
   const stormGuardBanner = useMemo(
@@ -144,7 +147,7 @@ export default function EnergyScreen() {
     },
     {
       authKey,
-      enabled: authReady && (!authConfigured || sessionValid)
+      enabled: authReady && allowed
     }
   );
   const pvHistoryQuery = useEnergyPvPortHistory(
@@ -157,7 +160,7 @@ export default function EnergyScreen() {
     },
     {
       authKey,
-      enabled: authReady && (!authConfigured || sessionValid) && dashboardQuery.isSuccess
+      enabled: authReady && allowed && dashboardQuery.isSuccess
     }
   );
   const comparisonInsightQuery = useEnergyComparisonInsight(
@@ -172,7 +175,7 @@ export default function EnergyScreen() {
     },
     {
       authKey,
-      enabled: authReady && (!authConfigured || sessionValid)
+      enabled: authReady && allowed
     }
   );
 
@@ -225,6 +228,10 @@ export default function EnergyScreen() {
   const comparisonEnabled = routeState.includeComparison;
   const pvCardWidth = width >= 1500 ? Math.max(320, Math.floor((width - 116) / 3)) : width >= 980 ? Math.max(320, Math.floor((width - 92) / 2)) : undefined;
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
+
+  if (waiting || !allowed) {
+    return <BrandedLoadingState minHeight={260} message="Checking session…" />;
+  }
 
   return (
     <Animated.View style={containerStyle} testID="screen-energy">
@@ -334,17 +341,16 @@ export default function EnergyScreen() {
               Local price setting
             </Text>
             <XStack gap="$3" flexWrap="wrap" alignItems="center">
-              <Input
+              <AppTextInput
+                compact
                 width={120}
                 value={gridPricePerKwhInput}
                 onChangeText={setGridPricePerKwh}
                 keyboardType="decimal-pad"
                 placeholder="0.30"
-                height={36}
                 borderRadius={999}
                 borderWidth={1}
                 style={{
-                  minHeight: 36,
                   paddingHorizontal: 15,
                   borderColor: semantics.periodIdleBorder
                 }}
@@ -382,17 +388,6 @@ export default function EnergyScreen() {
 
         {devicesQuery.isLoading && !devices.length ? (
           <BrandedLoadingState minHeight={200} message="Loading energy scope…" />
-        ) : null}
-
-        {!devicesQuery.isLoading && authConfigured && authReady && !sessionValid ? (
-          <Card gap="$2">
-            <Text fontSize="$5" fontWeight="700">
-              Sign in required
-            </Text>
-            <Text color="$colorMuted">
-              Open Settings and sign in to load the Energy dashboard.
-            </Text>
-          </Card>
         ) : null}
 
         {dashboardQuery.isLoading && !dashboardQuery.data ? (

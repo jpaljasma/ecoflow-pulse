@@ -650,6 +650,654 @@ func (x *UserDevice) GetUpdatedAtUnixMs() int64 {
 	return 0
 }
 
+type CurrentUser struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Id                     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	KeycloakSubject        string                 `protobuf:"bytes,2,opt,name=keycloak_subject,json=keycloakSubject,proto3" json:"keycloak_subject,omitempty"`
+	Email                  string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	EmailVerified          bool                   `protobuf:"varint,4,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
+	DisplayName            string                 `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayNameSource      string                 `protobuf:"bytes,6,opt,name=display_name_source,json=displayNameSource,proto3" json:"display_name_source,omitempty"`
+	AvatarUrl              string                 `protobuf:"bytes,7,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	GivenName              string                 `protobuf:"bytes,8,opt,name=given_name,json=givenName,proto3" json:"given_name,omitempty"`
+	FamilyName             string                 `protobuf:"bytes,9,opt,name=family_name,json=familyName,proto3" json:"family_name,omitempty"`
+	Locale                 string                 `protobuf:"bytes,10,opt,name=locale,proto3" json:"locale,omitempty"`
+	Timezone               string                 `protobuf:"bytes,11,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	WeatherLocationEnabled bool                   `protobuf:"varint,12,opt,name=weather_location_enabled,json=weatherLocationEnabled,proto3" json:"weather_location_enabled,omitempty"`
+	WeatherLocationSource  string                 `protobuf:"bytes,13,opt,name=weather_location_source,json=weatherLocationSource,proto3" json:"weather_location_source,omitempty"`
+	WeatherLocationLabel   string                 `protobuf:"bytes,14,opt,name=weather_location_label,json=weatherLocationLabel,proto3" json:"weather_location_label,omitempty"`
+	WeatherLatitude        float64                `protobuf:"fixed64,15,opt,name=weather_latitude,json=weatherLatitude,proto3" json:"weather_latitude,omitempty"`
+	WeatherLongitude       float64                `protobuf:"fixed64,16,opt,name=weather_longitude,json=weatherLongitude,proto3" json:"weather_longitude,omitempty"`
+	HasWeatherLocation     bool                   `protobuf:"varint,17,opt,name=has_weather_location,json=hasWeatherLocation,proto3" json:"has_weather_location,omitempty"`
+	LastLoginAtUnixMs      int64                  `protobuf:"varint,18,opt,name=last_login_at_unix_ms,json=lastLoginAtUnixMs,proto3" json:"last_login_at_unix_ms,omitempty"`
+	CreatedAtUnixMs        int64                  `protobuf:"varint,19,opt,name=created_at_unix_ms,json=createdAtUnixMs,proto3" json:"created_at_unix_ms,omitempty"`
+	UpdatedAtUnixMs        int64                  `protobuf:"varint,20,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
+	AuthMethod             string                 `protobuf:"bytes,21,opt,name=auth_method,json=authMethod,proto3" json:"auth_method,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *CurrentUser) Reset() {
+	*x = CurrentUser{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CurrentUser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CurrentUser) ProtoMessage() {}
+
+func (x *CurrentUser) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CurrentUser.ProtoReflect.Descriptor instead.
+func (*CurrentUser) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CurrentUser) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetKeycloakSubject() string {
+	if x != nil {
+		return x.KeycloakSubject
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetEmailVerified() bool {
+	if x != nil {
+		return x.EmailVerified
+	}
+	return false
+}
+
+func (x *CurrentUser) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetDisplayNameSource() string {
+	if x != nil {
+		return x.DisplayNameSource
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetAvatarUrl() string {
+	if x != nil {
+		return x.AvatarUrl
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetGivenName() string {
+	if x != nil {
+		return x.GivenName
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetFamilyName() string {
+	if x != nil {
+		return x.FamilyName
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetLocale() string {
+	if x != nil {
+		return x.Locale
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetWeatherLocationEnabled() bool {
+	if x != nil {
+		return x.WeatherLocationEnabled
+	}
+	return false
+}
+
+func (x *CurrentUser) GetWeatherLocationSource() string {
+	if x != nil {
+		return x.WeatherLocationSource
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetWeatherLocationLabel() string {
+	if x != nil {
+		return x.WeatherLocationLabel
+	}
+	return ""
+}
+
+func (x *CurrentUser) GetWeatherLatitude() float64 {
+	if x != nil {
+		return x.WeatherLatitude
+	}
+	return 0
+}
+
+func (x *CurrentUser) GetWeatherLongitude() float64 {
+	if x != nil {
+		return x.WeatherLongitude
+	}
+	return 0
+}
+
+func (x *CurrentUser) GetHasWeatherLocation() bool {
+	if x != nil {
+		return x.HasWeatherLocation
+	}
+	return false
+}
+
+func (x *CurrentUser) GetLastLoginAtUnixMs() int64 {
+	if x != nil {
+		return x.LastLoginAtUnixMs
+	}
+	return 0
+}
+
+func (x *CurrentUser) GetCreatedAtUnixMs() int64 {
+	if x != nil {
+		return x.CreatedAtUnixMs
+	}
+	return 0
+}
+
+func (x *CurrentUser) GetUpdatedAtUnixMs() int64 {
+	if x != nil {
+		return x.UpdatedAtUnixMs
+	}
+	return 0
+}
+
+func (x *CurrentUser) GetAuthMethod() string {
+	if x != nil {
+		return x.AuthMethod
+	}
+	return ""
+}
+
+type AuthorizationSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TokenRoles    []string               `protobuf:"bytes,1,rep,name=token_roles,json=tokenRoles,proto3" json:"token_roles,omitempty"`
+	DeviceCount   uint32                 `protobuf:"varint,2,opt,name=device_count,json=deviceCount,proto3" json:"device_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthorizationSummary) Reset() {
+	*x = AuthorizationSummary{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthorizationSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthorizationSummary) ProtoMessage() {}
+
+func (x *AuthorizationSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthorizationSummary.ProtoReflect.Descriptor instead.
+func (*AuthorizationSummary) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *AuthorizationSummary) GetTokenRoles() []string {
+	if x != nil {
+		return x.TokenRoles
+	}
+	return nil
+}
+
+func (x *AuthorizationSummary) GetDeviceCount() uint32 {
+	if x != nil {
+		return x.DeviceCount
+	}
+	return 0
+}
+
+type GetCurrentUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCurrentUserRequest) Reset() {
+	*x = GetCurrentUserRequest{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCurrentUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCurrentUserRequest) ProtoMessage() {}
+
+func (x *GetCurrentUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCurrentUserRequest.ProtoReflect.Descriptor instead.
+func (*GetCurrentUserRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetCurrentUserRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+type GetCurrentUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *CurrentUser           `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	Authorization *AuthorizationSummary  `protobuf:"bytes,2,opt,name=authorization,proto3" json:"authorization,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCurrentUserResponse) Reset() {
+	*x = GetCurrentUserResponse{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCurrentUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCurrentUserResponse) ProtoMessage() {}
+
+func (x *GetCurrentUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCurrentUserResponse.ProtoReflect.Descriptor instead.
+func (*GetCurrentUserResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetCurrentUserResponse) GetUser() *CurrentUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *GetCurrentUserResponse) GetAuthorization() *AuthorizationSummary {
+	if x != nil {
+		return x.Authorization
+	}
+	return nil
+}
+
+type UpdateCurrentUserRequest struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject            string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	DisplayName            string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Timezone               string                 `protobuf:"bytes,3,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	WeatherLocationEnabled bool                   `protobuf:"varint,4,opt,name=weather_location_enabled,json=weatherLocationEnabled,proto3" json:"weather_location_enabled,omitempty"`
+	WeatherLocationSource  string                 `protobuf:"bytes,5,opt,name=weather_location_source,json=weatherLocationSource,proto3" json:"weather_location_source,omitempty"`
+	WeatherLocationLabel   string                 `protobuf:"bytes,6,opt,name=weather_location_label,json=weatherLocationLabel,proto3" json:"weather_location_label,omitempty"`
+	WeatherLatitude        float64                `protobuf:"fixed64,7,opt,name=weather_latitude,json=weatherLatitude,proto3" json:"weather_latitude,omitempty"`
+	WeatherLongitude       float64                `protobuf:"fixed64,8,opt,name=weather_longitude,json=weatherLongitude,proto3" json:"weather_longitude,omitempty"`
+	HasWeatherLocation     bool                   `protobuf:"varint,9,opt,name=has_weather_location,json=hasWeatherLocation,proto3" json:"has_weather_location,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *UpdateCurrentUserRequest) Reset() {
+	*x = UpdateCurrentUserRequest{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCurrentUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCurrentUserRequest) ProtoMessage() {}
+
+func (x *UpdateCurrentUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCurrentUserRequest.ProtoReflect.Descriptor instead.
+func (*UpdateCurrentUserRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *UpdateCurrentUserRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+func (x *UpdateCurrentUserRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *UpdateCurrentUserRequest) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *UpdateCurrentUserRequest) GetWeatherLocationEnabled() bool {
+	if x != nil {
+		return x.WeatherLocationEnabled
+	}
+	return false
+}
+
+func (x *UpdateCurrentUserRequest) GetWeatherLocationSource() string {
+	if x != nil {
+		return x.WeatherLocationSource
+	}
+	return ""
+}
+
+func (x *UpdateCurrentUserRequest) GetWeatherLocationLabel() string {
+	if x != nil {
+		return x.WeatherLocationLabel
+	}
+	return ""
+}
+
+func (x *UpdateCurrentUserRequest) GetWeatherLatitude() float64 {
+	if x != nil {
+		return x.WeatherLatitude
+	}
+	return 0
+}
+
+func (x *UpdateCurrentUserRequest) GetWeatherLongitude() float64 {
+	if x != nil {
+		return x.WeatherLongitude
+	}
+	return 0
+}
+
+func (x *UpdateCurrentUserRequest) GetHasWeatherLocation() bool {
+	if x != nil {
+		return x.HasWeatherLocation
+	}
+	return false
+}
+
+type UpdateCurrentUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *CurrentUser           `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateCurrentUserResponse) Reset() {
+	*x = UpdateCurrentUserResponse{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCurrentUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCurrentUserResponse) ProtoMessage() {}
+
+func (x *UpdateCurrentUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCurrentUserResponse.ProtoReflect.Descriptor instead.
+func (*UpdateCurrentUserResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *UpdateCurrentUserResponse) GetUser() *CurrentUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type RefreshCurrentUserIdentityRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	EmailVerified bool                   `protobuf:"varint,3,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	AvatarUrl     string                 `protobuf:"bytes,5,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	GivenName     string                 `protobuf:"bytes,6,opt,name=given_name,json=givenName,proto3" json:"given_name,omitempty"`
+	FamilyName    string                 `protobuf:"bytes,7,opt,name=family_name,json=familyName,proto3" json:"family_name,omitempty"`
+	Locale        string                 `protobuf:"bytes,8,opt,name=locale,proto3" json:"locale,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshCurrentUserIdentityRequest) Reset() {
+	*x = RefreshCurrentUserIdentityRequest{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshCurrentUserIdentityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshCurrentUserIdentityRequest) ProtoMessage() {}
+
+func (x *RefreshCurrentUserIdentityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshCurrentUserIdentityRequest.ProtoReflect.Descriptor instead.
+func (*RefreshCurrentUserIdentityRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetEmailVerified() bool {
+	if x != nil {
+		return x.EmailVerified
+	}
+	return false
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetAvatarUrl() string {
+	if x != nil {
+		return x.AvatarUrl
+	}
+	return ""
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetGivenName() string {
+	if x != nil {
+		return x.GivenName
+	}
+	return ""
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetFamilyName() string {
+	if x != nil {
+		return x.FamilyName
+	}
+	return ""
+}
+
+func (x *RefreshCurrentUserIdentityRequest) GetLocale() string {
+	if x != nil {
+		return x.Locale
+	}
+	return ""
+}
+
+type RefreshCurrentUserIdentityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *CurrentUser           `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshCurrentUserIdentityResponse) Reset() {
+	*x = RefreshCurrentUserIdentityResponse{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshCurrentUserIdentityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshCurrentUserIdentityResponse) ProtoMessage() {}
+
+func (x *RefreshCurrentUserIdentityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshCurrentUserIdentityResponse.ProtoReflect.Descriptor instead.
+func (*RefreshCurrentUserIdentityResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RefreshCurrentUserIdentityResponse) GetUser() *CurrentUser {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
 type CreateDeviceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
@@ -662,7 +1310,7 @@ type CreateDeviceRequest struct {
 
 func (x *CreateDeviceRequest) Reset() {
 	*x = CreateDeviceRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -674,7 +1322,7 @@ func (x *CreateDeviceRequest) String() string {
 func (*CreateDeviceRequest) ProtoMessage() {}
 
 func (x *CreateDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -687,7 +1335,7 @@ func (x *CreateDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDeviceRequest.ProtoReflect.Descriptor instead.
 func (*CreateDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{9}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CreateDeviceRequest) GetUserSubject() string {
@@ -727,7 +1375,7 @@ type CreateDeviceResponse struct {
 
 func (x *CreateDeviceResponse) Reset() {
 	*x = CreateDeviceResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +1387,7 @@ func (x *CreateDeviceResponse) String() string {
 func (*CreateDeviceResponse) ProtoMessage() {}
 
 func (x *CreateDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +1400,7 @@ func (x *CreateDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDeviceResponse.ProtoReflect.Descriptor instead.
 func (*CreateDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{10}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CreateDeviceResponse) GetDevice() *UserDevice {
@@ -774,7 +1422,7 @@ type LinkDeviceRequest struct {
 
 func (x *LinkDeviceRequest) Reset() {
 	*x = LinkDeviceRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -786,7 +1434,7 @@ func (x *LinkDeviceRequest) String() string {
 func (*LinkDeviceRequest) ProtoMessage() {}
 
 func (x *LinkDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -799,7 +1447,7 @@ func (x *LinkDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkDeviceRequest.ProtoReflect.Descriptor instead.
 func (*LinkDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{11}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *LinkDeviceRequest) GetUserSubject() string {
@@ -839,7 +1487,7 @@ type LinkDeviceResponse struct {
 
 func (x *LinkDeviceResponse) Reset() {
 	*x = LinkDeviceResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -851,7 +1499,7 @@ func (x *LinkDeviceResponse) String() string {
 func (*LinkDeviceResponse) ProtoMessage() {}
 
 func (x *LinkDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -864,7 +1512,7 @@ func (x *LinkDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkDeviceResponse.ProtoReflect.Descriptor instead.
 func (*LinkDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{12}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *LinkDeviceResponse) GetDevice() *UserDevice {
@@ -883,7 +1531,7 @@ type ListUserDevicesRequest struct {
 
 func (x *ListUserDevicesRequest) Reset() {
 	*x = ListUserDevicesRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -895,7 +1543,7 @@ func (x *ListUserDevicesRequest) String() string {
 func (*ListUserDevicesRequest) ProtoMessage() {}
 
 func (x *ListUserDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -908,7 +1556,7 @@ func (x *ListUserDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserDevicesRequest.ProtoReflect.Descriptor instead.
 func (*ListUserDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{13}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListUserDevicesRequest) GetUserSubject() string {
@@ -927,7 +1575,7 @@ type ListUserDevicesResponse struct {
 
 func (x *ListUserDevicesResponse) Reset() {
 	*x = ListUserDevicesResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -939,7 +1587,7 @@ func (x *ListUserDevicesResponse) String() string {
 func (*ListUserDevicesResponse) ProtoMessage() {}
 
 func (x *ListUserDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -952,7 +1600,7 @@ func (x *ListUserDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserDevicesResponse.ProtoReflect.Descriptor instead.
 func (*ListUserDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{14}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListUserDevicesResponse) GetDevices() []*UserDevice {
@@ -972,7 +1620,7 @@ type ProviderDeviceGroup struct {
 
 func (x *ProviderDeviceGroup) Reset() {
 	*x = ProviderDeviceGroup{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -984,7 +1632,7 @@ func (x *ProviderDeviceGroup) String() string {
 func (*ProviderDeviceGroup) ProtoMessage() {}
 
 func (x *ProviderDeviceGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -997,7 +1645,7 @@ func (x *ProviderDeviceGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderDeviceGroup.ProtoReflect.Descriptor instead.
 func (*ProviderDeviceGroup) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{15}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ProviderDeviceGroup) GetProvider() string {
@@ -1025,7 +1673,7 @@ type ListDevicesRequest struct {
 
 func (x *ListDevicesRequest) Reset() {
 	*x = ListDevicesRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1037,7 +1685,7 @@ func (x *ListDevicesRequest) String() string {
 func (*ListDevicesRequest) ProtoMessage() {}
 
 func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1050,7 +1698,7 @@ func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesRequest.ProtoReflect.Descriptor instead.
 func (*ListDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{16}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListDevicesRequest) GetUserSubject() string {
@@ -1083,7 +1731,7 @@ type ListDevicesResponse struct {
 
 func (x *ListDevicesResponse) Reset() {
 	*x = ListDevicesResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1095,7 +1743,7 @@ func (x *ListDevicesResponse) String() string {
 func (*ListDevicesResponse) ProtoMessage() {}
 
 func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1108,7 +1756,7 @@ func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesResponse.ProtoReflect.Descriptor instead.
 func (*ListDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{17}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ListDevicesResponse) GetGroups() []*ProviderDeviceGroup {
@@ -1129,7 +1777,7 @@ type DiscoverDevicesRequest struct {
 
 func (x *DiscoverDevicesRequest) Reset() {
 	*x = DiscoverDevicesRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1141,7 +1789,7 @@ func (x *DiscoverDevicesRequest) String() string {
 func (*DiscoverDevicesRequest) ProtoMessage() {}
 
 func (x *DiscoverDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1154,7 +1802,7 @@ func (x *DiscoverDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverDevicesRequest.ProtoReflect.Descriptor instead.
 func (*DiscoverDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{18}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DiscoverDevicesRequest) GetUserSubject() string {
@@ -1190,7 +1838,7 @@ type DiscoverDevicesResponse struct {
 
 func (x *DiscoverDevicesResponse) Reset() {
 	*x = DiscoverDevicesResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1202,7 +1850,7 @@ func (x *DiscoverDevicesResponse) String() string {
 func (*DiscoverDevicesResponse) ProtoMessage() {}
 
 func (x *DiscoverDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1215,7 +1863,7 @@ func (x *DiscoverDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverDevicesResponse.ProtoReflect.Descriptor instead.
 func (*DiscoverDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{19}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DiscoverDevicesResponse) GetAccepted() bool {
@@ -1306,7 +1954,69 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\x05model\x18\x04 \x01(\tR\x05model\x12\x12\n" +
 	"\x04role\x18\x05 \x01(\tR\x04role\x12+\n" +
 	"\x12created_at_unix_ms\x18\x06 \x01(\x03R\x0fcreatedAtUnixMs\x12+\n" +
-	"\x12updated_at_unix_ms\x18\a \x01(\x03R\x0fupdatedAtUnixMs\"\x90\x01\n" +
+	"\x12updated_at_unix_ms\x18\a \x01(\x03R\x0fupdatedAtUnixMs\"\xca\x06\n" +
+	"\vCurrentUser\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12)\n" +
+	"\x10keycloak_subject\x18\x02 \x01(\tR\x0fkeycloakSubject\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12%\n" +
+	"\x0eemail_verified\x18\x04 \x01(\bR\remailVerified\x12!\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\x12.\n" +
+	"\x13display_name_source\x18\x06 \x01(\tR\x11displayNameSource\x12\x1d\n" +
+	"\n" +
+	"avatar_url\x18\a \x01(\tR\tavatarUrl\x12\x1d\n" +
+	"\n" +
+	"given_name\x18\b \x01(\tR\tgivenName\x12\x1f\n" +
+	"\vfamily_name\x18\t \x01(\tR\n" +
+	"familyName\x12\x16\n" +
+	"\x06locale\x18\n" +
+	" \x01(\tR\x06locale\x12\x1a\n" +
+	"\btimezone\x18\v \x01(\tR\btimezone\x128\n" +
+	"\x18weather_location_enabled\x18\f \x01(\bR\x16weatherLocationEnabled\x126\n" +
+	"\x17weather_location_source\x18\r \x01(\tR\x15weatherLocationSource\x124\n" +
+	"\x16weather_location_label\x18\x0e \x01(\tR\x14weatherLocationLabel\x12)\n" +
+	"\x10weather_latitude\x18\x0f \x01(\x01R\x0fweatherLatitude\x12+\n" +
+	"\x11weather_longitude\x18\x10 \x01(\x01R\x10weatherLongitude\x120\n" +
+	"\x14has_weather_location\x18\x11 \x01(\bR\x12hasWeatherLocation\x120\n" +
+	"\x15last_login_at_unix_ms\x18\x12 \x01(\x03R\x11lastLoginAtUnixMs\x12+\n" +
+	"\x12created_at_unix_ms\x18\x13 \x01(\x03R\x0fcreatedAtUnixMs\x12+\n" +
+	"\x12updated_at_unix_ms\x18\x14 \x01(\x03R\x0fupdatedAtUnixMs\x12\x1f\n" +
+	"\vauth_method\x18\x15 \x01(\tR\n" +
+	"authMethod\"Z\n" +
+	"\x14AuthorizationSummary\x12\x1f\n" +
+	"\vtoken_roles\x18\x01 \x03(\tR\n" +
+	"tokenRoles\x12!\n" +
+	"\fdevice_count\x18\x02 \x01(\rR\vdeviceCount\":\n" +
+	"\x15GetCurrentUserRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\"\xa3\x01\n" +
+	"\x16GetCurrentUserResponse\x126\n" +
+	"\x04user\x18\x01 \x01(\v2\".pulse.controlplane.v1.CurrentUserR\x04user\x12Q\n" +
+	"\rauthorization\x18\x02 \x01(\v2+.pulse.controlplane.v1.AuthorizationSummaryR\rauthorization\"\xae\x03\n" +
+	"\x18UpdateCurrentUserRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1a\n" +
+	"\btimezone\x18\x03 \x01(\tR\btimezone\x128\n" +
+	"\x18weather_location_enabled\x18\x04 \x01(\bR\x16weatherLocationEnabled\x126\n" +
+	"\x17weather_location_source\x18\x05 \x01(\tR\x15weatherLocationSource\x124\n" +
+	"\x16weather_location_label\x18\x06 \x01(\tR\x14weatherLocationLabel\x12)\n" +
+	"\x10weather_latitude\x18\a \x01(\x01R\x0fweatherLatitude\x12+\n" +
+	"\x11weather_longitude\x18\b \x01(\x01R\x10weatherLongitude\x120\n" +
+	"\x14has_weather_location\x18\t \x01(\bR\x12hasWeatherLocation\"S\n" +
+	"\x19UpdateCurrentUserResponse\x126\n" +
+	"\x04user\x18\x01 \x01(\v2\".pulse.controlplane.v1.CurrentUserR\x04user\"\x9d\x02\n" +
+	"!RefreshCurrentUserIdentityRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12%\n" +
+	"\x0eemail_verified\x18\x03 \x01(\bR\remailVerified\x12!\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12\x1d\n" +
+	"\n" +
+	"avatar_url\x18\x05 \x01(\tR\tavatarUrl\x12\x1d\n" +
+	"\n" +
+	"given_name\x18\x06 \x01(\tR\tgivenName\x12\x1f\n" +
+	"\vfamily_name\x18\a \x01(\tR\n" +
+	"familyName\x12\x16\n" +
+	"\x06locale\x18\b \x01(\tR\x06locale\"\\\n" +
+	"\"RefreshCurrentUserIdentityResponse\x126\n" +
+	"\x04user\x18\x01 \x01(\v2\".pulse.controlplane.v1.CurrentUserR\x04user\"\x90\x01\n" +
 	"\x13CreateDeviceRequest\x12!\n" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x1d\n" +
 	"\n" +
@@ -1344,8 +2054,12 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12)\n" +
 	"\x10discovered_count\x18\x03 \x01(\rR\x0fdiscoveredCount\x12?\n" +
-	"\adevices\x18\x04 \x03(\v2%.pulse.controlplane.v1.ProviderDeviceR\adevices2\xdb\a\n" +
-	"\x13ControlPlaneService\x12\x8b\x01\n" +
+	"\adevices\x18\x04 \x03(\v2%.pulse.controlplane.v1.ProviderDeviceR\adevices2\xd6\n" +
+	"\n" +
+	"\x13ControlPlaneService\x12m\n" +
+	"\x0eGetCurrentUser\x12,.pulse.controlplane.v1.GetCurrentUserRequest\x1a-.pulse.controlplane.v1.GetCurrentUserResponse\x12v\n" +
+	"\x11UpdateCurrentUser\x12/.pulse.controlplane.v1.UpdateCurrentUserRequest\x1a0.pulse.controlplane.v1.UpdateCurrentUserResponse\x12\x91\x01\n" +
+	"\x1aRefreshCurrentUserIdentity\x128.pulse.controlplane.v1.RefreshCurrentUserIdentityRequest\x1a9.pulse.controlplane.v1.RefreshCurrentUserIdentityResponse\x12\x8b\x01\n" +
 	"\x18CreateProviderCredential\x126.pulse.controlplane.v1.CreateProviderCredentialRequest\x1a7.pulse.controlplane.v1.CreateProviderCredentialResponse\x12\x88\x01\n" +
 	"\x17ListProviderCredentials\x125.pulse.controlplane.v1.ListProviderCredentialsRequest\x1a6.pulse.controlplane.v1.ListProviderCredentialsResponse\x12\x94\x01\n" +
 	"\x1bSetProviderCredentialActive\x129.pulse.controlplane.v1.SetProviderCredentialActiveRequest\x1a:.pulse.controlplane.v1.SetProviderCredentialActiveResponse\x12g\n" +
@@ -1368,7 +2082,7 @@ func file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP() []byte {
 	return file_pulse_controlplane_v1_control_plane_proto_rawDescData
 }
 
-var file_pulse_controlplane_v1_control_plane_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_pulse_controlplane_v1_control_plane_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*ProviderCredential)(nil),                  // 0: pulse.controlplane.v1.ProviderCredential
 	(*CreateProviderCredentialRequest)(nil),     // 1: pulse.controlplane.v1.CreateProviderCredentialRequest
@@ -1379,52 +2093,70 @@ var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*SetProviderCredentialActiveResponse)(nil), // 6: pulse.controlplane.v1.SetProviderCredentialActiveResponse
 	(*ProviderDevice)(nil),                      // 7: pulse.controlplane.v1.ProviderDevice
 	(*UserDevice)(nil),                          // 8: pulse.controlplane.v1.UserDevice
-	(*CreateDeviceRequest)(nil),                 // 9: pulse.controlplane.v1.CreateDeviceRequest
-	(*CreateDeviceResponse)(nil),                // 10: pulse.controlplane.v1.CreateDeviceResponse
-	(*LinkDeviceRequest)(nil),                   // 11: pulse.controlplane.v1.LinkDeviceRequest
-	(*LinkDeviceResponse)(nil),                  // 12: pulse.controlplane.v1.LinkDeviceResponse
-	(*ListUserDevicesRequest)(nil),              // 13: pulse.controlplane.v1.ListUserDevicesRequest
-	(*ListUserDevicesResponse)(nil),             // 14: pulse.controlplane.v1.ListUserDevicesResponse
-	(*ProviderDeviceGroup)(nil),                 // 15: pulse.controlplane.v1.ProviderDeviceGroup
-	(*ListDevicesRequest)(nil),                  // 16: pulse.controlplane.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil),                 // 17: pulse.controlplane.v1.ListDevicesResponse
-	(*DiscoverDevicesRequest)(nil),              // 18: pulse.controlplane.v1.DiscoverDevicesRequest
-	(*DiscoverDevicesResponse)(nil),             // 19: pulse.controlplane.v1.DiscoverDevicesResponse
-	(*structpb.Struct)(nil),                     // 20: google.protobuf.Struct
+	(*CurrentUser)(nil),                         // 9: pulse.controlplane.v1.CurrentUser
+	(*AuthorizationSummary)(nil),                // 10: pulse.controlplane.v1.AuthorizationSummary
+	(*GetCurrentUserRequest)(nil),               // 11: pulse.controlplane.v1.GetCurrentUserRequest
+	(*GetCurrentUserResponse)(nil),              // 12: pulse.controlplane.v1.GetCurrentUserResponse
+	(*UpdateCurrentUserRequest)(nil),            // 13: pulse.controlplane.v1.UpdateCurrentUserRequest
+	(*UpdateCurrentUserResponse)(nil),           // 14: pulse.controlplane.v1.UpdateCurrentUserResponse
+	(*RefreshCurrentUserIdentityRequest)(nil),   // 15: pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
+	(*RefreshCurrentUserIdentityResponse)(nil),  // 16: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
+	(*CreateDeviceRequest)(nil),                 // 17: pulse.controlplane.v1.CreateDeviceRequest
+	(*CreateDeviceResponse)(nil),                // 18: pulse.controlplane.v1.CreateDeviceResponse
+	(*LinkDeviceRequest)(nil),                   // 19: pulse.controlplane.v1.LinkDeviceRequest
+	(*LinkDeviceResponse)(nil),                  // 20: pulse.controlplane.v1.LinkDeviceResponse
+	(*ListUserDevicesRequest)(nil),              // 21: pulse.controlplane.v1.ListUserDevicesRequest
+	(*ListUserDevicesResponse)(nil),             // 22: pulse.controlplane.v1.ListUserDevicesResponse
+	(*ProviderDeviceGroup)(nil),                 // 23: pulse.controlplane.v1.ProviderDeviceGroup
+	(*ListDevicesRequest)(nil),                  // 24: pulse.controlplane.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil),                 // 25: pulse.controlplane.v1.ListDevicesResponse
+	(*DiscoverDevicesRequest)(nil),              // 26: pulse.controlplane.v1.DiscoverDevicesRequest
+	(*DiscoverDevicesResponse)(nil),             // 27: pulse.controlplane.v1.DiscoverDevicesResponse
+	(*structpb.Struct)(nil),                     // 28: google.protobuf.Struct
 }
 var file_pulse_controlplane_v1_control_plane_proto_depIdxs = []int32{
 	0,  // 0: pulse.controlplane.v1.CreateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 1: pulse.controlplane.v1.ListProviderCredentialsResponse.credentials:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 2: pulse.controlplane.v1.SetProviderCredentialActiveResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	20, // 3: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
-	20, // 4: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
-	8,  // 5: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	8,  // 6: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	8,  // 7: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
-	7,  // 8: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	15, // 9: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
-	7,  // 10: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	1,  // 11: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
-	3,  // 12: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
-	5,  // 13: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
-	9,  // 14: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
-	11, // 15: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
-	13, // 16: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
-	16, // 17: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
-	18, // 18: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
-	2,  // 19: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
-	4,  // 20: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
-	6,  // 21: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
-	10, // 22: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
-	12, // 23: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
-	14, // 24: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
-	17, // 25: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
-	19, // 26: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
-	19, // [19:27] is the sub-list for method output_type
-	11, // [11:19] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	28, // 3: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
+	28, // 4: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
+	9,  // 5: pulse.controlplane.v1.GetCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	10, // 6: pulse.controlplane.v1.GetCurrentUserResponse.authorization:type_name -> pulse.controlplane.v1.AuthorizationSummary
+	9,  // 7: pulse.controlplane.v1.UpdateCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	9,  // 8: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	8,  // 9: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	8,  // 10: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	8,  // 11: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
+	7,  // 12: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	23, // 13: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
+	7,  // 14: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	11, // 15: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:input_type -> pulse.controlplane.v1.GetCurrentUserRequest
+	13, // 16: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:input_type -> pulse.controlplane.v1.UpdateCurrentUserRequest
+	15, // 17: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:input_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
+	1,  // 18: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
+	3,  // 19: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
+	5,  // 20: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
+	17, // 21: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
+	19, // 22: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
+	21, // 23: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
+	24, // 24: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
+	26, // 25: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
+	12, // 26: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:output_type -> pulse.controlplane.v1.GetCurrentUserResponse
+	14, // 27: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:output_type -> pulse.controlplane.v1.UpdateCurrentUserResponse
+	16, // 28: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:output_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
+	2,  // 29: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
+	4,  // 30: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
+	6,  // 31: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
+	18, // 32: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
+	20, // 33: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
+	22, // 34: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
+	25, // 35: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
+	27, // 36: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
+	26, // [26:37] is the sub-list for method output_type
+	15, // [15:26] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_pulse_controlplane_v1_control_plane_proto_init() }
@@ -1438,7 +2170,7 @@ func file_pulse_controlplane_v1_control_plane_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_controlplane_v1_control_plane_proto_rawDesc), len(file_pulse_controlplane_v1_control_plane_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

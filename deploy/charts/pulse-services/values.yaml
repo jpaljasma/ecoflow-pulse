@@ -49,6 +49,10 @@ runtime:
     valkeyAddrs: "pulse-platform-valkey-node-0.pulse-platform-valkey-headless.pulse-platform.svc.cluster.local:6379"
     valkeySentinelMasterSet: ""
     grpcAuthMode: "noop"
+    keycloakIssuerUrl: ""
+    keycloakAudience: ""
+    keycloakJwksUrl: ""
+    grpcAuthAllowMissingJwt: "false"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
     archiveObjectSecretKey: "minio123"
@@ -61,6 +65,20 @@ runtime:
     ingest:
       enabled: false
       replicaCount: 1
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
       metrics:
         enabled: false
         service:
@@ -78,6 +96,20 @@ runtime:
     inference:
       enabled: false
       replicaCount: 1
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
       metrics:
         enabled: false
         service:
@@ -95,6 +127,20 @@ runtime:
     projection:
       enabled: false
       replicaCount: 1
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
       metrics:
         enabled: false
         service:
@@ -112,6 +158,20 @@ runtime:
     rollup:
       enabled: false
       replicaCount: 1
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
       metrics:
         enabled: false
         service:
@@ -129,6 +189,20 @@ runtime:
     archive:
       enabled: false
       replicaCount: 1
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
       metrics:
         enabled: false
         service:
@@ -146,8 +220,22 @@ runtime:
     grpcApi:
       enabled: false
       replicaCount: 1
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
       service:
         port: 9090
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
       metrics:
         enabled: false
         service:
@@ -165,8 +253,22 @@ runtime:
     energyApi:
       enabled: false
       replicaCount: 1
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
       service:
         port: 9090
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
       metrics:
         enabled: false
         service:

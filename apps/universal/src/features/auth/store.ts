@@ -18,8 +18,10 @@ export type StoredOidcSession = {
 
 type AuthState = {
   hydrated: boolean;
+  refreshing: boolean;
   session: StoredOidcSession | null;
   setHydrated: (hydrated: boolean) => void;
+  setRefreshing: (refreshing: boolean) => void;
   setSession: (input: {
     issuerUrl: string;
     clientId: string;
@@ -32,10 +34,13 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       hydrated: false,
+      refreshing: false,
       session: null,
       setHydrated: (hydrated) => set({ hydrated }),
+      setRefreshing: (refreshing) => set({ refreshing }),
       setSession: (input) =>
         set(() => ({
+          refreshing: false,
           session: {
             issuerUrl: input.issuerUrl,
             clientId: input.clientId,
@@ -47,7 +52,7 @@ export const useAuthStore = create<AuthState>()(
             updatedAtUnixMs: Date.now()
           }
         })),
-      clearSession: () => set({ session: null })
+      clearSession: () => set({ refreshing: false, session: null })
     }),
     {
       name: 'pulse-oidc-session-v1',

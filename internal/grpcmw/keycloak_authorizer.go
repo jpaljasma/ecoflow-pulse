@@ -13,14 +13,22 @@ import (
 type KeycloakJWKSAuthorizerConfig struct {
 	IssuerURL       string
 	Audience        string
+	JWKSURL         string
 	AllowMissingJWT bool
 }
 
 type tokenClaims struct {
-	Subject        string `json:"sub"`
-	Email          string `json:"email"`
-	RealmAccess    roleSet
-	ResourceAccess map[string]roleSet `json:"resource_access"`
+	Subject          string             `json:"sub"`
+	Email            string             `json:"email"`
+	EmailVerified    bool               `json:"email_verified"`
+	DisplayName      string             `json:"name"`
+	GivenName        string             `json:"given_name"`
+	FamilyName       string             `json:"family_name"`
+	Picture          string             `json:"picture"`
+	Locale           string             `json:"locale"`
+	IdentityProvider string             `json:"identity_provider"`
+	RealmAccess      roleSet            `json:"realm_access"`
+	ResourceAccess   map[string]roleSet `json:"resource_access"`
 }
 
 type roleSet struct {
@@ -41,20 +49,26 @@ func NewKeycloakJWKSAuthorizer(ctx context.Context, cfg KeycloakJWKSAuthorizerCo
 	if issuer == "" {
 		return nil, errors.New("keycloak issuer URL is required")
 	}
-	provider, err := oidc.NewProvider(ctx, issuer)
-	if err != nil {
-		return nil, fmt.Errorf("init oidc provider: %w", err)
-	}
-
 	verifierCfg := &oidc.Config{SkipClientIDCheck: true}
 	if strings.TrimSpace(cfg.Audience) != "" {
 		verifierCfg.ClientID = strings.TrimSpace(cfg.Audience)
 		verifierCfg.SkipClientIDCheck = false
 	}
 
+	var verifier *oidc.IDTokenVerifier
+	if jwksURL := strings.TrimSpace(cfg.JWKSURL); jwksURL != "" {
+		verifier = oidc.NewVerifier(issuer, oidc.NewRemoteKeySet(ctx, jwksURL), verifierCfg)
+	} else {
+		provider, err := oidc.NewProvider(ctx, issuer)
+		if err != nil {
+			return nil, fmt.Errorf("init oidc provider: %w", err)
+		}
+		verifier = provider.Verifier(verifierCfg)
+	}
+
 	return &KeycloakJWKSAuthorizer{
 		verifier: &oidcClaimsVerifier{
-			verifier: provider.Verifier(verifierCfg),
+			verifier: verifier,
 		},
 		allowMissingJWT: cfg.AllowMissingJWT,
 	}, nil
@@ -81,6 +95,13 @@ func (a *KeycloakJWKSAuthorizer) Authorize(ctx context.Context, _ string, claims
 
 	claims.Subject = strings.TrimSpace(parsed.Subject)
 	claims.Email = strings.TrimSpace(parsed.Email)
+	claims.EmailVerified = parsed.EmailVerified
+	claims.DisplayName = strings.TrimSpace(parsed.DisplayName)
+	claims.GivenName = strings.TrimSpace(parsed.GivenName)
+	claims.FamilyName = strings.TrimSpace(parsed.FamilyName)
+	claims.AvatarURL = strings.TrimSpace(parsed.Picture)
+	claims.Locale = strings.TrimSpace(parsed.Locale)
+	claims.AuthMethod = strings.TrimSpace(parsed.IdentityProvider)
 	claims.Roles = collectUniqueRoles(parsed)
 	return nil
 }

@@ -10,10 +10,13 @@ import { createTelemetryHistoryClient, createTelemetrySnapshotClient } from './g
 const config = loadConfig(process.env);
 const historyClient = createTelemetryHistoryClient(config.energyGrpcApiAddr);
 const controlPlaneClient = createControlPlaneClient(config.grpcApiAddr);
+const currentUserClient = createControlPlaneClient(config.grpcApiAddr);
 const snapshotClient = createTelemetrySnapshotClient(config.grpcApiAddr);
 const deviceClient = createDeviceClient(config, controlPlaneClient, snapshotClient);
 const inferenceClient = createInferenceClient(config.grpcApiAddr);
-const app = buildApp(config, historyClient, deviceClient, inferenceClient);
+const app = buildApp(config, historyClient, deviceClient, inferenceClient, {
+  controlPlaneClient: currentUserClient
+});
 const wsProxy = config.realtimeGatewayUpstreamUrl
   ? httpProxy.createProxyServer({
       target: config.realtimeGatewayUpstreamUrl,

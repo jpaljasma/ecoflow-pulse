@@ -11,6 +11,10 @@ runtime:
     replicaCount: 2
     service:
       type: ClusterIP
+    metrics:
+      serviceMonitor:
+        enabled: true
+        interval: 30s
     env:
       publicPreconnectOrigins: ""
       corsAllowedOrigins: "http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
@@ -35,6 +39,10 @@ runtime:
   realtimeGateway:
     enabled: true
     replicaCount: 2
+    metrics:
+      serviceMonitor:
+        enabled: true
+        interval: 30s
 
 components:
   nats:
@@ -74,12 +82,34 @@ nats:
 
 cloudnative-pg: {}
 valkey: {}
-keycloak: {}
+keycloak:
+  proxyHeaders: xforwarded
+  extraEnvVars:
+    - name: KC_HOSTNAME
+      value: https://pulse.dev.local
+  keycloakConfigCli:
+    extraEnvVars:
+      - name: IMPORT_VARSUBSTITUTION_ENABLED
+        value: "true"
 keycloakRealm:
   enabled: false
   configMapName: pulse-platform-keycloak-realm-import
   socialSecretName: pulse-platform-keycloak-social-providers
   realmName: pulse
+  universalClient:
+    enabled: true
+    clientId: pulse-universal-app
+    redirectUris:
+      - ecoflowpulse://*
+      - https://localhost/*
+      - http://localhost:8081/*
+      - https://127.0.0.1/*
+      - http://127.0.0.1:8081/*
+    webOrigins:
+      - https://localhost
+      - http://localhost:8081
+      - https://127.0.0.1
+      - http://127.0.0.1:8081
   google:
     enabled: false
     clientId: ""

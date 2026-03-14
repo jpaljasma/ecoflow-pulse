@@ -8,6 +8,12 @@ metadata:
     app.kubernetes.io/component: go-ingest
 spec:
   replicas: {{ .Values.runtime.workers.ingest.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.ingest.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.ingest.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.ingest.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -21,6 +27,7 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-ingest
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.ingest.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: go-ingest
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -38,6 +45,29 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.ingest.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.ingest.metrics.enabled }}
+          {{- if .Values.runtime.workers.ingest.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: {{ .Values.runtime.workers.ingest.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.ingest.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.ingest.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          {{- end }}
 ---
 {{- if .Values.runtime.workers.ingest.metrics.enabled }}
 apiVersion: v1
@@ -79,6 +109,22 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.ingest.metrics.serviceMonitor.interval }}
 {{- end }}
+{{- if and .Values.runtime.workers.ingest.pdb.enabled (gt (int .Values.runtime.workers.ingest.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-ingest
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-ingest
+spec:
+  minAvailable: {{ .Values.runtime.workers.ingest.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-ingest
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.inference.enabled }}
@@ -91,6 +137,12 @@ metadata:
     app.kubernetes.io/component: go-inference
 spec:
   replicas: {{ .Values.runtime.workers.inference.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.inference.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.inference.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.inference.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -104,6 +156,7 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-inference
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.inference.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: go-inference
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -121,6 +174,29 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.inference.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.inference.metrics.enabled }}
+          {{- if .Values.runtime.workers.inference.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: {{ .Values.runtime.workers.inference.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.inference.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.inference.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          {{- end }}
 ---
 {{- if .Values.runtime.workers.inference.metrics.enabled }}
 apiVersion: v1
@@ -162,6 +238,22 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.inference.metrics.serviceMonitor.interval }}
 {{- end }}
+{{- if and .Values.runtime.workers.inference.pdb.enabled (gt (int .Values.runtime.workers.inference.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-inference
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-inference
+spec:
+  minAvailable: {{ .Values.runtime.workers.inference.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-inference
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.rollup.enabled }}
@@ -174,6 +266,12 @@ metadata:
     app.kubernetes.io/component: go-rollup
 spec:
   replicas: {{ .Values.runtime.workers.rollup.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.rollup.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.rollup.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.rollup.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -187,6 +285,7 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-rollup
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.rollup.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: go-rollup
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -204,6 +303,29 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.rollup.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.rollup.metrics.enabled }}
+          {{- if .Values.runtime.workers.rollup.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: {{ .Values.runtime.workers.rollup.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.rollup.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.rollup.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          {{- end }}
 ---
 {{- if .Values.runtime.workers.rollup.metrics.enabled }}
 apiVersion: v1
@@ -245,6 +367,22 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.rollup.metrics.serviceMonitor.interval }}
 {{- end }}
+{{- if and .Values.runtime.workers.rollup.pdb.enabled (gt (int .Values.runtime.workers.rollup.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-rollup
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-rollup
+spec:
+  minAvailable: {{ .Values.runtime.workers.rollup.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-rollup
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.projection.enabled }}
@@ -257,6 +395,12 @@ metadata:
     app.kubernetes.io/component: go-projection
 spec:
   replicas: {{ .Values.runtime.workers.projection.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.projection.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.projection.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.projection.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -270,6 +414,7 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-projection
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.projection.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: go-projection
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -287,6 +432,29 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.projection.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.projection.metrics.enabled }}
+          {{- if .Values.runtime.workers.projection.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: {{ .Values.runtime.workers.projection.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.projection.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.projection.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          {{- end }}
 ---
 {{- if .Values.runtime.workers.projection.metrics.enabled }}
 apiVersion: v1
@@ -328,6 +496,22 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.projection.metrics.serviceMonitor.interval }}
 {{- end }}
+{{- if and .Values.runtime.workers.projection.pdb.enabled (gt (int .Values.runtime.workers.projection.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-projection
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-projection
+spec:
+  minAvailable: {{ .Values.runtime.workers.projection.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-projection
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.archive.enabled }}
@@ -340,6 +524,12 @@ metadata:
     app.kubernetes.io/component: go-archive
 spec:
   replicas: {{ .Values.runtime.workers.archive.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.archive.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.archive.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.archive.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -353,6 +543,7 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-archive
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.archive.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: go-archive
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -370,6 +561,29 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.archive.metrics.enabled }}
+          {{- if .Values.runtime.workers.archive.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: {{ .Values.runtime.workers.archive.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.archive.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.archive.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          {{- end }}
 ---
 {{- if .Values.runtime.workers.archive.metrics.enabled }}
 apiVersion: v1
@@ -411,6 +625,22 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.archive.metrics.serviceMonitor.interval }}
 {{- end }}
+{{- if and .Values.runtime.workers.archive.pdb.enabled (gt (int .Values.runtime.workers.archive.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-archive
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-archive
+spec:
+  minAvailable: {{ .Values.runtime.workers.archive.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-archive
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.grpcApi.enabled }}
@@ -423,6 +653,12 @@ metadata:
     app.kubernetes.io/component: go-grpc-api
 spec:
   replicas: {{ .Values.runtime.workers.grpcApi.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.grpcApi.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.grpcApi.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.grpcApi.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -436,6 +672,7 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-grpc-api
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.grpcApi.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: go-grpc-api
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -460,6 +697,14 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.grpcApi.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.grpcApi.startupProbe.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: {{ .Values.runtime.workers.grpcApi.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.grpcApi.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.grpcApi.startupProbe.failureThreshold }}
+          {{- end }}
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -514,6 +759,22 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.grpcApi.metrics.serviceMonitor.interval }}
 {{- end }}
+{{- if and .Values.runtime.workers.grpcApi.pdb.enabled (gt (int .Values.runtime.workers.grpcApi.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-grpc-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-grpc-api
+spec:
+  minAvailable: {{ .Values.runtime.workers.grpcApi.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-grpc-api
+{{- end }}
 {{- end }}
 ---
 {{- if .Values.runtime.workers.energyApi.enabled }}
@@ -526,6 +787,12 @@ metadata:
     app.kubernetes.io/component: go-energy-api
 spec:
   replicas: {{ .Values.runtime.workers.energyApi.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.energyApi.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.energyApi.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.energyApi.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -539,6 +806,7 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-energy-api
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.energyApi.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: go-energy-api
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -563,6 +831,14 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.energyApi.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.energyApi.startupProbe.enabled }}
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: {{ .Values.runtime.workers.energyApi.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.energyApi.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.energyApi.startupProbe.failureThreshold }}
+          {{- end }}
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -616,5 +892,21 @@ spec:
     - port: metrics
       path: /metrics
       interval: {{ .Values.runtime.workers.energyApi.metrics.serviceMonitor.interval }}
+{{- end }}
+{{- if and .Values.runtime.workers.energyApi.pdb.enabled (gt (int .Values.runtime.workers.energyApi.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-energy-api
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-energy-api
+spec:
+  minAvailable: {{ .Values.runtime.workers.energyApi.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-energy-api
 {{- end }}
 {{- end }}

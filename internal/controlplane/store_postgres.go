@@ -448,6 +448,190 @@ ORDER BY d.product_name ASC, d.ecoflow_sn ASC;
 	return out, nil
 }
 
+func (s *PostgresStore) GetOrProvisionCurrentUser(ctx context.Context, in GetOrProvisionCurrentUserInput) (CurrentUser, error) {
+	now := normalizeWriteTime(s.now())
+	providerDisplayName := PreferredProviderDisplayName(in.DisplayName, in.GivenName, in.FamilyName, in.Email)
+	query := `
+INSERT INTO users (
+	keycloak_subject,
+	email,
+	email_verified,
+	display_name,
+	display_name_source,
+	avatar_url,
+	given_name,
+	family_name,
+	locale,
+	created_at,
+	updated_at,
+	last_login_at
+)
+VALUES (
+	$1,
+	NULLIF($2, ''),
+	$3,
+	NULLIF($4, ''),
+	'provider',
+	NULLIF($5, ''),
+	NULLIF($6, ''),
+	NULLIF($7, ''),
+	NULLIF($8, ''),
+	$9,
+	$9,
+	$9
+)
+ON CONFLICT (keycloak_subject)
+DO UPDATE SET
+	email = CASE
+		WHEN length(trim(COALESCE(EXCLUDED.email, ''))) > 0 THEN EXCLUDED.email
+		ELSE users.email
+	END,
+	email_verified = EXCLUDED.email_verified,
+	display_name = CASE
+		WHEN users.display_name_source = 'pulse' AND length(trim(COALESCE(users.display_name, ''))) > 0 THEN users.display_name
+		WHEN length(trim(COALESCE(EXCLUDED.display_name, ''))) > 0 THEN EXCLUDED.display_name
+		ELSE users.display_name
+	END,
+	display_name_source = CASE
+		WHEN users.display_name_source = 'pulse' AND length(trim(COALESCE(users.display_name, ''))) > 0 THEN 'pulse'
+		ELSE 'provider'
+	END,
+	avatar_url = CASE
+		WHEN length(trim(COALESCE(EXCLUDED.avatar_url, ''))) > 0 THEN EXCLUDED.avatar_url
+		ELSE users.avatar_url
+	END,
+	given_name = CASE
+		WHEN length(trim(COALESCE(EXCLUDED.given_name, ''))) > 0 THEN EXCLUDED.given_name
+		ELSE users.given_name
+	END,
+	family_name = CASE
+		WHEN length(trim(COALESCE(EXCLUDED.family_name, ''))) > 0 THEN EXCLUDED.family_name
+		ELSE users.family_name
+	END,
+	locale = CASE
+		WHEN length(trim(COALESCE(EXCLUDED.locale, ''))) > 0 THEN EXCLUDED.locale
+		ELSE users.locale
+	END,
+	last_login_at = EXCLUDED.last_login_at,
+	updated_at = EXCLUDED.updated_at
+RETURNING
+	id::text,
+	keycloak_subject,
+	COALESCE(email, ''),
+	email_verified,
+	COALESCE(display_name, ''),
+	COALESCE(display_name_source, 'provider'),
+	COALESCE(avatar_url, ''),
+	COALESCE(given_name, ''),
+	COALESCE(family_name, ''),
+	COALESCE(locale, ''),
+	COALESCE(timezone, ''),
+	weather_location_enabled,
+	COALESCE(weather_location_source, 'none'),
+	COALESCE(weather_location_label, ''),
+	weather_latitude,
+	weather_longitude,
+	last_login_at,
+	created_at,
+	updated_at;
+`
+	row := s.db.QueryRowContext(
+		ctx,
+		query,
+		strings.TrimSpace(in.UserSubject),
+		strings.TrimSpace(in.Email),
+		in.EmailVerified,
+		providerDisplayName,
+		strings.TrimSpace(in.AvatarURL),
+		strings.TrimSpace(in.GivenName),
+		strings.TrimSpace(in.FamilyName),
+		strings.TrimSpace(in.Locale),
+		now,
+	)
+	out, err := scanCurrentUser(row)
+	if err != nil {
+		return CurrentUser{}, fmt.Errorf("get or provision current user: %w", err)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateCurrentUserProfile(ctx context.Context, in UpdateCurrentUserProfileInput) (CurrentUser, error) {
+	query := `
+UPDATE users
+SET
+	display_name = CASE
+		WHEN length(trim($2)) > 0 THEN trim($2)
+		ELSE display_name
+	END,
+	display_name_source = CASE
+		WHEN length(trim($2)) > 0 THEN 'pulse'
+		ELSE display_name_source
+	END,
+	timezone = NULLIF(trim($3), ''),
+	weather_location_enabled = $4,
+	weather_location_source = CASE
+		WHEN $4 AND $5 THEN COALESCE(NULLIF(trim($6), ''), 'auto')
+		ELSE 'none'
+	END,
+	weather_location_label = CASE
+		WHEN $4 AND $5 THEN NULLIF(trim($7), '')
+		ELSE NULL
+	END,
+	weather_latitude = CASE
+		WHEN $4 AND $5 THEN $8::double precision
+		ELSE NULL
+	END,
+	weather_longitude = CASE
+		WHEN $4 AND $5 THEN $9::double precision
+		ELSE NULL
+	END,
+	updated_at = $10
+WHERE keycloak_subject = $1
+RETURNING
+	id::text,
+	keycloak_subject,
+	COALESCE(email, ''),
+	email_verified,
+	COALESCE(display_name, ''),
+	COALESCE(display_name_source, 'provider'),
+	COALESCE(avatar_url, ''),
+	COALESCE(given_name, ''),
+	COALESCE(family_name, ''),
+	COALESCE(locale, ''),
+	COALESCE(timezone, ''),
+	weather_location_enabled,
+	COALESCE(weather_location_source, 'none'),
+	COALESCE(weather_location_label, ''),
+	weather_latitude,
+	weather_longitude,
+	last_login_at,
+	created_at,
+	updated_at;
+`
+	row := s.db.QueryRowContext(
+		ctx,
+		query,
+		strings.TrimSpace(in.UserSubject),
+		strings.TrimSpace(in.DisplayName),
+		strings.TrimSpace(in.Timezone),
+		in.WeatherLocationEnabled,
+		in.HasWeatherLocationValue,
+		strings.TrimSpace(in.WeatherLocationSource),
+		strings.TrimSpace(in.WeatherLocationLabel),
+		in.WeatherLatitude,
+		in.WeatherLongitude,
+		normalizeWriteTime(s.now()),
+	)
+	out, err := scanCurrentUser(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return CurrentUser{}, ErrUserNotFound
+		}
+		return CurrentUser{}, fmt.Errorf("update current user profile: %w", err)
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
 	now := normalizeWriteTime(s.now())
 	query := `
@@ -756,6 +940,53 @@ func marshalJSONBMap(value map[string]any) ([]byte, error) {
 		return nil, err
 	}
 	return encoded, nil
+}
+
+type currentUserScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanCurrentUser(scanner currentUserScanner) (CurrentUser, error) {
+	var (
+		row              CurrentUser
+		weatherLatitude  sql.NullFloat64
+		weatherLongitude sql.NullFloat64
+		lastLoginAt      sql.NullTime
+	)
+	if err := scanner.Scan(
+		&row.ID,
+		&row.KeycloakSubject,
+		&row.Email,
+		&row.EmailVerified,
+		&row.DisplayName,
+		&row.DisplayNameSource,
+		&row.AvatarURL,
+		&row.GivenName,
+		&row.FamilyName,
+		&row.Locale,
+		&row.Timezone,
+		&row.WeatherLocationEnabled,
+		&row.WeatherLocationSource,
+		&row.WeatherLocationLabel,
+		&weatherLatitude,
+		&weatherLongitude,
+		&lastLoginAt,
+		&row.CreatedAt,
+		&row.UpdatedAt,
+	); err != nil {
+		return CurrentUser{}, err
+	}
+	row.HasWeatherLocation = weatherLatitude.Valid && weatherLongitude.Valid
+	if weatherLatitude.Valid {
+		row.WeatherLatitude = weatherLatitude.Float64
+	}
+	if weatherLongitude.Valid {
+		row.WeatherLongitude = weatherLongitude.Float64
+	}
+	if lastLoginAt.Valid {
+		row.LastLoginAt = lastLoginAt.Time
+	}
+	return row, nil
 }
 
 func utcNow() time.Time {

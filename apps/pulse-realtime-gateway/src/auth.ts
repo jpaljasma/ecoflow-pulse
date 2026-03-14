@@ -8,6 +8,7 @@ import {
 } from '@ecoflow-pulse/node-jwks-auth';
 
 import type { AppConfig } from './config.js';
+import { realtimeMetrics } from './metrics.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -18,7 +19,9 @@ declare module 'fastify' {
 
 export function buildWsPreValidation(config: AppConfig): preValidationHookHandler {
   if (config.auth.mode === 'noop') {
-    return async () => {};
+    return async () => {
+      realtimeMetrics.recordAuthOutcome('anonymous_allowed');
+    };
   }
   const verifier = createJwksVerifier({
     issuerUrl: config.auth.issuerUrl,
@@ -37,15 +40,19 @@ export function makeWsVerifierPreValidation(
     const rawJwt = extractWsToken(request);
     if (!rawJwt) {
       if (allowMissingJwt) {
+        realtimeMetrics.recordAuthOutcome('anonymous_allowed');
         return;
       }
+      realtimeMetrics.recordAuthOutcome('missing_bearer_token');
       void reply.code(401).send({ error: 'missing_bearer_token' });
       return;
     }
     try {
       request.auth = await verifier(rawJwt);
       request.wsAuthHeader = `Bearer ${rawJwt}`;
+      realtimeMetrics.recordAuthOutcome('accepted');
     } catch {
+      realtimeMetrics.recordAuthOutcome('invalid_bearer_token');
       void reply.code(401).send({ error: 'invalid_bearer_token' });
     }
   };

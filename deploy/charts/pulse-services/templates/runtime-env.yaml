@@ -18,6 +18,10 @@ data:
   VALKEY_ADDRS: {{ .Values.runtime.env.valkeyAddrs | quote }}
   VALKEY_SENTINEL_MASTER_SET: {{ .Values.runtime.env.valkeySentinelMasterSet | quote }}
   GRPC_AUTH_MODE: {{ .Values.runtime.env.grpcAuthMode | quote }}
+  KEYCLOAK_ISSUER_URL: {{ .Values.runtime.env.keycloakIssuerUrl | quote }}
+  KEYCLOAK_AUDIENCE: {{ .Values.runtime.env.keycloakAudience | quote }}
+  KEYCLOAK_JWKS_URL: {{ .Values.runtime.env.keycloakJwksUrl | quote }}
+  GRPC_AUTH_ALLOW_MISSING_JWT: {{ .Values.runtime.env.grpcAuthAllowMissingJwt | quote }}
   ARCHIVE_OBJECT_ENDPOINT: {{ .Values.runtime.env.archiveObjectEndpoint | quote }}
   ARCHIVE_OBJECT_BUCKET: {{ .Values.runtime.env.archiveObjectBucket | quote }}
   ARCHIVE_OBJECT_PREFIX: {{ .Values.runtime.env.archiveObjectPrefix | quote }}

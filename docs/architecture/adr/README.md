@@ -23,6 +23,7 @@
 - [ADR-0017-browser-edge-delivery-http2-http3-at-ingress.md](./ADR-0017-browser-edge-delivery-http2-http3-at-ingress.md)
 - [ADR-0018-rollups-persist-explicit-energy-buckets.md](./ADR-0018-rollups-persist-explicit-energy-buckets.md)
 - [ADR-0019-split-energy-rpcs-into-dedicated-grpc-service.md](./ADR-0019-split-energy-rpcs-into-dedicated-grpc-service.md)
+- [ADR-0020-authenticated-entry-routing-profile-and-device-authorization.md](./ADR-0020-authenticated-entry-routing-profile-and-device-authorization.md)
 ---
 
 ## How to add an ADR

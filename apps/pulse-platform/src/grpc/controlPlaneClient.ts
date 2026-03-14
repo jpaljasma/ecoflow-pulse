@@ -34,6 +34,40 @@ export type ProviderDeviceGroup = {
   devices: ProviderDevice[];
 };
 
+export type CurrentUser = {
+  id: string;
+  keycloakSubject: string;
+  email: string;
+  emailVerified: boolean;
+  displayName: string;
+  displayNameSource: string;
+  avatarUrl: string;
+  givenName: string;
+  familyName: string;
+  locale: string;
+  timezone: string;
+  weatherLocationEnabled: boolean;
+  weatherLocationSource: string;
+  weatherLocationLabel: string;
+  weatherLatitude?: number;
+  weatherLongitude?: number;
+  hasWeatherLocation: boolean;
+  lastLoginAtUnixMs: string;
+  createdAtUnixMs: string;
+  updatedAtUnixMs: string;
+  authMethod: string;
+};
+
+export type AuthorizationSummary = {
+  tokenRoles: string[];
+  deviceCount: number;
+};
+
+export type CurrentUserBootstrap = {
+  user: CurrentUser;
+  authorization: AuthorizationSummary;
+};
+
 export type ListUserDevicesInput = {
   userSubject: string;
   authHeader?: string;
@@ -50,7 +84,46 @@ export type ListDevicesInput = {
   deadlineMs: number;
 };
 
+export type GetCurrentUserInput = {
+  userSubject: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type UpdateCurrentUserInput = {
+  userSubject: string;
+  displayName: string;
+  timezone: string;
+  weatherLocationEnabled: boolean;
+  weatherLocationSource?: string;
+  weatherLocationLabel?: string;
+  weatherLatitude?: number;
+  weatherLongitude?: number;
+  hasWeatherLocation: boolean;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type RefreshCurrentUserIdentityInput = {
+  userSubject: string;
+  email?: string;
+  emailVerified?: boolean;
+  displayName?: string;
+  avatarUrl?: string;
+  givenName?: string;
+  familyName?: string;
+  locale?: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
 export interface ControlPlaneClient {
+  getCurrentUser(input: GetCurrentUserInput): Promise<CurrentUserBootstrap>;
+  updateCurrentUser(input: UpdateCurrentUserInput): Promise<CurrentUser>;
+  refreshCurrentUserIdentity(input: RefreshCurrentUserIdentityInput): Promise<CurrentUser>;
   listUserDevices(input: ListUserDevicesInput): Promise<UserDevice[]>;
   listDevices(input: ListDevicesInput): Promise<ProviderDeviceGroup[]>;
   close(): void;
@@ -64,6 +137,9 @@ type GrpcUnaryMethod = (
 ) => void;
 
 type GrpcControlPlaneClient = {
+  GetCurrentUser: GrpcUnaryMethod;
+  UpdateCurrentUser: GrpcUnaryMethod;
+  RefreshCurrentUserIdentity: GrpcUnaryMethod;
   ListUserDevices: GrpcUnaryMethod;
   ListDevices: GrpcUnaryMethod;
   close: () => void;
@@ -97,6 +173,16 @@ type RawListDevicesResponse = {
   groups?: unknown;
 };
 
+type RawCurrentUser = Partial<Record<keyof CurrentUser, unknown>>;
+type RawAuthorizationSummary = Partial<Record<keyof AuthorizationSummary, unknown>>;
+type RawGetCurrentUserResponse = {
+  user?: unknown;
+  authorization?: unknown;
+};
+type RawUpdateCurrentUserResponse = {
+  user?: unknown;
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../../../../');
@@ -119,6 +205,54 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
     grpc.credentials.createInsecure()
   );
   return {
+    async getCurrentUser(input) {
+      const response = await unaryCall<RawGetCurrentUserResponse>(
+        client.GetCurrentUser.bind(client),
+        { userSubject: input.userSubject },
+        input
+      );
+      return {
+        user: normalizeCurrentUser((response.user ?? {}) as RawCurrentUser),
+        authorization: normalizeAuthorizationSummary(
+          (response.authorization ?? {}) as RawAuthorizationSummary
+        )
+      };
+    },
+    async updateCurrentUser(input) {
+      const response = await unaryCall<RawUpdateCurrentUserResponse>(
+        client.UpdateCurrentUser.bind(client),
+        {
+          userSubject: input.userSubject,
+          displayName: input.displayName,
+          timezone: input.timezone,
+          weatherLocationEnabled: input.weatherLocationEnabled,
+          weatherLocationSource: input.weatherLocationSource ?? '',
+          weatherLocationLabel: input.weatherLocationLabel ?? '',
+          weatherLatitude: input.weatherLatitude ?? 0,
+          weatherLongitude: input.weatherLongitude ?? 0,
+          hasWeatherLocation: input.hasWeatherLocation
+        },
+        input
+      );
+      return normalizeCurrentUser((response.user ?? {}) as RawCurrentUser);
+    },
+    async refreshCurrentUserIdentity(input) {
+      const response = await unaryCall<RawUpdateCurrentUserResponse>(
+        client.RefreshCurrentUserIdentity.bind(client),
+        {
+          userSubject: input.userSubject,
+          email: input.email ?? '',
+          emailVerified: input.emailVerified ?? false,
+          displayName: input.displayName ?? '',
+          avatarUrl: input.avatarUrl ?? '',
+          givenName: input.givenName ?? '',
+          familyName: input.familyName ?? '',
+          locale: input.locale ?? ''
+        },
+        input
+      );
+      return normalizeCurrentUser((response.user ?? {}) as RawCurrentUser);
+    },
     async listUserDevices(input) {
       const response = await unaryCall<RawListUserDevicesResponse>(
         client.ListUserDevices.bind(client),
@@ -217,8 +351,60 @@ function normalizeProviderDevice(device: RawProviderDevice): ProviderDevice {
   };
 }
 
+function normalizeCurrentUser(user: RawCurrentUser): CurrentUser {
+  return {
+    id: normalizeString(user.id),
+    keycloakSubject: normalizeString(user.keycloakSubject),
+    email: normalizeString(user.email),
+    emailVerified: Boolean(user.emailVerified),
+    displayName: normalizeString(user.displayName),
+    displayNameSource: normalizeString(user.displayNameSource),
+    avatarUrl: normalizeString(user.avatarUrl),
+    givenName: normalizeString(user.givenName),
+    familyName: normalizeString(user.familyName),
+    locale: normalizeString(user.locale),
+    timezone: normalizeString(user.timezone),
+    weatherLocationEnabled: Boolean(user.weatherLocationEnabled),
+    weatherLocationSource: normalizeString(user.weatherLocationSource),
+    weatherLocationLabel: normalizeString(user.weatherLocationLabel),
+    weatherLatitude: normalizeNumber(user.weatherLatitude),
+    weatherLongitude: normalizeNumber(user.weatherLongitude),
+    hasWeatherLocation: Boolean(user.hasWeatherLocation),
+    lastLoginAtUnixMs: normalizeString(user.lastLoginAtUnixMs),
+    createdAtUnixMs: normalizeString(user.createdAtUnixMs),
+    updatedAtUnixMs: normalizeString(user.updatedAtUnixMs),
+    authMethod: normalizeString(user.authMethod)
+  };
+}
+
+function normalizeAuthorizationSummary(summary: RawAuthorizationSummary): AuthorizationSummary {
+  return {
+    tokenRoles: Array.isArray(summary.tokenRoles)
+      ? summary.tokenRoles.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [],
+    deviceCount: normalizeInteger(summary.deviceCount)
+  };
+}
+
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeInteger(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value));
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.trunc(parsed));
+    }
+  }
+  return 0;
 }
 
 function normalizeRecord(value: unknown): Record<string, unknown> | undefined {

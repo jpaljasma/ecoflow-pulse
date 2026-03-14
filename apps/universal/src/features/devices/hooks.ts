@@ -14,7 +14,8 @@ export function useDevices(options: DeviceQueryOptions = {}) {
     queryFn: () => fetchDevices(token),
     enabled,
     staleTime: 60_000,
-    gcTime: 5 * 60_000
+    gcTime: 5 * 60_000,
+    placeholderData: (previous) => previous
   });
 }
 
@@ -25,6 +26,7 @@ export function useDevice(deviceId: string | undefined, options: DeviceQueryOpti
     queryFn: () => fetchDevice(deviceId ?? '', token),
     enabled: enabled && Boolean(deviceId),
     staleTime: 60_000,
-    gcTime: 5 * 60_000
+    gcTime: 5 * 60_000,
+    placeholderData: (previous) => previous
   });
 }

@@ -57,6 +57,29 @@ type UserDevice struct {
 	UpdatedAt   time.Time
 }
 
+type CurrentUser struct {
+	ID                     string
+	KeycloakSubject        string
+	Email                  string
+	EmailVerified          bool
+	DisplayName            string
+	DisplayNameSource      string
+	AvatarURL              string
+	GivenName              string
+	FamilyName             string
+	Locale                 string
+	Timezone               string
+	WeatherLocationEnabled bool
+	WeatherLocationSource  string
+	WeatherLocationLabel   string
+	WeatherLatitude        float64
+	WeatherLongitude       float64
+	HasWeatherLocation     bool
+	LastLoginAt            time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
 // IngestAssignment is an internal worker-facing projection for distributed
 // MQTT session orchestration. It includes credential material and desired
 // ingest state and must never be returned by user-facing APIs.
@@ -117,6 +140,29 @@ type ListUserDevicesInput struct {
 	UserSubject string
 }
 
+type GetOrProvisionCurrentUserInput struct {
+	UserSubject   string
+	Email         string
+	EmailVerified bool
+	DisplayName   string
+	AvatarURL     string
+	GivenName     string
+	FamilyName    string
+	Locale        string
+}
+
+type UpdateCurrentUserProfileInput struct {
+	UserSubject             string
+	DisplayName             string
+	Timezone                string
+	WeatherLocationEnabled  bool
+	WeatherLocationSource   string
+	WeatherLocationLabel    string
+	WeatherLatitude         float64
+	WeatherLongitude        float64
+	HasWeatherLocationValue bool
+}
+
 type UpsertProviderDeviceInput struct {
 	DeviceID           string
 	Provider           string
@@ -143,6 +189,8 @@ type Store interface {
 	CreateDevice(ctx context.Context, in CreateDeviceInput) (UserDevice, error)
 	LinkDevice(ctx context.Context, in LinkDeviceInput) (UserDevice, error)
 	ListUserDevices(ctx context.Context, in ListUserDevicesInput) ([]UserDevice, error)
+	GetOrProvisionCurrentUser(ctx context.Context, in GetOrProvisionCurrentUserInput) (CurrentUser, error)
+	UpdateCurrentUserProfile(ctx context.Context, in UpdateCurrentUserProfileInput) (CurrentUser, error)
 	UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error)
 	ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error)
 	GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (ProviderDevice, error)

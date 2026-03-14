@@ -17,12 +17,18 @@ type Authorizer interface {
 	Authorize(ctx context.Context, fullMethod string, claims *Claims) error
 }
 
-// Claims is a minimal placeholder. Expand once you wire Keycloak/JWKS validation.
 type Claims struct {
-	Subject string
-	Email   string
-	Roles   []string
-	RawJWT  string
+	Subject       string
+	Email         string
+	EmailVerified bool
+	DisplayName   string
+	GivenName     string
+	FamilyName    string
+	AvatarURL     string
+	Locale        string
+	AuthMethod    string
+	Roles         []string
+	RawJWT        string
 }
 
 // NoopAuthorizer allows all calls (use only for local/dev scaffolding).

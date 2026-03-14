@@ -35,7 +35,11 @@ runtime:
     # resolve the current primary instead of pinning a pod hostname.
     valkeyAddrs: "pulse-platform-valkey.pulse-platform.svc.cluster.local:26379"
     valkeySentinelMasterSet: "myprimary"
-    grpcAuthMode: "noop"
+    grpcAuthMode: "keycloak"
+    keycloakIssuerUrl: "https://localhost/realms/pulse"
+    keycloakAudience: "pulse-universal-app"
+    keycloakJwksUrl: "http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs"
+    grpcAuthAllowMissingJwt: "false"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
     archiveObjectSecretKey: "minio123"

@@ -145,6 +145,7 @@ type TelemetrySnapshotState = {
   connectionStatus: TelemetryEngineStatus;
   setVisibleDeviceIds: (ids: string[]) => void;
   setConnectionStatus: (status: TelemetryEngineStatus) => void;
+  reset: () => void;
   updateSnapshots: (payload: {
     snapshots: Record<string, DeviceSnapshot>;
     fleetTrend: FleetTrendSnapshot;
@@ -170,6 +171,14 @@ export const useTelemetryStore = create<TelemetrySnapshotState>((set) => ({
     set((state) => {
       if (state.connectionStatus === status) return state;
       return { connectionStatus: status };
+    }),
+  reset: () =>
+    set({
+      visibleDeviceIds: [],
+      snapshotByDeviceId: {},
+      fleetTrend: DEFAULT_FLEET_TREND,
+      lastUpdatedAt: 0,
+      connectionStatus: 'idle'
     }),
   updateSnapshots: ({ snapshots, fleetTrend, lastUpdatedAt, status }) =>
     set((state) => {

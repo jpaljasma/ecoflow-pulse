@@ -97,7 +97,8 @@ export function useDeviceSolarHistory(
     },
     staleTime: 30_000,
     gcTime: 10 * 60_000,
-    refetchInterval: deviceId ? historyRefreshIntervalMs(deviceId) : false
+    refetchInterval: deviceId ? historyRefreshIntervalMs(deviceId) : false,
+    placeholderData: (previous) => previous
   });
 }
 
@@ -140,7 +141,8 @@ export function useFleetSolarHistory(
     },
     staleTime: 30_000,
     gcTime: 10 * 60_000,
-    refetchInterval: sortedIds.length > 0 ? historyRefreshIntervalMs(sortedIds.join(',')) : false
+    refetchInterval: sortedIds.length > 0 ? historyRefreshIntervalMs(sortedIds.join(',')) : false,
+    placeholderData: (previous) => previous
   });
 
   return {
@@ -178,7 +180,8 @@ export function useDevicePowerTrendHistory(
       }
     },
     staleTime: 60_000,
-    gcTime: 10 * 60_000
+    gcTime: 10 * 60_000,
+    placeholderData: (previous) => previous
   });
 }
 
@@ -227,7 +230,8 @@ export function useFleetPowerTrendHistory(
       }
     },
     staleTime: 60_000,
-    gcTime: 10 * 60_000
+    gcTime: 10 * 60_000,
+    placeholderData: (previous) => previous
   });
 
   return {

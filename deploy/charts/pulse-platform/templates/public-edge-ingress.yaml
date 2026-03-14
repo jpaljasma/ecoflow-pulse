@@ -33,6 +33,27 @@ spec:
     - host: {{ .Values.runtime.publicApp.ingress.host | quote }}
       http:
         paths:
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pulse-platform.fullname" . }}-realtime-gateway
+                port:
+                  number: {{ .Values.runtime.realtimeGateway.service.port }}
+          - path: /realms
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pulse-platform.fullname" . }}-keycloak
+                port:
+                  number: 80
+          - path: /resources
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pulse-platform.fullname" . }}-keycloak
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:

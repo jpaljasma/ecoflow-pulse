@@ -2,6 +2,7 @@ import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
+import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
@@ -27,11 +28,12 @@ export default function DevicesScreen() {
   const { width } = useWindowDimensions();
   const semantics = useThemeSemantics();
   const compactHeader = width < 430;
-  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
+  const { authConfigured, authReady, authKey, token } = useAuthSession();
+  const { allowed, waiting } = useRequireAuth();
   const devicesQuery = useDevices({
     token,
     authKey,
-    enabled: authReady && (!authConfigured || sessionValid)
+    enabled: authReady && allowed
   });
   const deviceIds = useMemo(
     () => devicesQuery.data?.devices.map((d) => d.id) ?? [],
@@ -75,6 +77,10 @@ export default function DevicesScreen() {
     outputRange: [0.75, 1]
   });
 
+  if (waiting || !allowed) {
+    return <BrandedLoadingState minHeight={260} message="Checking session…" />;
+  }
+
   return (
     <YStack flex={1} backgroundColor="$background" testID="screen-devices">
       <TopBar
@@ -113,7 +119,7 @@ export default function DevicesScreen() {
         }
       />
 
-      {devicesQuery.isLoading ? (
+      {devicesQuery.isLoading && !devicesQuery.data ? (
         <BrandedLoadingState minHeight={240} message="Loading devices…" />
       ) : null}
 
@@ -123,17 +129,6 @@ export default function DevicesScreen() {
             Failed to load devices
           </Text>
           <Text color="$colorMuted" opacity={0.96}>{String(devicesQuery.error)}</Text>
-        </YStack>
-      ) : null}
-
-      {!devicesQuery.data && !devicesQuery.isLoading && !devicesQuery.isError && authConfigured && authReady && !sessionValid ? (
-        <YStack paddingHorizontal="$4" paddingVertical="$6" gap="$2">
-          <Text fontSize="$5" fontWeight="700">
-            Sign in required
-          </Text>
-          <Text color="$colorMuted" opacity={0.96}>
-            Open Settings and sign in to load devices and live telemetry.
-          </Text>
         </YStack>
       ) : null}
 

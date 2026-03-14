@@ -15,6 +15,7 @@ import type {
   LiveTelemetryClient,
   SubscribeInput
 } from '../src/live/liveTelemetryClient.js';
+import { realtimeMetrics } from '../src/metrics.js';
 
 type SubscriptionRecord = {
   input: SubscribeInput;
@@ -106,6 +107,7 @@ function baseConfig(): AppConfig {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  realtimeMetrics.reset();
 });
 
 type MessageCollector = {
@@ -236,6 +238,30 @@ describe('pulse-realtime-gateway', () => {
     });
 
     await expect(openWebSocket(app, '/ws')).rejects.toThrow(/401/);
+    await app.close();
+  });
+
+  it('exposes websocket auth metrics for scraping', async () => {
+    const client = new FakeLiveClient();
+    const app = buildApp(baseConfig(), client, {
+      wsPreValidation: async (_request, reply) => {
+        realtimeMetrics.recordAuthOutcome('missing_bearer_token');
+        void reply.code(401).send({ error: 'missing_bearer_token' });
+      }
+    });
+
+    await expect(openWebSocket(app, '/ws')).rejects.toThrow(/401/);
+
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/metrics'
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.headers['content-type']).toContain('text/plain');
+    expect(metrics.body).toContain('pulse_realtime_ws_auth_total');
+    expect(metrics.body).toContain('outcome="missing_bearer_token"');
+
     await app.close();
   });
 

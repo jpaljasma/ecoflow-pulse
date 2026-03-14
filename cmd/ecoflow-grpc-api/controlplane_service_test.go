@@ -47,6 +47,134 @@ func TestCreateProviderCredentialValidation(t *testing.T) {
 	}
 }
 
+func TestGetCurrentUserProvisionsFromClaimsAndReturnsAuthorization(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	device, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "dev-user",
+		EcoflowSN:   "DEMOD2M00001057",
+		ProductName: "Kitchen Delta 2 Max",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create device failed: %v", err)
+	}
+	if device.DeviceID == "" {
+		t.Fatalf("expected created device id")
+	}
+
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{
+		Subject:       "dev-user",
+		Email:         "dev@example.com",
+		EmailVerified: true,
+		DisplayName:   "Dev User",
+		GivenName:     "Dev",
+		FamilyName:    "User",
+		AvatarURL:     "https://example.com/avatar.png",
+		Locale:        "en-US",
+		AuthMethod:    "google",
+		Roles:         []string{"viewer"},
+	})
+	resp, err := svc.GetCurrentUser(ctx, &controlplanev1.GetCurrentUserRequest{UserSubject: "dev-user"})
+	if err != nil {
+		t.Fatalf("get current user failed: %v", err)
+	}
+	if got := resp.GetUser().GetDisplayName(); got != "Dev User" {
+		t.Fatalf("display name=%q want Dev User", got)
+	}
+	if got := resp.GetUser().GetAvatarUrl(); got != "https://example.com/avatar.png" {
+		t.Fatalf("avatar_url=%q want provider value", got)
+	}
+	if got := resp.GetUser().GetAuthMethod(); got != "google" {
+		t.Fatalf("auth_method=%q want google", got)
+	}
+	if got := resp.GetAuthorization().GetDeviceCount(); got != 1 {
+		t.Fatalf("device count=%d want 1", got)
+	}
+	if got := resp.GetAuthorization().GetTokenRoles(); len(got) != 1 || got[0] != "viewer" {
+		t.Fatalf("token roles=%v want [viewer]", got)
+	}
+}
+
+func TestGetCurrentUserFallsBackToGivenAndFamilyName(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	device, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "dev-user",
+		EcoflowSN:   "Y711ZABA9H2P0294",
+	})
+	if err != nil {
+		t.Fatalf("create device failed: %v", err)
+	}
+	if device.DeviceID == "" {
+		t.Fatalf("expected created device id")
+	}
+
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{
+		Subject:       "dev-user",
+		Email:         "jaan@example.com",
+		EmailVerified: true,
+		GivenName:     "Jaan",
+		FamilyName:    "Paljasma",
+	})
+	resp, err := svc.GetCurrentUser(ctx, &controlplanev1.GetCurrentUserRequest{UserSubject: "dev-user"})
+	if err != nil {
+		t.Fatalf("get current user failed: %v", err)
+	}
+	if got := resp.GetUser().GetDisplayName(); got != "Jaan Paljasma" {
+		t.Fatalf("display name=%q want Jaan Paljasma", got)
+	}
+}
+
+func TestUpdateCurrentUserValidatesTimezoneAndPreservesPulseDisplayName(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{
+		Subject:     "dev-user",
+		DisplayName: "Provider Name",
+	})
+	if _, err := svc.GetCurrentUser(ctx, &controlplanev1.GetCurrentUserRequest{UserSubject: "dev-user"}); err != nil {
+		t.Fatalf("bootstrap current user failed: %v", err)
+	}
+
+	if _, err := svc.UpdateCurrentUser(ctx, &controlplanev1.UpdateCurrentUserRequest{
+		UserSubject: "dev-user",
+	}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected InvalidArgument for missing timezone, got %v", err)
+	}
+
+	if _, err := svc.UpdateCurrentUser(ctx, &controlplanev1.UpdateCurrentUserRequest{
+		UserSubject: "dev-user",
+		Timezone:    "Mars/Olympus_Mons",
+	}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected InvalidArgument for invalid timezone, got %v", err)
+	}
+
+	updated, err := svc.UpdateCurrentUser(ctx, &controlplanev1.UpdateCurrentUserRequest{
+		UserSubject:            "dev-user",
+		DisplayName:            "Pulse Preferred",
+		Timezone:               "America/New_York",
+		WeatherLocationEnabled: false,
+	})
+	if err != nil {
+		t.Fatalf("update current user failed: %v", err)
+	}
+	if got := updated.GetUser().GetDisplayName(); got != "Pulse Preferred" {
+		t.Fatalf("display name=%q want Pulse Preferred", got)
+	}
+
+	refreshed, err := svc.GetCurrentUser(ctx, &controlplanev1.GetCurrentUserRequest{UserSubject: "dev-user"})
+	if err != nil {
+		t.Fatalf("refresh current user failed: %v", err)
+	}
+	if got := refreshed.GetUser().GetDisplayName(); got != "Pulse Preferred" {
+		t.Fatalf("display name should stay pulse-owned, got %q", got)
+	}
+}
+
 func TestCreateProviderCredentialUsesRegistryBackedProviderSupport(t *testing.T) {
 	t.Parallel()
 

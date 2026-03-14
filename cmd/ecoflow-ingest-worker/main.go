@@ -16,12 +16,15 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
+	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	valkey "github.com/valkey-io/valkey-go"
 )
 
 func main() {
@@ -47,7 +50,9 @@ func main() {
 		log.Error("CONTROL_PLANE_DB_DSN is required for ingest worker")
 		os.Exit(1)
 	}
-	store, err := controlplane.NewPostgresStore(dbDSN)
+	store, err := startupretry.Retry(context.Background(), log, "ingest postgres store", startupretry.DefaultOptions(), func(_ context.Context) (*controlplane.PostgresStore, error) {
+		return controlplane.NewPostgresStore(dbDSN)
+	})
 	if err != nil {
 		log.Error("init postgres store failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -59,7 +64,9 @@ func main() {
 	valkeyCfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	valkeyCfg.Password = os.Getenv("VALKEY_PASSWORD")
 	ingestlease.ConfigureSentinelFromEnv(&valkeyCfg)
-	client, err := ingestlease.NewValkeyClient(valkeyCfg)
+	client, err := startupretry.Retry(context.Background(), log, "ingest valkey client", startupretry.DefaultOptions(), func(_ context.Context) (valkey.Client, error) {
+		return ingestlease.NewValkeyClient(valkeyCfg)
+	})
 	if err != nil {
 		log.Error("init valkey client failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -81,7 +88,9 @@ func main() {
 	natsCfg.MaxPingsOut = runtimecfg.IntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
 	natsCfg.MaxReconnects = runtimecfg.IntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
 
-	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
+	natsConn, err := startupretry.Retry(context.Background(), log, "ingest nats connection", startupretry.DefaultOptions(), func(_ context.Context) (*nats.Conn, error) {
+		return telemetrybus.DialNATS(log, natsCfg)
+	})
 	if err != nil {
 		log.Error("init nats connection failed", slog.String("error", err.Error()))
 		os.Exit(1)

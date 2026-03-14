@@ -16,6 +16,7 @@ import {
   type ServerDeviceStatusMessage,
   type ServerTelemetryMessage
 } from './schemas.js';
+import { realtimeMetrics } from './metrics.js';
 
 type BuildAppOptions = {
   wsPreValidation?: preValidationHookHandler;
@@ -47,6 +48,10 @@ export function buildApp(
   const wsPreValidation = options.wsPreValidation ?? buildWsPreValidation(config);
 
   app.get('/healthz', async () => ({ ok: true }));
+  app.get('/metrics', async (_request, reply) => {
+    reply.header('Content-Type', realtimeMetrics.contentType());
+    return await realtimeMetrics.render();
+  });
 
   void app.register(async (scopedApp) => {
     await scopedApp.register(websocket);
@@ -97,6 +102,7 @@ class GatewaySession {
     this.authHeader = deps.authHeader;
     this.config = deps.config;
     this.liveClient = deps.liveClient;
+    realtimeMetrics.sessionOpened();
   }
 
   handleMessage(raw: string): void {
@@ -136,6 +142,7 @@ class GatewaySession {
       return;
     }
     this.closed = true;
+    realtimeMetrics.sessionClosed();
     for (const state of this.deviceStreams.values()) {
       this.stopState(state);
     }
@@ -146,6 +153,7 @@ class GatewaySession {
     if (this.deviceStreams.has(deviceId)) {
       return;
     }
+    realtimeMetrics.recordSubscriptionOutcome('requested');
 
     const state: DeviceStreamState = {
       deviceId,
@@ -209,6 +217,9 @@ class GatewaySession {
           return;
         }
         this.sendDeviceStatus(state.deviceId, false, Date.now());
+        if (isPermissionDenied(error)) {
+          realtimeMetrics.recordSubscriptionOutcome('forbidden');
+        }
         if (!shouldReconnect(error)) {
           this.stopState(state);
           this.deviceStreams.delete(state.deviceId);
@@ -283,6 +294,10 @@ function shouldReconnect(error?: (Error & { code?: number }) | undefined): boole
     grpcStatus.PERMISSION_DENIED,
     grpcStatus.UNAUTHENTICATED
   ].includes(error.code);
+}
+
+function isPermissionDenied(error?: (Error & { code?: number }) | undefined): boolean {
+  return Boolean(error && typeof error.code === 'number' && error.code === grpcStatus.PERMISSION_DENIED);
 }
 
 function computeBackoffWithJitter(baseMs: number, maxMs: number, attempt: number): number {

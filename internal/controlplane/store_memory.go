@@ -19,10 +19,15 @@ type memoryDevice struct {
 	UpdatedAt   time.Time
 }
 
+type memoryUser struct {
+	CurrentUser
+}
+
 type MemoryStore struct {
 	mu sync.RWMutex
 
 	usersBySubject  map[string]string
+	usersByID       map[string]memoryUser
 	credentials     map[string]ProviderCredential
 	providerDevices map[string]ProviderDevice
 
@@ -35,9 +40,21 @@ type MemoryStore struct {
 }
 
 func NewMemoryStore() *MemoryStore {
+	now := utcNow()
 	return &MemoryStore{
 		usersBySubject: map[string]string{
 			"dev-user": "dev-user-id-1",
+		},
+		usersByID: map[string]memoryUser{
+			"dev-user-id-1": {
+				CurrentUser: CurrentUser{
+					ID:                "dev-user-id-1",
+					KeycloakSubject:   "dev-user",
+					DisplayNameSource: "provider",
+					CreatedAt:         now,
+					UpdatedAt:         now,
+				},
+			},
 		},
 		credentials:     map[string]ProviderCredential{},
 		providerDevices: map[string]ProviderDevice{},
@@ -60,6 +77,16 @@ func (s *MemoryStore) EnsureUser(userSubject string) string {
 	}
 	id := s.nextID("usr")
 	s.usersBySubject[subject] = id
+	now := normalizeWriteTime(s.now())
+	s.usersByID[id] = memoryUser{
+		CurrentUser: CurrentUser{
+			ID:                id,
+			KeycloakSubject:   subject,
+			DisplayNameSource: "provider",
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		},
+	}
 	return id
 }
 
@@ -266,6 +293,87 @@ func (s *MemoryStore) ListUserDevices(_ context.Context, in ListUserDevicesInput
 	return out, nil
 }
 
+func (s *MemoryStore) GetOrProvisionCurrentUser(_ context.Context, in GetOrProvisionCurrentUserInput) (CurrentUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user := s.ensureUserLocked(strings.TrimSpace(in.UserSubject))
+	if user.ID == "" {
+		return CurrentUser{}, ErrUserNotFound
+	}
+	now := normalizeWriteTime(s.now())
+	user.KeycloakSubject = strings.TrimSpace(in.UserSubject)
+	user.Email = strings.TrimSpace(in.Email)
+	user.EmailVerified = in.EmailVerified
+	user.AvatarURL = strings.TrimSpace(in.AvatarURL)
+	user.GivenName = strings.TrimSpace(in.GivenName)
+	user.FamilyName = strings.TrimSpace(in.FamilyName)
+	user.Locale = strings.TrimSpace(in.Locale)
+	user.LastLoginAt = now
+	if user.DisplayNameSource != "pulse" || strings.TrimSpace(user.DisplayName) == "" {
+		if displayName := PreferredProviderDisplayName(in.DisplayName, in.GivenName, in.FamilyName, in.Email); displayName != "" {
+			user.DisplayName = displayName
+		}
+		if user.DisplayNameSource == "" {
+			user.DisplayNameSource = "provider"
+		}
+		if user.DisplayNameSource == "pulse" && strings.TrimSpace(user.DisplayName) != "" {
+			user.DisplayNameSource = "provider"
+		}
+	}
+	user.UpdatedAt = now
+	s.usersByID[user.ID] = memoryUser{CurrentUser: user}
+	return cloneCurrentUser(user), nil
+}
+
+func (s *MemoryStore) UpdateCurrentUserProfile(_ context.Context, in UpdateCurrentUserProfileInput) (CurrentUser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return CurrentUser{}, ErrUserNotFound
+	}
+	entry, ok := s.usersByID[userID]
+	if !ok {
+		return CurrentUser{}, ErrUserNotFound
+	}
+	user := entry.CurrentUser
+	now := normalizeWriteTime(s.now())
+	displayName := strings.TrimSpace(in.DisplayName)
+	if displayName != "" {
+		user.DisplayName = displayName
+		user.DisplayNameSource = "pulse"
+	}
+	user.Timezone = strings.TrimSpace(in.Timezone)
+	user.WeatherLocationEnabled = in.WeatherLocationEnabled
+	if !in.WeatherLocationEnabled {
+		user.WeatherLocationSource = "none"
+		user.WeatherLocationLabel = ""
+		user.WeatherLatitude = 0
+		user.WeatherLongitude = 0
+		user.HasWeatherLocation = false
+	} else {
+		source := strings.TrimSpace(in.WeatherLocationSource)
+		if source == "" {
+			source = "auto"
+		}
+		user.WeatherLocationSource = source
+		user.WeatherLocationLabel = strings.TrimSpace(in.WeatherLocationLabel)
+		user.HasWeatherLocation = in.HasWeatherLocationValue
+		if in.HasWeatherLocationValue {
+			user.WeatherLatitude = in.WeatherLatitude
+			user.WeatherLongitude = in.WeatherLongitude
+		} else {
+			user.WeatherLatitude = 0
+			user.WeatherLongitude = 0
+		}
+	}
+	user.UpdatedAt = now
+	s.usersByID[userID] = memoryUser{CurrentUser: user}
+	return cloneCurrentUser(user), nil
+}
+
 func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -462,11 +570,39 @@ func (s *MemoryStore) nextID(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, seq)
 }
 
+func (s *MemoryStore) ensureUserLocked(subject string) CurrentUser {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return CurrentUser{}
+	}
+	if id, ok := s.usersBySubject[subject]; ok {
+		if entry, found := s.usersByID[id]; found {
+			return entry.CurrentUser
+		}
+	}
+	id := s.nextID("usr")
+	now := normalizeWriteTime(s.now())
+	user := CurrentUser{
+		ID:                id,
+		KeycloakSubject:   subject,
+		DisplayNameSource: "provider",
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	s.usersBySubject[subject] = id
+	s.usersByID[id] = memoryUser{CurrentUser: user}
+	return user
+}
+
 func cloneProviderDevice(in ProviderDevice) ProviderDevice {
 	out := in
 	out.Capabilities = cloneAnyMap(in.Capabilities)
 	out.Metadata = cloneAnyMap(in.Metadata)
 	return out
+}
+
+func cloneCurrentUser(in CurrentUser) CurrentUser {
+	return in
 }
 
 func cloneAnyMap(in map[string]any) map[string]any {

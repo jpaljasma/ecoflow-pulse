@@ -8,6 +8,12 @@ metadata:
     app.kubernetes.io/component: public-app
 spec:
   replicas: {{ .Values.runtime.publicApp.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.publicApp.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.publicApp.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.publicApp.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-platform.selectorLabels" . | nindent 6 }}
@@ -18,6 +24,7 @@ spec:
         {{- include "pulse-platform.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: public-app
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.publicApp.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: public-app
           image: "{{ .Values.runtime.publicApp.image.repository }}:{{ .Values.runtime.publicApp.image.tag }}"
@@ -42,6 +49,16 @@ spec:
               value: {{ .Values.runtime.publicApp.env.realtimeGatewayUpstreamUrl | quote }}
             - name: NODE_AUTH_MODE
               value: {{ .Values.runtime.publicApp.env.nodeAuthMode | quote }}
+            - name: KEYCLOAK_ISSUER_URL
+              value: {{ .Values.runtime.publicApp.env.keycloakIssuerUrl | quote }}
+            - name: KEYCLOAK_AUDIENCE
+              value: {{ .Values.runtime.publicApp.env.keycloakAudience | quote }}
+            - name: KEYCLOAK_JWKS_URL
+              value: {{ .Values.runtime.publicApp.env.keycloakJwksUrl | quote }}
+            - name: KEYCLOAK_USERINFO_URL
+              value: {{ .Values.runtime.publicApp.env.keycloakUserInfoUrl | quote }}
+            - name: KEYCLOAK_ALLOW_MISSING_JWT
+              value: {{ .Values.runtime.publicApp.env.keycloakAllowMissingJwt | quote }}
             - name: PULSE_PLATFORM_DEV_SUBJECT
               value: {{ .Values.runtime.publicApp.env.devUserSubject | quote }}
             - name: PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS
@@ -50,6 +67,22 @@ spec:
               value: {{ .Values.runtime.publicApp.env.corsAllowedOrigins | quote }}
           resources:
             {{- toYaml .Values.runtime.publicApp.resources | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep {{ .Values.runtime.publicApp.deployment.preStopSleepSeconds }}
+          {{- if .Values.runtime.publicApp.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: {{ .Values.runtime.publicApp.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.publicApp.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.publicApp.startupProbe.failureThreshold }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -79,4 +112,44 @@ spec:
     - name: http
       port: {{ .Values.runtime.publicApp.service.port }}
       targetPort: http
+---
+{{- if and .Values.components.observabilityLite.enabled .Values.runtime.publicApp.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-public-app
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-app
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: public-app
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: http
+      path: {{ .Values.runtime.publicApp.metrics.path }}
+      interval: {{ .Values.runtime.publicApp.metrics.serviceMonitor.interval }}
+{{- end }}
+---
+{{- if and .Values.runtime.publicApp.pdb.enabled (gt (int .Values.runtime.publicApp.replicaCount) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-public-app
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: public-app
+spec:
+  minAvailable: {{ .Values.runtime.publicApp.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: public-app
+{{- end }}
 {{- end }}
