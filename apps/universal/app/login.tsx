@@ -4,7 +4,6 @@ import { ScrollView } from 'react-native';
 import { Button, Text, YStack } from 'tamagui';
 import { LoginCard } from '@/features/auth/KeycloakPkceCard';
 import { useAuthSession } from '@/features/auth/hooks';
-import { useAuthStore } from '@/features/auth/store';
 import { resolvePostLoginTarget, sanitizeReturnTo } from '@/features/auth/useReturnTo';
 import { resolveUserDisplayName } from '@/features/profile/model';
 import { useCurrentUser, useUpdateCurrentUser } from '@/features/profile/hooks';

@@ -28,7 +28,7 @@ export default function DevicesScreen() {
   const { width } = useWindowDimensions();
   const semantics = useThemeSemantics();
   const compactHeader = width < 430;
-  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
+  const { authConfigured, authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const devicesQuery = useDevices({
     token,

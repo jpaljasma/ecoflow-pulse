@@ -97,6 +97,7 @@ function makeControlPlaneClient(
   return {
     getCurrentUser: vi.fn(),
     updateCurrentUser: vi.fn(),
+    refreshCurrentUserIdentity: vi.fn(),
     listUserDevices: vi.fn(),
     listDevices: vi.fn(async () => []),
     close: vi.fn(),
