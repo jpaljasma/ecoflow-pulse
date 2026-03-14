@@ -15,4 +15,3 @@
 ## Next step
 
 - Review once welcome/login/profile/logout and authz behavior are all wired together on localhost.
-

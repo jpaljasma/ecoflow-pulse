@@ -180,14 +180,42 @@ valkey:
         release: pulse-platform
   primary:
     persistence:
-      enabled: false
+      enabled: true
+      size: 8Gi
+    persistentVolumeClaimRetentionPolicy:
+      enabled: true
+      whenScaled: Retain
+      whenDeleted: Retain
   replica:
     replicaCount: 3
+    minReadySeconds: 10
+    terminationGracePeriodSeconds: 60
     persistence:
-      enabled: false
+      enabled: true
+      size: 8Gi
+    persistentVolumeClaimRetentionPolicy:
+      enabled: true
+      whenScaled: Retain
+      whenDeleted: Retain
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: node
+    pdb:
+      create: true
+      minAvailable: 2
   sentinel:
     enabled: true
     quorum: 2
+    automateClusterRecovery: true
+    downAfterMilliseconds: 2000
+    failoverTimeout: 180000
+    parallelSyncs: 1
+    replicaSyncCheck: true
+    valkeyShutdownWaitFailover: true
 keycloak:
   replicaCount: 2
   proxyHeaders: xforwarded

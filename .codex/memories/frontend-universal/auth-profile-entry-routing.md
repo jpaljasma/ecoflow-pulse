@@ -16,4 +16,3 @@
 ## Next step
 
 - Build a small auth gate + `returnTo` sanitizer first so welcome/login/profile/logout work stays consistent across web and native.
-
