@@ -9,10 +9,12 @@ import (
 	"syscall"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
+	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
+	"github.com/nats-io/nats.go"
 )
 
 func main() {
@@ -37,7 +39,9 @@ func main() {
 	if dbDSN == "" {
 		dbDSN = strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
 	}
-	store, err := rollupworker.NewPostgresStore(dbDSN)
+	store, err := startupretry.Retry(context.Background(), log, "rollup postgres store", startupretry.DefaultOptions(), func(_ context.Context) (*rollupworker.PostgresStore, error) {
+		return rollupworker.NewPostgresStore(dbDSN)
+	})
 	if err != nil {
 		log.Error("init rollup store failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -57,7 +61,9 @@ func main() {
 	natsCfg.MaxPingsOut = runtimecfg.IntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
 	natsCfg.MaxReconnects = runtimecfg.IntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
 
-	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
+	natsConn, err := startupretry.Retry(context.Background(), log, "rollup nats connection", startupretry.DefaultOptions(), func(_ context.Context) (*nats.Conn, error) {
+		return telemetrybus.DialNATS(log, natsCfg)
+	})
 	if err != nil {
 		log.Error("init nats connection failed", slog.String("error", err.Error()))
 		os.Exit(1)

@@ -34,6 +34,16 @@ runtime:
   publicApp:
     enabled: false
     replicaCount: 1
+    deployment:
+      minReadySeconds: 10
+      terminationGracePeriodSeconds: 45
+      preStopSleepSeconds: 15
+      strategy:
+        maxUnavailable: 0
+        maxSurge: 1
+    pdb:
+      enabled: true
+      minAvailable: 1
     image:
       repository: ecoflow-pulse/pulse-platform
       tag: local
@@ -42,6 +52,16 @@ runtime:
       type: LoadBalancer
       port: 80
       targetPort: 8080
+    metrics:
+      path: /metrics
+      serviceMonitor:
+        enabled: false
+        interval: 30s
+    startupProbe:
+      enabled: true
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      failureThreshold: 24
     resources:
       requests:
         cpu: 100m
@@ -54,6 +74,11 @@ runtime:
       energyGrpcApiAddr: pulse-services-go-energy-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
       nodeAuthMode: noop
+      keycloakIssuerUrl: ""
+      keycloakAudience: ""
+      keycloakJwksUrl: ""
+      keycloakUserInfoUrl: ""
+      keycloakAllowMissingJwt: "false"
       publicDir: /app/apps/universal/dist
       realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
       devUserSubject: dev-user@example.com
@@ -80,6 +105,16 @@ runtime:
   realtimeGateway:
     enabled: false
     replicaCount: 1
+    deployment:
+      minReadySeconds: 10
+      terminationGracePeriodSeconds: 45
+      preStopSleepSeconds: 15
+      strategy:
+        maxUnavailable: 0
+        maxSurge: 1
+    pdb:
+      enabled: true
+      minAvailable: 1
     image:
       repository: ecoflow-pulse/pulse-realtime-gateway
       tag: local
@@ -88,6 +123,16 @@ runtime:
       type: ClusterIP
       port: 8082
       targetPort: 8082
+    metrics:
+      path: /metrics
+      serviceMonitor:
+        enabled: false
+        interval: 30s
+    startupProbe:
+      enabled: true
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      failureThreshold: 24
     resources:
       requests:
         cpu: 100m
@@ -104,6 +149,11 @@ runtime:
       projectionKeyPrefix: pulse:projection
       telemetrySubjectPrefix: pulse.telemetry
       nodeAuthMode: noop
+      keycloakIssuerUrl: ""
+      keycloakAudience: ""
+      keycloakJwksUrl: ""
+      keycloakUserInfoUrl: ""
+      keycloakAllowMissingJwt: "false"
 
 # Dependency chart values are intentionally minimal in scaffold mode.
 # Expand these blocks iteratively when each platform component is wired.
@@ -157,6 +207,20 @@ keycloakRealm:
   configMapName: pulse-platform-keycloak-realm-import
   socialSecretName: pulse-platform-keycloak-social-providers
   realmName: pulse
+  universalClient:
+    enabled: true
+    clientId: pulse-universal-app
+    redirectUris:
+      - ecoflowpulse://*
+      - https://localhost/*
+      - http://localhost:8081/*
+      - https://127.0.0.1/*
+      - http://127.0.0.1:8081/*
+    webOrigins:
+      - https://localhost
+      - http://localhost:8081
+      - https://127.0.0.1
+      - http://127.0.0.1:8081
   google:
     enabled: false
     clientId: ""

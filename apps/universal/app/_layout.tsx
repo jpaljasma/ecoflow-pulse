@@ -10,8 +10,13 @@ export default function RootLayout() {
     <AppProvider>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="auth/callback" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="device/[deviceId]" options={{ animation: 'flip' }} />
+        <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </AppProvider>
   );

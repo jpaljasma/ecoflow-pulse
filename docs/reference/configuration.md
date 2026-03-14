@@ -66,6 +66,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
   - `keycloak`: validates bearer JWTs via Keycloak OIDC/JWKS and injects claims into gRPC context.
 - `KEYCLOAK_ISSUER_URL` (required when `GRPC_AUTH_MODE=keycloak`)
 - `KEYCLOAK_AUDIENCE` (optional; when set, JWT audience must match)
+- `KEYCLOAK_JWKS_URL` (optional override; lets internal gRPC services fetch JWKS from an in-cluster Keycloak URL while still validating the public issuer)
 - `GRPC_AUTH_ALLOW_MISSING_JWT` (default `false`; optional only for controlled local bootstrap)
 - `GRPC_HISTORY_GZIP_MIN_BYTES` (default `16384`; when a `QueryRollupRange` or `CompareRollupRange` response is at least this serialized size, grpc-api enables gzip for that unary response)
 - `CONTROL_PLANE_DB_DSN`
@@ -89,7 +90,9 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `PULSE_PLATFORM_DEV_SUBJECT` (optional in local noop mode; recommended for local UI work so the BFF can resolve the current user's devices without request headers)
 - `PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS` (optional comma/whitespace-delimited browser-facing origins for `Link: rel=preconnect` / `dns-prefetch` headers when API/WS are cross-origin)
 - `PULSE_PLATFORM_CORS_ALLOWED_ORIGINS` (optional comma/whitespace-delimited exact origins to allow for browser CORS requests; when unset, the public app keeps the existing permissive origin reflection behavior. Local/dev defaults include `http://localhost:8081` and `https://localhost:8081` for Expo web-dev access to `/api/*`.)
+- `GET /metrics` is exposed on the same public-app HTTP service for Prometheus/OTEL scrape collection. In Helm, enable `runtime.publicApp.metrics.serviceMonitor.enabled=true` to have observability-lite discover the endpoint automatically.
 - Expo web-dev note: when the universal app is served from loopback `:8081` and no explicit `EXPO_PUBLIC_API_URL` is set, the browser client now prefers `https://localhost` / `wss://localhost` automatically so local ingress redirects do not surface as browser CORS failures.
+- Empty-string `EXPO_PUBLIC_*` values are treated as unset in the universal web runtime. This matters for Docker/Helm-driven web builds, where missing args can appear as `""`; the browser should still fall back to the secure localhost defaults instead of generating broken API/WS URLs.
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS` (default `60000`; rate-limit window for authenticated history endpoints)
 - `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
@@ -98,6 +101,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `KEYCLOAK_ISSUER_URL` (required when `NODE_AUTH_MODE=keycloak`)
 - `KEYCLOAK_AUDIENCE` (required when `NODE_AUTH_MODE=keycloak`)
 - `KEYCLOAK_JWKS_URL` (optional override)
+- `KEYCLOAK_USERINFO_URL` (optional override; lets the public app fetch Keycloak `userinfo` through an in-cluster URL for background social-profile/avatar refresh)
 - `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
 
 ## Pulse Realtime WebSocket Gateway (`apps/pulse-realtime-gateway`)
@@ -130,6 +134,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `KEYCLOAK_AUDIENCE` (required when `NODE_AUTH_MODE=keycloak`)
 - `KEYCLOAK_JWKS_URL` (optional override)
 - `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
+- `GET /metrics` is exposed on the same realtime-gateway HTTP service for Prometheus/OTEL scrape collection. In Helm, enable `runtime.realtimeGateway.metrics.serviceMonitor.enabled=true` to have observability-lite discover the endpoint automatically.
 
 Runtime behavior:
 - the gateway authorizes device access through the internal Go gRPC API,
@@ -202,10 +207,12 @@ Runtime behavior:
 
 - `EXPO_PUBLIC_API_URL`
   - web default: same-origin (`http://localhost` in local k3d) and should normally be left unset
+  - blank-string values are treated as unset
   - native debug override: point directly at the public edge or standalone BFF when needed
   - native fallback behavior when unset: retry host variants (`<host>`, Expo host hints, `127.0.0.1`, `localhost`) and both local ports (`:18081`, then public-edge default port)
 - `EXPO_PUBLIC_WS_URL`
   - default when unset: derive from API base (`ws(s)://<api-host>/ws`, trimming a trailing `/api` path when present)
+  - blank-string values are treated as unset
   - native fallback behavior when unset: retry host variants (`<host>`, Expo host hints, `127.0.0.1`, `localhost`) and include both BFF-proxied (`/ws`) and standalone gateway (`:8082/ws`) paths
   - native debug override: set explicitly when bypassing BFF `/ws` proxy routing
 - `EXPO_PUBLIC_ASSET_BASE_URL`
@@ -221,8 +228,13 @@ Runtime behavior:
 Runtime behavior:
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
+- profile and homepage queries should preserve the last successful payload during routine refetch so deploy rollouts do not flash empty-state content; when a profile is missing `avatarUrl`, the profile page may trigger a one-shot authenticated `/api/v1/me/identity-refresh` in the background to backfill provider-managed social data.
 - websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.
 - on web, websocket reconnect must retry the current browser-origin endpoint directly; browser sessions should not rotate through native-dev fallback hosts such as `127.0.0.1` or `localhost` after deploy-induced disconnects.
+- local browser auth/realtime flows depend on the shared ingress routing all three public paths correctly:
+  - `/realms` and `/resources` must reach Keycloak,
+  - `/ws` must reach the realtime gateway,
+  - `/` must keep serving the public app.
 - universal-app theming contract:
   - the persisted user preference stores the palette family (`original` or `new`), not a fixed light/dark override,
   - light vs dark mode still follows system appearance automatically,

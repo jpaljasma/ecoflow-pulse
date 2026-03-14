@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Image, Platform, ScrollView } from 'react-native';
-import { Button, Input, Text, XStack, YStack } from 'tamagui';
+import { Button, Text, XStack, YStack } from 'tamagui';
+import { LogoutButton } from '@/features/auth/LogoutButton';
+import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Sheet } from '@/shared/ui/Sheet';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
@@ -42,6 +44,16 @@ export function AppMenu() {
         <YStack minHeight={360} maxHeight={520} justifyContent="space-between">
           <ScrollView showsVerticalScrollIndicator>
             <YStack gap="$3" paddingRight="$1">
+              <Button
+                size="$5"
+                justifyContent="flex-start"
+                onPress={() => {
+                  setOpen(false);
+                  router.push('/profile');
+                }}
+              >
+                Profile
+              </Button>
               <Button
                 size="$5"
                 justifyContent="flex-start"
@@ -92,33 +104,34 @@ export function AppMenu() {
               >
                 About
               </Button>
+              <LogoutButton
+                onComplete={() => {
+                  setOpen(false);
+                }}
+              />
             </YStack>
           </ScrollView>
 
           <YStack gap="$3" paddingTop="$3">
             <XStack height={1} backgroundColor="rgba(120,120,128,0.28)" />
             <XStack alignItems="center" gap="$2" width="100%" maxWidth={360}>
-              <Input
+              <AppTextInput
                 flex={1}
                 value={searchText}
                 onChangeText={setSearchText}
                 placeholder="Search"
-                size="$5"
-                minHeight={56}
-                paddingHorizontal={16}
                 placeholderTextColor="#a8adb8"
-                style={Platform.OS === 'web' ? ({ height: '2em' } as any) : undefined}
               />
               <XStack
-                width={56}
-                minHeight={56}
+                width={52}
+                minHeight={52}
                 alignItems="center"
                 justifyContent="center"
                 borderWidth={1}
                 borderColor="rgba(120,120,128,0.3)"
-                borderRadius={24}
+                borderRadius={20}
               >
-                <Text fontSize="$9" style={Platform.OS === 'web' ? ({ fontSize: '2.4em' } as any) : undefined}>
+                <Text fontSize="$8">
                   ⌕
                 </Text>
               </XStack>

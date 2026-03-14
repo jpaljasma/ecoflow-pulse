@@ -11,10 +11,13 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/inference"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
+	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
+	"github.com/nats-io/nats.go"
+	valkey "github.com/valkey-io/valkey-go"
 )
 
 func main() {
@@ -40,7 +43,9 @@ func main() {
 		log.Error("CONTROL_PLANE_DB_DSN is required")
 		os.Exit(1)
 	}
-	controlPlaneStore, err := controlplane.NewPostgresStore(dsn)
+	controlPlaneStore, err := startupretry.Retry(context.Background(), log, "inference postgres store", startupretry.DefaultOptions(), func(_ context.Context) (*controlplane.PostgresStore, error) {
+		return controlplane.NewPostgresStore(dsn)
+	})
 	if err != nil {
 		log.Error("init control-plane store failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -52,7 +57,9 @@ func main() {
 	valkeyCfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	valkeyCfg.Password = os.Getenv("VALKEY_PASSWORD")
 	ingestlease.ConfigureSentinelFromEnv(&valkeyCfg)
-	client, err := ingestlease.NewValkeyClient(valkeyCfg)
+	client, err := startupretry.Retry(context.Background(), log, "inference valkey client", startupretry.DefaultOptions(), func(_ context.Context) (valkey.Client, error) {
+		return ingestlease.NewValkeyClient(valkeyCfg)
+	})
 	if err != nil {
 		log.Error("init valkey client failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -83,7 +90,9 @@ func main() {
 	natsCfg.MaxPingsOut = runtimecfg.IntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
 	natsCfg.MaxReconnects = runtimecfg.IntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
 
-	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
+	natsConn, err := startupretry.Retry(context.Background(), log, "inference nats connection", startupretry.DefaultOptions(), func(_ context.Context) (*nats.Conn, error) {
+		return telemetrybus.DialNATS(log, natsCfg)
+	})
 	if err != nil {
 		log.Error("init nats connection failed", slog.String("error", err.Error()))
 		os.Exit(1)

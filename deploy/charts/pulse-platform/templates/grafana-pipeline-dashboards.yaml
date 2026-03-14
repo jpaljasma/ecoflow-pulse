@@ -693,4 +693,145 @@ data:
       "uid": "pulse-platform-infra",
       "version": 1
     }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-auth-profile
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-auth-profile.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (route, status_class) (rate(pulse_public_http_requests_total{namespace=\"$namespace\",route=~\"/api/v1/me|/login|/onboarding|/profile|/devices\"}[5m]))",
+              "legendFormat": "{{"{{"}}route{{"}}"}} {{"{{"}}status_class{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Public Auth/Profile Request Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, route) (rate(pulse_public_http_request_duration_seconds_bucket{namespace=\"$namespace\",route=~\"/api/v1/me|/devices|/energy|/profile|/onboarding\"}[5m])))",
+              "legendFormat": "{{"{{"}}route{{"}}"}} p95",
+              "refId": "A"
+            }
+          ],
+          "title": "Public Auth/Profile HTTP Latency p95",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (route, status) (rate(pulse_public_auth_denials_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}route{{"}}"}} {{"{{"}}status{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Auth Denials (401 vs 403)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (grpc_method, grpc_code) (rate(pulse_grpc_server_requests_total{namespace=\"pulse-services\",grpc_method=~\"GetCurrentUser|UpdateCurrentUser\"}[5m]))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}} {{"{{"}}grpc_code{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Current User RPC Outcomes",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (outcome) (rate(pulse_realtime_ws_auth_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (outcome) (rate(pulse_realtime_ws_subscriptions_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "subscription {{"{{"}}outcome{{"}}"}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Realtime Auth and Subscription Outcomes",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum(pulse_realtime_ws_sessions_active{namespace=\"$namespace\"})",
+              "legendFormat": "active sessions",
+              "refId": "A"
+            }
+          ],
+          "title": "Realtime Active Sessions",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "auth", "profile", "realtime"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "{{ .Release.Namespace }}", "value": "{{ .Release.Namespace }}"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "{{ .Release.Namespace }}",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "title": "Pulse Auth & Profile",
+      "uid": "pulse-auth-profile",
+      "version": 1
+    }
 {{- end }}

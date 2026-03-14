@@ -14,6 +14,7 @@ import {
   Inter_700Bold,
   Inter_800ExtraBold
 } from '@expo-google-fonts/inter';
+import { SessionRefreshManager } from '@/features/auth/SessionRefreshManager';
 import { TelemetryEngineProvider } from '@/features/telemetry/TelemetryEngineContext';
 import { tamaguiConfig } from '@/shared/ui/theme';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
@@ -75,6 +76,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <TamaguiProvider config={tamaguiConfig} defaultTheme={rootTheme} themeClassNameOnRoot>
       <Theme name={variant} forceClassName>
         <QueryClientProvider client={queryClient}>
+          <SessionRefreshManager />
           <TelemetryEngineProvider>{children}</TelemetryEngineProvider>
         </QueryClientProvider>
       </Theme>

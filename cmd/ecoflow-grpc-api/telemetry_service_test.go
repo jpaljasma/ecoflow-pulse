@@ -1377,6 +1377,14 @@ func (f *fakeControlPlaneStore) ListUserDevices(_ context.Context, in controlpla
 	return out, nil
 }
 
+func (f *fakeControlPlaneStore) GetOrProvisionCurrentUser(context.Context, controlplane.GetOrProvisionCurrentUserInput) (controlplane.CurrentUser, error) {
+	return controlplane.CurrentUser{}, errors.New("not implemented")
+}
+
+func (f *fakeControlPlaneStore) UpdateCurrentUserProfile(context.Context, controlplane.UpdateCurrentUserProfileInput) (controlplane.CurrentUser, error) {
+	return controlplane.CurrentUser{}, errors.New("not implemented")
+}
+
 func (f *fakeControlPlaneStore) UpsertProviderDevice(context.Context, controlplane.UpsertProviderDeviceInput) (controlplane.ProviderDevice, error) {
 	return controlplane.ProviderDevice{}, errors.New("not implemented")
 }

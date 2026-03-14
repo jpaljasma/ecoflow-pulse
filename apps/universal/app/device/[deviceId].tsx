@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
+import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { TopBar } from '@/shared/ui/TopBar';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
@@ -20,6 +21,7 @@ import { useDeviceDetailViewModel } from '@/features/device-detail/view-model';
 import { DeviceDetailBody } from '@/features/device-detail/components/DeviceDetailBody';
 import { env } from '@/shared/config/env';
 import { ApiError } from '@/shared/api/restClient';
+import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { Card } from '@/shared/ui/Card';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { useDevicePowerTrendHistory, useDeviceSolarHistory } from '@/features/history/hooks';
@@ -93,8 +95,9 @@ export default function DeviceDetailScreen() {
   const routeDeviceId = Array.isArray(routeDeviceParam) ? routeDeviceParam[0] : routeDeviceParam;
   const router = useRouter();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
-  const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
-  const queryEnabled = authReady && (!authConfigured || sessionValid);
+  const { authReady, authKey, token } = useAuthSession();
+  const { allowed, waiting } = useRequireAuth();
+  const queryEnabled = authReady && allowed;
   const devicesQuery = useDevices({ token, authKey, enabled: queryEnabled });
   const routeDevice = useMemo(
     () => resolveRouteDevice(routeDeviceId, devicesQuery.data?.devices),
@@ -192,6 +195,10 @@ export default function DeviceDetailScreen() {
     : isTablet
       ? Math.round(mediaColumnWidth * 0.92)
       : mobileImageSize;
+
+  if (waiting || !allowed) {
+    return <BrandedLoadingState minHeight={260} message="Checking session…" />;
+  }
 
   const detailContent = (
     <DeviceDetailBody

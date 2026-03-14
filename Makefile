@@ -432,11 +432,30 @@ services-image-local-up:
 
 platform-app-image-build-local: docker-local-ready
 	@echo "building public app image $(PLATFORM_APP_IMAGE) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
-	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
-		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
-	else \
-		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
-	fi
+	@set -euo pipefail; \
+		if [ -f .env ]; then \
+			set -a; source ./.env; set +a; \
+		fi; \
+		set --; \
+		for var in EXPO_PUBLIC_API_URL EXPO_PUBLIC_WS_URL EXPO_PUBLIC_OIDC_ISSUER_URL EXPO_PUBLIC_OIDC_CLIENT_ID EXPO_PUBLIC_OIDC_AUDIENCE EXPO_PUBLIC_OIDC_SCOPES; do \
+			case "$$var" in \
+				EXPO_PUBLIC_API_URL) val="$${EXPO_PUBLIC_API_URL:-}" ;; \
+				EXPO_PUBLIC_WS_URL) val="$${EXPO_PUBLIC_WS_URL:-}" ;; \
+				EXPO_PUBLIC_OIDC_ISSUER_URL) val="$${EXPO_PUBLIC_OIDC_ISSUER_URL:-}" ;; \
+				EXPO_PUBLIC_OIDC_CLIENT_ID) val="$${EXPO_PUBLIC_OIDC_CLIENT_ID:-}" ;; \
+				EXPO_PUBLIC_OIDC_AUDIENCE) val="$${EXPO_PUBLIC_OIDC_AUDIENCE:-}" ;; \
+				EXPO_PUBLIC_OIDC_SCOPES) val="$${EXPO_PUBLIC_OIDC_SCOPES:-}" ;; \
+				*) val="" ;; \
+			esac; \
+			if [ -n "$$val" ]; then \
+				set -- "$$@" --build-arg "$$var=$$val"; \
+			fi; \
+		done; \
+		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+			DOCKER_BUILDKIT=1 $(DOCKER) build "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+		else \
+			DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+		fi
 
 realtime-gateway-image-build-local: docker-local-ready
 	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
@@ -512,11 +531,13 @@ k3d-up:
 	fi
 	@if $(K3D) kubeconfig get $(K3D_CLUSTER_NAME) >/dev/null 2>&1; then \
 		echo "k3d cluster '$(K3D_CLUSTER_NAME)' already exists"; \
+		$(K3D) cluster start $(K3D_CLUSTER_NAME) >/dev/null 2>&1 || true; \
 	else \
 		echo "creating k3d cluster '$(K3D_CLUSTER_NAME)' from $(K3D_CONFIG)"; \
 		$(K3D) cluster create --config $(K3D_CONFIG); \
 	fi
 	$(KUBECTL) config use-context $(K3D_CONTEXT)
+	$(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT)
 	$(LOCAL_KUBECTL) get nodes
 
 platform-up: helm-local-ready
@@ -527,13 +548,21 @@ platform-up: helm-local-ready
 		fi; \
 		ns="$(PLATFORM_NAMESPACE)"; \
 		run_platform_helm() { \
+			set -- "$$@"; \
+			if [ -n "$${PULSE_PLATFORM_DEV_SUBJECT:-}" ]; then \
+				set -- "$$@" --set-string "runtime.publicApp.env.devUserSubject=$${PULSE_PLATFORM_DEV_SUBJECT}"; \
+			fi; \
+			if [ -n "$${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID:-}" ] && [ -n "$${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_SECRET:-}" ]; then \
+				set -- "$$@" --set "keycloakRealm.google.enabled=true"; \
+				set -- "$$@" --set-string "keycloakRealm.google.clientId=$${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID}"; \
+				set -- "$$@" --set-string "keycloakRealm.google.clientSecret=$${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_SECRET}"; \
+			fi; \
 			if [ -n "$${PULSE_PLATFORM_DEV_SUBJECT:-}" ]; then \
 				echo "using local noop subject override for pulse-platform public app"; \
 				$(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
 					--namespace $(PLATFORM_NAMESPACE) --create-namespace \
 					$(LOCAL_HELM_UPGRADE_FLAGS) \
 					-f $(LOCAL_PLATFORM_VALUES) \
-					--set-string "runtime.publicApp.env.devUserSubject=$${PULSE_PLATFORM_DEV_SUBJECT}" \
 					"$$@"; \
 			else \
 				$(PLATFORM_HELM_APPLY) "$$@"; \
@@ -681,6 +710,10 @@ platform-wait:
 	fi
 	@set -euo pipefail; \
 	ns="$(PLATFORM_NAMESPACE)"; \
+	wait_nodes_ready() { \
+		echo "waiting for k3d nodes to become Ready"; \
+		$(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT); \
+	}; \
 	wait_endpoints() { \
 		name="$$1"; attempts="$$2"; label="$$3"; \
 		if ! $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" >/dev/null 2>&1; then \
@@ -719,6 +752,7 @@ platform-wait:
 			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=complete job/"$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
+	wait_nodes_ready; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cloudnative-pg 180s; \
 	wait_condition cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-nats $(WAIT_TIMEOUT); \
@@ -825,6 +859,10 @@ services-up: helm-local-ready
 	fi
 	@set -euo pipefail; \
 		ns="$(PLATFORM_NAMESPACE)"; \
+		wait_nodes_ready() { \
+			echo "waiting for k3d nodes to become Ready"; \
+			$(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT); \
+		}; \
 		wait_endpoints() { \
 			name="$$1"; attempts="$$2"; label="$$3"; \
 			if ! $(LOCAL_KUBECTL) -n "$$ns" get endpoints "$$name" >/dev/null 2>&1; then \
@@ -842,11 +880,13 @@ services-up: helm-local-ready
 			echo "$$label endpoints did not become ready"; \
 			exit 1; \
 		}; \
+		wait_nodes_ready; \
 		echo "verifying platform dependency endpoints before services rollout"; \
 		wait_endpoints $(PLATFORM_RELEASE)-core-rw 36 "CNPG rw service"; \
 		wait_endpoints $(PLATFORM_RELEASE)-nats 36 "NATS service"; \
 		wait_endpoints $(PLATFORM_RELEASE)-valkey 36 "Valkey service"; \
-		wait_endpoints $(PLATFORM_RELEASE)-minio 36 "MinIO service"
+		wait_endpoints $(PLATFORM_RELEASE)-minio 36 "MinIO service"; \
+		wait_endpoints $(PLATFORM_RELEASE)-keycloak-headless 36 "Keycloak service"
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(SERVICES_CHART)
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
@@ -864,6 +904,8 @@ services-wait:
 	fi
 	@set -euo pipefail; \
 	ns="$(SERVICES_NAMESPACE)"; \
+	echo "waiting for k3d nodes to become Ready"; \
+	$(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT); \
 	if ! $(LOCAL_KUBECTL) get ns "$$ns" >/dev/null 2>&1; then \
 		echo "namespace $$ns does not exist yet, skipping services wait"; \
 		exit 0; \
@@ -944,6 +986,13 @@ dev-web-deploy:
 					current_subject="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-public-app -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="PULSE_PLATFORM_DEV_SUBJECT")].value}' 2>/dev/null || true )"; \
 					if [ "$$current_subject" != "$${PULSE_PLATFORM_DEV_SUBJECT}" ]; then \
 						echo "detected changed local noop subject override for pulse-platform public app"; \
+						platform_apply=1; \
+					fi; \
+				fi; \
+				if [ "$$platform_apply" = "0" ] && [ -n "$${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID:-}" ]; then \
+					current_google_client_id="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get secret pulse-platform-keycloak-social-providers -o jsonpath='{.data.KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID}' 2>/dev/null | base64 -d || true )"; \
+					if [ "$$current_google_client_id" != "$${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID}" ]; then \
+						echo "detected changed local Keycloak Google client id"; \
 						platform_apply=1; \
 					fi; \
 				fi; \

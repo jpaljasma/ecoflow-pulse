@@ -24,8 +24,8 @@ data:
         storeToken: false
         firstBrokerLoginFlowAlias: "first broker login"
         config:
-          clientId: "${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID:}"
-          clientSecret: "${KEYCLOAK_SOCIAL_GOOGLE_CLIENT_SECRET:}"
+          clientId: "$(env:KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID)"
+          clientSecret: "$(env:KEYCLOAK_SOCIAL_GOOGLE_CLIENT_SECRET)"
           defaultScope: "openid email profile"
       - alias: "facebook"
         providerId: "facebook"
@@ -34,7 +34,49 @@ data:
         storeToken: false
         firstBrokerLoginFlowAlias: "first broker login"
         config:
-          clientId: "${KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_ID:}"
-          clientSecret: "${KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_SECRET:}"
+          clientId: "$(env:KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_ID)"
+          clientSecret: "$(env:KEYCLOAK_SOCIAL_FACEBOOK_CLIENT_SECRET)"
           defaultScope: "public_profile,email"
+    clients:
+      - clientId: {{ .Values.keycloakRealm.universalClient.clientId | quote }}
+        name: "Pulse Universal App"
+        enabled: {{ .Values.keycloakRealm.universalClient.enabled }}
+        protocol: "openid-connect"
+        publicClient: true
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        fullScopeAllowed: true
+        attributes:
+          pkce.code.challenge.method: "S256"
+        redirectUris:
+{{- range .Values.keycloakRealm.universalClient.redirectUris }}
+          - {{ . | quote }}
+{{- end }}
+        webOrigins:
+{{- range .Values.keycloakRealm.universalClient.webOrigins }}
+          - {{ . | quote }}
+{{- end }}
+        protocolMappers:
+          - name: "pulse-universal-app-audience"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-audience-mapper"
+            consentRequired: false
+            config:
+              included.client.audience: {{ .Values.keycloakRealm.universalClient.clientId | quote }}
+              access.token.claim: "true"
+              id.token.claim: "false"
+              introspection.token.claim: "true"
+          - name: "identity-provider"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usersessionmodel-note-mapper"
+            consentRequired: false
+            config:
+              user.session.note: "identity_provider"
+              claim.name: "identity_provider"
+              jsonType.label: "String"
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "true"
 {{- end }}

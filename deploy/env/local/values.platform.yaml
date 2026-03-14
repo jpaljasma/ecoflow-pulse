@@ -39,14 +39,23 @@ runtime:
       type: ClusterIP
       port: 80
       targetPort: 8080
+    metrics:
+      serviceMonitor:
+        enabled: true
+        interval: 30s
     env:
       grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
       energyGrpcApiAddr: pulse-services-go-energy-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
-      nodeAuthMode: noop
+      nodeAuthMode: keycloak
+      keycloakIssuerUrl: https://localhost/realms/pulse
+      keycloakAudience: pulse-universal-app
+      keycloakJwksUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
+      keycloakUserInfoUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
+      keycloakAllowMissingJwt: "false"
       publicDir: /app/apps/universal/dist
       realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
-      devUserSubject: dev-user@example.com
+      devUserSubject: ""
       publicPreconnectOrigins: ""
       corsAllowedOrigins: "http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
     ingress:
@@ -76,6 +85,10 @@ runtime:
       type: ClusterIP
       port: 8082
       targetPort: 8082
+    metrics:
+      serviceMonitor:
+        enabled: true
+        interval: 30s
     env:
       grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
@@ -84,7 +97,12 @@ runtime:
       valkeySentinelMasterSet: myprimary
       projectionKeyPrefix: pulse:projection
       telemetrySubjectPrefix: pulse.telemetry
-      nodeAuthMode: noop
+      nodeAuthMode: keycloak
+      keycloakIssuerUrl: https://localhost/realms/pulse
+      keycloakAudience: pulse-universal-app
+      keycloakJwksUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
+      keycloakUserInfoUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
+      keycloakAllowMissingJwt: "false"
 
 # Local-first: NATS JetStream enabled, remaining platform components staged.
 nats:
@@ -172,6 +190,10 @@ valkey:
     quorum: 2
 keycloak:
   replicaCount: 2
+  proxyHeaders: xforwarded
+  extraEnvVars:
+    - name: KC_HOSTNAME
+      value: https://localhost
   resources:
     requests:
       cpu: 250m
@@ -197,6 +219,9 @@ keycloak:
     enabled: true
     existingConfigmap: pulse-platform-keycloak-realm-import
     extraEnvVarsSecret: pulse-platform-keycloak-social-providers
+    extraEnvVars:
+      - name: IMPORT_VARSUBSTITUTION_ENABLED
+        value: "true"
     image:
       repository: bitnamilegacy/keycloak-config-cli
     cleanupAfterFinished:
@@ -208,6 +233,20 @@ keycloakRealm:
   configMapName: pulse-platform-keycloak-realm-import
   socialSecretName: pulse-platform-keycloak-social-providers
   realmName: pulse
+  universalClient:
+    enabled: true
+    clientId: pulse-universal-app
+    redirectUris:
+      - ecoflowpulse://*
+      - https://localhost/*
+      - http://localhost:8081/*
+      - https://127.0.0.1/*
+      - http://127.0.0.1:8081/*
+    webOrigins:
+      - https://localhost
+      - http://localhost:8081
+      - https://127.0.0.1
+      - http://127.0.0.1:8081
   google:
     enabled: false
     clientId: "replace-me-google-client-id"

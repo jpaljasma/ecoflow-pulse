@@ -8,6 +8,12 @@ metadata:
     app.kubernetes.io/component: realtime-gateway
 spec:
   replicas: {{ .Values.runtime.realtimeGateway.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.realtimeGateway.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.realtimeGateway.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.realtimeGateway.deployment.strategy.maxSurge }}
   selector:
     matchLabels:
       {{- include "pulse-platform.selectorLabels" . | nindent 6 }}
@@ -18,6 +24,7 @@ spec:
         {{- include "pulse-platform.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: realtime-gateway
     spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.realtimeGateway.deployment.terminationGracePeriodSeconds }}
       containers:
         - name: realtime-gateway
           image: "{{ .Values.runtime.realtimeGateway.image.repository }}:{{ .Values.runtime.realtimeGateway.image.tag }}"
@@ -46,8 +53,32 @@ spec:
               value: {{ .Values.runtime.realtimeGateway.env.telemetrySubjectPrefix | quote }}
             - name: NODE_AUTH_MODE
               value: {{ .Values.runtime.realtimeGateway.env.nodeAuthMode | quote }}
+            - name: KEYCLOAK_ISSUER_URL
+              value: {{ .Values.runtime.realtimeGateway.env.keycloakIssuerUrl | quote }}
+            - name: KEYCLOAK_AUDIENCE
+              value: {{ .Values.runtime.realtimeGateway.env.keycloakAudience | quote }}
+            - name: KEYCLOAK_JWKS_URL
+              value: {{ .Values.runtime.realtimeGateway.env.keycloakJwksUrl | quote }}
+            - name: KEYCLOAK_ALLOW_MISSING_JWT
+              value: {{ .Values.runtime.realtimeGateway.env.keycloakAllowMissingJwt | quote }}
           resources:
             {{- toYaml .Values.runtime.realtimeGateway.resources | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep {{ .Values.runtime.realtimeGateway.deployment.preStopSleepSeconds }}
+          {{- if .Values.runtime.realtimeGateway.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: {{ .Values.runtime.realtimeGateway.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.realtimeGateway.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.realtimeGateway.startupProbe.failureThreshold }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -77,4 +108,44 @@ spec:
     - name: http
       port: {{ .Values.runtime.realtimeGateway.service.port }}
       targetPort: http
+---
+{{- if and .Values.components.observabilityLite.enabled .Values.runtime.realtimeGateway.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-realtime-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realtime-gateway
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: realtime-gateway
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: http
+      path: {{ .Values.runtime.realtimeGateway.metrics.path }}
+      interval: {{ .Values.runtime.realtimeGateway.metrics.serviceMonitor.interval }}
+{{- end }}
+---
+{{- if and .Values.runtime.realtimeGateway.pdb.enabled (gt (int .Values.runtime.realtimeGateway.replicaCount) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-realtime-gateway
+  labels:
+    {{- include "pulse-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realtime-gateway
+spec:
+  minAvailable: {{ .Values.runtime.realtimeGateway.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: realtime-gateway
+{{- end }}
 {{- end }}

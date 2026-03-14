@@ -712,7 +712,7 @@ describe('pulse-platform history routes', () => {
     await app.close();
   });
 
-  it('maps grpc permission denied', async () => {
+  it('maps authenticated grpc permission denied to 403', async () => {
     const client = makeClient({
       queryRollupRange: vi.fn(async () => {
         const error = new Error('not allowed') as ServiceError;

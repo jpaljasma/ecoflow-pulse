@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Input, Text, XStack, YStack } from 'tamagui';
-import { TopBar } from '@/shared/ui/TopBar';
+import { AppMenu } from '@/shared/ui/AppMenu';
+import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { Card } from '@/shared/ui/Card';
-import { AppMenu } from '@/shared/ui/AppMenu';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
+import { TopBar } from '@/shared/ui/TopBar';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
+import { Text, XStack, YStack } from 'tamagui';
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -35,27 +36,23 @@ export default function SearchScreen() {
           <YStack gap="$4">
             <Card gap="$3">
               <XStack alignItems="center" gap="$2">
-                <Input
+                <AppTextInput
                   flex={1}
                   value={query}
                   onChangeText={setQuery}
                   placeholder="Search"
-                  size="$5"
-                  minHeight={56}
-                  paddingHorizontal={16}
                   placeholderTextColor="#a8adb8"
-                  style={Platform.OS === 'web' ? ({ height: '2em' } as any) : undefined}
                 />
                 <XStack
-                  width={56}
-                  minHeight={56}
+                  width={52}
+                  minHeight={52}
                   alignItems="center"
                   justifyContent="center"
                   borderWidth={1}
                   borderColor="rgba(120,120,128,0.3)"
-                  borderRadius={24}
+                  borderRadius={20}
                 >
-                  <Text fontSize="$9" style={Platform.OS === 'web' ? ({ fontSize: '2.4em' } as any) : undefined}>
+                  <Text fontSize="$8">
                     ⌕
                   </Text>
                 </XStack>

@@ -8,6 +8,7 @@ import rateLimit, { type RateLimitOptions } from 'fastify-rate-limit';
 
 import { buildAuthPreHandler } from './auth.js';
 import type { AppConfig } from './config.js';
+import type { ControlPlaneClient } from './grpc/controlPlaneClient.js';
 import type { DeviceClient } from './grpc/deviceClient.js';
 import type { InferenceClient } from './grpc/inferenceClient.js';
 import type { TelemetryHistoryClient } from './grpc/telemetryClient.js';
@@ -16,11 +17,18 @@ import {
   buildStaticHeaderPlan,
   type HtmlDeliveryPlan
 } from './httpDelivery.js';
+import {
+  observePublicRequest,
+  publicMetricsContentType,
+  renderPublicMetrics
+} from './metrics.js';
 import { registerDeviceRoutes } from './routes/devices.js';
 import { registerHistoryRoutes } from './routes/history.js';
+import { registerCurrentUserRoutes } from './routes/me.js';
 
 type BuildAppOptions = {
   authPreHandler?: preHandlerHookHandler;
+  controlPlaneClient?: ControlPlaneClient;
 };
 
 export function buildApp(
@@ -36,6 +44,27 @@ export function buildApp(
   app.decorate('telemetryDeadlineMs', config.grpcDeadlineMs);
   app.decorate('historyRateLimit', historyRateLimit);
   app.get('/healthz', async () => ({ ok: true }));
+  app.get('/metrics', async (_request, reply) => {
+    reply.header('Content-Type', publicMetricsContentType());
+    return await renderPublicMetrics();
+  });
+  app.addHook('onRequest', async (request) => {
+    request.metricsStartedAt = process.hrtime.bigint();
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const startedAt = request.metricsStartedAt;
+    if (!startedAt) {
+      return;
+    }
+    const pathname = new URL(request.raw.url ?? '/', 'http://localhost').pathname;
+    const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1_000_000_000;
+    observePublicRequest({
+      pathname,
+      method: request.method,
+      statusCode: reply.statusCode,
+      durationSeconds
+    });
+  });
   void app.register(async (scopedApp) => {
     await scopedApp.register(cors, {
       origin: (origin, callback) => {
@@ -47,6 +76,9 @@ export function buildApp(
       global: false,
       hook: 'preHandler'
     });
+    if (options.controlPlaneClient) {
+      registerCurrentUserRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
+    }
     registerDeviceRoutes(scopedApp, config, deviceClient, inferenceClient, authPreHandler);
     registerHistoryRoutes(scopedApp, config, historyClient, inferenceClient, authPreHandler);
   });
@@ -91,6 +123,7 @@ export function buildApp(
     });
   }
   app.addHook('onClose', async () => {
+    options.controlPlaneClient?.close();
     historyClient.close();
     deviceClient.close();
     inferenceClient.close();
@@ -132,6 +165,10 @@ function buildHistoryRateLimit(config: AppConfig): RateLimitOptions {
 }
 
 declare module 'fastify' {
+  interface FastifyRequest {
+    metricsStartedAt?: bigint;
+  }
+
   interface FastifyInstance {
     historyRateLimit: RateLimitOptions;
     telemetryDeadlineMs: number;

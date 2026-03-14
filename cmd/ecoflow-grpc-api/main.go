@@ -265,10 +265,12 @@ func newAuthorizerFromEnv(ctx context.Context, log *slog.Logger) (grpcmw.Authori
 			return nil, fmt.Errorf("KEYCLOAK_ISSUER_URL is required when GRPC_AUTH_MODE=keycloak")
 		}
 		audience := strings.TrimSpace(os.Getenv("KEYCLOAK_AUDIENCE"))
+		jwksURL := strings.TrimSpace(os.Getenv("KEYCLOAK_JWKS_URL"))
 		allowMissingJWT := runtimecfg.Bool("GRPC_AUTH_ALLOW_MISSING_JWT", false)
 		authorizer, err := grpcmw.NewKeycloakJWKSAuthorizer(ctx, grpcmw.KeycloakJWKSAuthorizerConfig{
 			IssuerURL:       issuer,
 			Audience:        audience,
+			JWKSURL:         jwksURL,
 			AllowMissingJWT: allowMissingJWT,
 		})
 		if err != nil {

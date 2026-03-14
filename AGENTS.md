@@ -92,54 +92,82 @@ When starting any new milestone task from `docs/architecture/README.md`:
 6. When a UI mixes UTC-backed storage with local-day presentation, document which parts are local-calendar math and which parts are UTC query transport.
 
 ## Frontend Learnings
-1. For arbitrary rgba/hex colors on Tamagui components, prefer `style={{ ... }}` when prop typing is token-restricted; use theme-token props when a stable token exists.
-2. Prefer small in-app explainer screens over raw external doc jumps for user-facing methodology questions; external docs can remain a secondary "full reference" link.
-3. For environmental/energy widgets, visual styling should read as intentional and domain-specific:
+1. Apply DRY aggressively for reusable UI and state patterns:
+   - when the same styling or interaction appears in more than one place, extract a shared primitive/helper instead of duplicating per-screen tweaks,
+   - prefer one app-owned wrapper component over repeated raw third-party component overrides when the team wants a consistent default behavior.
+2. For arbitrary rgba/hex colors on Tamagui components, prefer `style={{ ... }}` when prop typing is token-restricted; use theme-token props when a stable token exists.
+3. Prefer small in-app explainer screens over raw external doc jumps for user-facing methodology questions; external docs can remain a secondary "full reference" link.
+4. For environmental/energy widgets, visual styling should read as intentional and domain-specific:
    - prefer green/teal/blue palettes for sustainability impact
    - keep environmental icons simple and legible (for example a leaf badge)
    - keep methodology text factual and non-marketing.
-4. When showing derived environmental metrics, keep the data provenance visible:
+5. When showing derived environmental metrics, keep the data provenance visible:
    - identify the measured source period (`today so far`, month, etc.),
    - identify the factor source/region,
    - keep error/fallback states explicit rather than silently switching methodology.
-5. App pages should be scrollable by default:
+6. App pages should be scrollable by default:
    - static/detail/info screens should use a `ScrollView` (or equivalent web overflow container) for the main body,
    - do not assume desktop-height layouts fit on mobile or split-screen,
    - treat non-scrollable pages as a bug unless there is a strong interaction reason not to scroll.
-6. Expensive long-range history views should be loaded on demand and cached:
+7. Expensive long-range history views should be loaded on demand and cached:
    - keep current-period widgets on the live refresh path,
    - defer trailing-month/year fetches until the user explicitly selects them,
    - once loaded, prefer cached results over realtime polling unless the feature explicitly requires live long-range refresh.
-7. Dynamic UI must not be jumpy:
+8. Dynamic UI must not be jumpy:
    - loading, toggle, and refresh states should preserve layout height/width whenever possible,
    - prefer stale-while-refresh behavior over clearing content during async transitions,
    - reserve space for status text, buttons, and badges that may change label,
    - avoid scroll-position jumps, card collapse/expand flicker, and large reflow on routine state changes,
    - treat visible layout jank during normal interaction as a bug, not cosmetic polish.
-8. Universal app theming must preserve the working root-theme contract:
+9. Universal app theming must preserve the working root-theme contract:
    - the root Tamagui provider follows base `light` / `dark` from system appearance,
    - palette variants such as `original-*` / `new-*` are applied as nested themes, not as the root provider theme names,
    - do not replace the root `light` / `dark` provider path with custom theme names unless the web root/theme-class behavior is revalidated end-to-end.
-9. Web dark mode must use browser-native appearance signals explicitly:
+10. Web dark mode must use browser-native appearance signals explicitly:
    - on web, resolve dark mode from `window.matchMedia('(prefers-color-scheme: dark)')` and subscribe to changes,
    - do not assume `useColorScheme()` alone is sufficient for browser dark-mode scheduling/updates,
    - when applying theme changes on web, ensure `html`, `body`, and the app root receive the resolved background/color-scheme so the page cannot stay visually light while the app theme says dark.
-10. Theme changes require regression coverage:
+11. Theme changes require regression coverage:
    - keep tests for default family/variant resolution,
    - keep tests for persisted theme preference migration and storage,
    - when changing root theme wiring, verify the universal web app still follows system dark mode before merge.
-11. Theme color usage must stay semantic and centralized:
+12. Theme color usage must stay semantic and centralized:
    - keep reusable UI colors in the shared theme catalog/semantic theme layer, not duplicated inline across components,
    - derive component states (hover, muted fills, chart frames, badge backgrounds) from named theme colors instead of inventing new ad-hoc hex/rgba literals in feature code,
    - treat repeated raw color literals in Expo/Tamagui feature components as theme debt to eliminate, not as an acceptable steady state.
-12. Universal web telemetry reconnect must stay browser-native:
+13. Universal web telemetry reconnect must stay browser-native:
    - on web, websocket reconnect should retry the current browser-origin endpoint directly,
    - do not rotate through native-dev host fallbacks such as `127.0.0.1` or `localhost` after a browser disconnect,
    - keep regression coverage for the web reconnect path so deploy rollouts do not silently reintroduce multi-second reconnect delays.
-13. Expo web-dev on loopback must prefer the secure local edge when the platform ingress terminates TLS:
+14. Expo web-dev on loopback must prefer the secure local edge when the platform ingress terminates TLS:
    - if the browser app is served from loopback `:8081` and no explicit `EXPO_PUBLIC_API_URL` / `EXPO_PUBLIC_WS_URL` override is set, default browser API/WS traffic to `https://localhost` / `wss://localhost`,
    - do not rely on `http://localhost` requests that immediately redirect to HTTPS, because browser cross-origin redirects can surface as misleading CORS failures,
    - when local browser-origin support changes, keep explicit docs/tests for the `http://localhost:8081` -> `https://localhost/api/*` path.
+15. Expo public env handling must treat blank strings as unset:
+   - Docker/Helm build args often materialize missing `EXPO_PUBLIC_*` values as empty strings rather than omitting them,
+   - browser runtime config must fall back to secure localhost defaults when those values are blank,
+   - keep regression coverage so empty-string build args cannot silently produce broken API/WS URLs like `?token=...`.
+16. Local browser auth + realtime at the shared edge depends on all public ingress paths staying intact:
+   - keep `/realms` and `/resources` routed to Keycloak for OIDC discovery/login assets,
+   - keep `/ws` routed to the realtime gateway,
+   - treat missing edge routes as production-grade regressions because they break login or websocket telemetry in ways that look like frontend bugs.
+17. Profile timezone UX must stay selection-only and IANA-backed:
+   - use a type-ahead picker over real IANA timezone values,
+   - do not allow arbitrary free-text timezone submission in the UI,
+   - validate timezone values on both client and server.
+18. Public rollout settings must preserve seamless auth/realtime availability:
+   - public-facing Deployments should use RollingUpdate with `maxUnavailable: 0` and non-zero `maxSurge`,
+   - keep readiness probes accurate enough that traffic never shifts onto pods before they can serve auth/bootstrap/realtime requests,
+   - use graceful termination windows plus `preStop` drain behavior where needed so in-flight HTTP/WebSocket traffic is not cut off abruptly,
+   - protect multi-replica public workloads with Pod Disruption Budgets so voluntary disruptions cannot take the whole user path down at once.
+19. Full local platform restarts must converge automatically:
+   - after Docker/k3d restarts, the cluster should recover to healthy without manual pod babysitting,
+   - use startup probes and dependency-aware readiness where normal warmup would otherwise look like a crash loop,
+   - treat “works after manual restart/delete” as an incomplete fix, not acceptable steady state.
+20. Graceful deploy behavior applies to background workers too:
+   - routine deploys must not abruptly cut ingest, projection, rollup, archive, inference, or repair workers,
+   - workers must stop accepting new work, drain or hand off in-flight work safely, and exit without corrupting state or causing duplicate side effects,
+   - deployment/restart behavior that creates avoidable data gaps, replay debt, or crash-loop churn is an availability bug.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.
@@ -197,10 +225,15 @@ When starting any new milestone task from `docs/architecture/README.md`:
 
 ## SLO Rules
 1. When defining SLOs, follow the Google SRE service-level objective model: choose user-relevant SLIs first, then define objective targets/error budgets separately from the dashboard presentation.
-2. For gRPC APIs, the default SLI set is request-based availability plus latency distributions; use throughput as context, not as the objective itself.
-3. Availability/error-rate SLO views must be request-based (`good / total`) over gRPC status codes, not process uptime.
-4. Latency SLO views should include at least `P95` and `P99`, and when a target is claimed (for example `99.9%` availability), show the target/error budget on the dashboard explicitly.
-5. SLO dashboards should support filtering by endpoint or method so per-RPC behavior is inspectable without cloning whole dashboards.
+2. The default availability target for Pulse is `99.99% uptime` across both the public user path and the critical ingest/transform/archive data path.
+3. Treat deploy safety as part of that SLO, not separate ops polish:
+   - routine deploys must be effectively invisible to signed-in users,
+   - auth/bootstrap/device/realtime paths must stay available throughout normal rollouts,
+   - any deploy behavior that causes avoidable user-visible interruption is an availability bug.
+4. For gRPC APIs, the default SLI set is request-based availability plus latency distributions; use throughput as context, not as the objective itself.
+5. Availability/error-rate SLO views must be request-based (`good / total`) over gRPC status codes, not process uptime.
+6. Latency SLO views should include at least `P95` and `P99`, and when a target is claimed (for example `99.99%` availability), show the target/error budget on the dashboard explicitly.
+7. SLO dashboards should support filtering by endpoint or method so per-RPC behavior is inspectable without cloning whole dashboards.
 
 ## Service Logging Throughput Rules
 1. All long-running services/workers and operational CLIs must use `pkg/logger` (`BuildServiceLogger`) for consistent structured logging behavior.
@@ -219,19 +252,30 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - Node JWKS JWT middleware package,
    - Go gRPC JWT validation/interceptors,
    - control-plane RBAC (`viewer/admin`) device registry paths.
-2. For Expo PKCE work, keep runtime configuration env-driven:
+2. Session management must be automatic and deploy-safe:
+   - persisted browser/mobile sessions must refresh access tokens automatically before expiry,
+   - manual refresh buttons are diagnostic-only and are not an acceptable primary session path,
+   - transient deploy/restart churn must not clear a recoverable session or force a user-visible relogin.
+3. For Expo PKCE work, keep runtime configuration env-driven:
    - `EXPO_PUBLIC_OIDC_ISSUER_URL`,
    - `EXPO_PUBLIC_OIDC_CLIENT_ID`,
    - `EXPO_PUBLIC_OIDC_AUDIENCE`,
    - `EXPO_PUBLIC_OIDC_SCOPES`.
-3. Every auth change must run both JS and Go validation gates:
+4. Every auth change must run both JS and Go validation gates:
    - `npm run typecheck --workspace @ecoflow-pulse/node-jwks-auth`
    - `npm run test --workspace @ecoflow-pulse/node-jwks-auth`
    - `npm run -w apps/universal typecheck`
    - `npm run -w apps/universal lint`
    - `npm run -w apps/universal test`
    - `go test ./...`
-4. Keep frontend CI aligned with auth package coverage (do not allow `node-jwks-auth` tests/typecheck to be optional when auth files change).
+5. Keep frontend CI aligned with auth package coverage (do not allow `node-jwks-auth` tests/typecheck to be optional when auth files change).
+5. Authenticated product flows must use real authn/authz during validation:
+   - do not rely on `noop` or dev-subject shortcuts for login, profile, onboarding, or device-ownership acceptance,
+   - local acceptance should exercise real Keycloak-issued JWTs end to end through the public app, realtime gateway, and Go gRPC auth boundary.
+6. Deploys must be seamless for signed-in users:
+   - rolling deploys must drain active connections safely instead of surfacing transient user-facing auth/bootstrap errors,
+   - a valid browser session must survive routine pod rollouts and platform restarts,
+   - treat deploy-induced logout, onboarding fallback, websocket interruption without recovery, or visible bootstrap failures as bugs, not acceptable rollout behavior.
 
 ## Milestone Closure Rules
 1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.

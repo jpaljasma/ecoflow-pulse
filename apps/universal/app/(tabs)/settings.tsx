@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
 import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
+import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { KeycloakPkceCard } from '@/features/auth/KeycloakPkceCard';
+import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Card } from '@/shared/ui/Card';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
@@ -15,6 +17,7 @@ import { useThemeStore } from '@/shared/theme/store';
 export default function SettingsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const { allowed, waiting } = useRequireAuth();
   const compactHeader = width < 430;
   const isTablet = width >= 768;
   const isDesktop = width >= 1120;
@@ -25,6 +28,10 @@ export default function SettingsScreen() {
   const setThemeFamily = useThemeStore((state) => state.setFamily);
   const { mode, spec, isDark } = useAppTheme();
   const systemModeLabel = mode === 'dark' ? 'Dark' : 'Light';
+
+  if (waiting || !allowed) {
+    return <BrandedLoadingState minHeight={260} message="Checking session…" />;
+  }
 
   return (
     <Animated.View style={containerStyle} testID="screen-settings">

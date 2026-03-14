@@ -91,18 +91,29 @@ function makeProviderDevice(): ProviderDevice {
   };
 }
 
+function makeControlPlaneClient(
+  overrides: Partial<ControlPlaneClient> = {}
+): ControlPlaneClient {
+  return {
+    getCurrentUser: vi.fn(),
+    updateCurrentUser: vi.fn(),
+    listUserDevices: vi.fn(),
+    listDevices: vi.fn(async () => []),
+    close: vi.fn(),
+    ...overrides
+  };
+}
+
 describe('device client', () => {
   it('falls back to normalized solar port watts when snapshot pv metrics are absent', async () => {
-    const controlPlaneClient: ControlPlaneClient = {
-      listUserDevices: vi.fn(),
+    const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [
         {
           provider: 'ecoflow',
           devices: [makeProviderDevice()]
         }
-      ]),
-      close: vi.fn()
-    };
+      ])
+    });
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {
@@ -137,16 +148,14 @@ describe('device client', () => {
   });
 
   it('prefers normalized solar port watts when raw snapshot pv metrics are inflated', async () => {
-    const controlPlaneClient: ControlPlaneClient = {
-      listUserDevices: vi.fn(),
+    const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [
         {
           provider: 'ecoflow',
           devices: [makeProviderDevice()]
         }
-      ]),
-      close: vi.fn()
-    };
+      ])
+    });
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {
@@ -193,16 +202,14 @@ describe('device client', () => {
       groups
     };
 
-    const controlPlaneClient: ControlPlaneClient = {
-      listUserDevices: vi.fn(),
+    const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [
         {
           provider: 'ecoflow',
           devices: [zeroSolarDevice]
         }
-      ]),
-      close: vi.fn()
-    };
+      ])
+    });
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {
@@ -232,16 +239,14 @@ describe('device client', () => {
   });
 
   it('prefers aggregate device soc from quota-derived details over main-pack target soc', async () => {
-    const controlPlaneClient: ControlPlaneClient = {
-      listUserDevices: vi.fn(),
+    const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [
         {
           provider: 'ecoflow',
           devices: [makeProviderDevice()]
         }
-      ]),
-      close: vi.fn()
-    };
+      ])
+    });
     const telemetryClient: TelemetrySnapshotClient = {
       getSnapshot: vi.fn(async () => ({
         snapshot: {

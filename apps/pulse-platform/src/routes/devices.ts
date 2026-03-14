@@ -28,6 +28,13 @@ export function registerDeviceRoutes(
               : 'Authenticated user subject required.'
         });
       }
+      if (isServiceError(error)) {
+        return reply.code(mapGrpcCodeToHTTP(error.code)).send({
+          error: 'upstream_grpc_error',
+          message: error.details || error.message,
+          grpcCode: error.code
+        });
+      }
       throw error;
     }
   });
@@ -51,6 +58,13 @@ export function registerDeviceRoutes(
             config.auth.mode === 'noop'
               ? 'Set PULSE_PLATFORM_DEV_SUBJECT or send x-user-subject in noop mode.'
               : 'Authenticated user subject required.'
+        });
+      }
+      if (isServiceError(error)) {
+        return reply.code(mapGrpcCodeToHTTP(error.code)).send({
+          error: 'upstream_grpc_error',
+          message: error.details || error.message,
+          grpcCode: error.code
         });
       }
       throw error;

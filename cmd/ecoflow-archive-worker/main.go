@@ -9,10 +9,12 @@ import (
 	"syscall"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/archiveworker"
+	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
+	"github.com/nats-io/nats.go"
 )
 
 func main() {
@@ -42,7 +44,9 @@ func main() {
 	natsCfg.MaxPingsOut = runtimecfg.IntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
 	natsCfg.MaxReconnects = runtimecfg.IntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
 
-	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
+	natsConn, err := startupretry.Retry(context.Background(), log, "archive nats connection", startupretry.DefaultOptions(), func(_ context.Context) (*nats.Conn, error) {
+		return telemetrybus.DialNATS(log, natsCfg)
+	})
 	if err != nil {
 		log.Error("init nats connection failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -56,7 +60,9 @@ func main() {
 	storeCfg.Region = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", storeCfg.Region)
 	storeCfg.Secure = runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", storeCfg.Secure)
 	storeCfg.AutoCreateBucket = runtimecfg.Bool("ARCHIVE_OBJECT_AUTO_CREATE_BUCKET", storeCfg.AutoCreateBucket)
-	objectStore, err := archiveworker.NewMinIOObjectStore(storeCfg)
+	objectStore, err := startupretry.Retry(context.Background(), log, "archive object store", startupretry.DefaultOptions(), func(_ context.Context) (*archiveworker.MinIOObjectStore, error) {
+		return archiveworker.NewMinIOObjectStore(storeCfg)
+	})
 	if err != nil {
 		log.Error("init archive object store failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -67,7 +73,9 @@ func main() {
 	manifestDSN := resolveArchiveManifestDSN()
 	var manifestStore archiveworker.ManifestStore
 	if manifestDSN != "" {
-		manifestStore, err = archiveworker.NewPostgresManifestStore(manifestDSN)
+		manifestStore, err = startupretry.Retry(context.Background(), log, "archive manifest store", startupretry.DefaultOptions(), func(_ context.Context) (*archiveworker.PostgresManifestStore, error) {
+			return archiveworker.NewPostgresManifestStore(manifestDSN)
+		})
 		if err != nil {
 			log.Error("init archive manifest store failed", slog.String("error", err.Error()))
 			os.Exit(1)

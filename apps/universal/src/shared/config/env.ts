@@ -17,6 +17,12 @@ type ExpoConstantsLike = {
 };
 const constantsLike = Constants as unknown as ExpoConstantsLike;
 
+function readConfiguredString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 function extractHost(value: unknown): string {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -132,10 +138,12 @@ function deriveWsUrlFromApiUrl(apiUrl: string): string | undefined {
   return `${wsProtocol}//${host}${wsPath}`;
 }
 
-const apiUrlFromConfig = process.env.EXPO_PUBLIC_API_URL ??
-  (typeof extra.apiUrl === 'string' ? extra.apiUrl : undefined);
-const wsUrlFromConfig = process.env.EXPO_PUBLIC_WS_URL ??
-  (typeof extra.wsUrl === 'string' ? extra.wsUrl : undefined);
+const apiUrlFromConfig =
+  readConfiguredString(process.env.EXPO_PUBLIC_API_URL) ??
+  readConfiguredString((extra as { apiUrl?: unknown }).apiUrl);
+const wsUrlFromConfig =
+  readConfiguredString(process.env.EXPO_PUBLIC_WS_URL) ??
+  readConfiguredString((extra as { wsUrl?: unknown }).wsUrl);
 const resolvedApiUrl = apiUrlFromConfig ?? defaultApiBase;
 const resolvedWsUrl = wsUrlFromConfig ?? deriveWsUrlFromApiUrl(resolvedApiUrl) ?? defaultWsUrl;
 
@@ -145,40 +153,41 @@ export const env = {
   defaultAssetBaseUrl: defaultWebAssetBaseUrl,
   apiUrl: resolvedApiUrl,
   apiUrlExplicit:
-    typeof process.env.EXPO_PUBLIC_API_URL === 'string' ||
-    typeof extra.apiUrl === 'string',
+    readConfiguredString(process.env.EXPO_PUBLIC_API_URL) !== undefined ||
+    readConfiguredString((extra as { apiUrl?: unknown }).apiUrl) !== undefined,
   wsUrl: resolvedWsUrl,
   wsUrlExplicit:
-    typeof process.env.EXPO_PUBLIC_WS_URL === 'string' ||
-    typeof extra.wsUrl === 'string',
+    readConfiguredString(process.env.EXPO_PUBLIC_WS_URL) !== undefined ||
+    readConfiguredString((extra as { wsUrl?: unknown }).wsUrl) !== undefined,
   assetBaseUrl:
-    process.env.EXPO_PUBLIC_ASSET_BASE_URL ??
-    (typeof extra.assetBaseUrl === 'string'
-      ? extra.assetBaseUrl
-      : defaultWebAssetBaseUrl),
+    readConfiguredString(process.env.EXPO_PUBLIC_ASSET_BASE_URL) ??
+    readConfiguredString((extra as { assetBaseUrl?: unknown }).assetBaseUrl) ??
+    defaultWebAssetBaseUrl,
   closePageTransition:
-    process.env.EXPO_PUBLIC_CLOSE_PAGE_TRANSITION ??
-    (typeof extra.closePageTransition === 'string'
-      ? extra.closePageTransition
-      : 'none'),
+    readConfiguredString(process.env.EXPO_PUBLIC_CLOSE_PAGE_TRANSITION) ??
+    readConfiguredString((extra as { closePageTransition?: unknown }).closePageTransition) ??
+    'none',
   closePageTransitionMs:
     Number(process.env.EXPO_PUBLIC_CLOSE_PAGE_TRANSITION_MS) ||
     (typeof extra.closePageTransitionMs === 'number' ? extra.closePageTransitionMs : 220),
   closeButtonAnimation:
-    process.env.EXPO_PUBLIC_CLOSE_BUTTON_ANIMATION ??
-    (typeof extra.closeButtonAnimation === 'string'
-      ? extra.closeButtonAnimation
-      : 'subtle'),
+    readConfiguredString(process.env.EXPO_PUBLIC_CLOSE_BUTTON_ANIMATION) ??
+    readConfiguredString((extra as { closeButtonAnimation?: unknown }).closeButtonAnimation) ??
+    'subtle',
   oidcIssuerUrl:
-    process.env.EXPO_PUBLIC_OIDC_ISSUER_URL ??
-    (typeof extra.oidcIssuerUrl === 'string' ? extra.oidcIssuerUrl : ''),
+    readConfiguredString(process.env.EXPO_PUBLIC_OIDC_ISSUER_URL) ??
+    readConfiguredString((extra as { oidcIssuerUrl?: unknown }).oidcIssuerUrl) ??
+    '',
   oidcClientId:
-    process.env.EXPO_PUBLIC_OIDC_CLIENT_ID ??
-    (typeof extra.oidcClientId === 'string' ? extra.oidcClientId : ''),
+    readConfiguredString(process.env.EXPO_PUBLIC_OIDC_CLIENT_ID) ??
+    readConfiguredString((extra as { oidcClientId?: unknown }).oidcClientId) ??
+    '',
   oidcAudience:
-    process.env.EXPO_PUBLIC_OIDC_AUDIENCE ??
-    (typeof extra.oidcAudience === 'string' ? extra.oidcAudience : ''),
+    readConfiguredString(process.env.EXPO_PUBLIC_OIDC_AUDIENCE) ??
+    readConfiguredString((extra as { oidcAudience?: unknown }).oidcAudience) ??
+    '',
   oidcScopes:
-    process.env.EXPO_PUBLIC_OIDC_SCOPES ??
-    (typeof extra.oidcScopes === 'string' ? extra.oidcScopes : 'openid profile email offline_access')
+    readConfiguredString(process.env.EXPO_PUBLIC_OIDC_SCOPES) ??
+    readConfiguredString((extra as { oidcScopes?: unknown }).oidcScopes) ??
+    'openid profile email offline_access'
 };

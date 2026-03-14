@@ -17,6 +17,7 @@ const envSchema = z.object({
   KEYCLOAK_ISSUER_URL: z.string().trim().default(''),
   KEYCLOAK_AUDIENCE: z.string().trim().default(''),
   KEYCLOAK_JWKS_URL: z.string().trim().default(''),
+  KEYCLOAK_USERINFO_URL: z.string().trim().default(''),
   KEYCLOAK_ALLOW_MISSING_JWT: z
     .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0'), z.literal('')])
     .default('')
@@ -44,6 +45,7 @@ export type AppConfig = {
         issuerUrl: string;
         audience: string;
         jwksUrl?: string;
+        userInfoUrl?: string;
         allowMissingJwt: boolean;
       };
 };
@@ -97,6 +99,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       issuerUrl: parsed.KEYCLOAK_ISSUER_URL,
       audience: parsed.KEYCLOAK_AUDIENCE,
       jwksUrl: parsed.KEYCLOAK_JWKS_URL || undefined,
+      userInfoUrl: parsed.KEYCLOAK_USERINFO_URL || undefined,
       allowMissingJwt
     }
   };

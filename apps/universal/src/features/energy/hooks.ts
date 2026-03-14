@@ -56,10 +56,11 @@ export function useEnergyDashboard(
         gridPricePerKwh,
         currency,
         token
-      }),
+    }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
     staleTime: 30_000,
-    gcTime: 10 * 60_000
+    gcTime: 10 * 60_000,
+    placeholderData: (previous) => previous
   });
 }
 
@@ -94,10 +95,11 @@ export function useEnergyPvPortHistory(
         preset,
         timezone,
         token
-      }),
+    }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
     staleTime: 30_000,
-    gcTime: 10 * 60_000
+    gcTime: 10 * 60_000,
+    placeholderData: (previous) => previous
   });
 }
 
@@ -147,9 +149,10 @@ export function useEnergyComparisonInsight(
         gridPricePerKwh,
         currency,
         token
-      }),
+    }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
     staleTime: 60 * 60_000,
-    gcTime: 2 * 60 * 60_000
+    gcTime: 2 * 60 * 60_000,
+    placeholderData: (previous) => previous
   });
 }

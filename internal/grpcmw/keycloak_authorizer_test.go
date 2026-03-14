@@ -49,8 +49,9 @@ func TestKeycloakAuthorizerPopulatesClaims(t *testing.T) {
 	a := &KeycloakJWKSAuthorizer{
 		verifier: fakeClaimsVerifier{
 			claims: &tokenClaims{
-				Subject: "user-1",
-				Email:   "u1@example.com",
+				Subject:          "user-1",
+				Email:            "u1@example.com",
+				IdentityProvider: "google",
 				RealmAccess: roleSet{
 					Roles: []string{"admin", "viewer"},
 				},
@@ -69,6 +70,9 @@ func TestKeycloakAuthorizerPopulatesClaims(t *testing.T) {
 	}
 	if claims.Email != "u1@example.com" {
 		t.Fatalf("unexpected email: %q", claims.Email)
+	}
+	if claims.AuthMethod != "google" {
+		t.Fatalf("unexpected auth method: %q", claims.AuthMethod)
 	}
 	if len(claims.Roles) != 3 {
 		t.Fatalf("unexpected roles length: %d", len(claims.Roles))

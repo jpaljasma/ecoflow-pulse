@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ServiceError } from '@grpc/grpc-js';
+import { status as grpcStatus } from '@grpc/grpc-js';
 
 import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
@@ -340,6 +342,33 @@ describe('pulse-platform device routes', () => {
     expect(response.json()).toEqual(
       expect.objectContaining({
         error: 'missing_user_subject'
+      })
+    );
+
+    await app.close();
+  });
+
+  it('maps authenticated device authorization failures to 403', async () => {
+    const client = makeDeviceClient({
+      listDevices: vi.fn(async () => {
+        const error = new Error('device access denied') as ServiceError;
+        error.code = grpcStatus.PERMISSION_DENIED;
+        error.details = 'device access denied';
+        throw error;
+      })
+    });
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/devices'
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        error: 'upstream_grpc_error',
+        grpcCode: grpcStatus.PERMISSION_DENIED
       })
     );
 

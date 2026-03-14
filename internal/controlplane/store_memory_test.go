@@ -59,6 +59,133 @@ func TestMemoryStoreCredentialCRUD(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreCurrentUserProvisioningAndPulseOverride(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+
+	first, err := store.GetOrProvisionCurrentUser(context.Background(), GetOrProvisionCurrentUserInput{
+		UserSubject:   "user-1",
+		Email:         "user@example.com",
+		EmailVerified: true,
+		DisplayName:   "Social Name",
+		AvatarURL:     "https://example.com/avatar-a.png",
+		GivenName:     "Social",
+		FamilyName:    "User",
+		Locale:        "en-US",
+	})
+	if err != nil {
+		t.Fatalf("get or provision current user failed: %v", err)
+	}
+	if first.DisplayName != "Social Name" {
+		t.Fatalf("display name=%q want Social Name", first.DisplayName)
+	}
+	if first.DisplayNameSource != "provider" {
+		t.Fatalf("display name source=%q want provider", first.DisplayNameSource)
+	}
+
+	updated, err := store.UpdateCurrentUserProfile(context.Background(), UpdateCurrentUserProfileInput{
+		UserSubject:            "user-1",
+		DisplayName:            "Pulse Name",
+		Timezone:               "America/New_York",
+		WeatherLocationEnabled: false,
+	})
+	if err != nil {
+		t.Fatalf("update current user profile failed: %v", err)
+	}
+	if updated.DisplayName != "Pulse Name" {
+		t.Fatalf("display name=%q want Pulse Name", updated.DisplayName)
+	}
+	if updated.DisplayNameSource != "pulse" {
+		t.Fatalf("display name source=%q want pulse", updated.DisplayNameSource)
+	}
+
+	second, err := store.GetOrProvisionCurrentUser(context.Background(), GetOrProvisionCurrentUserInput{
+		UserSubject:   "user-1",
+		Email:         "user@example.com",
+		EmailVerified: true,
+		DisplayName:   "Updated Social Name",
+		AvatarURL:     "https://example.com/avatar-b.png",
+		GivenName:     "Updated",
+		FamilyName:    "User",
+		Locale:        "en-CA",
+	})
+	if err != nil {
+		t.Fatalf("second current user bootstrap failed: %v", err)
+	}
+	if second.DisplayName != "Pulse Name" {
+		t.Fatalf("display name should stay pulse-owned, got %q", second.DisplayName)
+	}
+	if second.AvatarURL != "https://example.com/avatar-b.png" {
+		t.Fatalf("avatar url=%q want provider refresh", second.AvatarURL)
+	}
+}
+
+func TestMemoryStoreCurrentUserProvisioningFallsBackToFullName(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+
+	user, err := store.GetOrProvisionCurrentUser(context.Background(), GetOrProvisionCurrentUserInput{
+		UserSubject:   "user-2",
+		Email:         "jaan@example.com",
+		EmailVerified: true,
+		DisplayName:   "",
+		GivenName:     "Jaan",
+		FamilyName:    "Paljasma",
+	})
+	if err != nil {
+		t.Fatalf("get or provision current user failed: %v", err)
+	}
+	if user.DisplayName != "Jaan Paljasma" {
+		t.Fatalf("display name=%q want Jaan Paljasma", user.DisplayName)
+	}
+	if user.DisplayNameSource != "provider" {
+		t.Fatalf("display name source=%q want provider", user.DisplayNameSource)
+	}
+}
+
+func TestMemoryStoreCurrentUserLocationClearOnRevoke(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	if _, err := store.GetOrProvisionCurrentUser(context.Background(), GetOrProvisionCurrentUserInput{UserSubject: "user-1"}); err != nil {
+		t.Fatalf("bootstrap current user failed: %v", err)
+	}
+
+	enabled, err := store.UpdateCurrentUserProfile(context.Background(), UpdateCurrentUserProfileInput{
+		UserSubject:             "user-1",
+		Timezone:                "America/New_York",
+		WeatherLocationEnabled:  true,
+		WeatherLocationSource:   "auto",
+		WeatherLocationLabel:    "Naples, NY",
+		WeatherLatitude:         42.6159,
+		WeatherLongitude:        -77.4014,
+		HasWeatherLocationValue: true,
+	})
+	if err != nil {
+		t.Fatalf("enable location failed: %v", err)
+	}
+	if !enabled.HasWeatherLocation {
+		t.Fatalf("expected weather location to be set")
+	}
+
+	cleared, err := store.UpdateCurrentUserProfile(context.Background(), UpdateCurrentUserProfileInput{
+		UserSubject:            "user-1",
+		Timezone:               "America/New_York",
+		WeatherLocationEnabled: false,
+	})
+	if err != nil {
+		t.Fatalf("revoke location failed: %v", err)
+	}
+	if cleared.HasWeatherLocation {
+		t.Fatalf("expected weather location cleared after revoke")
+	}
+	if cleared.WeatherLocationSource != "none" {
+		t.Fatalf("weather location source=%q want none", cleared.WeatherLocationSource)
+	}
+}
+
 func TestMemoryStoreListProviderDevices(t *testing.T) {
 	t.Parallel()
 

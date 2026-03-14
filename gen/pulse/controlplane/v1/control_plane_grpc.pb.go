@@ -19,6 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	ControlPlaneService_GetCurrentUser_FullMethodName              = "/pulse.controlplane.v1.ControlPlaneService/GetCurrentUser"
+	ControlPlaneService_UpdateCurrentUser_FullMethodName           = "/pulse.controlplane.v1.ControlPlaneService/UpdateCurrentUser"
+	ControlPlaneService_RefreshCurrentUserIdentity_FullMethodName  = "/pulse.controlplane.v1.ControlPlaneService/RefreshCurrentUserIdentity"
 	ControlPlaneService_CreateProviderCredential_FullMethodName    = "/pulse.controlplane.v1.ControlPlaneService/CreateProviderCredential"
 	ControlPlaneService_ListProviderCredentials_FullMethodName     = "/pulse.controlplane.v1.ControlPlaneService/ListProviderCredentials"
 	ControlPlaneService_SetProviderCredentialActive_FullMethodName = "/pulse.controlplane.v1.ControlPlaneService/SetProviderCredentialActive"
@@ -33,6 +36,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ControlPlaneServiceClient interface {
+	GetCurrentUser(ctx context.Context, in *GetCurrentUserRequest, opts ...grpc.CallOption) (*GetCurrentUserResponse, error)
+	UpdateCurrentUser(ctx context.Context, in *UpdateCurrentUserRequest, opts ...grpc.CallOption) (*UpdateCurrentUserResponse, error)
+	RefreshCurrentUserIdentity(ctx context.Context, in *RefreshCurrentUserIdentityRequest, opts ...grpc.CallOption) (*RefreshCurrentUserIdentityResponse, error)
 	CreateProviderCredential(ctx context.Context, in *CreateProviderCredentialRequest, opts ...grpc.CallOption) (*CreateProviderCredentialResponse, error)
 	ListProviderCredentials(ctx context.Context, in *ListProviderCredentialsRequest, opts ...grpc.CallOption) (*ListProviderCredentialsResponse, error)
 	SetProviderCredentialActive(ctx context.Context, in *SetProviderCredentialActiveRequest, opts ...grpc.CallOption) (*SetProviderCredentialActiveResponse, error)
@@ -49,6 +55,36 @@ type controlPlaneServiceClient struct {
 
 func NewControlPlaneServiceClient(cc grpc.ClientConnInterface) ControlPlaneServiceClient {
 	return &controlPlaneServiceClient{cc}
+}
+
+func (c *controlPlaneServiceClient) GetCurrentUser(ctx context.Context, in *GetCurrentUserRequest, opts ...grpc.CallOption) (*GetCurrentUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCurrentUserResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_GetCurrentUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) UpdateCurrentUser(ctx context.Context, in *UpdateCurrentUserRequest, opts ...grpc.CallOption) (*UpdateCurrentUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateCurrentUserResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_UpdateCurrentUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) RefreshCurrentUserIdentity(ctx context.Context, in *RefreshCurrentUserIdentityRequest, opts ...grpc.CallOption) (*RefreshCurrentUserIdentityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshCurrentUserIdentityResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_RefreshCurrentUserIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *controlPlaneServiceClient) CreateProviderCredential(ctx context.Context, in *CreateProviderCredentialRequest, opts ...grpc.CallOption) (*CreateProviderCredentialResponse, error) {
@@ -135,6 +171,9 @@ func (c *controlPlaneServiceClient) DiscoverDevices(ctx context.Context, in *Dis
 // All implementations must embed UnimplementedControlPlaneServiceServer
 // for forward compatibility.
 type ControlPlaneServiceServer interface {
+	GetCurrentUser(context.Context, *GetCurrentUserRequest) (*GetCurrentUserResponse, error)
+	UpdateCurrentUser(context.Context, *UpdateCurrentUserRequest) (*UpdateCurrentUserResponse, error)
+	RefreshCurrentUserIdentity(context.Context, *RefreshCurrentUserIdentityRequest) (*RefreshCurrentUserIdentityResponse, error)
 	CreateProviderCredential(context.Context, *CreateProviderCredentialRequest) (*CreateProviderCredentialResponse, error)
 	ListProviderCredentials(context.Context, *ListProviderCredentialsRequest) (*ListProviderCredentialsResponse, error)
 	SetProviderCredentialActive(context.Context, *SetProviderCredentialActiveRequest) (*SetProviderCredentialActiveResponse, error)
@@ -153,6 +192,15 @@ type ControlPlaneServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedControlPlaneServiceServer struct{}
 
+func (UnimplementedControlPlaneServiceServer) GetCurrentUser(context.Context, *GetCurrentUserRequest) (*GetCurrentUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCurrentUser not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) UpdateCurrentUser(context.Context, *UpdateCurrentUserRequest) (*UpdateCurrentUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateCurrentUser not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) RefreshCurrentUserIdentity(context.Context, *RefreshCurrentUserIdentityRequest) (*RefreshCurrentUserIdentityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefreshCurrentUserIdentity not implemented")
+}
 func (UnimplementedControlPlaneServiceServer) CreateProviderCredential(context.Context, *CreateProviderCredentialRequest) (*CreateProviderCredentialResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateProviderCredential not implemented")
 }
@@ -196,6 +244,60 @@ func RegisterControlPlaneServiceServer(s grpc.ServiceRegistrar, srv ControlPlane
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&ControlPlaneService_ServiceDesc, srv)
+}
+
+func _ControlPlaneService_GetCurrentUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCurrentUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).GetCurrentUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_GetCurrentUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).GetCurrentUser(ctx, req.(*GetCurrentUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_UpdateCurrentUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCurrentUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).UpdateCurrentUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_UpdateCurrentUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).UpdateCurrentUser(ctx, req.(*UpdateCurrentUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_RefreshCurrentUserIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshCurrentUserIdentityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).RefreshCurrentUserIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_RefreshCurrentUserIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).RefreshCurrentUserIdentity(ctx, req.(*RefreshCurrentUserIdentityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _ControlPlaneService_CreateProviderCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -349,6 +451,18 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "pulse.controlplane.v1.ControlPlaneService",
 	HandlerType: (*ControlPlaneServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetCurrentUser",
+			Handler:    _ControlPlaneService_GetCurrentUser_Handler,
+		},
+		{
+			MethodName: "UpdateCurrentUser",
+			Handler:    _ControlPlaneService_UpdateCurrentUser_Handler,
+		},
+		{
+			MethodName: "RefreshCurrentUserIdentity",
+			Handler:    _ControlPlaneService_RefreshCurrentUserIdentity_Handler,
+		},
 		{
 			MethodName: "CreateProviderCredential",
 			Handler:    _ControlPlaneService_CreateProviderCredential_Handler,

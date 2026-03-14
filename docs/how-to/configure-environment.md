@@ -52,17 +52,42 @@ make dev-web-deploy
 
 ## 6. Enable Expo Keycloak PKCE Login (optional)
 
-To enable the Settings -> Authentication (PKCE) card in the universal app:
+To enable the `/login` Google sign-in flow in the universal web app:
 
 ```bash
-EXPO_PUBLIC_OIDC_ISSUER_URL=https://<keycloak-host>/realms/pulse
-EXPO_PUBLIC_OIDC_CLIENT_ID=pulse-expo
-EXPO_PUBLIC_OIDC_AUDIENCE=pulse-api
+EXPO_PUBLIC_OIDC_ISSUER_URL=https://localhost/realms/pulse
+EXPO_PUBLIC_OIDC_CLIENT_ID=pulse-universal-app
 EXPO_PUBLIC_OIDC_SCOPES="openid profile email offline_access"
 ```
 
-Then run:
+These values are read at web-build time. For local k3d, keep them in `.env` and use:
 
 ```bash
-npm run -w apps/universal web
+make dev-deploy
+```
+
+Notes:
+
+- Leave `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_WS_URL` unset for the normal `https://localhost` local edge path unless you are intentionally overriding the browser targets.
+- If a build/deploy pipeline injects those values as empty strings, the web runtime now treats them as unset and falls back to secure localhost defaults.
+- Local sign-in + realtime telemetry also depend on the shared ingress routing:
+  - `/realms` and `/resources` -> Keycloak
+  - `/ws` -> realtime gateway
+  - `/` -> public app
+
+## 7. Enable local Keycloak Google broker (optional)
+
+Keep local Google broker credentials in `.env`, not in committed Helm values:
+
+```bash
+KEYCLOAK_SOCIAL_GOOGLE_CLIENT_ID=<google-client-id>
+KEYCLOAK_SOCIAL_GOOGLE_CLIENT_SECRET=<google-client-secret>
+```
+
+Then rerun:
+
+```bash
+make platform-up
+make platform-wait
+make dev-deploy
 ```

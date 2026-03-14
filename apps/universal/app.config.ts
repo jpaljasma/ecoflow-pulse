@@ -32,7 +32,11 @@ const config: ExpoConfig = {
   },
   extra: {
     shareImagePath: '/social-share.png',
-    metadata: themeDefinitions.metadata
+    metadata: themeDefinitions.metadata,
+    oidcIssuerUrl: process.env.EXPO_PUBLIC_OIDC_ISSUER_URL ?? '',
+    oidcClientId: process.env.EXPO_PUBLIC_OIDC_CLIENT_ID ?? '',
+    oidcAudience: process.env.EXPO_PUBLIC_OIDC_AUDIENCE ?? '',
+    oidcScopes: process.env.EXPO_PUBLIC_OIDC_SCOPES ?? 'openid profile email offline_access'
   }
 };
 

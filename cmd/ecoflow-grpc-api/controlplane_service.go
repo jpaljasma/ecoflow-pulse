@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"time"
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
@@ -57,6 +58,99 @@ func (s *ControlPlaneService) supportsProvider(provider string) bool {
 		return true
 	}
 	return controlplane.IsSupportedProvider(provider)
+}
+
+func (s *ControlPlaneService) GetCurrentUser(ctx context.Context, req *controlplanev1.GetCurrentUserRequest) (*controlplanev1.GetCurrentUserResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	claims, _ := grpcmw.ClaimsFromContext(ctx)
+	user, err := s.store.GetOrProvisionCurrentUser(ctx, controlplane.GetOrProvisionCurrentUserInput{
+		UserSubject:   userSubject,
+		Email:         claims.Email,
+		EmailVerified: claims.EmailVerified,
+		DisplayName:   claims.DisplayName,
+		AvatarURL:     claims.AvatarURL,
+		GivenName:     claims.GivenName,
+		FamilyName:    claims.FamilyName,
+		Locale:        claims.Locale,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get current user: %v", err)
+	}
+	devices, err := s.store.ListUserDevices(ctx, controlplane.ListUserDevicesInput{UserSubject: userSubject})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list current user devices: %v", err)
+	}
+	return &controlplanev1.GetCurrentUserResponse{
+		User: currentUserToProto(user, claims.AuthMethod),
+		Authorization: &controlplanev1.AuthorizationSummary{
+			TokenRoles:  claims.Roles,
+			DeviceCount: uint32(len(devices)),
+		},
+	}, nil
+}
+
+func (s *ControlPlaneService) UpdateCurrentUser(ctx context.Context, req *controlplanev1.UpdateCurrentUserRequest) (*controlplanev1.UpdateCurrentUserResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	timezone := strings.TrimSpace(req.GetTimezone())
+	if timezone == "" {
+		return nil, status.Error(codes.InvalidArgument, "timezone required")
+	}
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "timezone must be a valid IANA timezone")
+	}
+	weatherSource := strings.TrimSpace(req.GetWeatherLocationSource())
+	if req.GetWeatherLocationEnabled() && req.GetHasWeatherLocation() && weatherSource != "" && weatherSource != "auto" && weatherSource != "none" {
+		return nil, status.Error(codes.InvalidArgument, "weather_location_source must be none or auto")
+	}
+	user, err := s.store.UpdateCurrentUserProfile(ctx, controlplane.UpdateCurrentUserProfileInput{
+		UserSubject:             userSubject,
+		DisplayName:             req.GetDisplayName(),
+		Timezone:                timezone,
+		WeatherLocationEnabled:  req.GetWeatherLocationEnabled(),
+		WeatherLocationSource:   weatherSource,
+		WeatherLocationLabel:    req.GetWeatherLocationLabel(),
+		WeatherLatitude:         req.GetWeatherLatitude(),
+		WeatherLongitude:        req.GetWeatherLongitude(),
+		HasWeatherLocationValue: req.GetHasWeatherLocation(),
+	})
+	if err != nil {
+		if errors.Is(err, controlplane.ErrUserNotFound) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "update current user: %v", err)
+	}
+	claims, _ := grpcmw.ClaimsFromContext(ctx)
+	return &controlplanev1.UpdateCurrentUserResponse{User: currentUserToProto(user, claims.AuthMethod)}, nil
+}
+
+func (s *ControlPlaneService) RefreshCurrentUserIdentity(ctx context.Context, req *controlplanev1.RefreshCurrentUserIdentityRequest) (*controlplanev1.RefreshCurrentUserIdentityResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	claims, _ := grpcmw.ClaimsFromContext(ctx)
+	user, err := s.store.GetOrProvisionCurrentUser(ctx, controlplane.GetOrProvisionCurrentUserInput{
+		UserSubject:   userSubject,
+		Email:         firstNonEmpty(req.GetEmail(), claims.Email),
+		EmailVerified: req.GetEmailVerified() || claims.EmailVerified,
+		DisplayName:   firstNonEmpty(req.GetDisplayName(), claims.DisplayName),
+		AvatarURL:     firstNonEmpty(req.GetAvatarUrl(), claims.AvatarURL),
+		GivenName:     firstNonEmpty(req.GetGivenName(), claims.GivenName),
+		FamilyName:    firstNonEmpty(req.GetFamilyName(), claims.FamilyName),
+		Locale:        firstNonEmpty(req.GetLocale(), claims.Locale),
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "refresh current user identity: %v", err)
+	}
+	return &controlplanev1.RefreshCurrentUserIdentityResponse{
+		User: currentUserToProto(user, claims.AuthMethod),
+	}, nil
 }
 
 func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req *controlplanev1.CreateProviderCredentialRequest) (*controlplanev1.CreateProviderCredentialResponse, error) {
@@ -385,6 +479,37 @@ func userDeviceToProto(in controlplane.UserDevice) *controlplanev1.UserDevice {
 	}
 }
 
+func currentUserToProto(in controlplane.CurrentUser, authMethod string) *controlplanev1.CurrentUser {
+	out := &controlplanev1.CurrentUser{
+		Id:                     in.ID,
+		KeycloakSubject:        in.KeycloakSubject,
+		Email:                  in.Email,
+		EmailVerified:          in.EmailVerified,
+		DisplayName:            in.DisplayName,
+		DisplayNameSource:      in.DisplayNameSource,
+		AvatarUrl:              in.AvatarURL,
+		GivenName:              in.GivenName,
+		FamilyName:             in.FamilyName,
+		Locale:                 in.Locale,
+		Timezone:               in.Timezone,
+		WeatherLocationEnabled: in.WeatherLocationEnabled,
+		WeatherLocationSource:  in.WeatherLocationSource,
+		WeatherLocationLabel:   in.WeatherLocationLabel,
+		HasWeatherLocation:     in.HasWeatherLocation,
+		CreatedAtUnixMs:        in.CreatedAt.UnixMilli(),
+		UpdatedAtUnixMs:        in.UpdatedAt.UnixMilli(),
+		AuthMethod:             strings.TrimSpace(authMethod),
+	}
+	if in.HasWeatherLocation {
+		out.WeatherLatitude = in.WeatherLatitude
+		out.WeatherLongitude = in.WeatherLongitude
+	}
+	if !in.LastLoginAt.IsZero() {
+		out.LastLoginAtUnixMs = in.LastLoginAt.UnixMilli()
+	}
+	return out
+}
+
 func normalizeDeviceRole(in string) (string, error) {
 	role := strings.ToLower(strings.TrimSpace(in))
 	if role == "" {
@@ -396,6 +521,15 @@ func normalizeDeviceRole(in string) (string, error) {
 	default:
 		return "", status.Error(codes.InvalidArgument, "role must be viewer or admin")
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func mapToStructProto(in map[string]any) *structpb.Struct {

@@ -11,16 +11,25 @@ WebBrowser.maybeCompleteAuthSession();
 type AuthActions = Pick<ReturnType<typeof useAuthStore.getState>, 'setSession' | 'clearSession'>;
 
 export function KeycloakPkceCard() {
+  return <KeycloakPkceCardWithVariant variant="settings" />;
+}
+
+export function LoginCard() {
+  return <KeycloakPkceCardWithVariant variant="login" />;
+}
+
+function KeycloakPkceCardWithVariant({ variant }: { variant: 'settings' | 'login' }) {
   const cfg = readOidcConfig();
   const session = useAuthStore((state) => state.session);
   const setSession = useAuthStore((state) => state.setSession);
   const clearSession = useAuthStore((state) => state.clearSession);
+  const loginVariant = variant === 'login';
 
   if (!cfg) {
     return (
       <Card gap="$2">
         <Text fontSize="$5" fontWeight="700">
-          Authentication (PKCE)
+          {loginVariant ? 'Sign in is unavailable' : 'Authentication (PKCE)'}
         </Text>
         <Text opacity={0.75}>
           Set `EXPO_PUBLIC_OIDC_ISSUER_URL` and `EXPO_PUBLIC_OIDC_CLIENT_ID` to enable Keycloak login.
@@ -31,6 +40,7 @@ export function KeycloakPkceCard() {
 
   return (
     <ConfiguredPkceCard
+      variant={variant}
       cfg={cfg}
       session={session}
       actions={{
@@ -42,15 +52,17 @@ export function KeycloakPkceCard() {
 }
 
 type ConfiguredPkceCardProps = {
+  variant: 'settings' | 'login';
   cfg: OidcConfig;
   session: StoredOidcSession | null;
   actions: AuthActions;
 };
 
-function ConfiguredPkceCard({ cfg, session, actions }: ConfiguredPkceCardProps) {
+function ConfiguredPkceCard({ variant, cfg, session, actions }: ConfiguredPkceCardProps) {
   const [busy, setBusy] = useState(false);
   const [statusText, setStatusText] = useState('');
   const [errorText, setErrorText] = useState('');
+  const loginVariant = variant === 'login';
 
   const redirectUri = useMemo(
     () =>
@@ -143,6 +155,7 @@ function ConfiguredPkceCard({ cfg, session, actions }: ConfiguredPkceCardProps) 
   const allowRefresh = !!session?.refreshToken && !!discovery?.tokenEndpoint;
 
   const onSignIn = async () => {
+    actions.clearSession();
     setErrorText('');
     setStatusText('');
     await promptAsync();
@@ -185,54 +198,110 @@ function ConfiguredPkceCard({ cfg, session, actions }: ConfiguredPkceCardProps) 
   };
 
   return (
-    <Card gap="$2">
-      <Text fontSize="$5" fontWeight="700">
-        Authentication (PKCE)
+    <Card gap={loginVariant ? '$4' : '$2'} alignItems={loginVariant ? 'center' : undefined}>
+      <Text
+        fontSize={loginVariant ? '$7' : '$5'}
+        fontWeight="700"
+        textAlign={loginVariant ? 'center' : undefined}
+      >
+        {loginVariant ? 'Sign in to Pulse' : 'Authentication (PKCE)'}
       </Text>
-      <Text opacity={0.75}>Keycloak Authorization Code + PKCE for Expo Web/iOS/Android.</Text>
-      <Text opacity={0.75}>Issuer: {cfg.issuerUrl}</Text>
-      <Text opacity={0.75}>Client: {cfg.clientId}</Text>
-      <Text style={{ color: authenticated ? '#15803d' : '#6b7280' }}>
-        {authenticated ? 'Session: signed in' : 'Session: signed out'}
+      <Text
+        opacity={0.75}
+        textAlign={loginVariant ? 'center' : undefined}
+        maxWidth={loginVariant ? 420 : undefined}
+      >
+        {loginVariant
+          ? 'Use your Google account to access your devices securely.'
+          : 'Keycloak Authorization Code + PKCE for Expo Web/iOS/Android.'}
       </Text>
+      {loginVariant ? null : <Text opacity={0.75}>Issuer: {cfg.issuerUrl}</Text>}
+      {loginVariant ? null : <Text opacity={0.75}>Client: {cfg.clientId}</Text>}
+      {loginVariant ? null : (
+        <Text style={{ color: authenticated ? '#15803d' : '#6b7280' }}>
+          {authenticated ? 'Session: signed in' : 'Session: signed out'}
+        </Text>
+      )}
       {statusText ? (
-        <Text style={{ color: '#6b7280' }} fontSize="$2">
+        <Text
+          style={{ color: '#6b7280' }}
+          fontSize="$2"
+          textAlign={loginVariant ? 'center' : undefined}
+        >
           {statusText}
         </Text>
       ) : null}
       {errorText ? (
-        <Text style={{ color: '#dc2626' }} fontSize="$2">
+        <Text
+          style={{ color: '#dc2626' }}
+          fontSize="$2"
+          textAlign={loginVariant ? 'center' : undefined}
+        >
           {errorText}
         </Text>
       ) : null}
-      <XStack gap="$2" flexWrap="wrap" alignItems="center">
-        <Button
-          size="$3"
-          onPress={() => {
-            void onSignIn();
-          }}
-          disabled={busy || !request || !discovery}
-        >
-          Sign in
-        </Button>
-        <Button
-          size="$3"
-          onPress={() => {
-            void onRefresh();
-          }}
-          disabled={busy || !allowRefresh}
-        >
-          Refresh token
-        </Button>
-        <Button size="$3" onPress={onSignOut} disabled={busy || !session}>
-          Sign out
-        </Button>
-        {busy ? (
-          <YStack paddingLeft="$2">
-            <Spinner size="small" color="#f59e0b" />
-          </YStack>
-        ) : null}
-      </XStack>
+      {loginVariant ? (
+        <YStack gap="$2" width="100%" maxWidth={220}>
+          <Button
+            size="$5"
+            backgroundColor="$accentColor"
+            color="white"
+            borderColor="$accentColor"
+            fontWeight="800"
+            paddingVertical="$3"
+            paddingHorizontal="$4"
+            minHeight={56}
+            borderRadius={18}
+            style={{
+              backgroundColor: '#0f766e',
+              borderColor: '#0f766e'
+            }}
+            pressStyle={{
+              backgroundColor: '#115e59'
+            }}
+            onPress={() => {
+              void onSignIn();
+            }}
+            disabled={busy || !request || !discovery}
+          >
+            Sign In
+          </Button>
+          {busy ? (
+            <YStack alignItems="center" paddingTop="$1">
+              <Spinner size="small" color="#f59e0b" />
+            </YStack>
+          ) : null}
+        </YStack>
+      ) : (
+        <XStack gap="$2" flexWrap="wrap" alignItems="center">
+          <Button
+            size="$3"
+            onPress={() => {
+              void onSignIn();
+            }}
+            disabled={busy || !request || !discovery}
+          >
+            Sign in
+          </Button>
+          <Button
+            size="$3"
+            onPress={() => {
+              void onRefresh();
+            }}
+            disabled={busy || !allowRefresh}
+          >
+            Refresh token
+          </Button>
+          <Button size="$3" onPress={onSignOut} disabled={busy || !session}>
+            Sign out
+          </Button>
+          {busy ? (
+            <YStack paddingLeft="$2">
+              <Spinner size="small" color="#f59e0b" />
+            </YStack>
+          ) : null}
+        </XStack>
+      )}
     </Card>
   );
 }
