@@ -71,10 +71,15 @@ func RebuildFromRawLogs(
 		return report, err
 	}
 	sort.Slice(events, func(i, j int) bool {
-		left := events[i].sample.EventTime
-		right := events[j].sample.EventTime
-		if !left.Equal(right) {
-			return left.Before(right)
+		left := events[i].sample.IngestedUnixMs
+		right := events[j].sample.IngestedUnixMs
+		if left != right {
+			return left < right
+		}
+		leftAt := events[i].sample.EventTime
+		rightAt := events[j].sample.EventTime
+		if !leftAt.Equal(rightAt) {
+			return leftAt.Before(rightAt)
 		}
 		if events[i].sample.ProviderDeviceID != events[j].sample.ProviderDeviceID {
 			return events[i].sample.ProviderDeviceID < events[j].sample.ProviderDeviceID
@@ -87,8 +92,6 @@ func RebuildFromRawLogs(
 		aggregator.ApplySample(event.sample)
 		report.MessagesApplied++
 	}
-	aggregator.Finalize(to.UTC())
-
 	minuteRowsAll := filterRowsForWindow(aggregator.Rows(ResolutionMinute), ResolutionMinute, from.UTC(), to.UTC())
 	hourRowsAll := filterRowsForWindow(aggregator.Rows(ResolutionHour), ResolutionHour, from.UTC(), to.UTC())
 	dayRowsAll := filterRowsForWindow(aggregator.Rows(ResolutionDay), ResolutionDay, from.UTC(), to.UTC())

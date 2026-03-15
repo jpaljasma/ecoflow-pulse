@@ -62,6 +62,7 @@ type RollupSample struct {
 	DeviceID         string
 	EventTime        time.Time
 	EventUnixMs      int64
+	IngestedUnixMs   int64
 	Metrics          RollupMetrics
 	PVPorts          []PVPortObservation
 }

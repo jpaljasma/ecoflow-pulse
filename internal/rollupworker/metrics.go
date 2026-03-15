@@ -35,6 +35,10 @@ func SampleFromEnvelope(env *envelopev1.TelemetryEnvelope) (*RollupSample, error
 	if eventUnixMs <= 0 {
 		return nil, ErrInvalidRollupEnvelope
 	}
+	ingestedUnixMs := env.GetIngestedTimeUnixMs()
+	if ingestedUnixMs <= 0 {
+		ingestedUnixMs = eventUnixMs
+	}
 
 	payload := strings.TrimSpace(string(env.GetPayload()))
 	if payload == "" || !gjson.Valid(payload) {
@@ -53,6 +57,7 @@ func SampleFromEnvelope(env *envelopev1.TelemetryEnvelope) (*RollupSample, error
 		DeviceID:         deviceID,
 		EventTime:        time.UnixMilli(eventUnixMs).UTC(),
 		EventUnixMs:      eventUnixMs,
+		IngestedUnixMs:   ingestedUnixMs,
 		Metrics:          metrics,
 		PVPorts:          pvPorts,
 	}, nil

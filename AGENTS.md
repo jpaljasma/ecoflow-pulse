@@ -186,8 +186,9 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - Node REST BFF/public app: `2` replicas,
    - WebSocket gateway: `2` replicas,
    - Go gRPC API: `3` replicas.
-5. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps:
-   - ingest, inference, projection, rollup, archive: `3` replicas each in local/dev defaults.
+5. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps, except for workers that currently rely on process-local integration state:
+   - ingest, inference, projection, archive: `3` replicas each in local/dev defaults.
+   - rollup must remain a singleton until per-device integration state is persisted or shard-affine consumption is implemented; queue-group fanout plus in-memory carry state is not accuracy-safe.
 6. Service rollouts must wait on the platform dependency endpoints they consume before applying/restarting workloads:
    - at minimum: CNPG rw service, NATS, Valkey, and MinIO.
 7. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
