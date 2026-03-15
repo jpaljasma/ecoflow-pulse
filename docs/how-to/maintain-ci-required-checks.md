@@ -17,6 +17,9 @@ internal shard jobs, but the wrapper job names themselves must stay stable.
 The `CodeQL` required check is currently provided by GitHub's default CodeQL
 setup and code scanning integration. Do not add an advanced CodeQL workflow
 unless default setup is disabled first.
+Required CI workflows should trigger on `pull_request` for feature branches and
+on `push` for `main` only, so an open PR does not run the same required check
+twice on both branch pushes and PR updates.
 
 ## When workflows change
 

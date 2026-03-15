@@ -521,19 +521,23 @@ When touching Go internal API services, enforce the ADR-0013 baseline:
    - ruleset/branch protection required checks,
    - relevant architecture docs/ADR status and references.
    - use wrapper/aggregator jobs when sharding is needed so required check names can remain stable.
-5. Frontend CI must validate at minimum:
+5. Required CI workflows should avoid duplicate runs on feature branches:
+   - prefer `pull_request` triggers for PR validation,
+   - keep `push` triggers scoped to `main` unless a workflow explicitly needs broader branch-push coverage,
+   - do not run the same required check on both `pull_request` and every feature-branch `push` by default.
+6. Frontend CI must validate at minimum:
    - `npm run -w apps/universal typecheck`
    - `npm run -w apps/universal lint`
    - `npm run -w apps/universal test`
    - Expo web build/export sanity check
    - Playwright web E2E smoke (`npm run -w apps/universal e2e:web`) with deterministic API route mocking at browser boundary
-6. Protobuf contract changes must pass both local and CI lint:
+7. Protobuf contract changes must pass both local and CI lint:
    - local: `make lint` (includes `buf lint` and `actionlint`)
    - CI: `proto-ci` GitHub Actions check (`buf lint`)
-7. Node↔Go protobuf compatibility must be validated with runtime contract tests:
+8. Node↔Go protobuf compatibility must be validated with runtime contract tests:
    - local: `make test-proto-contract`
    - CI: `frontend-ci` must install Go and run realtime-gateway tests that execute the Go fixture tool (`cmd/proto-contract-fixture`) for cross-language wire compatibility.
-8. Any PR that edits `.github/workflows/*.yml` must run local workflow lint before push:
+9. Any PR that edits `.github/workflows/*.yml` must run local workflow lint before push:
    - preferred: `make lint`
    - minimum: `actionlint`
 
