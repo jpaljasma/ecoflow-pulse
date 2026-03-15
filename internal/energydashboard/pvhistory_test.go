@@ -80,6 +80,72 @@ func TestSummarizePVPortHistoryFallsBackToDerivedWatts(t *testing.T) {
 	}
 }
 
+func TestSummarizePVPortHistoryUsesNumberedPortFamilyWhenLowHighKeysAbsent(t *testing.T) {
+	t.Parallel()
+
+	got := SummarizePVPortHistory([]*envelopev1.TelemetryEnvelope{{
+		DeviceId:           "device-a",
+		PayloadType:        quotaPayloadType,
+		ObservedTimeUnixMs: 1,
+		PayloadEncoding:    envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		Payload: []byte(`{"params":{
+			"inVol": 24.1,
+			"inAmp": 1.2,
+			"outWatts": 28.9,
+			"pv2InVol": 41.0,
+			"pv2InAmp": 2.0,
+			"pv2ChargeWatts": 82.0
+		}}`),
+	}})
+
+	if len(got) != 2 {
+		t.Fatalf("numbered port count mismatch: got=%d want=2", len(got))
+	}
+	byPort := map[string]PVPortHistory{}
+	for _, row := range got {
+		byPort[row.PortID] = row
+	}
+	if row := byPort["pv-1"]; row.PortLabel != "PV 1" || row.LastObservedWatts != 28.9 {
+		t.Fatalf("pv-1 summary mismatch: %+v", row)
+	}
+	if row := byPort["pv-2"]; row.PortLabel != "PV 2" || row.LastObservedWatts != 82.0 {
+		t.Fatalf("pv-2 summary mismatch: %+v", row)
+	}
+}
+
+func TestSummarizePVPortHistorySupportsNumberedMultiPortPayloads(t *testing.T) {
+	t.Parallel()
+
+	got := SummarizePVPortHistory([]*envelopev1.TelemetryEnvelope{{
+		DeviceId:           "device-a",
+		PayloadType:        quotaPayloadType,
+		ObservedTimeUnixMs: 1,
+		PayloadEncoding:    envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		Payload: []byte(`{"params":{
+			"inVol": 24.1,
+			"inAmp": 1.2,
+			"outWatts": 28.9,
+			"pv2InVol": 41.0,
+			"pv2InAmp": 2.0,
+			"pv2ChargeWatts": 82.0,
+			"pv3InVol": 54.0,
+			"pv3InAmp": 3.0,
+			"pv3ChargeWatts": 162.0
+		}}`),
+	}})
+
+	if len(got) != 3 {
+		t.Fatalf("numbered multi-port count mismatch: got=%d want=3", len(got))
+	}
+	byPort := map[string]PVPortHistory{}
+	for _, row := range got {
+		byPort[row.PortID] = row
+	}
+	if row := byPort["pv-3"]; row.PortLabel != "PV 3" || row.LastObservedWatts != 162.0 {
+		t.Fatalf("pv-3 summary mismatch: %+v", row)
+	}
+}
+
 func TestSummarizePVPortHistoryIgnoresNonQuotaPayloads(t *testing.T) {
 	t.Parallel()
 

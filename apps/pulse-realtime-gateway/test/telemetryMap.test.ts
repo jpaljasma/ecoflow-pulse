@@ -244,6 +244,34 @@ describe('telemetryMap', () => {
     ]);
   });
 
+  it('derives numbered live solar ports beyond pv-2 when future devices expose them', () => {
+    const detail = deriveTelemetryDetail({
+      'params.outWatts': 82,
+      'params.inVol': 16400,
+      'params.inAmp': 5000,
+      'params.chgState': 2,
+      'params.pv2InVol': 40900,
+      'params.pv2InAmp': 5180,
+      'params.pv2ChargeWatts': 212,
+      'params.pv2ChgState': 1,
+      'params.pv3InVol': 38100,
+      'params.pv3InAmp': 4070,
+      'params.pv3ChargeWatts': 155,
+      'params.pv3ChgState': 2
+    });
+
+    expect(detail).toEqual({
+      signals: {
+        solarChargingOn: true
+      },
+      solarPorts: [
+        { id: 'pv-1', name: 'PV 1', state: 'charging', volts: 16.4, amps: 5, watts: 82 },
+        { id: 'pv-2', name: 'PV 2', state: 'charging', volts: 40.9, amps: 5.18, watts: 212 },
+        { id: 'pv-3', name: 'PV 3', state: 'charging', volts: 38.1, amps: 4.07, watts: 155 }
+      ]
+    });
+  });
+
   it('prefers explicit preconditioning state over stale heat-time fallback', () => {
     const detail = deriveTelemetryDetail({
       'params.bpInfo.0.heatTime': 9,

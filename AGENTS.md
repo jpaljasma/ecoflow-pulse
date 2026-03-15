@@ -80,6 +80,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Energy-impact UI must use measured solar generation for the displayed period only; do not annualize, extrapolate, or invent month/year/lifetime avoided-emissions values unless those real solar totals exist in the app.
 5. Avoided-emissions factors must be versioned in code/docs and clearly labeled in the UI when using a default or fallback region.
 6. When energy-impact UI mixes methodologies (for example marginal-grid avoided emissions and tree-equivalent lifecycle comparisons), label the distinction explicitly in both the widget detail text and the explainer screen.
+7. PV input handling must be cardinality-safe across the stack:
+   - do not hardcode assumptions that every device has exactly two PV inputs,
+   - support current EcoFlow field families with canonical numbered IDs (`pv-1` ... `pv-N`) and dual-MPPT aliases (`pv-low` / `pv-high`) where those legacy fields exist,
+   - keep history, realtime detail, REST detail, and UI matching logic aligned so one-port, two-port, and future multi-port devices all render correctly.
 
 ## Time Handling Rules
 1. Persisted/backend timestamps use UTC semantics; user-facing day/month/year periods use local calendar semantics unless a feature explicitly says otherwise.

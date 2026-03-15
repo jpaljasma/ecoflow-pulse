@@ -84,7 +84,25 @@ function formatObservedAtLabel(unixMs: string): string {
 }
 
 function findPVHistoryRow(rows: EnergyPVPortHistory[], deviceId: string, portId: string): EnergyPVPortHistory | undefined {
-  return rows.find((row) => row.deviceId === deviceId && row.portId === portId);
+  const expectedKey = canonicalPvPortKey(portId);
+  return rows.find(
+    (row) => row.deviceId === deviceId && canonicalPvPortKey(row.portId) === expectedKey
+  );
+}
+
+function canonicalPvPortKey(portId: string): string {
+  const normalized = portId.trim().toLowerCase();
+  const numbered = normalized.match(/(?:^|[^a-z])pv[-_\s]?(\d+)$/i) ?? normalized.match(/^pv[-_\s]?(\d+)$/i);
+  if (numbered?.[1]) {
+    return `pv-${numbered[1]}`;
+  }
+  if (normalized.includes('low')) {
+    return 'pv-1';
+  }
+  if (normalized.includes('high')) {
+    return 'pv-2';
+  }
+  return normalized;
 }
 
 function buttonStyles(active: boolean, semantics: ReturnType<typeof useThemeSemantics>) {

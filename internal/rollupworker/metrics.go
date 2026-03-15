@@ -2,7 +2,9 @@ package rollupworker
 
 import (
 	"math"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -145,22 +147,27 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 }
 
 func derivePV(root gjson.Result) (float64, bool) {
-	low, hasLow := derivePVChannel(root,
-		[]string{"params.inLvMpptPwr", "param.powGetPvL"},
-		[]string{"params.pv1ChargeWatts", "params.inWatts"},
-		[]string{"params.inVol", "params.inLvMpptVol"},
-		[]string{"params.inAmp", "params.inLvMpptAmp"},
-		[]string{"params.chgState"},
-	)
-	high, hasHigh := derivePVChannel(root,
-		[]string{"params.inHvMpptPwr", "param.powGetPvH"},
-		[]string{"params.pv2ChargeWatts", "params.pv2InWatts"},
-		[]string{"params.pv2InVol", "params.inHvMpptVol"},
-		[]string{"params.pv2InAmp", "params.inHvMpptAmp"},
-		[]string{"params.pv2ChgState"},
-	)
-	if hasLow || hasHigh {
-		return low + high, true
+	if hasAnyPVPortKey(root, "params.inLvMpptPwr", "param.powGetPvL", "params.inHvMpptPwr", "param.powGetPvH", "params.inLvMpptVol", "params.inLvMpptAmp", "params.inHvMpptVol", "params.inHvMpptAmp") {
+		low, hasLow := derivePVChannel(root,
+			[]string{"params.inLvMpptPwr", "param.powGetPvL"},
+			[]string{"params.pv1ChargeWatts", "params.inWatts"},
+			[]string{"params.inVol", "params.inLvMpptVol"},
+			[]string{"params.inAmp", "params.inLvMpptAmp"},
+			[]string{"params.chgState"},
+		)
+		high, hasHigh := derivePVChannel(root,
+			[]string{"params.inHvMpptPwr", "param.powGetPvH"},
+			[]string{"params.pv2ChargeWatts", "params.pv2InWatts"},
+			[]string{"params.pv2InVol", "params.inHvMpptVol"},
+			[]string{"params.pv2InAmp", "params.inHvMpptAmp"},
+			[]string{"params.pv2ChgState"},
+		)
+		if hasLow || hasHigh {
+			return low + high, true
+		}
+	}
+	if portSum, ok := sumPVPortObservationWatts(root); ok {
+		return portSum, true
 	}
 	if pv := firstNumberCapped(root, 10_000, "pvW"); pv.Valid {
 		return pv.Value, true
@@ -210,14 +217,110 @@ func derivePVChannel(root gjson.Result, primaryKeys, fallbackKeys, voltsKeys, am
 }
 
 func extractPVPortObservations(root gjson.Result) []PVPortObservation {
-	observations := make([]PVPortObservation, 0, 2)
-	if low, ok := derivePVPortObservation(root, "pv-low", "PV Low", []string{"params.inLvMpptVol", "params.inVol"}, []string{"params.inLvMpptAmp", "params.inAmp"}, []string{"params.pv1ChargeWatts", "params.inLvMpptPwr", "params.inWatts"}, []string{"params.chgState"}); ok {
-		observations = append(observations, low)
-	}
-	if high, ok := derivePVPortObservation(root, "pv-high", "PV High", []string{"params.inHvMpptVol", "params.pv2InVol"}, []string{"params.inHvMpptAmp", "params.pv2InAmp"}, []string{"params.pv2ChargeWatts", "params.inHvMpptPwr", "params.pv2InWatts"}, []string{"params.pv2ChgState"}); ok {
-		observations = append(observations, high)
+	specs := buildPVPortSpecs(root)
+	observations := make([]PVPortObservation, 0, len(specs))
+	for _, spec := range specs {
+		if observation, ok := derivePVPortObservation(root, spec.PortID, spec.PortLabel, spec.VoltsKeys, spec.AmpsKeys, spec.WattsKeys, spec.IdleStateKeys); ok {
+			observations = append(observations, observation)
+		}
 	}
 	return observations
+}
+
+type pvPortSpec struct {
+	PortID        string
+	PortLabel     string
+	VoltsKeys     []string
+	AmpsKeys      []string
+	WattsKeys     []string
+	IdleStateKeys []string
+}
+
+var numberedPVPortPattern = regexp.MustCompile(`^pv(\d+)(InVol|InAmp|ChargeWatts|InWatts|ChgState)$`)
+
+func buildPVPortSpecs(root gjson.Result) []pvPortSpec {
+	if hasAnyPVPortKey(root, "params.inLvMpptVol", "params.inLvMpptAmp", "params.inLvMpptPwr", "params.inHvMpptVol", "params.inHvMpptAmp", "params.inHvMpptPwr") {
+		return []pvPortSpec{
+			{
+				PortID:        "pv-low",
+				PortLabel:     "PV Low",
+				VoltsKeys:     []string{"params.inLvMpptVol", "params.inVol"},
+				AmpsKeys:      []string{"params.inLvMpptAmp", "params.inAmp"},
+				WattsKeys:     []string{"params.pv1ChargeWatts", "params.outWatts", "params.inLvMpptPwr", "params.inWatts"},
+				IdleStateKeys: []string{"params.chgState"},
+			},
+			{
+				PortID:        "pv-high",
+				PortLabel:     "PV High",
+				VoltsKeys:     []string{"params.inHvMpptVol", "params.pv2InVol"},
+				AmpsKeys:      []string{"params.inHvMpptAmp", "params.pv2InAmp"},
+				WattsKeys:     []string{"params.pv2ChargeWatts", "params.inHvMpptPwr", "params.pv2InWatts"},
+				IdleStateKeys: []string{"params.pv2ChgState"},
+			},
+		}
+	}
+
+	params := root.Get("params").Map()
+	numberedPorts := map[int]struct{}{1: {}}
+	for key := range params {
+		matches := numberedPVPortPattern.FindStringSubmatch(strings.TrimSpace(key))
+		if len(matches) != 3 {
+			continue
+		}
+		index, err := strconv.Atoi(matches[1])
+		if err != nil || index <= 0 {
+			continue
+		}
+		numberedPorts[index] = struct{}{}
+	}
+	indexes := make([]int, 0, len(numberedPorts))
+	for index := range numberedPorts {
+		indexes = append(indexes, index)
+	}
+	sort.Ints(indexes)
+
+	specs := make([]pvPortSpec, 0, len(indexes))
+	for _, index := range indexes {
+		spec := pvPortSpec{
+			PortID:    "pv-" + strconv.Itoa(index),
+			PortLabel: "PV " + strconv.Itoa(index),
+		}
+		if index == 1 {
+			spec.VoltsKeys = []string{"params.inVol", "params.pv1InVol"}
+			spec.AmpsKeys = []string{"params.inAmp", "params.pv1InAmp"}
+			spec.WattsKeys = []string{"params.pv1ChargeWatts", "params.outWatts", "params.inWatts", "params.pv1InWatts"}
+			spec.IdleStateKeys = []string{"params.chgState", "params.pv1ChgState"}
+		} else {
+			prefix := "params.pv" + strconv.Itoa(index)
+			spec.VoltsKeys = []string{prefix + "InVol"}
+			spec.AmpsKeys = []string{prefix + "InAmp"}
+			spec.WattsKeys = []string{prefix + "ChargeWatts", prefix + "InWatts"}
+			spec.IdleStateKeys = []string{prefix + "ChgState"}
+		}
+		specs = append(specs, spec)
+	}
+	return specs
+}
+
+func hasAnyPVPortKey(root gjson.Result, paths ...string) bool {
+	for _, path := range paths {
+		if value := root.Get(path); value.Exists() {
+			return true
+		}
+	}
+	return false
+}
+
+func sumPVPortObservationWatts(root gjson.Result) (float64, bool) {
+	observations := extractPVPortObservations(root)
+	if len(observations) == 0 {
+		return 0, false
+	}
+	sum := 0.0
+	for _, observation := range observations {
+		sum += observation.Watts
+	}
+	return sum, true
 }
 
 func derivePVPortObservation(root gjson.Result, portID, portLabel string, voltsKeys, ampsKeys, wattsKeys, idleStateKeys []string) (PVPortObservation, bool) {
@@ -248,7 +351,8 @@ func derivePVPortObservation(root gjson.Result, portID, portLabel string, voltsK
 	if watts.Valid && watts.Value >= 0 && watts.Value <= 10_000 {
 		normalizedWatts = watts.Value
 		hasWatts = true
-	} else if hasVolts && hasAmps {
+	}
+	if (!hasWatts || normalizedWatts <= 0) && hasVolts && hasAmps && !idle {
 		normalizedWatts = normalizedVolts * normalizedAmps
 		hasWatts = true
 	}

@@ -160,13 +160,22 @@ small live-detail envelope from the merged raw snapshot:
   current AC/DC/USB/12V/EV/fan/solar/preconditioning booleans derived from the
   same merged live raw metrics used for projected watts.
 - `detail.solarPorts`:
-  current per-port PV state/volts/amps/watts for D2M and DPU-style port pairs.
+  current per-port PV state/volts/amps/watts.
+  Canonical port IDs must support both of the current EcoFlow field families:
+  - numbered MPPT families as `pv-1`, `pv-2`, ..., `pv-N`,
+  - dual-MPPT low/high families as `pv-low` and `pv-high`.
+  Do not assume a fixed count of two PV ports in the live detail, history, or
+  Energy API paths; supported devices may expose one, two, or more numbered PV
+  inputs.
 
 - energy PV-port history:
   persisted minute/hour/day PV-port rollup facts (`max_observed_*`,
   `last_observed_*`, `sample_count`) are the steady-state source for
   `EnergyService/GetEnergyPvPortHistory`; archive scans remain a fallback and
   rebuild source, not the intended hot read path.
+  Numbered-port history rows must use canonical `pv-N` IDs so UI matching works
+  across one-port, two-port, and future multi-port products even when older
+  frames used alternate aliases such as `pv1`, `pv2`, `pv-low`, or `pv-high`.
 
 Frontend rule:
 
