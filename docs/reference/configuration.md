@@ -309,6 +309,12 @@ Runtime behavior:
   by the page's global device/window controls instead of a separate local
   period switch, so the impact wording always follows the selected Energy
   dashboard scope and date range.
+- the `/energy` page keeps its `Solar against load` controls collapsed by
+  default behind an explicit expand/collapse affordance so the summary content
+  stays visible first on smaller screens.
+- local energy price preferences live on `Profile` alongside timezone and
+  weather-location preferences; the Energy dashboard reads that same locally
+  persisted setting for estimated value and AC input cost.
 - the same widget also includes a conservative mature-tree equivalent based on
   a `0.045 kg CO2e/kWh` PV lifecycle benchmark and `21.8 kg CO2/year` mature
   tree benchmark. See [`tree-equivalent.md`](tree-equivalent.md).
