@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import type { ImageSourcePropType, DimensionValue } from 'react-native';
-import { Text, XStack, YStack } from 'tamagui';
+import { XStack, YStack } from 'tamagui';
 import { CachedImage } from '@/shared/ui/CachedImage';
 
 export function DeviceHeroPanel({
@@ -14,7 +15,7 @@ export function DeviceHeroPanel({
   imageOffsetY = 0,
   imageUri,
   fallbackSource,
-  emojiFallback,
+  iconFallback,
   leftMeta,
   leftFooter,
   right
@@ -27,7 +28,7 @@ export function DeviceHeroPanel({
   imageOffsetY?: number;
   imageUri?: string;
   fallbackSource?: ImageSourcePropType;
-  emojiFallback?: string;
+  iconFallback?: ComponentProps<typeof MaterialCommunityIcons>['name'];
   leftMeta?: ReactNode;
   leftFooter?: ReactNode;
   right: ReactNode;
@@ -73,7 +74,7 @@ export function DeviceHeroPanel({
               contentFit="cover"
             />
           ) : (
-            <Text fontSize="$10">{emojiFallback ?? '🧩'}</Text>
+            <MaterialCommunityIcons name={iconFallback ?? 'puzzle-outline'} size={42} color="rgba(28, 43, 45, 0.62)" />
           )}
         </YStack>
         {leftMeta}

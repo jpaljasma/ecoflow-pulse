@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -20,8 +21,35 @@ import { BatteryPacksSection } from '@/features/device-detail/components/Battery
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
 import type { DeviceInsights } from '@/features/inference/api';
+import { IconLabel } from '@/shared/ui/IconLabel';
 
 const DETAIL_TREND_POINTS = 60;
+
+function metricLabel(label: string) {
+  switch (label) {
+    case 'AC':
+      return <IconLabel icon="power-plug-outline" label="AC" />;
+    case 'DC':
+      return <IconLabel icon="current-dc" label="DC" />;
+    case 'PV':
+      return <IconLabel icon="white-balance-sunny" label="PV" />;
+    case 'Load':
+      return <IconLabel icon="home-outline" label="Load" />;
+    case 'Net':
+      return <IconLabel icon="scale-balance" label="Net" />;
+    case 'Battery':
+      return <IconLabel icon="battery-high" label="Battery" />;
+    case 'Temp':
+      return <IconLabel icon="thermometer" label="Temp" />;
+    case 'State':
+      return <IconLabel icon="checkbox-blank-circle-outline" label="State" />;
+    case 'ETA':
+      return <IconLabel icon="timer-sand" label="ETA" />;
+    default:
+      return label;
+  }
+}
+
 export function DeviceDetailBody({
   device,
   snapshot,
@@ -81,7 +109,7 @@ export function DeviceDetailBody({
     return {
       key: cell.key,
       content: (
-        <Stat label={cell.label} value={cell.value} tone={cell.tone ?? 'default'} />
+        <Stat label={metricLabel(cell.label)} value={cell.value} tone={cell.tone ?? 'default'} />
       )
     };
   });
@@ -102,7 +130,7 @@ export function DeviceDetailBody({
           imageOffsetY={isTablet ? vm.desktopOffsetY : 0}
           imageUri={vm.deviceAsset?.uri}
           fallbackSource={vm.detailFallback}
-          emojiFallback={vm.deviceAsset?.emoji}
+          iconFallback={vm.deviceAsset?.icon}
           right={(
             <YStack gap="$3" flex={1} minWidth={0}>
               {device ? (
@@ -126,7 +154,10 @@ export function DeviceDetailBody({
                       })
                     }
                   >
-                    ⚡ Energy
+                    <XStack alignItems="center" gap="$1">
+                      <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color="rgba(10,132,255,0.92)" />
+                      <Text color="rgba(10,132,255,0.92)" fontWeight="700">Energy</Text>
+                    </XStack>
                   </Button>
                 </XStack>
               ) : null}
@@ -134,9 +165,14 @@ export function DeviceDetailBody({
                 <XStack flex={1} minWidth={0}>
                   <SocBar value={snapshot?.metrics?.soc ?? device?.batteryPct} fullWidth />
                 </XStack>
-                <Text fontSize="$3" opacity={0.75} marginBottom="$1" flexShrink={0}>
-                  {vm.capacityKWh !== null ? `🔋 ${formatKWh(vm.capacityKWh)}` : '🔋 n/a'}
-                </Text>
+                <XStack alignItems="center" gap="$1" marginBottom="$1" flexShrink={0}>
+                  <XStack alignItems="center" gap="$1">
+                    <MaterialCommunityIcons name="battery-high" size={16} color="rgba(28, 43, 45, 0.72)" />
+                    <Text fontSize="$3" opacity={0.75}>
+                      {vm.capacityKWh !== null ? formatKWh(vm.capacityKWh) : 'n/a'}
+                    </Text>
+                  </XStack>
+                </XStack>
               </XStack>
 
               <MetricsGrid items={detailMetricItems} columns={3} />
@@ -151,9 +187,9 @@ export function DeviceDetailBody({
                     lineHeight={24}
                   />
                 ) : null}
-                <Text fontSize="$3" opacity={0.9}>
-                  {vm.connectionGlyph}
-                </Text>
+                <XStack opacity={0.9}>
+                  <MaterialCommunityIcons name={vm.connectionGlyph} size={16} color="rgba(28, 43, 45, 0.82)" />
+                </XStack>
               </XStack>
             </YStack>
           )}

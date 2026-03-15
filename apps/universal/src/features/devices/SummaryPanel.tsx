@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
@@ -22,6 +23,7 @@ import { useFleetPowerTrendHistory, useFleetSolarHistory } from '@/features/hist
 import { mergeTrendPrefill } from '@/features/history/powerTrend';
 import { SOLAR_HISTORY_CHART_TITLE, SOLAR_HISTORY_POINTS } from '@/features/history/solar';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+import { IconLabel } from '@/shared/ui/IconLabel';
 
 const SUMMARY_TREND_POINTS = 60;
 
@@ -147,7 +149,7 @@ export function SummaryPanel({
       key: 'battery',
       content: (
         <Stat
-          label="🔋 Battery"
+          label={<IconLabel icon="battery-high" label="Battery" />}
           value={summary.totalCapacityKWh !== null ? formatKWh(summary.totalCapacityKWh) : '—'}
           compact={isCompact}
         />
@@ -155,11 +157,11 @@ export function SummaryPanel({
     },
     {
       key: 'soc',
-      content: <Stat label="⏲️ SOC" value={formatPct(summary.avgSocPct)} compact={isCompact} />
+      content: <Stat label={<IconLabel icon="gauge" label="SOC" />} value={formatPct(summary.avgSocPct)} compact={isCompact} />
     },
     {
       key: 'net',
-      content: <Stat label="⚖️ Net" value={formatW(displayNetW)} compact={isCompact} />
+      content: <Stat label={<IconLabel icon="scale-balance" label="Net" />} value={formatW(displayNetW)} compact={isCompact} />
     },
     {
       key: 'ac',
@@ -187,7 +189,7 @@ export function SummaryPanel({
       key: 'pv',
       content: (
         <Stat
-          label="☼ PV"
+          label={<IconLabel icon="white-balance-sunny" label="PV" />}
           value={formatW(displayPvW)}
           tone={isMutedMetric(displayPvW) ? 'muted' : 'default'}
           compact={isCompact}
@@ -210,7 +212,7 @@ export function SummaryPanel({
       key: 'load',
       content: (
         <Stat
-          label="⌂ Load"
+          label={<IconLabel icon="home-outline" label="Load" />}
           value={formatW(summary.loadW)}
           tone={isMutedMetric(summary.loadW) ? 'muted' : 'default'}
           compact={isCompact}
@@ -245,7 +247,10 @@ export function SummaryPanel({
               })
             }
           >
-            ⚡ Energy
+            <XStack alignItems="center" gap="$1">
+              <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color={semantics.actionText} />
+              <Text style={{ color: semantics.actionText }} fontWeight="700">Energy</Text>
+            </XStack>
           </Button>
         </XStack>
         <XStack gap="$2" alignItems="center" flexWrap="wrap">
@@ -270,7 +275,7 @@ export function SummaryPanel({
               ) : item.fallback ? (
                 <ExpoImage source={item.fallback} style={{ width: 34, height: 34 }} contentFit="cover" />
               ) : (
-                <Text>{item.emoji}</Text>
+                <MaterialCommunityIcons name={item.icon} size={22} color="rgba(28, 43, 45, 0.7)" />
               )}
             </YStack>
           ))}

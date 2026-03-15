@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import type { ComponentProps } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { getCapacityKWh } from '@/features/devices/capacity';
@@ -21,7 +23,7 @@ export type FleetTypeIcon = {
   label: string;
   uri?: string;
   fallback?: ReturnType<typeof getBundledDeviceFallback>;
-  emoji: string;
+  icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   active: boolean;
 };
 
@@ -130,7 +132,7 @@ export function useFleetSummaryViewModel({
             ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('list'))
             : undefined,
         fallback: match.slug ? getBundledDeviceFallback(match.slug, '256') : undefined,
-        emoji: match.glyph.emoji,
+        icon: match.glyph.icon,
         active: hasActive
       });
     }

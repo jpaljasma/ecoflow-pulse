@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMemo, useRef } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { Pill } from '@/shared/ui/Pill';
@@ -7,6 +8,7 @@ import type { DetailBatteryPackVM } from '@/features/device-detail/view-model';
 import { BatteryUpsellComponent } from '@/features/device-detail/components/BatteryUpsellComponent';
 import type { DeviceInsights } from '@/features/inference/api';
 import { buildBatteryUpsellView } from '@/features/inference/model';
+import { IconLabel } from '@/shared/ui/IconLabel';
 
 export function BatteryPacksSection({
   packs,
@@ -44,7 +46,7 @@ export function BatteryPacksSection({
   );
   return (
     <SectionCard
-      title="🔋 Battery Packs"
+      title={<IconLabel icon="battery-high" label="Battery Packs" />}
       right={<Pill label={`${batteryCount} packs`} tone="info" />}
       minWidth={minWidth}
     >
@@ -65,9 +67,12 @@ export function BatteryPacksSection({
                 <Text fontWeight="700">{pack.id.toUpperCase()}</Text>
                 <XStack gap="$2" alignItems="center">
                   {pack.heatingOn ? (
-                    <Text color="rgba(255,159,10,0.95)" fontWeight="700">
-                      ♨ Preconditioning
-                    </Text>
+                    <XStack alignItems="center" gap="$1">
+                      <MaterialCommunityIcons name="fire" size={14} color="rgba(255,159,10,0.95)" />
+                      <Text color="rgba(255,159,10,0.95)" fontWeight="700">
+                        Preconditioning
+                      </Text>
+                    </XStack>
                   ) : null}
                   <Text opacity={0.8}>
                     {pack.powerText} {' · '} {pack.tempText}

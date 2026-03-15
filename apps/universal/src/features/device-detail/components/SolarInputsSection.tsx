@@ -4,6 +4,7 @@ import { SectionCard } from '@/shared/ui/SectionCard';
 import type { DetailSolarPortVM } from '@/features/device-detail/view-model';
 import { SolarPortCard } from '@/features/device-detail/components/SolarPortCard';
 import { formatW } from '@/features/telemetry/format';
+import { IconLabel } from '@/shared/ui/IconLabel';
 
 export function SolarInputsSection({
   ports,
@@ -18,7 +19,7 @@ export function SolarInputsSection({
 
   return (
     <SectionCard
-      title="☀ Solar Inputs"
+      title={<IconLabel icon="white-balance-sunny" label="Solar Inputs" />}
       right={<Pill label={`${ports.length} ports · ${formatW(totalCapacityW)}`} tone="warning" />}
       minWidth={minWidth}
     >

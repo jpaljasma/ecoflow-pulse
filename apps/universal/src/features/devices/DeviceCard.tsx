@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
+import type { ComponentProps } from 'react';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
@@ -13,7 +15,7 @@ import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { SocBar } from '@/shared/ui/SocBar';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
-import { getStatusGlyph } from '@/shared/ui/statusGlyph';
+import { getStatusIconName } from '@/shared/ui/statusGlyph';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 import { env } from '@/shared/config/env';
 import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
@@ -22,17 +24,18 @@ import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { useTelemetryDeviceSnapshot } from '@/features/telemetry/hooks';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useDeviceSolarHistory } from '@/features/history/hooks';
+import { IconLabel } from '@/shared/ui/IconLabel';
 
 function connectivityGlyph(
   snapshot: DeviceSnapshot | undefined,
   connectionStatus: TelemetryEngineStatus
-): string {
-  if (snapshot?.stale) return getStatusGlyph('stale');
+): ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (snapshot?.stale) return getStatusIconName('stale');
   if (connectionStatus === 'connecting' || connectionStatus === 'reconnecting') {
-    return getStatusGlyph('processing');
+    return getStatusIconName('processing');
   }
-  if (connectionStatus === 'connected' && snapshot?.online) return getStatusGlyph('online');
-  return getStatusGlyph('waiting');
+  if (connectionStatus === 'connected' && snapshot?.online) return getStatusIconName('online');
+  return getStatusIconName('waiting');
 }
 
 function getMaxSolarWatts(device: DeviceSummary): number | undefined {
@@ -123,7 +126,7 @@ export function DeviceCard({
         key: 'ac',
         content: (
           <Stat
-            label="AC"
+            label={<IconLabel icon="power-plug-outline" label="AC" />}
             value={formatW(acInW)}
             tone={isMutedMetric(acInW) ? 'muted' : 'default'}
             compact
@@ -134,7 +137,7 @@ export function DeviceCard({
         key: 'dc',
         content: (
           <Stat
-            label="DC"
+            label={<IconLabel icon="current-dc" label="DC" />}
             value={formatW(dcW)}
             tone={isMutedMetric(dcW) ? 'muted' : 'default'}
             compact
@@ -145,7 +148,7 @@ export function DeviceCard({
         key: 'pv',
         content: (
           <Stat
-            label="PV"
+            label={<IconLabel icon="white-balance-sunny" label="PV" />}
             value={formatW(pvW)}
             tone={isMutedMetric(pvW) ? 'muted' : 'default'}
             compact
@@ -168,7 +171,7 @@ export function DeviceCard({
         key: 'load',
         content: (
           <Stat
-            label="Load"
+            label={<IconLabel icon="home-outline" label="Load" />}
             value={formatW(loadW)}
             tone={isMutedMetric(loadW) ? 'muted' : 'default'}
             compact
@@ -177,11 +180,11 @@ export function DeviceCard({
       },
       {
         key: 'net',
-        content: <Stat label="Net" value={formatW(netW)} compact />
+        content: <Stat label={<IconLabel icon="scale-balance" label="Net" />} value={formatW(netW)} compact />
       },
       {
         key: 'eta',
-        content: <Stat label="⏱ ETA" value={formatEtaMinutes(device.etaMinutes)} compact />
+        content: <Stat label={<IconLabel icon="timer-sand" label="ETA" />} value={formatEtaMinutes(device.etaMinutes)} compact />
       }
     ];
   }, [
@@ -221,17 +224,19 @@ export function DeviceCard({
           imageScale={1.08}
           imageUri={imageUri}
           fallbackSource={fallbackSource}
-          emojiFallback={match.glyph.emoji}
+          iconFallback={match.glyph.icon}
           leftMeta={(
-            <Text
-              fontSize={isPhoneCompact ? 11 : 13}
-              opacity={0.75}
-              textAlign="center"
-              numberOfLines={1}
+            <XStack
+              alignItems="center"
+              justifyContent="center"
+              gap="$1"
               marginTop="$1"
             >
-              {capacityKWh !== null ? `🔋 ${formatKWh(capacityKWh)}` : '🔋 n/a'}
-            </Text>
+              <MaterialCommunityIcons name="battery-high" size={14} color="rgba(28, 43, 45, 0.72)" />
+              <Text fontSize={isPhoneCompact ? 11 : 13} opacity={0.75} numberOfLines={1}>
+                {capacityKWh !== null ? formatKWh(capacityKWh) : 'n/a'}
+              </Text>
+            </XStack>
           )}
           leftFooter={(
             <YStack marginTop={isPhoneCompact ? '$3' : '$2'}>
@@ -276,7 +281,10 @@ export function DeviceCard({
                     });
                   }}
                 >
-                  ⚡ Energy
+                  <XStack alignItems="center" gap="$1">
+                    <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color="rgba(10,132,255,0.92)" />
+                    <Text color="rgba(10,132,255,0.92)" fontWeight="700">Energy</Text>
+                  </XStack>
                 </Button>
                 {isInactive ? (
                   <Text fontSize="$2" color="rgba(60,60,67,0.65)" marginTop="$1" flexShrink={0}>
@@ -298,9 +306,10 @@ export function DeviceCard({
                 <Text fontSize={10} opacity={0.48} numberOfLines={1}>
                   Last seen {formatAgo(lastSeenAt)}
                 </Text>
-                <Text fontSize="$3" opacity={0.9}>
-                  {isInactive ? `Inactive · ${connGlyph}` : connGlyph}
-                </Text>
+                <XStack alignItems="center" gap="$1" opacity={0.9}>
+                  {isInactive ? <Text fontSize="$2">Inactive</Text> : null}
+                  <MaterialCommunityIcons name={connGlyph} size={16} color="rgba(28, 43, 45, 0.82)" />
+                </XStack>
               </XStack>
             </YStack>
           )}

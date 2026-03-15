@@ -1,3 +1,6 @@
+import type { ComponentProps } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 export type UiStatus =
   | 'waiting'
   | 'idle'
@@ -8,56 +11,46 @@ export type UiStatus =
   | 'charging'
   | 'discharging';
 
-export function getStatusGlyph(status: UiStatus): string {
+export function getStatusIconName(status: UiStatus): ComponentProps<typeof MaterialCommunityIcons>['name'] {
   switch (status) {
     case 'waiting':
-      return '⟳';
-    case 'idle':
-      return '◯';
-    case 'processing':
-      return '⚙';
     case 'loading':
-      return '⟳';
+      return 'sync';
+    case 'idle':
+      return 'radiobox-blank';
+    case 'processing':
+      return 'cog-outline';
     case 'online':
-      return '●';
+      return 'checkbox-blank-circle';
     case 'stale':
-      return '◔';
+      return 'progress-clock';
     case 'charging':
-      return '⚡';
+      return 'lightning-bolt';
     case 'discharging':
-      return '↘';
+      return 'arrow-bottom-right';
     default:
-      return '•';
+      return 'circle-medium';
   }
 }
 
-export function getPowerFlowGlyph(params: {
+export function getPowerFlowIconNames(params: {
   stale?: boolean;
   status?: 'charging' | 'discharging' | 'idle' | 'stale';
   pvW?: number;
   loadW?: number;
-}): string {
-  return getPowerFlowGlyphParts(params).join(' ');
-}
-
-export function getPowerFlowGlyphParts(params: {
-  stale?: boolean;
-  status?: 'charging' | 'discharging' | 'idle' | 'stale';
-  pvW?: number;
-  loadW?: number;
-}): string[] {
-  if (params.stale || params.status === 'stale') return [getStatusGlyph('stale')];
+}): Array<ComponentProps<typeof MaterialCommunityIcons>['name']> {
+  if (params.stale || params.status === 'stale') return [getStatusIconName('stale')];
 
   if (params.status === 'charging') {
     const pvW = params.pvW ?? 0;
-    if (pvW > 5) return ['☀', '⚡']; // charging with solar present
-    return ['⚡']; // charging, likely AC or non-PV source
+    if (pvW > 5) return ['white-balance-sunny', 'lightning-bolt'];
+    return ['lightning-bolt'];
   }
 
   if (params.status === 'discharging') {
-    return ['↘']; // discharging
+    return ['arrow-bottom-right'];
   }
 
-  if (params.status === 'idle') return [getStatusGlyph('idle')];
-  return [getStatusGlyph('waiting')];
+  if (params.status === 'idle') return [getStatusIconName('idle')];
+  return [getStatusIconName('waiting')];
 }

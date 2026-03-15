@@ -8,7 +8,7 @@ export function Stat({
   tone = 'default',
   compact = false
 }: {
-  label: string;
+  label: ReactNode;
   value: ReactNode;
   tone?: 'default' | 'muted' | 'cold';
   compact?: boolean;
@@ -23,16 +23,20 @@ export function Stat({
   const labelOpacity = tone === 'default' ? 0.92 : 1;
   return (
     <YStack gap="$1" minWidth={96}>
-      <Text
-        fontFamily="$body"
-        style={resolvedColor ? { color: resolvedColor } : undefined}
-        opacity={labelOpacity}
-        fontSize={compact ? '$1' : '$3'}
-        fontWeight="600"
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
+      {typeof label === 'string' ? (
+        <Text
+          fontFamily="$body"
+          style={resolvedColor ? { color: resolvedColor } : undefined}
+          opacity={labelOpacity}
+          fontSize={compact ? '$1' : '$3'}
+          fontWeight="600"
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+      ) : (
+        label
+      )}
       <Text
         fontFamily="$body"
         fontSize={compact ? '$3' : '$4'}
