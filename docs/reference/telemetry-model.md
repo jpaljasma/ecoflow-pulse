@@ -190,6 +190,9 @@ Frontend rule:
 - solar history charts on `/devices` and `/device/{id}` overlay the previous
   day's bucket series as a thin dotted orange comparison line and show
   `Yesterday` / `Today` legend totals in the chart corner.
+- solar history legends suppress percentage deltas when the previous-day
+  baseline is below `24 Wh`; in that case they show absolute change instead,
+  and use `new activity today` when yesterday is zero.
 - solar history view models reuse one fetched payload for today's totals,
   yesterday's totals, delta, and both chart series; the query is day-scoped,
   compares against the full previous local day, and refreshes again just after
