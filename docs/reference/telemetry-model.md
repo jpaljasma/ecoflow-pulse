@@ -82,11 +82,11 @@ rollup extraction), PV watts follow this precedence:
 This preserves explicit zero PV states from canonical fields and prevents stale
 top-level `pvW` values from showing false solar input in live trends/history.
 
-When explicit persisted energy buckets are missing and the history path must
-temporarily derive Wh from average power, the derivation uses the bucket's
-observed sample coverage (`first_ts_unix_ms`..`last_ts_unix_ms`) rather than
-assuming the full hour/day bucket was active. This avoids overstating sparse
-DPU PV history by treating a short active span as a full bucket of generation.
+History and Energy API reads now treat persisted energy buckets as
+authoritative. If `solar_generated_wh` or other explicit Wh columns are missing
+for a rollup bucket, the read path leaves that field unset instead of deriving
+Wh from average power. Historical repair must happen through the archive-to-
+rollup rebuild path, not query-time synthesis.
 
 Rollup writes are envelope-idempotent at the storage boundary. Replayed or
 redelivered envelopes must not increment `sample_count`, `solar_generated_wh`,

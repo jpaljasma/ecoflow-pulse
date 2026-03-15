@@ -525,7 +525,7 @@ func TestPostgresReaderQueryRangeManyFiveMinuteAggregatesMinuteTable(t *testing.
 	}
 }
 
-func TestEnrichSolarEnergyDerivesExplicitWhWithoutFillingMinuteGaps(t *testing.T) {
+func TestEnrichSolarEnergyLeavesMissingMinuteEnergyBucketsUnset(t *testing.T) {
 	t.Parallel()
 
 	from := time.Date(2026, time.March, 6, 8, 7, 0, 0, time.UTC)
@@ -550,14 +550,14 @@ func TestEnrichSolarEnergyDerivesExplicitWhWithoutFillingMinuteGaps(t *testing.T
 	if got := len(series.Points); got != 1 {
 		t.Fatalf("expected only stored minute points, got=%d", got)
 	}
-	if series.Points[0].Metrics.SolarGeneratedWh == nil {
-		t.Fatalf("expected stored point to derive solar_generated_wh")
+	if series.Points[0].Metrics.SolarGeneratedWh != nil {
+		t.Fatalf("expected missing solar_generated_wh to remain unset, got=%v", *series.Points[0].Metrics.SolarGeneratedWh)
 	}
-	if *series.Points[0].Metrics.SolarGeneratedWh != 1.2 {
-		t.Fatalf("solar_generated_wh mismatch: got=%v want=1.2", *series.Points[0].Metrics.SolarGeneratedWh)
+	if series.EnergyBucketCoverage.PersistedValueCount != 0 {
+		t.Fatalf("coverage persisted values mismatch: got=%d want=0", series.EnergyBucketCoverage.PersistedValueCount)
 	}
-	if series.Points[0].Metrics.LoadEnergyWh != nil {
-		t.Fatalf("expected no derived load_energy_wh without load avg, got=%v", *series.Points[0].Metrics.LoadEnergyWh)
+	if series.EnergyBucketCoverage.DerivedValueCount != 0 {
+		t.Fatalf("coverage derived values mismatch: got=%d want=0", series.EnergyBucketCoverage.DerivedValueCount)
 	}
 }
 
@@ -591,15 +591,15 @@ func TestEnrichSolarEnergyLeavesZeroPvWithoutSyntheticWh(t *testing.T) {
 	}
 }
 
-func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
+func TestEnrichSolarEnergyReportsPersistedCoverageWithoutDerivingBuckets(t *testing.T) {
 	t.Parallel()
 
 	from := time.Date(2026, time.March, 6, 8, 0, 0, 0, time.UTC)
-	acIn := 120.0
-	dc := 30.0
-	load := 180.0
-	batteryCharge := 45.0
-	batteryDischarge := -20.0
+	acInWh := 120.0
+	acOutWh := 150.0
+	loadWh := 180.0
+	batteryChargeWh := 45.0
+	batteryDischargeWh := 20.0
 	series := enrichSolarEnergy(Series{
 		DeviceID:   "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
 		Resolution: ResolutionHour,
@@ -611,10 +611,10 @@ func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
 				BucketEnd:   from.Add(time.Hour),
 				SampleCount: 4,
 				Metrics: Metrics{
-					ACInAvgW:    &acIn,
-					DCAvgW:      &dc,
-					LoadAvgW:    &load,
-					BatteryAvgW: &batteryCharge,
+					ACInputEnergyWh:       &acInWh,
+					ACOutputEnergyWh:      &acOutWh,
+					LoadEnergyWh:          &loadWh,
+					BatteryChargeEnergyWh: &batteryChargeWh,
 				},
 			},
 			{
@@ -622,7 +622,7 @@ func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
 				BucketEnd:   from.Add(2 * time.Hour),
 				SampleCount: 4,
 				Metrics: Metrics{
-					BatteryAvgW: &batteryDischarge,
+					BatteryDischargeEnergyWh: &batteryDischargeWh,
 				},
 			},
 		},
@@ -632,17 +632,8 @@ func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
 	if first.ACInputEnergyWh == nil || *first.ACInputEnergyWh != 120 {
 		t.Fatalf("ac_input_energy_wh mismatch: got=%v want=120", first.ACInputEnergyWh)
 	}
-	if first.ACOutputAvgW == nil || *first.ACOutputAvgW != 150 {
-		t.Fatalf("ac_output_avg_w mismatch: got=%v want=150", first.ACOutputAvgW)
-	}
-	if first.ACOutputMaxW == nil || *first.ACOutputMaxW != 150 {
-		t.Fatalf("ac_output_max_w mismatch: got=%v want=150", first.ACOutputMaxW)
-	}
 	if first.ACOutputEnergyWh == nil || *first.ACOutputEnergyWh != 150 {
 		t.Fatalf("ac_output_energy_wh mismatch: got=%v want=150", first.ACOutputEnergyWh)
-	}
-	if first.DCOutputEnergyWh == nil || *first.DCOutputEnergyWh != 30 {
-		t.Fatalf("dc_output_energy_wh mismatch: got=%v want=30", first.DCOutputEnergyWh)
 	}
 	if first.LoadEnergyWh == nil || *first.LoadEnergyWh != 180 {
 		t.Fatalf("load_energy_wh mismatch: got=%v want=180", first.LoadEnergyWh)
@@ -658,18 +649,15 @@ func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
 	if series.EnergyBucketCoverage.PointCount != 2 {
 		t.Fatalf("coverage point count mismatch: got=%d want=2", series.EnergyBucketCoverage.PointCount)
 	}
-	if series.EnergyBucketCoverage.PersistedValueCount != 0 {
-		t.Fatalf("coverage persisted values mismatch: got=%d want=0", series.EnergyBucketCoverage.PersistedValueCount)
+	if series.EnergyBucketCoverage.PersistedValueCount != 5 {
+		t.Fatalf("coverage persisted values mismatch: got=%d want=5", series.EnergyBucketCoverage.PersistedValueCount)
 	}
-	if series.EnergyBucketCoverage.DerivedValueCount != 6 {
-		t.Fatalf("coverage derived values mismatch: got=%d want=6", series.EnergyBucketCoverage.DerivedValueCount)
-	}
-	if series.EnergyBucketCoverage.DerivedPointCount != 2 {
-		t.Fatalf("coverage derived points mismatch: got=%d want=2", series.EnergyBucketCoverage.DerivedPointCount)
+	if series.EnergyBucketCoverage.DerivedValueCount != 0 {
+		t.Fatalf("coverage derived values mismatch: got=%d want=0", series.EnergyBucketCoverage.DerivedValueCount)
 	}
 }
 
-func TestEnrichSolarEnergyUsesObservedCoverageForSparseHourlyFallback(t *testing.T) {
+func TestEnrichSolarEnergyLeavesSparseHourlyFallbackUnset(t *testing.T) {
 	t.Parallel()
 
 	from := time.Date(2026, time.March, 14, 13, 0, 0, 0, time.UTC)
@@ -698,11 +686,10 @@ func TestEnrichSolarEnergyUsesObservedCoverageForSparseHourlyFallback(t *testing
 	if got := len(series.Points); got != 1 {
 		t.Fatalf("expected one point, got=%d", got)
 	}
-	if series.Points[0].Metrics.SolarGeneratedWh == nil {
-		t.Fatalf("expected derived solar_generated_wh")
+	if series.Points[0].Metrics.SolarGeneratedWh != nil {
+		t.Fatalf("expected sparse hourly solar_generated_wh to remain unset, got=%v", *series.Points[0].Metrics.SolarGeneratedWh)
 	}
-	want := 300.0 * ((20*time.Minute + time.Millisecond).Hours())
-	if got := *series.Points[0].Metrics.SolarGeneratedWh; got < want-0.001 || got > want+0.001 {
-		t.Fatalf("solar_generated_wh mismatch: got=%v want=%v", got, want)
+	if series.EnergyBucketCoverage.DerivedValueCount != 0 {
+		t.Fatalf("coverage derived values mismatch: got=%d want=0", series.EnergyBucketCoverage.DerivedValueCount)
 	}
 }

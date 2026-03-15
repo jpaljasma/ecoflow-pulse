@@ -248,7 +248,6 @@ func (s *EnergyService) QueryRollupRange(ctx context.Context, req *telemetryv1.Q
 	if err != nil {
 		return nil, s.mapQueryError(err)
 	}
-	s.logEnergyBucketFallback("query_rollup_range", series)
 	resp := &telemetryv1.QueryRollupRangeResponse{
 		Series: seriesToProto(series),
 	}
@@ -297,8 +296,6 @@ func (s *EnergyService) CompareRollupRange(ctx context.Context, req *telemetryv1
 	if err := group.Wait(); err != nil {
 		return nil, s.mapQueryError(err)
 	}
-	s.logEnergyBucketFallback("compare_rollup_range_current", current)
-	s.logEnergyBucketFallback("compare_rollup_range_previous", previous)
 
 	resp := &telemetryv1.CompareRollupRangeResponse{
 		Current:  seriesToProto(current),
@@ -317,26 +314,6 @@ func (s *EnergyService) maybeEnableHistoryCompression(ctx context.Context, messa
 			s.log.Warn("set history response compressor failed", "error", err.Error())
 		}
 	}
-}
-
-func (s *EnergyService) logEnergyBucketFallback(operation string, series telemetryquery.Series) {
-	if s == nil || s.log == nil {
-		return
-	}
-	coverage := series.EnergyBucketCoverage
-	if coverage.DerivedValueCount == 0 {
-		return
-	}
-	s.log.Info(
-		"telemetry history used derived energy fallback",
-		"operation", operation,
-		"device_id", series.DeviceID,
-		"resolution", series.Resolution.String(),
-		"points", coverage.PointCount,
-		"derived_points", coverage.DerivedPointCount,
-		"persisted_values", coverage.PersistedValueCount,
-		"derived_values", coverage.DerivedValueCount,
-	)
 }
 
 func shouldCompressHistoryResponse(message proto.Message, minBytes int) bool {
