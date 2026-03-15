@@ -288,6 +288,62 @@ func TestMemoryStoreProviderDeviceCapabilitiesAndMetadata(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreProviderDeviceRenameRefreshesCanonicalDevice(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	store.EnsureUser("user-1")
+
+	device, err := store.CreateDevice(context.Background(), CreateDeviceInput{
+		UserSubject: "user-1",
+		EcoflowSN:   "DEMOD2M00001057",
+		ProductName: "Kitchen Delta 2 Max",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create device failed: %v", err)
+	}
+
+	if _, err := store.UpsertProviderDevice(context.Background(), UpsertProviderDeviceInput{
+		DeviceID:           device.DeviceID,
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "DEMOD2M00001057",
+		CredentialID:       "cred-1",
+		ProductName:        "Renamed Delta 2 Max",
+		Model:              "DELTA 2 Max",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	}); err != nil {
+		t.Fatalf("upsert renamed provider device failed: %v", err)
+	}
+
+	listedDevices, err := store.ListUserDevices(context.Background(), ListUserDevicesInput{
+		UserSubject: "user-1",
+	})
+	if err != nil {
+		t.Fatalf("list user devices failed: %v", err)
+	}
+	if got := len(listedDevices); got != 1 {
+		t.Fatalf("expected 1 user device, got %d", got)
+	}
+	if got := listedDevices[0].ProductName; got != "Renamed Delta 2 Max" {
+		t.Fatalf("expected canonical device name to refresh, got %q", got)
+	}
+
+	listedProviders, err := store.ListProviderDevices(context.Background(), ListProviderDevicesInput{
+		Provider: ProviderEcoFlow,
+	})
+	if err != nil {
+		t.Fatalf("list provider devices failed: %v", err)
+	}
+	if got := len(listedProviders); got != 1 {
+		t.Fatalf("expected 1 provider device, got %d", got)
+	}
+	if got := listedProviders[0].ProductName; got != "Renamed Delta 2 Max" {
+		t.Fatalf("expected provider device name to refresh, got %q", got)
+	}
+}
+
 func TestMemoryStoreGetProviderDeviceByDeviceIDPrefersActive(t *testing.T) {
 	t.Parallel()
 

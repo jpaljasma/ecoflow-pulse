@@ -537,10 +537,7 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) (Point, EnergyBu
 	coverage := EnergyBucketCoverage{
 		PersistedValueCount: storedEnergyValueCount(point.Metrics),
 	}
-	durationHours := point.BucketEnd.Sub(point.BucketStart).Hours()
-	if resolution == ResolutionMinute && durationHours <= 0 {
-		durationHours = time.Minute.Hours()
-	}
+	durationHours := derivedEnergyCoverageHours(point, resolution)
 	if durationHours <= 0 {
 		return point, coverage
 	}
@@ -602,6 +599,33 @@ func withDerivedSolarEnergy(point Point, resolution Resolution) (Point, EnergyBu
 		}
 	}
 	return point, coverage
+}
+
+func derivedEnergyCoverageHours(point Point, resolution Resolution) float64 {
+	duration := point.BucketEnd.Sub(point.BucketStart)
+	if resolution == ResolutionMinute {
+		if duration <= 0 {
+			duration = time.Minute
+		}
+		return duration.Hours()
+	}
+
+	if point.FirstTsUnixMs > 0 && point.LastTsUnixMs >= point.FirstTsUnixMs {
+		observed := time.UnixMilli(point.LastTsUnixMs).Sub(time.UnixMilli(point.FirstTsUnixMs)) + time.Millisecond
+		switch {
+		case observed <= 0:
+			// fall back to bucket width below
+		case duration <= 0:
+			duration = observed
+		case observed < duration:
+			duration = observed
+		}
+	}
+
+	if duration <= 0 {
+		return 0
+	}
+	return duration.Hours()
 }
 
 func storedEnergyValueCount(metrics Metrics) int {

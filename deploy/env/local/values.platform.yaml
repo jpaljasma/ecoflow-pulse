@@ -289,8 +289,12 @@ minio:
   replicas: 1
   rootUser: minio
   rootPassword: minio123
+  defaultBuckets: "pulse-telemetry-raw"
   persistence:
-    enabled: false
+    enabled: true
+    size: 20Gi
+    annotations:
+      helm.sh/resource-policy: keep
   resources:
     requests:
       cpu: 100m

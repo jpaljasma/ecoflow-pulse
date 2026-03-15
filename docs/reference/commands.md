@@ -914,6 +914,8 @@ Notes:
     `pulse-platform-keycloak-headless` are now required and no longer silently skipped,
   - optional Keycloak bootstrap job `pulse-platform-keycloak-keycloak-config-cli` reaching `Complete`,
   - `minio` deployment,
+  - local MinIO bucket bootstrap for `pulse-telemetry-raw` is verified before
+    the command declares platform storage ready,
   - optional `ingress-nginx` controller deployment,
   - optional `cert-manager` controller/webhook/cainjector deployments,
   - optional External Secrets deployments (`external-secrets`, webhook, cert-controller),
@@ -983,9 +985,34 @@ Notes:
   `helm dependency build --skip-refresh` instead of refreshing remote repos.
   Use `DEV_DEPLOY_HELM=always make dev-deploy` to force full Helm re-apply, or
   `DEV_DEPLOY_HELM=never make dev-deploy` to skip it explicitly.
+- `make dev-archive-audit` compares the authoritative direct MinIO raw archive
+  object listing against `archive_object_manifest` for a local window.
+  It port-forwards CNPG + MinIO automatically and exits non-zero on either:
+  - manifest rows pointing at missing MinIO objects, or
+  - MinIO raw objects missing manifest rows.
+  Optional overrides:
+  - `REGEN_FROM='2026-03-12T00:00:00Z'`
+  - `REGEN_TO='2026-03-14T23:59:59Z'`
+  - `REGEN_MAX_OBJECTS=500`
+- `make dev-archive-reconcile` is the local repair path when `make
+  dev-archive-audit` finds stale manifest rows pointing at missing MinIO
+  objects.
+  It port-forwards CNPG + MinIO automatically, deletes only stale
+  `archive_object_manifest` rows for the requested window, and reruns the
+  comparison before it exits.
+  It still exits non-zero if direct MinIO objects are missing manifest rows,
+  because that needs archive-worker/index repair rather than stale-row pruning.
 - `make dev-regen-data` rebuilds the last 48 hours of archived telemetry for all
   devices into rollup tables on local k3d using a direct archive-to-rollup
   rebuild path.
+  For local recovery it now uses direct MinIO object listing by default
+  (`-direct-archive`) instead of trusting `archive_object_manifest` rows.
+  If the authoritative archive has zero objects for the requested window,
+  `dev-regen-data` now fails fast with an explicit archive-coverage error
+  instead of continuing to the rollup proof query.
+  During rebuild, decoded envelope frames are deduplicated by canonical
+  envelope/message identity before bucket aggregation, so duplicate archive
+  frames cannot silently inflate replayed rollups.
   It does not delete the requested range first; rebuilt rows are written back in
   bounded transactional chunks so charts do not go empty during regeneration.
   The rebuild now repopulates explicit energy bucket columns alongside the
@@ -1014,9 +1041,29 @@ Notes:
   - `REGEN_FROM='2026-03-05T00:00:00Z'`
   - `REGEN_TO='2026-03-06T00:00:00Z'`
   - `REGEN_MAX_OBJECTS=500`
+  Safety rule: if archive manifest rows reference missing raw objects, the
+  rebuild must fail closed instead of replacing the DB window with partial
+  coverage. For authoritative recovery when manifest coverage is stale, use the
+  direct MinIO raw archive listing mode in `cmd/ecoflow-rollup-rebuild`
+  (`-direct-archive`).
+  Local MinIO must already have the `pulse-telemetry-raw` bucket; local
+  platform values now bootstrap that bucket automatically on fresh PVCs.
 - `make dev-down` uninstalls `pulse-services` and `pulse-platform`; preserves cluster by default.
   Set `DELETE_CLUSTER=1` to also delete the local k3d cluster.
-- `make db-migrate-up-local` applies all SQL up migrations from `deploy/db/migrations` to the local CNPG primary (`k3d-pulse-local`, namespace `pulse-platform`, service `pulse-platform-core-rw`).
+- `make db-migrate-up-local` applies local SQL up migrations through the repo's
+  idempotent migration runner against the local CNPG primary
+  (`k3d-pulse-local`, namespace `pulse-platform`, service
+  `pulse-platform-core-rw`):
+  - acquires a PostgreSQL advisory lock,
+  - tracks applied versions + checksums in `schema_migration_rollouts`,
+  - skips already-applied migrations with the same checksum,
+  - fails if a version was previously applied with a different checksum,
+  - runs each migration in its own transaction.
+  Re-running `make db-migrate-up-local` should therefore be safe and should
+  normally print skipped versions instead of reapplying the same schema. On
+  local only, it also repairs or adopts the legacy pre-ledger M3 rollup schema
+  when older clusters already have populated rollup tables, so they can move
+  onto the tracked runner without manual schema cleanup.
 - `make db-migrate-down-local` applies all SQL down migrations in reverse order from `deploy/db/migrations` to the same local CNPG primary.
 - `make db-migrate-verify-local` runs schema verification checks for M1/M2/M3 tables and constraints:
   - `users`, `devices`, `user_devices`, `provider_credentials`, `provider_devices`, `archive_object_manifest` existence

@@ -365,6 +365,10 @@ func TestEcoFlowSessionRunnerPublishesQuotaBootstrapAndUpsertsMetadata(t *testin
 			URL:                 "mqtt.ecoflow.com",
 			Port:                "8883",
 		},
+		device: controlplane.ProviderDevice{
+			ProductName: "Renamed Delta 2 Max",
+			Model:       "DELTA 2 Max",
+		},
 		quota: map[string]string{
 			"pd.soc":                         "35",
 			"pd.wattsInSum":                  "123.5",
@@ -416,6 +420,12 @@ func TestEcoFlowSessionRunnerPublishesQuotaBootstrapAndUpsertsMetadata(t *testin
 	}
 	if got := inputs[0].Capabilities["battery_pack_count"]; got != int64(2) {
 		t.Fatalf("expected quota-derived battery pack count=2, got=%v", got)
+	}
+	if got := inputs[0].ProductName; got != "Renamed Delta 2 Max" {
+		t.Fatalf("expected refreshed product name from provider, got=%q", got)
+	}
+	if got := inputs[0].Model; got != "DELTA 2 Max" {
+		t.Fatalf("expected refreshed model from provider, got=%q", got)
 	}
 	settings, ok := inputs[0].Metadata["settings"].(map[string]any)
 	if !ok {
@@ -755,6 +765,7 @@ func TestIsMQTTReadEOF(t *testing.T) {
 type fakeCertResolver struct {
 	cert       ecoflow.GeneralInfoMQTTCertification
 	err        error
+	device     controlplane.ProviderDevice
 	quota      map[string]string
 	quotaErr   error
 	calls      atomic.Int64
@@ -769,16 +780,20 @@ func (f *fakeCertResolver) GetMQTTCertification(_ context.Context, _ controlplan
 	return f.cert, nil
 }
 
-func (f *fakeCertResolver) GetDeviceAllQuota(_ context.Context, _ controlplane.ProviderCredential, _ string) (map[string]string, error) {
+func (f *fakeCertResolver) GetDeviceQuotaSnapshot(
+	_ context.Context,
+	_ controlplane.ProviderCredential,
+	_ string,
+) (controlplane.ProviderDevice, map[string]string, error) {
 	f.quotaCalls.Add(1)
 	if f.quotaErr != nil {
-		return nil, f.quotaErr
+		return controlplane.ProviderDevice{}, nil, f.quotaErr
 	}
 	out := make(map[string]string, len(f.quota))
 	for k, v := range f.quota {
 		out[k] = v
 	}
-	return out, nil
+	return f.device, out, nil
 }
 
 type fakeReadResult struct {

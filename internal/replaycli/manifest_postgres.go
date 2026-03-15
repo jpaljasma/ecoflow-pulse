@@ -133,6 +133,27 @@ WHERE ts_max_unix_ms >= $1
 	return scanManifestRows(rows)
 }
 
+func (s *PostgresManifestStore) DeleteObjects(ctx context.Context, objects []ManifestObject) (int64, error) {
+	if s == nil || s.pool == nil {
+		return 0, errors.New("manifest postgres store is not initialized")
+	}
+	buckets, keys := normalizeManifestObjectRefs(objects)
+	if len(buckets) == 0 {
+		return 0, nil
+	}
+	const sql = `
+DELETE FROM archive_object_manifest AS manifest
+USING unnest($1::text[], $2::text[]) AS doomed(object_bucket, object_key)
+WHERE manifest.object_bucket = doomed.object_bucket
+  AND manifest.object_key = doomed.object_key
+`
+	tag, err := s.pool.Exec(ctx, sql, buckets, keys)
+	if err != nil {
+		return 0, fmt.Errorf("delete archive manifest objects: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func scanManifestRows(rows pgx.Rows) ([]ManifestObject, error) {
 	out := make([]ManifestObject, 0, 128)
 	for rows.Next() {
@@ -186,4 +207,28 @@ func uint32SliceToInt32(values []uint32, field string) ([]int32, error) {
 		out = append(out, int32(value))
 	}
 	return out, nil
+}
+
+func normalizeManifestObjectRefs(objects []ManifestObject) ([]string, []string) {
+	if len(objects) == 0 {
+		return nil, nil
+	}
+	seen := make(map[string]struct{}, len(objects))
+	buckets := make([]string, 0, len(objects))
+	keys := make([]string, 0, len(objects))
+	for _, object := range objects {
+		bucket := strings.TrimSpace(object.ObjectBucket)
+		key := strings.Trim(strings.TrimSpace(object.ObjectKey), "/")
+		if bucket == "" || key == "" {
+			continue
+		}
+		composite := bucket + "|" + key
+		if _, exists := seen[composite]; exists {
+			continue
+		}
+		seen[composite] = struct{}{}
+		buckets = append(buckets, bucket)
+		keys = append(keys, key)
+	}
+	return buckets, keys
 }

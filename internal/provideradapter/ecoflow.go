@@ -106,22 +106,12 @@ func (a *EcoFlowAdapter) DiscoverDevices(ctx context.Context, credential control
 }
 
 func (a *EcoFlowAdapter) GetMQTTCertification(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (ecoflow.GeneralInfoMQTTCertification, error) {
-	targetSN := normalizeProviderDeviceID(providerDeviceID)
-	if targetSN == "" {
-		return ecoflow.GeneralInfoMQTTCertification{}, fmt.Errorf("provider_device_id is required")
-	}
-
 	generalInfo, err := a.generalInfoForCredential(credential)
 	if err != nil {
 		return ecoflow.GeneralInfoMQTTCertification{}, err
 	}
-
-	devices, _, err := generalInfo.ListDevices(ctx)
-	if err != nil {
-		return ecoflow.GeneralInfoMQTTCertification{}, fmt.Errorf("list ecoflow devices: %w", err)
-	}
-	if !containsEcoFlowDeviceSN(devices, targetSN) {
-		return ecoflow.GeneralInfoMQTTCertification{}, fmt.Errorf("%w: %s", ErrProviderDeviceNotFound, targetSN)
+	if _, err := a.describeDevice(ctx, generalInfo, credential.ID, providerDeviceID); err != nil {
+		return ecoflow.GeneralInfoMQTTCertification{}, err
 	}
 
 	cert, _, err := generalInfo.GetMQTTCertification(ctx)
@@ -138,32 +128,35 @@ func (a *EcoFlowAdapter) GetMQTTCertification(ctx context.Context, credential co
 }
 
 func (a *EcoFlowAdapter) GetDeviceAllQuota(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (map[string]string, error) {
-	targetSN := normalizeProviderDeviceID(providerDeviceID)
-	if targetSN == "" {
-		return nil, fmt.Errorf("provider_device_id is required")
-	}
-
-	generalInfo, err := a.generalInfoForCredential(credential)
+	_, quota, err := a.GetDeviceQuotaSnapshot(ctx, credential, providerDeviceID)
 	if err != nil {
 		return nil, err
 	}
+	return quota, nil
+}
 
-	devices, _, err := generalInfo.ListDevices(ctx)
+func (a *EcoFlowAdapter) GetDeviceQuotaSnapshot(
+	ctx context.Context,
+	credential controlplane.ProviderCredential,
+	providerDeviceID string,
+) (controlplane.ProviderDevice, map[string]string, error) {
+	generalInfo, err := a.generalInfoForCredential(credential)
 	if err != nil {
-		return nil, fmt.Errorf("list ecoflow devices: %w", err)
+		return controlplane.ProviderDevice{}, nil, err
 	}
-	if !containsEcoFlowDeviceSN(devices, targetSN) {
-		return nil, fmt.Errorf("%w: %s", ErrProviderDeviceNotFound, targetSN)
+	device, err := a.describeDevice(ctx, generalInfo, credential.ID, providerDeviceID)
+	if err != nil {
+		return controlplane.ProviderDevice{}, nil, err
 	}
 
-	quota, _, err := generalInfo.GetDeviceAllQuota(ctx, targetSN)
+	quota, _, err := generalInfo.GetDeviceAllQuota(ctx, device.ProviderDeviceID)
 	if err != nil {
-		return nil, fmt.Errorf("get device all quota: %w", err)
+		return controlplane.ProviderDevice{}, nil, fmt.Errorf("get device all quota: %w", err)
 	}
 	if quota == nil {
-		return map[string]string{}, nil
+		return device, map[string]string{}, nil
 	}
-	return quota, nil
+	return device, quota, nil
 }
 
 func (a *EcoFlowAdapter) generalInfoForCredential(credential controlplane.ProviderCredential) (EcoFlowGeneralInfo, error) {
@@ -211,15 +204,33 @@ func mapEcoFlowDevice(device ecoflow.GeneralInfoDevice, credentialID string) (co
 	}, true
 }
 
-func normalizeProviderDeviceID(value string) string {
-	return strings.ToUpper(strings.TrimSpace(value))
-}
+func (a *EcoFlowAdapter) describeDevice(
+	ctx context.Context,
+	generalInfo EcoFlowGeneralInfo,
+	credentialID string,
+	providerDeviceID string,
+) (controlplane.ProviderDevice, error) {
+	targetSN := normalizeProviderDeviceID(providerDeviceID)
+	if targetSN == "" {
+		return controlplane.ProviderDevice{}, fmt.Errorf("provider_device_id is required")
+	}
 
-func containsEcoFlowDeviceSN(devices []ecoflow.GeneralInfoDevice, sn string) bool {
+	devices, _, err := generalInfo.ListDevices(ctx)
+	if err != nil {
+		return controlplane.ProviderDevice{}, fmt.Errorf("list ecoflow devices: %w", err)
+	}
 	for i := range devices {
-		if normalizeProviderDeviceID(devices[i].SN) == sn {
-			return true
+		mapped, ok := mapEcoFlowDevice(devices[i], credentialID)
+		if !ok {
+			continue
+		}
+		if mapped.ProviderDeviceID == targetSN {
+			return mapped, nil
 		}
 	}
-	return false
+	return controlplane.ProviderDevice{}, fmt.Errorf("%w: %s", ErrProviderDeviceNotFound, targetSN)
+}
+
+func normalizeProviderDeviceID(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
 }
