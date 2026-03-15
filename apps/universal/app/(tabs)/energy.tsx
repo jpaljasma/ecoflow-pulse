@@ -1,6 +1,7 @@
 import { startTransition, useMemo, useState } from 'react';
 import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
@@ -292,11 +293,17 @@ export default function EnergyScreen() {
             </YStack>
             <Button
               size="$3"
+              circular
               borderWidth={1}
               style={buttonStyles(controlsExpanded, semantics)}
+              accessibilityLabel={controlsExpanded ? 'Collapse solar against load controls' : 'Expand solar against load controls'}
               onPress={() => setControlsExpanded((value) => !value)}
             >
-              {controlsExpanded ? 'Collapse ^' : 'Expand >'}
+              <MaterialCommunityIcons
+                name={controlsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={controlsExpanded ? semantics.periodActiveText : semantics.periodIdleText}
+              />
             </Button>
           </XStack>
 
