@@ -185,6 +185,80 @@ func TestPostgresReaderQueryRangeRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestPostgresReaderQueryPVPortHistoryUsesHourTableAndScansRows(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	reader := newPostgresReader(db)
+	from := time.Date(2026, time.March, 10, 12, 0, 0, 0, time.UTC)
+	to := from.Add(6 * time.Hour)
+	rows := sqlmock.NewRows([]string{
+		"device_id",
+		"port_id",
+		"port_label",
+		"max_observed_volts",
+		"max_observed_amps",
+		"max_observed_watts",
+		"last_observed_volts",
+		"last_observed_amps",
+		"last_observed_watts",
+		"last_observed_at_unix_ms",
+		"sample_count",
+	}).AddRow(
+		"018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
+		"pv-low",
+		"PV Low",
+		48.2,
+		4.6,
+		221.7,
+		47.9,
+		4.1,
+		196.4,
+		to.Add(-10*time.Minute).UnixMilli(),
+		7,
+	)
+
+	sqlQuery, _ := buildPVPortHistoryQuery("telemetry_rollup_pv_port_hour", []string{"018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52"}, from, to)
+	mock.ExpectQuery(regexp.QuoteMeta(sqlQuery)).
+		WithArgs("018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52", from, to).
+		WillReturnRows(rows)
+
+	got, err := reader.QueryPVPortHistory(context.Background(), PVPortHistoryQuery{
+		DeviceIDs:  []string{"018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52"},
+		Resolution: ResolutionHour,
+		From:       from,
+		To:         to,
+	})
+	if err != nil {
+		t.Fatalf("QueryPVPortHistory failed: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("row count mismatch: got=%d want=1", len(got))
+	}
+	if got[0].PortID != "pv-low" || got[0].PortLabel != "PV Low" {
+		t.Fatalf("port identity mismatch: %+v", got[0])
+	}
+	if got[0].MaxObservedWatts != 221.7 || got[0].LastObservedWatts != 196.4 {
+		t.Fatalf("watts mismatch: %+v", got[0])
+	}
+	if !got[0].LastObservedAt.Equal(to.Add(-10 * time.Minute)) {
+		t.Fatalf("last observed mismatch: got=%s want=%s", got[0].LastObservedAt, to.Add(-10*time.Minute))
+	}
+	if got[0].SampleCount != 7 {
+		t.Fatalf("sample count mismatch: got=%d want=7", got[0].SampleCount)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestPostgresReaderQueryRangeFiveMinuteAggregatesMinuteTable(t *testing.T) {
 	t.Parallel()
 

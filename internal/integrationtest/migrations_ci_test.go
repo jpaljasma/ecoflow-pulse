@@ -58,10 +58,13 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 		"telemetry_rollup_day",
 		"telemetry_rollup_hour",
 		"telemetry_rollup_minute",
+		"telemetry_rollup_pv_port_day",
+		"telemetry_rollup_pv_port_hour",
+		"telemetry_rollup_pv_port_minute",
 		"user_devices",
 		"users",
 	}
-	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day') ORDER BY table_name")
+	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
 	assertStringsEqual(t, gotTables, wantTables, "tables")
 
 	gotIDDefault := queryStrings(t, ctx, db, "SELECT pg_get_expr(adbin, adrelid) FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=d.adnum WHERE c.relname='users' AND a.attname='id'")
@@ -71,16 +74,22 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 		"telemetry_rollup_day",
 		"telemetry_rollup_hour",
 		"telemetry_rollup_minute",
+		"telemetry_rollup_pv_port_day",
+		"telemetry_rollup_pv_port_hour",
+		"telemetry_rollup_pv_port_minute",
 	}
-	gotHypertables := queryStrings(t, ctx, db, "SELECT hypertable_name FROM timescaledb_information.hypertables WHERE hypertable_schema='public' AND hypertable_name IN ('telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day') ORDER BY hypertable_name")
+	gotHypertables := queryStrings(t, ctx, db, "SELECT hypertable_name FROM timescaledb_information.hypertables WHERE hypertable_schema='public' AND hypertable_name IN ('telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY hypertable_name")
 	assertStringsEqual(t, gotHypertables, wantHypertables, "hypertables")
 
 	wantRetention := []string{
 		"telemetry_rollup_day|3 years|1 day",
 		"telemetry_rollup_hour|3 years|1 day",
 		"telemetry_rollup_minute|90 days|1 day",
+		"telemetry_rollup_pv_port_day|3 years|1 day",
+		"telemetry_rollup_pv_port_hour|3 years|1 day",
+		"telemetry_rollup_pv_port_minute|90 days|1 day",
 	}
-	gotRetention := queryStrings(t, ctx, db, "SELECT hypertable_name || '|' || (config->>'drop_after') || '|' || schedule_interval::text FROM timescaledb_information.jobs WHERE proc_name='policy_retention' AND hypertable_schema='public' AND hypertable_name IN ('telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day') ORDER BY hypertable_name")
+	gotRetention := queryStrings(t, ctx, db, "SELECT hypertable_name || '|' || (config->>'drop_after') || '|' || schedule_interval::text FROM timescaledb_information.jobs WHERE proc_name='policy_retention' AND hypertable_schema='public' AND hypertable_name IN ('telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY hypertable_name")
 	assertStringsEqual(t, gotRetention, wantRetention, "retention policies")
 
 	wantTimestampDefaults := []string{
@@ -109,15 +118,62 @@ ORDER BY c.relname, a.attname`)
 		"chk_rollup_day_sample_count_nonnegative",
 		"chk_rollup_hour_sample_count_nonnegative",
 		"chk_rollup_minute_sample_count_nonnegative",
+		"chk_rollup_pv_port_day_port_id_nonempty",
+		"chk_rollup_pv_port_day_port_label_nonempty",
+		"chk_rollup_pv_port_day_provider_device_id_nonempty",
+		"chk_rollup_pv_port_day_provider_nonempty",
+		"chk_rollup_pv_port_day_sample_count_positive",
+		"chk_rollup_pv_port_day_ts_order",
+		"chk_rollup_pv_port_hour_port_id_nonempty",
+		"chk_rollup_pv_port_hour_port_label_nonempty",
+		"chk_rollup_pv_port_hour_provider_device_id_nonempty",
+		"chk_rollup_pv_port_hour_provider_nonempty",
+		"chk_rollup_pv_port_hour_sample_count_positive",
+		"chk_rollup_pv_port_hour_ts_order",
+		"chk_rollup_pv_port_minute_port_id_nonempty",
+		"chk_rollup_pv_port_minute_port_label_nonempty",
+		"chk_rollup_pv_port_minute_provider_device_id_nonempty",
+		"chk_rollup_pv_port_minute_provider_nonempty",
+		"chk_rollup_pv_port_minute_sample_count_positive",
+		"chk_rollup_pv_port_minute_ts_order",
 		"chk_user_devices_role",
 		"chk_users_keycloak_subject_nonempty",
 		"pk_rollup_day",
 		"pk_rollup_hour",
 		"pk_rollup_minute",
+		"pk_rollup_pv_port_day",
+		"pk_rollup_pv_port_hour",
+		"pk_rollup_pv_port_minute",
 		"uq_archive_manifest_bucket_key",
 	}
-	gotConstraints := queryStrings(t, ctx, db, "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order','pk_rollup_minute','pk_rollup_hour','pk_rollup_day','chk_rollup_minute_sample_count_nonnegative','chk_rollup_hour_sample_count_nonnegative','chk_rollup_day_sample_count_nonnegative') ORDER BY conname")
+	gotConstraints := queryStrings(t, ctx, db, "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order','pk_rollup_minute','pk_rollup_hour','pk_rollup_day','chk_rollup_minute_sample_count_nonnegative','chk_rollup_hour_sample_count_nonnegative','chk_rollup_day_sample_count_nonnegative','pk_rollup_pv_port_minute','pk_rollup_pv_port_hour','pk_rollup_pv_port_day','chk_rollup_pv_port_minute_provider_nonempty','chk_rollup_pv_port_minute_provider_device_id_nonempty','chk_rollup_pv_port_minute_port_id_nonempty','chk_rollup_pv_port_minute_port_label_nonempty','chk_rollup_pv_port_minute_sample_count_positive','chk_rollup_pv_port_minute_ts_order','chk_rollup_pv_port_hour_provider_nonempty','chk_rollup_pv_port_hour_provider_device_id_nonempty','chk_rollup_pv_port_hour_port_id_nonempty','chk_rollup_pv_port_hour_port_label_nonempty','chk_rollup_pv_port_hour_sample_count_positive','chk_rollup_pv_port_hour_ts_order','chk_rollup_pv_port_day_provider_nonempty','chk_rollup_pv_port_day_provider_device_id_nonempty','chk_rollup_pv_port_day_port_id_nonempty','chk_rollup_pv_port_day_port_label_nonempty','chk_rollup_pv_port_day_sample_count_positive','chk_rollup_pv_port_day_ts_order') ORDER BY conname")
 	assertStringsEqual(t, gotConstraints, wantConstraints, "schema constraints")
+
+	wantPVPortColumns := []string{
+		"telemetry_rollup_pv_port_day.last_observed_at_unix_ms",
+		"telemetry_rollup_pv_port_day.last_observed_watts",
+		"telemetry_rollup_pv_port_day.max_observed_watts",
+		"telemetry_rollup_pv_port_day.port_id",
+		"telemetry_rollup_pv_port_day.port_label",
+		"telemetry_rollup_pv_port_hour.last_observed_at_unix_ms",
+		"telemetry_rollup_pv_port_hour.last_observed_watts",
+		"telemetry_rollup_pv_port_hour.max_observed_watts",
+		"telemetry_rollup_pv_port_hour.port_id",
+		"telemetry_rollup_pv_port_hour.port_label",
+		"telemetry_rollup_pv_port_minute.last_observed_at_unix_ms",
+		"telemetry_rollup_pv_port_minute.last_observed_watts",
+		"telemetry_rollup_pv_port_minute.max_observed_watts",
+		"telemetry_rollup_pv_port_minute.port_id",
+		"telemetry_rollup_pv_port_minute.port_label",
+	}
+	gotPVPortColumns := queryStrings(t, ctx, db, `
+SELECT table_name || '.' || column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('telemetry_rollup_pv_port_minute', 'telemetry_rollup_pv_port_hour', 'telemetry_rollup_pv_port_day')
+  AND column_name IN ('port_id', 'port_label', 'max_observed_watts', 'last_observed_watts', 'last_observed_at_unix_ms')
+ORDER BY table_name, column_name`)
+	assertStringsEqual(t, gotPVPortColumns, wantPVPortColumns, "pv-port columns")
 
 	wantEnergyColumns := []string{
 		"telemetry_rollup_day.ac_input_energy_wh",
@@ -152,7 +208,7 @@ ORDER BY table_name, column_name`)
 func assertTablesAbsent(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
-	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day') ORDER BY table_name")
+	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
 	if len(gotTables) != 0 {
 		t.Fatalf("expected migrated tables to be absent after down migrations, got=%v", gotTables)
 	}

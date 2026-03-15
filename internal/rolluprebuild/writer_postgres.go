@@ -96,6 +96,43 @@ func (w *PostgresWriter) ReplaceRows(ctx context.Context, resolution Resolution,
 	return total, nil
 }
 
+func (w *PostgresWriter) ReplacePVPortRows(ctx context.Context, resolution Resolution, rows []PVPortBucketRow, affected []DeviceWindow, from, to time.Time, chunkSize int) (int, error) {
+	if w == nil || w.pool == nil {
+		return 0, fmt.Errorf("rollup rebuild postgres writer is not initialized")
+	}
+	if len(rows) == 0 && len(affected) == 0 {
+		return 0, nil
+	}
+	if chunkSize <= 0 {
+		chunkSize = defaultReplaceChunkSize
+	}
+	table, err := pvPortTableNameForResolution(resolution)
+	if err != nil {
+		return 0, err
+	}
+	rows = dedupePVPortRows(rows)
+	rowGroups := groupPVPortRowsByDevice(rows)
+	affectedGroups := normalizeAffectedDevices(affected)
+	total := len(rows)
+	windowStart, windowEnd := replacementWindowBounds(resolution, from, to)
+	for start := 0; start < len(affectedGroups); start += chunkSize {
+		end := start + chunkSize
+		if end > len(affectedGroups) {
+			end = len(affectedGroups)
+		}
+		chunkDevices := affectedGroups[start:end]
+		chunkRows := make([]PVPortBucketRow, 0)
+		for _, device := range chunkDevices {
+			key := device.Provider + "|" + device.ProviderDeviceID
+			chunkRows = append(chunkRows, rowGroups[key]...)
+		}
+		if err := w.replacePVPortChunk(ctx, table, chunkRows, chunkDevices, windowStart, windowEnd); err != nil {
+			return total, err
+		}
+	}
+	return total, nil
+}
+
 func (w *PostgresWriter) replaceChunk(ctx context.Context, table string, rows []BucketRow, affected []DeviceWindow, from, to time.Time) error {
 	tx, err := w.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -298,6 +335,124 @@ FROM %[2]s
 	return nil
 }
 
+func (w *PostgresWriter) replacePVPortChunk(ctx context.Context, table string, rows []PVPortBucketRow, affected []DeviceWindow, from, to time.Time) error {
+	tx, err := w.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin pv-port rollup rebuild transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tempTable := "tmp_rollup_rebuild_pv_port"
+	createSQL := fmt.Sprintf(`CREATE TEMP TABLE %s (LIKE %s INCLUDING DEFAULTS INCLUDING CONSTRAINTS) ON COMMIT DROP`, tempTable, table)
+	if _, err := tx.Exec(ctx, createSQL); err != nil {
+		return fmt.Errorf("create temp pv-port rollup rebuild table: %w", err)
+	}
+
+	copyRows := make([][]any, 0, len(rows))
+	now := w.now()
+	for _, row := range rows {
+		copyRows = append(copyRows, []any{
+			row.Provider,
+			row.ProviderDeviceID,
+			row.DeviceID,
+			row.PortID,
+			row.PortLabel,
+			row.BucketStart.UTC(),
+			row.SampleCount,
+			row.FirstTsUnixMS,
+			row.LastTsUnixMS,
+			row.MaxObservedVolts,
+			row.MaxObservedAmps,
+			row.MaxObservedWatts,
+			row.LastObservedVolts,
+			row.LastObservedAmps,
+			row.LastObservedWatts,
+			row.LastObservedAtUnixMS,
+			now,
+			now,
+		})
+	}
+	if _, err := tx.CopyFrom(
+		ctx,
+		pgx.Identifier{tempTable},
+		[]string{
+			"provider",
+			"provider_device_id",
+			"device_id",
+			"port_id",
+			"port_label",
+			"bucket_start",
+			"sample_count",
+			"first_ts_unix_ms",
+			"last_ts_unix_ms",
+			"max_observed_volts",
+			"max_observed_amps",
+			"max_observed_watts",
+			"last_observed_volts",
+			"last_observed_amps",
+			"last_observed_watts",
+			"last_observed_at_unix_ms",
+			"created_at",
+			"updated_at",
+		},
+		pgx.CopyFromRows(copyRows),
+	); err != nil {
+		return fmt.Errorf("copy temp pv-port rebuild rows: %w", err)
+	}
+	if err := deleteWindowRows(ctx, tx, table, affected, from, to); err != nil {
+		return err
+	}
+	insertSQL := fmt.Sprintf(`
+INSERT INTO %[1]s (
+	provider,
+	provider_device_id,
+	device_id,
+	port_id,
+	port_label,
+	bucket_start,
+	sample_count,
+	first_ts_unix_ms,
+	last_ts_unix_ms,
+	max_observed_volts,
+	max_observed_amps,
+	max_observed_watts,
+	last_observed_volts,
+	last_observed_amps,
+	last_observed_watts,
+	last_observed_at_unix_ms,
+	created_at,
+	updated_at
+)
+SELECT
+	provider,
+	provider_device_id,
+	device_id,
+	port_id,
+	port_label,
+	bucket_start,
+	sample_count,
+	first_ts_unix_ms,
+	last_ts_unix_ms,
+	max_observed_volts,
+	max_observed_amps,
+	max_observed_watts,
+	last_observed_volts,
+	last_observed_amps,
+	last_observed_watts,
+	last_observed_at_unix_ms,
+	created_at,
+	updated_at
+FROM %[2]s
+`, table, tempTable)
+	if _, err := tx.Exec(ctx, insertSQL); err != nil {
+		return fmt.Errorf("insert rebuilt pv-port rows into %s: %w", table, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit pv-port rollup rebuild transaction: %w", err)
+	}
+	return nil
+}
+
 func deleteWindowRows(ctx context.Context, tx pgx.Tx, table string, affected []DeviceWindow, from, to time.Time) error {
 	if len(affected) == 0 {
 		return nil
@@ -329,6 +484,19 @@ func tableNameForResolution(resolution Resolution) (string, error) {
 		return "telemetry_rollup_day", nil
 	default:
 		return "", fmt.Errorf("unknown rollup rebuild resolution: %s", resolution)
+	}
+}
+
+func pvPortTableNameForResolution(resolution Resolution) (string, error) {
+	switch resolution {
+	case ResolutionMinute:
+		return "telemetry_rollup_pv_port_minute", nil
+	case ResolutionHour:
+		return "telemetry_rollup_pv_port_hour", nil
+	case ResolutionDay:
+		return "telemetry_rollup_pv_port_day", nil
+	default:
+		return "", fmt.Errorf("unknown pv-port rollup rebuild resolution: %s", resolution)
 	}
 }
 
@@ -411,6 +579,36 @@ func dedupeRows(rows []BucketRow) []BucketRow {
 	}
 	sort.Strings(keys)
 	out := make([]BucketRow, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, byKey[key])
+	}
+	return out
+}
+
+func groupPVPortRowsByDevice(rows []PVPortBucketRow) map[string][]PVPortBucketRow {
+	grouped := make(map[string][]PVPortBucketRow, len(rows))
+	for _, row := range rows {
+		key := row.Provider + "|" + row.ProviderDeviceID
+		grouped[key] = append(grouped[key], row)
+	}
+	return grouped
+}
+
+func dedupePVPortRows(rows []PVPortBucketRow) []PVPortBucketRow {
+	if len(rows) <= 1 {
+		return rows
+	}
+	byKey := make(map[string]PVPortBucketRow, len(rows))
+	keys := make([]string, 0, len(rows))
+	for _, row := range rows {
+		key := fmt.Sprintf("%s|%s|%s|%s", row.Provider, row.ProviderDeviceID, row.PortID, row.BucketStart.UTC().Format(time.RFC3339Nano))
+		if _, exists := byKey[key]; !exists {
+			keys = append(keys, key)
+		}
+		byKey[key] = row
+	}
+	sort.Strings(keys)
+	out := make([]PVPortBucketRow, 0, len(keys))
 	for _, key := range keys {
 		out = append(out, byKey[key])
 	}

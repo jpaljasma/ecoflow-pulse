@@ -93,3 +93,53 @@ func TestSummarizePVPortHistoryIgnoresNonQuotaPayloads(t *testing.T) {
 		t.Fatalf("expected empty summaries for non-quota payload, got=%+v", got)
 	}
 }
+
+func TestMergePVPortHistorySetsPrefersNewestObservation(t *testing.T) {
+	t.Parallel()
+
+	older := time.Date(2026, time.March, 11, 13, 30, 0, 0, time.UTC)
+	newer := older.Add(time.Minute)
+
+	got := MergePVPortHistorySets(
+		[]PVPortHistory{{
+			DeviceID:          "device-a",
+			PortID:            "pv-low",
+			PortLabel:         "PV Low",
+			MaxObservedVolts:  66.3,
+			MaxObservedAmps:   0.79,
+			MaxObservedWatts:  52.4,
+			LastObservedVolts: 66.3,
+			LastObservedAmps:  0.79,
+			LastObservedWatts: 52.4,
+			LastObservedAt:    older,
+			SampleCount:       1,
+		}},
+		[]PVPortHistory{{
+			DeviceID:          "device-a",
+			PortID:            "pv-low",
+			PortLabel:         "PV Low",
+			MaxObservedVolts:  72.5,
+			MaxObservedAmps:   1.15,
+			MaxObservedWatts:  83.3,
+			LastObservedVolts: 72.5,
+			LastObservedAmps:  1.15,
+			LastObservedWatts: 83.3,
+			LastObservedAt:    newer,
+			SampleCount:       2,
+		}},
+	)
+
+	if len(got) != 1 {
+		t.Fatalf("merged port count mismatch: got=%d want=1", len(got))
+	}
+	row := got[0]
+	if row.SampleCount != 3 {
+		t.Fatalf("sample count mismatch: got=%d want=3", row.SampleCount)
+	}
+	if row.LastObservedAt != newer || row.LastObservedWatts != 83.3 {
+		t.Fatalf("expected newest observation to win, got=%+v", row)
+	}
+	if row.MaxObservedWatts != 83.3 {
+		t.Fatalf("max observed watts mismatch: got=%v want=83.3", row.MaxObservedWatts)
+	}
+}

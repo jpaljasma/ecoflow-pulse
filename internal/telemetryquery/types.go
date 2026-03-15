@@ -148,3 +148,30 @@ type Reader interface {
 type AggregateReader interface {
 	QueryRangeMany(ctx context.Context, query AggregateRangeQuery) (Series, error)
 }
+
+type PVPortHistory struct {
+	DeviceID          string
+	PortID            string
+	PortLabel         string
+	MaxObservedVolts  float64
+	MaxObservedAmps   float64
+	MaxObservedWatts  float64
+	LastObservedVolts float64
+	LastObservedAmps  float64
+	LastObservedWatts float64
+	LastObservedAt    time.Time
+	SampleCount       int
+}
+
+type PVPortHistoryQuery struct {
+	DeviceIDs   []string
+	Resolution  Resolution
+	From        time.Time
+	To          time.Time
+	Limit       int
+	AggregateID string
+}
+
+type PVPortHistoryReader interface {
+	QueryPVPortHistory(ctx context.Context, query PVPortHistoryQuery) ([]PVPortHistory, error)
+}

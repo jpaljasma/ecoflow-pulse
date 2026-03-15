@@ -78,6 +78,25 @@ type BucketRow struct {
 	HasBatteryDischargeWh bool
 }
 
+type PVPortBucketRow struct {
+	Provider             string
+	ProviderDeviceID     string
+	DeviceID             string
+	PortID               string
+	PortLabel            string
+	BucketStart          time.Time
+	SampleCount          int
+	FirstTsUnixMS        int64
+	LastTsUnixMS         int64
+	MaxObservedVolts     float64
+	MaxObservedAmps      float64
+	MaxObservedWatts     float64
+	LastObservedVolts    float64
+	LastObservedAmps     float64
+	LastObservedWatts    float64
+	LastObservedAtUnixMS int64
+}
+
 type powerState struct {
 	lastAt    time.Time
 	hasLastAt bool
@@ -104,9 +123,12 @@ type deviceState struct {
 }
 
 type Aggregator struct {
-	minute map[string]*BucketRow
-	hour   map[string]*BucketRow
-	day    map[string]*BucketRow
+	minute       map[string]*BucketRow
+	hour         map[string]*BucketRow
+	day          map[string]*BucketRow
+	pvPortMinute map[string]*PVPortBucketRow
+	pvPortHour   map[string]*PVPortBucketRow
+	pvPortDay    map[string]*PVPortBucketRow
 
 	deviceStateByProviderDeviceID map[string]deviceState
 	maxSolarCarryForwardGap       time.Duration
@@ -117,6 +139,9 @@ func NewAggregator() *Aggregator {
 		minute:                        make(map[string]*BucketRow),
 		hour:                          make(map[string]*BucketRow),
 		day:                           make(map[string]*BucketRow),
+		pvPortMinute:                  make(map[string]*PVPortBucketRow),
+		pvPortHour:                    make(map[string]*PVPortBucketRow),
+		pvPortDay:                     make(map[string]*PVPortBucketRow),
 		deviceStateByProviderDeviceID: make(map[string]deviceState),
 		maxSolarCarryForwardGap:       rollupworker.DefaultSolarCarryForwardMaxGap,
 	}
@@ -168,6 +193,9 @@ func (a *Aggregator) ApplySample(sample *rollupworker.RollupSample) {
 	a.addPoint(a.minute, sample, sample.EventTime.Truncate(time.Minute))
 	a.addPoint(a.hour, sample, sample.EventTime.Truncate(time.Hour))
 	a.addPoint(a.day, sample, time.Date(sample.EventTime.Year(), sample.EventTime.Month(), sample.EventTime.Day(), 0, 0, 0, 0, time.UTC))
+	a.addPVPortPoints(a.pvPortMinute, sample, sample.EventTime.Truncate(time.Minute))
+	a.addPVPortPoints(a.pvPortHour, sample, sample.EventTime.Truncate(time.Hour))
+	a.addPVPortPoints(a.pvPortDay, sample, time.Date(sample.EventTime.Year(), sample.EventTime.Month(), sample.EventTime.Day(), 0, 0, 0, 0, time.UTC))
 }
 
 func (a *Aggregator) Finalize(windowEnd time.Time) {
@@ -267,6 +295,79 @@ func (a *Aggregator) addPoint(target map[string]*BucketRow, sample *rollupworker
 	}
 	if sample.Metrics.Temp.Valid {
 		row.Temp.add(sample.Metrics.Temp.Value)
+	}
+}
+
+func (a *Aggregator) PVPortRows(resolution Resolution) []PVPortBucketRow {
+	if a == nil {
+		return nil
+	}
+	var source map[string]*PVPortBucketRow
+	switch resolution {
+	case ResolutionMinute:
+		source = a.pvPortMinute
+	case ResolutionHour:
+		source = a.pvPortHour
+	case ResolutionDay:
+		source = a.pvPortDay
+	default:
+		return nil
+	}
+	keys := make([]string, 0, len(source))
+	for key := range source {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	rows := make([]PVPortBucketRow, 0, len(keys))
+	for _, key := range keys {
+		if row := source[key]; row != nil {
+			rows = append(rows, *row)
+		}
+	}
+	return rows
+}
+
+func (a *Aggregator) addPVPortPoints(target map[string]*PVPortBucketRow, sample *rollupworker.RollupSample, bucketStart time.Time) {
+	if sample == nil || len(sample.PVPorts) == 0 {
+		return
+	}
+	for _, observation := range sample.PVPorts {
+		key := fmt.Sprintf("%s|%s|%s|%s", sample.Provider, sample.ProviderDeviceID, observation.PortID, bucketStart.UTC().Format(time.RFC3339Nano))
+		row := target[key]
+		if row == nil {
+			row = &PVPortBucketRow{
+				Provider:         sample.Provider,
+				ProviderDeviceID: sample.ProviderDeviceID,
+				DeviceID:         sample.DeviceID,
+				PortID:           observation.PortID,
+				PortLabel:        observation.PortLabel,
+				BucketStart:      bucketStart.UTC(),
+			}
+			target[key] = row
+		}
+		row.SampleCount++
+		if row.FirstTsUnixMS == 0 || sample.EventUnixMs < row.FirstTsUnixMS {
+			row.FirstTsUnixMS = sample.EventUnixMs
+		}
+		if sample.EventUnixMs > row.LastTsUnixMS {
+			row.LastTsUnixMS = sample.EventUnixMs
+		}
+		if observation.Volts > row.MaxObservedVolts {
+			row.MaxObservedVolts = observation.Volts
+		}
+		if observation.Amps > row.MaxObservedAmps {
+			row.MaxObservedAmps = observation.Amps
+		}
+		if observation.Watts > row.MaxObservedWatts {
+			row.MaxObservedWatts = observation.Watts
+		}
+		if sample.EventUnixMs >= row.LastObservedAtUnixMS {
+			row.PortLabel = observation.PortLabel
+			row.LastObservedVolts = observation.Volts
+			row.LastObservedAmps = observation.Amps
+			row.LastObservedWatts = observation.Watts
+			row.LastObservedAtUnixMS = sample.EventUnixMs
+		}
 	}
 }
 

@@ -32,6 +32,9 @@ type PostgresStore struct {
 	minuteEnergyUpsertQuery  string
 	hourEnergyUpsertQuery    string
 	dayEnergyUpsertQuery     string
+	minutePVPortUpsertQuery  string
+	hourPVPortUpsertQuery    string
+	dayPVPortUpsertQuery     string
 	mu                       sync.Mutex
 	integrationStateByDevice map[string]integrationState
 }
@@ -93,6 +96,9 @@ func newPostgresStore(db *sql.DB) *PostgresStore {
 		minuteEnergyUpsertQuery:  buildEnergyUpsertQuery("telemetry_rollup_minute"),
 		hourEnergyUpsertQuery:    buildEnergyUpsertQuery("telemetry_rollup_hour"),
 		dayEnergyUpsertQuery:     buildEnergyUpsertQuery("telemetry_rollup_day"),
+		minutePVPortUpsertQuery:  buildPVPortUpsertQuery("telemetry_rollup_pv_port_minute"),
+		hourPVPortUpsertQuery:    buildPVPortUpsertQuery("telemetry_rollup_pv_port_hour"),
+		dayPVPortUpsertQuery:     buildPVPortUpsertQuery("telemetry_rollup_pv_port_day"),
 		integrationStateByDevice: make(map[string]integrationState),
 	}
 }
@@ -154,6 +160,9 @@ func (s *PostgresStore) ApplyEnvelope(ctx context.Context, env *envelopev1.Telem
 		return err
 	}
 	if err := s.execEnergyUpserts(ctx, tx, sample, state, now); err != nil {
+		return err
+	}
+	if err := s.execPVPortUpserts(ctx, tx, sample, minuteBucket, hourBucket, dayBucket, now); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -438,6 +447,50 @@ func nullableEnergyValue(value float64) any {
 	return value
 }
 
+func (s *PostgresStore) execPVPortUpserts(ctx context.Context, tx *sql.Tx, sample *RollupSample, minuteBucket, hourBucket, dayBucket, now time.Time) error {
+	if sample == nil || len(sample.PVPorts) == 0 {
+		return nil
+	}
+	for _, observation := range sample.PVPorts {
+		if err := s.execPVPortUpsert(ctx, tx, s.minutePVPortUpsertQuery, sample, observation, minuteBucket, now); err != nil {
+			return err
+		}
+		if err := s.execPVPortUpsert(ctx, tx, s.hourPVPortUpsertQuery, sample, observation, hourBucket, now); err != nil {
+			return err
+		}
+		if err := s.execPVPortUpsert(ctx, tx, s.dayPVPortUpsertQuery, sample, observation, dayBucket, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *PostgresStore) execPVPortUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, observation PVPortObservation, bucketStart, now time.Time) error {
+	if _, err := tx.ExecContext(ctx, query,
+		sample.Provider,
+		sample.ProviderDeviceID,
+		sample.DeviceID,
+		observation.PortID,
+		observation.PortLabel,
+		bucketStart,
+		1,
+		sample.EventUnixMs,
+		sample.EventUnixMs,
+		observation.Volts,
+		observation.Amps,
+		observation.Watts,
+		observation.Volts,
+		observation.Amps,
+		observation.Watts,
+		sample.EventUnixMs,
+		now,
+		now,
+	); err != nil {
+		return fmt.Errorf("upsert pv-port rollup bucket %s/%s: %w", observation.PortID, bucketStart.Format(time.RFC3339), err)
+	}
+	return nil
+}
+
 func (s *PostgresStore) execUpsert(ctx context.Context, tx *sql.Tx, query string, sample *RollupSample, bucketStart time.Time, now time.Time) error {
 	_, err := tx.ExecContext(ctx, query,
 		sample.Provider,
@@ -672,6 +725,73 @@ func buildEnergyUpsertQuery(table string) string {
 		sumExpr(table, "load_energy_wh"),
 		sumExpr(table, "battery_charge_energy_wh"),
 		sumExpr(table, "battery_discharge_energy_wh"),
+	)
+}
+
+func buildPVPortUpsertQuery(table string) string {
+	return fmt.Sprintf(`INSERT INTO %s (
+		provider,
+		provider_device_id,
+		device_id,
+		port_id,
+		port_label,
+		bucket_start,
+		sample_count,
+		first_ts_unix_ms,
+		last_ts_unix_ms,
+		max_observed_volts,
+		max_observed_amps,
+		max_observed_watts,
+		last_observed_volts,
+		last_observed_amps,
+		last_observed_watts,
+		last_observed_at_unix_ms,
+		created_at,
+		updated_at
+	) VALUES (
+		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
+	)
+	ON CONFLICT (provider, provider_device_id, port_id, bucket_start) DO UPDATE SET
+		device_id = EXCLUDED.device_id,
+		port_label = CASE
+			WHEN EXCLUDED.last_observed_at_unix_ms IS NULL THEN %[1]s.port_label
+			WHEN %[1]s.last_observed_at_unix_ms IS NULL THEN EXCLUDED.port_label
+			WHEN EXCLUDED.last_observed_at_unix_ms >= %[1]s.last_observed_at_unix_ms THEN EXCLUDED.port_label
+			ELSE %[1]s.port_label
+		END,
+		sample_count = %[1]s.sample_count + EXCLUDED.sample_count,
+		first_ts_unix_ms = LEAST(%[1]s.first_ts_unix_ms, EXCLUDED.first_ts_unix_ms),
+		last_ts_unix_ms = GREATEST(%[1]s.last_ts_unix_ms, EXCLUDED.last_ts_unix_ms),
+		max_observed_volts = %[2]s,
+		max_observed_amps = %[3]s,
+		max_observed_watts = %[4]s,
+		last_observed_volts = CASE
+			WHEN EXCLUDED.last_observed_at_unix_ms IS NULL THEN %[1]s.last_observed_volts
+			WHEN %[1]s.last_observed_at_unix_ms IS NULL THEN EXCLUDED.last_observed_volts
+			WHEN EXCLUDED.last_observed_at_unix_ms >= %[1]s.last_observed_at_unix_ms THEN EXCLUDED.last_observed_volts
+			ELSE %[1]s.last_observed_volts
+		END,
+		last_observed_amps = CASE
+			WHEN EXCLUDED.last_observed_at_unix_ms IS NULL THEN %[1]s.last_observed_amps
+			WHEN %[1]s.last_observed_at_unix_ms IS NULL THEN EXCLUDED.last_observed_amps
+			WHEN EXCLUDED.last_observed_at_unix_ms >= %[1]s.last_observed_at_unix_ms THEN EXCLUDED.last_observed_amps
+			ELSE %[1]s.last_observed_amps
+		END,
+		last_observed_watts = CASE
+			WHEN EXCLUDED.last_observed_at_unix_ms IS NULL THEN %[1]s.last_observed_watts
+			WHEN %[1]s.last_observed_at_unix_ms IS NULL THEN EXCLUDED.last_observed_watts
+			WHEN EXCLUDED.last_observed_at_unix_ms >= %[1]s.last_observed_at_unix_ms THEN EXCLUDED.last_observed_watts
+			ELSE %[1]s.last_observed_watts
+		END,
+		last_observed_at_unix_ms = CASE
+			WHEN EXCLUDED.last_observed_at_unix_ms IS NULL THEN %[1]s.last_observed_at_unix_ms
+			WHEN %[1]s.last_observed_at_unix_ms IS NULL THEN EXCLUDED.last_observed_at_unix_ms
+			ELSE GREATEST(%[1]s.last_observed_at_unix_ms, EXCLUDED.last_observed_at_unix_ms)
+		END,
+		updated_at = EXCLUDED.updated_at`, table,
+		maxExpr(table, "max_observed_volts"),
+		maxExpr(table, "max_observed_amps"),
+		maxExpr(table, "max_observed_watts"),
 	)
 }
 

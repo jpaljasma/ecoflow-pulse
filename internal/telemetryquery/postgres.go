@@ -103,6 +103,58 @@ func (r *PostgresReader) QueryRangeMany(ctx context.Context, query AggregateRang
 	return scanSeriesRows(rows, aggregateID, query.Resolution, from, to)
 }
 
+func (r *PostgresReader) QueryPVPortHistory(ctx context.Context, query PVPortHistoryQuery) ([]PVPortHistory, error) {
+	table, err := pvPortTableName(query.Resolution)
+	if err != nil {
+		return nil, err
+	}
+	deviceIDs := normalizeAggregateDeviceIDs(query.DeviceIDs)
+	if len(deviceIDs) == 0 {
+		return nil, ErrInvalidRange
+	}
+	from := query.From.UTC()
+	to := query.To.UTC()
+	if !from.Before(to) {
+		return nil, ErrInvalidRange
+	}
+	sqlQuery, args := buildPVPortHistoryQuery(table, deviceIDs, from, to)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query pv-port history rollups: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]PVPortHistory, 0, 16)
+	for rows.Next() {
+		var (
+			row                  PVPortHistory
+			lastObservedAtUnixMS sql.NullInt64
+		)
+		if err := rows.Scan(
+			&row.DeviceID,
+			&row.PortID,
+			&row.PortLabel,
+			&row.MaxObservedVolts,
+			&row.MaxObservedAmps,
+			&row.MaxObservedWatts,
+			&row.LastObservedVolts,
+			&row.LastObservedAmps,
+			&row.LastObservedWatts,
+			&lastObservedAtUnixMS,
+			&row.SampleCount,
+		); err != nil {
+			return nil, fmt.Errorf("scan pv-port history row: %w", err)
+		}
+		if lastObservedAtUnixMS.Valid && lastObservedAtUnixMS.Int64 > 0 {
+			row.LastObservedAt = time.UnixMilli(lastObservedAtUnixMS.Int64).UTC()
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pv-port history rows: %w", err)
+	}
+	return out, nil
+}
+
 func scanSeriesRows(rows *sql.Rows, deviceID string, resolution Resolution, from, to time.Time) (Series, error) {
 	points := make([]Point, 0, 64)
 	bucketWidth := resolution.BucketDuration()
@@ -349,6 +401,87 @@ WHERE device_id = $1::uuid
   AND bucket_start < $3
 ORDER BY bucket_start ASC
 LIMIT $4;`, table)
+}
+
+func pvPortTableName(resolution Resolution) (string, error) {
+	switch resolution {
+	case ResolutionMinute:
+		return "telemetry_rollup_pv_port_minute", nil
+	case ResolutionHour:
+		return "telemetry_rollup_pv_port_hour", nil
+	case ResolutionDay:
+		return "telemetry_rollup_pv_port_day", nil
+	default:
+		return "", ErrInvalidResolution
+	}
+}
+
+func buildPVPortHistoryQuery(table string, deviceIDs []string, from, to time.Time) (string, []any) {
+	placeholders := make([]string, 0, len(deviceIDs))
+	args := make([]any, 0, len(deviceIDs)+2)
+	for idx, deviceID := range deviceIDs {
+		placeholders = append(placeholders, fmt.Sprintf("$%d::uuid", idx+1))
+		args = append(args, deviceID)
+	}
+	fromIdx := len(args) + 1
+	toIdx := len(args) + 2
+	args = append(args, from, to)
+	sqlQuery := fmt.Sprintf(`WITH windowed AS (
+	SELECT
+		device_id::text AS device_id,
+		port_id,
+		port_label,
+		max_observed_volts,
+		max_observed_amps,
+		max_observed_watts,
+		last_observed_volts,
+		last_observed_amps,
+		last_observed_watts,
+		last_observed_at_unix_ms,
+		sample_count,
+		bucket_start
+	FROM %s
+	WHERE device_id IN (%s)
+	  AND bucket_start >= $%d
+	  AND bucket_start < $%d
+), aggregate_rows AS (
+	SELECT
+		device_id,
+		port_id,
+		MAX(max_observed_volts) AS max_observed_volts,
+		MAX(max_observed_amps) AS max_observed_amps,
+		MAX(max_observed_watts) AS max_observed_watts,
+		SUM(sample_count) AS sample_count
+	FROM windowed
+	GROUP BY device_id, port_id
+), latest_rows AS (
+	SELECT DISTINCT ON (device_id, port_id)
+		device_id,
+		port_id,
+		port_label,
+		last_observed_volts,
+		last_observed_amps,
+		last_observed_watts,
+		last_observed_at_unix_ms
+	FROM windowed
+	ORDER BY device_id, port_id, last_observed_at_unix_ms DESC NULLS LAST, bucket_start DESC
+)
+SELECT
+	aggregate_rows.device_id,
+	aggregate_rows.port_id,
+	latest_rows.port_label,
+	aggregate_rows.max_observed_volts,
+	aggregate_rows.max_observed_amps,
+	aggregate_rows.max_observed_watts,
+	latest_rows.last_observed_volts,
+	latest_rows.last_observed_amps,
+	latest_rows.last_observed_watts,
+	latest_rows.last_observed_at_unix_ms,
+	aggregate_rows.sample_count
+FROM aggregate_rows
+JOIN latest_rows USING (device_id, port_id)
+ORDER BY aggregate_rows.device_id, aggregate_rows.port_id`, table, strings.Join(placeholders, ", "), fromIdx, toIdx)
+	return sqlQuery, args
 }
 
 func buildAggregateQuery(resolution Resolution, table string, deviceIDs []string, from, to time.Time, limit int) (string, []any) {

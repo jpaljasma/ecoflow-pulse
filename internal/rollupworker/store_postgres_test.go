@@ -42,6 +42,9 @@ func TestPostgresStoreApplyEnvelopeUpsertsAllBuckets(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(store.minuteUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.hourUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.dayUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.minutePVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.hourPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.dayPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	if err := store.ApplyEnvelope(context.Background(), env); err != nil {
@@ -116,6 +119,9 @@ func TestPostgresStoreApplyEnvelopeIntegratesSolarAcrossSparseMinuteBoundary(t *
 	mock.ExpectExec(regexp.QuoteMeta(store.minuteUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.hourUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.dayUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.minutePVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.hourPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.dayPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()
@@ -126,6 +132,9 @@ func TestPostgresStoreApplyEnvelopeIntegratesSolarAcrossSparseMinuteBoundary(t *
 	mock.ExpectExec(regexp.QuoteMeta(store.minuteSolarUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.hourSolarUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.daySolarUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.minutePVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.hourPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.dayPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	if err := store.ApplyEnvelope(context.Background(), first); err != nil {
@@ -172,6 +181,9 @@ func TestPostgresStoreApplyEnvelopeIntegratesExplicitEnergyBucketsAcrossSparseMi
 	mock.ExpectExec(regexp.QuoteMeta(store.minuteUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.hourUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.dayUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.minutePVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.hourPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.dayPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()
@@ -186,6 +198,9 @@ func TestPostgresStoreApplyEnvelopeIntegratesExplicitEnergyBucketsAcrossSparseMi
 	mock.ExpectExec(regexp.QuoteMeta(store.minuteEnergyUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.hourEnergyUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.dayEnergyUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.minutePVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.hourPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.dayPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	if err := store.ApplyEnvelope(context.Background(), first); err != nil {
@@ -227,6 +242,9 @@ func TestPostgresStoreApplyEnvelopeSkipsDuplicateEnvelopeID(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(store.minuteUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.hourUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(store.dayUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.minutePVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.hourPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.dayPVPortUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()

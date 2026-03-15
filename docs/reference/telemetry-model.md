@@ -82,11 +82,9 @@ rollup extraction), PV watts follow this precedence:
 This preserves explicit zero PV states from canonical fields and prevents stale
 top-level `pvW` values from showing false solar input in live trends/history.
 
-When explicit persisted energy buckets are missing and the history path must
-temporarily derive Wh from average power, the derivation uses the bucket's
-observed sample coverage (`first_ts_unix_ms`..`last_ts_unix_ms`) rather than
-assuming the full hour/day bucket was active. This avoids overstating sparse
-DPU PV history by treating a short active span as a full bucket of generation.
+History/query paths do not derive solar Wh from `pvAvgW`. If persisted energy
+buckets are missing, the backend must repair them through archive-to-rollup
+rebuilds rather than synthesizing Wh at read time.
 
 Rollup writes are envelope-idempotent at the storage boundary. Replayed or
 redelivered envelopes must not increment `sample_count`, `solar_generated_wh`,
@@ -161,6 +159,12 @@ small live-detail envelope from the merged raw snapshot:
   same merged live raw metrics used for projected watts.
 - `detail.solarPorts`:
   current per-port PV state/volts/amps/watts for D2M and DPU-style port pairs.
+
+- energy PV-port history:
+  persisted minute/hour/day PV-port rollup facts (`max_observed_*`,
+  `last_observed_*`, `sample_count`) are the steady-state source for
+  `EnergyService/GetEnergyPvPortHistory`; archive scans remain a fallback and
+  rebuild source, not the intended hot read path.
 
 Frontend rule:
 

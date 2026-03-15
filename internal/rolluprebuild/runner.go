@@ -46,6 +46,9 @@ type Report struct {
 	MinuteRows       int
 	HourRows         int
 	DayRows          int
+	PVPortMinuteRows int
+	PVPortHourRows   int
+	PVPortDayRows    int
 	StartedAt        time.Time
 	FinishedAt       time.Time
 }
@@ -166,6 +169,9 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 	minuteRowsAll := make([]BucketRow, 0, 1024)
 	hourRowsAll := make([]BucketRow, 0, 256)
 	dayRowsAll := make([]BucketRow, 0, 64)
+	pvPortMinuteRowsAll := make([]PVPortBucketRow, 0, 256)
+	pvPortHourRowsAll := make([]PVPortBucketRow, 0, 128)
+	pvPortDayRowsAll := make([]PVPortBucketRow, 0, 64)
 	affected := make([]DeviceWindow, 0, len(objects))
 	for result := range results {
 		if result.err != nil {
@@ -180,6 +186,9 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 		minuteRowsAll = append(minuteRowsAll, result.minuteRows...)
 		hourRowsAll = append(hourRowsAll, result.hourRows...)
 		dayRowsAll = append(dayRowsAll, result.dayRows...)
+		pvPortMinuteRowsAll = append(pvPortMinuteRowsAll, result.pvPortMinuteRows...)
+		pvPortHourRowsAll = append(pvPortHourRowsAll, result.pvPortHourRows...)
+		pvPortDayRowsAll = append(pvPortDayRowsAll, result.pvPortDayRows...)
 	}
 	if report.MissingObjects > 0 {
 		return report, fmt.Errorf("refusing rollup replacement with %d missing archive objects; repair archive coverage or rebuild from raw logs", report.MissingObjects)
@@ -190,6 +199,9 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 	minuteRowsAll = filterRowsForWindow(minuteRowsAll, ResolutionMinute, from, to)
 	hourRowsAll = filterRowsForWindow(hourRowsAll, ResolutionHour, from, to)
 	dayRowsAll = filterRowsForWindow(dayRowsAll, ResolutionDay, from, to)
+	pvPortMinuteRowsAll = filterPVPortRowsForWindow(pvPortMinuteRowsAll, ResolutionMinute, from, to)
+	pvPortHourRowsAll = filterPVPortRowsForWindow(pvPortHourRowsAll, ResolutionHour, from, to)
+	pvPortDayRowsAll = filterPVPortRowsForWindow(pvPortDayRowsAll, ResolutionDay, from, to)
 	var err error
 	if report.MinuteRows, err = r.writer.ReplaceRows(ctx, ResolutionMinute, minuteRowsAll, affected, from, to, r.chunkSize); err != nil {
 		return report, err
@@ -198,6 +210,15 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 		return report, err
 	}
 	if report.DayRows, err = r.writer.ReplaceRows(ctx, ResolutionDay, dayRowsAll, affected, from, to, r.chunkSize); err != nil {
+		return report, err
+	}
+	if report.PVPortMinuteRows, err = r.writer.ReplacePVPortRows(ctx, ResolutionMinute, pvPortMinuteRowsAll, affected, from, to, r.chunkSize); err != nil {
+		return report, err
+	}
+	if report.PVPortHourRows, err = r.writer.ReplacePVPortRows(ctx, ResolutionHour, pvPortHourRowsAll, affected, from, to, r.chunkSize); err != nil {
+		return report, err
+	}
+	if report.PVPortDayRows, err = r.writer.ReplacePVPortRows(ctx, ResolutionDay, pvPortDayRowsAll, affected, from, to, r.chunkSize); err != nil {
 		return report, err
 	}
 	report.FinishedAt = time.Now().UTC()
@@ -226,6 +247,9 @@ type shardResult struct {
 	minuteRows       []BucketRow
 	hourRows         []BucketRow
 	dayRows          []BucketRow
+	pvPortMinuteRows []PVPortBucketRow
+	pvPortHourRows   []PVPortBucketRow
+	pvPortDayRows    []PVPortBucketRow
 	affected         []DeviceWindow
 	err              error
 }
@@ -331,6 +355,9 @@ func (r *Runner) processObjectGroup(
 	result.minuteRows = aggregator.Rows(ResolutionMinute)
 	result.hourRows = aggregator.Rows(ResolutionHour)
 	result.dayRows = aggregator.Rows(ResolutionDay)
+	result.pvPortMinuteRows = aggregator.PVPortRows(ResolutionMinute)
+	result.pvPortHourRows = aggregator.PVPortRows(ResolutionHour)
+	result.pvPortDayRows = aggregator.PVPortRows(ResolutionDay)
 	return result
 }
 
@@ -412,6 +439,21 @@ func filterRowsForWindow(rows []BucketRow, resolution Resolution, from, to time.
 	}
 	start, end := replacementWindowBounds(resolution, from, to)
 	out := make([]BucketRow, 0, len(rows))
+	for _, row := range rows {
+		if row.BucketStart.Before(start) || !row.BucketStart.Before(end) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func filterPVPortRowsForWindow(rows []PVPortBucketRow, resolution Resolution, from, to time.Time) []PVPortBucketRow {
+	if len(rows) == 0 {
+		return nil
+	}
+	start, end := replacementWindowBounds(resolution, from, to)
+	out := make([]PVPortBucketRow, 0, len(rows))
 	for _, row := range rows {
 		if row.BucketStart.Before(start) || !row.BucketStart.Before(end) {
 			continue

@@ -92,6 +92,9 @@ func RebuildFromRawLogs(
 	minuteRowsAll := filterRowsForWindow(aggregator.Rows(ResolutionMinute), ResolutionMinute, from.UTC(), to.UTC())
 	hourRowsAll := filterRowsForWindow(aggregator.Rows(ResolutionHour), ResolutionHour, from.UTC(), to.UTC())
 	dayRowsAll := filterRowsForWindow(aggregator.Rows(ResolutionDay), ResolutionDay, from.UTC(), to.UTC())
+	pvPortMinuteRowsAll := filterPVPortRowsForWindow(aggregator.PVPortRows(ResolutionMinute), ResolutionMinute, from.UTC(), to.UTC())
+	pvPortHourRowsAll := filterPVPortRowsForWindow(aggregator.PVPortRows(ResolutionHour), ResolutionHour, from.UTC(), to.UTC())
+	pvPortDayRowsAll := filterPVPortRowsForWindow(aggregator.PVPortRows(ResolutionDay), ResolutionDay, from.UTC(), to.UTC())
 	if report.MinuteRows, err = writer.ReplaceRows(ctx, ResolutionMinute, minuteRowsAll, affected, from.UTC(), to.UTC(), chunkSize); err != nil {
 		return report, err
 	}
@@ -99,6 +102,15 @@ func RebuildFromRawLogs(
 		return report, err
 	}
 	if report.DayRows, err = writer.ReplaceRows(ctx, ResolutionDay, dayRowsAll, affected, from.UTC(), to.UTC(), chunkSize); err != nil {
+		return report, err
+	}
+	if report.PVPortMinuteRows, err = writer.ReplacePVPortRows(ctx, ResolutionMinute, pvPortMinuteRowsAll, affected, from.UTC(), to.UTC(), chunkSize); err != nil {
+		return report, err
+	}
+	if report.PVPortHourRows, err = writer.ReplacePVPortRows(ctx, ResolutionHour, pvPortHourRowsAll, affected, from.UTC(), to.UTC(), chunkSize); err != nil {
+		return report, err
+	}
+	if report.PVPortDayRows, err = writer.ReplacePVPortRows(ctx, ResolutionDay, pvPortDayRowsAll, affected, from.UTC(), to.UTC(), chunkSize); err != nil {
 		return report, err
 	}
 	report.FinishedAt = time.Now().UTC()
