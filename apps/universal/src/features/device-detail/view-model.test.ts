@@ -129,7 +129,7 @@ describe('device detail live-detail helpers', () => {
 
   it('uses generic PV numbering for live-only ports beyond pv-2', () => {
     const merged = mergeDeviceDetailSolarPorts(undefined, [
-      { id: 'pv-3', state: 'charging', volts: 38.1, amps: 4.07, watts: 155 }
+      { id: 'pv-3', name: 'PV 3', state: 'charging', volts: 38.1, amps: 4.07, watts: 155 }
     ]);
 
     expect(merged).toEqual([
