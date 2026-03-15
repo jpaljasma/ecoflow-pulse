@@ -43,11 +43,13 @@ When starting any new milestone task from `docs/architecture/README.md`:
 2. Include test results for the change.
 3. Update documentation when behavior or configuration changes.
 4. Resolve review feedback before merge.
-5. PR body formatting must use real newlines (no literal `\n`).
-6. When using GitHub CLI, prefer `gh pr create --body-file <file>` or `gh pr edit --body-file <file>` for multiline Markdown.
-7. After creating/updating a PR, verify rendered body with `gh pr view --json body` and fix immediately if escaped newlines appear.
-8. PR creation workflow is mandatory: push branch, run `gh pr create`, then verify with `gh pr view <number> --json url,title,body`.
-9. If PR creation fails due to branch/rules ambiguity, push to a fresh `codex/*` branch and retry PR creation there.
+5. Never include personal or sensitive identifiers in PR titles, bodies, review comments, commit summaries, or GitHub discussion replies.
+6. Treat device serial numbers, provider device IDs, access-key material, email addresses, physical locations, and any user-linked identifiers as sensitive by default; redact or generalize them in all GitHub-visible text unless a maintainer explicitly approves disclosure.
+7. PR body formatting must use real newlines (no literal `\n`).
+8. When using GitHub CLI, prefer `gh pr create --body-file <file>` or `gh pr edit --body-file <file>` for multiline Markdown.
+9. After creating/updating a PR, verify rendered body with `gh pr view --json body` and fix immediately if escaped newlines appear.
+10. PR creation workflow is mandatory: push branch, run `gh pr create`, then verify with `gh pr view <number> --json url,title,body`.
+11. If PR creation fails due to branch/rules ambiguity, push to a fresh `codex/*` branch and retry PR creation there.
 
 ## Security Review Feedback Rules
 1. Always check PR inline review comments and code-scanning findings before merge.
@@ -195,6 +197,14 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - do not delete a requested rollup window before rebuilding it,
    - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.
 10. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
+11. Before trusting local historical rebuilds after archive/storage churn:
+   - audit direct MinIO raw-object coverage against `archive_object_manifest`,
+   - fail closed on drift instead of trusting manifest-only counts,
+   - keep rebuild-time envelope deduplication in place so retry duplicates cannot inflate regenerated rollups.
+11. Local raw archive durability is required for trustworthy replay:
+   - if MinIO is the authoritative local raw archive, it must use PVC-backed persistence,
+   - do not leave local MinIO in ephemeral mode when replay, rebuild, or gap repair depend on it,
+   - rebuild tooling must fail closed on archive/object mismatches rather than replacing DB windows with partial coverage.
 
 ## Browser Edge Learnings
 1. Browser-facing HTTP/2/HTTP/3 support is an ingress/public-edge concern, not a Node runtime concern.
