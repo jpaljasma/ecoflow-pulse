@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -650,115 +649,12 @@ func enrichSolarEnergy(series Series) Series {
 		return series
 	}
 
-	points := make([]Point, 0, len(series.Points))
 	coverage := EnergyBucketCoverage{PointCount: len(series.Points)}
 	for _, point := range series.Points {
-		enriched, pointCoverage := withDerivedSolarEnergy(point, series.Resolution)
-		points = append(points, enriched)
-		coverage.PersistedValueCount += pointCoverage.PersistedValueCount
-		coverage.DerivedValueCount += pointCoverage.DerivedValueCount
-		if pointCoverage.DerivedValueCount > 0 {
-			coverage.DerivedPointCount++
-		}
+		coverage.PersistedValueCount += storedEnergyValueCount(point.Metrics)
 	}
-	series.Points = points
 	series.EnergyBucketCoverage = coverage
 	return series
-}
-
-func withDerivedSolarEnergy(point Point, resolution Resolution) (Point, EnergyBucketCoverage) {
-	coverage := EnergyBucketCoverage{
-		PersistedValueCount: storedEnergyValueCount(point.Metrics),
-	}
-	durationHours := derivedEnergyCoverageHours(point, resolution)
-	if durationHours <= 0 {
-		return point, coverage
-	}
-
-	if point.Metrics.SolarGeneratedWh == nil {
-		pvAvgW, ok := positiveMetricValue(point.Metrics.PVAvgW)
-		if ok {
-			solarWh := pvAvgW * durationHours
-			point.Metrics.SolarGeneratedWh = floatPtr(solarWh)
-			coverage.DerivedValueCount++
-		}
-	}
-
-	if point.Metrics.ACInputEnergyWh == nil {
-		if acInAvgW, ok := positiveMetricValue(point.Metrics.ACInAvgW); ok {
-			point.Metrics.ACInputEnergyWh = floatPtr(acInAvgW * durationHours)
-			coverage.DerivedValueCount++
-		}
-	}
-	if point.Metrics.ACOutputAvgW == nil {
-		if acOutputAvgW, ok := deriveACOutputPower(point.Metrics.LoadAvgW, point.Metrics.DCAvgW, nil, nil); ok {
-			point.Metrics.ACOutputAvgW = floatPtr(acOutputAvgW)
-		}
-	}
-	if point.Metrics.ACOutputMaxW == nil {
-		if acOutputMaxW, ok := deriveACOutputPower(point.Metrics.LoadMaxW, point.Metrics.DCMaxW, point.Metrics.LoadAvgW, point.Metrics.DCAvgW); ok {
-			point.Metrics.ACOutputMaxW = floatPtr(acOutputMaxW)
-		}
-	}
-	if point.Metrics.ACOutputEnergyWh == nil {
-		if acOutputAvgW, ok := positiveMetricValue(point.Metrics.ACOutputAvgW); ok {
-			point.Metrics.ACOutputEnergyWh = floatPtr(acOutputAvgW * durationHours)
-			coverage.DerivedValueCount++
-		}
-	}
-	if point.Metrics.DCOutputEnergyWh == nil {
-		if dcAvgW, ok := positiveMetricValue(point.Metrics.DCAvgW); ok {
-			point.Metrics.DCOutputEnergyWh = floatPtr(dcAvgW * durationHours)
-			coverage.DerivedValueCount++
-		}
-	}
-	if point.Metrics.LoadEnergyWh == nil {
-		if loadAvgW, ok := positiveMetricValue(point.Metrics.LoadAvgW); ok {
-			point.Metrics.LoadEnergyWh = floatPtr(loadAvgW * durationHours)
-			coverage.DerivedValueCount++
-		}
-	}
-	if point.Metrics.BatteryChargeEnergyWh == nil || point.Metrics.BatteryDischargeEnergyWh == nil {
-		if point.Metrics.BatteryAvgW != nil {
-			batteryAvgW := *point.Metrics.BatteryAvgW
-			if batteryAvgW > 0 && point.Metrics.BatteryChargeEnergyWh == nil {
-				point.Metrics.BatteryChargeEnergyWh = floatPtr(batteryAvgW * durationHours)
-				coverage.DerivedValueCount++
-			}
-			if batteryAvgW < 0 && point.Metrics.BatteryDischargeEnergyWh == nil {
-				point.Metrics.BatteryDischargeEnergyWh = floatPtr(math.Abs(batteryAvgW) * durationHours)
-				coverage.DerivedValueCount++
-			}
-		}
-	}
-	return point, coverage
-}
-
-func derivedEnergyCoverageHours(point Point, resolution Resolution) float64 {
-	duration := point.BucketEnd.Sub(point.BucketStart)
-	if resolution == ResolutionMinute {
-		if duration <= 0 {
-			duration = time.Minute
-		}
-		return duration.Hours()
-	}
-
-	if point.FirstTsUnixMs > 0 && point.LastTsUnixMs >= point.FirstTsUnixMs {
-		observed := time.UnixMilli(point.LastTsUnixMs).Sub(time.UnixMilli(point.FirstTsUnixMs)) + time.Millisecond
-		switch {
-		case observed <= 0:
-			// fall back to bucket width below
-		case duration <= 0:
-			duration = observed
-		case observed < duration:
-			duration = observed
-		}
-	}
-
-	if duration <= 0 {
-		return 0
-	}
-	return duration.Hours()
 }
 
 func storedEnergyValueCount(metrics Metrics) int {
@@ -777,42 +673,4 @@ func storedEnergyValueCount(metrics Metrics) int {
 		}
 	}
 	return count
-}
-
-func positiveMetricValue(value *float64) (float64, bool) {
-	if value == nil || *value <= 0 {
-		return 0, false
-	}
-	return *value, true
-}
-
-func deriveACOutputPower(primaryLoad, primaryDC, fallbackLoad, fallbackDC *float64) (float64, bool) {
-	loadW, loadOK := positiveMetricValue(primaryLoad)
-	dcW, dcOK := positiveMetricValue(primaryDC)
-	if loadOK {
-		if dcOK {
-			return math.Max(loadW-dcW, 0), true
-		}
-		if fallbackLoad != nil || fallbackDC != nil {
-			loadW, loadOK = positiveMetricValue(fallbackLoad)
-			dcW, _ = positiveMetricValue(fallbackDC)
-			if loadOK {
-				return math.Max(loadW-dcW, 0), true
-			}
-		}
-		return loadW, true
-	}
-	if fallbackLoad != nil || fallbackDC != nil {
-		loadW, loadOK = positiveMetricValue(fallbackLoad)
-		dcW, _ = positiveMetricValue(fallbackDC)
-		if loadOK {
-			return math.Max(loadW-dcW, 0), true
-		}
-	}
-	return 0, false
-}
-
-func floatPtr(value float64) *float64 {
-	v := value
-	return &v
 }
