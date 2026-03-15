@@ -2,7 +2,7 @@ import { formatWhAndKWh } from '@/features/telemetry/format';
 
 export const MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH = 24;
 
-export function formatSolarLegendDelta(
+export function formatSolarComparisonDeltaText(
   todayWh: number | null | undefined,
   yesterdayWh: number | null | undefined,
   deltaPct: number | null | undefined
@@ -13,13 +13,22 @@ export function formatSolarLegendDelta(
     return '';
   }
   if (safeYesterdayWh <= 0) {
-    return safeTodayWh > 0 ? ' (new activity today)' : '';
+    return safeTodayWh > 0 ? 'new activity today' : '';
   }
   if (safeYesterdayWh < MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH) {
     const absoluteDeltaWh = Math.max(0, safeTodayWh - safeYesterdayWh);
-    return absoluteDeltaWh > 0 ? ` (+${formatWhAndKWh(absoluteDeltaWh)})` : '';
+    return absoluteDeltaWh > 0 ? `+${formatWhAndKWh(absoluteDeltaWh)}` : '';
   }
   const rounded = Math.round(deltaPct);
   const sign = rounded > 0 ? '+' : '';
-  return ` (${sign}${rounded}%)`;
+  return `${sign}${rounded}%`;
+}
+
+export function formatSolarLegendDelta(
+  todayWh: number | null | undefined,
+  yesterdayWh: number | null | undefined,
+  deltaPct: number | null | undefined
+): string {
+  const text = formatSolarComparisonDeltaText(todayWh, yesterdayWh, deltaPct);
+  return text ? ` (${text})` : '';
 }

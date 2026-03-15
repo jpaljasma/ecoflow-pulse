@@ -200,6 +200,7 @@ export function SummaryPanel({
       content: (
         <SolarTodayBadge
           valueWh={fleetSolarHistory.data.todayWh}
+          previousWh={fleetSolarHistory.data.yesterdayWh}
           deltaPct={fleetSolarHistory.data.deltaPct}
           compact={isCompact}
         />

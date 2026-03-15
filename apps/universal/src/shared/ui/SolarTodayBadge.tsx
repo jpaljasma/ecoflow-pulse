@@ -2,19 +2,23 @@ import { Platform } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { formatWhAndKWh } from '@/features/telemetry/format';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+import { formatSolarComparisonDeltaText } from '@/shared/ui/solarLegend';
 
 export function SolarTodayBadge({
   valueWh,
+  previousWh,
   deltaPct,
   compact = false,
   fitCell = false
 }: {
   valueWh: number | undefined | null;
+  previousWh?: number | undefined | null;
   deltaPct?: number | null;
   compact?: boolean;
   fitCell?: boolean;
 }) {
   const semantics = useThemeSemantics();
+  const deltaText = formatSolarComparisonDeltaText(valueWh, previousWh, deltaPct);
   return (
     <YStack
       paddingHorizontal={compact ? '$2' : '$3'}
@@ -41,21 +45,12 @@ export function SolarTodayBadge({
         <Text fontSize={compact ? '$1' : '$2'} fontWeight="800" style={{ color: semantics.solarBadgeValue }}>
           {formatWhAndKWh(valueWh)}
         </Text>
-        {deltaPct !== null && deltaPct !== undefined && Number.isFinite(deltaPct) ? (
+        {deltaText ? (
           <Text fontSize={compact ? '$1' : '$2'} fontWeight="700" style={{ color: semantics.solarBadgeDelta }}>
-            {formatDelta(deltaPct)}
+            {deltaText}
           </Text>
         ) : null}
       </XStack>
     </YStack>
   );
-}
-
-function formatDelta(deltaPct: number | null | undefined): string {
-  if (deltaPct === null || deltaPct === undefined || !Number.isFinite(deltaPct)) {
-    return '';
-  }
-  const rounded = Math.round(deltaPct);
-  const sign = rounded > 0 ? '+' : '';
-  return `${sign}${rounded}%`;
 }
