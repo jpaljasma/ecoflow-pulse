@@ -67,6 +67,7 @@ func main() {
 		"backup_ref", cfg.BackupRef,
 		"forward_only", cfg.ForwardOnly,
 		"applied_versions", strings.Join(result.AppliedVersions, ","),
+		"adopted_versions", strings.Join(result.AdoptedVersions, ","),
 		"skipped_versions", strings.Join(result.SkippedVersions, ","),
 	)
 }

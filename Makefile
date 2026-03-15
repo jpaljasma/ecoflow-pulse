@@ -60,6 +60,7 @@ DB_MIGRATION_CLUSTER ?= pulse-platform-core
 DB_MIGRATION_SECRET ?= pulse-platform-core-app
 DB_MIGRATION_DB ?= pulse
 PGROLL_LOCAL_PORT ?= 15433
+DB_MIGRATION_LOCAL_PORT ?= 15434
 PGROLL_PLAN ?=
 DB_SEED_LOCAL_PORT ?= 15432
 DB_SEED_USER_SUBJECT ?= dev-user@example.com
@@ -153,7 +154,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -798,6 +799,53 @@ platform-wait:
 			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=complete job/"$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
+	verify_minio_bucket() { \
+		if ! command -v $(DOCKER) >/dev/null 2>&1; then \
+			echo "$(DOCKER) not found. Install Docker first to verify MinIO bucket bootstrap."; \
+			exit 1; \
+		fi; \
+		archive_secret="$(ARCHIVE_INTEGRATION_SECRET)"; \
+		root_user="$$( $(LOCAL_KUBECTL) -n "$$ns" get secret "$$archive_secret" -o jsonpath='{.data.rootUser}' | base64 -d )"; \
+		root_pass="$$( $(LOCAL_KUBECTL) -n "$$ns" get secret "$$archive_secret" -o jsonpath='{.data.rootPassword}' | base64 -d )"; \
+		pf_log="$$(mktemp -t pulse-platform-minio-bucket-check.XXXXXX.log)"; \
+		$(LOCAL_KUBECTL) -n "$$ns" port-forward "svc/$(ARCHIVE_INTEGRATION_SERVICE)" "$(DR_MINIO_LOCAL_PORT):9000" >"$$pf_log" 2>&1 & \
+		pf_pid=$$!; \
+		cleanup_pf() { \
+			kill "$$pf_pid" >/dev/null 2>&1 || true; \
+			wait "$$pf_pid" >/dev/null 2>&1 || true; \
+		}; \
+		ready=0; \
+		for _ in {1..30}; do \
+			if ! kill -0 "$$pf_pid" >/dev/null 2>&1; then \
+				break; \
+			fi; \
+			if command -v nc >/dev/null 2>&1 && nc -z 127.0.0.1 "$(DR_MINIO_LOCAL_PORT)" >/dev/null 2>&1; then \
+				ready=1; \
+				break; \
+			fi; \
+			if command -v curl >/dev/null 2>&1 && curl --silent --fail --max-time 2 "http://127.0.0.1:$(DR_MINIO_LOCAL_PORT)/minio/health/live" >/dev/null 2>&1; then \
+				ready=1; \
+				break; \
+			fi; \
+			sleep 1; \
+		done; \
+		if [ "$$ready" -ne 1 ]; then \
+			echo "minio port-forward did not become ready; see $$pf_log"; \
+			cleanup_pf; \
+			exit 1; \
+		fi; \
+		echo "verifying MinIO bucket $(DR_ARCHIVE_BUCKET)"; \
+		$(DOCKER) run --rm \
+			--entrypoint /bin/sh \
+			-e DR_DOCKER_ENDPOINT="$(DR_MINIO_DOCKER_ENDPOINT)" \
+			-e DR_ROOT_USER="$$root_user" \
+			-e DR_ROOT_PASS="$$root_pass" \
+			-e DR_BUCKET="$(DR_ARCHIVE_BUCKET)" \
+			"$(DR_MINIO_MC_IMAGE)" \
+			-c 'set -e; mc alias set local "http://$$DR_DOCKER_ENDPOINT" "$$DR_ROOT_USER" "$$DR_ROOT_PASS" >/dev/null; mc ls "local/$$DR_BUCKET" >/dev/null'; \
+		cleanup_pf; \
+		rm -f "$$pf_log"; \
+	}; \
 	wait_nodes_ready; \
 	wait_rollout deployment $(PLATFORM_RELEASE)-cloudnative-pg 180s; \
 	wait_condition cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready $(WAIT_TIMEOUT); \
@@ -821,6 +869,7 @@ platform-wait:
 	wait_endpoints_required $(PLATFORM_RELEASE)-valkey 36 "Valkey service"; \
 	wait_endpoints_required $(PLATFORM_RELEASE)-minio 36 "MinIO service"; \
 	wait_endpoints_required $(PLATFORM_RELEASE)-keycloak-headless 36 "Keycloak service"; \
+	verify_minio_bucket; \
 	echo "platform dependencies are ready"
 	@set -euo pipefail; \
 	ns="$(PLATFORM_NAMESPACE)"; \
@@ -1203,6 +1252,94 @@ dev-deploy:
 	$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) logs deploy/pulse-platform-realtime-gateway --since=5m
 
+dev-archive-audit:
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	db_log=/tmp/pulse-archive-audit-db-portforward.log; \
+	minio_log=/tmp/pulse-archive-audit-minio-portforward.log; \
+	echo "starting postgres port-forward on 127.0.0.1:$(REGEN_DB_LOCAL_PORT) (log: $$db_log)"; \
+	$(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) port-forward svc/$(DB_MIGRATION_CLUSTER)-rw $(REGEN_DB_LOCAL_PORT):5432 >$$db_log 2>&1 & \
+	db_pid=$$!; \
+	echo "starting minio port-forward on 127.0.0.1:$(REGEN_MINIO_LOCAL_PORT) (log: $$minio_log)"; \
+	$(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) port-forward svc/$(ARCHIVE_INTEGRATION_SERVICE) $(REGEN_MINIO_LOCAL_PORT):9000 >$$minio_log 2>&1 & \
+	minio_pid=$$!; \
+	cleanup() { \
+		kill $$db_pid >/dev/null 2>&1 || true; \
+		kill $$minio_pid >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	sleep 2; \
+	if [ -n "$(REGEN_FROM)" ]; then \
+		from="$(REGEN_FROM)"; \
+	else \
+		from="$$(date -u -v-48H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '-48 hours' '+%Y-%m-%dT%H:%M:%SZ')"; \
+	fi; \
+	if [ -n "$(REGEN_TO)" ]; then \
+		to="$(REGEN_TO)"; \
+	else \
+		to="$$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; \
+	fi; \
+	db_user="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.username}' | base64 -d )"; \
+	db_pass="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.password}' | base64 -d )"; \
+	access_key="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootUser}' | base64 -d )"; \
+	secret_key="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootPassword}' | base64 -d )"; \
+	echo "auditing MinIO raw archive vs archive_object_manifest from $$from to $$to"; \
+	CONTROL_PLANE_DB_DSN="postgresql://$$db_user:$$db_pass@127.0.0.1:$(REGEN_DB_LOCAL_PORT)/$(DB_MIGRATION_DB)" \
+	ARCHIVE_OBJECT_ENDPOINT="127.0.0.1:$(REGEN_MINIO_LOCAL_PORT)" \
+	ARCHIVE_OBJECT_ACCESS_KEY="$$access_key" \
+	ARCHIVE_OBJECT_SECRET_KEY="$$secret_key" \
+	ARCHIVE_OBJECT_REGION="us-east-1" \
+	ARCHIVE_OBJECT_SECURE=false \
+	$(GO) run ./cmd/ecoflow-archive-audit -archive-bucket pulse-telemetry-raw -archive-prefix raw -from "$$from" -to "$$to" -max-objects $(REGEN_MAX_OBJECTS)
+
+dev-archive-reconcile:
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@set -euo pipefail; \
+	ctx="$(K3D_CONTEXT)"; \
+	db_log=/tmp/pulse-archive-reconcile-db-portforward.log; \
+	minio_log=/tmp/pulse-archive-reconcile-minio-portforward.log; \
+	echo "starting postgres port-forward on 127.0.0.1:$(REGEN_DB_LOCAL_PORT) (log: $$db_log)"; \
+	$(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) port-forward svc/$(DB_MIGRATION_CLUSTER)-rw $(REGEN_DB_LOCAL_PORT):5432 >$$db_log 2>&1 & \
+	db_pid=$$!; \
+	echo "starting minio port-forward on 127.0.0.1:$(REGEN_MINIO_LOCAL_PORT) (log: $$minio_log)"; \
+	$(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) port-forward svc/$(ARCHIVE_INTEGRATION_SERVICE) $(REGEN_MINIO_LOCAL_PORT):9000 >$$minio_log 2>&1 & \
+	minio_pid=$$!; \
+	cleanup() { \
+		kill $$db_pid >/dev/null 2>&1 || true; \
+		kill $$minio_pid >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	sleep 2; \
+	if [ -n "$(REGEN_FROM)" ]; then \
+		from="$(REGEN_FROM)"; \
+	else \
+		from="$$(date -u -v-48H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '-48 hours' '+%Y-%m-%dT%H:%M:%SZ')"; \
+	fi; \
+	if [ -n "$(REGEN_TO)" ]; then \
+		to="$(REGEN_TO)"; \
+	else \
+		to="$$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; \
+	fi; \
+	db_user="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.username}' | base64 -d )"; \
+	db_pass="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.password}' | base64 -d )"; \
+	access_key="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootUser}' | base64 -d )"; \
+	secret_key="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) get secret $(ARCHIVE_INTEGRATION_SECRET) -o jsonpath='{.data.rootPassword}' | base64 -d )"; \
+	echo "reconciling archive_object_manifest against MinIO raw archive from $$from to $$to"; \
+	CONTROL_PLANE_DB_DSN="postgresql://$$db_user:$$db_pass@127.0.0.1:$(REGEN_DB_LOCAL_PORT)/$(DB_MIGRATION_DB)" \
+	ARCHIVE_OBJECT_ENDPOINT="127.0.0.1:$(REGEN_MINIO_LOCAL_PORT)" \
+	ARCHIVE_OBJECT_ACCESS_KEY="$$access_key" \
+	ARCHIVE_OBJECT_SECRET_KEY="$$secret_key" \
+	ARCHIVE_OBJECT_REGION="us-east-1" \
+	ARCHIVE_OBJECT_SECURE=false \
+	$(GO) run ./cmd/ecoflow-archive-reconcile -apply -archive-bucket pulse-telemetry-raw -archive-prefix raw -from "$$from" -to "$$to" -max-objects $(REGEN_MAX_OBJECTS)
+
 dev-regen-data:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
 		echo "$(KUBECTL) not found. Install kubectl first."; \
@@ -1255,7 +1392,9 @@ dev-regen-data:
 	ARCHIVE_OBJECT_ENDPOINT="127.0.0.1:$(REGEN_MINIO_LOCAL_PORT)" \
 	ARCHIVE_OBJECT_ACCESS_KEY="$$access_key" \
 	ARCHIVE_OBJECT_SECRET_KEY="$$secret_key" \
-	sh -c "$(GO) run ./cmd/ecoflow-rollup-rebuild -from '$$from' -to '$$to' -max-objects $(REGEN_MAX_OBJECTS) $$device_args"; \
+	ARCHIVE_OBJECT_REGION="us-east-1" \
+	ARCHIVE_OBJECT_SECURE=false \
+	sh -c "$(GO) run ./cmd/ecoflow-rollup-rebuild -direct-archive -archive-bucket pulse-telemetry-raw -archive-prefix raw -from '$$from' -to '$$to' -max-objects $(REGEN_MAX_OBJECTS) $$device_args"; \
 	proof_sql="WITH bounds AS (SELECT '$$from'::timestamptz AS current_from, '$$to'::timestamptz AS current_to, ('$$to'::timestamptz - '$$from'::timestamptz) AS window_size), current_rows AS (SELECT provider_device_id, bucket_start, updated_at, COALESCE(solar_generated_wh, CASE WHEN COALESCE(pv_avg_w, 0) > 0 THEN pv_avg_w / 60.0 ELSE 0 END) AS derived_solar_generated_wh FROM telemetry_rollup_minute, bounds WHERE bucket_start >= bounds.current_from AND bucket_start < bounds.current_to), previous_rows AS (SELECT provider_device_id, COALESCE(solar_generated_wh, CASE WHEN COALESCE(pv_avg_w, 0) > 0 THEN pv_avg_w / 60.0 ELSE 0 END) AS derived_solar_generated_wh FROM telemetry_rollup_minute, bounds WHERE bucket_start >= bounds.current_from - bounds.window_size AND bucket_start < bounds.current_from), devices AS (SELECT provider_device_id FROM current_rows UNION SELECT provider_device_id FROM previous_rows) SELECT devices.provider_device_id || '|' || COALESCE(curr.touched_buckets, 0) || '|' || COALESCE(curr.total_buckets, 0) || '|' || COALESCE(curr.latest_bucket_utc, 'n/a') || '|' || ROUND(COALESCE(curr.current_wh, 0)::numeric, 2) || '|' || ROUND(COALESCE(prev.previous_wh, 0)::numeric, 2) || '|' || CASE WHEN COALESCE(prev.previous_wh, 0) > 0 THEN ROUND((((COALESCE(curr.current_wh, 0) - prev.previous_wh) / prev.previous_wh) * 100)::numeric, 2)::text ELSE 'n/a' END FROM devices LEFT JOIN (SELECT provider_device_id, COUNT(*) FILTER (WHERE updated_at >= '$$replay_started_at'::timestamptz) AS touched_buckets, COUNT(*) AS total_buckets, COALESCE(to_char(MAX(bucket_start) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), 'n/a') AS latest_bucket_utc, SUM(derived_solar_generated_wh) AS current_wh FROM current_rows GROUP BY provider_device_id) curr ON curr.provider_device_id = devices.provider_device_id LEFT JOIN (SELECT provider_device_id, SUM(derived_solar_generated_wh) AS previous_wh FROM previous_rows GROUP BY provider_device_id) prev ON prev.provider_device_id = devices.provider_device_id ORDER BY devices.provider_device_id;"; \
 	for attempt in $$(seq 1 30); do \
 		proof_rows="$$( $(KUBECTL) --context "$$ctx" -n $(PLATFORM_NAMESPACE) exec "$$primary" -- env PGPASSWORD="$$db_pass" psql -h "$(DB_MIGRATION_CLUSTER)-rw" -U "$$db_user" -d "$(DB_MIGRATION_DB)" -v ON_ERROR_STOP=1 -Atc "$$proof_sql" )"; \
@@ -1281,8 +1420,7 @@ db-migrate-up-local:
 	cluster="$(DB_MIGRATION_CLUSTER)"; \
 	secret="$(DB_MIGRATION_SECRET)"; \
 	db="$(DB_MIGRATION_DB)"; \
-	files="$$(find $(DB_MIGRATIONS_DIR) -maxdepth 1 -type f -name '*.up.sql' | sort)"; \
-	if [ -z "$$files" ]; then \
+	if ! find $(DB_MIGRATIONS_DIR) -maxdepth 1 -type f -name '*.up.sql' | grep -q .; then \
 		echo "no .up.sql files found in $(DB_MIGRATIONS_DIR)"; \
 		exit 1; \
 	fi; \
@@ -1293,11 +1431,33 @@ db-migrate-up-local:
 	fi; \
 	user="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.username}' | base64 -d)"; \
 	pass="$$(kubectl --context "$$ctx" -n "$$ns" get secret "$$secret" -o jsonpath='{.data.password}' | base64 -d)"; \
-	while IFS= read -r f; do \
-		[ -n "$$f" ] || continue; \
-		echo "applying $$f"; \
-		cat "$$f" | kubectl --context "$$ctx" -n "$$ns" exec -i "$$primary" -- env PGPASSWORD="$$pass" psql -h "$$cluster-rw" -U "$$user" -d "$$db" -v ON_ERROR_STOP=1 -f -; \
-	done <<< "$$files"
+	db_log="$$(mktemp)"; \
+	cleanup() { \
+		rc="$$?"; \
+		if [ -n "$${pf_pid:-}" ] && kill -0 "$$pf_pid" 2>/dev/null; then kill "$$pf_pid" 2>/dev/null || true; fi; \
+		rm -f "$$db_log"; \
+		exit "$$rc"; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	echo "starting postgres port-forward on 127.0.0.1:$(DB_MIGRATION_LOCAL_PORT) (log: $$db_log)"; \
+	$(KUBECTL) --context "$$ctx" -n "$$ns" port-forward svc/"$$cluster-rw" $(DB_MIGRATION_LOCAL_PORT):5432 >"$$db_log" 2>&1 & \
+	pf_pid="$$!"; \
+	for attempt in $$(seq 1 40); do \
+		if nc -z 127.0.0.1 $(DB_MIGRATION_LOCAL_PORT) >/dev/null 2>&1; then break; fi; \
+		sleep 1; \
+	done; \
+	if ! nc -z 127.0.0.1 $(DB_MIGRATION_LOCAL_PORT) >/dev/null 2>&1; then \
+		echo "postgres port-forward failed"; \
+		cat "$$db_log"; \
+		exit 1; \
+	fi; \
+	echo "running idempotent migration runner against $$cluster-rw (db=$$db user=$$user)"; \
+	CONTROL_PLANE_DB_DSN="postgresql://$$user:$$pass@127.0.0.1:$(DB_MIGRATION_LOCAL_PORT)/$$db?sslmode=disable" \
+	DB_MIGRATIONS_DIR="$(DB_MIGRATIONS_DIR)" \
+	DB_MIGRATION_ENVIRONMENT=local \
+	DB_MIGRATION_REQUIRE_BACKUP=false \
+	DB_MIGRATION_FORWARD_ONLY=true \
+	$(GO) run ./cmd/ecoflow-db-migrate-job
 
 db-migrate-down-local:
 	@set -euo pipefail; \

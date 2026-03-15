@@ -66,3 +66,35 @@ func TestLoadMigrationsLoadsAndSortsUpFilesOnly(t *testing.T) {
 		t.Fatalf("expected migration checksums to be populated")
 	}
 }
+
+func TestCanAttemptLocalLegacyAdoption(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.RolloutEnv = "local"
+	migration := Migration{Version: "000004_m3_rollups_hypertables_schema"}
+	if !canAttemptLocalLegacyAdoption(cfg, migration) {
+		t.Fatalf("expected local legacy rollup migration to be adoptable")
+	}
+
+	cfg.RolloutEnv = "dev"
+	if canAttemptLocalLegacyAdoption(cfg, migration) {
+		t.Fatalf("did not expect non-local rollout env to allow adoption")
+	}
+
+	cfg.RolloutEnv = "local"
+	migration.Version = "000005_m3_rollup_retention_policies"
+	if canAttemptLocalLegacyAdoption(cfg, migration) {
+		t.Fatalf("did not expect retention policy migration to allow adoption")
+	}
+
+	migration.Version = "000006_m3_rollup_zero_sample_solar_buckets"
+	if !canAttemptLocalLegacyAdoption(cfg, migration) {
+		t.Fatalf("expected zero-sample migration to allow local adoption")
+	}
+
+	migration.Version = "000009_m1_user_profile_preferences"
+	if !canAttemptLocalLegacyAdoption(cfg, migration) {
+		t.Fatalf("expected user-profile migration to allow local adoption")
+	}
+}

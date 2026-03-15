@@ -668,3 +668,41 @@ func TestEnrichSolarEnergyDerivesEnergyBucketsFromAveragePower(t *testing.T) {
 		t.Fatalf("coverage derived points mismatch: got=%d want=2", series.EnergyBucketCoverage.DerivedPointCount)
 	}
 }
+
+func TestEnrichSolarEnergyUsesObservedCoverageForSparseHourlyFallback(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, time.March, 14, 13, 0, 0, 0, time.UTC)
+	pv := 300.0
+	firstTs := from.Add(10 * time.Minute)
+	lastTs := from.Add(30 * time.Minute)
+	series := enrichSolarEnergy(Series{
+		DeviceID:   "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
+		Resolution: ResolutionHour,
+		From:       from,
+		To:         from.Add(time.Hour),
+		Points: []Point{
+			{
+				BucketStart:   from,
+				BucketEnd:     from.Add(time.Hour),
+				SampleCount:   3,
+				FirstTsUnixMs: firstTs.UnixMilli(),
+				LastTsUnixMs:  lastTs.UnixMilli(),
+				Metrics: Metrics{
+					PVAvgW: &pv,
+				},
+			},
+		},
+	})
+
+	if got := len(series.Points); got != 1 {
+		t.Fatalf("expected one point, got=%d", got)
+	}
+	if series.Points[0].Metrics.SolarGeneratedWh == nil {
+		t.Fatalf("expected derived solar_generated_wh")
+	}
+	want := 300.0 * ((20*time.Minute + time.Millisecond).Hours())
+	if got := *series.Points[0].Metrics.SolarGeneratedWh; got < want-0.001 || got > want+0.001 {
+		t.Fatalf("solar_generated_wh mismatch: got=%v want=%v", got, want)
+	}
+}

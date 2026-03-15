@@ -22,6 +22,7 @@ type Store interface {
 type PostgresStore struct {
 	db                       *sql.DB
 	nowFn                    func() time.Time
+	dedupInsertQuery         string
 	minuteUpsertQuery        string
 	hourUpsertQuery          string
 	dayUpsertQuery           string
@@ -82,6 +83,7 @@ func newPostgresStore(db *sql.DB) *PostgresStore {
 	return &PostgresStore{
 		db:                       db,
 		nowFn:                    time.Now,
+		dedupInsertQuery:         buildRollupDedupInsertQuery(),
 		minuteUpsertQuery:        buildUpsertQuery("telemetry_rollup_minute"),
 		hourUpsertQuery:          buildUpsertQuery("telemetry_rollup_hour"),
 		dayUpsertQuery:           buildUpsertQuery("telemetry_rollup_day"),
@@ -130,6 +132,15 @@ func (s *PostgresStore) ApplyEnvelope(ctx context.Context, env *envelopev1.Telem
 		_ = tx.Rollback()
 	}()
 
+	claimed, err := s.claimEnvelopeDedup(ctx, tx, env, sample, now)
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		s.integrationStateByDevice[stateKey] = advanceDuplicateIntegrationState(state, sample)
+		return nil
+	}
+
 	if err := s.execUpsert(ctx, tx, s.minuteUpsertQuery, &sampleForMetrics, minuteBucket, now); err != nil {
 		return err
 	}
@@ -150,6 +161,36 @@ func (s *PostgresStore) ApplyEnvelope(ctx context.Context, env *envelopev1.Telem
 	}
 	s.integrationStateByDevice[stateKey] = advanceIntegrationState(state, sample)
 	return nil
+}
+
+func (s *PostgresStore) claimEnvelopeDedup(ctx context.Context, tx *sql.Tx, env *envelopev1.TelemetryEnvelope, sample *RollupSample, now time.Time) (bool, error) {
+	if tx == nil || sample == nil {
+		return false, nil
+	}
+	dedupKey := rollupDedupKey(env)
+	if dedupKey == "" {
+		return true, nil
+	}
+	result, err := tx.ExecContext(
+		ctx,
+		s.dedupInsertQuery,
+		dedupKey,
+		nullableTrimmed(env.GetEnvelopeId()),
+		nullableTrimmed(env.GetMessageId()),
+		sample.Provider,
+		sample.ProviderDeviceID,
+		sample.DeviceID,
+		sample.EventTime.UTC(),
+		now,
+	)
+	if err != nil {
+		return false, fmt.Errorf("claim rollup envelope dedup: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("read rollup envelope dedup result: %w", err)
+	}
+	return rowsAffected > 0, nil
 }
 
 func (s *PostgresStore) execSolarUpserts(ctx context.Context, tx *sql.Tx, sample *RollupSample, state integrationState, now time.Time) error {
@@ -319,7 +360,7 @@ func advanceIntegrationState(state integrationState, sample *RollupSample) integ
 		state.lastEnvelopeAt = sample.EventTime
 		state.hasLastEnvelopeAt = true
 	}
-	if sample.Metrics.PV.Valid {
+	if sample.Metrics.PV.Valid && (!state.hasLastPVAt || !sample.EventTime.Before(state.lastPVAt)) {
 		state.lastPVAt = sample.EventTime
 		state.hasLastPVAt = true
 		if sample.Metrics.PV.Value > 0 {
@@ -339,8 +380,21 @@ func advanceIntegrationState(state integrationState, sample *RollupSample) integ
 	return state
 }
 
+func advanceDuplicateIntegrationState(state integrationState, sample *RollupSample) integrationState {
+	if sample == nil {
+		return state
+	}
+	if state.hasLastEnvelopeAt && !sample.EventTime.After(state.lastEnvelopeAt) {
+		return state
+	}
+	return advanceIntegrationState(state, sample)
+}
+
 func advancePowerChannelState(state powerChannelState, at time.Time, metric optionalFloat) powerChannelState {
 	if !metric.Valid {
+		return state
+	}
+	if state.hasLastAt && at.Before(state.lastAt) {
 		return state
 	}
 	state.lastAt = at
@@ -353,6 +407,14 @@ func advancePowerChannelState(state powerChannelState, at time.Time, metric opti
 		state.hasWatts = false
 	}
 	return state
+}
+
+func nullableTrimmed(value string) any {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return trimmed
 }
 
 func positiveOptionalFloat(metric optionalFloat) optionalFloat {
@@ -518,6 +580,20 @@ func buildUpsertQuery(table string) string {
 		maxExpr(table, "temp_max_c"),
 		sumExpr(table, "solar_generated_wh"),
 	)
+}
+
+func buildRollupDedupInsertQuery() string {
+	return `INSERT INTO telemetry_rollup_applied_envelopes (
+		dedup_key,
+		envelope_id,
+		message_id,
+		provider,
+		provider_device_id,
+		device_id,
+		event_time,
+		applied_at
+	) VALUES ($1, $2, $3, $4, $5, $6::uuid, $7, $8)
+	ON CONFLICT (dedup_key) DO NOTHING`
 }
 
 func buildSolarUpsertQuery(table string) string {
