@@ -80,6 +80,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Energy-impact UI must use measured solar generation for the displayed period only; do not annualize, extrapolate, or invent month/year/lifetime avoided-emissions values unless those real solar totals exist in the app.
 5. Avoided-emissions factors must be versioned in code/docs and clearly labeled in the UI when using a default or fallback region.
 6. When energy-impact UI mixes methodologies (for example marginal-grid avoided emissions and tree-equivalent lifecycle comparisons), label the distinction explicitly in both the widget detail text and the explainer screen.
+7. PV input handling must be cardinality-safe across the stack:
+   - do not hardcode assumptions that every device has exactly two PV inputs,
+   - support current EcoFlow field families with canonical numbered IDs (`pv-1` ... `pv-N`) and dual-MPPT aliases (`pv-low` / `pv-high`) where those legacy fields exist,
+   - keep history, realtime detail, REST detail, and UI matching logic aligned so one-port, two-port, and future multi-port devices all render correctly.
 
 ## Time Handling Rules
 1. Persisted/backend timestamps use UTC semantics; user-facing day/month/year periods use local calendar semantics unless a feature explicitly says otherwise.
@@ -182,8 +186,9 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - Node REST BFF/public app: `2` replicas,
    - WebSocket gateway: `2` replicas,
    - Go gRPC API: `3` replicas.
-5. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps:
-   - ingest, inference, projection, rollup, archive: `3` replicas each in local/dev defaults.
+5. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps, except for workers that currently rely on process-local integration state:
+   - ingest, inference, projection, archive: `3` replicas each in local/dev defaults.
+   - rollup must remain a singleton until per-device integration state is persisted or shard-affine consumption is implemented; queue-group fanout plus in-memory carry state is not accuracy-safe.
 6. Service rollouts must wait on the platform dependency endpoints they consume before applying/restarting workloads:
    - at minimum: CNPG rw service, NATS, Valkey, and MinIO.
 7. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.

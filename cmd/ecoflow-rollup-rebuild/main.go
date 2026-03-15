@@ -15,6 +15,7 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rolluprebuild"
+	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
@@ -82,6 +83,7 @@ func main() {
 		log.Error("invalid rebuild window", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	contextFromUnixMS, contextToUnixMS := expandRebuildContextWindow(fromUnixMS, toUnixMS)
 
 	writer, err := rolluprebuild.NewPostgresWriter(dbDSN)
 	if err != nil {
@@ -177,8 +179,8 @@ func main() {
 			},
 			strings.TrimSpace(archiveBucket),
 			strings.TrimSpace(archivePrefix),
-			time.UnixMilli(fromUnixMS).UTC(),
-			time.UnixMilli(toUnixMS).UTC(),
+			time.UnixMilli(contextFromUnixMS).UTC(),
+			time.UnixMilli(contextToUnixMS).UTC(),
 			maxObjects,
 		)
 		if listErr != nil {
@@ -189,16 +191,16 @@ func main() {
 	} else if len(deviceIDs) > 0 || len(providerDeviceIDs) > 0 {
 		report, err = runner.RebuildDevices(ctx, replaycli.DeviceQuery{
 			Provider:           strings.TrimSpace(provider),
-			FromUnixMS:         fromUnixMS,
-			ToUnixMS:           toUnixMS,
+			FromUnixMS:         contextFromUnixMS,
+			ToUnixMS:           contextToUnixMS,
 			DeviceIDs:          deviceIDs,
 			ProviderDeviceIDs:  providerDeviceIDs,
 			MaxObjectsReturned: maxObjects,
 		})
 	} else {
 		report, err = runner.RebuildFleet(ctx, replaycli.FleetQuery{
-			FromUnixMS:         fromUnixMS,
-			ToUnixMS:           toUnixMS,
+			FromUnixMS:         contextFromUnixMS,
+			ToUnixMS:           contextToUnixMS,
 			MaxObjectsReturned: maxObjects,
 		})
 	}
@@ -322,6 +324,14 @@ func parseTimeInput(raw string) (time.Time, error) {
 		return parsed.UTC(), nil
 	}
 	return time.Time{}, fmt.Errorf("unsupported time format: %s", raw)
+}
+
+func expandRebuildContextWindow(fromUnixMS, toUnixMS int64) (int64, int64) {
+	gapMillis := rollupworker.DefaultSolarCarryForwardMaxGap.Milliseconds()
+	if gapMillis <= 0 {
+		return fromUnixMS, toUnixMS
+	}
+	return fromUnixMS - gapMillis, toUnixMS + gapMillis
 }
 
 func isDigits(raw string) bool {

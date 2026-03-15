@@ -19,15 +19,15 @@ export function resolveLiveBatteryHeatingOn(
 }
 
 function defaultSolarPortName(id: string): string {
+  const numbered = id.trim().toLowerCase().match(/^pv[-_\s]?(\d+)$/);
+  if (numbered?.[1]) {
+    return `PV ${numbered[1]}`;
+  }
   switch (id) {
     case 'pv-low':
       return 'PV Low';
     case 'pv-high':
       return 'PV High';
-    case 'pv-1':
-      return 'PV 1';
-    case 'pv-2':
-      return 'PV 2';
     default:
       return id;
   }

@@ -250,18 +250,7 @@ func TestRunHeartbeatRenewsAndGracefullyDrains(t *testing.T) {
 		t.Fatalf("timed out waiting for heartbeat loop exit")
 	}
 
-	time.Sleep(50 * time.Millisecond)
-	leaseExists, err = existsKey(ctx, client, keys.Lease)
-	if err != nil {
-		t.Fatalf("existsKey lease error: %v", err)
-	}
-	sessionExists, err := existsKey(ctx, client, keys.Session)
-	if err != nil {
-		t.Fatalf("existsKey session error: %v", err)
-	}
-	if leaseExists || sessionExists {
-		t.Fatalf("expected lease/session deleted after graceful drain, lease=%v session=%v", leaseExists, sessionExists)
-	}
+	awaitKeysDeleted(t, ctx, client, keys.Lease, keys.Session)
 }
 
 func TestRunHeartbeatReleasesOnCancelWithoutDrain(t *testing.T) {
@@ -311,17 +300,7 @@ func TestRunHeartbeatReleasesOnCancelWithoutDrain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("KeysForRef error: %v", err)
 	}
-	leaseExists, err := existsKey(ctx, client, keys.Lease)
-	if err != nil {
-		t.Fatalf("existsKey lease error: %v", err)
-	}
-	sessionExists, err := existsKey(ctx, client, keys.Session)
-	if err != nil {
-		t.Fatalf("existsKey session error: %v", err)
-	}
-	if leaseExists || sessionExists {
-		t.Fatalf("expected lease/session deleted after cancel cleanup, lease=%v session=%v", leaseExists, sessionExists)
-	}
+	awaitKeysDeleted(t, ctx, client, keys.Lease, keys.Session)
 }
 
 func TestRunHeartbeatReacquiresOnMissingLeaseKey(t *testing.T) {
@@ -443,4 +422,27 @@ func existsKey(ctx context.Context, client valkey.Client, key string) (bool, err
 		return false, err
 	}
 	return count == 1, nil
+}
+
+func awaitKeysDeleted(t *testing.T, ctx context.Context, client valkey.Client, leaseKey string, sessionKey string) {
+	t.Helper()
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		leaseExists, leaseErr := existsKey(ctx, client, leaseKey)
+		sessionExists, sessionErr := existsKey(ctx, client, sessionKey)
+		if leaseErr == nil && sessionErr == nil && !leaseExists && !sessionExists {
+			return
+		}
+		if time.Now().After(deadline) {
+			if leaseErr != nil {
+				t.Fatalf("existsKey lease error: %v", leaseErr)
+			}
+			if sessionErr != nil {
+				t.Fatalf("existsKey session error: %v", sessionErr)
+			}
+			t.Fatalf("expected lease/session deleted, lease=%v session=%v", leaseExists, sessionExists)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }

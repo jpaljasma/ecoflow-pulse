@@ -3,6 +3,9 @@ package energydashboard
 import (
 	"encoding/json"
 	"math"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,11 +123,10 @@ func extractPVPortObservations(env *envelopev1.TelemetryEnvelope) ([]PVPortHisto
 		return nil, time.Time{}, false
 	}
 	observations := make([]PVPortHistory, 0, 2)
-	if low, ok := extractPVPortObservation(deviceID, "pv-low", "PV Low", payload.Params, "inLvMpptVol", "inLvMpptAmp", "pv1ChargeWatts", "inLvMpptPwr"); ok {
-		observations = append(observations, low)
-	}
-	if high, ok := extractPVPortObservation(deviceID, "pv-high", "PV High", payload.Params, "inHvMpptVol", "inHvMpptAmp", "pv2ChargeWatts", "inHvMpptPwr"); ok {
-		observations = append(observations, high)
+	for _, spec := range buildPVPortSpecs(payload.Params) {
+		if observation, ok := extractPVPortObservation(deviceID, spec.PortID, spec.PortLabel, payload.Params, spec.VoltsPrimaryKey, spec.VoltsFallbackKey, spec.AmpsPrimaryKey, spec.AmpsFallbackKey, spec.WattsKeys...); ok {
+			observations = append(observations, observation)
+		}
 	}
 	if len(observations) == 0 {
 		return nil, time.Time{}, false
@@ -132,14 +134,24 @@ func extractPVPortObservations(env *envelopev1.TelemetryEnvelope) ([]PVPortHisto
 	return observations, observedAt, true
 }
 
-func extractPVPortObservation(deviceID, portID, label string, params map[string]any, voltsKey, ampsKey, wattsKey, fallbackWattsKey string) (PVPortHistory, bool) {
-	volts, hasVolts := numberFromMap(params, voltsKey)
-	amps, hasAmps := numberFromMap(params, ampsKey)
-	watts, hasWatts := numberFromMap(params, wattsKey)
-	if !hasWatts {
-		watts, hasWatts = numberFromMap(params, fallbackWattsKey)
+func extractPVPortObservation(deviceID, portID, label string, params map[string]any, voltsPrimaryKey, voltsFallbackKey, ampsPrimaryKey, ampsFallbackKey string, wattsKeys ...string) (PVPortHistory, bool) {
+	volts, hasVolts := numberFromMap(params, voltsPrimaryKey)
+	if !hasVolts {
+		volts, hasVolts = numberFromMap(params, voltsFallbackKey)
 	}
-	if !hasWatts && hasVolts && hasAmps {
+	amps, hasAmps := numberFromMap(params, ampsPrimaryKey)
+	if !hasAmps {
+		amps, hasAmps = numberFromMap(params, ampsFallbackKey)
+	}
+	var watts float64
+	hasWatts := false
+	for _, key := range wattsKeys {
+		watts, hasWatts = numberFromMap(params, key)
+		if hasWatts {
+			break
+		}
+	}
+	if (!hasWatts || watts <= 0) && hasVolts && hasAmps {
 		watts = volts * amps
 		hasWatts = true
 	}
@@ -154,6 +166,92 @@ func extractPVPortObservation(deviceID, portID, label string, params map[string]
 		LastObservedAmps:  clampFinite(amps),
 		LastObservedWatts: clampFinite(watts),
 	}, true
+}
+
+type pvPortSpec struct {
+	PortID           string
+	PortLabel        string
+	VoltsPrimaryKey  string
+	VoltsFallbackKey string
+	AmpsPrimaryKey   string
+	AmpsFallbackKey  string
+	WattsKeys        []string
+}
+
+var numberedPVPortPattern = regexp.MustCompile(`^pv(\d+)(InVol|InAmp|ChargeWatts|InWatts|ChgState)$`)
+
+func buildPVPortSpecs(params map[string]any) []pvPortSpec {
+	if hasAnyPVPortKey(params, "inLvMpptVol", "inLvMpptAmp", "inLvMpptPwr", "inHvMpptVol", "inHvMpptAmp", "inHvMpptPwr") {
+		return []pvPortSpec{
+			{
+				PortID:           "pv-low",
+				PortLabel:        "PV Low",
+				VoltsPrimaryKey:  "inLvMpptVol",
+				VoltsFallbackKey: "inVol",
+				AmpsPrimaryKey:   "inLvMpptAmp",
+				AmpsFallbackKey:  "inAmp",
+				WattsKeys:        []string{"pv1ChargeWatts", "outWatts", "inLvMpptPwr", "inWatts"},
+			},
+			{
+				PortID:           "pv-high",
+				PortLabel:        "PV High",
+				VoltsPrimaryKey:  "inHvMpptVol",
+				VoltsFallbackKey: "pv2InVol",
+				AmpsPrimaryKey:   "inHvMpptAmp",
+				AmpsFallbackKey:  "pv2InAmp",
+				WattsKeys:        []string{"pv2ChargeWatts", "inHvMpptPwr", "pv2InWatts"},
+			},
+		}
+	}
+
+	numberedPorts := map[int]struct{}{1: {}}
+	for key := range params {
+		matches := numberedPVPortPattern.FindStringSubmatch(strings.TrimSpace(key))
+		if len(matches) != 3 {
+			continue
+		}
+		index, err := strconv.Atoi(matches[1])
+		if err != nil || index <= 0 {
+			continue
+		}
+		numberedPorts[index] = struct{}{}
+	}
+	indexes := make([]int, 0, len(numberedPorts))
+	for index := range numberedPorts {
+		indexes = append(indexes, index)
+	}
+	sort.Ints(indexes)
+
+	specs := make([]pvPortSpec, 0, len(indexes))
+	for _, index := range indexes {
+		spec := pvPortSpec{
+			PortID:    "pv-" + strconv.Itoa(index),
+			PortLabel: "PV " + strconv.Itoa(index),
+		}
+		if index == 1 {
+			spec.VoltsPrimaryKey = "inVol"
+			spec.VoltsFallbackKey = "pv1InVol"
+			spec.AmpsPrimaryKey = "inAmp"
+			spec.AmpsFallbackKey = "pv1InAmp"
+			spec.WattsKeys = []string{"pv1ChargeWatts", "outWatts", "inWatts", "pv1InWatts"}
+		} else {
+			prefix := "pv" + strconv.Itoa(index)
+			spec.VoltsPrimaryKey = prefix + "InVol"
+			spec.AmpsPrimaryKey = prefix + "InAmp"
+			spec.WattsKeys = []string{prefix + "ChargeWatts", prefix + "InWatts"}
+		}
+		specs = append(specs, spec)
+	}
+	return specs
+}
+
+func hasAnyPVPortKey(params map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if _, ok := params[strings.TrimSpace(key)]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func numberFromMap(values map[string]any, key string) (float64, bool) {

@@ -48,6 +48,7 @@ const D2M_SOLAR_HINT_KEYS = [
   'params.chgState',
   'params.pv2ChgState'
 ] as const;
+const NUMBERED_SOLAR_PORT_FIELD = /^params\.pv(\d+)(InVol|InAmp|ChargeWatts|InWatts|ChgState)$/;
 
 export function mergeRawMetrics(
   current: RawTelemetryMetrics,
@@ -404,7 +405,7 @@ function deriveBatteryHeatingOn(raw: RawTelemetryMetrics): boolean | undefined {
 function deriveSolarPorts(raw: RawTelemetryMetrics): DerivedTelemetrySolarPort[] {
   const d2mHints = hasAnyMetric(raw, ...D2M_SOLAR_HINT_KEYS);
   if (d2mHints) {
-    return [deriveD2MSolarPortLow(raw), deriveD2MSolarPortHigh(raw)].filter(hasSolarPortData);
+    return deriveNumberedSolarPorts(raw).filter(hasSolarPortData);
   }
 
   const dpuHints = hasAnyMetric(
@@ -423,48 +424,59 @@ function deriveSolarPorts(raw: RawTelemetryMetrics): DerivedTelemetrySolarPort[]
   return [];
 }
 
-function deriveD2MSolarPortLow(raw: RawTelemetryMetrics): DerivedTelemetrySolarPort {
-  const volts = normalizeMillivolts(firstNumber(raw, 'params.inVol', 'params.inLvMpptVol'), 60);
-  const amps = normalizeMilliamps(firstNumber(raw, 'params.inAmp', 'params.inLvMpptAmp'), 15);
-  const watts = sanitizeSolarWatts(
-    firstDefined(
-      firstNumber(raw, 'params.pv1ChargeWatts', 'params.outWatts', 'params.inLvMpptPwr'),
-      multiplyNumbers(volts, amps)
-    ),
-    500
-  );
-  const rawState = firstNumber(raw, 'params.chgState');
+function deriveNumberedSolarPorts(raw: RawTelemetryMetrics): DerivedTelemetrySolarPort[] {
+  return collectNumberedSolarPortIndexes(raw).map((index) => {
+    const prefix = `params.pv${index}`;
+    const volts =
+      index === 1
+        ? normalizeMillivolts(firstNumber(raw, 'params.inVol', 'params.pv1InVol', 'params.inLvMpptVol'), 60)
+        : normalizeMillivolts(firstNumber(raw, `${prefix}InVol`), 60);
+    const amps =
+      index === 1
+        ? normalizeMilliamps(firstNumber(raw, 'params.inAmp', 'params.pv1InAmp', 'params.inLvMpptAmp'), 15)
+        : normalizeMilliamps(firstNumber(raw, `${prefix}InAmp`), 15);
+    const watts = sanitizeSolarWatts(
+      index === 1
+        ? firstDefined(
+            firstNumber(raw, 'params.pv1ChargeWatts', 'params.outWatts', 'params.inWatts', 'params.pv1InWatts', 'params.inLvMpptPwr'),
+            multiplyNumbers(volts, amps)
+          )
+        : firstDefined(
+            firstNumber(raw, `${prefix}ChargeWatts`, `${prefix}InWatts`),
+            multiplyNumbers(volts, amps)
+          ),
+      500
+    );
+    const rawState =
+      index === 1 ? firstNumber(raw, 'params.chgState', 'params.pv1ChgState') : firstNumber(raw, `${prefix}ChgState`);
 
-  return {
-    id: 'pv-1',
-    name: 'PV 1',
-    state: deriveSolarPortState(rawState, volts, watts, amps),
-    volts,
-    amps,
-    watts: normalizeSolarPortWatts(watts, amps, rawState)
-  };
+    return {
+      id: `pv-${index}`,
+      name: `PV ${index}`,
+      state: deriveSolarPortState(rawState, volts, watts, amps),
+      volts,
+      amps,
+      watts: normalizeSolarPortWatts(watts, amps, rawState)
+    };
+  });
 }
 
-function deriveD2MSolarPortHigh(raw: RawTelemetryMetrics): DerivedTelemetrySolarPort {
-  const volts = normalizeMillivolts(firstNumber(raw, 'params.pv2InVol', 'params.inHvMpptVol'), 60);
-  const amps = normalizeMilliamps(firstNumber(raw, 'params.pv2InAmp', 'params.inHvMpptAmp'), 15);
-  const watts = sanitizeSolarWatts(
-    firstDefined(
-      firstNumber(raw, 'params.pv2ChargeWatts', 'params.pv2InWatts', 'params.inHvMpptPwr'),
-      multiplyNumbers(volts, amps)
-    ),
-    500
-  );
-  const rawState = firstNumber(raw, 'params.pv2ChgState');
-
-  return {
-    id: 'pv-2',
-    name: 'PV 2',
-    state: deriveSolarPortState(rawState, volts, watts, amps),
-    volts,
-    amps,
-    watts: normalizeSolarPortWatts(watts, amps, rawState)
-  };
+function collectNumberedSolarPortIndexes(raw: RawTelemetryMetrics): number[] {
+  const indexes = new Set<number>([1]);
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === undefined) {
+      continue;
+    }
+    const matches = NUMBERED_SOLAR_PORT_FIELD.exec(key);
+    if (!matches) {
+      continue;
+    }
+    const index = Number(matches[1]);
+    if (Number.isInteger(index) && index > 0) {
+      indexes.add(index);
+    }
+  }
+  return [...indexes].sort((left, right) => left - right);
 }
 
 function deriveDpuSolarPortLow(raw: RawTelemetryMetrics): DerivedTelemetrySolarPort {

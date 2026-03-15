@@ -12,6 +12,7 @@ import (
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
+	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
 	"github.com/klauspost/compress/zstd"
 	"google.golang.org/protobuf/proto"
 )
@@ -177,6 +178,354 @@ func TestProcessObjectGroupDedupesDuplicateEnvelopesDuringRebuild(t *testing.T) 
 	}
 }
 
+func TestOrderObjectsForRebuildPreservesCrossShardSolarContinuity(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, time.March, 15, 13, 29, 0, 0, time.UTC)
+	objects := []replaycli.ManifestObject{
+		{
+			ObjectBucket: "pulse-telemetry-raw",
+			ObjectKey:    "raw/yyyy=2026/mm=03/dd=15/hh=13/shard=043/part-00002.pb.zst",
+			Shard:        43,
+			TSMinUnixMS:  base.Add(5 * time.Minute).UnixMilli(),
+			TSMaxUnixMS:  base.Add(10 * time.Minute).UnixMilli(),
+		},
+		{
+			ObjectBucket: "pulse-telemetry-raw",
+			ObjectKey:    "raw/yyyy=2026/mm=03/dd=15/hh=13/shard=039/part-00001.pb.zst",
+			Shard:        39,
+			TSMinUnixMS:  base.UnixMilli(),
+			TSMaxUnixMS:  base.Add(5 * time.Minute).UnixMilli(),
+		},
+	}
+
+	got := orderObjectsForRebuild(objects)
+	if len(got) != 2 {
+		t.Fatalf("ordered object count = %d, want 2", len(got))
+	}
+	if got[0].ObjectKey != objects[1].ObjectKey {
+		t.Fatalf("first object = %s, want earliest object %s", got[0].ObjectKey, objects[1].ObjectKey)
+	}
+	if got[1].ObjectKey != objects[0].ObjectKey {
+		t.Fatalf("second object = %s, want latest object %s", got[1].ObjectKey, objects[0].ObjectKey)
+	}
+}
+
+func TestProcessObjectGroupCarriesSolarAcrossArchiveObjectBoundaries(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, time.March, 15, 13, 29, 30, 0, time.UTC)
+	deviceID := "019cec1d-9a84-7e55-8018-27353cbc79da"
+	envA := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-a",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "Y711ZABA9H2P0294",
+		MessageId:          "msg-a",
+		ObservedTimeUnixMs: base.UnixMilli(),
+		DeviceTimeUnixMs:   base.UnixMilli(),
+		IngestedTimeUnixMs: base.UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "ecoflow",
+			"provider_device_id": "Y711ZABA9H2P0294",
+		},
+		Payload:         []byte(`{"params":{"inLvMpptPwr":240}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+	})
+	envB := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-b",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "Y711ZABA9H2P0294",
+		MessageId:          "msg-b",
+		ObservedTimeUnixMs: base.Add(10 * time.Minute).UnixMilli(),
+		DeviceTimeUnixMs:   base.Add(10 * time.Minute).UnixMilli(),
+		IngestedTimeUnixMs: base.Add(10 * time.Minute).UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "ecoflow",
+			"provider_device_id": "Y711ZABA9H2P0294",
+		},
+		Payload:         []byte(`{"params":{"wattsOutSum":10}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+	})
+
+	objects := orderObjectsForRebuild([]replaycli.ManifestObject{
+		{
+			ObjectBucket:      "pulse-telemetry-raw",
+			ObjectKey:         "raw/yyyy=2026/mm=03/dd=15/hh=13/shard=043/part-00002.pb.zst",
+			Provider:          "ecoflow",
+			ProviderDeviceIDs: []string{"Y711ZABA9H2P0294"},
+			Shard:             43,
+			TSMinUnixMS:       envBObserved(envB),
+			TSMaxUnixMS:       envBObserved(envB),
+		},
+		{
+			ObjectBucket:      "pulse-telemetry-raw",
+			ObjectKey:         "raw/yyyy=2026/mm=03/dd=15/hh=13/shard=039/part-00001.pb.zst",
+			Provider:          "ecoflow",
+			ProviderDeviceIDs: []string{"Y711ZABA9H2P0294"},
+			Shard:             39,
+			TSMinUnixMS:       envBObserved(envA),
+			TSMaxUnixMS:       envBObserved(envA),
+		},
+	})
+	reader := &runnerTestObjectReader{
+		bodiesByObjectKey: map[string][]byte{
+			objects[0].ObjectKey: encodeRebuildFrames(t, envA),
+			objects[1].ObjectKey: encodeRebuildFrames(t, envB),
+		},
+	}
+	runner, err := NewRunner(nil, &runnerTestManifestStore{}, reader, &PostgresWriter{}, 100, 1)
+	if err != nil {
+		t.Fatalf("NewRunner failed: %v", err)
+	}
+
+	var objectsProcessed atomic.Int64
+	var missingObjects atomic.Int64
+	var messagesDecoded atomic.Int64
+	var messagesApplied atomic.Int64
+	var quotaMessages atomic.Int64
+
+	result := runner.processObjectGroup(
+		context.Background(),
+		objects,
+		&objectsProcessed,
+		&missingObjects,
+		len(objects),
+		&messagesDecoded,
+		&messagesApplied,
+		&quotaMessages,
+		base.Add(10*time.Minute).UnixMilli(),
+	)
+	if result.err != nil {
+		t.Fatalf("processObjectGroup failed: %v", result.err)
+	}
+	if len(result.minuteRows) == 0 {
+		t.Fatalf("expected minute rows from cross-object replay")
+	}
+	var found bool
+	for _, row := range result.minuteRows {
+		if row.BucketStart.Equal(time.Date(2026, time.March, 15, 13, 39, 0, 0, time.UTC)) {
+			found = true
+			if row.SolarGeneratedWh <= 0 {
+				t.Fatalf("expected carried solar_generated_wh in %s, got %v", row.BucketStart.Format(time.RFC3339), row.SolarGeneratedWh)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected minute row for carried solar bucket")
+	}
+}
+
+func TestProcessObjectGroupDoesNotSynthesizeTailBucketsWithoutLookaheadSample(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, time.March, 15, 13, 29, 30, 0, time.UTC)
+	deviceID := "019cec1d-9a84-7e55-8018-27353cbc79da"
+	env := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-tail",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "Y711ZABA9H2P0294",
+		MessageId:          "msg-tail",
+		ObservedTimeUnixMs: base.UnixMilli(),
+		DeviceTimeUnixMs:   base.UnixMilli(),
+		IngestedTimeUnixMs: base.UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "ecoflow",
+			"provider_device_id": "Y711ZABA9H2P0294",
+		},
+		Payload:         []byte(`{"params":{"inLvMpptPwr":240}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+	})
+
+	runner, err := NewRunner(
+		nil,
+		&runnerTestManifestStore{},
+		&runnerTestObjectReader{body: encodeRebuildFrames(t, env)},
+		&PostgresWriter{},
+		100,
+		1,
+	)
+	if err != nil {
+		t.Fatalf("NewRunner failed: %v", err)
+	}
+
+	var objectsProcessed atomic.Int64
+	var missingObjects atomic.Int64
+	var messagesDecoded atomic.Int64
+	var messagesApplied atomic.Int64
+	var quotaMessages atomic.Int64
+
+	result := runner.processObjectGroup(
+		context.Background(),
+		[]replaycli.ManifestObject{{
+			ObjectBucket:      "pulse-telemetry-raw",
+			ObjectKey:         "raw/yyyy=2026/mm=03/dd=15/hh=13/shard=039/part-00001.pb.zst",
+			Provider:          "ecoflow",
+			ProviderDeviceIDs: []string{"Y711ZABA9H2P0294"},
+			Shard:             39,
+			TSMinUnixMS:       base.UnixMilli(),
+			TSMaxUnixMS:       base.UnixMilli(),
+		}},
+		&objectsProcessed,
+		&missingObjects,
+		1,
+		&messagesDecoded,
+		&messagesApplied,
+		&quotaMessages,
+		base.Add(10*time.Minute).UnixMilli(),
+	)
+	if result.err != nil {
+		t.Fatalf("processObjectGroup failed: %v", result.err)
+	}
+	if len(result.minuteRows) != 1 {
+		t.Fatalf("expected only the real sample bucket, got %d rows", len(result.minuteRows))
+	}
+	if !result.minuteRows[0].BucketStart.Equal(time.Date(2026, time.March, 15, 13, 29, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected bucket start: %s", result.minuteRows[0].BucketStart.Format(time.RFC3339))
+	}
+}
+
+func TestProcessObjectGroupSortsOverlappingObjectSamplesByIngestedArrival(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, time.March, 15, 13, 29, 30, 0, time.UTC)
+	deviceID := "019cec1d-9a84-7e55-8018-27353cbc79da"
+	late := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-late",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "Y711ZABA9H2P0294",
+		MessageId:          "msg-late",
+		ObservedTimeUnixMs: base.Add(10 * time.Minute).UnixMilli(),
+		DeviceTimeUnixMs:   base.Add(10 * time.Minute).UnixMilli(),
+		IngestedTimeUnixMs: base.Add(10 * time.Minute).UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "ecoflow",
+			"provider_device_id": "Y711ZABA9H2P0294",
+		},
+		Payload:         []byte(`{"params":{"wattsOutSum":10}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+	})
+	early := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-early",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "Y711ZABA9H2P0294",
+		MessageId:          "msg-early",
+		ObservedTimeUnixMs: base.UnixMilli(),
+		DeviceTimeUnixMs:   base.UnixMilli(),
+		IngestedTimeUnixMs: base.UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "ecoflow",
+			"provider_device_id": "Y711ZABA9H2P0294",
+		},
+		Payload:         []byte(`{"params":{"inLvMpptPwr":240}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+	})
+
+	objects := []replaycli.ManifestObject{
+		{
+			ObjectBucket:      "pulse-telemetry-raw",
+			ObjectKey:         "raw/yyyy=2026/mm=03/dd=15/hh=13/shard=039/part-00001.pb.zst",
+			Provider:          "ecoflow",
+			ProviderDeviceIDs: []string{"Y711ZABA9H2P0294"},
+			Shard:             39,
+			TSMinUnixMS:       base.UnixMilli(),
+			TSMaxUnixMS:       base.Add(10 * time.Minute).UnixMilli(),
+		},
+		{
+			ObjectBucket:      "pulse-telemetry-raw",
+			ObjectKey:         "raw/yyyy=2026/mm=03/dd=15/hh=13/shard=043/part-00002.pb.zst",
+			Provider:          "ecoflow",
+			ProviderDeviceIDs: []string{"Y711ZABA9H2P0294"},
+			Shard:             43,
+			TSMinUnixMS:       base.Add(time.Minute).UnixMilli(),
+			TSMaxUnixMS:       base.Add(10 * time.Minute).UnixMilli(),
+		},
+	}
+	reader := &runnerTestObjectReader{
+		bodiesByObjectKey: map[string][]byte{
+			objects[0].ObjectKey: encodeRebuildFrames(t, late),
+			objects[1].ObjectKey: encodeRebuildFrames(t, early),
+		},
+	}
+	runner, err := NewRunner(nil, &runnerTestManifestStore{}, reader, &PostgresWriter{}, 100, 1)
+	if err != nil {
+		t.Fatalf("NewRunner failed: %v", err)
+	}
+
+	var objectsProcessed atomic.Int64
+	var missingObjects atomic.Int64
+	var messagesDecoded atomic.Int64
+	var messagesApplied atomic.Int64
+	var quotaMessages atomic.Int64
+
+	result := runner.processObjectGroup(
+		context.Background(),
+		objects,
+		&objectsProcessed,
+		&missingObjects,
+		len(objects),
+		&messagesDecoded,
+		&messagesApplied,
+		&quotaMessages,
+		base.Add(10*time.Minute).UnixMilli(),
+	)
+	if result.err != nil {
+		t.Fatalf("processObjectGroup failed: %v", result.err)
+	}
+	var found bool
+	for _, row := range result.minuteRows {
+		if row.BucketStart.Equal(time.Date(2026, time.March, 15, 13, 39, 0, 0, time.UTC)) {
+			found = true
+			if row.SolarGeneratedWh <= 0 {
+				t.Fatalf("expected overlapping objects to preserve carried solar in %s, got %v", row.BucketStart.Format(time.RFC3339), row.SolarGeneratedWh)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected minute row for overlapping-object carried solar bucket")
+	}
+}
+
+func TestRebuildSampleLessUsesIngestedArrivalOrderBeforeObservedTime(t *testing.T) {
+	t.Parallel()
+
+	left := &rollupworker.RollupSample{
+		Provider:         "ecoflow",
+		ProviderDeviceID: "Y711ZABA9H2P0294",
+		DeviceID:         "019cec1d-9a84-7e55-8018-27353cbc79da",
+		EventUnixMs:      1000,
+		IngestedUnixMs:   2000,
+	}
+	right := &rollupworker.RollupSample{
+		Provider:         "ecoflow",
+		ProviderDeviceID: "Y711ZABA9H2P0294",
+		DeviceID:         "019cec1d-9a84-7e55-8018-27353cbc79da",
+		EventUnixMs:      2000,
+		IngestedUnixMs:   1000,
+	}
+
+	if !rebuildSampleLess(right, left) {
+		t.Fatalf("expected earlier ingested sample to sort first")
+	}
+	if rebuildSampleLess(left, right) {
+		t.Fatalf("did not expect later ingested sample to sort first")
+	}
+}
+
 type runnerTestManifestStore struct {
 	deviceObjects []replaycli.ManifestObject
 }
@@ -194,12 +543,20 @@ func (f *runnerTestManifestStore) Close() error {
 }
 
 type runnerTestObjectReader struct {
-	err  error
-	body []byte
+	err               error
+	body              []byte
+	bodiesByObjectKey map[string][]byte
 }
 
-func (f *runnerTestObjectReader) ReadObject(_ context.Context, _, _ string) ([]byte, error) {
+func (f *runnerTestObjectReader) ReadObject(_ context.Context, _, key string) ([]byte, error) {
 	if f.err == nil {
+		if len(f.bodiesByObjectKey) > 0 {
+			body, ok := f.bodiesByObjectKey[key]
+			if !ok {
+				return nil, errors.New("object body not found for key")
+			}
+			return append([]byte(nil), body...), nil
+		}
 		return append([]byte(nil), f.body...), nil
 	}
 	return nil, f.err
@@ -216,6 +573,14 @@ func testEnvelopeFrame(t *testing.T, env *envelopev1.TelemetryEnvelope) []byte {
 		t.Fatalf("marshal envelope: %v", err)
 	}
 	return frame
+}
+
+func envBObserved(frame []byte) int64 {
+	var env envelopev1.TelemetryEnvelope
+	if err := proto.Unmarshal(frame, &env); err != nil {
+		return 0
+	}
+	return env.GetObservedTimeUnixMs()
 }
 
 func encodeRebuildFrames(t *testing.T, frames ...[]byte) []byte {

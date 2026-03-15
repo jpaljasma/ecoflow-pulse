@@ -345,6 +345,53 @@ describe('provider device mapper', () => {
     );
   });
 
+  it('derives numbered D2M solar ports dynamically for future multi-port models', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        deviceId: '019ca747-3923-7d05-ac88-090bb4c7b564',
+        providerDeviceId: 'DEMOD2M00001058',
+        canonicalSn: 'DEMOD2M00001058',
+        productName: 'Delta 2 Max Future',
+        model: 'DELTA 2 Max',
+        capabilities: {
+          battery_pack_count: 2,
+          supports_ac_output: true
+        },
+        metadata: {
+          groups: {
+            pd: {
+              pv3ChargeWatts: 155
+            },
+            mppt: {
+              inVol: 16400,
+              inAmp: 5000,
+              outWatts: 82,
+              chgState: 2,
+              pv2InVol: 40900,
+              pv2InAmp: 5180,
+              pv2ChargeWatts: 212,
+              pv2ChgState: 1,
+              pv3InVol: 38100,
+              pv3InAmp: 4070,
+              pv3ChgState: 2
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.capabilities).toEqual(
+      expect.objectContaining({
+        pvInputCount: 3
+      })
+    );
+    expect(presentation.details?.solarPorts).toEqual([
+      expect.objectContaining({ id: 'pv-1', name: 'PV 1', watts: 82 }),
+      expect.objectContaining({ id: 'pv-2', name: 'PV 2', watts: 212 }),
+      expect.objectContaining({ id: 'pv-3', name: 'PV 3', watts: 155 })
+    ]);
+  });
+
   it('maps Delta 2 quota metadata into capabilities and details', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({

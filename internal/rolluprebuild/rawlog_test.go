@@ -59,7 +59,6 @@ func TestCollectRawLogEventsFeedsAuthoritativeSolarAggregation(t *testing.T) {
 	for _, event := range events {
 		agg.ApplySample(event.sample)
 	}
-	agg.Finalize(time.Date(2026, time.March, 6, 12, 2, 0, 0, time.UTC))
 	rows := agg.Rows(ResolutionMinute)
 	if len(rows) != 2 {
 		t.Fatalf("minute row count mismatch: got=%d want=2", len(rows))
@@ -67,8 +66,8 @@ func TestCollectRawLogEventsFeedsAuthoritativeSolarAggregation(t *testing.T) {
 	if rows[0].SolarGeneratedWh != 1 {
 		t.Fatalf("first minute solar mismatch: got=%f want=1", rows[0].SolarGeneratedWh)
 	}
-	if rows[1].SolarGeneratedWh != 1.25 {
-		t.Fatalf("second minute solar mismatch: got=%f want=1.25", rows[1].SolarGeneratedWh)
+	if rows[1].SolarGeneratedWh != 0.5 {
+		t.Fatalf("second minute solar mismatch: got=%f want=0.5", rows[1].SolarGeneratedWh)
 	}
 	if report.MessagesDecoded != 2 {
 		t.Fatalf("decoded message count mismatch: got=%d want=2", report.MessagesDecoded)

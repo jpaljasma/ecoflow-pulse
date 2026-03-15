@@ -11,6 +11,7 @@ import {
 } from '@/features/history/solar';
 import { formatW, formatWhAndKWh } from '@/features/telemetry/format';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+import { formatSolarLegendDelta } from '@/shared/ui/solarLegend';
 
 const CHART_HEIGHT = 170;
 const WEB_CHART_HEIGHT = 210;
@@ -240,15 +241,6 @@ function buildDashedSkiaPath(points: Point[], dashLength = 4, gapLength = 6) {
   return path;
 }
 
-function formatLegendDelta(deltaPct: number | null | undefined): string {
-  if (deltaPct === null || deltaPct === undefined || !Number.isFinite(deltaPct)) {
-    return '';
-  }
-  const rounded = Math.round(deltaPct);
-  const sign = rounded > 0 ? '+' : '';
-  return ` (${sign}${rounded}%)`;
-}
-
 function LegendLine({ color, dotted = false }: { color: string; dotted?: boolean }) {
   return (
     <View
@@ -429,7 +421,7 @@ export function SolarGeneratedChart({
     [seriesW, yesterdaySeriesW]
   );
   const yAxisLabels = useMemo(() => [maxVal, maxVal / 2, 0], [maxVal]);
-  const legendToday = `${formatWhAndKWh(todayWh)}${formatLegendDelta(deltaPct)}`;
+  const legendToday = `${formatWhAndKWh(todayWh)}${formatSolarLegendDelta(todayWh, yesterdayWh, deltaPct)}`;
   const legendYesterday = formatWhAndKWh(yesterdayWh);
 
   if (Platform.OS === 'web') {

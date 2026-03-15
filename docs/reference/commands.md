@@ -286,6 +286,11 @@ NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-rollup-worker
 ```
 
+Accuracy note:
+- the live rollup worker currently keeps per-device solar/energy carry state in
+  process memory, so correctness requires a singleton live consumer until
+  shard-affine consumption or persisted integration state is implemented.
+
 Run archive worker loop (consume ingest envelopes from JetStream and write protobuf+zstd objects to MinIO-compatible storage):
 
 ```bash
@@ -1015,6 +1020,8 @@ Notes:
   frames cannot silently inflate replayed rollups.
   It does not delete the requested range first; rebuilt rows are written back in
   bounded transactional chunks so charts do not go empty during regeneration.
+  Replay ordering is now based on `ingested_time_unix_ms` (arrival order), with
+  event time used only for bucket placement/tie-breaks.
   The rebuild now repopulates explicit energy bucket columns alongside the
   existing power/SOC/temp fields, so it is the supported local/dev backfill path
   for ADR-0018 historical coverage after migration.

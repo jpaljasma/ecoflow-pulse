@@ -56,6 +56,7 @@ export type ProviderDevicePresentation = {
 };
 
 type GenericRecord = Record<string, unknown>;
+const NUMBERED_PV_PORT_FIELD = /^pv(\d+)(InVol|InAmp|ChargeWatts|InWatts|ChgState)$/;
 
 export function buildProviderDevicePresentation(device: ProviderDevice): ProviderDevicePresentation {
   const serialNumber = device.canonicalSn || device.providerDeviceId;
@@ -285,43 +286,19 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     });
   }
 
-  const pv1Volts = normalizeMillivolts(mppt.inVol, 60);
-  const pv1Amps = normalizeMilliamps(mppt.inAmp, 15);
-  const pv2Volts = normalizeMillivolts(mppt.pv2InVol, 60);
-  const pv2Amps = normalizeMilliamps(mppt.pv2InAmp, 15);
-  const pv1Watts = sanitizeSolarWatts(firstDefined(toNumber(mppt.outWatts), multiplyNumbers(pv1Volts, pv1Amps)), 500);
-  const pv2Watts = sanitizeSolarWatts(firstDefined(toNumber(pd.pv2ChargeWatts), toNumber(mppt.pv2InWatts), multiplyNumbers(pv2Volts, pv2Amps)), 500);
-  const pv1 = makeSolarPort({
-    id: 'pv-1',
-    name: 'PV 1',
-    volts: pv1Volts,
-    amps: pv1Amps,
-    watts: pv1Watts,
-    maxWatts: 500,
-    maxVolts: 60,
-    maxAmps: 15,
-    rawState: toNumber(mppt.chgState)
-  });
-  const pv2 = makeSolarPort({
-    id: 'pv-2',
-    name: 'PV 2',
-    volts: pv2Volts,
-    amps: pv2Amps,
-    watts: pv2Watts,
-    maxWatts: 500,
-    maxVolts: 60,
-    maxAmps: 15,
-    rawState: toNumber(mppt.pv2ChgState)
-  });
-
   const usbOn = anyPositive(pd.typec1Watts, pd.typec2Watts, pd.usb1Watts, pd.usb2Watts, pd.qcUsb1Watts, pd.qcUsb2Watts);
   const dc12vOn = truthyNumber(pd.dcOutState) || anyPositive(pd.wireWatts);
-  const solarChargingOn = [pv1, pv2].some((port) => port.state === 'charging');
+  const solarPorts = buildNumberedSolarPorts(pd, mppt, {
+    maxWatts: 500,
+    maxVolts: 60,
+    maxAmps: 15
+  });
+  const solarChargingOn = solarPorts.some((port) => port.state === 'charging');
 
   return {
     bpCount: bpCount ?? packs.length,
     packs,
-    solarPorts: [pv1, pv2],
+    solarPorts,
     overallSocPct,
     socWindowMinPct: firstDefined(toNumber(bmsEmsStatus.minDsgSoc), toNumber(pd.minAcSoc), toNumber(bmsStatus.minSoc), toNumber(bmsKitInfo.minSoc)),
     socWindowMaxPct: firstDefined(toNumber(bmsEmsStatus.maxChargeSoc), toNumber(bmsStatus.maxSoc), toNumber(bmsKitInfo.maxSoc)),
@@ -486,6 +463,76 @@ function makeSolarPort(input: {
   };
 }
 
+function buildNumberedSolarPorts(
+  pd: GenericRecord,
+  mppt: GenericRecord,
+  limits: { maxWatts: number; maxVolts: number; maxAmps: number }
+): SolarPortDetail[] {
+  const indexes = collectNumberedPVPortIndexes(mppt, pd);
+  return indexes.map((index) => {
+    const prefix = `pv${index}`;
+    const volts =
+      index === 1
+        ? normalizeMillivolts(firstDefined(mppt.inVol, mppt.pv1InVol), limits.maxVolts)
+        : normalizeMillivolts(mppt[`${prefix}InVol`], limits.maxVolts);
+    const amps =
+      index === 1
+        ? normalizeMilliamps(firstDefined(mppt.inAmp, mppt.pv1InAmp), limits.maxAmps)
+        : normalizeMilliamps(mppt[`${prefix}InAmp`], limits.maxAmps);
+    const watts = sanitizeSolarWatts(
+      index === 1
+        ? firstDefined(
+            toNumber(pd.pv1ChargeWatts),
+            toNumber(mppt.pv1ChargeWatts),
+            toNumber(mppt.outWatts),
+            toNumber(mppt.inWatts),
+            toNumber(mppt.pv1InWatts),
+            multiplyNumbers(volts, amps)
+          )
+        : firstDefined(
+            toNumber(pd[`${prefix}ChargeWatts`]),
+            toNumber(mppt[`${prefix}ChargeWatts`]),
+            toNumber(mppt[`${prefix}InWatts`]),
+            multiplyNumbers(volts, amps)
+          ),
+      limits.maxWatts
+    );
+    const rawState =
+      index === 1 ? firstDefined(toNumber(mppt.chgState), toNumber(mppt.pv1ChgState)) : toNumber(mppt[`${prefix}ChgState`]);
+    return makeSolarPort({
+      id: `pv-${index}`,
+      name: `PV ${index}`,
+      volts,
+      amps,
+      watts,
+      maxWatts: limits.maxWatts,
+      maxVolts: limits.maxVolts,
+      maxAmps: limits.maxAmps,
+      rawState
+    });
+  });
+}
+
+function collectNumberedPVPortIndexes(...records: GenericRecord[]): number[] {
+  const indexes = new Set<number>([1]);
+  for (const record of records) {
+    for (const [key, value] of Object.entries(record)) {
+      if (toNumber(value) === undefined) {
+        continue;
+      }
+      const matches = NUMBERED_PV_PORT_FIELD.exec(key);
+      if (!matches) {
+        continue;
+      }
+      const index = Number(matches[1]);
+      if (Number.isInteger(index) && index > 0) {
+        indexes.add(index);
+      }
+    }
+  }
+  return [...indexes].sort((left, right) => left - right);
+}
+
 function deriveSolarState(
   rawState: number | undefined,
   volts: number | undefined,
@@ -577,7 +624,7 @@ function derivePVInputCountFromMetadata(metadata?: GenericRecord): number | unde
   }
   const mppt = asRecord(groups.mppt);
   if (Object.keys(mppt).length > 0) {
-    return toNumber(mppt.pv2InVol) !== undefined || toNumber(mppt.pv2InAmp) !== undefined ? 2 : 1;
+    return collectNumberedPVPortIndexes(mppt, asRecord(groups.pd)).length;
   }
   return undefined;
 }

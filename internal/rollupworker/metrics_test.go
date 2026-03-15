@@ -258,6 +258,46 @@ func TestSampleFromEnvelopeExtractsPVPortObservations(t *testing.T) {
 	}
 }
 
+func TestSampleFromEnvelopeExtractsD2MPVPortObservations(t *testing.T) {
+	t.Parallel()
+
+	env := testEnvelope(`{"params":{"inVol":48.2,"inAmp":4.4,"outWatts":212.1,"pv2InVol":81.5,"pv2InAmp":2.1,"pv2ChargeWatts":171.2,"cmsBattSoc":55}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := len(sample.PVPorts); got != 2 {
+		t.Fatalf("pv port count mismatch: got=%d want=2", got)
+	}
+	if sample.PVPorts[0].PortID != "pv-1" || sample.PVPorts[0].PortLabel != "PV 1" {
+		t.Fatalf("first pv port mismatch: %+v", sample.PVPorts[0])
+	}
+	if sample.PVPorts[1].PortID != "pv-2" || sample.PVPorts[1].PortLabel != "PV 2" {
+		t.Fatalf("second pv port mismatch: %+v", sample.PVPorts[1])
+	}
+}
+
+func TestSampleFromEnvelopeExtractsNumberedMultiPVPortObservations(t *testing.T) {
+	t.Parallel()
+
+	env := testEnvelope(`{"params":{"inVol":48.2,"inAmp":4.4,"outWatts":212.1,"pv2InVol":81.5,"pv2InAmp":2.1,"pv2ChargeWatts":171.2,"pv3InVol":54.0,"pv3InAmp":3.0,"pv3ChargeWatts":162.0,"cmsBattSoc":55}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := len(sample.PVPorts); got != 3 {
+		t.Fatalf("pv port count mismatch: got=%d want=3", got)
+	}
+	if sample.PVPorts[2].PortID != "pv-3" || sample.PVPorts[2].PortLabel != "PV 3" {
+		t.Fatalf("third pv port mismatch: %+v", sample.PVPorts[2])
+	}
+	if !sample.Metrics.PV.Valid || sample.Metrics.PV.Value != 545.3 {
+		t.Fatalf("pv sum mismatch: got valid=%v value=%v want=545.3", sample.Metrics.PV.Valid, sample.Metrics.PV.Value)
+	}
+}
+
 func TestSampleFromEnvelopeReturnsNoMetrics(t *testing.T) {
 	t.Parallel()
 	env := testEnvelope(`{"params":{"icoBytes":[0,1,2]}}`)

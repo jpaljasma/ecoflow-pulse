@@ -44,7 +44,7 @@ runtime:
         serviceMonitor:
           enabled: true
     rollup:
-      replicaCount: 3
+      replicaCount: 1
       metrics:
         enabled: true
         serviceMonitor:

@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -139,32 +138,12 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 		return report, nil
 	}
 
-	groups := groupObjectsByShard(objects)
-	results := make(chan shardResult, len(groups))
-	sema := make(chan struct{}, maxPositive(1, r.parallelism))
-	var wg sync.WaitGroup
+	orderedObjects := orderObjectsForRebuild(objects)
 	var objectsProcessed atomic.Int64
 	var missingObjects atomic.Int64
 	var messagesDecoded atomic.Int64
 	var messagesApplied atomic.Int64
 	var quotaMessages atomic.Int64
-
-	for _, group := range groups {
-		group := group
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sema <- struct{}{}
-			defer func() { <-sema }()
-			result := r.processObjectGroup(ctx, group, &objectsProcessed, &missingObjects, report.ObjectsMatched, &messagesDecoded, &messagesApplied, &quotaMessages, toUnixMS)
-			results <- result
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
 
 	minuteRowsAll := make([]BucketRow, 0, 1024)
 	hourRowsAll := make([]BucketRow, 0, 256)
@@ -173,23 +152,22 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 	pvPortHourRowsAll := make([]PVPortBucketRow, 0, 128)
 	pvPortDayRowsAll := make([]PVPortBucketRow, 0, 64)
 	affected := make([]DeviceWindow, 0, len(objects))
-	for result := range results {
-		if result.err != nil {
-			return report, result.err
-		}
-		report.ObjectsProcessed += result.objectsProcessed
-		report.MissingObjects += result.missingObjects
-		report.MessagesDecoded += result.messagesDecoded
-		report.MessagesApplied += result.messagesApplied
-		report.QuotaMessages += result.quotaMessages
-		affected = append(affected, result.affected...)
-		minuteRowsAll = append(minuteRowsAll, result.minuteRows...)
-		hourRowsAll = append(hourRowsAll, result.hourRows...)
-		dayRowsAll = append(dayRowsAll, result.dayRows...)
-		pvPortMinuteRowsAll = append(pvPortMinuteRowsAll, result.pvPortMinuteRows...)
-		pvPortHourRowsAll = append(pvPortHourRowsAll, result.pvPortHourRows...)
-		pvPortDayRowsAll = append(pvPortDayRowsAll, result.pvPortDayRows...)
+	result := r.processObjectGroup(ctx, orderedObjects, &objectsProcessed, &missingObjects, report.ObjectsMatched, &messagesDecoded, &messagesApplied, &quotaMessages, toUnixMS)
+	if result.err != nil {
+		return report, result.err
 	}
+	report.ObjectsProcessed = result.objectsProcessed
+	report.MissingObjects = result.missingObjects
+	report.MessagesDecoded = result.messagesDecoded
+	report.MessagesApplied = result.messagesApplied
+	report.QuotaMessages = result.quotaMessages
+	affected = append(affected, result.affected...)
+	minuteRowsAll = append(minuteRowsAll, result.minuteRows...)
+	hourRowsAll = append(hourRowsAll, result.hourRows...)
+	dayRowsAll = append(dayRowsAll, result.dayRows...)
+	pvPortMinuteRowsAll = append(pvPortMinuteRowsAll, result.pvPortMinuteRows...)
+	pvPortHourRowsAll = append(pvPortHourRowsAll, result.pvPortHourRows...)
+	pvPortDayRowsAll = append(pvPortDayRowsAll, result.pvPortDayRows...)
 	if report.MissingObjects > 0 {
 		return report, fmt.Errorf("refusing rollup replacement with %d missing archive objects; repair archive coverage or rebuild from raw logs", report.MissingObjects)
 	}
@@ -254,6 +232,10 @@ type shardResult struct {
 	err              error
 }
 
+type rebuildSample struct {
+	sample *rollupworker.RollupSample
+}
+
 func (r *Runner) processObjectGroup(
 	ctx context.Context,
 	objects []replaycli.ManifestObject,
@@ -271,6 +253,7 @@ func (r *Runner) processObjectGroup(
 	}
 	affectedSeen := make(map[string]struct{}, len(result.affected))
 	seenEnvelopeKeys := make(map[string]struct{}, 4096)
+	samples := make([]rebuildSample, 0, 4096)
 	for _, device := range result.affected {
 		affectedSeen[device.Provider+"|"+device.ProviderDeviceID] = struct{}{}
 	}
@@ -324,7 +307,7 @@ func (r *Runner) processObjectGroup(
 			}
 			sample, err := rollupworker.SampleFromEnvelope(&env)
 			if err == nil {
-				aggregator.ApplySample(sample)
+				samples = append(samples, rebuildSample{sample: sample})
 				device := DeviceWindow{
 					Provider:         sample.Provider,
 					ProviderDeviceID: sample.ProviderDeviceID,
@@ -334,8 +317,6 @@ func (r *Runner) processObjectGroup(
 					affectedSeen[key] = struct{}{}
 					result.affected = append(result.affected, device)
 				}
-				result.messagesApplied++
-				messagesApplied.Add(1)
 			} else if err != rollupworker.ErrNoRollupMetrics {
 				result.err = fmt.Errorf("derive rollup sample from envelope %s: %w", env.GetEnvelopeId(), err)
 				return result
@@ -350,7 +331,14 @@ func (r *Runner) processObjectGroup(
 			)
 		}
 	}
-	aggregator.Finalize(time.UnixMilli(toUnixMS).UTC())
+	sort.SliceStable(samples, func(i, j int) bool {
+		return rebuildSampleLess(samples[i].sample, samples[j].sample)
+	})
+	for _, entry := range samples {
+		aggregator.ApplySample(entry.sample)
+		result.messagesApplied++
+		messagesApplied.Add(1)
+	}
 	result.affected = normalizeAffectedDevices(result.affected)
 	result.minuteRows = aggregator.Rows(ResolutionMinute)
 	result.hourRows = aggregator.Rows(ResolutionHour)
@@ -359,6 +347,27 @@ func (r *Runner) processObjectGroup(
 	result.pvPortHourRows = aggregator.PVPortRows(ResolutionHour)
 	result.pvPortDayRows = aggregator.PVPortRows(ResolutionDay)
 	return result
+}
+
+func rebuildSampleLess(left *rollupworker.RollupSample, right *rollupworker.RollupSample) bool {
+	switch {
+	case left == nil:
+		return right != nil
+	case right == nil:
+		return false
+	case left.IngestedUnixMs != right.IngestedUnixMs:
+		return left.IngestedUnixMs < right.IngestedUnixMs
+	case left.EventUnixMs != right.EventUnixMs:
+		return left.EventUnixMs < right.EventUnixMs
+	case left.Provider != right.Provider:
+		return left.Provider < right.Provider
+	case left.ProviderDeviceID != right.ProviderDeviceID:
+		return left.ProviderDeviceID < right.ProviderDeviceID
+	case left.DeviceID != right.DeviceID:
+		return left.DeviceID < right.DeviceID
+	default:
+		return false
+	}
 }
 
 func isMissingArchiveObjectError(err error) bool {
@@ -372,27 +381,29 @@ func isMissingArchiveObjectError(err error) bool {
 			strings.Contains(message, "not found"))
 }
 
-func groupObjectsByShard(objects []replaycli.ManifestObject) [][]replaycli.ManifestObject {
-	if len(objects) == 0 {
-		return nil
+func orderObjectsForRebuild(objects []replaycli.ManifestObject) []replaycli.ManifestObject {
+	if len(objects) < 2 {
+		return objects
 	}
-	byShard := make(map[uint32][]replaycli.ManifestObject)
-	keys := make([]uint32, 0, len(objects))
-	seen := make(map[uint32]struct{})
-	for _, object := range objects {
-		if _, ok := seen[object.Shard]; !ok {
-			seen[object.Shard] = struct{}{}
-			keys = append(keys, object.Shard)
+	out := append([]replaycli.ManifestObject(nil), objects...)
+	sort.SliceStable(out, func(i, j int) bool {
+		left := out[i]
+		right := out[j]
+		switch {
+		case left.TSMinUnixMS != right.TSMinUnixMS:
+			return left.TSMinUnixMS < right.TSMinUnixMS
+		case left.TSMaxUnixMS != right.TSMaxUnixMS:
+			return left.TSMaxUnixMS < right.TSMaxUnixMS
+		case left.PartitionHour != right.PartitionHour:
+			return left.PartitionHour.Before(right.PartitionHour)
+		case left.Shard != right.Shard:
+			return left.Shard < right.Shard
+		case left.ObjectBucket != right.ObjectBucket:
+			return left.ObjectBucket < right.ObjectBucket
+		default:
+			return left.ObjectKey < right.ObjectKey
 		}
-		byShard[object.Shard] = append(byShard[object.Shard], object)
-	}
-	// shard order only matters for deterministic result merging; per-shard object
-	// order is preserved from the manifest query.
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	out := make([][]replaycli.ManifestObject, 0, len(keys))
-	for _, key := range keys {
-		out = append(out, byShard[key])
-	}
+	})
 	return out
 }
 
@@ -424,13 +435,6 @@ func minPositive(a, b int) int {
 	default:
 		return b
 	}
-}
-
-func maxPositive(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 func filterRowsForWindow(rows []BucketRow, resolution Resolution, from, to time.Time) []BucketRow {
