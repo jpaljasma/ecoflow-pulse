@@ -1019,6 +1019,22 @@ data:
           ],
           "title": "Realtime Active Sessions",
           "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+          "id": 7,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (outcome) (rate(pulse_public_auth_session_recovery_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Browser Session Recovery Outcomes",
+          "type": "timeseries"
         }
       ],
       "refresh": "30s",
@@ -1041,6 +1057,6 @@ data:
       "time": {"from": "now-6h", "to": "now"},
       "title": "Pulse Auth & Profile",
       "uid": "pulse-auth-profile",
-      "version": 1
+      "version": 2
     }
 {{- end }}

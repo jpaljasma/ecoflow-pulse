@@ -1,5 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const {
+  recoverSessionForUnauthorizedRequest,
+  triggerSessionExpiredRedirect
+} = vi.hoisted(() => ({
+  recoverSessionForUnauthorizedRequest: vi.fn(),
+  triggerSessionExpiredRedirect: vi.fn()
+}));
+
+vi.mock('@/features/auth/sessionRecoveryCoordinator', () => ({
+  recoverSessionForUnauthorizedRequest,
+  triggerSessionExpiredRedirect
+}));
+
 vi.mock('@/shared/config/env', () => ({
   env: {
     isWeb: false,
@@ -17,6 +30,8 @@ import { ApiError, requestJson } from '@/shared/api/restClient';
 describe('requestJson', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    recoverSessionForUnauthorizedRequest.mockReset();
+    triggerSessionExpiredRedirect.mockReset();
     env.apiUrlExplicit = false;
     env.apiUrl = 'http://192.168.50.62:18081';
   });
@@ -79,5 +94,55 @@ describe('requestJson', () => {
     expect(fetchSpy.mock.calls[0]?.[0]).toBe('http://127.0.0.1:18081/api/devices');
     expect(fetchSpy.mock.calls[1]?.[0]).toBe('http://localhost:18081/api/devices');
     expect(fetchSpy.mock.calls[2]?.[0]).toBe('http://127.0.0.1/api/devices');
+  });
+
+  it('retries once with a recovered session token after a 401 response', async () => {
+    recoverSessionForUnauthorizedRequest.mockResolvedValueOnce('fresh-token');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'invalid_bearer_token' }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ devices: [{ id: 'ok' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      );
+
+    const payload = await requestJson<{ devices: Array<{ id: string }> }>('/api/devices', {
+      token: 'stale-token'
+    });
+
+    expect(payload).toEqual({ devices: [{ id: 'ok' }] });
+    expect(recoverSessionForUnauthorizedRequest).toHaveBeenCalledWith('stale-token');
+    expect(triggerSessionExpiredRedirect).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect((fetchSpy.mock.calls[1]?.[1] as RequestInit | undefined)?.headers).toMatchObject({
+      Authorization: 'Bearer fresh-token'
+    });
+  });
+
+  it('requests reauthentication when recovery cannot repair a 401 response', async () => {
+    recoverSessionForUnauthorizedRequest.mockResolvedValueOnce(null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'invalid_bearer_token' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+
+    await expect(
+      requestJson('/api/devices', {
+        token: 'stale-token'
+      })
+    ).rejects.toMatchObject({
+      status: 401
+    });
+
+    expect(triggerSessionExpiredRedirect).toHaveBeenCalledTimes(1);
   });
 });

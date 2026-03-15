@@ -23,6 +23,7 @@ import {
   renderPublicMetrics
 } from './metrics.js';
 import { registerDeviceRoutes } from './routes/devices.js';
+import { registerAuthSessionEventRoutes } from './routes/authSessionEvents.js';
 import { registerHistoryRoutes } from './routes/history.js';
 import { registerCurrentUserRoutes } from './routes/me.js';
 
@@ -76,6 +77,7 @@ export function buildApp(
       global: false,
       hook: 'preHandler'
     });
+    registerAuthSessionEventRoutes(scopedApp);
     if (options.controlPlaneClient) {
       registerCurrentUserRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
     }

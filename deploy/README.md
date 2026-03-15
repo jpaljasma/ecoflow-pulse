@@ -126,7 +126,7 @@ Defaults:
   - public-edge auth/profile observability now rides the same stack:
     - `pulse-platform-public-app` exposes `/metrics` on the existing HTTP service and is scrapeable through a `ServiceMonitor` when `runtime.publicApp.metrics.serviceMonitor.enabled=true`
     - `pulse-platform-realtime-gateway` exposes `/metrics` on the existing HTTP service and is scrapeable through a `ServiceMonitor` when `runtime.realtimeGateway.metrics.serviceMonitor.enabled=true`
-    - the auth/profile dashboard covers public auth/profile request rates and latency, `401` vs `403` denials, current-user gRPC outcomes, and realtime websocket auth/session behavior
+    - the auth/profile dashboard covers public auth/profile request rates and latency, `401` vs `403` denials, current-user gRPC outcomes, browser session recovery outcomes, and realtime websocket auth/session behavior
 - dev values enable `ingress-nginx` + `cert-manager` and expose the public app
   ingress host as `pulse.dev.local` (TLS remains opt-in until a real issuer is
   configured).

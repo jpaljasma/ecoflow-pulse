@@ -1,4 +1,8 @@
 import { env } from '@/shared/config/env';
+import {
+  recoverSessionForUnauthorizedRequest,
+  triggerSessionExpiredRedirect
+} from '@/features/auth/sessionRecoveryCoordinator';
 
 export class ApiError extends Error {
   constructor(
@@ -16,6 +20,7 @@ type RequestOptions = {
   token?: string;
   body?: unknown;
   signal?: AbortSignal;
+  sessionRecoveryAttempted?: boolean;
 };
 
 function buildApiBaseCandidates(primaryBase: string): string[] {
@@ -72,7 +77,7 @@ function isRetryableNetworkError(error: unknown): boolean {
 
 export async function requestJson<T>(
   path: string,
-  { method = 'GET', token, body, signal }: RequestOptions = {}
+  { method = 'GET', token, body, signal, sessionRecoveryAttempted = false }: RequestOptions = {}
 ): Promise<T> {
   const urlCandidates = path.startsWith('http')
     ? [path]
@@ -122,6 +127,21 @@ export async function requestJson<T>(
       : await res.text().catch(() => undefined);
 
     if (!res.ok) {
+      if (res.status === 401 && !sessionRecoveryAttempted) {
+        const recoveredToken = await recoverSessionForUnauthorizedRequest(token);
+        if (recoveredToken) {
+          return requestJson<T>(path, {
+            method,
+            token: recoveredToken,
+            body,
+            signal,
+            sessionRecoveryAttempted: true
+          });
+        }
+      }
+      if (res.status === 401) {
+        triggerSessionExpiredRedirect();
+      }
       throw new ApiError(
         `Request failed (${res.status}) for ${method} ${path}`,
         res.status,
