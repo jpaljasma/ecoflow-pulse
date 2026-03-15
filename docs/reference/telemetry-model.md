@@ -82,6 +82,17 @@ rollup extraction), PV watts follow this precedence:
 This preserves explicit zero PV states from canonical fields and prevents stale
 top-level `pvW` values from showing false solar input in live trends/history.
 
+When explicit persisted energy buckets are missing and the history path must
+temporarily derive Wh from average power, the derivation uses the bucket's
+observed sample coverage (`first_ts_unix_ms`..`last_ts_unix_ms`) rather than
+assuming the full hour/day bucket was active. This avoids overstating sparse
+DPU PV history by treating a short active span as a full bucket of generation.
+
+Rollup writes are envelope-idempotent at the storage boundary. Replayed or
+redelivered envelopes must not increment `sample_count`, `solar_generated_wh`,
+or other persisted energy buckets more than once for the same canonical
+envelope/message identity.
+
 For `/api/devices` summaries, when per-port solar telemetry is explicitly
 reported (including `0 W` on all ports), that per-port reading is authoritative
 over top-level snapshot `pvW` to avoid stale carry-over in device cards.
@@ -200,6 +211,9 @@ Frontend rule:
 - local rollup regeneration may replay raw MQTT log capture, but solar energy is
   always derived from canonical quota/MPPT PV updates using the same
   interval-based integration logic in both live rollup append and rebuild paths.
+- rebuild paths must deduplicate envelopes by canonical envelope/message
+  identity before bucket aggregation so archive retry duplicates cannot inflate
+  regenerated rollups.
 
 ## Minute History Buckets
 

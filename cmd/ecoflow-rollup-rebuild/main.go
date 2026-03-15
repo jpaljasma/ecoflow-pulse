@@ -27,6 +27,9 @@ func main() {
 		deviceIDsRaw    string
 		providerIDsRaw  string
 		rawLogsRaw      string
+		archiveBucket   string
+		archivePrefix   string
+		directArchive   bool
 		maxObjects      int
 		chunkSize       int
 		parallelism     int
@@ -44,6 +47,9 @@ func main() {
 	flag.StringVar(&deviceIDsRaw, "device-ids", "", "Comma-delimited internal device ids to rebuild")
 	flag.StringVar(&providerIDsRaw, "provider-device-ids", "", "Comma-delimited provider device ids to rebuild")
 	flag.StringVar(&rawLogsRaw, "raw-logs", "", "Comma-delimited raw MQTT log paths or globs to rebuild from instead of archive objects")
+	flag.BoolVar(&directArchive, "direct-archive", false, "List raw archive objects directly from object storage instead of trusting manifest rows")
+	flag.StringVar(&archiveBucket, "archive-bucket", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_BUCKET", "pulse-telemetry-raw"), "Archive bucket for direct object listing")
+	flag.StringVar(&archivePrefix, "archive-prefix", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PREFIX", "raw"), "Archive prefix for direct object listing")
 	flag.IntVar(&maxObjects, "max-objects", 0, "Optional object scan cap (0 means no limit)")
 	flag.IntVar(&chunkSize, "chunk-size", 500, "Bucket replacement chunk size per transaction")
 	flag.IntVar(&parallelism, "parallelism", 4, "Shard worker parallelism for archive object processing")
@@ -139,6 +145,9 @@ func main() {
 		slog.Any("device_ids", runtimecfg.SplitNonEmpty(deviceIDsRaw)),
 		slog.Any("provider_device_ids", runtimecfg.SplitNonEmpty(providerIDsRaw)),
 		slog.Any("raw_logs", rawLogInputs),
+		slog.Bool("direct_archive", directArchive),
+		slog.String("archive_bucket", strings.TrimSpace(archiveBucket)),
+		slog.String("archive_prefix", strings.TrimSpace(archivePrefix)),
 		slog.Int("max_objects", maxObjects),
 		slog.Int("chunk_size", chunkSize),
 		slog.Int("parallelism", parallelism),
@@ -156,6 +165,27 @@ func main() {
 			providerDeviceIDs,
 			chunkSize,
 		)
+	} else if directArchive {
+		objects, listErr := rolluprebuild.ListArchiveObjectsDirect(
+			ctx,
+			replaycli.MinIOObjectReaderConfig{
+				Endpoint:        objectEndpoint,
+				AccessKeyID:     objectAccessKey,
+				SecretAccessKey: objectSecretKey,
+				Region:          objectRegion,
+				Secure:          objectSecure,
+			},
+			strings.TrimSpace(archiveBucket),
+			strings.TrimSpace(archivePrefix),
+			time.UnixMilli(fromUnixMS).UTC(),
+			time.UnixMilli(toUnixMS).UTC(),
+			maxObjects,
+		)
+		if listErr != nil {
+			log.Error("list direct archive objects failed", slog.String("error", listErr.Error()))
+			os.Exit(1)
+		}
+		report, err = runner.RebuildObjects(ctx, objects, fromUnixMS, toUnixMS)
 	} else if len(deviceIDs) > 0 || len(providerDeviceIDs) > 0 {
 		report, err = runner.RebuildDevices(ctx, replaycli.DeviceQuery{
 			Provider:           strings.TrimSpace(provider),
@@ -176,9 +206,23 @@ func main() {
 		log.Error("rollup rebuild failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	if len(rawLogInputs) == 0 && report.ObjectsMatched == 0 {
+		log.Error("authoritative archive has no objects for requested rebuild window",
+			slog.Time("from", time.UnixMilli(fromUnixMS).UTC()),
+			slog.Time("to", time.UnixMilli(toUnixMS).UTC()),
+			slog.String("provider", strings.TrimSpace(provider)),
+			slog.Any("device_ids", deviceIDs),
+			slog.Any("provider_device_ids", providerDeviceIDs),
+			slog.Bool("direct_archive", directArchive),
+			slog.String("archive_bucket", strings.TrimSpace(archiveBucket)),
+			slog.String("archive_prefix", strings.TrimSpace(archivePrefix)),
+		)
+		os.Exit(1)
+	}
 	log.Info("rollup rebuild completed",
 		slog.Int("objects_matched", report.ObjectsMatched),
 		slog.Int("objects_processed", report.ObjectsProcessed),
+		slog.Int("missing_objects", report.MissingObjects),
 		slog.Int64("object_bytes", report.ObjectBytes),
 		slog.Int("object_records", report.ObjectRecords),
 		slog.Int("messages_decoded", report.MessagesDecoded),

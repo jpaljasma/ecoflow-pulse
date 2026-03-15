@@ -47,6 +47,7 @@ type Migration struct {
 
 type Result struct {
 	AppliedVersions []string
+	AdoptedVersions []string
 	SkippedVersions []string
 }
 
@@ -264,20 +265,17 @@ CREATE TABLE IF NOT EXISTS schema_migration_rollouts (
 		}
 		if _, err := tx.ExecContext(ctx, migration.SQL); err != nil {
 			_ = tx.Rollback()
+			adopted, adoptErr := tryRepairOrAdoptPreexistingLocalMigration(ctx, conn, cfg, migration)
+			if adoptErr != nil {
+				return result, fmt.Errorf("check local migration adoption for %s: %w", migration.Version, adoptErr)
+			}
+			if adopted {
+				result.AdoptedVersions = append(result.AdoptedVersions, migration.Version)
+				continue
+			}
 			return result, fmt.Errorf("apply migration %s: %w", migration.Version, err)
 		}
-		if _, err := tx.ExecContext(
-			ctx,
-			`INSERT INTO schema_migration_rollouts (
-				version, checksum, file_name, rollout_env, backup_ref, applied_at
-			) VALUES ($1, $2, $3, $4, $5, $6)`,
-			migration.Version,
-			migration.Checksum,
-			migration.FileName,
-			strings.ToLower(strings.TrimSpace(cfg.RolloutEnv)),
-			strings.TrimSpace(cfg.BackupRef),
-			cfg.NowFn().UTC(),
-		); err != nil {
+		if err := recordAppliedMigration(ctx, tx, cfg, migration); err != nil {
 			_ = tx.Rollback()
 			return result, fmt.Errorf("record migration %s rollout: %w", migration.Version, err)
 		}
@@ -287,4 +285,266 @@ CREATE TABLE IF NOT EXISTS schema_migration_rollouts (
 		result.AppliedVersions = append(result.AppliedVersions, migration.Version)
 	}
 	return result, nil
+}
+
+func tryRepairOrAdoptPreexistingLocalMigration(ctx context.Context, conn *sql.Conn, cfg Config, migration Migration) (bool, error) {
+	if !canAttemptLocalLegacyAdoption(cfg, migration) {
+		return false, nil
+	}
+	ready, err := legacyLocalMigrationPresent(ctx, conn, migration.Version)
+	if err != nil {
+		return false, err
+	}
+	if ready {
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			return false, fmt.Errorf("begin adoption transaction: %w", err)
+		}
+		if err := recordAppliedMigration(ctx, tx, cfg, migration); err != nil {
+			_ = tx.Rollback()
+			return false, err
+		}
+		if err := tx.Commit(); err != nil {
+			return false, fmt.Errorf("commit adoption transaction: %w", err)
+		}
+		return true, nil
+	}
+
+	convertible, err := legacyLocalPlainRollupTablesPresent(ctx, conn)
+	if err != nil {
+		return false, err
+	}
+	if !convertible {
+		return false, nil
+	}
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin legacy repair transaction: %w", err)
+	}
+	if err := convertLegacyLocalRollupTables(ctx, tx); err != nil {
+		_ = tx.Rollback()
+		return false, err
+	}
+	if err := recordAppliedMigration(ctx, tx, cfg, migration); err != nil {
+		_ = tx.Rollback()
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit legacy repair transaction: %w", err)
+	}
+	return true, nil
+}
+
+func canAttemptLocalLegacyAdoption(cfg Config, migration Migration) bool {
+	if !strings.EqualFold(strings.TrimSpace(cfg.RolloutEnv), "local") {
+		return false
+	}
+	switch migration.Version {
+	case "000004_m3_rollups_hypertables_schema",
+		"000006_m3_rollup_zero_sample_solar_buckets",
+		"000007_m3_rollup_explicit_energy_buckets",
+		"000008_m3_rollup_ac_output_power_columns",
+		"000009_m1_user_profile_preferences":
+		return true
+	default:
+		return false
+	}
+}
+
+func legacyLocalMigrationPresent(ctx context.Context, conn *sql.Conn, version string) (bool, error) {
+	switch version {
+	case "000004_m3_rollups_hypertables_schema":
+		return legacyLocalRollupSchemaPresent(ctx, conn)
+	case "000006_m3_rollup_zero_sample_solar_buckets":
+		return legacyLocalZeroSampleConstraintPresent(ctx, conn)
+	case "000007_m3_rollup_explicit_energy_buckets":
+		return legacyLocalExplicitEnergyColumnsPresent(ctx, conn)
+	case "000008_m3_rollup_ac_output_power_columns":
+		return legacyLocalAcOutputPowerColumnsPresent(ctx, conn)
+	case "000009_m1_user_profile_preferences":
+		return legacyLocalUserProfileColumnsPresent(ctx, conn)
+	default:
+		return false, nil
+	}
+}
+
+func legacyLocalRollupSchemaPresent(ctx context.Context, conn *sql.Conn) (bool, error) {
+	var hypertableCount int
+	if err := conn.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM timescaledb_information.hypertables
+WHERE hypertable_name IN ('telemetry_rollup_minute', 'telemetry_rollup_hour', 'telemetry_rollup_day')
+`).Scan(&hypertableCount); err != nil {
+		return false, fmt.Errorf("query existing hypertables: %w", err)
+	}
+	return hypertableCount == 3, nil
+}
+
+func legacyLocalPlainRollupTablesPresent(ctx context.Context, conn *sql.Conn) (bool, error) {
+	var tableCount int
+	if err := conn.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind = 'r'
+  AND c.relname IN ('telemetry_rollup_minute', 'telemetry_rollup_hour', 'telemetry_rollup_day')
+`).Scan(&tableCount); err != nil {
+		return false, fmt.Errorf("query existing plain rollup tables: %w", err)
+	}
+	return tableCount == 3, nil
+}
+
+func legacyLocalZeroSampleConstraintPresent(ctx context.Context, conn *sql.Conn) (bool, error) {
+	var count int
+	if err := conn.QueryRowContext(ctx, `
+SELECT COUNT(DISTINCT conname)
+FROM pg_constraint
+WHERE conname IN (
+	'chk_rollup_minute_sample_count_nonnegative',
+	'chk_rollup_hour_sample_count_nonnegative',
+	'chk_rollup_day_sample_count_nonnegative'
+)
+`).Scan(&count); err != nil {
+		return false, fmt.Errorf("query zero-sample rollup constraints: %w", err)
+	}
+	return count == 3, nil
+}
+
+func legacyLocalExplicitEnergyColumnsPresent(ctx context.Context, conn *sql.Conn) (bool, error) {
+	var count int
+	if err := conn.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('telemetry_rollup_minute', 'telemetry_rollup_hour', 'telemetry_rollup_day')
+  AND column_name IN (
+	'ac_input_energy_wh',
+	'ac_output_energy_wh',
+	'dc_output_energy_wh',
+	'load_energy_wh',
+	'battery_charge_energy_wh',
+	'battery_discharge_energy_wh'
+)
+`).Scan(&count); err != nil {
+		return false, fmt.Errorf("query explicit energy rollup columns: %w", err)
+	}
+	return count == 18, nil
+}
+
+func legacyLocalAcOutputPowerColumnsPresent(ctx context.Context, conn *sql.Conn) (bool, error) {
+	var count int
+	if err := conn.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('telemetry_rollup_minute', 'telemetry_rollup_hour', 'telemetry_rollup_day')
+  AND column_name IN ('ac_output_avg_w', 'ac_output_max_w')
+`).Scan(&count); err != nil {
+		return false, fmt.Errorf("query ac-output power columns: %w", err)
+	}
+	return count == 6, nil
+}
+
+func legacyLocalUserProfileColumnsPresent(ctx context.Context, conn *sql.Conn) (bool, error) {
+	var count int
+	if err := conn.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'users'
+  AND column_name IN (
+	'email_verified',
+	'given_name',
+	'family_name',
+	'locale',
+	'timezone',
+	'weather_location_enabled',
+	'weather_location_source',
+	'weather_location_label',
+	'weather_latitude',
+	'weather_longitude',
+	'display_name_source',
+	'last_login_at'
+)
+`).Scan(&count); err != nil {
+		return false, fmt.Errorf("query user profile preference columns: %w", err)
+	}
+	if count != 12 {
+		return false, nil
+	}
+	var constraintCount int
+	if err := conn.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_constraint
+WHERE conname IN ('chk_users_display_name_source', 'chk_users_weather_location_source')
+`).Scan(&constraintCount); err != nil {
+		return false, fmt.Errorf("query user profile preference constraints: %w", err)
+	}
+	return constraintCount == 2, nil
+}
+
+func convertLegacyLocalRollupTables(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`SELECT create_hypertable(
+			'telemetry_rollup_minute',
+			'bucket_start',
+			if_not_exists => TRUE,
+			migrate_data => TRUE,
+			chunk_time_interval => INTERVAL '1 day'
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_rollup_minute_device_bucket
+			ON telemetry_rollup_minute (device_id, bucket_start DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_rollup_minute_provider_bucket
+			ON telemetry_rollup_minute (provider, provider_device_id, bucket_start DESC)`,
+		`SELECT create_hypertable(
+			'telemetry_rollup_hour',
+			'bucket_start',
+			if_not_exists => TRUE,
+			migrate_data => TRUE,
+			chunk_time_interval => INTERVAL '7 days'
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_rollup_hour_device_bucket
+			ON telemetry_rollup_hour (device_id, bucket_start DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_rollup_hour_provider_bucket
+			ON telemetry_rollup_hour (provider, provider_device_id, bucket_start DESC)`,
+		`SELECT create_hypertable(
+			'telemetry_rollup_day',
+			'bucket_start',
+			if_not_exists => TRUE,
+			migrate_data => TRUE,
+			chunk_time_interval => INTERVAL '30 days'
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_rollup_day_device_bucket
+			ON telemetry_rollup_day (device_id, bucket_start DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_rollup_day_provider_bucket
+			ON telemetry_rollup_day (provider, provider_device_id, bucket_start DESC)`,
+	}
+	for _, stmt := range statements {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("convert legacy local rollup tables: %w", err)
+		}
+	}
+	return nil
+}
+
+type execContexter interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func recordAppliedMigration(ctx context.Context, execer execContexter, cfg Config, migration Migration) error {
+	_, err := execer.ExecContext(
+		ctx,
+		`INSERT INTO schema_migration_rollouts (
+			version, checksum, file_name, rollout_env, backup_ref, applied_at
+		) VALUES ($1, $2, $3, $4, $5, $6)`,
+		migration.Version,
+		migration.Checksum,
+		migration.FileName,
+		strings.ToLower(strings.TrimSpace(cfg.RolloutEnv)),
+		strings.TrimSpace(cfg.BackupRef),
+		cfg.NowFn().UTC(),
+	)
+	return err
 }

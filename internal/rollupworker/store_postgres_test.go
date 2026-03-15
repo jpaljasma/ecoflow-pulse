@@ -198,3 +198,48 @@ func TestPostgresStoreApplyEnvelopeIntegratesExplicitEnergyBucketsAcrossSparseMi
 		t.Fatalf("unmet sql expectations: %v", err)
 	}
 }
+
+func TestPostgresStoreApplyEnvelopeSkipsDuplicateEnvelopeID(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	now := time.Date(2026, time.March, 14, 13, 0, 0, 0, time.UTC)
+	store.nowFn = func() time.Time { return now }
+	env := &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-duplicate-1",
+		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",
+		EcoflowSn:          "DEMODPU0000294",
+		ObservedTimeUnixMs: time.Date(2026, time.March, 14, 12, 34, 56, 0, time.UTC).UnixMilli(),
+		Payload:            []byte(`{"params":{"inLvMpptPwr":120}}`),
+		Labels:             map[string]string{"provider": "ecoflow"},
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(store.dedupInsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.minuteUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.hourUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(store.dayUpsertQuery)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(store.dedupInsertQuery)).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	if err := store.ApplyEnvelope(context.Background(), env); err != nil {
+		t.Fatalf("first ApplyEnvelope failed: %v", err)
+	}
+	if err := store.ApplyEnvelope(context.Background(), env); err != nil {
+		t.Fatalf("duplicate ApplyEnvelope failed: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}

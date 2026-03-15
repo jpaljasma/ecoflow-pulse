@@ -100,4 +100,6 @@ make replay-cli ARGS='-mode list-devices -from 2026-02-26T00:00:00Z -to 2026-02-
 ## Notes
 
 1. This runbook intentionally treats Valkey as rebuildable cache. Authoritative recovery sources remain Postgres + object archive.
-2. Local MinIO is configured for non-persistent storage by default; backup artifacts on local filesystem are the recovery source during this drill.
+2. Local MinIO is configured with PVC-backed persistence by default; backup
+   artifacts on local filesystem remain the operator-controlled recovery source
+   for explicit drills or disaster recovery tests.

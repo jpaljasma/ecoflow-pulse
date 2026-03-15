@@ -158,6 +158,32 @@ This means cold restarts are expected to preserve Valkey-backed cache/snapshot s
 the underlying PVCs remain intact. Valkey is still not the system of record for authoritative
 business data; Postgres / Timescale / archive storage remain authoritative.
 
+## Local/dev MinIO raw archive durability baseline
+
+For `pulse-platform` local/dev, MinIO is the authoritative raw replay archive.
+The current local baseline is:
+
+- standalone MinIO with `persistence.enabled=true`
+- PVC-backed object data volume
+- PVC annotated with `helm.sh/resource-policy=keep` in local values so routine
+  Helm lifecycle does not casually discard raw archive history
+- local default bucket bootstrap for `pulse-telemetry-raw`
+
+This means replay, rollup rebuild, and gap repair may rely on the local MinIO
+archive surviving restarts. Ephemeral local MinIO is not an acceptable steady
+state when historical trust matters.
+
+Operational rule:
+
+- before trusting a local historical rebuild after archive/storage churn, run a
+  direct archive-vs-manifest audit (`make dev-archive-audit`) for the target
+  window
+- if the audit reports stale manifest rows pointing at missing MinIO objects,
+  run `make dev-archive-reconcile` for the same window before retrying the
+  audit
+- if manifest rows and direct MinIO listing disagree, treat that as archive
+  integrity drift and fail closed instead of trusting manifest-only counts
+
 ## Rollup Worker (`cmd/ecoflow-rollup-worker`)
 
 - `ROLLUP_DB_DSN` (optional override; falls back to `CONTROL_PLANE_DB_DSN`)

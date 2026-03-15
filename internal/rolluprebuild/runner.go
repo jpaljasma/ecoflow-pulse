@@ -13,6 +13,7 @@ import (
 	"time"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/envelopededup"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
 	"google.golang.org/protobuf/proto"
@@ -36,6 +37,7 @@ type Runner struct {
 type Report struct {
 	ObjectsMatched   int
 	ObjectsProcessed int
+	MissingObjects   int
 	ObjectBytes      int64
 	ObjectRecords    int
 	MessagesDecoded  int
@@ -102,7 +104,13 @@ func (r *Runner) RebuildFleet(ctx context.Context, query replaycli.FleetQuery) (
 	if err != nil {
 		return Report{}, fmt.Errorf("query manifests for rollup rebuild: %w", err)
 	}
+	objects = dedupeManifestObjects(objects)
 	return r.rebuildObjects(ctx, objects, query.FromUnixMS, query.ToUnixMS)
+}
+
+func (r *Runner) RebuildObjects(ctx context.Context, objects []replaycli.ManifestObject, fromUnixMS, toUnixMS int64) (Report, error) {
+	objects = dedupeManifestObjects(objects)
+	return r.rebuildObjects(ctx, objects, fromUnixMS, toUnixMS)
 }
 
 func (r *Runner) RebuildDevices(ctx context.Context, query replaycli.DeviceQuery) (Report, error) {
@@ -110,6 +118,7 @@ func (r *Runner) RebuildDevices(ctx context.Context, query replaycli.DeviceQuery
 	if err != nil {
 		return Report{}, fmt.Errorf("query manifests for device rollup rebuild: %w", err)
 	}
+	objects = dedupeManifestObjects(objects)
 	return r.rebuildObjects(ctx, objects, query.FromUnixMS, query.ToUnixMS)
 }
 
@@ -132,6 +141,7 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 	sema := make(chan struct{}, maxPositive(1, r.parallelism))
 	var wg sync.WaitGroup
 	var objectsProcessed atomic.Int64
+	var missingObjects atomic.Int64
 	var messagesDecoded atomic.Int64
 	var messagesApplied atomic.Int64
 	var quotaMessages atomic.Int64
@@ -143,7 +153,7 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 			defer wg.Done()
 			sema <- struct{}{}
 			defer func() { <-sema }()
-			result := r.processObjectGroup(ctx, group, &objectsProcessed, report.ObjectsMatched, &messagesDecoded, &messagesApplied, &quotaMessages, toUnixMS)
+			result := r.processObjectGroup(ctx, group, &objectsProcessed, &missingObjects, report.ObjectsMatched, &messagesDecoded, &messagesApplied, &quotaMessages, toUnixMS)
 			results <- result
 		}()
 	}
@@ -162,6 +172,7 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 			return report, result.err
 		}
 		report.ObjectsProcessed += result.objectsProcessed
+		report.MissingObjects += result.missingObjects
 		report.MessagesDecoded += result.messagesDecoded
 		report.MessagesApplied += result.messagesApplied
 		report.QuotaMessages += result.quotaMessages
@@ -169,6 +180,9 @@ func (r *Runner) rebuildObjects(ctx context.Context, objects []replaycli.Manifes
 		minuteRowsAll = append(minuteRowsAll, result.minuteRows...)
 		hourRowsAll = append(hourRowsAll, result.hourRows...)
 		dayRowsAll = append(dayRowsAll, result.dayRows...)
+	}
+	if report.MissingObjects > 0 {
+		return report, fmt.Errorf("refusing rollup replacement with %d missing archive objects; repair archive coverage or rebuild from raw logs", report.MissingObjects)
 	}
 
 	from := time.UnixMilli(fromUnixMS).UTC()
@@ -205,6 +219,7 @@ func collectAffectedDevices(objects []replaycli.ManifestObject) []DeviceWindow {
 
 type shardResult struct {
 	objectsProcessed int
+	missingObjects   int
 	messagesDecoded  int
 	messagesApplied  int
 	quotaMessages    int
@@ -219,6 +234,7 @@ func (r *Runner) processObjectGroup(
 	ctx context.Context,
 	objects []replaycli.ManifestObject,
 	objectsProcessed *atomic.Int64,
+	missingObjects *atomic.Int64,
 	objectsMatched int,
 	messagesDecoded *atomic.Int64,
 	messagesApplied *atomic.Int64,
@@ -229,14 +245,21 @@ func (r *Runner) processObjectGroup(
 	result := shardResult{
 		affected: collectAffectedDevices(objects),
 	}
+	affectedSeen := make(map[string]struct{}, len(result.affected))
+	seenEnvelopeKeys := make(map[string]struct{}, 4096)
+	for _, device := range result.affected {
+		affectedSeen[device.Provider+"|"+device.ProviderDeviceID] = struct{}{}
+	}
 	for _, object := range objects {
 		objectCtx, cancel := context.WithTimeout(ctx, defaultObjectReadTimeout)
 		body, err := r.objectReader.ReadObject(objectCtx, object.ObjectBucket, object.ObjectKey)
 		cancel()
 		if err != nil {
 			if isMissingArchiveObjectError(err) {
+				result.missingObjects++
+				missingObjects.Add(1)
 				r.log.Warn(
-					"skipping missing archive object during rollup rebuild",
+					"missing archive object blocks rollup rebuild",
 					slog.String("bucket", object.ObjectBucket),
 					slog.String("key", object.ObjectKey),
 					slog.String("error", err.Error()),
@@ -265,6 +288,12 @@ func (r *Runner) processObjectGroup(
 				result.err = fmt.Errorf("unmarshal archived envelope: %w", err)
 				return result
 			}
+			if dedupKey := strings.TrimSpace(envelopededup.Key(&env)); dedupKey != "" {
+				if _, exists := seenEnvelopeKeys[dedupKey]; exists {
+					continue
+				}
+				seenEnvelopeKeys[dedupKey] = struct{}{}
+			}
 			if env.GetSourceKind() == envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA {
 				result.quotaMessages++
 				quotaMessages.Add(1)
@@ -272,6 +301,15 @@ func (r *Runner) processObjectGroup(
 			sample, err := rollupworker.SampleFromEnvelope(&env)
 			if err == nil {
 				aggregator.ApplySample(sample)
+				device := DeviceWindow{
+					Provider:         sample.Provider,
+					ProviderDeviceID: sample.ProviderDeviceID,
+				}
+				key := device.Provider + "|" + device.ProviderDeviceID
+				if _, exists := affectedSeen[key]; !exists && strings.TrimSpace(device.ProviderDeviceID) != "" {
+					affectedSeen[key] = struct{}{}
+					result.affected = append(result.affected, device)
+				}
 				result.messagesApplied++
 				messagesApplied.Add(1)
 			} else if err != rollupworker.ErrNoRollupMetrics {
@@ -289,6 +327,7 @@ func (r *Runner) processObjectGroup(
 		}
 	}
 	aggregator.Finalize(time.UnixMilli(toUnixMS).UTC())
+	result.affected = normalizeAffectedDevices(result.affected)
 	result.minuteRows = aggregator.Rows(ResolutionMinute)
 	result.hourRows = aggregator.Rows(ResolutionHour)
 	result.dayRows = aggregator.Rows(ResolutionDay)
@@ -326,6 +365,23 @@ func groupObjectsByShard(objects []replaycli.ManifestObject) [][]replaycli.Manif
 	out := make([][]replaycli.ManifestObject, 0, len(keys))
 	for _, key := range keys {
 		out = append(out, byShard[key])
+	}
+	return out
+}
+
+func dedupeManifestObjects(objects []replaycli.ManifestObject) []replaycli.ManifestObject {
+	if len(objects) < 2 {
+		return objects
+	}
+	seen := make(map[string]struct{}, len(objects))
+	out := make([]replaycli.ManifestObject, 0, len(objects))
+	for _, object := range objects {
+		key := strings.TrimSpace(object.ObjectBucket) + "|" + strings.Trim(strings.TrimSpace(object.ObjectKey), "/")
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, object)
 	}
 	return out
 }
