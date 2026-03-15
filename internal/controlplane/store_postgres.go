@@ -250,17 +250,11 @@ func (s *PostgresStore) CreateDevice(ctx context.Context, in CreateDeviceInput) 
 		ctx,
 		`
 INSERT INTO devices (ecoflow_sn, product_name, model, metadata, created_at, updated_at)
-VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), '{}'::jsonb, $4, $4)
+VALUES ($1, NULLIF(BTRIM($2), ''), NULLIF(BTRIM($3), ''), '{}'::jsonb, $4, $4)
 ON CONFLICT (ecoflow_sn)
 DO UPDATE
-SET product_name = CASE
-		WHEN length(trim(COALESCE(devices.product_name, ''))) = 0 THEN EXCLUDED.product_name
-		ELSE devices.product_name
-	END,
-	model = CASE
-		WHEN length(trim(COALESCE(devices.model, ''))) = 0 THEN EXCLUDED.model
-		ELSE devices.model
-	END,
+SET product_name = COALESCE(EXCLUDED.product_name, devices.product_name),
+	model = COALESCE(EXCLUDED.model, devices.model),
 	updated_at = EXCLUDED.updated_at
 RETURNING id::text, ecoflow_sn, COALESCE(product_name, ''), COALESCE(model, ''), created_at, updated_at;
 `,
@@ -635,6 +629,24 @@ RETURNING
 func (s *PostgresStore) UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
 	now := normalizeWriteTime(s.now())
 	query := `
+WITH synced_device AS (
+	UPDATE devices
+	SET product_name = CASE
+			WHEN NULLIF(BTRIM($5), '') IS NULL THEN product_name
+			ELSE NULLIF(BTRIM($5), '')
+		END,
+		model = CASE
+			WHEN NULLIF(BTRIM($6), '') IS NULL THEN model
+			ELSE NULLIF(BTRIM($6), '')
+		END,
+		updated_at = CASE
+			WHEN (NULLIF(BTRIM($5), '') IS NOT NULL AND NULLIF(BTRIM($5), '') IS DISTINCT FROM product_name)
+				OR (NULLIF(BTRIM($6), '') IS NOT NULL AND NULLIF(BTRIM($6), '') IS DISTINCT FROM model)
+			THEN $11
+			ELSE updated_at
+		END
+	WHERE id = $1::uuid
+)
 INSERT INTO provider_devices (
 	device_id,
 	provider,
@@ -654,8 +666,8 @@ VALUES (
 	$2,
 	$3,
 	$4::uuid,
-	NULLIF($5, ''),
-	NULLIF($6, ''),
+	NULLIF(BTRIM($5), ''),
+	NULLIF(BTRIM($6), ''),
 	COALESCE($7::jsonb, '{}'::jsonb),
 	COALESCE($8::jsonb, '{}'::jsonb),
 	$9,
@@ -667,14 +679,8 @@ ON CONFLICT (provider, provider_device_id)
 DO UPDATE
 SET device_id = EXCLUDED.device_id,
 	credential_id = EXCLUDED.credential_id,
-	product_name = CASE
-		WHEN length(trim(COALESCE(provider_devices.product_name, ''))) = 0 THEN EXCLUDED.product_name
-		ELSE provider_devices.product_name
-	END,
-	model = CASE
-		WHEN length(trim(COALESCE(provider_devices.model, ''))) = 0 THEN EXCLUDED.model
-		ELSE provider_devices.model
-	END,
+	product_name = COALESCE(EXCLUDED.product_name, provider_devices.product_name),
+	model = COALESCE(EXCLUDED.model, provider_devices.model),
 	capabilities = CASE
 		WHEN $7::jsonb IS NULL THEN provider_devices.capabilities
 		ELSE $7::jsonb

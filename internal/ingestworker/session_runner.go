@@ -48,7 +48,7 @@ type mqttSubscriberFactory func(cfg ecoflowmqtt.Config) (mqttSubscriber, error)
 
 type ecoFlowCertificationResolver interface {
 	GetMQTTCertification(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (ecoflow.GeneralInfoMQTTCertification, error)
-	GetDeviceAllQuota(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (map[string]string, error)
+	GetDeviceQuotaSnapshot(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (controlplane.ProviderDevice, map[string]string, error)
 }
 
 type sessionSleepFunc func(ctx context.Context, duration time.Duration) error
@@ -551,19 +551,27 @@ func (r *EcoFlowSessionRunner) publishQuotaSnapshot(
 	credential := credentialFromAssignment(a)
 	quotaCtx, cancel := context.WithTimeout(ctx, r.cfg.QuotaFetchTimeout)
 	defer cancel()
-	quota, err := r.adapter.GetDeviceAllQuota(quotaCtx, credential, a.ProviderDeviceID)
+	refreshedDevice, quota, err := r.adapter.GetDeviceQuotaSnapshot(quotaCtx, credential, a.ProviderDeviceID)
 	if err != nil {
 		r.quotaMetrics.recordFailure(reason, observedAt)
 		return fmt.Errorf("fetch device quota: %w", err)
 	}
 	normalized := normalizeEcoFlowQuota(quota)
+	productName := strings.TrimSpace(a.ProductName)
+	if refreshed := strings.TrimSpace(refreshedDevice.ProductName); refreshed != "" {
+		productName = refreshed
+	}
+	model := strings.TrimSpace(a.Model)
+	if refreshed := strings.TrimSpace(refreshedDevice.Model); refreshed != "" {
+		model = refreshed
+	}
 	if _, err := r.providerDevices.UpsertProviderDevice(ctx, controlplane.UpsertProviderDeviceInput{
 		DeviceID:           a.DeviceID,
 		Provider:           a.Provider,
 		ProviderDeviceID:   a.ProviderDeviceID,
 		CredentialID:       a.CredentialID,
-		ProductName:        a.ProductName,
-		Model:              a.Model,
+		ProductName:        productName,
+		Model:              model,
 		Capabilities:       normalized.Capabilities,
 		Metadata:           normalized.Metadata,
 		IsActive:           a.DeviceIsActive,

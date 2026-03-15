@@ -380,6 +380,7 @@ func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderD
 
 	provider := NormalizeProvider(in.Provider)
 	providerDeviceID := strings.ToUpper(strings.TrimSpace(in.ProviderDeviceID))
+	now := normalizeWriteTime(s.now())
 	var existingID string
 	for id, row := range s.providerDevices {
 		if row.Provider == provider && row.ProviderDeviceID == providerDeviceID {
@@ -399,15 +400,46 @@ func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderD
 	if in.Metadata != nil {
 		metadata = cloneAnyMap(in.Metadata)
 	}
+	deviceID := strings.TrimSpace(in.DeviceID)
+	if deviceID == "" {
+		deviceID = strings.TrimSpace(existing.DeviceID)
+	}
+	credentialID := strings.TrimSpace(in.CredentialID)
+	if credentialID == "" {
+		credentialID = strings.TrimSpace(existing.CredentialID)
+	}
+	productName := strings.TrimSpace(existing.ProductName)
+	if refreshed := strings.TrimSpace(in.ProductName); refreshed != "" {
+		productName = refreshed
+	}
+	model := strings.TrimSpace(existing.Model)
+	if refreshed := strings.TrimSpace(in.Model); refreshed != "" {
+		model = refreshed
+	}
+	canonicalSN := providerDeviceID
+	if strings.TrimSpace(existing.CanonicalSN) != "" {
+		canonicalSN = strings.TrimSpace(existing.CanonicalSN)
+	}
+	if dev, ok := s.devicesByID[deviceID]; ok {
+		if productName != "" {
+			dev.ProductName = productName
+		}
+		if model != "" {
+			dev.Model = model
+		}
+		dev.UpdatedAt = now
+		s.devicesByID[dev.ID] = dev
+		canonicalSN = dev.EcoflowSN
+	}
 	row := ProviderDevice{
 		ID:                 existingID,
-		DeviceID:           strings.TrimSpace(in.DeviceID),
+		DeviceID:           deviceID,
 		Provider:           provider,
 		ProviderDeviceID:   providerDeviceID,
-		CredentialID:       strings.TrimSpace(in.CredentialID),
-		CanonicalSN:        providerDeviceID,
-		ProductName:        strings.TrimSpace(in.ProductName),
-		Model:              strings.TrimSpace(in.Model),
+		CredentialID:       credentialID,
+		CanonicalSN:        canonicalSN,
+		ProductName:        productName,
+		Model:              model,
 		Capabilities:       capabilities,
 		Metadata:           metadata,
 		IsActive:           in.IsActive,
@@ -535,11 +567,11 @@ func (s *MemoryStore) ensureDeviceLocked(sn string, productName string, model st
 	}
 	if existingID, ok := s.deviceBySN[canonicalSN]; ok {
 		dev := s.devicesByID[existingID]
-		if strings.TrimSpace(dev.ProductName) == "" {
-			dev.ProductName = strings.TrimSpace(productName)
+		if refreshed := strings.TrimSpace(productName); refreshed != "" {
+			dev.ProductName = refreshed
 		}
-		if strings.TrimSpace(dev.Model) == "" {
-			dev.Model = strings.TrimSpace(model)
+		if refreshed := strings.TrimSpace(model); refreshed != "" {
+			dev.Model = refreshed
 		}
 		dev.UpdatedAt = now
 		s.devicesByID[dev.ID] = dev
