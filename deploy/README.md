@@ -123,6 +123,8 @@ Defaults:
     - `Pulse gRPC SLOs`
     - `Pulse Platform Infra`
     - `Pulse Auth & Profile`
+    - `Pulse Client REST SLOs`
+    - `Pulse Client WebSocket SLOs`
   - public-edge auth/profile observability now rides the same stack:
     - `pulse-platform-public-app` exposes `/metrics` on the existing HTTP service and is scrapeable through a `ServiceMonitor` when `runtime.publicApp.metrics.serviceMonitor.enabled=true`
     - `pulse-platform-realtime-gateway` exposes `/metrics` on the existing HTTP service and is scrapeable through a `ServiceMonitor` when `runtime.realtimeGateway.metrics.serviceMonitor.enabled=true`
