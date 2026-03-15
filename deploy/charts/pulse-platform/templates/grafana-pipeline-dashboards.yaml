@@ -1059,4 +1059,301 @@ data:
       "uid": "pulse-auth-profile",
       "version": 2
     }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-client-rest-slos
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-client-rest-slos.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (route) (rate(pulse_public_client_rest_requests_total{namespace=\"$namespace\",outcome=\"success\"}[5m])) / clamp_min(sum by (route) (rate(pulse_public_client_rest_requests_total{namespace=\"$namespace\"}[5m])), 0.000001)",
+              "legendFormat": "{{"{{"}}route{{"}}"}} availability",
+              "refId": "A"
+            },
+            {
+              "expr": "vector(0.9999)",
+              "legendFormat": "target 99.99%",
+              "refId": "B"
+            }
+          ],
+          "title": "Client REST Availability",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "1000 * histogram_quantile(0.95, sum by (le, route) (rate(pulse_public_client_rest_request_duration_seconds_bucket{namespace=\"$namespace\",outcome=\"success\"}[5m])))",
+              "legendFormat": "{{"{{"}}route{{"}}"}} p95",
+              "refId": "A"
+            },
+            {
+              "expr": "1000 * histogram_quantile(0.99, sum by (le, route) (rate(pulse_public_client_rest_request_duration_seconds_bucket{namespace=\"$namespace\",outcome=\"success\"}[5m])))",
+              "legendFormat": "{{"{{"}}route{{"}}"}} p99",
+              "refId": "B"
+            }
+          ],
+          "title": "Client REST Latency",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (route) (rate(pulse_public_client_rest_errors_total{namespace=\"$namespace\"}[5m])) / clamp_min(sum by (route) (rate(pulse_public_client_rest_requests_total{namespace=\"$namespace\"}[5m])), 0.000001)",
+              "legendFormat": "{{"{{"}}route{{"}}"}} error rate",
+              "refId": "A"
+            }
+          ],
+          "title": "Client REST Error Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (route, outcome) (rate(pulse_public_client_rest_requests_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}route{{"}}"}} {{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Client REST Request Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (route, error_kind) (rate(pulse_public_client_rest_errors_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}route{{"}}"}} {{"{{"}}error_kind{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Client REST Failure Mix",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (route, outcome) (rate(pulse_public_client_rest_request_duration_seconds_sum{namespace=\"$namespace\"}[5m])) / clamp_min(sum by (route, outcome) (rate(pulse_public_client_rest_request_duration_seconds_count{namespace=\"$namespace\"}[5m])), 0.000001)",
+              "legendFormat": "{{"{{"}}route{{"}}"}} {{"{{"}}outcome{{"}}"}} mean",
+              "refId": "A"
+            }
+          ],
+          "title": "Client REST Mean Latency Context",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "client", "rest", "slo"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "{{ .Release.Namespace }}", "value": "{{ .Release.Namespace }}"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "{{ .Release.Namespace }}",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "title": "Pulse Client REST SLOs",
+      "uid": "pulse-client-rest-slos",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-client-ws-slos
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-client-ws-slos.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (phase) (rate(pulse_public_client_ws_connections_total{namespace=\"$namespace\",outcome=\"connected\"}[5m])) / clamp_min(sum by (phase) (rate(pulse_public_client_ws_connections_total{namespace=\"$namespace\"}[5m])), 0.000001)",
+              "legendFormat": "{{"{{"}}phase{{"}}"}} availability",
+              "refId": "A"
+            },
+            {
+              "expr": "vector(0.999)",
+              "legendFormat": "target 99.9%",
+              "refId": "B"
+            }
+          ],
+          "title": "Client WebSocket Availability",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "1000 * histogram_quantile(0.95, sum by (le, phase) (rate(pulse_public_client_ws_connect_duration_seconds_bucket{namespace=\"$namespace\",outcome=\"connected\"}[5m])))",
+              "legendFormat": "{{"{{"}}phase{{"}}"}} p95",
+              "refId": "A"
+            },
+            {
+              "expr": "1000 * histogram_quantile(0.99, sum by (le, phase) (rate(pulse_public_client_ws_connect_duration_seconds_bucket{namespace=\"$namespace\",outcome=\"connected\"}[5m])))",
+              "legendFormat": "{{"{{"}}phase{{"}}"}} p99",
+              "refId": "B"
+            }
+          ],
+          "title": "Client WebSocket Connect Latency",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (phase, outcome) (rate(pulse_public_client_ws_connections_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}phase{{"}}"}} {{"{{"}}outcome{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Client WebSocket Connection Outcomes",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (reason) (rate(pulse_public_client_ws_disconnects_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}reason{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Client WebSocket Disconnect Reasons",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (state) (rate(pulse_public_client_ws_freshness_transitions_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}state{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Client WebSocket Freshness Transitions",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(pulse_public_client_ws_stale_recovery_duration_seconds_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "stale recovery p95",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum by (le) (rate(pulse_public_client_ws_stale_recovery_duration_seconds_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "stale recovery p99",
+              "refId": "B"
+            }
+          ],
+          "title": "Client WebSocket Stale Recovery",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "client", "websocket", "slo", "realtime"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "{{ .Release.Namespace }}", "value": "{{ .Release.Namespace }}"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "{{ .Release.Namespace }}",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "title": "Pulse Client WebSocket SLOs",
+      "uid": "pulse-client-ws-slos",
+      "version": 1
+    }
 {{- end }}

@@ -3,6 +3,13 @@ import {
   recoverSessionForUnauthorizedRequest,
   triggerSessionExpiredRedirect
 } from '@/features/auth/sessionRecoveryCoordinator';
+import {
+  classifyClientRestPath,
+  reportClientRestMetric,
+  toErrorKind,
+  toStatusClass,
+  type ClientRestOutcome
+} from '@/shared/api/clientRestMetrics';
 
 export class ApiError extends Error {
   constructor(
@@ -75,7 +82,7 @@ function isRetryableNetworkError(error: unknown): boolean {
   return error instanceof TypeError;
 }
 
-export async function requestJson<T>(
+async function requestJsonInternal<T>(
   path: string,
   { method = 'GET', token, body, signal, sessionRecoveryAttempted = false }: RequestOptions = {}
 ): Promise<T> {
@@ -130,7 +137,7 @@ export async function requestJson<T>(
       if (res.status === 401 && !sessionRecoveryAttempted) {
         const recoveredToken = await recoverSessionForUnauthorizedRequest(token);
         if (recoveredToken) {
-          return requestJson<T>(path, {
+          return requestJsonInternal<T>(path, {
             method,
             token: recoveredToken,
             body,
@@ -168,4 +175,51 @@ export async function requestJson<T>(
     `Request failed before receiving response for ${method} ${path}. Tried: ${attemptedUrls.join(', ')}`,
     0
   );
+}
+
+export async function requestJson<T>(
+  path: string,
+  { method = 'GET', token, body, signal, sessionRecoveryAttempted = false }: RequestOptions = {}
+): Promise<T> {
+  const route = classifyClientRestPath(path);
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  try {
+    const payload = await requestJsonInternal<T>(path, {
+      method,
+      token,
+      body,
+      signal,
+      sessionRecoveryAttempted
+    });
+    if (route) {
+      void reportClientRestMetric({
+        route,
+        method,
+        outcome: 'success',
+        statusClass: '2xx',
+        durationMs: Math.max(0, (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt),
+        errorKind: 'none'
+      });
+    }
+    return payload;
+  } catch (error) {
+    if (route) {
+      const status = error instanceof ApiError ? error.status : undefined;
+      const outcome: ClientRestOutcome =
+        error instanceof ApiError && error.status === 0
+          ? 'network_error'
+          : error instanceof ApiError
+            ? 'http_error'
+            : 'client_error';
+      void reportClientRestMetric({
+        route,
+        method,
+        outcome,
+        statusClass: toStatusClass(status),
+        durationMs: Math.max(0, (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt),
+        errorKind: toErrorKind({ outcome, status })
+      });
+    }
+    throw error;
+  }
 }

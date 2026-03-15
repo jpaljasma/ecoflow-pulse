@@ -254,6 +254,19 @@ When starting any new milestone task from `docs/architecture/README.md`:
 5. Availability/error-rate SLO views must be request-based (`good / total`) over gRPC status codes, not process uptime.
 6. Latency SLO views should include at least `P95` and `P99`, and when a target is claimed (for example `99.99%` availability), show the target/error budget on the dashboard explicitly.
 7. SLO dashboards should support filtering by endpoint or method so per-RPC behavior is inspectable without cloning whole dashboards.
+8. For user-facing REST endpoints, default SLIs must be client-observed from the universal app or other first-party clients, not inferred only from server-side request logs.
+9. Client-observed REST SLO metrics must use canonical low-cardinality route labels and request-based good/total semantics:
+   - availability = successful client-observed requests / total client-observed requests,
+   - latency = client-observed duration distributions (at least `P95` and `P99`) for successful requests,
+   - errors = explicit client-observed failure outcomes, including transport/network failures that server-only metrics can miss.
+10. When both client-side and server-side views exist for the same user-facing REST flow, dashboards should present the client-observed view as the primary SLI and treat server-side metrics as supporting diagnostics.
+11. For user-facing websocket/realtime paths, default SLIs must be client-observed from first-party clients:
+   - availability = successful usable connects/reconnects from the client perspective,
+   - latency = client-observed connect and reconnect durations,
+   - errors = auth-required/auth-failed outcomes plus unexpected disconnect reasons,
+   - freshness = client-observed stale-data transitions and recovery duration as supporting context.
+12. Client-observed websocket metrics must use canonical low-cardinality labels only; never label by device ID, serial number, user ID, raw URL, or subscription list.
+13. When both client-side and server-side websocket metrics exist, dashboards should present client-observed realtime SLIs as primary and gateway metrics as supporting diagnostics for incident triage.
 
 ## Service Logging Throughput Rules
 1. All long-running services/workers and operational CLIs must use `pkg/logger` (`BuildServiceLogger`) for consistent structured logging behavior.

@@ -24,6 +24,8 @@ import {
 } from './metrics.js';
 import { registerDeviceRoutes } from './routes/devices.js';
 import { registerAuthSessionEventRoutes } from './routes/authSessionEvents.js';
+import { registerClientMetricsRoutes } from './routes/clientMetrics.js';
+import { registerClientWsMetricsRoutes } from './routes/clientWsMetrics.js';
 import { registerHistoryRoutes } from './routes/history.js';
 import { registerCurrentUserRoutes } from './routes/me.js';
 
@@ -78,6 +80,8 @@ export function buildApp(
       hook: 'preHandler'
     });
     registerAuthSessionEventRoutes(scopedApp);
+    registerClientMetricsRoutes(scopedApp);
+    registerClientWsMetricsRoutes(scopedApp);
     if (options.controlPlaneClient) {
       registerCurrentUserRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
     }

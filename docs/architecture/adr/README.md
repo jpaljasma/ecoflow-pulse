@@ -24,6 +24,8 @@
 - [ADR-0018-rollups-persist-explicit-energy-buckets.md](./ADR-0018-rollups-persist-explicit-energy-buckets.md)
 - [ADR-0019-split-energy-rpcs-into-dedicated-grpc-service.md](./ADR-0019-split-energy-rpcs-into-dedicated-grpc-service.md)
 - [ADR-0020-authenticated-entry-routing-profile-and-device-authorization.md](./ADR-0020-authenticated-entry-routing-profile-and-device-authorization.md)
+- [ADR-0021-client-observed-rest-slos.md](./ADR-0021-client-observed-rest-slos.md)
+- [ADR-0022-client-observed-websocket-slos.md](./ADR-0022-client-observed-websocket-slos.md)
 ---
 
 ## How to add an ADR
