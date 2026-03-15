@@ -246,6 +246,8 @@ describe('energy route model', () => {
     expect(energyPresetLabel('previousWeek')).toBe('Previous week');
     expect(formatDeltaPct(12.34)).toBe('+12.3% vs previous');
     expect(formatDeltaPct(null)).toBe('No prior baseline');
+    expect(formatDeltaPct(1141771, { previousValue: 0.001, minBaseline: 0.024 })).toBe('vs previous');
+    expect(formatDeltaPct(12.34, { previousValue: 1.2, minBaseline: 0.024 })).toBe('+12.3% vs previous');
   });
 
   it('builds insight cards from power buckets', () => {

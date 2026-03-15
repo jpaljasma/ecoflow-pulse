@@ -5,6 +5,7 @@ import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
+import { useEnergySettingsStore } from '@/features/energy/store';
 import { detectCurrentWeatherLocation } from '@/features/profile/location';
 import { formatAuthMethodLabel, resolveUserDisplayName } from '@/features/profile/model';
 import { TimezoneSelect } from '@/features/profile/TimezoneSelect';
@@ -18,6 +19,7 @@ import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { TopBar } from '@/shared/ui/TopBar';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function ProfileScreen() {
   const compactHeader = width < 430;
   const { authReady, allowed, waiting } = useRequireAuth();
   const { token, authKey } = useAuthSession();
+  const semantics = useThemeSemantics();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const currentUserQuery = useCurrentUser({
     token,
@@ -46,6 +49,10 @@ export default function ProfileScreen() {
   const [weatherLocation, setWeatherLocation] = useState<null | { label?: string; latitude: number; longitude: number }>(null);
   const [locationStatus, setLocationStatus] = useState('');
   const [identityRefreshAttempted, setIdentityRefreshAttempted] = useState(false);
+  const gridPricePerKwh = useEnergySettingsStore((state) => state.gridPricePerKwh);
+  const currency = useEnergySettingsStore((state) => state.currency);
+  const setGridPricePerKwh = useEnergySettingsStore((state) => state.setGridPricePerKwh);
+  const setCurrency = useEnergySettingsStore((state) => state.setCurrency);
 
   useEffect(() => {
     const user = currentUserQuery.data?.user;
@@ -205,6 +212,60 @@ export default function ProfileScreen() {
                 <Text color="$colorMuted">
                   Choose from the IANA timezone list. Suggested from this device: {detectedTimeZone || 'Unavailable'}.
                 </Text>
+              </YStack>
+              <YStack gap="$2">
+                <Text fontWeight="700">Local energy price</Text>
+                <Text color="$colorMuted">
+                  Used by the Energy dashboard for estimated value and AC input cost. Saved locally on this browser or device.
+                </Text>
+                <XStack gap="$3" flexWrap="wrap" alignItems="center">
+                  <AppTextInput
+                    compact
+                    width={120}
+                    value={gridPricePerKwh}
+                    onChangeText={setGridPricePerKwh}
+                    keyboardType="decimal-pad"
+                    placeholder="0.30"
+                    borderRadius={999}
+                    borderWidth={1}
+                  />
+                  <Button
+                    size="$3"
+                    borderWidth={1}
+                    onPress={() => setCurrency('USD')}
+                    style={{
+                      backgroundColor: currency === 'USD' ? semantics.periodActiveBackground : semantics.periodIdleBackground,
+                      borderColor: currency === 'USD' ? semantics.periodActiveBorder : semantics.periodIdleBorder,
+                      color: currency === 'USD' ? semantics.periodActiveText : semantics.periodIdleText
+                    }}
+                  >
+                    USD
+                  </Button>
+                  <Button
+                    size="$3"
+                    borderWidth={1}
+                    onPress={() => setCurrency('CAD')}
+                    style={{
+                      backgroundColor: currency === 'CAD' ? semantics.periodActiveBackground : semantics.periodIdleBackground,
+                      borderColor: currency === 'CAD' ? semantics.periodActiveBorder : semantics.periodIdleBorder,
+                      color: currency === 'CAD' ? semantics.periodActiveText : semantics.periodIdleText
+                    }}
+                  >
+                    CAD
+                  </Button>
+                  <Button
+                    size="$3"
+                    borderWidth={1}
+                    onPress={() => setCurrency('EUR')}
+                    style={{
+                      backgroundColor: currency === 'EUR' ? semantics.periodActiveBackground : semantics.periodIdleBackground,
+                      borderColor: currency === 'EUR' ? semantics.periodActiveBorder : semantics.periodIdleBorder,
+                      color: currency === 'EUR' ? semantics.periodActiveText : semantics.periodIdleText
+                    }}
+                  >
+                    EUR
+                  </Button>
+                </XStack>
               </YStack>
             </Card>
 

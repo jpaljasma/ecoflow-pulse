@@ -34,6 +34,7 @@ export type DetailMetricCellVM =
       key: 'today';
       kind: 'today';
       valueWh?: number;
+      previousWh?: number;
       deltaPct?: number | null;
     };
 
@@ -128,6 +129,7 @@ export function useDeviceDetailViewModel({
   connectionStatus,
   useRemoteImage,
   todayWh,
+  yesterdayWh,
   todayDeltaPct
 }: {
   device?: DeviceSummary;
@@ -135,6 +137,7 @@ export function useDeviceDetailViewModel({
   connectionStatus: TelemetryEngineStatus;
   useRemoteImage: boolean;
   todayWh?: number;
+  yesterdayWh?: number;
   todayDeltaPct?: number | null;
 }): DeviceDetailViewModel {
   const modelLower = (device?.model ?? '').toLowerCase();
@@ -223,7 +226,7 @@ export function useDeviceDetailViewModel({
       { key: 'ac', kind: 'stat', label: '∿ AC', value: formatW(acInW), tone: metricToneFromValue(acInW) },
       { key: 'dc', kind: 'stat', label: '⎓ DC', value: formatW(dcW), tone: metricToneFromValue(dcW) },
       { key: 'pv', kind: 'stat', label: '☼ PV', value: formatW(pvW), tone: metricToneFromValue(pvW) },
-      { key: 'today', kind: 'today', valueWh: todayWh, deltaPct: todayDeltaPct },
+      { key: 'today', kind: 'today', valueWh: todayWh, previousWh: yesterdayWh, deltaPct: todayDeltaPct },
       {
         key: 'load',
         kind: 'stat',
@@ -255,6 +258,7 @@ export function useDeviceDetailViewModel({
     device,
     detailState,
     todayDeltaPct,
+    yesterdayWh,
     todayWh
   ]);
 

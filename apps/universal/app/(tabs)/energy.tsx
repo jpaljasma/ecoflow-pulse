@@ -1,6 +1,7 @@
-import { startTransition, useMemo } from 'react';
+import { startTransition, useMemo, useState } from 'react';
 import { Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
@@ -19,6 +20,8 @@ import {
   ENERGY_PRESETS,
   energyPresetLabel,
   formatDeltaPct,
+  MIN_MEANINGFUL_CURRENCY_BASELINE,
+  MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH,
   resolveEnergyRouteState,
   type EnergyRouteState
 } from '@/features/energy/model';
@@ -27,7 +30,6 @@ import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
 import { formatKWh, formatSoc } from '@/features/telemetry/format';
 import { ApiError } from '@/shared/api/restClient';
 import { AppMenu } from '@/shared/ui/AppMenu';
-import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { BatteryWindowSummary } from '@/shared/ui/BatteryWindowSummary';
 import { Card } from '@/shared/ui/Card';
 import { ChartSection } from '@/shared/ui/ChartSection';
@@ -66,8 +68,14 @@ function directionText(delta: number): string {
   return 'flat';
 }
 
-function formatDeltaSummary(delta: number, value: string, deltaPct: number | null): string {
-  return `${directionText(delta)} ${value} · ${formatDeltaPct(deltaPct)}`;
+function formatDeltaSummary(
+  delta: number,
+  value: string,
+  deltaPct: number | null,
+  previousValue?: number | null,
+  minBaseline?: number
+): string {
+  return `${directionText(delta)} ${value} · ${formatDeltaPct(deltaPct, { previousValue, minBaseline })}`;
 }
 
 function formatObservedAtLabel(unixMs: string): string {
@@ -131,8 +139,7 @@ export default function EnergyScreen() {
   const { allowed, waiting } = useRequireAuth();
   const gridPricePerKwhInput = useEnergySettingsStore((state) => state.gridPricePerKwh);
   const currency = useEnergySettingsStore((state) => state.currency);
-  const setGridPricePerKwh = useEnergySettingsStore((state) => state.setGridPricePerKwh);
-  const setCurrency = useEnergySettingsStore((state) => state.setCurrency);
+  const [controlsExpanded, setControlsExpanded] = useState(false);
   const devicesQuery = useDevices({
     token,
     authKey,
@@ -275,133 +282,104 @@ export default function EnergyScreen() {
             padding: 24
           }}
         >
-          <YStack gap="$2">
-            <Text fontSize="$7" fontWeight="800">
-              Solar against load
-            </Text>
-            <Text color="$colorMuted">
-              Compare generated energy, load, battery movement, and estimated value over a local-calendar window.
-            </Text>
-          </YStack>
-
-          <YStack gap="$3">
-            <Text fontSize="$3" fontWeight="700">
-              Scope
-            </Text>
-            <XStack gap="$3" flexWrap="wrap">
-              <Button
-                size="$3"
-                borderWidth={1}
-                style={buttonStyles(routeState.scope === 'all', semantics)}
-                onPress={() => updateRoute({ scope: 'all' })}
-              >
-                All devices
-              </Button>
-              {devices.map((device) => (
-                <Button
-                  key={device.id}
-                  size="$3"
-                  borderWidth={1}
-                  style={buttonStyles(routeState.scope === 'device' && routeState.deviceId === device.id, semantics)}
-                  onPress={() => updateRoute({ scope: 'device', deviceId: device.id })}
-                >
-                  {device.name}
-                </Button>
-              ))}
-            </XStack>
-          </YStack>
-
-          <YStack gap="$3">
-            <Text fontSize="$3" fontWeight="700">
-              Window
-            </Text>
-            <XStack gap="$3" flexWrap="wrap">
-              {ENERGY_PRESETS.map((preset) => (
-                <Button
-                  key={preset}
-                  size="$3"
-                  borderWidth={1}
-                  style={buttonStyles(routeState.preset === preset, semantics)}
-                  onPress={() => updateRoute({ preset })}
-                >
-                  {energyPresetLabel(preset)}
-                </Button>
-              ))}
-            </XStack>
-          </YStack>
-
-          <YStack gap="$3">
-            <Text fontSize="$3" fontWeight="700">
-              Comparison
-            </Text>
-            <XStack gap="$3" flexWrap="wrap">
-              <Button
-                size="$3"
-                borderWidth={1}
-                style={buttonStyles(routeState.includeComparison, semantics)}
-                onPress={() => updateRoute({ includeComparison: true })}
-              >
-                Compare on
-              </Button>
-              <Button
-                size="$3"
-                borderWidth={1}
-                style={buttonStyles(!routeState.includeComparison, semantics)}
-                onPress={() => updateRoute({ includeComparison: false })}
-              >
-                Compare off
-              </Button>
-            </XStack>
-          </YStack>
-
-          <YStack gap="$3">
-            <Text fontSize="$3" fontWeight="700">
-              Local price setting
-            </Text>
-            <XStack gap="$3" flexWrap="wrap" alignItems="center">
-              <AppTextInput
-                compact
-                width={120}
-                value={gridPricePerKwhInput}
-                onChangeText={setGridPricePerKwh}
-                keyboardType="decimal-pad"
-                placeholder="0.30"
-                borderRadius={999}
-                borderWidth={1}
-                style={{
-                  paddingHorizontal: 15,
-                  borderColor: semantics.periodIdleBorder
-                }}
+          <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
+            <YStack gap="$2" flex={1} minWidth={260}>
+              <Text fontSize="$7" fontWeight="800">
+                Solar against load
+              </Text>
+              <Text color="$colorMuted">
+                Compare generated energy, load, battery movement, and estimated value over a local-calendar window.
+              </Text>
+            </YStack>
+            <Button
+              size="$3"
+              circular
+              borderWidth={1}
+              style={buttonStyles(controlsExpanded, semantics)}
+              accessibilityLabel={controlsExpanded ? 'Collapse solar against load controls' : 'Expand solar against load controls'}
+              onPress={() => setControlsExpanded((value) => !value)}
+            >
+              <MaterialCommunityIcons
+                name={controlsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={controlsExpanded ? semantics.periodActiveText : semantics.periodIdleText}
               />
-              <Button
-                size="$3"
-                borderWidth={1}
-                style={buttonStyles(currency === 'USD', semantics)}
-                onPress={() => setCurrency('USD')}
-              >
-                USD
-              </Button>
-              <Button
-                size="$3"
-                borderWidth={1}
-                style={buttonStyles(currency === 'CAD', semantics)}
-                onPress={() => setCurrency('CAD')}
-              >
-                CAD
-              </Button>
-              <Button
-                size="$3"
-                borderWidth={1}
-                style={buttonStyles(currency === 'EUR', semantics)}
-                onPress={() => setCurrency('EUR')}
-              >
-                EUR
-              </Button>
-            </XStack>
-            <Text color="$colorMuted">
-              Saved on this device and forwarded to the dashboard cost/value estimates.
-            </Text>
-          </YStack>
+            </Button>
+          </XStack>
+
+          {controlsExpanded ? (
+            <>
+              <YStack gap="$3">
+                <Text fontSize="$3" fontWeight="700">
+                  Scope
+                </Text>
+                <XStack gap="$3" flexWrap="wrap">
+                  <Button
+                    size="$3"
+                    borderWidth={1}
+                    style={buttonStyles(routeState.scope === 'all', semantics)}
+                    onPress={() => updateRoute({ scope: 'all' })}
+                  >
+                    All devices
+                  </Button>
+                  {devices.map((device) => (
+                    <Button
+                      key={device.id}
+                      size="$3"
+                      borderWidth={1}
+                      style={buttonStyles(routeState.scope === 'device' && routeState.deviceId === device.id, semantics)}
+                      onPress={() => updateRoute({ scope: 'device', deviceId: device.id })}
+                    >
+                      {device.name}
+                    </Button>
+                  ))}
+                </XStack>
+              </YStack>
+
+              <YStack gap="$3">
+                <Text fontSize="$3" fontWeight="700">
+                  Window
+                </Text>
+                <XStack gap="$3" flexWrap="wrap">
+                  {ENERGY_PRESETS.map((preset) => (
+                    <Button
+                      key={preset}
+                      size="$3"
+                      borderWidth={1}
+                      style={buttonStyles(routeState.preset === preset, semantics)}
+                      onPress={() => updateRoute({ preset })}
+                    >
+                      {energyPresetLabel(preset)}
+                    </Button>
+                  ))}
+                </XStack>
+              </YStack>
+
+              <YStack gap="$3">
+                <Text fontSize="$3" fontWeight="700">
+                  Comparison
+                </Text>
+                <XStack gap="$3" flexWrap="wrap">
+                  <Button
+                    size="$3"
+                    borderWidth={1}
+                    style={buttonStyles(routeState.includeComparison, semantics)}
+                    onPress={() => updateRoute({ includeComparison: true })}
+                  >
+                    Compare on
+                  </Button>
+                  <Button
+                    size="$3"
+                    borderWidth={1}
+                    style={buttonStyles(!routeState.includeComparison, semantics)}
+                    onPress={() => updateRoute({ includeComparison: false })}
+                  >
+                    Compare off
+                  </Button>
+                </XStack>
+              </YStack>
+            </>
+          ) : null}
         </Card>
 
         {devicesQuery.isLoading && !devices.length ? (
@@ -448,7 +426,9 @@ export default function EnergyScreen() {
                       {formatDeltaSummary(
                         dashboardQuery.data.summary.solarGeneratedKwh.delta,
                         formatKWh(Math.abs(dashboardQuery.data.summary.solarGeneratedKwh.delta)),
-                        dashboardQuery.data.summary.solarGeneratedKwh.deltaPct
+                        dashboardQuery.data.summary.solarGeneratedKwh.deltaPct,
+                        dashboardQuery.data.summary.solarGeneratedKwh.previous,
+                        MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH
                       )}
                     </Text>
                   </>
@@ -463,7 +443,9 @@ export default function EnergyScreen() {
                       {formatDeltaSummary(
                         dashboardQuery.data.summary.loadConsumedKwh.delta,
                         formatKWh(Math.abs(dashboardQuery.data.summary.loadConsumedKwh.delta)),
-                        dashboardQuery.data.summary.loadConsumedKwh.deltaPct
+                        dashboardQuery.data.summary.loadConsumedKwh.deltaPct,
+                        dashboardQuery.data.summary.loadConsumedKwh.previous,
+                        MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH
                       )}
                     </Text>
                   </>
@@ -527,7 +509,9 @@ export default function EnergyScreen() {
                           Math.abs(dashboardQuery.data.summary.estimatedValue.delta),
                           dashboardQuery.data.summary.currency
                         ),
-                        dashboardQuery.data.summary.estimatedValue.deltaPct
+                        dashboardQuery.data.summary.estimatedValue.deltaPct,
+                        dashboardQuery.data.summary.estimatedValue.previous,
+                        MIN_MEANINGFUL_CURRENCY_BASELINE
                       )}
                     </Text>
                   </>
@@ -562,7 +546,12 @@ export default function EnergyScreen() {
                       )}
                       tone="muted"
                     />
-                    <Text color="$colorMuted">{formatDeltaPct(dashboardQuery.data.summary.estimatedAcInputCost.deltaPct)}</Text>
+                    <Text color="$colorMuted">
+                      {formatDeltaPct(dashboardQuery.data.summary.estimatedAcInputCost.deltaPct, {
+                        previousValue: dashboardQuery.data.summary.estimatedAcInputCost.previous,
+                        minBaseline: MIN_MEANINGFUL_CURRENCY_BASELINE
+                      })}
+                    </Text>
                   </>
                 ) : null}
               </SectionCard>

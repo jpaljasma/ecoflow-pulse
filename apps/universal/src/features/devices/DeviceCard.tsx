@@ -157,6 +157,7 @@ export function DeviceCard({
         content: (
           <SolarTodayBadge
             valueWh={solarHistory.data?.todayWh}
+            previousWh={solarHistory.data?.yesterdayWh}
             deltaPct={solarHistory.data?.deltaPct}
             compact
             fitCell

@@ -1,5 +1,6 @@
 import type { DeviceSummary } from '@/features/devices/api';
 import type { EnergyDashboard, EnergyPreset, EnergyRollupPoint } from '@/features/energy/api';
+import { MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH } from '@/shared/ui/solarLegend';
 
 export const ENERGY_PRESETS: EnergyPreset[] = [
   'today',
@@ -13,6 +14,10 @@ export const ENERGY_PRESETS: EnergyPreset[] = [
   'lastMonth',
   'last12m'
 ];
+
+export const MIN_MEANINGFUL_CURRENCY_BASELINE = 0.01;
+export const MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH =
+  MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH / 1000;
 
 export type EnergyRouteState = {
   scope: 'device' | 'all';
@@ -160,9 +165,26 @@ export function buildWindowLabel(dashboard: EnergyDashboard): string {
   return fromLabel === toLabel ? fromLabel : `${fromLabel} - ${toLabel}`;
 }
 
-export function formatDeltaPct(deltaPct: number | null): string {
+export function formatDeltaPct(
+  deltaPct: number | null,
+  options?: {
+    previousValue?: number | null;
+    minBaseline?: number;
+  }
+): string {
   if (deltaPct === null || !Number.isFinite(deltaPct)) {
     return 'No prior baseline';
+  }
+  const previousValue = options?.previousValue;
+  const minBaseline = options?.minBaseline ?? 0;
+  if (previousValue !== null && previousValue !== undefined && Number.isFinite(previousValue)) {
+    const absolutePrevious = Math.abs(previousValue);
+    if (absolutePrevious <= 0) {
+      return 'No prior baseline';
+    }
+    if (minBaseline > 0 && absolutePrevious < minBaseline) {
+      return 'vs previous';
+    }
   }
   const rounded = Math.round(deltaPct * 10) / 10;
   const sign = rounded > 0 ? '+' : '';

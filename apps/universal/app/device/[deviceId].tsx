@@ -185,6 +185,7 @@ export default function DeviceDetailScreen() {
     connectionStatus: telemetryConnectionStatus,
     useRemoteImage,
     todayWh: solarHistory.data?.todayWh,
+    yesterdayWh: solarHistory.data?.yesterdayWh,
     todayDeltaPct: solarHistory.data?.deltaPct
   });
 

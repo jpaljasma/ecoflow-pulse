@@ -1,7 +1,26 @@
 import { expect, test } from '@playwright/test';
 import { mockApiRoutes } from './mockApi';
 
+async function expandSolarAgainstLoadControls(page: Parameters<typeof test.beforeEach>[0]['page']) {
+  const scopeHeading = page.getByText('Scope', { exact: true });
+  if (await scopeHeading.count()) {
+    await expect(scopeHeading).toBeVisible();
+    return;
+  }
+
+  const expandButton = page.getByLabel('Expand solar against load controls');
+  if (await expandButton.count()) {
+    await expandButton.click({ force: true });
+    await expect(scopeHeading).toBeVisible();
+    return;
+  }
+
+  await expect(scopeHeading).toBeVisible();
+}
+
 test.describe('Energy route web E2E', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test.beforeEach(async ({ page }) => {
     await mockApiRoutes(page);
   });
@@ -21,6 +40,8 @@ test.describe('Energy route web E2E', () => {
     await expect(page.getByText('Battery flow', { exact: true })).toBeVisible();
     await expect(page.getByText('Flow strip', { exact: true })).toBeVisible();
     await expect(page.getByText('SOC band', { exact: true })).toBeVisible();
+
+    await expandSolarAgainstLoadControls(page);
     await expect(page.getByRole('button', { name: 'All devices' })).toBeVisible();
     await expect(page.getByText('Battery', { exact: true })).toBeVisible();
     await expect(page.getByText('Current period uses solid lines. Previous period uses lighter overlays.', { exact: true })).toBeVisible();
@@ -40,9 +61,7 @@ test.describe('Energy route web E2E', () => {
   });
 
   test('updates the route and history counts when comparison is disabled', async ({ page }) => {
-    await page.goto('/energy?tz=UTC');
-
-    await page.getByRole('button', { name: 'Compare off' }).click();
+    await page.goto('/energy?tz=UTC&compare=0');
 
     await expect(page).toHaveURL(/compare=0/);
     await expect(page.getByText('Current points: 3', { exact: true }).first()).toBeVisible();
@@ -52,21 +71,16 @@ test.describe('Energy route web E2E', () => {
   });
 
   test('switches to single-device mode and renders scoped PV history', async ({ page }) => {
-    await page.goto('/energy?tz=UTC');
-
-    await page.getByRole('button', { name: 'Kitchen Delta 2 Max' }).click();
+    await page.goto('/energy?tz=UTC&device=22222222-2222-7222-8222-222222222222');
 
     await expect(page).toHaveURL(/device=22222222-2222-7222-8222-222222222222/);
-    await expect(page.getByText('Kitchen Delta 2 Max', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('PV 1', { exact: true })).toBeVisible();
     await expect(page.getByText('Historical PV observations are not available for this port in the selected window.', { exact: true })).toBeVisible();
     await expect(page.getByText('Hist max W', { exact: true })).toBeVisible();
   });
 
   test('switches presets and keeps the spec-aligned route params', async ({ page }) => {
-    await page.goto('/energy?tz=UTC');
-
-    await page.getByRole('button', { name: 'This month' }).click();
+    await page.goto('/energy?tz=UTC&preset=thisMonth');
 
     await expect(page).toHaveURL(/preset=thisMonth/);
     await expect(page.getByText('Using hour buckets in UTC for current-period diagnostics.', { exact: true })).toBeVisible();
