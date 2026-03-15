@@ -17,7 +17,7 @@ test.describe('Universal web E2E', () => {
     await expect(page.getByText('Storm Guard active for ~2h more')).toBeVisible();
     await expect(page.getByText('DPU A 12 kWh', { exact: true })).toBeVisible();
     await expect(page.getByText('Kitchen Delta 2 Max')).toBeVisible();
-    await expect(page.getByText('☼ Today').first()).toBeVisible();
+    await expect(page.getByText('Today').first()).toBeVisible();
   });
 
   test('loads detail by UUID route', async ({ page }) => {

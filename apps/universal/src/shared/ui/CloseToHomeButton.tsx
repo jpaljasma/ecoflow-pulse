@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Animated, Platform } from 'react-native';
 import { useRef, useState } from 'react';
-import { Button, Text } from 'tamagui';
+import { Button } from 'tamagui';
 import { env } from '@/shared/config/env';
 
 export function CloseToHomeButton({
@@ -77,9 +78,7 @@ export function CloseToHomeButton({
         accessibilityRole="button"
         accessibilityLabel="Close and return to devices"
       >
-        <Text fontSize="$7" lineHeight={24} fontWeight="700" marginTop={-1}>
-          ×
-        </Text>
+        <MaterialCommunityIcons name="close" size={22} color="rgba(28, 43, 45, 0.92)" />
       </Button>
     </Animated.View>
   );

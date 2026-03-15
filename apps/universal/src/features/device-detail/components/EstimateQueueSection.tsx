@@ -2,6 +2,7 @@ import { XStack } from 'tamagui';
 import { Pill } from '@/shared/ui/Pill';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import type { DetailEstimatePillVM } from '@/features/device-detail/view-model';
+import { IconLabel } from '@/shared/ui/IconLabel';
 
 export function EstimateQueueSection({
   pills,
@@ -11,7 +12,7 @@ export function EstimateQueueSection({
   minWidth?: number;
 }) {
   return (
-    <SectionCard title="🧭 Estimate & Queue" minWidth={minWidth}>
+    <SectionCard title={<IconLabel icon="compass-outline" label="Estimate & Queue" />} minWidth={minWidth}>
       <XStack gap="$2" flexWrap="wrap">
         {pills.map((pill) => (
           <Pill key={pill.key} label={pill.label} tone={pill.tone} />
@@ -20,4 +21,3 @@ export function EstimateQueueSection({
     </SectionCard>
   );
 }
-

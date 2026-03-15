@@ -3,6 +3,7 @@ import { Pill } from '@/shared/ui/Pill';
 import { Stat } from '@/shared/ui/Stat';
 import { isMutedMetric, pvLoadColor } from '@/shared/ui/uiMappings';
 import type { DetailSolarPortVM } from '@/features/device-detail/view-model';
+import { IconLabel } from '@/shared/ui/IconLabel';
 
 export function SolarPortCard({ port }: { port: DetailSolarPortVM }) {
   return (
@@ -20,7 +21,7 @@ export function SolarPortCard({ port }: { port: DetailSolarPortVM }) {
       </XStack>
       <XStack gap="$3" flexWrap="wrap">
         <Stat
-          label="⚡ W"
+          label={<IconLabel icon="lightning-bolt-outline" label="W" />}
           value={port.wattsText}
           tone={port.inactive || isMutedMetric(port.watts) ? 'muted' : 'default'}
         />
@@ -54,4 +55,3 @@ export function SolarPortCard({ port }: { port: DetailSolarPortVM }) {
     </YStack>
   );
 }
-

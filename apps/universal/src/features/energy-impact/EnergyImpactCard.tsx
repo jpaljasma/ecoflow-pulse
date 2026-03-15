@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { Card } from '@/shared/ui/Card';
 import { formatWhAndKWh } from '@/features/telemetry/format';
@@ -58,9 +59,7 @@ export function EnergyImpactCard({
             borderWidth={1}
             style={{ backgroundColor: semantics.energyLeafBackground, borderColor: semantics.energyLeafBorder }}
           >
-            <Text fontSize="$4" style={{ color: semantics.energyLeafText }}>
-              🍃
-            </Text>
+            <MaterialCommunityIcons name="leaf" size={18} color={semantics.energyLeafText} />
           </YStack>
           <YStack gap="$1">
             <Text fontSize="$4" fontWeight="700">

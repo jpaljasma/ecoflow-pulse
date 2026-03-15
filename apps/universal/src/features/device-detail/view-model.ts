@@ -1,3 +1,5 @@
+import type { ComponentProps } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
 import type {
@@ -15,7 +17,7 @@ import {
 import { solarPortView } from '@/features/device-detail/solarPort';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
-import { getStatusGlyph } from '@/shared/ui/statusGlyph';
+import { getStatusIconName } from '@/shared/ui/statusGlyph';
 import {
   isMutedMetric,
   signalTone,
@@ -82,11 +84,11 @@ export type DetailSolarPortVM = {
 export type DeviceDetailViewModel = {
   modelLower: string;
   detailState: 'charging' | 'discharging' | 'idle';
-  connectionGlyph: string;
+  connectionGlyph: ComponentProps<typeof MaterialCommunityIcons>['name'];
   deviceAsset: {
     slug: string;
     uri?: string;
-    emoji: string;
+    icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   } | null;
   detailFallback?: ReturnType<typeof getBundledDeviceFallback>;
   capacityKWh: number | null;
@@ -176,12 +178,12 @@ export function useDeviceDetailViewModel({
   }, [device?.state, snapshot]);
 
   const connectionGlyph = useMemo(() => {
-    if (snapshot?.stale) return getStatusGlyph('stale');
-    if (connectionStatus === 'connected') return getStatusGlyph('online');
+    if (snapshot?.stale) return getStatusIconName('stale');
+    if (connectionStatus === 'connected') return getStatusIconName('online');
     if (connectionStatus === 'connecting' || connectionStatus === 'reconnecting') {
-      return getStatusGlyph('processing');
+      return getStatusIconName('processing');
     }
-    return getStatusGlyph('waiting');
+    return getStatusIconName('waiting');
   }, [snapshot?.stale, connectionStatus]);
 
   const deviceAsset = useMemo(() => {
@@ -195,7 +197,7 @@ export function useDeviceDetailViewModel({
     return {
       slug: match.slug,
       uri: useRemoteImage ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('detail')) : undefined,
-      emoji: match.glyph.emoji
+      icon: match.glyph.icon
     };
   }, [device?.model, device?.details?.bpCount, device?.capabilities, useRemoteImage]);
 
@@ -223,28 +225,28 @@ export function useDeviceDetailViewModel({
 
   const metricCells = useMemo<DetailMetricCellVM[]>(() => {
     return [
-      { key: 'ac', kind: 'stat', label: '∿ AC', value: formatW(acInW), tone: metricToneFromValue(acInW) },
-      { key: 'dc', kind: 'stat', label: '⎓ DC', value: formatW(dcW), tone: metricToneFromValue(dcW) },
-      { key: 'pv', kind: 'stat', label: '☼ PV', value: formatW(pvW), tone: metricToneFromValue(pvW) },
+      { key: 'ac', kind: 'stat', label: 'AC', value: formatW(acInW), tone: metricToneFromValue(acInW) },
+      { key: 'dc', kind: 'stat', label: 'DC', value: formatW(dcW), tone: metricToneFromValue(dcW) },
+      { key: 'pv', kind: 'stat', label: 'PV', value: formatW(pvW), tone: metricToneFromValue(pvW) },
       { key: 'today', kind: 'today', valueWh: todayWh, previousWh: yesterdayWh, deltaPct: todayDeltaPct },
       {
         key: 'load',
         kind: 'stat',
-        label: '⌂ Load',
+        label: 'Load',
         value: formatW(loadW),
         tone: metricToneFromValue(loadW)
       },
-      { key: 'net', kind: 'stat', label: '⚖ Net', value: formatW(netW) },
-      { key: 'battery', kind: 'stat', label: '🔋 Battery', value: formatW(batteryW) },
+      { key: 'net', kind: 'stat', label: 'Net', value: formatW(netW) },
+      { key: 'battery', kind: 'stat', label: 'Battery', value: formatW(batteryW) },
       {
         key: 'temp',
         kind: 'stat',
-        label: isColdTemp ? '❄ Temp' : '🌡 Temp',
+        label: 'Temp',
         value: snapshot?.metrics ? `${snapshot.metrics.tempC.toFixed(1)}°C` : '—',
         tone: isColdTemp ? 'cold' : 'default'
       },
-      { key: 'state', kind: 'stat', label: '◉ State', value: device ? detailState : '—' },
-      { key: 'eta', kind: 'stat', label: '⏱ ETA', value: formatEtaMinutes(device?.etaMinutes) }
+      { key: 'state', kind: 'stat', label: 'State', value: device ? detailState : '—' },
+      { key: 'eta', kind: 'stat', label: 'ETA', value: formatEtaMinutes(device?.etaMinutes) }
     ];
   }, [
     acInW,

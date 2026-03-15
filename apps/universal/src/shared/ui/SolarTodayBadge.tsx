@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { formatWhAndKWh } from '@/features/telemetry/format';
@@ -38,9 +39,16 @@ export function SolarTodayBadge({
       justifyContent={fitCell ? 'center' : undefined}
       minHeight={fitCell ? 56 : undefined}
     >
-      <Text fontSize={compact ? '$2' : '$3'} fontWeight="800" style={{ color: semantics.solarBadgeTitle }}>
-        ☼ Today
-      </Text>
+      <XStack alignItems="center" gap="$1">
+        <MaterialCommunityIcons
+          name="white-balance-sunny"
+          size={compact ? 14 : 16}
+          color={semantics.solarBadgeTitle}
+        />
+        <Text fontSize={compact ? '$2' : '$3'} fontWeight="800" style={{ color: semantics.solarBadgeTitle }}>
+          Today
+        </Text>
+      </XStack>
       <XStack alignItems="baseline" gap="$1" flexWrap="wrap">
         <Text fontSize={compact ? '$1' : '$2'} fontWeight="800" style={{ color: semantics.solarBadgeValue }}>
           {formatWhAndKWh(valueWh)}

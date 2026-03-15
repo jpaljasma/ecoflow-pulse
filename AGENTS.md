@@ -174,6 +174,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - routine deploys must not abruptly cut ingest, projection, rollup, archive, inference, or repair workers,
    - workers must stop accepting new work, drain or hand off in-flight work safely, and exit without corrupting state or causing duplicate side effects,
    - deployment/restart behavior that creates avoidable data gaps, replay debt, or crash-loop churn is an availability bug.
+21. Universal app iconography must use `MaterialCommunityIcons` for product UI elements:
+   - do not ship handmade emoji or ad-hoc Unicode glyphs as steady-state UI affordances, badges, nav controls, or metric labels,
+   - when an icon is needed, prefer a named `MaterialCommunityIcons` glyph over inline text symbols,
+   - keep icon+label patterns DRY through shared wrappers instead of repeating one-off icon/text stacks.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.

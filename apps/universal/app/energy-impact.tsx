@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
 import { Button, Text, XStack, YStack } from 'tamagui';
@@ -57,12 +58,10 @@ export default function EnergyImpactScreen() {
             onPress={() => router.back()}
             accessibilityLabel="Back"
           >
-            <Text fontSize="$7" lineHeight={24} fontWeight="700" marginTop={-1}>
-              ‹
-            </Text>
+            <MaterialCommunityIcons name="chevron-left" size={24} color="rgba(28, 43, 45, 0.92)" />
           </Button>
         }
-        title="🍃 Energy Impact"
+        title={<XStack alignItems="center" gap="$2"><MaterialCommunityIcons name="leaf" size={18} color="rgba(28, 43, 45, 0.92)" /><Text fontSize="$6" fontWeight="700">Energy Impact</Text></XStack>}
         subtitle="How the dashboard estimates today-so-far avoided emissions"
         right={(
           <YStack alignItems="flex-end">
