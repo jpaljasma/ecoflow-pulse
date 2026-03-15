@@ -289,6 +289,46 @@ func TestEcoFlowAdapterGetDeviceAllQuotaSuccess(t *testing.T) {
 	}
 }
 
+func TestEcoFlowAdapterGetDeviceQuotaSnapshotIncludesRenamedDeviceMetadata(t *testing.T) {
+	t.Parallel()
+
+	generalInfo := &fakeGeneralInfo{
+		devices: []ecoflow.GeneralInfoDevice{{
+			SN:          "DEMOD2M00001057",
+			DeviceName:  "Renamed Delta 2 Max",
+			ProductName: "DELTA 2 Max",
+		}},
+		quota: map[string]string{
+			"pd.soc": "54",
+		},
+	}
+	adapter := NewEcoFlowAdapter(&fakeEcoFlowFactory{client: fakeEcoFlowClient{generalInfo: generalInfo}})
+	cred := controlplane.ProviderCredential{
+		ID:        "cred-1",
+		Provider:  controlplane.ProviderEcoFlow,
+		AccessKey: "ak",
+		SecretKey: "sk",
+		IsActive:  true,
+	}
+
+	device, quota, err := adapter.GetDeviceQuotaSnapshot(context.Background(), cred, "demod2m00001057")
+	if err != nil {
+		t.Fatalf("GetDeviceQuotaSnapshot() error = %v", err)
+	}
+	if got := device.ProductName; got != "Renamed Delta 2 Max" {
+		t.Fatalf("unexpected device product name=%q", got)
+	}
+	if got := device.Model; got != "DELTA 2 Max" {
+		t.Fatalf("unexpected device model=%q", got)
+	}
+	if got := quota["pd.soc"]; got != "54" {
+		t.Fatalf("unexpected quota soc=%q", got)
+	}
+	if generalInfo.listCalls != 1 || generalInfo.quotaCalls != 1 {
+		t.Fatalf("expected one list + one quota call, got list=%d quota=%d", generalInfo.listCalls, generalInfo.quotaCalls)
+	}
+}
+
 func TestEcoFlowAdapterGetDeviceAllQuotaDeviceNotFound(t *testing.T) {
 	t.Parallel()
 

@@ -353,16 +353,10 @@ RETURNING id::text, access_key_mask;
 func upsertDevice(ctx context.Context, tx *sql.Tx, binding deviceSeed, provider string, now time.Time) (string, error) {
 	const query = `
 INSERT INTO devices (ecoflow_sn, product_name, model, metadata, created_at, updated_at)
-VALUES ($1, $2, $3, $4::jsonb, $5, $5)
+VALUES ($1, NULLIF(BTRIM($2), ''), NULLIF(BTRIM($3), ''), $4::jsonb, $5, $5)
 ON CONFLICT (ecoflow_sn) DO UPDATE
-SET product_name = CASE
-		WHEN length(trim(COALESCE(devices.product_name, ''))) = 0 THEN EXCLUDED.product_name
-		ELSE devices.product_name
-	END,
-	model = CASE
-		WHEN length(trim(COALESCE(devices.model, ''))) = 0 THEN EXCLUDED.model
-		ELSE devices.model
-	END,
+SET product_name = COALESCE(NULLIF(BTRIM(EXCLUDED.product_name), ''), devices.product_name),
+	model = COALESCE(NULLIF(BTRIM(EXCLUDED.model), ''), devices.model),
 	metadata = CASE
 		WHEN devices.metadata = '{}'::jsonb THEN EXCLUDED.metadata
 		ELSE devices.metadata
@@ -423,18 +417,12 @@ INSERT INTO provider_devices (
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, TRUE, 'active', $9, $9)
+VALUES ($1, $2, $3, $4, NULLIF(BTRIM($5), ''), NULLIF(BTRIM($6), ''), $7::jsonb, $8::jsonb, TRUE, 'active', $9, $9)
 ON CONFLICT (provider, provider_device_id) DO UPDATE
 SET device_id = EXCLUDED.device_id,
 	credential_id = EXCLUDED.credential_id,
-	product_name = CASE
-		WHEN length(trim(COALESCE(provider_devices.product_name, ''))) = 0 THEN EXCLUDED.product_name
-		ELSE provider_devices.product_name
-	END,
-	model = CASE
-		WHEN length(trim(COALESCE(provider_devices.model, ''))) = 0 THEN EXCLUDED.model
-		ELSE provider_devices.model
-	END,
+	product_name = COALESCE(NULLIF(BTRIM(EXCLUDED.product_name), ''), provider_devices.product_name),
+	model = COALESCE(NULLIF(BTRIM(EXCLUDED.model), ''), provider_devices.model),
 	capabilities = CASE
 		WHEN provider_devices.capabilities = '{}'::jsonb THEN EXCLUDED.capabilities
 		ELSE provider_devices.capabilities
