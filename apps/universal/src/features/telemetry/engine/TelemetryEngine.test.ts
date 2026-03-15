@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/shared/config/env', () => ({
   env: {
@@ -12,6 +12,7 @@ vi.mock('@/shared/config/env', () => ({
 }));
 
 import { TelemetryEngine } from '@/features/telemetry/engine/TelemetryEngine';
+import * as clientWsMetrics from '@/features/telemetry/engine/clientWsMetrics';
 import { env } from '@/shared/config/env';
 
 type FakeSocketType = {
@@ -53,6 +54,10 @@ function createFakeSocket(url: string): FakeSocketType {
 }
 
 describe('TelemetryEngine', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('opens the websocket transport by default', () => {
     const createSocket = vi.fn((url: string) => createFakeSocket(url));
 
@@ -67,6 +72,7 @@ describe('TelemetryEngine', () => {
   });
 
   it('stays auth_required without opening a socket when auth is required and no token is present', () => {
+    const reportSpy = vi.spyOn(clientWsMetrics, 'reportClientWsMetric').mockResolvedValue();
     const createSocket = vi.fn((url: string) => createFakeSocket(url));
     const engine = new TelemetryEngine({ createSocket });
 
@@ -74,6 +80,12 @@ describe('TelemetryEngine', () => {
 
     expect(createSocket).not.toHaveBeenCalled();
     expect(engine.getStatus()).toBe('auth_required');
+    expect(reportSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'connection',
+        outcome: 'auth_required'
+      })
+    );
   });
 
   it('reopens the socket when the access token changes', () => {
@@ -213,6 +225,7 @@ describe('TelemetryEngine', () => {
 
   it('reconnects with jitter and resubscribes after an unexpected close', () => {
     vi.useFakeTimers();
+    const reportSpy = vi.spyOn(clientWsMetrics, 'reportClientWsMetric').mockResolvedValue();
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const sockets: FakeSocketType[] = [];
     const createSocket = vi.fn((url: string) => {
@@ -249,6 +262,26 @@ describe('TelemetryEngine', () => {
     expect(sockets[1]?.sent).toContain(
       JSON.stringify({ type: 'subscribe', deviceIds: ['device-1', 'device-2'] })
     );
+    expect(reportSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'connection',
+        phase: 'initial',
+        outcome: 'connected'
+      })
+    );
+    expect(reportSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'disconnect',
+        reason: 'unexpected_close'
+      })
+    );
+    expect(reportSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'connection',
+        phase: 'reconnect',
+        outcome: 'connected'
+      })
+    );
 
     engine.disconnect();
     randomSpy.mockRestore();
@@ -257,6 +290,7 @@ describe('TelemetryEngine', () => {
 
   it('keeps the last snapshot and marks it stale while reconnecting', () => {
     vi.useFakeTimers();
+    const reportSpy = vi.spyOn(clientWsMetrics, 'reportClientWsMetric').mockResolvedValue();
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
     const sockets: FakeSocketType[] = [];
     const createSocket = vi.fn((url: string) => {
@@ -303,9 +337,68 @@ describe('TelemetryEngine', () => {
     expect(latestPayload?.status).toBe('reconnecting');
     expect(latestPayload?.snapshots['device-1']?.metrics?.pvW).toBe(200);
     expect(latestPayload?.snapshots['device-1']?.stale).toBe(true);
+    expect(reportSpy).toHaveBeenCalledWith({
+      eventType: 'freshness_transition',
+      state: 'stale'
+    });
 
     engine.disconnect();
     randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('reports stale recovery after fresh data returns', () => {
+    vi.useFakeTimers();
+    const reportSpy = vi.spyOn(clientWsMetrics, 'reportClientWsMetric').mockResolvedValue();
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({
+      createSocket,
+      snapshotIntervalMs: 20,
+      staleAfterMs: 50
+    });
+
+    engine.onSnapshot(() => undefined);
+    engine.connect();
+    engine.subscribe(['device-1']);
+    sockets[0]?.triggerOpen();
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 1,
+        metrics: { soc: 50, pvW: 200, loadW: 90, batteryW: 25, tempC: 21, acW: 30, dcW: 10 }
+      })
+    } as MessageEvent);
+
+    vi.advanceTimersByTime(20);
+    vi.advanceTimersByTime(60);
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 2,
+        metrics: { soc: 51, pvW: 220, loadW: 95, batteryW: 20, tempC: 22, acW: 35, dcW: 10 }
+      })
+    } as MessageEvent);
+    vi.advanceTimersByTime(20);
+
+    expect(reportSpy).toHaveBeenCalledWith({
+      eventType: 'freshness_transition',
+      state: 'fresh'
+    });
+    expect(reportSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'stale_recovery',
+        durationMs: expect.any(Number)
+      })
+    );
+
+    engine.disconnect();
     vi.useRealTimers();
   });
 

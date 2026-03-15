@@ -7,11 +7,24 @@ const {
   recoverSessionForUnauthorizedRequest: vi.fn(),
   triggerSessionExpiredRedirect: vi.fn()
 }));
+const { reportClientRestMetric } = vi.hoisted(() => ({
+  reportClientRestMetric: vi.fn()
+}));
 
 vi.mock('@/features/auth/sessionRecoveryCoordinator', () => ({
   recoverSessionForUnauthorizedRequest,
   triggerSessionExpiredRedirect
 }));
+
+vi.mock('@/shared/api/clientRestMetrics', async () => {
+  const actual = await vi.importActual<typeof import('@/shared/api/clientRestMetrics')>(
+    '@/shared/api/clientRestMetrics'
+  );
+  return {
+    ...actual,
+    reportClientRestMetric
+  };
+});
 
 vi.mock('@/shared/config/env', () => ({
   env: {
@@ -32,6 +45,7 @@ describe('requestJson', () => {
     vi.restoreAllMocks();
     recoverSessionForUnauthorizedRequest.mockReset();
     triggerSessionExpiredRedirect.mockReset();
+    reportClientRestMetric.mockReset();
     env.apiUrlExplicit = false;
     env.apiUrl = 'http://192.168.50.62:18081';
   });
@@ -53,6 +67,14 @@ describe('requestJson', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(fetchSpy.mock.calls[0]?.[0]).toBe('http://192.168.50.62:18081/api/devices');
     expect(fetchSpy.mock.calls[1]?.[0]).toBe('http://127.0.0.1:18081/api/devices');
+    expect(reportClientRestMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: '/api/devices',
+        outcome: 'success',
+        statusClass: '2xx',
+        errorKind: 'none'
+      })
+    );
   });
 
   it('does not retry fallback when API URL is explicit', async () => {
@@ -72,6 +94,14 @@ describe('requestJson', () => {
     expect((thrown as Error).message).toContain('Network request failed for GET /api/devices');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0]?.[0]).toBe('http://192.168.50.62:18081/api/devices');
+    expect(reportClientRestMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: '/api/devices',
+        outcome: 'network_error',
+        statusClass: 'none',
+        errorKind: 'network_failure'
+      })
+    );
   });
 
   it('falls back to public-edge host when standalone port is unavailable', async () => {
@@ -94,6 +124,7 @@ describe('requestJson', () => {
     expect(fetchSpy.mock.calls[0]?.[0]).toBe('http://127.0.0.1:18081/api/devices');
     expect(fetchSpy.mock.calls[1]?.[0]).toBe('http://localhost:18081/api/devices');
     expect(fetchSpy.mock.calls[2]?.[0]).toBe('http://127.0.0.1/api/devices');
+    expect(reportClientRestMetric).toHaveBeenCalledTimes(1);
   });
 
   it('retries once with a recovered session token after a 401 response', async () => {
@@ -124,6 +155,11 @@ describe('requestJson', () => {
     expect((fetchSpy.mock.calls[1]?.[1] as RequestInit | undefined)?.headers).toMatchObject({
       Authorization: 'Bearer fresh-token'
     });
+    expect(reportClientRestMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'success'
+      })
+    );
   });
 
   it('requests reauthentication when recovery cannot repair a 401 response', async () => {
@@ -144,5 +180,12 @@ describe('requestJson', () => {
     });
 
     expect(triggerSessionExpiredRedirect).toHaveBeenCalledTimes(1);
+    expect(reportClientRestMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'http_error',
+        statusClass: '4xx',
+        errorKind: 'status_401'
+      })
+    );
   });
 });

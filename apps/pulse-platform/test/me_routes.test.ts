@@ -319,6 +319,106 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
+  it('emits scrapeable metrics for client-observed REST request outcomes', async () => {
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient()
+    });
+
+    const event = await app.inject({
+      method: 'POST',
+      url: '/api/v1/client-metrics/rest',
+      payload: {
+        route: '/api/v1/energy/dashboard',
+        method: 'GET',
+        outcome: 'http_error',
+        statusClass: '5xx',
+        durationMs: 812,
+        errorKind: 'status_5xx'
+      }
+    });
+
+    expect(event.statusCode).toBe(202);
+
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/metrics'
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.body).toContain('pulse_public_client_rest_requests_total');
+    expect(metrics.body).toContain('route="/api/v1/energy/dashboard"');
+    expect(metrics.body).toContain('outcome="http_error"');
+    expect(metrics.body).toContain('pulse_public_client_rest_errors_total');
+    expect(metrics.body).toContain('error_kind="status_5xx"');
+
+    await app.close();
+  });
+
+  it('emits scrapeable metrics for client-observed websocket outcomes', async () => {
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient()
+    });
+
+    const connectionEvent = await app.inject({
+      method: 'POST',
+      url: '/api/v1/client-metrics/ws',
+      payload: {
+        eventType: 'connection',
+        phase: 'reconnect',
+        outcome: 'connected',
+        durationMs: 430
+      }
+    });
+    expect(connectionEvent.statusCode).toBe(202);
+
+    const disconnectEvent = await app.inject({
+      method: 'POST',
+      url: '/api/v1/client-metrics/ws',
+      payload: {
+        eventType: 'disconnect',
+        reason: 'stalled'
+      }
+    });
+    expect(disconnectEvent.statusCode).toBe(202);
+
+    const freshnessEvent = await app.inject({
+      method: 'POST',
+      url: '/api/v1/client-metrics/ws',
+      payload: {
+        eventType: 'freshness_transition',
+        state: 'stale'
+      }
+    });
+    expect(freshnessEvent.statusCode).toBe(202);
+
+    const recoveryEvent = await app.inject({
+      method: 'POST',
+      url: '/api/v1/client-metrics/ws',
+      payload: {
+        eventType: 'stale_recovery',
+        durationMs: 9200
+      }
+    });
+    expect(recoveryEvent.statusCode).toBe(202);
+
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/metrics'
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.body).toContain('pulse_public_client_ws_connections_total');
+    expect(metrics.body).toContain('phase="reconnect"');
+    expect(metrics.body).toContain('outcome="connected"');
+    expect(metrics.body).toContain('pulse_public_client_ws_disconnects_total');
+    expect(metrics.body).toContain('reason="stalled"');
+    expect(metrics.body).toContain('pulse_public_client_ws_freshness_transitions_total');
+    expect(metrics.body).toContain('state="stale"');
+    expect(metrics.body).toContain('pulse_public_client_ws_stale_recovery_duration_seconds');
+
+    await app.close();
+  });
+
   it('refreshes current user identity through Keycloak userinfo', async () => {
     const refreshCurrentUserIdentity = vi.fn(async () => ({
       ...sampleCurrentUser(),

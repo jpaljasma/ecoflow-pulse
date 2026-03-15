@@ -4,6 +4,12 @@ import {
   type IncomingMessage,
   type MetricKey
 } from '@/features/telemetry/engine/schemas';
+import {
+  reportClientWsMetric,
+  type ClientWsDisconnectReason,
+  type ClientWsFreshnessState,
+  type ClientWsPhase
+} from '@/features/telemetry/engine/clientWsMetrics';
 import { RingBuffer } from '@/features/telemetry/engine/ringBuffer';
 import type {
   DeviceRuntime,
@@ -77,6 +83,10 @@ export class TelemetryEngine {
 
   private reconnectAttempt = 0;
   private lastInboundAt = 0;
+  private connectStartedAt: number | null = null;
+  private connectPhase: ClientWsPhase = 'initial';
+  private connectOutcomeReported = false;
+  private pendingDisconnectReason: ClientWsDisconnectReason = 'unexpected_close';
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshotTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -99,6 +109,8 @@ export class TelemetryEngine {
   private readonly subscribedDeviceIds = new Set<string>();
   private readonly subscriptionRefCounts = new Map<string, number>();
   private readonly devices = new Map<string, DeviceRuntime>();
+  private freshnessState: ClientWsFreshnessState | null = null;
+  private staleStartedAt: number | null = null;
 
   private readonly snapshotListeners = new Set<SnapshotListener>();
   private readonly statusListeners = new Set<StatusListener>();
@@ -139,10 +151,15 @@ export class TelemetryEngine {
 
     this.token = normalizedToken;
     this.authRequired = nextAuthRequired;
+    this.connectStartedAt = Date.now();
+    this.connectPhase = this.reconnectAttempt > 0 ? 'reconnect' : 'initial';
+    this.connectOutcomeReported = false;
 
     this.startSnapshotClock();
 
     if (this.authRequired && !this.token) {
+      this.reportConnectionOutcome('auth_required');
+      this.reportDisconnectReason('auth_required');
       this.shouldReconnect = false;
       this.clearReconnectTimer();
       this.disposeSocket('auth_required');
@@ -210,6 +227,8 @@ export class TelemetryEngine {
   private clearSubscriptions(): void {
     this.subscribedDeviceIds.clear();
     this.subscriptionRefCounts.clear();
+    this.freshnessState = null;
+    this.staleStartedAt = null;
   }
 
   disconnect(): void {
@@ -217,6 +236,7 @@ export class TelemetryEngine {
     this.clearReconnectTimer();
     this.stopSnapshotClock();
     this.clearSubscriptions();
+    this.pendingDisconnectReason = 'manual_disconnect';
     this.disposeSocket('disconnected');
   }
 
@@ -242,6 +262,10 @@ export class TelemetryEngine {
     this.clearReconnectTimer();
 
     this.setStatus(this.reconnectAttempt > 0 ? 'reconnecting' : 'connecting');
+    this.connectStartedAt = Date.now();
+    this.connectPhase = this.reconnectAttempt > 0 ? 'reconnect' : 'initial';
+    this.connectOutcomeReported = false;
+    this.pendingDisconnectReason = 'unexpected_close';
 
     const baseUrl = this.wsCandidates[this.wsCandidateIndex] ?? this.wsUrl;
     const url = this.token
@@ -253,6 +277,7 @@ export class TelemetryEngine {
     this.ws = this.createSocket(url);
 
     this.ws.onopen = () => {
+      this.reportConnectionOutcome('connected');
       this.reconnectAttempt = 0;
       this.lastInboundAt = Date.now();
       this.setStatus('connected');
@@ -289,6 +314,10 @@ export class TelemetryEngine {
       });
       this.ws = null;
       this.stopHeartbeat();
+      if (!this.connectOutcomeReported) {
+        this.reportConnectionOutcome('closed_before_open');
+      }
+      this.reportDisconnectReason(this.pendingDisconnectReason);
       if (!this.shouldReconnect) {
         this.setStatus('disconnected');
         return;
@@ -298,6 +327,10 @@ export class TelemetryEngine {
 
     this.ws.onerror = () => {
       console.warn('[TelemetryEngine] websocket error', { url: baseUrl });
+      if (!this.connectOutcomeReported) {
+        this.reportConnectionOutcome('connect_error');
+      }
+      this.pendingDisconnectReason = 'socket_error';
       this.ws?.close();
     };
   }
@@ -448,6 +481,7 @@ export class TelemetryEngine {
     this.reconnectIfStalled();
     this.updateFleetTrend(Date.now());
     const snapshots = this.buildSnapshot();
+    this.observeFreshness(snapshots);
     const freshest = Object.values(snapshots).reduce((max, snapshot) => {
       const seen = snapshot.lastSeenAt ?? 0;
       return seen > max ? seen : max;
@@ -510,6 +544,7 @@ export class TelemetryEngine {
     if (this.status !== 'connected') return;
     if (!this.lastInboundAt) return;
     if (Date.now() - this.lastInboundAt <= this.stalledReconnectMs) return;
+    this.pendingDisconnectReason = 'stalled';
     socket.close();
   }
 
@@ -547,6 +582,67 @@ export class TelemetryEngine {
     this.reconnectTimer = setTimeout(() => {
       this.openSocket();
     }, delay);
+  }
+
+  private reportConnectionOutcome(
+    outcome: 'connected' | 'auth_required' | 'connect_error' | 'closed_before_open'
+  ): void {
+    if (this.connectOutcomeReported) {
+      return;
+    }
+    this.connectOutcomeReported = true;
+    void reportClientWsMetric({
+      eventType: 'connection',
+      phase: this.connectPhase,
+      outcome,
+      durationMs: Math.max(0, Date.now() - (this.connectStartedAt ?? Date.now()))
+    });
+  }
+
+  private reportDisconnectReason(reason: ClientWsDisconnectReason): void {
+    void reportClientWsMetric({
+      eventType: 'disconnect',
+      reason
+    });
+  }
+
+  private observeFreshness(snapshots: Record<string, DeviceSnapshot>): void {
+    if (this.subscribedDeviceIds.size === 0) {
+      this.freshnessState = null;
+      this.staleStartedAt = null;
+      return;
+    }
+
+    const values = Object.values(snapshots);
+    if (values.length === 0) {
+      return;
+    }
+
+    const nextState: ClientWsFreshnessState = values.some((snapshot) => !snapshot.stale)
+      ? 'fresh'
+      : 'stale';
+    if (this.freshnessState === nextState) {
+      return;
+    }
+
+    this.freshnessState = nextState;
+    void reportClientWsMetric({
+      eventType: 'freshness_transition',
+      state: nextState
+    });
+
+    if (nextState === 'stale') {
+      this.staleStartedAt = Date.now();
+      return;
+    }
+
+    if (this.staleStartedAt) {
+      void reportClientWsMetric({
+        eventType: 'stale_recovery',
+        durationMs: Math.max(0, Date.now() - this.staleStartedAt)
+      });
+    }
+    this.staleStartedAt = null;
   }
 
   private clearReconnectTimer(): void {
