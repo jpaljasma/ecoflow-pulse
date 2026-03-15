@@ -19,6 +19,8 @@ import {
   ENERGY_PRESETS,
   energyPresetLabel,
   formatDeltaPct,
+  MIN_MEANINGFUL_CURRENCY_BASELINE,
+  MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH,
   resolveEnergyRouteState,
   type EnergyRouteState
 } from '@/features/energy/model';
@@ -66,8 +68,14 @@ function directionText(delta: number): string {
   return 'flat';
 }
 
-function formatDeltaSummary(delta: number, value: string, deltaPct: number | null): string {
-  return `${directionText(delta)} ${value} · ${formatDeltaPct(deltaPct)}`;
+function formatDeltaSummary(
+  delta: number,
+  value: string,
+  deltaPct: number | null,
+  previousValue?: number | null,
+  minBaseline?: number
+): string {
+  return `${directionText(delta)} ${value} · ${formatDeltaPct(deltaPct, { previousValue, minBaseline })}`;
 }
 
 function formatObservedAtLabel(unixMs: string): string {
@@ -448,7 +456,9 @@ export default function EnergyScreen() {
                       {formatDeltaSummary(
                         dashboardQuery.data.summary.solarGeneratedKwh.delta,
                         formatKWh(Math.abs(dashboardQuery.data.summary.solarGeneratedKwh.delta)),
-                        dashboardQuery.data.summary.solarGeneratedKwh.deltaPct
+                        dashboardQuery.data.summary.solarGeneratedKwh.deltaPct,
+                        dashboardQuery.data.summary.solarGeneratedKwh.previous,
+                        MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH
                       )}
                     </Text>
                   </>
@@ -463,7 +473,9 @@ export default function EnergyScreen() {
                       {formatDeltaSummary(
                         dashboardQuery.data.summary.loadConsumedKwh.delta,
                         formatKWh(Math.abs(dashboardQuery.data.summary.loadConsumedKwh.delta)),
-                        dashboardQuery.data.summary.loadConsumedKwh.deltaPct
+                        dashboardQuery.data.summary.loadConsumedKwh.deltaPct,
+                        dashboardQuery.data.summary.loadConsumedKwh.previous,
+                        MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH
                       )}
                     </Text>
                   </>
@@ -527,7 +539,9 @@ export default function EnergyScreen() {
                           Math.abs(dashboardQuery.data.summary.estimatedValue.delta),
                           dashboardQuery.data.summary.currency
                         ),
-                        dashboardQuery.data.summary.estimatedValue.deltaPct
+                        dashboardQuery.data.summary.estimatedValue.deltaPct,
+                        dashboardQuery.data.summary.estimatedValue.previous,
+                        MIN_MEANINGFUL_CURRENCY_BASELINE
                       )}
                     </Text>
                   </>
@@ -562,7 +576,12 @@ export default function EnergyScreen() {
                       )}
                       tone="muted"
                     />
-                    <Text color="$colorMuted">{formatDeltaPct(dashboardQuery.data.summary.estimatedAcInputCost.deltaPct)}</Text>
+                    <Text color="$colorMuted">
+                      {formatDeltaPct(dashboardQuery.data.summary.estimatedAcInputCost.deltaPct, {
+                        previousValue: dashboardQuery.data.summary.estimatedAcInputCost.previous,
+                        minBaseline: MIN_MEANINGFUL_CURRENCY_BASELINE
+                      })}
+                    </Text>
                   </>
                 ) : null}
               </SectionCard>

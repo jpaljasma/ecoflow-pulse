@@ -1,6 +1,6 @@
 import { formatWhAndKWh } from '@/features/telemetry/format';
 
-const MIN_PERCENT_COMPARISON_BASELINE_WH = 24;
+export const MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH = 24;
 
 export function formatSolarLegendDelta(
   todayWh: number | null | undefined,
@@ -15,7 +15,7 @@ export function formatSolarLegendDelta(
   if (safeYesterdayWh <= 0) {
     return safeTodayWh > 0 ? ' (new activity today)' : '';
   }
-  if (safeYesterdayWh < MIN_PERCENT_COMPARISON_BASELINE_WH) {
+  if (safeYesterdayWh < MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH) {
     const absoluteDeltaWh = Math.max(0, safeTodayWh - safeYesterdayWh);
     return absoluteDeltaWh > 0 ? ` (+${formatWhAndKWh(absoluteDeltaWh)})` : '';
   }
