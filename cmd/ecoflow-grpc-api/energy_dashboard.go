@@ -16,7 +16,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 func (s *EnergyService) GetEnergyDashboard(ctx context.Context, req *telemetryv1.GetEnergyDashboardRequest) (*telemetryv1.GetEnergyDashboardResponse, error) {
@@ -114,11 +113,11 @@ func (s *EnergyService) GetEnergyDashboard(ctx context.Context, req *telemetryv1
 }
 
 func (s *EnergyService) GetEnergyPvPortHistory(ctx context.Context, req *telemetryv1.GetEnergyPvPortHistoryRequest) (*telemetryv1.GetEnergyPvPortHistoryResponse, error) {
-	scope, window, loc, _, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone())
+	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone())
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.queryScopePVPortHistory(ctx, scope.ResolvedDeviceIDs, window.From, window.To)
+	rows, err := s.getCachedPVPortHistory(ctx, scope.ResolvedDeviceIDs, pvPortHistoryResolutionForPreset(preset), window.From, window.To)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +139,75 @@ func (s *EnergyService) GetEnergyPvPortHistory(ctx context.Context, req *telemet
 	}
 	s.maybeEnableHistoryCompression(ctx, resp)
 	return resp, nil
+}
+
+func (s *EnergyService) getCachedPVPortHistory(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
+	key := pvPortHistoryCacheKey(deviceIDs, resolution, from, to)
+	now := s.now()
+	if rows, ok := s.readPVPortHistoryCache(key, now); ok {
+		return rows, nil
+	}
+	value, err, _ := s.pvPortHistoryGroup.Do(key, func() (any, error) {
+		if rows, ok := s.readPVPortHistoryCache(key, s.now()); ok {
+			return rows, nil
+		}
+		rows, err := s.queryScopePVPortHistory(ctx, deviceIDs, resolution, from, to)
+		if err != nil {
+			return nil, err
+		}
+		s.writePVPortHistoryCache(key, rows, s.now().Add(defaultPVPortHistoryCacheTTL))
+		return rows, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	rows, _ := value.([]energydashboard.PVPortHistory)
+	return rows, nil
+}
+
+func (s *EnergyService) readPVPortHistoryCache(key string, now time.Time) ([]energydashboard.PVPortHistory, bool) {
+	s.pvPortHistoryMu.Lock()
+	defer s.pvPortHistoryMu.Unlock()
+	entry, ok := s.pvPortHistoryCache[key]
+	if !ok {
+		return nil, false
+	}
+	if !now.Before(entry.expiresAt) {
+		delete(s.pvPortHistoryCache, key)
+		return nil, false
+	}
+	rows := make([]energydashboard.PVPortHistory, len(entry.rows))
+	copy(rows, entry.rows)
+	return rows, true
+}
+
+func (s *EnergyService) writePVPortHistoryCache(key string, rows []energydashboard.PVPortHistory, expiresAt time.Time) {
+	s.pvPortHistoryMu.Lock()
+	defer s.pvPortHistoryMu.Unlock()
+	now := s.now()
+	for existingKey, entry := range s.pvPortHistoryCache {
+		if !now.Before(entry.expiresAt) {
+			delete(s.pvPortHistoryCache, existingKey)
+		}
+	}
+	if len(s.pvPortHistoryCache) >= 64 {
+		for existingKey := range s.pvPortHistoryCache {
+			delete(s.pvPortHistoryCache, existingKey)
+			break
+		}
+	}
+	cachedRows := make([]energydashboard.PVPortHistory, len(rows))
+	copy(cachedRows, rows)
+	s.pvPortHistoryCache[key] = pvPortHistoryCacheEntry{
+		rows:      cachedRows,
+		expiresAt: expiresAt,
+	}
+}
+
+func pvPortHistoryCacheKey(deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) string {
+	parts := append([]string(nil), deviceIDs...)
+	sort.Strings(parts)
+	return strings.Join(parts, ",") + "|" + resolution.String() + "|" + from.UTC().Format(time.RFC3339Nano) + "|" + to.UTC().Format(time.RFC3339Nano)
 }
 
 func (s *EnergyService) resolveEnergyScopeWindow(ctx context.Context, deviceID string, useAllDevices bool, presetRaw, timezone string) (energydashboard.Scope, energydashboard.Window, *time.Location, energydashboard.Preset, error) {
@@ -169,8 +237,26 @@ func (s *EnergyService) resolveEnergyScopeWindow(ctx context.Context, deviceID s
 	return scope, window, loc, preset, nil
 }
 
-func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs []string, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
-	if s.archiveManifestStore == nil || s.archiveObjectReader == nil || s.controlPlaneStore == nil || len(deviceIDs) == 0 {
+func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
+	if len(deviceIDs) == 0 {
+		return nil, nil
+	}
+	if reader, ok := s.queryReader.(telemetryquery.PVPortHistoryReader); ok {
+		rows, err := reader.QueryPVPortHistory(ctx, telemetryquery.PVPortHistoryQuery{
+			DeviceIDs:  deviceIDs,
+			Resolution: resolution,
+			From:       from.UTC(),
+			To:         to.UTC(),
+			Limit:      s.maxQueryBuckets,
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "query pv-port history rollups: %v", err)
+		}
+		if len(rows) > 0 {
+			return pvPortHistoryRows(rows), nil
+		}
+	}
+	if s.archiveManifestStore == nil || s.archiveObjectReader == nil || s.controlPlaneStore == nil {
 		return nil, nil
 	}
 
@@ -204,51 +290,58 @@ func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs [
 		providerFilter[strings.ToUpper(strings.TrimSpace(id))] = struct{}{}
 	}
 
-	envelopes := make([]*envelopev1.TelemetryEnvelope, 0, 128)
-	for _, object := range objects {
-		body, err := s.archiveObjectReader.ReadObject(ctx, object.ObjectBucket, object.ObjectKey)
-		if err != nil {
-			if isMissingArchiveObjectError(err) {
-				s.log.Warn(
-					"skip missing archive object for energy pv history",
-					"bucket", object.ObjectBucket,
-					"key", object.ObjectKey,
-					"error", err.Error(),
-				)
-				continue
-			}
-			return nil, status.Errorf(codes.Internal, "read archive object for energy pv history: %v", err)
-		}
-		frames, err := replaycli.DecodeEnvelopeFrames(body)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "decode archive object for energy pv history: %v", err)
-		}
-		for _, frame := range frames {
-			var env envelopev1.TelemetryEnvelope
-			if err := proto.Unmarshal(frame, &env); err != nil {
-				return nil, status.Errorf(codes.Internal, "unmarshal archive envelope for energy pv history: %v", err)
-			}
-			if env.GetPayloadType() != "ecoflow.quota.normalized" {
-				continue
-			}
-			providerDeviceID := strings.ToUpper(strings.TrimSpace(env.GetEcoflowSn()))
-			if labels := env.GetLabels(); len(labels) > 0 {
-				if candidate := strings.ToUpper(strings.TrimSpace(labels["provider_device_id"])); candidate != "" {
-					providerDeviceID = candidate
+	summaries := make([][]energydashboard.PVPortHistory, len(objects))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(8)
+	for i, object := range objects {
+		i := i
+		object := object
+		group.Go(func() error {
+			body, err := s.archiveObjectReader.ReadObject(groupCtx, object.ObjectBucket, object.ObjectKey)
+			if err != nil {
+				if isMissingArchiveObjectError(err) {
+					s.log.Warn(
+						"skip missing archive object for energy pv history",
+						"bucket", object.ObjectBucket,
+						"key", object.ObjectKey,
+						"error", err.Error(),
+					)
+					return nil
 				}
+				return status.Errorf(codes.Internal, "read archive object for energy pv history: %v", err)
 			}
-			if _, ok := providerFilter[providerDeviceID]; !ok {
-				continue
+			frames, err := replaycli.DecodeEnvelopeFrames(body)
+			if err != nil {
+				return status.Errorf(codes.Internal, "decode archive object for energy pv history: %v", err)
 			}
-			ts := envelopeTimestamp(&env)
-			if ts.Before(from) || !ts.Before(to) {
-				continue
+			rows, err := energydashboard.SummarizePVPortHistoryFrames(frames, func(env *envelopev1.TelemetryEnvelope) bool {
+				if env.GetPayloadType() != "ecoflow.quota.normalized" {
+					return false
+				}
+				providerDeviceID := strings.ToUpper(strings.TrimSpace(env.GetEcoflowSn()))
+				if labels := env.GetLabels(); len(labels) > 0 {
+					if candidate := strings.ToUpper(strings.TrimSpace(labels["provider_device_id"])); candidate != "" {
+						providerDeviceID = candidate
+					}
+				}
+				if _, ok := providerFilter[providerDeviceID]; !ok {
+					return false
+				}
+				ts := envelopeTimestamp(env)
+				return !ts.Before(from) && ts.Before(to)
+			})
+			if err != nil {
+				return status.Errorf(codes.Internal, "unmarshal archive envelope for energy pv history: %v", err)
 			}
-			envelopes = append(envelopes, proto.Clone(&env).(*envelopev1.TelemetryEnvelope))
-		}
+			summaries[i] = rows
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
 	}
 
-	rows := energydashboard.SummarizePVPortHistory(envelopes)
+	rows := energydashboard.MergePVPortHistorySets(summaries...)
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].DeviceID == rows[j].DeviceID {
 			return rows[i].PortID < rows[j].PortID
@@ -256,6 +349,17 @@ func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs [
 		return rows[i].DeviceID < rows[j].DeviceID
 	})
 	return rows, nil
+}
+
+func pvPortHistoryResolutionForPreset(preset energydashboard.Preset) telemetryquery.Resolution {
+	switch preset {
+	case energydashboard.PresetToday, energydashboard.PresetPast24Hours, energydashboard.PresetYesterday:
+		return telemetryquery.ResolutionMinute
+	case energydashboard.PresetThisWeek, energydashboard.PresetPreviousWeek, energydashboard.PresetThisMonth, energydashboard.PresetLast7Days:
+		return telemetryquery.ResolutionHour
+	default:
+		return telemetryquery.ResolutionDay
+	}
 }
 
 func isMissingArchiveObjectError(err error) bool {
@@ -606,6 +710,26 @@ func pvPortHistoryToProto(rows []energydashboard.PVPortHistory) []*telemetryv1.E
 			LastObservedWatts:  row.LastObservedWatts,
 			LastObservedUnixMs: lastObservedUnixMs,
 			SampleCount:        sampleCount,
+		})
+	}
+	return out
+}
+
+func pvPortHistoryRows(rows []telemetryquery.PVPortHistory) []energydashboard.PVPortHistory {
+	out := make([]energydashboard.PVPortHistory, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, energydashboard.PVPortHistory{
+			DeviceID:          row.DeviceID,
+			PortID:            row.PortID,
+			PortLabel:         row.PortLabel,
+			MaxObservedVolts:  row.MaxObservedVolts,
+			MaxObservedAmps:   row.MaxObservedAmps,
+			MaxObservedWatts:  row.MaxObservedWatts,
+			LastObservedVolts: row.LastObservedVolts,
+			LastObservedAmps:  row.LastObservedAmps,
+			LastObservedWatts: row.LastObservedWatts,
+			LastObservedAt:    row.LastObservedAt,
+			SampleCount:       row.SampleCount,
 		})
 	}
 	return out

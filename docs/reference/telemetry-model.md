@@ -162,6 +162,12 @@ small live-detail envelope from the merged raw snapshot:
 - `detail.solarPorts`:
   current per-port PV state/volts/amps/watts for D2M and DPU-style port pairs.
 
+- energy PV-port history:
+  persisted minute/hour/day PV-port rollup facts (`max_observed_*`,
+  `last_observed_*`, `sample_count`) are the steady-state source for
+  `EnergyService/GetEnergyPvPortHistory`; archive scans remain a fallback and
+  rebuild source, not the intended hot read path.
+
 Frontend rule:
 
 - on `/device/{id}`, `System Signals` and `Solar Inputs` must prefer websocket

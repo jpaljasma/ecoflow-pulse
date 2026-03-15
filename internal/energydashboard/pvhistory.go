@@ -7,6 +7,7 @@ import (
 	"time"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 const quotaPayloadType = "ecoflow.quota.normalized"
@@ -32,23 +33,68 @@ func SummarizePVPortHistory(envelopes []*envelopev1.TelemetryEnvelope) []PVPortH
 		if !ok {
 			continue
 		}
-		for _, observation := range observations {
-			key := observation.DeviceID + "|" + observation.PortID
-			current, found := ports[key]
-			if !found {
-				current = observation
-			}
-			current.MaxObservedVolts = math.Max(current.MaxObservedVolts, observation.LastObservedVolts)
-			current.MaxObservedAmps = math.Max(current.MaxObservedAmps, observation.LastObservedAmps)
-			current.MaxObservedWatts = math.Max(current.MaxObservedWatts, observation.LastObservedWatts)
-			current.LastObservedVolts = observation.LastObservedVolts
-			current.LastObservedAmps = observation.LastObservedAmps
-			current.LastObservedWatts = observation.LastObservedWatts
-			current.LastObservedAt = observedAt
-			current.SampleCount++
-			ports[key] = current
+		mergePVPortObservations(ports, observations, observedAt, 1)
+	}
+	return rowsFromPVPorts(ports)
+}
+
+func SummarizePVPortHistoryFrames(frames [][]byte, keep func(*envelopev1.TelemetryEnvelope) bool) ([]PVPortHistory, error) {
+	ports := map[string]PVPortHistory{}
+	for _, frame := range frames {
+		var env envelopev1.TelemetryEnvelope
+		if err := proto.Unmarshal(frame, &env); err != nil {
+			return nil, err
+		}
+		if keep != nil && !keep(&env) {
+			continue
+		}
+		observations, observedAt, ok := extractPVPortObservations(&env)
+		if !ok {
+			continue
+		}
+		mergePVPortObservations(ports, observations, observedAt, 1)
+	}
+	return rowsFromPVPorts(ports), nil
+}
+
+func MergePVPortHistorySets(sets ...[]PVPortHistory) []PVPortHistory {
+	ports := map[string]PVPortHistory{}
+	for _, rows := range sets {
+		for _, row := range rows {
+			mergePVPortRow(ports, row, row.LastObservedAt, row.SampleCount)
 		}
 	}
+	return rowsFromPVPorts(ports)
+}
+
+func mergePVPortObservations(ports map[string]PVPortHistory, observations []PVPortHistory, observedAt time.Time, sampleCount int) {
+	for _, observation := range observations {
+		mergePVPortRow(ports, observation, observedAt, sampleCount)
+	}
+}
+
+func mergePVPortRow(ports map[string]PVPortHistory, observation PVPortHistory, observedAt time.Time, sampleCount int) {
+	key := observation.DeviceID + "|" + observation.PortID
+	current, found := ports[key]
+	if !found {
+		current = observation
+		current.LastObservedAt = observedAt
+		current.SampleCount = 0
+	}
+	current.MaxObservedVolts = math.Max(current.MaxObservedVolts, observation.LastObservedVolts)
+	current.MaxObservedAmps = math.Max(current.MaxObservedAmps, observation.LastObservedAmps)
+	current.MaxObservedWatts = math.Max(current.MaxObservedWatts, observation.LastObservedWatts)
+	if current.LastObservedAt.IsZero() || observedAt.After(current.LastObservedAt) || observedAt.Equal(current.LastObservedAt) {
+		current.LastObservedVolts = observation.LastObservedVolts
+		current.LastObservedAmps = observation.LastObservedAmps
+		current.LastObservedWatts = observation.LastObservedWatts
+		current.LastObservedAt = observedAt
+	}
+	current.SampleCount += sampleCount
+	ports[key] = current
+}
+
+func rowsFromPVPorts(ports map[string]PVPortHistory) []PVPortHistory {
 	out := make([]PVPortHistory, 0, len(ports))
 	for _, row := range ports {
 		out = append(out, row)

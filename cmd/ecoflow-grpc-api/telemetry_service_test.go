@@ -1,23 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	telemetryv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"github.com/klauspost/compress/zstd"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type telemetryTestStream struct {
@@ -1077,6 +1083,144 @@ func TestGetEnergyPvPortHistorySkipsMissingArchiveObjects(t *testing.T) {
 	}
 }
 
+func TestGetEnergyPvPortHistoryCachesRepeatedRequests(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f60"
+	providerDeviceID := "PV-CACHE-DEVICE"
+	now := time.Date(2026, time.March, 2, 12, 0, 0, 0, time.UTC)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	store.providerDevices[deviceID] = controlplane.ProviderDevice{
+		Provider:         controlplane.ProviderEcoFlow,
+		ProviderDeviceID: providerDeviceID,
+	}
+	var reads atomic.Int32
+	payload := encodeArchiveFramesForTest(t, []*envelopev1.TelemetryEnvelope{{
+		DeviceId:           deviceID,
+		EcoflowSn:          providerDeviceID,
+		PayloadType:        "ecoflow.quota.normalized",
+		ObservedTimeUnixMs: now.Add(-5 * time.Minute).UnixMilli(),
+		Payload:            []byte(`{"params":{"inLvMpptVol":48.2,"inLvMpptAmp":4.4,"pv1ChargeWatts":212.1}}`),
+		Labels:             map[string]string{"provider_device_id": providerDeviceID},
+	}})
+
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		Now:               func() time.Time { return now },
+		ArchiveManifestStore: fakeManifestStore{
+			objects: []replaycli.ManifestObject{{
+				Provider:          controlplane.ProviderEcoFlow,
+				ObjectBucket:      "pulse-telemetry-raw",
+				ObjectKey:         "pv-cache.pb.zst",
+				ProviderDeviceIDs: []string{providerDeviceID},
+			}},
+		},
+		ArchiveObjectReader: fakeObjectReader{
+			read: func(bucket, key string) ([]byte, error) {
+				reads.Add(1)
+				return payload, nil
+			},
+		},
+	})
+
+	req := &telemetryv1.GetEnergyPvPortHistoryRequest{
+		UseAllDevices: true,
+		Preset:        "today",
+		Timezone:      "UTC",
+	}
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"})
+
+	first, err := svc.GetEnergyPvPortHistory(ctx, req)
+	if err != nil {
+		t.Fatalf("first GetEnergyPvPortHistory failed: %v", err)
+	}
+	second, err := svc.GetEnergyPvPortHistory(ctx, req)
+	if err != nil {
+		t.Fatalf("second GetEnergyPvPortHistory failed: %v", err)
+	}
+	if got := reads.Load(); got != 1 {
+		t.Fatalf("archive object reads = %d, want 1", got)
+	}
+	if len(first.GetPvPortHistory()) != 1 || len(second.GetPvPortHistory()) != 1 {
+		t.Fatalf("expected cached pv history rows on both calls, got first=%d second=%d", len(first.GetPvPortHistory()), len(second.GetPvPortHistory()))
+	}
+}
+
+func TestGetEnergyPvPortHistoryPrefersPersistedPVPortRows(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f60"
+	now := time.Date(2026, time.March, 2, 12, 0, 0, 0, time.UTC)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &fakeQueryReader{
+		pvPortRows: []telemetryquery.PVPortHistory{{
+			DeviceID:          deviceID,
+			PortID:            "pv-low",
+			PortLabel:         "PV Low",
+			MaxObservedVolts:  48.2,
+			MaxObservedAmps:   4.4,
+			MaxObservedWatts:  212.1,
+			LastObservedVolts: 47.8,
+			LastObservedAmps:  4.1,
+			LastObservedWatts: 196.0,
+			LastObservedAt:    now.Add(-5 * time.Minute),
+			SampleCount:       12,
+		}},
+	}
+	var reads atomic.Int32
+
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+		ArchiveManifestStore: fakeManifestStore{
+			objects: []replaycli.ManifestObject{{
+				Provider:     controlplane.ProviderEcoFlow,
+				ObjectBucket: "pulse-telemetry-raw",
+				ObjectKey:    "should-not-be-read.pb.zst",
+			}},
+		},
+		ArchiveObjectReader: fakeObjectReader{
+			read: func(bucket, key string) ([]byte, error) {
+				reads.Add(1)
+				return nil, errors.New("unexpected archive read")
+			},
+		},
+	})
+
+	resp, err := svc.GetEnergyPvPortHistory(
+		grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}),
+		&telemetryv1.GetEnergyPvPortHistoryRequest{
+			DeviceId: deviceID,
+			Preset:   "today",
+			Timezone: "UTC",
+		},
+	)
+	if err != nil {
+		t.Fatalf("GetEnergyPvPortHistory failed: %v", err)
+	}
+	if got := reads.Load(); got != 0 {
+		t.Fatalf("archive reads mismatch: got=%d want=0", got)
+	}
+	if got := len(resp.GetPvPortHistory()); got != 1 {
+		t.Fatalf("pv history count mismatch: got=%d want=1", got)
+	}
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got := len(reader.pvPortQueries); got != 1 {
+		t.Fatalf("pv-port query count mismatch: got=%d want=1", got)
+	}
+	if got := reader.pvPortQueries[0].Resolution; got != telemetryquery.ResolutionMinute {
+		t.Fatalf("pv-port query resolution mismatch: got=%v want=%v", got, telemetryquery.ResolutionMinute)
+	}
+}
+
 func TestGetEnergyDashboardLeavesPVHistoryForLazyLoad(t *testing.T) {
 	t.Parallel()
 
@@ -1186,6 +1330,8 @@ type fakeQueryReader struct {
 	queries          []telemetryquery.RangeQuery
 	aggregateQueries []telemetryquery.AggregateRangeQuery
 	series           []telemetryquery.Series
+	pvPortQueries    []telemetryquery.PVPortHistoryQuery
+	pvPortRows       []telemetryquery.PVPortHistory
 	err              error
 }
 
@@ -1281,6 +1427,19 @@ func (f *fakeQueryReader) QueryRangeMany(_ context.Context, query telemetryquery
 		f.series = append(f.series[:idx], f.series[idx+1:]...)
 	}
 	return aggregated, nil
+}
+
+func (f *fakeQueryReader) QueryPVPortHistory(_ context.Context, query telemetryquery.PVPortHistoryQuery) ([]telemetryquery.PVPortHistory, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.pvPortQueries = append(f.pvPortQueries, query)
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]telemetryquery.PVPortHistory, len(f.pvPortRows))
+	copy(out, f.pvPortRows)
+	return out, nil
 }
 
 type fakeControlPlaneStore struct {
@@ -1385,3 +1544,32 @@ func (f fakeObjectReader) ReadObject(_ context.Context, bucket string, key strin
 }
 
 func (f fakeObjectReader) Close() error { return nil }
+
+func encodeArchiveFramesForTest(t *testing.T, envelopes []*envelopev1.TelemetryEnvelope) []byte {
+	t.Helper()
+	frames := make([][]byte, 0, len(envelopes))
+	for _, env := range envelopes {
+		frame, err := proto.Marshal(env)
+		if err != nil {
+			t.Fatalf("marshal archive envelope: %v", err)
+		}
+		frames = append(frames, frame)
+	}
+	var raw bytes.Buffer
+	for _, frame := range frames {
+		var sizePrefix [binary.MaxVarintLen64]byte
+		n := binary.PutUvarint(sizePrefix[:], uint64(len(frame)))
+		if _, err := raw.Write(sizePrefix[:n]); err != nil {
+			t.Fatalf("write frame size: %v", err)
+		}
+		if _, err := raw.Write(frame); err != nil {
+			t.Fatalf("write frame body: %v", err)
+		}
+	}
+	encoder, err := zstd.NewWriter(nil)
+	if err != nil {
+		t.Fatalf("create zstd encoder: %v", err)
+	}
+	defer func() { _ = encoder.Close() }()
+	return encoder.EncodeAll(raw.Bytes(), nil)
+}

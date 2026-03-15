@@ -232,6 +232,32 @@ func TestSampleFromEnvelopeUsesCellTempMedian(t *testing.T) {
 	}
 }
 
+func TestSampleFromEnvelopeExtractsPVPortObservations(t *testing.T) {
+	t.Parallel()
+
+	env := testEnvelope(`{"params":{"inLvMpptVol":48.2,"inLvMpptAmp":4.4,"pv1ChargeWatts":212.1,"inHvMpptVol":81.5,"inHvMpptAmp":2.1,"pv2ChargeWatts":171.2,"cmsBattSoc":55}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := len(sample.PVPorts); got != 2 {
+		t.Fatalf("pv port count mismatch: got=%d want=2", got)
+	}
+	if sample.PVPorts[0].PortID != "pv-low" || sample.PVPorts[0].PortLabel != "PV Low" {
+		t.Fatalf("first pv port mismatch: %+v", sample.PVPorts[0])
+	}
+	if sample.PVPorts[0].Volts != 48.2 || sample.PVPorts[0].Amps != 4.4 || sample.PVPorts[0].Watts != 212.1 {
+		t.Fatalf("first pv port values mismatch: %+v", sample.PVPorts[0])
+	}
+	if sample.PVPorts[1].PortID != "pv-high" || sample.PVPorts[1].PortLabel != "PV High" {
+		t.Fatalf("second pv port mismatch: %+v", sample.PVPorts[1])
+	}
+	if sample.PVPorts[1].Volts != 81.5 || sample.PVPorts[1].Amps != 2.1 || sample.PVPorts[1].Watts != 171.2 {
+		t.Fatalf("second pv port values mismatch: %+v", sample.PVPorts[1])
+	}
+}
+
 func TestSampleFromEnvelopeReturnsNoMetrics(t *testing.T) {
 	t.Parallel()
 	env := testEnvelope(`{"params":{"icoBytes":[0,1,2]}}`)

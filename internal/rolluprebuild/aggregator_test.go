@@ -99,6 +99,47 @@ func TestAggregatorIntegratesExplicitEnergyAcrossSparseMinuteBoundary(t *testing
 	}
 }
 
+func TestAggregatorAccumulatesPVPortRows(t *testing.T) {
+	t.Parallel()
+
+	agg := NewAggregator()
+	base := time.Date(2026, time.March, 6, 12, 0, 30, 0, time.UTC)
+
+	first, err := rollupworker.SampleFromEnvelope(testEnvelope(base, `{"params":{"inLvMpptVol":48.2,"inLvMpptAmp":4.1,"pv1ChargeWatts":190,"cmsBattSoc":25.5}}`))
+	if err != nil {
+		t.Fatalf("first sample failed: %v", err)
+	}
+	secondAt := base.Add(15 * time.Second)
+	second, err := rollupworker.SampleFromEnvelope(testEnvelope(secondAt, `{"params":{"inLvMpptVol":49.1,"inLvMpptAmp":4.4,"pv1ChargeWatts":215,"cmsBattSoc":25.0}}`))
+	if err != nil {
+		t.Fatalf("second sample failed: %v", err)
+	}
+
+	agg.ApplySample(first)
+	agg.ApplySample(second)
+
+	rows := agg.PVPortRows(ResolutionMinute)
+	if len(rows) != 1 {
+		t.Fatalf("pv port minute row count mismatch: got=%d want=1", len(rows))
+	}
+	row := rows[0]
+	if row.PortID != "pv-low" || row.PortLabel != "PV Low" {
+		t.Fatalf("port mismatch: %+v", row)
+	}
+	if row.SampleCount != 2 {
+		t.Fatalf("sample count mismatch: got=%d want=2", row.SampleCount)
+	}
+	if row.MaxObservedVolts != 49.1 || row.MaxObservedAmps != 4.4 || row.MaxObservedWatts != 215 {
+		t.Fatalf("max observation mismatch: %+v", row)
+	}
+	if row.LastObservedVolts != 49.1 || row.LastObservedAmps != 4.4 || row.LastObservedWatts != 215 {
+		t.Fatalf("last observation mismatch: %+v", row)
+	}
+	if row.LastObservedAtUnixMS != secondAt.UnixMilli() {
+		t.Fatalf("last observed at mismatch: got=%d want=%d", row.LastObservedAtUnixMS, secondAt.UnixMilli())
+	}
+}
+
 func testEnvelope(at time.Time, payload string) *envelopev1.TelemetryEnvelope {
 	return &envelopev1.TelemetryEnvelope{
 		DeviceId:           "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52",

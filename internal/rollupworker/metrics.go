@@ -40,6 +40,7 @@ func SampleFromEnvelope(env *envelopev1.TelemetryEnvelope) (*RollupSample, error
 	}
 	root := gjson.Parse(payload)
 	metrics := extractMetrics(root)
+	pvPorts := extractPVPortObservations(root)
 	if !metrics.HasAny() {
 		return nil, ErrNoRollupMetrics
 	}
@@ -51,6 +52,7 @@ func SampleFromEnvelope(env *envelopev1.TelemetryEnvelope) (*RollupSample, error
 		EventTime:        time.UnixMilli(eventUnixMs).UTC(),
 		EventUnixMs:      eventUnixMs,
 		Metrics:          metrics,
+		PVPorts:          pvPorts,
 	}, nil
 }
 
@@ -207,6 +209,65 @@ func derivePVChannel(root gjson.Result, primaryKeys, fallbackKeys, voltsKeys, am
 	return power, true
 }
 
+func extractPVPortObservations(root gjson.Result) []PVPortObservation {
+	observations := make([]PVPortObservation, 0, 2)
+	if low, ok := derivePVPortObservation(root, "pv-low", "PV Low", []string{"params.inLvMpptVol", "params.inVol"}, []string{"params.inLvMpptAmp", "params.inAmp"}, []string{"params.pv1ChargeWatts", "params.inLvMpptPwr", "params.inWatts"}, []string{"params.chgState"}); ok {
+		observations = append(observations, low)
+	}
+	if high, ok := derivePVPortObservation(root, "pv-high", "PV High", []string{"params.inHvMpptVol", "params.pv2InVol"}, []string{"params.inHvMpptAmp", "params.pv2InAmp"}, []string{"params.pv2ChargeWatts", "params.inHvMpptPwr", "params.pv2InWatts"}, []string{"params.pv2ChgState"}); ok {
+		observations = append(observations, high)
+	}
+	return observations
+}
+
+func derivePVPortObservation(root gjson.Result, portID, portLabel string, voltsKeys, ampsKeys, wattsKeys, idleStateKeys []string) (PVPortObservation, bool) {
+	volts := firstPresentNumber(root, voltsKeys...)
+	amps := firstPresentNumber(root, ampsKeys...)
+	watts := firstPresentNumber(root, wattsKeys...)
+	idle := false
+	for _, key := range idleStateKeys {
+		if state := firstNumber(root, key); state.Valid && int64(state.Value) <= 0 {
+			idle = true
+			break
+		}
+	}
+	normalizedVolts := 0.0
+	hasVolts := false
+	if volts.Valid {
+		normalizedVolts = clampNonNegative(normalizeMPPTVoltageVolts(volts.Value))
+		hasVolts = true
+	}
+	normalizedAmps := 0.0
+	hasAmps := false
+	if amps.Valid {
+		normalizedAmps = clampNonNegative(normalizeMPPTCurrentAmps(amps.Value))
+		hasAmps = true
+	}
+	normalizedWatts := 0.0
+	hasWatts := false
+	if watts.Valid && watts.Value >= 0 && watts.Value <= 10_000 {
+		normalizedWatts = watts.Value
+		hasWatts = true
+	} else if hasVolts && hasAmps {
+		normalizedWatts = normalizedVolts * normalizedAmps
+		hasWatts = true
+	}
+	if idle {
+		normalizedWatts = 0
+		hasWatts = true
+	}
+	if !hasVolts && !hasAmps && !hasWatts {
+		return PVPortObservation{}, false
+	}
+	return PVPortObservation{
+		PortID:    portID,
+		PortLabel: portLabel,
+		Volts:     normalizedVolts,
+		Amps:      normalizedAmps,
+		Watts:     clampNonNegative(normalizedWatts),
+	}, true
+}
+
 func maxPresentCapped(root gjson.Result, maxAbs float64, paths ...string) (float64, bool) {
 	found := false
 	maxValue := 0.0
@@ -255,6 +316,13 @@ func normalizeMPPTCurrentAmps(value float64) float64 {
 	}
 	if abs > 200 {
 		return value / 1000.0
+	}
+	return value
+}
+
+func clampNonNegative(value float64) float64 {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+		return 0
 	}
 	return value
 }

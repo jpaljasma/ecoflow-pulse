@@ -7,16 +7,19 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	telemetryv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/energydashboard"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,6 +51,9 @@ type EnergyService struct {
 	archiveObjectReader  replaycli.ObjectReader
 	maxQueryBuckets      int
 	historyGzipMinBytes  int
+	pvPortHistoryCache   map[string]pvPortHistoryCacheEntry
+	pvPortHistoryMu      sync.Mutex
+	pvPortHistoryGroup   singleflight.Group
 	now                  func() time.Time
 }
 
@@ -69,11 +75,17 @@ var defaultSnapshotMetrics = map[string]float64{
 }
 
 const (
-	defaultSubscribeUpdateHz   uint32 = 4
-	maxSubscribeUpdateHz       uint32 = 50
-	defaultMaxQueryBuckets            = 10_000
-	defaultHistoryGzipMinBytes        = 16 << 10 // 16 KiB
+	defaultSubscribeUpdateHz     uint32 = 4
+	maxSubscribeUpdateHz         uint32 = 50
+	defaultMaxQueryBuckets              = 10_000
+	defaultHistoryGzipMinBytes          = 16 << 10 // 16 KiB
+	defaultPVPortHistoryCacheTTL        = 15 * time.Second
 )
+
+type pvPortHistoryCacheEntry struct {
+	rows      []energydashboard.PVPortHistory
+	expiresAt time.Time
+}
 
 func NewTelemetryService(log *slog.Logger) *TelemetryService {
 	return NewTelemetryServiceWithDeps(TelemetryServiceDeps{Log: log})
@@ -127,6 +139,7 @@ func NewEnergyServiceWithDeps(deps EnergyServiceDeps) *EnergyService {
 		archiveObjectReader:  deps.ArchiveObjectReader,
 		maxQueryBuckets:      maxQueryBuckets,
 		historyGzipMinBytes:  historyGzipMinBytes,
+		pvPortHistoryCache:   map[string]pvPortHistoryCacheEntry{},
 		now:                  nowFn,
 	}
 }

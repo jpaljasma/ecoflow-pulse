@@ -48,6 +48,14 @@ func (m RollupMetrics) HasAny() bool {
 		m.SolarGeneratedWh.Valid
 }
 
+type PVPortObservation struct {
+	PortID    string
+	PortLabel string
+	Volts     float64
+	Amps      float64
+	Watts     float64
+}
+
 type RollupSample struct {
 	Provider         string
 	ProviderDeviceID string
@@ -55,4 +63,5 @@ type RollupSample struct {
 	EventTime        time.Time
 	EventUnixMs      int64
 	Metrics          RollupMetrics
+	PVPorts          []PVPortObservation
 }
