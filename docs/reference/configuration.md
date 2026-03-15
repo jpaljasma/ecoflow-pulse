@@ -271,6 +271,7 @@ Operational rule:
 Runtime behavior:
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
+- authenticated REST requests that receive `401` should first try to recover with a fresher in-memory token or a one-time refresh-token exchange before falling back to `/login`; if recovery fails, redirect to login with a clear re-authentication message for long-idle sessions.
 - profile and homepage queries should preserve the last successful payload during routine refetch so deploy rollouts do not flash empty-state content; when a profile is missing `avatarUrl`, the profile page may trigger a one-shot authenticated `/api/v1/me/identity-refresh` in the background to backfill provider-managed social data.
 - websocket lifecycle is owned by `TelemetryEngineProvider`; token refresh/reconnect should not clear active device subscriptions at the screen hook layer.
 - on web, websocket reconnect must retry the current browser-origin endpoint directly; browser sessions should not rotate through native-dev fallback hosts such as `127.0.0.1` or `localhost` after deploy-induced disconnects.

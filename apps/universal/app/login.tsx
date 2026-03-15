@@ -4,6 +4,7 @@ import { ScrollView } from 'react-native';
 import { Button, Text, YStack } from 'tamagui';
 import { LoginCard } from '@/features/auth/KeycloakPkceCard';
 import { useAuthSession } from '@/features/auth/hooks';
+import { buildLoginNotice, parseReauthReason } from '@/features/auth/loginNotice';
 import { resolvePostLoginTarget, sanitizeReturnTo } from '@/features/auth/useReturnTo';
 import { resolveUserDisplayName } from '@/features/profile/model';
 import { useCurrentUser, useUpdateCurrentUser } from '@/features/profile/hooks';
@@ -12,11 +13,13 @@ import { ApiError } from '@/shared/api/restClient';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { Card } from '@/shared/ui/Card';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
+import { StatusBanner } from '@/shared/ui/StatusBanner';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const params = useLocalSearchParams<{ returnTo?: string | string[]; reason?: string | string[] }>();
   const returnTo = sanitizeReturnTo(params.returnTo);
+  const loginNotice = buildLoginNotice(parseReauthReason(params.reason));
   const timezone = detectCurrentTimeZone();
   const redirectedRef = useRef(false);
   const timezoneSyncRef = useRef(false);
@@ -91,6 +94,14 @@ export default function LoginScreen() {
           <YStack alignItems="center">
             <BrandLogo />
           </YStack>
+          {loginNotice ? (
+            <StatusBanner
+              iconText={loginNotice.iconText}
+              headline={loginNotice.headline}
+              detail={loginNotice.detail}
+              statusLabel={loginNotice.statusLabel}
+            />
+          ) : null}
           <LoginCard />
           {!authConfigured ? (
             <Card gap="$2">

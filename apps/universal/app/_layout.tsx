@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SessionRecoveryRedirector } from '@/features/auth/SessionRecoveryRedirector';
 import { AppProvider } from '@/shared/providers/AppProvider';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 
@@ -9,6 +10,7 @@ export default function RootLayout() {
   return (
     <AppProvider>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      <SessionRecoveryRedirector />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="auth/callback" />

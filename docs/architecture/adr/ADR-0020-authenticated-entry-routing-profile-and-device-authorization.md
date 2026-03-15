@@ -306,6 +306,7 @@ This is the right balance between UX quality, privacy, implementation cost, and 
 - metrics:
   - login success/failure count
   - token refresh success/failure count
+  - client-side session recovery vs reauthentication redirect count
   - protected-route redirect count
   - unauthorized device read count
   - websocket auth rejection count

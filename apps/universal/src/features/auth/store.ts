@@ -16,10 +16,16 @@ export type StoredOidcSession = {
   updatedAtUnixMs: number;
 };
 
+export type ReauthReason = 'session_expired';
+
 type AuthState = {
   hydrated: boolean;
   refreshing: boolean;
   session: StoredOidcSession | null;
+  reauthRequest: {
+    nonce: number;
+    reason: ReauthReason | null;
+  };
   setHydrated: (hydrated: boolean) => void;
   setRefreshing: (refreshing: boolean) => void;
   setSession: (input: {
@@ -28,6 +34,8 @@ type AuthState = {
     token: Pick<TokenResponse, 'accessToken' | 'refreshToken' | 'idToken' | 'tokenType' | 'issuedAt' | 'expiresIn'>;
   }) => void;
   clearSession: () => void;
+  requestReauthentication: (reason: ReauthReason) => void;
+  clearReauthenticationRequest: () => void;
 };
 
 export const useAuthStore = create<AuthState>()(
@@ -36,6 +44,10 @@ export const useAuthStore = create<AuthState>()(
       hydrated: false,
       refreshing: false,
       session: null,
+      reauthRequest: {
+        nonce: 0,
+        reason: null
+      },
       setHydrated: (hydrated) => set({ hydrated }),
       setRefreshing: (refreshing) => set({ refreshing }),
       setSession: (input) =>
@@ -52,7 +64,21 @@ export const useAuthStore = create<AuthState>()(
             updatedAtUnixMs: Date.now()
           }
         })),
-      clearSession: () => set({ refreshing: false, session: null })
+      clearSession: () => set({ refreshing: false, session: null }),
+      requestReauthentication: (reason) =>
+        set((state) => ({
+          reauthRequest: {
+            nonce: state.reauthRequest.nonce + 1,
+            reason
+          }
+        })),
+      clearReauthenticationRequest: () =>
+        set((state) => ({
+          reauthRequest: {
+            nonce: state.reauthRequest.nonce,
+            reason: null
+          }
+        }))
     }),
     {
       name: 'pulse-oidc-session-v1',

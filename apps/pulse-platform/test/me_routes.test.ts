@@ -292,6 +292,33 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
+  it('emits scrapeable metrics for browser auth session recovery outcomes', async () => {
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient()
+    });
+
+    const event = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/session-events',
+      payload: {
+        outcome: 'recovered_refresh'
+      }
+    });
+
+    expect(event.statusCode).toBe(202);
+
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/metrics'
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.body).toContain('pulse_public_auth_session_recovery_total');
+    expect(metrics.body).toContain('outcome="recovered_refresh"');
+
+    await app.close();
+  });
+
   it('refreshes current user identity through Keycloak userinfo', async () => {
     const refreshCurrentUserIdentity = vi.fn(async () => ({
       ...sampleCurrentUser(),

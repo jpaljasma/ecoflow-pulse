@@ -24,6 +24,13 @@ const authDeniedTotal = new Counter({
   registers: [registry]
 });
 
+const authSessionRecoveryTotal = new Counter({
+  name: 'pulse_public_auth_session_recovery_total',
+  help: 'Client-reported auth session recovery outcomes from the universal app.',
+  labelNames: ['outcome'] as const,
+  registers: [registry]
+});
+
 export function classifyPublicPathname(pathname: string): string | null {
   switch (pathname) {
     case '/':
@@ -91,6 +98,15 @@ export function observePublicRequest(input: {
 
 export function resetPublicMetrics(): void {
   registry.resetMetrics();
+}
+
+export type AuthSessionRecoveryOutcome =
+  | 'recovered_in_memory'
+  | 'recovered_refresh'
+  | 'reauth_redirect';
+
+export function observeAuthSessionRecovery(outcome: AuthSessionRecoveryOutcome): void {
+  authSessionRecoveryTotal.labels(outcome).inc();
 }
 
 export async function renderPublicMetrics(): Promise<string> {
