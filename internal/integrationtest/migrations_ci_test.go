@@ -55,6 +55,10 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 		"devices",
 		"provider_credentials",
 		"provider_devices",
+		"solar_forecast_calibration_state",
+		"solar_forecast_hourly_training_records",
+		"solar_forecast_runs",
+		"solar_forecast_verification_daily",
 		"telemetry_rollup_day",
 		"telemetry_rollup_hour",
 		"telemetry_rollup_minute",
@@ -64,7 +68,7 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 		"user_devices",
 		"users",
 	}
-	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
+	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','solar_forecast_runs','solar_forecast_hourly_training_records','solar_forecast_verification_daily','solar_forecast_calibration_state','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
 	assertStringsEqual(t, gotTables, wantTables, "tables")
 
 	gotIDDefault := queryStrings(t, ctx, db, "SELECT pg_get_expr(adbin, adrelid) FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=d.adnum WHERE c.relname='users' AND a.attname='id'")
@@ -99,6 +103,13 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 		"provider_credentials.updated_at|",
 		"provider_devices.created_at|",
 		"provider_devices.updated_at|",
+		"solar_forecast_calibration_state.updated_at|",
+		"solar_forecast_hourly_training_records.created_at|",
+		"solar_forecast_hourly_training_records.updated_at|",
+		"solar_forecast_runs.created_at|",
+		"solar_forecast_runs.updated_at|",
+		"solar_forecast_verification_daily.created_at|",
+		"solar_forecast_verification_daily.updated_at|",
 		"users.created_at|",
 		"users.updated_at|",
 	}
@@ -107,7 +118,7 @@ SELECT c.relname || '.' || a.attname || '|' || COALESCE(pg_get_expr(d.adbin,d.ad
 FROM pg_attribute a
 LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
 JOIN pg_class c ON c.oid=a.attrelid
-WHERE c.relname IN ('users','devices','provider_credentials','provider_devices')
+WHERE c.relname IN ('users','devices','provider_credentials','provider_devices','solar_forecast_runs','solar_forecast_hourly_training_records','solar_forecast_verification_daily','solar_forecast_calibration_state')
   AND a.attname IN ('created_at','updated_at')
 ORDER BY c.relname, a.attname`)
 	assertStringsEqual(t, gotTimestampDefaults, wantTimestampDefaults, "timestamp defaults")
@@ -136,6 +147,31 @@ ORDER BY c.relname, a.attname`)
 		"chk_rollup_pv_port_minute_provider_nonempty",
 		"chk_rollup_pv_port_minute_sample_count_positive",
 		"chk_rollup_pv_port_minute_ts_order",
+		"chk_solar_forecast_calibration_horizon_bucket",
+		"chk_solar_forecast_calibration_hour",
+		"chk_solar_forecast_calibration_ratio_positive",
+		"chk_solar_forecast_calibration_sample_count_nonnegative",
+		"chk_solar_forecast_calibration_site_key_nonempty",
+		"chk_solar_forecast_calibration_version_nonempty",
+		"chk_solar_forecast_hourly_horizon_bucket",
+		"chk_solar_forecast_hourly_horizon_nonnegative",
+		"chk_solar_forecast_hourly_irradiance_source",
+		"chk_solar_forecast_hourly_site_key_nonempty",
+		"chk_solar_forecast_hourly_target_hour",
+		"chk_solar_forecast_hourly_verification_status",
+		"chk_solar_forecast_runs_feature_version_nonempty",
+		"chk_solar_forecast_runs_forecast_version_nonempty",
+		"chk_solar_forecast_runs_issue_local_hour",
+		"chk_solar_forecast_runs_scope_kind",
+		"chk_solar_forecast_runs_served_variant",
+		"chk_solar_forecast_runs_site_key_nonempty",
+		"chk_solar_forecast_runs_timezone_nonempty",
+		"chk_solar_forecast_verification_counts_nonnegative",
+		"chk_solar_forecast_verification_horizon_bucket",
+		"chk_solar_forecast_verification_served_variant",
+		"chk_solar_forecast_verification_site_key_nonempty",
+		"chk_solar_forecast_verification_timezone_nonempty",
+		"chk_solar_forecast_verification_version_nonempty",
 		"chk_user_devices_role",
 		"chk_users_keycloak_subject_nonempty",
 		"pk_rollup_day",
@@ -146,7 +182,7 @@ ORDER BY c.relname, a.attname`)
 		"pk_rollup_pv_port_minute",
 		"uq_archive_manifest_bucket_key",
 	}
-	gotConstraints := queryStrings(t, ctx, db, "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order','pk_rollup_minute','pk_rollup_hour','pk_rollup_day','chk_rollup_minute_sample_count_nonnegative','chk_rollup_hour_sample_count_nonnegative','chk_rollup_day_sample_count_nonnegative','pk_rollup_pv_port_minute','pk_rollup_pv_port_hour','pk_rollup_pv_port_day','chk_rollup_pv_port_minute_provider_nonempty','chk_rollup_pv_port_minute_provider_device_id_nonempty','chk_rollup_pv_port_minute_port_id_nonempty','chk_rollup_pv_port_minute_port_label_nonempty','chk_rollup_pv_port_minute_sample_count_positive','chk_rollup_pv_port_minute_ts_order','chk_rollup_pv_port_hour_provider_nonempty','chk_rollup_pv_port_hour_provider_device_id_nonempty','chk_rollup_pv_port_hour_port_id_nonempty','chk_rollup_pv_port_hour_port_label_nonempty','chk_rollup_pv_port_hour_sample_count_positive','chk_rollup_pv_port_hour_ts_order','chk_rollup_pv_port_day_provider_nonempty','chk_rollup_pv_port_day_provider_device_id_nonempty','chk_rollup_pv_port_day_port_id_nonempty','chk_rollup_pv_port_day_port_label_nonempty','chk_rollup_pv_port_day_sample_count_positive','chk_rollup_pv_port_day_ts_order') ORDER BY conname")
+	gotConstraints := queryStrings(t, ctx, db, "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order','pk_rollup_minute','pk_rollup_hour','pk_rollup_day','chk_rollup_minute_sample_count_nonnegative','chk_rollup_hour_sample_count_nonnegative','chk_rollup_day_sample_count_nonnegative','pk_rollup_pv_port_minute','pk_rollup_pv_port_hour','pk_rollup_pv_port_day','chk_rollup_pv_port_minute_provider_nonempty','chk_rollup_pv_port_minute_provider_device_id_nonempty','chk_rollup_pv_port_minute_port_id_nonempty','chk_rollup_pv_port_minute_port_label_nonempty','chk_rollup_pv_port_minute_sample_count_positive','chk_rollup_pv_port_minute_ts_order','chk_rollup_pv_port_hour_provider_nonempty','chk_rollup_pv_port_hour_provider_device_id_nonempty','chk_rollup_pv_port_hour_port_id_nonempty','chk_rollup_pv_port_hour_port_label_nonempty','chk_rollup_pv_port_hour_sample_count_positive','chk_rollup_pv_port_hour_ts_order','chk_rollup_pv_port_day_provider_nonempty','chk_rollup_pv_port_day_provider_device_id_nonempty','chk_rollup_pv_port_day_port_id_nonempty','chk_rollup_pv_port_day_port_label_nonempty','chk_rollup_pv_port_day_sample_count_positive','chk_rollup_pv_port_day_ts_order','chk_solar_forecast_runs_scope_kind','chk_solar_forecast_runs_timezone_nonempty','chk_solar_forecast_runs_site_key_nonempty','chk_solar_forecast_runs_forecast_version_nonempty','chk_solar_forecast_runs_feature_version_nonempty','chk_solar_forecast_runs_issue_local_hour','chk_solar_forecast_runs_served_variant','chk_solar_forecast_hourly_site_key_nonempty','chk_solar_forecast_hourly_target_hour','chk_solar_forecast_hourly_horizon_nonnegative','chk_solar_forecast_hourly_horizon_bucket','chk_solar_forecast_hourly_irradiance_source','chk_solar_forecast_hourly_verification_status','chk_solar_forecast_verification_site_key_nonempty','chk_solar_forecast_verification_timezone_nonempty','chk_solar_forecast_verification_version_nonempty','chk_solar_forecast_verification_horizon_bucket','chk_solar_forecast_verification_counts_nonnegative','chk_solar_forecast_verification_served_variant','chk_solar_forecast_calibration_site_key_nonempty','chk_solar_forecast_calibration_version_nonempty','chk_solar_forecast_calibration_horizon_bucket','chk_solar_forecast_calibration_hour','chk_solar_forecast_calibration_sample_count_nonnegative','chk_solar_forecast_calibration_ratio_positive') ORDER BY conname")
 	assertStringsEqual(t, gotConstraints, wantConstraints, "schema constraints")
 
 	wantPVPortColumns := []string{
@@ -203,12 +239,57 @@ WHERE table_schema = 'public'
   AND column_name IN ('ac_input_energy_wh', 'ac_output_energy_wh', 'dc_output_energy_wh', 'load_energy_wh', 'battery_charge_energy_wh', 'battery_discharge_energy_wh')
 ORDER BY table_name, column_name`)
 	assertStringsEqual(t, gotEnergyColumns, wantEnergyColumns, "explicit energy columns")
+
+	wantSolarColumns := []string{
+		"solar_forecast_calibration_state.forecast_version",
+		"solar_forecast_calibration_state.horizon_bucket",
+		"solar_forecast_calibration_state.multiplicative_ratio",
+		"solar_forecast_calibration_state.sample_count",
+		"solar_forecast_hourly_training_records.actual_cloud_cover_pct",
+		"solar_forecast_hourly_training_records.actual_generation_wh",
+		"solar_forecast_hourly_training_records.baseline_absolute_error_wh",
+		"solar_forecast_hourly_training_records.baseline_forecast_generation_wh",
+		"solar_forecast_hourly_training_records.baseline_squared_error_wh2",
+		"solar_forecast_hourly_training_records.feature_snapshot_json",
+		"solar_forecast_hourly_training_records.forecast_generation_wh",
+		"solar_forecast_hourly_training_records.horizon_bucket",
+		"solar_forecast_hourly_training_records.horizon_hours",
+		"solar_forecast_hourly_training_records.weather_corrected_json",
+		"solar_forecast_hourly_training_records.weather_raw_json",
+		"solar_forecast_runs.capacity_estimate_w",
+		"solar_forecast_runs.feature_version",
+		"solar_forecast_runs.forecast_total_today_wh",
+		"solar_forecast_runs.issue_local_date",
+		"solar_forecast_runs.scope_kind",
+		"solar_forecast_runs.served_variant",
+		"solar_forecast_runs.site_metadata_json",
+		"solar_forecast_verification_daily.baseline_daily_abs_error_wh_sum",
+		"solar_forecast_verification_daily.baseline_peak_power_abs_error_w_sum",
+		"solar_forecast_verification_daily.baseline_peak_time_abs_error_minutes_sum",
+		"solar_forecast_verification_daily.daily_abs_error_wh_sum",
+		"solar_forecast_verification_daily.forecast_hours",
+		"solar_forecast_verification_daily.horizon_bucket",
+		"solar_forecast_verification_daily.served_variant",
+		"solar_forecast_verification_daily.verified_hours",
+	}
+	gotSolarColumns := queryStrings(t, ctx, db, `
+SELECT table_name || '.' || column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND (
+    (table_name = 'solar_forecast_runs' AND column_name IN ('scope_kind', 'served_variant', 'issue_local_date', 'feature_version', 'capacity_estimate_w', 'forecast_total_today_wh', 'site_metadata_json')) OR
+    (table_name = 'solar_forecast_calibration_state' AND column_name IN ('forecast_version', 'horizon_bucket', 'sample_count', 'multiplicative_ratio')) OR
+    (table_name = 'solar_forecast_hourly_training_records' AND column_name IN ('forecast_generation_wh', 'baseline_forecast_generation_wh', 'actual_generation_wh', 'actual_cloud_cover_pct', 'baseline_absolute_error_wh', 'baseline_squared_error_wh2', 'horizon_hours', 'horizon_bucket', 'feature_snapshot_json', 'weather_raw_json', 'weather_corrected_json')) OR
+    (table_name = 'solar_forecast_verification_daily' AND column_name IN ('forecast_hours', 'verified_hours', 'horizon_bucket', 'served_variant', 'daily_abs_error_wh_sum', 'baseline_daily_abs_error_wh_sum', 'baseline_peak_power_abs_error_w_sum', 'baseline_peak_time_abs_error_minutes_sum'))
+  )
+ORDER BY table_name, column_name`)
+	assertStringsEqual(t, gotSolarColumns, wantSolarColumns, "solar forecast columns")
 }
 
 func assertTablesAbsent(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
-	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
+	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','solar_forecast_runs','solar_forecast_hourly_training_records','solar_forecast_verification_daily','solar_forecast_calibration_state','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
 	if len(gotTables) != 0 {
 		t.Fatalf("expected migrated tables to be absent after down migrations, got=%v", gotTables)
 	}

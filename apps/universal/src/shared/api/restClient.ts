@@ -1,15 +1,11 @@
 import { env } from '@/shared/config/env';
 import {
-  recoverSessionForUnauthorizedRequest,
-  triggerSessionExpiredRedirect
-} from '@/features/auth/sessionRecoveryCoordinator';
-import {
   classifyClientRestPath,
   reportClientRestMetric,
   toErrorKind,
-  toStatusClass,
-  type ClientRestOutcome
+  toStatusClass
 } from '@/shared/api/clientRestMetrics';
+import type { ClientRestOutcome } from '@/shared/api/clientRestMetrics';
 
 export class ApiError extends Error {
   constructor(
@@ -135,6 +131,9 @@ async function requestJsonInternal<T>(
 
     if (!res.ok) {
       if (res.status === 401 && !sessionRecoveryAttempted) {
+        const { recoverSessionForUnauthorizedRequest } = await import(
+          '@/features/auth/sessionRecoveryCoordinator'
+        );
         const recoveredToken = await recoverSessionForUnauthorizedRequest(token);
         if (recoveredToken) {
           return requestJsonInternal<T>(path, {
@@ -147,6 +146,9 @@ async function requestJsonInternal<T>(
         }
       }
       if (res.status === 401) {
+        const { triggerSessionExpiredRedirect } = await import(
+          '@/features/auth/sessionRecoveryCoordinator'
+        );
         triggerSessionExpiredRedirect();
       }
       throw new ApiError(

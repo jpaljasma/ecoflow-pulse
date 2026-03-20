@@ -100,6 +100,7 @@ export function classifyPublicPathname(pathname: string): string | null {
     case '/settings':
       return pathname;
     case '/api/v1/me':
+    case '/api/v1/solar/outlook':
       return pathname;
     case '/api/v1/energy/dashboard':
     case '/api/v1/energy/pv-history':

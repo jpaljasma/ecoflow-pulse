@@ -11,7 +11,9 @@ import type { AppConfig } from './config.js';
 import type { ControlPlaneClient } from './grpc/controlPlaneClient.js';
 import type { DeviceClient } from './grpc/deviceClient.js';
 import type { InferenceClient } from './grpc/inferenceClient.js';
+import type { SolarForecastClient } from './grpc/solarForecastClient.js';
 import type { TelemetryHistoryClient } from './grpc/telemetryClient.js';
+import type { WeatherClient } from './grpc/weatherClient.js';
 import {
   buildHtmlDeliveryPlan,
   buildStaticHeaderPlan,
@@ -28,10 +30,14 @@ import { registerClientMetricsRoutes } from './routes/clientMetrics.js';
 import { registerClientWsMetricsRoutes } from './routes/clientWsMetrics.js';
 import { registerHistoryRoutes } from './routes/history.js';
 import { registerCurrentUserRoutes } from './routes/me.js';
+import { registerSolarRoutes } from './routes/solar.js';
+import { registerWeatherRoutes } from './routes/weather.js';
 
 type BuildAppOptions = {
   authPreHandler?: preHandlerHookHandler;
   controlPlaneClient?: ControlPlaneClient;
+  weatherClient?: WeatherClient;
+  solarForecastClient?: SolarForecastClient;
 };
 
 export function buildApp(
@@ -85,6 +91,24 @@ export function buildApp(
     if (options.controlPlaneClient) {
       registerCurrentUserRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
     }
+    if (options.controlPlaneClient && options.weatherClient) {
+      registerWeatherRoutes(
+        scopedApp,
+        config,
+        options.controlPlaneClient,
+        options.weatherClient,
+        authPreHandler
+      );
+    }
+    if (options.controlPlaneClient && options.solarForecastClient) {
+      registerSolarRoutes(
+        scopedApp,
+        config,
+        options.controlPlaneClient,
+        options.solarForecastClient,
+        authPreHandler
+      );
+    }
     registerDeviceRoutes(scopedApp, config, deviceClient, inferenceClient, authPreHandler);
     registerHistoryRoutes(scopedApp, config, historyClient, inferenceClient, authPreHandler);
   });
@@ -130,6 +154,8 @@ export function buildApp(
   }
   app.addHook('onClose', async () => {
     options.controlPlaneClient?.close();
+    options.weatherClient?.close();
+    options.solarForecastClient?.close();
     historyClient.close();
     deviceClient.close();
     inferenceClient.close();

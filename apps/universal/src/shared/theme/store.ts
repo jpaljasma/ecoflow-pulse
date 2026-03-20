@@ -1,10 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { create } = require('zustand') as typeof import('zustand');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { createJSONStorage, persist } = require('zustand/middleware') as typeof import('zustand/middleware');
 
 import { defaultThemeFamily, type ThemeFamily, type ThemeVariant } from './catalog';
+import { create, createJSONStorage, persist } from '@/shared/state/zustand';
 
 type ThemeState = {
   hydrated: boolean;

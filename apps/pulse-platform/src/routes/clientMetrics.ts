@@ -10,6 +10,7 @@ const CanonicalClientRestRouteSchema = z.enum([
   '/api/v1/energy/dashboard',
   '/api/v1/energy/pv-history',
   '/api/v1/energy/comparison-insight',
+  '/api/v1/solar/outlook',
   '/api/v1/devices',
   '/api/v1/devices/:deviceId',
   '/api/v1/devices/:deviceId/history',

@@ -59,7 +59,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `PULSE_ENV` (`local|dev|staging|prod`, default `local`)
 - `GRPC_LISTEN_ADDR` (default from grpc server profile; typically `:9090` in local/dev)
 - `GRPC_SERVICE_MODE` (`telemetry|energy`, default `telemetry`)
-  - `telemetry`: serves `TelemetryService` live snapshot/stream RPCs plus control-plane and inference services.
+  - `telemetry`: serves `TelemetryService` live snapshot/stream RPCs plus control-plane, weather, solar-forecast, and inference services.
   - `energy`: serves `EnergyService` history/dashboard RPCs on a separately deployable internal gRPC workload.
 - `GRPC_AUTH_MODE` (`noop|keycloak`, default `noop`)
   - `noop`: development-only pass-through auth mode.
@@ -79,6 +79,8 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`; Valkey device-insight read-model key prefix)
+- `SOLAR_FORECAST_VERIFICATION_INTERVAL` (default `15m`; when `> 0`, the telemetry-mode gRPC runtime runs the background solar forecast verification loop against matured issued hourly rows)
+- `SOLAR_FORECAST_VERIFICATION_BATCH_LIMIT` (default `1536`; max number of pending solar hourly records the verification loop will process per pass)
 
 ## Pulse Platform Node REST BFF (`apps/pulse-platform`)
 

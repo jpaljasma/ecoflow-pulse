@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package pulse.solarforecast.v1;
+
+option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/solarforecast/v1;solarforecastv1";
+
+import "google/protobuf/wrappers.proto";
+import "pulse/weather/v1/weather.proto";
+
+enum SolarForecastConfidence {
+  SOLAR_FORECAST_CONFIDENCE_UNSPECIFIED = 0;
+  SOLAR_FORECAST_CONFIDENCE_LOW = 1;
+  SOLAR_FORECAST_CONFIDENCE_MEDIUM = 2;
+  SOLAR_FORECAST_CONFIDENCE_HIGH = 3;
+}
+
+message SolarForecastScope {
+  string mode = 1;
+  string device_id = 2;
+  repeated string resolved_device_ids = 3;
+}
+
+message SolarCapacityEstimate {
+  google.protobuf.DoubleValue estimated_peak_watts = 1;
+  google.protobuf.DoubleValue observed_pv_watts = 2;
+  string method = 3;
+}
+
+message SolarGenerationPoint {
+  int64 time_unix_ms = 1;
+  google.protobuf.DoubleValue actual_generated_wh = 2;
+  google.protobuf.DoubleValue forecast_generated_wh = 3;
+  google.protobuf.DoubleValue estimated_peak_watts = 4;
+  google.protobuf.DoubleValue shortwave_radiation = 5;
+  google.protobuf.DoubleValue global_tilted_irradiance = 6;
+  google.protobuf.DoubleValue cloud_cover = 7;
+  SolarForecastConfidence confidence = 8;
+}
+
+message SolarGenerationDay {
+  int64 date_unix_ms = 1;
+  google.protobuf.DoubleValue actual_generated_kwh = 2;
+  google.protobuf.DoubleValue forecast_remaining_kwh = 3;
+  google.protobuf.DoubleValue forecast_total_kwh = 4;
+  google.protobuf.DoubleValue estimated_peak_watts = 5;
+  int64 peak_time_unix_ms = 6;
+  SolarForecastConfidence confidence = 7;
+}
+
+message SolarForecastProvenance {
+  string forecast_source = 1;
+  string forecast_model = 2;
+  string actuals_source = 3;
+  string weather_source = 4;
+  string weather_model_selection = 5;
+  string timezone = 6;
+  string canonical_location_key = 7;
+  int64 issued_at_unix_ms = 8;
+  int64 refreshed_at_unix_ms = 9;
+  string served_variant = 10;
+  string baseline_model = 11;
+  bool calibration_applied = 12;
+  int32 calibration_sample_count = 13;
+  int64 calibration_updated_at_unix_ms = 14;
+}
+
+message GetSolarOutlookRequest {
+  pulse.weather.v1.WeatherLocationRequest location = 1;
+  string device_id = 2;
+  bool use_all_devices = 3;
+}
+
+message GetSolarOutlookResponse {
+  SolarForecastScope scope = 1;
+  SolarForecastProvenance provenance = 2;
+  SolarCapacityEstimate capacity = 3;
+  SolarGenerationDay today = 4;
+  repeated SolarGenerationDay next_7_days = 5;
+  repeated SolarGenerationPoint next_24_hours = 6;
+}
+
+service SolarForecastService {
+  rpc GetSolarOutlook(GetSolarOutlookRequest) returns (GetSolarOutlookResponse);
+}

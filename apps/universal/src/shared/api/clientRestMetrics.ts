@@ -30,6 +30,7 @@ export function classifyClientRestPath(path: string): string | null {
     case '/api/v1/energy/dashboard':
     case '/api/v1/energy/pv-history':
     case '/api/v1/energy/comparison-insight':
+    case '/api/v1/solar/outlook':
       return pathname;
     default:
       break;
