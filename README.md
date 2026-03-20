@@ -3,9 +3,9 @@
 <img src="apps/universal/assets/icon.png" alt="EcoFlow Pulse app icon" style="width:50%; height:auto;">
 
 EcoFlow Pulse is a realtime energy control room for EcoFlow devices. It turns
-live solar input, battery state, load flow, device health, and historical power
-telemetry into a clean operator-grade experience across web, iPhone, iPad, and
-Android.
+live solar input, battery state, load flow, device health, historical power
+telemetry, and forecast-aware weather and solar outlooks into a clean
+operator-grade experience across web, iPhone, iPad, and Android.
 
 > [!NOTE]
 > The product is built around the official EcoFlow API, MQTT telemetry streams, and a Kubernetes-first platform that supports live snapshots, durable archive, replay, and long-range rollup history.
@@ -16,10 +16,12 @@ Android.
   pack-level state, and device health.
 - Universal app experience with auth-aware realtime, history, and comparison
   views across web, iOS, and Android.
+- Profile-aware weather forecast, yesterday verification, and solar outlook
+  widgets backed by weather and solar forecast services.
 - Operator-focused UX with snapshot-first updates, trend charts, fleet summary,
-  device detail views, and energy-impact explainers.
+  device detail views, profile preferences, and energy-impact explainers.
 - Durable platform architecture for ingest, archive, replay, rollups, and
-  resilient websocket delivery.
+  resilient websocket delivery, plus forecast verification and calibration.
 
 ## Supported Devices
 
@@ -42,6 +44,15 @@ Android.
   deltas) with backpressure/downsampling ladder and Expo reconnect hardening.
 - M5 in progress with shipped slices: Testcontainers pipeline integration,
   Node↔Go protobuf contract tests, and Playwright web E2E smoke tests.
+- Profile page now ships saved-location weather forecasting with 7-day outlook,
+  yesterday verification, Open-Meteo attribution, and a compact current-weather
+  widget.
+- New internal `weatherd` service wraps Open-Meteo with canonical grid-cell
+  caching, snapshots, verification fallback, bias correction, and budget-aware
+  upstream access.
+- New internal `solar-forecastd` service combines energy truth and weather
+  forecasts into deterministic solar outlooks, rolling verification, site
+  calibration, and Grafana quality dashboards.
 - Universal app branding refresh: generated high-resolution iOS, Android, web,
   and social-share assets, theme-family support, and a redesigned About /
   Appearance experience.
@@ -62,6 +73,9 @@ Android.
   APIs.
 - Dedicated `Energy` dashboard for multi-window solar, load, battery, PV
   envelope, and value analysis across one device or the whole fleet.
+- Dedicated profile widgets for current weather, 7-day forecast, yesterday
+  weather verification, and heuristic solar outlook based on live energy truth
+  plus forecast irradiance.
 - Solar-specific telemetry visibility including MPPT state, watts, volts, amps,
   and local-day generation comparison.
 - Auth-aware universal client with Keycloak OIDC, Expo PKCE, persisted session
@@ -100,9 +114,9 @@ Android.
 ### Query and delivery layer
 
 - Internal Go gRPC API for high-throughput snapshot, history, and control-plane
-  operations.
+  operations, now including weather and solar forecast domains.
 - Public Node REST BFF (`apps/pulse-platform`) for JWT validation and browser /
-  app query access.
+  app query access, including profile-scoped weather and solar outlook routes.
 - Dedicated realtime WebSocket gateway (`apps/pulse-realtime-gateway`) with
   snapshot-on-connect, delta fanout, and staged backpressure degradation.
 
