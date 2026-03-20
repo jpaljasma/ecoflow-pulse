@@ -66,6 +66,16 @@ export type WeatherForecast = {
   daily: WeatherDailyPoint[];
 };
 
+export type WeatherLocationPreference = {
+  timezone?: string | null;
+  weatherLocationEnabled?: boolean;
+  weatherLocation?: {
+    label?: string;
+    latitude: number;
+    longitude: number;
+  } | null;
+};
+
 export type WeatherDaypart = {
   key: 'morning' | 'day' | 'afternoon' | 'night';
   label: string;
@@ -518,7 +528,7 @@ export function formatEnergyKwh(value: number | null | undefined): string {
 
 export function formatSolarOutlookSummary(outlook: SolarDayOutlook | undefined): string {
   if (!outlook) {
-    return 'Solar outlook unavailable';
+    return '';
   }
   if ((outlook.actualSoFarKwh ?? 0) > 0) {
     const soFar = formatEnergyKwh(outlook.actualSoFarKwh);
@@ -531,7 +541,7 @@ export function formatSolarOutlookSummary(outlook: SolarDayOutlook | undefined):
   const peak = formatPowerWatts(outlook.peakWatts);
   const energy = formatEnergyKwh(outlook.energyKwh);
   if (peak === '—' && energy === '—') {
-    return 'Solar outlook unavailable';
+    return '';
   }
   if (peak === '—') {
     return `Solar ${energy}`;
@@ -540,6 +550,24 @@ export function formatSolarOutlookSummary(outlook: SolarDayOutlook | undefined):
     return `Solar peak ${peak}`;
   }
   return `Solar peak ${peak} · ${energy}`;
+}
+
+export function formatMiniSolarOutlookSummary(outlook: SolarDayOutlook | undefined): string {
+  if (!outlook) {
+    return '';
+  }
+  const soFar = formatEnergyKwh(outlook.actualSoFarKwh);
+  const total = formatEnergyKwh(outlook.energyKwh);
+  if (soFar !== '—' && total !== '—') {
+    return `Solar ${soFar} + est ${total} today`;
+  }
+  if (soFar !== '—') {
+    return `Solar ${soFar} today`;
+  }
+  if (total !== '—') {
+    return `Solar est ${total} today`;
+  }
+  return '';
 }
 
 export function formatSolarCapacitySummary(capacity: SolarCapacityEstimate | undefined): string {
@@ -667,8 +695,40 @@ export function buildWeatherLocationKey(
   return `${latitude.toFixed(3)}:${longitude.toFixed(3)}:${(timezone || 'auto').trim() || 'auto'}`;
 }
 
+export function resolveProfileWeatherState(preference?: WeatherLocationPreference): {
+  enabled: boolean;
+  timezone: string;
+  location?: WeatherLocationPreference['weatherLocation'];
+  locationKey: string;
+} {
+  const timezone = (preference?.timezone || 'auto').trim() || 'auto';
+  const location = preference?.weatherLocationEnabled ? preference.weatherLocation ?? undefined : undefined;
+  return {
+    enabled: Boolean(location),
+    timezone,
+    location,
+    locationKey: location ? buildWeatherLocationKey(location.latitude, location.longitude, timezone) : 'none'
+  };
+}
+
 export function getTodayIsoInTimezone(timezone?: string | null, now: Date = new Date()): string {
   return getDateIsoInTimezone(now, timezone);
+}
+
+export function formatLocalTimeLabel(
+  timestampIso: string,
+  timezone?: string | null,
+  locale = 'en-US'
+): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: timezone?.trim() || 'UTC'
+    }).format(new Date(timestampIso));
+  } catch {
+    return timestampIso;
+  }
 }
 
 function getDateIsoInTimezone(date: Date, timezone?: string | null): string {

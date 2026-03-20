@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { Image, Platform, ScrollView } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
+import { useAuthSession } from '@/features/auth/hooks';
 import { LogoutButton } from '@/features/auth/LogoutButton';
+import { useCurrentUser } from '@/features/profile/hooks';
+import { HeaderWeatherButton } from '@/features/weather/HeaderWeatherButton';
+import { useProfileWeather } from '@/features/weather/hooks';
+import { resolveProfileWeatherState } from '@/features/weather/model';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Sheet } from '@/shared/ui/Sheet';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
@@ -11,34 +16,59 @@ import { useAppTheme } from '@/shared/theme/useAppTheme';
 export function AppMenu() {
   const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const { token, authKey, authReady } = useAuthSession();
   const { isDark } = useAppTheme();
   const menuMark = getBundledBrandMark(isDark ? 'dark' : 'light');
+  const currentUserQuery = useCurrentUser({
+    token,
+    authKey,
+    enabled: authReady && Boolean(token)
+  });
+  const resolvedWeatherState = resolveProfileWeatherState(currentUserQuery.data?.user);
+  const profileWeather = useProfileWeather({
+    token,
+    authKey,
+    locationKey: resolvedWeatherState.locationKey,
+    enabled: authReady && Boolean(token) && resolvedWeatherState.enabled
+  });
+  const showConfigureWeather =
+    Boolean(currentUserQuery.data?.user) && !resolvedWeatherState.enabled;
 
   return (
     <>
-      <Button
-        size="$4"
-        onPress={() => setOpen(true)}
-        width={46}
-        height={46}
-        minWidth={46}
-        paddingHorizontal="$0"
-        paddingVertical="$0"
-        alignSelf="flex-start"
-        backgroundColor="rgba(120,120,128,0.16)"
-        borderColor="rgba(120,120,128,0.45)"
-        borderWidth={1}
-        borderRadius={23}
-        alignItems="center"
-        justifyContent="center"
-        pressStyle={{ opacity: 0.85 }}
-        style={Platform.OS === 'web' ? ({ paddingTop: 0, paddingBottom: 0 } as any) : undefined}
-        aria-label="Open menu"
-      >
-        <XStack width={26} height={26} alignItems="center" justifyContent="center">
-          <Image source={menuMark} style={{ width: 20, height: 20 }} resizeMode="contain" />
-        </XStack>
-      </Button>
+      <XStack gap="$2" alignItems="flex-start">
+        <HeaderWeatherButton
+          forecast={profileWeather.forecastQuery.data?.forecast}
+          solarOutlook={profileWeather.solarOutlook}
+          showConfigure={showConfigureWeather}
+          isLoading={currentUserQuery.isLoading || profileWeather.forecastQuery.isLoading}
+          onPress={() => router.push('/profile')}
+        />
+
+        <Button
+          size="$4"
+          onPress={() => setOpen(true)}
+          width={46}
+          height={46}
+          minWidth={46}
+          paddingHorizontal="$0"
+          paddingVertical="$0"
+          alignSelf="flex-start"
+          backgroundColor="rgba(120,120,128,0.16)"
+          borderColor="rgba(120,120,128,0.45)"
+          borderWidth={1}
+          borderRadius={23}
+          alignItems="center"
+          justifyContent="center"
+          pressStyle={{ opacity: 0.85 }}
+          style={Platform.OS === 'web' ? ({ paddingTop: 0, paddingBottom: 0 } as any) : undefined}
+          aria-label="Open menu"
+        >
+          <XStack width={26} height={26} alignItems="center" justifyContent="center">
+            <Image source={menuMark} style={{ width: 20, height: 20 }} resizeMode="contain" />
+          </XStack>
+        </Button>
+      </XStack>
 
       <Sheet open={open} onOpenChange={setOpen} title="Menu">
         <YStack minHeight={360} maxHeight={520} justifyContent="space-between">

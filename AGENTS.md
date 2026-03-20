@@ -182,6 +182,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - when a library needs a special import path, CommonJS shim, environment guard, or web-only workaround, put that behavior in one shared helper/module instead of copying the workaround into each feature file,
    - treat duplicated compatibility snippets as debt because they drift easily and can reintroduce the same runtime bug in only part of the app,
    - add or update regression coverage around the shared helper when the workaround affects app bootstrap or browser runtime behavior.
+23. Secondary detail panels should be collapsed and lazy-loaded when they are not needed for first paint:
+   - verification/history/explainer sections that are useful but secondary should stay out of the initial request path unless product requirements say otherwise,
+   - first expand should trigger the fetch, preserve layout stability, and reuse cached data on reopen instead of refetching or blanking the card,
+   - keep summary widgets truthful by omitting unavailable derived copy instead of filling space with noisy placeholder text.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.
