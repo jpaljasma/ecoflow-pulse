@@ -4,6 +4,13 @@ export const DPU_DEVICE_ID = '11111111-1111-7111-8111-111111111111';
 export const D2M_DEVICE_ID = '22222222-2222-7222-8222-222222222222';
 export const DPU_SERIAL = 'DEMODPU0000294';
 export const D2M_SERIAL = 'DEMOD2M00001057';
+const PROFILE_WEATHER_LOCATION = {
+  label: 'Naples, NY',
+  latitude: 42.6159,
+  longitude: -77.4014
+};
+const PROFILE_TIMEZONE = 'America/New_York';
+const WEATHER_ISSUED_AT_UNIX_MS = Date.UTC(2026, 2, 4, 15, 0, 0);
 
 type DevicePayload = {
   id: string;
@@ -25,7 +32,125 @@ type DevicePayload = {
   details?: Record<string, unknown>;
 };
 
+type WeatherMetricValuePayload = {
+  raw?: number | null;
+  corrected?: number | null;
+  unit?: string;
+};
+
+type WeatherPointPayload = {
+  timestampIso: string;
+  weatherCode?: number | null;
+  weatherLabel?: string | null;
+  weatherIcon?: string;
+  temperature2m?: WeatherMetricValuePayload;
+  windSpeed10m?: WeatherMetricValuePayload;
+  windDirection10mDegrees?: number | null;
+  windDirectionErrorDegrees?: number | null;
+  precipitation?: WeatherMetricValuePayload;
+  cloudCover?: WeatherMetricValuePayload;
+  visibility?: WeatherMetricValuePayload;
+  sunshineDurationSeconds?: number | null;
+  shortwaveRadiation?: WeatherMetricValuePayload;
+  uvIndex?: WeatherMetricValuePayload;
+  globalTiltedIrradiance?: WeatherMetricValuePayload;
+};
+
+type WeatherDailyPointPayload = {
+  dateIso: string;
+  weatherCode?: number | null;
+  weatherLabel?: string | null;
+  weatherIcon?: string;
+  sunriseIso?: string | null;
+  sunsetIso?: string | null;
+  daylightDurationSeconds?: number | null;
+  sunshineDurationSeconds?: number | null;
+  shortwaveRadiationSum?: WeatherMetricValuePayload;
+  uvIndexMax?: WeatherMetricValuePayload;
+};
+
+type WeatherForecastPayload = {
+  issuedAtUnixMs: string;
+  timezone: string;
+  unitSystem: 'metric';
+  panelTiltDegrees: number;
+  panelAzimuthDegrees: number;
+  provenance: {
+    source: 'open_meteo';
+    modelSelection: 'best_match';
+    actualSource: 'past_days';
+  };
+  current: WeatherPointPayload;
+  hourly: WeatherPointPayload[];
+  daily: WeatherDailyPointPayload[];
+};
+
+type WeatherYesterdayVerificationPayload = {
+  issuedAtUnixMs: string;
+  timezone: string;
+  verificationSource: 'snapshot';
+  provenance: {
+    source: 'open_meteo';
+    modelSelection: 'best_match';
+    actualSource: 'past_days';
+    verificationSource: 'snapshot';
+  };
+  summary: {
+    comparedHours: number;
+    matchedHours: number;
+    meanAbsoluteTemperatureError: number;
+    meanAbsoluteWindSpeedError: number;
+    meanAbsoluteCloudCoverError: number;
+    meanAbsoluteVisibilityError: number;
+    meanAbsoluteUvIndexError: number;
+    meanAbsoluteRadiationError: number;
+  };
+  hours: Array<{
+    timestampIso: string;
+    forecast: WeatherPointPayload;
+    actual: WeatherPointPayload;
+    error: {
+      temperature2m: number;
+      windSpeed10m: number;
+      cloudCover: number;
+      visibility: number;
+      uvIndex: number;
+      shortwaveRadiation: number;
+      windDirection: number;
+    };
+  }>;
+};
+
+type CurrentUserPayload = {
+  user: Record<string, unknown>;
+  authorization: {
+    roles: string[];
+    deviceCount: number;
+  };
+};
+
 const NOW_UNIX_MS = Date.UTC(2026, 2, 4, 15, 20, 0);
+const CURRENT_USER_BOOTSTRAP: CurrentUserPayload = {
+  user: {
+    id: '019d2b2c-98cd-7f33-b39d-5c8b7fd4c111',
+    email: 'user@example.com',
+    emailVerified: true,
+    displayName: 'Pulse User',
+    avatarUrl: 'https://example.com/avatar.png',
+    authMethod: 'google',
+    givenName: 'Pulse',
+    familyName: 'User',
+    locale: 'en-US',
+    timezone: PROFILE_TIMEZONE,
+    weatherLocationEnabled: true,
+    weatherLocation: PROFILE_WEATHER_LOCATION
+  },
+  authorization: {
+    roles: ['viewer'],
+    deviceCount: 3
+  }
+};
+let currentUserBootstrap: CurrentUserPayload = JSON.parse(JSON.stringify(CURRENT_USER_BOOTSTRAP)) as CurrentUserPayload;
 
 const DEVICES: DevicePayload[] = [
   {
@@ -181,6 +306,209 @@ const DEVICE_BY_KEY = new Map<string, DevicePayload>(
     [device.serialNumber, device]
   ])
 );
+
+function buildWeatherMetric(raw: number, corrected: number, unit: string): WeatherMetricValuePayload {
+  return { raw, corrected, unit };
+}
+
+function buildWeatherPoint(
+  timestampIso: string,
+  weatherCode: number,
+  temperature: { raw: number; corrected: number },
+  windSpeed: { raw: number; corrected: number },
+  cloudCover: { raw: number; corrected: number },
+  visibility: { raw: number; corrected: number },
+  uvIndex: { raw: number; corrected: number },
+  shortwaveRadiation: { raw: number; corrected: number },
+  windDirectionDegrees: number,
+  sunshineDurationSeconds: number,
+  precipitation: { raw: number; corrected: number },
+  globalTiltedIrradiance?: { raw: number; corrected: number }
+): WeatherPointPayload {
+  return {
+    timestampIso,
+    weatherCode,
+    weatherLabel: undefined,
+    weatherIcon: undefined,
+    temperature2m: buildWeatherMetric(temperature.raw, temperature.corrected, 'celsius'),
+    windSpeed10m: buildWeatherMetric(windSpeed.raw, windSpeed.corrected, 'm/s'),
+    windDirection10mDegrees: windDirectionDegrees,
+    precipitation: buildWeatherMetric(precipitation.raw, precipitation.corrected, 'mm'),
+    cloudCover: buildWeatherMetric(cloudCover.raw, cloudCover.corrected, 'percent'),
+    visibility: buildWeatherMetric(visibility.raw, visibility.corrected, 'm'),
+    sunshineDurationSeconds,
+    shortwaveRadiation: buildWeatherMetric(shortwaveRadiation.raw, shortwaveRadiation.corrected, 'w/m2'),
+    uvIndex: buildWeatherMetric(uvIndex.raw, uvIndex.corrected, 'index'),
+    ...(globalTiltedIrradiance
+      ? { globalTiltedIrradiance: buildWeatherMetric(globalTiltedIrradiance.raw, globalTiltedIrradiance.corrected, 'w/m2') }
+      : {})
+  };
+}
+
+function buildWeatherForecast(): WeatherForecastPayload {
+  const hourly = Array.from({ length: 24 }, (_unused, index) => {
+    const timestamp = new Date(Date.UTC(2026, 2, 4, 0, 0, 0) + index * 60 * 60_000).toISOString();
+    const baseTemp = 9.2 + index * 0.35;
+    const baseWind = 3.6 + (index % 5) * 0.4;
+    const baseCloud = 28 + (index % 6) * 6;
+    const baseVisibility = 12000 + index * 220;
+    const baseUv = Math.max(0, 2.2 + index * 0.08);
+    const baseRad = 120 + index * 11;
+    const basePrecip = index % 6 === 0 ? 0.6 : 0;
+    return buildWeatherPoint(
+      timestamp,
+      index < 8 ? 63 : index < 16 ? 61 : 2,
+      { raw: baseTemp, corrected: baseTemp + 0.4 },
+      { raw: baseWind, corrected: baseWind - 0.2 },
+      { raw: baseCloud, corrected: Math.min(100, baseCloud + 4) },
+      { raw: baseVisibility, corrected: baseVisibility + 350 },
+      { raw: baseUv, corrected: baseUv + 0.1 },
+      { raw: baseRad, corrected: baseRad + 15 },
+      210 + index * 4,
+      1200 + index * 15,
+      { raw: basePrecip, corrected: basePrecip }
+    );
+  });
+  hourly[0].weatherLabel = 'Rain';
+  hourly[0].weatherIcon = 'weather-rainy';
+
+  const dayCodes = [63, 2, 0, 61, 80, 95, 45];
+  const daily = dayCodes.map((code, index) => {
+    const date = new Date(Date.UTC(2026, 2, 4 + index)).toISOString().slice(0, 10);
+    return {
+      dateIso: date,
+      weatherCode: code,
+      weatherLabel:
+        code === 63
+          ? 'Rain'
+          : code === 2
+            ? 'Partly cloudy'
+            : code === 0
+              ? 'Clear sky'
+              : code === 61
+                ? 'Rain'
+                : code === 80
+                  ? 'Rain showers'
+                  : code === 95
+                    ? 'Thunderstorm'
+                    : 'Fog',
+      weatherIcon:
+        code === 0
+          ? 'weather-sunny'
+          : code === 2
+            ? 'weather-partly-cloudy'
+            : code === 95
+              ? 'weather-lightning-rainy'
+              : code === 45
+                ? 'weather-fog'
+                : 'weather-rainy',
+      sunriseIso: new Date(Date.UTC(2026, 2, 4 + index, 10, 58, 0)).toISOString(),
+      sunsetIso: new Date(Date.UTC(2026, 2, 4 + index, 22, 6, 0)).toISOString(),
+      daylightDurationSeconds: 37_800 + index * 90,
+      sunshineDurationSeconds: 12_600 + index * 300,
+      shortwaveRadiationSum: buildWeatherMetric(420 + index * 18, 438 + index * 18, 'w/m2'),
+      uvIndexMax: buildWeatherMetric(4.4 + index * 0.1, 4.6 + index * 0.1, 'index')
+    } satisfies WeatherDailyPointPayload;
+  });
+
+  return {
+    issuedAtUnixMs: String(WEATHER_ISSUED_AT_UNIX_MS),
+    timezone: PROFILE_TIMEZONE,
+    unitSystem: 'metric',
+    panelTiltDegrees: 45,
+    panelAzimuthDegrees: 0,
+    provenance: {
+      source: 'open_meteo',
+      modelSelection: 'best_match',
+      actualSource: 'past_days'
+    },
+    current: {
+      ...hourly[10],
+      timestampIso: new Date(Date.UTC(2026, 2, 4, 15, 0, 0)).toISOString(),
+      weatherCode: 63,
+      weatherLabel: 'Rain',
+      weatherIcon: 'weather-rainy',
+      temperature2m: buildWeatherMetric(12.4, 12.9, 'celsius'),
+      windSpeed10m: buildWeatherMetric(4.8, 4.5, 'm/s'),
+      cloudCover: buildWeatherMetric(82, 85, 'percent'),
+      visibility: buildWeatherMetric(11800, 12200, 'm'),
+      uvIndex: buildWeatherMetric(0.3, 0.3, 'index'),
+      shortwaveRadiation: buildWeatherMetric(130, 145, 'w/m2'),
+      precipitation: buildWeatherMetric(0.2, 0.2, 'mm')
+    },
+    hourly,
+    daily
+  };
+}
+
+function buildYesterdayVerification(): WeatherYesterdayVerificationPayload {
+  const hours = Array.from({ length: 24 }, (_unused, index) => {
+    const timestamp = new Date(Date.UTC(2026, 2, 3, index, 0, 0)).toISOString();
+    const forecast = buildWeatherPoint(
+      timestamp,
+      index < 9 ? 61 : index < 17 ? 63 : 2,
+      { raw: 10.4 + index * 0.28, corrected: 10.8 + index * 0.28 },
+      { raw: 4.2 + (index % 4) * 0.3, corrected: 4.0 + (index % 4) * 0.3 },
+      { raw: 42 + (index % 5) * 7, corrected: 45 + (index % 5) * 7 },
+      { raw: 10200 + index * 120, corrected: 10500 + index * 120 },
+      { raw: 1.9 + index * 0.04, corrected: 2.0 + index * 0.04 },
+      { raw: 110 + index * 8, corrected: 124 + index * 8 },
+      190 + index * 5,
+      800 + index * 10,
+      { raw: index % 7 === 0 ? 0.4 : 0, corrected: index % 7 === 0 ? 0.3 : 0 }
+    );
+    const actual = buildWeatherPoint(
+      timestamp,
+      index < 8 ? 61 : index < 17 ? 63 : 2,
+      { raw: 10.1 + index * 0.27, corrected: 10.1 + index * 0.27 },
+      { raw: 4.0 + (index % 4) * 0.35, corrected: 4.0 + (index % 4) * 0.35 },
+      { raw: 40 + (index % 5) * 7, corrected: 40 + (index % 5) * 7 },
+      { raw: 10100 + index * 110, corrected: 10100 + index * 110 },
+      { raw: 1.8 + index * 0.03, corrected: 1.8 + index * 0.03 },
+      { raw: 105 + index * 9, corrected: 105 + index * 9 },
+      188 + index * 5,
+      780 + index * 12,
+      { raw: index % 7 === 0 ? 0.3 : 0, corrected: index % 7 === 0 ? 0.3 : 0 }
+    );
+    return {
+      timestampIso: timestamp,
+      forecast,
+      actual,
+      error: {
+        temperature2m: 0.3,
+        windSpeed10m: 0.2,
+        cloudCover: 2,
+        visibility: 110,
+        uvIndex: 0.1,
+        shortwaveRadiation: 14,
+        windDirection: 2
+      }
+    };
+  });
+
+  return {
+    issuedAtUnixMs: String(WEATHER_ISSUED_AT_UNIX_MS),
+    timezone: PROFILE_TIMEZONE,
+    verificationSource: 'snapshot',
+    provenance: {
+      source: 'open_meteo',
+      modelSelection: 'best_match',
+      actualSource: 'past_days',
+      verificationSource: 'snapshot'
+    },
+    summary: {
+      comparedHours: 24,
+      matchedHours: 24,
+      meanAbsoluteTemperatureError: 0.4,
+      meanAbsoluteWindSpeedError: 0.2,
+      meanAbsoluteCloudCoverError: 2.1,
+      meanAbsoluteVisibilityError: 118,
+      meanAbsoluteUvIndexError: 0.1,
+      meanAbsoluteRadiationError: 13
+    },
+    hours
+  };
+}
 
 function toUnixMsString(value: number): string {
   return String(Math.trunc(value));
@@ -488,6 +816,7 @@ async function fulfillJson(route: Route, payload: unknown, status = 200): Promis
 }
 
 export async function mockApiRoutes(page: Page): Promise<void> {
+  currentUserBootstrap = JSON.parse(JSON.stringify(CURRENT_USER_BOOTSTRAP)) as CurrentUserPayload;
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     const { pathname } = url;
@@ -505,6 +834,90 @@ export async function mockApiRoutes(page: Page): Promise<void> {
         return;
       }
       await fulfillJson(route, device);
+      return;
+    }
+
+    if (pathname === '/api/v1/me') {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await fulfillJson(route, currentUserBootstrap);
+        return;
+      }
+      if (method === 'PATCH') {
+        const body = (route.request().postDataJSON?.() ?? {}) as Partial<CurrentUserPayload['user']>;
+        currentUserBootstrap = {
+          ...currentUserBootstrap,
+          user: {
+            ...currentUserBootstrap.user,
+            ...body
+          }
+        };
+        await fulfillJson(route, { user: currentUserBootstrap.user });
+        return;
+      }
+    }
+
+    if (pathname === '/api/v1/me/identity-refresh') {
+      await fulfillJson(route, { user: currentUserBootstrap.user });
+      return;
+    }
+
+    if (pathname === '/api/v1/weather/forecast') {
+      await fulfillJson(route, { forecast: buildWeatherForecast() });
+      return;
+    }
+
+    if (pathname === '/api/v1/weather/yesterday') {
+      await fulfillJson(route, { verification: buildYesterdayVerification() });
+      return;
+    }
+
+    if (pathname === '/api/v1/solar/outlook') {
+      await fulfillJson(route, {
+        outlook: {
+          scope: {
+            mode: 'all',
+            resolvedDeviceIds: ['device-1', 'device-2']
+          },
+          provenance: {
+            forecastSource: 'solarforecastd',
+            forecastModel: 'deterministic_baseline_v1',
+            actualsSource: 'telemetry_rollups',
+            weatherSource: 'open_meteo',
+            weatherModelSelection: 'best_match',
+            timezone: 'America/New_York',
+            canonicalLocationKey: 'grid-key',
+            issuedAtUnixMs: '1773430800000',
+            refreshedAtUnixMs: '1773430860000'
+          },
+          capacity: {
+            estimatedPeakWatts: 1680,
+            observedPvWatts: 1230,
+            method: 'live_pv_and_irradiance'
+          },
+          today: {
+            dateIso: '2026-03-18',
+            actualGeneratedKwh: 5.2,
+            forecastRemainingKwh: 1.8,
+            forecastTotalKwh: 7,
+            estimatedPeakWatts: 1680,
+            peakTimeIso: '2026-03-18T18:00:00.000Z',
+            confidence: 'high'
+          },
+          daily: [
+            {
+              dateIso: '2026-03-18',
+              actualGeneratedKwh: 5.2,
+              forecastRemainingKwh: 1.8,
+              forecastTotalKwh: 7,
+              estimatedPeakWatts: 1680,
+              peakTimeIso: '2026-03-18T18:00:00.000Z',
+              confidence: 'high'
+            }
+          ],
+          next24Hours: []
+        }
+      });
       return;
     }
 

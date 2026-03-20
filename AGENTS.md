@@ -178,6 +178,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - do not ship handmade emoji or ad-hoc Unicode glyphs as steady-state UI affordances, badges, nav controls, or metric labels,
    - when an icon is needed, prefer a named `MaterialCommunityIcons` glyph over inline text symbols,
    - keep icon+label patterns DRY through shared wrappers instead of repeating one-off icon/text stacks.
+22. Centralize third-party runtime shims and compatibility workarounds:
+   - when a library needs a special import path, CommonJS shim, environment guard, or web-only workaround, put that behavior in one shared helper/module instead of copying the workaround into each feature file,
+   - treat duplicated compatibility snippets as debt because they drift easily and can reintroduce the same runtime bug in only part of the app,
+   - add or update regression coverage around the shared helper when the workaround affects app bootstrap or browser runtime behavior.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.

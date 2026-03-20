@@ -26,6 +26,8 @@
 - [ADR-0020-authenticated-entry-routing-profile-and-device-authorization.md](./ADR-0020-authenticated-entry-routing-profile-and-device-authorization.md)
 - [ADR-0021-client-observed-rest-slos.md](./ADR-0021-client-observed-rest-slos.md)
 - [ADR-0022-client-observed-websocket-slos.md](./ADR-0022-client-observed-websocket-slos.md)
+- [ADR-0023-weather-forecast-service-open-meteo-snapshots-and-bias-correction.md](./ADR-0023-weather-forecast-service-open-meteo-snapshots-and-bias-correction.md)
+- [ADR-0024-solar-generation-forecast-service-energy-truth-weather-features-and-site-learning.md](./ADR-0024-solar-generation-forecast-service-energy-truth-weather-features-and-site-learning.md)
 ---
 
 ## How to add an ADR

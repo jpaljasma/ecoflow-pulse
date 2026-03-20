@@ -575,6 +575,682 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-weather-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-weather-service.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/WeatherService/.*\",grpc_code=\"OK\"}[5m])) / sum(rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/WeatherService/.*\"}[5m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Weather Availability",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "max(pulse_weather_upstream_budget_daily_remaining_ratio{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Daily Budget Remaining",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+          "id": 3,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "max(pulse_weather_active_locations{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Active Unique Locations",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+          "id": 4,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(rate(pulse_weather_requests_total{namespace=\"$namespace\",result=\"success\",source=~\"hot_cache_fresh|snapshot_fresh|hot_cache_stale|snapshot_stale\"}[5m])) / sum(rate(pulse_weather_requests_total{namespace=\"$namespace\",result=\"success\"}[5m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Cache Serve Ratio",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 5,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/WeatherService/.*\",grpc_code=\"OK\"}[5m])) / sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/WeatherService/.*\"}[5m]))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}}",
+              "refId": "A"
+            },
+            {
+              "expr": "vector(0.9999)",
+              "legendFormat": "99.99% target",
+              "refId": "B"
+            }
+          ],
+          "title": "Weather gRPC Availability",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 6,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "1 - (sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/WeatherService/.*\",grpc_code=\"OK\"}[5m])) / sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/WeatherService/.*\"}[5m])))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}} error budget burn",
+              "refId": "A"
+            },
+            {
+              "expr": "vector(0.0001)",
+              "legendFormat": "0.01% error budget",
+              "refId": "B"
+            }
+          ],
+          "title": "Weather gRPC Error Budget Consumption",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 7,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "max(pulse_weather_upstream_budget_daily_remaining_ratio{namespace=\"$namespace\"})",
+              "legendFormat": "daily remaining",
+              "refId": "A"
+            },
+            {
+              "expr": "max(pulse_weather_upstream_budget_minute_remaining_ratio{namespace=\"$namespace\"})",
+              "legendFormat": "minute remaining",
+              "refId": "B"
+            }
+          ],
+          "title": "Open-Meteo Budget Remaining Ratio",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 8,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (operation) (rate(pulse_weather_upstream_budget_units_consumed_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}operation{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Budget Units Consumed Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "id": 9,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (method, source) (rate(pulse_weather_requests_total{namespace=\"$namespace\",result=\"success\"}[5m]))",
+              "legendFormat": "{{"{{"}}method{{"}}"}} {{"{{"}}source{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Weather Request Serve Paths",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "id": 10,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (operation, result) (rate(pulse_weather_upstream_calls_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}operation{{"}}"}} {{"{{"}}result{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Open-Meteo API Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+          "id": 11,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(pulse_weather_upstream_call_duration_seconds_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}operation{{"}}"}} p95",
+              "refId": "A"
+            }
+          ],
+          "title": "Open-Meteo Upstream Latency p95",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+          "id": 12,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (window) (rate(pulse_weather_budget_denials_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}window{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Budget Denials",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40},
+          "id": 13,
+          "options": {
+            "showHeader": true,
+            "sortBy": [{"desc": false, "displayName": "source"}]
+          },
+          "targets": [
+            {
+              "expr": "sum by (method, source, result) (rate(pulse_weather_requests_total{namespace=\"$namespace\"}[5m]))",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            },
+            {
+              "expr": "max(pulse_weather_upstream_budget_daily_used_units{namespace=\"$namespace\"})",
+              "format": "table",
+              "instant": true,
+              "refId": "B"
+            },
+            {
+              "expr": "max(pulse_weather_active_locations{namespace=\"$namespace\"})",
+              "format": "table",
+              "instant": true,
+              "refId": "C"
+            }
+          ],
+          "title": "Weather Service Summary",
+          "type": "table"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "weather", "slo"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "pulse-services", "value": "pulse-services"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "pulse-services",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "title": "Pulse Weather Service",
+      "uid": "pulse-weather-service",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-solar-forecast-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-solar-forecast-service.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/SolarForecastService/.*\",grpc_code=\"OK\"}[5m])) / sum(rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/SolarForecastService/.*\"}[5m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Solar Forecast Availability",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(pulse_grpc_server_duration_seconds_bucket{namespace=\"$namespace\",grpc_method=~\".*/SolarForecastService/.*\"}[5m])))",
+              "refId": "A"
+            }
+          ],
+          "title": "Solar Forecast Latency p95",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+          "id": 3,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "max(pulse_solar_forecast_active_sites{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Active Sites (24h)",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+          "id": 4,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "time() - max(pulse_solar_forecast_last_successful_serve_unixtime{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Serve Freshness",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 5,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/SolarForecastService/.*\",grpc_code=\"OK\"}[5m])) / sum by (grpc_method) (rate(pulse_grpc_server_requests_total{namespace=\"$namespace\",grpc_method=~\".*/SolarForecastService/.*\"}[5m]))",
+              "legendFormat": "{{"{{"}}grpc_method{{"}}"}}",
+              "refId": "A"
+            },
+            {
+              "expr": "vector(0.9999)",
+              "legendFormat": "99.99% target",
+              "refId": "B"
+            }
+          ],
+          "title": "Solar Forecast gRPC Availability",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 6,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, scope, result) (rate(pulse_solar_forecast_request_duration_seconds_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}scope{{"}}"}} {{"{{"}}result{{"}}"}} p95",
+              "refId": "A"
+            }
+          ],
+          "title": "Solar Forecast Request Duration p95",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 7,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (scope, result) (rate(pulse_solar_forecast_requests_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}scope{{"}}"}} {{"{{"}}result{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Solar Forecast Requests",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 8,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (mode) (rate(pulse_solar_forecast_model_mix_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}mode{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Served Model Mix",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24},
+          "id": 10,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(rate(pulse_solar_forecast_verification_runs_total{namespace=\"$namespace\",result=\"success\"}[5m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Verification Runs",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24},
+          "id": 11,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(rate(pulse_solar_forecast_verification_hours_total{namespace=\"$namespace\",result=\"missing_truth\"}[5m])) / clamp_min(sum(rate(pulse_solar_forecast_verification_hours_total{namespace=\"$namespace\"}[5m])), 0.000001)",
+              "refId": "A"
+            }
+          ],
+          "title": "Missing Truth Rate",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "watth"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24},
+          "id": 12,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sqrt(sum(rate(pulse_solar_forecast_verification_hourly_squared_error_wh2_total{namespace=\"$namespace\"}[5m])) / clamp_min(sum(rate(pulse_solar_forecast_verification_hours_total{namespace=\"$namespace\",result=\"verified\"}[5m])), 0.000001))",
+              "refId": "A"
+            }
+          ],
+          "title": "Hourly RMSE",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+          "id": 13,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sum by (horizon, result) (rate(pulse_solar_forecast_verification_hours_total{namespace=\"$namespace\"}[5m]))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}result{{"}}"}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Verification Coverage By Horizon",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "watth"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+          "id": 14,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_daily_error_wh_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} daily abs error p95",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_peak_power_error_w_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} peak power error p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_peak_time_error_minutes_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} peak time error p95",
+              "refId": "C"
+            }
+          ],
+          "title": "Forecast Quality By Horizon & Variant",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "watth"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40},
+          "id": 19,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_daily_error_wh_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} served daily abs error p95",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_baseline_daily_error_wh_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} baseline daily abs error p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_peak_power_error_w_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} served peak power p95",
+              "refId": "C"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_baseline_peak_power_error_w_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} baseline peak power p95",
+              "refId": "D"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_peak_time_error_minutes_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} served peak time p95",
+              "refId": "E"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, horizon, variant) (rate(pulse_solar_forecast_verification_baseline_peak_time_error_minutes_by_variant_bucket{namespace=\"$namespace\"}[5m])))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} baseline peak time p95",
+              "refId": "F"
+            }
+          ],
+          "title": "Served Vs Baseline Shadow Daily & Peak Quality",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 48},
+          "id": 9,
+          "options": {
+            "showHeader": true,
+            "sortBy": [{"desc": false, "displayName": "result"}]
+          },
+          "targets": [
+            {
+              "expr": "sum by (scope, result) (rate(pulse_solar_forecast_requests_total{namespace=\"$namespace\"}[5m]))",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (result) (rate(pulse_solar_forecast_training_runs_total{namespace=\"$namespace\"}[5m]))",
+              "format": "table",
+              "instant": true,
+              "refId": "B"
+            },
+            {
+              "expr": "sum by (result) (rate(pulse_solar_forecast_training_hours_total{namespace=\"$namespace\"}[5m]))",
+              "format": "table",
+              "instant": true,
+              "refId": "C"
+            },
+            {
+              "expr": "sum by (horizon, result) (rate(pulse_solar_forecast_verification_hours_total{namespace=\"$namespace\"}[5m]))",
+              "format": "table",
+              "instant": true,
+              "refId": "D"
+            }
+          ],
+          "title": "Solar Forecast Summary",
+          "type": "table"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 56},
+          "id": 15,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "time() - max(pulse_solar_forecast_last_issued_forecast_unixtime{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Forecast Issue Freshness",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 56},
+          "id": 16,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "time() - max(pulse_solar_forecast_last_successful_verification_unixtime{namespace=\"$namespace\"})",
+              "refId": "A"
+            }
+          ],
+          "title": "Verification Freshness",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 56},
+          "id": 17,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [
+            {
+              "expr": "sum(rate(pulse_solar_forecast_training_hours_total{namespace=\"$namespace\",result=\"success\"}[5m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Training Hours Persisted",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "watth"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 64},
+          "id": 18,
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {
+              "expr": "sqrt(sum by (horizon, variant) (rate(pulse_solar_forecast_verification_hourly_squared_error_wh2_by_variant_total{namespace=\"$namespace\"}[5m])) / clamp_min(sum by (horizon, variant) (rate(pulse_solar_forecast_verification_verified_hours_by_variant_total{namespace=\"$namespace\"}[5m])), 0.000001))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} served RMSE",
+              "refId": "A"
+            },
+            {
+              "expr": "sqrt(sum by (horizon, variant) (rate(pulse_solar_forecast_verification_baseline_hourly_squared_error_wh2_by_variant_total{namespace=\"$namespace\"}[5m])) / clamp_min(sum by (horizon, variant) (rate(pulse_solar_forecast_verification_verified_hours_by_variant_total{namespace=\"$namespace\"}[5m])), 0.000001))",
+              "legendFormat": "{{"{{"}}horizon{{"}}"}} {{"{{"}}variant{{"}}"}} baseline shadow RMSE",
+              "refId": "B"
+            }
+          ],
+          "title": "Served Vs Baseline Shadow RMSE",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["pulse", "solar", "slo"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": true, "text": "pulse-services", "value": "pulse-services"},
+            "hide": 0,
+            "label": "Namespace",
+            "name": "namespace",
+            "options": [],
+            "query": "pulse-services",
+            "type": "constant"
+          }
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "title": "Pulse Solar Forecast Service",
+      "uid": "pulse-solar-forecast-service",
+      "version": 2
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-platform-infra
   namespace: {{ .Release.Namespace }}
   labels:

@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package pulse.weather.v1;
+
+option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/weather/v1;weatherv1";
+
+import "google/protobuf/wrappers.proto";
+
+enum UnitSystem {
+  UNIT_SYSTEM_UNSPECIFIED = 0;
+  UNIT_SYSTEM_METRIC = 1;
+  UNIT_SYSTEM_IMPERIAL = 2;
+}
+
+message WeatherLocationRequest {
+  double latitude = 1;
+  double longitude = 2;
+  UnitSystem unit_system = 3;
+  google.protobuf.DoubleValue panel_tilt_degrees = 4;
+  google.protobuf.DoubleValue panel_azimuth_degrees = 5;
+  string timezone = 6;
+}
+
+message ForecastValueSet {
+  google.protobuf.DoubleValue temperature = 1;
+  google.protobuf.DoubleValue wind_speed = 2;
+  google.protobuf.DoubleValue wind_direction_degrees = 3;
+  google.protobuf.DoubleValue precipitation = 4;
+  google.protobuf.DoubleValue cloud_cover = 5;
+  google.protobuf.DoubleValue visibility = 6;
+  google.protobuf.DoubleValue sunshine_duration_seconds = 7;
+  google.protobuf.DoubleValue shortwave_radiation = 8;
+  google.protobuf.DoubleValue uv_index = 9;
+  google.protobuf.DoubleValue global_tilted_irradiance = 10;
+}
+
+message DailyValueSet {
+  google.protobuf.DoubleValue sunshine_duration_seconds = 1;
+  google.protobuf.DoubleValue shortwave_radiation_sum = 2;
+  google.protobuf.DoubleValue uv_index_max = 3;
+}
+
+message WeatherCondition {
+  int32 weather_code = 1;
+  string weather_text = 2;
+}
+
+message HourlyForecastPoint {
+  int64 time_unix_ms = 1;
+  WeatherCondition condition = 2;
+  ForecastValueSet raw = 3;
+  ForecastValueSet corrected = 4;
+}
+
+message DailyForecastPoint {
+  int64 date_unix_ms = 1;
+  WeatherCondition condition = 2;
+  int64 sunrise_unix_ms = 3;
+  int64 sunset_unix_ms = 4;
+  google.protobuf.DoubleValue daylight_duration_seconds = 5;
+  DailyValueSet raw = 6;
+  DailyValueSet corrected = 7;
+}
+
+message ForecastProvenance {
+  string source = 1;
+  string model_selection = 2;
+  string actual_source = 3;
+  string timezone = 4;
+  string canonical_location_key = 5;
+  int64 issued_at_unix_ms = 6;
+  double latitude = 7;
+  double longitude = 8;
+  double elevation = 9;
+}
+
+message Get7DayForecastRequest {
+  WeatherLocationRequest location = 1;
+}
+
+message Get7DayForecastResponse {
+  ForecastProvenance provenance = 1;
+  string timezone_abbreviation = 2;
+  UnitSystem unit_system = 3;
+  repeated HourlyForecastPoint hourly = 4;
+  repeated DailyForecastPoint daily = 5;
+}
+
+message VerificationMetricError {
+  google.protobuf.DoubleValue mean_absolute_error = 1;
+  google.protobuf.DoubleValue bias = 2;
+}
+
+message YesterdayVerificationHour {
+  int64 time_unix_ms = 1;
+  WeatherCondition forecast_condition = 2;
+  WeatherCondition actual_condition = 3;
+  ForecastValueSet forecast_raw = 4;
+  ForecastValueSet forecast_corrected = 5;
+  ForecastValueSet actual = 6;
+}
+
+message YesterdayVerificationSummary {
+  VerificationMetricError temperature = 1;
+  VerificationMetricError wind_speed = 2;
+  VerificationMetricError cloud_cover = 3;
+  VerificationMetricError visibility = 4;
+  VerificationMetricError uv_index = 5;
+  VerificationMetricError shortwave_radiation = 6;
+  VerificationMetricError global_tilted_irradiance = 7;
+  VerificationMetricError precipitation = 8;
+  google.protobuf.DoubleValue circular_wind_direction_mean_absolute_error = 9;
+}
+
+message VerificationProvenance {
+  string source = 1;
+  string model_selection = 2;
+  string actual_source = 3;
+  string verification_source = 4;
+  string timezone = 5;
+  string canonical_location_key = 6;
+  int64 issued_at_unix_ms = 7;
+}
+
+message GetYesterdayVerificationRequest {
+  WeatherLocationRequest location = 1;
+}
+
+message GetYesterdayVerificationResponse {
+  VerificationProvenance provenance = 1;
+  UnitSystem unit_system = 2;
+  int64 verification_date_unix_ms = 3;
+  repeated YesterdayVerificationHour hourly = 4;
+  YesterdayVerificationSummary summary = 5;
+}
+
+service WeatherService {
+  rpc Get7DayForecast(Get7DayForecastRequest) returns (Get7DayForecastResponse);
+  rpc GetYesterdayVerification(GetYesterdayVerificationRequest) returns (GetYesterdayVerificationResponse);
+}

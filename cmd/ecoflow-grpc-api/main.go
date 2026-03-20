@@ -10,6 +10,8 @@ import (
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	inferencev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1"
+	solarforecastv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/solarforecast/v1"
+	weatherv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/weather/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/inference"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
@@ -117,6 +119,16 @@ func main() {
 		os.Exit(1)
 	}
 	defer cleanupStore()
+	weatherDomain, cleanupWeatherDomain, err := newWeatherDomainFromEnv(log, grpcMetrics.Registry())
+	if err != nil {
+		log.Error("weather domain init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer cleanupWeatherDomain()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var solarDomainStop func()
+	solarDomainStop = func() {}
 	switch serviceMode {
 	case grpcServiceModeTelemetry:
 		snapshotReader, cleanupSnapshotReader, snapshotErr := newTelemetrySnapshotReaderFromEnv(log)
@@ -139,6 +151,19 @@ func main() {
 			os.Exit(1)
 		}
 		defer cleanupInferenceQueryReader()
+		solarQueryReader, cleanupSolarQueryReader, solarQueryErr := newTelemetryQueryReaderFromEnv(log)
+		if solarQueryErr != nil {
+			log.Error("solar telemetry query reader init failed", "error", solarQueryErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupSolarQueryReader()
+		solarDomain, cleanupSolarDomain, solarDomainErr := newSolarForecastDomainFromEnv(log, grpcMetrics.Registry(), weatherDomain, solarQueryReader)
+		if solarDomainErr != nil {
+			log.Error("solar forecast domain init failed", "error", solarDomainErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupSolarDomain()
+		solarDomainStop = startSolarVerificationLoop(ctx, log, solarDomain)
 
 		telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
 			Log:               log,
@@ -160,6 +185,15 @@ func main() {
 		)
 		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
+		weatherv1.RegisterWeatherServiceServer(s, NewWeatherServiceWithDeps(WeatherServiceDeps{
+			Log:     log,
+			Service: weatherDomain,
+		}))
+		solarforecastv1.RegisterSolarForecastServiceServer(s, NewSolarForecastServiceWithDeps(SolarForecastServiceDeps{
+			Log:               log,
+			Service:           solarDomain,
+			ControlPlaneStore: controlPlaneStore,
+		}))
 		var comparisonCache inference.EnergyComparisonCache
 		if cache, ok := inferenceReader.(inference.EnergyComparisonCache); ok {
 			comparisonCache = cache
@@ -196,14 +230,17 @@ func main() {
 		}))
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
 	metricsListenAddr := strings.TrimSpace(os.Getenv("GRPC_METRICS_LISTEN_ADDR"))
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, serviceName, asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
 	stopGRPCMetrics := workermetrics.StartServer(ctx, log, grpcMetrics.Registry(), metricsListenAddr)
 	defer stopGRPCMetrics()
+	stopWeatherRefresh := startWeatherRefreshLoop(ctx, log, weatherDomain)
+	defer stopWeatherRefresh()
+	stopWeatherMetrics := startWeatherMetricsLoop(ctx, log, weatherDomain)
+	defer stopWeatherMetrics()
+	defer solarDomainStop()
 
 	log.Info("grpc server starting",
 		"addr", cfg.ListenAddr,

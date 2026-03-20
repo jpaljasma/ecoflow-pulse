@@ -11,6 +11,10 @@ import { formatAuthMethodLabel, resolveUserDisplayName } from '@/features/profil
 import { TimezoneSelect } from '@/features/profile/TimezoneSelect';
 import { useCurrentUser, useRefreshCurrentUserIdentity, useUpdateCurrentUser } from '@/features/profile/hooks';
 import { detectCurrentTimeZone, resolveProfileTimezone } from '@/features/profile/timezone';
+import { useProfileWeather } from '@/features/weather/hooks';
+import { buildWeatherLocationKey } from '@/features/weather/model';
+import { WeatherCurrentWidget } from '@/features/weather/WeatherCurrentWidget';
+import { WeatherForecastCard } from '@/features/weather/WeatherForecastCard';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
@@ -91,6 +95,23 @@ export default function ProfileScreen() {
     );
   }, [currentUserQuery.data?.user, detectedTimeZone, displayName, timezone, weatherLocation, weatherLocationEnabled]);
 
+  const currentUser = currentUserQuery.data?.user;
+  const weatherTimezone = currentUser?.timezone ?? 'auto';
+  const savedWeatherLocation =
+    currentUser && currentUser.weatherLocationEnabled && currentUser.weatherLocation
+      ? currentUser.weatherLocation
+      : undefined;
+  const weatherLocationKey = savedWeatherLocation
+    ? buildWeatherLocationKey(savedWeatherLocation.latitude, savedWeatherLocation.longitude, weatherTimezone)
+    : 'none';
+  const weatherEnabled = authReady && allowed && Boolean(savedWeatherLocation);
+  const profileWeather = useProfileWeather({
+    token,
+    authKey,
+    locationKey: weatherLocationKey,
+    enabled: weatherEnabled
+  });
+
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
   }
@@ -102,7 +123,6 @@ export default function ProfileScreen() {
   const user = currentUserQuery.data.user;
   const authMethodLabel = formatAuthMethodLabel(user.authMethod);
   const preferredDisplayName = resolveUserDisplayName(user);
-
   return (
     <Animated.View style={containerStyle}>
       <YStack flex={1} backgroundColor="$background" padding="$4" gap="$4">
@@ -269,6 +289,14 @@ export default function ProfileScreen() {
               </YStack>
             </Card>
 
+            <WeatherCurrentWidget
+              forecast={profileWeather.forecastQuery.data?.forecast}
+              solarOutlook={profileWeather.solarOutlook}
+              isLoading={profileWeather.forecastQuery.isLoading}
+              enabled={weatherEnabled}
+              errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
+            />
+
             <Card gap="$3">
               <Text fontSize="$7" fontWeight="800">Weather location consent</Text>
               <Text color="$colorMuted">
@@ -326,6 +354,16 @@ export default function ProfileScreen() {
               )}
               {locationStatus ? <Text color="$colorMuted">{locationStatus}</Text> : null}
             </Card>
+
+            <WeatherForecastCard
+              forecast={profileWeather.forecastQuery.data?.forecast}
+              solarOutlook={profileWeather.solarOutlook}
+              verification={profileWeather.verificationQuery.data?.verification}
+              isLoading={profileWeather.forecastQuery.isLoading || profileWeather.verificationQuery.isLoading}
+              enabled={weatherEnabled}
+              errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
+              verificationErrorText={profileWeather.verificationQuery.error ? String(profileWeather.verificationQuery.error) : undefined}
+            />
 
             {currentUserQuery.isError ? (
               <Card gap="$2">

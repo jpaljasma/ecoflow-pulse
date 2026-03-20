@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { create } = require('zustand') as typeof import('zustand');
 import type {
   DeviceLiveDetail,
   DeviceLiveSignals,
@@ -8,6 +6,7 @@ import type {
   FleetTrendSnapshot,
   TelemetryEngineStatus
 } from '@/features/telemetry/engine/types';
+import { create } from '@/shared/state/zustand';
 
 const DEFAULT_FLEET_TREND: FleetTrendSnapshot = {
   load: Array.from({ length: 60 }, () => 0),
