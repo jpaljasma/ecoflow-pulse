@@ -720,10 +720,9 @@ func estimateForecastWatts(point weatherd.HourlyForecastPoint, estimatedPeakWatt
 	if temperature != nil && !math.IsNaN(*temperature) {
 		temperatureFactor = math.Max(0.82, 1-math.Max(*temperature-25, 0)*0.004)
 	}
-	weatherFactor := resolveWeatherAttenuation(point)
 	watts := math.Min(
 		*estimatedPeakWatts*maxForecastPeakOutputScale,
-		*estimatedPeakWatts*factor*temperatureFactor*weatherFactor*baseSystemEfficiencyFactor,
+		*estimatedPeakWatts*factor*temperatureFactor*baseSystemEfficiencyFactor,
 	)
 	if watts <= 0 {
 		return nil
@@ -778,39 +777,6 @@ func resolveIrradianceFactor(point *weatherd.HourlyForecastPoint) float64 {
 		return 0
 	}
 	return clamp(*value/1000, 0, 1.1)
-}
-
-func resolveWeatherAttenuation(point weatherd.HourlyForecastPoint) float64 {
-	cloudFactor := 1.0
-	if cloud := valueOrNil(point.Corrected.CloudCover, point.Raw.CloudCover); cloud != nil && !math.IsNaN(*cloud) {
-		cloudFactor = clamp(1-(*cloud*0.0045), 0.55, 1.0)
-	}
-	sunshineFactor := 1.0
-	if sunshineSeconds := valueOrNil(point.Corrected.SunshineDurationSeconds, point.Raw.SunshineDurationSeconds); sunshineSeconds != nil && !math.IsNaN(*sunshineSeconds) {
-		sunshineFactor = 0.35 + (0.65 * clamp(*sunshineSeconds/3600, 0, 1))
-	}
-	precipitationFactor := 1.0
-	if precipitation := valueOrNil(point.Corrected.Precipitation, point.Raw.Precipitation); precipitation != nil && !math.IsNaN(*precipitation) {
-		precipitationFactor = clamp(1-(math.Min(*precipitation, 2.0)*0.10), 0.78, 1.0)
-	}
-	return cloudFactor * sunshineFactor * precipitationFactor * conditionAttenuation(point.Condition.WeatherCode)
-}
-
-func conditionAttenuation(weatherCode int32) float64 {
-	switch weatherCode {
-	case 3:
-		return 0.86
-	case 45, 48:
-		return 0.76
-	case 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82:
-		return 0.78
-	case 71, 73, 75, 77, 85, 86:
-		return 0.74
-	case 95, 96, 99:
-		return 0.70
-	default:
-		return 1.0
-	}
 }
 
 func deriveTodayRemainingScale(

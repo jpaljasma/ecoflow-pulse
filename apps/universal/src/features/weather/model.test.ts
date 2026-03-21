@@ -231,8 +231,8 @@ describe('weather model helpers', () => {
     expect(outlook?.today?.forecastRemainingKwh).toBe(1.7);
     expect(outlook?.today?.energyKwh).toBe(10.4);
     expect(outlook?.daily).toHaveLength(2);
-    expect(formatSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh so far · est 10 kWh today');
-    expect(formatMiniSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh + est 10 kWh today');
+    expect(formatSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh so far · 10 kWh est total');
+    expect(formatMiniSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh + 1.7 kWh est');
     expect(formatSolarOutlookSummary(outlook?.daily[1])).toBe('Solar est 1.5 kWh · peak 1.5 kW');
   });
 

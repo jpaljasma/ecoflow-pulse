@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"testing"
 	"time"
 
@@ -374,12 +375,12 @@ func TestGetSolarOutlookAppliesCalibrationRatio(t *testing.T) {
 	if got, want := outlook.Provenance.CalibrationSampleCount, 10; got != want {
 		t.Fatalf("outlook.Provenance.CalibrationSampleCount = %d, want %d", got, want)
 	}
-	if got, want := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh), 245.5; got != want {
+	if got, want := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh), 269.8; got != want {
 		t.Fatalf("outlook.Next24Hours[0].ForecastGeneratedWh = %v, want %v", got, want)
 	}
 }
 
-func TestEstimateForecastWattsDeratesBadWeatherAggressively(t *testing.T) {
+func TestEstimateForecastWattsUsesIrradianceWithoutSecondWeatherPenalty(t *testing.T) {
 	t.Parallel()
 
 	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
@@ -403,8 +404,12 @@ func TestEstimateForecastWattsDeratesBadWeatherAggressively(t *testing.T) {
 	if got == nil {
 		t.Fatal("estimateForecastWatts() = nil, want value")
 	}
-	if *got >= 300 {
-		t.Fatalf("estimateForecastWatts() = %v, want < 300 for rainy overcast hour", *got)
+	want := math.Min(
+		estimatedPeakWatts*maxForecastPeakOutputScale,
+		estimatedPeakWatts*clamp(420.0/1000.0, 0, 1.1)*baseSystemEfficiencyFactor,
+	)
+	if diff := math.Abs(*got - round1(want)); diff > 0.0001 {
+		t.Fatalf("estimateForecastWatts() = %v, want %v", *got, want)
 	}
 }
 
@@ -759,6 +764,7 @@ func TestBuildRecentSiteCalibrationRequiresFullDayAndDedupesLatestIssue(t *testi
 				UpdatedAt:            baseIssuedAt.Add(48 * time.Hour),
 			},
 			ForecastVersion: forecastVersion,
+			Timezone:        "UTC",
 		})
 	}
 	records = append(records, VerificationRecord{
@@ -774,6 +780,7 @@ func TestBuildRecentSiteCalibrationRequiresFullDayAndDedupesLatestIssue(t *testi
 			UpdatedAt:            baseIssuedAt.Add(47 * time.Hour),
 		},
 		ForecastVersion: forecastVersion,
+		Timezone:        "UTC",
 	})
 
 	got := BuildRecentSiteCalibration(records, forecastVersion)
@@ -790,6 +797,47 @@ func TestBuildRecentSiteCalibrationRequiresFullDayAndDedupesLatestIssue(t *testi
 	got = BuildRecentSiteCalibration(records[:23], forecastVersion)
 	if got.MultiplicativeRatio != nil {
 		t.Fatalf("BuildRecentSiteCalibration() ratio = %v, want nil before 24 verified hours", *got.MultiplicativeRatio)
+	}
+}
+
+func TestBuildRecentSiteCalibrationAcceptsDSTShortenedDay(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLocation(t, "America/New_York")
+	siteKey := "grid:42.61:-77.40:290|tilt:45|az:0|dev-a"
+	forecastVersion := "deterministic_baseline_v1"
+	issuedAt := time.Date(2026, 3, 9, 8, 0, 0, 0, time.UTC)
+	startLocal := time.Date(2026, 3, 8, 0, 0, 0, 0, loc)
+	records := make([]VerificationRecord, 0, 23)
+	for hour := 0; hour < 23; hour++ {
+		targetLocal := startLocal.Add(time.Duration(hour) * time.Hour)
+		targetUTC := targetLocal.UTC()
+		records = append(records, VerificationRecord{
+			HourlyTrainingRecord: HourlyTrainingRecord{
+				RunID:                "run-dst",
+				SiteKey:              siteKey,
+				IssuedAt:             issuedAt,
+				TargetTime:           targetUTC,
+				TargetLocalDate:      parseDateISO("2026-03-08"),
+				ForecastGenerationWh: 100,
+				ActualGenerationWh:   float64Ptr(80),
+				VerificationStatus:   VerificationStatusVerified,
+				UpdatedAt:            issuedAt.Add(24 * time.Hour),
+			},
+			ForecastVersion: forecastVersion,
+			Timezone:        loc.String(),
+		})
+	}
+
+	got := BuildRecentSiteCalibration(records, forecastVersion)
+	if got.MultiplicativeRatio == nil {
+		t.Fatal("BuildRecentSiteCalibration() ratio = nil, want value for complete DST-shortened day")
+	}
+	if *got.MultiplicativeRatio != 0.8 {
+		t.Fatalf("BuildRecentSiteCalibration() ratio = %v, want 0.8", *got.MultiplicativeRatio)
+	}
+	if got.SampleCount != 23 {
+		t.Fatalf("BuildRecentSiteCalibration() sample count = %d, want 23", got.SampleCount)
 	}
 }
 

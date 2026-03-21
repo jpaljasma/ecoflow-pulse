@@ -534,7 +534,7 @@ export function formatSolarOutlookSummary(outlook: SolarDayOutlook | undefined):
     const soFar = formatEnergyKwh(outlook.actualSoFarKwh);
     const total = formatEnergyKwh(outlook.energyKwh);
     if (total !== '—') {
-      return `Solar ${soFar} so far · est ${total} today`;
+      return `Solar ${soFar} so far · ${total} est total`;
     }
     return `Solar ${soFar} so far`;
   }
@@ -557,9 +557,13 @@ export function formatMiniSolarOutlookSummary(outlook: SolarDayOutlook | undefin
     return '';
   }
   const soFar = formatEnergyKwh(outlook.actualSoFarKwh);
+  const remaining = formatEnergyKwh(outlook.forecastRemainingKwh);
   const total = formatEnergyKwh(outlook.energyKwh);
+  if (soFar !== '—' && remaining !== '—') {
+    return `Solar ${soFar} + ${remaining} est`;
+  }
   if (soFar !== '—' && total !== '—') {
-    return `Solar ${soFar} + est ${total} today`;
+    return `Solar ${soFar} · ${total} total`;
   }
   if (soFar !== '—') {
     return `Solar ${soFar} today`;

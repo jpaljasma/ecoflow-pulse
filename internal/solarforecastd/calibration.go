@@ -12,7 +12,6 @@ const (
 	maxCalibrationRatioClamp              = 1.8
 	minCalibrationSamples                 = 3
 	minCalibrationForecastWh              = 50.0
-	minRecentSiteCalibrationVerifiedHours = 24
 	minRecentSiteCalibrationSignalHours   = 6
 	minRecentSiteCalibrationForecastWhSum = 400.0
 )
@@ -121,7 +120,7 @@ func BuildRecentSiteCalibration(records []VerificationRecord, forecastVersion st
 		}
 		latestByTarget[key] = record
 	}
-	if len(latestByTarget) < minRecentSiteCalibrationVerifiedHours {
+	if !hasCompleteRecentCalibrationDay(latestByTarget) {
 		return RecentSiteCalibration{}
 	}
 	keys := make([]time.Time, 0, len(latestByTarget))
@@ -160,4 +159,42 @@ func BuildRecentSiteCalibration(records []VerificationRecord, forecastVersion st
 		SampleCount:         sampleCount,
 		UpdatedAt:           updatedAt,
 	}
+}
+
+func hasCompleteRecentCalibrationDay(records map[time.Time]VerificationRecord) bool {
+	if len(records) == 0 {
+		return false
+	}
+	hoursByDate := make(map[string]map[time.Time]struct{})
+	timezoneByDate := make(map[string]string)
+	for _, record := range records {
+		dateISO := record.TargetLocalDate.Format("2006-01-02")
+		if hoursByDate[dateISO] == nil {
+			hoursByDate[dateISO] = make(map[time.Time]struct{})
+		}
+		hoursByDate[dateISO][record.TargetTime.UTC()] = struct{}{}
+		timezoneByDate[dateISO] = record.Timezone
+	}
+	for dateISO, hours := range hoursByDate {
+		if len(hours) >= expectedLocalDayHours(dateISO, timezoneByDate[dateISO]) {
+			return true
+		}
+	}
+	return false
+}
+
+func expectedLocalDayHours(dateISO string, timezone string) int {
+	loc := time.UTC
+	trimmed := timezone
+	if trimmed != "" {
+		if loaded, err := time.LoadLocation(trimmed); err == nil {
+			loc = loaded
+		}
+	}
+	day, err := time.Parse("2006-01-02", dateISO)
+	if err != nil {
+		return 24
+	}
+	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, loc)
+	return int(start.AddDate(0, 0, 1).Sub(start).Hours())
 }
