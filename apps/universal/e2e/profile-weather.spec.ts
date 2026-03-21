@@ -36,7 +36,7 @@ test.describe('Profile weather web E2E', () => {
 
     await page.goto('/profile');
 
-    await expect(page.getByText(/Solar 5\.2 kWh \+ est 7(?:\.0)? kWh today/)).toBeVisible();
+    await expect(page.getByText(/Solar 5\.2 kWh \+ 1\.8 kWh est/)).toBeVisible();
     await expect(page.getByText('Current weather', { exact: true })).toBeVisible();
     await expect(page.getByText('7-day forecast', { exact: true })).toBeVisible();
     await expect(page.getByText('Yesterday verification', { exact: true })).toBeVisible();
