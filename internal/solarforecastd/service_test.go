@@ -412,12 +412,12 @@ func TestDeriveTodayRemainingScaleClampsLaggingDay(t *testing.T) {
 	t.Parallel()
 
 	loc := mustLocation(t, "America/New_York")
-	nowUTC := time.Date(2026, 3, 20, 17, 0, 0, 0, time.UTC)
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
 	estimatedPeakWatts := 3100.0
 	todayISO := localDateISO(nowUTC, loc)
 	hourly := []weatherd.HourlyForecastPoint{
 		{
-			Time:      time.Date(2026, 3, 20, 14, 0, 0, 0, time.UTC),
+			Time:      time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC),
 			Condition: weatherd.WeatherCondition{WeatherCode: 0},
 			Raw: weatherd.ForecastValueSet{
 				Temperature:             float64Ptr(11),
@@ -427,7 +427,7 @@ func TestDeriveTodayRemainingScaleClampsLaggingDay(t *testing.T) {
 			},
 		},
 		{
-			Time:      time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC),
+			Time:      time.Date(2026, 3, 20, 13, 0, 0, 0, time.UTC),
 			Condition: weatherd.WeatherCondition{WeatherCode: 0},
 			Raw: weatherd.ForecastValueSet{
 				Temperature:             float64Ptr(12),
@@ -437,7 +437,7 @@ func TestDeriveTodayRemainingScaleClampsLaggingDay(t *testing.T) {
 			},
 		},
 		{
-			Time:      time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			Time:      time.Date(2026, 3, 20, 14, 0, 0, 0, time.UTC),
 			Condition: weatherd.WeatherCondition{WeatherCode: 0},
 			Raw: weatherd.ForecastValueSet{
 				Temperature:             float64Ptr(13),
@@ -448,9 +448,150 @@ func TestDeriveTodayRemainingScaleClampsLaggingDay(t *testing.T) {
 		},
 	}
 
-	got := deriveTodayRemainingScale(hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil)
+	todayStartLocal := time.Date(nowUTC.In(loc).Year(), nowUTC.In(loc).Month(), nowUTC.In(loc).Day(), 0, 0, 0, 0, loc)
+	points := make([]telemetryquery.Point, 0, 11)
+	for hour := 0; hour < 11; hour++ {
+		bucketStart := todayStartLocal.Add(time.Duration(hour) * time.Hour).UTC()
+		points = append(points, telemetryquery.Point{
+			BucketStart: bucketStart,
+			BucketEnd:   bucketStart.Add(time.Hour),
+			Metrics: telemetryquery.Metrics{
+				SolarGeneratedWh: float64Ptr(27.27),
+			},
+		})
+	}
+	history := telemetryquery.Series{
+		EnergyBucketCoverage: telemetryquery.EnergyBucketCoverage{
+			PointCount:          len(points),
+			PersistedValueCount: len(points),
+		},
+		Points: points,
+	}
+
+	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil)
 	if got != 0.5 {
 		t.Fatalf("deriveTodayRemainingScale() = %v, want 0.5", got)
+	}
+}
+
+func TestDeriveTodayRemainingScaleSkipsIncompleteTelemetry(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLocation(t, "America/New_York")
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	estimatedPeakWatts := 3100.0
+	todayISO := localDateISO(nowUTC, loc)
+	hourly := []weatherd.HourlyForecastPoint{
+		{
+			Time:      time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:             float64Ptr(11),
+				CloudCover:              float64Ptr(8),
+				ShortwaveRadiation:      float64Ptr(600),
+				SunshineDurationSeconds: float64Ptr(3600),
+			},
+		},
+		{
+			Time:      time.Date(2026, 3, 20, 13, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:             float64Ptr(12),
+				CloudCover:              float64Ptr(10),
+				ShortwaveRadiation:      float64Ptr(650),
+				SunshineDurationSeconds: float64Ptr(3600),
+			},
+		},
+		{
+			Time:      time.Date(2026, 3, 20, 14, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:             float64Ptr(13),
+				CloudCover:              float64Ptr(12),
+				ShortwaveRadiation:      float64Ptr(700),
+				SunshineDurationSeconds: float64Ptr(3600),
+			},
+		},
+	}
+	history := telemetryquery.Series{
+		EnergyBucketCoverage: telemetryquery.EnergyBucketCoverage{
+			PointCount:          11,
+			PersistedValueCount: 1,
+		},
+		Points: []telemetryquery.Point{
+			{
+				BucketStart: time.Date(2026, 3, 20, 4, 0, 0, 0, time.UTC),
+				BucketEnd:   time.Date(2026, 3, 20, 5, 0, 0, 0, time.UTC),
+				Metrics: telemetryquery.Metrics{
+					SolarGeneratedWh: float64Ptr(100),
+				},
+			},
+		},
+	}
+
+	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil)
+	if got != 1 {
+		t.Fatalf("deriveTodayRemainingScale() = %v, want 1 when telemetry is incomplete", got)
+	}
+}
+
+func TestBuildTrainingRowsPersistsRawForecastInsteadOfDisplayedClamp(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLocation(t, "America/New_York")
+	nowUTC := time.Date(2026, 3, 20, 17, 0, 0, 0, time.UTC)
+	todayISO := localDateISO(nowUTC, loc)
+	run := Run{
+		ID:        "run-1",
+		SiteKey:   "site-1",
+		DeviceID:  stringPtr("dev-a"),
+		CreatedAt: nowUTC,
+		UpdatedAt: nowUTC,
+	}
+	point := weatherd.HourlyForecastPoint{
+		Time:      time.Date(2026, 3, 20, 18, 0, 0, 0, time.UTC),
+		Condition: weatherd.WeatherCondition{WeatherCode: 0},
+		Raw: weatherd.ForecastValueSet{
+			Temperature:             float64Ptr(12),
+			CloudCover:              float64Ptr(10),
+			ShortwaveRadiation:      float64Ptr(700),
+			SunshineDurationSeconds: float64Ptr(3600),
+		},
+	}
+	outlook := &Outlook{
+		Provenance: Provenance{
+			Timezone: "America/New_York",
+		},
+		Capacity: CapacityEstimate{
+			EstimatedPeakWatts: float64Ptr(3100),
+		},
+		Next7Days: []GenerationDay{
+			{
+				Date: parseDateISO(todayISO),
+			},
+		},
+	}
+	bundle := &weatherd.Bundle{
+		Hourly: []weatherd.HourlyForecastPoint{point},
+	}
+
+	rows := buildTrainingRows(run, bundle, telemetryquery.Series{}, outlook, nowUTC, nil, 0.5)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	rawForecast := estimateForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, nowUTC, loc, nil)
+	displayedForecast := estimateDisplayedForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, todayISO, 0.5, nowUTC, loc, nil)
+	if rawForecast == nil || displayedForecast == nil {
+		t.Fatal("expected non-nil raw and displayed forecasts")
+	}
+	if rows[0].ForecastGenerationWh != *rawForecast {
+		t.Fatalf("rows[0].ForecastGenerationWh = %v, want raw %v", rows[0].ForecastGenerationWh, *rawForecast)
+	}
+	if rows[0].ForecastGenerationWh == *displayedForecast {
+		t.Fatalf("rows[0].ForecastGenerationWh = %v, should not match displayed-clamped %v", rows[0].ForecastGenerationWh, *displayedForecast)
+	}
+	if rows[0].BaselineForecastGenerationWh == nil || *rows[0].BaselineForecastGenerationWh != *rawForecast {
+		t.Fatalf("rows[0].BaselineForecastGenerationWh = %v, want raw %v", valueOrZero(rows[0].BaselineForecastGenerationWh), *rawForecast)
 	}
 }
 

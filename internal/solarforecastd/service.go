@@ -127,7 +127,7 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	if s.metrics != nil {
 		s.metrics.ObserveModel(calibrationModeLabel(calibrationApplied))
 	}
-	todayRemainingScale := deriveTodayRemainingScale(bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex)
+	todayRemainingScale := deriveTodayRemainingScale(history, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex)
 	daily := summarizeDailyOutlook(bundle.Hourly, bundle.Daily, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex)
 	next24 := summarizeNext24Hours(bundle.Hourly, capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex)
 	today := firstDayForISO(daily, todayISO)
@@ -634,7 +634,6 @@ func buildTrainingRows(
 		return nil
 	}
 	loc := loadLocation(outlook.Provenance.Timezone)
-	todayISO := localDateISO(nowUTC, loc)
 	limitDate := ""
 	if len(outlook.Next7Days) > 0 {
 		limitDate = outlook.Next7Days[len(outlook.Next7Days)-1].Date.Format("2006-01-02")
@@ -668,8 +667,8 @@ func buildTrainingRows(
 			TargetUTCOffsetMinutes:       offsetMinutes(point.Time.In(loc)),
 			HorizonHours:                 hoursAhead,
 			HorizonBucket:                horizonBucketForHours(hoursAhead),
-			ForecastGenerationWh:         floatValue(estimateDisplayedForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex)),
-			BaselineForecastGenerationWh: estimateDisplayedForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, nil),
+			ForecastGenerationWh:         floatValue(estimateForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, nowUTC, loc, calibrationIndex)),
+			BaselineForecastGenerationWh: estimateForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, nowUTC, loc, nil),
 			ForecastGTIWm2:               valueOrNil(point.Corrected.GlobalTiltedIrradiance, point.Raw.GlobalTiltedIrradiance),
 			ForecastShortwaveWm2:         valueOrNil(point.Corrected.ShortwaveRadiation, point.Raw.ShortwaveRadiation),
 			ForecastTemperatureC:         valueOrNil(point.Corrected.Temperature, point.Raw.Temperature),
@@ -786,6 +785,7 @@ func conditionAttenuation(weatherCode int32) float64 {
 }
 
 func deriveTodayRemainingScale(
+	history telemetryquery.Series,
 	hourly []weatherd.HourlyForecastPoint,
 	estimatedPeakWatts *float64,
 	actualTodayWh float64,
@@ -798,6 +798,9 @@ func deriveTodayRemainingScale(
 		return 1
 	}
 	if nowUTC.In(loc).Hour() < minTodayProgressScaleHour {
+		return 1
+	}
+	if !todayTelemetryComplete(history, nowUTC, loc, todayISO) {
 		return 1
 	}
 	var forecastSoFarWh float64
@@ -815,6 +818,49 @@ func deriveTodayRemainingScale(
 		return 1
 	}
 	return clamp(actualTodayWh/forecastSoFarWh, minTodayProgressScale, maxTodayProgressScale)
+}
+
+func todayTelemetryComplete(history telemetryquery.Series, nowUTC time.Time, loc *time.Location, todayISO string) bool {
+	if loc == nil || todayISO == "" {
+		return false
+	}
+	if history.EnergyBucketCoverage.PointCount <= 0 || history.EnergyBucketCoverage.PersistedValueCount <= 0 {
+		return false
+	}
+	nowLocal := nowUTC.In(loc)
+	todayStartLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
+	completedUntilLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), nowLocal.Hour(), 0, 0, 0, loc)
+	expectedCompletedHours := int(completedUntilLocal.Sub(todayStartLocal).Hours())
+	if expectedCompletedHours <= 0 {
+		return false
+	}
+
+	persistedTodayHours := 0
+	var latestPersistedBucketEnd time.Time
+	for _, point := range history.Points {
+		if localDateISO(point.BucketStart, loc) != todayISO || point.Metrics.SolarGeneratedWh == nil {
+			continue
+		}
+		if point.BucketEnd.After(completedUntilLocal.UTC()) {
+			continue
+		}
+		persistedTodayHours++
+		if point.BucketEnd.After(latestPersistedBucketEnd) {
+			latestPersistedBucketEnd = point.BucketEnd
+		}
+	}
+	if persistedTodayHours == 0 || latestPersistedBucketEnd.IsZero() {
+		return false
+	}
+
+	allowedMissingHours := 1
+	if expectedCompletedHours <= minTodayProgressScaleHour {
+		allowedMissingHours = 0
+	}
+	if persistedTodayHours+allowedMissingHours < expectedCompletedHours {
+		return false
+	}
+	return !latestPersistedBucketEnd.Before(completedUntilLocal.UTC().Add(-1 * time.Hour))
 }
 
 func observedPeakWatts(points []telemetryquery.Point) float64 {
