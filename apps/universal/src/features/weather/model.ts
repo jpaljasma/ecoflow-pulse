@@ -544,12 +544,12 @@ export function formatSolarOutlookSummary(outlook: SolarDayOutlook | undefined):
     return '';
   }
   if (peak === '—') {
-    return `Solar ${energy}`;
+    return `Solar est ${energy}`;
   }
   if (energy === '—') {
     return `Solar peak ${peak}`;
   }
-  return `Solar peak ${peak} · ${energy}`;
+  return `Solar est ${energy} · peak ${peak}`;
 }
 
 export function formatMiniSolarOutlookSummary(outlook: SolarDayOutlook | undefined): string {

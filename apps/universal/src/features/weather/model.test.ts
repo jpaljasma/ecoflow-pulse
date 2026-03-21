@@ -233,6 +233,7 @@ describe('weather model helpers', () => {
     expect(outlook?.daily).toHaveLength(2);
     expect(formatSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh so far · est 10 kWh today');
     expect(formatMiniSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh + est 10 kWh today');
+    expect(formatSolarOutlookSummary(outlook?.daily[1])).toBe('Solar est 1.5 kWh · peak 1.5 kW');
   });
 
   it('omits solar summary copy when no outlook values are available', () => {

@@ -1,4 +1,5 @@
 import type { CurrentUser, CurrentUserBootstrap } from '@/features/profile/api';
+import { resolveProfileWeatherState } from '@/features/weather/model';
 
 export function resolveUserDisplayName(user: Pick<CurrentUser, 'displayName' | 'givenName' | 'familyName' | 'email'>): string {
   const explicit = user.displayName.trim();
@@ -52,4 +53,14 @@ export function mergeCurrentUserBootstrap(
     ...previous,
     user
   };
+}
+
+export function didWeatherProfileInputsChange(previous: CurrentUser | undefined, next: CurrentUser): boolean {
+  const previousState = resolveProfileWeatherState(previous);
+  const nextState = resolveProfileWeatherState(next);
+  return (
+    previousState.enabled !== nextState.enabled ||
+    previousState.timezone !== nextState.timezone ||
+    previousState.locationKey !== nextState.locationKey
+  );
 }

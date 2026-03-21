@@ -2,18 +2,28 @@ package solarforecastd
 
 import (
 	"math"
+	"sort"
 	"time"
 )
 
 const (
-	defaultCalibrationEWMAAlpha = 2.0 / 15.0
-	minCalibrationRatioClamp    = 0.2
-	maxCalibrationRatioClamp    = 1.8
-	minCalibrationSamples       = 3
-	minCalibrationForecastWh    = 50.0
+	defaultCalibrationEWMAAlpha           = 2.0 / 15.0
+	minCalibrationRatioClamp              = 0.2
+	maxCalibrationRatioClamp              = 1.8
+	minCalibrationSamples                 = 3
+	minCalibrationForecastWh              = 50.0
+	minRecentSiteCalibrationVerifiedHours = 24
+	minRecentSiteCalibrationSignalHours   = 6
+	minRecentSiteCalibrationForecastWhSum = 400.0
 )
 
 type CalibrationIndex map[HorizonBucket]map[int]CalibrationState
+
+type RecentSiteCalibration struct {
+	MultiplicativeRatio *float64
+	SampleCount         int
+	UpdatedAt           *time.Time
+}
 
 func BuildCalibrationIndex(states []CalibrationState) CalibrationIndex {
 	out := make(CalibrationIndex)
@@ -68,6 +78,10 @@ func lookupCalibration(index CalibrationIndex, horizon HorizonBucket, hour int) 
 	return index[horizon][hour]
 }
 
+func hasUsableCalibrationState(state CalibrationState) bool {
+	return state.MultiplicativeRatio != nil && state.SampleCount >= minCalibrationSamples
+}
+
 func calibrationRatioForRow(row HourlyTrainingRecord) *float64 {
 	if row.ActualGenerationWh == nil || row.ForecastGenerationWh < minCalibrationForecastWh {
 		return nil
@@ -86,4 +100,64 @@ func ewmaCalibrationRatio(current *float64, sample float64) float64 {
 
 func clampCalibrationRatio(value float64) float64 {
 	return math.Min(maxCalibrationRatioClamp, math.Max(minCalibrationRatioClamp, value))
+}
+
+func BuildRecentSiteCalibration(records []VerificationRecord, forecastVersion string) RecentSiteCalibration {
+	if len(records) == 0 {
+		return RecentSiteCalibration{}
+	}
+	latestByTarget := make(map[time.Time]VerificationRecord, len(records))
+	for _, record := range records {
+		if record.ForecastVersion != forecastVersion {
+			continue
+		}
+		if record.VerificationStatus != VerificationStatusVerified || record.ActualGenerationWh == nil {
+			continue
+		}
+		key := record.TargetTime.UTC()
+		existing, ok := latestByTarget[key]
+		if ok && !record.IssuedAt.After(existing.IssuedAt) {
+			continue
+		}
+		latestByTarget[key] = record
+	}
+	if len(latestByTarget) < minRecentSiteCalibrationVerifiedHours {
+		return RecentSiteCalibration{}
+	}
+	keys := make([]time.Time, 0, len(latestByTarget))
+	for key := range latestByTarget {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].Before(keys[j]) })
+
+	sampleCount := len(keys)
+	signalHours := 0
+	forecastWhSum := 0.0
+	actualWhSum := 0.0
+	var latest time.Time
+	for _, key := range keys {
+		record := latestByTarget[key]
+		if record.ForecastGenerationWh < minCalibrationForecastWh {
+			continue
+		}
+		signalHours++
+		forecastWhSum += record.ForecastGenerationWh
+		actualWhSum += *record.ActualGenerationWh
+		if latest.IsZero() || record.UpdatedAt.After(latest) {
+			latest = record.UpdatedAt.UTC()
+		}
+	}
+	if signalHours < minRecentSiteCalibrationSignalHours || forecastWhSum < minRecentSiteCalibrationForecastWhSum {
+		return RecentSiteCalibration{}
+	}
+	ratio := clampCalibrationRatio(actualWhSum / forecastWhSum)
+	var updatedAt *time.Time
+	if !latest.IsZero() {
+		updatedAt = &latest
+	}
+	return RecentSiteCalibration{
+		MultiplicativeRatio: &ratio,
+		SampleCount:         sampleCount,
+		UpdatedAt:           updatedAt,
+	}
 }

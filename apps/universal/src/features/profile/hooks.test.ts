@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAuthMethodLabel, mergeCurrentUserBootstrap, resolveUserDisplayName } from '@/features/profile/model';
+import { didWeatherProfileInputsChange, formatAuthMethodLabel, mergeCurrentUserBootstrap, resolveUserDisplayName } from '@/features/profile/model';
 
 function sampleUser(overrides = {}) {
   return {
@@ -72,5 +72,69 @@ describe('resolveUserDisplayName', () => {
     expect(resolveUserDisplayName(sampleUser())).toBe('Pulse User');
     expect(resolveUserDisplayName(sampleUser({ displayName: '', givenName: 'Jaan', familyName: 'Paljasma' }))).toBe('Jaan Paljasma');
     expect(resolveUserDisplayName(sampleUser({ displayName: '', givenName: '', familyName: '' }))).toBe('user@example.com');
+  });
+});
+
+describe('didWeatherProfileInputsChange', () => {
+  it('returns true when saved weather coordinates change', () => {
+    expect(
+      didWeatherProfileInputsChange(
+        sampleUser({
+          weatherLocationEnabled: true,
+          weatherLocation: { latitude: 42.6161, longitude: -77.4011 }
+        }),
+        sampleUser({
+          weatherLocationEnabled: true,
+          weatherLocation: { latitude: 42.7111, longitude: -77.4011 }
+        })
+      )
+    ).toBe(true);
+  });
+
+  it('returns true when weather consent or timezone changes', () => {
+    expect(
+      didWeatherProfileInputsChange(
+        sampleUser({
+          timezone: 'America/New_York',
+          weatherLocationEnabled: true,
+          weatherLocation: { latitude: 42.6161, longitude: -77.4011 }
+        }),
+        sampleUser({
+          timezone: 'America/Chicago',
+          weatherLocationEnabled: true,
+          weatherLocation: { latitude: 42.6161, longitude: -77.4011 }
+        })
+      )
+    ).toBe(true);
+
+    expect(
+      didWeatherProfileInputsChange(
+        sampleUser({
+          weatherLocationEnabled: false,
+          weatherLocation: null
+        }),
+        sampleUser({
+          weatherLocationEnabled: true,
+          weatherLocation: { latitude: 42.6161, longitude: -77.4011 }
+        })
+      )
+    ).toBe(true);
+  });
+
+  it('returns false when non-weather profile fields change', () => {
+    expect(
+      didWeatherProfileInputsChange(
+        sampleUser({
+          displayName: 'Pulse User',
+          weatherLocationEnabled: true,
+          weatherLocation: { latitude: 42.6161, longitude: -77.4011 }
+        }),
+        sampleUser({
+          displayName: 'Updated Pulse User',
+          weatherLocationEnabled: true,
+          weatherLocation: { latitude: 42.6161, longitude: -77.4011 }
+        })
+      )
+    ).toBe(false);
   });
 });

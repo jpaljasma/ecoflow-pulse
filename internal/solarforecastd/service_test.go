@@ -399,7 +399,7 @@ func TestEstimateForecastWattsDeratesBadWeatherAggressively(t *testing.T) {
 		},
 	}
 
-	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil)
+	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, nil)
 	if got == nil {
 		t.Fatal("estimateForecastWatts() = nil, want value")
 	}
@@ -468,7 +468,7 @@ func TestDeriveTodayRemainingScaleClampsLaggingDay(t *testing.T) {
 		Points: points,
 	}
 
-	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil)
+	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil, nil)
 	if got != 0.5 {
 		t.Fatalf("deriveTodayRemainingScale() = %v, want 0.5", got)
 	}
@@ -529,7 +529,7 @@ func TestDeriveTodayRemainingScaleSkipsIncompleteTelemetry(t *testing.T) {
 		},
 	}
 
-	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil)
+	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil, nil)
 	if got != 1 {
 		t.Fatalf("deriveTodayRemainingScale() = %v, want 1 when telemetry is incomplete", got)
 	}
@@ -575,12 +575,12 @@ func TestBuildTrainingRowsPersistsRawForecastInsteadOfDisplayedClamp(t *testing.
 		Hourly: []weatherd.HourlyForecastPoint{point},
 	}
 
-	rows := buildTrainingRows(run, bundle, telemetryquery.Series{}, outlook, nowUTC, nil, 0.5)
+	rows := buildTrainingRows(run, bundle, telemetryquery.Series{}, outlook, nowUTC, nil, nil, 0.5)
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
-	rawForecast := estimateForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, nowUTC, loc, nil)
-	displayedForecast := estimateDisplayedForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, todayISO, 0.5, nowUTC, loc, nil)
+	rawForecast := estimateForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, nowUTC, loc, nil, nil)
+	displayedForecast := estimateDisplayedForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, todayISO, 0.5, nowUTC, loc, nil, nil)
 	if rawForecast == nil || displayedForecast == nil {
 		t.Fatal("expected non-nil raw and displayed forecasts")
 	}
@@ -734,6 +734,168 @@ func TestReplayValidationCalibratedRunBeatsShadowBaseline(t *testing.T) {
 	}
 	if calibratedRollup.BaselinePeakTimeAbsErrorMinutesSum <= calibratedRollup.PeakTimeAbsErrorMinutesSum {
 		t.Fatalf("baseline peak time abs error = %v, want greater than served %v", calibratedRollup.BaselinePeakTimeAbsErrorMinutesSum, calibratedRollup.PeakTimeAbsErrorMinutesSum)
+	}
+}
+
+func TestBuildRecentSiteCalibrationRequiresFullDayAndDedupesLatestIssue(t *testing.T) {
+	t.Parallel()
+
+	siteKey := "grid:42.61:-77.40:290|tilt:45|az:0|dev-a"
+	forecastVersion := "deterministic_baseline_v1"
+	baseIssuedAt := time.Date(2026, 3, 19, 8, 0, 0, 0, time.UTC)
+	records := make([]VerificationRecord, 0, 25)
+	for hour := 0; hour < 24; hour++ {
+		target := time.Date(2026, 3, 18, hour, 0, 0, 0, time.UTC)
+		records = append(records, VerificationRecord{
+			HourlyTrainingRecord: HourlyTrainingRecord{
+				RunID:                "run-new",
+				SiteKey:              siteKey,
+				IssuedAt:             baseIssuedAt,
+				TargetTime:           target,
+				TargetLocalDate:      parseDateISO("2026-03-18"),
+				ForecastGenerationWh: 100,
+				ActualGenerationWh:   float64Ptr(80),
+				VerificationStatus:   VerificationStatusVerified,
+				UpdatedAt:            baseIssuedAt.Add(48 * time.Hour),
+			},
+			ForecastVersion: forecastVersion,
+		})
+	}
+	records = append(records, VerificationRecord{
+		HourlyTrainingRecord: HourlyTrainingRecord{
+			RunID:                "run-old",
+			SiteKey:              siteKey,
+			IssuedAt:             baseIssuedAt.Add(-2 * time.Hour),
+			TargetTime:           time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC),
+			TargetLocalDate:      parseDateISO("2026-03-18"),
+			ForecastGenerationWh: 100,
+			ActualGenerationWh:   float64Ptr(20),
+			VerificationStatus:   VerificationStatusVerified,
+			UpdatedAt:            baseIssuedAt.Add(47 * time.Hour),
+		},
+		ForecastVersion: forecastVersion,
+	})
+
+	got := BuildRecentSiteCalibration(records, forecastVersion)
+	if got.MultiplicativeRatio == nil {
+		t.Fatal("BuildRecentSiteCalibration() ratio = nil, want value")
+	}
+	if *got.MultiplicativeRatio != 0.8 {
+		t.Fatalf("BuildRecentSiteCalibration() ratio = %v, want 0.8 after deduping latest issue", *got.MultiplicativeRatio)
+	}
+	if got.SampleCount != 24 {
+		t.Fatalf("BuildRecentSiteCalibration() sample count = %d, want 24", got.SampleCount)
+	}
+
+	got = BuildRecentSiteCalibration(records[:23], forecastVersion)
+	if got.MultiplicativeRatio != nil {
+		t.Fatalf("BuildRecentSiteCalibration() ratio = %v, want nil before 24 verified hours", *got.MultiplicativeRatio)
+	}
+}
+
+func TestGetSolarOutlookUsesRecentSiteCalibrationForFutureForecasts(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 19, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	weather := &stubWeatherForecaster{
+		bundle: testBundle(nowUTC, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
+	}
+	query := &stubTelemetryReader{
+		series: telemetryquery.Series{
+			DeviceID:   "dev-a",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: nowUTC.Add(-1 * time.Hour),
+					BucketEnd:   nowUTC,
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(1000),
+						SolarGeneratedWh: float64Ptr(600),
+					},
+				},
+			},
+		},
+	}
+	store := &capturingTrainingStore{
+		runs: map[string]*Run{
+			"verified-run": {
+				ID:              "verified-run",
+				SiteKey:         "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+				ForecastVersion: "deterministic_baseline_v1",
+				Timezone:        "America/New_York",
+				IssuedAt:        nowUTC.Add(-30 * time.Hour),
+			},
+		},
+	}
+	yesterdayLocal := time.Date(nowUTC.In(loc).Year(), nowUTC.In(loc).Month(), nowUTC.In(loc).Day()-1, 0, 0, 0, 0, loc)
+	for hour := 0; hour < 24; hour++ {
+		target := yesterdayLocal.Add(time.Duration(hour) * time.Hour).UTC()
+		store.rows = append(store.rows, HourlyTrainingRecord{
+			RunID:                "verified-run",
+			SiteKey:              "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+			TargetTime:           target,
+			TargetLocalDate:      parseDateISO(localDateISO(target, loc)),
+			ForecastGenerationWh: 100,
+			ActualGenerationWh:   float64Ptr(80),
+			VerificationStatus:   VerificationStatusVerified,
+			IssuedAt:             nowUTC.Add(-30 * time.Hour),
+			UpdatedAt:            nowUTC.Add(-6 * time.Hour),
+		})
+	}
+	store.rows = append(store.rows, HourlyTrainingRecord{
+		RunID:                "verified-run",
+		SiteKey:              "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+		TargetTime:           yesterdayLocal.Add(12 * time.Hour).UTC(),
+		TargetLocalDate:      parseDateISO(localDateISO(yesterdayLocal.Add(12*time.Hour).UTC(), loc)),
+		ForecastGenerationWh: 100,
+		ActualGenerationWh:   float64Ptr(10),
+		VerificationStatus:   VerificationStatusVerified,
+		IssuedAt:             nowUTC.Add(-36 * time.Hour),
+		UpdatedAt:            nowUTC.Add(-7 * time.Hour),
+	})
+
+	svc, err := NewService(weather, query, Config{
+		Log:   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store: store,
+		NowFn: func() time.Time { return nowUTC },
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	outlook, err := svc.GetSolarOutlook(context.Background(), Input{
+		WeatherRequest: weatherd.Request{
+			Latitude:   42.61,
+			Longitude:  -77.40,
+			Timezone:   "America/New_York",
+			UnitSystem: weatherd.UnitSystemMetric,
+		},
+		Scope: Scope{
+			Mode:     "device",
+			DeviceID: "dev-a",
+		},
+		ResolvedDeviceIDs: []string{"dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+	if got, want := outlook.Provenance.ServedVariant, "site_calibrated"; got != want {
+		t.Fatalf("outlook.Provenance.ServedVariant = %q, want %q", got, want)
+	}
+	if got, want := outlook.Provenance.CalibrationSampleCount, 24; got != want {
+		t.Fatalf("outlook.Provenance.CalibrationSampleCount = %d, want %d", got, want)
+	}
+
+	futurePoint := weather.bundle.Hourly[0]
+	baseline := estimateForecastWatts(futurePoint, outlook.Capacity.EstimatedPeakWatts, nowUTC, loc, nil, nil)
+	if baseline == nil {
+		t.Fatal("estimateForecastWatts(baseline) = nil, want value")
+	}
+	want := round1(*baseline * 0.8)
+	got := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh)
+	if got != want {
+		t.Fatalf("outlook.Next24Hours[0].ForecastGeneratedWh = %v, want %v", got, want)
 	}
 }
 
