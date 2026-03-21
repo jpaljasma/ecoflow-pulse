@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Text, XStack, YStack } from 'tamagui';
+import { Button, Text, XStack, YStack } from 'tamagui';
 import { Card } from '@/shared/ui/Card';
 import {
   formatDailyDuration,
+  formatLocalTimeLabel,
   formatRelativeWeatherDayLabel,
   formatSolarOutlookSummary,
   formatTemperatureRange,
@@ -20,9 +22,11 @@ type Props = {
   solarOutlook?: SolarOutlook;
   verification?: WeatherYesterdayVerification;
   isLoading?: boolean;
+  verificationIsLoading?: boolean;
   enabled?: boolean;
   errorText?: string;
   verificationErrorText?: string;
+  onVerificationExpand?: () => void;
 };
 
 export function WeatherForecastCard({
@@ -30,17 +34,35 @@ export function WeatherForecastCard({
   solarOutlook,
   verification,
   isLoading = false,
+  verificationIsLoading = false,
   enabled = true,
   errorText,
-  verificationErrorText
+  verificationErrorText,
+  onVerificationExpand
 }: Props) {
+  const [verificationExpanded, setVerificationExpanded] = useState(false);
   const unitSystem = forecast?.unitSystem ?? 'metric';
   const visibleDays = (forecast?.daily ?? [])
     .filter((day) => day.dateIso >= getTodayIsoInTimezone(forecast?.timezone))
     .slice(0, 7);
   const statusMessage = errorText ?? (isLoading ? 'Loading 7-day forecast…' : enabled ? ' ' : 'Enable weather location consent to load forecasts.');
   const verificationStatus =
-    verificationErrorText ?? (verification ? ' ' : isLoading ? 'Loading yesterday verification…' : enabled ? ' ' : 'Verification appears after a saved location is available.');
+    verificationErrorText ??
+    (verification
+      ? ' '
+      : verificationIsLoading
+        ? 'Loading yesterday verification…'
+        : enabled
+          ? ' '
+          : 'Verification appears after a saved location is available.');
+
+  function handleVerificationToggle() {
+    const nextExpanded = !verificationExpanded;
+    setVerificationExpanded(nextExpanded);
+    if (nextExpanded) {
+      onVerificationExpand?.();
+    }
+  }
 
   return (
     <Card gap="$4" minHeight={320} opacity={isLoading && forecast ? 0.9 : 1}>
@@ -69,6 +91,7 @@ export function WeatherForecastCard({
         {visibleDays.map((day) => {
           const summary = summarizeDayFromHourly(day.dateIso, forecast?.hourly ?? [], forecast?.timezone);
           const solarDay = solarOutlook?.daily.find((item) => item.dateIso === day.dateIso);
+          const solarSummary = formatSolarOutlookSummary(solarDay);
           return (
             <XStack
               key={day.dateIso}
@@ -115,9 +138,11 @@ export function WeatherForecastCard({
                 <Text fontWeight="700">
                   {formatTemperatureRange(summary.lowTemperature, summary.highTemperature, unitSystem)}
                 </Text>
-                <Text color="$colorMuted">
-                  {formatSolarOutlookSummary(solarDay)}
-                </Text>
+                {solarSummary ? (
+                  <Text color="$colorMuted">
+                    {solarSummary}
+                  </Text>
+                ) : null}
                 <Text color="$colorMuted">
                   Sun {formatDailyDuration(day.sunshineDurationSeconds)} · UV {formatWeatherValue(day.uvIndexMax, unitSystem, 'uvIndex')} · daylight {formatDailyDuration(day.daylightDurationSeconds)}
                 </Text>
@@ -128,47 +153,76 @@ export function WeatherForecastCard({
       </YStack>
 
       <YStack gap="$2">
-        <Text fontSize="$5" fontWeight="800">
-          Yesterday verification
-        </Text>
-        <Text
-          fontSize="$1"
-          style={{ color: 'rgba(28, 43, 45, 0.72)', opacity: verificationStatus.trim() ? 1 : 0 }}
-          minHeight={16}
+        <Button
+          size="$4"
+          justifyContent="space-between"
+          alignItems="center"
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          borderRadius="$4"
+          borderWidth={1}
+          onPress={handleVerificationToggle}
+          style={{ borderColor: 'rgba(28, 43, 45, 0.12)', backgroundColor: 'rgba(14, 116, 144, 0.04)' }}
         >
-          {verificationStatus}
-        </Text>
-
-        {verification ? (
-          <>
-            <XStack gap="$3" flexWrap="wrap">
-              <InfoPill label="Matched hours" value={`${verification.summary.matchedHours}/${verification.summary.comparedHours}`} />
-              <InfoPill label="Source" value={verification.verificationSource} />
-              <InfoPill
-                label="Temp MAE"
-                value={verification.summary.meanAbsoluteTemperatureError?.toFixed(1) ?? '—'}
-              />
-              <InfoPill
-                label="Wind MAE"
-                value={verification.summary.meanAbsoluteWindSpeedError?.toFixed(1) ?? '—'}
-              />
-            </XStack>
-
-            <YStack gap="$2">
-              {verification.hours.slice(0, 3).map((hour) => (
-                <XStack key={hour.timestampIso} alignItems="center" gap="$3" padding="$2" borderRadius="$3" borderWidth={1} style={{ borderColor: 'rgba(28, 43, 45, 0.1)' }}>
-                  <Text width={84} fontWeight="700">
-                    {new Date(hour.timestampIso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                  </Text>
-                  <Text flex={1} numberOfLines={1}>
-                    {hour.forecast.weatherLabel ?? getWeatherCodeLabel(hour.forecast.weatherCode)}
-                  </Text>
-                  <Text color="$colorMuted">
-                    ΔT {hour.error.temperature2m?.toFixed(1) ?? '—'} · ΔWind {hour.error.windSpeed10m?.toFixed(1) ?? '—'} · ΔDir {hour.error.windDirection?.toFixed(0) ?? '—'}
-                  </Text>
-                </XStack>
-              ))}
+          <XStack alignItems="center" justifyContent="space-between" width="100%">
+            <YStack gap={2} alignItems="flex-start">
+              <Text fontSize="$5" fontWeight="800">
+                Yesterday verification
+              </Text>
+              <Text fontSize="$1" color="$colorMuted">
+                {verificationExpanded ? 'Hide 24-hour verification details' : 'Show 24-hour verification details'}
+              </Text>
             </YStack>
+            <MaterialCommunityIcons
+              name={verificationExpanded ? 'chevron-up' : 'chevron-down'}
+              size={22}
+              color="rgba(28, 43, 45, 0.92)"
+            />
+          </XStack>
+        </Button>
+
+        {verificationExpanded ? (
+          <>
+            <Text
+              fontSize="$1"
+              style={{ color: 'rgba(28, 43, 45, 0.72)', opacity: verificationStatus.trim() ? 1 : 0 }}
+              minHeight={16}
+            >
+              {verificationStatus}
+            </Text>
+
+            {verification ? (
+              <>
+                <XStack gap="$3" flexWrap="wrap">
+                  <InfoPill label="Matched hours" value={`${verification.summary.matchedHours}/${verification.summary.comparedHours}`} />
+                  <InfoPill label="Source" value={verification.verificationSource} />
+                  <InfoPill
+                    label="Temp MAE"
+                    value={verification.summary.meanAbsoluteTemperatureError?.toFixed(1) ?? '—'}
+                  />
+                  <InfoPill
+                    label="Wind MAE"
+                    value={verification.summary.meanAbsoluteWindSpeedError?.toFixed(1) ?? '—'}
+                  />
+                </XStack>
+
+                <YStack gap="$2">
+                  {verification.hours.slice(0, 24).map((hour) => (
+                    <XStack key={hour.timestampIso} alignItems="center" gap="$3" padding="$2" borderRadius="$3" borderWidth={1} style={{ borderColor: 'rgba(28, 43, 45, 0.1)' }}>
+                      <Text width={84} fontWeight="700">
+                        {formatLocalTimeLabel(hour.timestampIso, verification.timezone)}
+                      </Text>
+                      <Text flex={1} numberOfLines={1}>
+                        {hour.forecast.weatherLabel ?? getWeatherCodeLabel(hour.forecast.weatherCode)}
+                      </Text>
+                      <Text color="$colorMuted">
+                        ΔT {hour.error.temperature2m?.toFixed(1) ?? '—'} · ΔWind {hour.error.windSpeed10m?.toFixed(1) ?? '—'} · ΔDir {hour.error.windDirection?.toFixed(0) ?? '—'}
+                      </Text>
+                    </XStack>
+                  ))}
+                </YStack>
+              </>
+            ) : null}
           </>
         ) : null}
       </YStack>

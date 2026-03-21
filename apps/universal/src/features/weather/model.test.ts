@@ -3,6 +3,7 @@ import {
   buildSolarOutlook,
   buildWeatherLocationKey,
   circularWindDirectionError,
+  formatMiniSolarOutlookSummary,
   formatSolarModelSummary,
   formatSolarOutlookSummary,
   formatRelativeWeatherDayLabel,
@@ -12,6 +13,7 @@ import {
   formatWindSummary,
   getForecastDayparts,
   inferSolarCapacityEstimate,
+  resolveProfileWeatherState,
   summarizeDayFromHourly
 } from '@/features/weather/model';
 
@@ -21,6 +23,27 @@ describe('weather model helpers', () => {
       '42.616:-77.401:America/New_York'
     );
     expect(buildWeatherLocationKey(42.6159, -77.4014, ' ')).toBe('42.616:-77.401:auto');
+  });
+
+  it('resolves enabled weather state from profile preferences', () => {
+    expect(
+      resolveProfileWeatherState({
+        timezone: 'America/New_York',
+        weatherLocationEnabled: true,
+        weatherLocation: {
+          latitude: 42.6159,
+          longitude: -77.4014
+        }
+      })
+    ).toEqual({
+      enabled: true,
+      timezone: 'America/New_York',
+      location: {
+        latitude: 42.6159,
+        longitude: -77.4014
+      },
+      locationKey: '42.616:-77.401:America/New_York'
+    });
   });
 
   it('formats weather days using the forecast timezone', () => {
@@ -209,6 +232,16 @@ describe('weather model helpers', () => {
     expect(outlook?.today?.energyKwh).toBe(10.4);
     expect(outlook?.daily).toHaveLength(2);
     expect(formatSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh so far · est 10 kWh today');
+    expect(formatMiniSolarOutlookSummary(outlook?.daily[0])).toBe('Solar 8.7 kWh + est 10 kWh today');
+  });
+
+  it('omits solar summary copy when no outlook values are available', () => {
+    expect(
+      formatSolarOutlookSummary({
+        dateIso: '2026-03-18',
+        irradianceSource: 'unavailable'
+      })
+    ).toBe('');
   });
 
   it('describes whether the served solar forecast is site calibrated', () => {

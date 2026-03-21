@@ -16,6 +16,7 @@ type WeatherQueryOptions = {
   authKey?: string;
   locationKey?: string;
   enabled?: boolean;
+  verificationEnabled?: boolean;
 };
 
 export function useWeatherForecast(options: WeatherQueryOptions = {}) {
@@ -43,7 +44,13 @@ export function useWeatherYesterdayVerification(options: WeatherQueryOptions = {
 }
 
 export function useProfileWeather(options: WeatherQueryOptions = {}) {
-  const { token, authKey = 'anonymous', locationKey = 'none', enabled = true } = options;
+  const {
+    token,
+    authKey = 'anonymous',
+    locationKey = 'none',
+    enabled = true,
+    verificationEnabled = false
+  } = options;
   const forecastQuery = useWeatherForecast({
     token,
     authKey,
@@ -54,7 +61,7 @@ export function useProfileWeather(options: WeatherQueryOptions = {}) {
     token,
     authKey,
     locationKey,
-    enabled
+    enabled: enabled && verificationEnabled
   });
   const solarOutlookQuery = useQuery<SolarOutlookResponse>({
     queryKey: [...buildWeatherQueryKey(authKey, locationKey), 'solar-outlook'],

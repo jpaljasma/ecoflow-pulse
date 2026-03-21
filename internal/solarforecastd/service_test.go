@@ -374,8 +374,83 @@ func TestGetSolarOutlookAppliesCalibrationRatio(t *testing.T) {
 	if got, want := outlook.Provenance.CalibrationSampleCount, 10; got != want {
 		t.Fatalf("outlook.Provenance.CalibrationSampleCount = %d, want %d", got, want)
 	}
-	if got, want := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh), 325.0; got != want {
+	if got, want := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh), 245.5; got != want {
 		t.Fatalf("outlook.Next24Hours[0].ForecastGeneratedWh = %v, want %v", got, want)
+	}
+}
+
+func TestEstimateForecastWattsDeratesBadWeatherAggressively(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	estimatedPeakWatts := 3100.0
+	point := weatherd.HourlyForecastPoint{
+		Time: time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+		Condition: weatherd.WeatherCondition{
+			WeatherCode: 61,
+		},
+		Raw: weatherd.ForecastValueSet{
+			Temperature:             float64Ptr(6),
+			CloudCover:              float64Ptr(92),
+			Precipitation:           float64Ptr(0.8),
+			ShortwaveRadiation:      float64Ptr(420),
+			SunshineDurationSeconds: float64Ptr(0),
+		},
+	}
+
+	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil)
+	if got == nil {
+		t.Fatal("estimateForecastWatts() = nil, want value")
+	}
+	if *got >= 300 {
+		t.Fatalf("estimateForecastWatts() = %v, want < 300 for rainy overcast hour", *got)
+	}
+}
+
+func TestDeriveTodayRemainingScaleClampsLaggingDay(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLocation(t, "America/New_York")
+	nowUTC := time.Date(2026, 3, 20, 17, 0, 0, 0, time.UTC)
+	estimatedPeakWatts := 3100.0
+	todayISO := localDateISO(nowUTC, loc)
+	hourly := []weatherd.HourlyForecastPoint{
+		{
+			Time:      time.Date(2026, 3, 20, 14, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:             float64Ptr(11),
+				CloudCover:              float64Ptr(8),
+				ShortwaveRadiation:      float64Ptr(600),
+				SunshineDurationSeconds: float64Ptr(3600),
+			},
+		},
+		{
+			Time:      time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:             float64Ptr(12),
+				CloudCover:              float64Ptr(10),
+				ShortwaveRadiation:      float64Ptr(650),
+				SunshineDurationSeconds: float64Ptr(3600),
+			},
+		},
+		{
+			Time:      time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:             float64Ptr(13),
+				CloudCover:              float64Ptr(12),
+				ShortwaveRadiation:      float64Ptr(700),
+				SunshineDurationSeconds: float64Ptr(3600),
+			},
+		},
+	}
+
+	got := deriveTodayRemainingScale(hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil)
+	if got != 0.5 {
+		t.Fatalf("deriveTodayRemainingScale() = %v, want 0.5", got)
 	}
 }
 

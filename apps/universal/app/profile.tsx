@@ -12,7 +12,7 @@ import { TimezoneSelect } from '@/features/profile/TimezoneSelect';
 import { useCurrentUser, useRefreshCurrentUserIdentity, useUpdateCurrentUser } from '@/features/profile/hooks';
 import { detectCurrentTimeZone, resolveProfileTimezone } from '@/features/profile/timezone';
 import { useProfileWeather } from '@/features/weather/hooks';
-import { buildWeatherLocationKey } from '@/features/weather/model';
+import { resolveProfileWeatherState } from '@/features/weather/model';
 import { WeatherCurrentWidget } from '@/features/weather/WeatherCurrentWidget';
 import { WeatherForecastCard } from '@/features/weather/WeatherForecastCard';
 import { AppMenu } from '@/shared/ui/AppMenu';
@@ -53,6 +53,7 @@ export default function ProfileScreen() {
   const [weatherLocation, setWeatherLocation] = useState<null | { label?: string; latitude: number; longitude: number }>(null);
   const [locationStatus, setLocationStatus] = useState('');
   const [identityRefreshAttempted, setIdentityRefreshAttempted] = useState(false);
+  const [verificationRequested, setVerificationRequested] = useState(false);
   const gridPricePerKwh = useEnergySettingsStore((state) => state.gridPricePerKwh);
   const currency = useEnergySettingsStore((state) => state.currency);
   const setGridPricePerKwh = useEnergySettingsStore((state) => state.setGridPricePerKwh);
@@ -96,20 +97,14 @@ export default function ProfileScreen() {
   }, [currentUserQuery.data?.user, detectedTimeZone, displayName, timezone, weatherLocation, weatherLocationEnabled]);
 
   const currentUser = currentUserQuery.data?.user;
-  const weatherTimezone = currentUser?.timezone ?? 'auto';
-  const savedWeatherLocation =
-    currentUser && currentUser.weatherLocationEnabled && currentUser.weatherLocation
-      ? currentUser.weatherLocation
-      : undefined;
-  const weatherLocationKey = savedWeatherLocation
-    ? buildWeatherLocationKey(savedWeatherLocation.latitude, savedWeatherLocation.longitude, weatherTimezone)
-    : 'none';
-  const weatherEnabled = authReady && allowed && Boolean(savedWeatherLocation);
+  const resolvedWeatherState = resolveProfileWeatherState(currentUser);
+  const weatherEnabled = authReady && allowed && resolvedWeatherState.enabled;
   const profileWeather = useProfileWeather({
     token,
     authKey,
-    locationKey: weatherLocationKey,
-    enabled: weatherEnabled
+    locationKey: resolvedWeatherState.locationKey,
+    enabled: weatherEnabled,
+    verificationEnabled: verificationRequested
   });
 
   if (waiting || !allowed) {
@@ -359,10 +354,12 @@ export default function ProfileScreen() {
               forecast={profileWeather.forecastQuery.data?.forecast}
               solarOutlook={profileWeather.solarOutlook}
               verification={profileWeather.verificationQuery.data?.verification}
-              isLoading={profileWeather.forecastQuery.isLoading || profileWeather.verificationQuery.isLoading}
+              isLoading={profileWeather.forecastQuery.isLoading}
+              verificationIsLoading={profileWeather.verificationQuery.isLoading}
               enabled={weatherEnabled}
               errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
               verificationErrorText={profileWeather.verificationQuery.error ? String(profileWeather.verificationQuery.error) : undefined}
+              onVerificationExpand={() => setVerificationRequested(true)}
             />
 
             {currentUserQuery.isError ? (

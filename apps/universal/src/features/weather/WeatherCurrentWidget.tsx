@@ -78,9 +78,11 @@ export function WeatherCurrentWidget({
       </XStack>
 
       <YStack gap="$1">
-        <Text fontSize="$2" color="$colorMuted">
-          {solarTodaySummary}
-        </Text>
+        {solarTodaySummary ? (
+          <Text fontSize="$2" color="$colorMuted">
+            {solarTodaySummary}
+          </Text>
+        ) : null}
         <XStack gap="$2" flexWrap="wrap">
           {dayparts.map((daypart) => (
             <YStack
