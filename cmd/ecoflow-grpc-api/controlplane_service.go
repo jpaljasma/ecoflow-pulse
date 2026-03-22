@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
@@ -491,6 +492,15 @@ func (s *ControlPlaneService) TestProviderDeviceMQTT(ctx context.Context, req *c
 	if err != nil {
 		return nil, err
 	}
+	return s.probeProviderDeviceMQTT(ctx, provider, cred, req.GetProviderDeviceId())
+}
+
+func (s *ControlPlaneService) probeProviderDeviceMQTT(
+	ctx context.Context,
+	provider string,
+	cred controlplane.ProviderCredential,
+	providerDeviceID string,
+) (*controlplanev1.TestProviderDeviceMQTTResponse, error) {
 	resolver, err := s.mqttResolver(provider)
 	if err != nil {
 		return nil, err
@@ -498,7 +508,7 @@ func (s *ControlPlaneService) TestProviderDeviceMQTT(ctx context.Context, req *c
 	probeCtx, cancel := context.WithTimeout(ctx, s.mqttProbeTimeout)
 	defer cancel()
 
-	cert, err := resolver.GetMQTTCertification(probeCtx, cred, req.GetProviderDeviceId())
+	cert, err := resolver.GetMQTTCertification(probeCtx, cred, providerDeviceID)
 	if err != nil {
 		switch {
 		case errors.Is(err, provideradapter.ErrProviderDeviceNotFound):
@@ -509,7 +519,7 @@ func (s *ControlPlaneService) TestProviderDeviceMQTT(ctx context.Context, req *c
 			return nil, status.Errorf(codes.Internal, "resolve mqtt certification: %v", err)
 		}
 	}
-	address, topic, err := provideradapter.BuildMQTTAddressAndTopic(cert, req.GetProviderDeviceId())
+	address, topic, err := provideradapter.BuildMQTTAddressAndTopic(cert, providerDeviceID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "build mqtt probe topic: %v", err)
 	}
@@ -517,7 +527,7 @@ func (s *ControlPlaneService) TestProviderDeviceMQTT(ctx context.Context, req *c
 		Address:        address,
 		Username:       strings.TrimSpace(cert.CertificateAccount),
 		Password:       strings.TrimSpace(cert.CertificatePassword),
-		ClientID:       ecoflowmqtt.BuildClientIDFromSN(req.GetProviderDeviceId()),
+		ClientID:       buildMQTTProbeClientID(providerDeviceID),
 		KeepAlive:      defaultMQTTProbeKeepAlive,
 		ConnectTimeout: defaultMQTTProbeConnectTimeout,
 		ReadTimeout:    defaultMQTTProbeReadTimeout,
@@ -570,6 +580,13 @@ func (s *ControlPlaneService) EnableProviderDevice(ctx context.Context, req *con
 	cred, provider, err := s.getProviderCredentialForUser(ctx, userSubject, req.GetProvider(), req.GetCredentialId())
 	if err != nil {
 		return nil, err
+	}
+	probe, err := s.probeProviderDeviceMQTT(ctx, provider, cred, req.GetProviderDeviceId())
+	if err != nil {
+		return nil, err
+	}
+	if !probe.GetSuccess() {
+		return nil, status.Errorf(codes.FailedPrecondition, "successful mqtt probe required before enablement: %s", probe.GetStatus())
 	}
 	discovered, err := s.discoverProviderDeviceForCredential(ctx, provider, cred, req.GetProviderDeviceId())
 	if err != nil {
@@ -767,6 +784,14 @@ func mqttProbeStatusFromError(err error, fallback string) string {
 	default:
 		return fallback
 	}
+}
+
+func buildMQTTProbeClientID(providerDeviceID string) string {
+	seed := strings.ToUpper(strings.TrimSpace(providerDeviceID))
+	if seed == "" {
+		seed = "mqtt-probe"
+	}
+	return ecoflowmqtt.BuildClientIDFromSN(fmt.Sprintf("probe:%s:%d", seed, time.Now().UTC().UnixNano()))
 }
 
 func resolveUserSubject(ctx context.Context, requested string) (string, error) {

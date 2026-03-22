@@ -765,6 +765,9 @@ func TestTestProviderDeviceMQTTSuccess(t *testing.T) {
 		if cfg.Address != "mqtt.ecoflow.com:8883" {
 			t.Fatalf("mqtt address=%q want mqtt.ecoflow.com:8883", cfg.Address)
 		}
+		if cfg.ClientID == ecoflowmqtt.BuildClientIDFromSN("DEMODMQTT000001") {
+			t.Fatalf("mqtt probe client id should not reuse the ingest client id")
+		}
 		return &staticProbeSubscriber{
 			msg: ecoflowmqtt.Message{
 				Topic:   "/open/open-account/DEMODMQTT000001/quota",
@@ -814,7 +817,21 @@ func TestEnableProviderDevicePersistsActiveAssignment(t *testing.T) {
 				Model:            "DELTA 2",
 			},
 		},
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+		},
 	})
+	svc.newMQTTSubscriber = func(cfg ecoflowmqtt.Config) (mqttProbeSubscriber, error) {
+		return &staticProbeSubscriber{
+			msg: ecoflowmqtt.Message{
+				Topic:   "/open/open-account/DEMODENABLE0001/quota",
+				Payload: []byte(`{"id":1}`),
+			},
+		}, nil
+	}
 
 	resp, err := svc.EnableProviderDevice(context.Background(), &controlplanev1.EnableProviderDeviceRequest{
 		UserSubject:      "dev-user",
@@ -848,6 +865,64 @@ func TestEnableProviderDevicePersistsActiveAssignment(t *testing.T) {
 	}
 	if got := len(userDevices); got != 1 {
 		t.Fatalf("user device count=%d want 1", got)
+	}
+}
+
+func TestEnableProviderDeviceRequiresSuccessfulMQTTProbe(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	credResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK55556666",
+		SecretKey:   "SK55556666",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	svc.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{
+			{
+				Provider:         controlplane.ProviderEcoFlow,
+				ProviderDeviceID: "DEMODENABLE0002",
+				CanonicalSN:      "DEMODENABLE0002",
+				ProductName:      "Dormant River",
+				Model:            "RIVER 3 Plus",
+			},
+		},
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+		},
+	})
+	svc.newMQTTSubscriber = func(cfg ecoflowmqtt.Config) (mqttProbeSubscriber, error) {
+		return &staticProbeSubscriber{readErr: context.DeadlineExceeded}, nil
+	}
+
+	_, err = svc.EnableProviderDevice(context.Background(), &controlplanev1.EnableProviderDeviceRequest{
+		UserSubject:      "dev-user",
+		Provider:         controlplane.ProviderEcoFlow,
+		CredentialId:     credResp.GetCredential().GetId(),
+		ProviderDeviceId: "DEMODENABLE0002",
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expected FailedPrecondition, got %v", err)
+	}
+
+	listed, listErr := store.ListProviderDevices(context.Background(), controlplane.ListProviderDevicesInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		ActiveOnly:  false,
+	})
+	if listErr != nil {
+		t.Fatalf("list provider devices failed: %v", listErr)
+	}
+	if len(listed) != 0 {
+		t.Fatalf("expected no provider devices to be persisted, got %d", len(listed))
 	}
 }
 
