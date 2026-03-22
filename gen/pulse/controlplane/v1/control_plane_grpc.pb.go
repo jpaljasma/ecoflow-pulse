@@ -19,17 +19,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ControlPlaneService_GetCurrentUser_FullMethodName              = "/pulse.controlplane.v1.ControlPlaneService/GetCurrentUser"
-	ControlPlaneService_UpdateCurrentUser_FullMethodName           = "/pulse.controlplane.v1.ControlPlaneService/UpdateCurrentUser"
-	ControlPlaneService_RefreshCurrentUserIdentity_FullMethodName  = "/pulse.controlplane.v1.ControlPlaneService/RefreshCurrentUserIdentity"
-	ControlPlaneService_CreateProviderCredential_FullMethodName    = "/pulse.controlplane.v1.ControlPlaneService/CreateProviderCredential"
-	ControlPlaneService_ListProviderCredentials_FullMethodName     = "/pulse.controlplane.v1.ControlPlaneService/ListProviderCredentials"
-	ControlPlaneService_SetProviderCredentialActive_FullMethodName = "/pulse.controlplane.v1.ControlPlaneService/SetProviderCredentialActive"
-	ControlPlaneService_CreateDevice_FullMethodName                = "/pulse.controlplane.v1.ControlPlaneService/CreateDevice"
-	ControlPlaneService_LinkDevice_FullMethodName                  = "/pulse.controlplane.v1.ControlPlaneService/LinkDevice"
-	ControlPlaneService_ListUserDevices_FullMethodName             = "/pulse.controlplane.v1.ControlPlaneService/ListUserDevices"
-	ControlPlaneService_ListDevices_FullMethodName                 = "/pulse.controlplane.v1.ControlPlaneService/ListDevices"
-	ControlPlaneService_DiscoverDevices_FullMethodName             = "/pulse.controlplane.v1.ControlPlaneService/DiscoverDevices"
+	ControlPlaneService_GetCurrentUser_FullMethodName               = "/pulse.controlplane.v1.ControlPlaneService/GetCurrentUser"
+	ControlPlaneService_UpdateCurrentUser_FullMethodName            = "/pulse.controlplane.v1.ControlPlaneService/UpdateCurrentUser"
+	ControlPlaneService_RefreshCurrentUserIdentity_FullMethodName   = "/pulse.controlplane.v1.ControlPlaneService/RefreshCurrentUserIdentity"
+	ControlPlaneService_CreateProviderCredential_FullMethodName     = "/pulse.controlplane.v1.ControlPlaneService/CreateProviderCredential"
+	ControlPlaneService_ListProviderCredentials_FullMethodName      = "/pulse.controlplane.v1.ControlPlaneService/ListProviderCredentials"
+	ControlPlaneService_SetProviderCredentialActive_FullMethodName  = "/pulse.controlplane.v1.ControlPlaneService/SetProviderCredentialActive"
+	ControlPlaneService_CreateDevice_FullMethodName                 = "/pulse.controlplane.v1.ControlPlaneService/CreateDevice"
+	ControlPlaneService_LinkDevice_FullMethodName                   = "/pulse.controlplane.v1.ControlPlaneService/LinkDevice"
+	ControlPlaneService_ListUserDevices_FullMethodName              = "/pulse.controlplane.v1.ControlPlaneService/ListUserDevices"
+	ControlPlaneService_ListDevices_FullMethodName                  = "/pulse.controlplane.v1.ControlPlaneService/ListDevices"
+	ControlPlaneService_DiscoverDevices_FullMethodName              = "/pulse.controlplane.v1.ControlPlaneService/DiscoverDevices"
+	ControlPlaneService_ListAvailableProviderDevices_FullMethodName = "/pulse.controlplane.v1.ControlPlaneService/ListAvailableProviderDevices"
+	ControlPlaneService_TestProviderDeviceMQTT_FullMethodName       = "/pulse.controlplane.v1.ControlPlaneService/TestProviderDeviceMQTT"
+	ControlPlaneService_EnableProviderDevice_FullMethodName         = "/pulse.controlplane.v1.ControlPlaneService/EnableProviderDevice"
 )
 
 // ControlPlaneServiceClient is the client API for ControlPlaneService service.
@@ -47,6 +50,9 @@ type ControlPlaneServiceClient interface {
 	ListUserDevices(ctx context.Context, in *ListUserDevicesRequest, opts ...grpc.CallOption) (*ListUserDevicesResponse, error)
 	ListDevices(ctx context.Context, in *ListDevicesRequest, opts ...grpc.CallOption) (*ListDevicesResponse, error)
 	DiscoverDevices(ctx context.Context, in *DiscoverDevicesRequest, opts ...grpc.CallOption) (*DiscoverDevicesResponse, error)
+	ListAvailableProviderDevices(ctx context.Context, in *ListAvailableProviderDevicesRequest, opts ...grpc.CallOption) (*ListAvailableProviderDevicesResponse, error)
+	TestProviderDeviceMQTT(ctx context.Context, in *TestProviderDeviceMQTTRequest, opts ...grpc.CallOption) (*TestProviderDeviceMQTTResponse, error)
+	EnableProviderDevice(ctx context.Context, in *EnableProviderDeviceRequest, opts ...grpc.CallOption) (*EnableProviderDeviceResponse, error)
 }
 
 type controlPlaneServiceClient struct {
@@ -167,6 +173,36 @@ func (c *controlPlaneServiceClient) DiscoverDevices(ctx context.Context, in *Dis
 	return out, nil
 }
 
+func (c *controlPlaneServiceClient) ListAvailableProviderDevices(ctx context.Context, in *ListAvailableProviderDevicesRequest, opts ...grpc.CallOption) (*ListAvailableProviderDevicesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAvailableProviderDevicesResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_ListAvailableProviderDevices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) TestProviderDeviceMQTT(ctx context.Context, in *TestProviderDeviceMQTTRequest, opts ...grpc.CallOption) (*TestProviderDeviceMQTTResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestProviderDeviceMQTTResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_TestProviderDeviceMQTT_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) EnableProviderDevice(ctx context.Context, in *EnableProviderDeviceRequest, opts ...grpc.CallOption) (*EnableProviderDeviceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnableProviderDeviceResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_EnableProviderDevice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ControlPlaneServiceServer is the server API for ControlPlaneService service.
 // All implementations must embed UnimplementedControlPlaneServiceServer
 // for forward compatibility.
@@ -182,6 +218,9 @@ type ControlPlaneServiceServer interface {
 	ListUserDevices(context.Context, *ListUserDevicesRequest) (*ListUserDevicesResponse, error)
 	ListDevices(context.Context, *ListDevicesRequest) (*ListDevicesResponse, error)
 	DiscoverDevices(context.Context, *DiscoverDevicesRequest) (*DiscoverDevicesResponse, error)
+	ListAvailableProviderDevices(context.Context, *ListAvailableProviderDevicesRequest) (*ListAvailableProviderDevicesResponse, error)
+	TestProviderDeviceMQTT(context.Context, *TestProviderDeviceMQTTRequest) (*TestProviderDeviceMQTTResponse, error)
+	EnableProviderDevice(context.Context, *EnableProviderDeviceRequest) (*EnableProviderDeviceResponse, error)
 	mustEmbedUnimplementedControlPlaneServiceServer()
 }
 
@@ -224,6 +263,15 @@ func (UnimplementedControlPlaneServiceServer) ListDevices(context.Context, *List
 }
 func (UnimplementedControlPlaneServiceServer) DiscoverDevices(context.Context, *DiscoverDevicesRequest) (*DiscoverDevicesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DiscoverDevices not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) ListAvailableProviderDevices(context.Context, *ListAvailableProviderDevicesRequest) (*ListAvailableProviderDevicesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAvailableProviderDevices not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) TestProviderDeviceMQTT(context.Context, *TestProviderDeviceMQTTRequest) (*TestProviderDeviceMQTTResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TestProviderDeviceMQTT not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) EnableProviderDevice(context.Context, *EnableProviderDeviceRequest) (*EnableProviderDeviceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EnableProviderDevice not implemented")
 }
 func (UnimplementedControlPlaneServiceServer) mustEmbedUnimplementedControlPlaneServiceServer() {}
 func (UnimplementedControlPlaneServiceServer) testEmbeddedByValue()                             {}
@@ -444,6 +492,60 @@ func _ControlPlaneService_DiscoverDevices_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ControlPlaneService_ListAvailableProviderDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAvailableProviderDevicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ListAvailableProviderDevices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_ListAvailableProviderDevices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ListAvailableProviderDevices(ctx, req.(*ListAvailableProviderDevicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_TestProviderDeviceMQTT_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestProviderDeviceMQTTRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).TestProviderDeviceMQTT(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_TestProviderDeviceMQTT_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).TestProviderDeviceMQTT(ctx, req.(*TestProviderDeviceMQTTRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_EnableProviderDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnableProviderDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).EnableProviderDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_EnableProviderDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).EnableProviderDevice(ctx, req.(*EnableProviderDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ControlPlaneService_ServiceDesc is the grpc.ServiceDesc for ControlPlaneService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -494,6 +596,18 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DiscoverDevices",
 			Handler:    _ControlPlaneService_DiscoverDevices_Handler,
+		},
+		{
+			MethodName: "ListAvailableProviderDevices",
+			Handler:    _ControlPlaneService_ListAvailableProviderDevices_Handler,
+		},
+		{
+			MethodName: "TestProviderDeviceMQTT",
+			Handler:    _ControlPlaneService_TestProviderDeviceMQTT_Handler,
+		},
+		{
+			MethodName: "EnableProviderDevice",
+			Handler:    _ControlPlaneService_EnableProviderDevice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -159,6 +159,26 @@ func (a *EcoFlowAdapter) GetDeviceQuotaSnapshot(
 	return device, quota, nil
 }
 
+func BuildMQTTAddressAndTopic(
+	cert ecoflow.GeneralInfoMQTTCertification,
+	providerDeviceID string,
+) (address string, topic string, err error) {
+	url := strings.TrimSpace(cert.URL)
+	port := strings.TrimSpace(cert.Port)
+	account := strings.TrimSpace(cert.CertificateAccount)
+	if url == "" || port == "" {
+		return "", "", errors.New("mqtt certification missing broker url/port")
+	}
+	if account == "" {
+		return "", "", errors.New("mqtt certification missing certificate account")
+	}
+	sn := normalizeProviderDeviceID(providerDeviceID)
+	if sn == "" {
+		return "", "", errors.New("provider_device_id is required")
+	}
+	return fmt.Sprintf("%s:%s", url, port), fmt.Sprintf("/open/%s/%s/quota", account, sn), nil
+}
+
 func (a *EcoFlowAdapter) generalInfoForCredential(credential controlplane.ProviderCredential) (EcoFlowGeneralInfo, error) {
 	if controlplane.NormalizeProvider(credential.Provider) != controlplane.ProviderEcoFlow {
 		return nil, ErrUnsupportedProvider

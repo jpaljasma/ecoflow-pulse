@@ -4,7 +4,12 @@ import { status as grpcStatus } from '@grpc/grpc-js';
 
 import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
-import type { DeviceClient, DeviceSummary } from '../src/grpc/deviceClient.js';
+import type {
+  AvailableDevicesResult,
+  AvailableDeviceSummary,
+  DeviceClient,
+  DeviceSummary
+} from '../src/grpc/deviceClient.js';
 import type { DeviceInsights, InferenceClient } from '../src/grpc/inferenceClient.js';
 import type { TelemetryHistoryClient } from '../src/grpc/telemetryClient.js';
 
@@ -94,13 +99,48 @@ function sampleDevice(overrides: Partial<DeviceSummary> = {}): DeviceSummary {
   };
 }
 
+function sampleAvailableDevice(
+  overrides: Partial<AvailableDeviceSummary> = {}
+): AvailableDeviceSummary {
+  return {
+    provider: 'ecoflow',
+    providerDeviceId: 'DEMOD2M00001057',
+    credentialId: 'cred-1',
+    serialNumber: 'DEMOD2M00001057',
+    name: 'Kitchen Delta 2 Max',
+    model: 'DELTA 2 Max',
+    ...overrides
+  };
+}
+
+function sampleAvailableDevicesResult(
+  overrides: Partial<AvailableDevicesResult> = {}
+): AvailableDevicesResult {
+  return {
+    devices: [sampleAvailableDevice()],
+    hasActiveCredentials: true,
+    ...overrides
+  };
+}
+
 function makeDeviceClient(overrides: Partial<DeviceClient> = {}): DeviceClient {
   return {
     listDevices: vi.fn(async () => [sampleDevice()]),
     getDevice: vi.fn(async (_request, routeDeviceId) => {
-      const device = sampleDevice();
+    const device = sampleDevice();
       return routeDeviceId === device.id || routeDeviceId === device.serialNumber ? device : null;
     }),
+    listAvailableDevices: vi.fn(async () => sampleAvailableDevicesResult()),
+    testAvailableDeviceMQTT: vi.fn(async () => ({
+      success: true,
+      status: 'ok',
+      sampleTopic: '/open/open-account/DEMOD2M00001057/quota',
+      payloadBytes: '512',
+      observedAtUnixMs: '1772197190000'
+    })),
+    enableAvailableDevice: vi.fn(async () => ({
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
+    })),
     close: vi.fn(),
     ...overrides
   };
@@ -233,6 +273,77 @@ describe('pulse-platform device routes', () => {
     expect(response.statusCode).toBe(200);
     expect(client.getDevice).toHaveBeenCalledWith(expect.anything(), 'DEMODPU0000294');
     expect(response.json()).toEqual(sampleDevice());
+
+    await app.close();
+  });
+
+  it('returns available devices', async () => {
+    const client = makeDeviceClient();
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/devices/available'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.listAvailableDevices).toHaveBeenCalledOnce();
+    expect(response.json()).toEqual(sampleAvailableDevicesResult());
+
+    await app.close();
+  });
+
+  it('tests device mqtt from the available-devices route', async () => {
+    const client = makeDeviceClient();
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/devices/available/test-mqtt',
+      payload: {
+        provider: 'ecoflow',
+        credentialId: 'cred-1',
+        providerDeviceId: 'DEMOD2M00001057'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.testAvailableDeviceMQTT).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        provider: 'ecoflow',
+        credentialId: 'cred-1',
+        providerDeviceId: 'DEMOD2M00001057'
+      })
+    );
+
+    await app.close();
+  });
+
+  it('enables an available device', async () => {
+    const client = makeDeviceClient();
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/devices/available/enable',
+      payload: {
+        provider: 'ecoflow',
+        credentialId: 'cred-1',
+        providerDeviceId: 'DEMOD2M00001057'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.enableAvailableDevice).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        provider: 'ecoflow',
+        credentialId: 'cred-1',
+        providerDeviceId: 'DEMOD2M00001057'
+      })
+    );
+    expect(response.json()).toEqual({ deviceId: '019c9f0e-4521-775d-873e-e80039f16d75' });
 
     await app.close();
   });

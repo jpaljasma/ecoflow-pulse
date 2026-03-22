@@ -8,11 +8,13 @@ import { DeviceCard } from '@/features/devices/DeviceCard';
 export function DeviceList({
   devices,
   connectionStatus,
-  header
+  header,
+  footer
 }: {
   devices: DeviceSummary[];
   connectionStatus: TelemetryEngineStatus;
   header?: ReactElement;
+  footer?: ReactElement;
 }) {
   const { width } = useWindowDimensions();
   const columns = Platform.OS === 'web' && width >= 900 ? 2 : 1;
@@ -25,6 +27,7 @@ export function DeviceList({
       numColumns={columns}
       contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
       ListHeaderComponent={header}
+      ListFooterComponent={footer}
       columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
       removeClippedSubviews
       initialNumToRender={8}

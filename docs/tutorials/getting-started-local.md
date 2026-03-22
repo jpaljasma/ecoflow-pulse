@@ -47,7 +47,15 @@ Expected result: all tests pass.
 go run ./cmd/ecoflow-smoke
 ```
 
-Expected result: device list and API connectivity details print successfully.
+Expected result: device list and API connectivity details print successfully,
+then the command subscribes to all discovered device MQTT topics and prints
+status updates until live data arrives for each device or you interrupt it.
+
+If you only want the older API-only quick check:
+
+```bash
+go run ./cmd/ecoflow-smoke -mqtt=false
+```
 
 ## 4. Boot the Local Platform
 

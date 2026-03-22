@@ -1,7 +1,13 @@
 import type { FastifyRequest } from 'fastify';
 
 import type { AppConfig } from '../config.js';
-import type { ControlPlaneClient, ProviderDevice, ProviderDeviceGroup } from './controlPlaneClient.js';
+import type {
+  AvailableProviderDevice,
+  ControlPlaneClient,
+  ProviderDevice,
+  ProviderDeviceGroup,
+  ProviderDeviceMQTTTestResult
+} from './controlPlaneClient.js';
 import type { TelemetrySnapshotClient } from './telemetryClient.js';
 import { deriveTelemetryMetrics, deriveTelemetryState, deriveTelemetryEtaMinutes } from '../telemetry/deriveMetrics.js';
 import {
@@ -30,9 +36,32 @@ export type DeviceSummary = {
   details?: DeviceTelemetryDetails;
 };
 
+export type AvailableDeviceSummary = {
+  provider: string;
+  providerDeviceId: string;
+  credentialId: string;
+  serialNumber: string;
+  name: string;
+  model: string;
+};
+
+export type AvailableDevicesResult = {
+  devices: AvailableDeviceSummary[];
+  hasActiveCredentials: boolean;
+};
+
 export interface DeviceClient {
   listDevices(request: FastifyRequest): Promise<DeviceSummary[]>;
   getDevice(request: FastifyRequest, routeDeviceId: string): Promise<DeviceSummary | null>;
+  listAvailableDevices(request: FastifyRequest): Promise<AvailableDevicesResult>;
+  testAvailableDeviceMQTT(
+    request: FastifyRequest,
+    input: { provider: string; credentialId: string; providerDeviceId: string }
+  ): Promise<ProviderDeviceMQTTTestResult>;
+  enableAvailableDevice(
+    request: FastifyRequest,
+    input: { provider: string; credentialId: string; providerDeviceId: string }
+  ): Promise<{ deviceId: string }>;
   close(): void;
 }
 
@@ -60,6 +89,44 @@ export function createDeviceClient(
     async getDevice(request, routeDeviceId) {
       const devices = await this.listDevices(request);
       return devices.find((device) => device.id === routeDeviceId || device.serialNumber === routeDeviceId) ?? null;
+    },
+    async listAvailableDevices(request) {
+      const userSubject = resolveUserSubject(config, request);
+      const response = await controlPlaneClient.listAvailableProviderDevices({
+        userSubject,
+        authHeader: getAuthHeader(request),
+        requestID: getRequestID(request),
+        deadlineMs: config.grpcDeadlineMs
+      });
+      return {
+        hasActiveCredentials: response.hasActiveCredentials,
+        devices: response.devices.map(mapAvailableProviderDevice)
+      };
+    },
+    async testAvailableDeviceMQTT(request, input) {
+      const userSubject = resolveUserSubject(config, request);
+      return controlPlaneClient.testProviderDeviceMQTT({
+        userSubject,
+        provider: input.provider,
+        credentialId: input.credentialId,
+        providerDeviceId: input.providerDeviceId,
+        authHeader: getAuthHeader(request),
+        requestID: getRequestID(request),
+        deadlineMs: config.grpcDeadlineMs + 12_000
+      });
+    },
+    async enableAvailableDevice(request, input) {
+      const userSubject = resolveUserSubject(config, request);
+      const response = await controlPlaneClient.enableProviderDevice({
+        userSubject,
+        provider: input.provider,
+        credentialId: input.credentialId,
+        providerDeviceId: input.providerDeviceId,
+        authHeader: getAuthHeader(request),
+        requestID: getRequestID(request),
+        deadlineMs: config.grpcDeadlineMs
+      });
+      return { deviceId: response.userDevice.deviceId };
     },
     close() {
       controlPlaneClient.close();
@@ -155,6 +222,17 @@ function mergeRecord(
   return {
     ...(left ?? {}),
     ...(right ?? {})
+  };
+}
+
+function mapAvailableProviderDevice(device: AvailableProviderDevice): AvailableDeviceSummary {
+  return {
+    provider: device.provider,
+    providerDeviceId: device.providerDeviceId,
+    credentialId: device.credentialId,
+    serialNumber: device.canonicalSn || device.providerDeviceId,
+    name: device.productName || device.model || device.canonicalSn || device.providerDeviceId,
+    model: device.model || device.productName || 'Unknown EcoFlow'
   };
 }
 

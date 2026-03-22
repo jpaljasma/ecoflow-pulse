@@ -41,7 +41,18 @@ For explicit local provider seeding:
 go run ./cmd/ecoflow-smoke
 ```
 
-If smoke passes, configuration is valid enough for API access.
+By default, smoke now also opens a shared MQTT probe across all discovered
+devices, prints status updates, and waits until live data arrives for each
+device or you interrupt it.
+
+For the old API-only quick check:
+
+```bash
+go run ./cmd/ecoflow-smoke -mqtt=false
+```
+
+If the API-only smoke passes, configuration is valid enough for basic API
+access.
 
 ## 5. Boot the Local Platform (optional)
 

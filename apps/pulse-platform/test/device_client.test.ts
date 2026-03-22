@@ -100,6 +100,9 @@ function makeControlPlaneClient(
     refreshCurrentUserIdentity: vi.fn(),
     listUserDevices: vi.fn(),
     listDevices: vi.fn(async () => []),
+    listAvailableProviderDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    testProviderDeviceMQTT: vi.fn(),
+    enableProviderDevice: vi.fn(),
     close: vi.fn(),
     ...overrides
   };

@@ -198,6 +198,52 @@ message DiscoverDevicesResponse {
   repeated ProviderDevice devices = 4;
 }
 
+message AvailableProviderDevice {
+  string provider = 1;
+  string provider_device_id = 2;
+  string credential_id = 3;
+  string canonical_sn = 4;
+  string product_name = 5;
+  string model = 6;
+}
+
+message ListAvailableProviderDevicesRequest {
+  string user_subject = 1;
+  string provider = 2;
+}
+
+message ListAvailableProviderDevicesResponse {
+  repeated AvailableProviderDevice devices = 1;
+  bool has_active_credentials = 2;
+}
+
+message TestProviderDeviceMQTTRequest {
+  string user_subject = 1;
+  string provider = 2;
+  string credential_id = 3;
+  string provider_device_id = 4;
+}
+
+message TestProviderDeviceMQTTResponse {
+  bool success = 1;
+  string status = 2;
+  string sample_topic = 3;
+  int64 payload_bytes = 4;
+  int64 observed_at_unix_ms = 5;
+}
+
+message EnableProviderDeviceRequest {
+  string user_subject = 1;
+  string provider = 2;
+  string credential_id = 3;
+  string provider_device_id = 4;
+}
+
+message EnableProviderDeviceResponse {
+  ProviderDevice provider_device = 1;
+  UserDevice user_device = 2;
+}
+
 service ControlPlaneService {
   rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
   rpc UpdateCurrentUser(UpdateCurrentUserRequest) returns (UpdateCurrentUserResponse);
@@ -210,4 +256,7 @@ service ControlPlaneService {
   rpc ListUserDevices(ListUserDevicesRequest) returns (ListUserDevicesResponse);
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   rpc DiscoverDevices(DiscoverDevicesRequest) returns (DiscoverDevicesResponse);
+  rpc ListAvailableProviderDevices(ListAvailableProviderDevicesRequest) returns (ListAvailableProviderDevicesResponse);
+  rpc TestProviderDeviceMQTT(TestProviderDeviceMQTTRequest) returns (TestProviderDeviceMQTTResponse);
+  rpc EnableProviderDevice(EnableProviderDeviceRequest) returns (EnableProviderDeviceResponse);
 }
