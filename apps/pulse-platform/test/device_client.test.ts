@@ -137,13 +137,13 @@ describe('device client', () => {
     const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
     const [device] = await client.listDevices(makeRequest());
 
-    expect(device?.pvW).toBeCloseTo(5.9975, 4);
-    expect(device?.netW).toBeCloseTo(-95.0025, 4);
+    expect(device?.pvW).toBeCloseTo(3.04539, 4);
+    expect(device?.netW).toBeCloseTo(-97.95461, 4);
     expect(device?.details?.solarPorts?.[0]).toEqual(
       expect.objectContaining({
         volts: 10.502,
         amps: 0.195,
-        watts: 5
+        watts: 2.04789
       })
     );
   });
@@ -180,8 +180,8 @@ describe('device client', () => {
     const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
     const [device] = await client.listDevices(makeRequest());
 
-    expect(device?.pvW).toBeCloseTo(5.9975, 4);
-    expect(device?.netW).toBeCloseTo(-95.0025, 4);
+    expect(device?.pvW).toBeCloseTo(3.04539, 4);
+    expect(device?.netW).toBeCloseTo(-97.95461, 4);
   });
 
   it('prefers explicit zero solar ports over stale raw snapshot pv watts', async () => {

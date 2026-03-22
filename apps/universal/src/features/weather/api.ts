@@ -311,7 +311,7 @@ export async function fetchSolarOutlook(token?: string): Promise<SolarOutlookRes
         : undefined,
       today: parsed.outlook.today
         ? {
-            dateIso: parsed.outlook.today.dateIso,
+            dateIso: normalizeDateIso(parsed.outlook.today.dateIso),
             peakWatts: parsed.outlook.today.estimatedPeakWatts,
             energyKwh: parsed.outlook.today.forecastTotalKwh,
             actualSoFarKwh: parsed.outlook.today.actualGeneratedKwh,
@@ -321,7 +321,7 @@ export async function fetchSolarOutlook(token?: string): Promise<SolarOutlookRes
           }
         : undefined,
       daily: parsed.outlook.daily.map((day) => ({
-        dateIso: day.dateIso,
+        dateIso: normalizeDateIso(day.dateIso),
         peakWatts: day.estimatedPeakWatts,
         energyKwh: day.forecastTotalKwh,
         actualSoFarKwh: day.actualGeneratedKwh,

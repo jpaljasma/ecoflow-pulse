@@ -416,6 +416,17 @@ export function formatWindSummary(
   return speedLabel;
 }
 
+export function formatVisibilityKilometers(value: WeatherMetricValue | undefined): string {
+  if (!value) {
+    return '—';
+  }
+  const raw = value.corrected ?? value.raw;
+  if (raw === null || raw === undefined || Number.isNaN(raw)) {
+    return '—';
+  }
+  return `${convertDistanceM(raw, 'metric').toFixed(1)} km`;
+}
+
 export function getForecastDayparts(
   hourly: WeatherPoint[],
   timezone?: string | null,
@@ -447,6 +458,7 @@ export function summarizeDayFromHourly(
   lowWindSpeed?: WeatherMetricValue;
   highWindSpeed?: WeatherMetricValue;
   representativeWindDirectionDegrees?: number | null;
+  representativeVisibility?: WeatherMetricValue;
 } {
   const dayHours = hourly.filter((point) => getDateIsoFromTimestamp(point.timestampIso, timezone) === dateIso);
   const lowTemperature = summarizeMetric(dayHours, 'temperature2m', 'min');
@@ -454,13 +466,26 @@ export function summarizeDayFromHourly(
   const lowWindSpeed = summarizeMetric(dayHours, 'windSpeed10m', 'min');
   const highWindSpeed = summarizeMetric(dayHours, 'windSpeed10m', 'max');
   const windPoint = pickNearestHour(dayHours, 15, timezone) ?? dayHours.find((point) => point.windDirection10mDegrees !== null && point.windDirection10mDegrees !== undefined);
+  const visibilityPoint =
+    pickNearestHour(
+      dayHours.filter((point) => {
+        const visibility = point.visibility?.corrected ?? point.visibility?.raw;
+        return visibility !== null && visibility !== undefined && !Number.isNaN(visibility);
+      }),
+      12,
+      timezone
+    ) ?? dayHours.find((point) => {
+      const visibility = point.visibility?.corrected ?? point.visibility?.raw;
+      return visibility !== null && visibility !== undefined && !Number.isNaN(visibility);
+    });
 
   return {
     lowTemperature,
     highTemperature,
     lowWindSpeed,
     highWindSpeed,
-    representativeWindDirectionDegrees: windPoint?.windDirection10mDegrees
+    representativeWindDirectionDegrees: windPoint?.windDirection10mDegrees,
+    representativeVisibility: visibilityPoint?.visibility
   };
 }
 
@@ -534,7 +559,7 @@ export function formatSolarOutlookSummary(outlook: SolarDayOutlook | undefined):
     const soFar = formatEnergyKwh(outlook.actualSoFarKwh);
     const total = formatEnergyKwh(outlook.energyKwh);
     if (total !== '—') {
-      return `Solar ${soFar} so far · est ${total} today`;
+      return `Solar ${soFar} so far · ${total} est total`;
     }
     return `Solar ${soFar} so far`;
   }
@@ -544,12 +569,12 @@ export function formatSolarOutlookSummary(outlook: SolarDayOutlook | undefined):
     return '';
   }
   if (peak === '—') {
-    return `Solar ${energy}`;
+    return `Solar est ${energy}`;
   }
   if (energy === '—') {
     return `Solar peak ${peak}`;
   }
-  return `Solar peak ${peak} · ${energy}`;
+  return `Solar est ${energy} · peak ${peak}`;
 }
 
 export function formatMiniSolarOutlookSummary(outlook: SolarDayOutlook | undefined): string {
@@ -557,9 +582,13 @@ export function formatMiniSolarOutlookSummary(outlook: SolarDayOutlook | undefin
     return '';
   }
   const soFar = formatEnergyKwh(outlook.actualSoFarKwh);
+  const remaining = formatEnergyKwh(outlook.forecastRemainingKwh);
   const total = formatEnergyKwh(outlook.energyKwh);
+  if (soFar !== '—' && remaining !== '—') {
+    return `Solar ${soFar} + ${remaining} est`;
+  }
   if (soFar !== '—' && total !== '—') {
-    return `Solar ${soFar} + est ${total} today`;
+    return `Solar ${soFar} · ${total} total`;
   }
   if (soFar !== '—') {
     return `Solar ${soFar} today`;

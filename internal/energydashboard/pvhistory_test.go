@@ -1,6 +1,7 @@
 package energydashboard
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -91,7 +92,8 @@ func TestSummarizePVPortHistoryUsesNumberedPortFamilyWhenLowHighKeysAbsent(t *te
 		Payload: []byte(`{"params":{
 			"inVol": 24.1,
 			"inAmp": 1.2,
-			"outWatts": 28.9,
+			"outWatts": 710.0,
+			"inWatts": 710.0,
 			"pv2InVol": 41.0,
 			"pv2InAmp": 2.0,
 			"pv2ChargeWatts": 82.0
@@ -105,7 +107,7 @@ func TestSummarizePVPortHistoryUsesNumberedPortFamilyWhenLowHighKeysAbsent(t *te
 	for _, row := range got {
 		byPort[row.PortID] = row
 	}
-	if row := byPort["pv-1"]; row.PortLabel != "PV 1" || row.LastObservedWatts != 28.9 {
+	if row := byPort["pv-1"]; row.PortLabel != "PV 1" || math.Abs(row.LastObservedWatts-28.92) > 1e-9 {
 		t.Fatalf("pv-1 summary mismatch: %+v", row)
 	}
 	if row := byPort["pv-2"]; row.PortLabel != "PV 2" || row.LastObservedWatts != 82.0 {
@@ -124,7 +126,8 @@ func TestSummarizePVPortHistorySupportsNumberedMultiPortPayloads(t *testing.T) {
 		Payload: []byte(`{"params":{
 			"inVol": 24.1,
 			"inAmp": 1.2,
-			"outWatts": 28.9,
+			"outWatts": 710.0,
+			"inWatts": 710.0,
 			"pv2InVol": 41.0,
 			"pv2InAmp": 2.0,
 			"pv2ChargeWatts": 82.0,
@@ -143,6 +146,40 @@ func TestSummarizePVPortHistorySupportsNumberedMultiPortPayloads(t *testing.T) {
 	}
 	if row := byPort["pv-3"]; row.PortLabel != "PV 3" || row.LastObservedWatts != 162.0 {
 		t.Fatalf("pv-3 summary mismatch: %+v", row)
+	}
+}
+
+func TestSummarizePVPortHistoryDoesNotUseTotalDeviceWattsForLowPort(t *testing.T) {
+	t.Parallel()
+
+	got := SummarizePVPortHistory([]*envelopev1.TelemetryEnvelope{{
+		DeviceId:           "device-a",
+		PayloadType:        quotaPayloadType,
+		ObservedTimeUnixMs: 1,
+		PayloadEncoding:    envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		Payload: []byte(`{"params":{
+			"inLvMpptVol": 48.0,
+			"inLvMpptAmp": 1.0,
+			"outWatts": 710.0,
+			"inWatts": 710.0,
+			"inHvMpptVol": 40.0,
+			"inHvMpptAmp": 2.0,
+			"pv2ChargeWatts": 82.0
+		}}`),
+	}})
+
+	if len(got) != 2 {
+		t.Fatalf("low/high port count mismatch: got=%d want=2", len(got))
+	}
+	byPort := map[string]PVPortHistory{}
+	for _, row := range got {
+		byPort[row.PortID] = row
+	}
+	if row := byPort["pv-low"]; math.Abs(row.LastObservedWatts-48.0) > 1e-9 {
+		t.Fatalf("pv-low summary mismatch: %+v", row)
+	}
+	if row := byPort["pv-high"]; row.LastObservedWatts != 82.0 {
+		t.Fatalf("pv-high summary mismatch: %+v", row)
 	}
 }
 

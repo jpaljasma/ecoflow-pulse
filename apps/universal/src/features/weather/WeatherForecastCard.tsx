@@ -8,6 +8,7 @@ import {
   formatRelativeWeatherDayLabel,
   formatSolarOutlookSummary,
   formatTemperatureRange,
+  formatVisibilityKilometers,
   formatWeatherValue,
   formatWindRange,
   getTodayIsoInTimezone,
@@ -42,8 +43,9 @@ export function WeatherForecastCard({
 }: Props) {
   const [verificationExpanded, setVerificationExpanded] = useState(false);
   const unitSystem = forecast?.unitSystem ?? 'metric';
+  const todayIso = getTodayIsoInTimezone(forecast?.timezone);
   const visibleDays = (forecast?.daily ?? [])
-    .filter((day) => day.dateIso >= getTodayIsoInTimezone(forecast?.timezone))
+    .filter((day) => day.dateIso >= todayIso)
     .slice(0, 7);
   const statusMessage = errorText ?? (isLoading ? 'Loading 7-day forecast…' : enabled ? ' ' : 'Enable weather location consent to load forecasts.');
   const verificationStatus =
@@ -65,19 +67,12 @@ export function WeatherForecastCard({
   }
 
   return (
-    <Card gap="$4" minHeight={320} opacity={isLoading && forecast ? 0.9 : 1}>
-      <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
-        <YStack gap="$1" flex={1} minWidth={220}>
-          <Text fontSize="$7" fontWeight="800">
-            7-day forecast
-          </Text>
-        </YStack>
-        <YStack gap="$1" alignItems="flex-end" minWidth={180}>
-          <Text fontWeight="700">
-            {forecast?.timezone || 'Timezone auto'}
-          </Text>
-        </YStack>
-      </XStack>
+    <Card gap="$3" padding="$3" minHeight={320} opacity={isLoading && forecast ? 0.9 : 1}>
+      <YStack gap="$1">
+        <Text fontSize="$7" fontWeight="800">
+          7-day forecast
+        </Text>
+      </YStack>
 
       <Text
         fontSize="$1"
@@ -88,15 +83,19 @@ export function WeatherForecastCard({
       </Text>
 
       <YStack gap="$2">
-        {visibleDays.map((day) => {
+        {visibleDays.map((day, index) => {
           const summary = summarizeDayFromHourly(day.dateIso, forecast?.hourly ?? [], forecast?.timezone);
-          const solarDay = solarOutlook?.daily.find((item) => item.dateIso === day.dateIso);
+          const solarDay =
+            solarOutlook?.daily.find((item) => item.dateIso === day.dateIso) ??
+            (day.dateIso === todayIso ? solarOutlook?.today : undefined) ??
+            solarOutlook?.daily[index];
           const solarSummary = formatSolarOutlookSummary(solarDay);
+          const visibilityLabel = formatVisibilityKilometers(summary.representativeVisibility);
           return (
             <XStack
               key={day.dateIso}
               alignItems="center"
-              gap="$3"
+              gap="$2"
               padding="$2"
               borderRadius="$3"
               borderWidth={1}
@@ -130,6 +129,7 @@ export function WeatherForecastCard({
                   />
                   <Text color="$colorMuted" numberOfLines={1}>
                     {formatWindRange(summary.lowWindSpeed, summary.highWindSpeed, unitSystem)}
+                    {visibilityLabel !== '—' ? ` · Vis ${visibilityLabel}` : ''}
                   </Text>
                 </XStack>
               </YStack>
@@ -157,9 +157,9 @@ export function WeatherForecastCard({
           size="$4"
           justifyContent="space-between"
           alignItems="center"
-          paddingHorizontal="$3"
+          paddingHorizontal="$2"
           paddingVertical="$2"
-          borderRadius="$4"
+          borderRadius="$3"
           borderWidth={1}
           onPress={handleVerificationToggle}
           style={{ borderColor: 'rgba(28, 43, 45, 0.12)', backgroundColor: 'rgba(14, 116, 144, 0.04)' }}
@@ -192,8 +192,14 @@ export function WeatherForecastCard({
             </Text>
 
             {verification ? (
-              <>
-                <XStack gap="$3" flexWrap="wrap">
+              <YStack
+                gap="$2"
+                padding="$2"
+                borderRadius="$3"
+                borderWidth={1}
+                style={{ borderColor: 'rgba(28, 43, 45, 0.12)', backgroundColor: 'rgba(14, 116, 144, 0.03)' }}
+              >
+                <XStack gap="$2" flexWrap="wrap">
                   <InfoPill label="Matched hours" value={`${verification.summary.matchedHours}/${verification.summary.comparedHours}`} />
                   <InfoPill label="Source" value={verification.verificationSource} />
                   <InfoPill
@@ -221,7 +227,7 @@ export function WeatherForecastCard({
                     </XStack>
                   ))}
                 </YStack>
-              </>
+              </YStack>
             ) : null}
           </>
         ) : null}
@@ -236,7 +242,7 @@ export function WeatherForecastCard({
 
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
-    <YStack paddingHorizontal="$3" paddingVertical="$2" borderRadius="$5" borderWidth={1} style={{ borderColor: 'rgba(28, 43, 45, 0.12)', backgroundColor: 'rgba(14, 116, 144, 0.06)' }}>
+    <YStack paddingHorizontal="$2" paddingVertical="$2" borderRadius="$5" borderWidth={1} style={{ borderColor: 'rgba(28, 43, 45, 0.12)', backgroundColor: 'rgba(14, 116, 144, 0.06)' }}>
       <Text fontSize="$1" color="$colorMuted">
         {label}
       </Text>

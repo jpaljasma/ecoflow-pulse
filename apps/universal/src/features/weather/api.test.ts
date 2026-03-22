@@ -161,7 +161,7 @@ describe('weather api parsing', () => {
           method: 'live_pv_and_irradiance'
         },
         today: {
-          dateIso: '2026-03-18',
+          dateIso: '2026-03-18T04:00:00.000Z',
           actualGeneratedKwh: 5.2,
           forecastRemainingKwh: 1.8,
           forecastTotalKwh: 7,
@@ -169,7 +169,14 @@ describe('weather api parsing', () => {
           peakTimeIso: '2026-03-18T18:00:00.000Z',
           confidence: 'high'
         },
-        daily: [],
+        daily: [
+          {
+            dateIso: '2026-03-19T04:00:00.000Z',
+            forecastTotalKwh: 4.3,
+            estimatedPeakWatts: 1250,
+            confidence: 'medium'
+          }
+        ],
         next24Hours: []
       }
     });
@@ -177,6 +184,8 @@ describe('weather api parsing', () => {
     const result = await fetchSolarOutlook();
     expect(result.outlook.capacity.estimatedPeakWatts).toBe(1680);
     expect(result.outlook.today?.energyKwh).toBe(7);
+    expect(result.outlook.today?.dateIso).toBe('2026-03-18');
+    expect(result.outlook.daily[0]?.dateIso).toBe('2026-03-19');
     expect(result.outlook.today?.irradianceSource).toBe('unavailable');
     expect(result.outlook.provenance?.servedVariant).toBe('site_calibrated');
     expect(result.outlook.provenance?.calibrationSampleCount).toBe(24);

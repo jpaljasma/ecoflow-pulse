@@ -7,7 +7,7 @@ import {
   type CurrentUserBootstrap,
   type UpdateCurrentUserPayload
 } from '@/features/profile/api';
-import { mergeCurrentUserBootstrap } from '@/features/profile/model';
+import { didWeatherProfileInputsChange, mergeCurrentUserBootstrap } from '@/features/profile/model';
 
 type ProfileQueryOptions = {
   token?: string;
@@ -33,9 +33,16 @@ export function useUpdateCurrentUser(options: ProfileQueryOptions = {}) {
   return useMutation({
     mutationFn: (payload: UpdateCurrentUserPayload) => updateCurrentUser(payload, token),
     onSuccess: (user: CurrentUser) => {
-      queryClient.setQueryData<CurrentUserBootstrap>(['current-user', authKey], (previous) => {
-        return mergeCurrentUserBootstrap(previous, user);
+      const queryKey = ['current-user', authKey] as const;
+      const previous = queryClient.getQueryData<CurrentUserBootstrap>(queryKey);
+      queryClient.setQueryData<CurrentUserBootstrap>(queryKey, (cached) => {
+        return mergeCurrentUserBootstrap(cached, user);
       });
+      if (didWeatherProfileInputsChange(previous?.user, user)) {
+        void queryClient.invalidateQueries({
+          queryKey: ['weather', authKey]
+        });
+      }
     }
   });
 }

@@ -190,7 +190,7 @@ func buildPVPortSpecs(params map[string]any) []pvPortSpec {
 				VoltsFallbackKey: "inVol",
 				AmpsPrimaryKey:   "inLvMpptAmp",
 				AmpsFallbackKey:  "inAmp",
-				WattsKeys:        []string{"pv1ChargeWatts", "outWatts", "inLvMpptPwr", "inWatts"},
+				WattsKeys:        []string{"pv1ChargeWatts", "inLvMpptPwr", "pv1InWatts"},
 			},
 			{
 				PortID:           "pv-high",
@@ -233,7 +233,7 @@ func buildPVPortSpecs(params map[string]any) []pvPortSpec {
 			spec.VoltsFallbackKey = "pv1InVol"
 			spec.AmpsPrimaryKey = "inAmp"
 			spec.AmpsFallbackKey = "pv1InAmp"
-			spec.WattsKeys = []string{"pv1ChargeWatts", "outWatts", "inWatts", "pv1InWatts"}
+			spec.WattsKeys = []string{"pv1ChargeWatts", "pv1InWatts"}
 		} else {
 			prefix := "pv" + strconv.Itoa(index)
 			spec.VoltsPrimaryKey = prefix + "InVol"

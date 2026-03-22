@@ -1,6 +1,7 @@
 package rollupworker
 
 import (
+	"math"
 	"testing"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
@@ -293,8 +294,8 @@ func TestSampleFromEnvelopeExtractsNumberedMultiPVPortObservations(t *testing.T)
 	if sample.PVPorts[2].PortID != "pv-3" || sample.PVPorts[2].PortLabel != "PV 3" {
 		t.Fatalf("third pv port mismatch: %+v", sample.PVPorts[2])
 	}
-	if !sample.Metrics.PV.Valid || sample.Metrics.PV.Value != 545.3 {
-		t.Fatalf("pv sum mismatch: got valid=%v value=%v want=545.3", sample.Metrics.PV.Valid, sample.Metrics.PV.Value)
+	if !sample.Metrics.PV.Valid || math.Abs(sample.Metrics.PV.Value-545.28) > 1e-9 {
+		t.Fatalf("pv sum mismatch: got valid=%v value=%v want=545.28", sample.Metrics.PV.Valid, sample.Metrics.PV.Value)
 	}
 }
 
@@ -321,6 +322,55 @@ func TestSampleFromEnvelopeRejectsInvalidIdentity(t *testing.T) {
 	_, err := SampleFromEnvelope(env)
 	if err != ErrInvalidRollupEnvelope {
 		t.Fatalf("expected ErrInvalidRollupEnvelope, got=%v", err)
+	}
+}
+
+func TestSampleFromEnvelopeDoesNotUseTotalDeviceWattsForNumberedPV1Port(t *testing.T) {
+	t.Parallel()
+
+	env := testEnvelope(`{"params":{"inVol":48000,"inAmp":1000,"outWatts":710.0,"inWatts":710.0,"pv2InVol":40000,"pv2InAmp":2000,"pv2ChargeWatts":80.0,"cmsBattSoc":55}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := len(sample.PVPorts); got != 2 {
+		t.Fatalf("pv port count mismatch: got=%d want=2", got)
+	}
+	if sample.PVPorts[0].PortID != "pv-1" {
+		t.Fatalf("first pv port mismatch: %+v", sample.PVPorts[0])
+	}
+	if sample.PVPorts[0].Watts != 48.0 {
+		t.Fatalf("pv-1 watts mismatch: got=%v want=48", sample.PVPorts[0].Watts)
+	}
+	if sample.PVPorts[1].PortID != "pv-2" || sample.PVPorts[1].Watts != 80.0 {
+		t.Fatalf("pv-2 values mismatch: %+v", sample.PVPorts[1])
+	}
+	if !sample.Metrics.PV.Valid || sample.Metrics.PV.Value != 128.0 {
+		t.Fatalf("pv metric mismatch: got valid=%v value=%v want=128", sample.Metrics.PV.Valid, sample.Metrics.PV.Value)
+	}
+}
+
+func TestSampleFromEnvelopeDoesNotUseTotalDeviceWattsForLowPVPort(t *testing.T) {
+	t.Parallel()
+
+	env := testEnvelope(`{"params":{"inLvMpptVol":48000,"inLvMpptAmp":1000,"outWatts":710.0,"inWatts":710.0,"inHvMpptVol":40000,"inHvMpptAmp":2000,"pv2ChargeWatts":80.0,"cmsBattSoc":55}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := len(sample.PVPorts); got != 2 {
+		t.Fatalf("pv port count mismatch: got=%d want=2", got)
+	}
+	if sample.PVPorts[0].PortID != "pv-low" || sample.PVPorts[0].Watts != 48.0 {
+		t.Fatalf("pv-low values mismatch: %+v", sample.PVPorts[0])
+	}
+	if sample.PVPorts[1].PortID != "pv-high" || sample.PVPorts[1].Watts != 80.0 {
+		t.Fatalf("pv-high values mismatch: %+v", sample.PVPorts[1])
+	}
+	if !sample.Metrics.PV.Valid || sample.Metrics.PV.Value != 128.0 {
+		t.Fatalf("pv metric mismatch: got valid=%v value=%v want=128", sample.Metrics.PV.Valid, sample.Metrics.PV.Value)
 	}
 }
 

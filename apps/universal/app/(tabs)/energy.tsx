@@ -10,6 +10,7 @@ import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { useEnergyComparisonInsight, useEnergyDashboard, useEnergyPvPortHistory } from '@/features/energy/hooks';
 import type { EnergyPVPortHistory } from '@/features/energy/api';
 import {
+  clampPvPowerToConfiguredLimit,
   buildEnergyInsights,
   buildEnergyTrendSeries,
   buildPvEnvelopeSummary,
@@ -96,6 +97,10 @@ function findPVHistoryRow(rows: EnergyPVPortHistory[], deviceId: string, portId:
   return rows.find(
     (row) => row.deviceId === deviceId && canonicalPvPortKey(row.portId) === expectedKey
   );
+}
+
+function displayHistoricalPvWatts(historyRow: EnergyPVPortHistory, configuredMaxWatts: number): number {
+  return clampPvPowerToConfiguredLimit(historyRow.maxObservedWatts, configuredMaxWatts);
 }
 
 function canonicalPvPortKey(portId: string): string {
@@ -708,7 +713,7 @@ export default function EnergyScreen() {
                           <XStack gap="$3" flexWrap="wrap">
                             <Stat
                               label="Hist max"
-                              value={pvHistoryQuery.isLoading ? '…' : historyRow ? `${Math.round(historyRow.maxObservedWatts)}W` : '—'}
+                              value={pvHistoryQuery.isLoading ? '…' : historyRow ? `${Math.round(displayHistoricalPvWatts(historyRow, row.maxPower))}W` : '—'}
                               compact
                             />
                             <Stat
@@ -764,7 +769,7 @@ export default function EnergyScreen() {
                             </Text>
                           ) : historyRow ? (
                             <XStack gap="$3" flexWrap="wrap">
-                              <Stat label="Hist max W" value={`${Math.round(historyRow.maxObservedWatts)}W`} compact />
+                              <Stat label="Hist max W" value={`${Math.round(displayHistoricalPvWatts(historyRow, row.maxPower))}W`} compact />
                               <Stat label="Hist max V" value={`${historyRow.maxObservedVolts.toFixed(1)}V`} compact />
                               <Stat label="Hist max A" value={`${historyRow.maxObservedAmps.toFixed(2)}A`} compact />
                               <Stat label="Samples" value={String(historyRow.sampleCount)} compact />

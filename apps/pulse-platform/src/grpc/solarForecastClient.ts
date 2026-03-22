@@ -200,12 +200,14 @@ async function unaryCall<T>(
   });
 }
 
-function normalizeSolarOutlookResponse(response: Record<string, unknown>): SolarOutlookResponse['outlook'] {
+export function normalizeSolarOutlookResponse(response: Record<string, unknown>): SolarOutlookResponse['outlook'] {
   const scope = toObject(response.scope);
   const provenance = toObject(response.provenance);
   const today = toGenerationDay(response.today);
-  const daily = toArray(response.next7Days).map(toGenerationDay).filter(Boolean) as SolarGenerationDay[];
-  const next24Hours = toArray(response.next24Hours)
+  const daily = toArray(response.next7Days ?? response.next_7Days)
+    .map(toGenerationDay)
+    .filter(Boolean) as SolarGenerationDay[];
+  const next24Hours = toArray(response.next24Hours ?? response.next_24Hours)
     .map(toGenerationPoint)
     .filter(Boolean) as SolarGenerationPoint[];
   return {

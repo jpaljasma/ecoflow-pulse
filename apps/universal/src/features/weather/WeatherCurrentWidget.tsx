@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text, XStack, YStack } from 'tamagui';
 import { Card } from '@/shared/ui/Card';
 import {
+  formatVisibilityKilometers,
   formatSolarCapacitySummary,
   formatSolarModelSummary,
   formatSolarOutlookSummary,
@@ -36,6 +37,7 @@ export function WeatherCurrentWidget({
   const windSummary = current
     ? formatWindSummary(current.windSpeed10m, forecast?.unitSystem ?? 'metric')
     : 'Wind unavailable';
+  const visibilityLabel = current ? formatVisibilityKilometers(current.visibility) : '—';
   const dayparts = getForecastDayparts(forecast?.hourly ?? [], forecast?.timezone);
   const solarTodaySummary = formatSolarOutlookSummary(solarOutlook?.today);
   const solarCapacitySummary = formatSolarCapacitySummary(solarOutlook?.capacity);
@@ -65,7 +67,7 @@ export function WeatherCurrentWidget({
           <XStack alignItems="center" gap={6}>
             <WindDirectionIcon directionDegrees={current?.windDirection10mDegrees} size={14} />
             <Text color="$colorMuted" numberOfLines={1}>
-              {windSummary}
+              {visibilityLabel !== '—' ? `${windSummary} · Vis ${visibilityLabel}` : windSummary}
             </Text>
           </XStack>
         </YStack>

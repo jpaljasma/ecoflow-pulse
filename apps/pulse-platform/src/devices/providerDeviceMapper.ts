@@ -484,8 +484,6 @@ function buildNumberedSolarPorts(
         ? firstDefined(
             toNumber(pd.pv1ChargeWatts),
             toNumber(mppt.pv1ChargeWatts),
-            toNumber(mppt.outWatts),
-            toNumber(mppt.inWatts),
             toNumber(mppt.pv1InWatts),
             multiplyNumbers(volts, amps)
           )
