@@ -47,6 +47,9 @@ function makeDeviceClient(): DeviceClient {
   return {
     listDevices: vi.fn(async () => []),
     getDevice: vi.fn(async () => null),
+    listAvailableDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    testAvailableDeviceMQTT: vi.fn(),
+    enableAvailableDevice: vi.fn(async () => ({ deviceId: '' })),
     close: vi.fn()
   };
 }
@@ -102,6 +105,9 @@ function makeControlPlaneClient(overrides: Partial<ControlPlaneClient> = {}): Co
     refreshCurrentUserIdentity: vi.fn(async () => sampleCurrentUser()),
     listUserDevices: vi.fn(async () => []),
     listDevices: vi.fn(async () => []),
+    listAvailableProviderDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    testProviderDeviceMQTT: vi.fn(),
+    enableProviderDevice: vi.fn(),
     close: vi.fn(),
     ...overrides
   };
@@ -350,6 +356,37 @@ describe('pulse-platform current user routes', () => {
     expect(metrics.body).toContain('outcome="http_error"');
     expect(metrics.body).toContain('pulse_public_client_rest_errors_total');
     expect(metrics.body).toContain('error_kind="status_5xx"');
+
+    await app.close();
+  });
+
+  it('accepts client-observed REST metrics for available-device routes', async () => {
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient()
+    });
+
+    const event = await app.inject({
+      method: 'POST',
+      url: '/api/v1/client-metrics/rest',
+      payload: {
+        route: '/api/v1/devices/available',
+        method: 'GET',
+        outcome: 'success',
+        statusClass: '2xx',
+        durationMs: 121,
+        errorKind: 'none'
+      }
+    });
+
+    expect(event.statusCode).toBe(202);
+
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/metrics'
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.body).toContain('route="/api/v1/devices/available"');
 
     await app.close();
   });

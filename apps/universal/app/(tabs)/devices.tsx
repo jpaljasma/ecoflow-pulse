@@ -14,6 +14,7 @@ import {
 } from '@/features/telemetry/hooks';
 import { SummaryPanel } from '@/features/devices/SummaryPanel';
 import { DeviceList } from '@/features/devices/DeviceList';
+import { AvailableDevicesPanel } from '@/features/devices/AvailableDevicesPanel';
 import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { FleetEnergyImpactCard } from '@/features/energy-impact/FleetEnergyImpactCard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
@@ -143,6 +144,13 @@ export default function DevicesScreen() {
                 <SummaryPanel devices={devicesQuery.data.devices} />
                 <FleetEnergyImpactCard devices={devicesQuery.data.devices} />
               </YStack>
+            )}
+            footer={(
+              <AvailableDevicesPanel
+                token={token}
+                authKey={authKey}
+                enabled={authReady && allowed}
+              />
             )}
           />
         </YStack>

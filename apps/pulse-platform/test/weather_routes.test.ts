@@ -48,6 +48,9 @@ function makeDeviceClient(): DeviceClient {
   return {
     listDevices: vi.fn(),
     getDevice: vi.fn(),
+    listAvailableDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    testAvailableDeviceMQTT: vi.fn(),
+    enableAvailableDevice: vi.fn(async () => ({ deviceId: '' })),
     close: vi.fn()
   };
 }
@@ -107,6 +110,9 @@ function makeControlPlaneClient(
     refreshCurrentUserIdentity: vi.fn(),
     listUserDevices: vi.fn(),
     listDevices: vi.fn(),
+    listAvailableProviderDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    testProviderDeviceMQTT: vi.fn(),
+    enableProviderDevice: vi.fn(),
     close: vi.fn(),
     ...overrides
   };

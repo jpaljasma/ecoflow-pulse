@@ -34,6 +34,28 @@ export type ProviderDeviceGroup = {
   devices: ProviderDevice[];
 };
 
+export type AvailableProviderDevice = {
+  provider: string;
+  providerDeviceId: string;
+  credentialId: string;
+  canonicalSn: string;
+  productName: string;
+  model: string;
+};
+
+export type AvailableProviderDevicesResponse = {
+  devices: AvailableProviderDevice[];
+  hasActiveCredentials: boolean;
+};
+
+export type ProviderDeviceMQTTTestResult = {
+  success: boolean;
+  status: string;
+  sampleTopic: string;
+  payloadBytes: string;
+  observedAtUnixMs: string;
+};
+
 export type CurrentUser = {
   id: string;
   keycloakSubject: string;
@@ -84,6 +106,34 @@ export type ListDevicesInput = {
   deadlineMs: number;
 };
 
+export type ListAvailableProviderDevicesInput = {
+  userSubject: string;
+  provider?: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type TestProviderDeviceMQTTInput = {
+  userSubject: string;
+  provider: string;
+  credentialId: string;
+  providerDeviceId: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type EnableProviderDeviceInput = {
+  userSubject: string;
+  provider: string;
+  credentialId: string;
+  providerDeviceId: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
 export type GetCurrentUserInput = {
   userSubject: string;
   authHeader?: string;
@@ -126,6 +176,12 @@ export interface ControlPlaneClient {
   refreshCurrentUserIdentity(input: RefreshCurrentUserIdentityInput): Promise<CurrentUser>;
   listUserDevices(input: ListUserDevicesInput): Promise<UserDevice[]>;
   listDevices(input: ListDevicesInput): Promise<ProviderDeviceGroup[]>;
+  listAvailableProviderDevices(input: ListAvailableProviderDevicesInput): Promise<AvailableProviderDevicesResponse>;
+  testProviderDeviceMQTT(input: TestProviderDeviceMQTTInput): Promise<ProviderDeviceMQTTTestResult>;
+  enableProviderDevice(input: EnableProviderDeviceInput): Promise<{
+    providerDevice: ProviderDevice;
+    userDevice: UserDevice;
+  }>;
   close(): void;
 }
 
@@ -142,6 +198,9 @@ type GrpcControlPlaneClient = {
   RefreshCurrentUserIdentity: GrpcUnaryMethod;
   ListUserDevices: GrpcUnaryMethod;
   ListDevices: GrpcUnaryMethod;
+  ListAvailableProviderDevices: GrpcUnaryMethod;
+  TestProviderDeviceMQTT: GrpcUnaryMethod;
+  EnableProviderDevice: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -171,6 +230,16 @@ type RawProviderDeviceGroup = {
 };
 type RawListDevicesResponse = {
   groups?: unknown;
+};
+type RawAvailableProviderDevice = Partial<Record<keyof AvailableProviderDevice, unknown>>;
+type RawListAvailableProviderDevicesResponse = {
+  devices?: unknown;
+  hasActiveCredentials?: unknown;
+};
+type RawTestProviderDeviceMQTTResponse = Partial<Record<keyof ProviderDeviceMQTTTestResult, unknown>>;
+type RawEnableProviderDeviceResponse = {
+  providerDevice?: unknown;
+  userDevice?: unknown;
 };
 
 type RawCurrentUser = Partial<Record<keyof CurrentUser, unknown>>;
@@ -279,6 +348,51 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
       }
       return response.groups.map((row) => normalizeProviderDeviceGroup(row as RawProviderDeviceGroup));
     },
+    async listAvailableProviderDevices(input) {
+      const response = await unaryCall<RawListAvailableProviderDevicesResponse>(
+        client.ListAvailableProviderDevices.bind(client),
+        {
+          userSubject: input.userSubject,
+          provider: input.provider ?? ''
+        },
+        input
+      );
+      return {
+        devices: Array.isArray(response.devices)
+          ? response.devices.map((row) => normalizeAvailableProviderDevice(row as RawAvailableProviderDevice))
+          : [],
+        hasActiveCredentials: Boolean(response.hasActiveCredentials)
+      };
+    },
+    async testProviderDeviceMQTT(input) {
+      const response = await unaryCall<RawTestProviderDeviceMQTTResponse>(
+        client.TestProviderDeviceMQTT.bind(client),
+        {
+          userSubject: input.userSubject,
+          provider: input.provider,
+          credentialId: input.credentialId,
+          providerDeviceId: input.providerDeviceId
+        },
+        input
+      );
+      return normalizeProviderDeviceMQTTTestResult(response);
+    },
+    async enableProviderDevice(input) {
+      const response = await unaryCall<RawEnableProviderDeviceResponse>(
+        client.EnableProviderDevice.bind(client),
+        {
+          userSubject: input.userSubject,
+          provider: input.provider,
+          credentialId: input.credentialId,
+          providerDeviceId: input.providerDeviceId
+        },
+        input
+      );
+      return {
+        providerDevice: normalizeProviderDevice((response.providerDevice ?? {}) as RawProviderDevice),
+        userDevice: normalizeUserDevice((response.userDevice ?? {}) as RawUserDevice)
+      };
+    },
     close() {
       client.close();
     }
@@ -348,6 +462,29 @@ function normalizeProviderDevice(device: RawProviderDevice): ProviderDevice {
     ingestDesiredState: normalizeString(device.ingestDesiredState),
     capabilities: normalizeRecord(device.capabilities),
     metadata: normalizeRecord(device.metadata)
+  };
+}
+
+function normalizeAvailableProviderDevice(device: RawAvailableProviderDevice): AvailableProviderDevice {
+  return {
+    provider: normalizeString(device.provider),
+    providerDeviceId: normalizeString(device.providerDeviceId),
+    credentialId: normalizeString(device.credentialId),
+    canonicalSn: normalizeString(device.canonicalSn),
+    productName: normalizeString(device.productName),
+    model: normalizeString(device.model)
+  };
+}
+
+function normalizeProviderDeviceMQTTTestResult(
+  result: RawTestProviderDeviceMQTTResponse
+): ProviderDeviceMQTTTestResult {
+  return {
+    success: Boolean(result.success),
+    status: normalizeString(result.status),
+    sampleTopic: normalizeString(result.sampleTopic),
+    payloadBytes: normalizeString(result.payloadBytes),
+    observedAtUnixMs: normalizeString(result.observedAtUnixMs)
   };
 }
 

@@ -7,6 +7,7 @@ go test ./...
 make test-race
 make test-race-stress
 go run ./cmd/ecoflow-smoke
+go run ./cmd/ecoflow-smoke -mqtt=false
 go run ./cmd/ecoflow-server
 go run ./cmd/ecoflow-pv-fingerprint
 go run ./cmd/ecoflow-panel-db-import
@@ -31,6 +32,17 @@ make pgroll-start-local PGROLL_PLAN=deploy/db/pgroll/plans/<plan-file>
 make pgroll-complete-local
 make pgroll-rollback-local
 ```
+
+Notes for `cmd/ecoflow-smoke`:
+
+- Default behavior now does both:
+  - EcoFlow API list/quota smoke checks
+  - shared MQTT probe across all discovered devices
+- The MQTT probe prints ongoing status updates, keeps waiting until each
+  discovered device has produced live data, and exits early if you interrupt
+  it with `Ctrl-C`.
+- Use `go run ./cmd/ecoflow-smoke -mqtt=false` for the old API-only quick
+  connectivity check.
 
 Run the forward-only rollout migration runner directly (the same binary used by
 the Helm/Argo hook job):

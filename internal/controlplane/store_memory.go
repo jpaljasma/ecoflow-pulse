@@ -147,6 +147,8 @@ func (s *MemoryStore) ListProviderCredentials(_ context.Context, in ListProvider
 		if provider != "" && row.Provider != provider {
 			continue
 		}
+		row.AccessKey = ""
+		row.SecretKey = ""
 		out = append(out, row)
 	}
 	sort.Slice(out, func(i, j int) bool {

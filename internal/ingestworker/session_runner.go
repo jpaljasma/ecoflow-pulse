@@ -380,7 +380,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 		return false, fmt.Errorf("resolve mqtt certification for %s/%s: %w", a.Provider, a.ProviderDeviceID, err)
 	}
 
-	address, topic, err := mqttAddressAndTopic(cert, a.ProviderDeviceID)
+	address, topic, err := provideradapter.BuildMQTTAddressAndTopic(cert, a.ProviderDeviceID)
 	if err != nil {
 		return false, err
 	}
@@ -648,23 +648,6 @@ func credentialFromAssignment(a controlplane.IngestAssignment) controlplane.Prov
 		SecretKey: a.SecretKey,
 		IsActive:  a.CredentialIsActive,
 	}
-}
-
-func mqttAddressAndTopic(cert ecoflow.GeneralInfoMQTTCertification, providerDeviceID string) (address string, topic string, err error) {
-	url := strings.TrimSpace(cert.URL)
-	port := strings.TrimSpace(cert.Port)
-	account := strings.TrimSpace(cert.CertificateAccount)
-	if url == "" || port == "" {
-		return "", "", errors.New("mqtt certification missing broker url/port")
-	}
-	if account == "" {
-		return "", "", errors.New("mqtt certification missing certificate account")
-	}
-	sn := strings.ToUpper(strings.TrimSpace(providerDeviceID))
-	if sn == "" {
-		return "", "", errors.New("provider_device_id is required")
-	}
-	return fmt.Sprintf("%s:%s", url, port), fmt.Sprintf("/open/%s/%s/quota", account, sn), nil
 }
 
 func nextBackoff(current, max time.Duration) time.Duration {

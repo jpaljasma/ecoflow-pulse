@@ -82,8 +82,38 @@ export const DevicesResponseSchema = z.object({
   devices: z.array(DeviceSchema)
 });
 
+export const AvailableDeviceSchema = z.object({
+  provider: z.string(),
+  providerDeviceId: z.string(),
+  credentialId: z.string(),
+  serialNumber: z.string(),
+  name: z.string(),
+  model: z.string()
+});
+
+export const AvailableDevicesResponseSchema = z.object({
+  devices: z.array(AvailableDeviceSchema),
+  hasActiveCredentials: z.boolean()
+});
+
+export const DeviceMQTTTestResultSchema = z.object({
+  success: z.boolean(),
+  status: z.string(),
+  sampleTopic: z.string(),
+  payloadBytes: z.string(),
+  observedAtUnixMs: z.string()
+});
+
+export const EnableAvailableDeviceResponseSchema = z.object({
+  deviceId: z.string()
+});
+
 export type DeviceSummary = z.infer<typeof DeviceSchema>;
 export type DevicesResponse = z.infer<typeof DevicesResponseSchema>;
+export type AvailableDeviceSummary = z.infer<typeof AvailableDeviceSchema>;
+export type AvailableDevicesResponse = z.infer<typeof AvailableDevicesResponseSchema>;
+export type DeviceMQTTTestResult = z.infer<typeof DeviceMQTTTestResultSchema>;
+export type EnableAvailableDeviceResponse = z.infer<typeof EnableAvailableDeviceResponseSchema>;
 
 export async function fetchDevices(token?: string): Promise<DevicesResponse> {
   const data = await requestJson<unknown>('/api/devices', { token });
@@ -96,4 +126,33 @@ export async function fetchDevice(
 ): Promise<DeviceSummary> {
   const data = await requestJson<unknown>(`/api/devices/${deviceId}`, { token });
   return DeviceSchema.parse(data);
+}
+
+export async function fetchAvailableDevices(token?: string): Promise<AvailableDevicesResponse> {
+  const data = await requestJson<unknown>('/api/v1/devices/available', { token });
+  return AvailableDevicesResponseSchema.parse(data);
+}
+
+export async function testAvailableDeviceMQTT(
+  payload: { provider: string; credentialId: string; providerDeviceId: string },
+  token?: string
+): Promise<DeviceMQTTTestResult> {
+  const data = await requestJson<unknown>('/api/v1/devices/available/test-mqtt', {
+    method: 'POST',
+    body: payload,
+    token
+  });
+  return DeviceMQTTTestResultSchema.parse(data);
+}
+
+export async function enableAvailableDevice(
+  payload: { provider: string; credentialId: string; providerDeviceId: string },
+  token?: string
+): Promise<EnableAvailableDeviceResponse> {
+  const data = await requestJson<unknown>('/api/v1/devices/available/enable', {
+    method: 'POST',
+    body: payload,
+    token
+  });
+  return EnableAvailableDeviceResponseSchema.parse(data);
 }
