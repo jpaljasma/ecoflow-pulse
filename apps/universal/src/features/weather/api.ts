@@ -254,7 +254,14 @@ export async function fetchSolarOutlook(token?: string): Promise<SolarOutlookRes
       capacity: z.object({
         estimatedPeakWatts: z.number().optional(),
         observedPvWatts: z.number().optional(),
-        method: z.enum(['live_pv_and_irradiance', 'live_pv_only', 'input_ceiling', 'unavailable'])
+        method: z.enum([
+          'rolling_observed_p95',
+          'rolling_observed_p95_and_irradiance',
+          'live_pv_and_irradiance',
+          'live_pv_only',
+          'input_ceiling',
+          'unavailable'
+        ])
       }),
       today: z
         .object({

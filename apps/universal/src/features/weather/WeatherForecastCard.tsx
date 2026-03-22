@@ -83,12 +83,11 @@ export function WeatherForecastCard({
       </Text>
 
       <YStack gap="$2">
-        {visibleDays.map((day, index) => {
+        {visibleDays.map((day) => {
           const summary = summarizeDayFromHourly(day.dateIso, forecast?.hourly ?? [], forecast?.timezone);
           const solarDay =
             solarOutlook?.daily.find((item) => item.dateIso === day.dateIso) ??
-            (day.dateIso === todayIso ? solarOutlook?.today : undefined) ??
-            solarOutlook?.daily[index];
+            (day.dateIso === todayIso ? solarOutlook?.today : undefined);
           const solarSummary = formatSolarOutlookSummary(solarDay);
           const visibilityLabel = formatVisibilityKilometers(summary.representativeVisibility);
           return (

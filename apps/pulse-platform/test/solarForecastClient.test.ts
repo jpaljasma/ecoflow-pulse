@@ -27,7 +27,7 @@ describe('solarForecastClient', () => {
       capacity: {
         estimatedPeakWatts: { value: 1680 },
         observedPvWatts: { value: 1230 },
-        method: 'live_pv_and_irradiance'
+        method: 'rolling_observed_p95'
       },
       today: {
         dateUnixMs: String(Date.UTC(2026, 2, 21)),
@@ -77,5 +77,6 @@ describe('solarForecastClient', () => {
         forecastGeneratedWh: 240
       })
     ]);
+    expect(outlook.capacity.method).toBe('rolling_observed_p95');
   });
 });

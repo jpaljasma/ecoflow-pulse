@@ -158,7 +158,7 @@ describe('weather api parsing', () => {
         capacity: {
           estimatedPeakWatts: 1680,
           observedPvWatts: 1230,
-          method: 'live_pv_and_irradiance'
+          method: 'rolling_observed_p95'
         },
         today: {
           dateIso: '2026-03-18T04:00:00.000Z',
@@ -189,5 +189,6 @@ describe('weather api parsing', () => {
     expect(result.outlook.today?.irradianceSource).toBe('unavailable');
     expect(result.outlook.provenance?.servedVariant).toBe('site_calibrated');
     expect(result.outlook.provenance?.calibrationSampleCount).toBe(24);
+    expect(result.outlook.capacity.method).toBe('rolling_observed_p95');
   });
 });

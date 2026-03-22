@@ -487,20 +487,26 @@ func sumMetrics(left, right telemetryquery.Metrics) telemetryquery.Metrics {
 
 func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.HourlyForecastPoint) CapacityEstimate {
 	observedPeak := observedPeakWatts(points)
-	if observedPeak <= 0 {
+	observedEnvelope := observedPotentialWatts(points)
+	if observedEnvelope <= 0 && observedPeak <= 0 {
 		return CapacityEstimate{Method: "unavailable"}
 	}
-	if factor := resolveIrradianceFactor(current); factor >= 0.35 {
-		inferred := observedPeak / factor
-		estimate := roundWatts(math.Max(observedPeak, inferred*0.6))
-		return CapacityEstimate{
-			EstimatedPeakWatts: floatPtr(estimate),
-			ObservedPvWatts:    floatPtr(roundWatts(observedPeak)),
-			Method:             "live_pv_and_irradiance",
+	if observedEnvelope > 0 {
+		method := "rolling_observed_p95"
+		if resolveIrradianceFactor(current) >= 0.35 {
+			method = "rolling_observed_p95_and_irradiance"
 		}
+		capacity := CapacityEstimate{
+			EstimatedPeakWatts: floatPtr(roundWatts(observedEnvelope)),
+			Method:             method,
+		}
+		if observedPeak > 0 {
+			capacity.ObservedPvWatts = floatPtr(roundWatts(observedPeak))
+		}
+		return capacity
 	}
 	return CapacityEstimate{
-		EstimatedPeakWatts: floatPtr(roundWatts(observedPeak * 1.1)),
+		EstimatedPeakWatts: floatPtr(roundWatts(observedPeak)),
 		ObservedPvWatts:    floatPtr(roundWatts(observedPeak)),
 		Method:             "live_pv_only",
 	}
@@ -765,6 +771,38 @@ func buildTrainingRows(
 }
 
 func estimateForecastWatts(point weatherd.HourlyForecastPoint, estimatedPeakWatts *float64, nowUTC time.Time, loc *time.Location, calibrationIndex CalibrationIndex, siteCalibrationRatio *float64) *float64 {
+	base := estimateBaselineForecastWatts(point, estimatedPeakWatts)
+	if base == nil {
+		return nil
+	}
+	baseWatts := *base * atmosphericAttenuationFactor(point)
+	if baseWatts <= 0 {
+		return nil
+	}
+	base = floatPtr(round1(baseWatts))
+	capLimit := *estimatedPeakWatts * maxForecastPeakOutputScale
+	if loc == nil {
+		return base
+	}
+	hoursAhead := int(math.Ceil(point.Time.Sub(nowUTC).Hours()))
+	if hoursAhead < 0 {
+		hoursAhead = 0
+	}
+	state := lookupCalibration(calibrationIndex, horizonBucketForHours(hoursAhead), point.Time.In(loc).Hour())
+	if hasUsableCalibrationState(state) {
+		calibrated := ApplyGenerationCalibration(base, state)
+		if calibrated == nil {
+			return nil
+		}
+		return floatPtr(round1(math.Min(*calibrated, capLimit)))
+	}
+	if siteCalibrationRatio == nil {
+		return base
+	}
+	return floatPtr(round1(math.Min(*base*clampCalibrationRatio(*siteCalibrationRatio), capLimit)))
+}
+
+func estimateBaselineForecastWatts(point weatherd.HourlyForecastPoint, estimatedPeakWatts *float64) *float64 {
 	if estimatedPeakWatts == nil || *estimatedPeakWatts <= 0 {
 		return nil
 	}
@@ -784,22 +822,7 @@ func estimateForecastWatts(point weatherd.HourlyForecastPoint, estimatedPeakWatt
 	if watts <= 0 {
 		return nil
 	}
-	base := floatPtr(round1(watts))
-	if loc == nil {
-		return base
-	}
-	hoursAhead := int(math.Ceil(point.Time.Sub(nowUTC).Hours()))
-	if hoursAhead < 0 {
-		hoursAhead = 0
-	}
-	state := lookupCalibration(calibrationIndex, horizonBucketForHours(hoursAhead), point.Time.In(loc).Hour())
-	if hasUsableCalibrationState(state) {
-		return ApplyGenerationCalibration(base, state)
-	}
-	if siteCalibrationRatio == nil {
-		return base
-	}
-	return floatPtr(round1(*base * clampCalibrationRatio(*siteCalibrationRatio)))
+	return floatPtr(round1(watts))
 }
 
 func estimateDisplayedForecastWatts(
@@ -836,6 +859,46 @@ func resolveIrradianceFactor(point *weatherd.HourlyForecastPoint) float64 {
 	return clamp(*value/1000, 0, 1.1)
 }
 
+func atmosphericAttenuationFactor(point weatherd.HourlyForecastPoint) float64 {
+	codeFactor := 1.0
+	visibilityFactor := 1.0
+	precipitationFactor := 1.0
+	if visibility := valueOrNil(point.Corrected.Visibility, point.Raw.Visibility); visibility != nil && !math.IsNaN(*visibility) {
+		visibilityKM := *visibility / 1000
+		switch {
+		case visibilityKM < 2:
+			visibilityFactor = 0.82
+		case visibilityKM < 5:
+			visibilityFactor = 0.88
+		case visibilityKM < 10:
+			visibilityFactor = 0.94
+		case visibilityKM < 20:
+			visibilityFactor = 0.98
+		}
+	}
+	switch point.Condition.WeatherCode {
+	case 45, 48:
+		codeFactor = 0.82
+	case 51, 53, 55, 56, 57:
+		codeFactor = 0.90
+	case 61, 63, 65, 66, 67, 80, 81, 82:
+		codeFactor = 0.86
+	case 71, 73, 75, 77, 85, 86:
+		codeFactor = 0.90
+	case 95, 96, 99:
+		codeFactor = 0.80
+	}
+	if precipitation := valueOrNil(point.Corrected.Precipitation, point.Raw.Precipitation); precipitation != nil && !math.IsNaN(*precipitation) {
+		if *precipitation > 0.5 {
+			precipitationFactor = 0.95
+		} else if *precipitation > 0 {
+			precipitationFactor = 0.98
+		}
+	}
+	factor := math.Min(codeFactor, math.Min(visibilityFactor, precipitationFactor))
+	return clamp(factor, 0.80, 1)
+}
+
 func deriveTodayRemainingScale(
 	history telemetryquery.Series,
 	hourly []weatherd.HourlyForecastPoint,
@@ -861,7 +924,7 @@ func deriveTodayRemainingScale(
 		if localDateISO(point.Time, loc) != todayISO || point.Time.After(nowUTC) {
 			continue
 		}
-		watts := estimateForecastWatts(point, estimatedPeakWatts, nowUTC, loc, calibrationIndex, siteCalibrationRatio)
+		watts := estimateBaselineForecastWatts(point, estimatedPeakWatts)
 		if watts == nil || *watts <= 0 {
 			continue
 		}
@@ -933,6 +996,54 @@ func observedPeakWatts(points []telemetryquery.Point) float64 {
 		}
 	}
 	return peak
+}
+
+func observedPotentialWatts(points []telemetryquery.Point) float64 {
+	if len(points) == 0 {
+		return 0
+	}
+	samples := make([]float64, 0, len(points))
+	for _, point := range points {
+		candidate := observedPowerCandidate(point)
+		if candidate <= 0 {
+			continue
+		}
+		samples = append(samples, candidate)
+	}
+	return percentile(samples, 0.95)
+}
+
+func observedPowerCandidate(point telemetryquery.Point) float64 {
+	var candidate float64
+	if point.Metrics.SolarGeneratedWh != nil {
+		durationHours := point.BucketEnd.Sub(point.BucketStart).Hours()
+		if durationHours > 0 {
+			candidate = math.Max(candidate, *point.Metrics.SolarGeneratedWh/durationHours)
+		}
+	}
+	if point.Metrics.PVAvgW != nil {
+		candidate = math.Max(candidate, *point.Metrics.PVAvgW)
+	}
+	return candidate
+}
+
+func percentile(values []float64, ratio float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	if len(sorted) == 1 {
+		return sorted[0]
+	}
+	position := clamp(ratio, 0, 1) * float64(len(sorted)-1)
+	lower := int(math.Floor(position))
+	upper := int(math.Ceil(position))
+	if lower == upper {
+		return sorted[lower]
+	}
+	weight := position - float64(lower)
+	return sorted[lower] + ((sorted[upper] - sorted[lower]) * weight)
 }
 
 func todayActualWh(points []telemetryquery.Point, loc *time.Location, todayISO string) float64 {

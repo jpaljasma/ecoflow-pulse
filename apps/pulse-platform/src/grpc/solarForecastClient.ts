@@ -21,7 +21,13 @@ export type SolarOutlookRequest = {
 export type SolarCapacityEstimate = {
   estimatedPeakWatts?: number;
   observedPvWatts?: number;
-  method: 'live_pv_and_irradiance' | 'live_pv_only' | 'input_ceiling' | 'unavailable';
+  method:
+    | 'rolling_observed_p95'
+    | 'rolling_observed_p95_and_irradiance'
+    | 'live_pv_and_irradiance'
+    | 'live_pv_only'
+    | 'input_ceiling'
+    | 'unavailable';
 };
 
 export type SolarGenerationDay = {

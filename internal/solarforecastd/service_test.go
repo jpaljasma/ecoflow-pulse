@@ -379,12 +379,20 @@ func TestGetSolarOutlookAppliesCalibrationRatio(t *testing.T) {
 	if got, want := outlook.Provenance.CalibrationSampleCount, 10; got != want {
 		t.Fatalf("outlook.Provenance.CalibrationSampleCount = %d, want %d", got, want)
 	}
-	if got, want := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh), 269.8; got != want {
+	want := valueOrZero(estimateForecastWatts(
+		weather.bundle.Hourly[0],
+		outlook.Capacity.EstimatedPeakWatts,
+		nowUTC,
+		loc,
+		BuildCalibrationIndex(store.calibrationStates),
+		nil,
+	))
+	if got := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh); got != want {
 		t.Fatalf("outlook.Next24Hours[0].ForecastGeneratedWh = %v, want %v", got, want)
 	}
 }
 
-func TestEstimateForecastWattsUsesIrradianceWithoutSecondWeatherPenalty(t *testing.T) {
+func TestEstimateForecastWattsUsesIrradianceBaselineOnClearWeather(t *testing.T) {
 	t.Parallel()
 
 	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
@@ -393,12 +401,11 @@ func TestEstimateForecastWattsUsesIrradianceWithoutSecondWeatherPenalty(t *testi
 	point := weatherd.HourlyForecastPoint{
 		Time: time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
 		Condition: weatherd.WeatherCondition{
-			WeatherCode: 61,
+			WeatherCode: 0,
 		},
 		Raw: weatherd.ForecastValueSet{
 			Temperature:             float64Ptr(6),
-			CloudCover:              float64Ptr(92),
-			Precipitation:           float64Ptr(0.8),
+			CloudCover:              float64Ptr(10),
 			ShortwaveRadiation:      float64Ptr(420),
 			SunshineDurationSeconds: float64Ptr(0),
 		},
@@ -414,6 +421,160 @@ func TestEstimateForecastWattsUsesIrradianceWithoutSecondWeatherPenalty(t *testi
 	)
 	if diff := math.Abs(*got - round1(want)); diff > 0.0001 {
 		t.Fatalf("estimateForecastWatts() = %v, want %v", *got, want)
+	}
+}
+
+func TestEstimateForecastWattsUsesBoundedSecondaryWeatherAttenuation(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	estimatedPeakWatts := 1920.0
+	point := weatherd.HourlyForecastPoint{
+		Time:      time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+		Condition: weatherd.WeatherCondition{WeatherCode: 61},
+		Raw: weatherd.ForecastValueSet{
+			Temperature:        float64Ptr(10),
+			ShortwaveRadiation: float64Ptr(800),
+			Visibility:         float64Ptr(5000),
+			Precipitation:      float64Ptr(0.8),
+		},
+	}
+
+	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, nil)
+	if got == nil {
+		t.Fatal("estimateForecastWatts() = nil, want value")
+	}
+	want := round1(estimatedPeakWatts * 0.8 * baseSystemEfficiencyFactor * atmosphericAttenuationFactor(point))
+	if *got != want {
+		t.Fatalf("estimateForecastWatts() = %v, want attenuated %v", *got, want)
+	}
+}
+
+func TestAtmosphericAttenuationFactorDoesNotStackRainAndPrecipitation(t *testing.T) {
+	t.Parallel()
+
+	point := weatherd.HourlyForecastPoint{
+		Condition: weatherd.WeatherCondition{WeatherCode: 61},
+		Raw: weatherd.ForecastValueSet{
+			Visibility:    float64Ptr(12000),
+			Precipitation: float64Ptr(1.2),
+		},
+	}
+
+	got := atmosphericAttenuationFactor(point)
+	if got != 0.86 {
+		t.Fatalf("atmosphericAttenuationFactor() = %v, want 0.86", got)
+	}
+}
+
+func TestEstimateForecastWattsRecapsAfterCalibration(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	estimatedPeakWatts := 1920.0
+	ratio := 1.8
+	point := weatherd.HourlyForecastPoint{
+		Time:      time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+		Condition: weatherd.WeatherCondition{WeatherCode: 0},
+		Raw: weatherd.ForecastValueSet{
+			Temperature:        float64Ptr(10),
+			ShortwaveRadiation: float64Ptr(1000),
+		},
+	}
+
+	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, &ratio)
+	if got == nil {
+		t.Fatal("estimateForecastWatts() = nil, want value")
+	}
+	want := round1(estimatedPeakWatts * maxForecastPeakOutputScale)
+	if *got != want {
+		t.Fatalf("estimateForecastWatts() = %v, want post-calibration cap %v", *got, want)
+	}
+}
+
+func TestInferCapacityEstimateUsesRollingObservedP95Envelope(t *testing.T) {
+	t.Parallel()
+
+	points := []telemetryquery.Point{
+		{
+			BucketStart: time.Date(2026, 3, 16, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 16, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVMaxW:           float64Ptr(4100),
+				PVAvgW:           float64Ptr(1680),
+				SolarGeneratedWh: float64Ptr(1700),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 17, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 17, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1760),
+				SolarGeneratedWh: float64Ptr(1750),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 18, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1840),
+				SolarGeneratedWh: float64Ptr(1830),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 19, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 19, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1930),
+				SolarGeneratedWh: float64Ptr(1910),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(2050),
+				SolarGeneratedWh: float64Ptr(2020),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 21, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 21, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(2140),
+				SolarGeneratedWh: float64Ptr(2120),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 22, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 22, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(2230),
+				SolarGeneratedWh: float64Ptr(2200),
+			},
+		},
+	}
+
+	got := inferCapacityEstimate(points, &weatherd.HourlyForecastPoint{
+		Time: time.Date(2026, 3, 22, 16, 0, 0, 0, time.UTC),
+		Raw: weatherd.ForecastValueSet{
+			ShortwaveRadiation: float64Ptr(900),
+		},
+	})
+
+	if got.EstimatedPeakWatts == nil {
+		t.Fatal("inferCapacityEstimate() estimated peak = nil, want value")
+	}
+	if *got.EstimatedPeakWatts != 2200 {
+		t.Fatalf("inferCapacityEstimate() estimated peak = %v, want rolling p95 2200", *got.EstimatedPeakWatts)
+	}
+	if got.ObservedPvWatts == nil || *got.ObservedPvWatts != 4100 {
+		t.Fatalf("inferCapacityEstimate() observed peak = %v, want raw observed max 4100", valueOrZero(got.ObservedPvWatts))
+	}
+	if got.Method != "rolling_observed_p95_and_irradiance" {
+		t.Fatalf("inferCapacityEstimate() method = %q, want rolling_observed_p95_and_irradiance", got.Method)
 	}
 }
 
@@ -541,6 +702,65 @@ func TestDeriveTodayRemainingScaleSkipsIncompleteTelemetry(t *testing.T) {
 	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, 300, todayISO, nowUTC, loc, nil, nil)
 	if got != 1 {
 		t.Fatalf("deriveTodayRemainingScale() = %v, want 1 when telemetry is incomplete", got)
+	}
+}
+
+func TestDeriveTodayRemainingScaleIgnoresSecondaryWeatherAttenuation(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLocation(t, "America/New_York")
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	estimatedPeakWatts := 1920.0
+	todayISO := localDateISO(nowUTC, loc)
+	hourly := []weatherd.HourlyForecastPoint{
+		{
+			Time:      time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 61},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:        float64Ptr(10),
+				Visibility:         float64Ptr(4000),
+				Precipitation:      float64Ptr(0.9),
+				ShortwaveRadiation: float64Ptr(500),
+			},
+		},
+		{
+			Time:      time.Date(2026, 3, 20, 13, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 61},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:        float64Ptr(11),
+				Visibility:         float64Ptr(4000),
+				Precipitation:      float64Ptr(0.9),
+				ShortwaveRadiation: float64Ptr(500),
+			},
+		},
+	}
+	baselineA := valueOrZero(estimateBaselineForecastWatts(hourly[0], &estimatedPeakWatts))
+	baselineB := valueOrZero(estimateBaselineForecastWatts(hourly[1], &estimatedPeakWatts))
+	actualTodayWh := round1((baselineA + baselineB) * 0.5)
+
+	todayStartLocal := time.Date(nowUTC.In(loc).Year(), nowUTC.In(loc).Month(), nowUTC.In(loc).Day(), 0, 0, 0, 0, loc)
+	points := make([]telemetryquery.Point, 0, 11)
+	for hour := 0; hour < 11; hour++ {
+		bucketStart := todayStartLocal.Add(time.Duration(hour) * time.Hour).UTC()
+		points = append(points, telemetryquery.Point{
+			BucketStart: bucketStart,
+			BucketEnd:   bucketStart.Add(time.Hour),
+			Metrics: telemetryquery.Metrics{
+				SolarGeneratedWh: float64Ptr(actualTodayWh / 11),
+			},
+		})
+	}
+	history := telemetryquery.Series{
+		EnergyBucketCoverage: telemetryquery.EnergyBucketCoverage{
+			PointCount:          len(points),
+			PersistedValueCount: len(points),
+		},
+		Points: points,
+	}
+
+	got := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, nil, nil)
+	if got != 0.5 {
+		t.Fatalf("deriveTodayRemainingScale() = %v, want 0.5 using baseline denominator", got)
 	}
 }
 
