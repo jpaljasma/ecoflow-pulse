@@ -22,12 +22,13 @@ var (
 )
 
 const (
-	baseSystemEfficiencyFactor = 0.83
-	maxForecastPeakOutputScale = 0.98
-	minTodayProgressScaleHour  = 11
-	minTodayProgressForecastWh = 800.0
-	minTodayProgressScale      = 0.50
-	maxTodayProgressScale      = 1.00
+	baseSystemEfficiencyFactor    = 0.83
+	maxForecastPeakOutputScale    = 0.98
+	minTodayProgressScaleHour     = 11
+	minTodayProgressForecastWh    = 800.0
+	minTodayProgressScale         = 0.50
+	maxTodayProgressScale         = 1.00
+	defaultTrainingPersistTimeout = 10 * time.Second
 )
 
 type WeatherForecaster interface {
@@ -39,19 +40,23 @@ type aggregateTelemetryReader interface {
 }
 
 type Config struct {
-	Log     *slog.Logger
-	Store   TrainingStore
-	Metrics *Metrics
-	NowFn   func() time.Time
+	Log                    *slog.Logger
+	Store                  TrainingStore
+	Metrics                *Metrics
+	NowFn                  func() time.Time
+	PersistTrainingInline  bool
+	TrainingPersistTimeout time.Duration
 }
 
 type Service struct {
-	weather WeatherForecaster
-	query   telemetryquery.Reader
-	log     *slog.Logger
-	store   TrainingStore
-	metrics *Metrics
-	nowFn   func() time.Time
+	weather                WeatherForecaster
+	query                  telemetryquery.Reader
+	log                    *slog.Logger
+	store                  TrainingStore
+	metrics                *Metrics
+	nowFn                  func() time.Time
+	persistTrainingInline  bool
+	trainingPersistTimeout time.Duration
 }
 
 func NewService(weather WeatherForecaster, query telemetryquery.Reader, cfg Config) (*Service, error) {
@@ -63,13 +68,19 @@ func NewService(weather WeatherForecaster, query telemetryquery.Reader, cfg Conf
 	if log == nil {
 		log = slog.Default()
 	}
+	persistTimeout := cfg.TrainingPersistTimeout
+	if persistTimeout <= 0 {
+		persistTimeout = defaultTrainingPersistTimeout
+	}
 	return &Service{
-		weather: weather,
-		query:   query,
-		log:     log,
-		store:   cfg.Store,
-		metrics: cfg.Metrics,
-		nowFn:   nowFn,
+		weather:                weather,
+		query:                  query,
+		log:                    log,
+		store:                  cfg.Store,
+		metrics:                cfg.Metrics,
+		nowFn:                  nowFn,
+		persistTrainingInline:  cfg.PersistTrainingInline,
+		trainingPersistTimeout: persistTimeout,
 	}, nil
 }
 
@@ -167,10 +178,56 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 		s.metrics.ObserveConfidence(outlook)
 		s.metrics.ObserveServedOutlook(siteKey, outlook, nowUTC)
 	}
-	if persistErr := s.persistTrainingRun(ctx, in, bundle, history, outlook, actualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale); persistErr != nil {
-		s.log.Warn("solar forecast training persistence failed", "error", persistErr.Error())
-	}
+	s.persistTrainingRunBestEffort(ctx, in, bundle, history, outlook, actualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale)
 	return outlook, nil
+}
+
+func (s *Service) persistTrainingRunBestEffort(
+	ctx context.Context,
+	in Input,
+	bundle *weatherd.Bundle,
+	history telemetryquery.Series,
+	outlook *Outlook,
+	actualTodayWh float64,
+	nowUTC time.Time,
+	nowLocal time.Time,
+	calibrationIndex CalibrationIndex,
+	siteCalibrationRatio *float64,
+	todayRemainingScale float64,
+) {
+	if s == nil || s.store == nil || bundle == nil || outlook == nil {
+		return
+	}
+	persistFn := func(persistCtx context.Context) {
+		if persistErr := s.persistTrainingRun(
+			persistCtx,
+			in,
+			bundle,
+			history,
+			outlook,
+			actualTodayWh,
+			nowUTC,
+			nowLocal,
+			calibrationIndex,
+			siteCalibrationRatio,
+			todayRemainingScale,
+		); persistErr != nil {
+			s.log.Warn("solar forecast training persistence failed", "error", persistErr.Error())
+		}
+	}
+	if s.persistTrainingInline {
+		persistFn(ctx)
+		return
+	}
+	go func() {
+		baseCtx := context.Background()
+		if ctx != nil {
+			baseCtx = context.WithoutCancel(ctx)
+		}
+		persistCtx, cancel := context.WithTimeout(baseCtx, s.trainingPersistTimeout)
+		defer cancel()
+		persistFn(persistCtx)
+	}()
 }
 
 func (s *Service) queryLookbackSeries(ctx context.Context, deviceIDs []string, fromUTC, toUTC time.Time) (telemetryquery.Series, error) {

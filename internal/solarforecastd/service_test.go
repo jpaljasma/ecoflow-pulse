@@ -49,10 +49,11 @@ func TestGetSolarOutlookPersistsTrainingRunForAllScope(t *testing.T) {
 	store := &capturingTrainingStore{}
 	registry := prometheus.NewRegistry()
 	svc, err := NewService(weather, query, Config{
-		Log:     slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-		Store:   store,
-		Metrics: NewMetrics(registry),
-		NowFn:   func() time.Time { return nowUTC },
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(registry),
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
 	})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -136,9 +137,10 @@ func TestGetSolarOutlookTrainingStoreFailureDoesNotFailRequest(t *testing.T) {
 	}
 	store := &capturingTrainingStore{insertRunErr: errors.New("boom")}
 	svc, err := NewService(weather, query, Config{
-		Log:   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-		Store: store,
-		NowFn: func() time.Time { return nowUTC },
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
 	})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -237,10 +239,11 @@ func TestVerifyIssuedForecastsBackfillsActualsAndRollups(t *testing.T) {
 		},
 	}
 	svc, err := NewService(nil, query, Config{
-		Log:     slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-		Store:   store,
-		Metrics: NewMetrics(prometheus.NewRegistry()),
-		NowFn:   func() time.Time { return nowUTC },
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(prometheus.NewRegistry()),
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
 	})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -339,9 +342,10 @@ func TestGetSolarOutlookAppliesCalibrationRatio(t *testing.T) {
 		},
 	}
 	svc, err := NewService(weather, query, Config{
-		Log:   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-		Store: store,
-		NowFn: func() time.Time { return nowUTC },
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
 	})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -642,10 +646,11 @@ func TestReplayValidationCalibratedRunBeatsShadowBaseline(t *testing.T) {
 			bundle: testBundle(nowUTC, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
 		}
 		svc, err := NewService(weather, query, Config{
-			Log:     slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-			Store:   store,
-			Metrics: NewMetrics(prometheus.NewRegistry()),
-			NowFn:   func() time.Time { return nowUTC },
+			Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+			Store:                 store,
+			Metrics:               NewMetrics(prometheus.NewRegistry()),
+			NowFn:                 func() time.Time { return nowUTC },
+			PersistTrainingInline: true,
 		})
 		if err != nil {
 			t.Fatalf("NewService(training day %d) error = %v", day, err)
@@ -686,10 +691,11 @@ func TestReplayValidationCalibratedRunBeatsShadowBaseline(t *testing.T) {
 		bundle: testBundle(nowUTC, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
 	}
 	svc, err := NewService(weather, query, Config{
-		Log:     slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-		Store:   store,
-		Metrics: NewMetrics(prometheus.NewRegistry()),
-		NowFn:   func() time.Time { return nowUTC },
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(prometheus.NewRegistry()),
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
 	})
 	if err != nil {
 		t.Fatalf("NewService(calibrated day) error = %v", err)
@@ -904,9 +910,10 @@ func TestGetSolarOutlookUsesRecentSiteCalibrationForFutureForecasts(t *testing.T
 	})
 
 	svc, err := NewService(weather, query, Config{
-		Log:   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
-		Store: store,
-		NowFn: func() time.Time { return nowUTC },
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
 	})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)

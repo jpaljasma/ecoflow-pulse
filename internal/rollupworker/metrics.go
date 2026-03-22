@@ -155,7 +155,7 @@ func derivePV(root gjson.Result) (float64, bool) {
 	if hasAnyPVPortKey(root, "params.inLvMpptPwr", "param.powGetPvL", "params.inHvMpptPwr", "param.powGetPvH", "params.inLvMpptVol", "params.inLvMpptAmp", "params.inHvMpptVol", "params.inHvMpptAmp") {
 		low, hasLow := derivePVChannel(root,
 			[]string{"params.inLvMpptPwr", "param.powGetPvL"},
-			[]string{"params.pv1ChargeWatts", "params.inWatts"},
+			[]string{"params.pv1ChargeWatts", "params.pv1InWatts"},
 			[]string{"params.inVol", "params.inLvMpptVol"},
 			[]string{"params.inAmp", "params.inLvMpptAmp"},
 			[]string{"params.chgState"},
@@ -251,7 +251,7 @@ func buildPVPortSpecs(root gjson.Result) []pvPortSpec {
 				PortLabel:     "PV Low",
 				VoltsKeys:     []string{"params.inLvMpptVol", "params.inVol"},
 				AmpsKeys:      []string{"params.inLvMpptAmp", "params.inAmp"},
-				WattsKeys:     []string{"params.pv1ChargeWatts", "params.outWatts", "params.inLvMpptPwr", "params.inWatts"},
+				WattsKeys:     []string{"params.pv1ChargeWatts", "params.inLvMpptPwr", "params.pv1InWatts"},
 				IdleStateKeys: []string{"params.chgState"},
 			},
 			{
@@ -293,7 +293,7 @@ func buildPVPortSpecs(root gjson.Result) []pvPortSpec {
 		if index == 1 {
 			spec.VoltsKeys = []string{"params.inVol", "params.pv1InVol"}
 			spec.AmpsKeys = []string{"params.inAmp", "params.pv1InAmp"}
-			spec.WattsKeys = []string{"params.pv1ChargeWatts", "params.outWatts", "params.inWatts", "params.pv1InWatts"}
+			spec.WattsKeys = []string{"params.pv1ChargeWatts", "params.pv1InWatts"}
 			spec.IdleStateKeys = []string{"params.chgState", "params.pv1ChgState"}
 		} else {
 			prefix := "params.pv" + strconv.Itoa(index)

@@ -19,6 +19,8 @@ type WeatherQueryOptions = {
   verificationEnabled?: boolean;
 };
 
+const SOLAR_OUTLOOK_STALE_MS = 5 * 60_000;
+
 export function useWeatherForecast(options: WeatherQueryOptions = {}) {
   const { token, authKey = 'anonymous', locationKey = 'none', enabled = true } = options;
   return useQuery<WeatherForecastResponse>({
@@ -67,7 +69,7 @@ export function useProfileWeather(options: WeatherQueryOptions = {}) {
     queryKey: [...buildWeatherQueryKey(authKey, locationKey), 'solar-outlook'],
     queryFn: () => fetchSolarOutlook(token),
     enabled,
-    staleTime: 30 * 1000,
+    staleTime: SOLAR_OUTLOOK_STALE_MS,
     gcTime: 30 * 60_000,
     placeholderData: (previous) => previous
   });

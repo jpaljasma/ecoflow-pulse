@@ -27,7 +27,7 @@ import { useThemeSemantics } from '@/shared/theme/semantic';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const compactHeader = width < 430;
   const { authReady, allowed, waiting } = useRequireAuth();
   const { token, authKey } = useAuthSession();
@@ -54,6 +54,9 @@ export default function ProfileScreen() {
   const [locationStatus, setLocationStatus] = useState('');
   const [identityRefreshAttempted, setIdentityRefreshAttempted] = useState(false);
   const [verificationRequested, setVerificationRequested] = useState(false);
+  const [weatherSectionTop, setWeatherSectionTop] = useState<number | null>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const [weatherSectionActivated, setWeatherSectionActivated] = useState(false);
   const gridPricePerKwh = useEnergySettingsStore((state) => state.gridPricePerKwh);
   const currency = useEnergySettingsStore((state) => state.currency);
   const setGridPricePerKwh = useEnergySettingsStore((state) => state.setGridPricePerKwh);
@@ -99,12 +102,21 @@ export default function ProfileScreen() {
   const currentUser = currentUserQuery.data?.user;
   const resolvedWeatherState = resolveProfileWeatherState(currentUser);
   const weatherEnabled = authReady && allowed && resolvedWeatherState.enabled;
+  const weatherSectionVisible =
+    weatherSectionTop !== null && scrollY + height + 160 >= weatherSectionTop;
+
+  useEffect(() => {
+    if (weatherSectionVisible) {
+      setWeatherSectionActivated(true);
+    }
+  }, [weatherSectionVisible]);
+
   const profileWeather = useProfileWeather({
     token,
     authKey,
     locationKey: resolvedWeatherState.locationKey,
-    enabled: weatherEnabled,
-    verificationEnabled: verificationRequested
+    enabled: weatherEnabled && weatherSectionActivated,
+    verificationEnabled: weatherSectionActivated && verificationRequested
   });
 
   if (waiting || !allowed) {
@@ -127,7 +139,13 @@ export default function ProfileScreen() {
           subtitle="Your Pulse profile and consent preferences"
           right={<AppMenu />}
         />
-        <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 24 }}
+          onScroll={(event) => {
+            setScrollY(event.nativeEvent.contentOffset.y);
+          }}
+          scrollEventThrottle={16}
+        >
           <YStack gap="$4" width="100%" maxWidth={820} alignSelf="center">
             <Card gap="$3">
               <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
@@ -284,13 +302,20 @@ export default function ProfileScreen() {
               </YStack>
             </Card>
 
-            <WeatherCurrentWidget
-              forecast={profileWeather.forecastQuery.data?.forecast}
-              solarOutlook={profileWeather.solarOutlook}
-              isLoading={profileWeather.forecastQuery.isLoading}
-              enabled={weatherEnabled}
-              errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
-            />
+            <YStack
+              gap="$4"
+              onLayout={(event) => {
+                setWeatherSectionTop(event.nativeEvent.layout.y);
+              }}
+            >
+              <WeatherCurrentWidget
+                forecast={profileWeather.forecastQuery.data?.forecast}
+                solarOutlook={profileWeather.solarOutlook}
+                isLoading={weatherSectionActivated && profileWeather.forecastQuery.isLoading}
+                enabled={weatherEnabled}
+                errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
+              />
+            </YStack>
 
             <Card gap="$3">
               <Text fontSize="$7" fontWeight="800">Weather location consent</Text>
@@ -354,12 +379,15 @@ export default function ProfileScreen() {
               forecast={profileWeather.forecastQuery.data?.forecast}
               solarOutlook={profileWeather.solarOutlook}
               verification={profileWeather.verificationQuery.data?.verification}
-              isLoading={profileWeather.forecastQuery.isLoading}
-              verificationIsLoading={profileWeather.verificationQuery.isLoading}
+              isLoading={weatherSectionActivated && profileWeather.forecastQuery.isLoading}
+              verificationIsLoading={weatherSectionActivated && profileWeather.verificationQuery.isLoading}
               enabled={weatherEnabled}
               errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
               verificationErrorText={profileWeather.verificationQuery.error ? String(profileWeather.verificationQuery.error) : undefined}
-              onVerificationExpand={() => setVerificationRequested(true)}
+              onVerificationExpand={() => {
+                setVerificationRequested(true);
+                setWeatherSectionActivated(true);
+              }}
             />
 
             {currentUserQuery.isError ? (

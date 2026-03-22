@@ -7,6 +7,7 @@ import {
   buildEnergyRouteParams,
   buildPvEnvelopeSummary,
   buildPowerTrendSeries,
+  clampPvPowerToConfiguredLimit,
   detectDevicesTimezone,
   energyPresetLabel,
   formatDeltaPct,
@@ -394,5 +395,44 @@ describe('energy route model', () => {
     expect(summary.configuredPower).toBe(500);
     expect(summary.utilizationPct).toBeCloseTo(81);
     expect(summary.rows[0]?.bottleneckHint).toBe('Within envelope');
+  });
+
+  it('caps PV envelope observed power at the configured port limit', () => {
+    const summary = buildPvEnvelopeSummary(
+      [
+        {
+          id: 'd1',
+          serialNumber: 'sn1',
+          name: 'Alpha',
+          model: 'DELTA 2 Max',
+          online: true,
+          batteryPct: 50,
+          state: 'idle',
+          etaMinutes: 0,
+          details: {
+            solarPorts: [
+              {
+                id: 'pv1',
+                name: 'PV1',
+                volts: 45,
+                amps: 9,
+                watts: 581,
+                maxVolts: 60,
+                maxAmps: 15,
+                maxWatts: 500
+              }
+            ]
+          }
+        }
+      ],
+      'all'
+    );
+
+    expect(summary.observedPower).toBe(500);
+    expect(summary.utilizationPct).toBe(100);
+    expect(summary.rows[0]?.observedPower).toBe(500);
+    expect(summary.rows[0]?.bottleneckHint).toBe('Near power ceiling');
+    expect(summary.topDevicePeakLabel).toBe('Alpha · 500W');
+    expect(clampPvPowerToConfiguredLimit(581, 500)).toBe(500);
   });
 });

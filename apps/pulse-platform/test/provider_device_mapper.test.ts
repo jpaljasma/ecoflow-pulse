@@ -392,6 +392,41 @@ describe('provider device mapper', () => {
     ]);
   });
 
+  it('does not use total mppt watts as pv-1 watts for multi-port devices', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        deviceId: '019ca747-3923-7d05-ac88-090bb4c7b564',
+        providerDeviceId: 'DEMOD2M00001059',
+        canonicalSn: 'DEMOD2M00001059',
+        productName: 'Delta 2 Max Multi Port',
+        model: 'DELTA 2 Max',
+        capabilities: {
+          pv_input_count: 2
+        },
+        metadata: {
+          groups: {
+            mppt: {
+              inVol: 48000,
+              inAmp: 1000,
+              outWatts: 710,
+              inWatts: 710,
+              chgState: 2,
+              pv2InVol: 40900,
+              pv2InAmp: 5180,
+              pv2ChargeWatts: 212,
+              pv2ChgState: 1
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details?.solarPorts).toEqual([
+      expect.objectContaining({ id: 'pv-1', watts: 48, volts: 48, amps: 1 }),
+      expect.objectContaining({ id: 'pv-2', watts: 212, volts: 40.9, amps: 5.18 })
+    ]);
+  });
+
   it('maps Delta 2 quota metadata into capabilities and details', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({

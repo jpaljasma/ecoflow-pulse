@@ -8,6 +8,7 @@ import {
   formatRelativeWeatherDayLabel,
   formatSolarOutlookSummary,
   formatTemperatureRange,
+  formatVisibilityKilometers,
   formatWeatherValue,
   formatWindRange,
   getTodayIsoInTimezone,
@@ -89,6 +90,7 @@ export function WeatherForecastCard({
             (day.dateIso === todayIso ? solarOutlook?.today : undefined) ??
             solarOutlook?.daily[index];
           const solarSummary = formatSolarOutlookSummary(solarDay);
+          const visibilityLabel = formatVisibilityKilometers(summary.representativeVisibility);
           return (
             <XStack
               key={day.dateIso}
@@ -127,6 +129,7 @@ export function WeatherForecastCard({
                   />
                   <Text color="$colorMuted" numberOfLines={1}>
                     {formatWindRange(summary.lowWindSpeed, summary.highWindSpeed, unitSystem)}
+                    {visibilityLabel !== '—' ? ` · Vis ${visibilityLabel}` : ''}
                   </Text>
                 </XStack>
               </YStack>

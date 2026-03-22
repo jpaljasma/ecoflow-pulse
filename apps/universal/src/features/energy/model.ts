@@ -225,6 +225,14 @@ export type PvEnvelopeSummary = {
   rows: PvEnvelopeRow[];
 };
 
+export function clampPvPowerToConfiguredLimit(observedPower: number, maxPower: number): number {
+  const safeObservedPower = Math.max(0, observedPower);
+  if (!Number.isFinite(maxPower) || maxPower <= 0) {
+    return safeObservedPower;
+  }
+  return Math.min(safeObservedPower, maxPower);
+}
+
 export function buildEnergyInsights(
   points: EnergyRollupPoint[],
   timezone: string,
@@ -290,9 +298,10 @@ export function buildPvEnvelopeSummary(
   const rows: PvEnvelopeRow[] = [];
   for (const device of scopedDevices) {
     for (const port of device.details?.solarPorts ?? []) {
+      const observedPower = clampPvPowerToConfiguredLimit(Math.max(0, port.watts ?? 0), Math.max(0, port.maxWatts ?? 0));
       const powerUtilizationPct =
         port.maxWatts && port.maxWatts > 0 && port.watts !== undefined
-          ? Math.max(0, Math.min(100, (port.watts / port.maxWatts) * 100))
+          ? Math.max(0, Math.min(100, (observedPower / port.maxWatts) * 100))
           : null;
       const voltageHeadroom =
         port.maxVolts !== undefined && port.volts !== undefined ? port.maxVolts - port.volts : null;
@@ -305,7 +314,7 @@ export function buildPvEnvelopeSummary(
         portLabel: port.name,
         observedVolts: Math.max(0, port.volts ?? 0),
         observedAmps: Math.max(0, port.amps ?? 0),
-        observedPower: Math.max(0, port.watts ?? 0),
+        observedPower,
         maxVolts: Math.max(0, port.maxVolts ?? 0),
         maxAmps: Math.max(0, port.maxAmps ?? 0),
         maxPower: Math.max(0, port.maxWatts ?? 0),
@@ -313,7 +322,7 @@ export function buildPvEnvelopeSummary(
         voltageHeadroom,
         currentHeadroom,
         bottleneckHint: buildBottleneckHint({
-          observedPower: Math.max(0, port.watts ?? 0),
+          observedPower,
           maxPower: Math.max(0, port.maxWatts ?? 0),
           observedAmps: Math.max(0, port.amps ?? 0),
           maxAmps: Math.max(0, port.maxAmps ?? 0),

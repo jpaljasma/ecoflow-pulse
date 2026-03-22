@@ -3,6 +3,7 @@ import {
   buildSolarOutlook,
   buildWeatherLocationKey,
   circularWindDirectionError,
+  formatVisibilityKilometers,
   formatMiniSolarOutlookSummary,
   formatSolarModelSummary,
   formatSolarOutlookSummary,
@@ -71,8 +72,9 @@ describe('weather model helpers', () => {
     const summary = summarizeDayFromHourly(
       '2026-03-18',
       [
-        { timestampIso: '2026-03-18T09:00:00Z', temperature2m: { corrected: 3 }, windSpeed10m: { corrected: 4 }, windDirection10mDegrees: 45 },
-        { timestampIso: '2026-03-18T15:00:00Z', temperature2m: { corrected: 12 }, windSpeed10m: { corrected: 8 }, windDirection10mDegrees: 90 },
+        { timestampIso: '2026-03-18T09:00:00Z', temperature2m: { corrected: 3 }, windSpeed10m: { corrected: 4 }, windDirection10mDegrees: 45, visibility: { corrected: 7200 } },
+        { timestampIso: '2026-03-18T12:00:00Z', temperature2m: { corrected: 9 }, windSpeed10m: { corrected: 5 }, windDirection10mDegrees: 60, visibility: { corrected: 9000 } },
+        { timestampIso: '2026-03-18T15:00:00Z', temperature2m: { corrected: 12 }, windSpeed10m: { corrected: 8 }, windDirection10mDegrees: 90, visibility: { corrected: 8400 } },
         { timestampIso: '2026-03-18T21:00:00Z', temperature2m: { corrected: 7 }, windSpeed10m: { corrected: 6 }, windDirection10mDegrees: 180 }
       ],
       'UTC'
@@ -81,6 +83,7 @@ describe('weather model helpers', () => {
     expect(formatWeatherValue(summary.lowTemperature, 'metric', 'temperature2m')).toBe('3.0°C');
     expect(formatWeatherValue(summary.highTemperature, 'metric', 'temperature2m')).toBe('12.0°C');
     expect(formatWindRange(summary.lowWindSpeed, summary.highWindSpeed, 'metric')).toBe('4.0-8.0 m/s');
+    expect(formatVisibilityKilometers(summary.representativeVisibility)).toBe('9.0 km');
   });
 
   it('builds dayparts from the forecast hourly series', () => {
@@ -101,6 +104,11 @@ describe('weather model helpers', () => {
 
   it('formats wind summaries with direction and speed', () => {
     expect(formatWindSummary({ corrected: 5 }, 'metric')).toBe('5.0 m/s');
+  });
+
+  it('formats visibility in kilometers for the large weather widgets', () => {
+    expect(formatVisibilityKilometers({ corrected: 8400 })).toBe('8.4 km');
+    expect(formatVisibilityKilometers(undefined)).toBe('—');
   });
 
   it('infers solar capacity from live PV and current irradiance', () => {
