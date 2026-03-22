@@ -124,7 +124,13 @@ export type SolarCapacityEstimate = {
   estimatedPeakWatts?: number;
   observedPvWatts?: number;
   inputCeilingWatts?: number;
-  method: 'input_ceiling' | 'live_pv_and_irradiance' | 'live_pv_only' | 'unavailable';
+  method:
+    | 'rolling_observed_p95'
+    | 'rolling_observed_p95_and_irradiance'
+    | 'input_ceiling'
+    | 'live_pv_and_irradiance'
+    | 'live_pv_only'
+    | 'unavailable';
 };
 
 export type SolarDayOutlook = {
@@ -605,6 +611,10 @@ export function formatSolarCapacitySummary(capacity: SolarCapacityEstimate | und
 	}
   const peak = formatPowerWatts(capacity.estimatedPeakWatts);
   switch (capacity.method) {
+    case 'rolling_observed_p95':
+      return `Observed site potential ${peak}, learned from recent solar production.`;
+    case 'rolling_observed_p95_and_irradiance':
+      return `Observed site potential ${peak}, learned from recent solar production and current irradiance.`;
     case 'live_pv_and_irradiance':
       return `Heuristic peak potential ${peak}, calibrated from observed solar generation and forecast irradiance.`;
     case 'input_ceiling':
