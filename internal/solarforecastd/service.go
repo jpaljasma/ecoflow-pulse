@@ -492,12 +492,19 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 		return CapacityEstimate{Method: "unavailable"}
 	}
 	if observedEnvelope > 0 {
+		estimate := observedEnvelope
 		method := "rolling_observed_p95"
-		if resolveIrradianceFactor(current) >= 0.35 {
+		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
 			method = "rolling_observed_p95_and_irradiance"
+			if observedPeak > observedEnvelope {
+				recoveryCeiling := math.Min(observedPeak, observedEnvelope*1.3)
+				recoveryWeight := clamp((factor-0.35)/0.55, 0, 1) * 0.5
+				recovered := observedEnvelope + ((recoveryCeiling - observedEnvelope) * recoveryWeight)
+				estimate = math.Max(observedEnvelope, recovered)
+			}
 		}
 		capacity := CapacityEstimate{
-			EstimatedPeakWatts: floatPtr(roundWatts(observedEnvelope)),
+			EstimatedPeakWatts: floatPtr(roundWatts(estimate)),
 			Method:             method,
 		}
 		if observedPeak > 0 {
@@ -924,7 +931,7 @@ func deriveTodayRemainingScale(
 		if localDateISO(point.Time, loc) != todayISO || point.Time.After(nowUTC) {
 			continue
 		}
-		watts := estimateBaselineForecastWatts(point, estimatedPeakWatts)
+		watts := estimateForecastWatts(point, estimatedPeakWatts, nowUTC, loc, calibrationIndex, siteCalibrationRatio)
 		if watts == nil || *watts <= 0 {
 			continue
 		}
@@ -933,7 +940,63 @@ func deriveTodayRemainingScale(
 	if forecastSoFarWh < minTodayProgressForecastWh {
 		return 1
 	}
-	return clamp(actualTodayWh/forecastSoFarWh, minTodayProgressScale, maxTodayProgressScale)
+	scale := clamp(actualTodayWh/forecastSoFarWh, minTodayProgressScale, maxTodayProgressScale)
+	if saturationScale := deriveSaturationBandScale(history, hourly, estimatedPeakWatts, todayISO, nowUTC, loc, calibrationIndex, siteCalibrationRatio); saturationScale < scale {
+		return saturationScale
+	}
+	return scale
+}
+
+func deriveSaturationBandScale(
+	history telemetryquery.Series,
+	hourly []weatherd.HourlyForecastPoint,
+	estimatedPeakWatts *float64,
+	todayISO string,
+	nowUTC time.Time,
+	loc *time.Location,
+	calibrationIndex CalibrationIndex,
+	siteCalibrationRatio *float64,
+) float64 {
+	if loc == nil || todayISO == "" || estimatedPeakWatts == nil || *estimatedPeakWatts <= 0 {
+		return 1
+	}
+	actualByBucket := make(map[time.Time]telemetryquery.Point, len(history.Points))
+	for _, point := range history.Points {
+		if localDateISO(point.BucketStart, loc) != todayISO {
+			continue
+		}
+		actualByBucket[point.BucketStart.UTC()] = point
+	}
+	saturatedHours := 0
+	ratios := make([]float64, 0, 3)
+	for _, forecastPoint := range hourly {
+		if localDateISO(forecastPoint.Time, loc) != todayISO || forecastPoint.Time.After(nowUTC) {
+			continue
+		}
+		actualPoint, ok := actualByBucket[forecastPoint.Time.UTC()]
+		if !ok || !isSaturatedBatteryPoint(actualPoint.Metrics) {
+			continue
+		}
+		forecastWh := estimateForecastWatts(forecastPoint, estimatedPeakWatts, nowUTC, loc, calibrationIndex, siteCalibrationRatio)
+		if forecastWh == nil || *forecastWh <= 0 || actualPoint.Metrics.SolarGeneratedWh == nil || *actualPoint.Metrics.SolarGeneratedWh <= 0 {
+			continue
+		}
+		saturatedHours++
+		ratios = append(ratios, clamp(*actualPoint.Metrics.SolarGeneratedWh / *forecastWh, minTodayProgressScale, 1))
+	}
+	if saturatedHours < 2 || len(ratios) < 2 {
+		return 1
+	}
+	if len(ratios) > 3 {
+		ratios = ratios[len(ratios)-3:]
+	}
+	bestRecent := ratios[0]
+	for _, ratio := range ratios[1:] {
+		if ratio > bestRecent {
+			bestRecent = ratio
+		}
+	}
+	return bestRecent
 }
 
 func todayTelemetryComplete(history telemetryquery.Series, nowUTC time.Time, loc *time.Location, todayISO string) bool {
@@ -1024,7 +1087,20 @@ func observedPowerCandidate(point telemetryquery.Point) float64 {
 	if point.Metrics.PVAvgW != nil {
 		candidate = math.Max(candidate, *point.Metrics.PVAvgW)
 	}
+	if isSaturatedBatteryPoint(point.Metrics) && point.Metrics.PVMaxW != nil {
+		candidate = math.Max(candidate, *point.Metrics.PVMaxW)
+	}
 	return candidate
+}
+
+func isSaturatedBatteryPoint(metrics telemetryquery.Metrics) bool {
+	if metrics.SOCMaxPct != nil && *metrics.SOCMaxPct >= 99 {
+		return true
+	}
+	if metrics.SOCAvgPct != nil && *metrics.SOCAvgPct >= 98 {
+		return true
+	}
+	return false
 }
 
 func percentile(values []float64, ratio float64) float64 {
