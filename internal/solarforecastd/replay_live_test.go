@@ -266,14 +266,14 @@ func replayRunWithCurrentBranch(
 	if err != nil {
 		return replayResult{}, err
 	}
-	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(hourlyPoints, issuedAtUTC))
+	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(hourlyPoints, issuedAtUTC), loc)
 
 	calibrationStates, recentSiteCalibration, err := reconstructCalibrationAsOf(ctx, db, run, issuedAtUTC)
 	if err != nil {
 		return replayResult{}, err
 	}
 	calibrationIndex := BuildCalibrationIndex(calibrationStates)
-	todayRemainingScale := deriveTodayRemainingScale(
+	todayRemainingScale, _ := deriveTodayRemainingScale(
 		history,
 		hourlyPoints,
 		capacity.EstimatedPeakWatts,

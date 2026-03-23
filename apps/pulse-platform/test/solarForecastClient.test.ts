@@ -16,6 +16,8 @@ describe('solarForecastClient', () => {
         baselineModel: 'deterministic_baseline_v1',
         calibrationApplied: true,
         calibrationSampleCount: 24,
+        sameDayCurtailmentApplied: true,
+        sameDayCurtailmentReason: 'battery_near_full',
         actualsSource: 'telemetry_rollups',
         weatherSource: 'open_meteo',
         weatherModelSelection: 'best_match',
@@ -78,5 +80,7 @@ describe('solarForecastClient', () => {
       })
     ]);
     expect(outlook.capacity.method).toBe('rolling_observed_p95');
+    expect(outlook.provenance.sameDayCurtailmentApplied).toBe(true);
+    expect(outlook.provenance.sameDayCurtailmentReason).toBe('battery_near_full');
   });
 });

@@ -158,6 +158,8 @@ export type SolarOutlook = {
     calibrationApplied: boolean;
     calibrationSampleCount: number;
     calibrationUpdatedAtUnixMs?: string;
+    sameDayCurtailmentApplied: boolean;
+    sameDayCurtailmentReason?: string;
     actualsSource: string;
     weatherSource: string;
     weatherModelSelection: string;
@@ -639,6 +641,38 @@ export function formatSolarModelSummary(outlook: SolarOutlook | undefined): stri
     return `Site-calibrated solar forecast from ${sampleLabel}.`;
   }
   return 'Baseline solar forecast while site calibration warms up.';
+}
+
+export function formatSolarProvenanceSummary(outlook: SolarOutlook | undefined): string {
+  if (!outlook) {
+    return '';
+  }
+  const parts: string[] = [];
+  const provenance = outlook.provenance;
+  if (provenance?.calibrationApplied) {
+    parts.push('Site-calibrated');
+  } else {
+    parts.push('Baseline');
+  }
+  switch (outlook.capacity.method) {
+    case 'rolling_observed_p95':
+    case 'rolling_observed_p95_and_irradiance':
+      parts.push('rolling P95 capacity');
+      break;
+    case 'live_pv_and_irradiance':
+    case 'live_pv_only':
+      parts.push('observed PV capacity');
+      break;
+    case 'input_ceiling':
+      parts.push('input-limit fallback');
+      break;
+    default:
+      break;
+  }
+  if (provenance?.sameDayCurtailmentApplied && provenance.sameDayCurtailmentReason === 'battery_near_full') {
+    parts.push('battery near full');
+  }
+  return parts.join(' · ');
 }
 
 export function buildSolarOutlook(

@@ -5,6 +5,7 @@ import {
   circularWindDirectionError,
   formatVisibilityKilometers,
   formatMiniSolarOutlookSummary,
+  formatSolarProvenanceSummary,
   formatSolarModelSummary,
   formatSolarOutlookSummary,
   formatRelativeWeatherDayLabel,
@@ -265,6 +266,7 @@ describe('weather model helpers', () => {
           baselineModel: 'deterministic_baseline_v1',
           calibrationApplied: true,
           calibrationSampleCount: 24,
+          sameDayCurtailmentApplied: false,
           actualsSource: 'telemetry_rollups',
           weatherSource: 'open_meteo',
           weatherModelSelection: 'best_match',
@@ -276,5 +278,31 @@ describe('weather model helpers', () => {
       })
     ).toBe('Site-calibrated solar forecast from 24 verified site-hours.');
     expect(formatSolarModelSummary(undefined)).toBe('Baseline solar forecast.');
+  });
+
+  it('builds a compact solar provenance summary with curtailment context', () => {
+    expect(
+      formatSolarProvenanceSummary({
+        capacity: { method: 'rolling_observed_p95_and_irradiance' },
+        daily: [],
+        provenance: {
+          forecastSource: 'solarforecastd',
+          forecastModel: 'deterministic_baseline_v1',
+          servedVariant: 'site_calibrated',
+          baselineModel: 'deterministic_baseline_v1',
+          calibrationApplied: true,
+          calibrationSampleCount: 48,
+          sameDayCurtailmentApplied: true,
+          sameDayCurtailmentReason: 'battery_near_full',
+          actualsSource: 'telemetry_rollups',
+          weatherSource: 'open_meteo',
+          weatherModelSelection: 'best_match',
+          timezone: 'America/New_York',
+          canonicalLocationKey: 'grid-key',
+          issuedAtUnixMs: '1770000000000',
+          refreshedAtUnixMs: '1770000300000'
+        }
+      })
+    ).toBe('Site-calibrated · rolling P95 capacity · battery near full');
   });
 });

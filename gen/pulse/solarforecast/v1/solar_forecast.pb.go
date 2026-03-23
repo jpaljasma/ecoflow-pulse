@@ -403,6 +403,8 @@ type SolarForecastProvenance struct {
 	CalibrationApplied         bool                   `protobuf:"varint,12,opt,name=calibration_applied,json=calibrationApplied,proto3" json:"calibration_applied,omitempty"`
 	CalibrationSampleCount     int32                  `protobuf:"varint,13,opt,name=calibration_sample_count,json=calibrationSampleCount,proto3" json:"calibration_sample_count,omitempty"`
 	CalibrationUpdatedAtUnixMs int64                  `protobuf:"varint,14,opt,name=calibration_updated_at_unix_ms,json=calibrationUpdatedAtUnixMs,proto3" json:"calibration_updated_at_unix_ms,omitempty"`
+	SameDayCurtailmentApplied  bool                   `protobuf:"varint,15,opt,name=same_day_curtailment_applied,json=sameDayCurtailmentApplied,proto3" json:"same_day_curtailment_applied,omitempty"`
+	SameDayCurtailmentReason   string                 `protobuf:"bytes,16,opt,name=same_day_curtailment_reason,json=sameDayCurtailmentReason,proto3" json:"same_day_curtailment_reason,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -533,6 +535,20 @@ func (x *SolarForecastProvenance) GetCalibrationUpdatedAtUnixMs() int64 {
 		return x.CalibrationUpdatedAtUnixMs
 	}
 	return 0
+}
+
+func (x *SolarForecastProvenance) GetSameDayCurtailmentApplied() bool {
+	if x != nil {
+		return x.SameDayCurtailmentApplied
+	}
+	return false
+}
+
+func (x *SolarForecastProvenance) GetSameDayCurtailmentReason() string {
+	if x != nil {
+		return x.SameDayCurtailmentReason
+	}
+	return ""
 }
 
 type GetSolarOutlookRequest struct {
@@ -715,7 +731,7 @@ const file_pulse_solarforecast_v1_solar_forecast_proto_rawDesc = "" +
 	"\x11peak_time_unix_ms\x18\x06 \x01(\x03R\x0epeakTimeUnixMs\x12O\n" +
 	"\n" +
 	"confidence\x18\a \x01(\x0e2/.pulse.solarforecast.v1.SolarForecastConfidenceR\n" +
-	"confidence\"\x9a\x05\n" +
+	"confidence\"\x9a\x06\n" +
 	"\x17SolarForecastProvenance\x12'\n" +
 	"\x0fforecast_source\x18\x01 \x01(\tR\x0eforecastSource\x12%\n" +
 	"\x0eforecast_model\x18\x02 \x01(\tR\rforecastModel\x12%\n" +
@@ -731,7 +747,9 @@ const file_pulse_solarforecast_v1_solar_forecast_proto_rawDesc = "" +
 	"\x0ebaseline_model\x18\v \x01(\tR\rbaselineModel\x12/\n" +
 	"\x13calibration_applied\x18\f \x01(\bR\x12calibrationApplied\x128\n" +
 	"\x18calibration_sample_count\x18\r \x01(\x05R\x16calibrationSampleCount\x12B\n" +
-	"\x1ecalibration_updated_at_unix_ms\x18\x0e \x01(\x03R\x1acalibrationUpdatedAtUnixMs\"\xa3\x01\n" +
+	"\x1ecalibration_updated_at_unix_ms\x18\x0e \x01(\x03R\x1acalibrationUpdatedAtUnixMs\x12?\n" +
+	"\x1csame_day_curtailment_applied\x18\x0f \x01(\bR\x19sameDayCurtailmentApplied\x12=\n" +
+	"\x1bsame_day_curtailment_reason\x18\x10 \x01(\tR\x18sameDayCurtailmentReason\"\xa3\x01\n" +
 	"\x16GetSolarOutlookRequest\x12D\n" +
 	"\blocation\x18\x01 \x01(\v2(.pulse.weather.v1.WeatherLocationRequestR\blocation\x12\x1b\n" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12&\n" +

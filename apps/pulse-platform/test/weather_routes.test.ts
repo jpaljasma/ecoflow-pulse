@@ -194,6 +194,7 @@ function sampleSolarOutlook(): SolarOutlookResponse {
         calibrationApplied: true,
         calibrationSampleCount: 24,
         calibrationUpdatedAtUnixMs: '1773430200000',
+        sameDayCurtailmentApplied: false,
         actualsSource: 'telemetry_rollups',
         weatherSource: 'open_meteo',
         weatherModelSelection: 'best_match',

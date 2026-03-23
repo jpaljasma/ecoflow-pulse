@@ -119,6 +119,8 @@ func solarOutlookToProto(outlook *solarforecastd.Outlook) *solarforecastv1.GetSo
 			CalibrationApplied:         outlook.Provenance.CalibrationApplied,
 			CalibrationSampleCount:     int32(outlook.Provenance.CalibrationSampleCount),
 			CalibrationUpdatedAtUnixMs: timeToUnixMs(outlook.Provenance.CalibrationUpdatedAt),
+			SameDayCurtailmentApplied:  outlook.Provenance.SameDayCurtailmentApplied,
+			SameDayCurtailmentReason:   outlook.Provenance.SameDayCurtailmentReason,
 			ActualsSource:              outlook.Provenance.ActualsSource,
 			WeatherSource:              outlook.Provenance.WeatherSource,
 			WeatherModelSelection:      outlook.Provenance.WeatherModelSelection,

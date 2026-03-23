@@ -147,6 +147,8 @@ describe('weather api parsing', () => {
           calibrationApplied: true,
           calibrationSampleCount: 24,
           calibrationUpdatedAtUnixMs: '1770003600000',
+          sameDayCurtailmentApplied: true,
+          sameDayCurtailmentReason: 'battery_near_full',
           actualsSource: 'telemetry_rollups',
           weatherSource: 'open_meteo',
           weatherModelSelection: 'best_match',
@@ -189,6 +191,8 @@ describe('weather api parsing', () => {
     expect(result.outlook.today?.irradianceSource).toBe('unavailable');
     expect(result.outlook.provenance?.servedVariant).toBe('site_calibrated');
     expect(result.outlook.provenance?.calibrationSampleCount).toBe(24);
+    expect(result.outlook.provenance?.sameDayCurtailmentApplied).toBe(true);
+    expect(result.outlook.provenance?.sameDayCurtailmentReason).toBe('battery_near_full');
     expect(result.outlook.capacity.method).toBe('rolling_observed_p95');
   });
 });

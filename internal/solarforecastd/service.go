@@ -29,7 +29,24 @@ const (
 	minTodayProgressScale         = 0.50
 	maxTodayProgressScale         = 1.00
 	defaultTrainingPersistTimeout = 10 * time.Second
+	saturatedPotentialUpliftScale = 1.12
+	minQualifiedSaturatedHours    = 3
+	minQualifiedSaturatedDays     = 2
+	minSaturatedPotentialWatts    = 150.0
+	minSaturatedRelativeStrength  = 0.85
+	minSaturatedChargeEnergyWh    = 40.0
+	maxSaturatedChargeEnergyRatio = 0.15
 )
+
+const sameDayCurtailmentReasonBatteryNearFull = "battery_near_full"
+
+type potentialEvidence struct {
+	baseEnvelopeW           float64
+	saturatedEnvelopeW      float64
+	finalEnvelopeW          float64
+	qualifiedSaturatedDays  int
+	qualifiedSaturatedHours int
+}
 
 type WeatherForecaster interface {
 	Get7DayForecast(ctx context.Context, req weatherd.Request) (*weatherd.Bundle, error)
@@ -123,7 +140,7 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 		return nil, err
 	}
 
-	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(bundle.Hourly, nowUTC))
+	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
 	todayISO := localDateISO(nowLocal, loc)
 	actualTodayWh := todayActualWh(history.Points, loc, todayISO)
 	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, deviceIDs)
@@ -142,7 +159,7 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	if s.metrics != nil {
 		s.metrics.ObserveModel(calibrationModeLabel(calibrationApplied))
 	}
-	todayRemainingScale := deriveTodayRemainingScale(history, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
+	todayRemainingScale, todayCurtailmentReason := deriveTodayRemainingScale(history, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	daily := summarizeDailyOutlook(bundle.Hourly, bundle.Daily, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	next24 := summarizeNext24Hours(bundle.Hourly, capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	today := firstDayForISO(daily, todayISO)
@@ -154,20 +171,22 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 			ResolvedDeviceIDs: append([]string(nil), deviceIDs...),
 		},
 		Provenance: Provenance{
-			ForecastSource:         "solarforecastd",
-			ForecastModel:          forecastModel,
-			ServedVariant:          calibrationModeLabel(calibrationApplied),
-			BaselineModel:          forecastModel,
-			CalibrationApplied:     calibrationApplied,
-			CalibrationSampleCount: calibrationSampleCount,
-			CalibrationUpdatedAt:   calibrationUpdatedAt,
-			ActualsSource:          "telemetry_rollups",
-			WeatherSource:          bundle.Provenance.Source,
-			WeatherModelSelection:  bundle.Provenance.ModelSelection,
-			Timezone:               bundle.Provenance.Timezone,
-			CanonicalLocationKey:   bundle.Provenance.CanonicalLocationKey,
-			IssuedAt:               bundle.Provenance.IssuedAt.UTC(),
-			RefreshedAt:            nowUTC,
+			ForecastSource:            "solarforecastd",
+			ForecastModel:             forecastModel,
+			ServedVariant:             calibrationModeLabel(calibrationApplied),
+			BaselineModel:             forecastModel,
+			CalibrationApplied:        calibrationApplied,
+			CalibrationSampleCount:    calibrationSampleCount,
+			CalibrationUpdatedAt:      calibrationUpdatedAt,
+			SameDayCurtailmentApplied: todayCurtailmentReason != "",
+			SameDayCurtailmentReason:  todayCurtailmentReason,
+			ActualsSource:             "telemetry_rollups",
+			WeatherSource:             bundle.Provenance.Source,
+			WeatherModelSelection:     bundle.Provenance.ModelSelection,
+			Timezone:                  bundle.Provenance.Timezone,
+			CanonicalLocationKey:      bundle.Provenance.CanonicalLocationKey,
+			IssuedAt:                  bundle.Provenance.IssuedAt.UTC(),
+			RefreshedAt:               nowUTC,
 		},
 		Capacity:    capacity,
 		Today:       today,
@@ -485,9 +504,10 @@ func sumMetrics(left, right telemetryquery.Metrics) telemetryquery.Metrics {
 	}
 }
 
-func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.HourlyForecastPoint) CapacityEstimate {
+func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location) CapacityEstimate {
 	observedPeak := observedPeakWatts(points)
-	observedEnvelope := observedPotentialWatts(points)
+	evidence := observedPotentialWatts(points, loc)
+	observedEnvelope := evidence.finalEnvelopeW
 	if observedEnvelope <= 0 && observedPeak <= 0 {
 		return CapacityEstimate{Method: "unavailable"}
 	}
@@ -916,15 +936,15 @@ func deriveTodayRemainingScale(
 	loc *time.Location,
 	calibrationIndex CalibrationIndex,
 	siteCalibrationRatio *float64,
-) float64 {
+) (float64, string) {
 	if loc == nil || todayISO == "" || estimatedPeakWatts == nil || *estimatedPeakWatts <= 0 || actualTodayWh <= 0 {
-		return 1
+		return 1, ""
 	}
 	if nowUTC.In(loc).Hour() < minTodayProgressScaleHour {
-		return 1
+		return 1, ""
 	}
 	if !todayTelemetryComplete(history, nowUTC, loc, todayISO) {
-		return 1
+		return 1, ""
 	}
 	var forecastSoFarWh float64
 	for _, point := range hourly {
@@ -938,13 +958,13 @@ func deriveTodayRemainingScale(
 		forecastSoFarWh += *watts
 	}
 	if forecastSoFarWh < minTodayProgressForecastWh {
-		return 1
+		return 1, ""
 	}
 	scale := clamp(actualTodayWh/forecastSoFarWh, minTodayProgressScale, maxTodayProgressScale)
-	if saturationScale := deriveSaturationBandScale(history, hourly, estimatedPeakWatts, todayISO, nowUTC, loc, calibrationIndex, siteCalibrationRatio); saturationScale < scale {
-		return saturationScale
+	if saturationScale, reason := deriveSaturationBandScale(history, hourly, estimatedPeakWatts, todayISO, nowUTC, loc, calibrationIndex, siteCalibrationRatio); saturationScale < scale {
+		return saturationScale, reason
 	}
-	return scale
+	return scale, ""
 }
 
 func deriveSaturationBandScale(
@@ -956,9 +976,9 @@ func deriveSaturationBandScale(
 	loc *time.Location,
 	calibrationIndex CalibrationIndex,
 	siteCalibrationRatio *float64,
-) float64 {
+) (float64, string) {
 	if loc == nil || todayISO == "" || estimatedPeakWatts == nil || *estimatedPeakWatts <= 0 {
-		return 1
+		return 1, ""
 	}
 	actualByBucket := make(map[time.Time]telemetryquery.Point, len(history.Points))
 	for _, point := range history.Points {
@@ -978,14 +998,17 @@ func deriveSaturationBandScale(
 			continue
 		}
 		forecastWh := estimateForecastWatts(forecastPoint, estimatedPeakWatts, nowUTC, loc, calibrationIndex, siteCalibrationRatio)
-		if forecastWh == nil || *forecastWh <= 0 || actualPoint.Metrics.SolarGeneratedWh == nil || *actualPoint.Metrics.SolarGeneratedWh <= 0 {
+		if forecastWh == nil || *forecastWh < minSaturatedPotentialWatts || actualPoint.Metrics.SolarGeneratedWh == nil || *actualPoint.Metrics.SolarGeneratedWh < minSaturatedPotentialWatts {
+			continue
+		}
+		if !isChargeConstrainedSaturation(actualPoint.Metrics, *forecastWh) {
 			continue
 		}
 		saturatedHours++
 		ratios = append(ratios, clamp(*actualPoint.Metrics.SolarGeneratedWh / *forecastWh, minTodayProgressScale, 1))
 	}
 	if saturatedHours < 2 || len(ratios) < 2 {
-		return 1
+		return 1, ""
 	}
 	if len(ratios) > 3 {
 		ratios = ratios[len(ratios)-3:]
@@ -996,7 +1019,7 @@ func deriveSaturationBandScale(
 			bestRecent = ratio
 		}
 	}
-	return bestRecent
+	return bestRecent, sameDayCurtailmentReasonBatteryNearFull
 }
 
 func todayTelemetryComplete(history telemetryquery.Series, nowUTC time.Time, loc *time.Location, todayISO string) bool {
@@ -1061,19 +1084,62 @@ func observedPeakWatts(points []telemetryquery.Point) float64 {
 	return peak
 }
 
-func observedPotentialWatts(points []telemetryquery.Point) float64 {
+func observedPotentialWatts(points []telemetryquery.Point, loc *time.Location) potentialEvidence {
 	if len(points) == 0 {
-		return 0
+		return potentialEvidence{}
 	}
-	samples := make([]float64, 0, len(points))
+	baseSamples := make([]float64, 0, len(points))
+	saturatedSamples := make([]float64, 0, len(points))
+	saturatedDays := map[string]struct{}{}
 	for _, point := range points {
 		candidate := observedPowerCandidate(point)
 		if candidate <= 0 {
 			continue
 		}
-		samples = append(samples, candidate)
+		if isQualifiedSaturatedPotentialPoint(point, candidate) {
+			saturatedSamples = append(saturatedSamples, candidate)
+			dayKey := point.BucketStart.UTC().Format("2006-01-02")
+			if loc != nil {
+				dayKey = localDateISO(point.BucketStart, loc)
+			}
+			saturatedDays[dayKey] = struct{}{}
+			continue
+		}
+		baseSamples = append(baseSamples, candidate)
 	}
-	return percentile(samples, 0.95)
+	baseEnvelope := percentile(baseSamples, 0.95)
+	finalEnvelope := baseEnvelope
+	saturatedEnvelope := 0.0
+	if len(saturatedSamples) >= minQualifiedSaturatedHours && len(saturatedDays) >= minQualifiedSaturatedDays {
+		filtered := make([]float64, 0, len(saturatedSamples))
+		for _, sample := range saturatedSamples {
+			if baseEnvelope > 0 && sample < baseEnvelope*minSaturatedRelativeStrength {
+				continue
+			}
+			if sample < minSaturatedPotentialWatts {
+				continue
+			}
+			filtered = append(filtered, sample)
+		}
+		if len(filtered) >= minQualifiedSaturatedHours {
+			saturatedEnvelope = percentile(filtered, 0.95)
+			switch {
+			case baseEnvelope <= 0:
+				finalEnvelope = saturatedEnvelope
+			case saturatedEnvelope > 0:
+				uplifted := math.Min(saturatedEnvelope, baseEnvelope*saturatedPotentialUpliftScale)
+				finalEnvelope = math.Max(baseEnvelope, uplifted)
+			}
+			saturatedSamples = filtered
+		}
+	}
+	return potentialEvidence{
+		baseEnvelopeW:           baseEnvelope,
+		saturatedEnvelopeW:      saturatedEnvelope,
+		finalEnvelopeW:          finalEnvelope,
+		qualifiedSaturatedDays:  len(saturatedDays),
+		qualifiedSaturatedHours: len(saturatedSamples),
+	}
 }
 
 func observedPowerCandidate(point telemetryquery.Point) float64 {
@@ -1091,6 +1157,24 @@ func observedPowerCandidate(point telemetryquery.Point) float64 {
 		candidate = math.Max(candidate, *point.Metrics.PVMaxW)
 	}
 	return candidate
+}
+
+func isChargeConstrainedSaturation(metrics telemetryquery.Metrics, modeledWh float64) bool {
+	if !isSaturatedBatteryPoint(metrics) || modeledWh <= 0 {
+		return false
+	}
+	if metrics.BatteryChargeEnergyWh == nil || *metrics.BatteryChargeEnergyWh < 0 {
+		return false
+	}
+	chargeLimit := math.Max(minSaturatedChargeEnergyWh, modeledWh*maxSaturatedChargeEnergyRatio)
+	return *metrics.BatteryChargeEnergyWh <= chargeLimit
+}
+
+func isQualifiedSaturatedPotentialPoint(point telemetryquery.Point, candidate float64) bool {
+	if !isChargeConstrainedSaturation(point.Metrics, candidate) {
+		return false
+	}
+	return candidate >= minSaturatedPotentialWatts
 }
 
 func isSaturatedBatteryPoint(metrics telemetryquery.Metrics) bool {

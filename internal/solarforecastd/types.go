@@ -54,20 +54,22 @@ type CapacityEstimate struct {
 }
 
 type Provenance struct {
-	ForecastSource         string     `json:"forecast_source"`
-	ForecastModel          string     `json:"forecast_model"`
-	ServedVariant          string     `json:"served_variant"`
-	BaselineModel          string     `json:"baseline_model"`
-	CalibrationApplied     bool       `json:"calibration_applied"`
-	CalibrationSampleCount int        `json:"calibration_sample_count"`
-	CalibrationUpdatedAt   *time.Time `json:"calibration_updated_at,omitempty"`
-	ActualsSource          string     `json:"actuals_source"`
-	WeatherSource          string     `json:"weather_source"`
-	WeatherModelSelection  string     `json:"weather_model_selection"`
-	Timezone               string     `json:"timezone"`
-	CanonicalLocationKey   string     `json:"canonical_location_key"`
-	IssuedAt               time.Time  `json:"issued_at"`
-	RefreshedAt            time.Time  `json:"refreshed_at"`
+	ForecastSource            string     `json:"forecast_source"`
+	ForecastModel             string     `json:"forecast_model"`
+	ServedVariant             string     `json:"served_variant"`
+	BaselineModel             string     `json:"baseline_model"`
+	CalibrationApplied        bool       `json:"calibration_applied"`
+	CalibrationSampleCount    int        `json:"calibration_sample_count"`
+	CalibrationUpdatedAt      *time.Time `json:"calibration_updated_at,omitempty"`
+	SameDayCurtailmentApplied bool       `json:"same_day_curtailment_applied"`
+	SameDayCurtailmentReason  string     `json:"same_day_curtailment_reason,omitempty"`
+	ActualsSource             string     `json:"actuals_source"`
+	WeatherSource             string     `json:"weather_source"`
+	WeatherModelSelection     string     `json:"weather_model_selection"`
+	Timezone                  string     `json:"timezone"`
+	CanonicalLocationKey      string     `json:"canonical_location_key"`
+	IssuedAt                  time.Time  `json:"issued_at"`
+	RefreshedAt               time.Time  `json:"refreshed_at"`
 }
 
 type Outlook struct {
