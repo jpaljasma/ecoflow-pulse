@@ -62,6 +62,8 @@ message SolarForecastProvenance {
   bool calibration_applied = 12;
   int32 calibration_sample_count = 13;
   int64 calibration_updated_at_unix_ms = 14;
+  bool same_day_curtailment_applied = 15;
+  string same_day_curtailment_reason = 16;
 }
 
 message GetSolarOutlookRequest {

@@ -242,6 +242,8 @@ export async function fetchSolarOutlook(token?: string): Promise<SolarOutlookRes
           calibrationApplied: z.boolean().optional().default(false),
           calibrationSampleCount: z.number().int().nonnegative().optional().default(0),
           calibrationUpdatedAtUnixMs: z.string().optional(),
+          sameDayCurtailmentApplied: z.boolean().optional().default(false),
+          sameDayCurtailmentReason: z.string().optional(),
           actualsSource: z.string(),
           weatherSource: z.string(),
           weatherModelSelection: z.string(),
@@ -313,7 +315,9 @@ export async function fetchSolarOutlook(token?: string): Promise<SolarOutlookRes
               parsed.outlook.provenance.baselineModel || parsed.outlook.provenance.forecastModel,
             calibrationApplied: parsed.outlook.provenance.calibrationApplied,
             calibrationSampleCount: parsed.outlook.provenance.calibrationSampleCount,
-            calibrationUpdatedAtUnixMs: parsed.outlook.provenance.calibrationUpdatedAtUnixMs
+            calibrationUpdatedAtUnixMs: parsed.outlook.provenance.calibrationUpdatedAtUnixMs,
+            sameDayCurtailmentApplied: parsed.outlook.provenance.sameDayCurtailmentApplied,
+            sameDayCurtailmentReason: parsed.outlook.provenance.sameDayCurtailmentReason
           }
         : undefined,
       today: parsed.outlook.today

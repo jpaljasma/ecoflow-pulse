@@ -3,8 +3,7 @@ import { Text, XStack, YStack } from 'tamagui';
 import { Card } from '@/shared/ui/Card';
 import {
   formatVisibilityKilometers,
-  formatSolarCapacitySummary,
-  formatSolarModelSummary,
+  formatSolarProvenanceSummary,
   formatSolarOutlookSummary,
   formatWeatherValue,
   formatWindSummary,
@@ -40,8 +39,7 @@ export function WeatherCurrentWidget({
   const visibilityLabel = current ? formatVisibilityKilometers(current.visibility) : '—';
   const dayparts = getForecastDayparts(forecast?.hourly ?? [], forecast?.timezone);
   const solarTodaySummary = formatSolarOutlookSummary(solarOutlook?.today);
-  const solarCapacitySummary = formatSolarCapacitySummary(solarOutlook?.capacity);
-  const solarModelSummary = formatSolarModelSummary(solarOutlook);
+  const solarProvenanceSummary = formatSolarProvenanceSummary(solarOutlook);
   const statusMessage = errorText ?? (isLoading ? 'Loading weather…' : enabled ? ' ' : 'Enable weather location consent to load forecasts.');
 
   return (
@@ -117,12 +115,11 @@ export function WeatherCurrentWidget({
             </YStack>
           ))}
         </XStack>
-        <Text fontSize="$2" color="$colorMuted">
-          {solarCapacitySummary}
-        </Text>
-        <Text fontSize="$2" color="$colorMuted">
-          {solarModelSummary}
-        </Text>
+        {solarProvenanceSummary ? (
+          <Text fontSize="$2" color="$colorMuted">
+            {solarProvenanceSummary}
+          </Text>
+        ) : null}
         <Text
           fontSize="$1"
           style={{ color: 'rgba(28, 43, 45, 0.72)', opacity: statusMessage.trim() ? 1 : 0 }}

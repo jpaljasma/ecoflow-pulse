@@ -66,6 +66,8 @@ export type SolarOutlookResponse = {
       calibrationApplied: boolean;
       calibrationSampleCount: number;
       calibrationUpdatedAtUnixMs?: string;
+      sameDayCurtailmentApplied: boolean;
+      sameDayCurtailmentReason?: string;
       actualsSource: string;
       weatherSource: string;
       weatherModelSelection: string;
@@ -230,6 +232,8 @@ export function normalizeSolarOutlookResponse(response: Record<string, unknown>)
       calibrationApplied: Boolean(provenance.calibrationApplied),
       calibrationSampleCount: numericValue(provenance.calibrationSampleCount) ?? 0,
       calibrationUpdatedAtUnixMs: optionalUnixMsString(provenance.calibrationUpdatedAtUnixMs),
+      sameDayCurtailmentApplied: Boolean(provenance.sameDayCurtailmentApplied),
+      sameDayCurtailmentReason: optionalString(provenance.sameDayCurtailmentReason),
       actualsSource: stringValue(provenance.actualsSource),
       weatherSource: stringValue(provenance.weatherSource),
       weatherModelSelection: stringValue(provenance.weatherModelSelection),
