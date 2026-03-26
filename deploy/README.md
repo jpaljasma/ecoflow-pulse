@@ -165,3 +165,8 @@ make services-image-import-local
 
 `make services-up` runs these automatically when
 `SERVICES_AUTO_BUILD_IMAGE=1` (default).
+
+On Apple silicon, local image builds now target the native `linux/arm64`
+platform by default instead of forcing x86/Rosetta. The local image import +
+Helm rollout path is PVC-safe: it replaces pods with rolling updates but does
+not recreate the k3d cluster or delete Postgres/MinIO/NATS/Valkey volumes.
