@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.26 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26 AS build
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /src
 
@@ -14,7 +17,7 @@ COPY . .
 RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,id=ecoflow-pulse-go-build-1.26,target=/root/.cache/go-build,sharing=locked \
     set -euo pipefail; \
-    export CGO_ENABLED=0 GOOS=linux GOARCH=amd64; \
+    export CGO_ENABLED=0 GOOS="${TARGETOS:-linux}" GOARCH="${TARGETARCH:-amd64}"; \
     for cmd in \
         ecoflow-db-migrate-job \
         ecoflow-ingest-worker \

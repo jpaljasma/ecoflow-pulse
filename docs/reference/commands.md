@@ -881,6 +881,9 @@ Notes:
   `deploy/docker/pulse-services.Dockerfile`.
   Repeated local builds reuse Docker BuildKit Go module and Go build caches so
   unchanged worker dependencies and object files do not recompile from scratch.
+  Local builds now target the host-native Linux platform explicitly
+  (`linux/arm64` on Apple silicon, `linux/amd64` on x86_64) instead of forcing
+  amd64.
 - `make services-image-import-local` imports that local worker image into
   k3d cluster `$(K3D_CLUSTER_NAME)`.
 - `make services-image-local-up` runs build + import for local k3d in one step.
@@ -892,6 +895,9 @@ Notes:
   The two image builds run in parallel. Repeated local builds reuse Docker
   BuildKit NPM, Expo, and Metro cache mounts, so `npm ci` and Expo web export
   reruns can use previously downloaded packages and bundler state.
+  Like the services image, local public-image builds now target the host-native
+  Linux platform explicitly so local k3d rollouts stay off Rosetta on Apple
+  silicon.
 - `make public-images-import-local` imports those local public images into k3d
   cluster `$(K3D_CLUSTER_NAME)`.
   It imports both images in one `k3d image import` call to avoid repeated tools
@@ -991,6 +997,8 @@ Notes:
   `pulse-services-go-inference`, `pulse-services-go-grpc-api`,
   `pulse-services-go-energy-api`, and `pulse-services-go-rollup`, then wait for
   those rollouts to finish.
+  This path is rollout-safe and PVC-safe: it replaces pods in place without
+  deleting the k3d cluster or removing Postgres/MinIO/NATS/Valkey storage.
   By default (`DEV_DEPLOY_HELM=auto`) it skips Helm re-apply when local
   platform/services chart and local values files are unchanged, the releases
   already exist, and the expected restart-target deployments are already
