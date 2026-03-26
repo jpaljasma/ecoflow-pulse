@@ -111,6 +111,83 @@ func TestGetSolarOutlookPersistsTrainingRunForAllScope(t *testing.T) {
 	}
 }
 
+func TestGetSolarOutlookPersistsRunUsingUpstreamIssueTimeAndCanonicalRunID(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 19, 18, 0, 0, 0, time.UTC)
+	issuedAt := time.Date(2026, 3, 19, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	weather := &stubWeatherForecaster{
+		bundle: testBundle(issuedAt, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
+	}
+	query := &stubTelemetryReader{
+		series: telemetryquery.Series{
+			DeviceID:   "dev-a",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: nowUTC.Add(-1 * time.Hour),
+					BucketEnd:   nowUTC,
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(900),
+						SolarGeneratedWh: float64Ptr(600),
+					},
+				},
+			},
+		},
+	}
+	store := &capturingTrainingStore{insertRunID: "canonical-run-id"}
+	svc, err := NewService(weather, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	_, err = svc.GetSolarOutlook(context.Background(), Input{
+		WeatherRequest: weatherd.Request{
+			Latitude:   42.61,
+			Longitude:  -77.40,
+			Timezone:   "America/New_York",
+			UnitSystem: weatherd.UnitSystemMetric,
+		},
+		Scope: Scope{
+			Mode:     "device",
+			DeviceID: "dev-a",
+		},
+		ResolvedDeviceIDs: []string{"dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+	if store.run == nil {
+		t.Fatal("training run was not captured")
+	}
+	if got, want := store.run.IssuedAt.UTC(), issuedAt.UTC(); !got.Equal(want) {
+		t.Fatalf("run.IssuedAt = %v, want %v", got, want)
+	}
+	if got, want := store.run.IssueLocalDate.Format("2006-01-02"), "2026-03-19"; got != want {
+		t.Fatalf("run.IssueLocalDate = %s, want %s", got, want)
+	}
+	if got, want := store.run.IssueLocalHour, 11; got != want {
+		t.Fatalf("run.IssueLocalHour = %d, want %d", got, want)
+	}
+	if got, want := store.run.IssueUTCOffsetMinutes, -240; got != want {
+		t.Fatalf("run.IssueUTCOffsetMinutes = %d, want %d", got, want)
+	}
+	if got, want := len(store.rows), 2; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	for idx, row := range store.rows {
+		if got, want := row.RunID, "canonical-run-id"; got != want {
+			t.Fatalf("row[%d].RunID = %q, want %q", idx, got, want)
+		}
+	}
+}
+
 func TestGetSolarOutlookTrainingStoreFailureDoesNotFailRequest(t *testing.T) {
 	t.Parallel()
 
@@ -1471,11 +1548,12 @@ type capturingTrainingStore struct {
 	completedRows     []HourlyTrainingRecord
 	rollups           []DailyVerificationRollup
 	calibrationStates []CalibrationState
+	insertRunID       string
 	insertRunErr      error
 	insertRowsErr     error
 }
 
-func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) error {
+func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) (string, error) {
 	runCopy := run
 	s.run = &runCopy
 	if s.runs == nil {
@@ -1483,9 +1561,12 @@ func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) error {
 	}
 	s.runs[run.ID] = &runCopy
 	if s.insertRunErr != nil {
-		return s.insertRunErr
+		return "", s.insertRunErr
 	}
-	return nil
+	if s.insertRunID != "" {
+		return s.insertRunID, nil
+	}
+	return run.ID, nil
 }
 
 func (s *capturingTrainingStore) InsertHourlyRecords(_ context.Context, rows []HourlyTrainingRecord) error {
@@ -1527,6 +1608,34 @@ func (s *capturingTrainingStore) ListVerificationRecords(_ context.Context, site
 			record.ForecastVersion = run.ForecastVersion
 			record.ServedVariant = run.ServedVariant
 			record.Timezone = run.Timezone
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func (s *capturingTrainingStore) ListRecentCalibrationRecords(_ context.Context, siteKey, forecastVersion string, fromDate, toDate time.Time) ([]VerificationRecord, error) {
+	out := make([]VerificationRecord, 0)
+	for _, row := range s.rows {
+		if row.SiteKey != siteKey {
+			continue
+		}
+		if row.VerificationStatus != VerificationStatusVerified || row.ActualGenerationWh == nil {
+			continue
+		}
+		if row.TargetLocalDate.Before(fromDate) || row.TargetLocalDate.After(toDate) {
+			continue
+		}
+		record := VerificationRecord{HourlyTrainingRecord: row}
+		if run := s.lookupRun(row.RunID); run != nil {
+			if run.ForecastVersion != forecastVersion {
+				continue
+			}
+			record.ForecastVersion = run.ForecastVersion
+			record.ServedVariant = run.ServedVariant
+			record.Timezone = run.Timezone
+		} else if forecastVersion != "" {
+			continue
 		}
 		out = append(out, record)
 	}

@@ -46,10 +46,11 @@ func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgresStore) InsertRun(ctx context.Context, run solarforecastd.Run) error {
+func (s *PostgresStore) InsertRun(ctx context.Context, run solarforecastd.Run) (string, error) {
 	siteMetadata := normalizeJSON(run.SiteMetadataJSON)
 	provenance := normalizeJSON(run.ProvenanceJSON)
-	_, err := s.db.ExecContext(ctx, `
+	var id string
+	err := s.db.QueryRowContext(ctx, `
 INSERT INTO solar_forecast_runs (
 	id,
 	site_key,
@@ -76,7 +77,27 @@ INSERT INTO solar_forecast_runs (
 )
 VALUES (
 	$1::uuid, $2, $3, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::uuid, $15, $16, $17, $18, $19, $20, $21, $22
-);
+)
+ON CONFLICT (site_key, issued_at, forecast_version)
+DO UPDATE SET
+	scope_kind = EXCLUDED.scope_kind,
+	device_id = EXCLUDED.device_id,
+	served_variant = EXCLUDED.served_variant,
+	canonical_location_key = EXCLUDED.canonical_location_key,
+	timezone = EXCLUDED.timezone,
+	issue_local_date = EXCLUDED.issue_local_date,
+	issue_local_hour = EXCLUDED.issue_local_hour,
+	issue_utc_offset_minutes = EXCLUDED.issue_utc_offset_minutes,
+	feature_version = EXCLUDED.feature_version,
+	weather_snapshot_id = EXCLUDED.weather_snapshot_id,
+	capacity_estimate_w = EXCLUDED.capacity_estimate_w,
+	actual_so_far_wh = EXCLUDED.actual_so_far_wh,
+	forecast_remaining_today_wh = EXCLUDED.forecast_remaining_today_wh,
+	forecast_total_today_wh = EXCLUDED.forecast_total_today_wh,
+	site_metadata_json = EXCLUDED.site_metadata_json,
+	provenance_json = EXCLUDED.provenance_json,
+	updated_at = EXCLUDED.updated_at
+RETURNING id::text;
 `,
 		run.ID,
 		run.SiteKey,
@@ -100,11 +121,11 @@ VALUES (
 		provenance,
 		run.CreatedAt.UTC(),
 		run.UpdatedAt.UTC(),
-	)
+	).Scan(&id)
 	if err != nil {
-		return fmt.Errorf("insert solar forecast run: %w", err)
+		return "", fmt.Errorf("insert solar forecast run: %w", err)
 	}
-	return nil
+	return id, nil
 }
 
 func (s *PostgresStore) InsertHourlyRecords(ctx context.Context, rows []solarforecastd.HourlyTrainingRecord) error {
@@ -235,6 +256,73 @@ ORDER BY h.target_local_date ASC, h.target_time ASC;
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate solar forecast verification records: %w", err)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListRecentCalibrationRecords(ctx context.Context, siteKey, forecastVersion string, fromDate, toDate time.Time) ([]solarforecastd.VerificationRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT
+	h.run_id::text,
+	h.site_key,
+	h.device_id::text,
+	h.issued_at,
+	h.target_time,
+	h.target_local_date,
+	h.target_local_hour,
+	h.target_utc_offset_minutes,
+	h.horizon_hours,
+	h.horizon_bucket,
+	h.forecast_generation_wh,
+	h.baseline_forecast_generation_wh,
+	h.forecast_gti_wm2,
+	h.forecast_shortwave_wm2,
+	h.forecast_temperature_c,
+	h.forecast_cloud_cover_pct,
+	h.forecast_irradiance_source,
+	h.actual_generation_wh,
+	h.actual_gti_wm2,
+	h.actual_shortwave_wm2,
+	h.actual_temperature_c,
+	h.actual_cloud_cover_pct,
+	h.verification_status,
+	h.signed_error_wh,
+	h.absolute_error_wh,
+	h.squared_error_wh2,
+	h.baseline_absolute_error_wh,
+	h.baseline_squared_error_wh2,
+	h.verified_at,
+	h.feature_snapshot_json,
+	h.weather_raw_json,
+	h.weather_corrected_json,
+	h.created_at,
+	h.updated_at,
+	r.forecast_version,
+	r.served_variant,
+	r.timezone
+FROM solar_forecast_hourly_training_records h
+JOIN solar_forecast_runs r ON r.id = h.run_id
+WHERE h.site_key = $1
+  AND r.forecast_version = $2
+  AND h.verification_status = 'verified'
+  AND h.actual_generation_wh IS NOT NULL
+  AND h.target_local_date BETWEEN $3 AND $4
+ORDER BY h.target_local_date ASC, h.target_time ASC;
+`, siteKey, forecastVersion, fromDate.UTC(), toDate.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("list recent solar forecast calibration records: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]solarforecastd.VerificationRecord, 0)
+	for rows.Next() {
+		record, err := scanVerificationRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate recent solar forecast calibration records: %w", err)
 	}
 	return out, nil
 }

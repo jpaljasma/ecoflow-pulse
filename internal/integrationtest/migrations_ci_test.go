@@ -123,6 +123,24 @@ WHERE c.relname IN ('users','devices','provider_credentials','provider_devices',
 ORDER BY c.relname, a.attname`)
 	assertStringsEqual(t, gotTimestampDefaults, wantTimestampDefaults, "timestamp defaults")
 
+	wantIndexes := []string{
+		"idx_solar_forecast_hourly_rollup_lookup",
+		"idx_solar_forecast_hourly_site_target_time",
+		"idx_solar_forecast_hourly_verified_at",
+	}
+	gotIndexes := queryStrings(t, ctx, db, `
+SELECT indexname
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename = 'solar_forecast_hourly_training_records'
+  AND indexname IN (
+    'idx_solar_forecast_hourly_rollup_lookup',
+    'idx_solar_forecast_hourly_site_target_time',
+    'idx_solar_forecast_hourly_verified_at'
+  )
+ORDER BY indexname`)
+	assertStringsEqual(t, gotIndexes, wantIndexes, "solar forecast hourly indexes")
+
 	wantConstraints := []string{
 		"chk_archive_manifest_ts_order",
 		"chk_devices_ecoflow_sn_nonempty",

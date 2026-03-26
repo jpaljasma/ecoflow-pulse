@@ -443,7 +443,7 @@ func (s *Service) loadRecentSiteCalibration(ctx context.Context, siteKey, foreca
 	yesterday := nowLocal.In(loc).AddDate(0, 0, -1)
 	toDate := parseDateISO(localDateISO(yesterday, loc))
 	fromDate := parseDateISO(localDateISO(yesterday.AddDate(0, 0, -2), loc))
-	records, err := s.store.ListVerificationRecords(ctx, siteKey, fromDate, toDate)
+	records, err := s.store.ListRecentCalibrationRecords(ctx, siteKey, forecastVersion, fromDate, toDate)
 	if err != nil {
 		return RecentSiteCalibration{}, err
 	}
@@ -666,6 +666,9 @@ func (s *Service) persistTrainingRun(
 	if s == nil || s.store == nil || bundle == nil || outlook == nil {
 		return nil
 	}
+	issueAt := bundle.Provenance.IssuedAt.UTC()
+	issueLoc := loadLocation(outlook.Provenance.Timezone)
+	issueLocal := issueAt.In(issueLoc)
 	runUUID, err := uuid.NewV7()
 	if err != nil {
 		return err
@@ -685,7 +688,7 @@ func (s *Service) persistTrainingRun(
 	if err != nil {
 		return err
 	}
-	_, offsetSeconds := nowLocal.Zone()
+	_, offsetSeconds := issueLocal.Zone()
 	run := Run{
 		ID:                       runUUID.String(),
 		SiteKey:                  buildSiteKey(outlook.Provenance.CanonicalLocationKey, outlook.Scope.ResolvedDeviceIDs),
@@ -694,9 +697,9 @@ func (s *Service) persistTrainingRun(
 		ServedVariant:            normalizedServedVariant(outlook.Provenance.ServedVariant),
 		CanonicalLocationKey:     outlook.Provenance.CanonicalLocationKey,
 		Timezone:                 outlook.Provenance.Timezone,
-		IssuedAt:                 nowUTC,
-		IssueLocalDate:           parseDateISO(localDateISO(nowLocal, loadLocation(outlook.Provenance.Timezone))),
-		IssueLocalHour:           nowLocal.Hour(),
+		IssuedAt:                 issueAt,
+		IssueLocalDate:           parseDateISO(localDateISO(issueLocal, issueLoc)),
+		IssueLocalHour:           issueLocal.Hour(),
 		IssueUTCOffsetMinutes:    offsetSeconds / 60,
 		ForecastVersion:          outlook.Provenance.ForecastModel,
 		FeatureVersion:           "weather_v1",
@@ -710,11 +713,15 @@ func (s *Service) persistTrainingRun(
 		CreatedAt:                nowUTC,
 		UpdatedAt:                nowUTC,
 	}
-	if err := s.store.InsertRun(ctx, run); err != nil {
+	canonicalRunID, err := s.store.InsertRun(ctx, run)
+	if err != nil {
 		if s.metrics != nil {
 			s.metrics.ObserveTrainingRun(err)
 		}
 		return err
+	}
+	if strings.TrimSpace(canonicalRunID) != "" {
+		run.ID = canonicalRunID
 	}
 	if s.metrics != nil {
 		s.metrics.ObserveTrainingRun(nil)
