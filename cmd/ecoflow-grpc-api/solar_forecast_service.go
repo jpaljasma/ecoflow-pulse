@@ -15,17 +15,22 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type solarForecastDomain interface {
+	GetSolarOutlook(context.Context, solarforecastd.Input) (*solarforecastd.Outlook, error)
+}
+
 type SolarForecastService struct {
 	solarforecastv1.UnimplementedSolarForecastServiceServer
 
 	log               *slog.Logger
-	service           *solarforecastd.Service
+	service           solarForecastDomain
 	controlPlaneStore controlplane.Store
+	responseCache     *solarForecastOutlookCache
 }
 
 type SolarForecastServiceDeps struct {
 	Log               *slog.Logger
-	Service           *solarforecastd.Service
+	Service           solarForecastDomain
 	ControlPlaneStore controlplane.Store
 }
 
@@ -38,6 +43,7 @@ func NewSolarForecastServiceWithDeps(deps SolarForecastServiceDeps) *SolarForeca
 		log:               log,
 		service:           deps.Service,
 		controlPlaneStore: deps.ControlPlaneStore,
+		responseCache:     newSolarForecastOutlookCache(defaultSolarForecastOutlookCacheTTL, time.Now),
 	}
 }
 
@@ -53,18 +59,33 @@ func (s *SolarForecastService) GetSolarOutlook(ctx context.Context, req *solarfo
 	if err != nil {
 		return nil, err
 	}
-	outlook, err := s.service.GetSolarOutlook(ctx, solarforecastd.Input{
+	input := solarforecastd.Input{
 		WeatherRequest:    weatherReq,
 		ResolvedDeviceIDs: deviceIDs,
 		Scope: solarforecastd.Scope{
 			Mode:     solarScopeMode(req.GetUseAllDevices()),
 			DeviceID: strings.TrimSpace(req.GetDeviceId()),
 		},
+	}
+	if s.responseCache == nil {
+		outlook, err := s.service.GetSolarOutlook(ctx, input)
+		if err != nil {
+			return nil, mapSolarForecastError(err)
+		}
+		return solarOutlookToProto(outlook), nil
+	}
+	cacheKey := solarForecastOutlookCacheKey(weatherReq, input.Scope.Mode, input.Scope.DeviceID, deviceIDs)
+	resp, err := s.responseCache.Get(ctx, cacheKey, func(ctx context.Context) (*solarforecastv1.GetSolarOutlookResponse, error) {
+		outlook, err := s.service.GetSolarOutlook(ctx, input)
+		if err != nil {
+			return nil, mapSolarForecastError(err)
+		}
+		return solarOutlookToProto(outlook), nil
 	})
 	if err != nil {
-		return nil, mapSolarForecastError(err)
+		return nil, err
 	}
-	return solarOutlookToProto(outlook), nil
+	return resp, nil
 }
 
 func (s *SolarForecastService) resolveVisibleDeviceIDs(ctx context.Context, requestedDeviceID string, useAllDevices bool) ([]string, error) {
