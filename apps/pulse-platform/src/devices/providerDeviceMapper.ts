@@ -407,7 +407,6 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     evChargingOn: false,
     fanOn: truthyNumber(inv.fanState),
     solarChargingOn,
-    batteryHeatingOn: false,
     xBoostOn: toBooleanFlag(inv.cfgAcXboost),
     solarMode: describeD2mSolarMode(toNumber(pd.pvChargePrioSet)),
     passthroughMode: describeBooleanLabel(toNumber(inv.acPassbyAutoEn), 'Auto Passby', 'Off'),
@@ -562,7 +561,6 @@ function buildDelta2Details(groups: GenericRecord, bpCount?: number): DeviceTele
     evChargingOn: false,
     fanOn: truthyNumber(inv.fanState) || truthyNumber(ems.fanLevel),
     solarChargingOn,
-    batteryHeatingOn: false,
     xBoostOn: toBooleanFlag(firstDefined(toNumber(inv.cfgAcXboost), toNumber(mppt.cfgAcXboost))),
     acAutoOnMode: describeBooleanLabel(toNumber(pd.acAutoOnCfg), 'Auto On', 'Off'),
     diagnostics: diagnostics.length > 0 ? diagnostics : undefined

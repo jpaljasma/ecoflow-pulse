@@ -382,7 +382,6 @@ describe('provider device mapper', () => {
         usbOn: true,
         fanOn: true,
         solarChargingOn: true,
-        batteryHeatingOn: false,
         xBoostOn: true,
         solarMode: 'Charge Priority',
         passthroughMode: 'Auto Passby',
@@ -584,7 +583,6 @@ describe('provider device mapper', () => {
         usbOn: true,
         fanOn: true,
         solarChargingOn: true,
-        batteryHeatingOn: false,
         xBoostOn: true,
         acAutoOnMode: 'Auto On',
         overallSocPct: 61.8,
@@ -644,6 +642,49 @@ describe('provider device mapper', () => {
       expect.objectContaining({ id: 'pv-1', state: 'locked', volts: 22, amps: 0, watts: 0 }),
       expect.objectContaining({ id: 'pv-2', state: 'idle', volts: 26, amps: 0, watts: 0 })
     ]);
+  });
+
+  it('does not advertise preconditioning on Delta 2 Max or Delta 2', () => {
+    const d2m = buildProviderDevicePresentation(
+      baseProviderDevice({
+        deviceId: '019ca747-3923-7d05-ac88-090bb4c7b562',
+        providerDeviceId: 'DEMOD2M00001057',
+        canonicalSn: 'DEMOD2M00001057',
+        productName: 'Kitchen Delta 2 Max',
+        model: 'DELTA 2 Max',
+        metadata: {
+          groups: {
+            pd: {},
+            inv: {},
+            mppt: {},
+            bms_bmsStatus: {},
+            bms_emsStatus: {},
+            bms_kitInfo: {}
+          }
+        }
+      })
+    );
+    const d2 = buildProviderDevicePresentation(
+      baseProviderDevice({
+        deviceId: '019ca747-3923-7d05-ac88-090bb4c7b563',
+        providerDeviceId: 'DEMOD200001001',
+        canonicalSn: 'DEMOD200001001',
+        productName: 'Delta 2',
+        model: 'DELTA 2',
+        metadata: {
+          groups: {
+            pd: {},
+            inv: {},
+            mppt: {},
+            ems: {},
+            bmsMaster: {}
+          }
+        }
+      })
+    );
+
+    expect(d2m.details).not.toHaveProperty('batteryHeatingOn');
+    expect(d2.details).not.toHaveProperty('batteryHeatingOn');
   });
 
   it('derives storm guard from alternate EcoFlow storm field names for future devices', () => {
