@@ -127,8 +127,6 @@ func main() {
 	defer cleanupWeatherDomain()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var solarDomainStop func()
-	solarDomainStop = func() {}
 	switch serviceMode {
 	case grpcServiceModeTelemetry:
 		snapshotReader, cleanupSnapshotReader, snapshotErr := newTelemetrySnapshotReaderFromEnv(log)
@@ -163,7 +161,6 @@ func main() {
 			os.Exit(1)
 		}
 		defer cleanupSolarDomain()
-		solarDomainStop = startSolarVerificationLoop(ctx, log, solarDomain)
 
 		telemetryv1.RegisterTelemetryServiceServer(s, NewTelemetryServiceWithDeps(TelemetryServiceDeps{
 			Log:               log,
@@ -232,6 +229,13 @@ func main() {
 
 	logMetricsInterval := runtimecfg.DurationNonNegative("LOG_METRICS_INTERVAL", pulselog.DefaultLogMetricsInterval())
 	metricsListenAddr := strings.TrimSpace(os.Getenv("GRPC_METRICS_LISTEN_ADDR"))
+	pprofListenAddr := strings.TrimSpace(os.Getenv("GRPC_PPROF_LISTEN_ADDR"))
+	stopPprofServer, pprofListenSource, err := newPprofServerFromEnv(log)
+	if err != nil {
+		log.Error("grpc pprof init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer stopPprofServer()
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, serviceName, asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
 	stopGRPCMetrics := workermetrics.StartServer(ctx, log, grpcMetrics.Registry(), metricsListenAddr)
@@ -240,7 +244,6 @@ func main() {
 	defer stopWeatherRefresh()
 	stopWeatherMetrics := startWeatherMetricsLoop(ctx, log, weatherDomain)
 	defer stopWeatherMetrics()
-	defer solarDomainStop()
 
 	log.Info("grpc server starting",
 		"addr", cfg.ListenAddr,
@@ -251,6 +254,8 @@ func main() {
 		"log_async_bypass_level", logCfg.AsyncBypassLevel.String(),
 		"log_metrics_interval", logMetricsInterval,
 		"metrics_listen_addr", metricsListenAddr,
+		"pprof_listen_addr", pprofListenAddr,
+		"pprof_source", pprofListenSource,
 		"service_mode", serviceMode,
 	)
 

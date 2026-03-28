@@ -690,6 +690,8 @@ spec:
               value: {{ printf ":%v" .Values.runtime.workers.grpcApi.service.port | quote }}
             - name: GRPC_SERVICE_MODE
               value: "telemetry"
+            - name: SOLAR_FORECAST_VERIFICATION_INTERVAL
+              value: {{ .Values.runtime.workers.grpcApi.solarForecastVerificationInterval | quote }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -774,6 +776,105 @@ spec:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: go-grpc-api
+{{- end }}
+{{- end }}
+---
+{{- if .Values.runtime.workers.solarVerification.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-solar-verification
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-solar-verification
+spec:
+  replicas: {{ .Values.runtime.workers.solarVerification.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.solarVerification.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.solarVerification.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.solarVerification.deployment.strategy.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-solar-verification
+  template:
+    metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-solar-verification
+    spec:
+      {{- with .Values.runtime.workers.solarVerification.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtime.workers.solarVerification.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.solarVerification.deployment.terminationGracePeriodSeconds }}
+      containers:
+        - name: go-solar-verification
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-solar-verifier"]
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.solarVerification.service.port }}
+          env:
+            - name: SOLAR_VERIFIER_METRICS_LISTEN_ADDR
+              value: {{ printf ":%v" .Values.runtime.workers.solarVerification.service.port | quote }}
+            - name: SOLAR_FORECAST_VERIFICATION_INTERVAL
+              value: {{ .Values.runtime.workers.solarVerification.solarForecastVerificationInterval | quote }}
+            - name: SOLAR_FORECAST_VERIFICATION_BATCH_LIMIT
+              value: {{ .Values.runtime.workers.solarVerification.solarForecastVerificationBatchLimit | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.solarVerification.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.solarVerification.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: metrics
+            initialDelaySeconds: {{ .Values.runtime.workers.solarVerification.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.solarVerification.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.solarVerification.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+{{- if and .Values.runtime.workers.solarVerification.pdb.enabled (gt (int .Values.runtime.workers.solarVerification.replicaCount) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-solar-verification
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-solar-verification
+spec:
+  minAvailable: {{ .Values.runtime.workers.solarVerification.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-solar-verification
 {{- end }}
 {{- end }}
 ---

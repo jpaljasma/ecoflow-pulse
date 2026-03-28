@@ -5,6 +5,8 @@ import {
   resolveLiveBatteryHeatingOn,
   sumSolarPortWatts
 } from '@/features/device-detail/liveDetail';
+import { buildDeviceDetailSignalPills } from '@/features/device-detail/signalPills';
+import type { DeviceSummary } from '@/features/devices/schema';
 
 describe('device detail live-detail helpers', () => {
   it('prefers live battery-heating state over stale REST pack heating flags', () => {
@@ -138,6 +140,63 @@ describe('device detail live-detail helpers', () => {
         name: 'PV 3',
         state: 'charging',
         watts: 155
+      })
+    ]);
+  });
+
+  it('builds extended system signals and diagnostics from device details', () => {
+    const details: DeviceSummary['details'] = {
+      acOn: true,
+      xBoostOn: true,
+      solarMode: 'Solar Only',
+      passthroughMode: 'L14 Transfer Switch',
+      acAutoOnMode: 'Always On',
+      energyManagementOn: true,
+      diagnostics: [
+        {
+          key: 'dpu-sys-work-mode',
+          label: 'System Work Mode',
+          value: '2',
+          tone: 'info'
+        }
+      ]
+    };
+
+    const { signalPills, diagnosticPills } = buildDeviceDetailSignalPills({
+      details,
+      supportsEvCharging: false,
+      supportsBatteryHeating: false,
+      preconditioningOn: undefined
+    });
+
+    expect(signalPills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'ac', on: true, tone: 'success' }),
+        expect.objectContaining({ key: 'xboost', on: true, tone: 'success' }),
+        expect.objectContaining({ key: 'solar-mode', value: 'Solar Only', tone: 'success' }),
+        expect.objectContaining({
+          key: 'passthrough-mode',
+          value: 'L14 Transfer Switch',
+          tone: 'success'
+        }),
+        expect.objectContaining({
+          key: 'ac-auto-on-mode',
+          value: 'Always On',
+          tone: 'success'
+        }),
+        expect.objectContaining({
+          key: 'energy-mgmt',
+          on: true,
+          tone: 'success'
+        })
+      ])
+    );
+    expect(diagnosticPills).toEqual([
+      expect.objectContaining({
+        key: 'dpu-sys-work-mode',
+        label: 'System Work Mode',
+        value: '2',
+        tone: 'info'
       })
     ]);
   });

@@ -1,0 +1,6 @@
+DROP INDEX IF EXISTS idx_solar_forecast_runs_site_local_date_issued;
+DROP INDEX IF EXISTS idx_solar_forecast_hourly_verified_site_local_date;
+DROP INDEX IF EXISTS idx_solar_forecast_hourly_pending_lookup;
+DROP INDEX IF EXISTS idx_solar_forecast_serving_state_updated_at;
+
+DROP TABLE IF EXISTS solar_forecast_site_serving_state;

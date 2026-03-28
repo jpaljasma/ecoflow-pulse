@@ -55,6 +55,8 @@ type replayResult struct {
 	CapacityMethod    string
 }
 
+const minReplayActualWh = 250.0
+
 func TestReplayRecentSolarRunsAgainstCurrentBranch(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("SOLAR_REPLAY_DSN"))
 	if dsn == "" {
@@ -84,11 +86,17 @@ func TestReplayRecentSolarRunsAgainstCurrentBranch(t *testing.T) {
 
 	results := make([]replayResult, 0, len(runs))
 	for _, run := range runs {
-		result, err := replayRunWithCurrentBranch(ctx, db, queryReader, run)
+		result, skip, err := replayRunWithCurrentBranch(ctx, db, queryReader, run)
 		if err != nil {
 			t.Fatalf("replay run %s: %v", run.ID, err)
 		}
+		if skip {
+			continue
+		}
 		results = append(results, result)
+	}
+	if len(results) == 0 {
+		t.Fatal("no usable replay runs remained after filtering broken/near-zero days")
 	}
 
 	t.Log("| Date | Issue local | Actual kWh | Old forecast kWh | Old delta | Old peak kW | New replay kWh | New delta | New peak kW | New capacity kW | Method |")
@@ -121,7 +129,7 @@ WITH completed_days AS (
   FROM solar_forecast_runs
   WHERE issue_local_date < CURRENT_DATE
   ORDER BY issue_local_date DESC
-  LIMIT $1
+  LIMIT $1 * 4
 ),
 ranked AS (
   SELECT
@@ -188,7 +196,13 @@ ORDER BY issue_local_date DESC;
 			id := strings.TrimSpace(deviceID.String)
 			row.DeviceID = &id
 		}
+		if isReplayCurrentLocalDay(row, time.Now()) {
+			continue
+		}
 		out = append(out, row)
+		if len(out) == dayCount {
+			break
+		}
 	}
 	return out, rows.Err()
 }
@@ -198,7 +212,7 @@ func replayRunWithCurrentBranch(
 	db *sql.DB,
 	queryReader telemetryquery.Reader,
 	run replayRun,
-) (replayResult, error) {
+) (replayResult, bool, error) {
 	loc := loadLocation(run.Timezone)
 	issuedAtUTC := run.IssuedAt.UTC()
 	nowLocal := issuedAtUTC.In(loc)
@@ -207,15 +221,15 @@ func replayRunWithCurrentBranch(
 		deviceIDs = []string{*run.DeviceID}
 	}
 	if len(deviceIDs) == 0 {
-		return replayResult{}, fmt.Errorf("run %s has no resolved device ids", run.ID)
+		return replayResult{}, false, fmt.Errorf("run %s has no resolved device ids", run.ID)
 	}
 
 	hours, err := loadReplayHours(ctx, db, run.ID)
 	if err != nil {
-		return replayResult{}, err
+		return replayResult{}, false, err
 	}
 	if len(hours) == 0 {
-		return replayResult{}, fmt.Errorf("run %s has no hourly rows", run.ID)
+		return replayResult{}, false, fmt.Errorf("run %s has no hourly rows", run.ID)
 	}
 	hourlyPoints := make([]weatherd.HourlyForecastPoint, 0, len(hours))
 	uniqueDates := make(map[string]struct{}, len(hours))
@@ -264,13 +278,21 @@ func replayRunWithCurrentBranch(
 	svc := &Service{query: queryReader}
 	history, err := svc.querySeries(ctx, deviceIDs, lookbackStartLocal.UTC(), issuedAtUTC, 24*8)
 	if err != nil {
-		return replayResult{}, err
+		return replayResult{}, false, err
+	}
+	fullDayHistory, err := svc.querySeries(ctx, deviceIDs, todayStartLocal.UTC(), todayStartLocal.AddDate(0, 0, 1).UTC(), 24)
+	if err != nil {
+		return replayResult{}, false, err
+	}
+	actualTotalWh := todayActualWh(fullDayHistory.Points, loc, todayISO)
+	if actualTotalWh < minReplayActualWh {
+		return replayResult{}, true, nil
 	}
 	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(hourlyPoints, issuedAtUTC), loc)
 
 	calibrationStates, recentSiteCalibration, err := reconstructCalibrationAsOf(ctx, db, run, issuedAtUTC)
 	if err != nil {
-		return replayResult{}, err
+		return replayResult{}, false, err
 	}
 	calibrationIndex := BuildCalibrationIndex(calibrationStates)
 	todayRemainingScale, _ := deriveTodayRemainingScale(
@@ -300,24 +322,24 @@ func replayRunWithCurrentBranch(
 	newForecastWh := kwhToWh(today.ForecastTotalKWh)
 	newPeakWh := valueOrZero(today.EstimatedPeakWatts)
 
-	oldDeltaWh := run.ForecastTotalToday - run.ActualSoFar
-	newDeltaWh := newForecastWh - run.ActualSoFar
+	oldDeltaWh := run.ForecastTotalToday - actualTotalWh
+	newDeltaWh := newForecastWh - actualTotalWh
 
 	return replayResult{
 		Date:              todayISO,
 		IssuedAtLocal:     issuedAtUTC.In(loc).Format("15:04"),
-		ActualWh:          run.ActualSoFar,
+		ActualWh:          actualTotalWh,
 		OldForecastWh:     run.ForecastTotalToday,
 		OldDeltaWh:        oldDeltaWh,
-		OldDeltaPct:       pctDelta(oldDeltaWh, run.ActualSoFar),
+		OldDeltaPct:       pctDelta(oldDeltaWh, actualTotalWh),
 		OldDisplayedPeakW: oldDisplayedPeakWh,
 		NewForecastWh:     newForecastWh,
 		NewDeltaWh:        newDeltaWh,
-		NewDeltaPct:       pctDelta(newDeltaWh, run.ActualSoFar),
+		NewDeltaPct:       pctDelta(newDeltaWh, actualTotalWh),
 		NewDisplayedPeakW: newPeakWh,
 		CapacityW:         valueOrZero(capacity.EstimatedPeakWatts),
 		CapacityMethod:    capacity.Method,
-	}, nil
+	}, false, nil
 }
 
 func loadReplayHours(ctx context.Context, db *sql.DB, runID string) ([]replayHour, error) {
@@ -446,6 +468,12 @@ func replayResolvedDeviceIDs(run replayRun) []string {
 		return nil
 	}
 	return normalizedDeviceIDs(metadata.ResolvedDeviceIDs)
+}
+
+func isReplayCurrentLocalDay(run replayRun, now time.Time) bool {
+	loc := loadLocation(run.Timezone)
+	todayLocal := parseDateISO(localDateISO(now.In(loc), loc))
+	return !run.IssueLocalDate.Before(todayLocal)
 }
 
 func pctDelta(delta, actual float64) float64 {

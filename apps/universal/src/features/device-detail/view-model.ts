@@ -2,10 +2,7 @@ import type { ComponentProps } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
-import type {
-  DeviceSnapshot,
-  TelemetryEngineStatus
-} from '@/features/telemetry/engine/types';
+import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { formatEtaMinutes, formatSoc, formatW, formatWhAndKWh } from '@/features/telemetry/format';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
@@ -14,14 +11,16 @@ import {
   resolveLiveBatteryHeatingOn,
   sumSolarPortWatts
 } from '@/features/device-detail/liveDetail';
+import {
+  buildDeviceDetailSignalPills,
+  type DetailDiagnosticPillVM,
+  type DetailSignalPillVM
+} from '@/features/device-detail/signalPills';
 import { solarPortView } from '@/features/device-detail/solarPort';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 import { getStatusIconName } from '@/shared/ui/statusGlyph';
-import {
-  isMutedMetric,
-  signalTone,
-} from '@/shared/ui/uiMappings';
+import { isMutedMetric } from '@/shared/ui/uiMappings';
 import type { MetricTone, UiTone } from '@/shared/ui/uiMappings';
 
 export type DetailMetricCellVM =
@@ -40,12 +39,7 @@ export type DetailMetricCellVM =
       deltaPct?: number | null;
     };
 
-export type DetailSignalPillVM = {
-  key: string;
-  label: string;
-  on?: boolean;
-  tone: UiTone;
-};
+export type { DetailDiagnosticPillVM, DetailSignalPillVM } from '@/features/device-detail/signalPills';
 
 export type DetailEstimatePillVM = {
   key: string;
@@ -99,6 +93,7 @@ export type DeviceDetailViewModel = {
   batteryPacks: DetailBatteryPackVM[];
   solarPorts: DetailSolarPortVM[];
   signalPills: DetailSignalPillVM[];
+  diagnosticPills: DetailDiagnosticPillVM[];
   estimatePills: DetailEstimatePillVM[];
   desktopScale: number;
   desktopOffsetY: number;
@@ -113,16 +108,6 @@ function fallbackState(
   state: DeviceSummary['state'] | string | undefined
 ): 'charging' | 'discharging' | 'idle' {
   return state === 'charging' || state === 'discharging' || state === 'idle' ? state : 'idle';
-}
-
-function aggregateSignalState(...values: Array<boolean | undefined>): boolean | undefined {
-  if (values.some((value) => value === true)) {
-    return true;
-  }
-  if (values.some((value) => value !== undefined)) {
-    return false;
-  }
-  return undefined;
 }
 
 export function useDeviceDetailViewModel({
@@ -222,6 +207,13 @@ export function useDeviceDetailViewModel({
     details?.batteryHeatingOn !== undefined;
 
   const preconditioningOn = resolveLiveBatteryHeatingOn(liveSignals, details);
+  const { signalPills, diagnosticPills } = buildDeviceDetailSignalPills({
+    liveSignals,
+    details,
+    supportsEvCharging,
+    supportsBatteryHeating,
+    preconditioningOn
+  });
 
   const metricCells = useMemo<DetailMetricCellVM[]>(() => {
     return [
@@ -330,35 +322,6 @@ export function useDeviceDetailViewModel({
     ];
   }, [details?.estimateMode, details?.estimateSource, details?.estimateEtaMin, details?.mqttQueueDepth, details?.mqttQueueDroppedOldest, device?.etaMinutes]);
 
-  const signalPills = useMemo<DetailSignalPillVM[]>(() => {
-    if (!details && !liveSignals) {
-      return [];
-    }
-    const acOn = liveSignals?.acOn ?? details?.acOn;
-    const usbOn = liveSignals?.usbOn ?? details?.usbOn;
-    const dc12vOn = liveSignals?.dc12vOn ?? details?.dc12vOn;
-    const dcSignalOn = aggregateSignalState(liveSignals?.dcOn ?? details?.dcOn, usbOn, dc12vOn);
-    const evChargingOn = liveSignals?.evChargingOn ?? details?.evChargingOn;
-    const fanOn = liveSignals?.fanOn ?? details?.fanOn;
-    const solarChargingOn = liveSignals?.solarChargingOn ?? details?.solarChargingOn;
-    const signals: Array<{ key: string; label: string; on?: boolean }> = [
-      { key: 'ac', label: 'AC On', on: acOn },
-      { key: 'dc', label: 'DC On', on: dcSignalOn },
-      { key: 'usb', label: 'USB On', on: usbOn },
-      { key: 'dc12', label: '12V On', on: dc12vOn },
-      ...(supportsEvCharging ? [{ key: 'ev', label: 'EV Charging', on: evChargingOn }] : []),
-      ...(supportsBatteryHeating ? [{ key: 'preconditioning', label: 'Preconditioning', on: preconditioningOn }] : []),
-      { key: 'fan', label: 'Fan', on: fanOn },
-      { key: 'solar', label: 'Solar Charging', on: solarChargingOn }
-    ];
-    return signals.map((signal) => ({
-      key: signal.key,
-      label: signal.label,
-      on: signal.on,
-      tone: signalTone(signal.on)
-    }));
-  }, [details, liveSignals, preconditioningOn, supportsBatteryHeating, supportsEvCharging]);
-
   const isDelta2Max = modelLower.includes('delta 2 max');
   const isDeltaProUltra = modelLower.includes('delta pro ultra');
   const desktopScale = isDelta2Max ? 1.46 : isDeltaProUltra ? 1.5 : 1.48;
@@ -378,6 +341,7 @@ export function useDeviceDetailViewModel({
     batteryPacks,
     solarPorts,
     signalPills,
+    diagnosticPills,
     estimatePills,
     desktopScale,
     desktopOffsetY,

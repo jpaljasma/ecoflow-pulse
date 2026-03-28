@@ -5,7 +5,8 @@ import {
   toErrorKind,
   toStatusClass
 } from '@/shared/api/clientRestMetrics';
-import type { ClientRestOutcome } from '@/shared/api/clientRestMetrics';
+
+type ClientRestOutcome = import('@/shared/api/clientRestMetrics').ClientRestOutcome;
 
 export class ApiError extends Error {
   constructor(

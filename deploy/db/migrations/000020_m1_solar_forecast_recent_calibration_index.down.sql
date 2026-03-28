@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_solar_forecast_hourly_recent_calibration;

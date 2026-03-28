@@ -28,6 +28,10 @@ const (
 	minTodayProgressForecastWh    = 800.0
 	minTodayProgressScale         = 0.50
 	maxTodayProgressScale         = 1.00
+	minTodayTrailingScaleHour     = 14
+	minTodayTrailingForecastWh    = 250.0
+	minTodayTrailingScale         = 0.35
+	todayTrailingWindowHours      = 2
 	defaultTrainingPersistTimeout = 10 * time.Second
 	saturatedPotentialUpliftScale = 1.12
 	minQualifiedSaturatedHours    = 3
@@ -103,11 +107,14 @@ func NewService(weather WeatherForecaster, query telemetryquery.Reader, cfg Conf
 
 func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlook, err error) {
 	startedAt := s.nowFn()
+	requestStartedAt := time.Now()
 	scopeMode := normalizedScopeMode(in.Scope.Mode, len(in.ResolvedDeviceIDs))
+	stageTimings := solarForecastStageTimings{}
 	defer func() {
 		if s.metrics != nil {
 			s.metrics.ObserveRequest(scopeMode, err, s.nowFn().Sub(startedAt))
 		}
+		s.logSolarStageTimings(ctx, scopeMode, err, stageTimings, time.Since(requestStartedAt))
 	}()
 	if s.weather == nil {
 		return nil, ErrWeatherUnavailable
@@ -122,7 +129,10 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 
 	weatherReq := in.WeatherRequest.Normalized()
 	weatherReq.UnitSystem = weatherd.UnitSystemMetric
+	weatherFetchStartedAt := time.Now()
 	bundle, err := s.weather.Get7DayForecast(ctx, weatherReq)
+	stageTimings.weatherFetch = time.Since(weatherFetchStartedAt)
+	s.observeSolarStageTiming(scopeMode, solarForecastStageWeatherFetch, err, stageTimings.weatherFetch)
 	if err != nil {
 		return nil, err
 	}
@@ -134,35 +144,43 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	nowUTC := s.nowFn().UTC()
 	nowLocal := nowUTC.In(loc)
 	todayStartLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
-	lookbackStartLocal := todayStartLocal.AddDate(0, 0, -6)
-	history, err := s.queryLookbackSeries(ctx, deviceIDs, lookbackStartLocal.UTC(), nowUTC)
-	if err != nil {
-		return nil, err
-	}
-
-	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
-	todayISO := localDateISO(nowLocal, loc)
-	actualTodayWh := todayActualWh(history.Points, loc, todayISO)
 	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, deviceIDs)
 	forecastModel := "deterministic_baseline_v1"
+	servingState, err := s.loadServingState(ctx, siteKey, forecastModel)
+	if err != nil {
+		return nil, err
+	}
+	telemetryLookbackStartedAt := time.Now()
+	todayHistory, err := s.querySeries(ctx, deviceIDs, todayStartLocal.UTC(), nowUTC, 32)
+	stageTimings.telemetryLookback = time.Since(telemetryLookbackStartedAt)
+	s.observeSolarStageTiming(scopeMode, solarForecastStageTelemetryLookback, err, stageTimings.telemetryLookback)
+	if err != nil {
+		return nil, err
+	}
+	capacity := inferCapacityEstimateFromServingState(servingState, todayHistory.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
+	todayISO := localDateISO(nowLocal, loc)
+	calibrationLoadsStartedAt := time.Now()
+	actualTodayWh := todayActualWh(todayHistory.Points, loc, todayISO)
 	calibrationStates, err := s.loadCalibrationStates(ctx, siteKey, forecastModel)
+	stageTimings.calibrationLoads = time.Since(calibrationLoadsStartedAt)
+	s.observeSolarStageTiming(scopeMode, solarForecastStageCalibrationLoads, err, stageTimings.calibrationLoads)
 	if err != nil {
 		return nil, err
 	}
-	recentSiteCalibration, err := s.loadRecentSiteCalibration(ctx, siteKey, forecastModel, nowLocal, loc)
-	if err != nil {
-		return nil, err
-	}
+	recentSiteCalibration := recentSiteCalibrationFromServingState(servingState)
 	calibrationIndex := BuildCalibrationIndex(calibrationStates)
 	calibrationApplied := hasUsableCalibration(calibrationStates) || recentSiteCalibration.MultiplicativeRatio != nil
 	calibrationSampleCount, calibrationUpdatedAt := summarizeCalibration(calibrationStates, recentSiteCalibration)
 	if s.metrics != nil {
 		s.metrics.ObserveModel(calibrationModeLabel(calibrationApplied))
 	}
-	todayRemainingScale, todayCurtailmentReason := deriveTodayRemainingScale(history, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
+	summarizationStartedAt := time.Now()
+	todayRemainingScale, todayCurtailmentReason := deriveTodayRemainingScale(todayHistory, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	daily := summarizeDailyOutlook(bundle.Hourly, bundle.Daily, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	next24 := summarizeNext24Hours(bundle.Hourly, capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	today := firstDayForISO(daily, todayISO)
+	stageTimings.summarization = time.Since(summarizationStartedAt)
+	s.observeSolarStageTiming(scopeMode, solarForecastStageSummarization, nil, stageTimings.summarization)
 
 	outlook = &Outlook{
 		Scope: Scope{
@@ -197,7 +215,10 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 		s.metrics.ObserveConfidence(outlook)
 		s.metrics.ObserveServedOutlook(siteKey, outlook, nowUTC)
 	}
-	s.persistTrainingRunBestEffort(ctx, in, bundle, history, outlook, actualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale)
+	trainingKickoffStartedAt := time.Now()
+	s.persistTrainingRunBestEffort(ctx, in, bundle, todayHistory, outlook, actualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale)
+	stageTimings.trainingKickoff = time.Since(trainingKickoffStartedAt)
+	s.observeSolarStageTiming(scopeMode, solarForecastStageTrainingKickoff, nil, stageTimings.trainingKickoff)
 	return outlook, nil
 }
 
@@ -305,6 +326,9 @@ func (s *Service) VerifyIssuedForecasts(ctx context.Context, before time.Time, l
 	if limit <= 0 {
 		limit = 24 * 64
 	}
+	if claimer, ok := s.store.(PendingRunClaimer); ok {
+		return s.verifyClaimedRuns(ctx, cutoff, limit, claimer)
+	}
 	pending, err := s.store.ListPendingHourlyRecords(ctx, cutoff, limit)
 	if err != nil {
 		if s.metrics != nil {
@@ -331,6 +355,45 @@ func (s *Service) VerifyIssuedForecasts(ctx context.Context, before time.Time, l
 	return errors.Join(verifyErrs...)
 }
 
+func (s *Service) verifyClaimedRuns(ctx context.Context, cutoff time.Time, limit int, claimer PendingRunClaimer) error {
+	processedRows := 0
+	var verifyErrs []error
+	for processedRows < limit {
+		claim, err := claimer.ClaimPendingRun(ctx, cutoff)
+		if err != nil {
+			if s.metrics != nil {
+				s.metrics.ObserveVerificationRun(err)
+			}
+			return err
+		}
+		if claim == nil || len(claim.Rows) == 0 {
+			break
+		}
+		processedRows += len(claim.Rows)
+		if err := s.verifyClaimedRunBatch(ctx, claim, cutoff); err != nil {
+			verifyErrs = append(verifyErrs, err)
+			if rollbackErr := claim.Rollback(); rollbackErr != nil {
+				verifyErrs = append(verifyErrs, rollbackErr)
+			}
+			if s.metrics != nil {
+				s.metrics.ObserveVerificationRun(err)
+			}
+			continue
+		}
+		if err := claim.Commit(); err != nil {
+			verifyErrs = append(verifyErrs, err)
+			if s.metrics != nil {
+				s.metrics.ObserveVerificationRun(err)
+			}
+			continue
+		}
+		if s.metrics != nil {
+			s.metrics.ObserveVerificationRun(nil)
+		}
+	}
+	return errors.Join(verifyErrs...)
+}
+
 func (s *Service) verifyRunBatch(ctx context.Context, batch []HourlyTrainingRecord, verifiedAt time.Time) error {
 	if len(batch) == 0 {
 		return nil
@@ -339,7 +402,18 @@ func (s *Service) verifyRunBatch(ctx context.Context, batch []HourlyTrainingReco
 	if err != nil {
 		return err
 	}
-	if run == nil {
+	return s.verifyRunBatchWithStore(ctx, s.store, run, batch, verifiedAt)
+}
+
+func (s *Service) verifyClaimedRunBatch(ctx context.Context, claim *PendingRunClaim, verifiedAt time.Time) error {
+	if claim == nil {
+		return nil
+	}
+	return s.verifyRunBatchWithStore(ctx, claim.Store, claim.Run, claim.Rows, verifiedAt)
+}
+
+func (s *Service) verifyRunBatchWithStore(ctx context.Context, store VerificationMutationStore, run *Run, batch []HourlyTrainingRecord, verifiedAt time.Time) error {
+	if len(batch) == 0 || store == nil || run == nil {
 		return nil
 	}
 	deviceIDs := deviceIDsFromRun(run)
@@ -388,41 +462,70 @@ func (s *Service) verifyRunBatch(ctx context.Context, batch []HourlyTrainingReco
 		verifiedRows = append(verifiedRows, updated)
 		affectedDates[row.TargetLocalDate.Format("2006-01-02")] = row.TargetLocalDate
 	}
-	if err := s.store.CompleteHourlyVerification(ctx, verifiedRows); err != nil {
+	if err := store.CompleteHourlyVerification(ctx, verifiedRows); err != nil {
 		return err
 	}
 	if s.metrics != nil {
 		s.metrics.ObserveVerificationRows(verifiedRows, run.ServedVariant)
 	}
-	calibrationStates, err := s.store.LoadCalibrationStates(ctx, run.SiteKey, run.ForecastVersion)
-	if err != nil {
+	if err := s.applyCalibrationRows(ctx, store, run.SiteKey, run.ForecastVersion, verifiedAt, verifiedRows); err != nil {
 		return err
 	}
-	updatedCalibration := UpdateCalibrationStates(verifiedAt, run.SiteKey, run.ForecastVersion, verifiedRows, calibrationStates)
-	if err := s.store.UpsertCalibrationStates(ctx, updatedCalibration); err != nil {
+	if err := s.upsertRunDailyRollups(ctx, store, run, verifiedRows, verifiedAt); err != nil {
 		return err
 	}
-	rollups, err := s.rebuildDailyRollups(ctx, run.SiteKey, affectedDates, verifiedAt)
+	rollups, err := s.rebuildDailyRollupsWithStore(ctx, store, run.SiteKey, affectedDates, verifiedAt)
 	if err != nil {
 		return err
 	}
 	for _, rollup := range rollups {
-		if err := s.store.UpsertDailyVerificationRollup(ctx, rollup); err != nil {
+		if err := store.UpsertDailyVerificationRollup(ctx, rollup); err != nil {
 			return err
 		}
 		if s.metrics != nil {
 			s.metrics.ObserveDailyRollup(rollup)
 		}
 	}
+	if err := s.refreshServingState(ctx, run, verifiedAt); err != nil {
+		s.log.Warn("solar forecast serving state refresh failed", "site_key", run.SiteKey, "error", err.Error())
+	}
 	return nil
 }
 
-func (s *Service) rebuildDailyRollups(ctx context.Context, siteKey string, affectedDates map[string]time.Time, nowUTC time.Time) ([]DailyVerificationRollup, error) {
+func (s *Service) applyCalibrationRows(ctx context.Context, store VerificationMutationStore, siteKey, forecastVersion string, verifiedAt time.Time, rows []HourlyTrainingRecord) error {
+	if len(rows) == 0 || store == nil {
+		return nil
+	}
+	if applier, ok := store.(CalibrationBatchApplier); ok {
+		return applier.ApplyCalibrationRows(ctx, siteKey, forecastVersion, verifiedAt, rows)
+	}
+	calibrationStates, err := store.LoadCalibrationStates(ctx, siteKey, forecastVersion)
+	if err != nil {
+		return err
+	}
+	updatedCalibration := UpdateCalibrationStates(verifiedAt, siteKey, forecastVersion, rows, calibrationStates)
+	return store.UpsertCalibrationStates(ctx, updatedCalibration)
+}
+
+func (s *Service) upsertRunDailyRollups(ctx context.Context, store VerificationMutationStore, run *Run, rows []HourlyTrainingRecord, verifiedAt time.Time) error {
+	if len(rows) == 0 || store == nil || run == nil {
+		return nil
+	}
+	if upserter, ok := store.(DailyRunRollupUpserter); ok {
+		return upserter.UpsertRunDailyVerificationRollups(ctx, run, rows, verifiedAt)
+	}
+	return nil
+}
+
+func (s *Service) rebuildDailyRollupsWithStore(ctx context.Context, store VerificationMutationStore, siteKey string, affectedDates map[string]time.Time, nowUTC time.Time) ([]DailyVerificationRollup, error) {
 	if len(affectedDates) == 0 {
 		return nil, nil
 	}
+	if rebuilder, ok := store.(DailyRollupRebuilder); ok {
+		return rebuilder.RebuildDailyVerificationRollups(ctx, siteKey, affectedDates, nowUTC)
+	}
 	fromDate, toDate := dateRangeBounds(affectedDates)
-	records, err := s.store.ListVerificationRecords(ctx, siteKey, fromDate, toDate)
+	records, err := store.ListVerificationRecords(ctx, siteKey, fromDate, toDate)
 	if err != nil {
 		return nil, err
 	}
@@ -436,14 +539,71 @@ func (s *Service) loadCalibrationStates(ctx context.Context, siteKey, forecastVe
 	return s.store.LoadCalibrationStates(ctx, siteKey, forecastVersion)
 }
 
-func (s *Service) loadRecentSiteCalibration(ctx context.Context, siteKey, forecastVersion string, nowLocal time.Time, loc *time.Location) (RecentSiteCalibration, error) {
+func (s *Service) loadServingState(ctx context.Context, siteKey, forecastVersion string) (*ServingState, error) {
+	if s == nil || s.store == nil {
+		return nil, nil
+	}
+	return s.store.LoadServingState(ctx, siteKey, forecastVersion)
+}
+
+func recentSiteCalibrationFromServingState(state *ServingState) RecentSiteCalibration {
+	if state == nil || state.RecentSiteRatio == nil {
+		return RecentSiteCalibration{}
+	}
+	return RecentSiteCalibration{
+		MultiplicativeRatio: state.RecentSiteRatio,
+		SampleCount:         state.RecentSiteSampleCount,
+		UpdatedAt:           state.RecentSiteUpdatedAt,
+	}
+}
+
+func (s *Service) refreshServingState(ctx context.Context, run *Run, verifiedAt time.Time) error {
+	if s == nil || s.store == nil || s.query == nil || run == nil {
+		return nil
+	}
+	loc := loadLocation(run.Timezone)
+	deviceIDs := deviceIDsFromRun(run)
+	if len(deviceIDs) == 0 {
+		return nil
+	}
+	recentCalibration, err := s.loadRecentSiteCalibrationSummary(ctx, run.SiteKey, run.ForecastVersion, verifiedAt.In(loc), loc)
+	if err != nil {
+		return err
+	}
+	windowEndLocal := time.Date(verifiedAt.In(loc).Year(), verifiedAt.In(loc).Month(), verifiedAt.In(loc).Day(), 0, 0, 0, 0, loc)
+	windowStartLocal := windowEndLocal.AddDate(0, 0, -7)
+	history, err := s.queryLookbackSeries(ctx, deviceIDs, windowStartLocal.UTC(), windowEndLocal.UTC())
+	if err != nil {
+		return err
+	}
+	evidence := observedPotentialWatts(history.Points, loc)
+	state := ServingState{
+		SiteKey:                 run.SiteKey,
+		ForecastVersion:         run.ForecastVersion,
+		Timezone:                run.Timezone,
+		RecentSiteRatio:         recentCalibration.MultiplicativeRatio,
+		RecentSiteSampleCount:   recentCalibration.SampleCount,
+		RecentSiteUpdatedAt:     recentCalibration.UpdatedAt,
+		PotentialBaseEnvelopeW:  optionalPositiveFloat(evidence.baseEnvelopeW),
+		PotentialSaturatedW:     optionalPositiveFloat(evidence.saturatedEnvelopeW),
+		PotentialFinalEnvelopeW: optionalPositiveFloat(evidence.finalEnvelopeW),
+		QualifiedSaturatedDays:  evidence.qualifiedSaturatedDays,
+		QualifiedSaturatedHours: evidence.qualifiedSaturatedHours,
+		HistoryFrom:             timePtr(windowStartLocal.UTC()),
+		HistoryTo:               timePtr(windowEndLocal.UTC()),
+		UpdatedAt:               verifiedAt.UTC(),
+	}
+	return s.store.UpsertServingState(ctx, state)
+}
+
+func (s *Service) loadRecentSiteCalibrationSummary(ctx context.Context, siteKey, forecastVersion string, nowLocal time.Time, loc *time.Location) (RecentSiteCalibration, error) {
 	if s == nil || s.store == nil || loc == nil {
 		return RecentSiteCalibration{}, nil
 	}
 	yesterday := nowLocal.In(loc).AddDate(0, 0, -1)
 	toDate := parseDateISO(localDateISO(yesterday, loc))
 	fromDate := parseDateISO(localDateISO(yesterday.AddDate(0, 0, -2), loc))
-	records, err := s.store.ListVerificationRecords(ctx, siteKey, fromDate, toDate)
+	records, err := s.store.ListRecentCalibrationRecords(ctx, siteKey, forecastVersion, fromDate, toDate)
 	if err != nil {
 		return RecentSiteCalibration{}, err
 	}
@@ -537,6 +697,21 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 		ObservedPvWatts:    floatPtr(roundWatts(observedPeak)),
 		Method:             "live_pv_only",
 	}
+}
+
+func inferCapacityEstimateFromServingState(state *ServingState, points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location) CapacityEstimate {
+	if state != nil && state.PotentialFinalEnvelopeW != nil && *state.PotentialFinalEnvelopeW > 0 {
+		estimate := *state.PotentialFinalEnvelopeW
+		method := "rolling_observed_p95"
+		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
+			method = "rolling_observed_p95_and_irradiance"
+		}
+		return CapacityEstimate{
+			EstimatedPeakWatts: floatPtr(roundWatts(estimate)),
+			Method:             method,
+		}
+	}
+	return inferCapacityEstimate(points, current, loc)
 }
 
 func summarizeDailyOutlook(
@@ -666,6 +841,9 @@ func (s *Service) persistTrainingRun(
 	if s == nil || s.store == nil || bundle == nil || outlook == nil {
 		return nil
 	}
+	issueAt := bundle.Provenance.IssuedAt.UTC()
+	issueLoc := loadLocation(outlook.Provenance.Timezone)
+	issueLocal := issueAt.In(issueLoc)
 	runUUID, err := uuid.NewV7()
 	if err != nil {
 		return err
@@ -685,7 +863,7 @@ func (s *Service) persistTrainingRun(
 	if err != nil {
 		return err
 	}
-	_, offsetSeconds := nowLocal.Zone()
+	_, offsetSeconds := issueLocal.Zone()
 	run := Run{
 		ID:                       runUUID.String(),
 		SiteKey:                  buildSiteKey(outlook.Provenance.CanonicalLocationKey, outlook.Scope.ResolvedDeviceIDs),
@@ -694,9 +872,9 @@ func (s *Service) persistTrainingRun(
 		ServedVariant:            normalizedServedVariant(outlook.Provenance.ServedVariant),
 		CanonicalLocationKey:     outlook.Provenance.CanonicalLocationKey,
 		Timezone:                 outlook.Provenance.Timezone,
-		IssuedAt:                 nowUTC,
-		IssueLocalDate:           parseDateISO(localDateISO(nowLocal, loadLocation(outlook.Provenance.Timezone))),
-		IssueLocalHour:           nowLocal.Hour(),
+		IssuedAt:                 issueAt,
+		IssueLocalDate:           parseDateISO(localDateISO(issueLocal, issueLoc)),
+		IssueLocalHour:           issueLocal.Hour(),
 		IssueUTCOffsetMinutes:    offsetSeconds / 60,
 		ForecastVersion:          outlook.Provenance.ForecastModel,
 		FeatureVersion:           "weather_v1",
@@ -710,11 +888,15 @@ func (s *Service) persistTrainingRun(
 		CreatedAt:                nowUTC,
 		UpdatedAt:                nowUTC,
 	}
-	if err := s.store.InsertRun(ctx, run); err != nil {
+	canonicalRunID, err := s.store.InsertRun(ctx, run)
+	if err != nil {
 		if s.metrics != nil {
 			s.metrics.ObserveTrainingRun(err)
 		}
 		return err
+	}
+	if strings.TrimSpace(canonicalRunID) != "" {
+		run.ID = canonicalRunID
 	}
 	if s.metrics != nil {
 		s.metrics.ObserveTrainingRun(nil)
@@ -802,12 +984,16 @@ func estimateForecastWatts(point weatherd.HourlyForecastPoint, estimatedPeakWatt
 	if base == nil {
 		return nil
 	}
-	baseWatts := *base * atmosphericAttenuationFactor(point)
+	futureDaySuppression := futureDayPeakSuppressionFactor(point, nowUTC, loc)
+	baseWatts := *base * atmosphericAttenuationFactor(point) * futureDaySuppression
 	if baseWatts <= 0 {
 		return nil
 	}
-	base = floatPtr(round1(baseWatts))
 	capLimit := *estimatedPeakWatts * maxForecastPeakOutputScale
+	if futureDaySuppression < 1 {
+		capLimit *= futureDaySuppression
+	}
+	base = floatPtr(round1(math.Min(baseWatts, capLimit)))
 	if loc == nil {
 		return base
 	}
@@ -870,6 +1056,61 @@ func estimateDisplayedForecastWatts(
 		return base
 	}
 	return floatPtr(round1(*base * todayRemainingScale))
+}
+
+func futureDayPeakSuppressionFactor(point weatherd.HourlyForecastPoint, nowUTC time.Time, loc *time.Location) float64 {
+	if loc == nil {
+		return 1
+	}
+	todayISO := localDateISO(nowUTC, loc)
+	if localDateISO(point.Time, loc) <= todayISO {
+		return 1
+	}
+	factor := 1.0
+	if visibility := valueOrNil(point.Corrected.Visibility, point.Raw.Visibility); visibility != nil && !math.IsNaN(*visibility) {
+		visibilityKM := *visibility / 1000
+		switch {
+		case visibilityKM < 2:
+			factor = math.Min(factor, 0.86)
+		case visibilityKM < 5:
+			factor = math.Min(factor, 0.90)
+		case visibilityKM < 10:
+			factor = math.Min(factor, 0.95)
+		}
+	}
+	switch point.Condition.WeatherCode {
+	case 45, 48:
+		factor = math.Min(factor, 0.88)
+	case 51, 53, 55, 56, 57:
+		factor = math.Min(factor, 0.95)
+	case 61, 63, 65, 66, 67, 80, 81, 82:
+		factor = math.Min(factor, 0.92)
+	case 71, 73, 75, 77, 85, 86:
+		factor = math.Min(factor, 0.94)
+	case 95, 96, 99:
+		factor = math.Min(factor, 0.86)
+	}
+	if precipitation := valueOrNil(point.Corrected.Precipitation, point.Raw.Precipitation); precipitation != nil && !math.IsNaN(*precipitation) {
+		switch {
+		case *precipitation > 1.5:
+			factor = math.Min(factor, 0.90)
+		case *precipitation > 0.5:
+			factor = math.Min(factor, 0.94)
+		}
+	}
+	if visibility := valueOrNil(point.Corrected.Visibility, point.Raw.Visibility); visibility != nil && !math.IsNaN(*visibility) {
+		visibilityKM := *visibility / 1000
+		if visibilityKM < 5 {
+			if precipitation := valueOrNil(point.Corrected.Precipitation, point.Raw.Precipitation); precipitation != nil && !math.IsNaN(*precipitation) && *precipitation > 0.5 {
+				factor = math.Min(factor, 0.88)
+			}
+			switch point.Condition.WeatherCode {
+			case 45, 48, 61, 63, 65, 66, 67, 80, 81, 82:
+				factor = math.Min(factor, 0.88)
+			}
+		}
+	}
+	return clamp(factor, 0.86, 1)
 }
 
 func resolveIrradianceFactor(point *weatherd.HourlyForecastPoint) float64 {
@@ -961,10 +1202,60 @@ func deriveTodayRemainingScale(
 		return 1, ""
 	}
 	scale := clamp(actualTodayWh/forecastSoFarWh, minTodayProgressScale, maxTodayProgressScale)
+	if trailingScale, ok := deriveTodayTrailingScale(history, hourly, estimatedPeakWatts, todayISO, nowUTC, loc, calibrationIndex, siteCalibrationRatio); ok && trailingScale < scale {
+		scale = trailingScale
+	}
 	if saturationScale, reason := deriveSaturationBandScale(history, hourly, estimatedPeakWatts, todayISO, nowUTC, loc, calibrationIndex, siteCalibrationRatio); saturationScale < scale {
 		return saturationScale, reason
 	}
 	return scale, ""
+}
+
+func deriveTodayTrailingScale(
+	history telemetryquery.Series,
+	hourly []weatherd.HourlyForecastPoint,
+	estimatedPeakWatts *float64,
+	todayISO string,
+	nowUTC time.Time,
+	loc *time.Location,
+	calibrationIndex CalibrationIndex,
+	siteCalibrationRatio *float64,
+) (float64, bool) {
+	if loc == nil || todayISO == "" || estimatedPeakWatts == nil || *estimatedPeakWatts <= 0 {
+		return 1, false
+	}
+	if nowUTC.In(loc).Hour() < minTodayTrailingScaleHour {
+		return 1, false
+	}
+	actualByBucket := make(map[time.Time]telemetryquery.Point, len(history.Points))
+	for _, point := range history.Points {
+		if localDateISO(point.BucketStart, loc) != todayISO {
+			continue
+		}
+		actualByBucket[point.BucketStart.UTC()] = point
+	}
+	windowStart := nowUTC.Add(-1 * time.Duration(todayTrailingWindowHours) * time.Hour)
+	actualRecentWh := 0.0
+	forecastRecentWh := 0.0
+	for _, point := range hourly {
+		if localDateISO(point.Time, loc) != todayISO || point.Time.After(nowUTC) || !point.Time.After(windowStart) {
+			continue
+		}
+		forecastWh := estimateForecastWatts(point, estimatedPeakWatts, nowUTC, loc, calibrationIndex, siteCalibrationRatio)
+		if forecastWh == nil || *forecastWh <= 0 {
+			continue
+		}
+		actualPoint, ok := actualByBucket[point.Time.UTC()]
+		if !ok || actualPoint.Metrics.SolarGeneratedWh == nil {
+			continue
+		}
+		forecastRecentWh += *forecastWh
+		actualRecentWh += *actualPoint.Metrics.SolarGeneratedWh
+	}
+	if forecastRecentWh < minTodayTrailingForecastWh || actualRecentWh <= 0 {
+		return 1, false
+	}
+	return clamp(actualRecentWh/forecastRecentWh, minTodayTrailingScale, 1), true
 }
 
 func deriveSaturationBandScale(
@@ -1666,6 +1957,13 @@ func floatPtr(value float64) *float64 {
 
 func timePtr(value time.Time) *time.Time {
 	return &value
+}
+
+func optionalPositiveFloat(value float64) *float64 {
+	if value <= 0 || math.IsNaN(value) {
+		return nil
+	}
+	return floatPtr(value)
 }
 
 func clamp(value, min, max float64) float64 {

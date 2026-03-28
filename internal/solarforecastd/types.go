@@ -209,3 +209,20 @@ type CalibrationState struct {
 	MultiplicativeRatio *float64      `json:"multiplicative_ratio,omitempty"`
 	UpdatedAt           time.Time     `json:"updated_at"`
 }
+
+type ServingState struct {
+	SiteKey                 string     `json:"site_key"`
+	ForecastVersion         string     `json:"forecast_version"`
+	Timezone                string     `json:"timezone"`
+	RecentSiteRatio         *float64   `json:"recent_site_ratio,omitempty"`
+	RecentSiteSampleCount   int        `json:"recent_site_sample_count"`
+	RecentSiteUpdatedAt     *time.Time `json:"recent_site_updated_at,omitempty"`
+	PotentialBaseEnvelopeW  *float64   `json:"potential_base_envelope_w,omitempty"`
+	PotentialSaturatedW     *float64   `json:"potential_saturated_envelope_w,omitempty"`
+	PotentialFinalEnvelopeW *float64   `json:"potential_final_envelope_w,omitempty"`
+	QualifiedSaturatedDays  int        `json:"qualified_saturated_days"`
+	QualifiedSaturatedHours int        `json:"qualified_saturated_hours"`
+	HistoryFrom             *time.Time `json:"history_from,omitempty"`
+	HistoryTo               *time.Time `json:"history_to,omitempty"`
+	UpdatedAt               time.Time  `json:"updated_at"`
+}

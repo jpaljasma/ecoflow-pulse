@@ -11,6 +11,7 @@ DOCKER ?= docker
 PGROLL ?= pgroll
 PGROLL_REQUIRED ?= 0
 DOCKER_BUILDKIT ?= 1
+LOCAL_IMAGE_PLATFORM ?= $(shell arch="$$(uname -m)"; if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then printf 'linux/arm64'; elif [ "$$arch" = "x86_64" ] || [ "$$arch" = "amd64" ]; then printf 'linux/amd64'; else printf 'linux/amd64'; fi)
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 GCLOUD ?= gcloud
 LOCAL_PLATFORM_AUTO_TRUST_TLS ?= 1
@@ -416,11 +417,11 @@ chart-deps-local: helm-local-ready
 		echo "chart dependencies already vendored for $$chart; skipping helm dependency build"
 
 services-image-build-local: docker-local-ready
-	@echo "building services image $(SERVICES_IMAGE) from $(SERVICES_IMAGE_DOCKERFILE)"
+	@echo "building services image $(SERVICES_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(SERVICES_IMAGE_DOCKERFILE)"
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
-		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
+		DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
 	else \
-		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
 	fi
 
 services-image-import-local: k3d-local-ready
@@ -432,7 +433,7 @@ services-image-local-up:
 	@$(MAKE) --no-print-directory services-image-import-local
 
 platform-app-image-build-local: docker-local-ready
-	@echo "building public app image $(PLATFORM_APP_IMAGE) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
+	@echo "building public app image $(PLATFORM_APP_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
 	@set -euo pipefail; \
 		if [ -f .env ]; then \
 			set -a; source ./.env; set +a; \
@@ -453,17 +454,17 @@ platform-app-image-build-local: docker-local-ready
 			fi; \
 		done; \
 		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
-			DOCKER_BUILDKIT=1 $(DOCKER) build "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+			DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
 		else \
-			DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+			DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
 		fi
 
 realtime-gateway-image-build-local: docker-local-ready
-	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
+	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
-		DOCKER_BUILDKIT=1 $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
+		DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
 	else \
-		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
 	fi
 
 public-images-build-local:

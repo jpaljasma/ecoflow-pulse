@@ -1,11 +1,13 @@
 package solarforecastd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,6 +109,146 @@ func TestGetSolarOutlookPersistsTrainingRunForAllScope(t *testing.T) {
 		}
 		if row.VerificationStatus != VerificationStatusPending {
 			t.Fatalf("row.VerificationStatus = %q, want %q", row.VerificationStatus, VerificationStatusPending)
+		}
+	}
+}
+
+func TestGetSolarOutlookPersistsRunUsingUpstreamIssueTimeAndCanonicalRunID(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 19, 18, 0, 0, 0, time.UTC)
+	issuedAt := time.Date(2026, 3, 19, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	weather := &stubWeatherForecaster{
+		bundle: testBundle(issuedAt, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
+	}
+	query := &stubTelemetryReader{
+		series: telemetryquery.Series{
+			DeviceID:   "dev-a",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: nowUTC.Add(-1 * time.Hour),
+					BucketEnd:   nowUTC,
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(900),
+						SolarGeneratedWh: float64Ptr(600),
+					},
+				},
+			},
+		},
+	}
+	store := &capturingTrainingStore{insertRunID: "canonical-run-id"}
+	svc, err := NewService(weather, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	_, err = svc.GetSolarOutlook(context.Background(), Input{
+		WeatherRequest: weatherd.Request{
+			Latitude:   42.61,
+			Longitude:  -77.40,
+			Timezone:   "America/New_York",
+			UnitSystem: weatherd.UnitSystemMetric,
+		},
+		Scope: Scope{
+			Mode:     "device",
+			DeviceID: "dev-a",
+		},
+		ResolvedDeviceIDs: []string{"dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+	if store.run == nil {
+		t.Fatal("training run was not captured")
+	}
+	if got, want := store.run.IssuedAt.UTC(), issuedAt.UTC(); !got.Equal(want) {
+		t.Fatalf("run.IssuedAt = %v, want %v", got, want)
+	}
+	if got, want := store.run.IssueLocalDate.Format("2006-01-02"), "2026-03-19"; got != want {
+		t.Fatalf("run.IssueLocalDate = %s, want %s", got, want)
+	}
+	if got, want := store.run.IssueLocalHour, 11; got != want {
+		t.Fatalf("run.IssueLocalHour = %d, want %d", got, want)
+	}
+	if got, want := store.run.IssueUTCOffsetMinutes, -240; got != want {
+		t.Fatalf("run.IssueUTCOffsetMinutes = %d, want %d", got, want)
+	}
+	if got, want := len(store.rows), 2; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	for idx, row := range store.rows {
+		if got, want := row.RunID, "canonical-run-id"; got != want {
+			t.Fatalf("row[%d].RunID = %q, want %q", idx, got, want)
+		}
+	}
+}
+
+func TestGetSolarOutlookLogsStageTimingsAtDebug(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 19, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	weather := &stubWeatherForecaster{
+		bundle: testBundle(nowUTC, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
+	}
+	query := &stubTelemetryReader{
+		series: telemetryquery.Series{
+			DeviceID:   "dev-a",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: nowUTC.Add(-1 * time.Hour),
+					BucketEnd:   nowUTC,
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(900),
+						SolarGeneratedWh: float64Ptr(600),
+					},
+				},
+			},
+		},
+	}
+	store := &capturingTrainingStore{}
+	var logBuf bytes.Buffer
+	svc, err := NewService(weather, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Store:                 store,
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	_, err = svc.GetSolarOutlook(context.Background(), Input{
+		WeatherRequest: weatherd.Request{
+			Latitude:   42.61,
+			Longitude:  -77.40,
+			Timezone:   "America/New_York",
+			UnitSystem: weatherd.UnitSystemMetric,
+		},
+		Scope: Scope{
+			Mode:     "device",
+			DeviceID: "dev-a",
+		},
+		ResolvedDeviceIDs: []string{"dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+	out := logBuf.String()
+	if !strings.Contains(out, "solar forecast stage timings") {
+		t.Fatalf("log output missing stage summary: %s", out)
+	}
+	for _, want := range []string{"weather_fetch_ms=", "telemetry_lookback_ms=", "calibration_loads_ms=", "summarization_ms=", "training_kickoff_ms="} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("log output missing %q: %s", want, out)
 		}
 	}
 }
@@ -295,6 +437,106 @@ func TestVerifyIssuedForecastsBackfillsActualsAndRollups(t *testing.T) {
 	if got, want := valueOrZero(store.calibrationStates[0].MultiplicativeRatio), 0.9; got != want {
 		t.Fatalf("calibrationStates[0].MultiplicativeRatio = %v, want %v", got, want)
 	}
+	if store.servingState == nil {
+		t.Fatal("servingState = nil, want populated background serving state")
+	}
+	if got := valueOrZero(store.servingState.PotentialFinalEnvelopeW); got <= 0 {
+		t.Fatalf("servingState.PotentialFinalEnvelopeW = %v, want positive value", got)
+	}
+}
+
+func TestVerifyIssuedForecastsClaimedRunsBackfillsActualsAndRollups(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	targetA := time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC)
+	targetB := time.Date(2026, 3, 20, 13, 0, 0, 0, time.UTC)
+	siteMetadata, err := json.Marshal(map[string]any{
+		"resolved_device_ids": []string{"dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(siteMetadata) error = %v", err)
+	}
+	baseStore := &capturingTrainingStore{
+		runs: map[string]*Run{
+			"run-1": {
+				ID:               "run-1",
+				SiteKey:          "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+				ScopeKind:        "device",
+				DeviceID:         stringPtr("dev-a"),
+				ServedVariant:    "baseline",
+				Timezone:         "UTC",
+				ForecastVersion:  "deterministic_baseline_v1",
+				SiteMetadataJSON: siteMetadata,
+			},
+		},
+		rows: []HourlyTrainingRecord{
+			{
+				RunID:                        "run-1",
+				SiteKey:                      "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+				DeviceID:                     stringPtr("dev-a"),
+				TargetTime:                   targetA,
+				TargetLocalDate:              parseDateISO("2026-03-20"),
+				HorizonBucket:                HorizonBucketSameDay,
+				ForecastGenerationWh:         500,
+				BaselineForecastGenerationWh: float64Ptr(500),
+				VerificationStatus:           VerificationStatusPending,
+			},
+			{
+				RunID:                        "run-1",
+				SiteKey:                      "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+				DeviceID:                     stringPtr("dev-a"),
+				TargetTime:                   targetB,
+				TargetLocalDate:              parseDateISO("2026-03-20"),
+				HorizonBucket:                HorizonBucketSameDay,
+				ForecastGenerationWh:         300,
+				BaselineForecastGenerationWh: float64Ptr(300),
+				VerificationStatus:           VerificationStatusPending,
+			},
+		},
+	}
+	store := &claimingTrainingStore{capturingTrainingStore: baseStore}
+	query := &stubTelemetryReader{
+		series: telemetryquery.Series{
+			DeviceID:   "dev-a",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: targetA,
+					BucketEnd:   targetA.Add(time.Hour),
+					Metrics: telemetryquery.Metrics{
+						SolarGeneratedWh: float64Ptr(450),
+					},
+				},
+			},
+		},
+	}
+	svc, err := NewService(nil, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(prometheus.NewRegistry()),
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	if err := svc.VerifyIssuedForecasts(context.Background(), nowUTC, 10); err != nil {
+		t.Fatalf("VerifyIssuedForecasts() error = %v", err)
+	}
+	if got, want := len(baseStore.completedRows), 2; got != want {
+		t.Fatalf("len(completedRows) = %d, want %d", got, want)
+	}
+	if got, want := baseStore.completedRows[0].VerificationStatus, VerificationStatusVerified; got != want {
+		t.Fatalf("completedRows[0].VerificationStatus = %q, want %q", got, want)
+	}
+	if got, want := baseStore.completedRows[1].VerificationStatus, VerificationStatusMissingTruth; got != want {
+		t.Fatalf("completedRows[1].VerificationStatus = %q, want %q", got, want)
+	}
+	if got, want := len(baseStore.rollups), 1; got != want {
+		t.Fatalf("len(rollups) = %d, want %d", got, want)
+	}
 }
 
 func TestGetSolarOutlookAppliesCalibrationRatio(t *testing.T) {
@@ -465,6 +707,61 @@ func TestAtmosphericAttenuationFactorDoesNotStackRainAndPrecipitation(t *testing
 	got := atmosphericAttenuationFactor(point)
 	if got != 0.86 {
 		t.Fatalf("atmosphericAttenuationFactor() = %v, want 0.86", got)
+	}
+}
+
+func TestEstimateForecastWattsAppliesFutureDayWeatherRegimeSuppression(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	estimatedPeakWatts := 1920.0
+	point := weatherd.HourlyForecastPoint{
+		Time:      time.Date(2026, 3, 21, 16, 0, 0, 0, time.UTC),
+		Condition: weatherd.WeatherCondition{WeatherCode: 45},
+		Raw: weatherd.ForecastValueSet{
+			Temperature:        float64Ptr(8),
+			ShortwaveRadiation: float64Ptr(800),
+			Visibility:         float64Ptr(1500),
+			Precipitation:      float64Ptr(0.2),
+		},
+	}
+
+	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, nil)
+	if got == nil {
+		t.Fatal("estimateForecastWatts() = nil, want value")
+	}
+	want := round1(estimatedPeakWatts * 0.8 * baseSystemEfficiencyFactor * atmosphericAttenuationFactor(point) * futureDayPeakSuppressionFactor(point, nowUTC, loc))
+	if diff := math.Abs(*got - want); diff > 0.11 {
+		t.Fatalf("estimateForecastWatts() = %v, want future-day suppressed %v", *got, want)
+	}
+}
+
+func TestEstimateForecastWattsCapsFutureDayAfterCalibration(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	estimatedPeakWatts := 1920.0
+	ratio := 2.0
+	point := weatherd.HourlyForecastPoint{
+		Time:      time.Date(2026, 3, 21, 17, 0, 0, 0, time.UTC),
+		Condition: weatherd.WeatherCondition{WeatherCode: 61},
+		Raw: weatherd.ForecastValueSet{
+			Temperature:            float64Ptr(10),
+			GlobalTiltedIrradiance: float64Ptr(1200),
+			Visibility:             float64Ptr(4500),
+			Precipitation:          float64Ptr(1.2),
+		},
+	}
+
+	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, &ratio)
+	if got == nil {
+		t.Fatal("estimateForecastWatts() = nil, want value")
+	}
+	want := round1(estimatedPeakWatts * maxForecastPeakOutputScale * futureDayPeakSuppressionFactor(point, nowUTC, loc))
+	if *got != want {
+		t.Fatalf("estimateForecastWatts() = %v, want capped future-day value %v", *got, want)
 	}
 }
 
@@ -874,6 +1171,79 @@ func TestDeriveTodayRemainingScaleUsesModeledForecast(t *testing.T) {
 	}
 }
 
+func TestDeriveTodayRemainingScaleUsesTrailingHoursClamp(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLocation(t, "America/New_York")
+	nowUTC := time.Date(2026, 3, 20, 19, 0, 0, 0, time.UTC)
+	estimatedPeakWatts := 1920.0
+	todayISO := localDateISO(nowUTC, loc)
+	hourly := []weatherd.HourlyForecastPoint{
+		{
+			Time:      time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:        float64Ptr(13),
+				ShortwaveRadiation: float64Ptr(650),
+			},
+		},
+		{
+			Time:      time.Date(2026, 3, 20, 17, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:        float64Ptr(12),
+				ShortwaveRadiation: float64Ptr(600),
+			},
+		},
+		{
+			Time:      time.Date(2026, 3, 20, 18, 0, 0, 0, time.UTC),
+			Condition: weatherd.WeatherCondition{WeatherCode: 0},
+			Raw: weatherd.ForecastValueSet{
+				Temperature:        float64Ptr(11),
+				ShortwaveRadiation: float64Ptr(500),
+			},
+		},
+	}
+	forecastRecentA := valueOrZero(estimateForecastWatts(hourly[1], &estimatedPeakWatts, nowUTC, loc, nil, nil))
+	forecastRecentB := valueOrZero(estimateForecastWatts(hourly[2], &estimatedPeakWatts, nowUTC, loc, nil, nil))
+
+	todayStartLocal := time.Date(nowUTC.In(loc).Year(), nowUTC.In(loc).Month(), nowUTC.In(loc).Day(), 0, 0, 0, 0, loc)
+	points := make([]telemetryquery.Point, 0, 15)
+	for hour := 0; hour < 15; hour++ {
+		bucketStart := todayStartLocal.Add(time.Duration(hour) * time.Hour).UTC()
+		metrics := telemetryquery.Metrics{
+			SolarGeneratedWh: float64Ptr(100),
+		}
+		if bucketStart.Equal(hourly[1].Time.UTC()) {
+			metrics.SolarGeneratedWh = float64Ptr(forecastRecentA * 0.4)
+		}
+		if bucketStart.Equal(hourly[2].Time.UTC()) {
+			metrics.SolarGeneratedWh = float64Ptr(forecastRecentB * 0.4)
+		}
+		points = append(points, telemetryquery.Point{
+			BucketStart: bucketStart,
+			BucketEnd:   bucketStart.Add(time.Hour),
+			Metrics:     metrics,
+		})
+	}
+	history := telemetryquery.Series{
+		EnergyBucketCoverage: telemetryquery.EnergyBucketCoverage{
+			PointCount:          len(points),
+			PersistedValueCount: len(points),
+		},
+		Points: points,
+	}
+	actualTodayWh := 1500.0
+
+	got, reason := deriveTodayRemainingScale(history, hourly, &estimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, nil, nil)
+	if math.Abs(got-0.4) > 0.0001 {
+		t.Fatalf("deriveTodayRemainingScale() = %v, want trailing clamp 0.4", got)
+	}
+	if reason != "" {
+		t.Fatalf("deriveTodayRemainingScale() reason = %q, want empty", reason)
+	}
+}
+
 func TestDeriveTodayRemainingScaleAppliesSaturationBandClamp(t *testing.T) {
 	t.Parallel()
 
@@ -1151,6 +1521,16 @@ func TestReplayValidationCalibratedRunBeatsShadowBaseline(t *testing.T) {
 	if got, want := len(store.calibrationStates), 2; got != want {
 		t.Fatalf("len(calibrationStates) after training = %d, want %d", got, want)
 	}
+	store.servingState = &ServingState{
+		SiteKey:                 "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+		ForecastVersion:         "deterministic_baseline_v1",
+		Timezone:                "America/New_York",
+		RecentSiteRatio:         float64Ptr(0.8),
+		RecentSiteSampleCount:   6,
+		RecentSiteUpdatedAt:     timePtr(time.Date(2026, 3, 21, 23, 0, 0, 0, time.UTC)),
+		PotentialFinalEnvelopeW: float64Ptr(1000),
+		UpdatedAt:               time.Date(2026, 3, 21, 23, 0, 0, 0, time.UTC),
+	}
 
 	nowUTC := time.Date(2026, 3, 22, 8, 0, 0, 0, time.UTC)
 	weather := &stubWeatherForecaster{
@@ -1209,8 +1589,8 @@ func TestReplayValidationCalibratedRunBeatsShadowBaseline(t *testing.T) {
 	if calibratedRollup.BaselinePeakPowerAbsErrorWSum <= calibratedRollup.PeakPowerAbsErrorWSum {
 		t.Fatalf("baseline peak power abs error = %v, want greater than served %v", calibratedRollup.BaselinePeakPowerAbsErrorWSum, calibratedRollup.PeakPowerAbsErrorWSum)
 	}
-	if calibratedRollup.BaselinePeakTimeAbsErrorMinutesSum <= calibratedRollup.PeakTimeAbsErrorMinutesSum {
-		t.Fatalf("baseline peak time abs error = %v, want greater than served %v", calibratedRollup.BaselinePeakTimeAbsErrorMinutesSum, calibratedRollup.PeakTimeAbsErrorMinutesSum)
+	if calibratedRollup.BaselinePeakTimeAbsErrorMinutesSum < calibratedRollup.PeakTimeAbsErrorMinutesSum {
+		t.Fatalf("baseline peak time abs error = %v, want at least served %v", calibratedRollup.BaselinePeakTimeAbsErrorMinutesSum, calibratedRollup.PeakTimeAbsErrorMinutesSum)
 	}
 }
 
@@ -1347,6 +1727,16 @@ func TestGetSolarOutlookUsesRecentSiteCalibrationForFutureForecasts(t *testing.T
 				IssuedAt:        nowUTC.Add(-30 * time.Hour),
 			},
 		},
+		servingState: &ServingState{
+			SiteKey:                 "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+			ForecastVersion:         "deterministic_baseline_v1",
+			Timezone:                "America/New_York",
+			RecentSiteRatio:         float64Ptr(0.8),
+			RecentSiteSampleCount:   24,
+			RecentSiteUpdatedAt:     timePtr(nowUTC.Add(-6 * time.Hour)),
+			PotentialFinalEnvelopeW: float64Ptr(1000),
+			UpdatedAt:               nowUTC.Add(-6 * time.Hour),
+		},
 	}
 	yesterdayLocal := time.Date(nowUTC.In(loc).Year(), nowUTC.In(loc).Month(), nowUTC.In(loc).Day()-1, 0, 0, 0, 0, loc)
 	for hour := 0; hour < 24; hour++ {
@@ -1374,7 +1764,6 @@ func TestGetSolarOutlookUsesRecentSiteCalibrationForFutureForecasts(t *testing.T
 		IssuedAt:             nowUTC.Add(-36 * time.Hour),
 		UpdatedAt:            nowUTC.Add(-7 * time.Hour),
 	})
-
 	svc, err := NewService(weather, query, Config{
 		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
 		Store:                 store,
@@ -1406,6 +1795,9 @@ func TestGetSolarOutlookUsesRecentSiteCalibrationForFutureForecasts(t *testing.T
 	}
 	if got, want := outlook.Provenance.CalibrationSampleCount, 24; got != want {
 		t.Fatalf("outlook.Provenance.CalibrationSampleCount = %d, want %d", got, want)
+	}
+	if got := store.listRecentCalibrationCalls; got != 0 {
+		t.Fatalf("ListRecentCalibrationRecords() calls = %d, want 0 on request path", got)
 	}
 
 	futurePoint := weather.bundle.Hourly[0]
@@ -1465,17 +1857,24 @@ func (s *stubTelemetryReader) Close() error {
 }
 
 type capturingTrainingStore struct {
-	run               *Run
-	runs              map[string]*Run
-	rows              []HourlyTrainingRecord
-	completedRows     []HourlyTrainingRecord
-	rollups           []DailyVerificationRollup
-	calibrationStates []CalibrationState
-	insertRunErr      error
-	insertRowsErr     error
+	run                        *Run
+	runs                       map[string]*Run
+	rows                       []HourlyTrainingRecord
+	completedRows              []HourlyTrainingRecord
+	rollups                    []DailyVerificationRollup
+	calibrationStates          []CalibrationState
+	servingState               *ServingState
+	listRecentCalibrationCalls int
+	insertRunID                string
+	insertRunErr               error
+	insertRowsErr              error
 }
 
-func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) error {
+type claimingTrainingStore struct {
+	*capturingTrainingStore
+}
+
+func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) (string, error) {
 	runCopy := run
 	s.run = &runCopy
 	if s.runs == nil {
@@ -1483,13 +1882,16 @@ func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) error {
 	}
 	s.runs[run.ID] = &runCopy
 	if s.insertRunErr != nil {
-		return s.insertRunErr
+		return "", s.insertRunErr
 	}
-	return nil
+	if s.insertRunID != "" {
+		return s.insertRunID, nil
+	}
+	return run.ID, nil
 }
 
 func (s *capturingTrainingStore) InsertHourlyRecords(_ context.Context, rows []HourlyTrainingRecord) error {
-	s.rows = append([]HourlyTrainingRecord(nil), rows...)
+	s.rows = append(s.rows, rows...)
 	if s.insertRowsErr != nil {
 		return s.insertRowsErr
 	}
@@ -1513,6 +1915,24 @@ func (s *capturingTrainingStore) ListPendingHourlyRecords(_ context.Context, bef
 	return out, nil
 }
 
+func (s *claimingTrainingStore) ClaimPendingRun(ctx context.Context, before time.Time) (*PendingRunClaim, error) {
+	pending, err := s.ListPendingHourlyRecords(ctx, before, 24*64)
+	if err != nil {
+		return nil, err
+	}
+	batches := groupPendingByRun(pending)
+	if len(batches) == 0 {
+		return nil, nil
+	}
+	batch := batches[0]
+	if len(batch) == 0 {
+		return nil, nil
+	}
+	return NewPendingRunClaim(s.lookupRun(batch[0].RunID), batch, s.capturingTrainingStore, func(bool) error {
+		return nil
+	}), nil
+}
+
 func (s *capturingTrainingStore) ListVerificationRecords(_ context.Context, siteKey string, fromDate, toDate time.Time) ([]VerificationRecord, error) {
 	out := make([]VerificationRecord, 0)
 	for _, row := range s.rows {
@@ -1533,6 +1953,33 @@ func (s *capturingTrainingStore) ListVerificationRecords(_ context.Context, site
 	return out, nil
 }
 
+func (s *capturingTrainingStore) ListRecentCalibrationRecords(_ context.Context, siteKey, forecastVersion string, fromDate, toDate time.Time) ([]VerificationRecord, error) {
+	s.listRecentCalibrationCalls++
+	out := make([]VerificationRecord, 0)
+	for _, row := range s.rows {
+		if row.SiteKey != siteKey {
+			continue
+		}
+		if row.VerificationStatus != VerificationStatusVerified || row.ActualGenerationWh == nil {
+			continue
+		}
+		if row.TargetLocalDate.Before(fromDate) || row.TargetLocalDate.After(toDate) {
+			continue
+		}
+		record := VerificationRecord{HourlyTrainingRecord: row}
+		if run := s.lookupRun(row.RunID); run != nil {
+			record.ForecastVersion = run.ForecastVersion
+			record.ServedVariant = run.ServedVariant
+			record.Timezone = run.Timezone
+		}
+		if record.ForecastVersion != forecastVersion {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
 func (s *capturingTrainingStore) LoadCalibrationStates(_ context.Context, siteKey, forecastVersion string) ([]CalibrationState, error) {
 	out := make([]CalibrationState, 0)
 	for _, state := range s.calibrationStates {
@@ -1544,8 +1991,25 @@ func (s *capturingTrainingStore) LoadCalibrationStates(_ context.Context, siteKe
 	return out, nil
 }
 
+func (s *capturingTrainingStore) LoadServingState(_ context.Context, siteKey, forecastVersion string) (*ServingState, error) {
+	if s.servingState == nil {
+		return nil, nil
+	}
+	if s.servingState.SiteKey != siteKey || s.servingState.ForecastVersion != forecastVersion {
+		return nil, nil
+	}
+	stateCopy := *s.servingState
+	return &stateCopy, nil
+}
+
 func (s *capturingTrainingStore) UpsertCalibrationStates(_ context.Context, states []CalibrationState) error {
 	s.calibrationStates = append([]CalibrationState(nil), states...)
+	return nil
+}
+
+func (s *capturingTrainingStore) UpsertServingState(_ context.Context, state ServingState) error {
+	stateCopy := state
+	s.servingState = &stateCopy
 	return nil
 }
 
