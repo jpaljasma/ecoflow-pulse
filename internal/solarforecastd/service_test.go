@@ -1,11 +1,13 @@
 package solarforecastd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -184,6 +186,69 @@ func TestGetSolarOutlookPersistsRunUsingUpstreamIssueTimeAndCanonicalRunID(t *te
 	for idx, row := range store.rows {
 		if got, want := row.RunID, "canonical-run-id"; got != want {
 			t.Fatalf("row[%d].RunID = %q, want %q", idx, got, want)
+		}
+	}
+}
+
+func TestGetSolarOutlookLogsStageTimingsAtDebug(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 19, 15, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	weather := &stubWeatherForecaster{
+		bundle: testBundle(nowUTC, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
+	}
+	query := &stubTelemetryReader{
+		series: telemetryquery.Series{
+			DeviceID:   "dev-a",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: nowUTC.Add(-1 * time.Hour),
+					BucketEnd:   nowUTC,
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(900),
+						SolarGeneratedWh: float64Ptr(600),
+					},
+				},
+			},
+		},
+	}
+	store := &capturingTrainingStore{}
+	var logBuf bytes.Buffer
+	svc, err := NewService(weather, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Store:                 store,
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	_, err = svc.GetSolarOutlook(context.Background(), Input{
+		WeatherRequest: weatherd.Request{
+			Latitude:   42.61,
+			Longitude:  -77.40,
+			Timezone:   "America/New_York",
+			UnitSystem: weatherd.UnitSystemMetric,
+		},
+		Scope: Scope{
+			Mode:     "device",
+			DeviceID: "dev-a",
+		},
+		ResolvedDeviceIDs: []string{"dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+	out := logBuf.String()
+	if !strings.Contains(out, "solar forecast stage timings") {
+		t.Fatalf("log output missing stage summary: %s", out)
+	}
+	for _, want := range []string{"weather_fetch_ms=", "telemetry_lookback_ms=", "calibration_loads_ms=", "summarization_ms=", "training_kickoff_ms="} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("log output missing %q: %s", want, out)
 		}
 	}
 }
@@ -371,6 +436,100 @@ func TestVerifyIssuedForecastsBackfillsActualsAndRollups(t *testing.T) {
 	}
 	if got, want := valueOrZero(store.calibrationStates[0].MultiplicativeRatio), 0.9; got != want {
 		t.Fatalf("calibrationStates[0].MultiplicativeRatio = %v, want %v", got, want)
+	}
+}
+
+func TestVerifyIssuedForecastsClaimedRunsBackfillsActualsAndRollups(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC)
+	targetA := time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC)
+	targetB := time.Date(2026, 3, 20, 13, 0, 0, 0, time.UTC)
+	siteMetadata, err := json.Marshal(map[string]any{
+		"resolved_device_ids": []string{"dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(siteMetadata) error = %v", err)
+	}
+	baseStore := &capturingTrainingStore{
+		runs: map[string]*Run{
+			"run-1": {
+				ID:               "run-1",
+				SiteKey:          "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+				ScopeKind:        "device",
+				DeviceID:         stringPtr("dev-a"),
+				ServedVariant:    "baseline",
+				Timezone:         "UTC",
+				ForecastVersion:  "deterministic_baseline_v1",
+				SiteMetadataJSON: siteMetadata,
+			},
+		},
+		rows: []HourlyTrainingRecord{
+			{
+				RunID:                        "run-1",
+				SiteKey:                      "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+				DeviceID:                     stringPtr("dev-a"),
+				TargetTime:                   targetA,
+				TargetLocalDate:              parseDateISO("2026-03-20"),
+				HorizonBucket:                HorizonBucketSameDay,
+				ForecastGenerationWh:         500,
+				BaselineForecastGenerationWh: float64Ptr(500),
+				VerificationStatus:           VerificationStatusPending,
+			},
+			{
+				RunID:                        "run-1",
+				SiteKey:                      "grid:42.61:-77.40:290|tilt:45|az:0|dev-a",
+				DeviceID:                     stringPtr("dev-a"),
+				TargetTime:                   targetB,
+				TargetLocalDate:              parseDateISO("2026-03-20"),
+				HorizonBucket:                HorizonBucketSameDay,
+				ForecastGenerationWh:         300,
+				BaselineForecastGenerationWh: float64Ptr(300),
+				VerificationStatus:           VerificationStatusPending,
+			},
+		},
+	}
+	store := &claimingTrainingStore{capturingTrainingStore: baseStore}
+	query := &stubTelemetryReader{
+		series: telemetryquery.Series{
+			DeviceID:   "dev-a",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: targetA,
+					BucketEnd:   targetA.Add(time.Hour),
+					Metrics: telemetryquery.Metrics{
+						SolarGeneratedWh: float64Ptr(450),
+					},
+				},
+			},
+		},
+	}
+	svc, err := NewService(nil, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(prometheus.NewRegistry()),
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	if err := svc.VerifyIssuedForecasts(context.Background(), nowUTC, 10); err != nil {
+		t.Fatalf("VerifyIssuedForecasts() error = %v", err)
+	}
+	if got, want := len(baseStore.completedRows), 2; got != want {
+		t.Fatalf("len(completedRows) = %d, want %d", got, want)
+	}
+	if got, want := baseStore.completedRows[0].VerificationStatus, VerificationStatusVerified; got != want {
+		t.Fatalf("completedRows[0].VerificationStatus = %q, want %q", got, want)
+	}
+	if got, want := baseStore.completedRows[1].VerificationStatus, VerificationStatusMissingTruth; got != want {
+		t.Fatalf("completedRows[1].VerificationStatus = %q, want %q", got, want)
+	}
+	if got, want := len(baseStore.rollups), 1; got != want {
+		t.Fatalf("len(rollups) = %d, want %d", got, want)
 	}
 }
 
@@ -1553,6 +1712,10 @@ type capturingTrainingStore struct {
 	insertRowsErr     error
 }
 
+type claimingTrainingStore struct {
+	*capturingTrainingStore
+}
+
 func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) (string, error) {
 	runCopy := run
 	s.run = &runCopy
@@ -1592,6 +1755,24 @@ func (s *capturingTrainingStore) ListPendingHourlyRecords(_ context.Context, bef
 		}
 	}
 	return out, nil
+}
+
+func (s *claimingTrainingStore) ClaimPendingRun(ctx context.Context, before time.Time) (*PendingRunClaim, error) {
+	pending, err := s.ListPendingHourlyRecords(ctx, before, 24*64)
+	if err != nil {
+		return nil, err
+	}
+	batches := groupPendingByRun(pending)
+	if len(batches) == 0 {
+		return nil, nil
+	}
+	batch := batches[0]
+	if len(batch) == 0 {
+		return nil, nil
+	}
+	return NewPendingRunClaim(s.lookupRun(batch[0].RunID), batch, s.capturingTrainingStore, func(bool) error {
+		return nil
+	}), nil
 }
 
 func (s *capturingTrainingStore) ListVerificationRecords(_ context.Context, siteKey string, fromDate, toDate time.Time) ([]VerificationRecord, error) {

@@ -95,8 +95,15 @@ Defaults:
   - `pulse-services-go-energy-api`: `3` replicas
 - current local services defaults enable containerized telemetry workers
   (`go-ingest`, `go-inference`, `go-projection`, `go-rollup`, `go-archive`,
-  `go-grpc-api`, `go-energy-api`) using image `ecoflow-pulse/services:local`,
-  with `3` replicas per service to keep local rollouts disruption-tolerant.
+  `go-grpc-api`, `go-energy-api`, `go-solar-verification`) using image
+  `ecoflow-pulse/services:local`; the request-serving gRPC/API workloads stay
+  at `3` replicas each while `go-solar-verification` runs with `2` local
+  replicas that cooperatively claim pending verification work from Postgres and
+  are required to run one-per-host across the non-control-plane agent nodes,
+  with one-at-a-time rollouts so the background verifier load scales out
+  without competing with request serving or collapsing back onto a single hot
+  node during updates. Local verifier defaults also use a shorter `1m` loop and
+  a `3072` row batch limit so large local backlogs drain fast enough to profile.
 - local/dev MinIO credentials are intentionally pinned for deterministic
   bring-up and service compatibility:
   - platform chart uses `minio.rootUser` / `minio.rootPassword`

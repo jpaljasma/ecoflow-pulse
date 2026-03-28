@@ -59,6 +59,7 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 		"solar_forecast_hourly_training_records",
 		"solar_forecast_runs",
 		"solar_forecast_verification_daily",
+		"solar_forecast_verification_daily_run_rollup",
 		"telemetry_rollup_day",
 		"telemetry_rollup_hour",
 		"telemetry_rollup_minute",
@@ -68,7 +69,7 @@ func assertSchemaState(t *testing.T, ctx context.Context, db *sql.DB) {
 		"user_devices",
 		"users",
 	}
-	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','solar_forecast_runs','solar_forecast_hourly_training_records','solar_forecast_verification_daily','solar_forecast_calibration_state','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
+	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','solar_forecast_runs','solar_forecast_hourly_training_records','solar_forecast_verification_daily','solar_forecast_verification_daily_run_rollup','solar_forecast_calibration_state','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
 	assertStringsEqual(t, gotTables, wantTables, "tables")
 
 	gotIDDefault := queryStrings(t, ctx, db, "SELECT pg_get_expr(adbin, adrelid) FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=d.adnum WHERE c.relname='users' AND a.attname='id'")
@@ -124,6 +125,8 @@ ORDER BY c.relname, a.attname`)
 	assertStringsEqual(t, gotTimestampDefaults, wantTimestampDefaults, "timestamp defaults")
 
 	wantIndexes := []string{
+		"idx_solar_forecast_hourly_pending_claim_lookup",
+		"idx_solar_forecast_hourly_rollup_cover",
 		"idx_solar_forecast_hourly_rollup_lookup",
 		"idx_solar_forecast_hourly_site_target_time",
 		"idx_solar_forecast_hourly_verified_at",
@@ -134,6 +137,8 @@ FROM pg_indexes
 WHERE schemaname = 'public'
   AND tablename = 'solar_forecast_hourly_training_records'
   AND indexname IN (
+    'idx_solar_forecast_hourly_pending_claim_lookup',
+    'idx_solar_forecast_hourly_rollup_cover',
     'idx_solar_forecast_hourly_rollup_lookup',
     'idx_solar_forecast_hourly_site_target_time',
     'idx_solar_forecast_hourly_verified_at'
@@ -307,7 +312,7 @@ ORDER BY table_name, column_name`)
 func assertTablesAbsent(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
-	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','solar_forecast_runs','solar_forecast_hourly_training_records','solar_forecast_verification_daily','solar_forecast_calibration_state','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
+	gotTables := queryStrings(t, ctx, db, "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('users','devices','user_devices','provider_credentials','provider_devices','archive_object_manifest','solar_forecast_runs','solar_forecast_hourly_training_records','solar_forecast_verification_daily','solar_forecast_verification_daily_run_rollup','solar_forecast_calibration_state','telemetry_rollup_minute','telemetry_rollup_hour','telemetry_rollup_day','telemetry_rollup_pv_port_minute','telemetry_rollup_pv_port_hour','telemetry_rollup_pv_port_day') ORDER BY table_name")
 	if len(gotTables) != 0 {
 		t.Fatalf("expected migrated tables to be absent after down migrations, got=%v", gotTables)
 	}

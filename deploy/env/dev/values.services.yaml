@@ -58,10 +58,13 @@ runtime:
     grpcApi:
       enabled: true
       replicaCount: 3
+      solarForecastVerificationInterval: "0s"
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
+    solarVerification:
+      enabled: true
     energyApi:
       enabled: true
       replicaCount: 3

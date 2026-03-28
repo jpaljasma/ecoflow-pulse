@@ -16,6 +16,13 @@ const (
 	minRecentSiteCalibrationForecastWhSum = 400.0
 )
 
+const (
+	CalibrationEWMAAlpha     = defaultCalibrationEWMAAlpha
+	CalibrationRatioMinClamp = minCalibrationRatioClamp
+	CalibrationRatioMaxClamp = maxCalibrationRatioClamp
+	CalibrationMinForecastWh = minCalibrationForecastWh
+)
+
 type CalibrationIndex map[HorizonBucket]map[int]CalibrationState
 
 type RecentSiteCalibration struct {
