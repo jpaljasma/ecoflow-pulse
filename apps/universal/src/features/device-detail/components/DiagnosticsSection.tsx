@@ -4,6 +4,7 @@ import { Button, Text, XStack, YStack } from 'tamagui';
 import { Pill } from '@/shared/ui/Pill';
 import { Card } from '@/shared/ui/Card';
 import type { DetailDiagnosticPillVM } from '@/features/device-detail/view-model';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 import { IconLabel } from '@/shared/ui/IconLabel';
 
 export function DiagnosticsSection({
@@ -14,6 +15,7 @@ export function DiagnosticsSection({
   minWidth?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const semantics = useThemeSemantics();
 
   return (
     <Card gap="$3" flex={1} minWidth={minWidth}>
@@ -34,7 +36,7 @@ export function DiagnosticsSection({
           <MaterialCommunityIcons
             name={expanded ? 'chevron-up' : 'chevron-down'}
             size={22}
-            color="rgba(28, 43, 45, 0.82)"
+            color={semantics.subtleStrongText}
           />
         </XStack>
       </Button>
