@@ -1,6 +1,7 @@
 import type { ProviderDevice } from '../grpc/controlPlaneClient.js';
 
 export type DeviceCapabilities = Record<string, unknown>;
+type DeviceDiagnosticTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
 
 export type BatteryPackDetail = {
   id: string;
@@ -12,6 +13,13 @@ export type BatteryPackDetail = {
   remainMinutes?: number;
   socMinPct?: number;
   socMaxPct?: number;
+};
+
+export type DeviceDiagnosticDetail = {
+  key: string;
+  label: string;
+  value: string;
+  tone?: DeviceDiagnosticTone;
 };
 
 export type SolarPortDetail = {
@@ -42,6 +50,12 @@ export type DeviceTelemetryDetails = {
   fanOn?: boolean;
   solarChargingOn?: boolean;
   batteryHeatingOn?: boolean;
+  xBoostOn?: boolean;
+  solarMode?: string;
+  passthroughMode?: string;
+  acAutoOnMode?: string;
+  energyManagementOn?: boolean;
+  diagnostics?: DeviceDiagnosticDetail[];
   stormGuardActive?: boolean;
   stormGuardEndsAtUnixMs?: number;
   timezoneId?: string;
@@ -157,6 +171,7 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
   const appset = asRecord(groups.hs_yj751_pd_app_set_info_addr);
   const bpAddr = asRecord(groups.hs_yj751_pd_bp_addr);
   const bpInfo = asArray(bpAddr.bpInfo);
+  const diagnostics: DeviceDiagnosticDetail[] = [];
 
   const packs: BatteryPackDetail[] = [];
   for (const [idx, row] of bpInfo.entries()) {
@@ -164,8 +179,9 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     if (Object.keys(pack).length === 0) {
       continue;
     }
+    const packLabel = stringOr(pack.bpNo, `BP ${idx + 1}`);
     packs.push({
-      id: stringOr(pack.bpNo, `bp${idx + 1}`),
+      id: packLabel,
       socPct: toNumber(pack.bpSoc),
       powerW: toNumber(pack.bpPwr),
       tempC: toNumber(pack.bpTemp),
@@ -175,6 +191,20 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
       socMinPct: toNumber(pack.bpSocMin),
       socMaxPct: toNumber(pack.bpSocMax)
     });
+    pushDiagnostic(
+      diagnostics,
+      `bp-chg-${idx + 1}`,
+      `${packLabel} Charge State`,
+      describeRawEnumValue(toNumber(pack.bpChgSta)),
+      toNumber(pack.bpChgSta) === 0 ? 'neutral' : 'info'
+    );
+    pushDiagnostic(
+      diagnostics,
+      `bp-err-${idx + 1}`,
+      `${packLabel} Error Code`,
+      describeRawEnumValue(toNumber(pack.bpErrCode)),
+      diagnosticCodeTone(toNumber(pack.bpErrCode))
+    );
   }
 
   const lowWatts = firstDefined(toNumber(appshow.inLvMpptPwr), multiplyNumbers(backend.inLvMpptVol, backend.inLvMpptAmp));
@@ -209,6 +239,37 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     truthyNumber(appset.bmsModeSet) ||
     truthyNumber(appset.batteryHeatMode);
   const solarChargingOn = [lowPort, highPort].some((port) => port.state === 'charging');
+  const sysWorkMode = toNumber(appset.sysWorkMode);
+  const sysWorkSta = toNumber(backend.sysWorkSta);
+  const pcsWorkSta = toNumber(backend.pcsWorkSta);
+  const timeTaskConflictFlag = toNumber(appshow.timeTaskConflictFlag);
+  const chgTimeTaskType = toNumber(appshow.chgTimeTaskType);
+  const dsgTimeTaskType = toNumber(appshow.dsgTimeTaskType);
+
+  pushDiagnostic(diagnostics, 'dpu-sys-work-mode', 'System Work Mode', describeRawEnumValue(sysWorkMode), 'info');
+  pushDiagnostic(diagnostics, 'dpu-sys-work-status', 'System Work Status', describeRawEnumValue(sysWorkSta), 'info');
+  pushDiagnostic(diagnostics, 'dpu-pcs-work-status', 'PCS Work Status', describeRawEnumValue(pcsWorkSta), 'info');
+  pushDiagnostic(
+    diagnostics,
+    'dpu-time-task-conflict',
+    'Time Task Conflict',
+    describeBooleanLabel(timeTaskConflictFlag, 'Conflict', 'No Conflict'),
+    timeTaskConflictFlag !== undefined && timeTaskConflictFlag > 0 ? 'warning' : 'success'
+  );
+  pushDiagnostic(
+    diagnostics,
+    'dpu-charge-task-type',
+    'Charge Time Task Type',
+    describeTaskType(chgTimeTaskType),
+    chgTimeTaskType !== undefined && chgTimeTaskType >= 0 ? 'info' : 'neutral'
+  );
+  pushDiagnostic(
+    diagnostics,
+    'dpu-discharge-task-type',
+    'Discharge Time Task Type',
+    describeTaskType(dsgTimeTaskType),
+    dsgTimeTaskType !== undefined && dsgTimeTaskType >= 0 ? 'info' : 'neutral'
+  );
 
   return {
     bpCount: bpCount ?? packs.length,
@@ -232,7 +293,17 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     evChargingOn: anyPositive(appshow.outPrPwr, backend.outPrPwr),
     fanOn,
     solarChargingOn,
-    batteryHeatingOn
+    batteryHeatingOn,
+    xBoostOn: toBooleanFlag(appset.acXboost),
+    solarMode: describeDpuSolarMode(toNumber(appset.solarOnlyFlg)),
+    passthroughMode: describeDpuPassthroughMode(
+      toNumber(appshow.access_5p8InType),
+      toNumber(appshow.access_5p8OutType),
+      toNumber(backend.work_5p8Mode)
+    ),
+    acAutoOnMode: describeBooleanLabel(toNumber(appset.acOftenOpenFlg), 'Always On', 'Off'),
+    energyManagementOn: toBooleanFlag(appset.energyManageEnable),
+    diagnostics: diagnostics.length > 0 ? diagnostics : undefined
   };
 }
 
@@ -243,6 +314,7 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
   const bmsStatus = asRecord(groups.bms_bmsStatus);
   const bmsEmsStatus = asRecord(groups.bms_emsStatus);
   const bmsKitInfo = asRecord(groups.bms_kitInfo);
+  const diagnostics: DeviceDiagnosticDetail[] = [];
 
   const packs: BatteryPackDetail[] = [];
   const mainSoc = firstDefined(toNumber(bmsStatus.targetSoc), toNumber(pd.soc));
@@ -294,6 +366,31 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     maxAmps: 15
   });
   const solarChargingOn = solarPorts.some((port) => port.state === 'charging');
+  const bmsWarState = toNumber(bmsEmsStatus.bmsWarState);
+  const emsIsNormalFlag = toNumber(bmsEmsStatus.emsIsNormalFlag);
+  const chgDsgState = toNumber(pd.chgDsgState);
+
+  pushDiagnostic(
+    diagnostics,
+    'd2m-bms-warning',
+    'BMS Warning State',
+    describeBmsWarningState(bmsWarState),
+    bmsWarState !== undefined && bmsWarState > 0 ? 'warning' : 'success'
+  );
+  pushDiagnostic(
+    diagnostics,
+    'd2m-energy-state',
+    'Energy Storage State',
+    describeEnergyStorageState(emsIsNormalFlag),
+    emsIsNormalFlag === 1 ? 'success' : emsIsNormalFlag === 0 ? 'warning' : 'neutral'
+  );
+  pushDiagnostic(
+    diagnostics,
+    'd2m-charge-discharge-state',
+    'Charge / Discharge State',
+    describeChargeDischargeState(chgDsgState),
+    chgDsgState !== undefined ? 'info' : 'neutral'
+  );
 
   return {
     bpCount: bpCount ?? packs.length,
@@ -310,7 +407,11 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     evChargingOn: false,
     fanOn: truthyNumber(inv.fanState),
     solarChargingOn,
-    batteryHeatingOn: false
+    xBoostOn: toBooleanFlag(inv.cfgAcXboost),
+    solarMode: describeD2mSolarMode(toNumber(pd.pvChargePrioSet)),
+    passthroughMode: describeBooleanLabel(toNumber(inv.acPassbyAutoEn), 'Auto Passby', 'Off'),
+    acAutoOnMode: describeBooleanLabel(firstDefined(toNumber(pd.newAcAutoOnCfg), toNumber(pd.acAutoOnCfg)), 'Auto On', 'Off'),
+    diagnostics: diagnostics.length > 0 ? diagnostics : undefined
   };
 }
 
@@ -321,6 +422,7 @@ function buildDelta2Details(groups: GenericRecord, bpCount?: number): DeviceTele
   const ems = asRecord(groups.ems);
   const bmsMaster = asRecord(groups.bmsMaster);
   const bmsSlave1 = asRecord(groups.bmsSlave1);
+  const diagnostics: DeviceDiagnosticDetail[] = [];
 
   const packs: BatteryPackDetail[] = [];
   const mainSoc = firstDefined(toNumber(bmsMaster.soc), toNumber(pd.soc));
@@ -403,6 +505,31 @@ function buildDelta2Details(groups: GenericRecord, bpCount?: number): DeviceTele
   );
   const dc12vOn = truthyNumber(pd.dcOutState) || anyPositive(pd.wireWatts, pd.carWatts);
   const solarChargingOn = pv1.state === 'charging';
+  const bmsWarState = toNumber(ems.bmsWarState);
+  const emsIsNormalFlag = toNumber(ems.emsIsNormalFlag);
+  const chgDsgState = toNumber(pd.chgDsgState);
+
+  pushDiagnostic(
+    diagnostics,
+    'd2-bms-warning',
+    'BMS Warning State',
+    describeBmsWarningState(bmsWarState),
+    bmsWarState !== undefined && bmsWarState > 0 ? 'warning' : 'success'
+  );
+  pushDiagnostic(
+    diagnostics,
+    'd2-energy-state',
+    'Energy Storage State',
+    describeEnergyStorageState(emsIsNormalFlag),
+    emsIsNormalFlag === 1 ? 'success' : emsIsNormalFlag === 0 ? 'warning' : 'neutral'
+  );
+  pushDiagnostic(
+    diagnostics,
+    'd2-charge-discharge-state',
+    'Charge / Discharge State',
+    describeChargeDischargeState(chgDsgState),
+    chgDsgState !== undefined ? 'info' : 'neutral'
+  );
 
   return {
     bpCount: bpCount ?? Math.max(1, packs.length),
@@ -434,7 +561,9 @@ function buildDelta2Details(groups: GenericRecord, bpCount?: number): DeviceTele
     evChargingOn: false,
     fanOn: truthyNumber(inv.fanState) || truthyNumber(ems.fanLevel),
     solarChargingOn,
-    batteryHeatingOn: false
+    xBoostOn: toBooleanFlag(firstDefined(toNumber(inv.cfgAcXboost), toNumber(mppt.cfgAcXboost))),
+    acAutoOnMode: describeBooleanLabel(toNumber(pd.acAutoOnCfg), 'Auto On', 'Off'),
+    diagnostics: diagnostics.length > 0 ? diagnostics : undefined
   };
 }
 
@@ -634,6 +763,168 @@ function deriveBatteryNetPower(record: GenericRecord): number | undefined {
     return undefined;
   }
   return (input ?? 0) - (output ?? 0);
+}
+
+function pushDiagnostic(
+  diagnostics: DeviceDiagnosticDetail[],
+  key: string,
+  label: string,
+  value: string | undefined,
+  tone: DeviceDiagnosticTone = 'neutral'
+): void {
+  if (!value || value.trim() === '') {
+    return;
+  }
+  diagnostics.push({ key, label, value, tone });
+}
+
+function describeBooleanLabel(
+  value: number | undefined,
+  onLabel: string,
+  offLabel: string
+): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value > 0 ? onLabel : offLabel;
+}
+
+function describeRawEnumValue(value: number | undefined): string | undefined {
+  return value !== undefined ? String(value) : undefined;
+}
+
+function diagnosticCodeTone(value: number | undefined): DeviceDiagnosticTone {
+  if (value === undefined) {
+    return 'neutral';
+  }
+  return value === 0 ? 'success' : 'danger';
+}
+
+function describeDpuSolarMode(value: number | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value > 0 ? 'Solar Only' : 'All Inputs';
+}
+
+function describeD2mSolarMode(value: number | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value > 0 ? 'Charge Priority' : 'Power Supply Priority';
+}
+
+function describeDpuPassthroughMode(
+  inputType: number | undefined,
+  outputType: number | undefined,
+  workMode: number | undefined
+): string | undefined {
+  const inputLabel =
+    inputType === 1
+      ? 'AC EV'
+      : inputType === 2
+        ? 'SHP2 Input'
+        : inputType === 3
+          ? 'L14 Transfer Switch'
+          : inputType === 0
+            ? 'Idle'
+            : undefined;
+  const outputLabel =
+    outputType === 1
+      ? 'Parallel Box'
+      : outputType === 2
+        ? 'SHP2 Output'
+        : outputType === 0
+          ? 'Idle'
+          : undefined;
+  const workModeLabel =
+    workMode === 1
+      ? 'Solar Only'
+      : workMode === 2
+        ? 'Backup'
+        : workMode === 3
+          ? 'Debug'
+          : workMode === 0
+            ? 'Idle'
+            : undefined;
+
+  if (inputLabel && inputLabel !== 'Idle') {
+    return inputLabel;
+  }
+  if (outputLabel && outputLabel !== 'Idle') {
+    return outputLabel;
+  }
+  if (workModeLabel) {
+    return workModeLabel;
+  }
+  if (inputLabel === 'Idle' || outputLabel === 'Idle') {
+    return 'Idle';
+  }
+  return undefined;
+}
+
+function describeTaskType(value: number | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === -1) {
+    return 'None';
+  }
+  if (value === 0) {
+    return 'AC Charge';
+  }
+  if (value === 1) {
+    return 'AC Discharge';
+  }
+  if (value === 2) {
+    return 'DC Discharge';
+  }
+  return String(value);
+}
+
+function describeBmsWarningState(value: number | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === 0) {
+    return 'No Warning';
+  }
+  const labels: string[] = [];
+  if ((value & 1) !== 0) labels.push('High Temp');
+  if ((value & 2) !== 0) labels.push('Low Temp');
+  if ((value & 4) !== 0) labels.push('Overload');
+  if ((value & 8) !== 0) labels.push('Charge Flag');
+  const unknownBits = value & ~15;
+  if (unknownBits !== 0) {
+    labels.push(`Unknown (${unknownBits})`);
+  }
+  return labels.length > 0 ? labels.join(', ') : String(value);
+}
+
+function describeEnergyStorageState(value: number | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === 0) {
+    return 'Sleep';
+  }
+  if (value === 1) {
+    return 'Normal';
+  }
+  return String(value);
+}
+
+function describeChargeDischargeState(value: number | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === 0) {
+    return 'Discharging';
+  }
+  if (value === 1) {
+    return 'Charging';
+  }
+  return String(value);
 }
 
 function hasDetailValues(details: DeviceTelemetryDetails): boolean {

@@ -15,7 +15,15 @@ export function SystemSignalsSection({
     <SectionCard title={<IconLabel icon="check-decagram-outline" label="System Signals" />} minWidth={minWidth}>
       <XStack gap="$2" flexWrap="wrap">
         {pills.map((pill) => (
-          <Pill key={pill.key} label={`${pill.on ? 'On' : 'Off'} · ${pill.label}`} tone={pill.tone} />
+          <Pill
+            key={pill.key}
+            label={
+              pill.value !== undefined
+                ? `${pill.label} · ${pill.value}`
+                : `${pill.on ? 'On' : 'Off'} · ${pill.label}`
+            }
+            tone={pill.tone}
+          />
         ))}
       </XStack>
     </SectionCard>

@@ -18,6 +18,7 @@ import { SOLAR_HISTORY_CHART_TITLE, SOLAR_HISTORY_POINTS } from '@/features/hist
 import { formatKWh } from '@/features/telemetry/format';
 import type { DeviceDetailViewModel } from '@/features/device-detail/view-model';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
+import { DiagnosticsSection } from '@/features/device-detail/components/DiagnosticsSection';
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
 import type { DeviceInsights } from '@/features/inference/api';
@@ -117,6 +118,7 @@ export function DeviceDetailBody({
   const hasBatteryPacks = vm.batteryPacks.length > 0 || typeof vm.details?.bpCount === 'number';
   const hasSolarInputs = vm.solarPorts.length > 0;
   const hasSignals = vm.signalPills.length > 0;
+  const hasDiagnostics = vm.diagnosticPills.length > 0;
 
   return (
     <YStack gap="$3">
@@ -272,6 +274,12 @@ export function DeviceDetailBody({
       {hasSignals ? (
         <XStack gap="$3" flexWrap="wrap">
           <SystemSignalsSection pills={vm.signalPills} minWidth={isDesktop ? 360 : 280} />
+        </XStack>
+      ) : null}
+
+      {hasDiagnostics ? (
+        <XStack gap="$3" flexWrap="wrap">
+          <DiagnosticsSection pills={vm.diagnosticPills} minWidth={isDesktop ? 360 : 280} />
         </XStack>
       ) : null}
     </YStack>
