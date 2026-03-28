@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_solar_forecast_hourly_rollup_cover;
+DROP INDEX IF EXISTS idx_solar_forecast_hourly_pending_claim_lookup;

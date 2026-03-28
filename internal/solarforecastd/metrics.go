@@ -10,6 +10,7 @@ import (
 type Metrics struct {
 	requests                                    *prometheus.CounterVec
 	requestDuration                             *prometheus.HistogramVec
+	stageDuration                               *prometheus.HistogramVec
 	trainingRuns                                *prometheus.CounterVec
 	trainingHours                               *prometheus.CounterVec
 	confidence                                  *prometheus.CounterVec
@@ -53,6 +54,11 @@ func NewMetrics(registerer prometheus.Registerer) *Metrics {
 			Help:    "Solar forecast request duration by scope and result.",
 			Buckets: prometheus.DefBuckets,
 		}, []string{"scope", "result"}),
+		stageDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "pulse_solar_forecast_stage_duration_seconds",
+			Help:    "Solar forecast stage duration by scope, stage, and result.",
+			Buckets: prometheus.DefBuckets,
+		}, []string{"scope", "stage", "result"}),
 		trainingRuns: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "pulse_solar_forecast_training_runs_total",
 			Help: "Solar forecast training run write outcomes.",
@@ -165,6 +171,7 @@ func NewMetrics(registerer prometheus.Registerer) *Metrics {
 	registerer.MustRegister(
 		m.requests,
 		m.requestDuration,
+		m.stageDuration,
 		m.trainingRuns,
 		m.trainingHours,
 		m.confidence,
@@ -203,6 +210,13 @@ func (m *Metrics) ObserveRequest(scope string, err error, duration time.Duration
 	}
 	m.requests.WithLabelValues(scopeLabel(scope), result).Inc()
 	m.requestDuration.WithLabelValues(scopeLabel(scope), result).Observe(duration.Seconds())
+}
+
+func (m *Metrics) ObserveStageTiming(scope, stage string, err error, duration time.Duration) {
+	if m == nil {
+		return
+	}
+	m.stageDuration.WithLabelValues(scopeLabel(scope), stageLabel(stage), resultLabel(err)).Observe(duration.Seconds())
 }
 
 func (m *Metrics) ObserveTrainingRun(err error) {
@@ -331,6 +345,19 @@ func scopeLabel(scope string) string {
 	switch scope {
 	case "device", "all":
 		return scope
+	default:
+		return "unknown"
+	}
+}
+
+func stageLabel(stage string) string {
+	switch stage {
+	case solarForecastStageWeatherFetch,
+		solarForecastStageTelemetryLookback,
+		solarForecastStageCalibrationLoads,
+		solarForecastStageSummarization,
+		solarForecastStageTrainingKickoff:
+		return stage
 	default:
 		return "unknown"
 	}

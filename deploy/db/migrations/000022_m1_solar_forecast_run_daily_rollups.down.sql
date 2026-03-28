@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_solar_forecast_run_daily_rollup_site_date;
+DROP TABLE IF EXISTS solar_forecast_verification_daily_run_rollup;

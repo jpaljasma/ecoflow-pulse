@@ -79,8 +79,12 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`; Valkey device-insight read-model key prefix)
-- `SOLAR_FORECAST_VERIFICATION_INTERVAL` (default `15m`; when `> 0`, the telemetry-mode gRPC runtime runs the background solar forecast verification loop against matured issued hourly rows)
+- `SOLAR_FORECAST_VERIFICATION_INTERVAL` (default `15m`; when `> 0`, the solar verifier processes matured issued hourly rows on each pass)
 - `SOLAR_FORECAST_VERIFICATION_BATCH_LIMIT` (default `1536`; max number of pending solar hourly records the verification loop will process per pass)
+
+Deployment note:
+
+- local/dev Helm values keep request-serving `go-grpc-api` replicas traffic-only by setting `SOLAR_FORECAST_VERIFICATION_INTERVAL=0s` there, and run the background loop on separate `go-solar-verification` workers that cooperatively claim pending runs from Postgres.
 
 ## Pulse Platform Node REST BFF (`apps/pulse-platform`)
 

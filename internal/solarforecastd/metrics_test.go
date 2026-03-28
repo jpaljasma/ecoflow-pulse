@@ -1,6 +1,7 @@
 package solarforecastd
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -115,6 +116,22 @@ func TestMetricsObserveDailyRollupTracksVariantHistograms(t *testing.T) {
 	}
 }
 
+func TestMetricsObserveStageTimingTracksLowCardinalityStages(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	metrics := NewMetrics(registry)
+	metrics.ObserveStageTiming("all", solarForecastStageWeatherFetch, nil, 125*time.Millisecond)
+	metrics.ObserveStageTiming("device", solarForecastStageTrainingKickoff, errors.New("boom"), 250*time.Millisecond)
+
+	if got := gatherHistogramSampleCount3(t, registry, "pulse_solar_forecast_stage_duration_seconds", "scope", "all", "stage", solarForecastStageWeatherFetch, "result", "success"); got != 1 {
+		t.Fatalf("weatherFetch sample count = %v, want 1", got)
+	}
+	if got := gatherHistogramSampleCount3(t, registry, "pulse_solar_forecast_stage_duration_seconds", "scope", "device", "stage", solarForecastStageTrainingKickoff, "result", "error"); got != 1 {
+		t.Fatalf("trainingKickoff sample count = %v, want 1", got)
+	}
+}
+
 func gatherGaugeValue(t *testing.T, registry *prometheus.Registry, name string) float64 {
 	t.Helper()
 
@@ -204,6 +221,30 @@ func gatherHistogramSampleCount2(t *testing.T, registry *prometheus.Registry, na
 		}
 	}
 	t.Fatalf("metric %s with %s=%s and %s=%s not found", name, labelNameA, labelValueA, labelNameB, labelValueB)
+	return 0
+}
+
+func gatherHistogramSampleCount3(t *testing.T, registry *prometheus.Registry, name, labelNameA, labelValueA, labelNameB, labelValueB, labelNameC, labelValueC string) uint64 {
+	t.Helper()
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		for _, metric := range family.Metric {
+			if hasMetricLabel(metric, labelNameA, labelValueA) && hasMetricLabel(metric, labelNameB, labelValueB) && hasMetricLabel(metric, labelNameC, labelValueC) {
+				if metric.Histogram == nil {
+					t.Fatalf("metric %s missing histogram value", name)
+				}
+				return metric.Histogram.GetSampleCount()
+			}
+		}
+	}
+	t.Fatalf("metric %s with %s=%s, %s=%s, and %s=%s not found", name, labelNameA, labelValueA, labelNameB, labelValueB, labelNameC, labelValueC)
 	return 0
 }
 

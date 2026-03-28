@@ -87,10 +87,45 @@ runtime:
     grpcApi:
       enabled: true
       replicaCount: 3
+      solarForecastVerificationInterval: "0s"
       metrics:
         enabled: true
         serviceMonitor:
           enabled: true
+    solarVerification:
+      enabled: true
+      replicaCount: 2
+      solarForecastVerificationInterval: "1m"
+      solarForecastVerificationBatchLimit: 3072
+      deployment:
+        strategy:
+          maxUnavailable: 1
+          maxSurge: 0
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: pulse-services
+                  app.kubernetes.io/instance: pulse-services
+                  app.kubernetes.io/component: go-solar-verification
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: pulse-services
+              app.kubernetes.io/instance: pulse-services
+              app.kubernetes.io/component: go-solar-verification
     energyApi:
       enabled: true
       replicaCount: 3
