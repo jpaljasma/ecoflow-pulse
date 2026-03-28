@@ -14,7 +14,10 @@ The dashboard snapshot aggregates telemetry into these domains:
 - meta guardrails (SOC window min/max and backup reserve when reported),
 - channels (AC in, PV low/high/total, AC out, DC out, XT150 in/out),
 - pack-level battery data (up to 5 packs for DPU),
-- status flags (AC/DC/USB/EV/passthrough/grounded/fan/preconditioning),
+- status flags and mode pills
+  (AC/DC/USB/12V/EV/fan/solar/preconditioning/X-Boost/solar-priority/
+  passthrough/transfer/AC auto-on or always-on/energy management),
+- device-detail diagnostics entries for model-specific troubleshooting states,
 - ETA and ML estimate outputs.
 - solar panel recommendations (per PV port):
   - detected setup from runtime panel model,
@@ -182,6 +185,13 @@ Frontend rule:
 - on `/device/{id}`, `System Signals` and `Solar Inputs` must prefer websocket
   `detail.*` when present and only fall back to REST `device.details.*` before
   the first live detail snapshot arrives.
+- slower-changing device modes such as X-Boost, solar-priority/solar-only,
+  passthrough/transfer mode, AC auto-on/always-on, and energy management are
+  REST-backed `device.details.*` fields rendered alongside live booleans in the
+  `System Signals` section.
+- model-specific troubleshooting states are exposed as
+  `device.details.diagnostics[]` and rendered under a collapsed `Diagnostics`
+  panel so the primary device summary stays concise.
 
 Frontend rule:
 

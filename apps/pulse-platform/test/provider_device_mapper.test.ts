@@ -42,6 +42,10 @@ describe('provider device mapper', () => {
               outAdsPwr: 24,
               outUsb1Pwr: 18,
               outPrPwr: 0,
+              access_5p8InType: 3,
+              timeTaskConflictFlag: 0,
+              chgTimeTaskType: 0,
+              dsgTimeTaskType: -1,
               stormPatternEnable: 1,
               stormPatternOpenFlag: 1,
               stormPatternEndTime: 1773306000
@@ -51,10 +55,18 @@ describe('provider device mapper', () => {
               inLvMpptAmp: 1.2,
               inHvMpptVol: 0,
               inHvMpptAmp: 0,
-              fanState: 1
+              fanState: 1,
+              sysWorkSta: 1,
+              pcsWorkSta: 2,
+              work_5p8Mode: 2
             },
             hs_yj751_pd_app_set_info_addr: {
+              sysWorkMode: 2,
+              acXboost: 1,
               bmsModeSet: 1,
+              acOftenOpenFlg: 1,
+              solarOnlyFlg: 1,
+              energyManageEnable: 1,
               dsgMinSoc: 12,
               chgMaxSoc: 95,
               sysBackupSoc: 18,
@@ -73,6 +85,8 @@ describe('provider device mapper', () => {
                     heatTime: 120,
                     bpEnergy: 5980,
                     remainTime: 322,
+                    bpChgSta: 1,
+                    bpErrCode: 0,
                     bpSocMin: 10,
                     bpSocMax: 95
                   },
@@ -84,6 +98,8 @@ describe('provider device mapper', () => {
                     heatTime: 0,
                     bpEnergy: 6015,
                     remainTime: 317,
+                    bpChgSta: 0,
+                    bpErrCode: 2,
                     bpSocMin: 10,
                     bpSocMax: 95
                   }
@@ -119,6 +135,11 @@ describe('provider device mapper', () => {
         usbOn: true,
         solarChargingOn: true,
         batteryHeatingOn: true,
+        xBoostOn: true,
+        solarMode: 'Solar Only',
+        passthroughMode: 'L14 Transfer Switch',
+        acAutoOnMode: 'Always On',
+        energyManagementOn: true,
         socWindowMinPct: 12,
         socWindowMaxPct: 95,
         backupReservePct: 18,
@@ -144,6 +165,12 @@ describe('provider device mapper', () => {
           expect.objectContaining({ id: 'pv-low', state: 'charging', maxWatts: 1600 }),
           expect.objectContaining({ id: 'pv-high', state: 'inactive', maxWatts: 4000 })
         ],
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ key: 'dpu-sys-work-mode', value: '2', tone: 'info' }),
+          expect.objectContaining({ key: 'dpu-time-task-conflict', value: 'No Conflict', tone: 'success' }),
+          expect.objectContaining({ key: 'dpu-charge-task-type', value: 'AC Charge', tone: 'info' }),
+          expect.objectContaining({ key: 'bp-err-2', value: '2', tone: 'danger' })
+        ]),
         stormGuardActive: true,
         stormGuardEndsAtUnixMs: 1773306000 * 1000,
         timezoneId: 'America/New_York',
@@ -242,10 +269,15 @@ describe('provider device mapper', () => {
               soc: 31.5,
               dcOutState: 1,
               typec1Watts: 42,
-              pv2ChargeWatts: 212
+              pv2ChargeWatts: 212,
+              chgDsgState: 1,
+              pvChargePrioSet: 1,
+              newAcAutoOnCfg: 1
             },
             inv: {
               cfgAcEnabled: 1,
+              cfgAcXboost: 1,
+              acPassbyAutoEn: 1,
               outputWatts: 138,
               fanState: 1
             },
@@ -270,7 +302,9 @@ describe('provider device mapper', () => {
               f32LcdShowSoc: 25.49,
               minDsgSoc: 5,
               maxChargeSoc: 85,
-              minOpenOilEb: 21
+              minOpenOilEb: 21,
+              bmsWarState: 4,
+              emsIsNormalFlag: 1
             },
             bms_kitInfo: {
               kitNum: 1,
@@ -315,10 +349,19 @@ describe('provider device mapper', () => {
         fanOn: true,
         solarChargingOn: true,
         batteryHeatingOn: false,
+        xBoostOn: true,
+        solarMode: 'Charge Priority',
+        passthroughMode: 'Auto Passby',
+        acAutoOnMode: 'Auto On',
         socWindowMinPct: 5,
         socWindowMaxPct: 85,
         backupReservePct: 21,
         overallSocPct: 25.49,
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ key: 'd2m-bms-warning', value: 'Overload', tone: 'warning' }),
+          expect.objectContaining({ key: 'd2m-energy-state', value: 'Normal', tone: 'success' }),
+          expect.objectContaining({ key: 'd2m-charge-discharge-state', value: 'Charging', tone: 'info' })
+        ]),
         packs: expect.arrayContaining([
           expect.objectContaining({
             id: 'main',
@@ -449,6 +492,8 @@ describe('provider device mapper', () => {
               soc: 62,
               bpPowerSoc: 27,
               minAcSoc: 21,
+              acAutoOnCfg: 1,
+              chgDsgState: 0,
               dcOutState: 1,
               typec1Watts: 58,
               usb1Watts: 12,
@@ -456,6 +501,7 @@ describe('provider device mapper', () => {
             },
             inv: {
               cfgAcEnabled: 1,
+              cfgAcXboost: 1,
               outputWatts: 184,
               fanState: 1
             },
@@ -468,7 +514,9 @@ describe('provider device mapper', () => {
             ems: {
               f32LcdShowSoc: 61.8,
               minDsgSoc: 15,
-              maxChargeSoc: 92
+              maxChargeSoc: 92,
+              emsIsNormalFlag: 0,
+              bmsWarState: 1
             },
             bmsMaster: {
               soc: 61,
@@ -503,10 +551,17 @@ describe('provider device mapper', () => {
         fanOn: true,
         solarChargingOn: true,
         batteryHeatingOn: false,
+        xBoostOn: true,
+        acAutoOnMode: 'Auto On',
         overallSocPct: 61.8,
         socWindowMinPct: 15,
         socWindowMaxPct: 92,
         backupReservePct: 27,
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ key: 'd2-bms-warning', value: 'High Temp', tone: 'warning' }),
+          expect.objectContaining({ key: 'd2-energy-state', value: 'Sleep', tone: 'warning' }),
+          expect.objectContaining({ key: 'd2-charge-discharge-state', value: 'Discharging', tone: 'info' })
+        ]),
         packs: [
           expect.objectContaining({
             id: 'main',
