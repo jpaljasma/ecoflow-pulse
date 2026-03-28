@@ -28,6 +28,10 @@ const (
 	minTodayProgressForecastWh    = 800.0
 	minTodayProgressScale         = 0.50
 	maxTodayProgressScale         = 1.00
+	minTodayTrailingScaleHour     = 14
+	minTodayTrailingForecastWh    = 250.0
+	minTodayTrailingScale         = 0.35
+	todayTrailingWindowHours      = 2
 	defaultTrainingPersistTimeout = 10 * time.Second
 	saturatedPotentialUpliftScale = 1.12
 	minQualifiedSaturatedHours    = 3
@@ -140,33 +144,30 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	nowUTC := s.nowFn().UTC()
 	nowLocal := nowUTC.In(loc)
 	todayStartLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
-	lookbackStartLocal := todayStartLocal.AddDate(0, 0, -6)
+	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, deviceIDs)
+	forecastModel := "deterministic_baseline_v1"
+	servingState, err := s.loadServingState(ctx, siteKey, forecastModel)
+	if err != nil {
+		return nil, err
+	}
 	telemetryLookbackStartedAt := time.Now()
-	history, err := s.queryLookbackSeries(ctx, deviceIDs, lookbackStartLocal.UTC(), nowUTC)
+	todayHistory, err := s.querySeries(ctx, deviceIDs, todayStartLocal.UTC(), nowUTC, 32)
 	stageTimings.telemetryLookback = time.Since(telemetryLookbackStartedAt)
 	s.observeSolarStageTiming(scopeMode, solarForecastStageTelemetryLookback, err, stageTimings.telemetryLookback)
 	if err != nil {
 		return nil, err
 	}
-
-	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
+	capacity := inferCapacityEstimateFromServingState(servingState, todayHistory.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
 	todayISO := localDateISO(nowLocal, loc)
-	actualTodayWh := todayActualWh(history.Points, loc, todayISO)
-	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, deviceIDs)
-	forecastModel := "deterministic_baseline_v1"
 	calibrationLoadsStartedAt := time.Now()
+	actualTodayWh := todayActualWh(todayHistory.Points, loc, todayISO)
 	calibrationStates, err := s.loadCalibrationStates(ctx, siteKey, forecastModel)
-	if err != nil {
-		stageTimings.calibrationLoads = time.Since(calibrationLoadsStartedAt)
-		s.observeSolarStageTiming(scopeMode, solarForecastStageCalibrationLoads, err, stageTimings.calibrationLoads)
-		return nil, err
-	}
-	recentSiteCalibration, err := s.loadRecentSiteCalibration(ctx, siteKey, forecastModel, nowLocal, loc)
 	stageTimings.calibrationLoads = time.Since(calibrationLoadsStartedAt)
 	s.observeSolarStageTiming(scopeMode, solarForecastStageCalibrationLoads, err, stageTimings.calibrationLoads)
 	if err != nil {
 		return nil, err
 	}
+	recentSiteCalibration := recentSiteCalibrationFromServingState(servingState)
 	calibrationIndex := BuildCalibrationIndex(calibrationStates)
 	calibrationApplied := hasUsableCalibration(calibrationStates) || recentSiteCalibration.MultiplicativeRatio != nil
 	calibrationSampleCount, calibrationUpdatedAt := summarizeCalibration(calibrationStates, recentSiteCalibration)
@@ -174,7 +175,7 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 		s.metrics.ObserveModel(calibrationModeLabel(calibrationApplied))
 	}
 	summarizationStartedAt := time.Now()
-	todayRemainingScale, todayCurtailmentReason := deriveTodayRemainingScale(history, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
+	todayRemainingScale, todayCurtailmentReason := deriveTodayRemainingScale(todayHistory, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	daily := summarizeDailyOutlook(bundle.Hourly, bundle.Daily, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	next24 := summarizeNext24Hours(bundle.Hourly, capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	today := firstDayForISO(daily, todayISO)
@@ -215,7 +216,7 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 		s.metrics.ObserveServedOutlook(siteKey, outlook, nowUTC)
 	}
 	trainingKickoffStartedAt := time.Now()
-	s.persistTrainingRunBestEffort(ctx, in, bundle, history, outlook, actualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale)
+	s.persistTrainingRunBestEffort(ctx, in, bundle, todayHistory, outlook, actualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale)
 	stageTimings.trainingKickoff = time.Since(trainingKickoffStartedAt)
 	s.observeSolarStageTiming(scopeMode, solarForecastStageTrainingKickoff, nil, stageTimings.trainingKickoff)
 	return outlook, nil
@@ -485,6 +486,9 @@ func (s *Service) verifyRunBatchWithStore(ctx context.Context, store Verificatio
 			s.metrics.ObserveDailyRollup(rollup)
 		}
 	}
+	if err := s.refreshServingState(ctx, run, verifiedAt); err != nil {
+		s.log.Warn("solar forecast serving state refresh failed", "site_key", run.SiteKey, "error", err.Error())
+	}
 	return nil
 }
 
@@ -535,7 +539,64 @@ func (s *Service) loadCalibrationStates(ctx context.Context, siteKey, forecastVe
 	return s.store.LoadCalibrationStates(ctx, siteKey, forecastVersion)
 }
 
-func (s *Service) loadRecentSiteCalibration(ctx context.Context, siteKey, forecastVersion string, nowLocal time.Time, loc *time.Location) (RecentSiteCalibration, error) {
+func (s *Service) loadServingState(ctx context.Context, siteKey, forecastVersion string) (*ServingState, error) {
+	if s == nil || s.store == nil {
+		return nil, nil
+	}
+	return s.store.LoadServingState(ctx, siteKey, forecastVersion)
+}
+
+func recentSiteCalibrationFromServingState(state *ServingState) RecentSiteCalibration {
+	if state == nil || state.RecentSiteRatio == nil {
+		return RecentSiteCalibration{}
+	}
+	return RecentSiteCalibration{
+		MultiplicativeRatio: state.RecentSiteRatio,
+		SampleCount:         state.RecentSiteSampleCount,
+		UpdatedAt:           state.RecentSiteUpdatedAt,
+	}
+}
+
+func (s *Service) refreshServingState(ctx context.Context, run *Run, verifiedAt time.Time) error {
+	if s == nil || s.store == nil || s.query == nil || run == nil {
+		return nil
+	}
+	loc := loadLocation(run.Timezone)
+	deviceIDs := deviceIDsFromRun(run)
+	if len(deviceIDs) == 0 {
+		return nil
+	}
+	recentCalibration, err := s.loadRecentSiteCalibrationSummary(ctx, run.SiteKey, run.ForecastVersion, verifiedAt.In(loc), loc)
+	if err != nil {
+		return err
+	}
+	windowEndLocal := time.Date(verifiedAt.In(loc).Year(), verifiedAt.In(loc).Month(), verifiedAt.In(loc).Day(), 0, 0, 0, 0, loc)
+	windowStartLocal := windowEndLocal.AddDate(0, 0, -7)
+	history, err := s.queryLookbackSeries(ctx, deviceIDs, windowStartLocal.UTC(), windowEndLocal.UTC())
+	if err != nil {
+		return err
+	}
+	evidence := observedPotentialWatts(history.Points, loc)
+	state := ServingState{
+		SiteKey:                 run.SiteKey,
+		ForecastVersion:         run.ForecastVersion,
+		Timezone:                run.Timezone,
+		RecentSiteRatio:         recentCalibration.MultiplicativeRatio,
+		RecentSiteSampleCount:   recentCalibration.SampleCount,
+		RecentSiteUpdatedAt:     recentCalibration.UpdatedAt,
+		PotentialBaseEnvelopeW:  optionalPositiveFloat(evidence.baseEnvelopeW),
+		PotentialSaturatedW:     optionalPositiveFloat(evidence.saturatedEnvelopeW),
+		PotentialFinalEnvelopeW: optionalPositiveFloat(evidence.finalEnvelopeW),
+		QualifiedSaturatedDays:  evidence.qualifiedSaturatedDays,
+		QualifiedSaturatedHours: evidence.qualifiedSaturatedHours,
+		HistoryFrom:             timePtr(windowStartLocal.UTC()),
+		HistoryTo:               timePtr(windowEndLocal.UTC()),
+		UpdatedAt:               verifiedAt.UTC(),
+	}
+	return s.store.UpsertServingState(ctx, state)
+}
+
+func (s *Service) loadRecentSiteCalibrationSummary(ctx context.Context, siteKey, forecastVersion string, nowLocal time.Time, loc *time.Location) (RecentSiteCalibration, error) {
 	if s == nil || s.store == nil || loc == nil {
 		return RecentSiteCalibration{}, nil
 	}
@@ -636,6 +697,21 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 		ObservedPvWatts:    floatPtr(roundWatts(observedPeak)),
 		Method:             "live_pv_only",
 	}
+}
+
+func inferCapacityEstimateFromServingState(state *ServingState, points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location) CapacityEstimate {
+	if state != nil && state.PotentialFinalEnvelopeW != nil && *state.PotentialFinalEnvelopeW > 0 {
+		estimate := *state.PotentialFinalEnvelopeW
+		method := "rolling_observed_p95"
+		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
+			method = "rolling_observed_p95_and_irradiance"
+		}
+		return CapacityEstimate{
+			EstimatedPeakWatts: floatPtr(roundWatts(estimate)),
+			Method:             method,
+		}
+	}
+	return inferCapacityEstimate(points, current, loc)
 }
 
 func summarizeDailyOutlook(
@@ -908,12 +984,16 @@ func estimateForecastWatts(point weatherd.HourlyForecastPoint, estimatedPeakWatt
 	if base == nil {
 		return nil
 	}
-	baseWatts := *base * atmosphericAttenuationFactor(point)
+	futureDaySuppression := futureDayPeakSuppressionFactor(point, nowUTC, loc)
+	baseWatts := *base * atmosphericAttenuationFactor(point) * futureDaySuppression
 	if baseWatts <= 0 {
 		return nil
 	}
-	base = floatPtr(round1(baseWatts))
 	capLimit := *estimatedPeakWatts * maxForecastPeakOutputScale
+	if futureDaySuppression < 1 {
+		capLimit *= futureDaySuppression
+	}
+	base = floatPtr(round1(math.Min(baseWatts, capLimit)))
 	if loc == nil {
 		return base
 	}
@@ -976,6 +1056,61 @@ func estimateDisplayedForecastWatts(
 		return base
 	}
 	return floatPtr(round1(*base * todayRemainingScale))
+}
+
+func futureDayPeakSuppressionFactor(point weatherd.HourlyForecastPoint, nowUTC time.Time, loc *time.Location) float64 {
+	if loc == nil {
+		return 1
+	}
+	todayISO := localDateISO(nowUTC, loc)
+	if localDateISO(point.Time, loc) <= todayISO {
+		return 1
+	}
+	factor := 1.0
+	if visibility := valueOrNil(point.Corrected.Visibility, point.Raw.Visibility); visibility != nil && !math.IsNaN(*visibility) {
+		visibilityKM := *visibility / 1000
+		switch {
+		case visibilityKM < 2:
+			factor = math.Min(factor, 0.86)
+		case visibilityKM < 5:
+			factor = math.Min(factor, 0.90)
+		case visibilityKM < 10:
+			factor = math.Min(factor, 0.95)
+		}
+	}
+	switch point.Condition.WeatherCode {
+	case 45, 48:
+		factor = math.Min(factor, 0.88)
+	case 51, 53, 55, 56, 57:
+		factor = math.Min(factor, 0.95)
+	case 61, 63, 65, 66, 67, 80, 81, 82:
+		factor = math.Min(factor, 0.92)
+	case 71, 73, 75, 77, 85, 86:
+		factor = math.Min(factor, 0.94)
+	case 95, 96, 99:
+		factor = math.Min(factor, 0.86)
+	}
+	if precipitation := valueOrNil(point.Corrected.Precipitation, point.Raw.Precipitation); precipitation != nil && !math.IsNaN(*precipitation) {
+		switch {
+		case *precipitation > 1.5:
+			factor = math.Min(factor, 0.90)
+		case *precipitation > 0.5:
+			factor = math.Min(factor, 0.94)
+		}
+	}
+	if visibility := valueOrNil(point.Corrected.Visibility, point.Raw.Visibility); visibility != nil && !math.IsNaN(*visibility) {
+		visibilityKM := *visibility / 1000
+		if visibilityKM < 5 {
+			if precipitation := valueOrNil(point.Corrected.Precipitation, point.Raw.Precipitation); precipitation != nil && !math.IsNaN(*precipitation) && *precipitation > 0.5 {
+				factor = math.Min(factor, 0.88)
+			}
+			switch point.Condition.WeatherCode {
+			case 45, 48, 61, 63, 65, 66, 67, 80, 81, 82:
+				factor = math.Min(factor, 0.88)
+			}
+		}
+	}
+	return clamp(factor, 0.86, 1)
 }
 
 func resolveIrradianceFactor(point *weatherd.HourlyForecastPoint) float64 {
@@ -1067,10 +1202,60 @@ func deriveTodayRemainingScale(
 		return 1, ""
 	}
 	scale := clamp(actualTodayWh/forecastSoFarWh, minTodayProgressScale, maxTodayProgressScale)
+	if trailingScale, ok := deriveTodayTrailingScale(history, hourly, estimatedPeakWatts, todayISO, nowUTC, loc, calibrationIndex, siteCalibrationRatio); ok && trailingScale < scale {
+		scale = trailingScale
+	}
 	if saturationScale, reason := deriveSaturationBandScale(history, hourly, estimatedPeakWatts, todayISO, nowUTC, loc, calibrationIndex, siteCalibrationRatio); saturationScale < scale {
 		return saturationScale, reason
 	}
 	return scale, ""
+}
+
+func deriveTodayTrailingScale(
+	history telemetryquery.Series,
+	hourly []weatherd.HourlyForecastPoint,
+	estimatedPeakWatts *float64,
+	todayISO string,
+	nowUTC time.Time,
+	loc *time.Location,
+	calibrationIndex CalibrationIndex,
+	siteCalibrationRatio *float64,
+) (float64, bool) {
+	if loc == nil || todayISO == "" || estimatedPeakWatts == nil || *estimatedPeakWatts <= 0 {
+		return 1, false
+	}
+	if nowUTC.In(loc).Hour() < minTodayTrailingScaleHour {
+		return 1, false
+	}
+	actualByBucket := make(map[time.Time]telemetryquery.Point, len(history.Points))
+	for _, point := range history.Points {
+		if localDateISO(point.BucketStart, loc) != todayISO {
+			continue
+		}
+		actualByBucket[point.BucketStart.UTC()] = point
+	}
+	windowStart := nowUTC.Add(-1 * time.Duration(todayTrailingWindowHours) * time.Hour)
+	actualRecentWh := 0.0
+	forecastRecentWh := 0.0
+	for _, point := range hourly {
+		if localDateISO(point.Time, loc) != todayISO || point.Time.After(nowUTC) || !point.Time.After(windowStart) {
+			continue
+		}
+		forecastWh := estimateForecastWatts(point, estimatedPeakWatts, nowUTC, loc, calibrationIndex, siteCalibrationRatio)
+		if forecastWh == nil || *forecastWh <= 0 {
+			continue
+		}
+		actualPoint, ok := actualByBucket[point.Time.UTC()]
+		if !ok || actualPoint.Metrics.SolarGeneratedWh == nil {
+			continue
+		}
+		forecastRecentWh += *forecastWh
+		actualRecentWh += *actualPoint.Metrics.SolarGeneratedWh
+	}
+	if forecastRecentWh < minTodayTrailingForecastWh || actualRecentWh <= 0 {
+		return 1, false
+	}
+	return clamp(actualRecentWh/forecastRecentWh, minTodayTrailingScale, 1), true
 }
 
 func deriveSaturationBandScale(
@@ -1772,6 +1957,13 @@ func floatPtr(value float64) *float64 {
 
 func timePtr(value time.Time) *time.Time {
 	return &value
+}
+
+func optionalPositiveFloat(value float64) *float64 {
+	if value <= 0 || math.IsNaN(value) {
+		return nil
+	}
+	return floatPtr(value)
 }
 
 func clamp(value, min, max float64) float64 {

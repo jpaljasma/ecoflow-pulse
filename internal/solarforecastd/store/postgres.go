@@ -290,7 +290,7 @@ ORDER BY h.target_local_date ASC, h.target_time ASC;
 
 func (s *PostgresStore) ListRecentCalibrationRecords(ctx context.Context, siteKey, forecastVersion string, fromDate, toDate time.Time) ([]solarforecastd.VerificationRecord, error) {
 	rows, err := s.executor().QueryContext(ctx, `
-SELECT
+SELECT DISTINCT ON (h.target_time)
 	h.run_id::text,
 	h.issued_at,
 	h.target_time,
@@ -308,7 +308,7 @@ WHERE h.site_key = $1
   AND h.verification_status = 'verified'
   AND h.actual_generation_wh IS NOT NULL
   AND h.target_local_date BETWEEN $3 AND $4
-ORDER BY h.target_local_date ASC, h.target_time ASC;
+ORDER BY h.target_time ASC, h.issued_at DESC;
 `, siteKey, forecastVersion, fromDate.UTC(), toDate.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("list recent solar forecast calibration records: %w", err)
@@ -368,6 +368,77 @@ ORDER BY horizon_bucket, hour_of_day;
 	return out, nil
 }
 
+func (s *PostgresStore) LoadServingState(ctx context.Context, siteKey, forecastVersion string) (*solarforecastd.ServingState, error) {
+	row := s.db.QueryRowContext(ctx, `
+SELECT
+	site_key,
+	forecast_version,
+	timezone,
+	recent_site_ratio,
+	recent_site_sample_count,
+	recent_site_updated_at,
+	potential_base_envelope_w,
+	potential_saturated_envelope_w,
+	potential_final_envelope_w,
+	qualified_saturated_days,
+	qualified_saturated_hours,
+	history_from,
+	history_to,
+	updated_at
+FROM solar_forecast_site_serving_state
+WHERE site_key = $1
+  AND forecast_version = $2;
+`, siteKey, forecastVersion)
+	var (
+		out                     solarforecastd.ServingState
+		recentRatio             sql.NullFloat64
+		recentUpdatedAt         sql.NullTime
+		potentialBaseEnvelopeW  sql.NullFloat64
+		potentialSaturatedW     sql.NullFloat64
+		potentialFinalEnvelopeW sql.NullFloat64
+		historyFrom             sql.NullTime
+		historyTo               sql.NullTime
+	)
+	if err := row.Scan(
+		&out.SiteKey,
+		&out.ForecastVersion,
+		&out.Timezone,
+		&recentRatio,
+		&out.RecentSiteSampleCount,
+		&recentUpdatedAt,
+		&potentialBaseEnvelopeW,
+		&potentialSaturatedW,
+		&potentialFinalEnvelopeW,
+		&out.QualifiedSaturatedDays,
+		&out.QualifiedSaturatedHours,
+		&historyFrom,
+		&historyTo,
+		&out.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load solar forecast serving state: %w", err)
+	}
+	out.RecentSiteRatio = nullableFloatPtr(recentRatio)
+	if recentUpdatedAt.Valid {
+		value := recentUpdatedAt.Time.UTC()
+		out.RecentSiteUpdatedAt = &value
+	}
+	out.PotentialBaseEnvelopeW = nullableFloatPtr(potentialBaseEnvelopeW)
+	out.PotentialSaturatedW = nullableFloatPtr(potentialSaturatedW)
+	out.PotentialFinalEnvelopeW = nullableFloatPtr(potentialFinalEnvelopeW)
+	if historyFrom.Valid {
+		value := historyFrom.Time.UTC()
+		out.HistoryFrom = &value
+	}
+	if historyTo.Valid {
+		value := historyTo.Time.UTC()
+		out.HistoryTo = &value
+	}
+	return &out, nil
+}
+
 func (s *PostgresStore) UpsertCalibrationStates(ctx context.Context, states []solarforecastd.CalibrationState) error {
 	if len(states) == 0 {
 		return nil
@@ -393,6 +464,62 @@ DO UPDATE SET
 		if err != nil {
 			return fmt.Errorf("upsert solar forecast calibration state: %w", err)
 		}
+	}
+	return nil
+}
+
+func (s *PostgresStore) UpsertServingState(ctx context.Context, state solarforecastd.ServingState) error {
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO solar_forecast_site_serving_state (
+	site_key,
+	forecast_version,
+	timezone,
+	recent_site_ratio,
+	recent_site_sample_count,
+	recent_site_updated_at,
+	potential_base_envelope_w,
+	potential_saturated_envelope_w,
+	potential_final_envelope_w,
+	qualified_saturated_days,
+	qualified_saturated_hours,
+	history_from,
+	history_to,
+	updated_at
+)
+VALUES (
+	$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+)
+ON CONFLICT (site_key, forecast_version) DO UPDATE
+SET timezone = EXCLUDED.timezone,
+	recent_site_ratio = EXCLUDED.recent_site_ratio,
+	recent_site_sample_count = EXCLUDED.recent_site_sample_count,
+	recent_site_updated_at = EXCLUDED.recent_site_updated_at,
+	potential_base_envelope_w = EXCLUDED.potential_base_envelope_w,
+	potential_saturated_envelope_w = EXCLUDED.potential_saturated_envelope_w,
+	potential_final_envelope_w = EXCLUDED.potential_final_envelope_w,
+	qualified_saturated_days = EXCLUDED.qualified_saturated_days,
+	qualified_saturated_hours = EXCLUDED.qualified_saturated_hours,
+	history_from = EXCLUDED.history_from,
+	history_to = EXCLUDED.history_to,
+	updated_at = EXCLUDED.updated_at;
+`,
+		state.SiteKey,
+		state.ForecastVersion,
+		state.Timezone,
+		floatOrNil(state.RecentSiteRatio),
+		state.RecentSiteSampleCount,
+		timeOrNil(state.RecentSiteUpdatedAt),
+		floatOrNil(state.PotentialBaseEnvelopeW),
+		floatOrNil(state.PotentialSaturatedW),
+		floatOrNil(state.PotentialFinalEnvelopeW),
+		state.QualifiedSaturatedDays,
+		state.QualifiedSaturatedHours,
+		timeOrNil(state.HistoryFrom),
+		timeOrNil(state.HistoryTo),
+		state.UpdatedAt.UTC(),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert solar forecast serving state: %w", err)
 	}
 	return nil
 }
@@ -1545,4 +1672,18 @@ func nullableFloatPtr(value sql.NullFloat64) *float64 {
 		return nil
 	}
 	return &value.Float64
+}
+
+func floatOrNil(value *float64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func timeOrNil(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.UTC()
 }

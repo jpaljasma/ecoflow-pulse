@@ -127,7 +127,7 @@ func TestPostgresStoreListRecentCalibrationRecordsFiltersVerifiedForecastRows(t 
 	fromDate := time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC)
 	toDate := time.Date(2026, 3, 19, 0, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery(`(?s)SELECT\s+h.run_id::text,\s*h.issued_at,\s*h.target_time,\s*h.target_local_date,\s*h.forecast_generation_wh,\s*h.actual_generation_wh,\s*h.verification_status,\s*h.updated_at,\s*r.forecast_version,\s*r.timezone\s+FROM solar_forecast_hourly_training_records h\s+JOIN solar_forecast_runs r ON r.id = h.run_id\s+WHERE h.site_key = \$1\s+AND r.forecast_version = \$2\s+AND h.verification_status = 'verified'\s+AND h.actual_generation_wh IS NOT NULL\s+AND h.target_local_date BETWEEN \$3 AND \$4\s+ORDER BY h.target_local_date ASC, h.target_time ASC;`).
+	mock.ExpectQuery(`(?s)SELECT DISTINCT ON \(h.target_time\)\s+h.run_id::text,\s*h.issued_at,\s*h.target_time,\s*h.target_local_date,\s*h.forecast_generation_wh,\s*h.actual_generation_wh,\s*h.verification_status,\s*h.updated_at,\s*r.forecast_version,\s*r.timezone\s+FROM solar_forecast_hourly_training_records h\s+JOIN solar_forecast_runs r ON r.id = h.run_id\s+WHERE h.site_key = \$1\s+AND r.forecast_version = \$2\s+AND h.verification_status = 'verified'\s+AND h.actual_generation_wh IS NOT NULL\s+AND h.target_local_date BETWEEN \$3 AND \$4\s+ORDER BY h.target_time ASC, h.issued_at DESC;`).
 		WithArgs("site-key", "deterministic_baseline_v1", fromDate, toDate).
 		WillReturnRows(sqlmock.NewRows([]string{"run_id"}))
 
@@ -273,7 +273,7 @@ func TestPostgresStoreListRecentCalibrationRecordsScansLightweightFields(t *test
 		"America/New_York",
 	)
 
-	mock.ExpectQuery(`(?s)SELECT\s+h.run_id::text,\s*h.issued_at,\s*h.target_time,\s*h.target_local_date,\s*h.forecast_generation_wh,\s*h.actual_generation_wh,\s*h.verification_status,\s*h.updated_at,\s*r.forecast_version,\s*r.timezone\s+FROM solar_forecast_hourly_training_records h\s+JOIN solar_forecast_runs r ON r.id = h.run_id\s+WHERE h.site_key = \$1\s+AND r.forecast_version = \$2\s+AND h.verification_status = 'verified'\s+AND h.actual_generation_wh IS NOT NULL\s+AND h.target_local_date BETWEEN \$3 AND \$4\s+ORDER BY h.target_local_date ASC, h.target_time ASC;`).
+	mock.ExpectQuery(`(?s)SELECT DISTINCT ON \(h.target_time\)\s+h.run_id::text,\s*h.issued_at,\s*h.target_time,\s*h.target_local_date,\s*h.forecast_generation_wh,\s*h.actual_generation_wh,\s*h.verification_status,\s*h.updated_at,\s*r.forecast_version,\s*r.timezone\s+FROM solar_forecast_hourly_training_records h\s+JOIN solar_forecast_runs r ON r.id = h.run_id\s+WHERE h.site_key = \$1\s+AND r.forecast_version = \$2\s+AND h.verification_status = 'verified'\s+AND h.actual_generation_wh IS NOT NULL\s+AND h.target_local_date BETWEEN \$3 AND \$4\s+ORDER BY h.target_time ASC, h.issued_at DESC;`).
 		WithArgs("site-key", "deterministic_baseline_v1", fromDate, toDate).
 		WillReturnRows(rows)
 
