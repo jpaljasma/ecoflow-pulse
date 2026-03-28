@@ -180,6 +180,40 @@ describe('provider device mapper', () => {
     );
   });
 
+  it('keeps DPU passthrough visible when Power I/O access types are present but idle', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        metadata: {
+          groups: {
+            hs_yj751_pd_appshow_addr: {
+              access_5p8InType: 0,
+              access_5p8OutType: 0
+            },
+            hs_yj751_pd_backend_addr: {
+              inLvMpptVol: 0,
+              inLvMpptAmp: 0,
+              inHvMpptVol: 0,
+              inHvMpptAmp: 0,
+              fanState: 0
+            },
+            hs_yj751_pd_app_set_info_addr: {},
+            hs_yj751_pd_bp_addr: {
+              bpInfo: {
+                values: []
+              }
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        passthroughMode: 'Idle'
+      })
+    );
+  });
+
   it('treats DPU L14 and Power I/O AC outputs as active AC output paths', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({

@@ -859,6 +859,9 @@ function describeDpuPassthroughMode(
   if (workModeLabel) {
     return workModeLabel;
   }
+  if (inputLabel === 'Idle' || outputLabel === 'Idle') {
+    return 'Idle';
+  }
   return undefined;
 }
 
