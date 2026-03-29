@@ -204,6 +204,11 @@ export type SolarOutlookResponse = {
   outlook: SolarOutlook;
 };
 
+export type SolarOutlookScope = {
+  scope?: 'all' | 'device';
+  deviceId?: string;
+};
+
 export async function fetchWeatherForecast(token?: string): Promise<WeatherForecastResponse> {
   const data = await requestJson<unknown>('/api/v1/weather/forecast', { token });
   const parsed = z.object({ forecast: WeatherForecastSchema }).parse(data);
@@ -222,8 +227,16 @@ export async function fetchWeatherYesterdayVerification(
   };
 }
 
-export async function fetchSolarOutlook(token?: string): Promise<SolarOutlookResponse> {
-  const data = await requestJson<unknown>('/api/v1/solar/outlook', { token });
+export async function fetchSolarOutlook(
+  token?: string,
+  options: SolarOutlookScope = {}
+): Promise<SolarOutlookResponse> {
+  const scope = options.scope ?? 'all';
+  const params = new URLSearchParams({ scope });
+  if (scope === 'device' && options.deviceId) {
+    params.set('deviceId', options.deviceId);
+  }
+  const data = await requestJson<unknown>(`/api/v1/solar/outlook?${params.toString()}`, { token });
   const parsed = z.object({
     outlook: z.object({
       scope: z

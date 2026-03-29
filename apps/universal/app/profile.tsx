@@ -6,6 +6,7 @@ import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { useEnergySettingsStore } from '@/features/energy/store';
+import { useDevices } from '@/features/devices/hooks';
 import { detectCurrentWeatherLocation } from '@/features/profile/location';
 import { formatAuthMethodLabel, resolveUserDisplayName } from '@/features/profile/model';
 import { TimezoneSelect } from '@/features/profile/TimezoneSelect';
@@ -38,6 +39,11 @@ export default function ProfileScreen() {
     authKey,
     enabled: authReady && allowed
   });
+  const devicesQuery = useDevices({
+    token,
+    authKey,
+    enabled: authReady && allowed
+  });
   const updateCurrentUser = useUpdateCurrentUser({
     token,
     authKey
@@ -57,6 +63,8 @@ export default function ProfileScreen() {
   const [weatherSectionTop, setWeatherSectionTop] = useState<number | null>(null);
   const [scrollY, setScrollY] = useState(0);
   const [weatherSectionActivated, setWeatherSectionActivated] = useState(false);
+  const [solarScope, setSolarScope] = useState<'all' | 'device'>('all');
+  const [selectedWeatherDeviceId, setSelectedWeatherDeviceId] = useState<string | undefined>(undefined);
   const gridPricePerKwh = useEnergySettingsStore((state) => state.gridPricePerKwh);
   const currency = useEnergySettingsStore((state) => state.currency);
   const setGridPricePerKwh = useEnergySettingsStore((state) => state.setGridPricePerKwh);
@@ -111,12 +119,36 @@ export default function ProfileScreen() {
     }
   }, [weatherSectionVisible]);
 
+  const availableSolarDevices = useMemo(
+    () => devicesQuery.data?.devices ?? [],
+    [devicesQuery.data?.devices]
+  );
+
+  useEffect(() => {
+    if (solarScope !== 'device') {
+      return;
+    }
+    if (!selectedWeatherDeviceId) {
+      if (availableSolarDevices[0]?.id) {
+        setSelectedWeatherDeviceId(availableSolarDevices[0].id);
+      }
+      return;
+    }
+    const stillVisible = availableSolarDevices.some((device) => device.id === selectedWeatherDeviceId);
+    if (!stillVisible) {
+      setSolarScope('all');
+      setSelectedWeatherDeviceId(undefined);
+    }
+  }, [availableSolarDevices, selectedWeatherDeviceId, solarScope]);
+
   const profileWeather = useProfileWeather({
     token,
     authKey,
     locationKey: resolvedWeatherState.locationKey,
     enabled: weatherEnabled && weatherSectionActivated,
-    verificationEnabled: weatherSectionActivated && verificationRequested
+    verificationEnabled: weatherSectionActivated && verificationRequested,
+    scope: solarScope,
+    deviceId: solarScope === 'device' ? selectedWeatherDeviceId : undefined
   });
 
   if (waiting || !allowed) {
@@ -308,6 +340,62 @@ export default function ProfileScreen() {
                 setWeatherSectionTop(event.nativeEvent.layout.y);
               }}
             >
+              {availableSolarDevices.length > 0 ? (
+                <Card gap="$3">
+                  <YStack gap="$1">
+                    <Text fontSize="$6" fontWeight="800">Solar forecast scope</Text>
+                    <Text color="$colorMuted">
+                      Keep the profile weather widgets on site totals or switch them to a specific device forecast.
+                    </Text>
+                  </YStack>
+                  <XStack gap="$2" flexWrap="wrap" alignItems="center">
+                    <Button
+                      size="$3"
+                      borderWidth={1}
+                      onPress={() => {
+                        setSolarScope('all');
+                        setSelectedWeatherDeviceId(undefined);
+                      }}
+                      style={{
+                        backgroundColor:
+                          solarScope === 'all' ? semantics.periodActiveBackground : semantics.periodIdleBackground,
+                        borderColor:
+                          solarScope === 'all' ? semantics.periodActiveBorder : semantics.periodIdleBorder,
+                        color: solarScope === 'all' ? semantics.periodActiveText : semantics.periodIdleText
+                      }}
+                    >
+                      Site
+                    </Button>
+                    {availableSolarDevices.map((device) => (
+                      <Button
+                        key={device.id}
+                        size="$3"
+                        borderWidth={1}
+                        onPress={() => {
+                          setSolarScope('device');
+                          setSelectedWeatherDeviceId(device.id);
+                        }}
+                        style={{
+                          backgroundColor:
+                            solarScope === 'device' && selectedWeatherDeviceId === device.id
+                              ? semantics.periodActiveBackground
+                              : semantics.periodIdleBackground,
+                          borderColor:
+                            solarScope === 'device' && selectedWeatherDeviceId === device.id
+                              ? semantics.periodActiveBorder
+                              : semantics.periodIdleBorder,
+                          color:
+                            solarScope === 'device' && selectedWeatherDeviceId === device.id
+                              ? semantics.periodActiveText
+                              : semantics.periodIdleText
+                        }}
+                      >
+                        {device.name}
+                      </Button>
+                    ))}
+                  </XStack>
+                </Card>
+              ) : null}
               <WeatherCurrentWidget
                 forecast={profileWeather.forecastQuery.data?.forecast}
                 solarOutlook={profileWeather.solarOutlook}

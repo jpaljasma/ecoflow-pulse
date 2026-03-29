@@ -40,6 +40,9 @@ const (
 	minSaturatedRelativeStrength  = 0.85
 	minSaturatedChargeEnergyWh    = 40.0
 	maxSaturatedChargeEnergyRatio = 0.15
+	deviceShareLookbackDays       = 7
+	minDeviceShareDayWh           = 250.0
+	deviceShareRecentDayWeight    = 0.35
 )
 
 const sameDayCurtailmentReasonBatteryNearFull = "battery_near_full"
@@ -126,6 +129,11 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	if len(deviceIDs) == 0 {
 		return nil, ErrNoVisibleDevices
 	}
+	siteDeviceIDs := normalizedDeviceIDs(in.SiteResolvedDeviceIDs)
+	if len(siteDeviceIDs) == 0 {
+		siteDeviceIDs = append([]string(nil), deviceIDs...)
+	}
+	useDeviceSiteAllocation := scopeMode == "device" && len(deviceIDs) == 1 && len(siteDeviceIDs) > 1
 
 	weatherReq := in.WeatherRequest.Normalized()
 	weatherReq.UnitSystem = weatherd.UnitSystemMetric
@@ -144,12 +152,7 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	nowUTC := s.nowFn().UTC()
 	nowLocal := nowUTC.In(loc)
 	todayStartLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
-	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, deviceIDs)
-	forecastModel := "deterministic_baseline_v1"
-	servingState, err := s.loadServingState(ctx, siteKey, forecastModel)
-	if err != nil {
-		return nil, err
-	}
+	todayISO := localDateISO(nowLocal, loc)
 	telemetryLookbackStartedAt := time.Now()
 	todayHistory, err := s.querySeries(ctx, deviceIDs, todayStartLocal.UTC(), nowUTC, 32)
 	stageTimings.telemetryLookback = time.Since(telemetryLookbackStartedAt)
@@ -157,10 +160,28 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	if err != nil {
 		return nil, err
 	}
-	capacity := inferCapacityEstimateFromServingState(servingState, todayHistory.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
-	todayISO := localDateISO(nowLocal, loc)
-	calibrationLoadsStartedAt := time.Now()
 	actualTodayWh := todayActualWh(todayHistory.Points, loc, todayISO)
+	forecastHistory := todayHistory
+	forecastActualTodayWh := actualTodayWh
+	forecastDeviceIDs := append([]string(nil), deviceIDs...)
+	if useDeviceSiteAllocation {
+		telemetryLookbackStartedAt = time.Now()
+		forecastHistory, err = s.querySeries(ctx, siteDeviceIDs, todayStartLocal.UTC(), nowUTC, 32)
+		stageTimings.telemetryLookback += time.Since(telemetryLookbackStartedAt)
+		if err != nil {
+			return nil, err
+		}
+		forecastActualTodayWh = todayActualWh(forecastHistory.Points, loc, todayISO)
+		forecastDeviceIDs = append([]string(nil), siteDeviceIDs...)
+	}
+	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, forecastDeviceIDs)
+	forecastModel := "deterministic_baseline_v1"
+	servingState, err := s.loadServingState(ctx, siteKey, forecastModel)
+	if err != nil {
+		return nil, err
+	}
+	capacity := inferCapacityEstimateFromServingState(servingState, forecastHistory.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
+	calibrationLoadsStartedAt := time.Now()
 	calibrationStates, err := s.loadCalibrationStates(ctx, siteKey, forecastModel)
 	stageTimings.calibrationLoads = time.Since(calibrationLoadsStartedAt)
 	s.observeSolarStageTiming(scopeMode, solarForecastStageCalibrationLoads, err, stageTimings.calibrationLoads)
@@ -175,10 +196,26 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 		s.metrics.ObserveModel(calibrationModeLabel(calibrationApplied))
 	}
 	summarizationStartedAt := time.Now()
-	todayRemainingScale, todayCurtailmentReason := deriveTodayRemainingScale(todayHistory, bundle.Hourly, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
-	daily := summarizeDailyOutlook(bundle.Hourly, bundle.Daily, capacity.EstimatedPeakWatts, actualTodayWh, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
+	todayRemainingScale, todayCurtailmentReason := deriveTodayRemainingScale(forecastHistory, bundle.Hourly, capacity.EstimatedPeakWatts, forecastActualTodayWh, todayISO, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
+	daily := summarizeDailyOutlook(bundle.Hourly, bundle.Daily, capacity.EstimatedPeakWatts, forecastActualTodayWh, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	next24 := summarizeNext24Hours(bundle.Hourly, capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	today := firstDayForISO(daily, todayISO)
+	if useDeviceSiteAllocation {
+		shareLookbackStartLocal := todayStartLocal.AddDate(0, 0, -deviceShareLookbackDays)
+		deviceShareHistory, shareErr := s.queryLookbackSeries(ctx, deviceIDs, shareLookbackStartLocal.UTC(), nowUTC)
+		if shareErr != nil {
+			return nil, shareErr
+		}
+		siteShareHistory, shareErr := s.queryLookbackSeries(ctx, siteDeviceIDs, shareLookbackStartLocal.UTC(), nowUTC)
+		if shareErr != nil {
+			return nil, shareErr
+		}
+		share := deriveDeviceAllocationShare(deviceShareHistory.Points, siteShareHistory.Points, loc, todayISO, defaultDeviceAllocationShare(len(siteDeviceIDs)))
+		capacity = allocateCapacityEstimate(capacity, deviceShareHistory.Points, share)
+		daily = allocateGenerationDays(daily, actualTodayWh, share, todayISO)
+		next24 = allocateGenerationPoints(next24, share)
+		today = firstDayForISO(daily, todayISO)
+	}
 	stageTimings.summarization = time.Since(summarizationStartedAt)
 	s.observeSolarStageTiming(scopeMode, solarForecastStageSummarization, nil, stageTimings.summarization)
 
@@ -849,12 +886,13 @@ func (s *Service) persistTrainingRun(
 		return err
 	}
 	siteMetadataJSON, err := json.Marshal(map[string]any{
-		"scope_mode":            outlook.Scope.Mode,
-		"resolved_device_ids":   outlook.Scope.ResolvedDeviceIDs,
-		"request_latitude":      in.WeatherRequest.Latitude,
-		"request_longitude":     in.WeatherRequest.Longitude,
-		"panel_tilt_degrees":    in.WeatherRequest.PanelTiltDegrees,
-		"panel_azimuth_degrees": in.WeatherRequest.PanelAzimuthDegrees,
+		"scope_mode":               outlook.Scope.Mode,
+		"resolved_device_ids":      outlook.Scope.ResolvedDeviceIDs,
+		"site_resolved_device_ids": normalizedDeviceIDs(in.SiteResolvedDeviceIDs),
+		"request_latitude":         in.WeatherRequest.Latitude,
+		"request_longitude":        in.WeatherRequest.Longitude,
+		"panel_tilt_degrees":       in.WeatherRequest.PanelTiltDegrees,
+		"panel_azimuth_degrees":    in.WeatherRequest.PanelAzimuthDegrees,
 	})
 	if err != nil {
 		return err
@@ -1508,6 +1546,121 @@ func todayActualWh(points []telemetryquery.Point, loc *time.Location, todayISO s
 		}
 	}
 	return total
+}
+
+func dailyActualWhByISO(points []telemetryquery.Point, loc *time.Location) map[string]float64 {
+	out := make(map[string]float64)
+	for _, point := range points {
+		if point.Metrics.SolarGeneratedWh == nil || *point.Metrics.SolarGeneratedWh <= 0 {
+			continue
+		}
+		out[localDateISO(point.BucketStart, loc)] += *point.Metrics.SolarGeneratedWh
+	}
+	return out
+}
+
+func defaultDeviceAllocationShare(deviceCount int) float64 {
+	if deviceCount <= 0 {
+		return 1
+	}
+	return 1 / float64(deviceCount)
+}
+
+func deriveDeviceAllocationShare(devicePoints, sitePoints []telemetryquery.Point, loc *time.Location, todayISO string, fallback float64) float64 {
+	deviceByDay := dailyActualWhByISO(devicePoints, loc)
+	siteByDay := dailyActualWhByISO(sitePoints, loc)
+	var (
+		deviceCompleteWh float64
+		siteCompleteWh   float64
+	)
+	for dayISO, siteDayWh := range siteByDay {
+		if dayISO == todayISO || siteDayWh < minDeviceShareDayWh {
+			continue
+		}
+		deviceCompleteWh += deviceByDay[dayISO]
+		siteCompleteWh += siteDayWh
+	}
+	share := fallback
+	if siteCompleteWh > 0 {
+		share = deviceCompleteWh / siteCompleteWh
+	}
+	siteTodayWh := siteByDay[todayISO]
+	if siteTodayWh >= minDeviceShareDayWh {
+		todayShare := clamp(deviceByDay[todayISO]/siteTodayWh, 0, 1)
+		if siteCompleteWh > 0 {
+			share = ((1 - deviceShareRecentDayWeight) * share) + (deviceShareRecentDayWeight * todayShare)
+		} else {
+			share = todayShare
+		}
+	}
+	return clamp(share, 0, 1)
+}
+
+func allocateCapacityEstimate(site CapacityEstimate, devicePoints []telemetryquery.Point, share float64) CapacityEstimate {
+	out := CapacityEstimate{
+		Method: site.Method,
+	}
+	if site.EstimatedPeakWatts != nil && *site.EstimatedPeakWatts > 0 {
+		allocated := roundWatts(*site.EstimatedPeakWatts * clamp(share, 0, 1))
+		if allocated > 0 {
+			out.EstimatedPeakWatts = floatPtr(allocated)
+		}
+	}
+	if observed := observedPeakWatts(devicePoints); observed > 0 {
+		out.ObservedPvWatts = floatPtr(roundWatts(observed))
+		if out.EstimatedPeakWatts == nil || *out.EstimatedPeakWatts < observed {
+			out.EstimatedPeakWatts = floatPtr(roundWatts(observed))
+		}
+	}
+	if out.Method != "" {
+		out.Method += "_device_share"
+	}
+	return out
+}
+
+func allocateGenerationDays(days []GenerationDay, actualTodayWh float64, share float64, todayISO string) []GenerationDay {
+	out := make([]GenerationDay, 0, len(days))
+	for _, day := range days {
+		allocated := day
+		if day.ForecastRemainingKWh != nil {
+			remaining := round1(*day.ForecastRemainingKWh * clamp(share, 0, 1))
+			allocated.ForecastRemainingKWh = floatPtr(remaining)
+		}
+		if day.ForecastTotalKWh != nil {
+			total := round1(*day.ForecastTotalKWh * clamp(share, 0, 1))
+			if day.Date.Format("2006-01-02") == todayISO {
+				total = round1((actualTodayWh / 1000) + floatValue(allocated.ForecastRemainingKWh))
+			}
+			allocated.ForecastTotalKWh = floatPtr(total)
+		}
+		if day.Date.Format("2006-01-02") == todayISO {
+			actual := round1(actualTodayWh / 1000)
+			allocated.ActualGeneratedKWh = floatPtr(actual)
+		}
+		if day.EstimatedPeakWatts != nil {
+			estimatedPeak := roundWatts(*day.EstimatedPeakWatts * clamp(share, 0, 1))
+			allocated.EstimatedPeakWatts = floatPtr(estimatedPeak)
+		}
+		out = append(out, allocated)
+	}
+	return out
+}
+
+func allocateGenerationPoints(points []GenerationPoint, share float64) []GenerationPoint {
+	out := make([]GenerationPoint, 0, len(points))
+	for _, point := range points {
+		allocated := point
+		if point.ForecastGeneratedWh != nil {
+			forecastWh := round1(*point.ForecastGeneratedWh * clamp(share, 0, 1))
+			allocated.ForecastGeneratedWh = floatPtr(forecastWh)
+		}
+		if point.EstimatedPeakWatts != nil {
+			estimatedPeak := roundWatts(*point.EstimatedPeakWatts * clamp(share, 0, 1))
+			allocated.EstimatedPeakWatts = floatPtr(estimatedPeak)
+		}
+		out = append(out, allocated)
+	}
+	return out
 }
 
 func currentWeatherPoint(points []weatherd.HourlyForecastPoint, nowUTC time.Time) *weatherd.HourlyForecastPoint {

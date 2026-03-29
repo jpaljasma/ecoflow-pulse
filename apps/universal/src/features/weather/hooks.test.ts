@@ -13,7 +13,26 @@ describe('weather hooks', () => {
     expect(buildWeatherQueryKey('auth-1', '42.616:-77.401:America/New_York')).toEqual([
       'weather',
       'auth-1',
-      '42.616:-77.401:America/New_York'
+      '42.616:-77.401:America/New_York',
+      'all',
+      ''
+    ]);
+  });
+
+  it('builds distinct query keys for device-scoped solar outlooks', () => {
+    expect(
+      buildWeatherQueryKey(
+        'auth-1',
+        '42.616:-77.401:America/New_York',
+        'device',
+        '019c9f0e-4521-775d-873e-e80039f16d75'
+      )
+    ).toEqual([
+      'weather',
+      'auth-1',
+      '42.616:-77.401:America/New_York',
+      'device',
+      '019c9f0e-4521-775d-873e-e80039f16d75'
     ]);
   });
 });

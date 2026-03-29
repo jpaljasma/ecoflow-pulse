@@ -195,4 +195,24 @@ describe('weather api parsing', () => {
     expect(result.outlook.provenance?.sameDayCurtailmentReason).toBe('battery_near_full');
     expect(result.outlook.capacity.method).toBe('rolling_observed_p95');
   });
+
+  it('requests device-scoped solar outlooks with query params', async () => {
+    restClientMock.requestJson.mockResolvedValueOnce({
+      outlook: {
+        capacity: { method: 'unavailable' },
+        daily: [],
+        next24Hours: []
+      }
+    });
+
+    await fetchSolarOutlook('token-123', {
+      scope: 'device',
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
+    });
+
+    expect(restClientMock.requestJson).toHaveBeenCalledWith(
+      '/api/v1/solar/outlook?scope=device&deviceId=019c9f0e-4521-775d-873e-e80039f16d75',
+      { token: 'token-123' }
+    );
+  });
 });

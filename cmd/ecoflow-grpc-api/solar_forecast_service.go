@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -55,13 +56,14 @@ func (s *SolarForecastService) GetSolarOutlook(ctx context.Context, req *solarfo
 	if err != nil {
 		return nil, err
 	}
-	deviceIDs, err := s.resolveVisibleDeviceIDs(ctx, strings.TrimSpace(req.GetDeviceId()), req.GetUseAllDevices())
+	deviceIDs, siteDeviceIDs, err := s.resolveSolarScopeDeviceIDs(ctx, strings.TrimSpace(req.GetDeviceId()), req.GetUseAllDevices())
 	if err != nil {
 		return nil, err
 	}
 	input := solarforecastd.Input{
-		WeatherRequest:    weatherReq,
-		ResolvedDeviceIDs: deviceIDs,
+		WeatherRequest:        weatherReq,
+		ResolvedDeviceIDs:     deviceIDs,
+		SiteResolvedDeviceIDs: siteDeviceIDs,
 		Scope: solarforecastd.Scope{
 			Mode:     solarScopeMode(req.GetUseAllDevices()),
 			DeviceID: strings.TrimSpace(req.GetDeviceId()),
@@ -88,17 +90,32 @@ func (s *SolarForecastService) GetSolarOutlook(ctx context.Context, req *solarfo
 	return resp, nil
 }
 
-func (s *SolarForecastService) resolveVisibleDeviceIDs(ctx context.Context, requestedDeviceID string, useAllDevices bool) ([]string, error) {
+func (s *SolarForecastService) resolveSolarScopeDeviceIDs(ctx context.Context, requestedDeviceID string, useAllDevices bool) ([]string, []string, error) {
 	requestedDeviceID = strings.TrimSpace(requestedDeviceID)
 	if !useAllDevices {
 		if requestedDeviceID == "" {
-			return nil, status.Error(codes.InvalidArgument, "device_id required when use_all_devices is false")
+			return nil, nil, status.Error(codes.InvalidArgument, "device_id required when use_all_devices is false")
 		}
 		if err := authorizeDeviceAccess(ctx, s.controlPlaneStore, requestedDeviceID); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []string{requestedDeviceID}, nil
+		siteDeviceIDs, err := s.resolveAllVisibleDeviceIDs(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(siteDeviceIDs) == 0 {
+			siteDeviceIDs = []string{requestedDeviceID}
+		}
+		return []string{requestedDeviceID}, siteDeviceIDs, nil
 	}
+	siteDeviceIDs, err := s.resolveAllVisibleDeviceIDs(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return siteDeviceIDs, siteDeviceIDs, nil
+}
+
+func (s *SolarForecastService) resolveAllVisibleDeviceIDs(ctx context.Context) ([]string, error) {
 	if s.controlPlaneStore == nil {
 		return nil, status.Error(codes.InvalidArgument, "all-device solar scope unavailable without user device store")
 	}
@@ -119,6 +136,7 @@ func (s *SolarForecastService) resolveVisibleDeviceIDs(ctx context.Context, requ
 	if len(out) == 0 {
 		return nil, status.Error(codes.NotFound, "no visible devices available for solar forecast")
 	}
+	sort.Strings(out)
 	return out, nil
 }
 

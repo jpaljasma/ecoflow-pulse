@@ -2051,6 +2051,18 @@ func (s *capturingTrainingStore) lookupRun(id string) *Run {
 	return s.runs[id]
 }
 
+func equalStringSlices(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for idx := range got {
+		if got[idx] != want[idx] {
+			return false
+		}
+	}
+	return true
+}
+
 type testWriter struct {
 	t *testing.T
 }

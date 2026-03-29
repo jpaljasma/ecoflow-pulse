@@ -630,17 +630,19 @@ export function formatSolarCapacitySummary(capacity: SolarCapacityEstimate | und
 
 export function formatSolarModelSummary(outlook: SolarOutlook | undefined): string {
   const provenance = outlook?.provenance;
+  const deviceAllocated = outlook?.capacity?.method?.includes('device_share') ?? false;
+  const scopeLabel = deviceAllocated ? 'Site-allocated device' : outlook?.scope?.mode === 'device' ? 'Device' : 'Site';
   if (!provenance) {
     return 'Baseline solar forecast.';
   }
   if (provenance.calibrationApplied) {
     const sampleLabel =
       provenance.calibrationSampleCount > 0
-        ? `${provenance.calibrationSampleCount} verified site-hours`
-        : 'verified site history';
-    return `Site-calibrated solar forecast from ${sampleLabel}.`;
+        ? `${provenance.calibrationSampleCount} verified ${scopeLabel.toLowerCase()}-hours`
+        : `verified ${scopeLabel.toLowerCase()} history`;
+    return `${scopeLabel}-calibrated solar forecast from ${sampleLabel}.`;
   }
-  return 'Baseline solar forecast while site calibration warms up.';
+  return `Baseline solar forecast while ${scopeLabel.toLowerCase()} calibration warms up.`;
 }
 
 export function formatSolarProvenanceSummary(outlook: SolarOutlook | undefined): string {
@@ -649,8 +651,9 @@ export function formatSolarProvenanceSummary(outlook: SolarOutlook | undefined):
   }
   const parts: string[] = [];
   const provenance = outlook.provenance;
+  const deviceAllocated = outlook.capacity.method.includes('device_share');
   if (provenance?.calibrationApplied) {
-    parts.push('Site-calibrated');
+    parts.push(deviceAllocated ? 'Site-calibrated device allocation' : outlook.scope?.mode === 'device' ? 'Device-calibrated' : 'Site-calibrated');
   } else {
     parts.push('Baseline');
   }

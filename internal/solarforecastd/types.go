@@ -13,9 +13,10 @@ type Scope struct {
 }
 
 type Input struct {
-	WeatherRequest    weatherd.Request `json:"weather_request"`
-	Scope             Scope            `json:"scope"`
-	ResolvedDeviceIDs []string         `json:"resolved_device_ids"`
+	WeatherRequest        weatherd.Request `json:"weather_request"`
+	Scope                 Scope            `json:"scope"`
+	ResolvedDeviceIDs     []string         `json:"resolved_device_ids"`
+	SiteResolvedDeviceIDs []string         `json:"site_resolved_device_ids,omitempty"`
 }
 
 type Confidence string

@@ -296,6 +296,50 @@ describe('pulse-platform weather routes', () => {
     await app.close();
   });
 
+  it('passes through device scope for solar outlook requests', async () => {
+    const controlPlaneClient = makeControlPlaneClient();
+    const solarForecastClient = makeSolarForecastClient();
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient,
+      solarForecastClient
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/solar/outlook?scope=device&deviceId=019c9f0e-4521-775d-873e-e80039f16d75'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(solarForecastClient.getSolarOutlook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useAllDevices: false,
+        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
+      })
+    );
+
+    await app.close();
+  });
+
+  it('rejects device-scoped solar outlook requests without a device id', async () => {
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient(),
+      solarForecastClient: makeSolarForecastClient()
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/solar/outlook?scope=device'
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: 'invalid_request',
+      message: 'deviceId is required when scope=device'
+    });
+
+    await app.close();
+  });
+
   it('falls back to auto timezone when the saved profile timezone is blank', async () => {
     const controlPlaneClient = makeControlPlaneClient({}, { timezone: '   ' });
     const weatherClient = makeWeatherClient();

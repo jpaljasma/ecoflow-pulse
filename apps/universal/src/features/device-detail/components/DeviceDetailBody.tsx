@@ -19,9 +19,11 @@ import { formatKWh } from '@/features/telemetry/format';
 import type { DeviceDetailViewModel } from '@/features/device-detail/view-model';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
 import { DiagnosticsSection } from '@/features/device-detail/components/DiagnosticsSection';
+import { DeviceSolarForecastCard } from '@/features/device-detail/components/DeviceSolarForecastCard';
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
 import type { DeviceInsights } from '@/features/inference/api';
+import type { SolarOutlook } from '@/features/weather/model';
 import { IconLabel } from '@/shared/ui/IconLabel';
 
 const DETAIL_TREND_POINTS = 60;
@@ -69,6 +71,9 @@ export function DeviceDetailBody({
   solarGeneratedTodayWh,
   solarGeneratedYesterdayWh,
   solarGeneratedDeltaPct,
+  solarOutlook,
+  solarOutlookLoading,
+  solarOutlookErrorText,
   batteryInsights,
   batteryInsightsLoading
 }: {
@@ -89,6 +94,9 @@ export function DeviceDetailBody({
   solarGeneratedTodayWh?: number;
   solarGeneratedYesterdayWh?: number;
   solarGeneratedDeltaPct?: number | null;
+  solarOutlook?: SolarOutlook;
+  solarOutlookLoading?: boolean;
+  solarOutlookErrorText?: string;
   batteryInsights?: DeviceInsights;
   batteryInsightsLoading?: boolean;
 }) {
@@ -251,6 +259,12 @@ export function DeviceDetailBody({
       )}
 
       <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
+      <DeviceSolarForecastCard
+        deviceName={device?.name}
+        solarOutlook={solarOutlook}
+        isLoading={solarOutlookLoading}
+        errorText={solarOutlookErrorText}
+      />
 
       {hasBatteryPacks || hasSolarInputs ? (
         <XStack gap="$3" flexWrap="wrap">
