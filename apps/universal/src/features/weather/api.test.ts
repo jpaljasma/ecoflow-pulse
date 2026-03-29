@@ -215,4 +215,33 @@ describe('weather api parsing', () => {
       { token: 'token-123' }
     );
   });
+
+  it('parses site-allocated device solar capacity methods', async () => {
+    restClientMock.requestJson.mockResolvedValueOnce({
+      outlook: {
+        capacity: {
+          estimatedPeakWatts: 1480,
+          observedPvWatts: 980,
+          method: 'rolling_observed_p95_and_irradiance_device_share'
+        },
+        scope: {
+          mode: 'device',
+          deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+          resolvedDeviceIds: [
+            '019c9f0e-4521-775d-873e-e80039f16d75'
+          ]
+        },
+        daily: [],
+        next24Hours: []
+      }
+    });
+
+    const result = await fetchSolarOutlook('token-123', {
+      scope: 'device',
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
+    });
+
+    expect(result.outlook.capacity.method).toBe('rolling_observed_p95_and_irradiance_device_share');
+    expect(result.outlook.scope?.mode).toBe('device');
+  });
 });

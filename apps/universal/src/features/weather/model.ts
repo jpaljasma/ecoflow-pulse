@@ -127,9 +127,14 @@ export type SolarCapacityEstimate = {
   method:
     | 'rolling_observed_p95'
     | 'rolling_observed_p95_and_irradiance'
+    | 'rolling_observed_p95_device_share'
+    | 'rolling_observed_p95_and_irradiance_device_share'
     | 'input_ceiling'
+    | 'input_ceiling_device_share'
     | 'live_pv_and_irradiance'
+    | 'live_pv_and_irradiance_device_share'
     | 'live_pv_only'
+    | 'live_pv_only_device_share'
     | 'unavailable';
 };
 
@@ -617,12 +622,21 @@ export function formatSolarCapacitySummary(capacity: SolarCapacityEstimate | und
       return `Observed site potential ${peak}, learned from recent solar production.`;
     case 'rolling_observed_p95_and_irradiance':
       return `Observed site potential ${peak}, learned from recent solar production and current irradiance.`;
+    case 'rolling_observed_p95_device_share':
+    case 'rolling_observed_p95_and_irradiance_device_share':
+      return `Allocated device potential ${peak}, derived from site calibration and recent device share.`;
     case 'live_pv_and_irradiance':
       return `Heuristic peak potential ${peak}, calibrated from observed solar generation and forecast irradiance.`;
+    case 'live_pv_and_irradiance_device_share':
+      return `Allocated device potential ${peak}, derived from site irradiance and recent device share.`;
     case 'input_ceiling':
       return `Conservative solar potential ${peak}, estimated from device solar input limits.`;
+    case 'input_ceiling_device_share':
+      return `Allocated device potential ${peak}, constrained by device solar input limits.`;
     case 'live_pv_only':
       return `Heuristic peak potential ${peak}, inferred from observed solar generation.`;
+    case 'live_pv_only_device_share':
+      return `Allocated device potential ${peak}, inferred from recent device share of observed solar generation.`;
     default:
       return 'Solar potential estimates improve once live PV data is available.';
 	}
@@ -660,13 +674,18 @@ export function formatSolarProvenanceSummary(outlook: SolarOutlook | undefined):
   switch (outlook.capacity.method) {
     case 'rolling_observed_p95':
     case 'rolling_observed_p95_and_irradiance':
+    case 'rolling_observed_p95_device_share':
+    case 'rolling_observed_p95_and_irradiance_device_share':
       parts.push('rolling P95 capacity');
       break;
     case 'live_pv_and_irradiance':
     case 'live_pv_only':
+    case 'live_pv_and_irradiance_device_share':
+    case 'live_pv_only_device_share':
       parts.push('observed PV capacity');
       break;
     case 'input_ceiling':
+    case 'input_ceiling_device_share':
       parts.push('input-limit fallback');
       break;
     default:

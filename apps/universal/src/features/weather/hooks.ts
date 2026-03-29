@@ -60,7 +60,7 @@ export function useSolarOutlook(options: WeatherQueryOptions & SolarOutlookScope
   return useQuery<SolarOutlookResponse>({
     queryKey: [...buildWeatherQueryKey(authKey, locationKey, scope, deviceId ?? ''), 'solar-outlook'],
     queryFn: () => fetchSolarOutlook(token, { scope, deviceId }),
-    enabled,
+    enabled: enabled && (scope === 'all' || Boolean(deviceId)),
     staleTime: SOLAR_OUTLOOK_STALE_MS,
     gcTime: 30 * 60_000,
     placeholderData: (previous) => previous

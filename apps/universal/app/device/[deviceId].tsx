@@ -256,7 +256,7 @@ export default function DeviceDetailScreen() {
           subtitle={device ? device.model : 'Loading…'}
           right={(
             <YStack alignItems="flex-end">
-              <AppMenu />
+              <AppMenu weatherScope="device" weatherDeviceId={resolvedDeviceId} />
             </YStack>
           )}
         />

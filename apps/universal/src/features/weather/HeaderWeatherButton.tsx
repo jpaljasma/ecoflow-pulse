@@ -14,6 +14,7 @@ type Props = {
   solarOutlook?: SolarOutlook;
   showConfigure?: boolean;
   isLoading?: boolean;
+  errorText?: string;
   onPress: () => void;
 };
 
@@ -22,6 +23,7 @@ export function HeaderWeatherButton({
   solarOutlook,
   showConfigure = false,
   isLoading = false,
+  errorText,
   onPress
 }: Props) {
   const current = forecast?.current;
@@ -83,7 +85,7 @@ export function HeaderWeatherButton({
             ) : null}
           </XStack>
           <Text fontSize="$1" color="$colorMuted" numberOfLines={1}>
-            {solarSummary || (isLoading ? 'Loading weather…' : 'Open weather')}
+            {solarSummary || errorText || (isLoading ? 'Loading weather…' : 'Open weather')}
           </Text>
         </YStack>
       )}

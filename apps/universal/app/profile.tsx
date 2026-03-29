@@ -26,6 +26,13 @@ import { TopBar } from '@/shared/ui/TopBar';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
+function describeQueryError(error: unknown): string | undefined {
+  if (!error) {
+    return undefined;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -150,6 +157,12 @@ export default function ProfileScreen() {
     scope: solarScope,
     deviceId: solarScope === 'device' ? selectedWeatherDeviceId : undefined
   });
+  const weatherErrorText =
+    describeQueryError(profileWeather.forecastQuery.error) ??
+    describeQueryError(profileWeather.solarOutlookQuery.error);
+  const weatherIsLoading =
+    weatherSectionActivated &&
+    (profileWeather.forecastQuery.isLoading || profileWeather.solarOutlookQuery.isLoading);
 
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
@@ -169,7 +182,12 @@ export default function ProfileScreen() {
           left={<CloseToHomeButton onClose={closeToHome} />}
           title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
           subtitle="Your Pulse profile and consent preferences"
-          right={<AppMenu />}
+          right={(
+            <AppMenu
+              weatherScope={solarScope}
+              weatherDeviceId={solarScope === 'device' ? selectedWeatherDeviceId : undefined}
+            />
+          )}
         />
         <ScrollView
           contentContainerStyle={{ paddingBottom: 24 }}
@@ -399,9 +417,9 @@ export default function ProfileScreen() {
               <WeatherCurrentWidget
                 forecast={profileWeather.forecastQuery.data?.forecast}
                 solarOutlook={profileWeather.solarOutlook}
-                isLoading={weatherSectionActivated && profileWeather.forecastQuery.isLoading}
+                isLoading={weatherIsLoading}
                 enabled={weatherEnabled}
-                errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
+                errorText={weatherErrorText}
               />
             </YStack>
 
@@ -467,10 +485,10 @@ export default function ProfileScreen() {
               forecast={profileWeather.forecastQuery.data?.forecast}
               solarOutlook={profileWeather.solarOutlook}
               verification={profileWeather.verificationQuery.data?.verification}
-              isLoading={weatherSectionActivated && profileWeather.forecastQuery.isLoading}
+              isLoading={weatherIsLoading}
               verificationIsLoading={weatherSectionActivated && profileWeather.verificationQuery.isLoading}
               enabled={weatherEnabled}
-              errorText={profileWeather.forecastQuery.error ? String(profileWeather.forecastQuery.error) : undefined}
+              errorText={weatherErrorText}
               verificationErrorText={profileWeather.verificationQuery.error ? String(profileWeather.verificationQuery.error) : undefined}
               onVerificationExpand={() => {
                 setVerificationRequested(true);
