@@ -1,6 +1,6 @@
 # ADR-0024: Solar generation forecast service with energy truth, weather features, and site learning
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-03-18
 - **Depends on:** ADR-0019, ADR-0023
 
@@ -25,6 +25,12 @@ We will introduce a dedicated internal solar forecast domain and service that us
 - actual generation from the energy service as the source of truth
 - weather forecasts and archived forecast snapshots as explanatory features
 - site-specific identity and rolling calibration as the primary forecasting unit
+
+Device-scoped forecasts are part of the contract, but they do not redefine the primary learning unit:
+
+- site identity remains the calibration and verification boundary unless a future follow-up explicitly introduces warmed per-device training state,
+- when a caller requests `scope=device` before true per-device calibration exists, the service serves a site-calibrated forecast slice allocated to that device from recent measured device share and device envelope constraints,
+- device-scoped responses must expose enough provenance to distinguish site-allocated device output from true device-calibrated output.
 
 The system will evolve in stages:
 
@@ -112,6 +118,10 @@ separable so it can later move to its own service if needed.
 - 7-day daily forecast totals
 - optional hourly forecast series
 - per-response provenance and confidence
+- explicit scope metadata:
+  - `scope=all` for site totals
+  - `scope=device` for device-targeted responses
+  - resolved device identifiers and any site-context identifiers needed to explain or replay the served result
 
 ## Data model requirements
 
@@ -123,6 +133,8 @@ Each record should be able to answer:
 - what weather we used
 - what actually happened later
 - how wrong we were
+
+When a device-scoped forecast is served from a site-calibrated allocation path, the persisted metadata must preserve the site context used to derive that slice so replay and verification can reconstruct the same served behavior later.
 
 This dataset is required for continuous verification, model evaluation, and retraining.
 
@@ -166,3 +178,4 @@ Dashboards should show:
 3. Implement deterministic v1 using energy truth + weather forecast remainder.
 4. Add forecast-training persistence and verification dashboards.
 5. Add site-calibrated statistical forecasting before ML promotion.
+6. Warm true per-device calibration/training state only after site-level truth, serving-state persistence, and replay stay stable.
