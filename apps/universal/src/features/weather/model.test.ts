@@ -3,6 +3,7 @@ import {
   buildSolarOutlook,
   buildWeatherLocationKey,
   circularWindDirectionError,
+  formatSolarCapacitySummary,
   formatVisibilityKilometers,
   formatMiniSolarOutlookSummary,
   formatSolarProvenanceSummary,
@@ -304,5 +305,41 @@ describe('weather model helpers', () => {
         }
       })
     ).toBe('Site-calibrated · rolling P95 capacity · battery near full');
+  });
+
+  it('describes site-allocated device solar forecasts explicitly', () => {
+    expect(
+      formatSolarModelSummary({
+        capacity: { method: 'rolling_observed_p95_and_irradiance_device_share' },
+        daily: [],
+        scope: {
+          mode: 'device',
+          deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+          resolvedDeviceIds: ['019c9f0e-4521-775d-873e-e80039f16d75']
+        },
+        provenance: {
+          forecastSource: 'solarforecastd',
+          forecastModel: 'deterministic_baseline_v1',
+          servedVariant: 'device_allocated',
+          baselineModel: 'deterministic_baseline_v1',
+          calibrationApplied: true,
+          calibrationSampleCount: 48,
+          sameDayCurtailmentApplied: false,
+          actualsSource: 'telemetry_rollups',
+          weatherSource: 'open_meteo',
+          weatherModelSelection: 'best_match',
+          timezone: 'America/New_York',
+          canonicalLocationKey: 'grid-key',
+          issuedAtUnixMs: '1770000000000',
+          refreshedAtUnixMs: '1770000300000'
+        }
+      })
+    ).toBe('Site-allocated device-calibrated solar forecast from 48 verified site-allocated device-hours.');
+    expect(
+      formatSolarCapacitySummary({
+        estimatedPeakWatts: 980,
+        method: 'rolling_observed_p95_and_irradiance_device_share'
+      })
+    ).toBe('Allocated device potential 980 W, derived from site calibration and recent device share.');
   });
 });

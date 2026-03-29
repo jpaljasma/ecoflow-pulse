@@ -186,6 +186,12 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - verification/history/explainer sections that are useful but secondary should stay out of the initial request path unless product requirements say otherwise,
    - first expand should trigger the fetch, preserve layout stability, and reuse cached data on reopen instead of refetching or blanking the card,
    - keep summary widgets truthful by omitting unavailable derived copy instead of filling space with noisy placeholder text.
+24. Shared weather and solar chrome must receive explicit scope from the current screen:
+   - top-bar/menu/header widgets must not assume site-wide solar scope by default when the current page is device-specific or the user has selected a device-specific forecast mode,
+   - pass canonical UUID device IDs through shared widget props instead of re-deriving scope from unrelated global state.
+25. Client parsers must stay aligned with served forecast variants:
+   - when backend responses add new enum-like variants for provenance, calibration method, or scope metadata, update the universal client schema and copy in the same branch,
+   - device-scoped forecast parse failures must surface as visible widget errors during development rather than silently dropping solar data.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.

@@ -127,9 +127,14 @@ export type SolarCapacityEstimate = {
   method:
     | 'rolling_observed_p95'
     | 'rolling_observed_p95_and_irradiance'
+    | 'rolling_observed_p95_device_share'
+    | 'rolling_observed_p95_and_irradiance_device_share'
     | 'input_ceiling'
+    | 'input_ceiling_device_share'
     | 'live_pv_and_irradiance'
+    | 'live_pv_and_irradiance_device_share'
     | 'live_pv_only'
+    | 'live_pv_only_device_share'
     | 'unavailable';
 };
 
@@ -617,12 +622,21 @@ export function formatSolarCapacitySummary(capacity: SolarCapacityEstimate | und
       return `Observed site potential ${peak}, learned from recent solar production.`;
     case 'rolling_observed_p95_and_irradiance':
       return `Observed site potential ${peak}, learned from recent solar production and current irradiance.`;
+    case 'rolling_observed_p95_device_share':
+    case 'rolling_observed_p95_and_irradiance_device_share':
+      return `Allocated device potential ${peak}, derived from site calibration and recent device share.`;
     case 'live_pv_and_irradiance':
       return `Heuristic peak potential ${peak}, calibrated from observed solar generation and forecast irradiance.`;
+    case 'live_pv_and_irradiance_device_share':
+      return `Allocated device potential ${peak}, derived from site irradiance and recent device share.`;
     case 'input_ceiling':
       return `Conservative solar potential ${peak}, estimated from device solar input limits.`;
+    case 'input_ceiling_device_share':
+      return `Allocated device potential ${peak}, constrained by device solar input limits.`;
     case 'live_pv_only':
       return `Heuristic peak potential ${peak}, inferred from observed solar generation.`;
+    case 'live_pv_only_device_share':
+      return `Allocated device potential ${peak}, inferred from recent device share of observed solar generation.`;
     default:
       return 'Solar potential estimates improve once live PV data is available.';
 	}
@@ -630,17 +644,19 @@ export function formatSolarCapacitySummary(capacity: SolarCapacityEstimate | und
 
 export function formatSolarModelSummary(outlook: SolarOutlook | undefined): string {
   const provenance = outlook?.provenance;
+  const deviceAllocated = outlook?.capacity?.method?.includes('device_share') ?? false;
+  const scopeLabel = deviceAllocated ? 'Site-allocated device' : outlook?.scope?.mode === 'device' ? 'Device' : 'Site';
   if (!provenance) {
     return 'Baseline solar forecast.';
   }
   if (provenance.calibrationApplied) {
     const sampleLabel =
       provenance.calibrationSampleCount > 0
-        ? `${provenance.calibrationSampleCount} verified site-hours`
-        : 'verified site history';
-    return `Site-calibrated solar forecast from ${sampleLabel}.`;
+        ? `${provenance.calibrationSampleCount} verified ${scopeLabel.toLowerCase()}-hours`
+        : `verified ${scopeLabel.toLowerCase()} history`;
+    return `${scopeLabel}-calibrated solar forecast from ${sampleLabel}.`;
   }
-  return 'Baseline solar forecast while site calibration warms up.';
+  return `Baseline solar forecast while ${scopeLabel.toLowerCase()} calibration warms up.`;
 }
 
 export function formatSolarProvenanceSummary(outlook: SolarOutlook | undefined): string {
@@ -649,21 +665,27 @@ export function formatSolarProvenanceSummary(outlook: SolarOutlook | undefined):
   }
   const parts: string[] = [];
   const provenance = outlook.provenance;
+  const deviceAllocated = outlook.capacity.method.includes('device_share');
   if (provenance?.calibrationApplied) {
-    parts.push('Site-calibrated');
+    parts.push(deviceAllocated ? 'Site-calibrated device allocation' : outlook.scope?.mode === 'device' ? 'Device-calibrated' : 'Site-calibrated');
   } else {
     parts.push('Baseline');
   }
   switch (outlook.capacity.method) {
     case 'rolling_observed_p95':
     case 'rolling_observed_p95_and_irradiance':
+    case 'rolling_observed_p95_device_share':
+    case 'rolling_observed_p95_and_irradiance_device_share':
       parts.push('rolling P95 capacity');
       break;
     case 'live_pv_and_irradiance':
     case 'live_pv_only':
+    case 'live_pv_and_irradiance_device_share':
+    case 'live_pv_only_device_share':
       parts.push('observed PV capacity');
       break;
     case 'input_ceiling':
+    case 'input_ceiling_device_share':
       parts.push('input-limit fallback');
       break;
     default:

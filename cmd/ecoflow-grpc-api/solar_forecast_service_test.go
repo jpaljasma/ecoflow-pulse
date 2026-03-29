@@ -23,14 +23,16 @@ type fakeSolarForecastDomain struct {
 	response *solarforecastd.Outlook
 	err      error
 	calls    atomic.Int32
+	lastIn   solarforecastd.Input
 
 	blockFirstCall chan struct{}
 	releaseFirst   chan struct{}
 	once           sync.Once
 }
 
-func (f *fakeSolarForecastDomain) GetSolarOutlook(_ context.Context, _ solarforecastd.Input) (*solarforecastd.Outlook, error) {
+func (f *fakeSolarForecastDomain) GetSolarOutlook(_ context.Context, in solarforecastd.Input) (*solarforecastd.Outlook, error) {
 	call := f.calls.Add(1)
+	f.lastIn = in
 	if call == 1 {
 		if f.blockFirstCall != nil {
 			f.once.Do(func() { close(f.blockFirstCall) })
@@ -227,6 +229,36 @@ func TestSolarForecastOutlookCacheExpiresAndReloads(t *testing.T) {
 	}
 }
 
+func TestSolarForecastServicePassesFullSiteContextForDeviceScope(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {
+			{DeviceID: "device-b"},
+			{DeviceID: "device-a"},
+		},
+	})
+	domain := &fakeSolarForecastDomain{response: sampleSolarForecastOutlook(t)}
+	svc := newTestSolarForecastService(store, domain)
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"})
+
+	_, err := svc.GetSolarOutlook(ctx, &solarforecastv1.GetSolarOutlookRequest{
+		Location:      testSolarForecastLocation(),
+		DeviceId:      "device-a",
+		UseAllDevices: false,
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+
+	if got, want := domain.lastIn.ResolvedDeviceIDs, []string{"device-a"}; !equalStrings(got, want) {
+		t.Fatalf("ResolvedDeviceIDs = %v, want %v", got, want)
+	}
+	if got, want := domain.lastIn.SiteResolvedDeviceIDs, []string{"device-a", "device-b"}; !equalStrings(got, want) {
+		t.Fatalf("SiteResolvedDeviceIDs = %v, want %v", got, want)
+	}
+}
+
 func sampleSolarForecastOutlook(t *testing.T) *solarforecastd.Outlook {
 	t.Helper()
 
@@ -384,4 +416,16 @@ func testSolarForecastLocation() *weatherv1.WeatherLocationRequest {
 
 func solarFloatPtr(value float64) *float64 {
 	return &value
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for idx := range got {
+		if got[idx] != want[idx] {
+			return false
+		}
+	}
+	return true
 }

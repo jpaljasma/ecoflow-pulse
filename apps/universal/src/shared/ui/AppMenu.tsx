@@ -13,7 +13,20 @@ import { Sheet } from '@/shared/ui/Sheet';
 import { getBundledBrandMark } from '@/shared/assets/brandBundled';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 
-export function AppMenu() {
+function describeQueryError(error: unknown): string | undefined {
+  if (!error) {
+    return undefined;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function AppMenu({
+  weatherScope = 'all',
+  weatherDeviceId
+}: {
+  weatherScope?: 'all' | 'device';
+  weatherDeviceId?: string;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const { token, authKey, authReady } = useAuthSession();
@@ -29,10 +42,23 @@ export function AppMenu() {
     token,
     authKey,
     locationKey: resolvedWeatherState.locationKey,
-    enabled: authReady && Boolean(token) && resolvedWeatherState.enabled
+    enabled:
+      authReady &&
+      Boolean(token) &&
+      resolvedWeatherState.enabled &&
+      (weatherScope === 'all' || Boolean(weatherDeviceId)),
+    scope: weatherScope,
+    deviceId: weatherScope === 'device' ? weatherDeviceId : undefined
   });
   const showConfigureWeather =
     Boolean(currentUserQuery.data?.user) && !resolvedWeatherState.enabled;
+  const headerWeatherError =
+    describeQueryError(profileWeather.forecastQuery.error) ??
+    describeQueryError(profileWeather.solarOutlookQuery.error);
+  const headerWeatherLoading =
+    currentUserQuery.isLoading ||
+    profileWeather.forecastQuery.isLoading ||
+    profileWeather.solarOutlookQuery.isLoading;
 
   return (
     <>
@@ -41,7 +67,8 @@ export function AppMenu() {
           forecast={profileWeather.forecastQuery.data?.forecast}
           solarOutlook={profileWeather.solarOutlook}
           showConfigure={showConfigureWeather}
-          isLoading={currentUserQuery.isLoading || profileWeather.forecastQuery.isLoading}
+          isLoading={headerWeatherLoading}
+          errorText={headerWeatherError}
           onPress={() => router.push('/profile')}
         />
 

@@ -17,17 +17,18 @@ import (
 )
 
 type replayRun struct {
-	ID                  string
-	SiteKey             string
-	DeviceID            *string
-	Timezone            string
-	IssuedAt            time.Time
-	IssueLocalDate      time.Time
-	ForecastVersion     string
-	ForecastTotalToday  float64
-	ForecastRemainToday float64
-	ActualSoFar         float64
-	SiteMetadataJSON    []byte
+	ID                   string
+	SiteKey              string
+	CanonicalLocationKey string
+	DeviceID             *string
+	Timezone             string
+	IssuedAt             time.Time
+	IssueLocalDate       time.Time
+	ForecastVersion      string
+	ForecastTotalToday   float64
+	ForecastRemainToday  float64
+	ActualSoFar          float64
+	SiteMetadataJSON     []byte
 }
 
 type replayHour struct {
@@ -119,6 +120,95 @@ func TestReplayRecentSolarRunsAgainstCurrentBranch(t *testing.T) {
 	}
 }
 
+func TestReplayRecentPerDeviceSolarRunsAgainstCurrentBranch(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("SOLAR_REPLAY_DSN"))
+	if dsn == "" {
+		t.Skip("set SOLAR_REPLAY_DSN to run live replay")
+	}
+	ctx := context.Background()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open replay db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("ping replay db: %v", err)
+	}
+	queryReader, err := telemetryquery.NewPostgresReader(dsn)
+	if err != nil {
+		t.Fatalf("new telemetry query reader: %v", err)
+	}
+	defer func() { _ = queryReader.Close() }()
+	runs, err := loadReplayRuns(ctx, db, 3)
+	if err != nil {
+		t.Fatalf("load replay runs: %v", err)
+	}
+	if len(runs) == 0 {
+		t.Fatal("no completed replay runs found")
+	}
+
+	type perDeviceResult struct {
+		Date           string
+		Slice          string
+		ActualWh       float64
+		NewForecastWh  float64
+		NewDeltaPct    float64
+		NewPeakW       float64
+		CapacityW      float64
+		CapacityMethod string
+	}
+
+	results := make([]perDeviceResult, 0, len(runs)*2)
+	for _, run := range runs {
+		deviceIDs := replayResolvedDeviceIDs(run)
+		if len(deviceIDs) <= 1 {
+			continue
+		}
+		for idx, deviceID := range deviceIDs {
+			deviceRun, err := replaySingleDeviceRun(run, deviceID)
+			if err != nil {
+				t.Fatalf("device replay run %s slice %d: %v", run.ID, idx+1, err)
+			}
+			result, skip, err := replayRunWithCurrentBranch(ctx, db, queryReader, deviceRun)
+			if err != nil {
+				t.Fatalf("replay run %s slice %d: %v", run.ID, idx+1, err)
+			}
+			if skip {
+				continue
+			}
+			results = append(results, perDeviceResult{
+				Date:           result.Date,
+				Slice:          fmt.Sprintf("device %d", idx+1),
+				ActualWh:       result.ActualWh,
+				NewForecastWh:  result.NewForecastWh,
+				NewDeltaPct:    result.NewDeltaPct,
+				NewPeakW:       result.NewDisplayedPeakW,
+				CapacityW:      result.CapacityW,
+				CapacityMethod: result.CapacityMethod,
+			})
+		}
+	}
+	if len(results) == 0 {
+		t.Fatal("no usable per-device replay rows remained after filtering")
+	}
+
+	t.Log("| Date | Slice | Actual kWh | Replay kWh | Delta | Peak kW | Capacity kW | Method |")
+	t.Log("| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |")
+	for _, row := range results {
+		t.Logf(
+			"| %s | %s | %.2f | %.2f | %+0.2f%% | %.2f | %.2f | %s |",
+			row.Date,
+			row.Slice,
+			row.ActualWh/1000,
+			row.NewForecastWh/1000,
+			row.NewDeltaPct,
+			row.NewPeakW/1000,
+			row.CapacityW/1000,
+			row.CapacityMethod,
+		)
+	}
+}
+
 func loadReplayRuns(ctx context.Context, db *sql.DB, dayCount int) ([]replayRun, error) {
 	if dayCount <= 0 {
 		dayCount = 3
@@ -135,6 +225,7 @@ ranked AS (
   SELECT
     r.id::text,
     r.site_key,
+    r.canonical_location_key,
     r.device_id::text,
     r.timezone,
     r.issued_at,
@@ -154,6 +245,7 @@ ranked AS (
 SELECT
   id,
   site_key,
+  canonical_location_key,
   device_id,
   timezone,
   issued_at,
@@ -180,6 +272,7 @@ ORDER BY issue_local_date DESC;
 		if err := rows.Scan(
 			&row.ID,
 			&row.SiteKey,
+			&row.CanonicalLocationKey,
 			&deviceID,
 			&row.Timezone,
 			&row.IssuedAt,
@@ -217,12 +310,17 @@ func replayRunWithCurrentBranch(
 	issuedAtUTC := run.IssuedAt.UTC()
 	nowLocal := issuedAtUTC.In(loc)
 	deviceIDs := replayResolvedDeviceIDs(run)
+	siteDeviceIDs := replaySiteResolvedDeviceIDs(run)
 	if len(deviceIDs) == 0 && run.DeviceID != nil {
 		deviceIDs = []string{*run.DeviceID}
 	}
 	if len(deviceIDs) == 0 {
 		return replayResult{}, false, fmt.Errorf("run %s has no resolved device ids", run.ID)
 	}
+	if len(siteDeviceIDs) == 0 {
+		siteDeviceIDs = append([]string(nil), deviceIDs...)
+	}
+	useDeviceSiteAllocation := len(deviceIDs) == 1 && len(siteDeviceIDs) > 1
 
 	hours, err := loadReplayHours(ctx, db, run.ID)
 	if err != nil {
@@ -276,7 +374,7 @@ func replayRunWithCurrentBranch(
 	todayStartLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
 	lookbackStartLocal := todayStartLocal.AddDate(0, 0, -6)
 	svc := &Service{query: queryReader}
-	history, err := svc.querySeries(ctx, deviceIDs, lookbackStartLocal.UTC(), issuedAtUTC, 24*8)
+	deviceHistory, err := svc.querySeries(ctx, deviceIDs, lookbackStartLocal.UTC(), issuedAtUTC, 24*8)
 	if err != nil {
 		return replayResult{}, false, err
 	}
@@ -288,18 +386,28 @@ func replayRunWithCurrentBranch(
 	if actualTotalWh < minReplayActualWh {
 		return replayResult{}, true, nil
 	}
-	capacity := inferCapacityEstimate(history.Points, currentWeatherPoint(hourlyPoints, issuedAtUTC), loc)
+	actualSoFarWh := todayActualWh(deviceHistory.Points, loc, todayISO)
+	forecastHistory := deviceHistory
+	forecastActualSoFarWh := actualSoFarWh
+	if useDeviceSiteAllocation {
+		forecastHistory, err = svc.querySeries(ctx, siteDeviceIDs, lookbackStartLocal.UTC(), issuedAtUTC, 24*8)
+		if err != nil {
+			return replayResult{}, false, err
+		}
+		forecastActualSoFarWh = todayActualWh(forecastHistory.Points, loc, todayISO)
+	}
+	capacity := inferCapacityEstimate(forecastHistory.Points, currentWeatherPoint(hourlyPoints, issuedAtUTC), loc)
 
-	calibrationStates, recentSiteCalibration, err := reconstructCalibrationAsOf(ctx, db, run, issuedAtUTC)
+	calibrationStates, recentSiteCalibration, err := reconstructCalibrationAsOf(ctx, db, run, issuedAtUTC, siteDeviceIDs)
 	if err != nil {
 		return replayResult{}, false, err
 	}
 	calibrationIndex := BuildCalibrationIndex(calibrationStates)
 	todayRemainingScale, _ := deriveTodayRemainingScale(
-		history,
+		forecastHistory,
 		hourlyPoints,
 		capacity.EstimatedPeakWatts,
-		run.ActualSoFar,
+		forecastActualSoFarWh,
 		todayISO,
 		issuedAtUTC,
 		loc,
@@ -310,7 +418,7 @@ func replayRunWithCurrentBranch(
 		hourlyPoints,
 		dailyPoints,
 		capacity.EstimatedPeakWatts,
-		run.ActualSoFar,
+		forecastActualSoFarWh,
 		todayISO,
 		todayRemainingScale,
 		issuedAtUTC,
@@ -318,6 +426,11 @@ func replayRunWithCurrentBranch(
 		calibrationIndex,
 		recentSiteCalibration.MultiplicativeRatio,
 	)
+	if useDeviceSiteAllocation {
+		share := deriveDeviceAllocationShare(deviceHistory.Points, forecastHistory.Points, loc, todayISO, defaultDeviceAllocationShare(len(siteDeviceIDs)))
+		capacity = allocateCapacityEstimate(capacity, deviceHistory.Points, share)
+		daily = allocateGenerationDays(daily, actualSoFarWh, share, todayISO)
+	}
 	today := firstDayForISO(daily, todayISO)
 	newForecastWh := kwhToWh(today.ForecastTotalKWh)
 	newPeakWh := valueOrZero(today.EstimatedPeakWatts)
@@ -389,9 +502,13 @@ ORDER BY target_time ASC;
 	return out, rows.Err()
 }
 
-func reconstructCalibrationAsOf(ctx context.Context, db *sql.DB, run replayRun, issuedAt time.Time) ([]CalibrationState, RecentSiteCalibration, error) {
+func reconstructCalibrationAsOf(ctx context.Context, db *sql.DB, run replayRun, issuedAt time.Time, siteDeviceIDs []string) ([]CalibrationState, RecentSiteCalibration, error) {
+	siteKey := run.SiteKey
+	if ids := normalizedDeviceIDs(siteDeviceIDs); len(ids) > 0 && strings.TrimSpace(run.CanonicalLocationKey) != "" {
+		siteKey = buildSiteKey(strings.TrimSpace(run.CanonicalLocationKey), ids)
+	}
 	fromDate := run.IssueLocalDate.AddDate(0, 0, -14)
-	records, err := loadReplayVerificationRecords(ctx, db, run.SiteKey, fromDate, run.IssueLocalDate)
+	records, err := loadReplayVerificationRecords(ctx, db, siteKey, fromDate, run.IssueLocalDate)
 	if err != nil {
 		return nil, RecentSiteCalibration{}, err
 	}
@@ -421,7 +538,7 @@ func reconstructCalibrationAsOf(ctx context.Context, db *sql.DB, run replayRun, 
 			continue
 		}
 		state := lookupCalibration(index, record.HorizonBucket, record.TargetLocalHour)
-		state.SiteKey = run.SiteKey
+		state.SiteKey = siteKey
 		state.ForecastVersion = run.ForecastVersion
 		state.HorizonBucket = record.HorizonBucket
 		state.HourOfDay = record.TargetLocalHour
@@ -468,6 +585,61 @@ func replayResolvedDeviceIDs(run replayRun) []string {
 		return nil
 	}
 	return normalizedDeviceIDs(metadata.ResolvedDeviceIDs)
+}
+
+func replaySiteResolvedDeviceIDs(run replayRun) []string {
+	var metadata struct {
+		ResolvedDeviceIDs     []string `json:"resolved_device_ids"`
+		SiteResolvedDeviceIDs []string `json:"site_resolved_device_ids"`
+	}
+	if len(run.SiteMetadataJSON) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(run.SiteMetadataJSON, &metadata); err != nil {
+		return nil
+	}
+	if ids := normalizedDeviceIDs(metadata.SiteResolvedDeviceIDs); len(ids) > 0 {
+		return ids
+	}
+	return normalizedDeviceIDs(metadata.ResolvedDeviceIDs)
+}
+
+func replaySingleDeviceRun(run replayRun, deviceID string) (replayRun, error) {
+	normalized := strings.TrimSpace(deviceID)
+	if normalized == "" {
+		return replayRun{}, fmt.Errorf("empty device id")
+	}
+	payload, err := json.Marshal(struct {
+		ResolvedDeviceIDs     []string `json:"resolved_device_ids"`
+		SiteResolvedDeviceIDs []string `json:"site_resolved_device_ids,omitempty"`
+	}{
+		ResolvedDeviceIDs:     []string{normalized},
+		SiteResolvedDeviceIDs: replaySiteResolvedDeviceIDs(run),
+	})
+	if err != nil {
+		return replayRun{}, err
+	}
+	run.DeviceID = nil
+	run.SiteMetadataJSON = payload
+	return run, nil
+}
+
+func TestReplaySingleDeviceRunPreservesSiteContextDeviceIDs(t *testing.T) {
+	run := replayRun{
+		SiteMetadataJSON: []byte(`{"resolved_device_ids":["dev-a","dev-b"],"site_resolved_device_ids":["dev-a","dev-b"]}`),
+	}
+
+	sliced, err := replaySingleDeviceRun(run, "dev-a")
+	if err != nil {
+		t.Fatalf("replaySingleDeviceRun() error = %v", err)
+	}
+
+	if got, want := replayResolvedDeviceIDs(sliced), []string{"dev-a"}; !equalStringSlices(got, want) {
+		t.Fatalf("replay resolved ids = %v, want %v", got, want)
+	}
+	if got, want := replaySiteResolvedDeviceIDs(sliced), []string{"dev-a", "dev-b"}; !equalStringSlices(got, want) {
+		t.Fatalf("replay site resolved ids = %v, want %v", got, want)
+	}
 }
 
 func isReplayCurrentLocalDay(run replayRun, now time.Time) bool {

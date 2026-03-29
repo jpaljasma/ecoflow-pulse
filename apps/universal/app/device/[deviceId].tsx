@@ -10,6 +10,9 @@ import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { useDevice, useDevices } from '@/features/devices/hooks';
 import type { DeviceSummary } from '@/features/devices/api';
+import { useCurrentUser } from '@/features/profile/hooks';
+import { resolveProfileWeatherState } from '@/features/weather/model';
+import { useSolarOutlook } from '@/features/weather/hooks';
 import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { useDeviceInsights } from '@/features/inference/hooks';
 import {
@@ -98,6 +101,11 @@ export default function DeviceDetailScreen() {
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const queryEnabled = authReady && allowed;
+  const currentUserQuery = useCurrentUser({
+    token,
+    authKey,
+    enabled: queryEnabled
+  });
   const devicesQuery = useDevices({ token, authKey, enabled: queryEnabled });
   const routeDevice = useMemo(
     () => resolveRouteDevice(routeDeviceId, devicesQuery.data?.devices),
@@ -127,6 +135,15 @@ export default function DeviceDetailScreen() {
     authKey,
     enabled: queryEnabled && Boolean(resolvedDeviceId),
     maxSolarWatts
+  });
+  const resolvedWeatherState = resolveProfileWeatherState(currentUserQuery.data?.user);
+  const deviceSolarOutlookQuery = useSolarOutlook({
+    token,
+    authKey,
+    locationKey: resolvedWeatherState.locationKey,
+    enabled: queryEnabled && Boolean(resolvedDeviceId) && resolvedWeatherState.enabled,
+    scope: 'device',
+    deviceId: resolvedDeviceId
   });
   const powerTrendHistory = useDevicePowerTrendHistory(resolvedDeviceId, {
     token,
@@ -220,6 +237,11 @@ export default function DeviceDetailScreen() {
       solarGeneratedTodayWh={solarHistory.data?.todayWh}
       solarGeneratedYesterdayWh={solarHistory.data?.yesterdayWh}
       solarGeneratedDeltaPct={solarHistory.data?.deltaPct}
+      solarOutlook={deviceSolarOutlookQuery.data?.outlook}
+      solarOutlookLoading={deviceSolarOutlookQuery.isLoading}
+      solarOutlookErrorText={
+        deviceSolarOutlookQuery.error ? describeQueryError(deviceSolarOutlookQuery.error) : undefined
+      }
       batteryInsights={batteryInsightsQuery.data}
       batteryInsightsLoading={batteryInsightsQuery.isLoading}
     />
@@ -234,7 +256,7 @@ export default function DeviceDetailScreen() {
           subtitle={device ? device.model : 'Loading…'}
           right={(
             <YStack alignItems="flex-end">
-              <AppMenu />
+              <AppMenu weatherScope="device" weatherDeviceId={resolvedDeviceId} />
             </YStack>
           )}
         />
