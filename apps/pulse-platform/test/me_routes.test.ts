@@ -254,6 +254,75 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
+  it('returns conflict when creating a duplicate integration access key', async () => {
+    const createProviderCredential = vi.fn(async () => {
+      throw {
+        code: grpcStatus.ALREADY_EXISTS,
+        details: 'provider credential access key already exists',
+        message: 'provider credential access key already exists',
+        name: 'Error'
+      } satisfies Partial<ServiceError>;
+    });
+    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/integrations',
+      payload: {
+        provider: 'ecoflow',
+        accessKey: 'DUPLICATE123456789',
+        accessSecret: 'SECRET123456789',
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      error: 'upstream_grpc_error',
+      message: 'provider credential access key already exists',
+      grpcCode: grpcStatus.ALREADY_EXISTS
+    });
+
+    await app.close();
+  });
+
+  it('returns failed-precondition when activating an integration fails validation', async () => {
+    const setProviderCredentialActive = vi.fn(async () => {
+      throw {
+        code: grpcStatus.FAILED_PRECONDITION,
+        details: 'validate provider credential discovery: list ecoflow devices: ecoflow api business error code=8513 message=accessKey is invalid',
+        message:
+          'validate provider credential discovery: list ecoflow devices: ecoflow api business error code=8513 message=accessKey is invalid',
+        name: 'Error'
+      } satisfies Partial<ServiceError>;
+    });
+    const controlPlaneClient = makeControlPlaneClient({ setProviderCredentialActive });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/integrations/019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111/active',
+      payload: {
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(412);
+    expect(response.json()).toEqual({
+      error: 'upstream_grpc_error',
+      message:
+        'validate provider credential discovery: list ecoflow devices: ecoflow api business error code=8513 message=accessKey is invalid',
+      grpcCode: grpcStatus.FAILED_PRECONDITION
+    });
+
+    await app.close();
+  });
+
   it('updates profile preferences through /api/v1/me', async () => {
     const updateCurrentUser = vi.fn(async () => ({
       ...sampleCurrentUser(),

@@ -32,7 +32,8 @@ test.describe('Energy route web E2E', () => {
     await expect(page.getByText('Storm Guard active for ~2h more', { exact: true })).toBeVisible();
     await expect(page.getByText('Estimated value', { exact: true })).toBeVisible();
     await expect(page.getByText('State of Energy', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Energy Impact', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Panel', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Impact' })).toBeVisible();
     await expect(page.getByText('More solar freedom', { exact: true })).toBeVisible();
     await expect(page.getByText('Power profile', { exact: true })).toBeVisible();
     await expect(page.getByText('Energy history', { exact: true })).toBeVisible();

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"math"
 	"math/rand/v2"
 	"strings"
 	"time"
@@ -47,7 +48,7 @@ func ConfigurePGX(cfg *pgxpool.Config) {
 		return
 	}
 	poolCfg := loadPoolConfig()
-	cfg.MaxConns = int32(poolCfg.maxOpenConns)
+	cfg.MaxConns = boundedInt32(poolCfg.maxOpenConns)
 	cfg.MinConns = 0
 	cfg.MaxConnIdleTime = poolCfg.maxConnIdleTime
 	cfg.MaxConnLifetime = poolCfg.maxConnLifetime
@@ -133,6 +134,17 @@ func loadRetryConfig() retryConfig {
 		initialBackoff: initialBackoff,
 		maxBackoff:     maxBackoff,
 		jitterFactor:   runtimecfg.Float64NonNegative("DB_READ_RETRY_JITTER_FACTOR", defaultReadRetryJitterFactor),
+	}
+}
+
+func boundedInt32(value int) int32 {
+	switch {
+	case value <= 0:
+		return 0
+	case value > math.MaxInt32:
+		return math.MaxInt32
+	default:
+		return int32(value)
 	}
 }
 

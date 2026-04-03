@@ -331,13 +331,28 @@ func deactivateOtherProviderCredentialsTx(
 	excludeCredentialID string,
 	now time.Time,
 ) error {
+	if strings.TrimSpace(excludeCredentialID) == "" {
+		query := `
+UPDATE provider_credentials
+SET is_active = FALSE,
+    updated_at = $3
+WHERE user_id = $1::uuid
+  AND provider = $2
+  AND is_active = TRUE;
+`
+		if _, err := tx.ExecContext(ctx, query, userID, provider, now); err != nil {
+			return fmt.Errorf("deactivate provider credentials: %w", err)
+		}
+		return nil
+	}
+
 	query := `
 UPDATE provider_credentials
 SET is_active = FALSE,
     updated_at = $4
 WHERE user_id = $1::uuid
   AND provider = $2
-  AND ($3 = '' OR id <> $3::uuid)
+  AND id <> $3::uuid
   AND is_active = TRUE;
 `
 	if _, err := tx.ExecContext(ctx, query, userID, provider, excludeCredentialID, now); err != nil {

@@ -13,18 +13,21 @@ test.describe('Universal web E2E', () => {
   test('renders the devices page from API responses', async ({ page }) => {
     await page.goto('/devices');
 
-    await expect(page.getByText('Fleet Summary')).toBeVisible();
+    await expect(page.getByText('Pulse Fleet', { exact: true })).toBeVisible();
+    await expect(page.getByText('Solar generation today', { exact: true })).toBeVisible();
     await expect(page.getByText('Storm Guard active for ~2h more')).toBeVisible();
     await expect(page.getByText('DPU A 12 kWh', { exact: true })).toBeVisible();
     await expect(page.getByText('Kitchen Delta 2 Max')).toBeVisible();
-    await expect(page.getByText('Today').first()).toBeVisible();
+    await expect(page.getByText('Open Energy Dashboard', { exact: true })).toBeVisible();
   });
 
   test('loads detail by UUID route', async ({ page }) => {
     await page.goto(`/device/${DPU_DEVICE_ID}`);
 
     await expect(page).toHaveURL(new RegExp(`/device/${DPU_DEVICE_ID}$`));
-    await expect(page.getByText('DPU A 12 kWh', { exact: true })).toBeVisible();
+    await expect(page.getByText('DPU A 12 kWh', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Battery reserve', { exact: true })).toBeVisible();
+    await expect(page.getByText('Live telemetry', { exact: true })).toBeVisible();
     await expect(page.getByText('Battery Packs')).toBeVisible();
     await expect(page.getByText('Solar Inputs')).toBeVisible();
     await expect(page.getByText('System Signals')).toBeVisible();
