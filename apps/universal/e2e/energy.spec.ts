@@ -46,11 +46,11 @@ test.describe('Energy route web E2E', () => {
     await expect(page.getByRole('button', { name: 'All devices' })).toBeVisible();
     await expect(page.getByText('Battery', { exact: true })).toBeVisible();
     await expect(page.getByText('Current points: 3 · Previous points: 2', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('AC input', { exact: true })).toBeVisible();
-    await expect(page.getByText('AC output', { exact: true })).toBeVisible();
-    await expect(page.getByText('DC output', { exact: true })).toBeVisible();
-    await expect(page.getByText('Battery charge', { exact: true })).toBeVisible();
-    await expect(page.getByText('Battery discharge', { exact: true })).toBeVisible();
+    await expect(page.getByText('Grid in', { exact: true })).toBeVisible();
+    await expect(page.getByText('AC out', { exact: true })).toBeVisible();
+    await expect(page.getByText('DC out', { exact: true })).toBeVisible();
+    await expect(page.getByText('Charge', { exact: true })).toBeVisible();
+    await expect(page.getByText('Discharge', { exact: true })).toBeVisible();
     await expect(
       page.getByText('Using minute buckets in UTC for current-period diagnostics.', { exact: true })
     ).toBeVisible();
