@@ -5,6 +5,7 @@ import { useAuthSession } from '@/features/auth/hooks';
 import { fetchDeviceHistory } from '@/features/history/api';
 import { useFleetSolarHistory } from '@/features/history/hooks';
 import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
+import { buildEnergyRouteParams } from '@/features/energy/model';
 import {
   buildPastTwelveMonthsBounds,
   ENERGY_IMPACT_HISTORY_GC_MS,
@@ -27,9 +28,11 @@ function isHistoryNotFound(error: unknown): boolean {
 }
 
 export function FleetEnergyImpactCard({
-  devices
+  devices,
+  variant = 'summary'
 }: {
   devices: DeviceSummary[];
+  variant?: 'detailed' | 'summary';
 }) {
   const [period, setPeriod] = useState<EnergyImpactPeriod>('today');
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
@@ -100,6 +103,19 @@ export function FleetEnergyImpactCard({
       onPeriodChange={setPeriod}
       isLoading={period === 'past12Months' && pastTwelveMonthsQuery.isFetching}
       errorText={period === 'past12Months' && pastTwelveMonthsQuery.error ? 'Past 12 months history unavailable.' : undefined}
+      variant={variant}
+      showPeriodControls={variant !== 'summary'}
+      energyLinkParams={
+        variant === 'summary'
+          ? buildEnergyRouteParams({
+              scope: 'all',
+              preset: 'today',
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+              includeComparison: true,
+              panel: 'impact'
+            })
+          : undefined
+      }
     />
   );
 }

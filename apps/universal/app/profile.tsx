@@ -1,52 +1,37 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
-import { Animated, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
+import { buildEnergyRouteParams } from '@/features/energy/model';
 import { useEnergySettingsStore } from '@/features/energy/store';
-import { useDevices } from '@/features/devices/hooks';
 import { detectCurrentWeatherLocation } from '@/features/profile/location';
 import { formatAuthMethodLabel, resolveUserDisplayName } from '@/features/profile/model';
 import { TimezoneSelect } from '@/features/profile/TimezoneSelect';
 import { useCurrentUser, useRefreshCurrentUserIdentity, useUpdateCurrentUser } from '@/features/profile/hooks';
 import { detectCurrentTimeZone, resolveProfileTimezone } from '@/features/profile/timezone';
-import { useProfileWeather } from '@/features/weather/hooks';
-import { resolveProfileWeatherState } from '@/features/weather/model';
-import { WeatherCurrentWidget } from '@/features/weather/WeatherCurrentWidget';
-import { WeatherForecastCard } from '@/features/weather/WeatherForecastCard';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
-import { BrandLogo } from '@/shared/ui/BrandLogo';
+import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { Card } from '@/shared/ui/Card';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { TopBar } from '@/shared/ui/TopBar';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
+import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 import { useThemeSemantics } from '@/shared/theme/semantic';
-
-function describeQueryError(error: unknown): string | undefined {
-  if (!error) {
-    return undefined;
-  }
-  return error instanceof Error ? error.message : String(error);
-}
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
-  const compactHeader = width < 430;
+  const { compactHeader, horizontalPadding, isSidebarMode, layoutMaxWidth } = usePageLayoutMetrics();
   const { authReady, allowed, waiting } = useRequireAuth();
   const { token, authKey } = useAuthSession();
   const semantics = useThemeSemantics();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const currentUserQuery = useCurrentUser({
-    token,
-    authKey,
-    enabled: authReady && allowed
-  });
-  const devicesQuery = useDevices({
     token,
     authKey,
     enabled: authReady && allowed
@@ -66,12 +51,6 @@ export default function ProfileScreen() {
   const [weatherLocation, setWeatherLocation] = useState<null | { label?: string; latitude: number; longitude: number }>(null);
   const [locationStatus, setLocationStatus] = useState('');
   const [identityRefreshAttempted, setIdentityRefreshAttempted] = useState(false);
-  const [verificationRequested, setVerificationRequested] = useState(false);
-  const [weatherSectionTop, setWeatherSectionTop] = useState<number | null>(null);
-  const [scrollY, setScrollY] = useState(0);
-  const [weatherSectionActivated, setWeatherSectionActivated] = useState(false);
-  const [solarScope, setSolarScope] = useState<'all' | 'device'>('all');
-  const [selectedWeatherDeviceId, setSelectedWeatherDeviceId] = useState<string | undefined>(undefined);
   const gridPricePerKwh = useEnergySettingsStore((state) => state.gridPricePerKwh);
   const currency = useEnergySettingsStore((state) => state.currency);
   const setGridPricePerKwh = useEnergySettingsStore((state) => state.setGridPricePerKwh);
@@ -114,56 +93,6 @@ export default function ProfileScreen() {
     );
   }, [currentUserQuery.data?.user, detectedTimeZone, displayName, timezone, weatherLocation, weatherLocationEnabled]);
 
-  const currentUser = currentUserQuery.data?.user;
-  const resolvedWeatherState = resolveProfileWeatherState(currentUser);
-  const weatherEnabled = authReady && allowed && resolvedWeatherState.enabled;
-  const weatherSectionVisible =
-    weatherSectionTop !== null && scrollY + height + 160 >= weatherSectionTop;
-
-  useEffect(() => {
-    if (weatherSectionVisible) {
-      setWeatherSectionActivated(true);
-    }
-  }, [weatherSectionVisible]);
-
-  const availableSolarDevices = useMemo(
-    () => devicesQuery.data?.devices ?? [],
-    [devicesQuery.data?.devices]
-  );
-
-  useEffect(() => {
-    if (solarScope !== 'device') {
-      return;
-    }
-    if (!selectedWeatherDeviceId) {
-      if (availableSolarDevices[0]?.id) {
-        setSelectedWeatherDeviceId(availableSolarDevices[0].id);
-      }
-      return;
-    }
-    const stillVisible = availableSolarDevices.some((device) => device.id === selectedWeatherDeviceId);
-    if (!stillVisible) {
-      setSolarScope('all');
-      setSelectedWeatherDeviceId(undefined);
-    }
-  }, [availableSolarDevices, selectedWeatherDeviceId, solarScope]);
-
-  const profileWeather = useProfileWeather({
-    token,
-    authKey,
-    locationKey: resolvedWeatherState.locationKey,
-    enabled: weatherEnabled && weatherSectionActivated,
-    verificationEnabled: weatherSectionActivated && verificationRequested,
-    scope: solarScope,
-    deviceId: solarScope === 'device' ? selectedWeatherDeviceId : undefined
-  });
-  const weatherErrorText =
-    describeQueryError(profileWeather.forecastQuery.error) ??
-    describeQueryError(profileWeather.solarOutlookQuery.error);
-  const weatherIsLoading =
-    weatherSectionActivated &&
-    (profileWeather.forecastQuery.isLoading || profileWeather.solarOutlookQuery.isLoading);
-
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
   }
@@ -177,26 +106,33 @@ export default function ProfileScreen() {
   const preferredDisplayName = resolveUserDisplayName(user);
   return (
     <Animated.View style={containerStyle}>
-      <YStack flex={1} backgroundColor="$background" padding="$4" gap="$4">
+      <YStack flex={1} backgroundColor="$background" paddingHorizontal={horizontalPadding} paddingVertical="$4" gap="$4">
         <TopBar
-          left={<CloseToHomeButton onClose={closeToHome} />}
-          title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
-          subtitle="Your Pulse profile and consent preferences"
-          right={(
-            <AppMenu
-              weatherScope={solarScope}
-              weatherDeviceId={solarScope === 'device' ? selectedWeatherDeviceId : undefined}
+          left={isSidebarMode ? undefined : <CloseToHomeButton onClose={closeToHome} />}
+          eyebrow={(
+            <BreadcrumbTrail
+              items={[
+                {
+                  label: 'Home',
+                  href: '/(tabs)/devices',
+                  icon: 'home-variant-outline',
+                  hideLabel: true
+                },
+                {
+                  label: 'Profile',
+                  current: true
+                }
+              ]}
             />
           )}
+          title="Profile"
+          subtitle="Your Pulse profile and consent preferences"
+          right={<AppMenu />}
         />
         <ScrollView
-          contentContainerStyle={{ paddingBottom: 24 }}
-          onScroll={(event) => {
-            setScrollY(event.nativeEvent.contentOffset.y);
-          }}
-          scrollEventThrottle={16}
+          contentContainerStyle={{ paddingBottom: 24, alignItems: 'center' }}
         >
-          <YStack gap="$4" width="100%" maxWidth={820} alignSelf="center">
+          <YStack gap="$4" width="100%" maxWidth={Math.min(layoutMaxWidth, 920)} alignSelf="center">
             <Card gap="$3">
               <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
                 <YStack gap="$1" flex={1} minWidth={220}>
@@ -352,77 +288,6 @@ export default function ProfileScreen() {
               </YStack>
             </Card>
 
-            <YStack
-              gap="$4"
-              onLayout={(event) => {
-                setWeatherSectionTop(event.nativeEvent.layout.y);
-              }}
-            >
-              {availableSolarDevices.length > 0 ? (
-                <Card gap="$3">
-                  <YStack gap="$1">
-                    <Text fontSize="$6" fontWeight="800">Solar forecast scope</Text>
-                    <Text color="$colorMuted">
-                      Keep the profile weather widgets on site totals or switch them to a specific device forecast.
-                    </Text>
-                  </YStack>
-                  <XStack gap="$2" flexWrap="wrap" alignItems="center">
-                    <Button
-                      size="$3"
-                      borderWidth={1}
-                      onPress={() => {
-                        setSolarScope('all');
-                        setSelectedWeatherDeviceId(undefined);
-                      }}
-                      style={{
-                        backgroundColor:
-                          solarScope === 'all' ? semantics.periodActiveBackground : semantics.periodIdleBackground,
-                        borderColor:
-                          solarScope === 'all' ? semantics.periodActiveBorder : semantics.periodIdleBorder,
-                        color: solarScope === 'all' ? semantics.periodActiveText : semantics.periodIdleText
-                      }}
-                    >
-                      Site
-                    </Button>
-                    {availableSolarDevices.map((device) => (
-                      <Button
-                        key={device.id}
-                        size="$3"
-                        borderWidth={1}
-                        onPress={() => {
-                          setSolarScope('device');
-                          setSelectedWeatherDeviceId(device.id);
-                        }}
-                        style={{
-                          backgroundColor:
-                            solarScope === 'device' && selectedWeatherDeviceId === device.id
-                              ? semantics.periodActiveBackground
-                              : semantics.periodIdleBackground,
-                          borderColor:
-                            solarScope === 'device' && selectedWeatherDeviceId === device.id
-                              ? semantics.periodActiveBorder
-                              : semantics.periodIdleBorder,
-                          color:
-                            solarScope === 'device' && selectedWeatherDeviceId === device.id
-                              ? semantics.periodActiveText
-                              : semantics.periodIdleText
-                        }}
-                      >
-                        {device.name}
-                      </Button>
-                    ))}
-                  </XStack>
-                </Card>
-              ) : null}
-              <WeatherCurrentWidget
-                forecast={profileWeather.forecastQuery.data?.forecast}
-                solarOutlook={profileWeather.solarOutlook}
-                isLoading={weatherIsLoading}
-                enabled={weatherEnabled}
-                errorText={weatherErrorText}
-              />
-            </YStack>
-
             <Card gap="$3">
               <Text fontSize="$7" fontWeight="800">Weather location consent</Text>
               <Text color="$colorMuted">
@@ -481,20 +346,46 @@ export default function ProfileScreen() {
               {locationStatus ? <Text color="$colorMuted">{locationStatus}</Text> : null}
             </Card>
 
-            <WeatherForecastCard
-              forecast={profileWeather.forecastQuery.data?.forecast}
-              solarOutlook={profileWeather.solarOutlook}
-              verification={profileWeather.verificationQuery.data?.verification}
-              isLoading={weatherIsLoading}
-              verificationIsLoading={weatherSectionActivated && profileWeather.verificationQuery.isLoading}
-              enabled={weatherEnabled}
-              errorText={weatherErrorText}
-              verificationErrorText={profileWeather.verificationQuery.error ? String(profileWeather.verificationQuery.error) : undefined}
-              onVerificationExpand={() => {
-                setVerificationRequested(true);
-                setWeatherSectionActivated(true);
-              }}
-            />
+            <Card gap="$3">
+              <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
+                <YStack gap="$1" flex={1} minWidth={220}>
+                  <Text fontSize="$7" fontWeight="800">Solar moved to Energy</Text>
+                  <Text color="$colorMuted">
+                    Solar forecast, weather verification, and the larger Energy Impact pane now live under Energy so site and device deep links share one consistent flow.
+                  </Text>
+                </YStack>
+                <Button
+                  size="$4"
+                  borderRadius={999}
+                  borderWidth={1}
+                  paddingHorizontal="$4"
+                  minHeight={42}
+                  style={{
+                    backgroundColor: semantics.actionBackground,
+                    borderColor: semantics.actionBorder
+                  }}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/(tabs)/energy',
+                      params: buildEnergyRouteParams({
+                        scope: 'all',
+                        preset: 'today',
+                        timezone: timezone || detectedTimeZone || 'UTC',
+                        includeComparison: true,
+                        panel: 'solar'
+                      })
+                    });
+                  }}
+                >
+                  <XStack alignItems="center" gap="$2">
+                    <MaterialCommunityIcons name="weather-sunny" size={18} color={semantics.actionText} />
+                    <Text style={{ color: semantics.actionText }} fontWeight="700">
+                      Open Solar
+                    </Text>
+                  </XStack>
+                </Button>
+              </XStack>
+            </Card>
 
             {currentUserQuery.isError ? (
               <Card gap="$2">

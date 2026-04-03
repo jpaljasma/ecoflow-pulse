@@ -539,6 +539,29 @@ func TestVerifyIssuedForecastsClaimedRunsBackfillsActualsAndRollups(t *testing.T
 	}
 }
 
+func TestVerifyIssuedForecastsRollsBackEmptyClaim(t *testing.T) {
+	t.Parallel()
+
+	store := &emptyClaimingTrainingStore{capturingTrainingStore: &capturingTrainingStore{}}
+	svc, err := NewService(nil, &stubTelemetryReader{}, Config{
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(prometheus.NewRegistry()),
+		NowFn:                 func() time.Time { return time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC) },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	if err := svc.VerifyIssuedForecasts(context.Background(), time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC), 10); err != nil {
+		t.Fatalf("VerifyIssuedForecasts() error = %v", err)
+	}
+	if store.rollbackCalls != 1 {
+		t.Fatalf("rollbackCalls = %d, want 1", store.rollbackCalls)
+	}
+}
+
 func TestGetSolarOutlookAppliesCalibrationRatio(t *testing.T) {
 	t.Parallel()
 
@@ -1874,6 +1897,11 @@ type claimingTrainingStore struct {
 	*capturingTrainingStore
 }
 
+type emptyClaimingTrainingStore struct {
+	*capturingTrainingStore
+	rollbackCalls int
+}
+
 func (s *capturingTrainingStore) InsertRun(_ context.Context, run Run) (string, error) {
 	runCopy := run
 	s.run = &runCopy
@@ -1929,6 +1957,15 @@ func (s *claimingTrainingStore) ClaimPendingRun(ctx context.Context, before time
 		return nil, nil
 	}
 	return NewPendingRunClaim(s.lookupRun(batch[0].RunID), batch, s.capturingTrainingStore, func(bool) error {
+		return nil
+	}), nil
+}
+
+func (s *emptyClaimingTrainingStore) ClaimPendingRun(context.Context, time.Time) (*PendingRunClaim, error) {
+	return NewPendingRunClaim(nil, nil, s.capturingTrainingStore, func(commit bool) error {
+		if !commit {
+			s.rollbackCalls++
+		}
 		return nil
 	}), nil
 }

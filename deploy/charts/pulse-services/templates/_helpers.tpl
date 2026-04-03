@@ -27,3 +27,11 @@ app.kubernetes.io/name: {{ include "pulse-services.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "pulse-services.drainLifecycle" -}}
+lifecycle:
+  preStop:
+    httpGet:
+      path: /drainz
+      port: {{ default "metrics" .portName }}
+      scheme: HTTP
+{{- end -}}

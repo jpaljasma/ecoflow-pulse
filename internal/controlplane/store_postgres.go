@@ -9,8 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
+)
+
+const (
+	providerCredentialUserProviderAccessHashConstraint = "uq_provider_credentials_user_provider_access_key_hash"
+	providerCredentialProviderAccessHashIndex          = "uq_provider_credentials_provider_access_key_hash"
 )
 
 type PostgresStore struct {
@@ -28,14 +35,19 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
 	}
+	dbpool.ConfigureSQL(db)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
+	return newPostgresStore(db), nil
+}
+
+func newPostgresStore(db *sql.DB) *PostgresStore {
 	return &PostgresStore{
 		db:  db,
 		now: utcNow,
-	}, nil
+	}
 }
 
 func (s *PostgresStore) Close() error {
@@ -48,12 +60,26 @@ func (s *PostgresStore) Close() error {
 func (s *PostgresStore) CreateProviderCredential(ctx context.Context, in CreateProviderCredentialInput) (ProviderCredential, error) {
 	provider := NormalizeProvider(in.Provider)
 	now := normalizeWriteTime(s.now())
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ProviderCredential{}, fmt.Errorf("begin create provider credential tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	userID, err := resolveUserIDTx(ctx, tx, in.UserSubject)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProviderCredential{}, ErrUserNotFound
+		}
+		return ProviderCredential{}, fmt.Errorf("resolve user for provider credential create: %w", err)
+	}
+	if in.IsActive {
+		if err := deactivateOtherProviderCredentialsTx(ctx, tx, userID, provider, "", now); err != nil {
+			return ProviderCredential{}, err
+		}
+	}
+
 	query := `
-WITH target_user AS (
-	SELECT id
-	FROM users
-	WHERE keycloak_subject = $1
-)
 INSERT INTO provider_credentials (
 	user_id,
 	provider,
@@ -65,24 +91,14 @@ INSERT INTO provider_credentials (
 	created_at,
 	updated_at
 )
-SELECT
-	target_user.id,
-	$2,
-	$3,
-	$4,
-	$5,
-	$6,
-	$7,
-	$8,
-	$8
-FROM target_user
+VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $8)
 RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created_at, updated_at;
 `
 	var out ProviderCredential
-	row := s.db.QueryRowContext(
+	row := tx.QueryRowContext(
 		ctx,
 		query,
-		in.UserSubject,
+		userID,
 		provider,
 		[]byte(in.AccessKey),
 		[]byte(in.SecretKey),
@@ -100,10 +116,18 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 		&out.CreatedAt,
 		&out.UpdatedAt,
 	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ProviderCredential{}, ErrUserNotFound
+		if isProviderCredentialAccessKeyConflict(err) {
+			return ProviderCredential{}, ErrCredentialAlreadyExists
 		}
 		return ProviderCredential{}, fmt.Errorf("insert provider credential: %w", err)
+	}
+	if out.IsActive {
+		if err := rebindProviderDevicesTx(ctx, tx, userID, out.Provider, out.ID, now); err != nil {
+			return ProviderCredential{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return ProviderCredential{}, fmt.Errorf("commit create provider credential tx: %w", err)
 	}
 	return out, nil
 }
@@ -154,18 +178,34 @@ ORDER BY pc.created_at DESC, pc.id DESC;
 }
 
 func (s *PostgresStore) SetProviderCredentialActive(ctx context.Context, in SetProviderCredentialActiveInput) (ProviderCredential, error) {
+	now := normalizeWriteTime(s.now())
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ProviderCredential{}, fmt.Errorf("begin set provider credential active tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	target, err := getProviderCredentialTx(ctx, tx, in.UserSubject, in.CredentialID)
+	if err != nil {
+		if errors.Is(err, ErrCredentialNotFound) {
+			return ProviderCredential{}, ErrCredentialNotFound
+		}
+		return ProviderCredential{}, fmt.Errorf("load provider credential for active update: %w", err)
+	}
+	if in.IsActive {
+		if err := deactivateOtherProviderCredentialsTx(ctx, tx, target.UserID, target.Provider, target.ID, now); err != nil {
+			return ProviderCredential{}, err
+		}
+	}
 	query := `
-UPDATE provider_credentials pc
-SET is_active = $3,
-    updated_at = $4
-FROM users u
-WHERE pc.id = $1::uuid
-  AND u.id = pc.user_id
-  AND u.keycloak_subject = $2
-RETURNING pc.id::text, pc.user_id::text, pc.provider, pc.access_key_mask, pc.is_active, pc.created_at, pc.updated_at;
+UPDATE provider_credentials
+SET is_active = $2,
+    updated_at = $3
+WHERE id = $1::uuid
+RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created_at, updated_at;
 `
 	var out ProviderCredential
-	row := s.db.QueryRowContext(ctx, query, in.CredentialID, in.UserSubject, in.IsActive, normalizeWriteTime(s.now()))
+	row := tx.QueryRowContext(ctx, query, target.ID, in.IsActive, now)
 	if err := row.Scan(
 		&out.ID,
 		&out.UserID,
@@ -180,10 +220,162 @@ RETURNING pc.id::text, pc.user_id::text, pc.provider, pc.access_key_mask, pc.is_
 		}
 		return ProviderCredential{}, fmt.Errorf("update provider credential active state: %w", err)
 	}
+	if out.IsActive {
+		if err := rebindProviderDevicesTx(ctx, tx, out.UserID, out.Provider, out.ID, now); err != nil {
+			return ProviderCredential{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return ProviderCredential{}, fmt.Errorf("commit set provider credential active tx: %w", err)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateProviderCredential(ctx context.Context, in UpdateProviderCredentialInput) (ProviderCredential, error) {
+	now := normalizeWriteTime(s.now())
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ProviderCredential{}, fmt.Errorf("begin update provider credential tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	target, err := getProviderCredentialTx(ctx, tx, in.UserSubject, in.CredentialID)
+	if err != nil {
+		if errors.Is(err, ErrCredentialNotFound) {
+			return ProviderCredential{}, ErrCredentialNotFound
+		}
+		return ProviderCredential{}, fmt.Errorf("load provider credential for update: %w", err)
+	}
+	if in.IsActive {
+		if err := deactivateOtherProviderCredentialsTx(ctx, tx, target.UserID, target.Provider, target.ID, now); err != nil {
+			return ProviderCredential{}, err
+		}
+	}
+
+	query := `
+UPDATE provider_credentials
+SET access_key_ciphertext = $2,
+    secret_key_ciphertext = $3,
+    access_key_hash = $4,
+    access_key_mask = $5,
+    is_active = $6,
+    updated_at = $7
+WHERE id = $1::uuid
+RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created_at, updated_at;
+`
+	var out ProviderCredential
+	row := tx.QueryRowContext(
+		ctx,
+		query,
+		target.ID,
+		[]byte(in.AccessKey),
+		[]byte(in.SecretKey),
+		HashAccessKey(in.AccessKey),
+		MaskAccessKey(in.AccessKey),
+		in.IsActive,
+		now,
+	)
+	if err := row.Scan(
+		&out.ID,
+		&out.UserID,
+		&out.Provider,
+		&out.AccessKeyMask,
+		&out.IsActive,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProviderCredential{}, ErrCredentialNotFound
+		}
+		if isProviderCredentialAccessKeyConflict(err) {
+			return ProviderCredential{}, ErrCredentialAlreadyExists
+		}
+		return ProviderCredential{}, fmt.Errorf("update provider credential: %w", err)
+	}
+	if out.IsActive {
+		if err := rebindProviderDevicesTx(ctx, tx, out.UserID, out.Provider, out.ID, now); err != nil {
+			return ProviderCredential{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return ProviderCredential{}, fmt.Errorf("commit update provider credential tx: %w", err)
+	}
 	return out, nil
 }
 
 func (s *PostgresStore) GetProviderCredential(ctx context.Context, userSubject string, credentialID string) (ProviderCredential, error) {
+	out, err := getProviderCredentialQuery(ctx, s.db, userSubject, credentialID)
+	if err != nil {
+		return ProviderCredential{}, err
+	}
+	return out, nil
+}
+
+func resolveUserIDTx(ctx context.Context, tx *sql.Tx, userSubject string) (string, error) {
+	var userID string
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT id::text FROM users WHERE keycloak_subject = $1`,
+		userSubject,
+	).Scan(&userID); err != nil {
+		return "", err
+	}
+	return userID, nil
+}
+
+func deactivateOtherProviderCredentialsTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	userID string,
+	provider string,
+	excludeCredentialID string,
+	now time.Time,
+) error {
+	query := `
+UPDATE provider_credentials
+SET is_active = FALSE,
+    updated_at = $4
+WHERE user_id = $1::uuid
+  AND provider = $2
+  AND ($3 = '' OR id <> $3::uuid)
+  AND is_active = TRUE;
+`
+	if _, err := tx.ExecContext(ctx, query, userID, provider, excludeCredentialID, now); err != nil {
+		return fmt.Errorf("deactivate provider credentials: %w", err)
+	}
+	return nil
+}
+
+func rebindProviderDevicesTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	userID string,
+	provider string,
+	credentialID string,
+	now time.Time,
+) error {
+	query := `
+UPDATE provider_devices pd
+SET credential_id = $4::uuid,
+    updated_at = $3
+FROM provider_credentials pc
+WHERE pd.credential_id = pc.id
+  AND pc.user_id = $1::uuid
+  AND pc.provider = $2
+  AND pd.provider = $2
+  AND pd.credential_id <> $4::uuid;
+`
+	if _, err := tx.ExecContext(ctx, query, userID, provider, now, credentialID); err != nil {
+		return fmt.Errorf("rebind provider devices: %w", err)
+	}
+	return nil
+}
+
+type queryRowScanner interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func getProviderCredentialQuery(ctx context.Context, db queryRowScanner, userSubject string, credentialID string) (ProviderCredential, error) {
 	query := `
 SELECT
 	pc.id::text,
@@ -203,7 +395,7 @@ WHERE pc.id = $1::uuid
 	var out ProviderCredential
 	var accessKeyBytes []byte
 	var secretKeyBytes []byte
-	row := s.db.QueryRowContext(ctx, query, credentialID, userSubject)
+	row := db.QueryRowContext(ctx, query, credentialID, userSubject)
 	if err := row.Scan(
 		&out.ID,
 		&out.UserID,
@@ -223,6 +415,22 @@ WHERE pc.id = $1::uuid
 	out.AccessKey = string(accessKeyBytes)
 	out.SecretKey = string(secretKeyBytes)
 	return out, nil
+}
+
+func getProviderCredentialTx(ctx context.Context, tx *sql.Tx, userSubject string, credentialID string) (ProviderCredential, error) {
+	return getProviderCredentialQuery(ctx, tx, userSubject, credentialID)
+}
+
+func isProviderCredentialAccessKeyConflict(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Code != "23505" {
+		return false
+	}
+	return pgErr.ConstraintName == providerCredentialUserProviderAccessHashConstraint ||
+		pgErr.ConstraintName == providerCredentialProviderAccessHashIndex
 }
 
 func (s *PostgresStore) CreateDevice(ctx context.Context, in CreateDeviceInput) (UserDevice, error) {
@@ -414,32 +622,34 @@ JOIN devices d ON d.id = ud.device_id
 WHERE u.keycloak_subject = $1
 ORDER BY d.product_name ASC, d.ecoflow_sn ASC;
 `
-	rows, err := s.db.QueryContext(ctx, query, in.UserSubject)
-	if err != nil {
-		return nil, fmt.Errorf("query user devices: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	out := make([]UserDevice, 0, 8)
-	for rows.Next() {
-		var row UserDevice
-		if err := rows.Scan(
-			&row.DeviceID,
-			&row.EcoflowSN,
-			&row.ProductName,
-			&row.Model,
-			&row.Role,
-			&row.CreatedAt,
-			&row.UpdatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan user devices row: %w", err)
+	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]UserDevice, error) {
+		rows, err := s.db.QueryContext(ctx, query, in.UserSubject)
+		if err != nil {
+			return nil, fmt.Errorf("query user devices: %w", err)
 		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate user devices rows: %w", err)
-	}
-	return out, nil
+		defer func() { _ = rows.Close() }()
+
+		out := make([]UserDevice, 0, 8)
+		for rows.Next() {
+			var row UserDevice
+			if err := rows.Scan(
+				&row.DeviceID,
+				&row.EcoflowSN,
+				&row.ProductName,
+				&row.Model,
+				&row.Role,
+				&row.CreatedAt,
+				&row.UpdatedAt,
+			); err != nil {
+				return nil, fmt.Errorf("scan user devices row: %w", err)
+			}
+			out = append(out, row)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate user devices rows: %w", err)
+		}
+		return out, nil
+	})
 }
 
 func (s *PostgresStore) GetOrProvisionCurrentUser(ctx context.Context, in GetOrProvisionCurrentUserInput) (CurrentUser, error) {

@@ -46,6 +46,18 @@ message SetProviderCredentialActiveResponse {
   ProviderCredential credential = 1;
 }
 
+message UpdateProviderCredentialRequest {
+  string user_subject = 1;
+  string credential_id = 2;
+  string access_key = 3;
+  string secret_key = 4;
+  bool is_active = 5;
+}
+
+message UpdateProviderCredentialResponse {
+  ProviderCredential credential = 1;
+}
+
 message ProviderDevice {
   string id = 1;
   string device_id = 2;
@@ -251,6 +263,7 @@ service ControlPlaneService {
   rpc CreateProviderCredential(CreateProviderCredentialRequest) returns (CreateProviderCredentialResponse);
   rpc ListProviderCredentials(ListProviderCredentialsRequest) returns (ListProviderCredentialsResponse);
   rpc SetProviderCredentialActive(SetProviderCredentialActiveRequest) returns (SetProviderCredentialActiveResponse);
+  rpc UpdateProviderCredential(UpdateProviderCredentialRequest) returns (UpdateProviderCredentialResponse);
   rpc CreateDevice(CreateDeviceRequest) returns (CreateDeviceResponse);
   rpc LinkDevice(LinkDeviceRequest) returns (LinkDeviceResponse);
   rpc ListUserDevices(ListUserDevicesRequest) returns (ListUserDevicesResponse);

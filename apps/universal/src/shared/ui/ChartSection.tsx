@@ -17,16 +17,16 @@ export function ChartSection({
   return (
     <YStack
       gap="$2"
-      padding="$3"
-      borderRadius="$3"
+      padding="$4"
+      borderRadius="$4"
       borderWidth={1}
       style={{
-        borderColor: semantics.sectionBorder,
-        backgroundColor: semantics.sectionBackground
+        borderColor: semantics.surfaceRaisedBorder,
+        backgroundColor: semantics.sectionBackgroundStrong
       }}
     >
       <XStack alignItems="center" justifyContent="space-between" gap="$2">
-        <Text fontSize="$4" fontWeight="700">
+        <Text fontSize="$5" fontWeight="700" letterSpacing={-0.2}>
           {title}
         </Text>
         {right}

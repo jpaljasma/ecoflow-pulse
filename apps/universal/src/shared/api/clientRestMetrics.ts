@@ -27,6 +27,7 @@ export function classifyClientRestPath(path: string): string | null {
     case '/api/v1/devices':
     case '/api/v1/me':
     case '/api/v1/me/identity-refresh':
+    case '/api/v1/integrations':
     case '/api/v1/energy/dashboard':
     case '/api/v1/energy/pv-history':
     case '/api/v1/energy/comparison-insight':
@@ -41,6 +42,12 @@ export function classifyClientRestPath(path: string): string | null {
 
   if (/^\/api\/v1\/devices\/[^/]+\/history\/compare$/.test(pathname)) {
     return '/api/v1/devices/:deviceId/history/compare';
+  }
+  if (/^\/api\/v1\/integrations\/[^/]+\/active$/.test(pathname)) {
+    return '/api/v1/integrations/:credentialId/active';
+  }
+  if (/^\/api\/v1\/integrations\/[^/]+$/.test(pathname)) {
+    return '/api/v1/integrations/:credentialId';
   }
   if (/^\/api\/v1\/devices\/[^/]+\/history\/solar$/.test(pathname)) {
     return '/api/v1/devices/:deviceId/history/solar';

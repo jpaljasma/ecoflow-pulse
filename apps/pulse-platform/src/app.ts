@@ -29,6 +29,7 @@ import { registerAuthSessionEventRoutes } from './routes/authSessionEvents.js';
 import { registerClientMetricsRoutes } from './routes/clientMetrics.js';
 import { registerClientWsMetricsRoutes } from './routes/clientWsMetrics.js';
 import { registerHistoryRoutes } from './routes/history.js';
+import { registerIntegrationRoutes } from './routes/integrations.js';
 import { registerCurrentUserRoutes } from './routes/me.js';
 import { registerSolarRoutes } from './routes/solar.js';
 import { registerWeatherRoutes } from './routes/weather.js';
@@ -90,6 +91,7 @@ export function buildApp(
     registerClientWsMetricsRoutes(scopedApp);
     if (options.controlPlaneClient) {
       registerCurrentUserRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
+      registerIntegrationRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
     }
     if (options.controlPlaneClient && options.weatherClient) {
       registerWeatherRoutes(

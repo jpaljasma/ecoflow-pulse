@@ -12,6 +12,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 	"github.com/jpaljasma/ecoflow-pulse/internal/solarforecastd"
 )
@@ -71,6 +72,7 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open solar forecast postgres: %w", err)
 	}
+	dbpool.ConfigureSQL(db)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping solar forecast postgres: %w", err)
@@ -867,6 +869,10 @@ func (s *PostgresStore) ClaimPendingRun(ctx context.Context, before time.Time) (
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, err
+	}
+	if len(rows) == 0 {
+		_ = tx.Rollback()
+		return nil, nil
 	}
 	run, err := txStore.GetRun(ctx, runID)
 	if err != nil {

@@ -19,7 +19,6 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
-	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 	"github.com/nats-io/nats.go"
@@ -27,6 +26,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	valkey "github.com/valkey-io/valkey-go"
 )
+
+const autoscaleDrainHookDelay = 5 * time.Second
 
 func main() {
 	logCfg := pulselog.DefaultServiceConfig("ingest-worker")
@@ -97,12 +98,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	ecoCfg := ecoflow.DefaultConfig()
-	ecoCfg.Logging.Debug = false
-	ecoCfg.Logging.AdvancedDebugTelemetry = false
-	ecoCfg.Logging.DebugLogHeaders = false
-	ecoCfg.Logging.Logger = log
-	adapter := provideradapter.NewEcoFlowAdapter(provideradapter.NewDefaultEcoFlowClientFactory(ecoCfg))
+	adapter, err := provideradapter.NewRuntimeEcoFlowAdapter(log)
+	if err != nil {
+		log.Error("init ecoflow adapter failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	subjectCfg := telemetrybus.SubjectConfig{
 		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
 		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
@@ -321,6 +321,17 @@ func startAutoscaleMetricsServer(ctx context.Context, log *slog.Logger, registry
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/drainz", func(w http.ResponseWriter, r *http.Request) {
+		draining.Store(true)
+		timer := time.NewTimer(autoscaleDrainHookDelay)
+		defer timer.Stop()
+		select {
+		case <-r.Context().Done():
+		case <-timer.C:
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("draining"))
 	})
 	server := &http.Server{
 		Addr:              listenAddr,

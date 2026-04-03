@@ -39,6 +39,7 @@ EcoFlow Pulse is a resilient, multi-tier real-time monitor for streaming IoT tel
 - Deployment reliability is part of that target for both public traffic and background processing:
   - routine rollouts must not interrupt signed-in users,
   - ingest/transform/archive/rebuild workers must drain gracefully and avoid avoidable gaps or duplicate side effects during deploys and restarts
+  - background worker rollout drain now follows ADR-0025 (`/drainz` preStop + readiness-first handoff)
 
 ---
 
@@ -122,7 +123,7 @@ Bootstrap packages/paths:
 
 ### Provider integration + distributed ingest control plane (ADR-0014)
 The control plane uses provider-aware entities while keeping ownership primitives (`users`, `devices`, `user_devices`) stable:
-- `provider_credentials`: multi-entry per user/provider, write-only secret semantics for user-facing APIs, `is_active` lifecycle control.
+- `provider_credentials`: multi-entry per user/provider, write-only secret semantics for user-facing APIs, `is_active` lifecycle control, and a DB-enforced single-active row per user/provider.
 - `provider_devices`: provider-specific identity + capability metadata, credential linkage, and ingest desired state (`active | draining | paused`).
 - Distributed ingest workers use Valkey lease locks (`provider + provider_device_id`) with heartbeat TTL and graceful drain behavior.
 - EcoFlow discovery is manual trigger in v1; MQTT certification is fetched on connect/reconnect.

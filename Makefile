@@ -1233,7 +1233,28 @@ dev-deploy:
 				echo "skipping missing deployment $$ns/$$name"; \
 			fi; \
 		}; \
+		recreate_and_wait_if_exists() { \
+			ns="$$1"; \
+			name="$$2"; \
+			if $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" >/dev/null 2>&1; then \
+				replicas="$$( $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" -o jsonpath='{.spec.replicas}' )"; \
+				if [ -z "$$replicas" ]; then \
+					replicas=1; \
+				fi; \
+				echo "recycling $$ns/$$name"; \
+				$(LOCAL_KUBECTL) -n "$$ns" scale deploy/"$$name" --replicas=0; \
+				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=180s; \
+				echo "restoring $$ns/$$name replicas=$$replicas"; \
+				$(LOCAL_KUBECTL) -n "$$ns" scale deploy/"$$name" --replicas="$$replicas"; \
+				echo "waiting for $$ns/$$name"; \
+				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
+			else \
+				echo "skipping missing deployment $$ns/$$name"; \
+			fi; \
+		}; \
 		echo "restarting updated local deployments in dependency order"; \
+		echo "phase: verification"; \
+		recreate_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-solar-verification; \
 		echo "phase: ingest"; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-ingest; \
 		echo "phase: transform"; \

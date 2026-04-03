@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, Platform, ScrollView } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
@@ -26,13 +26,16 @@ import { env } from '@/shared/config/env';
 import { ApiError } from '@/shared/api/restClient';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { Card } from '@/shared/ui/Card';
+import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
+import { SecondaryPageShell } from '@/shared/ui/SecondaryPageShell';
 import { useDevicePowerTrendHistory, useDeviceSolarHistory } from '@/features/history/hooks';
 import {
   mergeTrendPrefillWithLivePoints
 } from '@/features/history/powerTrend';
 import { SOLAR_HISTORY_POINTS } from '@/features/history/solar';
 import { maskSerialNumber } from '@/features/telemetry/format';
+import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 
 const DETAIL_TREND_POINTS = 60;
 const UUID_PATTERN =
@@ -90,7 +93,7 @@ function mergeDeviceSources(
 }
 
 export default function DeviceDetailScreen() {
-  const { width } = useWindowDimensions();
+  const { contentWidth: width, horizontalPadding, isSidebarMode } = usePageLayoutMetrics();
   const isTablet = width >= 768;
   const isDesktop = width >= 1200;
   const useRemoteImage = Boolean(env.assetBaseUrl);
@@ -249,86 +252,108 @@ export default function DeviceDetailScreen() {
 
   return (
     <Animated.View style={containerStyle}>
-      <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
-        <TopBar
-          left={<CloseToHomeButton onClose={closeToHome} />}
-          title={device?.name ?? 'Device'}
-          subtitle={device ? device.model : 'Loading…'}
-          right={(
-            <YStack alignItems="flex-end">
-              <AppMenu weatherScope="device" weatherDeviceId={resolvedDeviceId} />
-            </YStack>
-          )}
-        />
+      <SecondaryPageShell activeNavKey="devices">
+        <YStack flex={1} backgroundColor="$background" paddingHorizontal={horizontalPadding} paddingVertical="$4" gap="$4">
+          <TopBar
+            left={isSidebarMode ? undefined : <CloseToHomeButton onClose={closeToHome} />}
+            eyebrow={(
+              <BreadcrumbTrail
+                items={[
+                  {
+                    label: 'Home',
+                    href: '/(tabs)/devices',
+                    icon: 'home-variant-outline',
+                    hideLabel: true
+                  },
+                  {
+                    label: 'Devices',
+                    href: '/(tabs)/devices'
+                  },
+                  {
+                    label: device?.name ?? 'Device',
+                    current: true
+                  }
+                ]}
+              />
+            )}
+            title={device?.name ?? 'Device'}
+            subtitle={device ? device.model : 'Loading…'}
+            right={(
+              <YStack alignItems="flex-end">
+                <AppMenu weatherScope="device" weatherDeviceId={resolvedDeviceId} />
+              </YStack>
+            )}
+          />
 
-        <YStack flex={1} minHeight={0}>
-          {blockingRouteError ? (
-            <Card gap="$2">
-              <Text fontSize="$5" fontWeight="700">
-                Device detail failed to load
-              </Text>
-              <Text opacity={0.8}>{describeQueryError(blockingRouteError)}</Text>
-              <Text opacity={0.65}>
-                Check the local cluster public endpoint and API configuration. In k3d, the app, `/api`, and
-                `/ws` should all be served from the same host.
-              </Text>
-            </Card>
-          ) : deviceNotFound ? (
-            <Card gap="$2">
-              <Text fontSize="$5" fontWeight="700">
-                Device not found
-              </Text>
-              <Text opacity={0.8}>
-                Route parameter `{describeRouteParam(routeDeviceId)}` did not match any loaded device id or serial number.
-              </Text>
-            </Card>
-          ) : Platform.OS === 'web' ? (
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                paddingBottom: 16
-              }}
-            >
-              <YStack gap="$3">
-                {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
-                {detailWarningError ? (
-                  <Card gap="$2">
-                    <Text fontSize="$5" fontWeight="700">
-                      Detail endpoint unavailable
-                    </Text>
-                    <Text opacity={0.8}>{describeQueryError(detailWarningError)}</Text>
-                    <Text opacity={0.65}>
-                      Showing cached summary values while live detail/history endpoints retry.
-                    </Text>
-                  </Card>
-                ) : null}
-                {detailContent}
-              </YStack>
-            </div>
-          ) : (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
-              <YStack gap="$3">
-                {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
-                {detailWarningError ? (
-                  <Card gap="$2">
-                    <Text fontSize="$5" fontWeight="700">
-                      Detail endpoint unavailable
-                    </Text>
-                    <Text opacity={0.8}>{describeQueryError(detailWarningError)}</Text>
-                    <Text opacity={0.65}>
-                      Showing cached summary values while live detail/history endpoints retry.
-                    </Text>
-                  </Card>
-                ) : null}
-                {detailContent}
-              </YStack>
-            </ScrollView>
-          )}
+          <YStack flex={1} minHeight={0}>
+            {blockingRouteError ? (
+              <Card gap="$2">
+                <Text fontSize="$5" fontWeight="700">
+                  Device detail failed to load
+                </Text>
+                <Text opacity={0.8}>{describeQueryError(blockingRouteError)}</Text>
+                <Text opacity={0.65}>
+                  Check the local cluster public endpoint and API configuration. In k3d, the app, `/api`, and
+                  `/ws` should all be served from the same host.
+                </Text>
+              </Card>
+            ) : deviceNotFound ? (
+              <Card gap="$2">
+                <Text fontSize="$5" fontWeight="700">
+                  Device not found
+                </Text>
+                <Text opacity={0.8}>
+                  Route parameter `{describeRouteParam(routeDeviceId)}` did not match any loaded device id or serial number.
+                </Text>
+              </Card>
+            ) : Platform.OS === 'web' ? (
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  paddingBottom: 16
+                }}
+              >
+                <YStack gap="$3">
+                  {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
+                  {detailWarningError ? (
+                    <Card gap="$2">
+                      <Text fontSize="$5" fontWeight="700">
+                        Detail endpoint unavailable
+                      </Text>
+                      <Text opacity={0.8}>{describeQueryError(detailWarningError)}</Text>
+                      <Text opacity={0.65}>
+                        Showing cached summary values while live detail/history endpoints retry.
+                      </Text>
+                    </Card>
+                  ) : null}
+                  {detailContent}
+                </YStack>
+              </div>
+            ) : (
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
+                <YStack gap="$3">
+                  {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
+                  {detailWarningError ? (
+                    <Card gap="$2">
+                      <Text fontSize="$5" fontWeight="700">
+                        Detail endpoint unavailable
+                      </Text>
+                      <Text opacity={0.8}>{describeQueryError(detailWarningError)}</Text>
+                      <Text opacity={0.65}>
+                        Showing cached summary values while live detail/history endpoints retry.
+                      </Text>
+                    </Card>
+                  ) : null}
+                  {detailContent}
+                </YStack>
+              </ScrollView>
+            )}
+          </YStack>
         </YStack>
-      </YStack>
+      </SecondaryPageShell>
     </Animated.View>
   );
 }

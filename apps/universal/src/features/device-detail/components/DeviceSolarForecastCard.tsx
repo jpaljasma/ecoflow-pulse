@@ -1,5 +1,7 @@
+import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Text, XStack, YStack } from 'tamagui';
+import { Button, Text, XStack, YStack } from 'tamagui';
+import { buildEnergyRouteParams } from '@/features/energy/model';
 import type { SolarOutlook } from '@/features/weather/model';
 import {
   formatSolarCapacitySummary,
@@ -11,11 +13,13 @@ import { Card } from '@/shared/ui/Card';
 
 export function DeviceSolarForecastCard({
   deviceName,
+  deviceId,
   solarOutlook,
   isLoading,
   errorText
 }: {
   deviceName?: string;
+  deviceId?: string;
   solarOutlook?: SolarOutlook;
   isLoading?: boolean;
   errorText?: string;
@@ -32,9 +36,36 @@ export function DeviceSolarForecastCard({
   return (
     <Card gap="$3">
       <YStack gap="$1">
-        <XStack alignItems="center" gap="$2">
-          <MaterialCommunityIcons name="weather-sunny-alert" size={18} color="rgba(13, 148, 136, 0.92)" />
-          <Text fontSize="$6" fontWeight="800">Device Solar Forecast</Text>
+        <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
+          <XStack alignItems="center" gap="$2">
+            <MaterialCommunityIcons name="weather-sunny-alert" size={18} color="rgba(13, 148, 136, 0.92)" />
+            <Text fontSize="$6" fontWeight="800">Device Solar Forecast</Text>
+          </XStack>
+          {deviceId ? (
+            <Button
+              size="$3"
+              borderRadius="$5"
+              borderWidth={1}
+              onPress={() =>
+                router.push({
+                  pathname: '/(tabs)/energy',
+                  params: buildEnergyRouteParams({
+                    scope: 'device',
+                    deviceId,
+                    preset: 'today',
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                    includeComparison: true,
+                    panel: 'solar'
+                  })
+                })
+              }
+            >
+              <XStack alignItems="center" gap="$2">
+                <MaterialCommunityIcons name="weather-sunny" size={16} />
+                <Text fontWeight="700">Open Solar</Text>
+              </XStack>
+            </Button>
+          ) : null}
         </XStack>
         <Text color="$colorMuted">
           {deviceName ? `${deviceName} forecast only.` : 'Current device forecast only.'}

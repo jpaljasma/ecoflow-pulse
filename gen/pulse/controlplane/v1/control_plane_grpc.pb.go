@@ -25,6 +25,7 @@ const (
 	ControlPlaneService_CreateProviderCredential_FullMethodName     = "/pulse.controlplane.v1.ControlPlaneService/CreateProviderCredential"
 	ControlPlaneService_ListProviderCredentials_FullMethodName      = "/pulse.controlplane.v1.ControlPlaneService/ListProviderCredentials"
 	ControlPlaneService_SetProviderCredentialActive_FullMethodName  = "/pulse.controlplane.v1.ControlPlaneService/SetProviderCredentialActive"
+	ControlPlaneService_UpdateProviderCredential_FullMethodName     = "/pulse.controlplane.v1.ControlPlaneService/UpdateProviderCredential"
 	ControlPlaneService_CreateDevice_FullMethodName                 = "/pulse.controlplane.v1.ControlPlaneService/CreateDevice"
 	ControlPlaneService_LinkDevice_FullMethodName                   = "/pulse.controlplane.v1.ControlPlaneService/LinkDevice"
 	ControlPlaneService_ListUserDevices_FullMethodName              = "/pulse.controlplane.v1.ControlPlaneService/ListUserDevices"
@@ -45,6 +46,7 @@ type ControlPlaneServiceClient interface {
 	CreateProviderCredential(ctx context.Context, in *CreateProviderCredentialRequest, opts ...grpc.CallOption) (*CreateProviderCredentialResponse, error)
 	ListProviderCredentials(ctx context.Context, in *ListProviderCredentialsRequest, opts ...grpc.CallOption) (*ListProviderCredentialsResponse, error)
 	SetProviderCredentialActive(ctx context.Context, in *SetProviderCredentialActiveRequest, opts ...grpc.CallOption) (*SetProviderCredentialActiveResponse, error)
+	UpdateProviderCredential(ctx context.Context, in *UpdateProviderCredentialRequest, opts ...grpc.CallOption) (*UpdateProviderCredentialResponse, error)
 	CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*CreateDeviceResponse, error)
 	LinkDevice(ctx context.Context, in *LinkDeviceRequest, opts ...grpc.CallOption) (*LinkDeviceResponse, error)
 	ListUserDevices(ctx context.Context, in *ListUserDevicesRequest, opts ...grpc.CallOption) (*ListUserDevicesResponse, error)
@@ -117,6 +119,16 @@ func (c *controlPlaneServiceClient) SetProviderCredentialActive(ctx context.Cont
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetProviderCredentialActiveResponse)
 	err := c.cc.Invoke(ctx, ControlPlaneService_SetProviderCredentialActive_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) UpdateProviderCredential(ctx context.Context, in *UpdateProviderCredentialRequest, opts ...grpc.CallOption) (*UpdateProviderCredentialResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateProviderCredentialResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_UpdateProviderCredential_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -213,6 +225,7 @@ type ControlPlaneServiceServer interface {
 	CreateProviderCredential(context.Context, *CreateProviderCredentialRequest) (*CreateProviderCredentialResponse, error)
 	ListProviderCredentials(context.Context, *ListProviderCredentialsRequest) (*ListProviderCredentialsResponse, error)
 	SetProviderCredentialActive(context.Context, *SetProviderCredentialActiveRequest) (*SetProviderCredentialActiveResponse, error)
+	UpdateProviderCredential(context.Context, *UpdateProviderCredentialRequest) (*UpdateProviderCredentialResponse, error)
 	CreateDevice(context.Context, *CreateDeviceRequest) (*CreateDeviceResponse, error)
 	LinkDevice(context.Context, *LinkDeviceRequest) (*LinkDeviceResponse, error)
 	ListUserDevices(context.Context, *ListUserDevicesRequest) (*ListUserDevicesResponse, error)
@@ -248,6 +261,9 @@ func (UnimplementedControlPlaneServiceServer) ListProviderCredentials(context.Co
 }
 func (UnimplementedControlPlaneServiceServer) SetProviderCredentialActive(context.Context, *SetProviderCredentialActiveRequest) (*SetProviderCredentialActiveResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetProviderCredentialActive not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) UpdateProviderCredential(context.Context, *UpdateProviderCredentialRequest) (*UpdateProviderCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateProviderCredential not implemented")
 }
 func (UnimplementedControlPlaneServiceServer) CreateDevice(context.Context, *CreateDeviceRequest) (*CreateDeviceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateDevice not implemented")
@@ -398,6 +414,24 @@ func _ControlPlaneService_SetProviderCredentialActive_Handler(srv interface{}, c
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ControlPlaneServiceServer).SetProviderCredentialActive(ctx, req.(*SetProviderCredentialActiveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_UpdateProviderCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateProviderCredentialRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).UpdateProviderCredential(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_UpdateProviderCredential_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).UpdateProviderCredential(ctx, req.(*UpdateProviderCredentialRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -576,6 +610,10 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetProviderCredentialActive",
 			Handler:    _ControlPlaneService_SetProviderCredentialActive_Handler,
+		},
+		{
+			MethodName: "UpdateProviderCredential",
+			Handler:    _ControlPlaneService_UpdateProviderCredential_Handler,
 		},
 		{
 			MethodName: "CreateDevice",

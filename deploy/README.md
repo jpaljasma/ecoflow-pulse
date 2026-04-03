@@ -104,6 +104,9 @@ Defaults:
   without competing with request serving or collapsing back onto a single hot
   node during updates. Local verifier defaults also use a shorter `1m` loop and
   a `3072` row batch limit so large local backlogs drain fast enough to profile.
+  Worker Deployments also use metrics-backed drain hooks: Kubernetes calls
+  `/drainz` on the metrics port during `preStop`, which flips readiness to
+  draining before `SIGTERM` so rolling updates hand work off cleanly.
 - local/dev MinIO credentials are intentionally pinned for deterministic
   bring-up and service compatibility:
   - platform chart uses `minio.rootUser` / `minio.rootPassword`

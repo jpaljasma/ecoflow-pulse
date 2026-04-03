@@ -3,9 +3,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
 import { Button, Text, XStack, YStack } from 'tamagui';
+import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Card } from '@/shared/ui/Card';
 import { AppMenu } from '@/shared/ui/AppMenu';
+import { SecondaryPageShell } from '@/shared/ui/SecondaryPageShell';
+import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 import {
   AVOIDED_EMISSIONS_FACTORS,
   AVOIDED_EMISSIONS_FACTOR_VERSION,
@@ -38,40 +41,68 @@ function highlightBorder(focus: string | undefined, key: string): string {
 export default function EnergyImpactScreen() {
   const router = useRouter();
   const { focus } = useLocalSearchParams<{ focus?: string }>();
+  const { horizontalPadding, isSidebarMode, layoutMaxWidth } = usePageLayoutMetrics();
   const nyup = AVOIDED_EMISSIONS_FACTORS.NYUP;
   const usAverage = AVOIDED_EMISSIONS_FACTORS.US_AVG;
 
   return (
-    <YStack flex={1} backgroundColor="$background" paddingHorizontal="$4" paddingVertical="$4" gap="$4">
-      <TopBar
-        left={
-          <Button
-            width={46}
-            height={46}
-            borderRadius={23}
-            borderWidth={1}
-            borderColor="rgba(120,120,128,0.32)"
-            backgroundColor="rgba(120,120,128,0.10)"
-            alignItems="center"
-            justifyContent="center"
-            pressStyle={{ scale: 0.97, opacity: 0.9 }}
-            onPress={() => router.back()}
-            accessibilityLabel="Back"
-          >
-            <MaterialCommunityIcons name="chevron-left" size={24} color="rgba(28, 43, 45, 0.92)" />
-          </Button>
-        }
-        title={<XStack alignItems="center" gap="$2"><MaterialCommunityIcons name="leaf" size={18} color="rgba(28, 43, 45, 0.92)" /><Text fontSize="$6" fontWeight="700">Energy Impact</Text></XStack>}
-        subtitle="How the dashboard estimates today-so-far avoided emissions"
-        right={(
-          <YStack alignItems="flex-end">
-            <AppMenu />
-          </YStack>
-        )}
-      />
+    <SecondaryPageShell activeNavKey="energy">
+      <YStack flex={1} backgroundColor="$background" paddingHorizontal={horizontalPadding} paddingVertical="$4" gap="$4">
+        <TopBar
+          left={
+            isSidebarMode ? undefined : (
+              <Button
+                width={46}
+                height={46}
+                borderRadius={23}
+                borderWidth={1}
+                borderColor="rgba(120,120,128,0.32)"
+                backgroundColor="rgba(120,120,128,0.10)"
+                alignItems="center"
+                justifyContent="center"
+                pressStyle={{ scale: 0.97, opacity: 0.9 }}
+                onPress={() => router.back()}
+                accessibilityLabel="Back"
+              >
+                <MaterialCommunityIcons name="chevron-left" size={24} color="rgba(28, 43, 45, 0.92)" />
+              </Button>
+            )
+          }
+          eyebrow={(
+            <BreadcrumbTrail
+              items={[
+                {
+                  label: 'Home',
+                  href: '/(tabs)/devices',
+                  icon: 'home-variant-outline',
+                  hideLabel: true
+                },
+                {
+                  label: 'Energy',
+                  href: '/(tabs)/energy'
+                },
+                {
+                  label: 'Energy Impact',
+                  current: true
+                }
+              ]}
+            />
+          )}
+          title={<XStack alignItems="center" gap="$2"><MaterialCommunityIcons name="leaf" size={18} color="rgba(28, 43, 45, 0.92)" /><Text fontSize="$6" fontWeight="700">Energy Impact</Text></XStack>}
+          subtitle="How the dashboard estimates today-so-far avoided emissions"
+          right={(
+            <YStack alignItems="flex-end">
+              <AppMenu />
+            </YStack>
+          )}
+        />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
-        <YStack gap="$4">
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 16, alignItems: 'center' }}
+          showsVerticalScrollIndicator
+        >
+          <YStack gap="$4" width="100%" maxWidth={layoutMaxWidth}>
           <Card gap="$2">
             <Text fontSize="$5" fontWeight="700">
               What this widget means
@@ -220,8 +251,9 @@ export default function EnergyImpactScreen() {
               </Button>
             </XStack>
           </Card>
-        </YStack>
-      </ScrollView>
-    </YStack>
+          </YStack>
+        </ScrollView>
+      </YStack>
+    </SecondaryPageShell>
   );
 }

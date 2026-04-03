@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api/restClient';
 import { useAuthSession } from '@/features/auth/hooks';
+import { buildEnergyRouteParams } from '@/features/energy/model';
 import { fetchDeviceHistory } from '@/features/history/api';
 import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
 import {
@@ -21,10 +22,12 @@ function isHistoryNotFound(error: unknown): boolean {
 
 export function DeviceEnergyImpactCard({
   deviceId,
-  todaySolarWh
+  todaySolarWh,
+  variant = 'summary'
 }: {
   deviceId?: string;
   todaySolarWh?: number;
+  variant?: 'detailed' | 'summary';
 }) {
   const [period, setPeriod] = useState<EnergyImpactPeriod>('today');
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
@@ -73,6 +76,20 @@ export function DeviceEnergyImpactCard({
       onPeriodChange={setPeriod}
       isLoading={period === 'past12Months' && pastTwelveMonthsQuery.isFetching}
       errorText={period === 'past12Months' && pastTwelveMonthsQuery.error ? 'Past 12 months history unavailable.' : undefined}
+      variant={variant}
+      showPeriodControls={variant !== 'summary'}
+      energyLinkParams={
+        variant === 'summary'
+          ? buildEnergyRouteParams({
+              scope: deviceId ? 'device' : 'all',
+              deviceId,
+              preset: 'today',
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+              includeComparison: true,
+              panel: 'impact'
+            })
+          : undefined
+      }
     />
   );
 }

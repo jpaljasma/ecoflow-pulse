@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestLoadIngestLoopConfigFromEnv(t *testing.T) {
@@ -34,5 +40,48 @@ func TestLoadIngestLoopConfigFromEnvGeneratesWorkerID(t *testing.T) {
 	cfg := loadIngestLoopConfigFromEnv()
 	if strings.TrimSpace(cfg.WorkerID) == "" {
 		t.Fatal("expected generated worker id")
+	}
+}
+
+func TestStartAutoscaleMetricsServerDrainEndpointMarksReadyFalse(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop := startAutoscaleMetricsServer(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), prometheus.NewRegistry(), "127.0.0.1:19114")
+	defer stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://127.0.0.1:19114/readyz")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				break
+			}
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:19114/drainz", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST /drainz error = %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /drainz status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp, err = http.Get("http://127.0.0.1:19114/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz after drain error = %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("GET /readyz after drain status = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
 	}
 }

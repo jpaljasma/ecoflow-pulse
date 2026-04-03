@@ -11,6 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+const drainHookDelay = 5 * time.Second
+
 func StartServer(ctx context.Context, log *slog.Logger, registry *prometheus.Registry, listenAddr string) func() {
 	if ctx == nil || log == nil || registry == nil || listenAddr == "" {
 		return func() {}
@@ -29,6 +31,17 @@ func StartServer(ctx context.Context, log *slog.Logger, registry *prometheus.Reg
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/drainz", func(w http.ResponseWriter, r *http.Request) {
+		draining.Store(true)
+		timer := time.NewTimer(drainHookDelay)
+		defer timer.Stop()
+		select {
+		case <-r.Context().Done():
+		case <-timer.C:
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("draining"))
 	})
 	server := &http.Server{
 		Addr:              listenAddr,

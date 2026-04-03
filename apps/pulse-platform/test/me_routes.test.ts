@@ -7,7 +7,8 @@ import type { AppConfig } from '../src/config.js';
 import type {
   ControlPlaneClient,
   CurrentUser,
-  CurrentUserBootstrap
+  CurrentUserBootstrap,
+  ProviderCredential
 } from '../src/grpc/controlPlaneClient.js';
 import type { DeviceClient } from '../src/grpc/deviceClient.js';
 import type { InferenceClient } from '../src/grpc/inferenceClient.js';
@@ -98,11 +99,26 @@ function sampleBootstrap(): CurrentUserBootstrap {
   };
 }
 
+function sampleProviderCredential(): ProviderCredential {
+  return {
+    id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+    provider: 'ecoflow',
+    accessKeyMask: 'AK12...7890',
+    isActive: true,
+    createdAtUnixMs: '1773430000000',
+    updatedAtUnixMs: '1773430800000'
+  };
+}
+
 function makeControlPlaneClient(overrides: Partial<ControlPlaneClient> = {}): ControlPlaneClient {
   return {
     getCurrentUser: vi.fn(async () => sampleBootstrap()),
     updateCurrentUser: vi.fn(async () => sampleCurrentUser()),
     refreshCurrentUserIdentity: vi.fn(async () => sampleCurrentUser()),
+    listProviderCredentials: vi.fn(async () => [sampleProviderCredential()]),
+    createProviderCredential: vi.fn(async () => sampleProviderCredential()),
+    updateProviderCredential: vi.fn(async () => sampleProviderCredential()),
+    setProviderCredentialActive: vi.fn(async () => sampleProviderCredential()),
     listUserDevices: vi.fn(async () => []),
     listDevices: vi.fn(async () => []),
     listAvailableProviderDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
@@ -154,6 +170,84 @@ describe('pulse-platform current user routes', () => {
       authorization: {
         roles: ['viewer'],
         deviceCount: 3
+      }
+    });
+
+    await app.close();
+  });
+
+  it('lists integrations from /api/v1/integrations', async () => {
+    const listProviderCredentials = vi.fn(async () => [sampleProviderCredential()]);
+    const controlPlaneClient = makeControlPlaneClient({ listProviderCredentials });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/integrations?provider=ecoflow'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(listProviderCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'ecoflow'
+      })
+    );
+    expect(response.json()).toEqual({
+      integrations: [
+        {
+          id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+          provider: 'ecoflow',
+          accessKeyMask: 'AK12...7890',
+          isActive: true,
+          createdAtUnixMs: '1773430000000',
+          updatedAtUnixMs: '1773430800000'
+        }
+      ]
+    });
+
+    await app.close();
+  });
+
+  it('updates provider credentials through /api/v1/integrations/:credentialId', async () => {
+    const updateProviderCredential = vi.fn(async () => ({
+      ...sampleProviderCredential(),
+      accessKeyMask: 'NEW1...9999',
+      updatedAtUnixMs: '1773431800000'
+    }));
+    const controlPlaneClient = makeControlPlaneClient({ updateProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/integrations/019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+      payload: {
+        accessKey: 'NEW123456789999',
+        accessSecret: 'SECRET123456789999',
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(updateProviderCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+        accessKey: 'NEW123456789999',
+        secretKey: 'SECRET123456789999',
+        isActive: true
+      })
+    );
+    expect(response.json()).toEqual({
+      integration: {
+        id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+        provider: 'ecoflow',
+        accessKeyMask: 'NEW1...9999',
+        isActive: true,
+        createdAtUnixMs: '1773430000000',
+        updatedAtUnixMs: '1773431800000'
       }
     });
 

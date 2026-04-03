@@ -102,6 +102,9 @@ func TestDefaultConfigLeaseMissingAlertDefaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := DefaultConfig("worker-test")
+	if cfg.CredentialRejectCooldown != 5*time.Minute {
+		t.Fatalf("CredentialRejectCooldown=%v want=5m", cfg.CredentialRejectCooldown)
+	}
 	if cfg.LeaseMissingAlertWindow != 5*time.Minute {
 		t.Fatalf("LeaseMissingAlertWindow=%v want=5m", cfg.LeaseMissingAlertWindow)
 	}
@@ -459,6 +462,41 @@ func TestLoopRestartsAfterHeartbeatError(t *testing.T) {
 	cancelAndWait(t, cancel, done)
 }
 
+func TestLoopBacksOffAfterCredentialRejected(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeStore{}
+	store.set([]controlplane.IngestAssignment{
+		{Provider: "ecoflow", ProviderDeviceID: "R1", DeviceIsActive: true, CredentialIsActive: true, IngestDesiredState: "active"},
+	})
+	leases := &fakeLeaseManager{}
+	runner := &fakeSessionRunner{failErrOnce: ErrEcoFlowCredentialRejected}
+
+	loop, err := NewLoop(testLogger(), store, leases, runner, Config{
+		WorkerID:                 "worker-test",
+		PollInterval:             20 * time.Millisecond,
+		PollJitter:               0,
+		StopTimeout:              2 * time.Second,
+		StartWorkers:             4,
+		CredentialRejectCooldown: 120 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewLoop error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := runLoop(ctx, loop)
+
+	waitForAtLeast(t, &runner.starts, 1, time.Second, "initial session start")
+	time.Sleep(80 * time.Millisecond)
+	if got := runner.starts.Load(); got != 1 {
+		t.Fatalf("expected credential rejection cooldown to suppress immediate restart, got starts=%d", got)
+	}
+
+	waitForAtLeast(t, &runner.starts, 2, time.Second, "session restart after credential cooldown")
+	cancelAndWait(t, cancel, done)
+}
+
 func TestLoopConcurrentStartsManyAssignments(t *testing.T) {
 	t.Parallel()
 
@@ -799,14 +837,19 @@ func (m *fakeLeaseManager) RunHeartbeat(ctx context.Context, _ ingestlease.Lease
 }
 
 type fakeSessionRunner struct {
-	starts    atomic.Int64
-	stops     atomic.Int64
-	failFirst bool
-	failed    atomic.Bool
+	starts      atomic.Int64
+	stops       atomic.Int64
+	failFirst   bool
+	failErrOnce error
+	failed      atomic.Bool
 }
 
 func (r *fakeSessionRunner) Run(ctx context.Context, _ controlplane.IngestAssignment) error {
 	r.starts.Add(1)
+	if r.failErrOnce != nil && r.failed.CompareAndSwap(false, true) {
+		r.stops.Add(1)
+		return r.failErrOnce
+	}
 	if r.failFirst && r.failed.CompareAndSwap(false, true) {
 		r.stops.Add(1)
 		return errors.New("runner failed")

@@ -214,6 +214,76 @@ describe('provider device mapper', () => {
     );
   });
 
+  it('infers DPU AC pass-through from live AC power when access flags stay idle', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        metadata: {
+          groups: {
+            hs_yj751_pd_appshow_addr: {
+              access_5p8InType: 0,
+              access_5p8OutType: 0,
+              inAc5p8Pwr: 128,
+              outAc_5p8Pwr: 128
+            },
+            hs_yj751_pd_backend_addr: {
+              inLvMpptVol: 0,
+              inLvMpptAmp: 0,
+              inHvMpptVol: 0,
+              inHvMpptAmp: 0,
+              fanState: 0
+            },
+            hs_yj751_pd_app_set_info_addr: {},
+            hs_yj751_pd_bp_addr: {
+              bpInfo: {
+                values: []
+              }
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        passthroughMode: 'AC Pass-Through'
+      })
+    );
+  });
+
+  it('infers DPU L14 transfer mode from live AC input plus L14 output power', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        metadata: {
+          groups: {
+            hs_yj751_pd_appshow_addr: {
+              inAcC20Pwr: 605,
+              outAcL14Pwr: 357
+            },
+            hs_yj751_pd_backend_addr: {
+              inLvMpptVol: 0,
+              inLvMpptAmp: 0,
+              inHvMpptVol: 0,
+              inHvMpptAmp: 0,
+              fanState: 0
+            },
+            hs_yj751_pd_app_set_info_addr: {},
+            hs_yj751_pd_bp_addr: {
+              bpInfo: {
+                values: []
+              }
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        passthroughMode: 'L14 Transfer Switch'
+      })
+    );
+  });
+
   it('treats DPU L14 and Power I/O AC outputs as active AC output paths', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({

@@ -11,6 +11,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
@@ -75,6 +76,7 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open rollup postgres connection: %w", err)
 	}
+	dbpool.ConfigureSQL(db)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping rollup postgres: %w", err)

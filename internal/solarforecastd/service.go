@@ -403,7 +403,13 @@ func (s *Service) verifyClaimedRuns(ctx context.Context, cutoff time.Time, limit
 			}
 			return err
 		}
-		if claim == nil || len(claim.Rows) == 0 {
+		if claim == nil {
+			break
+		}
+		if len(claim.Rows) == 0 {
+			if rollbackErr := claim.Rollback(); rollbackErr != nil {
+				verifyErrs = append(verifyErrs, rollbackErr)
+			}
 			break
 		}
 		processedRows += len(claim.Rows)

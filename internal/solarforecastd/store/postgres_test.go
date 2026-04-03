@@ -335,6 +335,41 @@ func TestPostgresStoreClaimPendingRunIDLocksRunsWithSkipLocked(t *testing.T) {
 	}
 }
 
+func TestPostgresStoreClaimPendingRunRollsBackEmptyClaims(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	store := &PostgresStore{db: db}
+	before := time.Date(2026, 3, 27, 16, 0, 0, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)WITH candidate_runs AS \(\s*SELECT\s+run_id,\s+MIN\(target_time\) AS first_target_time\s+FROM solar_forecast_hourly_training_records\s+WHERE verification_status = 'pending'\s+AND target_time < \$1\s+GROUP BY run_id\s+ORDER BY first_target_time ASC\s+LIMIT \$2\s*\),\s*claimed_run AS \(\s*SELECT r.id::text AS run_id\s+FROM candidate_runs\s+JOIN solar_forecast_runs r ON r.id = candidate_runs.run_id\s+ORDER BY candidate_runs.first_target_time ASC\s+FOR UPDATE OF r SKIP LOCKED\s+LIMIT 1\s*\)\s*SELECT run_id\s+FROM claimed_run;`).
+		WithArgs(before, pendingRunClaimCandidateLimit).
+		WillReturnRows(sqlmock.NewRows([]string{"run_id"}).AddRow("run-123"))
+	mock.ExpectQuery(`(?s)FROM solar_forecast_hourly_training_records\s+WHERE run_id = \$1::uuid\s+AND verification_status = 'pending'\s+AND target_time < \$2\s+ORDER BY target_time ASC\s+FOR UPDATE;`).
+		WithArgs("run-123", before).
+		WillReturnRows(sqlmock.NewRows([]string{"run_id"}))
+	mock.ExpectRollback()
+
+	claim, err := store.ClaimPendingRun(context.Background(), before)
+	if err != nil {
+		t.Fatalf("ClaimPendingRun() error = %v", err)
+	}
+	if claim != nil {
+		t.Fatalf("ClaimPendingRun() = %#v, want nil", claim)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations were not met: %v", err)
+	}
+}
+
 func TestPostgresStoreApplyCalibrationRowsUsesAdvisoryLockAndAtomicUpsert(t *testing.T) {
 	t.Parallel()
 

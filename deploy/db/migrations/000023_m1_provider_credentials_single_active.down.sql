@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS uq_provider_credentials_user_provider_single_active;

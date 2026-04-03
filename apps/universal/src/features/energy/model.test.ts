@@ -23,7 +23,8 @@ describe('energy route model', () => {
       deviceId: undefined,
       preset: 'today',
       timezone: 'America/New_York',
-      includeComparison: true
+      includeComparison: true,
+      panel: 'overview'
     });
   });
 
@@ -76,7 +77,8 @@ describe('energy route model', () => {
       deviceId: undefined,
       preset: 'today',
       timezone: 'America/New_York',
-      includeComparison: true
+      includeComparison: true,
+      panel: 'overview'
     });
   });
 
@@ -86,19 +88,21 @@ describe('energy route model', () => {
         scope: 'all',
         preset: 'today',
         timezone: 'UTC',
-        includeComparison: false
+        includeComparison: false,
+        panel: 'impact'
       })
     ).toEqual({
       device: 'all',
       preset: 'today',
       tz: 'UTC',
-      compare: '0'
+      compare: '0',
+      panel: 'impact'
     });
   });
 
   it('accepts spec-style route params and legacy aliases', () => {
     const specState = resolveEnergyRouteState(
-      { device: 'all', preset: 'today', tz: 'UTC', compare: '0' },
+      { device: 'all', preset: 'today', tz: 'UTC', compare: '0', panel: 'solar' },
       ['019c9f0e-4521-775d-873e-e80039f16d75']
     );
     expect(specState).toEqual({
@@ -106,7 +110,8 @@ describe('energy route model', () => {
       deviceId: undefined,
       preset: 'today',
       timezone: 'UTC',
-      includeComparison: false
+      includeComparison: false,
+      panel: 'solar'
     });
 
     const legacyState = resolveEnergyRouteState(
@@ -122,6 +127,7 @@ describe('energy route model', () => {
     expect(legacyState.scope).toBe('device');
     expect(legacyState.deviceId).toBe('019c9f0e-4521-775d-873e-e80039f16d75');
     expect(legacyState.includeComparison).toBe(true);
+    expect(legacyState.panel).toBe('overview');
   });
 
   it('maps rollup points into power trend arrays', () => {
