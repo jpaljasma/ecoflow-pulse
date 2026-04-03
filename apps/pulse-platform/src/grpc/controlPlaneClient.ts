@@ -56,6 +56,15 @@ export type ProviderDeviceMQTTTestResult = {
   observedAtUnixMs: string;
 };
 
+export type ProviderCredential = {
+  id: string;
+  provider: string;
+  accessKeyMask: string;
+  isActive: boolean;
+  createdAtUnixMs: string;
+  updatedAtUnixMs: string;
+};
+
 export type CurrentUser = {
   id: string;
   keycloakSubject: string;
@@ -141,6 +150,45 @@ export type GetCurrentUserInput = {
   deadlineMs: number;
 };
 
+export type ListProviderCredentialsInput = {
+  userSubject: string;
+  provider?: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type CreateProviderCredentialInput = {
+  userSubject: string;
+  provider: string;
+  accessKey: string;
+  secretKey: string;
+  isActive: boolean;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type UpdateProviderCredentialInput = {
+  userSubject: string;
+  credentialId: string;
+  accessKey: string;
+  secretKey: string;
+  isActive: boolean;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type SetProviderCredentialActiveInput = {
+  userSubject: string;
+  credentialId: string;
+  isActive: boolean;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
 export type UpdateCurrentUserInput = {
   userSubject: string;
   displayName: string;
@@ -174,6 +222,10 @@ export interface ControlPlaneClient {
   getCurrentUser(input: GetCurrentUserInput): Promise<CurrentUserBootstrap>;
   updateCurrentUser(input: UpdateCurrentUserInput): Promise<CurrentUser>;
   refreshCurrentUserIdentity(input: RefreshCurrentUserIdentityInput): Promise<CurrentUser>;
+  listProviderCredentials(input: ListProviderCredentialsInput): Promise<ProviderCredential[]>;
+  createProviderCredential(input: CreateProviderCredentialInput): Promise<ProviderCredential>;
+  updateProviderCredential(input: UpdateProviderCredentialInput): Promise<ProviderCredential>;
+  setProviderCredentialActive(input: SetProviderCredentialActiveInput): Promise<ProviderCredential>;
   listUserDevices(input: ListUserDevicesInput): Promise<UserDevice[]>;
   listDevices(input: ListDevicesInput): Promise<ProviderDeviceGroup[]>;
   listAvailableProviderDevices(input: ListAvailableProviderDevicesInput): Promise<AvailableProviderDevicesResponse>;
@@ -196,6 +248,10 @@ type GrpcControlPlaneClient = {
   GetCurrentUser: GrpcUnaryMethod;
   UpdateCurrentUser: GrpcUnaryMethod;
   RefreshCurrentUserIdentity: GrpcUnaryMethod;
+  CreateProviderCredential: GrpcUnaryMethod;
+  ListProviderCredentials: GrpcUnaryMethod;
+  SetProviderCredentialActive: GrpcUnaryMethod;
+  UpdateProviderCredential: GrpcUnaryMethod;
   ListUserDevices: GrpcUnaryMethod;
   ListDevices: GrpcUnaryMethod;
   ListAvailableProviderDevices: GrpcUnaryMethod;
@@ -219,6 +275,13 @@ type ControlPlaneProto = {
 };
 
 type RawUserDevice = Partial<Record<keyof UserDevice, unknown>>;
+type RawProviderCredential = Partial<Record<keyof ProviderCredential, unknown>>;
+type RawProviderCredentialListResponse = {
+  credentials?: unknown;
+};
+type RawProviderCredentialResponse = {
+  credential?: unknown;
+};
 type RawListUserDevicesResponse = {
   devices?: unknown;
 };
@@ -321,6 +384,60 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
         input
       );
       return normalizeCurrentUser((response.user ?? {}) as RawCurrentUser);
+    },
+    async listProviderCredentials(input) {
+      const response = await unaryCall<RawProviderCredentialListResponse>(
+        client.ListProviderCredentials.bind(client),
+        {
+          userSubject: input.userSubject,
+          provider: input.provider ?? ''
+        },
+        input
+      );
+      if (!Array.isArray(response.credentials)) {
+        return [];
+      }
+      return response.credentials.map((row) => normalizeProviderCredentialRow(row as RawProviderCredential));
+    },
+    async createProviderCredential(input) {
+      const response = await unaryCall<RawProviderCredentialResponse>(
+        client.CreateProviderCredential.bind(client),
+        {
+          userSubject: input.userSubject,
+          provider: input.provider,
+          accessKey: input.accessKey,
+          secretKey: input.secretKey,
+          isActive: input.isActive
+        },
+        input
+      );
+      return normalizeProviderCredentialRow((response.credential ?? {}) as RawProviderCredential);
+    },
+    async updateProviderCredential(input) {
+      const response = await unaryCall<RawProviderCredentialResponse>(
+        client.UpdateProviderCredential.bind(client),
+        {
+          userSubject: input.userSubject,
+          credentialId: input.credentialId,
+          accessKey: input.accessKey,
+          secretKey: input.secretKey,
+          isActive: input.isActive
+        },
+        input
+      );
+      return normalizeProviderCredentialRow((response.credential ?? {}) as RawProviderCredential);
+    },
+    async setProviderCredentialActive(input) {
+      const response = await unaryCall<RawProviderCredentialResponse>(
+        client.SetProviderCredentialActive.bind(client),
+        {
+          userSubject: input.userSubject,
+          credentialId: input.credentialId,
+          isActive: input.isActive
+        },
+        input
+      );
+      return normalizeProviderCredentialRow((response.credential ?? {}) as RawProviderCredential);
     },
     async listUserDevices(input) {
       const response = await unaryCall<RawListUserDevicesResponse>(
@@ -436,6 +553,17 @@ function normalizeUserDevice(device: RawUserDevice): UserDevice {
     role: normalizeString(device.role),
     createdAtUnixMs: normalizeString(device.createdAtUnixMs),
     updatedAtUnixMs: normalizeString(device.updatedAtUnixMs)
+  };
+}
+
+function normalizeProviderCredentialRow(credential: RawProviderCredential): ProviderCredential {
+  return {
+    id: normalizeString(credential.id),
+    provider: normalizeString(credential.provider),
+    accessKeyMask: normalizeString(credential.accessKeyMask),
+    isActive: Boolean(credential.isActive),
+    createdAtUnixMs: normalizeString(credential.createdAtUnixMs),
+    updatedAtUnixMs: normalizeString(credential.updatedAtUnixMs)
   };
 }
 

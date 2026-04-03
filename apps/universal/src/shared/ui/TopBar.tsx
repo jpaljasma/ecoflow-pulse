@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, XStack, YStack } from 'tamagui';
 
 export function TopBar({
+  eyebrow,
   title,
   subtitle,
   left,
@@ -11,6 +12,7 @@ export function TopBar({
   titleFlex = 1,
   rightFlex
 }: {
+  eyebrow?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
   left?: ReactNode;
@@ -41,13 +43,28 @@ export function TopBar({
     <XStack
       alignItems="flex-start"
       justifyContent="space-between"
-      paddingHorizontal="$4"
-      paddingVertical="$3"
+      paddingHorizontal="$5"
+      paddingVertical="$4"
       paddingTop={topInset > 0 ? topInset + 8 : 12}
-      gap="$3"
+      gap="$4"
     >
       {left ? <XStack>{left}</XStack> : null}
-      <YStack gap="$1" flex={titleFlex}>
+      <YStack gap={eyebrow ? '$2' : '$1'} flex={titleFlex}>
+        {eyebrow
+          ? typeof eyebrow === 'string' || typeof eyebrow === 'number'
+            ? (
+              <Text
+                fontFamily="$body"
+                fontSize="$2"
+                opacity={0.76}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {eyebrow}
+              </Text>
+              )
+            : eyebrow
+          : null}
         {titleNode}
         {subtitle
           ? typeof subtitle === 'string' || typeof subtitle === 'number'

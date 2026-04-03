@@ -1,9 +1,10 @@
-import { FlatList, Platform, View, useWindowDimensions } from 'react-native';
+import { FlatList, Platform, View } from 'react-native';
 import { YStack } from 'tamagui';
 import type { ReactElement } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
+import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 
 export function DeviceList({
   devices,
@@ -16,8 +17,8 @@ export function DeviceList({
   header?: ReactElement;
   footer?: ReactElement;
 }) {
-  const { width } = useWindowDimensions();
-  const columns = Platform.OS === 'web' && width >= 900 ? 2 : 1;
+  const { contentWidth } = useNavigationShellMetrics();
+  const columns = Platform.OS === 'web' && contentWidth >= 900 ? 2 : 1;
 
   return (
     <FlatList

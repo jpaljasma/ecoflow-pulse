@@ -23,7 +23,9 @@ export function EnergyImpactCard({
   onPeriodChange,
   isLoading = false,
   errorText,
-  showPeriodControls = true
+  showPeriodControls = true,
+  variant = 'detailed',
+  energyLinkParams
 }: {
   solarWh?: number;
   title?: string;
@@ -35,6 +37,8 @@ export function EnergyImpactCard({
   isLoading?: boolean;
   errorText?: string;
   showPeriodControls?: boolean;
+  variant?: 'detailed' | 'summary';
+  energyLinkParams?: Record<string, string>;
 }) {
   const router = useRouter();
   const semantics = useThemeSemantics();
@@ -45,6 +49,111 @@ export function EnergyImpactCard({
     { key: 'past12Months', label: 'Past 12 months' }
   ];
   const statusMessage = errorText ?? (isLoading ? `Loading ${periodLabel} solar history…` : ' ');
+  const energyRows = buildEnergyImpactRows(impact, displayPeriod, displayPeriodLabel);
+
+  if (variant === 'summary') {
+    return (
+      <Card
+        gap="$3"
+        minWidth={minWidth}
+        minHeight={280}
+        style={{ backgroundColor: semantics.energyCardBackground, borderColor: semantics.energyCardBorder }}
+      >
+        <XStack justifyContent="space-between" alignItems="flex-start" gap="$3">
+          <XStack alignItems="center" gap="$2" flex={1} minWidth={0}>
+            <YStack
+              width={38}
+              height={38}
+              borderRadius={18}
+              alignItems="center"
+              justifyContent="center"
+              borderWidth={1}
+              style={{ backgroundColor: semantics.energyLeafBackground, borderColor: semantics.energyLeafBorder }}
+            >
+              <MaterialCommunityIcons name="leaf" size={18} color={semantics.energyLeafText} />
+            </YStack>
+            <YStack gap="$1" flex={1} minWidth={0}>
+              <Text fontSize="$4" fontWeight="700" numberOfLines={1}>
+                {title}
+              </Text>
+              <Text fontSize="$1" opacity={0.82} numberOfLines={1}>
+                {periodLabel}
+              </Text>
+            </YStack>
+          </XStack>
+
+          {energyLinkParams ? (
+            <Button
+              size="$3"
+              borderRadius="$5"
+              borderWidth={1}
+              minHeight={36}
+              style={{ borderColor: semantics.actionBorder, backgroundColor: semantics.actionBackground }}
+              onPress={() => {
+                router.push({
+                  pathname: '/(tabs)/energy',
+                  params: energyLinkParams
+                });
+              }}
+            >
+              <XStack alignItems="center" gap="$2">
+                <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color={semantics.actionText} />
+                <Text fontWeight="700" style={{ color: semantics.actionText }}>
+                  Energy
+                </Text>
+              </XStack>
+            </Button>
+          ) : null}
+        </XStack>
+
+        <YStack gap="$1">
+          <Text fontSize="$8" fontWeight="800" letterSpacing={-0.7}>
+            {energyRows[0]?.detail.split(' CO2e')[0] ?? '0 g'}
+          </Text>
+          <Text fontSize="$2" style={{ color: semantics.subtleStrongText }}>
+            Avoided grid CO2e from {formatWhAndKWh(impact.solarWh)} over {periodLabel}.
+          </Text>
+          <Text
+            fontSize="$1"
+            style={{ color: semantics.subtleStrongText, opacity: statusMessage.trim() ? 1 : 0 }}
+            minHeight={16}
+          >
+            {statusMessage}
+          </Text>
+        </YStack>
+
+        <XStack gap="$2" flexWrap="wrap">
+          {energyRows.slice(1, 4).map((metric) => {
+            const colors = getEnergyImpactBadgeColors(metric.key, semantics);
+            return (
+              <YStack
+                key={metric.key}
+                flex={1}
+                minWidth={112}
+                padding="$3"
+                borderRadius="$4"
+                borderWidth={1}
+                style={{
+                  borderColor: semantics.mutedPanelBorder,
+                  backgroundColor: semantics.mutedPanelBackground
+                }}
+              >
+                <Text fontSize="$1" fontWeight="700" style={{ color: colors.color }} textTransform="uppercase" letterSpacing={0.6}>
+                  {metric.badge}
+                </Text>
+                <Text fontSize="$3" fontWeight="700" numberOfLines={2}>
+                  {metric.headline}
+                </Text>
+                <Text fontSize="$2" style={{ color: semantics.subtleText }} numberOfLines={2}>
+                  {metric.detail}
+                </Text>
+              </YStack>
+            );
+          })}
+        </XStack>
+      </Card>
+    );
+  }
 
   return (
     <Card gap="$3" minWidth={minWidth} style={{ backgroundColor: semantics.energyCardBackground, borderColor: semantics.energyCardBorder }}>
@@ -120,7 +229,7 @@ export function EnergyImpactCard({
       </YStack>
 
       <YStack gap="$2" opacity={isLoading ? 0.86 : 1}>
-        {buildEnergyImpactRows(impact, displayPeriod, displayPeriodLabel).map((metric) => {
+        {energyRows.map((metric) => {
           const colors = getEnergyImpactBadgeColors(metric.key, semantics);
           return (
             <XStack

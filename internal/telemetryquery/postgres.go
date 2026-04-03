@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
@@ -29,6 +30,7 @@ func NewPostgresReader(dsn string) (*PostgresReader, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open telemetry query postgres connection: %w", err)
 	}
+	dbpool.ConfigureSQL(db)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping telemetry query postgres: %w", err)
@@ -64,13 +66,14 @@ func (r *PostgresReader) QueryRange(ctx context.Context, query RangeQuery) (Seri
 		return Series{}, ErrInvalidRange
 	}
 
-	rows, err := r.db.QueryContext(ctx, buildQuery(query.Resolution, table), query.DeviceID, from, to, query.Limit)
-	if err != nil {
-		return Series{}, fmt.Errorf("query telemetry rollup range: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	return scanSeriesRows(rows, query.DeviceID, query.Resolution, from, to)
+	return dbpool.RetryRead(ctx, func(ctx context.Context) (Series, error) {
+		rows, err := r.db.QueryContext(ctx, buildQuery(query.Resolution, table), query.DeviceID, from, to, query.Limit)
+		if err != nil {
+			return Series{}, fmt.Errorf("query telemetry rollup range: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+		return scanSeriesRows(rows, query.DeviceID, query.Resolution, from, to)
+	})
 }
 
 func (r *PostgresReader) QueryRangeMany(ctx context.Context, query AggregateRangeQuery) (Series, error) {
@@ -89,17 +92,18 @@ func (r *PostgresReader) QueryRangeMany(ctx context.Context, query AggregateRang
 	}
 
 	sqlQuery, args := buildAggregateQuery(query.Resolution, table, deviceIDs, from, to, query.Limit)
-	rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return Series{}, fmt.Errorf("query aggregated telemetry rollup range: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
 	aggregateID := strings.TrimSpace(query.AggregateID)
 	if aggregateID == "" {
 		aggregateID = "all"
 	}
-	return scanSeriesRows(rows, aggregateID, query.Resolution, from, to)
+	return dbpool.RetryRead(ctx, func(ctx context.Context) (Series, error) {
+		rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
+		if err != nil {
+			return Series{}, fmt.Errorf("query aggregated telemetry rollup range: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+		return scanSeriesRows(rows, aggregateID, query.Resolution, from, to)
+	})
 }
 
 func (r *PostgresReader) QueryPVPortHistory(ctx context.Context, query PVPortHistoryQuery) ([]PVPortHistory, error) {
@@ -117,41 +121,43 @@ func (r *PostgresReader) QueryPVPortHistory(ctx context.Context, query PVPortHis
 		return nil, ErrInvalidRange
 	}
 	sqlQuery, args := buildPVPortHistoryQuery(table, deviceIDs, from, to)
-	rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query pv-port history rollups: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	out := make([]PVPortHistory, 0, 16)
-	for rows.Next() {
-		var (
-			row                  PVPortHistory
-			lastObservedAtUnixMS sql.NullInt64
-		)
-		if err := rows.Scan(
-			&row.DeviceID,
-			&row.PortID,
-			&row.PortLabel,
-			&row.MaxObservedVolts,
-			&row.MaxObservedAmps,
-			&row.MaxObservedWatts,
-			&row.LastObservedVolts,
-			&row.LastObservedAmps,
-			&row.LastObservedWatts,
-			&lastObservedAtUnixMS,
-			&row.SampleCount,
-		); err != nil {
-			return nil, fmt.Errorf("scan pv-port history row: %w", err)
+	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]PVPortHistory, error) {
+		rows, err := r.db.QueryContext(ctx, sqlQuery, args...)
+		if err != nil {
+			return nil, fmt.Errorf("query pv-port history rollups: %w", err)
 		}
-		if lastObservedAtUnixMS.Valid && lastObservedAtUnixMS.Int64 > 0 {
-			row.LastObservedAt = time.UnixMilli(lastObservedAtUnixMS.Int64).UTC()
+		defer func() { _ = rows.Close() }()
+		out := make([]PVPortHistory, 0, 16)
+		for rows.Next() {
+			var (
+				row                  PVPortHistory
+				lastObservedAtUnixMS sql.NullInt64
+			)
+			if err := rows.Scan(
+				&row.DeviceID,
+				&row.PortID,
+				&row.PortLabel,
+				&row.MaxObservedVolts,
+				&row.MaxObservedAmps,
+				&row.MaxObservedWatts,
+				&row.LastObservedVolts,
+				&row.LastObservedAmps,
+				&row.LastObservedWatts,
+				&lastObservedAtUnixMS,
+				&row.SampleCount,
+			); err != nil {
+				return nil, fmt.Errorf("scan pv-port history row: %w", err)
+			}
+			if lastObservedAtUnixMS.Valid && lastObservedAtUnixMS.Int64 > 0 {
+				row.LastObservedAt = time.UnixMilli(lastObservedAtUnixMS.Int64).UTC()
+			}
+			out = append(out, row)
 		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate pv-port history rows: %w", err)
-	}
-	return out, nil
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate pv-port history rows: %w", err)
+		}
+		return out, nil
+	})
 }
 
 func scanSeriesRows(rows *sql.Rows, deviceID string, resolution Resolution, from, to time.Time) (Series, error) {

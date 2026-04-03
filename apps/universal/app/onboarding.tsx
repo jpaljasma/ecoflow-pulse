@@ -7,6 +7,7 @@ import { useCurrentUser } from '@/features/profile/hooks';
 import { resolveUserDisplayName } from '@/features/profile/model';
 import { useAuthSession } from '@/features/auth/hooks';
 import { AppMenu } from '@/shared/ui/AppMenu';
+import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { Card } from '@/shared/ui/Card';
@@ -14,6 +15,7 @@ import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { TopBar } from '@/shared/ui/TopBar';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
+import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 
 const ONBOARDING_STEPS = [
   {
@@ -41,6 +43,7 @@ const ONBOARDING_STEPS = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const semantics = useThemeSemantics();
+  const { horizontalPadding, isSidebarMode, layoutMaxWidth } = usePageLayoutMetrics();
   const { authReady, allowed, waiting } = useRequireAuth();
   const { token, authKey } = useAuthSession();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
@@ -68,15 +71,23 @@ export default function OnboardingScreen() {
 
   return (
     <Animated.View style={containerStyle}>
-      <YStack flex={1} backgroundColor="$background" padding="$4" gap="$4">
+      <YStack flex={1} backgroundColor="$background" paddingHorizontal={horizontalPadding} paddingVertical="$4" gap="$4">
         <TopBar
-          left={<CloseToHomeButton onClose={closeToHome} />}
+          left={isSidebarMode ? undefined : <CloseToHomeButton onClose={closeToHome} />}
+          eyebrow={(
+            <BreadcrumbTrail
+              items={[
+                { label: 'Home', href: '/devices', icon: 'home-outline', hideLabel: true },
+                { label: 'Onboarding', current: true }
+              ]}
+            />
+          )}
           title={<BrandLogo compact dense onPress={() => router.push('/devices')} />}
           subtitle="Onboarding wizard template"
           right={<AppMenu />}
         />
-        <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-          <YStack gap="$4" width="100%" maxWidth={960} alignSelf="center">
+        <ScrollView contentContainerStyle={{ paddingBottom: 24, alignItems: 'center' }}>
+          <YStack gap="$4" width="100%" maxWidth={Math.min(layoutMaxWidth, 960)} alignSelf="center">
             <Card
               gap="$3"
               style={{

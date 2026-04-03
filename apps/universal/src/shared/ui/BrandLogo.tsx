@@ -1,7 +1,6 @@
-import { Image, Platform, Pressable } from 'react-native';
+import { Image, Pressable } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
-import { getBundledBrandWordmark } from '@/shared/assets/brandBundled';
-import { useAppTheme } from '@/shared/theme/useAppTheme';
+import appIcon from '../../../assets/icon.png';
 
 export function BrandLogo({
   compact = false,
@@ -12,25 +11,21 @@ export function BrandLogo({
   dense?: boolean;
   onPress?: () => void;
 }) {
-  const { isDark } = useAppTheme();
-  const theme = isDark ? 'dark' : 'light';
-  const logoWidth = dense ? 122 : compact ? 150 : 210;
-  const logoHeight = dense ? 22 : compact ? 26 : 36;
-  const pulseSize = logoHeight;
-  const logoSrc = getBundledBrandWordmark(theme);
+  const iconSize = dense ? 24 : compact ? 30 : 40;
+  const pulseSize = dense ? 26 : compact ? 32 : 42;
 
   const content = (
-    <XStack alignItems="center" gap="$2">
+    <XStack alignItems="center" gap="$3">
       <YStack
-        width={logoWidth}
-        height={logoHeight}
+        width={iconSize}
+        height={iconSize}
         alignItems="center"
         justifyContent="center"
         overflow="hidden"
       >
         <Image
-          source={logoSrc}
-          style={{ width: logoWidth, height: logoHeight }}
+          source={appIcon}
+          style={{ width: iconSize, height: iconSize, borderRadius: iconSize * 0.28 }}
           resizeMode="contain"
         />
       </YStack>
@@ -39,10 +34,7 @@ export function BrandLogo({
         fontSize={pulseSize}
         lineHeight={pulseSize}
         fontWeight="800"
-        fontStyle="italic"
         letterSpacing={-0.7}
-        paddingLeft={dense ? 8 : 12}
-        style={Platform.OS === 'web' ? ({ fontSize: '2em' } as any) : undefined}
       >
         Pulse
       </Text>

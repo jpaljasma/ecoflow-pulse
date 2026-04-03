@@ -42,6 +42,7 @@ This project uses the Diataxis framework for documentation structure.
 
 - [`explanation/architecture.md`](explanation/architecture.md)
 - [`explanation/telemetry-and-estimation.md`](explanation/telemetry-and-estimation.md)
+- [`explanation/ui-visual-system.md`](explanation/ui-visual-system.md)
 
 ## Recommended Reading Order
 

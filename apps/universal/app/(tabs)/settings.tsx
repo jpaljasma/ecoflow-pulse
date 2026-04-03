@@ -1,28 +1,25 @@
 import { useRouter } from 'expo-router';
-import { Animated, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { KeycloakPkceCard } from '@/features/auth/KeycloakPkceCard';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
+import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { TopBar } from '@/shared/ui/TopBar';
 import { Card } from '@/shared/ui/Card';
-import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { themeFamilyOptions } from '@/shared/theme/catalog';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeStore } from '@/shared/theme/store';
+import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { compactHeader, horizontalPadding, isDesktop, isSidebarMode, isTablet, layoutMaxWidth } = usePageLayoutMetrics();
   const { allowed, waiting } = useRequireAuth();
-  const compactHeader = width < 430;
-  const isTablet = width >= 768;
-  const isDesktop = width >= 1120;
-  const horizontalPadding = isDesktop ? '$7' : isTablet ? '$5' : '$4';
-  const layoutMaxWidth = isDesktop ? 1180 : 980;
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const themeFamily = useThemeStore((state) => state.family);
   const setThemeFamily = useThemeStore((state) => state.setFamily);
@@ -43,8 +40,24 @@ export default function SettingsScreen() {
         gap="$4"
       >
         <TopBar
-          left={<CloseToHomeButton onClose={closeToHome} />}
-          title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
+          left={isSidebarMode ? undefined : <CloseToHomeButton onClose={closeToHome} />}
+          eyebrow={(
+            <BreadcrumbTrail
+              items={[
+                {
+                  label: 'Home',
+                  href: '/(tabs)/devices',
+                  icon: 'home-variant-outline',
+                  hideLabel: true
+                },
+                {
+                  label: 'Settings',
+                  current: true
+                }
+              ]}
+            />
+          )}
+          title="Settings"
           subtitle="Configuration and diagnostics"
           titleFlex={compactHeader ? 1 : 3}
           rightFlex={compactHeader ? 0 : 1}
@@ -61,6 +74,46 @@ export default function SettingsScreen() {
         >
           <YStack gap="$4" width="100%" maxWidth={layoutMaxWidth}>
             <KeycloakPkceCard />
+            <Card
+              gap="$3"
+              padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}
+              backgroundColor="$backgroundElevated"
+            >
+              <XStack justifyContent="space-between" alignItems="flex-start" gap="$4" flexWrap="wrap">
+                <YStack gap="$2" maxWidth={760} flex={1}>
+                  <XStack alignItems="center" gap="$3">
+                    <YStack
+                      width={44}
+                      height={44}
+                      borderRadius="$4"
+                      alignItems="center"
+                      justifyContent="center"
+                      backgroundColor="$backgroundHover"
+                      borderWidth={1}
+                      borderColor="$borderColor"
+                    >
+                      <MaterialCommunityIcons name="connection" size={22} color={spec.colors.accentColor} />
+                    </YStack>
+                    <YStack gap="$1">
+                      <Text fontSize={isTablet ? '$6' : '$5'} fontWeight="800" letterSpacing={-0.2}>
+                        Integration Settings
+                      </Text>
+                      <Text color="$colorMuted" opacity={0.94} fontSize="$3" lineHeight={22}>
+                        Manage provider credentials, rotate EcoFlow keys, and validate MQTT before activation.
+                      </Text>
+                    </YStack>
+                  </XStack>
+                </YStack>
+                <Button
+                  size="$4"
+                  themeInverse
+                  onPress={() => router.push('/settings/integrations')}
+                  icon={<MaterialCommunityIcons name="arrow-right" size={18} color="#f8fffb" />}
+                >
+                  Open
+                </Button>
+              </XStack>
+            </Card>
             <Card
               gap="$4"
               padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}

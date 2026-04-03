@@ -20,6 +20,7 @@ const (
 	defaultPollInterval               = 5 * time.Second
 	defaultPollJitter                 = 0.20
 	defaultStopTimeout                = 8 * time.Second
+	defaultCredentialRejectCooldown   = 5 * time.Minute
 	defaultLeaseMissingAlertWindow    = 5 * time.Minute
 	defaultLeaseMissingAlertThreshold = 4
 	defaultLeaseMissingAlertCooldown  = 2 * time.Minute
@@ -51,6 +52,7 @@ type Config struct {
 	StopTimeout                time.Duration
 	StartWorkers               int
 	StartQueueSize             int
+	CredentialRejectCooldown   time.Duration
 	LeaseMissingAlertWindow    time.Duration
 	LeaseMissingAlertThreshold int
 	LeaseMissingAlertCooldown  time.Duration
@@ -66,6 +68,7 @@ func DefaultConfig(workerID string) Config {
 		StopTimeout:                defaultStopTimeout,
 		StartWorkers:               workers,
 		StartQueueSize:             RecommendedStartQueueSize(workers),
+		CredentialRejectCooldown:   defaultCredentialRejectCooldown,
 		LeaseMissingAlertWindow:    defaultLeaseMissingAlertWindow,
 		LeaseMissingAlertThreshold: defaultLeaseMissingAlertThreshold,
 		LeaseMissingAlertCooldown:  defaultLeaseMissingAlertCooldown,
@@ -104,13 +107,14 @@ type Loop struct {
 	runner SessionRunner
 	cfg    Config
 
-	mu      sync.Mutex
-	rng     *mathrand.Rand
-	running map[string]*runningSession
-	tokenID atomic.Uint64
-	tokenNS string
-	termCh  chan terminationEvent
-	runDone chan struct{}
+	mu                    sync.Mutex
+	rng                   *mathrand.Rand
+	running               map[string]*runningSession
+	credentialRejectUntil map[string]time.Time
+	tokenID               atomic.Uint64
+	tokenNS               string
+	termCh                chan terminationEvent
+	runDone               chan struct{}
 
 	leaseMissingTracker *reconnectRateTracker
 	autoscaleMetrics    *AutoscaleMetrics
@@ -159,6 +163,9 @@ func NewLoop(log *slog.Logger, store AssignmentStore, leases LeaseManager, runne
 	if cfg.StartQueueSize == 0 {
 		cfg.StartQueueSize = RecommendedStartQueueSize(cfg.StartWorkers)
 	}
+	if cfg.CredentialRejectCooldown <= 0 {
+		cfg.CredentialRejectCooldown = defaultCredentialRejectCooldown
+	}
 	if cfg.LeaseMissingAlertWindow <= 0 {
 		cfg.LeaseMissingAlertWindow = defaultLeaseMissingAlertWindow
 	}
@@ -170,16 +177,17 @@ func NewLoop(log *slog.Logger, store AssignmentStore, leases LeaseManager, runne
 	}
 
 	return &Loop{
-		log:     log,
-		store:   store,
-		leases:  leases,
-		runner:  runner,
-		cfg:     cfg,
-		rng:     mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
-		running: make(map[string]*runningSession),
-		tokenNS: cfg.WorkerID + "-",
-		termCh:  make(chan terminationEvent, defaultTermQueueCap),
-		runDone: make(chan struct{}),
+		log:                   log,
+		store:                 store,
+		leases:                leases,
+		runner:                runner,
+		cfg:                   cfg,
+		rng:                   mathrand.New(mathrand.NewSource(time.Now().UnixNano())),
+		running:               make(map[string]*runningSession),
+		credentialRejectUntil: make(map[string]time.Time),
+		tokenNS:               cfg.WorkerID + "-",
+		termCh:                make(chan terminationEvent, defaultTermQueueCap),
+		runDone:               make(chan struct{}),
 		leaseMissingTracker: newReconnectRateTracker(
 			cfg.LeaseMissingAlertWindow,
 			cfg.LeaseMissingAlertThreshold,
@@ -255,6 +263,7 @@ func (l *Loop) reconcile(ctx context.Context) error {
 	for key, running := range l.running {
 		idx, exists := latest[key]
 		if !exists {
+			delete(l.credentialRejectUntil, key)
 			l.stopSessionLocked(key, running)
 			stopEvents = append(stopEvents, stopEvent{key: key, reason: "assignment_missing"})
 			continue
@@ -262,11 +271,13 @@ func (l *Loop) reconcile(ctx context.Context) error {
 		a := assignments[idx]
 		if !shouldRun(a) {
 			reason := stopReason(a)
+			delete(l.credentialRejectUntil, key)
 			l.stopSessionLocked(key, running)
 			stopEvents = append(stopEvents, stopEvent{key: key, reason: reason})
 			continue
 		}
 		if !sameRuntimeAssignment(running.assignment, a) {
+			delete(l.credentialRejectUntil, key)
 			l.stopSessionLocked(key, running)
 			stopEvents = append(stopEvents, stopEvent{key: key, reason: "assignment_updated"})
 			continue
@@ -284,13 +295,23 @@ func (l *Loop) reconcile(ctx context.Context) error {
 	}
 
 	toStart := make([]controlplane.IngestAssignment, 0, len(latest))
+	now := time.Now()
+	l.mu.Lock()
 	for _, idx := range latest {
 		a := assignments[idx]
 		if !shouldRun(a) {
 			continue
 		}
+		key := assignmentKey(a.Provider, a.ProviderDeviceID)
+		if until, ok := l.credentialRejectUntil[key]; ok {
+			if until.After(now) {
+				continue
+			}
+			delete(l.credentialRejectUntil, key)
+		}
 		toStart = append(toStart, a)
 	}
+	l.mu.Unlock()
 	if l.autoscaleMetrics != nil {
 		l.autoscaleMetrics.SetUnassignedActiveDevices(len(toStart))
 	}
@@ -363,6 +384,17 @@ func (l *Loop) startSessions(ctx context.Context, assignments []controlplane.Ing
 }
 
 func (l *Loop) startSession(ctx context.Context, a controlplane.IngestAssignment) {
+	key := assignmentKey(a.Provider, a.ProviderDeviceID)
+	l.mu.Lock()
+	if until, ok := l.credentialRejectUntil[key]; ok {
+		if until.After(time.Now()) {
+			l.mu.Unlock()
+			return
+		}
+		delete(l.credentialRejectUntil, key)
+	}
+	l.mu.Unlock()
+
 	token := l.nextToken()
 
 	acquireStarted := time.Now()
@@ -417,7 +449,6 @@ func (l *Loop) startSession(ctx context.Context, a controlplane.IngestAssignment
 	}()
 
 	l.mu.Lock()
-	key := assignmentKey(a.Provider, a.ProviderDeviceID)
 	if existing, exists := l.running[key]; exists {
 		l.stopSessionLocked(key, existing)
 	}
@@ -471,6 +502,20 @@ func (l *Loop) handleTerminationEvent(evt terminationEvent) {
 	}
 
 	if err != nil && !errors.Is(err, context.Canceled) {
+		if errors.Is(err, ErrEcoFlowCredentialRejected) {
+			retryAt := time.Now().Add(l.cfg.CredentialRejectCooldown)
+			l.mu.Lock()
+			l.credentialRejectUntil[evt.key] = retryAt
+			l.mu.Unlock()
+			l.log.Warn("ingest session cooling down after provider credential rejection",
+				slog.String("key", evt.key),
+				slog.String("source", source),
+				slog.String("error", err.Error()),
+				slog.Duration("cooldown", l.cfg.CredentialRejectCooldown),
+				slog.Time("retry_at", retryAt.UTC()),
+			)
+			return
+		}
 		if source == "heartbeat" && ingestlease.IsLeaseRenewMissing(err) {
 			count, perMinute, spike := l.leaseMissingTracker.Record(time.Now().UTC())
 			l.log.Warn("ingest session terminated with lease-missing heartbeat error",

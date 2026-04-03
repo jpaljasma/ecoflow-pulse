@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
-	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 )
 
 func TestEcoFlowAdapterGetMQTTCertificationSeededSNsIntegration(t *testing.T) {
@@ -29,11 +28,10 @@ func TestEcoFlowAdapterGetMQTTCertificationSeededSNsIntegration(t *testing.T) {
 		seedSNs = []string{"DEMOD2M00001057", "DEMODPU0000294"}
 	}
 
-	cfg := ecoflow.DefaultConfig()
-	cfg.Logging.Debug = false
-	cfg.Logging.AdvancedDebugTelemetry = false
-	cfg.Logging.DebugLogHeaders = false
-	cfg.Logging.Logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	cfg, err := EcoFlowRuntimeConfig(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	if err != nil {
+		t.Fatalf("EcoFlowRuntimeConfig() failed: %v", err)
+	}
 	adapter := NewEcoFlowAdapter(NewDefaultEcoFlowClientFactory(cfg))
 	credential := controlplane.ProviderCredential{
 		ID:        "dev-seed",

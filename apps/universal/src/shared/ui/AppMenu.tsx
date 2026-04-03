@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Image, Platform, ScrollView } from 'react-native';
-import { Button, Text, XStack, YStack } from 'tamagui';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Button, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { LogoutButton } from '@/features/auth/LogoutButton';
 import { useCurrentUser } from '@/features/profile/hooks';
@@ -10,8 +11,9 @@ import { useProfileWeather } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Sheet } from '@/shared/ui/Sheet';
-import { getBundledBrandMark } from '@/shared/assets/brandBundled';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
+import appIcon from '../../../assets/icon.png';
 
 function describeQueryError(error: unknown): string | undefined {
   if (!error) {
@@ -30,8 +32,8 @@ export function AppMenu({
   const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const { token, authKey, authReady } = useAuthSession();
-  const { isDark } = useAppTheme();
-  const menuMark = getBundledBrandMark(isDark ? 'dark' : 'light');
+  const semantics = useThemeSemantics();
+  const { spec } = useAppTheme();
   const currentUserQuery = useCurrentUser({
     token,
     authKey,
@@ -81,18 +83,20 @@ export function AppMenu({
           paddingHorizontal="$0"
           paddingVertical="$0"
           alignSelf="flex-start"
-          backgroundColor="rgba(120,120,128,0.16)"
-          borderColor="rgba(120,120,128,0.45)"
           borderWidth={1}
           borderRadius={23}
           alignItems="center"
           justifyContent="center"
           pressStyle={{ opacity: 0.85 }}
-          style={Platform.OS === 'web' ? ({ paddingTop: 0, paddingBottom: 0 } as any) : undefined}
+          style={{
+            backgroundColor: semantics.mutedPanelBackground,
+            borderColor: semantics.mutedPanelBorder,
+            ...(Platform.OS === 'web' ? ({ paddingTop: 0, paddingBottom: 0 } as any) : {})
+          }}
           aria-label="Open menu"
         >
           <XStack width={26} height={26} alignItems="center" justifyContent="center">
-            <Image source={menuMark} style={{ width: 20, height: 20 }} resizeMode="contain" />
+            <Image source={appIcon} style={{ width: 20, height: 20, borderRadius: 6 }} resizeMode="contain" />
           </XStack>
         </Button>
       </XStack>
@@ -170,14 +174,14 @@ export function AppMenu({
           </ScrollView>
 
           <YStack gap="$3" paddingTop="$3">
-            <XStack height={1} backgroundColor="rgba(120,120,128,0.28)" />
+            <XStack height={1} style={{ backgroundColor: semantics.railBorder }} />
             <XStack alignItems="center" gap="$2" width="100%" maxWidth={360}>
               <AppTextInput
                 flex={1}
                 value={searchText}
                 onChangeText={setSearchText}
                 placeholder="Search"
-                placeholderTextColor="#a8adb8"
+                placeholderTextColor={spec.colors.colorMuted}
               />
               <XStack
                 width={52}
@@ -185,12 +189,13 @@ export function AppMenu({
                 alignItems="center"
                 justifyContent="center"
                 borderWidth={1}
-                borderColor="rgba(120,120,128,0.3)"
                 borderRadius={20}
+                style={{
+                  backgroundColor: semantics.sectionBackgroundStrong,
+                  borderColor: semantics.sectionBorder
+                }}
               >
-                <Text fontSize="$8">
-                  ⌕
-                </Text>
+                <MaterialCommunityIcons name="magnify" size={22} color={semantics.subtleStrongText} />
               </XStack>
             </XStack>
           </YStack>

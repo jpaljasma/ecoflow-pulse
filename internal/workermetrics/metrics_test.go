@@ -67,6 +67,50 @@ func TestStartServerMarksReadyFalseOnDrain(t *testing.T) {
 	t.Fatal("metrics server did not enter draining readiness state")
 }
 
+func TestStartServerDrainEndpointMarksReadyFalse(t *testing.T) {
+	t.Parallel()
+
+	metrics := New("test")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop := StartServer(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), metrics.Registry(), "127.0.0.1:19113")
+	defer stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://127.0.0.1:19113/readyz")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				break
+			}
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:19113/drainz", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST /drainz error = %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /drainz status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp, err = http.Get("http://127.0.0.1:19113/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz after drain error = %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("GET /readyz after drain status = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	}
+}
+
 func BenchmarkMetricsStartMessage(b *testing.B) {
 	metrics := New("bench")
 	b.ReportAllocs()

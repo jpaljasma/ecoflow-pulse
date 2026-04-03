@@ -32,10 +32,11 @@ test.describe('Energy route web E2E', () => {
     await expect(page.getByText('Storm Guard active for ~2h more', { exact: true })).toBeVisible();
     await expect(page.getByText('Estimated value', { exact: true })).toBeVisible();
     await expect(page.getByText('State of Energy', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Energy Impact', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Panel', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Impact' })).toBeVisible();
     await expect(page.getByText('More solar freedom', { exact: true })).toBeVisible();
     await expect(page.getByText('Power profile', { exact: true })).toBeVisible();
-    await expect(page.getByText('Energy history', { exact: true })).toBeVisible();
+    await expect(page.getByText('Energy balance', { exact: true })).toBeVisible();
     await expect(page.getByText('PV operating envelope', { exact: true })).toBeVisible();
     await expect(page.getByText('Battery flow', { exact: true })).toBeVisible();
     await expect(page.getByText('Flow strip', { exact: true })).toBeVisible();
@@ -44,13 +45,12 @@ test.describe('Energy route web E2E', () => {
     await expandSolarAgainstLoadControls(page);
     await expect(page.getByRole('button', { name: 'All devices' })).toBeVisible();
     await expect(page.getByText('Battery', { exact: true })).toBeVisible();
-    await expect(page.getByText('Current period uses solid lines. Previous period uses lighter overlays.', { exact: true })).toBeVisible();
     await expect(page.getByText('Current points: 3 · Previous points: 2', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('AC input', { exact: true })).toBeVisible();
-    await expect(page.getByText('AC output', { exact: true })).toBeVisible();
-    await expect(page.getByText('DC output', { exact: true })).toBeVisible();
-    await expect(page.getByText('Battery charge', { exact: true })).toBeVisible();
-    await expect(page.getByText('Battery discharge', { exact: true })).toBeVisible();
+    await expect(page.getByText('Grid in', { exact: true })).toBeVisible();
+    await expect(page.getByText('AC out', { exact: true })).toBeVisible();
+    await expect(page.getByText('DC out', { exact: true })).toBeVisible();
+    await expect(page.getByText('Charge', { exact: true })).toBeVisible();
+    await expect(page.getByText('Discharge', { exact: true })).toBeVisible();
     await expect(
       page.getByText('Using minute buckets in UTC for current-period diagnostics.', { exact: true })
     ).toBeVisible();

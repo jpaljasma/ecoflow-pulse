@@ -17,19 +17,48 @@ export function useThemeSemantics() {
     const neutralBase = isDark ? spec.colors.colorMuted : spec.colors.borderColor;
     const solar = spec.semantic.solar;
     const info = spec.semantic.info;
+    const elevated = spec.colors.backgroundElevated;
     const solarBadgeBase = isDark
-      ? mix(spec.colors.backgroundElevated, solar, 0.12)
-      : mix(spec.colors.backgroundElevated, solar, 0.06);
+      ? mix(elevated, solar, 0.12)
+      : mix(elevated, solar, 0.06);
 
     return {
       mutedPanelBackground: withAlpha(neutralBase, isDark ? 0.14 : 0.12),
       mutedPanelBorder: withAlpha(neutralBase, isDark ? 0.3 : 0.26),
+      surfaceRaised: isDark ? mix(elevated, '#000000', 0.08) : mix(elevated, '#ffffff', 0.3),
+      surfaceRaisedBorder: withAlpha(spec.colors.borderColor, isDark ? 0.88 : 0.74),
       sectionBorder: spec.colors.borderColor,
       sectionBackground: spec.colors.backgroundHover,
+      sectionBackgroundStrong: isDark ? mix(spec.colors.backgroundHover, '#ffffff', 0.02) : mix(spec.colors.backgroundHover, '#ffffff', 0.4),
       subtleText: spec.colors.colorMuted,
       subtleStrongText: mix(spec.colors.colorMuted, spec.colors.color, isDark ? 0.24 : 0.38),
       energyCardBackground: withAlpha(spec.colors.accentColor, isDark ? 0.1 : 0.08),
       energyCardBorder: withAlpha(spec.colors.accentColor, isDark ? 0.42 : 0.38),
+      heroBackground: isDark
+        ? `linear-gradient(135deg, ${withAlpha('#142238', 0.98)} 0%, ${withAlpha('#0f1724', 1)} 46%, ${withAlpha('#111d2d', 1)} 100%)`
+        : `linear-gradient(135deg, ${withAlpha('#f9fbff', 1)} 0%, ${withAlpha('#eef4fb', 1)} 46%, ${withAlpha('#e7eef9', 1)} 100%)`,
+      heroGlow: withAlpha(solar, isDark ? 0.18 : 0.1),
+      heroAccent: emphasize(spec.colors.accentColor, isDark ? 0.28 : 0.06),
+      heroBorder: withAlpha(spec.colors.accentColor, isDark ? 0.26 : 0.22),
+      tileBackground: isDark ? mix(elevated, '#ffffff', 0.015) : mix(elevated, '#ffffff', 0.65),
+      tileBorder: withAlpha(spec.colors.borderColor, isDark ? 0.74 : 0.72),
+      railBackground: isDark ? mix(spec.colors.background, '#000000', 0.14) : mix(spec.colors.background, '#ffffff', 0.1),
+      railBorder: withAlpha(spec.colors.borderColor, isDark ? 0.76 : 0.72),
+      navBrandBackground: withAlpha(spec.colors.accentColor, isDark ? 0.16 : 0.1),
+      navBrandBorder: withAlpha(spec.colors.accentColor, isDark ? 0.34 : 0.26),
+      navSectionLabel: mix(spec.colors.colorMuted, spec.colors.color, isDark ? 0.2 : 0.3),
+      navToggleBackground: withAlpha(neutralBase, isDark ? 0.12 : 0.08),
+      navToggleBorder: withAlpha(neutralBase, isDark ? 0.3 : 0.24),
+      navItemActiveBackground: withAlpha(spec.colors.accentColor, isDark ? 0.16 : 0.1),
+      navItemActiveBorder: withAlpha(spec.colors.accentColor, isDark ? 0.34 : 0.24),
+      navItemHoverBackground: withAlpha(spec.colors.colorMuted, isDark ? 0.1 : 0.08),
+      navItemHoverBorder: withAlpha(spec.colors.borderColor, isDark ? 0.32 : 0.24),
+      navItemActiveIconBackground: withAlpha(spec.colors.accentColor, isDark ? 0.22 : 0.16),
+      navItemIdleIconBackground: withAlpha(neutralBase, isDark ? 0.16 : 0.1),
+      navItemActiveText: mix(spec.colors.color, spec.colors.accentColor, isDark ? 0.1 : 0.18),
+      navItemActiveSubtleText: mix(spec.colors.colorMuted, spec.colors.accentColor, isDark ? 0.26 : 0.3),
+      navItemIdleText: spec.colors.colorMuted,
+      navItemIndicator: emphasize(spec.colors.accentColor, isDark ? 0.42 : 0.18),
       energyLeafBackground: withAlpha(spec.semantic.air, isDark ? 0.18 : 0.14),
       energyLeafBorder: withAlpha(spec.semantic.air, isDark ? 0.36 : 0.3),
       energyLeafText: emphasize(spec.semantic.air, isDark),
@@ -63,6 +92,7 @@ export function useThemeSemantics() {
       chartGridMinor: withAlpha(spec.colors.color, isDark ? 0.075 : 0.065),
       chartSelectionRingSoft: withAlpha(spec.colors.color, isDark ? 0.45 : 0.36),
       chartSelectionRingStrong: withAlpha(spec.colors.color, isDark ? 0.58 : 0.48),
+      chartCompareLine: withAlpha(spec.colors.color, isDark ? 0.54 : 0.46),
       chartSolar: spec.semantic.solar,
       chartSolarMuted: withAlpha(spec.semantic.solar, 0.72),
       chartSolarCrosshair: withAlpha(spec.semantic.solar, isDark ? 0.32 : 0.28),

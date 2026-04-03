@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { XStack } from 'tamagui';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 import { getPowerFlowIconNames } from '@/shared/ui/statusGlyph';
 
 export type PowerFlowGlyphProps = {
@@ -23,6 +24,7 @@ export function PowerFlowGlyph({
   opacity = 1
 }: PowerFlowGlyphProps) {
   const glyphParts = getPowerFlowIconNames({ stale, status, pvW, loadW });
+  const semantics = useThemeSemantics();
   const adjustedLineHeight = Math.max(lineHeight, 34);
   const iconSize =
     typeof fontSize === 'number'
@@ -42,7 +44,7 @@ export function PowerFlowGlyph({
           key={`${glyph}-${index}`}
           name={glyph}
           size={iconSize}
-          color="rgba(28, 43, 45, 0.92)"
+          color={semantics.subtleStrongText}
           style={Platform.OS === 'ios' ? ({ paddingTop: 2, lineHeight: adjustedLineHeight } as any) : undefined}
         />
       ))}

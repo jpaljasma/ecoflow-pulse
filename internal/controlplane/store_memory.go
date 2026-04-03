@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sort"
@@ -126,7 +127,16 @@ func (s *MemoryStore) CreateProviderCredential(_ context.Context, in CreateProvi
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
+	if s.providerAccessKeyExistsLocked(row.Provider, HashAccessKey(in.AccessKey), "") {
+		return ProviderCredential{}, ErrCredentialAlreadyExists
+	}
+	if row.IsActive {
+		s.setExclusiveCredentialActiveLocked(userID, row.Provider, row.ID, now)
+	}
 	s.credentials[row.ID] = row
+	if row.IsActive {
+		s.rebindProviderDevicesLocked(userID, row.Provider, row.ID, now)
+	}
 	return row, nil
 }
 
@@ -173,8 +183,46 @@ func (s *MemoryStore) SetProviderCredentialActive(_ context.Context, in SetProvi
 		return ProviderCredential{}, ErrCredentialNotFound
 	}
 	row.IsActive = in.IsActive
-	row.UpdatedAt = normalizeWriteTime(s.now())
+	now := normalizeWriteTime(s.now())
+	row.UpdatedAt = now
+	if in.IsActive {
+		s.setExclusiveCredentialActiveLocked(userID, row.Provider, row.ID, now)
+	}
 	s.credentials[row.ID] = row
+	if in.IsActive {
+		s.rebindProviderDevicesLocked(userID, row.Provider, row.ID, now)
+	}
+	return row, nil
+}
+
+func (s *MemoryStore) UpdateProviderCredential(_ context.Context, in UpdateProviderCredentialInput) (ProviderCredential, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return ProviderCredential{}, ErrCredentialNotFound
+	}
+	row, ok := s.credentials[in.CredentialID]
+	if !ok || row.UserID != userID {
+		return ProviderCredential{}, ErrCredentialNotFound
+	}
+	now := normalizeWriteTime(s.now())
+	row.AccessKey = in.AccessKey
+	row.SecretKey = in.SecretKey
+	row.AccessKeyMask = MaskAccessKey(in.AccessKey)
+	row.IsActive = in.IsActive
+	row.UpdatedAt = now
+	if s.providerAccessKeyExistsLocked(row.Provider, HashAccessKey(in.AccessKey), row.ID) {
+		return ProviderCredential{}, ErrCredentialAlreadyExists
+	}
+	if row.IsActive {
+		s.setExclusiveCredentialActiveLocked(userID, row.Provider, row.ID, now)
+	}
+	s.credentials[row.ID] = row
+	if row.IsActive {
+		s.rebindProviderDevicesLocked(userID, row.Provider, row.ID, now)
+	}
 	return row, nil
 }
 
@@ -191,6 +239,53 @@ func (s *MemoryStore) GetProviderCredential(_ context.Context, userSubject strin
 		return ProviderCredential{}, ErrCredentialNotFound
 	}
 	return row, nil
+}
+
+func (s *MemoryStore) setExclusiveCredentialActiveLocked(userID, provider, credentialID string, now time.Time) {
+	for id, cred := range s.credentials {
+		if cred.UserID != userID || cred.Provider != provider {
+			continue
+		}
+		shouldBeActive := id == credentialID
+		if cred.IsActive == shouldBeActive {
+			continue
+		}
+		cred.IsActive = shouldBeActive
+		cred.UpdatedAt = now
+		s.credentials[id] = cred
+	}
+}
+
+func (s *MemoryStore) rebindProviderDevicesLocked(userID, provider, credentialID string, now time.Time) {
+	for id, device := range s.providerDevices {
+		if NormalizeProvider(device.Provider) != provider {
+			continue
+		}
+		credential, ok := s.credentials[device.CredentialID]
+		if !ok || credential.UserID != userID || credential.Provider != provider {
+			continue
+		}
+		if device.CredentialID == credentialID {
+			continue
+		}
+		device.CredentialID = credentialID
+		s.providerDevices[id] = device
+	}
+}
+
+func (s *MemoryStore) providerAccessKeyExistsLocked(provider string, accessKeyHash []byte, excludeCredentialID string) bool {
+	for id, cred := range s.credentials {
+		if id == excludeCredentialID {
+			continue
+		}
+		if cred.Provider != provider {
+			continue
+		}
+		if bytes.Equal(HashAccessKey(cred.AccessKey), accessKeyHash) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *MemoryStore) CreateDevice(_ context.Context, in CreateDeviceInput) (UserDevice, error) {

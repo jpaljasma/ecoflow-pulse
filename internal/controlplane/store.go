@@ -11,10 +11,11 @@ const (
 )
 
 var (
-	ErrUserNotFound       = errors.New("user not found")
-	ErrCredentialNotFound = errors.New("provider credential not found")
-	ErrDeviceNotFound     = errors.New("device not found")
-	ErrPermissionDenied   = errors.New("permission denied")
+	ErrUserNotFound            = errors.New("user not found")
+	ErrCredentialNotFound      = errors.New("provider credential not found")
+	ErrCredentialAlreadyExists = errors.New("provider credential access key already exists")
+	ErrDeviceNotFound          = errors.New("device not found")
+	ErrPermissionDenied        = errors.New("permission denied")
 )
 
 type ProviderCredential struct {
@@ -116,6 +117,14 @@ type SetProviderCredentialActiveInput struct {
 	IsActive     bool
 }
 
+type UpdateProviderCredentialInput struct {
+	UserSubject  string
+	CredentialID string
+	AccessKey    string
+	SecretKey    string
+	IsActive     bool
+}
+
 type ListProviderDevicesInput struct {
 	UserSubject string
 	Provider    string
@@ -185,6 +194,7 @@ type Store interface {
 	CreateProviderCredential(ctx context.Context, in CreateProviderCredentialInput) (ProviderCredential, error)
 	ListProviderCredentials(ctx context.Context, in ListProviderCredentialsInput) ([]ProviderCredential, error)
 	SetProviderCredentialActive(ctx context.Context, in SetProviderCredentialActiveInput) (ProviderCredential, error)
+	UpdateProviderCredential(ctx context.Context, in UpdateProviderCredentialInput) (ProviderCredential, error)
 	GetProviderCredential(ctx context.Context, userSubject string, credentialID string) (ProviderCredential, error)
 	CreateDevice(ctx context.Context, in CreateDeviceInput) (UserDevice, error)
 	LinkDevice(ctx context.Context, in LinkDeviceInput) (UserDevice, error)

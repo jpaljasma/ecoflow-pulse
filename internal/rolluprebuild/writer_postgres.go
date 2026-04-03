@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
@@ -38,6 +39,7 @@ func NewPostgresWriter(dsn string) (*PostgresWriter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse rollup rebuild postgres dsn: %w", err)
 	}
+	dbpool.ConfigurePGX(cfg)
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("open rollup rebuild postgres pool: %w", err)

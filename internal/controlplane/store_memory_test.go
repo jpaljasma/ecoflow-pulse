@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -56,6 +57,202 @@ func TestMemoryStoreCredentialCRUD(t *testing.T) {
 	}
 	if updated.IsActive {
 		t.Fatalf("expected inactive credential after update")
+	}
+}
+
+func TestMemoryStoreActivatingCredentialRebindsProviderDevices(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	store.EnsureUser("user-1")
+
+	active, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-active",
+		SecretKey:   "SK-active",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create active credential failed: %v", err)
+	}
+	standby, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-standby",
+		SecretKey:   "SK-standby",
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create standby credential failed: %v", err)
+	}
+
+	store.PutProviderDevice(ProviderDevice{
+		ID:                 "pdev-1",
+		DeviceID:           "device-1",
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "DPU-001",
+		CredentialID:       active.ID,
+		CanonicalSN:        "DPU-001",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+
+	updated, err := store.SetProviderCredentialActive(context.Background(), SetProviderCredentialActiveInput{
+		UserSubject:  "user-1",
+		CredentialID: standby.ID,
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("set provider credential active failed: %v", err)
+	}
+	if !updated.IsActive {
+		t.Fatalf("expected standby credential to become active")
+	}
+
+	creds, err := store.ListProviderCredentials(context.Background(), ListProviderCredentialsInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+	})
+	if err != nil {
+		t.Fatalf("list credentials failed: %v", err)
+	}
+	activeCount := 0
+	for _, cred := range creds {
+		if cred.IsActive {
+			activeCount++
+			if cred.ID != standby.ID {
+				t.Fatalf("unexpected active credential %q", cred.ID)
+			}
+		}
+	}
+	if activeCount != 1 {
+		t.Fatalf("expected exactly one active credential, got %d", activeCount)
+	}
+
+	assignments, err := store.ListIngestAssignments(context.Background(), ListIngestAssignmentsInput{
+		Provider:   ProviderEcoFlow,
+		ActiveOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("list ingest assignments failed: %v", err)
+	}
+	if len(assignments) != 1 {
+		t.Fatalf("expected 1 ingest assignment, got %d", len(assignments))
+	}
+	if assignments[0].CredentialID != standby.ID {
+		t.Fatalf("assignment credential=%q want %q", assignments[0].CredentialID, standby.ID)
+	}
+}
+
+func TestMemoryStoreUpdateProviderCredentialRotatesMaterialAndKeepsSingleActive(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	store.EnsureUser("user-1")
+
+	active, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-old",
+		SecretKey:   "SK-old",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create active credential failed: %v", err)
+	}
+	edited, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-edit-old",
+		SecretKey:   "SK-edit-old",
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create editable credential failed: %v", err)
+	}
+
+	store.PutProviderDevice(ProviderDevice{
+		ID:                 "pdev-1",
+		DeviceID:           "device-1",
+		Provider:           ProviderEcoFlow,
+		ProviderDeviceID:   "DPU-001",
+		CredentialID:       active.ID,
+		CanonicalSN:        "DPU-001",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+
+	updated, err := store.UpdateProviderCredential(context.Background(), UpdateProviderCredentialInput{
+		UserSubject:  "user-1",
+		CredentialID: edited.ID,
+		AccessKey:    "AK-edit-new",
+		SecretKey:    "SK-edit-new",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("update provider credential failed: %v", err)
+	}
+	if updated.AccessKeyMask != MaskAccessKey("AK-edit-new") {
+		t.Fatalf("access key mask=%q want %q", updated.AccessKeyMask, MaskAccessKey("AK-edit-new"))
+	}
+	if !updated.IsActive {
+		t.Fatalf("expected updated credential to be active")
+	}
+
+	fetched, err := store.GetProviderCredential(context.Background(), "user-1", edited.ID)
+	if err != nil {
+		t.Fatalf("get updated credential failed: %v", err)
+	}
+	if fetched.AccessKey != "AK-edit-new" || fetched.SecretKey != "SK-edit-new" {
+		t.Fatalf("updated material mismatch: access=%q secret=%q", fetched.AccessKey, fetched.SecretKey)
+	}
+
+	assignments, err := store.ListIngestAssignments(context.Background(), ListIngestAssignmentsInput{
+		Provider:   ProviderEcoFlow,
+		ActiveOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("list ingest assignments failed: %v", err)
+	}
+	if len(assignments) != 1 {
+		t.Fatalf("expected 1 ingest assignment, got %d", len(assignments))
+	}
+	if assignments[0].CredentialID != edited.ID {
+		t.Fatalf("assignment credential=%q want %q", assignments[0].CredentialID, edited.ID)
+	}
+	if assignments[0].AccessKey != "AK-edit-new" || assignments[0].SecretKey != "SK-edit-new" {
+		t.Fatalf("assignment material mismatch: access=%q secret=%q", assignments[0].AccessKey, assignments[0].SecretKey)
+	}
+}
+
+func TestMemoryStoreRejectsDuplicateProviderAccessKeysAcrossUsers(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	store.EnsureUser("user-1")
+	store.EnsureUser("user-2")
+
+	_, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-1",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-shared",
+		SecretKey:   "SK-1",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create first credential failed: %v", err)
+	}
+
+	_, err = store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "user-2",
+		Provider:    ProviderEcoFlow,
+		AccessKey:   "AK-shared",
+		SecretKey:   "SK-2",
+		IsActive:    false,
+	})
+	if !errors.Is(err, ErrCredentialAlreadyExists) {
+		t.Fatalf("duplicate create error = %v, want %v", err, ErrCredentialAlreadyExists)
 	}
 }
 

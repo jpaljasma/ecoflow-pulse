@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { Button, Spinner, Text, XStack, YStack } from 'tamagui';
 import type { AvailableDeviceSummary, DeviceMQTTTestResult } from '@/features/devices/api';
 import {
@@ -94,7 +95,38 @@ export function AvailableDevicesPanel({
 
       {activated &&
       availableQuery.data &&
+      availableQuery.data.warningMessage ? (
+        <YStack gap="$3">
+          <YStack
+            gap="$2"
+            padding="$3"
+            borderRadius="$4"
+            borderWidth={1}
+            backgroundColor="rgba(245, 158, 11, 0.10)"
+            borderColor="rgba(245, 158, 11, 0.32)"
+          >
+            <XStack alignItems="center" gap="$2">
+              <MaterialCommunityIcons name="alert-outline" size={18} color="rgba(245, 158, 11, 0.96)" />
+              <Text fontWeight="700">Connector attention needed</Text>
+            </XStack>
+            <Text color="$colorMuted">{availableQuery.data.warningMessage}</Text>
+          </YStack>
+          <XStack justifyContent="flex-end">
+            <Button
+              size="$3"
+              onPress={() => router.push('/settings/integrations')}
+              icon={<MaterialCommunityIcons name="cog-outline" size={16} color="white" />}
+            >
+              Open Integrations
+            </Button>
+          </XStack>
+        </YStack>
+      ) : null}
+
+      {activated &&
+      availableQuery.data &&
       !availableQuery.isError &&
+      !availableQuery.data.warningMessage &&
       !availableQuery.data.hasActiveCredentials ? (
         <Text color="$colorMuted">
           No active provider credentials are available yet, so there’s nothing to scan.
@@ -104,6 +136,7 @@ export function AvailableDevicesPanel({
       {activated &&
       availableQuery.data &&
       !availableQuery.isError &&
+      !availableQuery.data.warningMessage &&
       availableQuery.data.hasActiveCredentials &&
       availableQuery.data.devices.length === 0 ? (
         <Text color="$colorMuted">No unconfigured devices were found on the latest scan.</Text>

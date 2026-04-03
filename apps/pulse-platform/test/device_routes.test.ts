@@ -293,6 +293,37 @@ describe('pulse-platform device routes', () => {
     await app.close();
   });
 
+  it('degrades invalid available-device credentials into a warning response', async () => {
+    const details = 'list available provider devices: list ecoflow devices: ecoflow api business error code=8513 message=accessKey is invalid';
+    const client = makeDeviceClient({
+      listAvailableDevices: vi.fn(async () => {
+        throw {
+          code: grpcStatus.INTERNAL,
+          details,
+          message: details,
+          name: 'Error'
+        } satisfies Partial<ServiceError>;
+      })
+    });
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/devices/available'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      devices: [],
+      hasActiveCredentials: true,
+      warningCode: 'credential_invalid',
+      warningMessage:
+        'The active EcoFlow credential is being rejected by the provider. Update it in Settings > Integrations before scanning for new devices.'
+    });
+
+    await app.close();
+  });
+
   it('tests device mqtt from the available-devices route', async () => {
     const client = makeDeviceClient();
     const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());

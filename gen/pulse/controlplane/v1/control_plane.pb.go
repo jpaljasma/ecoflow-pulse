@@ -426,6 +426,126 @@ func (x *SetProviderCredentialActiveResponse) GetCredential() *ProviderCredentia
 	return nil
 }
 
+type UpdateProviderCredentialRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	CredentialId  string                 `protobuf:"bytes,2,opt,name=credential_id,json=credentialId,proto3" json:"credential_id,omitempty"`
+	AccessKey     string                 `protobuf:"bytes,3,opt,name=access_key,json=accessKey,proto3" json:"access_key,omitempty"`
+	SecretKey     string                 `protobuf:"bytes,4,opt,name=secret_key,json=secretKey,proto3" json:"secret_key,omitempty"`
+	IsActive      bool                   `protobuf:"varint,5,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateProviderCredentialRequest) Reset() {
+	*x = UpdateProviderCredentialRequest{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateProviderCredentialRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateProviderCredentialRequest) ProtoMessage() {}
+
+func (x *UpdateProviderCredentialRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateProviderCredentialRequest.ProtoReflect.Descriptor instead.
+func (*UpdateProviderCredentialRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *UpdateProviderCredentialRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+func (x *UpdateProviderCredentialRequest) GetCredentialId() string {
+	if x != nil {
+		return x.CredentialId
+	}
+	return ""
+}
+
+func (x *UpdateProviderCredentialRequest) GetAccessKey() string {
+	if x != nil {
+		return x.AccessKey
+	}
+	return ""
+}
+
+func (x *UpdateProviderCredentialRequest) GetSecretKey() string {
+	if x != nil {
+		return x.SecretKey
+	}
+	return ""
+}
+
+func (x *UpdateProviderCredentialRequest) GetIsActive() bool {
+	if x != nil {
+		return x.IsActive
+	}
+	return false
+}
+
+type UpdateProviderCredentialResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Credential    *ProviderCredential    `protobuf:"bytes,1,opt,name=credential,proto3" json:"credential,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateProviderCredentialResponse) Reset() {
+	*x = UpdateProviderCredentialResponse{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateProviderCredentialResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateProviderCredentialResponse) ProtoMessage() {}
+
+func (x *UpdateProviderCredentialResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateProviderCredentialResponse.ProtoReflect.Descriptor instead.
+func (*UpdateProviderCredentialResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *UpdateProviderCredentialResponse) GetCredential() *ProviderCredential {
+	if x != nil {
+		return x.Credential
+	}
+	return nil
+}
+
 type ProviderDevice struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -446,7 +566,7 @@ type ProviderDevice struct {
 
 func (x *ProviderDevice) Reset() {
 	*x = ProviderDevice{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[7]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -458,7 +578,7 @@ func (x *ProviderDevice) String() string {
 func (*ProviderDevice) ProtoMessage() {}
 
 func (x *ProviderDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[7]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +591,7 @@ func (x *ProviderDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderDevice.ProtoReflect.Descriptor instead.
 func (*ProviderDevice) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{7}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ProviderDevice) GetId() string {
@@ -573,7 +693,7 @@ type UserDevice struct {
 
 func (x *UserDevice) Reset() {
 	*x = UserDevice{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[8]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -585,7 +705,7 @@ func (x *UserDevice) String() string {
 func (*UserDevice) ProtoMessage() {}
 
 func (x *UserDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[8]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -598,7 +718,7 @@ func (x *UserDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserDevice.ProtoReflect.Descriptor instead.
 func (*UserDevice) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{8}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UserDevice) GetDeviceId() string {
@@ -679,7 +799,7 @@ type CurrentUser struct {
 
 func (x *CurrentUser) Reset() {
 	*x = CurrentUser{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -691,7 +811,7 @@ func (x *CurrentUser) String() string {
 func (*CurrentUser) ProtoMessage() {}
 
 func (x *CurrentUser) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[9]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -704,7 +824,7 @@ func (x *CurrentUser) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CurrentUser.ProtoReflect.Descriptor instead.
 func (*CurrentUser) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{9}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CurrentUser) GetId() string {
@@ -864,7 +984,7 @@ type AuthorizationSummary struct {
 
 func (x *AuthorizationSummary) Reset() {
 	*x = AuthorizationSummary{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +996,7 @@ func (x *AuthorizationSummary) String() string {
 func (*AuthorizationSummary) ProtoMessage() {}
 
 func (x *AuthorizationSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[10]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +1009,7 @@ func (x *AuthorizationSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorizationSummary.ProtoReflect.Descriptor instead.
 func (*AuthorizationSummary) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{10}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AuthorizationSummary) GetTokenRoles() []string {
@@ -915,7 +1035,7 @@ type GetCurrentUserRequest struct {
 
 func (x *GetCurrentUserRequest) Reset() {
 	*x = GetCurrentUserRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -927,7 +1047,7 @@ func (x *GetCurrentUserRequest) String() string {
 func (*GetCurrentUserRequest) ProtoMessage() {}
 
 func (x *GetCurrentUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[11]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -940,7 +1060,7 @@ func (x *GetCurrentUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCurrentUserRequest.ProtoReflect.Descriptor instead.
 func (*GetCurrentUserRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{11}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetCurrentUserRequest) GetUserSubject() string {
@@ -960,7 +1080,7 @@ type GetCurrentUserResponse struct {
 
 func (x *GetCurrentUserResponse) Reset() {
 	*x = GetCurrentUserResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -972,7 +1092,7 @@ func (x *GetCurrentUserResponse) String() string {
 func (*GetCurrentUserResponse) ProtoMessage() {}
 
 func (x *GetCurrentUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[12]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -985,7 +1105,7 @@ func (x *GetCurrentUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCurrentUserResponse.ProtoReflect.Descriptor instead.
 func (*GetCurrentUserResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{12}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetCurrentUserResponse) GetUser() *CurrentUser {
@@ -1019,7 +1139,7 @@ type UpdateCurrentUserRequest struct {
 
 func (x *UpdateCurrentUserRequest) Reset() {
 	*x = UpdateCurrentUserRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1031,7 +1151,7 @@ func (x *UpdateCurrentUserRequest) String() string {
 func (*UpdateCurrentUserRequest) ProtoMessage() {}
 
 func (x *UpdateCurrentUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[13]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1044,7 +1164,7 @@ func (x *UpdateCurrentUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCurrentUserRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCurrentUserRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{13}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdateCurrentUserRequest) GetUserSubject() string {
@@ -1119,7 +1239,7 @@ type UpdateCurrentUserResponse struct {
 
 func (x *UpdateCurrentUserResponse) Reset() {
 	*x = UpdateCurrentUserResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1131,7 +1251,7 @@ func (x *UpdateCurrentUserResponse) String() string {
 func (*UpdateCurrentUserResponse) ProtoMessage() {}
 
 func (x *UpdateCurrentUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[14]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1144,7 +1264,7 @@ func (x *UpdateCurrentUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCurrentUserResponse.ProtoReflect.Descriptor instead.
 func (*UpdateCurrentUserResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{14}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdateCurrentUserResponse) GetUser() *CurrentUser {
@@ -1170,7 +1290,7 @@ type RefreshCurrentUserIdentityRequest struct {
 
 func (x *RefreshCurrentUserIdentityRequest) Reset() {
 	*x = RefreshCurrentUserIdentityRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1182,7 +1302,7 @@ func (x *RefreshCurrentUserIdentityRequest) String() string {
 func (*RefreshCurrentUserIdentityRequest) ProtoMessage() {}
 
 func (x *RefreshCurrentUserIdentityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[15]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1195,7 +1315,7 @@ func (x *RefreshCurrentUserIdentityRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use RefreshCurrentUserIdentityRequest.ProtoReflect.Descriptor instead.
 func (*RefreshCurrentUserIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{15}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RefreshCurrentUserIdentityRequest) GetUserSubject() string {
@@ -1263,7 +1383,7 @@ type RefreshCurrentUserIdentityResponse struct {
 
 func (x *RefreshCurrentUserIdentityResponse) Reset() {
 	*x = RefreshCurrentUserIdentityResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1275,7 +1395,7 @@ func (x *RefreshCurrentUserIdentityResponse) String() string {
 func (*RefreshCurrentUserIdentityResponse) ProtoMessage() {}
 
 func (x *RefreshCurrentUserIdentityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[16]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1288,7 +1408,7 @@ func (x *RefreshCurrentUserIdentityResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use RefreshCurrentUserIdentityResponse.ProtoReflect.Descriptor instead.
 func (*RefreshCurrentUserIdentityResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{16}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RefreshCurrentUserIdentityResponse) GetUser() *CurrentUser {
@@ -1310,7 +1430,7 @@ type CreateDeviceRequest struct {
 
 func (x *CreateDeviceRequest) Reset() {
 	*x = CreateDeviceRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1322,7 +1442,7 @@ func (x *CreateDeviceRequest) String() string {
 func (*CreateDeviceRequest) ProtoMessage() {}
 
 func (x *CreateDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[17]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1335,7 +1455,7 @@ func (x *CreateDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDeviceRequest.ProtoReflect.Descriptor instead.
 func (*CreateDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{17}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CreateDeviceRequest) GetUserSubject() string {
@@ -1375,7 +1495,7 @@ type CreateDeviceResponse struct {
 
 func (x *CreateDeviceResponse) Reset() {
 	*x = CreateDeviceResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1387,7 +1507,7 @@ func (x *CreateDeviceResponse) String() string {
 func (*CreateDeviceResponse) ProtoMessage() {}
 
 func (x *CreateDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[18]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1400,7 +1520,7 @@ func (x *CreateDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDeviceResponse.ProtoReflect.Descriptor instead.
 func (*CreateDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{18}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CreateDeviceResponse) GetDevice() *UserDevice {
@@ -1422,7 +1542,7 @@ type LinkDeviceRequest struct {
 
 func (x *LinkDeviceRequest) Reset() {
 	*x = LinkDeviceRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1434,7 +1554,7 @@ func (x *LinkDeviceRequest) String() string {
 func (*LinkDeviceRequest) ProtoMessage() {}
 
 func (x *LinkDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[19]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1447,7 +1567,7 @@ func (x *LinkDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkDeviceRequest.ProtoReflect.Descriptor instead.
 func (*LinkDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{19}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *LinkDeviceRequest) GetUserSubject() string {
@@ -1487,7 +1607,7 @@ type LinkDeviceResponse struct {
 
 func (x *LinkDeviceResponse) Reset() {
 	*x = LinkDeviceResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[20]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1499,7 +1619,7 @@ func (x *LinkDeviceResponse) String() string {
 func (*LinkDeviceResponse) ProtoMessage() {}
 
 func (x *LinkDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[20]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1512,7 +1632,7 @@ func (x *LinkDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkDeviceResponse.ProtoReflect.Descriptor instead.
 func (*LinkDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{20}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *LinkDeviceResponse) GetDevice() *UserDevice {
@@ -1531,7 +1651,7 @@ type ListUserDevicesRequest struct {
 
 func (x *ListUserDevicesRequest) Reset() {
 	*x = ListUserDevicesRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[21]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1543,7 +1663,7 @@ func (x *ListUserDevicesRequest) String() string {
 func (*ListUserDevicesRequest) ProtoMessage() {}
 
 func (x *ListUserDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[21]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1556,7 +1676,7 @@ func (x *ListUserDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserDevicesRequest.ProtoReflect.Descriptor instead.
 func (*ListUserDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{21}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListUserDevicesRequest) GetUserSubject() string {
@@ -1575,7 +1695,7 @@ type ListUserDevicesResponse struct {
 
 func (x *ListUserDevicesResponse) Reset() {
 	*x = ListUserDevicesResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[22]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1587,7 +1707,7 @@ func (x *ListUserDevicesResponse) String() string {
 func (*ListUserDevicesResponse) ProtoMessage() {}
 
 func (x *ListUserDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[22]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1720,7 @@ func (x *ListUserDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserDevicesResponse.ProtoReflect.Descriptor instead.
 func (*ListUserDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{22}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListUserDevicesResponse) GetDevices() []*UserDevice {
@@ -1620,7 +1740,7 @@ type ProviderDeviceGroup struct {
 
 func (x *ProviderDeviceGroup) Reset() {
 	*x = ProviderDeviceGroup{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[23]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1632,7 +1752,7 @@ func (x *ProviderDeviceGroup) String() string {
 func (*ProviderDeviceGroup) ProtoMessage() {}
 
 func (x *ProviderDeviceGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[23]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1645,7 +1765,7 @@ func (x *ProviderDeviceGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderDeviceGroup.ProtoReflect.Descriptor instead.
 func (*ProviderDeviceGroup) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{23}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ProviderDeviceGroup) GetProvider() string {
@@ -1673,7 +1793,7 @@ type ListDevicesRequest struct {
 
 func (x *ListDevicesRequest) Reset() {
 	*x = ListDevicesRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[24]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1685,7 +1805,7 @@ func (x *ListDevicesRequest) String() string {
 func (*ListDevicesRequest) ProtoMessage() {}
 
 func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[24]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1698,7 +1818,7 @@ func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesRequest.ProtoReflect.Descriptor instead.
 func (*ListDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{24}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ListDevicesRequest) GetUserSubject() string {
@@ -1731,7 +1851,7 @@ type ListDevicesResponse struct {
 
 func (x *ListDevicesResponse) Reset() {
 	*x = ListDevicesResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[25]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1743,7 +1863,7 @@ func (x *ListDevicesResponse) String() string {
 func (*ListDevicesResponse) ProtoMessage() {}
 
 func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[25]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1756,7 +1876,7 @@ func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDevicesResponse.ProtoReflect.Descriptor instead.
 func (*ListDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{25}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ListDevicesResponse) GetGroups() []*ProviderDeviceGroup {
@@ -1777,7 +1897,7 @@ type DiscoverDevicesRequest struct {
 
 func (x *DiscoverDevicesRequest) Reset() {
 	*x = DiscoverDevicesRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[26]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1789,7 +1909,7 @@ func (x *DiscoverDevicesRequest) String() string {
 func (*DiscoverDevicesRequest) ProtoMessage() {}
 
 func (x *DiscoverDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[26]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1802,7 +1922,7 @@ func (x *DiscoverDevicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverDevicesRequest.ProtoReflect.Descriptor instead.
 func (*DiscoverDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{26}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DiscoverDevicesRequest) GetUserSubject() string {
@@ -1838,7 +1958,7 @@ type DiscoverDevicesResponse struct {
 
 func (x *DiscoverDevicesResponse) Reset() {
 	*x = DiscoverDevicesResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[27]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1850,7 +1970,7 @@ func (x *DiscoverDevicesResponse) String() string {
 func (*DiscoverDevicesResponse) ProtoMessage() {}
 
 func (x *DiscoverDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[27]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1863,7 +1983,7 @@ func (x *DiscoverDevicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverDevicesResponse.ProtoReflect.Descriptor instead.
 func (*DiscoverDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{27}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DiscoverDevicesResponse) GetAccepted() bool {
@@ -1908,7 +2028,7 @@ type AvailableProviderDevice struct {
 
 func (x *AvailableProviderDevice) Reset() {
 	*x = AvailableProviderDevice{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[28]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1920,7 +2040,7 @@ func (x *AvailableProviderDevice) String() string {
 func (*AvailableProviderDevice) ProtoMessage() {}
 
 func (x *AvailableProviderDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[28]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1933,7 +2053,7 @@ func (x *AvailableProviderDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailableProviderDevice.ProtoReflect.Descriptor instead.
 func (*AvailableProviderDevice) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{28}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *AvailableProviderDevice) GetProvider() string {
@@ -1988,7 +2108,7 @@ type ListAvailableProviderDevicesRequest struct {
 
 func (x *ListAvailableProviderDevicesRequest) Reset() {
 	*x = ListAvailableProviderDevicesRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[29]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2000,7 +2120,7 @@ func (x *ListAvailableProviderDevicesRequest) String() string {
 func (*ListAvailableProviderDevicesRequest) ProtoMessage() {}
 
 func (x *ListAvailableProviderDevicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[29]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2013,7 +2133,7 @@ func (x *ListAvailableProviderDevicesRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ListAvailableProviderDevicesRequest.ProtoReflect.Descriptor instead.
 func (*ListAvailableProviderDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{29}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ListAvailableProviderDevicesRequest) GetUserSubject() string {
@@ -2040,7 +2160,7 @@ type ListAvailableProviderDevicesResponse struct {
 
 func (x *ListAvailableProviderDevicesResponse) Reset() {
 	*x = ListAvailableProviderDevicesResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[30]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2052,7 +2172,7 @@ func (x *ListAvailableProviderDevicesResponse) String() string {
 func (*ListAvailableProviderDevicesResponse) ProtoMessage() {}
 
 func (x *ListAvailableProviderDevicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[30]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2065,7 +2185,7 @@ func (x *ListAvailableProviderDevicesResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use ListAvailableProviderDevicesResponse.ProtoReflect.Descriptor instead.
 func (*ListAvailableProviderDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{30}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ListAvailableProviderDevicesResponse) GetDevices() []*AvailableProviderDevice {
@@ -2094,7 +2214,7 @@ type TestProviderDeviceMQTTRequest struct {
 
 func (x *TestProviderDeviceMQTTRequest) Reset() {
 	*x = TestProviderDeviceMQTTRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[31]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2106,7 +2226,7 @@ func (x *TestProviderDeviceMQTTRequest) String() string {
 func (*TestProviderDeviceMQTTRequest) ProtoMessage() {}
 
 func (x *TestProviderDeviceMQTTRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[31]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2119,7 +2239,7 @@ func (x *TestProviderDeviceMQTTRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestProviderDeviceMQTTRequest.ProtoReflect.Descriptor instead.
 func (*TestProviderDeviceMQTTRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{31}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *TestProviderDeviceMQTTRequest) GetUserSubject() string {
@@ -2163,7 +2283,7 @@ type TestProviderDeviceMQTTResponse struct {
 
 func (x *TestProviderDeviceMQTTResponse) Reset() {
 	*x = TestProviderDeviceMQTTResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[32]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2175,7 +2295,7 @@ func (x *TestProviderDeviceMQTTResponse) String() string {
 func (*TestProviderDeviceMQTTResponse) ProtoMessage() {}
 
 func (x *TestProviderDeviceMQTTResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[32]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2188,7 +2308,7 @@ func (x *TestProviderDeviceMQTTResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestProviderDeviceMQTTResponse.ProtoReflect.Descriptor instead.
 func (*TestProviderDeviceMQTTResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{32}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *TestProviderDeviceMQTTResponse) GetSuccess() bool {
@@ -2238,7 +2358,7 @@ type EnableProviderDeviceRequest struct {
 
 func (x *EnableProviderDeviceRequest) Reset() {
 	*x = EnableProviderDeviceRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2250,7 +2370,7 @@ func (x *EnableProviderDeviceRequest) String() string {
 func (*EnableProviderDeviceRequest) ProtoMessage() {}
 
 func (x *EnableProviderDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2263,7 +2383,7 @@ func (x *EnableProviderDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableProviderDeviceRequest.ProtoReflect.Descriptor instead.
 func (*EnableProviderDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{33}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *EnableProviderDeviceRequest) GetUserSubject() string {
@@ -2304,7 +2424,7 @@ type EnableProviderDeviceResponse struct {
 
 func (x *EnableProviderDeviceResponse) Reset() {
 	*x = EnableProviderDeviceResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2316,7 +2436,7 @@ func (x *EnableProviderDeviceResponse) String() string {
 func (*EnableProviderDeviceResponse) ProtoMessage() {}
 
 func (x *EnableProviderDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2329,7 +2449,7 @@ func (x *EnableProviderDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableProviderDeviceResponse.ProtoReflect.Descriptor instead.
 func (*EnableProviderDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{34}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *EnableProviderDeviceResponse) GetProviderDevice() *ProviderDevice {
@@ -2380,6 +2500,18 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\rcredential_id\x18\x02 \x01(\tR\fcredentialId\x12\x1b\n" +
 	"\tis_active\x18\x03 \x01(\bR\bisActive\"p\n" +
 	"#SetProviderCredentialActiveResponse\x12I\n" +
+	"\n" +
+	"credential\x18\x01 \x01(\v2).pulse.controlplane.v1.ProviderCredentialR\n" +
+	"credential\"\xc4\x01\n" +
+	"\x1fUpdateProviderCredentialRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12#\n" +
+	"\rcredential_id\x18\x02 \x01(\tR\fcredentialId\x12\x1d\n" +
+	"\n" +
+	"access_key\x18\x03 \x01(\tR\taccessKey\x12\x1d\n" +
+	"\n" +
+	"secret_key\x18\x04 \x01(\tR\tsecretKey\x12\x1b\n" +
+	"\tis_active\x18\x05 \x01(\bR\bisActive\"m\n" +
+	" UpdateProviderCredentialResponse\x12I\n" +
 	"\n" +
 	"credential\x18\x01 \x01(\v2).pulse.controlplane.v1.ProviderCredentialR\n" +
 	"credential\"\xc9\x03\n" +
@@ -2539,14 +2671,15 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\x1cEnableProviderDeviceResponse\x12N\n" +
 	"\x0fprovider_device\x18\x01 \x01(\v2%.pulse.controlplane.v1.ProviderDeviceR\x0eproviderDevice\x12B\n" +
 	"\vuser_device\x18\x02 \x01(\v2!.pulse.controlplane.v1.UserDeviceR\n" +
-	"userDevice2\xf9\r\n" +
+	"userDevice2\x87\x0f\n" +
 	"\x13ControlPlaneService\x12m\n" +
 	"\x0eGetCurrentUser\x12,.pulse.controlplane.v1.GetCurrentUserRequest\x1a-.pulse.controlplane.v1.GetCurrentUserResponse\x12v\n" +
 	"\x11UpdateCurrentUser\x12/.pulse.controlplane.v1.UpdateCurrentUserRequest\x1a0.pulse.controlplane.v1.UpdateCurrentUserResponse\x12\x91\x01\n" +
 	"\x1aRefreshCurrentUserIdentity\x128.pulse.controlplane.v1.RefreshCurrentUserIdentityRequest\x1a9.pulse.controlplane.v1.RefreshCurrentUserIdentityResponse\x12\x8b\x01\n" +
 	"\x18CreateProviderCredential\x126.pulse.controlplane.v1.CreateProviderCredentialRequest\x1a7.pulse.controlplane.v1.CreateProviderCredentialResponse\x12\x88\x01\n" +
 	"\x17ListProviderCredentials\x125.pulse.controlplane.v1.ListProviderCredentialsRequest\x1a6.pulse.controlplane.v1.ListProviderCredentialsResponse\x12\x94\x01\n" +
-	"\x1bSetProviderCredentialActive\x129.pulse.controlplane.v1.SetProviderCredentialActiveRequest\x1a:.pulse.controlplane.v1.SetProviderCredentialActiveResponse\x12g\n" +
+	"\x1bSetProviderCredentialActive\x129.pulse.controlplane.v1.SetProviderCredentialActiveRequest\x1a:.pulse.controlplane.v1.SetProviderCredentialActiveResponse\x12\x8b\x01\n" +
+	"\x18UpdateProviderCredential\x126.pulse.controlplane.v1.UpdateProviderCredentialRequest\x1a7.pulse.controlplane.v1.UpdateProviderCredentialResponse\x12g\n" +
 	"\fCreateDevice\x12*.pulse.controlplane.v1.CreateDeviceRequest\x1a+.pulse.controlplane.v1.CreateDeviceResponse\x12a\n" +
 	"\n" +
 	"LinkDevice\x12(.pulse.controlplane.v1.LinkDeviceRequest\x1a).pulse.controlplane.v1.LinkDeviceResponse\x12p\n" +
@@ -2569,7 +2702,7 @@ func file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP() []byte {
 	return file_pulse_controlplane_v1_control_plane_proto_rawDescData
 }
 
-var file_pulse_controlplane_v1_control_plane_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_pulse_controlplane_v1_control_plane_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*ProviderCredential)(nil),                   // 0: pulse.controlplane.v1.ProviderCredential
 	(*CreateProviderCredentialRequest)(nil),      // 1: pulse.controlplane.v1.CreateProviderCredentialRequest
@@ -2578,88 +2711,93 @@ var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*ListProviderCredentialsResponse)(nil),      // 4: pulse.controlplane.v1.ListProviderCredentialsResponse
 	(*SetProviderCredentialActiveRequest)(nil),   // 5: pulse.controlplane.v1.SetProviderCredentialActiveRequest
 	(*SetProviderCredentialActiveResponse)(nil),  // 6: pulse.controlplane.v1.SetProviderCredentialActiveResponse
-	(*ProviderDevice)(nil),                       // 7: pulse.controlplane.v1.ProviderDevice
-	(*UserDevice)(nil),                           // 8: pulse.controlplane.v1.UserDevice
-	(*CurrentUser)(nil),                          // 9: pulse.controlplane.v1.CurrentUser
-	(*AuthorizationSummary)(nil),                 // 10: pulse.controlplane.v1.AuthorizationSummary
-	(*GetCurrentUserRequest)(nil),                // 11: pulse.controlplane.v1.GetCurrentUserRequest
-	(*GetCurrentUserResponse)(nil),               // 12: pulse.controlplane.v1.GetCurrentUserResponse
-	(*UpdateCurrentUserRequest)(nil),             // 13: pulse.controlplane.v1.UpdateCurrentUserRequest
-	(*UpdateCurrentUserResponse)(nil),            // 14: pulse.controlplane.v1.UpdateCurrentUserResponse
-	(*RefreshCurrentUserIdentityRequest)(nil),    // 15: pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
-	(*RefreshCurrentUserIdentityResponse)(nil),   // 16: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
-	(*CreateDeviceRequest)(nil),                  // 17: pulse.controlplane.v1.CreateDeviceRequest
-	(*CreateDeviceResponse)(nil),                 // 18: pulse.controlplane.v1.CreateDeviceResponse
-	(*LinkDeviceRequest)(nil),                    // 19: pulse.controlplane.v1.LinkDeviceRequest
-	(*LinkDeviceResponse)(nil),                   // 20: pulse.controlplane.v1.LinkDeviceResponse
-	(*ListUserDevicesRequest)(nil),               // 21: pulse.controlplane.v1.ListUserDevicesRequest
-	(*ListUserDevicesResponse)(nil),              // 22: pulse.controlplane.v1.ListUserDevicesResponse
-	(*ProviderDeviceGroup)(nil),                  // 23: pulse.controlplane.v1.ProviderDeviceGroup
-	(*ListDevicesRequest)(nil),                   // 24: pulse.controlplane.v1.ListDevicesRequest
-	(*ListDevicesResponse)(nil),                  // 25: pulse.controlplane.v1.ListDevicesResponse
-	(*DiscoverDevicesRequest)(nil),               // 26: pulse.controlplane.v1.DiscoverDevicesRequest
-	(*DiscoverDevicesResponse)(nil),              // 27: pulse.controlplane.v1.DiscoverDevicesResponse
-	(*AvailableProviderDevice)(nil),              // 28: pulse.controlplane.v1.AvailableProviderDevice
-	(*ListAvailableProviderDevicesRequest)(nil),  // 29: pulse.controlplane.v1.ListAvailableProviderDevicesRequest
-	(*ListAvailableProviderDevicesResponse)(nil), // 30: pulse.controlplane.v1.ListAvailableProviderDevicesResponse
-	(*TestProviderDeviceMQTTRequest)(nil),        // 31: pulse.controlplane.v1.TestProviderDeviceMQTTRequest
-	(*TestProviderDeviceMQTTResponse)(nil),       // 32: pulse.controlplane.v1.TestProviderDeviceMQTTResponse
-	(*EnableProviderDeviceRequest)(nil),          // 33: pulse.controlplane.v1.EnableProviderDeviceRequest
-	(*EnableProviderDeviceResponse)(nil),         // 34: pulse.controlplane.v1.EnableProviderDeviceResponse
-	(*structpb.Struct)(nil),                      // 35: google.protobuf.Struct
+	(*UpdateProviderCredentialRequest)(nil),      // 7: pulse.controlplane.v1.UpdateProviderCredentialRequest
+	(*UpdateProviderCredentialResponse)(nil),     // 8: pulse.controlplane.v1.UpdateProviderCredentialResponse
+	(*ProviderDevice)(nil),                       // 9: pulse.controlplane.v1.ProviderDevice
+	(*UserDevice)(nil),                           // 10: pulse.controlplane.v1.UserDevice
+	(*CurrentUser)(nil),                          // 11: pulse.controlplane.v1.CurrentUser
+	(*AuthorizationSummary)(nil),                 // 12: pulse.controlplane.v1.AuthorizationSummary
+	(*GetCurrentUserRequest)(nil),                // 13: pulse.controlplane.v1.GetCurrentUserRequest
+	(*GetCurrentUserResponse)(nil),               // 14: pulse.controlplane.v1.GetCurrentUserResponse
+	(*UpdateCurrentUserRequest)(nil),             // 15: pulse.controlplane.v1.UpdateCurrentUserRequest
+	(*UpdateCurrentUserResponse)(nil),            // 16: pulse.controlplane.v1.UpdateCurrentUserResponse
+	(*RefreshCurrentUserIdentityRequest)(nil),    // 17: pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
+	(*RefreshCurrentUserIdentityResponse)(nil),   // 18: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
+	(*CreateDeviceRequest)(nil),                  // 19: pulse.controlplane.v1.CreateDeviceRequest
+	(*CreateDeviceResponse)(nil),                 // 20: pulse.controlplane.v1.CreateDeviceResponse
+	(*LinkDeviceRequest)(nil),                    // 21: pulse.controlplane.v1.LinkDeviceRequest
+	(*LinkDeviceResponse)(nil),                   // 22: pulse.controlplane.v1.LinkDeviceResponse
+	(*ListUserDevicesRequest)(nil),               // 23: pulse.controlplane.v1.ListUserDevicesRequest
+	(*ListUserDevicesResponse)(nil),              // 24: pulse.controlplane.v1.ListUserDevicesResponse
+	(*ProviderDeviceGroup)(nil),                  // 25: pulse.controlplane.v1.ProviderDeviceGroup
+	(*ListDevicesRequest)(nil),                   // 26: pulse.controlplane.v1.ListDevicesRequest
+	(*ListDevicesResponse)(nil),                  // 27: pulse.controlplane.v1.ListDevicesResponse
+	(*DiscoverDevicesRequest)(nil),               // 28: pulse.controlplane.v1.DiscoverDevicesRequest
+	(*DiscoverDevicesResponse)(nil),              // 29: pulse.controlplane.v1.DiscoverDevicesResponse
+	(*AvailableProviderDevice)(nil),              // 30: pulse.controlplane.v1.AvailableProviderDevice
+	(*ListAvailableProviderDevicesRequest)(nil),  // 31: pulse.controlplane.v1.ListAvailableProviderDevicesRequest
+	(*ListAvailableProviderDevicesResponse)(nil), // 32: pulse.controlplane.v1.ListAvailableProviderDevicesResponse
+	(*TestProviderDeviceMQTTRequest)(nil),        // 33: pulse.controlplane.v1.TestProviderDeviceMQTTRequest
+	(*TestProviderDeviceMQTTResponse)(nil),       // 34: pulse.controlplane.v1.TestProviderDeviceMQTTResponse
+	(*EnableProviderDeviceRequest)(nil),          // 35: pulse.controlplane.v1.EnableProviderDeviceRequest
+	(*EnableProviderDeviceResponse)(nil),         // 36: pulse.controlplane.v1.EnableProviderDeviceResponse
+	(*structpb.Struct)(nil),                      // 37: google.protobuf.Struct
 }
 var file_pulse_controlplane_v1_control_plane_proto_depIdxs = []int32{
 	0,  // 0: pulse.controlplane.v1.CreateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 1: pulse.controlplane.v1.ListProviderCredentialsResponse.credentials:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 2: pulse.controlplane.v1.SetProviderCredentialActiveResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	35, // 3: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
-	35, // 4: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
-	9,  // 5: pulse.controlplane.v1.GetCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
-	10, // 6: pulse.controlplane.v1.GetCurrentUserResponse.authorization:type_name -> pulse.controlplane.v1.AuthorizationSummary
-	9,  // 7: pulse.controlplane.v1.UpdateCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
-	9,  // 8: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
-	8,  // 9: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	8,  // 10: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	8,  // 11: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
-	7,  // 12: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	23, // 13: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
-	7,  // 14: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	28, // 15: pulse.controlplane.v1.ListAvailableProviderDevicesResponse.devices:type_name -> pulse.controlplane.v1.AvailableProviderDevice
-	7,  // 16: pulse.controlplane.v1.EnableProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
-	8,  // 17: pulse.controlplane.v1.EnableProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
-	11, // 18: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:input_type -> pulse.controlplane.v1.GetCurrentUserRequest
-	13, // 19: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:input_type -> pulse.controlplane.v1.UpdateCurrentUserRequest
-	15, // 20: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:input_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
-	1,  // 21: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
-	3,  // 22: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
-	5,  // 23: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
-	17, // 24: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
-	19, // 25: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
-	21, // 26: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
-	24, // 27: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
-	26, // 28: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
-	29, // 29: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:input_type -> pulse.controlplane.v1.ListAvailableProviderDevicesRequest
-	31, // 30: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:input_type -> pulse.controlplane.v1.TestProviderDeviceMQTTRequest
-	33, // 31: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:input_type -> pulse.controlplane.v1.EnableProviderDeviceRequest
-	12, // 32: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:output_type -> pulse.controlplane.v1.GetCurrentUserResponse
-	14, // 33: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:output_type -> pulse.controlplane.v1.UpdateCurrentUserResponse
-	16, // 34: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:output_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
-	2,  // 35: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
-	4,  // 36: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
-	6,  // 37: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
-	18, // 38: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
-	20, // 39: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
-	22, // 40: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
-	25, // 41: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
-	27, // 42: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
-	30, // 43: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:output_type -> pulse.controlplane.v1.ListAvailableProviderDevicesResponse
-	32, // 44: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:output_type -> pulse.controlplane.v1.TestProviderDeviceMQTTResponse
-	34, // 45: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:output_type -> pulse.controlplane.v1.EnableProviderDeviceResponse
-	32, // [32:46] is the sub-list for method output_type
-	18, // [18:32] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	0,  // 3: pulse.controlplane.v1.UpdateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
+	37, // 4: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
+	37, // 5: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
+	11, // 6: pulse.controlplane.v1.GetCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	12, // 7: pulse.controlplane.v1.GetCurrentUserResponse.authorization:type_name -> pulse.controlplane.v1.AuthorizationSummary
+	11, // 8: pulse.controlplane.v1.UpdateCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	11, // 9: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	10, // 10: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	10, // 11: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	10, // 12: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
+	9,  // 13: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	25, // 14: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
+	9,  // 15: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	30, // 16: pulse.controlplane.v1.ListAvailableProviderDevicesResponse.devices:type_name -> pulse.controlplane.v1.AvailableProviderDevice
+	9,  // 17: pulse.controlplane.v1.EnableProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
+	10, // 18: pulse.controlplane.v1.EnableProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
+	13, // 19: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:input_type -> pulse.controlplane.v1.GetCurrentUserRequest
+	15, // 20: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:input_type -> pulse.controlplane.v1.UpdateCurrentUserRequest
+	17, // 21: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:input_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
+	1,  // 22: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
+	3,  // 23: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
+	5,  // 24: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
+	7,  // 25: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:input_type -> pulse.controlplane.v1.UpdateProviderCredentialRequest
+	19, // 26: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
+	21, // 27: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
+	23, // 28: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
+	26, // 29: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
+	28, // 30: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
+	31, // 31: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:input_type -> pulse.controlplane.v1.ListAvailableProviderDevicesRequest
+	33, // 32: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:input_type -> pulse.controlplane.v1.TestProviderDeviceMQTTRequest
+	35, // 33: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:input_type -> pulse.controlplane.v1.EnableProviderDeviceRequest
+	14, // 34: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:output_type -> pulse.controlplane.v1.GetCurrentUserResponse
+	16, // 35: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:output_type -> pulse.controlplane.v1.UpdateCurrentUserResponse
+	18, // 36: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:output_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
+	2,  // 37: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
+	4,  // 38: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
+	6,  // 39: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
+	8,  // 40: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:output_type -> pulse.controlplane.v1.UpdateProviderCredentialResponse
+	20, // 41: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
+	22, // 42: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
+	24, // 43: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
+	27, // 44: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
+	29, // 45: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
+	32, // 46: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:output_type -> pulse.controlplane.v1.ListAvailableProviderDevicesResponse
+	34, // 47: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:output_type -> pulse.controlplane.v1.TestProviderDeviceMQTTResponse
+	36, // 48: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:output_type -> pulse.controlplane.v1.EnableProviderDeviceResponse
+	34, // [34:49] is the sub-list for method output_type
+	19, // [19:34] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_pulse_controlplane_v1_control_plane_proto_init() }
@@ -2673,7 +2811,7 @@ func file_pulse_controlplane_v1_control_plane_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_controlplane_v1_control_plane_proto_rawDesc), len(file_pulse_controlplane_v1_control_plane_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   35,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
