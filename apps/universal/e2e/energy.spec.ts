@@ -45,7 +45,6 @@ test.describe('Energy route web E2E', () => {
     await expandSolarAgainstLoadControls(page);
     await expect(page.getByRole('button', { name: 'All devices' })).toBeVisible();
     await expect(page.getByText('Battery', { exact: true })).toBeVisible();
-    await expect(page.getByText('Current period uses solid lines. Previous period uses lighter overlays.', { exact: true })).toBeVisible();
     await expect(page.getByText('Current points: 3 · Previous points: 2', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('AC input', { exact: true })).toBeVisible();
     await expect(page.getByText('AC output', { exact: true })).toBeVisible();

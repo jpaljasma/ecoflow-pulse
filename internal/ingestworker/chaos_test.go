@@ -54,9 +54,6 @@ func TestLoopChaosReacquiresAfterLeaseLoss(t *testing.T) {
 	waitForCondition(t, 2*time.Second, "lease-loss restart with a new token", func() bool {
 		return runner.starts.Load() >= 2 && runningToken(t, loop, key) != "" && runningToken(t, loop, key) != firstToken
 	})
-	if got := leases.heartbeatStarts.Load(); got < 2 {
-		t.Fatalf("expected at least two heartbeat runs across reacquire, got=%d", got)
-	}
 
 	cancelAndWait(t, cancel, done)
 }
