@@ -36,7 +36,7 @@ test.describe('Energy route web E2E', () => {
     await expect(page.getByRole('button', { name: 'Impact' })).toBeVisible();
     await expect(page.getByText('More solar freedom', { exact: true })).toBeVisible();
     await expect(page.getByText('Power profile', { exact: true })).toBeVisible();
-    await expect(page.getByText('Energy history', { exact: true })).toBeVisible();
+    await expect(page.getByText('Energy balance', { exact: true })).toBeVisible();
     await expect(page.getByText('PV operating envelope', { exact: true })).toBeVisible();
     await expect(page.getByText('Battery flow', { exact: true })).toBeVisible();
     await expect(page.getByText('Flow strip', { exact: true })).toBeVisible();
