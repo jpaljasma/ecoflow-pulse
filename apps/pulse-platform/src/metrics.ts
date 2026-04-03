@@ -98,8 +98,10 @@ export function classifyPublicPathname(pathname: string): string | null {
     case '/devices':
     case '/energy':
     case '/settings':
+    case '/settings/integrations':
       return pathname;
     case '/api/v1/me':
+    case '/api/v1/integrations':
     case '/api/v1/solar/outlook':
       return pathname;
     case '/api/v1/energy/dashboard':
@@ -114,6 +116,12 @@ export function classifyPublicPathname(pathname: string): string | null {
 
   if (/^\/api\/v1\/devices\/[^/]+\/history\/solar$/.test(pathname)) {
     return '/api/v1/devices/:deviceId/history/solar';
+  }
+  if (/^\/api\/v1\/integrations\/[^/]+\/active$/.test(pathname)) {
+    return '/api/v1/integrations/:credentialId/active';
+  }
+  if (/^\/api\/v1\/integrations\/[^/]+$/.test(pathname)) {
+    return '/api/v1/integrations/:credentialId';
   }
   if (/^\/api\/v1\/devices\/[^/]+\/history$/.test(pathname)) {
     return '/api/v1/devices/:deviceId/history';

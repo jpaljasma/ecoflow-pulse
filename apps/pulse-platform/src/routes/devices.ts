@@ -86,6 +86,15 @@ export function registerDeviceRoutes(
         });
       }
       if (isServiceError(error)) {
+        if (isAvailableDevicesCredentialIssue(error)) {
+          return reply.code(200).send({
+            devices: [],
+            hasActiveCredentials: true,
+            warningCode: 'credential_invalid',
+            warningMessage:
+              'The active EcoFlow credential is being rejected by the provider. Update it in Settings > Integrations before scanning for new devices.'
+          });
+        }
         return reply.code(mapGrpcCodeToHTTP(error.code)).send({
           error: 'upstream_grpc_error',
           message: error.details || error.message,
@@ -225,6 +234,12 @@ function extractAuthHeader(request: { headers: Record<string, unknown> }): strin
 
 function isServiceError(error: unknown): error is ServiceError {
   return typeof error === 'object' && error !== null && 'code' in error;
+}
+
+function isAvailableDevicesCredentialIssue(error: ServiceError): boolean {
+  const detail = `${error.details || ''} ${error.message || ''}`.toLowerCase();
+  return detail.includes('list available provider devices') &&
+    (detail.includes('accesskey is invalid') || detail.includes('provider credential is inactive'));
 }
 
 function mapGrpcCodeToHTTP(code: number): number {

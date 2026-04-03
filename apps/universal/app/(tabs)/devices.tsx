@@ -1,8 +1,8 @@
-import { Animated, Platform, useWindowDimensions } from 'react-native';
-import { useEffect, useMemo, useRef } from 'react';
-import { Text, XStack, YStack } from 'tamagui';
+import { useMemo } from 'react';
+import { Text, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
+import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
@@ -19,16 +19,11 @@ import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { FleetEnergyImpactCard } from '@/features/energy-impact/FleetEnergyImpactCard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
-import {
-  getConnectionStatusColor,
-  useThemeSemantics,
-  type ConnectionStatus
-} from '@/shared/theme/semantic';
+import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 
 export default function DevicesScreen() {
-  const { width } = useWindowDimensions();
-  const semantics = useThemeSemantics();
-  const compactHeader = width < 430;
+  const { contentWidth } = useNavigationShellMetrics();
+  const compactHeader = contentWidth < 430;
   const { authConfigured, authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const devicesQuery = useDevices({
@@ -46,37 +41,6 @@ export default function DevicesScreen() {
   );
   useTelemetrySubscription(deviceIds);
   const connectionStatus = useTelemetryConnectionStatus();
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 900,
-          useNativeDriver: Platform.OS !== 'web'
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 900,
-          useNativeDriver: Platform.OS !== 'web'
-        })
-      ])
-    );
-    anim.start();
-    return () => {
-      anim.stop();
-    };
-  }, [pulse]);
-
-  const dotScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.24]
-  });
-  const dotOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.75, 1]
-  });
 
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
@@ -85,6 +49,14 @@ export default function DevicesScreen() {
   return (
     <YStack flex={1} backgroundColor="$background" testID="screen-devices">
       <TopBar
+        eyebrow={(
+          <BreadcrumbTrail
+            items={[
+              { label: 'Home', href: '/devices', icon: 'home-outline', hideLabel: true },
+              { label: 'Devices', current: true }
+            ]}
+          />
+        )}
         title={
           <BrandLogo
             compact={compactHeader}
@@ -102,22 +74,7 @@ export default function DevicesScreen() {
         }
         titleFlex={compactHeader ? 1 : 3}
         rightFlex={compactHeader ? 0 : 1}
-        right={
-          <XStack alignItems="center" gap="$1" marginLeft="$1">
-            <Animated.View
-              style={{
-                width: compactHeader ? 12 : 14,
-                height: compactHeader ? 12 : 14,
-                borderRadius: compactHeader ? 6 : 7,
-                marginTop: compactHeader ? 2 : 1,
-                backgroundColor: getConnectionStatusColor(connectionStatus as ConnectionStatus, semantics),
-                transform: [{ scale: dotScale }],
-                opacity: dotOpacity
-              }}
-            />
-            <AppMenu />
-          </XStack>
-        }
+        right={<AppMenu />}
       />
 
       {devicesQuery.isLoading && !devicesQuery.data ? (

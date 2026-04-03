@@ -28,7 +28,6 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
-	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
@@ -167,18 +166,15 @@ func main() {
 			SnapshotReader:    snapshotReader,
 			ControlPlaneStore: controlPlaneStore,
 		}))
-		ecoflowClientConfig := ecoflow.DefaultConfig()
-		ecoflowClientConfig.Logging.Debug = false
-		ecoflowClientConfig.Logging.AdvancedDebugTelemetry = false
-		ecoflowClientConfig.Logging.DebugLogHeaders = false
-		ecoflowClientConfig.Logging.Logger = log
-
 		adapterRegistry := provideradapter.NewRegistry()
+		ecoFlowAdapter, adapterErr := provideradapter.NewRuntimeEcoFlowAdapter(log)
+		if adapterErr != nil {
+			log.Error("init ecoflow adapter failed", "error", adapterErr.Error())
+			os.Exit(1)
+		}
 		adapterRegistry.RegisterDiscoverer(
 			controlplane.ProviderEcoFlow,
-			provideradapter.NewEcoFlowAdapter(
-				provideradapter.NewDefaultEcoFlowClientFactory(ecoflowClientConfig),
-			),
+			ecoFlowAdapter,
 		)
 		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)

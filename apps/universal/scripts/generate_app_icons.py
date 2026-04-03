@@ -24,10 +24,11 @@ with THEME_DEFINITIONS.open() as f:
     THEME_DATA = json.load(f)
 
 NEW_DARK = THEME_DATA["themes"]["new-dark"]["colors"]
+NEW_DARK_SEMANTIC = THEME_DATA["themes"]["new-dark"]["semantic"]
 BACKGROUND = NEW_DARK["background"]
-MINT = NEW_DARK["accentColor"]
-TEAL = NEW_DARK["backgroundFocus"]
-LIME = "#c8ff5a"
+CYAN = NEW_DARK["accentColor"]
+TEAL = NEW_DARK_SEMANTIC["ac"]
+GOLD = NEW_DARK_SEMANTIC["solar"]
 WHITE = NEW_DARK["color"]
 
 
@@ -71,92 +72,79 @@ def add_glow(
     image.alpha_composite(layer)
 
 
-def draw_panel_grid(image: Image.Image, size: int) -> None:
-    draw = ImageDraw.Draw(image)
-    left = int(size * 0.17)
-    top = int(size * 0.68)
-    right = int(size * 0.83)
-    bottom = int(size * 0.84)
-    draw.rounded_rectangle(
-        (left, top, right, bottom),
-        radius=int(size * 0.045),
-        outline=hex_rgba(WHITE, 54),
-        width=max(2, size // 128),
-    )
-    columns = 4
-    rows = 2
-    for i in range(1, columns):
-        x = left + int((right - left) * i / columns)
-        draw.line((x, top + 14, x, bottom - 14), fill=hex_rgba(WHITE, 38), width=max(2, size // 192))
-    for i in range(1, rows):
-        y = top + int((bottom - top) * i / rows)
-        draw.line((left + 14, y, right - 14, y), fill=hex_rgba(WHITE, 38), width=max(2, size // 192))
-
-
 def draw_motif(image: Image.Image, size: int, pulse_alpha: int = 255) -> None:
     draw = ImageDraw.Draw(image)
-    stroke = max(18, size // 42)
+    outer_stroke = max(24, size // 30)
+    inner_stroke = max(16, size // 40)
 
-    ring_bounds = (
+    outer_arc_bounds = (
+        int(size * 0.19),
         int(size * 0.17),
-        int(size * 0.17),
-        int(size * 0.83),
-        int(size * 0.83),
+        int(size * 0.79),
+        int(size * 0.82),
     )
-    draw.arc(ring_bounds, start=210, end=28, fill=hex_rgba(MINT, 228), width=stroke)
     draw.arc(
+        outer_arc_bounds,
+        start=214,
+        end=48,
+        fill=hex_rgba(CYAN, min(255, pulse_alpha)),
+        width=outer_stroke,
+    )
+
+    stem_left = int(size * 0.33)
+    stem_top = int(size * 0.23)
+    stem_bottom = int(size * 0.76)
+    stem_width = max(22, size // 26)
+    draw.rounded_rectangle(
         (
-            int(size * 0.23),
-            int(size * 0.23),
-            int(size * 0.77),
-            int(size * 0.77),
+            stem_left,
+            stem_top,
+            stem_left + stem_width,
+            stem_bottom,
         ),
-        start=24,
-        end=142,
-        fill=hex_rgba(LIME, 176),
-        width=max(10, stroke // 2),
+        radius=stem_width // 2,
+        fill=hex_rgba(WHITE, min(248, pulse_alpha)),
     )
 
-    pulse_points = [
-        (int(size * 0.22), int(size * 0.58)),
-        (int(size * 0.39), int(size * 0.58)),
-        (int(size * 0.46), int(size * 0.46)),
-        (int(size * 0.53), int(size * 0.66)),
-        (int(size * 0.61), int(size * 0.53)),
-        (int(size * 0.78), int(size * 0.53)),
-    ]
-    draw.line(
-        pulse_points,
-        fill=hex_rgba(WHITE, pulse_alpha),
-        width=max(18, size // 34),
-        joint="curve",
+    shoulder_bounds = (
+        int(size * 0.30),
+        int(size * 0.22),
+        int(size * 0.70),
+        int(size * 0.53),
     )
-    node_r = max(10, size // 48)
-    for point, color in ((pulse_points[0], MINT), (pulse_points[-1], LIME)):
-        x, y = point
-        draw.ellipse((x - node_r, y - node_r, x + node_r, y + node_r), fill=hex_rgba(color, pulse_alpha))
+    draw.arc(
+        shoulder_bounds,
+        start=232,
+        end=22,
+        fill=hex_rgba(WHITE, min(248, pulse_alpha)),
+        width=inner_stroke,
+    )
 
-    bolt = [
-        (int(size * 0.56), int(size * 0.24)),
-        (int(size * 0.42), int(size * 0.50)),
-        (int(size * 0.53), int(size * 0.50)),
-        (int(size * 0.45), int(size * 0.78)),
-        (int(size * 0.64), int(size * 0.44)),
-        (int(size * 0.53), int(size * 0.44)),
-    ]
-    draw.polygon(bolt, fill=hex_rgba(WHITE, 255))
+    horizon_bounds = (
+        int(size * 0.50),
+        int(size * 0.16),
+        int(size * 0.80),
+        int(size * 0.46),
+    )
+    draw.arc(
+        horizon_bounds,
+        start=220,
+        end=326,
+        fill=hex_rgba(GOLD, min(228, pulse_alpha)),
+        width=max(10, size // 62),
+    )
 
-    spark = [
-        (int(size * 0.72), int(size * 0.24)),
-        (int(size * 0.75), int(size * 0.20)),
-        (int(size * 0.78), int(size * 0.24)),
-        (int(size * 0.82), int(size * 0.27)),
-        (int(size * 0.78), int(size * 0.30)),
-        (int(size * 0.75), int(size * 0.34)),
-        (int(size * 0.72), int(size * 0.30)),
-        (int(size * 0.68), int(size * 0.27)),
-    ]
-    draw.polygon(spark, fill=hex_rgba(LIME, 220))
+    horizon_dot_r = max(10, size // 52)
+    horizon_dot = (int(size * 0.69), int(size * 0.23))
+    draw.ellipse(
+        (
+            horizon_dot[0] - horizon_dot_r,
+            horizon_dot[1] - horizon_dot_r,
+            horizon_dot[0] + horizon_dot_r,
+            horizon_dot[1] + horizon_dot_r,
+        ),
+        fill=hex_rgba(GOLD, min(235, pulse_alpha)),
+    )
 
 
 def build_icon(size: int = 1024) -> Image.Image:
@@ -170,14 +158,14 @@ def build_icon(size: int = 1024) -> Image.Image:
     add_glow(
         image,
         (int(size * 0.02), int(size * 0.02), int(size * 0.65), int(size * 0.58)),
-        hex_rgba(MINT, 115),
+        hex_rgba(CYAN, 120),
         int(size * 0.11),
     )
     add_glow(
         image,
-        (int(size * 0.42), int(size * 0.44), int(size * 0.98), int(size * 1.02)),
-        hex_rgba(LIME, 88),
-        int(size * 0.15),
+        (int(size * 0.48), int(size * 0.08), int(size * 0.96), int(size * 0.52)),
+        hex_rgba(GOLD, 86),
+        int(size * 0.13),
     )
 
     inner = make_canvas(size)
@@ -186,7 +174,7 @@ def build_icon(size: int = 1024) -> Image.Image:
     inner_draw.rounded_rectangle(
         (inset, inset, size - inset, size - inset),
         radius=int(size * 0.24),
-        fill=hex_rgba("#0d3934", 84),
+        fill=hex_rgba("#132033", 84),
         outline=hex_rgba(WHITE, 18),
         width=max(2, size // 256),
     )
@@ -206,12 +194,11 @@ def build_icon(size: int = 1024) -> Image.Image:
         (int(size * 0.14), int(size * 0.08), int(size * 0.88), int(size * 0.76)),
         start=16,
         end=140,
-        fill=hex_rgba(MINT, 56),
+        fill=hex_rgba(CYAN, 56),
         width=max(4, size // 220),
     )
     image.alpha_composite(orbit)
 
-    draw_panel_grid(image, size)
     draw_motif(image, size)
 
     return apply_rounded_mask(image, int(size * 0.225))
@@ -223,7 +210,7 @@ def build_adaptive_foreground(size: int = 1024) -> Image.Image:
     add_glow(
         halo,
         (int(size * 0.2), int(size * 0.2), int(size * 0.8), int(size * 0.8)),
-        hex_rgba(MINT, 74),
+        hex_rgba(CYAN, 74),
         int(size * 0.08),
     )
     image.alpha_composite(halo)
@@ -269,7 +256,7 @@ def draw_share_background(image: Image.Image) -> None:
     for offset in range(-height // 2, width, 160):
         grid_draw.line(
             [(offset, 0), (offset + int(height * 1.15), height)],
-            fill=hex_rgba(MINT, 18),
+            fill=hex_rgba(CYAN, 18),
             width=4,
         )
     for y in range(80, height, 92):
@@ -281,18 +268,18 @@ def draw_share_background(image: Image.Image) -> None:
     shard_draw = ImageDraw.Draw(shards)
     shard_draw.polygon(
         [(0, 0), (425, 0), (270, 230), (0, 320)],
-        fill=hex_rgba(MINT, 24),
-        outline=hex_rgba(MINT, 86),
+        fill=hex_rgba(CYAN, 24),
+        outline=hex_rgba(CYAN, 86),
     )
     shard_draw.polygon(
         [(830, 0), (1200, 0), (1200, 210), (985, 255)],
-        fill=hex_rgba(LIME, 26),
-        outline=hex_rgba(LIME, 94),
+        fill=hex_rgba(GOLD, 26),
+        outline=hex_rgba(GOLD, 94),
     )
     shard_draw.polygon(
         [(865, 630), (1200, 445), (1200, 630)],
-        fill=hex_rgba(MINT, 22),
-        outline=hex_rgba(MINT, 78),
+        fill=hex_rgba(CYAN, 22),
+        outline=hex_rgba(CYAN, 78),
     )
     shard_draw.polygon(
         [(520, 630), (760, 405), (1010, 630)],
@@ -304,15 +291,15 @@ def draw_share_background(image: Image.Image) -> None:
 
     rails = Image.new("RGBA", image.size, (0, 0, 0, 0))
     rail_draw = ImageDraw.Draw(rails)
-    rail_draw.line([(0, 500), (470, 335), (1200, 385)], fill=hex_rgba(MINT, 136), width=4)
+    rail_draw.line([(0, 500), (470, 335), (1200, 385)], fill=hex_rgba(CYAN, 136), width=4)
     rail_draw.line([(0, 548), (505, 372), (1200, 422)], fill=hex_rgba(WHITE, 64), width=2)
-    rail_draw.line([(750, 0), (540, 286), (780, 630)], fill=hex_rgba(LIME, 120), width=3)
+    rail_draw.line([(750, 0), (540, 286), (780, 630)], fill=hex_rgba(GOLD, 120), width=3)
     rail_draw.line([(804, 0), (594, 286), (834, 630)], fill=hex_rgba(WHITE, 48), width=1)
     rails = rails.filter(ImageFilter.GaussianBlur(1.2))
     image.alpha_composite(rails)
 
-    add_glow(image, (-60, 38, 520, 470), hex_rgba(MINT, 92), 120)
-    add_glow(image, (770, 90, 1280, 660), hex_rgba(LIME, 72), 132)
+    add_glow(image, (-60, 38, 520, 470), hex_rgba(CYAN, 92), 120)
+    add_glow(image, (770, 90, 1280, 660), hex_rgba(GOLD, 72), 132)
     add_glow(image, (490, 210, 1010, 590), hex_rgba("#7df4d4", 38), 150)
 
 
@@ -354,13 +341,13 @@ def build_share_card() -> Image.Image:
     description = THEME_DATA["metadata"]["shareDescription"]
     subject = THEME_DATA["metadata"]["subject"].upper()
 
-    draw.rounded_rectangle((594, 126, 1030, 176), radius=25, fill=hex_rgba("#03221e", 182), outline=hex_rgba(MINT, 108), width=2)
+    draw.rounded_rectangle((594, 126, 1030, 176), radius=25, fill=hex_rgba("#081625", 188), outline=hex_rgba(CYAN, 108), width=2)
     draw.line((594, 196, 1118, 196), fill=hex_rgba(WHITE, 42), width=2)
-    draw.line((594, 200, 1080, 200), fill=hex_rgba(MINT, 78), width=4)
-    draw.text((624, 138), subject, fill=hex_rgba(MINT), font_size=28)
+    draw.line((594, 200, 1080, 200), fill=hex_rgba(CYAN, 78), width=4)
+    draw.text((624, 138), subject, fill=hex_rgba(CYAN), font_size=28)
     draw.text((594, 220), title, fill=hex_rgba(WHITE), font_size=70)
     draw.text((594, 360), description, fill=hex_rgba(WHITE, 214), font_size=34)
-    draw.text((594, 500), "Live solar + battery + backup power intelligence", fill=hex_rgba(LIME, 224), font_size=30)
+    draw.text((594, 500), "Premium live solar + battery intelligence", fill=hex_rgba(GOLD, 224), font_size=30)
     return image
 
 

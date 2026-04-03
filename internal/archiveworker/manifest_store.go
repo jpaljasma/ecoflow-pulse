@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 )
 
@@ -62,6 +63,7 @@ func NewPostgresManifestStore(dsn string) (*PostgresManifestStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest postgres dsn: %w", err)
 	}
+	dbpool.ConfigurePGX(cfg)
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("open manifest postgres pool: %w", err)

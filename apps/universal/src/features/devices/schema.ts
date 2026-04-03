@@ -105,7 +105,9 @@ export const AvailableDeviceSchema = z.object({
 
 export const AvailableDevicesResponseSchema = z.object({
   devices: z.array(AvailableDeviceSchema),
-  hasActiveCredentials: z.boolean()
+  hasActiveCredentials: z.boolean(),
+  warningCode: z.string().optional(),
+  warningMessage: z.string().optional()
 });
 
 export const DeviceMQTTTestResultSchema = z.object({

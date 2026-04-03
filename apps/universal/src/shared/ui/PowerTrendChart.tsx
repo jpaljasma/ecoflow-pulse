@@ -225,7 +225,7 @@ export function PowerTrendChart({
         </XStack>
         {activePreviousSeries.length ? (
           <Text fontSize="$1" opacity={0.62}>
-            Current period uses solid lines. Previous period uses lighter overlays.
+            Previous period uses thin overlay lines.
           </Text>
         ) : null}
         <YStack
@@ -303,8 +303,7 @@ export function PowerTrendChart({
                           fill="none"
                           stroke={s.color}
                           strokeOpacity="0.42"
-                          strokeWidth="1.6"
-                          strokeDasharray="5 4"
+                          strokeWidth="1.35"
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         />
@@ -356,7 +355,7 @@ export function PowerTrendChart({
       </XStack>
       {activePreviousSeries.length ? (
         <Text fontSize="$1" opacity={0.62}>
-          Current period uses solid lines. Previous period uses lighter overlays.
+          Previous period uses thin overlay lines.
         </Text>
       ) : null}
       <View

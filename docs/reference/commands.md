@@ -68,6 +68,24 @@ make pgroll-complete-local
 make pgroll-rollback-local
 ```
 
+Shared Postgres pool tuning for long-lived Go services and workers is now
+centralized in `internal/dbpool`. Optional runtime overrides:
+
+- `DB_POOL_MAX_OPEN_CONNS` default `2`
+- `DB_POOL_MAX_IDLE_CONNS` default `1`
+- `DB_POOL_MAX_CONN_IDLE_TIME` default `2m`
+- `DB_POOL_MAX_CONN_LIFETIME` default `30m`
+- `DB_POOL_MAX_CONN_LIFETIME_JITTER` default `2m`
+- `DB_POOL_HEALTH_CHECK_PERIOD` default `30s` for `pgxpool`
+- `DB_READ_RETRY_MAX_ATTEMPTS` default `3`
+- `DB_READ_RETRY_INITIAL_BACKOFF` default `50ms`
+- `DB_READ_RETRY_MAX_BACKOFF` default `250ms`
+- `DB_READ_RETRY_JITTER_FACTOR` default `0.2`
+
+The read retry knobs apply only to bounded read-path retries for transient
+Postgres connection-pressure failures such as `SQLSTATE 53300`; writes are not
+retried by this shared helper.
+
 ## Node/Expo Auth Commands
 
 ```bash
@@ -962,8 +980,9 @@ Notes:
   This avoids flaky pod-level waits during cold-start or restart churn while still
   failing with deployment + pod state dumps if a worker set is genuinely unhealthy.
   Worker metrics-backed readiness now uses `/readyz` and flips to `503` during
-  shutdown, while `/livez` stays healthy during drain, so rollout replacement
-  stops sending new work to terminating worker pods before process exit.
+  shutdown, while `/livez` stays healthy during drain, and Kubernetes `preStop`
+  hooks call `/drainz` before `SIGTERM`, so rollout replacement stops sending
+  new work to terminating worker pods before process exit.
 - local observability access examples after `make platform-up` / `make platform-wait`:
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-kube-promet-prometheus 9090:9090`
   - `kubectl -n pulse-platform port-forward svc/pulse-platform-grafana 3000:80`
@@ -993,10 +1012,16 @@ Notes:
   endpoints consumed by the services layer: CNPG rw, NATS, Valkey, and MinIO.
 - `make dev-deploy` is the incremental local redeploy path for code changes:
   rebuild/import local public + services images, then restart
-  `pulse-platform-public-app`, `pulse-platform-realtime-gateway`, and
-  `pulse-services-go-inference`, `pulse-services-go-grpc-api`,
-  `pulse-services-go-energy-api`, and `pulse-services-go-rollup`, then wait for
-  those rollouts to finish.
+  `pulse-services-go-solar-verification` first by scaling it to `0` and back to
+  its current replica count, then roll `pulse-services-go-ingest`,
+  `pulse-services-go-projection`, `pulse-services-go-rollup`,
+  `pulse-services-go-archive`, `pulse-services-go-inference`,
+  `pulse-services-go-grpc-api`, `pulse-services-go-energy-api`,
+  `pulse-platform-realtime-gateway`, and `pulse-platform-public-app`, waiting
+  for each rollout to finish.
+  The verifier recycle is a local rollout safeguard: it clears stale
+  long-lived Postgres transactions before the ingest phase so new worker pods
+  do not deadlock on exhausted connection slots.
   This path is rollout-safe and PVC-safe: it replaces pods in place without
   deleting the k3d cluster or removing Postgres/MinIO/NATS/Valkey storage.
   By default (`DEV_DEPLOY_HELM=auto`) it skips Helm re-apply when local
@@ -1121,6 +1146,9 @@ Notes:
     - `DB_SEED_USER_SUBJECT=dev-user@example.com`,
     - `DB_SEED_USER_EMAIL=dev-user@example.com`,
     - `DB_SEED_SERIALS=DEMOD2M00001057,DEMODPU0000294`.
+  - if device detail pages show `Live data paused` and ingest logs show EcoFlow
+    business error `8513` / `accessKey is invalid`, update the local EcoFlow
+    key material first; rerunning deploys alone will not restore live telemetry.
   - after credential rotation, recycle ingest sessions so workers immediately
     reconnect with fresh provider credentials:
     - `kubectl -n pulse-services rollout restart deploy/pulse-services-go-ingest`

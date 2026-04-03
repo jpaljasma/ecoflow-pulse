@@ -43,7 +43,7 @@ Top-level structure:
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
   - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths, plus shared JetStream handler-drain tracking used during worker shutdown.
 - `proto/`
-  - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Activate credentials`, `ListDevices`, `DiscoverDevices`).
+  - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Update/Activate credentials`, `ListDevices`, `DiscoverDevices`, MQTT validation-backed provider enablement).
   - `pulse/inference/v1/inference.proto`: online inference gRPC contract (`GetDeviceInsights`, `ListFleetInsights`).
   - `pulse/telemetry/v1/telemetry.proto`: telemetry gRPC contract (snapshot + server-stream updates).
   - `pulse/envelope/v1/envelope.proto`: canonical ingest/archive `TelemetryEnvelope` contract.

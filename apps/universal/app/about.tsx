@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
-import { Animated, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
-import { BrandLogo } from '@/shared/ui/BrandLogo';
+import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { Card } from '@/shared/ui/Card';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
@@ -11,6 +11,7 @@ import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { appMetadata } from '@/shared/theme/catalog';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 import appIcon from '../assets/icon.png';
 
 const capabilityItems = [
@@ -40,12 +41,7 @@ const trustItems = [
 
 export default function AboutScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const compactHeader = width < 430;
-  const isTablet = width >= 768;
-  const isDesktop = width >= 1120;
-  const layoutMaxWidth = isDesktop ? 1180 : 980;
-  const horizontalPadding = isDesktop ? '$7' : isTablet ? '$5' : '$4';
+  const { compactHeader, horizontalPadding, isDesktop, isSidebarMode, isTablet, layoutMaxWidth } = usePageLayoutMetrics();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const { spec } = useAppTheme();
   const semantics = useThemeSemantics();
@@ -60,9 +56,25 @@ export default function AboutScreen() {
         gap="$4"
       >
         <TopBar
-          left={<CloseToHomeButton onClose={closeToHome} />}
-          title={<BrandLogo compact={compactHeader} dense onPress={() => router.push('/devices')} />}
-          subtitle="About EcoFlow Pulse"
+          left={isSidebarMode ? undefined : <CloseToHomeButton onClose={closeToHome} />}
+          eyebrow={(
+            <BreadcrumbTrail
+              items={[
+                {
+                  label: 'Home',
+                  href: '/(tabs)/devices',
+                  icon: 'home-variant-outline',
+                  hideLabel: true
+                },
+                {
+                  label: 'About',
+                  current: true
+                }
+              ]}
+            />
+          )}
+          title="About Pulse"
+          subtitle="Product overview and platform capabilities"
           right={
             <YStack alignItems="flex-end">
               <AppMenu />
@@ -141,7 +153,7 @@ export default function AboutScreen() {
                       lineHeight={isTablet ? 30 : 26}
                       style={{ color: spec.colors.color }}
                     >
-                      EcoFlow Pulse turns live device telemetry into a clean energy operations interface.
+                      Pulse turns live device telemetry into a clean energy operations interface.
                       It brings solar, storage, backup power, fleet awareness, and a dedicated Energy
                       dashboard into one refined control room that feels immediate on web and native.
                     </Text>
@@ -247,7 +259,7 @@ export default function AboutScreen() {
                 </Text>
                 <Text fontSize="$3" lineHeight={24} style={{ color: semantics.subtleStrongText }}>
                   Energy telemetry is only useful when it is fast to read, easy to trust, and consistent
-                  across the surfaces people already use. EcoFlow Pulse is designed to make live power data
+                  across the surfaces people already use. Pulse is designed to make live power data
                   operationally clear instead of visually noisy.
                 </Text>
               </YStack>

@@ -1,30 +1,47 @@
-import { Image } from 'react-native';
 import { Tabs } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
-import appIcon from '../../assets/icon.png';
+import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import { PulseTabBar } from '@/shared/ui/PulseTabBar';
 
 export default function TabsLayout() {
   const { spec, isDark } = useAppTheme();
+  const semantics = useThemeSemantics();
+  const { isSidebarMode, sidebarWidth } = useNavigationShellMetrics();
   const activeTint = spec.semantic.solar;
   const inactiveTint = isDark ? spec.colors.colorMuted : spec.colors.borderColor;
+
   return (
     <Tabs
+      tabBar={(props) => <PulseTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        sceneStyle: {
+          backgroundColor: spec.colors.background
+        },
         tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: inactiveTint,
+        tabBarPosition: isSidebarMode ? 'left' : 'bottom',
+        tabBarVariant: isSidebarMode ? 'material' : 'uikit',
+        tabBarLabelPosition: isSidebarMode ? 'beside-icon' : 'below-icon',
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700'
         },
-        tabBarStyle: {
-          height: 64,
-          backgroundColor: spec.colors.background,
-          borderTopColor: spec.colors.borderColor,
-          paddingTop: 8,
-          paddingBottom: 10
-        }
+        tabBarStyle: isSidebarMode
+          ? {
+              width: sidebarWidth,
+              backgroundColor: semantics.railBackground,
+              borderRightColor: semantics.railBorder
+            }
+          : {
+              height: 64,
+              backgroundColor: spec.colors.background,
+              borderTopColor: spec.colors.borderColor,
+              paddingTop: 8,
+              paddingBottom: 10
+            }
       }}
     >
       <Tabs.Screen
@@ -72,16 +89,8 @@ export default function TabsLayout() {
         options={{
           title: 'About',
           tabBarButtonTestID: 'tab-about',
-          tabBarIcon: ({ size, focused }) => (
-            <Image
-              source={appIcon}
-              style={{
-                width: size,
-                height: size,
-                opacity: focused ? 1 : 0.82
-              }}
-              resizeMode="contain"
-            />
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="information-outline" size={size} color={color} />
           )
         }}
       />

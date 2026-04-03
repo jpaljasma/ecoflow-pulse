@@ -216,6 +216,7 @@ export function useDeviceDetailViewModel({
   });
 
   const metricCells = useMemo<DetailMetricCellVM[]>(() => {
+    const etaMinutes = details?.estimateEtaMin ?? device?.etaMinutes;
     return [
       { key: 'ac', kind: 'stat', label: 'AC', value: formatW(acInW), tone: metricToneFromValue(acInW) },
       { key: 'dc', kind: 'stat', label: 'DC', value: formatW(dcW), tone: metricToneFromValue(dcW) },
@@ -238,7 +239,7 @@ export function useDeviceDetailViewModel({
         tone: isColdTemp ? 'cold' : 'default'
       },
       { key: 'state', kind: 'stat', label: 'State', value: device ? detailState : '—' },
-      { key: 'eta', kind: 'stat', label: 'ETA', value: formatEtaMinutes(device?.etaMinutes) }
+      { key: 'eta', kind: 'stat', label: 'ETA', value: formatEtaMinutes(etaMinutes) }
     ];
   }, [
     acInW,
@@ -247,6 +248,7 @@ export function useDeviceDetailViewModel({
     loadW,
     netW,
     batteryW,
+    details?.estimateEtaMin,
     isColdTemp,
     snapshot?.metrics,
     device,

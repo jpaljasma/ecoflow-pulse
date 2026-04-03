@@ -70,6 +70,15 @@ func newControlPlaneServiceForTest() (*ControlPlaneService, *controlplane.Memory
 	store.EnsureUser("dev-user")
 	registry := provideradapter.NewRegistry()
 	registry.RegisterProvider(controlplane.ProviderEcoFlow)
+	registry.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{},
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			URL:                 "ssl://mqtt.example.com",
+			Port:                "8883",
+			CertificateAccount:  "acct",
+			CertificatePassword: "pass",
+		},
+	})
 	return NewControlPlaneService(log, store, registry), store
 }
 
@@ -316,6 +325,164 @@ func TestSetProviderCredentialActive(t *testing.T) {
 	}
 }
 
+func TestSetProviderCredentialActiveValidatesCandidateAsActive(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	svc.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		discover: func(cred controlplane.ProviderCredential) ([]controlplane.ProviderDevice, error) {
+			if !cred.IsActive {
+				return nil, provideradapter.ErrInactiveCredential
+			}
+			return []controlplane.ProviderDevice{
+				{
+					ID:               "pdev-1",
+					Provider:         controlplane.ProviderEcoFlow,
+					ProviderDeviceID: "R351ZABAPH331057",
+					CredentialID:     cred.ID,
+					CanonicalSN:      "R351ZABAPH331057",
+					ProductName:      "Delta 2 Max",
+				},
+			}, nil
+		},
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+			CertificateAccount:  "acct",
+			CertificatePassword: "pass",
+		},
+	})
+	svc.newMQTTSubscriber = func(ecoflowmqtt.Config) (mqttProbeSubscriber, error) {
+		return &staticProbeSubscriber{
+			msg: ecoflowmqtt.Message{
+				Topic:   "/open/acct/R351ZABAPH331057/quota",
+				Payload: []byte(`{"ok":true}`),
+			},
+		}, nil
+	}
+
+	createResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK11112222",
+		SecretKey:   "SK11112222",
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create inactive credential failed: %v", err)
+	}
+
+	updateResp, err := svc.SetProviderCredentialActive(context.Background(), &controlplanev1.SetProviderCredentialActiveRequest{
+		UserSubject:  "dev-user",
+		CredentialId: createResp.GetCredential().GetId(),
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("activate inactive credential failed: %v", err)
+	}
+	if !updateResp.GetCredential().GetIsActive() {
+		t.Fatalf("expected credential to be active")
+	}
+}
+
+func TestUpdateProviderCredentialRebindsAssignments(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	svc.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{
+			{
+				ID:                 "pdev-1",
+				DeviceID:           "device-1",
+				Provider:           controlplane.ProviderEcoFlow,
+				ProviderDeviceID:   "DPU-001",
+				CredentialID:       "cred-placeholder",
+				CanonicalSN:        "DPU-001",
+				ProductName:        "PowerOcean DPU",
+				Model:              "DPU",
+				IsActive:           true,
+				IngestDesiredState: "active",
+			},
+		},
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			URL:                 "ssl://mqtt.example.com",
+			Port:                "8883",
+			CertificateAccount:  "acct",
+			CertificatePassword: "pass",
+		},
+	})
+	svc.newMQTTSubscriber = func(cfg ecoflowmqtt.Config) (mqttProbeSubscriber, error) {
+		return &staticProbeSubscriber{
+			msg: ecoflowmqtt.Message{
+				Topic:   "/open/acct/DPU-001/quota",
+				Payload: []byte("{}"),
+			},
+		}, nil
+	}
+	activeResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK-active",
+		SecretKey:   "SK-active",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create active credential failed: %v", err)
+	}
+	editedResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AK-standby",
+		SecretKey:   "SK-standby",
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create standby credential failed: %v", err)
+	}
+
+	store.PutProviderDevice(controlplane.ProviderDevice{
+		ID:                 "pdev-1",
+		DeviceID:           "device-1",
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "DPU-001",
+		CredentialID:       activeResp.GetCredential().GetId(),
+		CanonicalSN:        "DPU-001",
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+
+	updateResp, err := svc.UpdateProviderCredential(context.Background(), &controlplanev1.UpdateProviderCredentialRequest{
+		UserSubject:  "dev-user",
+		CredentialId: editedResp.GetCredential().GetId(),
+		AccessKey:    "AK-rotated",
+		SecretKey:    "SK-rotated",
+		IsActive:     true,
+	})
+	if err != nil {
+		t.Fatalf("update provider credential failed: %v", err)
+	}
+	if !updateResp.GetCredential().GetIsActive() {
+		t.Fatalf("expected updated credential to be active")
+	}
+
+	assignments, err := store.ListIngestAssignments(context.Background(), controlplane.ListIngestAssignmentsInput{
+		Provider:   controlplane.ProviderEcoFlow,
+		ActiveOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("list ingest assignments failed: %v", err)
+	}
+	if len(assignments) != 1 {
+		t.Fatalf("expected 1 ingest assignment, got %d", len(assignments))
+	}
+	if assignments[0].CredentialID != editedResp.GetCredential().GetId() {
+		t.Fatalf("assignment credential=%q want %q", assignments[0].CredentialID, editedResp.GetCredential().GetId())
+	}
+	if assignments[0].AccessKey != "AK-rotated" || assignments[0].SecretKey != "SK-rotated" {
+		t.Fatalf("assignment material mismatch: access=%q secret=%q", assignments[0].AccessKey, assignments[0].SecretKey)
+	}
+}
+
 func TestDeviceRegistryCreateLinkListAndRBAC(t *testing.T) {
 	t.Parallel()
 
@@ -461,13 +628,18 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 func TestDiscoverDevicesConfiguredAndUnconfigured(t *testing.T) {
 	t.Parallel()
 
-	svc, _ := newControlPlaneServiceForTest()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("dev-user")
+	registry := provideradapter.NewRegistry()
+	registry.RegisterProvider(controlplane.ProviderEcoFlow)
+	svc := NewControlPlaneService(log, store, registry)
 	createResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
 		UserSubject: "dev-user",
 		Provider:    controlplane.ProviderEcoFlow,
 		AccessKey:   "AK55556666",
 		SecretKey:   "SK55556666",
-		IsActive:    true,
+		IsActive:    false,
 	})
 	if err != nil {
 		t.Fatalf("create credential failed: %v", err)

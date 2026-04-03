@@ -245,6 +245,7 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
   const timeTaskConflictFlag = toNumber(appshow.timeTaskConflictFlag);
   const chgTimeTaskType = toNumber(appshow.chgTimeTaskType);
   const dsgTimeTaskType = toNumber(appshow.dsgTimeTaskType);
+  const inferredPassthroughMode = inferDpuPassthroughModeFromPower(appshow, backend);
 
   pushDiagnostic(diagnostics, 'dpu-sys-work-mode', 'System Work Mode', describeRawEnumValue(sysWorkMode), 'info');
   pushDiagnostic(diagnostics, 'dpu-sys-work-status', 'System Work Status', describeRawEnumValue(sysWorkSta), 'info');
@@ -299,7 +300,8 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     passthroughMode: describeDpuPassthroughMode(
       toNumber(appshow.access_5p8InType),
       toNumber(appshow.access_5p8OutType),
-      toNumber(backend.work_5p8Mode)
+      toNumber(backend.work_5p8Mode),
+      inferredPassthroughMode
     ),
     acAutoOnMode: describeBooleanLabel(toNumber(appset.acOftenOpenFlg), 'Always On', 'Off'),
     energyManagementOn: toBooleanFlag(appset.energyManageEnable),
@@ -817,7 +819,8 @@ function describeD2mSolarMode(value: number | undefined): string | undefined {
 function describeDpuPassthroughMode(
   inputType: number | undefined,
   outputType: number | undefined,
-  workMode: number | undefined
+  workMode: number | undefined,
+  inferredMode?: string
 ): string | undefined {
   const inputLabel =
     inputType === 1
@@ -854,12 +857,44 @@ function describeDpuPassthroughMode(
   if (outputLabel && outputLabel !== 'Idle') {
     return outputLabel;
   }
+  if (inferredMode) {
+    return inferredMode;
+  }
   if (workModeLabel) {
     return workModeLabel;
   }
   if (inputLabel === 'Idle' || outputLabel === 'Idle') {
     return 'Idle';
   }
+  return undefined;
+}
+
+function inferDpuPassthroughModeFromPower(appshow: GenericRecord, backend: GenericRecord): string | undefined {
+  const acInput5p8W = firstDefined(toNumber(appshow.inAc5p8Pwr), multiplyNumbers(backend.inAc5p8Vol, backend.inAc5p8Amp));
+  const acInputC20W = firstDefined(toNumber(appshow.inAcC20Pwr), multiplyNumbers(backend.inAcC20Vol, backend.inAcC20Amp));
+  const acInputActive = anyPositive(acInput5p8W, acInputC20W);
+  if (!acInputActive) {
+    return undefined;
+  }
+
+  if (truthyNumber(appshow.outAcL14Pwr)) {
+    return 'L14 Transfer Switch';
+  }
+
+  if (
+    anyPositive(
+      appshow.outAc_5p8Pwr,
+      appshow.outAcTtPwr,
+      appshow.outAcL11Pwr,
+      appshow.outAcL12Pwr,
+      appshow.outAcL21Pwr,
+      appshow.outAcL22Pwr,
+      multiplyNumbers(backend.outAc5p8Vol, backend.outAc5p8Amp)
+    )
+  ) {
+    return 'AC Pass-Through';
+  }
+
   return undefined;
 }
 

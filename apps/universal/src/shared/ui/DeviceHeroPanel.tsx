@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import type { ImageSourcePropType, DimensionValue } from 'react-native';
 import { XStack, YStack } from 'tamagui';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 import { CachedImage } from '@/shared/ui/CachedImage';
 
 export function DeviceHeroPanel({
@@ -34,6 +35,7 @@ export function DeviceHeroPanel({
   right: ReactNode;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const semantics = useThemeSemantics();
 
   useEffect(() => {
     setImageFailed(false);
@@ -49,7 +51,11 @@ export function DeviceHeroPanel({
           alignItems="center"
           justifyContent="center"
           borderRadius="$4"
-          backgroundColor="rgba(120,120,128,0.12)"
+          borderWidth={1}
+          style={{
+            backgroundColor: semantics.mutedPanelBackground,
+            borderColor: semantics.mutedPanelBorder
+          }}
           overflow="hidden"
         >
           {imageUri && !imageFailed ? (
@@ -74,7 +80,11 @@ export function DeviceHeroPanel({
               contentFit="cover"
             />
           ) : (
-            <MaterialCommunityIcons name={iconFallback ?? 'puzzle-outline'} size={42} color="rgba(28, 43, 45, 0.62)" />
+            <MaterialCommunityIcons
+              name={iconFallback ?? 'puzzle-outline'}
+              size={42}
+              color={semantics.subtleStrongText}
+            />
           )}
         </YStack>
         {leftMeta}

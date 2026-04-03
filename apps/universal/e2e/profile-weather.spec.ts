@@ -26,30 +26,17 @@ test.describe('Profile weather web E2E', () => {
     await mockApiRoutes(page);
   });
 
-  test('renders compact weather and forecast cards on the profile page', async ({ page }) => {
-    let yesterdayRequestCount = 0;
-    page.on('request', (request) => {
-      if (request.url().includes('/api/v1/weather/yesterday')) {
-        yesterdayRequestCount += 1;
-      }
-    });
-
+  test('points profile users to the dedicated Energy solar workspace', async ({ page }) => {
     await page.goto('/profile');
 
     await expect(page.getByText(/Solar 5\.2 kWh \+ 1\.8 kWh est/)).toBeVisible();
-    await expect(page.getByText('Current weather', { exact: true })).toBeVisible();
-    await expect(page.getByText('7-day forecast', { exact: true })).toBeVisible();
-    await expect(page.getByText('Yesterday verification', { exact: true })).toBeVisible();
-    await expect(page.getByText('Open-Meteo data, CC BY 4.0.', { exact: false })).toBeVisible();
-    await expect(page.getByText('12.9°C', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Rain', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Matched hours', { exact: true })).toHaveCount(0);
-    expect(yesterdayRequestCount).toBe(0);
-
-    await page.getByRole('button', { name: /Yesterday verification/i }).click();
-
-    await expect.poll(() => yesterdayRequestCount).toBe(1);
-    await expect(page.getByText('Matched hours', { exact: true })).toBeVisible();
-    await expect(page.getByText(/ΔT /)).toHaveCount(24);
+    await expect(page.getByText('Solar moved to Energy', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        'Solar forecast, weather verification, and the larger Energy Impact pane now live under Energy so site and device deep links share one consistent flow.',
+        { exact: true }
+      )
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /Open Solar/i })).toBeVisible();
   });
 });

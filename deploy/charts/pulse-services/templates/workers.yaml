@@ -46,6 +46,7 @@ spec:
           resources:
             {{- toYaml .Values.runtime.workers.ingest.resources | nindent 12 }}
           {{- if .Values.runtime.workers.ingest.metrics.enabled }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.ingest.startupProbe.enabled }}
           startupProbe:
             httpGet:
@@ -175,6 +176,7 @@ spec:
           resources:
             {{- toYaml .Values.runtime.workers.inference.resources | nindent 12 }}
           {{- if .Values.runtime.workers.inference.metrics.enabled }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.inference.startupProbe.enabled }}
           startupProbe:
             httpGet:
@@ -304,6 +306,7 @@ spec:
           resources:
             {{- toYaml .Values.runtime.workers.rollup.resources | nindent 12 }}
           {{- if .Values.runtime.workers.rollup.metrics.enabled }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.rollup.startupProbe.enabled }}
           startupProbe:
             httpGet:
@@ -433,6 +436,7 @@ spec:
           resources:
             {{- toYaml .Values.runtime.workers.projection.resources | nindent 12 }}
           {{- if .Values.runtime.workers.projection.metrics.enabled }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.projection.startupProbe.enabled }}
           startupProbe:
             httpGet:
@@ -562,6 +566,7 @@ spec:
           resources:
             {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
           {{- if .Values.runtime.workers.archive.metrics.enabled }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.archive.startupProbe.enabled }}
           startupProbe:
             httpGet:
@@ -699,6 +704,9 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.grpcApi.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.grpcApi.metrics.enabled }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.grpcApi.startupProbe.enabled }}
           startupProbe:
             tcpSocket:
@@ -839,6 +847,7 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.solarVerification.resources | nindent 12 }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.solarVerification.startupProbe.enabled }}
           startupProbe:
             httpGet:
@@ -932,6 +941,9 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-secret
           resources:
             {{- toYaml .Values.runtime.workers.energyApi.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.energyApi.metrics.enabled }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.energyApi.startupProbe.enabled }}
           startupProbe:
             tcpSocket:

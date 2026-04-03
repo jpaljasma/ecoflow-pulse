@@ -3,6 +3,14 @@
 ## Scope
 This file defines repository-level working rules for humans and AI agents.
 
+### Nested Guidance
+More specific instructions live closer to the code they govern:
+- `apps/universal/AGENTS.md` for UI, theming, routing, and universal-app behavior
+- `deploy/AGENTS.md` for k3d, Helm, rollout, and local platform/deploy workflows
+- `internal/AGENTS.md` for Go backend, workers, storage, and service-runtime changes
+
+When a nested `AGENTS.md` applies, follow both this root file and the nested file.
+
 ## Required Git Workflow
 Always use a branch -> pull request -> merge workflow.
 

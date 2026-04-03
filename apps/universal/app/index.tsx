@@ -50,7 +50,7 @@ export default function WelcomeScreen() {
                 Pulse for always-on energy visibility
               </Text>
               <Text fontSize="$5" color="$colorMuted" lineHeight={28}>
-                Monitor your EcoFlow fleet, compare solar performance, and keep profile and device access locked to your account.
+                Monitor your energy systems, compare solar performance, and keep profile and device access locked to your account.
               </Text>
             </YStack>
             <YStack gap="$2">

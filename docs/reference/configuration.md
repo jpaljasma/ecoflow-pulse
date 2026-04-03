@@ -17,6 +17,15 @@ Environment-specific credential keys (preferred):
 - `ECOFLOW_STAGING_ACCESS_KEY`, `ECOFLOW_STAGING_SECRET_KEY`
 - `ECOFLOW_PROD_ACCESS_KEY`, `ECOFLOW_PROD_SECRET_KEY`
 
+Runtime note:
+
+- request-serving EcoFlow integrations still use per-user credential material from
+  `provider_credentials` in Postgres,
+- `ECOFLOW_ENV` / `ECOFLOW_BASE_URL` supply the shared provider profile/endpoints
+  used by the EcoFlow adapter runtime and local env-backed credential tests.
+- the local services Helm release now injects those two vars into the Go service
+  pods through `deploy/env/local/values.services.yaml`.
+
 ## Logging and Process Safety
 
 Common service/worker logging knobs (`cmd/ecoflow-ingest-worker`, `cmd/ecoflow-projection-worker`, `cmd/ecoflow-archive-worker`, `cmd/ecoflow-gap-detector`, `cmd/ecoflow-gap-repair-worker`, `cmd/ecoflow-grpc-api`, `cmd/ecoflow-replay-cli`, `cmd/ecoflow-dev-seed`):

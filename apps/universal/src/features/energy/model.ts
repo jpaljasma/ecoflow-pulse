@@ -19,12 +19,17 @@ export const MIN_MEANINGFUL_CURRENCY_BASELINE = 0.01;
 export const MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH =
   MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH / 1000;
 
+export const ENERGY_PANELS = ['overview', 'solar', 'impact'] as const;
+
+export type EnergyPanel = (typeof ENERGY_PANELS)[number];
+
 export type EnergyRouteState = {
   scope: 'device' | 'all';
   deviceId?: string;
   preset: EnergyPreset;
   timezone: string;
   includeComparison: boolean;
+  panel: EnergyPanel;
 };
 
 export function detectLocalTimezone(): string {
@@ -46,6 +51,7 @@ export function resolveEnergyRouteState(
   const requestedPreset = normalizeScalar(params.preset);
   const requestedTimezone = normalizeScalar(params.tz) || normalizeScalar(params.timezone);
   const compareParam = normalizeScalar(params.compare);
+  const requestedPanel = normalizeScalar(params.panel);
   const includeComparison =
     compareParam !== undefined
       ? parseBooleanParam(compareParam === '1' ? 'true' : compareParam === '0' ? 'false' : compareParam, true)
@@ -79,7 +85,10 @@ export function resolveEnergyRouteState(
       ? (requestedPreset as EnergyPreset)
       : 'today',
     timezone: requestedTimezone || fallbackTimezone || 'UTC',
-    includeComparison
+    includeComparison,
+    panel: ENERGY_PANELS.includes(requestedPanel as EnergyPanel)
+      ? (requestedPanel as EnergyPanel)
+      : 'overview'
   };
 }
 
@@ -88,8 +97,20 @@ export function buildEnergyRouteParams(state: EnergyRouteState): Record<string, 
     device: state.scope === 'device' && state.deviceId ? state.deviceId : 'all',
     preset: state.preset,
     tz: state.timezone,
-    compare: state.includeComparison ? '1' : '0'
+    compare: state.includeComparison ? '1' : '0',
+    panel: state.panel
   };
+}
+
+export function energyPanelLabel(panel: EnergyPanel): string {
+  switch (panel) {
+    case 'overview':
+      return 'Overview';
+    case 'solar':
+      return 'Solar';
+    case 'impact':
+      return 'Impact';
+  }
 }
 
 export function energyPresetLabel(preset: EnergyPreset): string {

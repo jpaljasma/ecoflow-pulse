@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Animated, Platform, useWindowDimensions } from 'react-native';
+import { Animated, Platform } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ComponentProps } from 'react';
 import { Button, Text, XStack, YStack } from 'tamagui';
@@ -24,7 +24,9 @@ import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { useTelemetryDeviceSnapshot } from '@/features/telemetry/hooks';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useDeviceSolarHistory } from '@/features/history/hooks';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 import { IconLabel } from '@/shared/ui/IconLabel';
+import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 
 function connectivityGlyph(
   snapshot: DeviceSnapshot | undefined,
@@ -52,7 +54,8 @@ export function DeviceCard({
   imageContext?: 'list' | 'card' | 'detail';
   connectionStatus: TelemetryEngineStatus;
 }) {
-  const { width } = useWindowDimensions();
+  const semantics = useThemeSemantics();
+  const { contentWidth: width } = useNavigationShellMetrics();
   const snapshot = useTelemetryDeviceSnapshot(device.id);
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
   const historyEnabled = authReady && (!authConfigured || sessionValid);
@@ -195,7 +198,8 @@ export function DeviceCard({
     netW,
     pvW,
     solarHistory.data?.deltaPct,
-    solarHistory.data?.todayWh
+    solarHistory.data?.todayWh,
+    solarHistory.data?.yesterdayWh
   ]);
 
   return (
@@ -208,14 +212,14 @@ export function DeviceCard({
             : {
                 transform: [{ translateY: -2 }],
                 shadowOpacity: 0.14,
-                borderColor: 'rgba(10,132,255,0.28)'
+                borderColor: '$accentColor'
               }
         }
         pressStyle={{ scale: 0.995, opacity: 0.95 }}
         onPress={() => router.push(`/device/${device.id}`)}
         role="button"
         cursor="pointer"
-        backgroundColor={isInactive ? 'rgba(120,120,128,0.08)' : '$background'}
+        style={isInactive ? { backgroundColor: semantics.mutedPanelBackground } : undefined}
       >
         <DeviceHeroPanel
           leftWidth={railWidth}
@@ -232,8 +236,13 @@ export function DeviceCard({
               gap="$1"
               marginTop="$1"
             >
-              <MaterialCommunityIcons name="battery-high" size={14} color="rgba(28, 43, 45, 0.72)" />
-              <Text fontSize={isPhoneCompact ? 11 : 13} opacity={0.75} numberOfLines={1}>
+              <MaterialCommunityIcons name="battery-high" size={14} color={semantics.subtleStrongText} />
+              <Text
+                fontSize={isPhoneCompact ? 11 : 13}
+                numberOfLines={1}
+                style={{ color: semantics.subtleStrongText }}
+                opacity={0.8}
+              >
                 {capacityKWh !== null ? formatKWh(capacityKWh) : 'n/a'}
               </Text>
             </XStack>
@@ -267,8 +276,10 @@ export function DeviceCard({
                   borderWidth={1}
                   paddingHorizontal="$3"
                   minHeight={32}
-                  backgroundColor="rgba(10,132,255,0.08)"
-                  borderColor="rgba(10,132,255,0.18)"
+                  style={{
+                    backgroundColor: semantics.actionBackground,
+                    borderColor: semantics.actionBorder
+                  }}
                   onPress={(event: any) => {
                     event?.stopPropagation?.();
                     router.push({
@@ -282,18 +293,24 @@ export function DeviceCard({
                   }}
                 >
                   <XStack alignItems="center" gap="$1">
-                    <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color="rgba(10,132,255,0.92)" />
-                    <Text color="rgba(10,132,255,0.92)" fontWeight="700">Energy</Text>
+                    <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color={semantics.actionText} />
+                    <Text style={{ color: semantics.actionText }} fontWeight="700">Energy</Text>
                   </XStack>
                 </Button>
                 {isInactive ? (
-                  <Text fontSize="$2" color="rgba(60,60,67,0.65)" marginTop="$1" flexShrink={0}>
+                  <Text fontSize="$2" marginTop="$1" flexShrink={0} style={{ color: semantics.subtleText }}>
                     (inactive)
                   </Text>
                 ) : null}
               </XStack>
 
-              <Text fontFamily="$body" fontSize={isPhoneCompact ? '$2' : '$3'} opacity={0.8} numberOfLines={1}>
+              <Text
+                fontFamily="$body"
+                fontSize={isPhoneCompact ? '$2' : '$3'}
+                numberOfLines={1}
+                style={{ color: semantics.subtleStrongText }}
+                opacity={0.84}
+              >
                 {device.model} · SN {maskSerialNumber(device.serialNumber)}
               </Text>
 
@@ -303,12 +320,12 @@ export function DeviceCard({
               </YStack>
 
               <XStack justifyContent="space-between" alignItems="center">
-                <Text fontSize={10} opacity={0.48} numberOfLines={1}>
+                <Text fontSize={10} numberOfLines={1} style={{ color: semantics.subtleText }}>
                   Last seen {formatAgo(lastSeenAt)}
                 </Text>
                 <XStack alignItems="center" gap="$1" opacity={0.9}>
-                  {isInactive ? <Text fontSize="$2">Inactive</Text> : null}
-                  <MaterialCommunityIcons name={connGlyph} size={16} color="rgba(28, 43, 45, 0.82)" />
+                  {isInactive ? <Text fontSize="$2" style={{ color: semantics.subtleText }}>Inactive</Text> : null}
+                  <MaterialCommunityIcons name={connGlyph} size={16} color={semantics.subtleStrongText} />
                 </XStack>
               </XStack>
             </YStack>

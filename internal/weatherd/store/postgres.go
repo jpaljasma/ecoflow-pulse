@@ -10,6 +10,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd"
 )
@@ -33,6 +34,7 @@ func NewPostgresStore(dsn string, nowFn func() time.Time) (*PostgresStore, error
 	if err != nil {
 		return nil, fmt.Errorf("open weather postgres: %w", err)
 	}
+	dbpool.ConfigureSQL(db)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping weather postgres: %w", err)

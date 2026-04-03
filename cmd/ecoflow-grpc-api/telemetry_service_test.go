@@ -1466,6 +1466,10 @@ func (f *fakeControlPlaneStore) SetProviderCredentialActive(context.Context, con
 	return controlplane.ProviderCredential{}, errors.New("not implemented")
 }
 
+func (f *fakeControlPlaneStore) UpdateProviderCredential(context.Context, controlplane.UpdateProviderCredentialInput) (controlplane.ProviderCredential, error) {
+	return controlplane.ProviderCredential{}, errors.New("not implemented")
+}
+
 func (f *fakeControlPlaneStore) GetProviderCredential(context.Context, string, string) (controlplane.ProviderCredential, error) {
 	return controlplane.ProviderCredential{}, errors.New("not implemented")
 }

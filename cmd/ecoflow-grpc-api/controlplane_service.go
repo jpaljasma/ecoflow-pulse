@@ -200,6 +200,16 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 	if strings.TrimSpace(req.GetSecretKey()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "secret_key required")
 	}
+	if req.GetIsActive() {
+		if err := s.validateProviderCredentialActivation(ctx, userSubject, controlplane.ProviderCredential{
+			Provider:  provider,
+			AccessKey: req.GetAccessKey(),
+			SecretKey: req.GetSecretKey(),
+			IsActive:  true,
+		}); err != nil {
+			return nil, err
+		}
+	}
 	out, err := s.store.CreateProviderCredential(ctx, controlplane.CreateProviderCredentialInput{
 		UserSubject: userSubject,
 		Provider:    provider,
@@ -210,6 +220,9 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 	if err != nil {
 		if errors.Is(err, controlplane.ErrUserNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		if errors.Is(err, controlplane.ErrCredentialAlreadyExists) {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "create provider credential: %v", err)
 	}
@@ -249,6 +262,16 @@ func (s *ControlPlaneService) SetProviderCredentialActive(ctx context.Context, r
 	if strings.TrimSpace(req.GetCredentialId()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "credential_id required")
 	}
+	if req.GetIsActive() {
+		cred, _, err := s.getProviderCredentialForUser(ctx, userSubject, "", req.GetCredentialId())
+		if err != nil {
+			return nil, err
+		}
+		cred.IsActive = true
+		if err := s.validateProviderCredentialActivation(ctx, userSubject, cred); err != nil {
+			return nil, err
+		}
+	}
 	row, err := s.store.SetProviderCredentialActive(ctx, controlplane.SetProviderCredentialActiveInput{
 		UserSubject:  userSubject,
 		CredentialID: req.GetCredentialId(),
@@ -263,6 +286,113 @@ func (s *ControlPlaneService) SetProviderCredentialActive(ctx context.Context, r
 	return &controlplanev1.SetProviderCredentialActiveResponse{
 		Credential: providerCredentialToProto(row),
 	}, nil
+}
+
+func (s *ControlPlaneService) UpdateProviderCredential(ctx context.Context, req *controlplanev1.UpdateProviderCredentialRequest) (*controlplanev1.UpdateProviderCredentialResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetCredentialId()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "credential_id required")
+	}
+	if strings.TrimSpace(req.GetAccessKey()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "access_key required")
+	}
+	if strings.TrimSpace(req.GetSecretKey()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "secret_key required")
+	}
+	existing, _, err := s.getProviderCredentialForUser(ctx, userSubject, "", req.GetCredentialId())
+	if err != nil {
+		return nil, err
+	}
+	if req.GetIsActive() {
+		if err := s.validateProviderCredentialActivation(ctx, userSubject, controlplane.ProviderCredential{
+			ID:        existing.ID,
+			UserID:    existing.UserID,
+			Provider:  existing.Provider,
+			AccessKey: req.GetAccessKey(),
+			SecretKey: req.GetSecretKey(),
+			IsActive:  true,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	row, err := s.store.UpdateProviderCredential(ctx, controlplane.UpdateProviderCredentialInput{
+		UserSubject:  userSubject,
+		CredentialID: req.GetCredentialId(),
+		AccessKey:    req.GetAccessKey(),
+		SecretKey:    req.GetSecretKey(),
+		IsActive:     req.GetIsActive(),
+	})
+	if err != nil {
+		if errors.Is(err, controlplane.ErrCredentialNotFound) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		if errors.Is(err, controlplane.ErrCredentialAlreadyExists) {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "update provider credential: %v", err)
+	}
+	return &controlplanev1.UpdateProviderCredentialResponse{
+		Credential: providerCredentialToProto(row),
+	}, nil
+}
+
+func (s *ControlPlaneService) validateProviderCredentialActivation(
+	ctx context.Context,
+	userSubject string,
+	cred controlplane.ProviderCredential,
+) error {
+	provider := controlplane.NormalizeProvider(cred.Provider)
+	if provider == "" {
+		return status.Error(codes.InvalidArgument, "provider required for credential activation")
+	}
+	if provider != controlplane.ProviderEcoFlow {
+		return nil
+	}
+	discoverer, ok := s.adapters.Discoverer(provider)
+	if !ok {
+		return status.Error(codes.Unimplemented, "provider discoverer not configured")
+	}
+	discovered, err := discoverer.DiscoverDevices(ctx, cred)
+	if err != nil {
+		switch {
+		case errors.Is(err, provideradapter.ErrInactiveCredential), errors.Is(err, provideradapter.ErrMissingCredentialMaterial):
+			return status.Error(codes.FailedPrecondition, err.Error())
+		default:
+			return status.Errorf(codes.Internal, "validate provider credential discovery: %v", err)
+		}
+	}
+	enabled, err := s.store.ListProviderDevices(ctx, controlplane.ListProviderDevicesInput{
+		UserSubject: userSubject,
+		Provider:    provider,
+		ActiveOnly:  true,
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "list enabled provider devices for validation: %v", err)
+	}
+	if len(enabled) == 0 {
+		return nil
+	}
+	discoveredByID := make(map[string]struct{}, len(discovered))
+	for i := range discovered {
+		discoveredByID[strings.ToUpper(strings.TrimSpace(discovered[i].ProviderDeviceID))] = struct{}{}
+	}
+	for i := range enabled {
+		targetID := strings.ToUpper(strings.TrimSpace(enabled[i].ProviderDeviceID))
+		if _, ok := discoveredByID[targetID]; !ok {
+			return status.Errorf(codes.FailedPrecondition, "provider connection does not expose enabled device %s", targetID)
+		}
+		probe, err := s.probeProviderDeviceMQTT(ctx, provider, cred, enabled[i].ProviderDeviceID)
+		if err != nil {
+			return status.Errorf(codes.FailedPrecondition, "mqtt validation failed for enabled device %s: %v", targetID, err)
+		}
+		if !probe.GetSuccess() {
+			return status.Errorf(codes.FailedPrecondition, "mqtt validation failed for enabled device %s: %s", targetID, probe.GetStatus())
+		}
+	}
+	return nil
 }
 
 func (s *ControlPlaneService) CreateDevice(ctx context.Context, req *controlplanev1.CreateDeviceRequest) (*controlplanev1.CreateDeviceResponse, error) {
