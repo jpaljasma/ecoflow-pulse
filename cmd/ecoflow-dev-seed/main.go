@@ -21,9 +21,10 @@ import (
 const (
 	defaultUserSubject = "dev-user@example.com"
 	defaultProvider    = controlplane.ProviderEcoFlow
+	pulseMQTTSeedSN    = "PULSEDPUX24K001"
 )
 
-var defaultSeedSerials = []string{
+var defaultEcoFlowSeedSerials = []string{
 	"DEMOD2M00001057",
 	"DEMODPU0000294",
 }
@@ -44,6 +45,11 @@ var knownSeedDevices = map[string]deviceSeed{
 		SN:          "DEMODPU0000294",
 		ProductName: "DPU A 12 kWh",
 		Model:       "DELTA Pro Ultra",
+	},
+	pulseMQTTSeedSN: {
+		SN:          pulseMQTTSeedSN,
+		ProductName: "DPU-X 24 kWh",
+		Model:       "DELTA Pro Ultra X",
 	},
 }
 
@@ -164,7 +170,7 @@ func configFromEnv() (seedConfig, error) {
 		return seedConfig{}, fmt.Errorf("unsupported provider %q", provider)
 	}
 
-	serials, err := parseSeedSerials(strings.TrimSpace(os.Getenv("ECOFLOW_DEV_SEED_SNS")))
+	serials, err := parseSeedSerials(provider, strings.TrimSpace(os.Getenv("ECOFLOW_DEV_SEED_SNS")))
 	if err != nil {
 		return seedConfig{}, err
 	}
@@ -184,10 +190,11 @@ func configFromEnv() (seedConfig, error) {
 	}, nil
 }
 
-func parseSeedSerials(raw string) ([]string, error) {
+func parseSeedSerials(provider string, raw string) ([]string, error) {
 	if strings.TrimSpace(raw) == "" {
-		out := make([]string, 0, len(defaultSeedSerials))
-		for _, sn := range defaultSeedSerials {
+		defaults := defaultSeedSerialsForProvider(provider)
+		out := make([]string, 0, len(defaults))
+		for _, sn := range defaults {
 			out = append(out, strings.ToUpper(strings.TrimSpace(sn)))
 		}
 		return out, nil
@@ -218,6 +225,15 @@ func parseSeedSerials(raw string) ([]string, error) {
 		return nil, errors.New("ECOFLOW_DEV_SEED_SNS contains no valid serial numbers")
 	}
 	return out, nil
+}
+
+func defaultSeedSerialsForProvider(provider string) []string {
+	switch controlplane.NormalizeProvider(provider) {
+	case controlplane.ProviderPulseMQTT:
+		return []string{pulseMQTTSeedSN}
+	default:
+		return defaultEcoFlowSeedSerials
+	}
 }
 
 func buildSeedDevices(serials []string) []deviceSeed {

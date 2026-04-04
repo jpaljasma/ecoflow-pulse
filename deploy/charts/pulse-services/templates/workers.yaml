@@ -22,7 +22,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-ingest
@@ -152,7 +152,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-inference
@@ -282,7 +282,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-rollup
@@ -412,7 +412,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-projection
@@ -542,7 +542,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-archive
@@ -672,7 +672,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-grpc-api
@@ -811,7 +811,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-solar-verification
@@ -911,7 +911,7 @@ spec:
     metadata:
       annotations:
         checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
-        checksum/runtime-secret: {{ printf "%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
       labels:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-energy-api

@@ -1,0 +1,88 @@
+{{- if .Values.runtime.workers.pulseMqttEmulator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-pulse-mqtt-emulator
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pulse-mqtt-emulator
+spec:
+  replicas: {{ .Values.runtime.workers.pulseMqttEmulator.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.pulseMqttEmulator.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.pulseMqttEmulator.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.pulseMqttEmulator.deployment.strategy.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pulse-mqtt-emulator
+  template:
+    metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pulse-mqtt-emulator
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.pulseMqttEmulator.deployment.terminationGracePeriodSeconds }}
+      containers:
+        - name: pulse-mqtt-emulator
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/pulse-mqtt-emulator"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.runtime.workers.pulseMqttEmulator.service.httpPort }}
+            - name: mqtt
+              containerPort: {{ .Values.runtime.workers.pulseMqttEmulator.service.mqttPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+          resources:
+            {{- toYaml .Values.runtime.workers.pulseMqttEmulator.resources | nindent 12 }}
+          {{- if .Values.runtime.workers.pulseMqttEmulator.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: {{ .Values.runtime.workers.pulseMqttEmulator.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.pulseMqttEmulator.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.pulseMqttEmulator.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-pulse-mqtt-emulator
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pulse-mqtt-emulator
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pulse-mqtt-emulator
+  ports:
+    - name: http
+      port: {{ .Values.runtime.workers.pulseMqttEmulator.service.httpPort }}
+      targetPort: http
+    - name: mqtt
+      port: {{ .Values.runtime.workers.pulseMqttEmulator.service.mqttPort }}
+      targetPort: mqtt
+{{- end }}

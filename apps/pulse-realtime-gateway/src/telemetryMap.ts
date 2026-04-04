@@ -71,13 +71,13 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
     'soc',
     'params.f32LcdShowSoc',
     'params.lcdShowSoc',
-    'params.bpPowerSoc',
     'params.f32ShowSoc',
     'params.f32Soc',
     'param.cmsBattSoc',
     'params.cmsBattSoc',
     'params.soc',
-    'param.soc'
+    'param.soc',
+    'params.bpPowerSoc'
   ) ?? 0;
 
   const directAcIn =
@@ -209,67 +209,55 @@ function deriveSignals(
 }
 
 function deriveAcOn(raw: RawTelemetryMetrics): boolean | undefined {
-  if (hasAnyMetric(raw, 'params.cfgAcEnabled')) {
-    return anyPositive(raw, 'params.cfgAcEnabled');
-  }
+	const acVoltageKeys = [
+		'params.outAcTtVol',
+		'params.outAcL14Vol',
+		'params.outAcL11Vol',
+		'params.outAcL12Vol',
+		'params.outAcL21Vol',
+		'params.outAcL22Vol',
+		'params.outAc5p8Vol'
+	] as const;
+	const acPowerKeys = [
+		'params.outAcL11Pwr',
+		'params.outAcL12Pwr',
+		'params.outAcL14Pwr',
+		'params.outAcL21Pwr',
+		'params.outAcL22Pwr',
+		'params.outAcTtPwr',
+		'params.outAc5p8Pwr',
+		'params.invOutWatts'
+	] as const;
+	if (hasAnyMetric(raw, 'params.cfgAcEnabled')) {
+		return anyPositive(raw, 'params.cfgAcEnabled');
+	}
 
-  const showFlag = firstNumber(raw, 'params.showFlag');
-  if (showFlag !== undefined) {
-    return decodeAppShowCircuitFlags(showFlag).acOn;
-  }
+	if (hasAnyMetric(raw, ...acPowerKeys) && anyPositive(raw, ...acPowerKeys)) {
+		return true;
+	}
 
-  if (
-    hasAnyMetric(
-      raw,
-      'params.outAcTtVol',
-      'params.outAcL14Vol',
-      'params.outAcL11Vol',
-      'params.outAcL12Vol',
-      'params.outAcL21Vol',
-      'params.outAcL22Vol',
-      'params.outAc5p8Vol'
-    )
-  ) {
-    return anyAbove(
-      raw,
-      50,
-      'params.outAcTtVol',
-      'params.outAcL14Vol',
-      'params.outAcL11Vol',
-      'params.outAcL12Vol',
-      'params.outAcL21Vol',
-      'params.outAcL22Vol',
-      'params.outAc5p8Vol'
-    );
-  }
+	if (hasAnyMetric(raw, ...acVoltageKeys) && anyAbove(raw, 50, ...acVoltageKeys)) {
+		return true;
+	}
 
-  if (
-    hasAnyMetric(
-      raw,
-      'params.outAcL11Pwr',
-      'params.outAcL12Pwr',
-      'params.outAcL14Pwr',
-      'params.outAcL21Pwr',
-      'params.outAcL22Pwr',
-      'params.outAcTtPwr',
-      'params.outAc5p8Pwr',
-      'params.invOutWatts'
-    )
-  ) {
-    return anyPositive(
-      raw,
-      'params.outAcL11Pwr',
-      'params.outAcL12Pwr',
-      'params.outAcL14Pwr',
-      'params.outAcL21Pwr',
-      'params.outAcL22Pwr',
-      'params.outAcTtPwr',
-      'params.outAc5p8Pwr',
-      'params.invOutWatts'
-    );
-  }
+	if (hasAnyMetric(raw, 'params.acOftenOpenFlg') && anyPositive(raw, 'params.acOftenOpenFlg')) {
+		return true;
+	}
 
-  return undefined;
+	const showFlag = firstNumber(raw, 'params.showFlag');
+	if (showFlag !== undefined) {
+		return decodeAppShowCircuitFlags(showFlag).acOn;
+	}
+
+	if (hasAnyMetric(raw, ...acVoltageKeys)) {
+		return anyAbove(raw, 50, ...acVoltageKeys);
+	}
+
+	if (hasAnyMetric(raw, ...acPowerKeys)) {
+		return anyPositive(raw, ...acPowerKeys);
+	}
+
+	return undefined;
 }
 
 function deriveExplicitDcOn(raw: RawTelemetryMetrics): boolean | undefined {

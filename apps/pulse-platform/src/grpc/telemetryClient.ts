@@ -551,14 +551,14 @@ function normalizeSeries(series: RawRollupSeries | undefined): RollupSeries {
 }
 
 function normalizePoint(point: RawRollupPoint): RollupPoint {
-  return {
+  return fillDerivedBucketEnergy({
     bucketStartUnixMs: normalizeString(point.bucketStartUnixMs),
     bucketEndUnixMs: normalizeString(point.bucketEndUnixMs),
     sampleCount: normalizeInt(point.sampleCount),
     firstTsUnixMs: normalizeString(point.firstTsUnixMs),
     lastTsUnixMs: normalizeString(point.lastTsUnixMs),
     metrics: normalizeMetrics(point.metrics)
-  };
+  });
 }
 
 function normalizeSnapshot(snapshot: RawSnapshot | undefined): Snapshot {
@@ -591,6 +591,64 @@ function normalizeMetrics(metrics: RawRollupMetrics | undefined): RollupMetrics 
     normalized[key] = normalizeNumber(metrics?.[key]);
   }
   return normalized;
+}
+
+export function fillDerivedBucketEnergy(point: RollupPoint): RollupPoint {
+  const durationHours = bucketDurationHours(point.bucketStartUnixMs, point.bucketEndUnixMs);
+  if (!(durationHours > 0)) {
+    return point;
+  }
+
+  const metrics: RollupMetrics = {
+    ...point.metrics,
+    solarGeneratedWh: derivePositiveBucketEnergy(point.metrics.solarGeneratedWh, point.metrics.pvAvgW, durationHours),
+    acInputEnergyWh: derivePositiveBucketEnergy(point.metrics.acInputEnergyWh, point.metrics.acInAvgW, durationHours),
+    dcOutputEnergyWh: derivePositiveBucketEnergy(point.metrics.dcOutputEnergyWh, point.metrics.dcAvgW, durationHours),
+    loadEnergyWh: derivePositiveBucketEnergy(point.metrics.loadEnergyWh, point.metrics.loadAvgW, durationHours),
+    batteryChargeEnergyWh:
+      point.metrics.batteryChargeEnergyWh > 0
+        ? point.metrics.batteryChargeEnergyWh
+        : Math.max(point.metrics.batteryAvgW, 0) * durationHours,
+    batteryDischargeEnergyWh:
+      point.metrics.batteryDischargeEnergyWh > 0
+        ? point.metrics.batteryDischargeEnergyWh
+        : Math.max(-point.metrics.batteryAvgW, 0) * durationHours,
+    acOutputEnergyWh: deriveACOutputEnergy(point.metrics, durationHours)
+  };
+
+  return {
+    ...point,
+    metrics
+  };
+}
+
+function bucketDurationHours(bucketStartUnixMs: string, bucketEndUnixMs: string): number {
+  const startMs = Number(bucketStartUnixMs);
+  const endMs = Number(bucketEndUnixMs);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return 0;
+  }
+  return (endMs - startMs) / (60 * 60 * 1000);
+}
+
+function derivePositiveBucketEnergy(explicitWh: number, avgW: number, durationHours: number): number {
+  if (explicitWh > 0) {
+    return explicitWh;
+  }
+  if (!(avgW > 0) || !(durationHours > 0)) {
+    return 0;
+  }
+  return avgW * durationHours;
+}
+
+function deriveACOutputEnergy(metrics: RollupMetrics, durationHours: number): number {
+  if (metrics.acOutputEnergyWh > 0) {
+    return metrics.acOutputEnergyWh;
+  }
+  if (metrics.acOutputAvgW > 0 && durationHours > 0) {
+    return metrics.acOutputAvgW * durationHours;
+  }
+  return Math.max(metrics.loadAvgW - metrics.dcAvgW, 0) * durationHours;
 }
 
 function normalizeEnergyDashboard(response: RawGetEnergyDashboardResponse): EnergyDashboard {

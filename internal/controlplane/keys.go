@@ -11,7 +11,7 @@ func NormalizeProvider(provider string) string {
 
 func IsSupportedProvider(provider string) bool {
 	switch NormalizeProvider(provider) {
-	case ProviderEcoFlow:
+	case ProviderEcoFlow, ProviderPulseMQTT:
 		return true
 	default:
 		return false

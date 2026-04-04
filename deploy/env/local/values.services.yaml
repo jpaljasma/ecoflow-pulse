@@ -135,3 +135,5 @@ runtime:
         enabled: true
         serviceMonitor:
           enabled: true
+    pulseMqttEmulator:
+      enabled: true

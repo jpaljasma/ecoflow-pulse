@@ -82,15 +82,19 @@ func (b telemetryEnvelopeBuilder) Build(
 	message ecoflowmqtt.Message,
 	observedAt time.Time,
 ) (*envelopev1.TelemetryEnvelope, error) {
-	envelopeID, err := newEnvelopeID()
+	meta := parseMQTTPayloadMeta(message.Payload)
+	envelopeID, err := b.newEnvelopeID(rawResultAsString(meta.ID))
 	if err != nil {
 		return nil, err
 	}
 
-	meta := parseMQTTPayloadMeta(message.Payload)
-	observed := observedAt.UTC()
+	ingested := observedAt.UTC()
+	observed := ingested
 	msgID := rawResultAsString(meta.ID)
-	deviceTime := normalizeDeviceUnixMS(rawResultAsInt64(meta.Time), observed)
+	deviceTime := normalizeDeviceUnixMS(rawResultAsInt64(meta.Time), ingested)
+	if shouldUseDeviceTimeAsObserved(b.normalizedProvider, deviceTime) {
+		observed = time.UnixMilli(deviceTime).UTC()
+	}
 	var labels map[string]string
 	if !b.disableLabels {
 		labels = b.labels(meta)
@@ -113,7 +117,7 @@ func (b telemetryEnvelopeBuilder) Build(
 		MessageId:          msgID,
 		DeviceTimeUnixMs:   deviceTime,
 		ObservedTimeUnixMs: observed.UnixMilli(),
-		IngestedTimeUnixMs: observed.UnixMilli(),
+		IngestedTimeUnixMs: ingested.UnixMilli(),
 		SourceKind:         sourceKindFromTopic(message.Topic),
 		Source:             "mqtt",
 		TypeCode:           typeCode,
@@ -223,6 +227,14 @@ func newEnvelopeID() (string, error) {
 	return id.String(), nil
 }
 
+func (b telemetryEnvelopeBuilder) newEnvelopeID(messageID string) (string, error) {
+	if shouldUseDeterministicEnvelopeID(b.normalizedProvider, messageID) {
+		key := fmt.Sprintf("%s|%s|%s", b.normalizedProvider, b.normalizedSN, strings.TrimSpace(messageID))
+		return uuid.NewSHA1(uuid.NameSpaceURL, []byte(key)).String(), nil
+	}
+	return newEnvelopeID()
+}
+
 func parseMQTTPayloadMeta(payload []byte) mqttPayloadMeta {
 	var meta mqttPayloadMeta
 	if len(payload) == 0 {
@@ -304,6 +316,14 @@ func normalizeDeviceUnixMS(raw int64, observed time.Time) int64 {
 		return 0
 	}
 	return raw
+}
+
+func shouldUseDeviceTimeAsObserved(provider string, deviceUnixMS int64) bool {
+	return controlplane.NormalizeProvider(provider) == controlplane.ProviderPulseMQTT && deviceUnixMS > 0
+}
+
+func shouldUseDeterministicEnvelopeID(provider string, messageID string) bool {
+	return controlplane.NormalizeProvider(provider) == controlplane.ProviderPulseMQTT && strings.TrimSpace(messageID) != ""
 }
 
 func sourceKindFromTopic(topic string) envelopev1.SourceKind {

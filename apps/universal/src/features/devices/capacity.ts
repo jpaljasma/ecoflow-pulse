@@ -7,6 +7,7 @@ export function getCapacityKWh(device: Pick<DeviceSummary, 'model' | 'capabiliti
   }
 
   const model = device.model.toLowerCase();
+  if (model.includes('delta pro ultra x')) return 12.288;
   if (model.includes('delta pro ultra')) return 12.1;
   if (model.includes('delta 2 max')) return 4.1;
   if (model.includes('delta pro')) return 3.6;

@@ -8,7 +8,7 @@ import (
 func TestParseSeedSerialsDefault(t *testing.T) {
 	t.Parallel()
 
-	serials, err := parseSeedSerials("")
+	serials, err := parseSeedSerials(defaultProvider, "")
 	if err != nil {
 		t.Fatalf("parseSeedSerials returned error: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestParseSeedSerialsDefault(t *testing.T) {
 func TestParseSeedSerialsNormalizeAndDedupe(t *testing.T) {
 	t.Parallel()
 
-	serials, err := parseSeedSerials(" demod2m00001057, demodpu0000294 ; demod2m00001057 ")
+	serials, err := parseSeedSerials(defaultProvider, " demod2m00001057, demodpu0000294 ; demod2m00001057 ")
 	if err != nil {
 		t.Fatalf("parseSeedSerials returned error: %v", err)
 	}
@@ -38,9 +38,24 @@ func TestParseSeedSerialsNormalizeAndDedupe(t *testing.T) {
 func TestParseSeedSerialsRejectsEmptyInputAfterParsing(t *testing.T) {
 	t.Parallel()
 
-	_, err := parseSeedSerials(" \n\t ; , ")
+	_, err := parseSeedSerials(defaultProvider, " \n\t ; , ")
 	if err == nil {
 		t.Fatalf("expected parse error for empty serial set")
+	}
+}
+
+func TestParseSeedSerialsDefaultsToPulseMQTTSeedForPulseProvider(t *testing.T) {
+	t.Parallel()
+
+	serials, err := parseSeedSerials("pulsemqtt", "")
+	if err != nil {
+		t.Fatalf("parseSeedSerials returned error: %v", err)
+	}
+	if got, want := len(serials), 1; got != want {
+		t.Fatalf("serial count mismatch: got=%d want=%d", got, want)
+	}
+	if serials[0] != pulseMQTTSeedSN {
+		t.Fatalf("unexpected pulse mqtt defaults: %#v", serials)
 	}
 }
 

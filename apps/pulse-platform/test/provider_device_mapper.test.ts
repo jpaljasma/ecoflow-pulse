@@ -180,6 +180,69 @@ describe('provider device mapper', () => {
     );
   });
 
+  it('uses the Ultra X high-PV envelope for DELTA Pro Ultra X devices', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        model: 'DELTA Pro Ultra X',
+        productName: 'DPU-X 24 kWh',
+        capabilities: {
+          battery_pack_count: 4
+        },
+        metadata: {
+          groups: {
+            hs_yj751_pd_appshow_addr: {
+              soc: 72.6,
+              inLvMpptPwr: 4100
+            },
+            hs_yj751_pd_backend_addr: {
+              inLvMpptVol: 311.2,
+              inLvMpptAmp: 13.17,
+              inHvMpptVol: 0,
+              inHvMpptAmp: 0,
+              fanState: 1
+            },
+            hs_yj751_pd_app_set_info_addr: {},
+            hs_yj751_pd_bp_addr: {
+              bpInfo: {
+                values: []
+              }
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        overallSocPct: 72.6,
+        solarPorts: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'pv-1',
+            name: 'PV 1',
+            state: 'charging',
+            maxWatts: 5000,
+            maxVolts: 500,
+            maxAmps: 15
+          }),
+          expect.objectContaining({
+            id: 'pv-2',
+            name: 'PV 2',
+            state: 'inactive',
+            maxWatts: 5000,
+            maxVolts: 500,
+            maxAmps: 15
+          })
+        ])
+      })
+    );
+    expect(presentation.capabilities).toEqual(
+      expect.objectContaining({
+        batteryPacks: 4,
+        batteryCapacityKWh: 24.576
+      })
+    );
+  });
+
   it('keeps DPU passthrough visible when Power I/O access types are present but idle', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({

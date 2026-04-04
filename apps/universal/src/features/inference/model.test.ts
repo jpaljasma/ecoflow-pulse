@@ -40,6 +40,29 @@ const readyInsights: DeviceInsights = {
 };
 
 describe('battery upsell inference model', () => {
+  it('uses the Ultra X expansion ceiling in fallback merchandising', () => {
+    const view = buildBatteryUpsellView({
+      insights: {
+        ...readyInsights,
+        status: 'pending',
+        insights: []
+      },
+      model: 'DELTA Pro Ultra X',
+      batteryCount: 4,
+      allowFallback: true
+    });
+
+    expect(view).toEqual(
+      expect.objectContaining({
+        href:
+          'https://us.ecoflow.com/products/delta-pro-ultra-x-smart-extra-battery?inviteCode=ATH7F3EF1P',
+        ctaLabel: 'Get More Batteries (6)',
+        recommendedAdditionalBatteries: 6,
+        maxBatteries: 10
+      })
+    );
+  });
+
   it('prefers ready inference-backed upsell content', () => {
     const view = buildBatteryUpsellView({
       insights: readyInsights,

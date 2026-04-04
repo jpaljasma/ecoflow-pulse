@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	ProviderEcoFlow = "ecoflow"
+	ProviderEcoFlow   = "ecoflow"
+	ProviderPulseMQTT = "pulsemqtt"
 )
 
 var (

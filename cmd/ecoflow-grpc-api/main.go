@@ -172,9 +172,18 @@ func main() {
 			log.Error("init ecoflow adapter failed", "error", adapterErr.Error())
 			os.Exit(1)
 		}
+		pulseMQTTAdapter, pulseMQTTErr := provideradapter.NewRuntimePulseMQTTAdapter(log)
+		if pulseMQTTErr != nil {
+			log.Error("init pulse mqtt adapter failed", "error", pulseMQTTErr.Error())
+			os.Exit(1)
+		}
 		adapterRegistry.RegisterDiscoverer(
 			controlplane.ProviderEcoFlow,
 			ecoFlowAdapter,
+		)
+		adapterRegistry.RegisterDiscoverer(
+			controlplane.ProviderPulseMQTT,
+			pulseMQTTAdapter,
 		)
 		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)

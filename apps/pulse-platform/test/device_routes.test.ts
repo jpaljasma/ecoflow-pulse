@@ -318,7 +318,7 @@ describe('pulse-platform device routes', () => {
       hasActiveCredentials: true,
       warningCode: 'credential_invalid',
       warningMessage:
-        'The active EcoFlow credential is being rejected by the provider. Update it in Settings > Integrations before scanning for new devices.'
+        'An active provider credential is being rejected by the provider. Update it in Settings > Integrations before scanning for new devices.'
     });
 
     await app.close();

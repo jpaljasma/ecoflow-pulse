@@ -25,14 +25,60 @@ import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
-const ecoFlowProvider = 'ecoflow';
+const defaultProvider = 'ecoflow';
 
-const CONNECTOR_COPY = {
-  title: 'EcoFlow',
-  description:
-    'Connect your EcoFlow account keys, keep backup credentials inactive, and let Pulse validate provider access plus MQTT before switching the live connector.',
-  icon: 'transmission-tower-export' as const
-};
+const CONNECTOR_CATALOG = [
+  {
+    id: 'ecoflow',
+    title: 'EcoFlow',
+    description:
+      'Connect your EcoFlow account keys, keep backup credentials inactive, and let Pulse validate provider access plus MQTT before switching the live connector.',
+    icon: 'transmission-tower-export' as const,
+    catalogTitle: 'EcoFlow is available in Pulse',
+    catalogDescription:
+      'Native provider integration with discovery, saved credential rotation, and MQTT validation.',
+    validationLabel: 'Provider + MQTT',
+    activationDescription:
+      'Activation runs provider discovery and MQTT checks for the EcoFlow devices already enabled on this account.',
+    configureTitle: 'Configure EcoFlow',
+    createDescription:
+      'Paste your EcoFlow Access Key and Access Secret to create the first configured connection.',
+    addFallbackDescription: 'Store another EcoFlow credential as a fallback or future replacement.',
+    rotateDescription:
+      'Replace the active key material. Pulse will validate the replacement before switching the live connection.',
+    reviewDescription: 'Activate this saved key as-is or rotate its secret before making it live.',
+    emptyStateDescription:
+      'Add your first EcoFlow key pair and Pulse will validate it before activation.'
+  },
+  {
+    id: 'pulsemqtt',
+    title: 'Pulse MQTT Emulator',
+    description:
+      'Use the local EcoFlow-compatible emulator for signed discovery, MQTT validation, and emulator-backed DPU-X testing without a real upstream account.',
+    icon: 'server-network' as const,
+    catalogTitle: 'Pulse MQTT Emulator is available in Pulse',
+    catalogDescription:
+      'Local provider integration with signed REST discovery, MQTT certification, and emulator-backed quota streaming.',
+    validationLabel: 'Signed REST + MQTT',
+    activationDescription:
+      'Activation runs emulator discovery and MQTT checks for the emulator-backed devices already enabled on this account.',
+    configureTitle: 'Configure Pulse MQTT Emulator',
+    createDescription:
+      'Paste the emulator Access Key and Access Secret to create the first configured local connector.',
+    addFallbackDescription: 'Store another emulator credential as a fallback or future replacement.',
+    rotateDescription:
+      'Replace the active emulator key material. Pulse will validate the replacement before switching the live connection.',
+    reviewDescription: 'Activate this saved emulator credential as-is or rotate its secret before making it live.',
+    emptyStateDescription:
+      'Add your first Pulse MQTT emulator key pair and Pulse will validate it before activation.'
+  }
+] as const;
+
+type ConnectorCopy = (typeof CONNECTOR_CATALOG)[number];
+
+function getConnectorCopy(provider: string): ConnectorCopy {
+  return CONNECTOR_CATALOG.find((item) => item.id === provider) ?? CONNECTOR_CATALOG[0];
+}
 
 export default function IntegrationSettingsScreen() {
   const router = useRouter();
@@ -47,24 +93,45 @@ export default function IntegrationSettingsScreen() {
   const { token, authKey } = useAuthSession();
   const semantics = useThemeSemantics();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
+  const [selectedProvider, setSelectedProvider] = useState(defaultProvider);
 
   const integrationsQuery = useIntegrations({
     token,
     authKey,
-    enabled: authReady && allowed,
-    provider: ecoFlowProvider
+    enabled: authReady && allowed
   });
   const createIntegration = useCreateIntegration({ token, authKey });
   const updateIntegration = useUpdateIntegration({ token, authKey });
   const setIntegrationActive = useSetIntegrationActive({ token, authKey });
 
-  const integrations = useMemo(
+  const allIntegrations = useMemo(
     () => integrationsQuery.data?.integrations ?? [],
     [integrationsQuery.data?.integrations]
+  );
+  const integrations = useMemo(
+    () => allIntegrations.filter((item) => item.provider === selectedProvider),
+    [allIntegrations, selectedProvider]
   );
   const activeIntegration = useMemo(
     () => integrations.find((item) => item.isActive) ?? null,
     [integrations]
+  );
+  const selectedConnector = getConnectorCopy(selectedProvider);
+  const connectorCatalog = useMemo(
+    () =>
+      CONNECTOR_CATALOG.map((connector) => {
+        const connectorIntegrations = allIntegrations.filter((item) => item.provider === connector.id);
+        return {
+          ...connector,
+          savedCount: connectorIntegrations.length,
+          activeLabel: connectorIntegrations.find((item) => item.isActive)?.accessKeyMask
+        };
+      }),
+    [allIntegrations]
+  );
+  const configuredConnectorCount = useMemo(
+    () => connectorCatalog.filter((connector) => connector.savedCount > 0).length,
+    [connectorCatalog]
   );
   const hasConfiguredConnector = integrations.length > 0;
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>('new');
@@ -118,14 +185,14 @@ export default function IntegrationSettingsScreen() {
       : `Review ${selectedIntegration.accessKeyMask}`
     : hasConfiguredConnector
       ? 'Add another saved key'
-      : 'Configure EcoFlow';
+      : selectedConnector.configureTitle;
   const detailDescription = selectedIntegration
     ? selectedIntegration.isActive
-      ? 'Replace the active key material. Pulse will validate the replacement before switching the live connection.'
-      : 'Activate this saved key as-is or rotate its secret before making it live.'
+      ? selectedConnector.rotateDescription
+      : selectedConnector.reviewDescription
     : hasConfiguredConnector
-      ? 'Store another EcoFlow credential as a fallback or future replacement.'
-      : 'Paste your EcoFlow Access Key and Access Secret to create the first configured connection.';
+      ? selectedConnector.addFallbackDescription
+      : selectedConnector.createDescription;
 
   const handleSave = async () => {
     setFlashMessage('');
@@ -142,12 +209,12 @@ export default function IntegrationSettingsScreen() {
         setSelectedCredentialId(updated.id);
         setFlashMessage(
           activateOnSave
-            ? 'EcoFlow credentials validated and applied to your existing enabled devices.'
-            : 'EcoFlow credentials updated without activating this saved connection.'
+            ? `${selectedConnector.title} credentials validated and applied to your existing enabled devices.`
+            : `${selectedConnector.title} credentials updated without activating this saved connection.`
         );
       } else {
         const created = await createIntegration.mutateAsync({
-          provider: ecoFlowProvider,
+          provider: selectedProvider,
           accessKey,
           accessSecret,
           isActive: activateOnSave
@@ -155,8 +222,8 @@ export default function IntegrationSettingsScreen() {
         setSelectedCredentialId(created.id);
         setFlashMessage(
           activateOnSave
-            ? 'EcoFlow connection verified and activated.'
-            : 'EcoFlow connection saved as inactive.'
+            ? `${selectedConnector.title} connection verified and activated.`
+            : `${selectedConnector.title} connection saved as inactive.`
         );
       }
       setAccessKey('');
@@ -174,7 +241,7 @@ export default function IntegrationSettingsScreen() {
         values: { isActive: true }
       });
       setSelectedCredentialId(integration.id);
-      setFlashMessage('Connection verified and switched to the active EcoFlow integration.');
+      setFlashMessage(`Connection verified and switched to the active ${selectedConnector.title} integration.`);
     } catch (error) {
       setFlashMessage(describeIntegrationError(error));
     }
@@ -249,7 +316,7 @@ export default function IntegrationSettingsScreen() {
                         }}
                       >
                         <MaterialCommunityIcons
-                          name={CONNECTOR_COPY.icon}
+                          name={selectedConnector.icon}
                           size={24}
                           color={semantics.actionText}
                         />
@@ -274,8 +341,8 @@ export default function IntegrationSettingsScreen() {
                   <XStack gap="$3" flexWrap="wrap" alignItems="stretch">
                     <SummaryMetric
                       label="Configured"
-                      value={hasConfiguredConnector ? '1 connector' : '0 connectors'}
-                      detail={CONNECTOR_COPY.title}
+                      value={`${configuredConnectorCount} ${configuredConnectorCount === 1 ? 'connector' : 'connectors'}`}
+                      detail={`${selectedConnector.title} selected`}
                     />
                     <SummaryMetric
                       label="Active key"
@@ -285,7 +352,11 @@ export default function IntegrationSettingsScreen() {
                     <SummaryMetric
                       label="Saved credentials"
                       value={String(integrations.length)}
-                      detail={integrations.length === 0 ? 'Add your first key' : 'Fallbacks stay inactive'}
+                      detail={
+                        integrations.length === 0
+                          ? 'Add your first key'
+                          : `${selectedConnector.title} fallbacks stay inactive`
+                      }
                     />
                   </XStack>
                 </XStack>
@@ -310,20 +381,25 @@ export default function IntegrationSettingsScreen() {
                     </Text>
                   </YStack>
 
-                  <ConnectorInventoryItem
-                    title={CONNECTOR_COPY.title}
-                    description={CONNECTOR_COPY.description}
-                    icon={CONNECTOR_COPY.icon}
-                    configured={hasConfiguredConnector}
-                    activeLabel={activeIntegration?.accessKeyMask}
-                    savedCount={integrations.length}
-                    selected
-                    onPress={() =>
-                      setSelectedCredentialId(
-                        hasConfiguredConnector ? activeIntegration?.id ?? integrations[0]?.id ?? 'new' : 'new'
-                      )
-                    }
-                  />
+                  <YStack gap="$3">
+                    {connectorCatalog.map((connector) => (
+                      <ConnectorInventoryItem
+                        key={connector.id}
+                        title={connector.title}
+                        description={connector.description}
+                        icon={connector.icon}
+                        configured={connector.savedCount > 0}
+                        activeLabel={connector.activeLabel}
+                        savedCount={connector.savedCount}
+                        selected={selectedProvider === connector.id}
+                        onPress={() => {
+                          setSelectedProvider(connector.id);
+                          setSelectedCredentialId('new');
+                          setFlashMessage('');
+                        }}
+                      />
+                    ))}
+                  </YStack>
 
                   <YStack
                     gap="$2"
@@ -339,14 +415,14 @@ export default function IntegrationSettingsScreen() {
                       Connector catalog
                     </Text>
                     <Text fontSize="$5" fontWeight="800">
-                      EcoFlow is available in Pulse
+                      {selectedConnector.catalogTitle}
                     </Text>
                     <Text color="$colorMuted" lineHeight={22}>
-                      Native provider integration with discovery, saved credential rotation, and MQTT validation.
+                      {selectedConnector.catalogDescription}
                     </Text>
                     <XStack gap="$2" flexWrap="wrap">
                       <SubtleBadge label={hasConfiguredConnector ? 'Configured' : 'Available'} />
-                      <SubtleBadge label="MQTT validation" />
+                      <SubtleBadge label={selectedConnector.validationLabel} />
                       <SubtleBadge label="One active key" />
                     </XStack>
                   </YStack>
@@ -375,13 +451,13 @@ export default function IntegrationSettingsScreen() {
                           }}
                         >
                           <MaterialCommunityIcons
-                            name={CONNECTOR_COPY.icon}
+                            name={selectedConnector.icon}
                             size={22}
                             color={semantics.actionText}
                           />
                         </YStack>
                         <YStack gap="$1">
-                          <Text fontSize="$6" fontWeight="800">{CONNECTOR_COPY.title}</Text>
+                          <Text fontSize="$6" fontWeight="800">{selectedConnector.title}</Text>
                           <Text color="$colorMuted">
                             {hasConfiguredConnector
                               ? 'Configured connector with saved credential history'
@@ -430,7 +506,7 @@ export default function IntegrationSettingsScreen() {
                         />
                         <DetailMetric
                           label="Validation"
-                          value="Provider + MQTT"
+                          value={selectedConnector.validationLabel}
                           detail="Runs before activation"
                         />
                       </XStack>
@@ -469,7 +545,7 @@ export default function IntegrationSettingsScreen() {
                           >
                             <Text fontSize="$5" fontWeight="800">No saved credentials yet</Text>
                             <Text color="$colorMuted">
-                              Add your first EcoFlow key pair and Pulse will validate it before activation.
+                              {selectedConnector.emptyStateDescription}
                             </Text>
                           </YStack>
                         ) : (
@@ -583,7 +659,7 @@ export default function IntegrationSettingsScreen() {
                             </Button>
                           </XStack>
                           <Text color="$colorMuted">
-                            Activation runs provider discovery and MQTT checks for the EcoFlow devices already enabled on this account.
+                            {selectedConnector.activationDescription}
                           </Text>
                         </YStack>
 

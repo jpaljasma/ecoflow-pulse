@@ -193,6 +193,17 @@ describe('telemetryMap', () => {
     expect(metrics.soc).toBeCloseTo(25.49, 2);
   });
 
+  it('prefers canonical DPU soc over backup reserve soc', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.bpPowerSoc': 18,
+      'params.soc': 73.15,
+      'params.wattsInSum': 889.79,
+      'params.wattsOutSum': 705.89
+    });
+
+    expect(metrics.soc).toBeCloseTo(73.15, 2);
+  });
+
   it('derives live D2M system signals and solar ports for device detail realtime updates', () => {
     const detail = deriveTelemetryDetail({
       'params.pv1ChargeWatts': 25,
@@ -281,6 +292,23 @@ describe('telemetryMap', () => {
     expect(detail).toEqual({
       signals: {
         batteryHeatingOn: false
+      }
+    });
+  });
+
+  it('treats DPU AC output and always-on mode as AC on even when showFlag is stale', () => {
+    const detail = deriveTelemetryDetail({
+      'params.showFlag': 2322,
+      'params.acOftenOpenFlg': 1,
+      'params.outAcTtPwr': 694.04,
+      'params.outAdsPwr': 10.12
+    });
+
+    expect(detail).toEqual({
+      signals: {
+        acOn: true,
+        dcOn: true,
+        dc12vOn: true
       }
     });
   });

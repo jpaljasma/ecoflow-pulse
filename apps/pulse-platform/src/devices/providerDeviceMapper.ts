@@ -148,7 +148,7 @@ function buildDetails(device: ProviderDevice, capabilities: DeviceCapabilities):
   };
 
   if (modelLower.includes('delta pro ultra')) {
-    const dpu = buildDpuDetails(groups, details.bpCount);
+    const dpu = buildDpuDetails(groups, details.bpCount, modelLower);
     return { ...details, ...dpu };
   }
 
@@ -165,13 +165,20 @@ function buildDetails(device: ProviderDevice, capabilities: DeviceCapabilities):
   return details;
 }
 
-function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemetryDetails {
+function buildDpuDetails(
+  groups: GenericRecord,
+  bpCount: number | undefined,
+  modelLower: string
+): DeviceTelemetryDetails {
+  const isUltraX = modelLower.includes('delta pro ultra x');
   const appshow = asRecord(groups.hs_yj751_pd_appshow_addr);
   const backend = asRecord(groups.hs_yj751_pd_backend_addr);
   const appset = asRecord(groups.hs_yj751_pd_app_set_info_addr);
   const bpAddr = asRecord(groups.hs_yj751_pd_bp_addr);
   const bpInfo = asArray(bpAddr.bpInfo);
   const diagnostics: DeviceDiagnosticDetail[] = [];
+  let packSocTotal = 0;
+  let packSocCount = 0;
 
   const packs: BatteryPackDetail[] = [];
   for (const [idx, row] of bpInfo.entries()) {
@@ -180,9 +187,10 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
       continue;
     }
     const packLabel = stringOr(pack.bpNo, `BP ${idx + 1}`);
+    const packSoc = toNumber(pack.bpSoc);
     packs.push({
       id: packLabel,
-      socPct: toNumber(pack.bpSoc),
+      socPct: packSoc,
       powerW: toNumber(pack.bpPwr),
       tempC: toNumber(pack.bpTemp),
       heatingOn: toNumber(pack.heatTime) !== undefined && (toNumber(pack.heatTime) ?? 0) > 0,
@@ -191,6 +199,10 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
       socMinPct: toNumber(pack.bpSocMin),
       socMaxPct: toNumber(pack.bpSocMax)
     });
+    if (packSoc !== undefined) {
+      packSocTotal += packSoc;
+      packSocCount += 1;
+    }
     pushDiagnostic(
       diagnostics,
       `bp-chg-${idx + 1}`,
@@ -209,25 +221,27 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
 
   const lowWatts = firstDefined(toNumber(appshow.inLvMpptPwr), multiplyNumbers(backend.inLvMpptVol, backend.inLvMpptAmp));
   const highWatts = firstDefined(toNumber(appshow.inHvMpptPwr), multiplyNumbers(backend.inHvMpptVol, backend.inHvMpptAmp));
+  const lowPortLimits = getDpuLowPortLimits(modelLower);
+  const highPortLimits = getDpuHighPortLimits(modelLower);
   const lowPort = makeSolarPort({
-    id: 'pv-low',
-    name: 'PV Low',
+    id: isUltraX ? 'pv-1' : 'pv-low',
+    name: isUltraX ? 'PV 1' : 'PV Low',
     volts: toNumber(backend.inLvMpptVol),
     amps: toNumber(backend.inLvMpptAmp),
     watts: lowWatts,
-    maxWatts: 1600,
-    maxVolts: 150,
-    maxAmps: 15
+    maxWatts: lowPortLimits.maxWatts,
+    maxVolts: lowPortLimits.maxVolts,
+    maxAmps: lowPortLimits.maxAmps
   });
   const highPort = makeSolarPort({
-    id: 'pv-high',
-    name: 'PV High',
+    id: isUltraX ? 'pv-2' : 'pv-high',
+    name: isUltraX ? 'PV 2' : 'PV High',
     volts: toNumber(backend.inHvMpptVol),
     amps: toNumber(backend.inHvMpptAmp),
     watts: highWatts,
-    maxWatts: 4000,
-    maxVolts: 450,
-    maxAmps: 15
+    maxWatts: highPortLimits.maxWatts,
+    maxVolts: highPortLimits.maxVolts,
+    maxAmps: highPortLimits.maxAmps
   });
 
   const usbOn =
@@ -276,6 +290,7 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     bpCount: bpCount ?? packs.length,
     packs,
     solarPorts: [lowPort, highPort],
+    overallSocPct: firstDefined(toNumber(appshow.soc), packSocCount > 0 ? packSocTotal / packSocCount : undefined),
     socWindowMinPct: toNumber(appset.dsgMinSoc),
     socWindowMaxPct: toNumber(appset.chgMaxSoc),
     backupReservePct: firstDefined(toNumber(appset.sysBackupSoc), toNumber(appset.backupRatio)),
@@ -287,7 +302,7 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
       appshow.outAcL22Pwr,
       appshow.outAcL14Pwr,
       appshow.outAc_5p8Pwr
-    ),
+    ) || truthyNumber(appset.acOftenOpenFlg),
     dcOn: dc12vOn,
     usbOn,
     dc12vOn,
@@ -306,6 +321,36 @@ function buildDpuDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     acAutoOnMode: describeBooleanLabel(toNumber(appset.acOftenOpenFlg), 'Always On', 'Off'),
     energyManagementOn: toBooleanFlag(appset.energyManageEnable),
     diagnostics: diagnostics.length > 0 ? diagnostics : undefined
+  };
+}
+
+function getDpuLowPortLimits(modelLower: string): { maxWatts: number; maxVolts: number; maxAmps: number } {
+  if (modelLower.includes('delta pro ultra x')) {
+    return {
+      maxWatts: 5000,
+      maxVolts: 500,
+      maxAmps: 15
+    };
+  }
+  return {
+    maxWatts: 1600,
+    maxVolts: 150,
+    maxAmps: 15
+  };
+}
+
+function getDpuHighPortLimits(modelLower: string): { maxWatts: number; maxVolts: number; maxAmps: number } {
+  if (modelLower.includes('delta pro ultra x')) {
+    return {
+      maxWatts: 5000,
+      maxVolts: 500,
+      maxAmps: 15
+    };
+  }
+  return {
+    maxWatts: 4000,
+    maxVolts: 450,
+    maxAmps: 15
   };
 }
 
@@ -711,6 +756,9 @@ function normalizeSolarPortWatts(
 }
 
 function deriveBatteryCapacityKWh(modelLower: string, batteryPacks?: number): number | undefined {
+  if (modelLower.includes('delta pro ultra x')) {
+    return 6.144 * Math.max(1, batteryPacks ?? 2);
+  }
   if (modelLower.includes('delta pro ultra')) {
     return 6.0 * Math.max(1, batteryPacks ?? 2);
   }
