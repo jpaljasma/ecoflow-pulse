@@ -10,6 +10,9 @@ func TestIsSupportedProvider(t *testing.T) {
 	if !IsSupportedProvider(" EcoFlow ") {
 		t.Fatalf("expected provider normalization to pass")
 	}
+	if !IsSupportedProvider("PulseMQTT") {
+		t.Fatalf("expected pulsemqtt to be supported")
+	}
 	if IsSupportedProvider("unknown") {
 		t.Fatalf("expected unknown provider to be unsupported")
 	}

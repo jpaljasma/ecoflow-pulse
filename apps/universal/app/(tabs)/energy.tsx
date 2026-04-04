@@ -210,6 +210,10 @@ function buildEnergyHref(state: EnergyRouteState): string {
   return `/(tabs)/energy?${query.toString()}`;
 }
 
+function splitSectionWrap(isWideLayout: boolean): 'nowrap' | 'wrap' {
+  return isWideLayout ? 'nowrap' : 'wrap';
+}
+
 export default function EnergyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -676,7 +680,11 @@ export default function EnergyScreen() {
               </XStack>
             </Card>
 
-            <XStack gap="$3" flexWrap="wrap" flexDirection={isWideLayout ? 'row' : 'column'}>
+            <XStack
+              gap="$3"
+              flexWrap={splitSectionWrap(isWideLayout)}
+              flexDirection={isWideLayout ? 'row' : 'column'}
+            >
               <YStack flex={1} minWidth={0}>
                 <WeatherCurrentWidget
                   forecast={profileWeather.forecastQuery.data?.forecast}
@@ -865,7 +873,11 @@ export default function EnergyScreen() {
               loading={comparisonInsightQuery.isLoading}
             />
 
-            <XStack gap="$3" flexWrap="wrap" flexDirection={isWideLayout ? 'row' : 'column'}>
+            <XStack
+              gap="$3"
+              flexWrap={splitSectionWrap(isWideLayout)}
+              flexDirection={isWideLayout ? 'row' : 'column'}
+            >
               <YStack gap="$3" width={isWideLayout ? 320 : '100%'}>
                 <EnergyMetricTile
                   icon="solar-power-variant-outline"
@@ -1018,7 +1030,11 @@ export default function EnergyScreen() {
               </YStack>
             </XStack>
 
-            <XStack gap="$3" flexWrap="wrap" flexDirection={isWideLayout ? 'row' : 'column'}>
+            <XStack
+              gap="$3"
+              flexWrap={splitSectionWrap(isWideLayout)}
+              flexDirection={isWideLayout ? 'row' : 'column'}
+            >
               <YStack flex={1} minWidth={0}>
                 <ChartSection
                   title="Power profile"

@@ -2,6 +2,7 @@ package ingestworker
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -45,6 +46,10 @@ type mqttSubscriber interface {
 }
 
 type mqttSubscriberFactory func(cfg ecoflowmqtt.Config) (mqttSubscriber, error)
+
+type mqttTLSConfigProvider interface {
+	MQTTTLSConfig() *tls.Config
+}
 
 type ecoFlowCertificationResolver interface {
 	GetMQTTCertification(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (ecoflow.GeneralInfoMQTTCertification, error)
@@ -207,6 +212,7 @@ func (c EcoFlowSessionConfig) validate() error {
 }
 
 type EcoFlowSessionRunner struct {
+	provider        string
 	log             *slog.Logger
 	adapter         ecoFlowCertificationResolver
 	publisher       telemetrybus.EnvelopePublisher
@@ -220,6 +226,17 @@ type EcoFlowSessionRunner struct {
 }
 
 func NewEcoFlowSessionRunner(
+	log *slog.Logger,
+	adapter ecoFlowCertificationResolver,
+	publisher telemetrybus.EnvelopePublisher,
+	providerDevices providerDeviceUpdater,
+	cfg EcoFlowSessionConfig,
+) (*EcoFlowSessionRunner, error) {
+	return NewCompatibleMQTTSessionRunner(controlplane.ProviderEcoFlow, log, adapter, publisher, providerDevices, cfg)
+}
+
+func NewCompatibleMQTTSessionRunner(
+	provider string,
 	log *slog.Logger,
 	adapter ecoFlowCertificationResolver,
 	publisher telemetrybus.EnvelopePublisher,
@@ -243,6 +260,7 @@ func NewEcoFlowSessionRunner(
 		return nil, fmt.Errorf("invalid ecoflow session config: %w", err)
 	}
 	return &EcoFlowSessionRunner{
+		provider:        sanitizeProvider(provider),
 		log:             log,
 		adapter:         adapter,
 		publisher:       publisher,
@@ -267,7 +285,7 @@ func defaultMQTTSubscriberFactory(cfg ecoflowmqtt.Config) (mqttSubscriber, error
 }
 
 func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAssignment) error {
-	if sanitizeProvider(a.Provider) != controlplane.ProviderEcoFlow {
+	if sanitizeProvider(a.Provider) != r.providerName() {
 		return fmt.Errorf("unsupported provider in session runner: %s", a.Provider)
 	}
 
@@ -384,7 +402,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 	if err != nil {
 		return false, err
 	}
-	subscriber, err := r.newSubscriber(ecoflowmqtt.Config{
+	mqttConfig := ecoflowmqtt.Config{
 		Address:        address,
 		Username:       strings.TrimSpace(cert.CertificateAccount),
 		Password:       strings.TrimSpace(cert.CertificatePassword),
@@ -393,7 +411,11 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 		ConnectTimeout: cfg.ConnectTimeout,
 		ReadTimeout:    cfg.ReadTimeout,
 		WriteTimeout:   cfg.WriteTimeout,
-	})
+	}
+	if tlsProvider, ok := r.adapter.(mqttTLSConfigProvider); ok {
+		mqttConfig.TLSConfig = tlsProvider.MQTTTLSConfig()
+	}
+	subscriber, err := r.newSubscriber(mqttConfig)
 	if err != nil {
 		return false, fmt.Errorf("init mqtt subscriber: %w", err)
 	}
@@ -648,6 +670,16 @@ func credentialFromAssignment(a controlplane.IngestAssignment) controlplane.Prov
 		SecretKey: a.SecretKey,
 		IsActive:  a.CredentialIsActive,
 	}
+}
+
+func (r *EcoFlowSessionRunner) providerName() string {
+	if r == nil {
+		return controlplane.ProviderEcoFlow
+	}
+	if provider := sanitizeProvider(r.provider); provider != "" {
+		return provider
+	}
+	return controlplane.ProviderEcoFlow
 }
 
 func nextBackoff(current, max time.Duration) time.Duration {

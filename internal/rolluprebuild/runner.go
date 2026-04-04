@@ -12,9 +12,9 @@ import (
 	"time"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
-	"github.com/jpaljasma/ecoflow-pulse/internal/envelopededup"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
+	"github.com/tidwall/gjson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -252,8 +252,9 @@ func (r *Runner) processObjectGroup(
 		affected: collectAffectedDevices(objects),
 	}
 	affectedSeen := make(map[string]struct{}, len(result.affected))
-	seenEnvelopeKeys := make(map[string]struct{}, 4096)
 	samples := make([]rebuildSample, 0, 4096)
+	dedupedEnvelopes := make([]*envelopev1.TelemetryEnvelope, 0, 4096)
+	dedupedEnvelopeIndex := make(map[string]int, 4096)
 	for _, device := range result.affected {
 		affectedSeen[device.Provider+"|"+device.ProviderDeviceID] = struct{}{}
 	}
@@ -290,37 +291,21 @@ func (r *Runner) processObjectGroup(
 			}
 			result.messagesDecoded++
 			messagesDecoded.Add(1)
-			var env envelopev1.TelemetryEnvelope
-			if err := proto.Unmarshal(frame, &env); err != nil {
+			env := &envelopev1.TelemetryEnvelope{}
+			if err := proto.Unmarshal(frame, env); err != nil {
 				result.err = fmt.Errorf("unmarshal archived envelope: %w", err)
 				return result
 			}
-			if dedupKey := strings.TrimSpace(envelopededup.Key(&env)); dedupKey != "" {
-				if _, exists := seenEnvelopeKeys[dedupKey]; exists {
+			if dedupKey := rebuildEnvelopeKey(env); dedupKey != "" {
+				if idx, exists := dedupedEnvelopeIndex[dedupKey]; exists {
+					if shouldPreferLatestEnvelope(dedupedEnvelopes[idx], env) {
+						dedupedEnvelopes[idx] = env
+					}
 					continue
 				}
-				seenEnvelopeKeys[dedupKey] = struct{}{}
+				dedupedEnvelopeIndex[dedupKey] = len(dedupedEnvelopes)
 			}
-			if env.GetSourceKind() == envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA {
-				result.quotaMessages++
-				quotaMessages.Add(1)
-			}
-			sample, err := rollupworker.SampleFromEnvelope(&env)
-			if err == nil {
-				samples = append(samples, rebuildSample{sample: sample})
-				device := DeviceWindow{
-					Provider:         sample.Provider,
-					ProviderDeviceID: sample.ProviderDeviceID,
-				}
-				key := device.Provider + "|" + device.ProviderDeviceID
-				if _, exists := affectedSeen[key]; !exists && strings.TrimSpace(device.ProviderDeviceID) != "" {
-					affectedSeen[key] = struct{}{}
-					result.affected = append(result.affected, device)
-				}
-			} else if err != rollupworker.ErrNoRollupMetrics {
-				result.err = fmt.Errorf("derive rollup sample from envelope %s: %w", env.GetEnvelopeId(), err)
-				return result
-			}
+			dedupedEnvelopes = append(dedupedEnvelopes, env)
 		}
 		if processed%progressLogEveryObjects == 0 {
 			r.log.Info("rollup rebuild progress",
@@ -329,6 +314,31 @@ func (r *Runner) processObjectGroup(
 				slog.Int64("messages_decoded", messagesDecoded.Load()),
 				slog.Int64("messages_applied", messagesApplied.Load()),
 			)
+		}
+	}
+	for _, env := range dedupedEnvelopes {
+		if env == nil {
+			continue
+		}
+		if env.GetSourceKind() == envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA {
+			result.quotaMessages++
+			quotaMessages.Add(1)
+		}
+		sample, err := rollupworker.SampleFromEnvelope(env)
+		if err == nil {
+			samples = append(samples, rebuildSample{sample: sample})
+			device := DeviceWindow{
+				Provider:         sample.Provider,
+				ProviderDeviceID: sample.ProviderDeviceID,
+			}
+			key := device.Provider + "|" + device.ProviderDeviceID
+			if _, exists := affectedSeen[key]; !exists && strings.TrimSpace(device.ProviderDeviceID) != "" {
+				affectedSeen[key] = struct{}{}
+				result.affected = append(result.affected, device)
+			}
+		} else if err != rollupworker.ErrNoRollupMetrics {
+			result.err = fmt.Errorf("derive rollup sample from envelope %s: %w", env.GetEnvelopeId(), err)
+			return result
 		}
 	}
 	sort.SliceStable(samples, func(i, j int) bool {
@@ -347,6 +357,65 @@ func (r *Runner) processObjectGroup(
 	result.pvPortHourRows = aggregator.PVPortRows(ResolutionHour)
 	result.pvPortDayRows = aggregator.PVPortRows(ResolutionDay)
 	return result
+}
+
+func rebuildEnvelopeKey(env *envelopev1.TelemetryEnvelope) string {
+	if env == nil {
+		return ""
+	}
+	deviceID := strings.TrimSpace(env.GetDeviceId())
+	if deviceID != "" && env.GetObservedTimeUnixMs() > 0 {
+		if payloadKey := rebuildPayloadKey(env.GetPayload()); payloadKey != "" {
+			return fmt.Sprintf(
+				"sample:%s:%d:%d:%s",
+				deviceID,
+				env.GetObservedTimeUnixMs(),
+				env.GetSourceKind(),
+				payloadKey,
+			)
+		}
+	}
+	messageID := strings.TrimSpace(env.GetMessageId())
+	if deviceID != "" && messageID != "" {
+		return fmt.Sprintf("msg:%s:%s", deviceID, messageID)
+	}
+	if envelopeID := strings.TrimSpace(env.GetEnvelopeId()); envelopeID != "" {
+		return "env:" + envelopeID
+	}
+	return ""
+}
+
+func rebuildPayloadKey(payload []byte) string {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return ""
+	}
+	typeCode := strings.TrimSpace(gjson.GetBytes(payload, "typeCode").String())
+	addr := strings.TrimSpace(gjson.GetBytes(payload, "addr").String())
+	cmdID := strings.TrimSpace(gjson.GetBytes(payload, "cmdId").Raw)
+	cmdFunc := strings.TrimSpace(gjson.GetBytes(payload, "cmdFunc").Raw)
+	if typeCode == "" && addr == "" && cmdID == "" && cmdFunc == "" {
+		return ""
+	}
+	return strings.Join([]string{typeCode, addr, cmdID, cmdFunc}, "|")
+}
+
+func shouldPreferLatestEnvelope(existing *envelopev1.TelemetryEnvelope, candidate *envelopev1.TelemetryEnvelope) bool {
+	if existing == nil {
+		return candidate != nil
+	}
+	if candidate == nil {
+		return false
+	}
+	switch {
+	case candidate.GetIngestedTimeUnixMs() != existing.GetIngestedTimeUnixMs():
+		return candidate.GetIngestedTimeUnixMs() > existing.GetIngestedTimeUnixMs()
+	case candidate.GetObservedTimeUnixMs() != existing.GetObservedTimeUnixMs():
+		return candidate.GetObservedTimeUnixMs() > existing.GetObservedTimeUnixMs()
+	case candidate.GetDeviceTimeUnixMs() != existing.GetDeviceTimeUnixMs():
+		return candidate.GetDeviceTimeUnixMs() > existing.GetDeviceTimeUnixMs()
+	default:
+		return candidate.GetEnvelopeId() > existing.GetEnvelopeId()
+	}
 }
 
 func rebuildSampleLess(left *rollupworker.RollupSample, right *rollupworker.RollupSample) bool {

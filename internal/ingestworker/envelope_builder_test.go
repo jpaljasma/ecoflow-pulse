@@ -2,6 +2,7 @@ package ingestworker
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -94,6 +95,49 @@ func TestBuildTelemetryEnvelopeWithInvalidJSONPayload(t *testing.T) {
 	}
 	if envelope.GetTypeCode() != "quota" {
 		t.Fatalf("expected fallback topic type_code=quota, got=%q", envelope.GetTypeCode())
+	}
+}
+
+func TestBuildTelemetryEnvelopeUsesDeviceTimeForPulseMQTTReplay(t *testing.T) {
+	t.Parallel()
+
+	assignment := controlplane.IngestAssignment{
+		Provider:         "pulsemqtt",
+		ProviderDeviceID: "PULSEDPUX24K001",
+		DeviceID:         "019d52bc-2a5b-74b8-aafb-a3a8ba7ee380",
+		CredentialID:     "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+	}
+	deviceTime := time.Date(2026, time.April, 3, 10, 12, 0, 0, time.UTC)
+	ingestedAt := deviceTime.Add(8 * time.Hour)
+	message := ecoflowmqtt.Message{
+		Topic: "/open/account/PULSEDPUX24K001/quota",
+		Payload: []byte(fmt.Sprintf(
+			`{"id":"pulse-replay-%d-1","time":%d,"typeCode":"quota","addr":"hs_yj751_pd_appshow_addr","cmdId":1,"cmdFunc":2}`,
+			deviceTime.UnixMilli(),
+			deviceTime.UnixMilli(),
+		)),
+	}
+
+	envelope, err := buildTelemetryEnvelope(assignment, message, ingestedAt, EcoFlowSessionConfig{})
+	if err != nil {
+		t.Fatalf("buildTelemetryEnvelope() error = %v", err)
+	}
+	if envelope.GetObservedTimeUnixMs() != deviceTime.UnixMilli() {
+		t.Fatalf("observed_time_unix_ms mismatch: got=%d want=%d", envelope.GetObservedTimeUnixMs(), deviceTime.UnixMilli())
+	}
+	if envelope.GetIngestedTimeUnixMs() != ingestedAt.UnixMilli() {
+		t.Fatalf("ingested_time_unix_ms mismatch: got=%d want=%d", envelope.GetIngestedTimeUnixMs(), ingestedAt.UnixMilli())
+	}
+	if envelope.GetDeviceTimeUnixMs() != deviceTime.UnixMilli() {
+		t.Fatalf("device_time_unix_ms mismatch: got=%d want=%d", envelope.GetDeviceTimeUnixMs(), deviceTime.UnixMilli())
+	}
+
+	envelopeAgain, err := buildTelemetryEnvelope(assignment, message, ingestedAt.Add(2*time.Minute), EcoFlowSessionConfig{})
+	if err != nil {
+		t.Fatalf("buildTelemetryEnvelope() second call error = %v", err)
+	}
+	if envelopeAgain.GetEnvelopeId() != envelope.GetEnvelopeId() {
+		t.Fatalf("envelope_id should be deterministic for pulsemqtt replay: first=%q second=%q", envelope.GetEnvelopeId(), envelopeAgain.GetEnvelopeId())
 	}
 }
 

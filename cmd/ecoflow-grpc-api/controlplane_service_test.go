@@ -233,7 +233,7 @@ func TestCreateProviderCredentialUsesRegistryBackedProviderSupport(t *testing.T)
 	store := controlplane.NewMemoryStore()
 	store.EnsureUser("dev-user")
 	registry := provideradapter.NewRegistry()
-	registry.RegisterProvider("victron")
+	registry.RegisterDiscoverer("victron", staticDiscoverer{})
 	svc := NewControlPlaneService(log, store, registry)
 
 	resp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{

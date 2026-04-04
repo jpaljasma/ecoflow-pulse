@@ -164,4 +164,15 @@ describe('deriveTelemetryMetrics', () => {
 
     expect(metrics.soc).toBeCloseTo(25.49, 2);
   });
+
+  it('prefers canonical DPU soc over backup reserve soc', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.bpPowerSoc': 18,
+      'params.soc': 73.15,
+      'params.wattsInSum': 889.79,
+      'params.wattsOutSum': 705.89
+    });
+
+    expect(metrics.soc).toBeCloseTo(73.15, 2);
+  });
 });

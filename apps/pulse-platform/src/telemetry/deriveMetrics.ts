@@ -18,13 +18,13 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
     'soc',
     'params.f32LcdShowSoc',
     'params.lcdShowSoc',
-    'params.bpPowerSoc',
     'params.f32ShowSoc',
     'params.f32Soc',
     'param.cmsBattSoc',
     'params.cmsBattSoc',
     'params.soc',
-    'param.soc'
+    'param.soc',
+    'params.bpPowerSoc'
   ) ?? 0;
 
   const directAcIn =

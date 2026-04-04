@@ -28,7 +28,8 @@ RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26,target=/go/pkg/mod,sharing=l
         ecoflow-gap-detector \
         ecoflow-gap-repair-worker \
         ecoflow-solar-verifier \
-        ecoflow-grpc-api; do \
+        ecoflow-grpc-api \
+        pulse-mqtt-emulator; do \
         go build -trimpath -tags=moderncompress -o "/out/${cmd}" "./cmd/${cmd}"; \
     done
 

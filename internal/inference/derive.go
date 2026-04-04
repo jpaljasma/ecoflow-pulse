@@ -149,6 +149,8 @@ func insightUUID(deviceID string, seed string, kind Kind) string {
 func maxBatteryPacksForModel(model string) int {
 	m := normalizeModel(model)
 	switch {
+	case strings.Contains(m, "delta pro ultra x"):
+		return 10
 	case strings.Contains(m, "delta pro ultra"):
 		return 5
 	case strings.Contains(m, "delta 2 max"):
@@ -161,6 +163,11 @@ func maxBatteryPacksForModel(model string) int {
 func batteryCapacityKWh(model string, batteryPacks int) (float64, bool) {
 	m := normalizeModel(model)
 	switch {
+	case strings.Contains(m, "delta pro ultra x"):
+		if batteryPacks <= 0 {
+			batteryPacks = 2
+		}
+		return 6.144 * float64(maxInt(batteryPacks, 1)), true
 	case strings.Contains(m, "delta pro ultra"):
 		if batteryPacks <= 0 {
 			batteryPacks = 2

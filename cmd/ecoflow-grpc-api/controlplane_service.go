@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -39,6 +40,10 @@ type mqttProbeSubscriberFactory func(cfg ecoflowmqtt.Config) (mqttProbeSubscribe
 
 type mqttCertificationResolver interface {
 	GetMQTTCertification(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (ecoflow.GeneralInfoMQTTCertification, error)
+}
+
+type mqttResolverTLSConfigProvider interface {
+	MQTTTLSConfig() *tls.Config
 }
 
 type ControlPlaneService struct {
@@ -348,9 +353,6 @@ func (s *ControlPlaneService) validateProviderCredentialActivation(
 	if provider == "" {
 		return status.Error(codes.InvalidArgument, "provider required for credential activation")
 	}
-	if provider != controlplane.ProviderEcoFlow {
-		return nil
-	}
 	discoverer, ok := s.adapters.Discoverer(provider)
 	if !ok {
 		return status.Error(codes.Unimplemented, "provider discoverer not configured")
@@ -631,7 +633,7 @@ func (s *ControlPlaneService) probeProviderDeviceMQTT(
 	cred controlplane.ProviderCredential,
 	providerDeviceID string,
 ) (*controlplanev1.TestProviderDeviceMQTTResponse, error) {
-	resolver, err := s.mqttResolver(provider)
+	resolver, tlsConfig, err := s.mqttResolver(provider)
 	if err != nil {
 		return nil, err
 	}
@@ -662,6 +664,7 @@ func (s *ControlPlaneService) probeProviderDeviceMQTT(
 		ConnectTimeout: defaultMQTTProbeConnectTimeout,
 		ReadTimeout:    defaultMQTTProbeReadTimeout,
 		WriteTimeout:   defaultMQTTProbeWriteTimeout,
+		TLSConfig:      tlsConfig,
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "init mqtt probe subscriber: %v", err)
@@ -880,16 +883,20 @@ func (s *ControlPlaneService) discoverProviderDeviceForCredential(ctx context.Co
 	return controlplane.ProviderDevice{}, status.Error(codes.NotFound, "provider device not found")
 }
 
-func (s *ControlPlaneService) mqttResolver(provider string) (mqttCertificationResolver, error) {
+func (s *ControlPlaneService) mqttResolver(provider string) (mqttCertificationResolver, *tls.Config, error) {
 	discoverer, ok := s.adapters.Discoverer(provider)
 	if !ok {
-		return nil, status.Error(codes.Unimplemented, "provider mqtt probe not configured")
+		return nil, nil, status.Error(codes.Unimplemented, "provider mqtt probe not configured")
 	}
 	resolver, ok := discoverer.(mqttCertificationResolver)
 	if !ok {
-		return nil, status.Error(codes.Unimplemented, "provider mqtt probe not configured")
+		return nil, nil, status.Error(codes.Unimplemented, "provider mqtt probe not configured")
 	}
-	return resolver, nil
+	var tlsConfig *tls.Config
+	if provider, ok := discoverer.(mqttResolverTLSConfigProvider); ok {
+		tlsConfig = provider.MQTTTLSConfig()
+	}
+	return resolver, tlsConfig, nil
 }
 
 func availableProviderDeviceKey(provider, providerDeviceID string) string {

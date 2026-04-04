@@ -25,6 +25,7 @@ go run ./cmd/ecoflow-replay-cli
 go run ./cmd/ecoflow-gap-detector
 go run ./cmd/ecoflow-gap-repair-worker
 go run ./cmd/ecoflow-loadtest-ingest-bridge
+go run ./cmd/pulse-mqtt-emulator
 make test-db-migrations-ci
 make pgroll-init-local
 make pgroll-status-local
@@ -43,6 +44,16 @@ Notes for `cmd/ecoflow-smoke`:
   it with `Ctrl-C`.
 - Use `go run ./cmd/ecoflow-smoke -mqtt=false` for the old API-only quick
   connectivity check.
+
+Run the local Pulse MQTT emulator directly outside Kubernetes:
+
+```bash
+PULSE_MQTT_EMULATOR_HTTP_ADDR='127.0.0.1:18080' \
+PULSE_MQTT_EMULATOR_MQTT_ADDR='127.0.0.1:18883' \
+PULSE_MQTT_EMULATOR_BROKER_HOST='127.0.0.1' \
+PULSE_MQTT_EMULATOR_BROKER_PORT='18883' \
+go run ./cmd/pulse-mqtt-emulator
+```
 
 Run the forward-only rollout migration runner directly (the same binary used by
 the Helm/Argo hook job):
@@ -1182,6 +1193,22 @@ Notes:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),
   - verifies social providers `google` and `facebook` are present in that realm.
+- `go run ./cmd/pulse-mqtt-history-backfill` safely repairs a bounded
+  `pulsemqtt` history window through the standard emulator/ingest/archive path:
+  - defaults `-from` to local midnight and `-to` to the next local minute
+    boundary,
+  - defaults `-provider=pulsemqtt`,
+    `-provider-device-id=PULSEDPUX24K001`, and
+    `-emulator-url=http://127.0.0.1:18080`,
+  - POSTs `/replay` on the running emulator so historical quota frames travel
+    through the normal MQTT subscriber + ingest worker path,
+  - waits for those replayed envelopes to appear in the raw archive for the
+    requested provider/device window,
+  - invokes the same archive-backed bounded replacement flow used by
+    `cmd/ecoflow-rollup-rebuild` so minute/hour/day and PV-port rollups stay
+    aligned.
+  Typical local usage:
+  - `CONTROL_PLANE_DB_DSN='postgres://pulse:pulse-local-dev-password@127.0.0.1:15432/pulse?sslmode=disable' go run ./cmd/pulse-mqtt-history-backfill -emulator-url 'http://127.0.0.1:18080' -from '2026-04-03T00:00:00+03:00' -to '2026-04-03T21:30:00+03:00'`
 - `make gke-context` fetches kube credentials for GKE dev.
   Required variables:
   - `GKE_PROJECT_ID` (required)

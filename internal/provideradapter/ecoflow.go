@@ -2,6 +2,7 @@ package provideradapter
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"sort"
@@ -65,14 +66,35 @@ func (c ecoflowClientWrapper) GeneralInfo() EcoFlowGeneralInfo {
 }
 
 type EcoFlowAdapter struct {
-	factory EcoFlowClientFactory
+	provider      string
+	factory       EcoFlowClientFactory
+	mqttTLSConfig *tls.Config
 }
 
 func NewEcoFlowAdapter(factory EcoFlowClientFactory) *EcoFlowAdapter {
+	return NewEcoFlowCompatibleAdapter(controlplane.ProviderEcoFlow, factory, nil)
+}
+
+func NewEcoFlowCompatibleAdapter(
+	provider string,
+	factory EcoFlowClientFactory,
+	mqttTLSConfig *tls.Config,
+) *EcoFlowAdapter {
 	if factory == nil {
 		factory = NewDefaultEcoFlowClientFactory(ecoflow.DefaultConfig())
 	}
-	return &EcoFlowAdapter{factory: factory}
+	return &EcoFlowAdapter{
+		provider:      controlplane.NormalizeProvider(provider),
+		factory:       factory,
+		mqttTLSConfig: cloneTLSConfig(mqttTLSConfig),
+	}
+}
+
+func (a *EcoFlowAdapter) MQTTTLSConfig() *tls.Config {
+	if a == nil {
+		return nil
+	}
+	return cloneTLSConfig(a.mqttTLSConfig)
 }
 
 func (a *EcoFlowAdapter) DiscoverDevices(ctx context.Context, credential controlplane.ProviderCredential) ([]controlplane.ProviderDevice, error) {
@@ -88,7 +110,7 @@ func (a *EcoFlowAdapter) DiscoverDevices(ctx context.Context, credential control
 	seen := make(map[string]struct{}, len(devices))
 	out := make([]controlplane.ProviderDevice, 0, len(devices))
 	for i := range devices {
-		mapped, ok := mapEcoFlowDevice(devices[i], credential.ID)
+		mapped, ok := mapEcoFlowDevice(devices[i], credential.ID, a.providerName())
 		if !ok {
 			continue
 		}
@@ -180,7 +202,7 @@ func BuildMQTTAddressAndTopic(
 }
 
 func (a *EcoFlowAdapter) generalInfoForCredential(credential controlplane.ProviderCredential) (EcoFlowGeneralInfo, error) {
-	if controlplane.NormalizeProvider(credential.Provider) != controlplane.ProviderEcoFlow {
+	if controlplane.NormalizeProvider(credential.Provider) != a.providerName() {
 		return nil, ErrUnsupportedProvider
 	}
 	if !credential.IsActive {
@@ -199,7 +221,7 @@ func (a *EcoFlowAdapter) generalInfoForCredential(credential controlplane.Provid
 	return client.GeneralInfo(), nil
 }
 
-func mapEcoFlowDevice(device ecoflow.GeneralInfoDevice, credentialID string) (controlplane.ProviderDevice, bool) {
+func mapEcoFlowDevice(device ecoflow.GeneralInfoDevice, credentialID string, provider string) (controlplane.ProviderDevice, bool) {
 	sn := normalizeProviderDeviceID(device.SN)
 	if sn == "" {
 		return controlplane.ProviderDevice{}, false
@@ -213,7 +235,7 @@ func mapEcoFlowDevice(device ecoflow.GeneralInfoDevice, credentialID string) (co
 		productName = sn
 	}
 	return controlplane.ProviderDevice{
-		Provider:           controlplane.ProviderEcoFlow,
+		Provider:           provider,
 		ProviderDeviceID:   sn,
 		CredentialID:       credentialID,
 		CanonicalSN:        sn,
@@ -240,7 +262,7 @@ func (a *EcoFlowAdapter) describeDevice(
 		return controlplane.ProviderDevice{}, fmt.Errorf("list ecoflow devices: %w", err)
 	}
 	for i := range devices {
-		mapped, ok := mapEcoFlowDevice(devices[i], credentialID)
+		mapped, ok := mapEcoFlowDevice(devices[i], credentialID, a.providerName())
 		if !ok {
 			continue
 		}
@@ -253,4 +275,21 @@ func (a *EcoFlowAdapter) describeDevice(
 
 func normalizeProviderDeviceID(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func (a *EcoFlowAdapter) providerName() string {
+	if a == nil {
+		return controlplane.ProviderEcoFlow
+	}
+	if provider := controlplane.NormalizeProvider(a.provider); provider != "" {
+		return provider
+	}
+	return controlplane.ProviderEcoFlow
+}
+
+func cloneTLSConfig(cfg *tls.Config) *tls.Config {
+	if cfg == nil {
+		return nil
+	}
+	return cfg.Clone()
 }

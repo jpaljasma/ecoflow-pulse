@@ -1569,9 +1569,21 @@ db-migrate-e2e-local: db-migrate-up-local
 
 db-seed-dev-local: db-migrate-up-local
 	@set -euo pipefail; \
+	incoming_provider="$${ECOFLOW_DEV_PROVIDER:-}"; \
+	incoming_access_key="$${ECOFLOW_DEV_ACCESS_KEY:-}"; \
+	incoming_secret_key="$${ECOFLOW_DEV_SECRET_KEY:-}"; \
+	incoming_user_subject="$${ECOFLOW_DEV_USER_SUBJECT:-}"; \
+	incoming_user_email="$${ECOFLOW_DEV_USER_EMAIL:-}"; \
+	incoming_seed_sns="$${ECOFLOW_DEV_SEED_SNS:-}"; \
 	if [ -f .env ]; then \
 		set -a; source ./.env; set +a; \
 	fi; \
+	if [ -n "$$incoming_provider" ]; then export ECOFLOW_DEV_PROVIDER="$$incoming_provider"; fi; \
+	if [ -n "$$incoming_access_key" ]; then export ECOFLOW_DEV_ACCESS_KEY="$$incoming_access_key"; fi; \
+	if [ -n "$$incoming_secret_key" ]; then export ECOFLOW_DEV_SECRET_KEY="$$incoming_secret_key"; fi; \
+	if [ -n "$$incoming_user_subject" ]; then export ECOFLOW_DEV_USER_SUBJECT="$$incoming_user_subject"; fi; \
+	if [ -n "$$incoming_user_email" ]; then export ECOFLOW_DEV_USER_EMAIL="$$incoming_user_email"; fi; \
+	if [ -n "$$incoming_seed_sns" ]; then export ECOFLOW_DEV_SEED_SNS="$$incoming_seed_sns"; fi; \
 	seed_user_subject="$${DB_SEED_USER_SUBJECT:-$${ECOFLOW_DEV_USER_SUBJECT:-$${PULSE_PLATFORM_DEV_SUBJECT:-$(DB_SEED_USER_SUBJECT)}}}"; \
 	seed_user_email="$${DB_SEED_USER_EMAIL:-$${ECOFLOW_DEV_USER_EMAIL:-$$seed_user_subject}}"; \
 	seed_serials="$${DB_SEED_SERIALS:-$${ECOFLOW_DEV_SEED_SNS:-$(DB_SEED_SERIALS)}}"; \

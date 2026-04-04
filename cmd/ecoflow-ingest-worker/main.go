@@ -103,6 +103,11 @@ func main() {
 		log.Error("init ecoflow adapter failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	pulseMQTTAdapter, err := provideradapter.NewRuntimePulseMQTTAdapter(log)
+	if err != nil {
+		log.Error("init pulse mqtt adapter failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	subjectCfg := telemetrybus.SubjectConfig{
 		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
 		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
@@ -180,8 +185,14 @@ func main() {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	pulseMQTTRunner, err := ingestworker.NewCompatibleMQTTSessionRunner(controlplane.ProviderPulseMQTT, log, pulseMQTTAdapter, publisher, store, sessionCfg)
+	if err != nil {
+		log.Error("init pulse mqtt session runner failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	runner := ingestworker.NewProviderSessionRunner()
 	runner.Register(controlplane.ProviderEcoFlow, ecoFlowRunner)
+	runner.Register(controlplane.ProviderPulseMQTT, pulseMQTTRunner)
 
 	loopCfg := loadIngestLoopConfigFromEnv()
 	autoscaleMetrics := ingestworker.NewAutoscaleMetrics()

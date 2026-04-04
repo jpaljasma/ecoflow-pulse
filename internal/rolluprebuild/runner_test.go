@@ -178,6 +178,131 @@ func TestProcessObjectGroupDedupesDuplicateEnvelopesDuringRebuild(t *testing.T) 
 	}
 }
 
+func TestProcessObjectGroupPrefersLatestReplayEnvelopeForHistoricalSample(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, time.April, 3, 10, 0, 0, 0, time.UTC)
+	deviceID := "019cec1d-9a84-7e55-8018-27353cbc79da"
+	envOld := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-old",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "PULSEDPUX24K001",
+		ObservedTimeUnixMs: base.UnixMilli(),
+		DeviceTimeUnixMs:   base.UnixMilli(),
+		IngestedTimeUnixMs: base.UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "pulsemqtt",
+			"provider_device_id": "PULSEDPUX24K001",
+		},
+		Payload:         []byte(`{"typeCode":"quota","addr":"hs_yj751_pd_appshow_addr","cmdId":1,"cmdFunc":2,"params":{"inHvMpptPwr":60}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		SourceKind:      envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA,
+	})
+	envReplay := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-replay",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "PULSEDPUX24K001",
+		MessageId:          "pulse-replay-1",
+		ObservedTimeUnixMs: base.UnixMilli(),
+		DeviceTimeUnixMs:   base.UnixMilli(),
+		IngestedTimeUnixMs: base.Add(30 * time.Minute).UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "pulsemqtt",
+			"provider_device_id": "PULSEDPUX24K001",
+		},
+		Payload:         []byte(`{"typeCode":"quota","addr":"hs_yj751_pd_appshow_addr","cmdId":1,"cmdFunc":2,"params":{"inHvMpptPwr":240}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		SourceKind:      envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA,
+	})
+	envTail := testEnvelopeFrame(t, &envelopev1.TelemetryEnvelope{
+		EnvelopeId:         "env-tail",
+		EnvelopeVersion:    1,
+		DeviceId:           deviceID,
+		EcoflowSn:          "PULSEDPUX24K001",
+		MessageId:          "pulse-tail-1",
+		ObservedTimeUnixMs: base.Add(30 * time.Second).UnixMilli(),
+		DeviceTimeUnixMs:   base.Add(30 * time.Second).UnixMilli(),
+		IngestedTimeUnixMs: base.Add(30*time.Minute + 30*time.Second).UnixMilli(),
+		Labels: map[string]string{
+			"provider":           "pulsemqtt",
+			"provider_device_id": "PULSEDPUX24K001",
+		},
+		Payload:         []byte(`{"typeCode":"quota","addr":"hs_yj751_pd_backend_addr","cmdId":1,"cmdFunc":2,"params":{"wattsOutSum":10}}`),
+		PayloadType:     "ecoflow.mqtt.raw",
+		PayloadVersion:  1,
+		PayloadEncoding: envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
+		SourceKind:      envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA,
+	})
+
+	runner, err := NewRunner(
+		nil,
+		&runnerTestManifestStore{},
+		&runnerTestObjectReader{bodiesByObjectKey: map[string][]byte{
+			"raw/yyyy=2026/mm=04/dd=03/hh=10/shard=001/part-00001.pb.zst": encodeRebuildFrames(t, envOld),
+			"raw/yyyy=2026/mm=04/dd=03/hh=19/shard=001/part-00002.pb.zst": encodeRebuildFrames(t, envReplay, envTail),
+		}},
+		&PostgresWriter{},
+		100,
+		1,
+	)
+	if err != nil {
+		t.Fatalf("NewRunner failed: %v", err)
+	}
+
+	var objectsProcessed atomic.Int64
+	var missingObjects atomic.Int64
+	var messagesDecoded atomic.Int64
+	var messagesApplied atomic.Int64
+	var quotaMessages atomic.Int64
+
+	result := runner.processObjectGroup(
+		context.Background(),
+		orderObjectsForRebuild([]replaycli.ManifestObject{
+			{
+				ObjectBucket:      "pulse-telemetry-raw",
+				ObjectKey:         "raw/yyyy=2026/mm=04/dd=03/hh=10/shard=001/part-00001.pb.zst",
+				Provider:          "pulsemqtt",
+				ProviderDeviceIDs: []string{"PULSEDPUX24K001"},
+				Shard:             1,
+				PartitionHour:     time.Date(2026, time.April, 3, 10, 0, 0, 0, time.UTC),
+			},
+			{
+				ObjectBucket:      "pulse-telemetry-raw",
+				ObjectKey:         "raw/yyyy=2026/mm=04/dd=03/hh=19/shard=001/part-00002.pb.zst",
+				Provider:          "pulsemqtt",
+				ProviderDeviceIDs: []string{"PULSEDPUX24K001"},
+				Shard:             1,
+				PartitionHour:     time.Date(2026, time.April, 3, 19, 0, 0, 0, time.UTC),
+			},
+		}),
+		&objectsProcessed,
+		&missingObjects,
+		2,
+		&messagesDecoded,
+		&messagesApplied,
+		&quotaMessages,
+		base.Add(time.Minute).UnixMilli(),
+	)
+	if result.err != nil {
+		t.Fatalf("processObjectGroup failed: %v", result.err)
+	}
+	if result.messagesApplied != 2 {
+		t.Fatalf("messagesApplied = %d, want 2 after replay dedupe", result.messagesApplied)
+	}
+	if len(result.minuteRows) != 1 {
+		t.Fatalf("minute row count = %d, want 1", len(result.minuteRows))
+	}
+	if got := result.minuteRows[0].SolarGeneratedWh; got < 1.9 || got > 2.1 {
+		t.Fatalf("solar_generated_wh = %v, want replay-preferred 240W window", got)
+	}
+}
+
 func TestOrderObjectsForRebuildPreservesCrossShardSolarContinuity(t *testing.T) {
 	t.Parallel()
 

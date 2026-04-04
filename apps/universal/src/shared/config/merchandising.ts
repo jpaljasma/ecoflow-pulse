@@ -12,21 +12,31 @@ type BatteryUpsellRule = {
 };
 
 type ModelProfile = {
-  key: 'delta-pro-ultra' | 'delta-2-max';
+  key: 'delta-pro-ultra-x' | 'delta-pro-ultra' | 'delta-2-max';
   match: RegExp;
   maxBatteryCount: number;
 };
 
 const MODEL_PROFILES: ModelProfile[] = [
+  { key: 'delta-pro-ultra-x', match: /\bdelta\s*pro\s*ultra\s*x\b/i, maxBatteryCount: 10 },
   { key: 'delta-pro-ultra', match: /\bdelta\s*pro\s*ultra\b/i, maxBatteryCount: 5 },
   { key: 'delta-2-max', match: /\bdelta\s*2\s*max\b/i, maxBatteryCount: 3 }
 ];
 
 const batteryUpsellRules: BatteryUpsellRule[] = [
   {
+    key: 'delta-pro-ultra-x',
+    matches: (ctx) =>
+      (ctx.model ?? '').toLowerCase().includes('delta pro ultra x') &&
+      (ctx.batteryCount ?? 0) < 10,
+    url:
+      'https://us.ecoflow.com/products/delta-pro-ultra-x-smart-extra-battery?inviteCode={inviteCode}'
+  },
+  {
     key: 'delta-pro-ultra',
     matches: (ctx) =>
       (ctx.model ?? '').toLowerCase().includes('delta pro ultra') &&
+      !(ctx.model ?? '').toLowerCase().includes('delta pro ultra x') &&
       (ctx.batteryCount ?? 0) < 5,
     url:
       'https://us.ecoflow.com/products/delta-pro-ultra-battery?variant=41446274465865&inviteCode={inviteCode}'

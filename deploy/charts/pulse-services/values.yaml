@@ -63,6 +63,22 @@ runtime:
     archiveObjectRegion: "us-east-1"
     archiveObjectSecure: "false"
     archiveObjectAutoCreateBucket: "true"
+    pulseMqttEmulatorBaseUrl: "http://pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"
+    pulseMqttEmulatorBrokerHost: "pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local"
+    pulseMqttEmulatorBrokerPort: "8883"
+    pulseMqttEmulatorTLSServerName: "pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local"
+    pulseMqttEmulatorHTTPAddr: ":8080"
+    pulseMqttEmulatorMQTTAddr: ":8883"
+    pulseMqttEmulatorPublishInterval: "5s"
+    pulseMqttEmulatorDeviceSN: "PULSEDPUX24K001"
+    pulseMqttEmulatorDeviceName: "DPU-X 24 kWh"
+    pulseMqttEmulatorDeviceModel: "DELTA Pro Ultra X"
+    pulseMqttEmulatorBatteryPackCount: "4"
+    pulseMqttEmulatorBatteryPackEnergyWh: "6144"
+    pulseMqttEmulatorAccessKey: "pulse-mqtt-local-ak"
+    pulseMqttEmulatorSecretKey: "pulse-mqtt-local-sk"
+    pulseMqttEmulatorMQTTUsername: "open-pulse-local-account"
+    pulseMqttEmulatorMQTTPassword: "pulse-mqtt-local-password"
   workers:
     ingest:
       enabled: false
@@ -316,3 +332,27 @@ runtime:
         limits:
           cpu: 500m
           memory: 1Gi
+    pulseMqttEmulator:
+      enabled: false
+      replicaCount: 1
+      deployment:
+        minReadySeconds: 5
+        terminationGracePeriodSeconds: 15
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      service:
+        httpPort: 8080
+        mqttPort: 8883
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 12
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
