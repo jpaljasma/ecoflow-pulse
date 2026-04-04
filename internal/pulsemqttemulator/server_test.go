@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"io"
 	"math"
 	"net/http"
 	"strings"
@@ -133,6 +134,54 @@ func TestMQTTIdleReadTimeoutHonorsKeepAliveBudget(t *testing.T) {
 	got := mqttIdleReadTimeout(90, 5*time.Second)
 	if got < 180*time.Second {
 		t.Fatalf("mqttIdleReadTimeout() = %s, want at least 180s", got)
+	}
+}
+
+func TestServerPublishesBrokerCABundle(t *testing.T) {
+	t.Parallel()
+
+	server, err := NewServer(Config{
+		HTTPAddr:     "127.0.0.1:0",
+		MQTTAddr:     "127.0.0.1:0",
+		AccessKey:    "pulse-test-ak",
+		SecretKey:    "pulse-test-sk",
+		MQTTUsername: "open-pulse-test-account",
+		MQTTPassword: "pulse-test-password",
+		Device: DeviceConfig{
+			SN: "PULSEDPUX24K001",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	if err := server.Start(); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() { _ = server.Close() }()
+
+	resp, err := http.Get(server.BaseURL() + pulseMQTTCABundlePath)
+	if err != nil {
+		t.Fatalf("GET mqtt ca bundle error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	pemBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadFrom() error = %v", err)
+	}
+	if !strings.Contains(string(pemBody), "BEGIN CERTIFICATE") {
+		t.Fatalf("ca bundle missing certificate pem: %q", string(pemBody))
+	}
+}
+
+func TestMQTTPublishPacketCapacityRejectsOverflow(t *testing.T) {
+	t.Parallel()
+
+	maxInt := int(^uint(0) >> 1)
+	if _, err := mqttPublishPacketCapacity(maxInt, 16); err == nil {
+		t.Fatal("mqttPublishPacketCapacity() error = nil, want overflow guard")
 	}
 }
 

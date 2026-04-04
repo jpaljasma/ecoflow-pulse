@@ -13,6 +13,7 @@ import (
 	"encoding/asn1"
 	"encoding/binary"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -33,6 +34,7 @@ const (
 	defaultHTTPAddr        = ":8080"
 	defaultMQTTAddr        = ":8883"
 	defaultPublishInterval = 5 * time.Second
+	pulseMQTTCABundlePath  = "/mqtt-ca.pem"
 	dpuXPackEnergyWh       = 6144
 	dpuXChargeLossWatts    = 110.0
 	dpuXBatteryCapacityWh  = 4 * dpuXPackEnergyWh
@@ -92,6 +94,8 @@ type Server struct {
 	mu      sync.RWMutex
 	clients map[*mqttClient]struct{}
 	state   *deviceState
+
+	brokerCAPEM []byte
 
 	tickCancel context.CancelFunc
 	tickDone   chan struct{}
@@ -189,7 +193,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return fmt.Errorf("listen http: %w", err)
 	}
-	tlsConfig, err := generateTLSConfig(s.cfg.BrokerAdvertiseHost)
+	tlsConfig, brokerCAPEM, err := generateTLSConfig(s.cfg.BrokerAdvertiseHost)
 	if err != nil {
 		_ = httpListener.Close()
 		return fmt.Errorf("generate mqtt tls config: %w", err)
@@ -203,6 +207,7 @@ func (s *Server) Start() error {
 
 	s.httpListener = httpListener
 	s.mqttListener = mqttListener
+	s.brokerCAPEM = brokerCAPEM
 	s.httpServer = &http.Server{
 		Handler:           s.httpHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -335,6 +340,7 @@ func (s *Server) httpHandler() http.Handler {
 	mux.HandleFunc("/iot-open/sign/device/list", s.handleDeviceList)
 	mux.HandleFunc("/iot-open/sign/certification", s.handleMQTTCertification)
 	mux.HandleFunc("/iot-open/sign/device/quota/all", s.handleDeviceQuota)
+	mux.HandleFunc(pulseMQTTCABundlePath, s.handleMQTTCABundle)
 	mux.HandleFunc("/replay", s.handleReplay)
 	return mux
 }
@@ -404,6 +410,15 @@ func (s *Server) handleDeviceQuota(w http.ResponseWriter, r *http.Request) {
 		"message": businessMessageSuccess,
 		"data":    s.currentQuota(),
 	})
+}
+
+func (s *Server) handleMQTTCABundle(w http.ResponseWriter, _ *http.Request) {
+	if len(s.brokerCAPEM) == 0 {
+		http.Error(w, "mqtt ca bundle unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	_, _ = w.Write(s.brokerCAPEM)
 }
 
 func (s *Server) authorizeSignedRequest(w http.ResponseWriter, r *http.Request) bool {
@@ -700,10 +715,26 @@ func (c *mqttClient) hasTopic(topic string) bool {
 }
 
 func (c *mqttClient) publish(topic string, payload []byte) error {
-	packet := make([]byte, 0, len(topic)+len(payload)+2)
+	capacity, err := mqttPublishPacketCapacity(len(topic), len(payload))
+	if err != nil {
+		return err
+	}
+	packet := make([]byte, 0, capacity)
 	packet = appendMQTTString(packet, topic)
 	packet = append(packet, payload...)
 	return c.writePacket(byte(packetTypePublish<<4), packet)
+}
+
+func mqttPublishPacketCapacity(topicLen, payloadLen int) (int, error) {
+	const mqttStringLengthPrefix = 2
+	maxInt := int(^uint(0) >> 1)
+	if topicLen < 0 || payloadLen < 0 {
+		return 0, errors.New("mqtt packet lengths must be non-negative")
+	}
+	if topicLen > maxInt-mqttStringLengthPrefix-payloadLen {
+		return 0, errors.New("mqtt publish packet too large")
+	}
+	return topicLen + payloadLen + mqttStringLengthPrefix, nil
 }
 
 func (c *mqttClient) writePacket(header byte, body []byte) error {
@@ -1678,14 +1709,14 @@ func isUseOfClosedNetworkConn(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "use of closed network connection")
 }
 
-func generateTLSConfig(advertiseHost string) (*tls.Config, error) {
+func generateTLSConfig(advertiseHost string) (*tls.Config, []byte, error) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 62))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
@@ -1709,17 +1740,18 @@ func generateTLSConfig(advertiseHost string) (*tls.Config, error) {
 	}
 	derBytes, err := x509.CreateCertificate(rand.Reader, template, template, publicKey(privateKey), privateKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	certificate := tls.Certificate{
 		Certificate: [][]byte{derBytes},
 		PrivateKey:  privateKey,
 		Leaf:        template,
 	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	return &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{certificate},
-	}, nil
+	}, certPEM, nil
 }
 
 func publicKey(privateKey *ecdsa.PrivateKey) any {
