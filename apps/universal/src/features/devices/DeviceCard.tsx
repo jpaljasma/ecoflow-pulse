@@ -6,6 +6,7 @@ import type { ComponentProps } from 'react';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
+import { resolveNetPowerW } from '@/features/devices/net';
 import { Card } from '@/shared/ui/Card';
 import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
@@ -74,10 +75,13 @@ export function DeviceCard({
   const acInW = metrics?.acW ?? device.acInW;
   const dcW = metrics?.dcW ?? device.dcW;
   const loadW = metrics?.loadW ?? device.loadW;
-  const netW =
-    metrics
-      ? metrics.pvW - metrics.loadW
-      : device.netW ?? (pvW !== undefined && loadW !== undefined ? pvW - loadW : undefined);
+  const netW = resolveNetPowerW({
+    acInW,
+    pvW,
+    dcW,
+    loadW,
+    fallbackNetW: device.netW
+  });
   const batteryCount =
     device.details?.bpCount ??
     ((device.capabilities as { batteryPacks?: number } | undefined)?.batteryPacks ?? 1);

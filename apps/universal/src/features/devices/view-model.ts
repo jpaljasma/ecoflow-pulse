@@ -5,6 +5,7 @@ import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
+import { resolveNetPowerW } from '@/features/devices/net';
 import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 
@@ -90,9 +91,13 @@ export function useFleetSummaryViewModel({
       dcW += snapshot?.metrics?.dcW ?? device.dcW ?? 0;
       pvW += snapshot?.metrics?.pvW ?? device.pvW ?? 0;
       loadW += snapshot?.metrics?.loadW ?? device.loadW ?? 0;
-      netW += snapshot?.metrics
-        ? snapshot.metrics.pvW - snapshot.metrics.loadW
-        : device.netW ?? 0;
+      netW += resolveNetPowerW({
+        acInW: snapshot?.metrics?.acW ?? device.acInW,
+        pvW: snapshot?.metrics?.pvW ?? device.pvW,
+        dcW: snapshot?.metrics?.dcW ?? device.dcW,
+        loadW: snapshot?.metrics?.loadW ?? device.loadW,
+        fallbackNetW: device.netW ?? 0
+      }) ?? 0;
     }
 
     return {

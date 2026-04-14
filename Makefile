@@ -13,10 +13,12 @@ PGROLL_REQUIRED ?= 0
 DOCKER_BUILDKIT ?= 1
 LOCAL_IMAGE_PLATFORM ?= $(shell arch="$$(uname -m)"; if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then printf 'linux/arm64'; elif [ "$$arch" = "x86_64" ] || [ "$$arch" = "amd64" ]; then printf 'linux/amd64'; else printf 'linux/amd64'; fi)
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
+DOCKER_BUILDX_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-buildx
 GCLOUD ?= gcloud
 LOCAL_PLATFORM_AUTO_TRUST_TLS ?= 1
 K3D_CLUSTER_NAME ?= pulse-local
 K3D_CONTEXT ?= k3d-$(K3D_CLUSTER_NAME)
+K3D_SET_CURRENT_CONTEXT ?= 0
 K3D_CONFIG ?= deploy/tilt/k3d-config.yaml
 PLATFORM_CHART ?= deploy/charts/pulse-platform
 SERVICES_CHART ?= deploy/charts/pulse-services
@@ -364,6 +366,7 @@ docker-local-ready:
 		exit 1; \
 	fi
 	@mkdir -p "$(DOCKER_CONFIG_LOCAL)"
+	@mkdir -p "$(DOCKER_BUILDX_CONFIG_LOCAL)"
 	@if [ ! -f "$(DOCKER_CONFIG_LOCAL)/config.json" ]; then \
 		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
 	fi
@@ -419,7 +422,7 @@ chart-deps-local: helm-local-ready
 services-image-build-local: docker-local-ready
 	@echo "building services image $(SERVICES_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(SERVICES_IMAGE_DOCKERFILE)"
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
-		DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" BUILDX_CONFIG="$(DOCKER_BUILDX_CONFIG_LOCAL)" DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
 	else \
 		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_IMAGE) .; \
 	fi
@@ -452,17 +455,17 @@ platform-app-image-build-local: docker-local-ready
 			if [ -n "$$val" ]; then \
 				set -- "$$@" --build-arg "$$var=$$val"; \
 			fi; \
-		done; \
-		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
-			DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
-		else \
-			DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
-		fi
+			done; \
+			if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+				DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" BUILDX_CONFIG="$(DOCKER_BUILDX_CONFIG_LOCAL)" DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+			else \
+				DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
+			fi
 
 realtime-gateway-image-build-local: docker-local-ready
 	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
-		DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" BUILDX_CONFIG="$(DOCKER_BUILDX_CONFIG_LOCAL)" DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
 	else \
 		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
 	fi
@@ -538,7 +541,11 @@ k3d-up:
 		echo "creating k3d cluster '$(K3D_CLUSTER_NAME)' from $(K3D_CONFIG)"; \
 		$(K3D) cluster create --config $(K3D_CONFIG); \
 	fi
-	$(KUBECTL) config use-context $(K3D_CONTEXT)
+	@if [ "$(K3D_SET_CURRENT_CONTEXT)" = "1" ]; then \
+		$(KUBECTL) config use-context $(K3D_CONTEXT); \
+	else \
+		echo "skipping global kubectl context switch; using context-pinned local commands for $(K3D_CONTEXT)"; \
+	fi
 	$(LOCAL_KUBECTL) wait --for=condition=Ready node --all --timeout=$(WAIT_TIMEOUT)
 	$(LOCAL_KUBECTL) get nodes
 
@@ -793,6 +800,56 @@ platform-wait:
 			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition="$$condition" "$$kind/$$name" --timeout="$$timeout"; \
 		fi; \
 	}; \
+	recover_cnpg_stuck_replica() { \
+		cluster_name="$(PLATFORM_RELEASE)-core"; \
+		if ! $(LOCAL_KUBECTL) -n "$$ns" get cluster.postgresql.cnpg.io "$$cluster_name" >/dev/null 2>&1; then \
+			return 1; \
+		fi; \
+		current_primary="$$( $(LOCAL_KUBECTL) -n "$$ns" get cluster.postgresql.cnpg.io "$$cluster_name" -o jsonpath='{.status.currentPrimary}' 2>/dev/null || true )"; \
+		ready_instances="$$( $(LOCAL_KUBECTL) -n "$$ns" get cluster.postgresql.cnpg.io "$$cluster_name" -o jsonpath='{.status.readyInstances}' 2>/dev/null || true )"; \
+		spec_instances="$$( $(LOCAL_KUBECTL) -n "$$ns" get cluster.postgresql.cnpg.io "$$cluster_name" -o jsonpath='{.spec.instances}' 2>/dev/null || true )"; \
+		cluster_phase_reason="$$( $(LOCAL_KUBECTL) -n "$$ns" get cluster.postgresql.cnpg.io "$$cluster_name" -o jsonpath='{.status.phaseReason}' 2>/dev/null || true )"; \
+		if [ -z "$$current_primary" ] || [ -z "$$spec_instances" ] || [ -z "$$ready_instances" ]; then \
+			return 1; \
+		fi; \
+		if [ "$$ready_instances" = "$$spec_instances" ]; then \
+			return 1; \
+		fi; \
+		replica_pod="$$( $(LOCAL_KUBECTL) -n "$$ns" get pods -l cnpg.io/cluster="$$cluster_name" -o jsonpath='{range .items[*]}{.metadata.name} {.status.containerStatuses[0].ready}{"\n"}{end}' | awk '$$1 != "'"$$current_primary"'" && $$2 != "true" {print $$1; exit}' )"; \
+		if [ -z "$$replica_pod" ]; then \
+			return 1; \
+		fi; \
+		replica_phase="$$( $(LOCAL_KUBECTL) -n "$$ns" get pod "$$replica_pod" -o jsonpath='{.status.phase}' 2>/dev/null || true )"; \
+		replica_pvc_exists=0; \
+		if $(LOCAL_KUBECTL) -n "$$ns" get pvc "$$replica_pod" >/dev/null 2>&1; then \
+			replica_pvc_exists=1; \
+		fi; \
+		replica_logs="$$( $(LOCAL_KUBECTL) -n "$$ns" logs "$$replica_pod" --all-containers --tail=80 2>/dev/null || true )"; \
+		case "$$cluster_phase_reason $$replica_logs" in \
+			*"Timeout: request did not complete within requested timeout"*|*"Failed to execute pg_rewind"*|*"could not restore file"*) \
+				echo "detected stuck CNPG replica $$replica_pod; scaling CNPG to the healthy primary before recloning"; \
+				$(LOCAL_KUBECTL) -n "$$ns" patch cluster.postgresql.cnpg.io "$$cluster_name" --type=merge -p '{"spec":{"instances":1}}'; \
+				$(LOCAL_KUBECTL) -n "$$ns" delete pod "$$replica_pod" --ignore-not-found=true --wait=true; \
+				if $(LOCAL_KUBECTL) -n "$$ns" get pvc "$$replica_pod" >/dev/null 2>&1; then \
+					$(LOCAL_KUBECTL) -n "$$ns" delete pvc "$$replica_pod" --wait=true; \
+				fi; \
+				$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready cluster.postgresql.cnpg.io/"$$cluster_name" --timeout=180s; \
+				echo "restoring CNPG replica count=$$spec_instances"; \
+				$(LOCAL_KUBECTL) -n "$$ns" patch cluster.postgresql.cnpg.io "$$cluster_name" --type=merge -p "{\"spec\":{\"instances\":$$spec_instances}}"; \
+				return 0; \
+				;; \
+		esac; \
+		if [ "$$replica_phase" = "Pending" ] && [ "$$replica_pvc_exists" = "0" ]; then \
+			echo "detected CNPG replica $$replica_pod pending without PVC; recycling replica count to force PVC recreation"; \
+			$(LOCAL_KUBECTL) -n "$$ns" patch cluster.postgresql.cnpg.io "$$cluster_name" --type=merge -p '{"spec":{"instances":1}}'; \
+			$(LOCAL_KUBECTL) -n "$$ns" delete pod "$$replica_pod" --ignore-not-found=true --wait=true; \
+			$(LOCAL_KUBECTL) -n "$$ns" wait --for=condition=Ready cluster.postgresql.cnpg.io/"$$cluster_name" --timeout=180s; \
+			echo "restoring CNPG replica count=$$spec_instances"; \
+			$(LOCAL_KUBECTL) -n "$$ns" patch cluster.postgresql.cnpg.io "$$cluster_name" --type=merge -p "{\"spec\":{\"instances\":$$spec_instances}}"; \
+			return 0; \
+		fi; \
+		return 1; \
+	}; \
 	wait_job_complete() { \
 		name="$$1"; timeout="$$2"; \
 		if $(LOCAL_KUBECTL) -n "$$ns" get job "$$name" >/dev/null 2>&1; then \
@@ -846,11 +903,18 @@ platform-wait:
 			-c 'set -e; mc alias set local "http://$$DR_DOCKER_ENDPOINT" "$$DR_ROOT_USER" "$$DR_ROOT_PASS" >/dev/null; mc ls "local/$$DR_BUCKET" >/dev/null'; \
 		cleanup_pf; \
 		rm -f "$$pf_log"; \
-	}; \
-	wait_nodes_ready; \
-	wait_rollout deployment $(PLATFORM_RELEASE)-cloudnative-pg 180s; \
-	wait_condition cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready $(WAIT_TIMEOUT); \
-	wait_rollout statefulset $(PLATFORM_RELEASE)-nats $(WAIT_TIMEOUT); \
+		}; \
+		wait_nodes_ready; \
+		wait_rollout deployment $(PLATFORM_RELEASE)-cloudnative-pg 180s; \
+		if ! wait_condition cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready 15s; then \
+			if recover_cnpg_stuck_replica; then \
+				echo "retrying CNPG cluster wait after local replica repair"; \
+				wait_condition cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready $(WAIT_TIMEOUT); \
+			else \
+				wait_condition cluster.postgresql.cnpg.io $(PLATFORM_RELEASE)-core Ready $(WAIT_TIMEOUT); \
+			fi; \
+		fi; \
+		wait_rollout statefulset $(PLATFORM_RELEASE)-nats $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-valkey-node $(WAIT_TIMEOUT); \
 	wait_rollout statefulset $(PLATFORM_RELEASE)-keycloak $(WAIT_TIMEOUT); \
 	wait_job_complete $(PLATFORM_RELEASE)-keycloak-keycloak-config-cli 300s; \
