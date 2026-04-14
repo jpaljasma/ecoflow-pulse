@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
+import { resolveNetPowerW } from '@/features/devices/net';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { formatEtaMinutes, formatSoc, formatW, formatWhAndKWh } from '@/features/telemetry/format';
 import { getCapacityKWh } from '@/features/devices/capacity';
@@ -104,9 +105,7 @@ function metricToneFromValue(value: number | undefined): MetricTone | undefined 
   return isMutedMetric(value) ? 'muted' : 'default';
 }
 
-function fallbackState(
-  state: DeviceSummary['state'] | string | undefined
-): 'charging' | 'discharging' | 'idle' {
+function fallbackState(state: DeviceSummary['state'] | string | undefined): 'charging' | 'discharging' | 'idle' {
   return state === 'charging' || state === 'discharging' || state === 'idle' ? state : 'idle';
 }
 
@@ -147,12 +146,20 @@ export function useDeviceDetailViewModel({
   const batteryW = snapshot?.metrics?.batteryW;
   const tempC = snapshot?.metrics?.tempC ?? device?.tempC;
   const isColdTemp = typeof tempC === 'number' && tempC <= 2;
-  const netW =
-    typeof pvW === 'number' && typeof loadW === 'number'
-      ? pvW - loadW
-      : snapshot?.metrics
-        ? snapshot.metrics.pvW - snapshot.metrics.loadW
-        : device?.netW;
+  const netW = resolveNetPowerW({
+    acInW,
+    pvW,
+    dcW,
+    loadW,
+    fallbackNetW: snapshot?.metrics
+      ? resolveNetPowerW({
+          acInW: snapshot.metrics.acW,
+          pvW: snapshot.metrics.pvW,
+          dcW: snapshot.metrics.dcW,
+          loadW: snapshot.metrics.loadW
+        })
+      : device?.netW
+  });
   const capacityKWh = device ? getCapacityKWh(device) : null;
 
   const detailState = useMemo<'charging' | 'discharging' | 'idle'>(() => {

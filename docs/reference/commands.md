@@ -756,6 +756,12 @@ For required local tooling (for example `helm`, `k3d`, `kubectl`), see:
 Notes:
 
 - default `GOFLAGS` in `Makefile` include `-tags=moderncompress -mod=mod`,
+- `make k3d-up`, `make dev-up`, and `make dev-deploy` now use context-pinned
+  `kubectl`/`helm` commands by default and do not switch your global current
+  `kubectl` context unless you opt in with `K3D_SET_CURRENT_CONTEXT=1`,
+- local image build targets also keep Docker Buildx activity under
+  repo-local `.tmp/` state so `make dev-deploy` does not depend on writable
+  home-directory Docker metadata,
 - `make lint` now runs:
   - `go fmt ./...`
   - `golangci-lint run ./...` (or `go vet ./...` fallback)
