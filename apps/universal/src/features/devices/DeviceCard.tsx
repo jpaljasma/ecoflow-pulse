@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { ComponentProps } from 'react';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
+import { buildStormGuardLabel } from '@/features/devices/stormGuard';
 import type { DeviceSnapshot, TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { resolveNetPowerW } from '@/features/devices/net';
 import { Card } from '@/shared/ui/Card';
@@ -22,6 +23,7 @@ import { env } from '@/shared/config/env';
 import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
 import { MetricsGrid, type MetricsGridItem } from '@/shared/ui/MetricsGrid';
 import { isMutedMetric } from '@/shared/ui/uiMappings';
+import { StormGuardChip } from '@/shared/ui/StormGuardChip';
 import { useTelemetryDeviceSnapshot } from '@/features/telemetry/hooks';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useDeviceSolarHistory } from '@/features/history/hooks';
@@ -110,6 +112,7 @@ export function DeviceCard({
       ? snapshot.status
       : fallbackStatus;
   const connGlyph = connectivityGlyph(snapshot, connectionStatus);
+  const stormGuardLabel = buildStormGuardLabel(device.details);
   const capacityKWh = getCapacityKWh(device);
   const lastSeenAtCandidates = [snapshot?.lastSeenAt ?? 0, device.telemetryTsMs ?? 0];
   const freshestLastSeenAt = Math.max(...lastSeenAtCandidates);
@@ -317,6 +320,8 @@ export function DeviceCard({
               >
                 {device.model} · SN {maskSerialNumber(device.serialNumber)}
               </Text>
+
+              {stormGuardLabel ? <StormGuardChip label={stormGuardLabel} /> : null}
 
               <YStack gap="$2">
                 <SocBar value={metrics?.soc ?? device.batteryPct} />

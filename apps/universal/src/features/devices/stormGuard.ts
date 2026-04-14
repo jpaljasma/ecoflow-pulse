@@ -13,6 +13,22 @@ function formatRemaining(ms: number): string {
   return `~${Math.round(hours)}h more`;
 }
 
+export function buildStormGuardLabel(
+  details: DeviceSummary['details'] | undefined,
+  now = Date.now()
+): string | null {
+  if (details?.stormGuardActive !== true) {
+    return null;
+  }
+
+  const endsAt = details.stormGuardEndsAtUnixMs;
+  if (typeof endsAt === 'number' && Number.isFinite(endsAt) && endsAt > now) {
+    return `Storm Guard ${formatRemaining(endsAt - now)}`;
+  }
+
+  return 'Storm Guard active';
+}
+
 export function buildStormGuardBanner(
   devices: DeviceSummary[] | undefined,
   now = new Date()

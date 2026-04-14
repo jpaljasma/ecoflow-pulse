@@ -6,6 +6,7 @@ import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { DeviceEnergyImpactCard } from '@/features/energy-impact/DeviceEnergyImpactCard';
+import { buildStormGuardLabel } from '@/features/devices/stormGuard';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
 import { DiagnosticsSection } from '@/features/device-detail/components/DiagnosticsSection';
 import { DeviceSolarForecastCard } from '@/features/device-detail/components/DeviceSolarForecastCard';
@@ -27,6 +28,7 @@ import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { Stat } from '@/shared/ui/Stat';
+import { StormGuardChip } from '@/shared/ui/StormGuardChip';
 
 const DETAIL_TREND_POINTS = 60;
 
@@ -105,29 +107,6 @@ function resolveDetailSoc(
   }
 
   return undefined;
-}
-
-function formatStormGuardRemaining(ms: number): string {
-  const totalMinutes = Math.max(1, Math.round(ms / 60_000));
-  if (totalMinutes < 60) {
-    return `~${totalMinutes}m`;
-  }
-  const hours = totalMinutes / 60;
-  if (hours < 10) {
-    return `~${hours.toFixed(hours < 2 ? 1 : 0)}h`;
-  }
-  return `~${Math.round(hours)}h`;
-}
-
-function stormGuardSummary(details: DeviceSummary['details'] | undefined, now = Date.now()): string | null {
-  if (details?.stormGuardActive !== true) {
-    return null;
-  }
-  const endsAt = details.stormGuardEndsAtUnixMs;
-  if (typeof endsAt === 'number' && Number.isFinite(endsAt) && endsAt > now) {
-    return `Storm Guard ${formatStormGuardRemaining(endsAt - now)}`;
-  }
-  return 'Storm Guard active';
 }
 
 function netSummary(state: DeviceDetailViewModel['detailState']): string {
@@ -268,7 +247,7 @@ export function DeviceDetailBody({
   const resolvedSoc = resolveDetailSoc(vm.details, snapshot, device);
   const heroSoc = formatSoc(resolvedSoc);
   const heroEta = statCellByKey.get('eta')?.value;
-  const stormGuardLabel = stormGuardSummary(vm.details);
+  const stormGuardLabel = buildStormGuardLabel(vm.details);
   const capacitySummary = [
     vm.capacityKWh !== null ? `${formatKWh(vm.capacityKWh)} installed` : 'Capacity unavailable',
     vm.batterySummaryText
@@ -410,23 +389,7 @@ export function DeviceDetailBody({
                     </Text>
                   </XStack>
                   {stormGuardLabel ? (
-                    <XStack
-                      alignItems="center"
-                      gap="$2"
-                      paddingHorizontal="$3"
-                      paddingVertical="$2"
-                      borderRadius={999}
-                      borderWidth={1}
-                      style={{
-                        backgroundColor: `${semantics.statusWarning}1f`,
-                        borderColor: semantics.statusWarning
-                      }}
-                    >
-                      <MaterialCommunityIcons name="shield-alert-outline" size={16} color={semantics.statusWarning} />
-                      <Text fontSize="$2" fontWeight="700" style={{ color: semantics.statusWarning }}>
-                        {stormGuardLabel}
-                      </Text>
-                    </XStack>
+                    <StormGuardChip label={stormGuardLabel} />
                   ) : null}
                   <XStack
                     alignItems="center"

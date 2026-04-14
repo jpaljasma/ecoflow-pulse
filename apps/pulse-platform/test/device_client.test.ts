@@ -279,4 +279,47 @@ describe('device client', () => {
     expect(device?.batteryPct).toBeCloseTo(25.49, 2);
     expect(device?.details?.overallSocPct).toBeCloseTo(25.49, 2);
   });
+
+  it('surfaces storm guard from live snapshot metrics when metadata groups do not include it', async () => {
+    const device = makeProviderDevice();
+    device.metadata = {
+      groups: {
+        ...(device.metadata?.groups ?? {})
+      }
+    };
+
+    const controlPlaneClient = makeControlPlaneClient({
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [device]
+        }
+      ])
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '22222222-2222-7222-8222-222222222222',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'param.stormPatternEnable': 1,
+            'param.stormPatternOpenFlag': 1,
+            'param.stormPatternEndTime': 1776247200,
+            'params.soc': 53.53,
+            'params.wattsOutSum': 101
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [hydrated] = await client.listDevices(makeRequest());
+
+    expect(hydrated?.details?.stormGuardActive).toBe(true);
+    expect(hydrated?.details?.stormGuardEndsAtUnixMs).toBe(1776247200 * 1000);
+  });
 });
