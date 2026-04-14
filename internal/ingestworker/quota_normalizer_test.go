@@ -191,3 +191,32 @@ func TestNormalizeEcoFlowQuotaScalesD2MMilliUnits(t *testing.T) {
 		t.Fatalf("grouped scaled inv.acInVol mismatch: got=%v", got)
 	}
 }
+
+func TestNormalizeEcoFlowQuotaGroupsDAddrStormGuardFields(t *testing.T) {
+	t.Parallel()
+
+	normalized := normalizeEcoFlowQuota(map[string]string{
+		"d_addr.stormPatternEnable":   "true",
+		"d_addr.stormPatternOpenFlag": "false",
+		"d_addr.stormPatternEndTime":  "0",
+		"d_addr.backupReverseSoc":     "40",
+	})
+
+	groups, ok := normalized.Metadata["groups"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected grouped metadata map, got=%T", normalized.Metadata["groups"])
+	}
+	dAddr, ok := groups["d_addr"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected d_addr group map, got=%T", groups["d_addr"])
+	}
+	if got := dAddr["stormPatternEnable"]; got != true {
+		t.Fatalf("stormPatternEnable=%v want true", got)
+	}
+	if got := dAddr["stormPatternOpenFlag"]; got != false {
+		t.Fatalf("stormPatternOpenFlag=%v want false", got)
+	}
+	if got := dAddr["backupReverseSoc"]; got != int64(40) {
+		t.Fatalf("backupReverseSoc=%v want 40", got)
+	}
+}

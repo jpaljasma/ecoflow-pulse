@@ -30,6 +30,7 @@ var quotaMetadataGroupPrefixes = []string{
 	"cms",
 	"bms",
 	"pow",
+	"d_addr",
 	"plugInInfo",
 	"flowInfo",
 }

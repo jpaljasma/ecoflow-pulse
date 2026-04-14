@@ -152,12 +152,13 @@ async function hydrateDevice(
     });
     const rawMetrics = response.snapshot?.metrics ?? {};
     const derived = deriveTelemetryMetrics(rawMetrics);
-    const pvW = deriveSummaryPvWatts(derived.pvW, presentation.details);
+    const details = mergeSnapshotDetails(presentation.details, rawMetrics);
+    const pvW = deriveSummaryPvWatts(derived.pvW, details);
     const telemetryTsMs = parsePositiveInt(response.snapshot?.cursor?.tsUnixMs);
     return {
       ...base,
       online: telemetryTsMs !== null ? Date.now() - telemetryTsMs <= 30_000 : false,
-      batteryPct: clampPercent(presentation.details?.overallSocPct ?? derived.soc),
+      batteryPct: clampPercent(details?.overallSocPct ?? derived.soc),
       state: deriveTelemetryState(derived.batteryW),
       etaMinutes: deriveTelemetryEtaMinutes(rawMetrics, derived.batteryW),
       pvW,
@@ -166,7 +167,8 @@ async function hydrateDevice(
       loadW: derived.loadW,
       netW: pvW - derived.loadW,
       tempC: derived.tempC,
-      telemetryTsMs: telemetryTsMs ?? undefined
+      telemetryTsMs: telemetryTsMs ?? undefined,
+      details
     };
   } catch {
     return base;
@@ -186,6 +188,76 @@ function baseDeviceSummary(device: ProviderDevice, presentation: ReturnType<type
     capabilities: presentation.capabilities,
     details: presentation.details
   };
+}
+
+function mergeSnapshotDetails(
+  details: DeviceTelemetryDetails | undefined,
+  metrics: Record<string, number>
+): DeviceTelemetryDetails | undefined {
+  const snapshotStorm = deriveStormGuardFromSnapshotMetrics(metrics);
+  if (!snapshotStorm) {
+    return details;
+  }
+  return {
+    ...(details ?? {}),
+    ...snapshotStorm
+  };
+}
+
+function deriveStormGuardFromSnapshotMetrics(
+  metrics: Record<string, number>
+): Pick<DeviceTelemetryDetails, 'stormGuardActive' | 'stormGuardEndsAtUnixMs'> | undefined {
+  const stormPatternEnable = firstDefinedNumber(
+    metrics['param.stormPatternEnable'],
+    metrics['params.stormPatternEnable'],
+    metrics['param.stormIsEnable'],
+    metrics['params.stormIsEnable']
+  );
+  const stormPatternOpen = firstDefinedNumber(
+    metrics['param.stormPatternOpenFlag'],
+    metrics['params.stormPatternOpenFlag'],
+    metrics['param.inStormMode'],
+    metrics['params.inStormMode']
+  );
+  const stormPatternEndTimeSeconds = firstDefinedNumber(
+    metrics['param.stormPatternEndTime'],
+    metrics['params.stormPatternEndTime'],
+    metrics['param.stormEndTimestamp'],
+    metrics['params.stormEndTimestamp']
+  );
+  if (
+    stormPatternEnable === undefined &&
+    stormPatternOpen === undefined &&
+    stormPatternEndTimeSeconds === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    stormGuardActive:
+      toBooleanMetric(stormPatternOpen) === true ||
+      toBooleanMetric(stormPatternEnable) === true ||
+      (stormPatternEndTimeSeconds ?? 0) > 0,
+    stormGuardEndsAtUnixMs:
+      stormPatternEndTimeSeconds !== undefined && stormPatternEndTimeSeconds > 0
+        ? Math.trunc(stormPatternEndTimeSeconds * 1000)
+        : undefined
+  };
+}
+
+function firstDefinedNumber(...values: Array<number | undefined>): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function toBooleanMetric(value: number | undefined): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value !== 0;
 }
 
 function flattenProviderDevices(groups: ProviderDeviceGroup[]): ProviderDevice[] {

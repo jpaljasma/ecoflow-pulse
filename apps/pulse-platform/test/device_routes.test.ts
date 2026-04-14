@@ -67,6 +67,8 @@ function sampleDevice(overrides: Partial<DeviceSummary> = {}): DeviceSummary {
       socWindowMinPct: 12,
       socWindowMaxPct: 95,
       backupReservePct: 18,
+      stormGuardActive: true,
+      stormGuardEndsAtUnixMs: 1773306000 * 1000,
       solarPorts: [
         {
           id: 'pv-low',
@@ -420,6 +422,8 @@ describe('pulse-platform device routes', () => {
         socWindowMinPct: 12,
         socWindowMaxPct: 95,
         backupReservePct: 18,
+        stormGuardActive: true,
+        stormGuardEndsAtUnixMs: 1773306000 * 1000,
         packs: [
           expect.objectContaining({
             id: 'bp1',

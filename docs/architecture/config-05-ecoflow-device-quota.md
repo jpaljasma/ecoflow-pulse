@@ -167,9 +167,10 @@ Common meaning:
 Examples:
 - `Delta Pro 3` / `Delta 3 Plus` / `Delta 3 Max Plus` / `Delta Pro Ultra`: `stormPatternEnable`, `stormPatternOpenFlag`, `stormPatternEndTime`
 - other documented EcoFlow variants: `stormIsEnable`, `inStormMode`, `stormEndTimestamp`
+- observed DPU quota snapshots may also surface Storm Guard under `d_addr.*`
 
 Implementation rule:
-- treat Storm Guard as active only when the device reports both enable + open/in-storm flags
+- treat Storm Guard as active when the device reports enable, open/in-storm, or an enabled Storm Guard window with a valid end timestamp
 - do not infer Storm Guard from weak PV/MPPT values alone
 - use the reported end timestamp when present for user-facing copy such as `Storm Guard active for ~2h more`
 

@@ -846,4 +846,58 @@ describe('provider device mapper', () => {
       })
     );
   });
+
+  it('treats storm guard as active when EcoFlow reports an enabled protection window without an open flag', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        providerDeviceId: 'DEMODPUSTORM0001',
+        canonicalSn: 'DEMODPUSTORM0001',
+        productName: 'DPU A 12 kWh',
+        model: 'DELTA Pro Ultra',
+        metadata: {
+          groups: {
+            hs_yj751_pd_app_set_info_addr: {
+              stormPatternEnable: 1,
+              stormPatternOpenFlag: 0,
+              stormPatternEndTime: 1773306000
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        stormGuardActive: true,
+        stormGuardEndsAtUnixMs: 1773306000 * 1000
+      })
+    );
+  });
+
+  it('treats storm guard as active for DPU d_addr enable-only payloads', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        providerDeviceId: 'Y711ZABA9H2P0294',
+        canonicalSn: 'Y711ZABA9H2P0294',
+        productName: 'DPU A 12 kWh',
+        model: 'DELTA Pro Ultra',
+        metadata: {
+          groups: {
+            d_addr: {
+              stormPatternEnable: true,
+              stormPatternOpenFlag: false,
+              stormPatternEndTime: 0,
+              backupReverseSoc: 40
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        stormGuardActive: true
+      })
+    );
+  });
 });

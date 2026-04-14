@@ -1126,9 +1126,13 @@ function deriveStormGuardDetails(groups: GenericRecord): Pick<DeviceTelemetryDet
     ...groupRecords.map((group) => toPositiveNumber(group.stormPatternEndTime)),
     ...groupRecords.map((group) => toPositiveNumber(group.stormEndTimestamp))
   );
+  const hasStormGuardWindow = stormPatternEndTimeSeconds !== undefined && stormPatternEndTimeSeconds > 0;
 
   return {
-    stormGuardActive: stormPatternEnable === true && stormPatternOpen === true,
+    stormGuardActive:
+      stormPatternOpen === true ||
+      stormPatternEnable === true ||
+      hasStormGuardWindow,
     stormGuardEndsAtUnixMs:
       stormPatternEndTimeSeconds !== undefined ? stormPatternEndTimeSeconds * 1000 : undefined
   };
