@@ -235,7 +235,6 @@ function deriveStormGuardFromSnapshotMetrics(
   return {
     stormGuardActive:
       toBooleanMetric(stormPatternOpen) === true ||
-      toBooleanMetric(stormPatternEnable) === true ||
       (stormPatternEndTimeSeconds ?? 0) > 0,
     stormGuardEndsAtUnixMs:
       stormPatternEndTimeSeconds !== undefined && stormPatternEndTimeSeconds > 0
