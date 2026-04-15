@@ -1114,10 +1114,6 @@ function deriveStormGuardDetails(groups: GenericRecord): Pick<DeviceTelemetryDet
   // EcoFlow currently exposes Storm Guard with at least two field families across
   // supported products. Scan all normalized metadata groups so new supported
   // models do not require another model-specific mapper patch.
-  const stormPatternEnable = firstDefined(
-    ...groupRecords.map((group) => toBooleanFlag(group.stormPatternEnable)),
-    ...groupRecords.map((group) => toBooleanFlag(group.stormIsEnable))
-  );
   const stormPatternOpen = firstDefined(
     ...groupRecords.map((group) => toBooleanFlag(group.stormPatternOpenFlag)),
     ...groupRecords.map((group) => toBooleanFlag(group.inStormMode))
@@ -1131,7 +1127,6 @@ function deriveStormGuardDetails(groups: GenericRecord): Pick<DeviceTelemetryDet
   return {
     stormGuardActive:
       stormPatternOpen === true ||
-      stormPatternEnable === true ||
       hasStormGuardWindow,
     stormGuardEndsAtUnixMs:
       stormPatternEndTimeSeconds !== undefined ? stormPatternEndTimeSeconds * 1000 : undefined

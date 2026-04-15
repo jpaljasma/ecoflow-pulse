@@ -874,7 +874,7 @@ describe('provider device mapper', () => {
     );
   });
 
-  it('treats storm guard as active for DPU d_addr enable-only payloads', () => {
+  it('does not treat storm guard as active for DPU d_addr enable-only payloads', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({
         providerDeviceId: 'Y711ZABA9H2P0294',
@@ -894,10 +894,6 @@ describe('provider device mapper', () => {
       })
     );
 
-    expect(presentation.details).toEqual(
-      expect.objectContaining({
-        stormGuardActive: true
-      })
-    );
+    expect(presentation.details).not.toHaveProperty('stormGuardActive', true);
   });
 });
