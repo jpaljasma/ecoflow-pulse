@@ -235,6 +235,7 @@ valkey:
 
 keycloak:
   replicaCount: 2
+  useHelmHooks: false
   proxyHeaders: xforwarded
   extraEnvVars:
     - name: KC_HOSTNAME
@@ -307,6 +308,9 @@ ingress-nginx:
   controller:
     allowSnippetAnnotations: false
     replicaCount: 2
+    admissionWebhooks:
+      patch:
+        enabled: false
     service:
       type: LoadBalancer
 
@@ -314,6 +318,8 @@ cert-manager:
   crds:
     enabled: true
   replicaCount: 2
+  startupapicheck:
+    enabled: false
   webhook:
     replicaCount: 2
   cainjector:
@@ -339,6 +345,10 @@ kube-prometheus-stack:
     enabled: true
   grafana:
     enabled: true
+  prometheusOperator:
+    admissionWebhooks:
+      patch:
+        enabled: false
 
 opentelemetry-collector:
   mode: deployment

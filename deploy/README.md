@@ -187,7 +187,10 @@ Cloud defaults in this branch:
   Workload Identity and read runtime secrets from Secret Manager-backed
   `ExternalSecret`,
 - Keycloak stays the auth system, with Google login enabled and redirect/CORS
-  allowances for both the cloud domain and localhost Expo web-dev origins.
+  allowances for both the cloud domain and localhost Expo web-dev origins,
+- Argo-managed cloud installs disable the vendored Helm admission/startup hook
+  jobs for `ingress-nginx`, `cert-manager`, `kube-prometheus-stack`, and
+  Keycloak so umbrella-chart syncs do not stall waiting on subchart hooks.
 
 Expected follow-up before first live sync:
 
