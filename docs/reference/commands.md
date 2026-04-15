@@ -931,6 +931,9 @@ Notes:
   The two image builds run in parallel. Repeated local builds reuse Docker
   BuildKit NPM, Expo, and Metro cache mounts, so `npm ci` and Expo web export
   reruns can use previously downloaded packages and bundler state.
+  When corresponding `EXPO_PUBLIC_*` variables are set, the platform build also
+  forwards both the local-profile and cloud-profile universal app connection
+  settings into the exported web bundle.
   Like the services image, local public-image builds now target the host-native
   Linux platform explicitly so local k3d rollouts stay off Rosetta on Apple
   silicon.
