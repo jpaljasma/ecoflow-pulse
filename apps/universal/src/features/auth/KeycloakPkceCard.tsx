@@ -32,7 +32,7 @@ function KeycloakPkceCardWithVariant({ variant }: { variant: 'settings' | 'login
           {loginVariant ? 'Sign in is unavailable' : 'Authentication (PKCE)'}
         </Text>
         <Text opacity={0.75}>
-          Set `EXPO_PUBLIC_OIDC_ISSUER_URL` and `EXPO_PUBLIC_OIDC_CLIENT_ID` to enable Keycloak login.
+          Set the OIDC issuer and client ID for the selected connection profile to enable Keycloak login.
         </Text>
       </Card>
     );

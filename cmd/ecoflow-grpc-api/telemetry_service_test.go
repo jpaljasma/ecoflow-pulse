@@ -1497,6 +1497,10 @@ func (f *fakeControlPlaneStore) UpdateCurrentUserProfile(context.Context, contro
 	return controlplane.CurrentUser{}, errors.New("not implemented")
 }
 
+func (f *fakeControlPlaneStore) ReconcileUserSubjectByEmail(context.Context, controlplane.ReconcileUserSubjectByEmailInput) (controlplane.CurrentUser, error) {
+	return controlplane.CurrentUser{}, errors.New("not implemented")
+}
+
 func (f *fakeControlPlaneStore) UpsertProviderDevice(context.Context, controlplane.UpsertProviderDeviceInput) (controlplane.ProviderDevice, error) {
 	return controlplane.ProviderDevice{}, errors.New("not implemented")
 }

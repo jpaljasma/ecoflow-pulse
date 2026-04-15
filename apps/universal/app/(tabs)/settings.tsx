@@ -14,6 +14,8 @@ import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { themeFamilyOptions } from '@/shared/theme/catalog';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeStore } from '@/shared/theme/store';
+import { readConnectionProfiles, type ConnectionProfileId } from '@/shared/config/env';
+import { useConnectionProfileStore } from '@/shared/config/connectionProfileStore';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 
 export default function SettingsScreen() {
@@ -23,8 +25,11 @@ export default function SettingsScreen() {
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const themeFamily = useThemeStore((state) => state.family);
   const setThemeFamily = useThemeStore((state) => state.setFamily);
+  const connectionProfileId = useConnectionProfileStore((state) => state.profileId);
+  const setConnectionProfileId = useConnectionProfileStore((state) => state.setProfileId);
   const { mode, spec, isDark } = useAppTheme();
   const systemModeLabel = mode === 'dark' ? 'Dark' : 'Light';
+  const connectionProfiles = readConnectionProfiles();
 
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
@@ -74,6 +79,135 @@ export default function SettingsScreen() {
         >
           <YStack gap="$4" width="100%" maxWidth={layoutMaxWidth}>
             <KeycloakPkceCard />
+            <Card
+              gap="$4"
+              padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}
+              backgroundColor="$backgroundElevated"
+            >
+              <XStack
+                justifyContent="space-between"
+                alignItems={isTablet ? 'center' : 'flex-start'}
+                gap="$3"
+                flexWrap="wrap"
+              >
+                <YStack gap="$2" maxWidth={760} flex={1}>
+                  <Text fontSize={isTablet ? '$6' : '$5'} fontWeight="800" letterSpacing={-0.2}>
+                    Connection Profile
+                  </Text>
+                  <Text color="$colorMuted" opacity={0.94} fontSize="$3" lineHeight={24}>
+                    Choose whether this app talks to your local stack or the hosted cloud stack. Switching profiles reconnects realtime and may require signing in again if the auth issuer changes.
+                  </Text>
+                </YStack>
+                <XStack
+                  alignItems="center"
+                  gap="$2"
+                  paddingHorizontal="$2"
+                  paddingVertical="$1"
+                  borderRadius={999}
+                  backgroundColor="$backgroundHover"
+                  borderWidth={1}
+                  borderColor="$borderColor"
+                >
+                  <YStack width={6} height={6} borderRadius={999} backgroundColor="$accentColor" />
+                  <Text fontSize="$2" fontWeight="700" opacity={0.94}>
+                    Active: {connectionProfiles[connectionProfileId].label}
+                  </Text>
+                </XStack>
+              </XStack>
+              <XStack gap="$3" flexWrap="wrap" alignItems="stretch">
+                {(Object.keys(connectionProfiles) as ConnectionProfileId[]).map((profileId) => {
+                  const profile = connectionProfiles[profileId];
+                  const selected = profileId === connectionProfileId;
+                  const disabled = !profile.configured;
+                  const iconName =
+                    profileId === 'cloud'
+                      ? 'cloud-outline'
+                      : 'laptop';
+                  const cardBackground = selected
+                    ? hexToRgba(spec.colors.accentColor, isDark ? 0.12 : 0.08)
+                    : hexToRgba(spec.colors.backgroundHover, isDark ? 0.58 : 0.72);
+                  const cardBorderColor = selected
+                    ? hexToRgba(spec.colors.accentColor, isDark ? 0.92 : 0.82)
+                    : hexToRgba(spec.colors.borderColor, isDark ? 0.72 : 0.82);
+
+                  return (
+                    <Button
+                      key={profileId}
+                      unstyled
+                      disabled={disabled}
+                      onPress={() => setConnectionProfileId(profileId)}
+                      flexGrow={1}
+                      flexBasis={isTablet ? 0 : '100%'}
+                      minWidth={isTablet ? 280 : undefined}
+                      borderRadius="$3"
+                      borderWidth={selected ? 1.5 : 1}
+                      padding={isDesktop ? '$4' : '$3'}
+                      minHeight={140}
+                      justifyContent="flex-start"
+                      style={{
+                        borderColor: cardBorderColor,
+                        backgroundColor: cardBackground,
+                        opacity: disabled ? 0.56 : 1
+                      }}
+                      hoverStyle={{
+                        y: disabled ? 0 : -2,
+                        opacity: disabled ? 0.56 : 1
+                      }}
+                      pressStyle={{
+                        scale: disabled ? 1 : 0.995
+                      }}
+                    >
+                      <YStack flex={1} gap="$3">
+                        <XStack justifyContent="space-between" alignItems="center" gap="$3">
+                          <XStack alignItems="center" gap="$3" flex={1}>
+                            <YStack
+                              width={42}
+                              height={42}
+                              borderRadius="$4"
+                              alignItems="center"
+                              justifyContent="center"
+                              backgroundColor="$background"
+                              borderWidth={1}
+                              borderColor="$borderColor"
+                            >
+                              <MaterialCommunityIcons
+                                name={iconName}
+                                size={20}
+                                color={selected ? spec.colors.accentColor : spec.colors.colorMuted}
+                              />
+                            </YStack>
+                            <YStack gap="$1" flex={1}>
+                              <Text fontSize={isDesktop ? '$5' : '$4'} fontWeight="800" letterSpacing={-0.1}>
+                                {profile.label}
+                              </Text>
+                              <Text fontSize="$2" color="$colorMuted">
+                                {disabled ? 'Not configured' : selected ? 'Selected' : 'Available'}
+                              </Text>
+                            </YStack>
+                          </XStack>
+                          <Text fontSize="$2" fontWeight="700" color={selected ? '$accentColor' : '$colorMuted'}>
+                            {selected ? 'Active' : disabled ? 'Unavailable' : 'Switch'}
+                          </Text>
+                        </XStack>
+                        <Text fontSize="$3" lineHeight={22} color="$colorMuted">
+                          {profileId === 'cloud'
+                            ? 'Use the hosted HTTPS API, websocket gateway, and cloud OIDC issuer.'
+                            : 'Use your local HTTPS edge and development services running on this machine or LAN.'}
+                        </Text>
+                        <Text fontSize="$2" color="$colorMuted" numberOfLines={1}>
+                          API: {profile.apiUrl || 'Not configured'}
+                        </Text>
+                      </YStack>
+                    </Button>
+                  );
+                })}
+              </XStack>
+              {connectionProfiles.cloud.configured ? null : (
+                <Text fontSize="$2" color="$colorMuted">
+                  The cloud profile becomes selectable once `EXPO_PUBLIC_CLOUD_API_URL`, `EXPO_PUBLIC_CLOUD_WS_URL`, and the matching cloud OIDC values are configured for the app build.
+                </Text>
+              )}
+            </Card>
             <Card
               gap="$3"
               padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}

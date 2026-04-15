@@ -6,6 +6,7 @@ import type { AvailableDeviceSummary, DeviceMQTTTestResult } from '@/features/de
 import {
   useAvailableDevices,
   useEnableAvailableDevice,
+  useImportAvailableDevice,
   useTestAvailableDeviceMQTT
 } from '@/features/devices/hooks';
 import { maskSerialNumber } from '@/features/telemetry/format';
@@ -172,7 +173,8 @@ function AvailableDeviceCard({
   const [probeResult, setProbeResult] = useState<DeviceMQTTTestResult | null>(null);
   const testMutation = useTestAvailableDeviceMQTT({ token });
   const enableMutation = useEnableAvailableDevice({ token, authKey });
-  const busy = testMutation.isPending || enableMutation.isPending;
+  const importMutation = useImportAvailableDevice({ token, authKey });
+  const busy = testMutation.isPending || enableMutation.isPending || importMutation.isPending;
   const canEnable = probeResult?.success === true;
 
   async function runProbe() {
@@ -189,6 +191,16 @@ function AvailableDeviceCard({
       provider: device.provider,
       credentialId: device.credentialId,
       providerDeviceId: device.providerDeviceId
+    });
+  }
+
+  async function importDeviceInactive() {
+    await importMutation.mutateAsync({
+      provider: device.provider,
+      credentialId: device.credentialId,
+      providerDeviceId: device.providerDeviceId,
+      isActive: false,
+      ingestDesiredState: 'paused'
     });
   }
 
@@ -254,6 +266,22 @@ function AvailableDeviceCard({
           >
             Enable device
           </Button>
+          <Button
+            size="$3"
+            onPress={() => {
+              void importDeviceInactive();
+            }}
+            disabled={busy}
+            icon={
+              importMutation.isPending ? (
+                <Spinner size="small" color="white" />
+              ) : (
+                <MaterialCommunityIcons name="pause-circle-outline" size={16} color="white" />
+              )
+            }
+          >
+            Import inactive
+          </Button>
         </YStack>
       </XStack>
 
@@ -269,6 +297,9 @@ function AvailableDeviceCard({
         )}
         {enableMutation.isSuccess ? (
           <Text color="rgba(18,140,88,0.96)">Device enabled. It will move into the configured list after refresh.</Text>
+        ) : null}
+        {importMutation.isSuccess ? (
+          <Text color="rgba(18,140,88,0.96)">Device imported in a paused state. You can activate it later from discovery.</Text>
         ) : null}
       </YStack>
     </Card>

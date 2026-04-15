@@ -384,10 +384,16 @@ func newTelemetryQueryReaderFromEnv(log *slog.Logger) (telemetryquery.Reader, fu
 
 func newArchiveReadersFromEnv(log *slog.Logger) (replaycli.ManifestStore, replaycli.ObjectReader, func(), error) {
 	dsn := strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
-	endpoint := strings.TrimSpace(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint))
-	accessKey := strings.TrimSpace(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID))
-	secretKey := strings.TrimSpace(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey))
-	if dsn == "" || endpoint == "" || accessKey == "" || secretKey == "" {
+	objectCfg := replaycli.DefaultObjectReaderConfig()
+	objectCfg.Provider = replaycli.ObjectProvider(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(objectCfg.Provider)))
+	objectCfg.Endpoint = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectCfg.Endpoint)
+	objectCfg.AccessKeyID = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", objectCfg.AccessKeyID)
+	objectCfg.SecretAccessKey = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", objectCfg.SecretAccessKey)
+	objectCfg.Region = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectCfg.Region)
+	objectCfg.Secure = runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectCfg.Secure)
+	objectCfg.GCSProjectID = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectCfg.GCSProjectID)
+	if dsn == "" || (objectCfg.Provider == replaycli.ObjectProviderMinIO &&
+		(strings.TrimSpace(objectCfg.Endpoint) == "" || strings.TrimSpace(objectCfg.AccessKeyID) == "" || strings.TrimSpace(objectCfg.SecretAccessKey) == "")) {
 		log.Info("archive history readers disabled", "reason", "archive or postgres env not fully configured")
 		return nil, nil, func() {}, nil
 	}
@@ -396,18 +402,16 @@ func newArchiveReadersFromEnv(log *slog.Logger) (replaycli.ManifestStore, replay
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	objectReader, err := replaycli.NewMinIOObjectReader(replaycli.MinIOObjectReaderConfig{
-		Endpoint:        endpoint,
-		AccessKeyID:     accessKey,
-		SecretAccessKey: secretKey,
-		Region:          runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region),
-		Secure:          runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure),
-	})
+	objectReader, err := replaycli.NewObjectReader(objectCfg)
 	if err != nil {
 		_ = manifestStore.Close()
 		return nil, nil, nil, err
 	}
-	log.Info("archive history readers enabled", "source", "manifest+minio", "endpoint", endpoint)
+	log.Info("archive history readers enabled",
+		"source", "manifest+object-store",
+		"provider", string(objectCfg.Provider),
+		"endpoint", objectCfg.Endpoint,
+	)
 	return manifestStore, objectReader, func() {
 		_ = objectReader.Close()
 		_ = manifestStore.Close()

@@ -293,6 +293,7 @@ function makeDeviceClient(): DeviceClient {
     listAvailableDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
     testAvailableDeviceMQTT: vi.fn(),
     enableAvailableDevice: vi.fn(async () => ({ deviceId: '' })),
+    importAvailableDevice: vi.fn(async () => ({ deviceId: '' })),
     close: vi.fn()
   };
 }

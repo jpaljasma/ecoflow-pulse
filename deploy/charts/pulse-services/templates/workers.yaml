@@ -28,6 +28,9 @@ spec:
         app.kubernetes.io/component: go-ingest
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.ingest.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-ingest
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -42,7 +45,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.ingest.resources | nindent 12 }}
           {{- if .Values.runtime.workers.ingest.metrics.enabled }}
@@ -158,6 +161,9 @@ spec:
         app.kubernetes.io/component: go-inference
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.inference.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-inference
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -172,7 +178,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.inference.resources | nindent 12 }}
           {{- if .Values.runtime.workers.inference.metrics.enabled }}
@@ -288,6 +294,9 @@ spec:
         app.kubernetes.io/component: go-rollup
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.rollup.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-rollup
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -302,7 +311,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.rollup.resources | nindent 12 }}
           {{- if .Values.runtime.workers.rollup.metrics.enabled }}
@@ -418,6 +427,9 @@ spec:
         app.kubernetes.io/component: go-projection
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.projection.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-projection
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -432,7 +444,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.projection.resources | nindent 12 }}
           {{- if .Values.runtime.workers.projection.metrics.enabled }}
@@ -548,6 +560,9 @@ spec:
         app.kubernetes.io/component: go-archive
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.archive.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-archive
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -562,7 +577,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
           {{- if .Values.runtime.workers.archive.metrics.enabled }}
@@ -678,6 +693,9 @@ spec:
         app.kubernetes.io/component: go-grpc-api
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.grpcApi.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-grpc-api
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -701,7 +719,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.grpcApi.resources | nindent 12 }}
           {{- if .Values.runtime.workers.grpcApi.metrics.enabled }}
@@ -825,6 +843,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.solarVerification.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-solar-verification
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -844,7 +865,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.solarVerification.resources | nindent 12 }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
@@ -917,6 +938,9 @@ spec:
         app.kubernetes.io/component: go-energy-api
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.energyApi.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: go-energy-api
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -938,7 +962,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.energyApi.resources | nindent 12 }}
           {{- if .Values.runtime.workers.energyApi.metrics.enabled }}

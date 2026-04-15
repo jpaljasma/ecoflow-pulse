@@ -32,23 +32,25 @@ const (
 )
 
 type config struct {
-	dbDSN            string
-	provider         string
-	providerDeviceID string
-	emulatorURL      string
-	sampleInterval   time.Duration
-	chunkSize        int
-	maxObjects       int
-	parallelism      int
-	archiveWaitTime  time.Duration
-	archivePollTime  time.Duration
-	objectEndpoint   string
-	objectAccessKey  string
-	objectSecretKey  string
-	objectRegion     string
-	objectSecure     bool
-	from             time.Time
-	to               time.Time
+	dbDSN              string
+	provider           string
+	providerDeviceID   string
+	emulatorURL        string
+	sampleInterval     time.Duration
+	chunkSize          int
+	maxObjects         int
+	parallelism        int
+	archiveWaitTime    time.Duration
+	archivePollTime    time.Duration
+	objectEndpoint     string
+	objectAccessKey    string
+	objectSecretKey    string
+	objectRegion       string
+	objectSecure       bool
+	objectProvider     string
+	objectGCSProjectID string
+	from               time.Time
+	to                 time.Time
 }
 
 type replayResponse struct {
@@ -88,7 +90,7 @@ func main() {
 func parseConfig(args []string, now time.Time) (config, error) {
 	fs := flag.NewFlagSet("pulse-mqtt-history-backfill", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	objectDefaults := replaycli.DefaultMinIOObjectReaderConfig()
+	objectDefaults := replaycli.DefaultObjectReaderConfig()
 
 	var (
 		fromRaw string
@@ -105,11 +107,13 @@ func parseConfig(args []string, now time.Time) (config, error) {
 	fs.IntVar(&cfg.parallelism, "parallelism", 4, "Archive rebuild worker parallelism")
 	fs.DurationVar(&cfg.archiveWaitTime, "archive-wait-timeout", defaultArchiveWaitTimeout, "How long to wait for replayed MQTT envelopes to land in the raw archive")
 	fs.DurationVar(&cfg.archivePollTime, "archive-wait-interval", defaultArchiveWaitPoll, "Archive coverage poll cadence after replay")
+	fs.StringVar(&cfg.objectProvider, "object-provider", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(objectDefaults.Provider)), "Object store provider: minio|gcs")
 	fs.StringVar(&cfg.objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectDefaults.Endpoint), "Object store endpoint for archive-backed rollup rebuild")
 	fs.StringVar(&cfg.objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", objectDefaults.AccessKeyID), "Object store access key for archive-backed rollup rebuild")
 	fs.StringVar(&cfg.objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", objectDefaults.SecretAccessKey), "Object store secret key for archive-backed rollup rebuild")
 	fs.StringVar(&cfg.objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectDefaults.Region), "Object store region for archive-backed rollup rebuild")
 	fs.BoolVar(&cfg.objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectDefaults.Secure), "Object store tls")
+	fs.StringVar(&cfg.objectGCSProjectID, "object-gcs-project-id", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectDefaults.GCSProjectID), "Optional GCS project id for logging or bucket auto-create")
 	fs.StringVar(&fromRaw, "from", "", "Window start (RFC3339 or unix-ms). Defaults to local midnight.")
 	fs.StringVar(&toRaw, "to", "", "Window end (RFC3339 or unix-ms). Defaults to next local minute boundary.")
 	if err := fs.Parse(args); err != nil {
@@ -267,12 +271,14 @@ func run(ctx context.Context, log *slog.Logger, cfg config) error {
 		return fmt.Errorf("query archive footprint after replay: %w", err)
 	}
 
-	objectReader, err := replaycli.NewMinIOObjectReader(replaycli.MinIOObjectReaderConfig{
+	objectReader, err := replaycli.NewObjectReader(replaycli.ObjectReaderConfig{
+		Provider:        replaycli.ObjectProvider(cfg.objectProvider),
 		Endpoint:        cfg.objectEndpoint,
 		AccessKeyID:     cfg.objectAccessKey,
 		SecretAccessKey: cfg.objectSecretKey,
 		Region:          cfg.objectRegion,
 		Secure:          cfg.objectSecure,
+		GCSProjectID:    cfg.objectGCSProjectID,
 	})
 	if err != nil {
 		return fmt.Errorf("init object reader: %w", err)

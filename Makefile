@@ -35,6 +35,9 @@ HELM_RETRY_DELAY_SEC ?= 5
 GKE_PROJECT_ID ?=
 GKE_CLUSTER_NAME ?= pulse-dev
 GKE_CLUSTER_ZONE ?= us-east1-b
+GKE_CLOUD_PROJECT_ID ?= ecoflow-pulse-dev-260221-01
+GKE_CLOUD_CLUSTER_NAME ?= pulse-cloud
+GKE_CLOUD_CLUSTER_REGION ?= us-east1
 GKE_DEV_NAMESPACE ?= pulse-dev
 GKE_GUARDRAILS_DIR ?= deploy/env/dev/guardrails
 GKE_BASELINE_NODEPOOL ?= baseline-pool
@@ -53,8 +56,10 @@ ARGOCD_CHART_VERSION ?= 9.4.3
 ARGOCD_RELEASE ?= argocd
 ARGOCD_NAMESPACE ?= argocd
 ARGOCD_VALUES_DEV ?= deploy/env/dev/values.argocd.yaml
+ARGOCD_VALUES_CLOUD ?= deploy/env/cloud/values.argocd.yaml
 ARGOCD_APPS_DIR ?= deploy/argocd/apps
 ARGOCD_APPS ?= pulse-platform pulse-services
+ARGOCD_CLOUD_APPS ?= pulse-platform-cloud pulse-services-cloud
 ARGOCD_APP_WAIT_ATTEMPTS ?= 60
 ARGOCD_APP_WAIT_SLEEP_SEC ?= 10
 DB_MIGRATIONS_DIR ?= deploy/db/migrations
@@ -157,7 +162,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -2101,6 +2106,20 @@ gke-context:
 		--zone $(GKE_CLUSTER_ZONE) \
 		--project $(GKE_PROJECT_ID)
 
+gke-cloud-context:
+	@if ! command -v $(GCLOUD) >/dev/null 2>&1; then \
+		echo "$(GCLOUD) not found. Install Google Cloud SDK first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@echo "fetching kube credentials for regional cluster $(GKE_CLOUD_CLUSTER_NAME) in $(GKE_CLOUD_CLUSTER_REGION) (project: $(GKE_CLOUD_PROJECT_ID))"
+	$(GCLOUD) container clusters get-credentials $(GKE_CLOUD_CLUSTER_NAME) \
+		--region $(GKE_CLOUD_CLUSTER_REGION) \
+		--project $(GKE_CLOUD_PROJECT_ID)
+
 gke-dev-guardrails: gke-context
 	@echo "ensuring namespace $(GKE_DEV_NAMESPACE) exists"
 	@$(KUBECTL) get ns $(GKE_DEV_NAMESPACE) >/dev/null 2>&1 || $(KUBECTL) create ns $(GKE_DEV_NAMESPACE)
@@ -2242,6 +2261,63 @@ argocd-wait-apps: gke-context
 	done
 
 argocd-dev-up: argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps
+
+argocd-bootstrap-cloud: gke-cloud-context
+	@if ! command -v $(HELM) >/dev/null 2>&1; then \
+		echo "$(HELM) not found. Install helm first."; \
+		exit 1; \
+	fi
+	@echo "ensuring namespace $(ARGOCD_NAMESPACE) exists"
+	@$(KUBECTL) get ns $(ARGOCD_NAMESPACE) >/dev/null 2>&1 || $(KUBECTL) create ns $(ARGOCD_NAMESPACE)
+	@echo "installing/upgrading Argo CD chart $(ARGOCD_HELM_CHART) ($(ARGOCD_CHART_VERSION))"
+	@$(HELM) repo add argo $(ARGOCD_HELM_REPO) >/dev/null 2>&1 || true
+	@$(HELM) repo update >/dev/null 2>&1
+	$(HELM) upgrade --install $(ARGOCD_RELEASE) $(ARGOCD_HELM_CHART) \
+		--version $(ARGOCD_CHART_VERSION) \
+		--namespace $(ARGOCD_NAMESPACE) \
+		--create-namespace \
+		-f $(ARGOCD_VALUES_CLOUD)
+	@echo "waiting for Argo CD CRDs and core workloads"
+	$(KUBECTL) wait --for=condition=Established --timeout=$(WAIT_TIMEOUT) crd/applications.argoproj.io
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-repo-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status sts/argocd-application-controller --timeout=$(WAIT_TIMEOUT)
+
+argocd-apps-cloud: gke-cloud-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_CLOUD_APPS); do \
+		manifest="$(ARGOCD_APPS_DIR)/$$app.yaml"; \
+		if [ ! -f "$$manifest" ]; then \
+			echo "missing Argo application manifest: $$manifest"; \
+			exit 1; \
+		fi; \
+		echo "applying $$manifest"; \
+		$(KUBECTL) apply -f "$$manifest"; \
+	done
+
+argocd-wait-apps-cloud: gke-cloud-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_CLOUD_APPS); do \
+		echo "waiting for application/$$app (Synced + Healthy)"; \
+		ok=0; \
+		for attempt in $$(seq 1 $(ARGOCD_APP_WAIT_ATTEMPTS)); do \
+			sync="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.sync.status}' 2>/dev/null || true )"; \
+			health="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.health.status}' 2>/dev/null || true )"; \
+			echo "  attempt $$attempt/$(ARGOCD_APP_WAIT_ATTEMPTS): sync=$${sync:-n/a} health=$${health:-n/a}"; \
+			if [ "$$sync" = "Synced" ] && [ "$$health" = "Healthy" ]; then \
+				ok=1; \
+				break; \
+			fi; \
+			sleep $(ARGOCD_APP_WAIT_SLEEP_SEC); \
+		done; \
+		if [ $$ok -ne 1 ]; then \
+			echo "application/$$app did not reach Synced+Healthy"; \
+			$(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o yaml || true; \
+			exit 1; \
+		fi; \
+	done
+
+argocd-cloud-up: argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \

@@ -1,4 +1,4 @@
-package rolluprebuild
+package replaycli
 
 import (
 	"testing"

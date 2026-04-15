@@ -471,6 +471,49 @@ func (s *MemoryStore) UpdateCurrentUserProfile(_ context.Context, in UpdateCurre
 	return cloneCurrentUser(user), nil
 }
 
+func (s *MemoryStore) ReconcileUserSubjectByEmail(_ context.Context, in ReconcileUserSubjectByEmailInput) (CurrentUser, error) {
+	email := strings.TrimSpace(in.Email)
+	userSubject := strings.TrimSpace(in.UserSubject)
+	if email == "" {
+		return CurrentUser{}, ErrVerifiedEmailNotFound
+	}
+	if userSubject == "" {
+		return CurrentUser{}, ErrUserNotFound
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if existingID, ok := s.usersBySubject[userSubject]; ok {
+		existing, ok := s.usersByID[existingID]
+		if !ok {
+			return CurrentUser{}, ErrUserNotFound
+		}
+		if strings.EqualFold(strings.TrimSpace(existing.Email), email) {
+			return cloneCurrentUser(existing.CurrentUser), nil
+		}
+		return CurrentUser{}, ErrUserSubjectConflict
+	}
+
+	for userID, entry := range s.usersByID {
+		user := entry.CurrentUser
+		if !user.EmailVerified {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(user.Email), email) {
+			continue
+		}
+		delete(s.usersBySubject, strings.TrimSpace(user.KeycloakSubject))
+		user.KeycloakSubject = userSubject
+		user.UpdatedAt = normalizeWriteTime(s.now())
+		s.usersByID[userID] = memoryUser{CurrentUser: user}
+		s.usersBySubject[userSubject] = userID
+		return cloneCurrentUser(user), nil
+	}
+
+	return CurrentUser{}, ErrVerifiedEmailNotFound
+}
+
 func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

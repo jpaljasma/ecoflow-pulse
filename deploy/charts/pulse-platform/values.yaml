@@ -30,6 +30,30 @@ components:
   observabilityLite:
     enabled: false
 
+secretManager:
+  enabled: false
+  serviceAccount:
+    create: false
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: true
+  secretStore:
+    create: false
+    kind: SecretStore
+    name: pulse-platform-gcp-secrets
+    projectId: ""
+    clusterLocation: ""
+    clusterName: ""
+  keycloakSocialExternalSecret:
+    enabled: false
+    refreshInterval: 1h
+    targetSecretName: ""
+    data:
+      googleClientId: ""
+      googleClientSecret: ""
+      facebookClientId: ""
+      facebookClientSecret: ""
+
 runtime:
   publicApp:
     enabled: false

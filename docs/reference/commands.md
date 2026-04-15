@@ -16,6 +16,7 @@ go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-db-migrate-job
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
+go run ./cmd/ecoflow-user-subject-reconcile
 go run ./cmd/ecoflow-ingest-worker
 go run ./cmd/ecoflow-inference-worker
 go run ./cmd/ecoflow-rollup-worker
@@ -1222,6 +1223,12 @@ Notes:
   - `GKE_CLUSTER_NAME` (default `pulse-dev`)
   - `GKE_CLUSTER_ZONE` (default `us-east1-b`)
   - `GKE_BASELINE_NODEPOOL` (default `baseline-pool`; use `default-pool` if cluster was created via raw `gcloud container clusters create`)
+- `make gke-cloud-context` fetches kube credentials for the hosted regional
+  cloud cluster.
+  Defaults:
+  - `GKE_CLOUD_PROJECT_ID=ecoflow-pulse-dev-260221-01`
+  - `GKE_CLOUD_CLUSTER_NAME=pulse-cloud`
+  - `GKE_CLOUD_CLUSTER_REGION=us-east1`
 - `make gke-dev-guardrails` creates `pulse-dev` namespace if needed and applies:
   - `deploy/env/dev/guardrails/pulse-dev-resourcequota.yaml`
   - `deploy/env/dev/guardrails/pulse-dev-limitrange.yaml`
@@ -1253,6 +1260,18 @@ Notes:
 - `make argocd-dev-up` is the full bootstrap sequence:
   - Argo CD install/upgrade
   - direct app apply
+  - app sync/health wait loop
+- `make argocd-bootstrap-cloud` installs/upgrades Argo CD on the hosted cloud
+  cluster using `deploy/env/cloud/values.argocd.yaml`.
+- `make argocd-apps-cloud` applies the hosted cloud app manifests:
+  - `deploy/argocd/apps/pulse-platform-cloud.yaml`
+  - `deploy/argocd/apps/pulse-services-cloud.yaml`
+- `make argocd-wait-apps-cloud` waits for `pulse-platform-cloud` and
+  `pulse-services-cloud` to reach `Synced` + `Healthy`.
+- `make argocd-cloud-up` is the full hosted-cloud bootstrap sequence:
+  - `make gke-cloud-context`
+  - Argo CD install/upgrade
+  - hosted cloud app apply
   - app sync/health wait loop
 - pre-merge GKE validation pattern (when Argo apps track `main` but you need to validate branch changes):
   - patch app `spec.source.targetRevision=<branch>` with `argocd.argoproj.io/refresh=hard`,

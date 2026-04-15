@@ -26,3 +26,11 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+
+{{- define "pulse-platform.secretManagerServiceAccountName" -}}
+{{- if .Values.secretManager.serviceAccount.create -}}
+{{- default (printf "%s-gcp-secrets" (include "pulse-platform.fullname" .)) .Values.secretManager.serviceAccount.name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- .Values.secretManager.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}

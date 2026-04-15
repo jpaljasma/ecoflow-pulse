@@ -1,0 +1,345 @@
+global:
+  environment: cloud
+
+scaffold:
+  enabled: true
+  message: "pulse-platform cloud scaffold"
+
+components:
+  nats:
+    enabled: true
+  cloudnativepg:
+    enabled: true
+  timescaledb:
+    enabled: true
+  valkey:
+    enabled: true
+  keycloak:
+    enabled: true
+  minio:
+    enabled: false
+  ingressNginx:
+    enabled: true
+  certManager:
+    enabled: true
+  externalSecrets:
+    enabled: true
+  observabilityLite:
+    enabled: true
+
+secretManager:
+  enabled: true
+  serviceAccount:
+    create: true
+    name: pulse-platform-gcp-secrets
+    annotations:
+      iam.gke.io/gcp-service-account: pulse-platform-secrets@ecoflow-pulse-dev-260221-01.iam.gserviceaccount.com
+  secretStore:
+    create: true
+    kind: SecretStore
+    name: pulse-platform-gcp-secrets
+    projectId: ecoflow-pulse-dev-260221-01
+    clusterLocation: us-east1
+    clusterName: pulse-cloud
+  keycloakSocialExternalSecret:
+    enabled: true
+    refreshInterval: 1h
+    targetSecretName: pulse-platform-keycloak-social-providers
+    data:
+      googleClientId: pulse-cloud-keycloak-google-client-id
+      googleClientSecret: pulse-cloud-keycloak-google-client-secret
+
+runtime:
+  publicApp:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-platform
+      tag: main
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+    metrics:
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+    env:
+      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
+      energyGrpcApiAddr: pulse-services-go-energy-api.pulse-services.svc.cluster.local:9090
+      grpcDeadlineMs: "10000"
+      nodeAuthMode: keycloak
+      keycloakIssuerUrl: https://pulse.example.com/realms/pulse
+      keycloakAudience: pulse-universal-app
+      keycloakJwksUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
+      keycloakUserInfoUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
+      keycloakAllowMissingJwt: "false"
+      publicDir: /app/apps/universal/dist
+      realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
+      devUserSubject: ""
+      publicPreconnectOrigins: "https://pulse.example.com"
+      corsAllowedOrigins: "https://pulse.example.com,http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
+    ingress:
+      enabled: true
+      host: pulse.example.com
+      proxyReadTimeoutSeconds: 3600
+      proxySendTimeoutSeconds: 3600
+      tls:
+        enabled: true
+        secretName: pulse-platform-cloud-tls
+        clusterIssuer: letsencrypt-prod
+        localSelfSigned: false
+      http3:
+        enabled: false
+  realtimeGateway:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-realtime-gateway
+      tag: main
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8082
+      targetPort: 8082
+    metrics:
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+    env:
+      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
+      grpcDeadlineMs: "10000"
+      natsURLs: nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222
+      valkeyAddrs: pulse-platform-valkey.pulse-platform.svc.cluster.local:26379
+      valkeySentinelMasterSet: myprimary
+      projectionKeyPrefix: pulse:projection
+      telemetrySubjectPrefix: pulse.telemetry
+      nodeAuthMode: keycloak
+      keycloakIssuerUrl: https://pulse.example.com/realms/pulse
+      keycloakAudience: pulse-universal-app
+      keycloakJwksUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
+      keycloakUserInfoUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
+      keycloakAllowMissingJwt: "false"
+
+nats:
+  config:
+    cluster:
+      enabled: true
+      replicas: 3
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        pvc:
+          enabled: true
+          size: 100Gi
+  promExporter:
+    enabled: true
+    podMonitor:
+      enabled: true
+      patch:
+        - op: add
+          path: /metadata/labels/release
+          value: pulse-platform
+
+cloudnative-pg: {}
+cloudnativepgCluster:
+  enabled: true
+  name: pulse-platform-core
+  instances: 3
+  postgresUID: 26
+  postgresGID: 26
+  storage:
+    size: 100Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+  bootstrap:
+    database: pulse
+    owner: pulse
+    appSecretName: pulse-platform-core-app
+    appUser: pulse
+    appPassword: replace-me-cloud-db-password
+  timescaledb:
+    enabled: true
+    imageCatalog:
+      name: pulse-platform-timescaledb
+      major: 18
+      image: timescale/timescaledb:latest-pg18@sha256:42ffa71e12b69a7d8ff4fd04c177e4519f66d3c9d1a026e5c4adf296a8168240
+    postgresUID: 70
+    postgresGID: 70
+    postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+cloudnativepgContract:
+  enabled: true
+  configMapName: pulse-platform-core-contract
+  connectionSecretName: pulse-platform-core-connection
+  service:
+    rw: pulse-platform-core-rw
+    ro: pulse-platform-core-ro
+    r: pulse-platform-core-r
+  port: 5432
+  database: pulse
+
+valkey:
+  architecture: replication
+  auth:
+    enabled: false
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: pulse-platform
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    persistentVolumeClaimRetentionPolicy:
+      enabled: true
+      whenScaled: Retain
+      whenDeleted: Retain
+  replica:
+    replicaCount: 3
+    minReadySeconds: 10
+    terminationGracePeriodSeconds: 60
+    persistence:
+      enabled: true
+      size: 20Gi
+    persistentVolumeClaimRetentionPolicy:
+      enabled: true
+      whenScaled: Retain
+      whenDeleted: Retain
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: node
+    pdb:
+      create: true
+      minAvailable: 2
+  sentinel:
+    enabled: true
+    quorum: 2
+    automateClusterRecovery: true
+    downAfterMilliseconds: 2000
+    failoverTimeout: 180000
+    parallelSyncs: 1
+    replicaSyncCheck: true
+    valkeyShutdownWaitFailover: true
+
+keycloak:
+  replicaCount: 2
+  proxyHeaders: xforwarded
+  extraEnvVars:
+    - name: KC_HOSTNAME
+      value: https://pulse.example.com
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  image:
+    repository: bitnamilegacy/keycloak
+  auth:
+    adminUser: admin
+    adminPassword: replace-me-keycloak-admin-password
+  postgresql:
+    enabled: false
+  externalDatabase:
+    host: pulse-platform-core-rw
+    port: 5432
+    database: pulse
+    existingSecret: pulse-platform-core-app
+    existingSecretUserKey: username
+    existingSecretPasswordKey: password
+  keycloakConfigCli:
+    enabled: true
+    existingConfigmap: pulse-platform-keycloak-realm-import
+    extraEnvVarsSecret: pulse-platform-keycloak-social-providers
+    extraEnvVars:
+      - name: IMPORT_VARSUBSTITUTION_ENABLED
+        value: "true"
+    image:
+      repository: bitnamilegacy/keycloak-config-cli
+    cleanupAfterFinished:
+      enabled: true
+      seconds: 600
+
+keycloakRealm:
+  enabled: true
+  configMapName: pulse-platform-keycloak-realm-import
+  socialSecretName: pulse-platform-keycloak-social-providers
+  realmName: pulse
+  universalClient:
+    enabled: true
+    clientId: pulse-universal-app
+    redirectUris:
+      - ecoflowpulse://*
+      - https://pulse.example.com/*
+      - https://localhost/*
+      - http://localhost:8081/*
+      - https://127.0.0.1/*
+      - http://127.0.0.1:8081/*
+    webOrigins:
+      - https://pulse.example.com
+      - https://localhost
+      - http://localhost:8081
+      - https://127.0.0.1
+      - http://127.0.0.1:8081
+  google:
+    enabled: true
+    clientId: ""
+    clientSecret: ""
+  facebook:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+
+ingress-nginx:
+  controller:
+    allowSnippetAnnotations: false
+    replicaCount: 2
+    service:
+      type: LoadBalancer
+
+cert-manager:
+  crds:
+    enabled: true
+  replicaCount: 2
+  webhook:
+    replicaCount: 2
+  cainjector:
+    replicaCount: 2
+
+external-secrets:
+  installCRDs: true
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+kube-prometheus-stack:
+  defaultRules:
+    create: false
+  alertmanager:
+    enabled: false
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+
+opentelemetry-collector:
+  mode: deployment
+  replicaCount: 1

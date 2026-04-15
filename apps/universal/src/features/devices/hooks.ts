@@ -4,8 +4,10 @@ import {
   fetchAvailableDevices,
   fetchDevice,
   fetchDevices,
+  importAvailableDevice,
   testAvailableDeviceMQTT
 } from '@/features/devices/api';
+import type { ImportAvailableDevicePayload } from '@/features/devices/schema';
 
 type DeviceQueryOptions = {
   token?: string;
@@ -63,6 +65,18 @@ export function useEnableAvailableDevice(options: DeviceQueryOptions = {}) {
   return useMutation({
     mutationFn: (payload: { provider: string; credentialId: string; providerDeviceId: string }) =>
       enableAvailableDevice(payload, token),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['devices', authKey] });
+      void queryClient.invalidateQueries({ queryKey: ['available-devices', authKey] });
+    }
+  });
+}
+
+export function useImportAvailableDevice(options: DeviceQueryOptions = {}) {
+  const { token, authKey = 'anonymous' } = options;
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ImportAvailableDevicePayload) => importAvailableDevice(payload, token),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['devices', authKey] });
       void queryClient.invalidateQueries({ queryKey: ['available-devices', authKey] });

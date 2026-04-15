@@ -19,7 +19,9 @@ Current state: **platform + telemetry worker runtime in local k3d**.
   - Node BFF/WS gateway/query API remain staged for later milestones.
 - `env/local/`: local values overrides.
 - `env/dev/`: dev values overrides.
+- `env/cloud/`: hosted GKE cloud values overrides (`pulse-cloud`, `us-east1`).
 - `env/dev/values.argocd.yaml`: Argo CD bootstrap values for GKE dev.
+- `env/cloud/values.argocd.yaml`: Argo CD bootstrap values for the hosted cloud cluster.
 - `env/dev/guardrails/`: dev namespace guardrails (`ResourceQuota`, `LimitRange`).
 - `env/dev/recommended/`: recommended runtime policies not auto-applied by scaffold.
   - `pulse-services-go-ingest-hpa.recommended.yaml`: ingest worker HPA baseline.
@@ -28,6 +30,8 @@ Current state: **platform + telemetry worker runtime in local k3d**.
 - `argocd/apps/`: direct Argo CD Applications:
   - `pulse-platform`
   - `pulse-services`
+  - `pulse-platform-cloud`
+  - `pulse-services-cloud`
 - `tilt/k3d-config.yaml`: local k3d cluster config used by architecture docs.
 
 ## Namespaces
@@ -68,6 +72,11 @@ make argocd-bootstrap-dev GKE_PROJECT_ID=<project>
 make argocd-apps-dev GKE_PROJECT_ID=<project>
 make argocd-wait-apps GKE_PROJECT_ID=<project>
 make argocd-dev-up GKE_PROJECT_ID=<project>
+make gke-cloud-context
+make argocd-bootstrap-cloud
+make argocd-apps-cloud
+make argocd-wait-apps-cloud
+make argocd-cloud-up
 ```
 
 Defaults:
@@ -148,6 +157,48 @@ Defaults:
 - dev values also enable `external-secrets` + `observability-lite` using
   low-footprint resource limits.
 - GKE Argo CD bootstrap uses `deploy/env/dev/values.argocd.yaml`.
+- cloud values target the hosted regional cluster path:
+  - separate values overlays under `deploy/env/cloud`,
+  - Argo app manifests `pulse-platform-cloud` + `pulse-services-cloud`,
+  - regional GKE defaults `pulse-cloud` in `us-east1`,
+  - native GCS archive access through Workload Identity instead of MinIO/HMAC,
+  - Secret Manager-backed runtime secrets via `ExternalSecret`,
+  - local/cloud browser clients reach the hosted stack through the public HTTPS
+    BFF + `/ws`, while `go-grpc-api` remains internal-only.
+
+## Cloud Profile
+
+The hosted cloud profile is intentionally separate from the cost-min `dev`
+overlay. Use it for the real shared data plane in project
+`ecoflow-pulse-dev-260221-01`.
+
+Cloud defaults in this branch:
+
+- platform + services keep the same namespaces (`pulse-platform`,
+  `pulse-services`) and topology as local,
+- public app `2`, realtime gateway `2`, gRPC API `3`, energy API `3`,
+  ingest/inference/projection/archive `3`, rollup `1`,
+- CNPG runs multi-instance (`3`) with Timescale enabled,
+- ingress-nginx, cert-manager, external-secrets, and observability-lite are
+  enabled,
+- archive storage switches to provider-aware `ARCHIVE_OBJECT_PROVIDER=gcs`,
+  bucket/prefix `pulse-telemetry-raw` / `raw`,
+- services use a dedicated Kubernetes service account annotated for GKE
+  Workload Identity and read runtime secrets from Secret Manager-backed
+  `ExternalSecret`,
+- Keycloak stays the auth system, with Google login enabled and redirect/CORS
+  allowances for both the cloud domain and localhost Expo web-dev origins.
+
+Expected follow-up before first live sync:
+
+- replace placeholder cloud domain values (`pulse.example.com`),
+- confirm the Artifact Registry image repositories/tags used in
+  `deploy/env/cloud/*.yaml`,
+- populate the referenced Secret Manager secret names,
+- provision the matching GCP IAM service accounts and Workload Identity
+  bindings,
+- follow the migration runbook in
+  `docs/how-to/migrate-local-data-plane-to-gke-cloud.md`.
 
 ## Helm Dependency Bootstrap
 

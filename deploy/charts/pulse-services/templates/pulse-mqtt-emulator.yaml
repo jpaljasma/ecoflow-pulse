@@ -28,6 +28,9 @@ spec:
         app.kubernetes.io/component: pulse-mqtt-emulator
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.pulseMqttEmulator.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: pulse-mqtt-emulator
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -42,7 +45,7 @@ spec:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
-                name: {{ include "pulse-services.fullname" . }}-runtime-secret
+                name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.pulseMqttEmulator.resources | nindent 12 }}
           {{- if .Values.runtime.workers.pulseMqttEmulator.startupProbe.enabled }}

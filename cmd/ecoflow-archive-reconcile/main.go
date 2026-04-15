@@ -11,25 +11,26 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/archiveaudit"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
-	"github.com/jpaljasma/ecoflow-pulse/internal/rolluprebuild"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 func main() {
 	var (
-		from            string
-		to              string
-		bucket          string
-		prefix          string
-		maxObjects      int
-		apply           bool
-		objectEndpoint  string
-		objectAccessKey string
-		objectSecretKey string
-		objectRegion    string
-		objectSecure    bool
-		manifestDSN     string
+		from               string
+		to                 string
+		bucket             string
+		prefix             string
+		maxObjects         int
+		apply              bool
+		objectProvider     string
+		objectEndpoint     string
+		objectAccessKey    string
+		objectSecretKey    string
+		objectRegion       string
+		objectSecure       bool
+		objectGCSProjectID string
+		manifestDSN        string
 	)
 
 	flag.StringVar(&from, "from", "", "inclusive UTC timestamp, RFC3339")
@@ -38,11 +39,14 @@ func main() {
 	flag.StringVar(&prefix, "archive-prefix", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PREFIX", "raw"), "archive prefix")
 	flag.IntVar(&maxObjects, "max-objects", 0, "maximum objects to inspect (0 = all)")
 	flag.BoolVar(&apply, "apply", false, "delete stale manifest rows that point at missing MinIO objects")
-	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint), "object store endpoint")
-	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID), "object store access key")
-	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey), "object store secret key")
-	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region), "object store region")
-	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure), "object store tls")
+	objectDefaults := replaycli.DefaultObjectReaderConfig()
+	flag.StringVar(&objectProvider, "object-provider", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(objectDefaults.Provider)), "object store provider: minio|gcs")
+	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectDefaults.Endpoint), "object store endpoint")
+	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", objectDefaults.AccessKeyID), "object store access key")
+	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", objectDefaults.SecretAccessKey), "object store secret key")
+	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectDefaults.Region), "object store region")
+	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectDefaults.Secure), "object store tls")
+	flag.StringVar(&objectGCSProjectID, "object-gcs-project-id", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectDefaults.GCSProjectID), "optional GCS project id for logging or bucket auto-create")
 	flag.StringVar(&manifestDSN, "manifest-dsn", strings.TrimSpace(runtimecfg.EnvOrDefault("CONTROL_PLANE_DB_DSN", "")), "Postgres DSN for archive manifest index")
 	flag.Parse()
 
@@ -88,14 +92,16 @@ func main() {
 	}
 	defer func() { _ = manifestStore.Close() }()
 
-	directObjects, err := rolluprebuild.ListArchiveObjectsDirect(
+	directObjects, err := replaycli.ListObjectsDirect(
 		ctx,
-		replaycli.MinIOObjectReaderConfig{
+		replaycli.ObjectReaderConfig{
+			Provider:        replaycli.ObjectProvider(objectProvider),
 			Endpoint:        objectEndpoint,
 			AccessKeyID:     objectAccessKey,
 			SecretAccessKey: objectSecretKey,
 			Region:          objectRegion,
 			Secure:          objectSecure,
+			GCSProjectID:    objectGCSProjectID,
 		},
 		bucket,
 		prefix,

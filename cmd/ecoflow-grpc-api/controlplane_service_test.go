@@ -1098,6 +1098,128 @@ func TestEnableProviderDeviceRequiresSuccessfulMQTTProbe(t *testing.T) {
 	}
 }
 
+func TestImportProviderDevicePersistsInactiveAssignment(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	credResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderPulseMQTT,
+		AccessKey:   "AKPULSE0001",
+		SecretKey:   "SKPULSE0001",
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	svc.RegisterDiscoverer(controlplane.ProviderPulseMQTT, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{
+			{
+				Provider:         controlplane.ProviderPulseMQTT,
+				ProviderDeviceID: "PULSEMQTT-EMU-0001",
+				CanonicalSN:      "PULSEMQTT-EMU-0001",
+				ProductName:      "Pulse MQTT Emulator",
+				Model:            "Virtual Device",
+			},
+		},
+	})
+
+	resp, err := svc.ImportProviderDevice(context.Background(), &controlplanev1.ImportProviderDeviceRequest{
+		UserSubject:        "dev-user",
+		Provider:           controlplane.ProviderPulseMQTT,
+		CredentialId:       credResp.GetCredential().GetId(),
+		ProviderDeviceId:   "PULSEMQTT-EMU-0001",
+		IsActive:           false,
+		IngestDesiredState: "paused",
+	})
+	if err != nil {
+		t.Fatalf("import provider device failed: %v", err)
+	}
+	if resp.GetProviderDevice().GetIsActive() {
+		t.Fatalf("expected imported provider device to be inactive")
+	}
+	if got := resp.GetProviderDevice().GetIngestDesiredState(); got != "paused" {
+		t.Fatalf("ingest_desired_state=%q want paused", got)
+	}
+
+	listed, err := store.ListProviderDevices(context.Background(), controlplane.ListProviderDevicesInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderPulseMQTT,
+		ActiveOnly:  false,
+	})
+	if err != nil {
+		t.Fatalf("list provider devices failed: %v", err)
+	}
+	if got := len(listed); got != 1 {
+		t.Fatalf("provider device count=%d want 1", got)
+	}
+	if listed[0].IsActive {
+		t.Fatalf("expected persisted provider device to remain inactive")
+	}
+	if got := listed[0].IngestDesiredState; got != "paused" {
+		t.Fatalf("persisted ingest_desired_state=%q want paused", got)
+	}
+}
+
+func TestImportProviderDeviceRequiresSuccessfulMQTTProbeWhenActive(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	credResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AKIMPORT0001",
+		SecretKey:   "SKIMPORT0001",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	svc.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{
+			{
+				Provider:         controlplane.ProviderEcoFlow,
+				ProviderDeviceID: "DEMODIMPORT0001",
+				CanonicalSN:      "DEMODIMPORT0001",
+				ProductName:      "Cloud Delta 2",
+				Model:            "DELTA 2",
+			},
+		},
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+		},
+	})
+	svc.newMQTTSubscriber = func(cfg ecoflowmqtt.Config) (mqttProbeSubscriber, error) {
+		return &staticProbeSubscriber{readErr: context.DeadlineExceeded}, nil
+	}
+
+	_, err = svc.ImportProviderDevice(context.Background(), &controlplanev1.ImportProviderDeviceRequest{
+		UserSubject:      "dev-user",
+		Provider:         controlplane.ProviderEcoFlow,
+		CredentialId:     credResp.GetCredential().GetId(),
+		ProviderDeviceId: "DEMODIMPORT0001",
+		IsActive:         true,
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expected FailedPrecondition, got %v", err)
+	}
+
+	listed, listErr := store.ListProviderDevices(context.Background(), controlplane.ListProviderDevicesInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		ActiveOnly:  false,
+	})
+	if listErr != nil {
+		t.Fatalf("list provider devices failed: %v", listErr)
+	}
+	if len(listed) != 0 {
+		t.Fatalf("expected no provider devices to be persisted, got %d", len(listed))
+	}
+}
+
 func TestTestProviderDeviceMQTTReturnsTimeoutStatus(t *testing.T) {
 	t.Parallel()
 
