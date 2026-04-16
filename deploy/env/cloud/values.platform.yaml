@@ -121,6 +121,8 @@ runtime:
       keycloakAllowMissingJwt: "false"
 
 nats:
+  podTemplate:
+    configChecksumAnnotation: true
   config:
     cluster:
       enabled: false
@@ -224,9 +226,9 @@ valkey:
         labelSelector:
           matchLabels:
             app.kubernetes.io/component: node
-    pdb:
-      create: true
-      minAvailable: 0
+  pdb:
+    create: true
+    maxUnavailable: 1
   sentinel:
     enabled: true
     quorum: 1
