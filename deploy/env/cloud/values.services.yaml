@@ -8,7 +8,7 @@ scaffold:
 runtime:
   image:
     repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services
-    tag: main
+    tag: cloud-bootstrap-20260416-1
     pullPolicy: IfNotPresent
   serviceAccount:
     create: true
