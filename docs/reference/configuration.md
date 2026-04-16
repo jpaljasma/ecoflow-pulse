@@ -124,6 +124,14 @@ gap repair, history backfill, and gRPC history/archive readers:
   - archive-manifest Postgres DSN for archive/rebuild/reconcile flows,
   - archive worker falls back to `CONTROL_PLANE_DB_DSN` when unset.
 
+## Pulse MQTT Emulator Runtime
+
+- `PULSE_MQTT_EMULATOR_ENABLED` (default `true`; set `false` in cloud when the emulator service is intentionally absent)
+- `PULSE_MQTT_EMULATOR_BASE_URL`
+- `PULSE_MQTT_EMULATOR_BROKER_HOST`
+- `PULSE_MQTT_EMULATOR_BROKER_PORT`
+- `PULSE_MQTT_EMULATOR_TLS_SERVER_NAME`
+
 Cloud note:
 
 - the hosted `cloud` deploy overlay switches this runtime to

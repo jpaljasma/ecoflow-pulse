@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -104,9 +105,12 @@ func main() {
 		os.Exit(1)
 	}
 	pulseMQTTAdapter, err := provideradapter.NewRuntimePulseMQTTAdapter(log)
-	if err != nil {
+	if err != nil && !errors.Is(err, provideradapter.ErrPulseMQTTDisabled) {
 		log.Error("init pulse mqtt adapter failed", slog.String("error", err.Error()))
 		os.Exit(1)
+	}
+	if err != nil {
+		log.Info("pulse mqtt adapter disabled", slog.String("reason", err.Error()))
 	}
 	subjectCfg := telemetrybus.SubjectConfig{
 		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
@@ -185,14 +189,16 @@ func main() {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	pulseMQTTRunner, err := ingestworker.NewCompatibleMQTTSessionRunner(controlplane.ProviderPulseMQTT, log, pulseMQTTAdapter, publisher, store, sessionCfg)
-	if err != nil {
-		log.Error("init pulse mqtt session runner failed", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
 	runner := ingestworker.NewProviderSessionRunner()
 	runner.Register(controlplane.ProviderEcoFlow, ecoFlowRunner)
-	runner.Register(controlplane.ProviderPulseMQTT, pulseMQTTRunner)
+	if pulseMQTTAdapter != nil {
+		pulseMQTTRunner, err := ingestworker.NewCompatibleMQTTSessionRunner(controlplane.ProviderPulseMQTT, log, pulseMQTTAdapter, publisher, store, sessionCfg)
+		if err != nil {
+			log.Error("init pulse mqtt session runner failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		runner.Register(controlplane.ProviderPulseMQTT, pulseMQTTRunner)
+	}
 
 	loopCfg := loadIngestLoopConfigFromEnv()
 	autoscaleMetrics := ingestworker.NewAutoscaleMetrics()

@@ -64,8 +64,8 @@ runtime:
         enabled: false
         interval: 30s
     env:
-      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
-      energyGrpcApiAddr: pulse-services-go-energy-api.pulse-services.svc.cluster.local:9090
+      grpcApiAddr: pulse-services-cloud-go-grpc-api.pulse-services.svc.cluster.local:9090
+      energyGrpcApiAddr: pulse-services-cloud-go-energy-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
       nodeAuthMode: keycloak
       keycloakIssuerUrl: https://pulse.example.com/realms/pulse
@@ -74,7 +74,7 @@ runtime:
       keycloakUserInfoUrl: http://pulse-platform-cloud-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
       keycloakAllowMissingJwt: "false"
       publicDir: /app/apps/universal/dist
-      realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
+      realtimeGatewayUpstreamUrl: http://pulse-platform-cloud-realtime-gateway.pulse-platform.svc.cluster.local:8082
       devUserSubject: ""
       publicPreconnectOrigins: "https://pulse.example.com"
       corsAllowedOrigins: "https://pulse.example.com,http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
@@ -123,7 +123,7 @@ runtime:
 nats:
   config:
     cluster:
-      enabled: true
+      enabled: false
       replicas: 1
     jetstream:
       enabled: true
@@ -226,7 +226,7 @@ valkey:
             app.kubernetes.io/component: node
     pdb:
       create: true
-      minAvailable: 1
+      minAvailable: 0
   sentinel:
     enabled: true
     quorum: 1

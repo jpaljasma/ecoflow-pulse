@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -173,18 +174,23 @@ func main() {
 			os.Exit(1)
 		}
 		pulseMQTTAdapter, pulseMQTTErr := provideradapter.NewRuntimePulseMQTTAdapter(log)
-		if pulseMQTTErr != nil {
+		if pulseMQTTErr != nil && !errors.Is(pulseMQTTErr, provideradapter.ErrPulseMQTTDisabled) {
 			log.Error("init pulse mqtt adapter failed", "error", pulseMQTTErr.Error())
 			os.Exit(1)
+		}
+		if pulseMQTTErr != nil {
+			log.Info("pulse mqtt adapter disabled", "reason", pulseMQTTErr.Error())
 		}
 		adapterRegistry.RegisterDiscoverer(
 			controlplane.ProviderEcoFlow,
 			ecoFlowAdapter,
 		)
-		adapterRegistry.RegisterDiscoverer(
-			controlplane.ProviderPulseMQTT,
-			pulseMQTTAdapter,
-		)
+		if pulseMQTTAdapter != nil {
+			adapterRegistry.RegisterDiscoverer(
+				controlplane.ProviderPulseMQTT,
+				pulseMQTTAdapter,
+			)
+		}
 		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
 		weatherv1.RegisterWeatherServiceServer(s, NewWeatherServiceWithDeps(WeatherServiceDeps{

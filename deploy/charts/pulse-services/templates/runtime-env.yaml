@@ -32,6 +32,7 @@ data:
   ARCHIVE_OBJECT_GCS_PROJECT_ID: {{ .Values.runtime.env.archiveObjectGCSProjectID | quote }}
   ARCHIVE_OBJECT_SECURE: {{ .Values.runtime.env.archiveObjectSecure | quote }}
   ARCHIVE_OBJECT_AUTO_CREATE_BUCKET: {{ .Values.runtime.env.archiveObjectAutoCreateBucket | quote }}
+  PULSE_MQTT_EMULATOR_ENABLED: {{ .Values.runtime.env.pulseMqttEmulatorEnabled | quote }}
   PULSE_MQTT_EMULATOR_BASE_URL: {{ .Values.runtime.env.pulseMqttEmulatorBaseUrl | quote }}
   PULSE_MQTT_EMULATOR_BROKER_HOST: {{ .Values.runtime.env.pulseMqttEmulatorBrokerHost | quote }}
   PULSE_MQTT_EMULATOR_BROKER_PORT: {{ .Values.runtime.env.pulseMqttEmulatorBrokerPort | quote }}
