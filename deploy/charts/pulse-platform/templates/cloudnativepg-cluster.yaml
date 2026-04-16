@@ -47,5 +47,8 @@ spec:
       cpu: {{ .Values.cloudnativepgCluster.resources.limits.cpu | quote }}
       memory: {{ .Values.cloudnativepgCluster.resources.limits.memory | quote }}
   storage:
+    {{- with .Values.cloudnativepgCluster.storage.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
     size: {{ .Values.cloudnativepgCluster.storage.size | quote }}
 {{- end }}

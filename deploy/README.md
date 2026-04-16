@@ -185,6 +185,9 @@ Cloud defaults in this branch:
 - CNPG custom resources are rendered directly in the chart without Helm
   `lookup` gating so Argo CD can create the database cluster during cloud
   bootstrap syncs,
+- bootstrap persistence is trimmed to small `pd-standard` volumes (`10Gi`
+  JetStream, `10Gi` CNPG, `8Gi` Valkey primary/replica) so the first cloud
+  rollout does not depend on regional SSD quota,
 - ingress-nginx, cert-manager, and external-secrets stay enabled, while
   observability-lite is temporarily disabled during initial convergence,
 - archive storage switches to provider-aware `ARCHIVE_OBJECT_PROVIDER=gcs`,
