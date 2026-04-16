@@ -74,6 +74,8 @@ runtime:
     archiveObjectGCSProjectID: "ecoflow-pulse-dev-260221-01"
     archiveObjectSecure: "true"
     archiveObjectAutoCreateBucket: "false"
+    ingestNatsJSReplicas: "1"
+    gapRepairNatsJSReplicas: "1"
     pulseMqttEmulatorEnabled: "false"
     pulseMqttEmulatorBaseUrl: "http://pulse-services-cloud-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"
     pulseMqttEmulatorBrokerHost: "pulse-services-cloud-pulse-mqtt-emulator.pulse-services.svc.cluster.local"

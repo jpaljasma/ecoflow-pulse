@@ -94,6 +94,8 @@ runtime:
     archiveObjectGCSProjectID: ""
     archiveObjectSecure: "false"
     archiveObjectAutoCreateBucket: "true"
+    ingestNatsJSReplicas: "3"
+    gapRepairNatsJSReplicas: "3"
     pulseMqttEmulatorEnabled: "true"
     pulseMqttEmulatorBaseUrl: "http://pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"
     pulseMqttEmulatorBrokerHost: "pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local"
