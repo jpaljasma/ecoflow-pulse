@@ -89,55 +89,55 @@ runtime:
   workers:
     ingest:
       enabled: true
-      replicaCount: 3
+      replicaCount: 1
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false
     inference:
       enabled: true
-      replicaCount: 3
+      replicaCount: 1
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false
     projection:
       enabled: true
-      replicaCount: 3
+      replicaCount: 1
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false
     rollup:
       enabled: true
       replicaCount: 1
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false
     archive:
       enabled: true
-      replicaCount: 3
+      replicaCount: 1
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false
     grpcApi:
       enabled: true
-      replicaCount: 3
+      replicaCount: 1
       solarForecastVerificationInterval: "0s"
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false
     solarVerification:
       enabled: false
     energyApi:
       enabled: true
-      replicaCount: 3
+      replicaCount: 1
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false
     pulseMqttEmulator:
       enabled: false

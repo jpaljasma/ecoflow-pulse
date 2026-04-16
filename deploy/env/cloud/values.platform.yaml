@@ -25,7 +25,7 @@ components:
   externalSecrets:
     enabled: true
   observabilityLite:
-    enabled: true
+    enabled: false
 
 secretManager:
   enabled: true
@@ -42,7 +42,7 @@ secretManager:
     clusterLocation: us-east1
     clusterName: pulse-cloud
   keycloakSocialExternalSecret:
-    enabled: true
+    enabled: false
     refreshInterval: 1h
     targetSecretName: pulse-platform-keycloak-social-providers
     data:
@@ -52,7 +52,7 @@ secretManager:
 runtime:
   publicApp:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     image:
       repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-platform
       tag: main
@@ -61,7 +61,7 @@ runtime:
       type: ClusterIP
     metrics:
       serviceMonitor:
-        enabled: true
+        enabled: false
         interval: 30s
     env:
       grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
@@ -92,7 +92,7 @@ runtime:
         enabled: false
   realtimeGateway:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     image:
       repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-realtime-gateway
       tag: main
@@ -103,7 +103,7 @@ runtime:
       targetPort: 8082
     metrics:
       serviceMonitor:
-        enabled: true
+        enabled: false
         interval: 30s
     env:
       grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
@@ -124,7 +124,7 @@ nats:
   config:
     cluster:
       enabled: true
-      replicas: 3
+      replicas: 1
     jetstream:
       enabled: true
       fileStore:
@@ -133,9 +133,9 @@ nats:
           enabled: true
           size: 100Gi
   promExporter:
-    enabled: true
+    enabled: false
     podMonitor:
-      enabled: true
+      enabled: false
       patch:
         - op: add
           path: /metadata/labels/release
@@ -145,18 +145,18 @@ cloudnative-pg: {}
 cloudnativepgCluster:
   enabled: true
   name: pulse-platform-core
-  instances: 3
+  instances: 1
   postgresUID: 26
   postgresGID: 26
   storage:
-    size: 100Gi
+    size: 20Gi
   resources:
     requests:
-      cpu: 500m
-      memory: 2Gi
+      cpu: 250m
+      memory: 1Gi
     limits:
-      cpu: 4
-      memory: 8Gi
+      cpu: 2
+      memory: 4Gi
   bootstrap:
     database: pulse
     owner: pulse
@@ -189,9 +189,9 @@ valkey:
   auth:
     enabled: false
   metrics:
-    enabled: true
+    enabled: false
     serviceMonitor:
-      enabled: true
+      enabled: false
       additionalLabels:
         release: pulse-platform
   primary:
@@ -203,7 +203,7 @@ valkey:
       whenScaled: Retain
       whenDeleted: Retain
   replica:
-    replicaCount: 3
+    replicaCount: 1
     minReadySeconds: 10
     terminationGracePeriodSeconds: 60
     persistence:
@@ -222,10 +222,10 @@ valkey:
             app.kubernetes.io/component: node
     pdb:
       create: true
-      minAvailable: 2
+      minAvailable: 1
   sentinel:
     enabled: true
-    quorum: 2
+    quorum: 1
     automateClusterRecovery: true
     downAfterMilliseconds: 2000
     failoverTimeout: 180000
@@ -234,7 +234,7 @@ valkey:
     valkeyShutdownWaitFailover: true
 
 keycloak:
-  replicaCount: 2
+  replicaCount: 1
   useHelmHooks: false
   proxyHeaders: xforwarded
   extraEnvVars:
@@ -242,8 +242,8 @@ keycloak:
       value: https://pulse.example.com
   resources:
     requests:
-      cpu: 250m
-      memory: 1Gi
+      cpu: 150m
+      memory: 768Mi
     limits:
       cpu: 1
       memory: 2Gi
@@ -262,7 +262,7 @@ keycloak:
     existingSecretUserKey: username
     existingSecretPasswordKey: password
   keycloakConfigCli:
-    enabled: true
+    enabled: false
     existingConfigmap: pulse-platform-keycloak-realm-import
     extraEnvVarsSecret: pulse-platform-keycloak-social-providers
     extraEnvVars:
@@ -307,7 +307,7 @@ keycloakRealm:
 ingress-nginx:
   controller:
     allowSnippetAnnotations: false
-    replicaCount: 2
+    replicaCount: 1
     admissionWebhooks:
       patch:
         enabled: false
@@ -317,17 +317,17 @@ ingress-nginx:
 cert-manager:
   crds:
     enabled: true
-  replicaCount: 2
+  replicaCount: 1
   startupapicheck:
     enabled: false
   webhook:
-    replicaCount: 2
+    replicaCount: 1
   cainjector:
-    replicaCount: 2
+    replicaCount: 1
 
 external-secrets:
   installCRDs: true
-  replicaCount: 2
+  replicaCount: 1
   resources:
     requests:
       cpu: 50m
@@ -336,20 +336,6 @@ external-secrets:
       cpu: 200m
       memory: 256Mi
 
-kube-prometheus-stack:
-  defaultRules:
-    create: false
-  alertmanager:
-    enabled: false
-  prometheus:
-    enabled: true
-  grafana:
-    enabled: true
-  prometheusOperator:
-    admissionWebhooks:
-      patch:
-        enabled: false
-
 opentelemetry-collector:
   mode: deployment
-  replicaCount: 1
+  replicaCount: 0

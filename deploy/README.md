@@ -176,21 +176,28 @@ Cloud defaults in this branch:
 
 - platform + services keep the same namespaces (`pulse-platform`,
   `pulse-services`) and topology as local,
-- public app `2`, realtime gateway `2`, gRPC API `3`, energy API `3`,
-  ingest/inference/projection/archive `3`, rollup `1`,
-- CNPG runs multi-instance (`3`) with Timescale enabled,
-- ingress-nginx, cert-manager, external-secrets, and observability-lite are
-  enabled,
+- the checked-in cloud overlay is currently a bootstrap footprint sized to
+  converge on a fresh cluster under limited quota:
+  public app `1`, realtime gateway `1`, gRPC API `1`, energy API `1`,
+  ingest/inference/projection/archive `1`, rollup `1`,
+- CNPG is currently single-instance (`1`) with Timescale enabled for bootstrap
+  bring-up,
+- ingress-nginx, cert-manager, and external-secrets stay enabled, while
+  observability-lite is temporarily disabled during initial convergence,
 - archive storage switches to provider-aware `ARCHIVE_OBJECT_PROVIDER=gcs`,
   bucket/prefix `pulse-telemetry-raw` / `raw`,
 - services use a dedicated Kubernetes service account annotated for GKE
   Workload Identity and read runtime secrets from Secret Manager-backed
   `ExternalSecret`,
-- Keycloak stays the auth system, with Google login enabled and redirect/CORS
-  allowances for both the cloud domain and localhost Expo web-dev origins,
+- Keycloak stays the auth system, with redirect/CORS allowances for both the
+  cloud domain and localhost Expo web-dev origins; Google social login and the
+  Keycloak config-cli import are temporarily held out of the bootstrap path
+  until the base platform is healthy,
 - Argo-managed cloud installs disable the vendored Helm admission/startup hook
   jobs for `ingress-nginx`, `cert-manager`, `kube-prometheus-stack`, and
-  Keycloak so umbrella-chart syncs do not stall waiting on subchart hooks.
+  Keycloak so umbrella-chart syncs do not stall waiting on subchart hooks,
+- cloud Argo applications avoid `Replace=true` so immutable Job resources do
+  not deadlock bootstrap retries.
 
 Expected follow-up before first live sync:
 
