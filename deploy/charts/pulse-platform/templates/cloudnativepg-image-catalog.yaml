@@ -1,5 +1,4 @@
-{{- $cnpgImageCatalogCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "imagecatalogs.postgresql.cnpg.io" -}}
-{{- if and .Values.components.cloudnativepg.enabled .Values.components.timescaledb.enabled .Values.cloudnativepgCluster.enabled .Values.cloudnativepgCluster.timescaledb.enabled $cnpgImageCatalogCRD }}
+{{- if and .Values.components.cloudnativepg.enabled .Values.components.timescaledb.enabled .Values.cloudnativepgCluster.enabled .Values.cloudnativepgCluster.timescaledb.enabled }}
 apiVersion: postgresql.cnpg.io/v1
 kind: ImageCatalog
 metadata:

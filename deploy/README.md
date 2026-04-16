@@ -182,6 +182,9 @@ Cloud defaults in this branch:
   ingest/inference/projection/archive `1`, rollup `1`,
 - CNPG is currently single-instance (`1`) with Timescale enabled for bootstrap
   bring-up,
+- CNPG custom resources are rendered directly in the chart without Helm
+  `lookup` gating so Argo CD can create the database cluster during cloud
+  bootstrap syncs,
 - ingress-nginx, cert-manager, and external-secrets stay enabled, while
   observability-lite is temporarily disabled during initial convergence,
 - archive storage switches to provider-aware `ARCHIVE_OBJECT_PROVIDER=gcs`,
