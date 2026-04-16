@@ -177,24 +177,33 @@ Cloud defaults in this branch:
 - platform + services keep the same namespaces (`pulse-platform`,
   `pulse-services`) and topology as local,
 - the checked-in cloud overlay is currently a bootstrap footprint sized to
-  converge on a fresh cluster under limited quota:
-  public app `1`, realtime gateway `1`, gRPC API `1`, energy API `1`,
+  converge on a fresh cluster under limited quota while still remaining
+  maintenance-safe on GKE:
+  public app `2`, realtime gateway `2`, gRPC API `2`, energy API `2`,
   ingest/inference/projection/archive `1`, rollup `1`,
 - CNPG is currently single-instance (`1`) with Timescale enabled for bootstrap
   bring-up,
+- CNPG pod disruption budgets are disabled in the cloud bootstrap profile so
+  GKE maintenance is not blocked by a single primary-only PDB during the
+  dev-stage hosted rollout,
 - CNPG custom resources are rendered directly in the chart without Helm
   `lookup` gating so Argo CD can create the database cluster during cloud
   bootstrap syncs,
 - bootstrap persistence is trimmed to small `pd-standard` volumes (`10Gi`
   JetStream, `10Gi` CNPG, `8Gi` Valkey primary/replica) so the first cloud
   rollout does not depend on regional SSD quota,
-- ingress-nginx, cert-manager, and external-secrets stay enabled, while
-  observability-lite is temporarily disabled during initial convergence,
+- ingress-nginx stays enabled at `2` replicas with a matching PDB, and
+  external-secrets runs controller/webhook replicas `2/2` with matching PDBs,
+  while observability-lite remains temporarily disabled during initial
+  convergence,
 - archive storage switches to provider-aware `ARCHIVE_OBJECT_PROVIDER=gcs`,
   bucket/prefix `pulse-telemetry-raw` / `raw`,
 - services use a dedicated Kubernetes service account annotated for GKE
   Workload Identity and read runtime secrets from Secret Manager-backed
   `ExternalSecret`,
+- single-replica worker deployments render `maxUnavailable: 1` PDBs in the
+  cloud profile so their selectors are covered without producing
+  zero-eviction maintenance warnings,
 - Keycloak stays the auth system, with redirect/CORS allowances for both the
   cloud domain and localhost Expo web-dev origins; Google social login and the
   Keycloak config-cli import are temporarily held out of the bootstrap path

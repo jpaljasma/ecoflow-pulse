@@ -113,7 +113,7 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.ingest.metrics.serviceMonitor.interval }}
 {{- end }}
-{{- if and .Values.runtime.workers.ingest.pdb.enabled (gt (int .Values.runtime.workers.ingest.replicaCount) 1) }}
+{{- if .Values.runtime.workers.ingest.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -123,7 +123,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-ingest
 spec:
-  minAvailable: {{ .Values.runtime.workers.ingest.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.ingest.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -246,7 +246,7 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.inference.metrics.serviceMonitor.interval }}
 {{- end }}
-{{- if and .Values.runtime.workers.inference.pdb.enabled (gt (int .Values.runtime.workers.inference.replicaCount) 1) }}
+{{- if .Values.runtime.workers.inference.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -256,7 +256,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-inference
 spec:
-  minAvailable: {{ .Values.runtime.workers.inference.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.inference.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -379,7 +379,7 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.rollup.metrics.serviceMonitor.interval }}
 {{- end }}
-{{- if and .Values.runtime.workers.rollup.pdb.enabled (gt (int .Values.runtime.workers.rollup.replicaCount) 1) }}
+{{- if .Values.runtime.workers.rollup.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -389,7 +389,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-rollup
 spec:
-  minAvailable: {{ .Values.runtime.workers.rollup.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.rollup.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -512,7 +512,7 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.projection.metrics.serviceMonitor.interval }}
 {{- end }}
-{{- if and .Values.runtime.workers.projection.pdb.enabled (gt (int .Values.runtime.workers.projection.replicaCount) 1) }}
+{{- if .Values.runtime.workers.projection.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -522,7 +522,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-projection
 spec:
-  minAvailable: {{ .Values.runtime.workers.projection.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.projection.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -645,7 +645,7 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.archive.metrics.serviceMonitor.interval }}
 {{- end }}
-{{- if and .Values.runtime.workers.archive.pdb.enabled (gt (int .Values.runtime.workers.archive.replicaCount) 1) }}
+{{- if .Values.runtime.workers.archive.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -655,7 +655,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-archive
 spec:
-  minAvailable: {{ .Values.runtime.workers.archive.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.archive.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -787,7 +787,7 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.grpcApi.metrics.serviceMonitor.interval }}
 {{- end }}
-{{- if and .Values.runtime.workers.grpcApi.pdb.enabled (gt (int .Values.runtime.workers.grpcApi.replicaCount) 1) }}
+{{- if .Values.runtime.workers.grpcApi.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -797,7 +797,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-grpc-api
 spec:
-  minAvailable: {{ .Values.runtime.workers.grpcApi.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.grpcApi.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -890,7 +890,7 @@ spec:
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20
-{{- if and .Values.runtime.workers.solarVerification.pdb.enabled (gt (int .Values.runtime.workers.solarVerification.replicaCount) 1) }}
+{{- if .Values.runtime.workers.solarVerification.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -900,7 +900,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-solar-verification
 spec:
-  minAvailable: {{ .Values.runtime.workers.solarVerification.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.solarVerification.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
@@ -1030,7 +1030,7 @@ spec:
       path: /metrics
       interval: {{ .Values.runtime.workers.energyApi.metrics.serviceMonitor.interval }}
 {{- end }}
-{{- if and .Values.runtime.workers.energyApi.pdb.enabled (gt (int .Values.runtime.workers.energyApi.replicaCount) 1) }}
+{{- if .Values.runtime.workers.energyApi.pdb.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -1040,7 +1040,7 @@ metadata:
     {{- include "pulse-services.labels" . | nindent 4 }}
     app.kubernetes.io/component: go-energy-api
 spec:
-  minAvailable: {{ .Values.runtime.workers.energyApi.pdb.minAvailable }}
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.energyApi.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}

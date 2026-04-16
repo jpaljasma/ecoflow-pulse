@@ -137,7 +137,7 @@ spec:
       interval: {{ .Values.runtime.publicApp.metrics.serviceMonitor.interval }}
 {{- end }}
 ---
-{{- if and .Values.runtime.publicApp.pdb.enabled (gt (int .Values.runtime.publicApp.replicaCount) 1) }}
+{{- if .Values.runtime.publicApp.pdb.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -146,7 +146,7 @@ metadata:
     {{- include "pulse-platform.labels" . | nindent 4 }}
     app.kubernetes.io/component: public-app
 spec:
-  minAvailable: {{ .Values.runtime.publicApp.pdb.minAvailable }}
+  {{- include "pulse-platform.pdbSpec" .Values.runtime.publicApp.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-platform.selectorLabels" . | nindent 6 }}

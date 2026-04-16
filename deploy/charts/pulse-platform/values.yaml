@@ -187,6 +187,7 @@ cloudnativepgCluster:
   enabled: false
   name: pulse-platform-core
   instances: 2
+  enablePDB: true
   postgresUID: 26
   postgresGID: 26
   storage:

@@ -22,6 +22,7 @@ spec:
     major: {{ .Values.cloudnativepgCluster.timescaledb.imageCatalog.major }}
   {{- end }}
   instances: {{ .Values.cloudnativepgCluster.instances }}
+  enablePDB: {{ .Values.cloudnativepgCluster.enablePDB }}
   bootstrap:
     initdb:
       database: {{ .Values.cloudnativepgCluster.bootstrap.database | quote }}

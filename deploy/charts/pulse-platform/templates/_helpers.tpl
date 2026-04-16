@@ -34,3 +34,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- .Values.secretManager.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "pulse-platform.pdbSpec" -}}
+{{- if hasKey . "maxUnavailable" }}
+maxUnavailable: {{ .maxUnavailable }}
+{{- else }}
+minAvailable: {{ .minAvailable }}
+{{- end }}
+{{- end -}}

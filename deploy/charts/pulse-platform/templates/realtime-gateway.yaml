@@ -133,7 +133,7 @@ spec:
       interval: {{ .Values.runtime.realtimeGateway.metrics.serviceMonitor.interval }}
 {{- end }}
 ---
-{{- if and .Values.runtime.realtimeGateway.pdb.enabled (gt (int .Values.runtime.realtimeGateway.replicaCount) 1) }}
+{{- if .Values.runtime.realtimeGateway.pdb.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -142,7 +142,7 @@ metadata:
     {{- include "pulse-platform.labels" . | nindent 4 }}
     app.kubernetes.io/component: realtime-gateway
 spec:
-  minAvailable: {{ .Values.runtime.realtimeGateway.pdb.minAvailable }}
+  {{- include "pulse-platform.pdbSpec" .Values.runtime.realtimeGateway.pdb | nindent 2 }}
   selector:
     matchLabels:
       {{- include "pulse-platform.selectorLabels" . | nindent 6 }}

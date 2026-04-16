@@ -51,3 +51,11 @@ lifecycle:
 {{- .Values.runtime.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "pulse-services.pdbSpec" -}}
+{{- if hasKey . "maxUnavailable" }}
+maxUnavailable: {{ .maxUnavailable }}
+{{- else }}
+minAvailable: {{ .minAvailable }}
+{{- end }}
+{{- end -}}
