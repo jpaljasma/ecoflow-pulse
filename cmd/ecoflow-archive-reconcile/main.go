@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/archiveaudit"
+	"github.com/jpaljasma/ecoflow-pulse/internal/archiveworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
@@ -82,7 +83,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	manifestStore, err := replaycli.NewPostgresManifestStore(manifestDSN)
@@ -123,24 +124,65 @@ func main() {
 		return
 	}
 	if !apply {
-		log.Error("archive reconcile found drift; rerun with -apply to prune stale manifest rows")
+		log.Error("archive reconcile found drift; rerun with -apply to prune stale manifest rows and backfill missing manifest entries")
 		os.Exit(1)
 	}
 
-	staleObjects, err := archiveaudit.ObjectsFromCompositeKeys(report.MissingInArchiveKeys)
-	if err != nil {
-		log.Error("parse stale manifest object keys failed", slog.String("error", err.Error()))
-		os.Exit(1)
+	if report.MissingInArchiveCount > 0 {
+		staleObjects, err := archiveaudit.ObjectsFromCompositeKeys(report.MissingInArchiveKeys)
+		if err != nil {
+			log.Error("parse stale manifest object keys failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		deleted, err := manifestStore.DeleteObjects(ctx, staleObjects)
+		if err != nil {
+			log.Error("delete stale manifest rows failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		log.Info("archive reconcile deleted stale manifest rows",
+			slog.Int("stale_manifest_refs", report.MissingInArchiveCount),
+			slog.Int64("rows_deleted", deleted),
+		)
 	}
-	deleted, err := manifestStore.DeleteObjects(ctx, staleObjects)
-	if err != nil {
-		log.Error("delete stale manifest rows failed", slog.String("error", err.Error()))
-		os.Exit(1)
+
+	if report.MissingInManifestCount > 0 {
+		missingObjects, err := missingObjectsFromDirect(directObjects, report.MissingInManifestKeys)
+		if err != nil {
+			log.Error("resolve missing direct objects failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		objectReader, err := replaycli.NewObjectReader(replaycli.ObjectReaderConfig{
+			Provider:        replaycli.ObjectProvider(objectProvider),
+			Endpoint:        objectEndpoint,
+			AccessKeyID:     objectAccessKey,
+			SecretAccessKey: objectSecretKey,
+			Region:          objectRegion,
+			Secure:          objectSecure,
+			GCSProjectID:    objectGCSProjectID,
+		})
+		if err != nil {
+			log.Error("init object reader failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer func() { _ = objectReader.Close() }()
+
+		writerStore, err := archiveworker.NewPostgresManifestStore(manifestDSN)
+		if err != nil {
+			log.Error("init writer manifest store failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer func() { _ = writerStore.Close() }()
+
+		backfilled, err := backfillMissingManifestRows(ctx, objectReader, writerStore, missingObjects, time.Now().UTC())
+		if err != nil {
+			log.Error("backfill missing manifest rows failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		log.Info("archive reconcile backfilled missing manifest rows",
+			slog.Int("missing_in_manifest", report.MissingInManifestCount),
+			slog.Int("rows_upserted", backfilled),
+		)
 	}
-	log.Info("archive reconcile deleted stale manifest rows",
-		slog.Int("stale_manifest_refs", report.MissingInArchiveCount),
-		slog.Int64("rows_deleted", deleted),
-	)
 
 	postReport, err := auditWindow(ctx, log, manifestStore, directObjects, fromTime, toTime, maxObjects, "after")
 	if err != nil {
@@ -152,7 +194,7 @@ func main() {
 		os.Exit(1)
 	}
 	if postReport.MissingInManifestCount > 0 {
-		log.Error("archive reconcile cannot auto-create missing manifest rows", slog.Int("missing_in_manifest", postReport.MissingInManifestCount))
+		log.Error("archive reconcile still has missing manifest rows", slog.Int("missing_in_manifest", postReport.MissingInManifestCount))
 		os.Exit(1)
 	}
 }

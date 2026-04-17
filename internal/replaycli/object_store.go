@@ -235,7 +235,7 @@ func ListObjectsDirect(
 
 	seen := make(map[string]struct{})
 	objects := make([]ManifestObject, 0, 1024)
-	for hour := from.UTC().Truncate(time.Hour); !hour.After(to.UTC()); hour = hour.Add(time.Hour) {
+	for _, hour := range archiveListingHours(from, to) {
 		hourPrefix := fmt.Sprintf(
 			"%s/yyyy=%04d/mm=%02d/dd=%02d/hh=%02d/",
 			prefix,
@@ -281,6 +281,19 @@ func ListObjectsDirect(
 	}
 	sortManifestObjects(objects)
 	return objects, nil
+}
+
+func archiveListingHours(from time.Time, to time.Time) []time.Time {
+	startHour := from.UTC().Truncate(time.Hour)
+	endUTC := to.UTC()
+	endHour := endUTC.Truncate(time.Hour)
+	includeEndHour := !endUTC.Equal(endHour)
+
+	hours := make([]time.Time, 0, int(endHour.Sub(startHour)/time.Hour)+1)
+	for hour := startHour; hour.Before(endHour) || (includeEndHour && hour.Equal(endHour)); hour = hour.Add(time.Hour) {
+		hours = append(hours, hour)
+	}
+	return hours
 }
 
 func parseArchiveObjectKey(key string) (string, time.Time, uint32, error) {

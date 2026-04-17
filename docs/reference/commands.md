@@ -1066,13 +1066,13 @@ Notes:
   - `REGEN_TO='2026-03-14T23:59:59Z'`
   - `REGEN_MAX_OBJECTS=500`
 - `make dev-archive-reconcile` is the local repair path when `make
-  dev-archive-audit` finds stale manifest rows pointing at missing MinIO
-  objects.
-  It port-forwards CNPG + MinIO automatically, deletes only stale
-  `archive_object_manifest` rows for the requested window, and reruns the
-  comparison before it exits.
-  It still exits non-zero if direct MinIO objects are missing manifest rows,
-  because that needs archive-worker/index repair rather than stale-row pruning.
+  dev-archive-audit` finds archive-manifest drift.
+  It port-forwards CNPG + MinIO automatically, deletes stale
+  `archive_object_manifest` rows that point at missing archive objects, and
+  backfills missing manifest rows by decoding the raw archive objects for the
+  requested window before rerunning the comparison.
+  It still exits non-zero when reconcile cannot rebuild the missing rows safely
+  from the archive contents.
 - `make dev-regen-data` rebuilds the last 48 hours of archived telemetry for all
   devices into rollup tables on local k3d using a direct archive-to-rollup
   rebuild path.
