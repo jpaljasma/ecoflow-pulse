@@ -159,7 +159,7 @@ cloudnativepgCluster:
   postgresUID: 26
   postgresGID: 26
   storage:
-    size: 10Gi
+    size: 50Gi
     storageClass: standard
   resources:
     requests:

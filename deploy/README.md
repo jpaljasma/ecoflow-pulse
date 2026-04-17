@@ -203,8 +203,9 @@ Cloud defaults in this branch:
   than the stateful workloads strictly need because CNPG/NATS/Valkey durability
   comes from their PVCs rather than the node boot disk,
 - the next storage pass should migrate those stateful PVCs onto the CSI-backed
-  `standard-rwo` class (`pd-balanced`) and grow them where it matters most:
-  `~100Gi` for CNPG, `~20Gi` for JetStream, and `~20Gi` for Valkey,
+  `standard-rwo` class (`pd-balanced`) and keep the right-sized cloud-dev
+  capacities where they matter most: `50Gi` for CNPG, `20Gi` for JetStream,
+  and `20Gi` for Valkey,
 - only after that PVC migration should the node-pool boot disks be revisited;
   the current evidence supports shrinking future boot disks toward `50Gi`
   instead of `100Gi`, because CNPG capacity belongs on the database PVC, not on

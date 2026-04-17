@@ -86,7 +86,7 @@ Current hosted storage profile after the cutover:
   larger rollouts so the public/stateless path regains surge headroom,
 - follow-up optimization should prioritize moving those PVCs to the CSI-backed
   `standard-rwo` class (`pd-balanced`) and resizing them toward:
-  - CNPG: `100Gi`
+  - CNPG: `50Gi`
   - JetStream: `20Gi`
   - Valkey: `20Gi`
 - CNPG does not need a large node boot disk to retain data; after the PVC move,

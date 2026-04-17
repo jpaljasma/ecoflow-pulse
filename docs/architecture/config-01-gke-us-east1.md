@@ -44,7 +44,7 @@ Hosted cloud note:
 - the next storage optimization should focus on stateful PVC class/latency
   rather than assuming large node boot disks are required for CNPG durability,
 - for this cloud profile, the recommended next storage shape is:
-  - CNPG on `standard-rwo` (`pd-balanced`) at roughly `100Gi`
+  - CNPG on `standard-rwo` (`pd-balanced`) at roughly `50Gi`
   - NATS JetStream on `standard-rwo` at roughly `20Gi`
   - Valkey on `standard-rwo` at roughly `20Gi`
   - future boot disks reduced toward `50Gi` once the PVC migration is complete.
