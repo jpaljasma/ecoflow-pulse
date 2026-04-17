@@ -32,6 +32,15 @@ Start with the same layout but increase capacity as needed.
   - `app-pool` for stateless
   - `stateful-pool` for Postgres/NATS/Valkey/Keycloak DB
 
+Hosted cloud note:
+
+- the current shared cloud data plane on `pulse-cloud` is now running this
+  split explicitly with:
+  - `primary-pool`: `e2-standard-4` for public/stateless traffic,
+  - `stateful-pool`: `e2-standard-4` for CNPG/NATS/Valkey in `us-east1-c`,
+- the next storage optimization should focus on stateful PVC class/latency
+  rather than assuming large node boot disks are required for CNPG durability.
+
 ---
 
 ## Ingress + TLS

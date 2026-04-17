@@ -7,6 +7,9 @@ Scope:
 
 - bootstrap the hosted `cloud` deploy profile on the regional GKE cluster
   `pulse-cloud` in `us-east1`,
+- converge the hosted cluster onto the current steady-state node pools:
+  `primary-pool` (`e2-standard-4`, public/stateless, `us-east1-d`) and
+  `stateful-pool` (`e2-standard-4`, stateful anchor, `us-east1-c`),
 - restore the local control-plane/history database into cloud CNPG,
 - copy raw archive objects from local MinIO into cloud GCS without changing
   keys or prefixes,
@@ -25,6 +28,9 @@ Scope:
   - project: `ecoflow-pulse-dev-260221-01`
   - cluster: `pulse-cloud`
   - region: `us-east1`
+  - expected node pools after hosted cutover:
+    - `primary-pool`
+    - `stateful-pool`
 - cloud domain, TLS issuer, Artifact Registry image repos, and Secret Manager
   secret names have been set in `deploy/env/cloud/*.yaml`
 - Workload Identity bindings exist for:
@@ -58,14 +64,25 @@ Expected steady-state cloud topology from this branch:
 
 - `pulse-platform-public-app`: `2`
 - `pulse-platform-realtime-gateway`: `2`
-- `pulse-services-go-grpc-api`: `3`
-- `pulse-services-go-energy-api`: `3`
-- `pulse-services-go-ingest`: `3`
-- `pulse-services-go-inference`: `3`
-- `pulse-services-go-projection`: `3`
-- `pulse-services-go-archive`: `3`
+- `pulse-services-go-grpc-api`: `2`
+- `pulse-services-go-energy-api`: `2`
+- `pulse-services-go-ingest`: `1`
+- `pulse-services-go-inference`: `1`
+- `pulse-services-go-projection`: `1`
+- `pulse-services-go-archive`: `1`
 - `pulse-services-go-rollup`: `1`
 - `pulse-services-go-solar-verification`: `1`
+- `pulse-platform-core-1`: `1`
+- `pulse-platform-cloud-nats-0`: `1`
+- `pulse-platform-cloud-valkey-node-0`: `1`
+
+Current hosted storage profile after the cutover:
+
+- node pools use `100Gi` `pd-balanced` boot disks,
+- CNPG/NATS/Valkey still store real data on small PVCs (`10Gi`, `10Gi`, `8Gi`)
+  backed by storage class `standard` (`pd-standard`),
+- follow-up optimization should prioritize moving those PVCs to
+  `pd-balanced`; CNPG does not need a large node boot disk to retain data.
 
 ## 3. Restore the Local Control-Plane DB into Cloud CNPG
 

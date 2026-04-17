@@ -176,22 +176,28 @@ Cloud defaults in this branch:
 
 - platform + services keep the same namespaces (`pulse-platform`,
   `pulse-services`) and topology as local,
-- the checked-in cloud overlay is currently a bootstrap footprint sized to
-  converge on a fresh cluster under limited quota while still remaining
-  maintenance-safe on GKE:
+- the checked-in cloud overlay is a conservative hosted profile that currently
+  converges to:
   public app `2`, realtime gateway `2`, gRPC API `2`, energy API `2`,
   ingest/inference/projection/archive `1`, rollup `1`,
-- CNPG is currently single-instance (`1`) with Timescale enabled for bootstrap
-  bring-up,
+  solar verification `1`,
+- the current hosted cluster layout uses two GKE Standard node pools, both on
+  `e2-standard-4`:
+  - `primary-pool` in `us-east1-d` for public/stateless workloads,
+  - `stateful-pool` in `us-east1-c` for CNPG, NATS JetStream, and Valkey,
+- CNPG is currently single-instance (`1`) with Timescale enabled,
 - CNPG pod disruption budgets are disabled in the cloud bootstrap profile so
   GKE maintenance is not blocked by a single primary-only PDB during the
   dev-stage hosted rollout,
 - CNPG custom resources are rendered directly in the chart without Helm
   `lookup` gating so Argo CD can create the database cluster during cloud
   bootstrap syncs,
-- bootstrap persistence is trimmed to small `pd-standard` volumes (`10Gi`
-  JetStream, `10Gi` CNPG, `8Gi` Valkey primary/replica) so the first cloud
-  rollout does not depend on regional SSD quota,
+- stateful persistence is currently trimmed to small `pd-standard` PVCs (`10Gi`
+  JetStream, `10Gi` CNPG, `8Gi` Valkey) so the first hosted rollout stays
+  quota-friendly,
+- hosted node boot disks are currently `100Gi` `pd-balanced`; that is more
+  than the stateful workloads strictly need because CNPG/NATS/Valkey durability
+  comes from their PVCs rather than the node boot disk,
 - ingress-nginx stays enabled at `2` replicas with a matching PDB, and
   external-secrets runs controller/webhook replicas `2/2` with matching PDBs,
   while observability-lite remains temporarily disabled during initial
@@ -214,7 +220,7 @@ Cloud defaults in this branch:
 - cloud Argo applications avoid `Replace=true` so immutable Job resources do
   not deadlock bootstrap retries.
 
-Expected follow-up before first live sync:
+Expected follow-up after the current hosted cutover:
 
 - replace placeholder cloud domain values (`pulse.example.com`),
 - confirm the Artifact Registry image repositories/tags used in
@@ -222,6 +228,10 @@ Expected follow-up before first live sync:
 - populate the referenced Secret Manager secret names,
 - provision the matching GCP IAM service accounts and Workload Identity
   bindings,
+- move the stateful PVCs from `pd-standard` to `pd-balanced`, which is the SSD
+  upgrade that will help CNPG/NATS/Valkey more than oversized boot disks,
+- revisit hosted node boot-disk size after the PVC migration so boot volumes do
+  not carry unnecessary SSD quota/cost,
 - follow the migration runbook in
   `docs/how-to/migrate-local-data-plane-to-gke-cloud.md`.
 
