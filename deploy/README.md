@@ -185,6 +185,10 @@ Cloud defaults in this branch:
   `e2-standard-4`:
   - `primary-pool` in `us-east1-d` for public/stateless workloads,
   - `stateful-pool` in `us-east1-c` for CNPG, NATS JetStream, and Valkey,
+- the live cloud cluster now idles safely at `1` `primary-pool` node plus `1`
+  `stateful-pool` node; before larger rollouts or noisy background catch-up,
+  scale `primary-pool` back to `2` nodes so public/stateless workloads regain
+  deployment headroom,
 - CNPG is currently single-instance (`1`) with Timescale enabled,
 - CNPG pod disruption budgets are disabled in the cloud bootstrap profile so
   GKE maintenance is not blocked by a single primary-only PDB during the
@@ -198,6 +202,13 @@ Cloud defaults in this branch:
 - hosted node boot disks are currently `100Gi` `pd-balanced`; that is more
   than the stateful workloads strictly need because CNPG/NATS/Valkey durability
   comes from their PVCs rather than the node boot disk,
+- the next storage pass should migrate those stateful PVCs onto the CSI-backed
+  `standard-rwo` class (`pd-balanced`) and grow them where it matters most:
+  `~100Gi` for CNPG, `~20Gi` for JetStream, and `~20Gi` for Valkey,
+- only after that PVC migration should the node-pool boot disks be revisited;
+  the current evidence supports shrinking future boot disks toward `50Gi`
+  instead of `100Gi`, because CNPG capacity belongs on the database PVC, not on
+  the node root disk,
 - ingress-nginx stays enabled at `2` replicas with a matching PDB, and
   external-secrets runs controller/webhook replicas `2/2` with matching PDBs,
   while observability-lite remains temporarily disabled during initial
@@ -230,8 +241,12 @@ Expected follow-up after the current hosted cutover:
   bindings,
 - move the stateful PVCs from `pd-standard` to `pd-balanced`, which is the SSD
   upgrade that will help CNPG/NATS/Valkey more than oversized boot disks,
-- revisit hosted node boot-disk size after the PVC migration so boot volumes do
-  not carry unnecessary SSD quota/cost,
+- grow CNPG first when sizing cloud storage; database history retention and
+  replay metadata belong on the CNPG PVC, while JetStream and Valkey can stay
+  materially smaller,
+- revisit hosted node boot-disk size after the PVC migration so future pools do
+  not carry unnecessary SSD quota/cost; `50Gi` is the current right-sized
+  starting point unless node-local image/log pressure proves otherwise,
 - follow the migration runbook in
   `docs/how-to/migrate-local-data-plane-to-gke-cloud.md`.
 

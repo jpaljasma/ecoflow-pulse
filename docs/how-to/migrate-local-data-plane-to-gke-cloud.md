@@ -81,8 +81,17 @@ Current hosted storage profile after the cutover:
 - node pools use `100Gi` `pd-balanced` boot disks,
 - CNPG/NATS/Valkey still store real data on small PVCs (`10Gi`, `10Gi`, `8Gi`)
   backed by storage class `standard` (`pd-standard`),
-- follow-up optimization should prioritize moving those PVCs to
-  `pd-balanced`; CNPG does not need a large node boot disk to retain data.
+- the live cluster now runs a cheaper safe idle posture of `1` `primary-pool`
+  node plus `1` `stateful-pool` node; scale `primary-pool` back to `2` before
+  larger rollouts so the public/stateless path regains surge headroom,
+- follow-up optimization should prioritize moving those PVCs to the CSI-backed
+  `standard-rwo` class (`pd-balanced`) and resizing them toward:
+  - CNPG: `100Gi`
+  - JetStream: `20Gi`
+  - Valkey: `20Gi`
+- CNPG does not need a large node boot disk to retain data; after the PVC move,
+  future node-pool recreations should target roughly `50Gi` boot disks unless
+  node-local image/log pressure shows a real need for more.
 
 ## 3. Restore the Local Control-Plane DB into Cloud CNPG
 
