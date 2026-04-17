@@ -111,7 +111,7 @@ go run ./cmd/ecoflow-db-migrate-job
 The current branch includes repair migrations for restored schemas that are
 missing primary keys, unique constraints, or supporting indexes on
 `provider_devices`, weather forecast tables, Timescale rollup/PV-port tables,
-rollup envelope dedup, or `archive_object_manifest`.
+solar forecast tables, rollup envelope dedup, or `archive_object_manifest`.
 
 ## 4. Copy Raw Archive Objects from Local MinIO to Cloud GCS
 
