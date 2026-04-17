@@ -25,6 +25,9 @@ Runtime note:
   used by the EcoFlow adapter runtime and local env-backed credential tests.
 - the local services Helm release now injects those two vars into the Go service
   pods through `deploy/env/local/values.services.yaml`.
+- steady-state ingest MQTT sessions derive their broker `ClientID` from the
+  provider device ID plus `PULSE_ENV`, so `local` and `cloud` produce distinct
+  client IDs for the same EcoFlow device.
 
 ## Logging and Process Safety
 
@@ -44,6 +47,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `INGEST_QUOTA_REFRESH_INTERVAL` (default `30s`; periodic quota refresh cadence while an MQTT session is alive)
 - `INGEST_QUOTA_REFRESH_JITTER` (default `0.20`; proportional jitter applied to periodic quota refresh scheduling)
 - `INGEST_QUOTA_METRICS_INTERVAL` (default `30s`; jittered aggregate quota refresh metrics log interval, set `0` to disable)
+- `INGEST_MQTT_CLIENT_ID_NAMESPACE` (optional; overrides the environment namespace used when deriving steady-state EcoFlow MQTT client IDs; defaults to `PULSE_ENV`)
 
 ## Server Runtime
 

@@ -182,6 +182,7 @@ func main() {
 	sessionCfg.PublishEnqueueTimeout = runtimecfg.DurationPositive("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
 	sessionCfg.AllowUnorderedPublish = runtimecfg.Bool("INGEST_ALLOW_UNORDERED_PUBLISH", sessionCfg.AllowUnorderedPublish)
 	sessionCfg.DisableEnvelopeLabels = disableEnvelopeLabels
+	sessionCfg.MQTTClientIDNamespace = strings.TrimSpace(runtimecfg.EnvOrDefault("INGEST_MQTT_CLIENT_ID_NAMESPACE", runtimecfg.EnvOrDefault("PULSE_ENV", "local")))
 	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
 	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
 	ecoFlowRunner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
@@ -266,6 +267,7 @@ func main() {
 		slog.Duration("quota_fetch_timeout", sessionCfg.QuotaFetchTimeout),
 		slog.Duration("quota_refresh_interval", sessionCfg.QuotaRefreshInterval),
 		slog.Float64("quota_refresh_jitter", sessionCfg.QuotaRefreshJitter),
+		slog.String("mqtt_client_id_namespace", sessionCfg.MQTTClientIDNamespace),
 		slog.Bool("mqtt_payload_debug", sessionCfg.LogMQTTPayloadDebug),
 		slog.Int("mqtt_payload_sample_every", sessionCfg.LogMQTTPayloadSampleEvery),
 		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),

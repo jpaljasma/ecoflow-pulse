@@ -13,6 +13,7 @@ metadata:
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
 data:
+  PULSE_ENV: {{ .Values.global.environment | quote }}
   ECOFLOW_ENV: {{ .Values.runtime.env.ecoflowEnv | quote }}
   ECOFLOW_BASE_URL: {{ .Values.runtime.env.ecoflowBaseUrl | quote }}
   DB_SCHEMA_SEARCH_PATH: {{ .Values.runtime.env.dbSchemaSearchPath | quote }}

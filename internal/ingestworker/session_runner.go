@@ -66,6 +66,8 @@ type providerDeviceUpdater interface {
 type EcoFlowSessionConfig struct {
 	ShardCount uint32
 
+	MQTTClientIDNamespace string
+
 	KeepAlive      time.Duration
 	ConnectTimeout time.Duration
 	ReadTimeout    time.Duration
@@ -132,6 +134,7 @@ func DefaultEcoFlowSessionConfig() EcoFlowSessionConfig {
 
 func (c EcoFlowSessionConfig) normalized() EcoFlowSessionConfig {
 	cfg := c
+	cfg.MQTTClientIDNamespace = strings.TrimSpace(cfg.MQTTClientIDNamespace)
 	if cfg.ShardCount == 0 {
 		cfg.ShardCount = telemetrybus.DefaultShardCount
 	}
@@ -406,7 +409,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 		Address:        address,
 		Username:       strings.TrimSpace(cert.CertificateAccount),
 		Password:       strings.TrimSpace(cert.CertificatePassword),
-		ClientID:       ecoflowmqtt.BuildClientIDFromSN(a.ProviderDeviceID),
+		ClientID:       ecoflowmqtt.BuildClientIDWithNamespace(cfg.MQTTClientIDNamespace, a.ProviderDeviceID),
 		KeepAlive:      cfg.KeepAlive,
 		ConnectTimeout: cfg.ConnectTimeout,
 		ReadTimeout:    cfg.ReadTimeout,

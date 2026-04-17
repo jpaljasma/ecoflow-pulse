@@ -41,3 +41,19 @@ func TestBuildClientIDFromSNStableForWhitespace(t *testing.T) {
 		t.Fatalf("expected whitespace-trimmed stable id, got %q vs %q", a, b)
 	}
 }
+
+func TestBuildClientIDWithNamespaceSeparatesEnvironments(t *testing.T) {
+	local := BuildClientIDWithNamespace("local", "DEMOD2M00001057")
+	cloud := BuildClientIDWithNamespace("cloud", "DEMOD2M00001057")
+	if local == cloud {
+		t.Fatalf("expected distinct ids for local and cloud, got shared id %q", local)
+	}
+}
+
+func TestBuildClientIDWithNamespaceBlankMatchesLegacy(t *testing.T) {
+	legacy := BuildClientIDFromSN("DEMOD2M00001057")
+	got := BuildClientIDWithNamespace("", "DEMOD2M00001057")
+	if got != legacy {
+		t.Fatalf("blank namespace should preserve legacy client id, got=%q want=%q", got, legacy)
+	}
+}
