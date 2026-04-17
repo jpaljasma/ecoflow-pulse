@@ -65,6 +65,7 @@ Expected steady-state cloud topology from this branch:
 - `pulse-services-go-projection`: `3`
 - `pulse-services-go-archive`: `3`
 - `pulse-services-go-rollup`: `1`
+- `pulse-services-go-solar-verification`: `1`
 
 ## 3. Restore the Local Control-Plane DB into Cloud CNPG
 
@@ -96,6 +97,21 @@ psql 'postgres://pulse:replace-me-cloud-db-password@127.0.0.1:25432/pulse?sslmod
 psql 'postgres://pulse:replace-me-cloud-db-password@127.0.0.1:25432/pulse?sslmode=disable' -c 'select count(*) from users;'
 psql 'postgres://pulse:replace-me-cloud-db-password@127.0.0.1:25432/pulse?sslmode=disable' -c 'select count(*) from provider_devices;'
 ```
+
+Immediately re-apply the latest branch migrations after restore so any
+idempotent post-restore schema repairs are present before worker traffic ramps
+up:
+
+```bash
+CONTROL_PLANE_DB_DSN='postgres://pulse:replace-me-cloud-db-password@127.0.0.1:25432/pulse?sslmode=disable' \
+DB_MIGRATIONS_DIR='deploy/db/migrations' \
+go run ./cmd/ecoflow-db-migrate-job
+```
+
+The current branch includes repair migrations for restored schemas that are
+missing primary keys, unique constraints, or supporting indexes on
+`provider_devices`, weather forecast tables, Timescale rollup/PV-port tables,
+rollup envelope dedup, or `archive_object_manifest`.
 
 ## 4. Copy Raw Archive Objects from Local MinIO to Cloud GCS
 

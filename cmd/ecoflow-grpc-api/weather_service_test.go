@@ -9,6 +9,7 @@ import (
 	weatherv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/weather/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/budget"
+	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/cachekey"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,7 +25,10 @@ func (f *fakeUpstream) FetchForecast(_ context.Context, _ weatherd.Request) (*we
 }
 
 func (f *fakeUpstream) FetchForecastBatch(_ context.Context, _ []weatherd.Request) ([]weatherd.Bundle, error) {
-	return nil, nil
+	if f.forecast == nil {
+		return nil, nil
+	}
+	return []weatherd.Bundle{*cloneBundle(f.forecast)}, nil
 }
 
 func (f *fakeUpstream) FetchPreviousRuns(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -160,6 +164,63 @@ func TestStartWeatherRefreshLoopCanBeDisabled(t *testing.T) {
 	t.Setenv("WEATHER_REFRESH_INTERVAL", "0s")
 	stop := startWeatherRefreshLoop(context.Background(), slog.Default(), nil)
 	stop()
+}
+
+func TestStartWeatherRefreshLoopRefreshesImmediately(t *testing.T) {
+	now := time.Date(2026, 4, 17, 11, 0, 0, 0, time.UTC)
+	cache := store.NewMemoryHotCache(func() time.Time { return now })
+	snapshots := store.NewMemorySnapshotStore(func() time.Time { return now })
+	req := weatherd.Request{
+		Latitude:   42.6,
+		Longitude:  -77.4,
+		UnitSystem: weatherd.UnitSystemMetric,
+		Timezone:   "UTC",
+	}
+	forecast := sampleBundle(now)
+	key := cachekey.Build(cachekey.CanonicalLocation{
+		Latitude:            forecast.Provenance.Latitude,
+		Longitude:           forecast.Provenance.Longitude,
+		Elevation:           forecast.Provenance.Elevation,
+		PanelTiltDegrees:    cachekey.TiltBucket(req.PanelTiltDegrees),
+		PanelAzimuthDegrees: cachekey.AzimuthBucket(req.PanelAzimuthDegrees),
+	})
+	if err := snapshots.TouchRefreshCandidate(context.Background(), key, req, now.Add(-5*time.Minute)); err != nil {
+		t.Fatalf("TouchRefreshCandidate() error = %v", err)
+	}
+	upstream := &fakeUpstream{forecast: forecast}
+	domain, err := weatherd.NewService(
+		upstream,
+		cache,
+		snapshots,
+		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
+		weatherd.Config{HotTTL: 50 * time.Minute, NowFn: func() time.Time { return now }},
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	stop := startWeatherRefreshLoop(context.Background(), slog.Default(), domain)
+	defer stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		candidates, err := snapshots.ListRecentRefreshCandidates(context.Background(), now.Add(-24*time.Hour))
+		if err != nil {
+			t.Fatalf("ListRecentRefreshCandidates() error = %v", err)
+		}
+		if len(candidates) == 1 && candidates[0].LastRefreshedAt != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	candidates, err := snapshots.ListRecentRefreshCandidates(context.Background(), now.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatalf("ListRecentRefreshCandidates() error = %v", err)
+	}
+	if len(candidates) != 1 || candidates[0].LastRefreshedAt == nil {
+		t.Fatalf("expected immediate refresh candidate update, got %#v", candidates)
+	}
 }
 
 func sampleBundle(now time.Time) *weatherd.Bundle {

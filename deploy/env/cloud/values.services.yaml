@@ -152,7 +152,13 @@ runtime:
         serviceMonitor:
           enabled: false
     solarVerification:
-      enabled: false
+      enabled: true
+      replicaCount: 1
+      solarForecastVerificationInterval: "5m"
+      solarForecastVerificationBatchLimit: 8192
+      pdb:
+        enabled: true
+        maxUnavailable: 1
     energyApi:
       enabled: true
       replicaCount: 2
