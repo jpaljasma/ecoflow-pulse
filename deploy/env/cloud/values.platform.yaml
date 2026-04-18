@@ -139,8 +139,8 @@ nats:
         enabled: true
         pvc:
           enabled: true
-          size: 10Gi
-          storageClassName: standard
+          size: 20Gi
+          storageClassName: standard-rwo
   promExporter:
     enabled: false
     podMonitor:
@@ -160,7 +160,7 @@ cloudnativepgCluster:
   postgresGID: 26
   storage:
     size: 50Gi
-    storageClass: standard
+    storageClass: standard-rwo
   resources:
     requests:
       cpu: 250m
@@ -208,8 +208,8 @@ valkey:
   primary:
     persistence:
       enabled: true
-      size: 8Gi
-      storageClass: standard
+      size: 20Gi
+      storageClass: standard-rwo
     persistentVolumeClaimRetentionPolicy:
       enabled: true
       whenScaled: Retain
@@ -220,8 +220,8 @@ valkey:
     terminationGracePeriodSeconds: 60
     persistence:
       enabled: true
-      size: 8Gi
-      storageClass: standard
+      size: 20Gi
+      storageClass: standard-rwo
     persistentVolumeClaimRetentionPolicy:
       enabled: true
       whenScaled: Retain

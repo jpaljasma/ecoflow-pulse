@@ -41,13 +41,13 @@ Hosted cloud note:
 - the cheaper safe idle shape is `1` primary node + `1` stateful node; scale
   the primary pool back up before larger rollouts so public traffic keeps surge
   headroom,
-- the next storage optimization should focus on stateful PVC class/latency
-  rather than assuming large node boot disks are required for CNPG durability,
-- for this cloud profile, the recommended next storage shape is:
+- the live cloud storage profile now uses:
   - CNPG on `standard-rwo` (`pd-balanced`) at roughly `50Gi`
   - NATS JetStream on `standard-rwo` at roughly `20Gi`
   - Valkey on `standard-rwo` at roughly `20Gi`
-  - future boot disks reduced toward `50Gi` once the PVC migration is complete.
+- the next storage optimization is future boot disks reduced toward `50Gi`,
+  because CNPG durability now sits on the database PVC rather than on node boot
+  storage.
 
 ---
 

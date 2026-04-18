@@ -196,20 +196,13 @@ Cloud defaults in this branch:
 - CNPG custom resources are rendered directly in the chart without Helm
   `lookup` gating so Argo CD can create the database cluster during cloud
   bootstrap syncs,
-- stateful persistence is currently trimmed to small `pd-standard` PVCs (`10Gi`
-  JetStream, `10Gi` CNPG, `8Gi` Valkey) so the first hosted rollout stays
-  quota-friendly,
-- hosted node boot disks are currently `100Gi` `pd-balanced`; that is more
-  than the stateful workloads strictly need because CNPG/NATS/Valkey durability
-  comes from their PVCs rather than the node boot disk,
-- the next storage pass should migrate those stateful PVCs onto the CSI-backed
-  `standard-rwo` class (`pd-balanced`) and keep the right-sized cloud-dev
-  capacities where they matter most: `50Gi` for CNPG, `20Gi` for JetStream,
-  and `20Gi` for Valkey,
-- only after that PVC migration should the node-pool boot disks be revisited;
-  the current evidence supports shrinking future boot disks toward `50Gi`
-  instead of `100Gi`, because CNPG capacity belongs on the database PVC, not on
-  the node root disk,
+- stateful persistence now uses CSI-backed `standard-rwo` (`pd-balanced`) PVCs
+  sized `50Gi` for CNPG and `20Gi` each for JetStream and Valkey,
+- hosted node boot disks are still `100Gi` `pd-balanced`; that is now the main
+  remaining disk-usage optimization because CNPG/NATS/Valkey durability lives
+  on their PVCs rather than the node boot disk,
+- future node-pool boot disks should be revisited toward `50Gi`, because CNPG
+  capacity belongs on the database PVC rather than on the node root disk,
 - ingress-nginx stays enabled at `2` replicas with a matching PDB, and
   external-secrets runs controller/webhook replicas `2/2` with matching PDBs,
   while observability-lite remains temporarily disabled during initial
@@ -240,9 +233,7 @@ Expected follow-up after the current hosted cutover:
 - populate the referenced Secret Manager secret names,
 - provision the matching GCP IAM service accounts and Workload Identity
   bindings,
-- move the stateful PVCs from `pd-standard` to `pd-balanced`, which is the SSD
-  upgrade that will help CNPG/NATS/Valkey more than oversized boot disks,
-- grow CNPG first when sizing cloud storage; database history retention and
+- keep CNPG as the largest stateful PVC; database history retention and
   replay metadata belong on the CNPG PVC, while JetStream and Valkey can stay
   materially smaller,
 - revisit hosted node boot-disk size after the PVC migration so future pools do

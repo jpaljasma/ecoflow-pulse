@@ -36,6 +36,37 @@ spec:
         - /spec/updateStrategy
         - /spec/volumeClaimTemplates/0/apiVersion
         - /spec/volumeClaimTemplates/0/kind
+        - /spec/volumeClaimTemplates/0/spec/resources
+        - /spec/volumeClaimTemplates/0/spec/storageClassName
+        - /spec/volumeClaimTemplates/0/spec/volumeMode
+        - /spec/volumeClaimTemplates/0/status
+    - group: apps
+      kind: StatefulSet
+      name: pulse-platform-cloud-valkey-node
+      namespace: pulse-platform
+      jsonPointers:
+        - /spec/persistentVolumeClaimRetentionPolicy
+        - /spec/revisionHistoryLimit
+        - /spec/template/spec/containers/0/imagePullPolicy
+        - /spec/template/spec/containers/0/livenessProbe/tcpSocket/port
+        - /spec/template/spec/containers/0/readinessProbe/tcpSocket/port
+        - /spec/template/spec/containers/0/startupProbe/tcpSocket/port
+        - /spec/template/spec/containers/0/terminationMessagePath
+        - /spec/template/spec/containers/0/terminationMessagePolicy
+        - /spec/template/spec/containers/1/imagePullPolicy
+        - /spec/template/spec/containers/1/readinessProbe/tcpSocket/port
+        - /spec/template/spec/containers/1/startupProbe/tcpSocket/port
+        - /spec/template/spec/containers/1/terminationMessagePath
+        - /spec/template/spec/containers/1/terminationMessagePolicy
+        - /spec/template/spec/dnsPolicy
+        - /spec/template/spec/restartPolicy
+        - /spec/template/spec/schedulerName
+        - /spec/template/spec/securityContext
+        - /spec/updateStrategy
+        - /spec/volumeClaimTemplates/0/apiVersion
+        - /spec/volumeClaimTemplates/0/kind
+        - /spec/volumeClaimTemplates/0/spec/resources
+        - /spec/volumeClaimTemplates/0/spec/storageClassName
         - /spec/volumeClaimTemplates/0/spec/volumeMode
         - /spec/volumeClaimTemplates/0/status
   source:
