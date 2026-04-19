@@ -65,6 +65,7 @@ func TestCircularWindDirectionHelpers(t *testing.T) {
 	mae := weatherd.CircularWindDirectionMAE([]float64{20, -30})
 	if mae == nil {
 		t.Fatal("CircularWindDirectionMAE() = nil")
+		return
 	}
 	assertClose(t, *mae, 25)
 }

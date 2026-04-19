@@ -252,7 +252,11 @@ Use GKE dev only for cloud-only validation:
 2. ingress + TLS + cert-manager behavior
 3. Workload Identity and External Secrets behavior
 4. GCS lifecycle/retention checks for archive flows
-5. autoscaling/node lifecycle behavior and Argo CD cloud sync realism
+5. autoscaling/node lifecycle behavior, Argo CD cloud sync realism, and
+   future node/storage-shape validation:
+   - general/public pool on `e2-standard-2`,
+   - CNPG anchor on `e2-standard-4`,
+   - SSD-backed PVCs where stateful latency and durability matter
 
 Everything else should run on local k3d first.  
 When not actively testing in GKE dev, park workloads and reduce node-pool mins.
@@ -296,6 +300,7 @@ Legend: **TODO | PROGRESS | DONE | HELP**
 | DONE | Keycloak (2 replicas)<br>- [x] Enabled Keycloak component in `deploy/env/local/values.platform.yaml`<br>- [x] Configured local Keycloak with 2 replicas using external CNPG Postgres (`pulse-platform-core-rw` via `keycloak.externalDatabase.*`)<br>- [x] Added local image repository overrides to `bitnamilegacy/*` to avoid pull failures during local bringup<br>- [x] Set explicit Keycloak container resources (`requests: 250m/1Gi`, `limits: 1 CPU/2Gi`) to prevent OOM restarts in k3d<br>- [x] Validated with `make platform-up` + `kubectl get pods -n pulse-platform` (both `pulse-platform-keycloak-0` and `pulse-platform-keycloak-1` Ready)<br>- [x] Documented node recovery step after Docker restarts (`docker restart k3d-pulse-local-agent-0`) | cluster |
 | DONE | MinIO (local raw archive)<br>- [x] Enabled MinIO component in `deploy/env/local/values.platform.yaml`<br>- [x] Configured local MinIO for standalone + PVC-backed durable mode (`mode=standalone`, `replicas=1`, `persistence.enabled=true`)<br>- [x] Added keep-style PVC annotation for local raw archive retention across routine Helm lifecycle (`helm.sh/resource-policy=keep`)<br>- [x] Tuned local resource requests to schedule in k3d (`memory=512Mi`, `cpu=100m`)<br>- [x] Documented that local MinIO is authoritative for replay/rebuild trust and must not be ephemeral | local |
 | DONE | Observability “lite” installed<br>- [x] Added and pinned `kube-prometheus-stack` and `opentelemetry-collector` chart dependencies in `deploy/charts/pulse-platform/Chart.yaml`<br>- [x] Added `components.observabilityLite` toggle + low-footprint defaults in `deploy/charts/pulse-platform/values.yaml`<br>- [x] Added dev values profile with observability enabled and constrained resources (`deploy/env/dev/values.platform.yaml`)<br>- [x] Added required OTel collector image repository wiring for chart renderability (`otel/opentelemetry-collector-k8s`)<br>- [x] Extended `make platform-wait` readiness checks for Grafana, Prometheus operator, and OTel collector deployments<br>- [x] Validated local render path (`helm dependency update`, `helm lint` local/dev values)<br>- [x] Validated GKE dev Argo sync + readiness and recorded output (`pulse-platform`/`pulse-services`: `Synced+Healthy`; Grafana + Prometheus operator + OTel collector running; Prometheus StatefulSet ready after hard refresh) | cluster |
+| TODO | Hosted cloud node-pool + SSD optimization<br>- [ ] Shift the general/public cloud pool target toward `e2-standard-2` so autoscaling can add smaller increments of capacity<br>- [ ] Keep a dedicated CNPG-capable pool at `e2-standard-4` so Postgres retains predictable headroom during failover, restore, and maintenance windows<br>- [ ] Keep stateful durability/performance on SSD-backed PVCs (`standard-rwo` / `pd-balanced`) for CNPG, NATS JetStream, and Valkey instead of sizing node boot disks around data retention<br>- [ ] Revisit node boot disks after the pool split and reduce them toward `50Gi` unless image/log pressure proves a larger root disk is necessary | cluster |
 
 **Acceptance criteria**
 - [x] Local: `make dev-up` yields a working platform + services (`k3d-pulse-local`; local Make targets pinned to k3d context to avoid accidental GKE applies)
