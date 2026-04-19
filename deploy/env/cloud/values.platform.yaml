@@ -282,7 +282,11 @@ cloudnativepgCluster:
       cpu: 2
       memory: 4Gi
   scheduling:
-    tolerations: []
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
     affinity:
       enablePodAntiAffinity: true
       podAntiAffinityType: required
