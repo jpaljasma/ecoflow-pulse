@@ -25,6 +25,22 @@ spec:
         app.kubernetes.io/component: public-app
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.publicApp.deployment.terminationGracePeriodSeconds }}
+      {{- with .Values.runtime.publicApp.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtime.publicApp.scheduling.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtime.publicApp.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtime.publicApp.scheduling.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: public-app
           image: "{{ .Values.runtime.publicApp.image.repository }}:{{ .Values.runtime.publicApp.image.tag }}"

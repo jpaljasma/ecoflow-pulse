@@ -25,6 +25,22 @@ spec:
         app.kubernetes.io/component: realtime-gateway
     spec:
       terminationGracePeriodSeconds: {{ .Values.runtime.realtimeGateway.deployment.terminationGracePeriodSeconds }}
+      {{- with .Values.runtime.realtimeGateway.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtime.realtimeGateway.scheduling.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtime.realtimeGateway.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runtime.realtimeGateway.scheduling.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: realtime-gateway
           image: "{{ .Values.runtime.realtimeGateway.image.repository }}:{{ .Values.runtime.realtimeGateway.image.tag }}"

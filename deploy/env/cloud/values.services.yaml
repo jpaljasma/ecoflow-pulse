@@ -90,6 +90,9 @@ runtime:
     pulseMqttEmulatorBatteryPackCount: "4"
     pulseMqttEmulatorBatteryPackEnergyWh: "6144"
   workers:
+    defaultPodScheduling:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: app-pool
     ingest:
       enabled: true
       replicaCount: 1

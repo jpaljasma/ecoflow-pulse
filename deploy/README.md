@@ -210,6 +210,10 @@ Cloud defaults in this branch:
   `e2-standard-4`:
   - `primary-pool` in `us-east1-d` for public/stateless workloads,
   - `stateful-pool` in `us-east1-c` for CNPG, NATS JetStream, and Valkey,
+- the next node-shape task is to keep CNPG on `e2-standard-4` while moving the
+  general/public pool target toward `e2-standard-2`, so autoscaling can add
+  smaller increments of capacity without sizing every app node like a database
+  node,
 - the live cloud cluster now idles safely at `1` `primary-pool` node plus `1`
   `stateful-pool` node; before larger rollouts or noisy background catch-up,
   scale `primary-pool` back to `2` nodes so public/stateless workloads regain
@@ -223,6 +227,8 @@ Cloud defaults in this branch:
   bootstrap syncs,
 - stateful persistence now uses CSI-backed `standard-rwo` (`pd-balanced`) PVCs
   sized `50Gi` for CNPG and `20Gi` each for JetStream and Valkey,
+- SSD-backed PVCs are the intended place to spend disk performance budget; do
+  not treat node boot disks as the durability path for CNPG/NATS/Valkey,
 - hosted node boot disks are still `100Gi` `pd-balanced`; that is now the main
   remaining disk-usage optimization because CNPG/NATS/Valkey durability lives
   on their PVCs rather than the node boot disk,

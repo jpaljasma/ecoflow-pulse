@@ -30,6 +30,7 @@ func TestValkeySnapshotStoreReadSnapshotContract(t *testing.T) {
 	}
 	if snap == nil {
 		t.Fatalf("expected read-model snapshot")
+		return
 	}
 	if snap.DeviceID != "dev-read-1" {
 		t.Fatalf("device id mismatch: got=%q want=%q", snap.DeviceID, "dev-read-1")

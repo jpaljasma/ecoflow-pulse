@@ -59,3 +59,28 @@ maxUnavailable: {{ .maxUnavailable }}
 minAvailable: {{ .minAvailable }}
 {{- end }}
 {{- end -}}
+
+{{- define "pulse-services.podScheduling" -}}
+{{- $default := default dict .default -}}
+{{- $workload := default dict .workload -}}
+{{- $nodeSelector := default (get $default "nodeSelector") (get $workload "nodeSelector") -}}
+{{- $tolerations := default (get $default "tolerations") (get $workload "tolerations") -}}
+{{- $affinity := default (get $default "affinity") (get $workload "affinity") -}}
+{{- $topologySpreadConstraints := default (get $default "topologySpreadConstraints") (get $workload "topologySpreadConstraints") -}}
+{{- with $nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $affinity }}
+affinity:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $topologySpreadConstraints }}
+topologySpreadConstraints:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}

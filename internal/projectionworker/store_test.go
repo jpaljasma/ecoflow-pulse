@@ -66,6 +66,7 @@ func TestValkeySnapshotStoreApplyAndMerge(t *testing.T) {
 	}
 	if readBack == nil {
 		t.Fatalf("expected snapshot to exist")
+		return
 	}
 	if readBack.CursorSeq != second.CursorSeq {
 		t.Fatalf("snapshot cursor mismatch: got=%d want=%d", readBack.CursorSeq, second.CursorSeq)

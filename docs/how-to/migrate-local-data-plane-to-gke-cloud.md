@@ -81,6 +81,10 @@ Current hosted storage profile after the cutover:
 - node pools use `100Gi` `pd-balanced` boot disks,
 - CNPG/NATS/Valkey now store real data on CSI-backed `standard-rwo`
   (`pd-balanced`) PVCs sized `50Gi`, `20Gi`, and `20Gi`,
+- the next sizing pass should move the general/public pool target toward
+  `e2-standard-2` while keeping CNPG on `e2-standard-4`,
+- SSD performance budget should stay on those PVCs first rather than on large
+  node boot disks,
 - the live cluster now runs a cheaper safe idle posture of `1` `primary-pool`
   node plus `1` `stateful-pool` node; scale `primary-pool` back to `2` before
   larger rollouts so the public/stateless path regains surge headroom,

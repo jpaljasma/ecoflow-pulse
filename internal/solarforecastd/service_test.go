@@ -306,6 +306,7 @@ func TestGetSolarOutlookTrainingStoreFailureDoesNotFailRequest(t *testing.T) {
 	}
 	if outlook == nil {
 		t.Fatal("GetSolarOutlook() returned nil outlook")
+		return
 	}
 	if store.run == nil {
 		t.Fatal("expected attempted training run insert")
@@ -679,6 +680,7 @@ func TestEstimateForecastWattsUsesIrradianceBaselineOnClearWeather(t *testing.T)
 	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, nil)
 	if got == nil {
 		t.Fatal("estimateForecastWatts() = nil, want value")
+		return
 	}
 	want := math.Min(
 		estimatedPeakWatts*maxForecastPeakOutputScale,
@@ -709,6 +711,7 @@ func TestEstimateForecastWattsUsesBoundedSecondaryWeatherAttenuation(t *testing.
 	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, nil)
 	if got == nil {
 		t.Fatal("estimateForecastWatts() = nil, want value")
+		return
 	}
 	want := round1(estimatedPeakWatts * 0.8 * baseSystemEfficiencyFactor * atmosphericAttenuationFactor(point))
 	if *got != want {
@@ -753,6 +756,7 @@ func TestEstimateForecastWattsAppliesFutureDayWeatherRegimeSuppression(t *testin
 	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, nil)
 	if got == nil {
 		t.Fatal("estimateForecastWatts() = nil, want value")
+		return
 	}
 	want := round1(estimatedPeakWatts * 0.8 * baseSystemEfficiencyFactor * atmosphericAttenuationFactor(point) * futureDayPeakSuppressionFactor(point, nowUTC, loc))
 	if diff := math.Abs(*got - want); diff > 0.11 {
@@ -781,6 +785,7 @@ func TestEstimateForecastWattsCapsFutureDayAfterCalibration(t *testing.T) {
 	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, &ratio)
 	if got == nil {
 		t.Fatal("estimateForecastWatts() = nil, want value")
+		return
 	}
 	want := round1(estimatedPeakWatts * maxForecastPeakOutputScale * futureDayPeakSuppressionFactor(point, nowUTC, loc))
 	if *got != want {
@@ -807,6 +812,7 @@ func TestEstimateForecastWattsRecapsAfterCalibration(t *testing.T) {
 	got := estimateForecastWatts(point, &estimatedPeakWatts, nowUTC, loc, nil, &ratio)
 	if got == nil {
 		t.Fatal("estimateForecastWatts() = nil, want value")
+		return
 	}
 	want := round1(estimatedPeakWatts * maxForecastPeakOutputScale)
 	if *got != want {
@@ -1451,6 +1457,7 @@ func TestBuildTrainingRowsPersistsRawForecastInsteadOfDisplayedClamp(t *testing.
 	displayedForecast := estimateDisplayedForecastWatts(point, outlook.Capacity.EstimatedPeakWatts, todayISO, 0.5, nowUTC, loc, nil, nil)
 	if rawForecast == nil || displayedForecast == nil {
 		t.Fatal("expected non-nil raw and displayed forecasts")
+		return
 	}
 	if rows[0].ForecastGenerationWh != *rawForecast {
 		t.Fatalf("rows[0].ForecastGenerationWh = %v, want raw %v", rows[0].ForecastGenerationWh, *rawForecast)
@@ -1605,6 +1612,7 @@ func TestReplayValidationCalibratedRunBeatsShadowBaseline(t *testing.T) {
 	}
 	if calibratedRollup == nil {
 		t.Fatal("missing site_calibrated rollup for replay validation target day")
+		return
 	}
 	if calibratedRollup.BaselineDailyAbsErrorWhSum <= calibratedRollup.DailyAbsErrorWhSum {
 		t.Fatalf("baseline daily abs error = %v, want greater than served %v", calibratedRollup.BaselineDailyAbsErrorWhSum, calibratedRollup.DailyAbsErrorWhSum)
@@ -1827,6 +1835,7 @@ func TestGetSolarOutlookUsesRecentSiteCalibrationForFutureForecasts(t *testing.T
 	baseline := estimateForecastWatts(futurePoint, outlook.Capacity.EstimatedPeakWatts, nowUTC, loc, nil, nil)
 	if baseline == nil {
 		t.Fatal("estimateForecastWatts(baseline) = nil, want value")
+		return
 	}
 	want := round1(*baseline * 0.8)
 	got := valueOrZero(outlook.Next24Hours[0].ForecastGeneratedWh)

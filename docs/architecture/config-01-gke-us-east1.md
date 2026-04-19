@@ -38,6 +38,13 @@ Hosted cloud note:
   split explicitly with:
   - `primary-pool`: `e2-standard-4` for public/stateless traffic,
   - `stateful-pool`: `e2-standard-4` for CNPG/NATS/Valkey in `us-east1-c`,
+- the next optimization target is a finer-grained split:
+  - general/public app pool on `e2-standard-2` so autoscaling can add smaller,
+    cheaper increments of CPU/RAM,
+  - dedicated CNPG pool on `e2-standard-4` so Postgres keeps stable failover
+    and restore headroom,
+  - NATS/Valkey should keep SSD-backed PVCs and only stay on larger nodes when
+    real memory/latency evidence justifies it,
 - the cheaper safe idle shape is `1` primary node + `1` stateful node; scale
   the primary pool back up before larger rollouts so public traffic keeps surge
   headroom,
@@ -45,9 +52,11 @@ Hosted cloud note:
   - CNPG on `standard-rwo` (`pd-balanced`) at roughly `50Gi`
   - NATS JetStream on `standard-rwo` at roughly `20Gi`
   - Valkey on `standard-rwo` at roughly `20Gi`
+- SSDs should stay focused on those stateful PVCs first; node boot disks only
+  need enough room for images, logs, and kubelet overhead,
 - the next storage optimization is future boot disks reduced toward `50Gi`,
-  because CNPG durability now sits on the database PVC rather than on node boot
-  storage.
+  because CNPG durability now sits on the database PVC rather than on node
+  boot storage.
 
 ---
 
