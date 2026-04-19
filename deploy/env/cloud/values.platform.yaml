@@ -327,6 +327,7 @@ valkey:
   replica:
     replicaCount: 3
     minReadySeconds: 10
+    podManagementPolicy: OrderedReady
     terminationGracePeriodSeconds: 60
     tolerations:
       - key: workload
