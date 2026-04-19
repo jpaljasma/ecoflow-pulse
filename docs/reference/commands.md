@@ -1146,6 +1146,7 @@ Notes:
   `pulse-platform-core-rw`):
   - acquires a PostgreSQL advisory lock,
   - tracks applied versions + checksums in `schema_migration_rollouts`,
+  - writes new migration checksums as versioned `xxh3-128` digests while still accepting legacy stored SHA-256 checksums for already-applied rollouts,
   - skips already-applied migrations with the same checksum,
   - fails if a version was previously applied with a different checksum,
   - runs each migration in its own transaction.

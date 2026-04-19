@@ -13,11 +13,13 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jpaljasma/ecoflow-pulse/internal/hashutil"
 )
 
 const (
-	defaultMigrationsDir       = "deploy/db/migrations"
-	defaultLockID        int64 = 884215901
+	defaultMigrationsDir           = "deploy/db/migrations"
+	defaultLockID            int64 = 884215901
+	migrationChecksumVersion       = "xxh3-128"
 )
 
 type Config struct {
@@ -178,12 +180,11 @@ func LoadMigrations(dir string) ([]Migration, error) {
 			continue
 		}
 		version := strings.TrimSuffix(name, ".up.sql")
-		sum := sha256.Sum256([]byte(sqlBody))
 		out = append(out, Migration{
 			Version:  version,
 			FileName: name,
 			Path:     path,
-			Checksum: fmt.Sprintf("%x", sum[:]),
+			Checksum: migrationChecksum(sqlBody),
 			SQL:      sqlBody,
 		})
 	}
@@ -244,7 +245,7 @@ CREATE TABLE IF NOT EXISTS schema_migration_rollouts (
 		).Scan(&existingChecksum)
 		switch {
 		case err == nil:
-			if existingChecksum != migration.Checksum {
+			if !migrationChecksumMatches(existingChecksum, migration.SQL) {
 				return result, fmt.Errorf(
 					"migration %s already applied with checksum %s (expected %s)",
 					migration.Version,
@@ -547,4 +548,24 @@ func recordAppliedMigration(ctx context.Context, execer execContexter, cfg Confi
 		cfg.NowFn().UTC(),
 	)
 	return err
+}
+
+func migrationChecksum(sqlBody string) string {
+	return migrationChecksumVersion + ":" + hashutil.XXH3Hex128(sqlBody)
+}
+
+func migrationChecksumMatches(storedChecksum string, sqlBody string) bool {
+	storedChecksum = strings.TrimSpace(storedChecksum)
+	if storedChecksum == "" {
+		return false
+	}
+	if storedChecksum == migrationChecksum(sqlBody) {
+		return true
+	}
+	return storedChecksum == legacyMigrationChecksum(sqlBody)
+}
+
+func legacyMigrationChecksum(sqlBody string) string {
+	sum := sha256.Sum256([]byte(sqlBody))
+	return fmt.Sprintf("%x", sum[:])
 }
