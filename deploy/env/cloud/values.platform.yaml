@@ -285,7 +285,7 @@ cloudnativepgCluster:
     tolerations: []
     affinity:
       enablePodAntiAffinity: true
-      podAntiAffinityType: preferred
+      podAntiAffinityType: required
       topologyKey: topology.kubernetes.io/zone
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
