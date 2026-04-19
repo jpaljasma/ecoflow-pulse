@@ -165,13 +165,14 @@ nats:
                         - stateful-pool-ha
                         - stateful-pool-quorum
           podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
+            preferredDuringSchedulingIgnoredDuringExecution:
               - labelSelector:
                   matchLabels:
                     app.kubernetes.io/component: nats
                     app.kubernetes.io/instance: pulse-platform-cloud
                     app.kubernetes.io/name: nats
                 topologyKey: kubernetes.io/hostname
+                weight: 100
   natsBox:
     deployment:
       merge:
@@ -354,13 +355,14 @@ valkey:
                     - stateful-pool-ha
                     - stateful-pool-quorum
       podAntiAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
+        preferredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchLabels:
                 app.kubernetes.io/component: node
                 app.kubernetes.io/instance: pulse-platform-cloud
                 app.kubernetes.io/name: valkey
             topologyKey: kubernetes.io/hostname
+            weight: 100
     persistence:
       enabled: true
       size: 20Gi
