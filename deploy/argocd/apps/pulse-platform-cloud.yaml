@@ -8,6 +8,12 @@ metadata:
 spec:
   project: default
   ignoreDifferences:
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      name: pulse-platform-core
+      namespace: pulse-platform
+      jsonPointers:
+        - /spec/affinity
     - group: apps
       kind: StatefulSet
       name: pulse-platform-cloud-nats
