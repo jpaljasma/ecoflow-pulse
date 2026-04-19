@@ -369,6 +369,7 @@ valkey:
     pdb:
       create: true
       minAvailable: 2
+      maxUnavailable: ""
   sentinel:
     enabled: true
     quorum: 2
