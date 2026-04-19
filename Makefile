@@ -162,7 +162,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -1143,6 +1143,19 @@ dev-grafana:
 	$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$deploy_name" --timeout=$(WAIT_TIMEOUT)
 
 dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait
+
+local-up: dev-up
+
+local-deploy: dev-deploy
+
+local-down: dev-down
+
+local-status:
+	@echo "local cluster: $(K3D_CONTEXT)"
+	@echo "platform namespace ($(PLATFORM_NAMESPACE))"
+	@$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get pods
+	@echo "services namespace ($(SERVICES_NAMESPACE))"
+	@$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get pods
 
 dev-down:
 	@if command -v $(HELM) >/dev/null 2>&1; then \
@@ -2212,6 +2225,8 @@ scale-down: gke-park
 
 scale-up: gke-wake
 
+cloud-context: gke-cloud-context
+
 argocd-bootstrap-dev: gke-context
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \
 		echo "$(HELM) not found. Install helm first."; \
@@ -2325,6 +2340,21 @@ argocd-wait-apps-cloud: gke-cloud-context
 	done
 
 argocd-cloud-up: argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud
+
+cloud-up: argocd-cloud-up
+
+cloud-refresh: argocd-apps-cloud argocd-wait-apps-cloud
+
+cloud-status: gke-cloud-context
+	@echo "cloud cluster: $(GKE_CLOUD_CLUSTER_NAME) ($(GKE_CLOUD_CLUSTER_REGION))"
+	@echo "argocd applications"
+	@$(KUBECTL) -n $(ARGOCD_NAMESPACE) get applications.argoproj.io
+	@echo "platform namespace ($(PLATFORM_NAMESPACE))"
+	@$(KUBECTL) -n $(PLATFORM_NAMESPACE) get pods
+	@echo "services namespace ($(SERVICES_NAMESPACE))"
+	@$(KUBECTL) -n $(SERVICES_NAMESPACE) get pods
+	@echo "nodes"
+	@$(KUBECTL) get nodes
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \

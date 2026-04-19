@@ -34,6 +34,7 @@ spec:
         - /spec/template/spec/securityContext
         - /spec/template/spec/volumes/0/configMap/defaultMode
         - /spec/updateStrategy
+        - /spec/volumeClaimTemplates
         - /spec/volumeClaimTemplates/0/apiVersion
         - /spec/volumeClaimTemplates/0/kind
         - /spec/volumeClaimTemplates/0/spec/resources
@@ -85,4 +86,5 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
       - ServerSideApply=true

@@ -1023,6 +1023,11 @@ Notes:
     - `Pulse Auth & Profile`
 - `make dev-up` runs `k3d-up`, `platform-up`, `platform-wait`, `services-up`, then `services-wait`.
   This enforces startup order and returns only when dependencies are actually ready.
+- `make local-up` is the friendly alias for `make dev-up`.
+- `make local-deploy` is the friendly alias for `make dev-deploy`.
+- `make local-down` is the friendly alias for `make dev-down`.
+- `make local-status` prints the current `pulse-platform` and `pulse-services`
+  pod status from the local `k3d-pulse-local` context.
 - `make dev-deploy` now reuses `make dev-web-deploy` for the public/web rollout
   path, then updates only the selected `pulse-services` deployments.
 - `make services-up` upgrades the `pulse-services` Helm release and, when
@@ -1232,6 +1237,7 @@ Notes:
   - `GKE_CLOUD_PROJECT_ID=ecoflow-pulse-dev-260221-01`
   - `GKE_CLOUD_CLUSTER_NAME=pulse-cloud`
   - `GKE_CLOUD_CLUSTER_REGION=us-east1`
+- `make cloud-context` is the friendly alias for `make gke-cloud-context`.
 - `make gke-dev-guardrails` creates `pulse-dev` namespace if needed and applies:
   - `deploy/env/dev/guardrails/pulse-dev-resourcequota.yaml`
   - `deploy/env/dev/guardrails/pulse-dev-limitrange.yaml`
@@ -1276,6 +1282,13 @@ Notes:
   - Argo CD install/upgrade
   - hosted cloud app apply
   - app sync/health wait loop
+- `make cloud-up` is the friendly alias for `make argocd-cloud-up`.
+- `make cloud-refresh` reapplies the hosted cloud app manifests and waits for
+  `pulse-platform-cloud` and `pulse-services-cloud` to return to `Synced` +
+  `Healthy`.
+- `make cloud-status` prints the hosted Argo applications, `pulse-platform`
+  pods, `pulse-services` pods, and current node list after fetching the cloud
+  kube context.
 - pre-merge GKE validation pattern (when Argo apps track `main` but you need to validate branch changes):
   - patch app `spec.source.targetRevision=<branch>` with `argocd.argoproj.io/refresh=hard`,
   - run `make argocd-wait-apps`,

@@ -51,7 +51,14 @@ Current state: **platform + telemetry worker runtime in local k3d**.
 Default local workflow:
 
 ```bash
-make dev-up
+make local-up
+```
+
+Hosted cloud workflow:
+
+```bash
+make cloud-up
+make cloud-status
 ```
 
 Expanded commands:
@@ -62,6 +69,9 @@ make platform-up
 make services-image-build-local
 make services-image-import-local
 make services-up
+make local-up
+make local-deploy
+make local-status
 make dev-down
 make dev-down DELETE_CLUSTER=1
 make gke-context GKE_PROJECT_ID=<project>
@@ -73,15 +83,25 @@ make argocd-apps-dev GKE_PROJECT_ID=<project>
 make argocd-wait-apps GKE_PROJECT_ID=<project>
 make argocd-dev-up GKE_PROJECT_ID=<project>
 make gke-cloud-context
+make cloud-context
 make argocd-bootstrap-cloud
 make argocd-apps-cloud
 make argocd-wait-apps-cloud
 make argocd-cloud-up
+make cloud-up
+make cloud-refresh
+make cloud-status
 ```
 
 Defaults:
 - local values are read from `deploy/env/local/*.yaml`,
 - `dev-down` keeps the k3d cluster unless `DELETE_CLUSTER=1`.
+- recommended operator-facing shortcuts are now:
+  - `make local-up` for full local bring-up,
+  - `make local-deploy` for incremental local rollouts,
+  - `make cloud-up` for the hosted Argo bootstrap/apply/wait path,
+  - `make cloud-refresh` for re-applying hosted Argo apps after branch changes,
+  - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).
 - local edge defaults now also enable:
