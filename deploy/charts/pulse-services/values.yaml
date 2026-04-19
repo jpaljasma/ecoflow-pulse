@@ -114,9 +114,18 @@ runtime:
     pulseMqttEmulatorMQTTUsername: "open-pulse-local-account"
     pulseMqttEmulatorMQTTPassword: "pulse-mqtt-local-password"
   workers:
+    defaultPodScheduling:
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
     ingest:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
       deployment:
         minReadySeconds: 10
         terminationGracePeriodSeconds: 45
@@ -148,6 +157,10 @@ runtime:
     inference:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
       deployment:
         minReadySeconds: 10
         terminationGracePeriodSeconds: 45
@@ -179,6 +192,10 @@ runtime:
     projection:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
       deployment:
         minReadySeconds: 10
         terminationGracePeriodSeconds: 45
@@ -210,6 +227,10 @@ runtime:
     rollup:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
       deployment:
         minReadySeconds: 10
         terminationGracePeriodSeconds: 45
@@ -241,6 +262,10 @@ runtime:
     archive:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
       deployment:
         minReadySeconds: 10
         terminationGracePeriodSeconds: 45
@@ -272,6 +297,10 @@ runtime:
     grpcApi:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
       deployment:
         minReadySeconds: 10
         terminationGracePeriodSeconds: 45
@@ -306,6 +335,8 @@ runtime:
     solarVerification:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
       affinity: {}
       topologySpreadConstraints: []
       deployment:
@@ -336,6 +367,10 @@ runtime:
     energyApi:
       enabled: false
       replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
       deployment:
         minReadySeconds: 10
         terminationGracePeriodSeconds: 45

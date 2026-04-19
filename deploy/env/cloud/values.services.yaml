@@ -90,6 +90,15 @@ runtime:
     pulseMqttEmulatorBatteryPackCount: "4"
     pulseMqttEmulatorBatteryPackEnergyWh: "6144"
   workers:
+    defaultPodScheduling:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: app-pool
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys:
+            - pod-template-hash
     ingest:
       enabled: true
       replicaCount: 1

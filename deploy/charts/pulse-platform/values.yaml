@@ -93,6 +93,11 @@ runtime:
       limits:
         cpu: 500m
         memory: 512Mi
+    scheduling:
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
     env:
       grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
       energyGrpcApiAddr: pulse-services-go-energy-api.pulse-services.svc.cluster.local:9090
@@ -164,6 +169,11 @@ runtime:
       limits:
         cpu: 500m
         memory: 512Mi
+    scheduling:
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
     env:
       grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
@@ -182,7 +192,11 @@ runtime:
 # Dependency chart values are intentionally minimal in scaffold mode.
 # Expand these blocks iteratively when each platform component is wired.
 nats: {}
-cloudnative-pg: {}
+cloudnative-pg:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
 cloudnativepgCluster:
   enabled: false
   name: pulse-platform-core
@@ -199,6 +213,10 @@ cloudnativepgCluster:
     limits:
       cpu: 2
       memory: 4Gi
+  scheduling:
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
   bootstrap:
     database: pulse
     owner: pulse

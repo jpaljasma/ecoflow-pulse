@@ -31,6 +31,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.ingest) | nindent 6 }}
       containers:
         - name: go-ingest
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -164,6 +165,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.inference) | nindent 6 }}
       containers:
         - name: go-inference
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -297,6 +299,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.rollup) | nindent 6 }}
       containers:
         - name: go-rollup
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -430,6 +433,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.projection) | nindent 6 }}
       containers:
         - name: go-projection
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -563,6 +567,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.archive) | nindent 6 }}
       containers:
         - name: go-archive
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -696,6 +701,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.grpcApi) | nindent 6 }}
       containers:
         - name: go-grpc-api
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -834,18 +840,11 @@ spec:
         {{- include "pulse-services.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: go-solar-verification
     spec:
-      {{- with .Values.runtime.workers.solarVerification.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.runtime.workers.solarVerification.topologySpreadConstraints }}
-      topologySpreadConstraints:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       terminationGracePeriodSeconds: {{ .Values.runtime.workers.solarVerification.deployment.terminationGracePeriodSeconds }}
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.solarVerification) | nindent 6 }}
       containers:
         - name: go-solar-verification
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -941,6 +940,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.energyApi) | nindent 6 }}
       containers:
         - name: go-energy-api
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"

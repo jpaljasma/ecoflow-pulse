@@ -47,6 +47,18 @@ spec:
     limits:
       cpu: {{ .Values.cloudnativepgCluster.resources.limits.cpu | quote }}
       memory: {{ .Values.cloudnativepgCluster.resources.limits.memory | quote }}
+  {{- with .Values.cloudnativepgCluster.scheduling.affinity }}
+  affinity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.cloudnativepgCluster.scheduling.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.cloudnativepgCluster.scheduling.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   storage:
     {{- with .Values.cloudnativepgCluster.storage.storageClass }}
     storageClass: {{ . | quote }}

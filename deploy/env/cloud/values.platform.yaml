@@ -53,6 +53,22 @@ runtime:
   publicApp:
     enabled: true
     replicaCount: 2
+    scheduling:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: app-pool
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys:
+            - pod-template-hash
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys:
+            - pod-template-hash
     pdb:
       enabled: true
       minAvailable: 1
@@ -96,6 +112,22 @@ runtime:
   realtimeGateway:
     enabled: true
     replicaCount: 2
+    scheduling:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: app-pool
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys:
+            - pod-template-hash
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys:
+            - pod-template-hash
     pdb:
       enabled: true
       minAvailable: 1
@@ -129,6 +161,16 @@ runtime:
 nats:
   podTemplate:
     configChecksumAnnotation: true
+    merge:
+      spec:
+        nodeSelector:
+          cloud.google.com/gke-nodepool: stateful-pool
+        tolerations:
+          - key: workload
+            operator: Equal
+            value: stateful
+            effect: NoSchedule
+        affinity: {}
   config:
     cluster:
       enabled: false
@@ -150,7 +192,17 @@ nats:
           path: /metadata/labels/release
           value: pulse-platform
 
-cloudnative-pg: {}
+cloudnative-pg:
+  nodeSelector:
+    cloud.google.com/gke-nodepool: app-pool
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      matchLabelKeys:
+        - pod-template-hash
 cloudnativepgCluster:
   enabled: true
   name: pulse-platform-core
@@ -168,6 +220,15 @@ cloudnativepgCluster:
     limits:
       cpu: 2
       memory: 4Gi
+  scheduling:
+    nodeSelector:
+      cloud.google.com/gke-nodepool: stateful-pool
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
+    affinity: {}
   bootstrap:
     database: pulse
     owner: pulse
@@ -206,6 +267,20 @@ valkey:
       additionalLabels:
         release: pulse-platform
   primary:
+    nodeSelector:
+      cloud.google.com/gke-nodepool: stateful-pool
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
+    affinity: {}
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        matchLabelKeys:
+          - apps.kubernetes.io/pod-index
     persistence:
       enabled: true
       size: 20Gi
@@ -218,6 +293,14 @@ valkey:
     replicaCount: 1
     minReadySeconds: 10
     terminationGracePeriodSeconds: 60
+    nodeSelector:
+      cloud.google.com/gke-nodepool: stateful-pool
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
+    affinity: {}
     persistence:
       enabled: true
       size: 20Gi
@@ -250,6 +333,16 @@ keycloak:
   replicaCount: 1
   useHelmHooks: false
   proxyHeaders: xforwarded
+  nodeSelector:
+    cloud.google.com/gke-nodepool: app-pool
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      matchLabelKeys:
+        - controller-revision-hash
   extraEnvVars:
     - name: KC_HOSTNAME
       value: https://pulse.example.com
@@ -277,6 +370,9 @@ keycloak:
   keycloakConfigCli:
     enabled: false
     existingConfigmap: pulse-platform-keycloak-realm-import
+    nodeSelector:
+      cloud.google.com/gke-nodepool: app-pool
+    tolerations: []
     extraEnvVarsSecret: pulse-platform-keycloak-social-providers
     extraEnvVars:
       - name: IMPORT_VARSUBSTITUTION_ENABLED
@@ -322,31 +418,102 @@ ingress-nginx:
     allowSnippetAnnotations: false
     replicaCount: 2
     minAvailable: 1
+    nodeSelector:
+      cloud.google.com/gke-nodepool: app-pool
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        matchLabelKeys:
+          - pod-template-hash
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        matchLabelKeys:
+          - pod-template-hash
     admissionWebhooks:
       patch:
         enabled: false
+        nodeSelector:
+          cloud.google.com/gke-nodepool: app-pool
+        tolerations: []
     service:
       type: LoadBalancer
 
 cert-manager:
   crds:
     enabled: true
+  nodeSelector:
+    cloud.google.com/gke-nodepool: app-pool
+    kubernetes.io/os: linux
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      matchLabelKeys:
+        - pod-template-hash
   replicaCount: 1
   startupapicheck:
     enabled: false
   webhook:
     replicaCount: 1
+    nodeSelector:
+      cloud.google.com/gke-nodepool: app-pool
+      kubernetes.io/os: linux
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        matchLabelKeys:
+          - pod-template-hash
   cainjector:
     replicaCount: 1
+    nodeSelector:
+      cloud.google.com/gke-nodepool: app-pool
+      kubernetes.io/os: linux
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        matchLabelKeys:
+          - pod-template-hash
 
 external-secrets:
   installCRDs: true
   replicaCount: 2
+  nodeSelector:
+    cloud.google.com/gke-nodepool: app-pool
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      matchLabelKeys:
+        - pod-template-hash
   podDisruptionBudget:
     enabled: true
     maxUnavailable: 1
   webhook:
     replicaCount: 2
+    nodeSelector:
+      cloud.google.com/gke-nodepool: app-pool
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        matchLabelKeys:
+          - pod-template-hash
     podDisruptionBudget:
       enabled: true
       maxUnavailable: 1
