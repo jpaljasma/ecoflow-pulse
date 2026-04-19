@@ -72,7 +72,7 @@ spec:
         - /spec/volumeClaimTemplates/0/status
   source:
     repoURL: https://github.com/jpaljasma/ecoflow-pulse.git
-    targetRevision: codex/cloud-data-plane
+    targetRevision: main
     path: deploy/charts/pulse-platform
     helm:
       valueFiles:
