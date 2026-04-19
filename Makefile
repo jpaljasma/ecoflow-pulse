@@ -12,6 +12,8 @@ PGROLL ?= pgroll
 PGROLL_REQUIRED ?= 0
 DOCKER_BUILDKIT ?= 1
 LOCAL_IMAGE_PLATFORM ?= $(shell arch="$$(uname -m)"; if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then printf 'linux/arm64'; elif [ "$$arch" = "x86_64" ] || [ "$$arch" = "amd64" ]; then printf 'linux/amd64'; else printf 'linux/amd64'; fi)
+CLOUD_IMAGE_PLATFORM ?= linux/amd64
+CLOUD_ARTIFACT_REGISTRY_HOST ?= us-east1-docker.pkg.dev
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 DOCKER_BUILDX_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-buildx
 GCLOUD ?= gcloud
@@ -35,6 +37,9 @@ HELM_RETRY_DELAY_SEC ?= 5
 GKE_PROJECT_ID ?=
 GKE_CLUSTER_NAME ?= pulse-dev
 GKE_CLUSTER_ZONE ?= us-east1-b
+GKE_CLOUD_PROJECT_ID ?= ecoflow-pulse-dev-260221-01
+GKE_CLOUD_CLUSTER_NAME ?= pulse-cloud
+GKE_CLOUD_CLUSTER_REGION ?= us-east1
 GKE_DEV_NAMESPACE ?= pulse-dev
 GKE_GUARDRAILS_DIR ?= deploy/env/dev/guardrails
 GKE_BASELINE_NODEPOOL ?= baseline-pool
@@ -53,8 +58,10 @@ ARGOCD_CHART_VERSION ?= 9.4.3
 ARGOCD_RELEASE ?= argocd
 ARGOCD_NAMESPACE ?= argocd
 ARGOCD_VALUES_DEV ?= deploy/env/dev/values.argocd.yaml
+ARGOCD_VALUES_CLOUD ?= deploy/env/cloud/values.argocd.yaml
 ARGOCD_APPS_DIR ?= deploy/argocd/apps
 ARGOCD_APPS ?= pulse-platform pulse-services
+ARGOCD_CLOUD_APPS ?= pulse-platform-cloud pulse-services-cloud
 ARGOCD_APP_WAIT_ATTEMPTS ?= 60
 ARGOCD_APP_WAIT_SLEEP_SEC ?= 10
 DB_MIGRATIONS_DIR ?= deploy/db/migrations
@@ -92,6 +99,9 @@ DR_MINIO_MC_IMAGE ?= minio/mc:latest
 SERVICES_IMAGE_REPO ?= ecoflow-pulse/services
 SERVICES_IMAGE_TAG ?= local
 SERVICES_IMAGE ?= $(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)
+SERVICES_CLOUD_IMAGE_REPO ?= us-east1-docker.pkg.dev/$(GKE_CLOUD_PROJECT_ID)/ecoflow-pulse/services
+SERVICES_CLOUD_IMAGE_TAG ?= cloud-latest
+SERVICES_CLOUD_IMAGE ?= $(SERVICES_CLOUD_IMAGE_REPO):$(SERVICES_CLOUD_IMAGE_TAG)
 SERVICES_IMAGE_DOCKERFILE ?= deploy/docker/pulse-services.Dockerfile
 PLATFORM_APP_IMAGE_REPO ?= ecoflow-pulse/pulse-platform
 PLATFORM_APP_IMAGE_TAG ?= local
@@ -157,7 +167,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -367,9 +377,21 @@ docker-local-ready:
 	fi
 	@mkdir -p "$(DOCKER_CONFIG_LOCAL)"
 	@mkdir -p "$(DOCKER_BUILDX_CONFIG_LOCAL)"
+	@mkdir -p "$(DOCKER_CONFIG_LOCAL)/cli-plugins"
 	@if [ ! -f "$(DOCKER_CONFIG_LOCAL)/config.json" ]; then \
 		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
 	fi
+	@set -euo pipefail; \
+		plugin_dst="$(DOCKER_CONFIG_LOCAL)/cli-plugins/docker-buildx"; \
+		plugin_src=""; \
+		if [ -x "$$HOME/.docker/cli-plugins/docker-buildx" ]; then \
+			plugin_src="$$HOME/.docker/cli-plugins/docker-buildx"; \
+		elif [ -x "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-buildx" ]; then \
+			plugin_src="/Applications/Docker.app/Contents/Resources/cli-plugins/docker-buildx"; \
+		fi; \
+		if [ -n "$$plugin_src" ]; then \
+			ln -sf "$$plugin_src" "$$plugin_dst"; \
+		fi
 
 k3d-local-ready:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \
@@ -435,6 +457,21 @@ services-image-local-up:
 	@$(MAKE) --no-print-directory services-image-build-local
 	@$(MAKE) --no-print-directory services-image-import-local
 
+services-image-build-cloud: docker-local-ready
+	@echo "building cloud services image $(SERVICES_CLOUD_IMAGE) for $(CLOUD_IMAGE_PLATFORM) from $(SERVICES_IMAGE_DOCKERFILE)"
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" BUILDX_CONFIG="$(DOCKER_BUILDX_CONFIG_LOCAL)" DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_CLOUD_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_CLOUD_IMAGE) .; \
+	fi
+
+services-image-push-cloud: services-image-build-cloud
+	@echo "pushing cloud services image $(SERVICES_CLOUD_IMAGE)"
+	@set -euo pipefail; \
+		token="$$(CLOUDSDK_CONFIG="$${CLOUDSDK_CONFIG:-}" $(GCLOUD) auth print-access-token)"; \
+		printf '%s' "$$token" | DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) login -u oauth2accesstoken --password-stdin https://$(CLOUD_ARTIFACT_REGISTRY_HOST) >/dev/null; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) push $(SERVICES_CLOUD_IMAGE)
+
 platform-app-image-build-local: docker-local-ready
 	@echo "building public app image $(PLATFORM_APP_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
 	@set -euo pipefail; \
@@ -442,7 +479,7 @@ platform-app-image-build-local: docker-local-ready
 			set -a; source ./.env; set +a; \
 		fi; \
 		set --; \
-		for var in EXPO_PUBLIC_API_URL EXPO_PUBLIC_WS_URL EXPO_PUBLIC_OIDC_ISSUER_URL EXPO_PUBLIC_OIDC_CLIENT_ID EXPO_PUBLIC_OIDC_AUDIENCE EXPO_PUBLIC_OIDC_SCOPES; do \
+		for var in EXPO_PUBLIC_API_URL EXPO_PUBLIC_WS_URL EXPO_PUBLIC_OIDC_ISSUER_URL EXPO_PUBLIC_OIDC_CLIENT_ID EXPO_PUBLIC_OIDC_AUDIENCE EXPO_PUBLIC_OIDC_SCOPES EXPO_PUBLIC_CLOUD_API_URL EXPO_PUBLIC_CLOUD_WS_URL EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE EXPO_PUBLIC_CLOUD_OIDC_SCOPES EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE; do \
 			case "$$var" in \
 				EXPO_PUBLIC_API_URL) val="$${EXPO_PUBLIC_API_URL:-}" ;; \
 				EXPO_PUBLIC_WS_URL) val="$${EXPO_PUBLIC_WS_URL:-}" ;; \
@@ -450,6 +487,13 @@ platform-app-image-build-local: docker-local-ready
 				EXPO_PUBLIC_OIDC_CLIENT_ID) val="$${EXPO_PUBLIC_OIDC_CLIENT_ID:-}" ;; \
 				EXPO_PUBLIC_OIDC_AUDIENCE) val="$${EXPO_PUBLIC_OIDC_AUDIENCE:-}" ;; \
 				EXPO_PUBLIC_OIDC_SCOPES) val="$${EXPO_PUBLIC_OIDC_SCOPES:-}" ;; \
+				EXPO_PUBLIC_CLOUD_API_URL) val="$${EXPO_PUBLIC_CLOUD_API_URL:-}" ;; \
+				EXPO_PUBLIC_CLOUD_WS_URL) val="$${EXPO_PUBLIC_CLOUD_WS_URL:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL) val="$${EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID) val="$${EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE) val="$${EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_SCOPES) val="$${EXPO_PUBLIC_CLOUD_OIDC_SCOPES:-}" ;; \
+				EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE) val="$${EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE:-}" ;; \
 				*) val="" ;; \
 			esac; \
 			if [ -n "$$val" ]; then \
@@ -1131,6 +1175,19 @@ dev-grafana:
 	$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$deploy_name" --timeout=$(WAIT_TIMEOUT)
 
 dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait
+
+local-up: dev-up
+
+local-deploy: dev-deploy
+
+local-down: dev-down
+
+local-status:
+	@echo "local cluster: $(K3D_CONTEXT)"
+	@echo "platform namespace ($(PLATFORM_NAMESPACE))"
+	@$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get pods
+	@echo "services namespace ($(SERVICES_NAMESPACE))"
+	@$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get pods
 
 dev-down:
 	@if command -v $(HELM) >/dev/null 2>&1; then \
@@ -2101,6 +2158,20 @@ gke-context:
 		--zone $(GKE_CLUSTER_ZONE) \
 		--project $(GKE_PROJECT_ID)
 
+gke-cloud-context:
+	@if ! command -v $(GCLOUD) >/dev/null 2>&1; then \
+		echo "$(GCLOUD) not found. Install Google Cloud SDK first."; \
+		exit 1; \
+	fi
+	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
+		echo "$(KUBECTL) not found. Install kubectl first."; \
+		exit 1; \
+	fi
+	@echo "fetching kube credentials for regional cluster $(GKE_CLOUD_CLUSTER_NAME) in $(GKE_CLOUD_CLUSTER_REGION) (project: $(GKE_CLOUD_PROJECT_ID))"
+	$(GCLOUD) container clusters get-credentials $(GKE_CLOUD_CLUSTER_NAME) \
+		--region $(GKE_CLOUD_CLUSTER_REGION) \
+		--project $(GKE_CLOUD_PROJECT_ID)
+
 gke-dev-guardrails: gke-context
 	@echo "ensuring namespace $(GKE_DEV_NAMESPACE) exists"
 	@$(KUBECTL) get ns $(GKE_DEV_NAMESPACE) >/dev/null 2>&1 || $(KUBECTL) create ns $(GKE_DEV_NAMESPACE)
@@ -2186,6 +2257,8 @@ scale-down: gke-park
 
 scale-up: gke-wake
 
+cloud-context: gke-cloud-context
+
 argocd-bootstrap-dev: gke-context
 	@if ! command -v $(HELM) >/dev/null 2>&1; then \
 		echo "$(HELM) not found. Install helm first."; \
@@ -2242,6 +2315,78 @@ argocd-wait-apps: gke-context
 	done
 
 argocd-dev-up: argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps
+
+argocd-bootstrap-cloud: gke-cloud-context
+	@if ! command -v $(HELM) >/dev/null 2>&1; then \
+		echo "$(HELM) not found. Install helm first."; \
+		exit 1; \
+	fi
+	@echo "ensuring namespace $(ARGOCD_NAMESPACE) exists"
+	@$(KUBECTL) get ns $(ARGOCD_NAMESPACE) >/dev/null 2>&1 || $(KUBECTL) create ns $(ARGOCD_NAMESPACE)
+	@echo "installing/upgrading Argo CD chart $(ARGOCD_HELM_CHART) ($(ARGOCD_CHART_VERSION))"
+	@$(HELM) repo add argo $(ARGOCD_HELM_REPO) >/dev/null 2>&1 || true
+	@$(HELM) repo update >/dev/null 2>&1
+	$(HELM) upgrade --install $(ARGOCD_RELEASE) $(ARGOCD_HELM_CHART) \
+		--version $(ARGOCD_CHART_VERSION) \
+		--namespace $(ARGOCD_NAMESPACE) \
+		--create-namespace \
+		-f $(ARGOCD_VALUES_CLOUD)
+	@echo "waiting for Argo CD CRDs and core workloads"
+	$(KUBECTL) wait --for=condition=Established --timeout=$(WAIT_TIMEOUT) crd/applications.argoproj.io
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status deploy/argocd-repo-server --timeout=$(WAIT_TIMEOUT)
+	$(KUBECTL) -n $(ARGOCD_NAMESPACE) rollout status sts/argocd-application-controller --timeout=$(WAIT_TIMEOUT)
+
+argocd-apps-cloud: gke-cloud-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_CLOUD_APPS); do \
+		manifest="$(ARGOCD_APPS_DIR)/$$app.yaml"; \
+		if [ ! -f "$$manifest" ]; then \
+			echo "missing Argo application manifest: $$manifest"; \
+			exit 1; \
+		fi; \
+		echo "applying $$manifest"; \
+		$(KUBECTL) apply -f "$$manifest"; \
+	done
+
+argocd-wait-apps-cloud: gke-cloud-context
+	@set -euo pipefail; \
+	for app in $(ARGOCD_CLOUD_APPS); do \
+		echo "waiting for application/$$app (Synced + Healthy)"; \
+		ok=0; \
+		for attempt in $$(seq 1 $(ARGOCD_APP_WAIT_ATTEMPTS)); do \
+			sync="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.sync.status}' 2>/dev/null || true )"; \
+			health="$$( $(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o jsonpath='{.status.health.status}' 2>/dev/null || true )"; \
+			echo "  attempt $$attempt/$(ARGOCD_APP_WAIT_ATTEMPTS): sync=$${sync:-n/a} health=$${health:-n/a}"; \
+			if [ "$$sync" = "Synced" ] && [ "$$health" = "Healthy" ]; then \
+				ok=1; \
+				break; \
+			fi; \
+			sleep $(ARGOCD_APP_WAIT_SLEEP_SEC); \
+		done; \
+		if [ $$ok -ne 1 ]; then \
+			echo "application/$$app did not reach Synced+Healthy"; \
+			$(KUBECTL) -n $(ARGOCD_NAMESPACE) get application "$$app" -o yaml || true; \
+			exit 1; \
+		fi; \
+	done
+
+argocd-cloud-up: argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud
+
+cloud-up: argocd-cloud-up
+
+cloud-refresh: argocd-apps-cloud argocd-wait-apps-cloud
+
+cloud-status: gke-cloud-context
+	@echo "cloud cluster: $(GKE_CLOUD_CLUSTER_NAME) ($(GKE_CLOUD_CLUSTER_REGION))"
+	@echo "argocd applications"
+	@$(KUBECTL) -n $(ARGOCD_NAMESPACE) get applications.argoproj.io
+	@echo "platform namespace ($(PLATFORM_NAMESPACE))"
+	@$(KUBECTL) -n $(PLATFORM_NAMESPACE) get pods
+	@echo "services namespace ($(SERVICES_NAMESPACE))"
+	@$(KUBECTL) -n $(SERVICES_NAMESPACE) get pods
+	@echo "nodes"
+	@$(KUBECTL) get nodes
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \

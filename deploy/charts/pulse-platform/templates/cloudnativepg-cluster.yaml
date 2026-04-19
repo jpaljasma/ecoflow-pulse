@@ -1,5 +1,4 @@
-{{- $cnpgCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "clusters.postgresql.cnpg.io" -}}
-{{- if and .Values.components.cloudnativepg.enabled .Values.cloudnativepgCluster.enabled $cnpgCRD }}
+{{- if and .Values.components.cloudnativepg.enabled .Values.cloudnativepgCluster.enabled }}
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -23,6 +22,7 @@ spec:
     major: {{ .Values.cloudnativepgCluster.timescaledb.imageCatalog.major }}
   {{- end }}
   instances: {{ .Values.cloudnativepgCluster.instances }}
+  enablePDB: {{ .Values.cloudnativepgCluster.enablePDB }}
   bootstrap:
     initdb:
       database: {{ .Values.cloudnativepgCluster.bootstrap.database | quote }}
@@ -48,5 +48,8 @@ spec:
       cpu: {{ .Values.cloudnativepgCluster.resources.limits.cpu | quote }}
       memory: {{ .Values.cloudnativepgCluster.resources.limits.memory | quote }}
   storage:
+    {{- with .Values.cloudnativepgCluster.storage.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
     size: {{ .Values.cloudnativepgCluster.storage.size | quote }}
 {{- end }}

@@ -13,6 +13,7 @@ metadata:
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
 data:
+  PULSE_ENV: {{ .Values.global.environment | quote }}
   ECOFLOW_ENV: {{ .Values.runtime.env.ecoflowEnv | quote }}
   ECOFLOW_BASE_URL: {{ .Values.runtime.env.ecoflowBaseUrl | quote }}
   DB_SCHEMA_SEARCH_PATH: {{ .Values.runtime.env.dbSchemaSearchPath | quote }}
@@ -24,12 +25,17 @@ data:
   KEYCLOAK_AUDIENCE: {{ .Values.runtime.env.keycloakAudience | quote }}
   KEYCLOAK_JWKS_URL: {{ .Values.runtime.env.keycloakJwksUrl | quote }}
   GRPC_AUTH_ALLOW_MISSING_JWT: {{ .Values.runtime.env.grpcAuthAllowMissingJwt | quote }}
+  ARCHIVE_OBJECT_PROVIDER: {{ .Values.runtime.env.archiveObjectProvider | quote }}
   ARCHIVE_OBJECT_ENDPOINT: {{ .Values.runtime.env.archiveObjectEndpoint | quote }}
   ARCHIVE_OBJECT_BUCKET: {{ .Values.runtime.env.archiveObjectBucket | quote }}
   ARCHIVE_OBJECT_PREFIX: {{ .Values.runtime.env.archiveObjectPrefix | quote }}
   ARCHIVE_OBJECT_REGION: {{ .Values.runtime.env.archiveObjectRegion | quote }}
+  ARCHIVE_OBJECT_GCS_PROJECT_ID: {{ .Values.runtime.env.archiveObjectGCSProjectID | quote }}
   ARCHIVE_OBJECT_SECURE: {{ .Values.runtime.env.archiveObjectSecure | quote }}
   ARCHIVE_OBJECT_AUTO_CREATE_BUCKET: {{ .Values.runtime.env.archiveObjectAutoCreateBucket | quote }}
+  INGEST_NATS_JS_REPLICAS: {{ .Values.runtime.env.ingestNatsJSReplicas | quote }}
+  GAP_REPAIR_NATS_JS_REPLICAS: {{ .Values.runtime.env.gapRepairNatsJSReplicas | quote }}
+  PULSE_MQTT_EMULATOR_ENABLED: {{ .Values.runtime.env.pulseMqttEmulatorEnabled | quote }}
   PULSE_MQTT_EMULATOR_BASE_URL: {{ .Values.runtime.env.pulseMqttEmulatorBaseUrl | quote }}
   PULSE_MQTT_EMULATOR_BROKER_HOST: {{ .Values.runtime.env.pulseMqttEmulatorBrokerHost | quote }}
   PULSE_MQTT_EMULATOR_BROKER_PORT: {{ .Values.runtime.env.pulseMqttEmulatorBrokerPort | quote }}
@@ -48,11 +54,12 @@ data:
   ROLLUP_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.rollup.metrics.service.port) "" .Values.runtime.workers.rollup.metrics.enabled | quote }}
   ARCHIVE_METRICS_LISTEN_ADDR: {{ ternary (printf ":%v" .Values.runtime.workers.archive.metrics.service.port) "" .Values.runtime.workers.archive.metrics.enabled | quote }}
   GRPC_METRICS_LISTEN_ADDR: {{ $grpcMetricsPort | quote }}
+{{- if not .Values.runtime.secret.existingSecretName }}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ include "pulse-services.fullname" . }}-runtime-secret
+  name: {{ include "pulse-services.runtimeSecretName" . }}
   labels:
     {{- include "pulse-services.labels" . | nindent 4 }}
 type: Opaque
@@ -65,4 +72,5 @@ stringData:
   PULSE_MQTT_EMULATOR_SECRET_KEY: {{ .Values.runtime.env.pulseMqttEmulatorSecretKey | quote }}
   PULSE_MQTT_EMULATOR_MQTT_USERNAME: {{ .Values.runtime.env.pulseMqttEmulatorMQTTUsername | quote }}
   PULSE_MQTT_EMULATOR_MQTT_PASSWORD: {{ .Values.runtime.env.pulseMqttEmulatorMQTTPassword | quote }}
+{{- end }}
 {{- end }}

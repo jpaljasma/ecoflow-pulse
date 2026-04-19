@@ -10,26 +10,28 @@ import (
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/archiveaudit"
+	"github.com/jpaljasma/ecoflow-pulse/internal/archiveworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
-	"github.com/jpaljasma/ecoflow-pulse/internal/rolluprebuild"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 func main() {
 	var (
-		from            string
-		to              string
-		bucket          string
-		prefix          string
-		maxObjects      int
-		apply           bool
-		objectEndpoint  string
-		objectAccessKey string
-		objectSecretKey string
-		objectRegion    string
-		objectSecure    bool
-		manifestDSN     string
+		from               string
+		to                 string
+		bucket             string
+		prefix             string
+		maxObjects         int
+		apply              bool
+		objectProvider     string
+		objectEndpoint     string
+		objectAccessKey    string
+		objectSecretKey    string
+		objectRegion       string
+		objectSecure       bool
+		objectGCSProjectID string
+		manifestDSN        string
 	)
 
 	flag.StringVar(&from, "from", "", "inclusive UTC timestamp, RFC3339")
@@ -38,11 +40,14 @@ func main() {
 	flag.StringVar(&prefix, "archive-prefix", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PREFIX", "raw"), "archive prefix")
 	flag.IntVar(&maxObjects, "max-objects", 0, "maximum objects to inspect (0 = all)")
 	flag.BoolVar(&apply, "apply", false, "delete stale manifest rows that point at missing MinIO objects")
-	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint), "object store endpoint")
-	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID), "object store access key")
-	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey), "object store secret key")
-	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region), "object store region")
-	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure), "object store tls")
+	objectDefaults := replaycli.DefaultObjectReaderConfig()
+	flag.StringVar(&objectProvider, "object-provider", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(objectDefaults.Provider)), "object store provider: minio|gcs")
+	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectDefaults.Endpoint), "object store endpoint")
+	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", objectDefaults.AccessKeyID), "object store access key")
+	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", objectDefaults.SecretAccessKey), "object store secret key")
+	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectDefaults.Region), "object store region")
+	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectDefaults.Secure), "object store tls")
+	flag.StringVar(&objectGCSProjectID, "object-gcs-project-id", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectDefaults.GCSProjectID), "optional GCS project id for logging or bucket auto-create")
 	flag.StringVar(&manifestDSN, "manifest-dsn", strings.TrimSpace(runtimecfg.EnvOrDefault("CONTROL_PLANE_DB_DSN", "")), "Postgres DSN for archive manifest index")
 	flag.Parse()
 
@@ -78,7 +83,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	manifestStore, err := replaycli.NewPostgresManifestStore(manifestDSN)
@@ -88,14 +93,16 @@ func main() {
 	}
 	defer func() { _ = manifestStore.Close() }()
 
-	directObjects, err := rolluprebuild.ListArchiveObjectsDirect(
+	directObjects, err := replaycli.ListObjectsDirect(
 		ctx,
-		replaycli.MinIOObjectReaderConfig{
+		replaycli.ObjectReaderConfig{
+			Provider:        replaycli.ObjectProvider(objectProvider),
 			Endpoint:        objectEndpoint,
 			AccessKeyID:     objectAccessKey,
 			SecretAccessKey: objectSecretKey,
 			Region:          objectRegion,
 			Secure:          objectSecure,
+			GCSProjectID:    objectGCSProjectID,
 		},
 		bucket,
 		prefix,
@@ -117,24 +124,65 @@ func main() {
 		return
 	}
 	if !apply {
-		log.Error("archive reconcile found drift; rerun with -apply to prune stale manifest rows")
+		log.Error("archive reconcile found drift; rerun with -apply to prune stale manifest rows and backfill missing manifest entries")
 		os.Exit(1)
 	}
 
-	staleObjects, err := archiveaudit.ObjectsFromCompositeKeys(report.MissingInArchiveKeys)
-	if err != nil {
-		log.Error("parse stale manifest object keys failed", slog.String("error", err.Error()))
-		os.Exit(1)
+	if report.MissingInArchiveCount > 0 {
+		staleObjects, err := archiveaudit.ObjectsFromCompositeKeys(report.MissingInArchiveKeys)
+		if err != nil {
+			log.Error("parse stale manifest object keys failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		deleted, err := manifestStore.DeleteObjects(ctx, staleObjects)
+		if err != nil {
+			log.Error("delete stale manifest rows failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		log.Info("archive reconcile deleted stale manifest rows",
+			slog.Int("stale_manifest_refs", report.MissingInArchiveCount),
+			slog.Int64("rows_deleted", deleted),
+		)
 	}
-	deleted, err := manifestStore.DeleteObjects(ctx, staleObjects)
-	if err != nil {
-		log.Error("delete stale manifest rows failed", slog.String("error", err.Error()))
-		os.Exit(1)
+
+	if report.MissingInManifestCount > 0 {
+		missingObjects, err := missingObjectsFromDirect(directObjects, report.MissingInManifestKeys)
+		if err != nil {
+			log.Error("resolve missing direct objects failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		objectReader, err := replaycli.NewObjectReader(replaycli.ObjectReaderConfig{
+			Provider:        replaycli.ObjectProvider(objectProvider),
+			Endpoint:        objectEndpoint,
+			AccessKeyID:     objectAccessKey,
+			SecretAccessKey: objectSecretKey,
+			Region:          objectRegion,
+			Secure:          objectSecure,
+			GCSProjectID:    objectGCSProjectID,
+		})
+		if err != nil {
+			log.Error("init object reader failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer func() { _ = objectReader.Close() }()
+
+		writerStore, err := archiveworker.NewPostgresManifestStore(manifestDSN)
+		if err != nil {
+			log.Error("init writer manifest store failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer func() { _ = writerStore.Close() }()
+
+		backfilled, err := backfillMissingManifestRows(ctx, objectReader, writerStore, missingObjects, time.Now().UTC())
+		if err != nil {
+			log.Error("backfill missing manifest rows failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		log.Info("archive reconcile backfilled missing manifest rows",
+			slog.Int("missing_in_manifest", report.MissingInManifestCount),
+			slog.Int("rows_upserted", backfilled),
+		)
 	}
-	log.Info("archive reconcile deleted stale manifest rows",
-		slog.Int("stale_manifest_refs", report.MissingInArchiveCount),
-		slog.Int64("rows_deleted", deleted),
-	)
 
 	postReport, err := auditWindow(ctx, log, manifestStore, directObjects, fromTime, toTime, maxObjects, "after")
 	if err != nil {
@@ -146,7 +194,7 @@ func main() {
 		os.Exit(1)
 	}
 	if postReport.MissingInManifestCount > 0 {
-		log.Error("archive reconcile cannot auto-create missing manifest rows", slog.Int("missing_in_manifest", postReport.MissingInManifestCount))
+		log.Error("archive reconcile still has missing manifest rows", slog.Int("missing_in_manifest", postReport.MissingInManifestCount))
 		os.Exit(1)
 	}
 }

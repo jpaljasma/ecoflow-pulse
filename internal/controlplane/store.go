@@ -17,6 +17,8 @@ var (
 	ErrCredentialAlreadyExists = errors.New("provider credential access key already exists")
 	ErrDeviceNotFound          = errors.New("device not found")
 	ErrPermissionDenied        = errors.New("permission denied")
+	ErrVerifiedEmailNotFound   = errors.New("verified user email not found")
+	ErrUserSubjectConflict     = errors.New("target keycloak subject already belongs to another user")
 )
 
 type ProviderCredential struct {
@@ -173,6 +175,11 @@ type UpdateCurrentUserProfileInput struct {
 	HasWeatherLocationValue bool
 }
 
+type ReconcileUserSubjectByEmailInput struct {
+	Email       string
+	UserSubject string
+}
+
 type UpsertProviderDeviceInput struct {
 	DeviceID           string
 	Provider           string
@@ -202,6 +209,7 @@ type Store interface {
 	ListUserDevices(ctx context.Context, in ListUserDevicesInput) ([]UserDevice, error)
 	GetOrProvisionCurrentUser(ctx context.Context, in GetOrProvisionCurrentUserInput) (CurrentUser, error)
 	UpdateCurrentUserProfile(ctx context.Context, in UpdateCurrentUserProfileInput) (CurrentUser, error)
+	ReconcileUserSubjectByEmail(ctx context.Context, in ReconcileUserSubjectByEmailInput) (CurrentUser, error)
 	UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error)
 	ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error)
 	GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (ProviderDevice, error)

@@ -125,6 +125,9 @@ func startWeatherRefreshLoop(ctx context.Context, log *slog.Logger, svc *weather
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
+		if err := svc.RefreshRecentLocations(childCtx); err != nil && childCtx.Err() == nil {
+			log.Warn("weather refresh loop failed", "error", err.Error())
+		}
 		for {
 			select {
 			case <-childCtx.Done():

@@ -25,6 +25,9 @@ spec:
         app.kubernetes.io/component: db-migrate
     spec:
       restartPolicy: Never
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
       containers:
         - name: db-migrate
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"

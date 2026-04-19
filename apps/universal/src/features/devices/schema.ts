@@ -122,9 +122,18 @@ export const EnableAvailableDeviceResponseSchema = z.object({
   deviceId: z.string()
 });
 
+export const ImportAvailableDevicePayloadSchema = z.object({
+  provider: z.string(),
+  credentialId: z.string(),
+  providerDeviceId: z.string(),
+  isActive: z.boolean().optional().default(false),
+  ingestDesiredState: z.string().optional()
+});
+
 export type DeviceSummary = z.infer<typeof DeviceSchema>;
 export type DevicesResponse = z.infer<typeof DevicesResponseSchema>;
 export type AvailableDeviceSummary = z.infer<typeof AvailableDeviceSchema>;
 export type AvailableDevicesResponse = z.infer<typeof AvailableDevicesResponseSchema>;
 export type DeviceMQTTTestResult = z.infer<typeof DeviceMQTTTestResultSchema>;
 export type EnableAvailableDeviceResponse = z.infer<typeof EnableAvailableDeviceResponseSchema>;
+export type ImportAvailableDevicePayload = z.infer<typeof ImportAvailableDevicePayloadSchema>;

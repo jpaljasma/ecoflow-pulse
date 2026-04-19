@@ -53,15 +53,17 @@ func main() {
 	}
 	defer natsConn.Close()
 
-	storeCfg := archiveworker.DefaultMinIOObjectStoreConfig()
+	storeCfg := archiveworker.DefaultObjectStoreConfig()
+	storeCfg.Provider = archiveworker.ObjectStoreProvider(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(storeCfg.Provider)))
 	storeCfg.Endpoint = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", storeCfg.Endpoint)
 	storeCfg.AccessKeyID = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", storeCfg.AccessKeyID)
 	storeCfg.SecretAccessKey = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", storeCfg.SecretAccessKey)
 	storeCfg.Region = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", storeCfg.Region)
 	storeCfg.Secure = runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", storeCfg.Secure)
 	storeCfg.AutoCreateBucket = runtimecfg.Bool("ARCHIVE_OBJECT_AUTO_CREATE_BUCKET", storeCfg.AutoCreateBucket)
-	objectStore, err := startupretry.Retry(context.Background(), log, "archive object store", startupretry.DefaultOptions(), func(_ context.Context) (*archiveworker.MinIOObjectStore, error) {
-		return archiveworker.NewMinIOObjectStore(storeCfg)
+	storeCfg.GCSProjectID = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", storeCfg.GCSProjectID)
+	objectStore, err := startupretry.Retry(context.Background(), log, "archive object store", startupretry.DefaultOptions(), func(ctx context.Context) (archiveworker.ObjectStore, error) {
+		return archiveworker.NewObjectStore(ctx, storeCfg)
 	})
 	if err != nil {
 		log.Error("init archive object store failed", slog.String("error", err.Error()))
@@ -127,8 +129,10 @@ func main() {
 		slog.String("object_bucket", cfg.ObjectBucket),
 		slog.String("object_prefix", cfg.ObjectPrefix),
 		slog.String("writer_id", cfg.WriterID),
+		slog.String("object_provider", string(storeCfg.Provider)),
 		slog.String("object_endpoint", storeCfg.Endpoint),
 		slog.Bool("object_secure", storeCfg.Secure),
+		slog.String("object_gcs_project_id", storeCfg.GCSProjectID),
 		slog.Bool("manifest_enabled", manifestStore != nil),
 	)
 	if err := worker.Run(ctx); err != nil {

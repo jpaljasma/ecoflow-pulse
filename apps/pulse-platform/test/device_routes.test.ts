@@ -129,7 +129,7 @@ function makeDeviceClient(overrides: Partial<DeviceClient> = {}): DeviceClient {
   return {
     listDevices: vi.fn(async () => [sampleDevice()]),
     getDevice: vi.fn(async (_request, routeDeviceId) => {
-    const device = sampleDevice();
+      const device = sampleDevice();
       return routeDeviceId === device.id || routeDeviceId === device.serialNumber ? device : null;
     }),
     listAvailableDevices: vi.fn(async () => sampleAvailableDevicesResult()),
@@ -141,6 +141,9 @@ function makeDeviceClient(overrides: Partial<DeviceClient> = {}): DeviceClient {
       observedAtUnixMs: '1772197190000'
     })),
     enableAvailableDevice: vi.fn(async () => ({
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
+    })),
+    importAvailableDevice: vi.fn(async () => ({
       deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
     })),
     close: vi.fn(),
@@ -263,6 +266,33 @@ describe('pulse-platform device routes', () => {
     await app.close();
   });
 
+  it('allows browser cors requests from the configured cloud origin', async () => {
+    const client = makeDeviceClient();
+    const app = buildApp(
+      {
+        ...baseConfig(),
+        corsAllowedOrigins: ['https://pulse.example.com', 'https://localhost:8081']
+      },
+      makeHistoryClient(),
+      client,
+      makeInferenceClient()
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/devices',
+      headers: {
+        origin: 'https://pulse.example.com'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe('https://pulse.example.com');
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
+
+    await app.close();
+  });
+
   it('returns device detail by serial number', async () => {
     const client = makeDeviceClient();
     const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
@@ -374,6 +404,38 @@ describe('pulse-platform device routes', () => {
         provider: 'ecoflow',
         credentialId: 'cred-1',
         providerDeviceId: 'DEMOD2M00001057'
+      })
+    );
+    expect(response.json()).toEqual({ deviceId: '019c9f0e-4521-775d-873e-e80039f16d75' });
+
+    await app.close();
+  });
+
+  it('imports an available device as inactive', async () => {
+    const client = makeDeviceClient();
+    const app = buildApp(baseConfig(), makeHistoryClient(), client, makeInferenceClient());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/devices/available/import',
+      payload: {
+        provider: 'pulsemqtt',
+        credentialId: 'cred-1',
+        providerDeviceId: 'PULSEDPUX24K001',
+        isActive: false,
+        ingestDesiredState: 'paused'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.importAvailableDevice).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        provider: 'pulsemqtt',
+        credentialId: 'cred-1',
+        providerDeviceId: 'PULSEDPUX24K001',
+        isActive: false,
+        ingestDesiredState: 'paused'
       })
     );
     expect(response.json()).toEqual({ deviceId: '019c9f0e-4521-775d-873e-e80039f16d75' });

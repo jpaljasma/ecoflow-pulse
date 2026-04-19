@@ -14,6 +14,35 @@ runtime:
     repository: ecoflow-pulse/services
     tag: local
     pullPolicy: IfNotPresent
+  serviceAccount:
+    create: false
+    name: ""
+    annotations: {}
+    automountServiceAccountToken: true
+  secret:
+    existingSecretName: ""
+  secretManager:
+    enabled: false
+    secretStore:
+      create: false
+      kind: SecretStore
+      name: pulse-services-gcp-secrets
+      projectId: ""
+      clusterLocation: ""
+      clusterName: ""
+    runtimeExternalSecret:
+      enabled: false
+      refreshInterval: 1h
+      targetSecretName: ""
+      data:
+        controlPlaneDBDSN: ""
+        archiveManifestDBDSN: ""
+        archiveObjectAccessKey: ""
+        archiveObjectSecretKey: ""
+        pulseMqttEmulatorAccessKey: ""
+        pulseMqttEmulatorSecretKey: ""
+        pulseMqttEmulatorMQTTUsername: ""
+        pulseMqttEmulatorMQTTPassword: ""
   migrations:
     enabled: false
     namespace: pulse-platform
@@ -55,14 +84,19 @@ runtime:
     keycloakAudience: ""
     keycloakJwksUrl: ""
     grpcAuthAllowMissingJwt: "false"
+    archiveObjectProvider: "minio"
     archiveObjectEndpoint: "pulse-platform-minio.pulse-platform.svc.cluster.local:9000"
     archiveObjectAccessKey: "minio"
     archiveObjectSecretKey: "minio123"
     archiveObjectBucket: "pulse-telemetry-raw"
     archiveObjectPrefix: "raw"
     archiveObjectRegion: "us-east-1"
+    archiveObjectGCSProjectID: ""
     archiveObjectSecure: "false"
     archiveObjectAutoCreateBucket: "true"
+    ingestNatsJSReplicas: "3"
+    gapRepairNatsJSReplicas: "3"
+    pulseMqttEmulatorEnabled: "true"
     pulseMqttEmulatorBaseUrl: "http://pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"
     pulseMqttEmulatorBrokerHost: "pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local"
     pulseMqttEmulatorBrokerPort: "8883"

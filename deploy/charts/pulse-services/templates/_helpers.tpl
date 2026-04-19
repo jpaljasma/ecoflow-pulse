@@ -35,3 +35,27 @@ lifecycle:
       port: {{ default "metrics" .portName }}
       scheme: HTTP
 {{- end -}}
+
+{{- define "pulse-services.runtimeSecretName" -}}
+{{- if .Values.runtime.secret.existingSecretName -}}
+{{- .Values.runtime.secret.existingSecretName | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-runtime-secret" (include "pulse-services.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "pulse-services.serviceAccountName" -}}
+{{- if .Values.runtime.serviceAccount.create -}}
+{{- default (printf "%s-runtime" (include "pulse-services.fullname" .)) .Values.runtime.serviceAccount.name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- .Values.runtime.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "pulse-services.pdbSpec" -}}
+{{- if hasKey . "maxUnavailable" }}
+maxUnavailable: {{ .maxUnavailable }}
+{{- else }}
+minAvailable: {{ .minAvailable }}
+{{- end }}
+{{- end -}}

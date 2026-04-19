@@ -121,14 +121,84 @@ func TestEcoFlowSessionRunnerRunPublishesEnvelope(t *testing.T) {
 	if got := len(factory.configs); got != 1 {
 		t.Fatalf("expected one subscriber init, got=%d", got)
 	}
-	if got := factory.configs[0].ClientID; got != ecoflowmqtt.BuildClientIDFromSN(assignment.ProviderDeviceID) {
-		t.Fatalf("unexpected client id: got=%q want=%q", got, ecoflowmqtt.BuildClientIDFromSN(assignment.ProviderDeviceID))
+	if got := factory.configs[0].ClientID; got != ecoflowmqtt.BuildClientIDWithNamespace("", assignment.ProviderDeviceID) {
+		t.Fatalf("unexpected client id: got=%q want=%q", got, ecoflowmqtt.BuildClientIDWithNamespace("", assignment.ProviderDeviceID))
 	}
 	if got := publisher.publishCount.Load(); got != 1 {
 		t.Fatalf("expected one envelope publish, got=%d", got)
 	}
 	if subscriber.closeCalls.Load() == 0 {
 		t.Fatalf("expected subscriber close to be called")
+	}
+}
+
+func TestEcoFlowSessionRunnerUsesMQTTClientIDNamespace(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	publisher := &fakeEnvelopePublisher{
+		onPublish: func(*envelopev1.TelemetryEnvelope) error {
+			cancel()
+			return nil
+		},
+	}
+	runner, err := NewEcoFlowSessionRunner(testLogger(), nil, publisher, &fakeProviderDeviceUpdater{}, EcoFlowSessionConfig{
+		MQTTClientIDNamespace: "cloud",
+		ReconnectJitter:       0,
+		ReconnectMaxBackoff:   5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewEcoFlowSessionRunner() error = %v", err)
+	}
+
+	resolver := &fakeCertResolver{
+		cert: ecoflow.GeneralInfoMQTTCertification{
+			CertificateAccount:  "open-account",
+			CertificatePassword: "secret",
+			URL:                 "mqtt.ecoflow.com",
+			Port:                "8883",
+		},
+	}
+	subscriber := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{
+			{
+				msg: ecoflowmqtt.Message{
+					Topic:   "/open/open-account/DEMOD2M00001057/quota",
+					Payload: []byte(`{"id":8221,"time":17072442,"typeCode":"pdStatus","cmdId":1,"cmdFunc":2}`),
+				},
+			},
+		},
+	}
+	factory := &fakeSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+
+	runner.adapter = resolver
+	runner.newSubscriber = factory.new
+	runner.sleepFn = testSessionSleep
+
+	assignment := controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderEcoFlow,
+		ProviderDeviceID:   "DEMOD2M00001057",
+		DeviceID:           "018f11c6-6b6e-7419-8a96-8e975db23659",
+		CredentialID:       "018f11c6-6bd6-7e10-9f6f-1245fc66f52c",
+		AccessKey:          "ak",
+		SecretKey:          "sk",
+		CredentialIsActive: true,
+	}
+
+	if err := runner.Run(ctx, assignment); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := len(factory.configs); got != 1 {
+		t.Fatalf("expected one subscriber init, got=%d", got)
+	}
+	want := ecoflowmqtt.BuildClientIDWithNamespace("cloud", assignment.ProviderDeviceID)
+	if got := factory.configs[0].ClientID; got != want {
+		t.Fatalf("unexpected client id: got=%q want=%q", got, want)
+	}
+	if got := factory.configs[0].ClientID; got == ecoflowmqtt.BuildClientIDFromSN(assignment.ProviderDeviceID) {
+		t.Fatalf("expected namespaced client id to differ from legacy id")
 	}
 }
 

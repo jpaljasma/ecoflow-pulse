@@ -704,3 +704,70 @@ func TestMemoryStoreDeviceRegistryRBAC(t *testing.T) {
 		t.Fatalf("expected guest role=viewer, got %q", listed[0].Role)
 	}
 }
+
+func TestMemoryStoreReconcileUserSubjectByEmailRemapsVerifiedUser(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+
+	user, err := store.GetOrProvisionCurrentUser(context.Background(), GetOrProvisionCurrentUserInput{
+		UserSubject:   "legacy-subject",
+		Email:         "user@example.com",
+		EmailVerified: true,
+		DisplayName:   "Pulse User",
+	})
+	if err != nil {
+		t.Fatalf("GetOrProvisionCurrentUser failed: %v", err)
+	}
+
+	remapped, err := store.ReconcileUserSubjectByEmail(context.Background(), ReconcileUserSubjectByEmailInput{
+		Email:       "USER@example.com",
+		UserSubject: "cloud-subject",
+	})
+	if err != nil {
+		t.Fatalf("ReconcileUserSubjectByEmail failed: %v", err)
+	}
+	if remapped.ID != user.ID {
+		t.Fatalf("expected same user id, got %q want %q", remapped.ID, user.ID)
+	}
+	if remapped.KeycloakSubject != "cloud-subject" {
+		t.Fatalf("expected reconciled subject, got %q", remapped.KeycloakSubject)
+	}
+
+	devices, err := store.ListUserDevices(context.Background(), ListUserDevicesInput{UserSubject: "legacy-subject"})
+	if err != nil {
+		t.Fatalf("ListUserDevices for old subject failed: %v", err)
+	}
+	if got := len(devices); got != 0 {
+		t.Fatalf("expected old subject to be unmapped, got %d devices", got)
+	}
+}
+
+func TestMemoryStoreReconcileUserSubjectByEmailRejectsConflictingSubject(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+
+	if _, err := store.GetOrProvisionCurrentUser(context.Background(), GetOrProvisionCurrentUserInput{
+		UserSubject:   "legacy-subject",
+		Email:         "user@example.com",
+		EmailVerified: true,
+	}); err != nil {
+		t.Fatalf("seed verified user failed: %v", err)
+	}
+	if _, err := store.GetOrProvisionCurrentUser(context.Background(), GetOrProvisionCurrentUserInput{
+		UserSubject:   "occupied-subject",
+		Email:         "different@example.com",
+		EmailVerified: true,
+	}); err != nil {
+		t.Fatalf("seed conflicting user failed: %v", err)
+	}
+
+	_, err := store.ReconcileUserSubjectByEmail(context.Background(), ReconcileUserSubjectByEmailInput{
+		Email:       "user@example.com",
+		UserSubject: "occupied-subject",
+	})
+	if !errors.Is(err, ErrUserSubjectConflict) {
+		t.Fatalf("expected ErrUserSubjectConflict, got %v", err)
+	}
+}

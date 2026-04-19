@@ -4,14 +4,16 @@ import {
   DeviceMQTTTestResultSchema,
   DevicesResponseSchema,
   DeviceSchema,
-  EnableAvailableDeviceResponseSchema
+  EnableAvailableDeviceResponseSchema,
+  ImportAvailableDevicePayloadSchema
 } from '@/features/devices/schema';
 import type {
   AvailableDevicesResponse,
   DeviceMQTTTestResult,
   DevicesResponse,
   DeviceSummary,
-  EnableAvailableDeviceResponse
+  EnableAvailableDeviceResponse,
+  ImportAvailableDevicePayload
 } from '@/features/devices/schema';
 
 export {
@@ -69,6 +71,19 @@ export async function enableAvailableDevice(
   const data = await requestJson<unknown>('/api/v1/devices/available/enable', {
     method: 'POST',
     body: payload,
+    token
+  });
+  return EnableAvailableDeviceResponseSchema.parse(data);
+}
+
+export async function importAvailableDevice(
+  payload: ImportAvailableDevicePayload,
+  token?: string
+): Promise<EnableAvailableDeviceResponse> {
+  const validated = ImportAvailableDevicePayloadSchema.parse(payload);
+  const data = await requestJson<unknown>('/api/v1/devices/available/import', {
+    method: 'POST',
+    body: validated,
     token
   });
   return EnableAvailableDeviceResponseSchema.parse(data);

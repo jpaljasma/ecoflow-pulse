@@ -28,26 +28,28 @@ const (
 
 func main() {
 	var (
-		mode              string
-		provider          string
-		fromRaw           string
-		toRaw             string
-		deviceIDsRaw      string
-		providerIDsRaw    string
-		shardsRaw         string
-		dryRun            bool
-		maxObjects        int
-		manifestDSN       string
-		objectEndpoint    string
-		objectAccessKey   string
-		objectSecretKey   string
-		objectRegion      string
-		objectSecure      bool
-		natsURLsRaw       string
-		natsName          string
-		natsTarget        string
-		subjectPrefix     string
-		subjectShardCount uint
+		mode               string
+		provider           string
+		fromRaw            string
+		toRaw              string
+		deviceIDsRaw       string
+		providerIDsRaw     string
+		shardsRaw          string
+		dryRun             bool
+		maxObjects         int
+		manifestDSN        string
+		objectProvider     string
+		objectEndpoint     string
+		objectAccessKey    string
+		objectSecretKey    string
+		objectRegion       string
+		objectSecure       bool
+		objectGCSProjectID string
+		natsURLsRaw        string
+		natsName           string
+		natsTarget         string
+		subjectPrefix      string
+		subjectShardCount  uint
 	)
 
 	flag.StringVar(&mode, "mode", modeListDevices, "Replay mode: list-devices|device|fleet")
@@ -60,12 +62,15 @@ func main() {
 	flag.BoolVar(&dryRun, "dry-run", false, "Decode/filter without publishing replay messages to NATS")
 	flag.IntVar(&maxObjects, "max-objects", 0, "Optional object scan cap (0 means no limit)")
 
+	objectDefaults := replaycli.DefaultObjectReaderConfig()
 	flag.StringVar(&manifestDSN, "manifest-dsn", strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN")), "Postgres DSN for archive manifest index")
-	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint), "Object store endpoint")
-	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID), "Object store access key")
-	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey), "Object store secret key")
-	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region), "Object store region")
-	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure), "Object store tls")
+	flag.StringVar(&objectProvider, "object-provider", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(objectDefaults.Provider)), "Object store provider: minio|gcs")
+	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectDefaults.Endpoint), "Object store endpoint")
+	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", objectDefaults.AccessKeyID), "Object store access key")
+	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", objectDefaults.SecretAccessKey), "Object store secret key")
+	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectDefaults.Region), "Object store region")
+	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectDefaults.Secure), "Object store tls")
+	flag.StringVar(&objectGCSProjectID, "object-gcs-project-id", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectDefaults.GCSProjectID), "Optional GCS project id for logging or bucket auto-create")
 
 	flag.StringVar(&natsURLsRaw, "nats-urls", runtimecfg.EnvOrDefault("NATS_URLS", "nats://127.0.0.1:4222"), "Comma-delimited NATS URLs")
 	flag.StringVar(&natsName, "nats-name", runtimecfg.EnvOrDefault("NATS_NAME", "ecoflow-replay-cli"), "NATS client name")
@@ -133,12 +138,14 @@ func main() {
 		return
 	}
 
-	objectReader, err := replaycli.NewMinIOObjectReader(replaycli.MinIOObjectReaderConfig{
+	objectReader, err := replaycli.NewObjectReader(replaycli.ObjectReaderConfig{
+		Provider:        replaycli.ObjectProvider(objectProvider),
 		Endpoint:        objectEndpoint,
 		AccessKeyID:     objectAccessKey,
 		SecretAccessKey: objectSecretKey,
 		Region:          objectRegion,
 		Secure:          objectSecure,
+		GCSProjectID:    objectGCSProjectID,
 	})
 	if err != nil {
 		log.Error("init object reader failed", slog.String("error", err.Error()))

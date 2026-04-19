@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pulse-services-cloud
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: ecoflow-pulse
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jpaljasma/ecoflow-pulse.git
+    targetRevision: codex/cloud-data-plane
+    path: deploy/charts/pulse-services
+    helm:
+      valueFiles:
+        - ../../env/cloud/values.services.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pulse-services
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

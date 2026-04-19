@@ -171,6 +171,41 @@ export function registerDeviceRoutes(
     }
   });
 
+  app.post('/api/v1/devices/available/import', { preHandler: authPreHandler }, async (request, reply) => {
+    try {
+      const body = z.object({
+        provider: z.string().trim().min(1),
+        credentialId: z.string().trim().min(1),
+        providerDeviceId: z.string().trim().min(1),
+        isActive: z.boolean().optional().default(false),
+        ingestDesiredState: z.string().trim().min(1).optional()
+      }).parse(request.body);
+      const result = await deviceClient.importAvailableDevice(request, body);
+      return result;
+    } catch (error) {
+      if (isMissingUserSubjectError(error)) {
+        return reply.code(503).send({
+          error: 'missing_user_subject',
+          message:
+            config.auth.mode === 'noop'
+              ? 'Set PULSE_PLATFORM_DEV_SUBJECT or send x-user-subject in noop mode.'
+              : 'Authenticated user subject required.'
+        });
+      }
+      if (error instanceof z.ZodError) {
+        return reply.code(400).send({ error: 'invalid_request', issues: error.issues });
+      }
+      if (isServiceError(error)) {
+        return reply.code(mapGrpcCodeToHTTP(error.code)).send({
+          error: 'upstream_grpc_error',
+          message: error.details || error.message,
+          grpcCode: error.code
+        });
+      }
+      throw error;
+    }
+  });
+
   app.get('/api/v1/devices/:deviceId/insights', { preHandler: authPreHandler }, async (request, reply) => {
     try {
       const params = z.object({ deviceId: z.string().uuid() }).parse(request.params);

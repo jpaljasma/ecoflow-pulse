@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"regexp"
 	"testing"
@@ -192,6 +193,230 @@ WHERE pd.credential_id = pc.id
 	}
 	if !got.IsActive {
 		t.Fatalf("expected active credential")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresStoreReconcileUserSubjectByEmailRemapsVerifiedUser(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	now := time.Date(2026, time.April, 15, 12, 30, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`
+SELECT
+	id::text,
+	keycloak_subject,
+	COALESCE(email, ''),
+	email_verified,
+	COALESCE(display_name, ''),
+	COALESCE(display_name_source, 'provider'),
+	COALESCE(avatar_url, ''),
+	COALESCE(given_name, ''),
+	COALESCE(family_name, ''),
+	COALESCE(locale, ''),
+	COALESCE(timezone, ''),
+	weather_location_enabled,
+	COALESCE(weather_location_source, 'none'),
+	COALESCE(weather_location_label, ''),
+	weather_latitude,
+	weather_longitude,
+	last_login_at,
+	created_at,
+	updated_at
+FROM users
+WHERE keycloak_subject = $1;
+`)).
+		WithArgs("cloud-subject-123").
+		WillReturnError(sql.ErrNoRows)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+UPDATE users
+SET keycloak_subject = $2,
+	updated_at = $3
+WHERE lower(COALESCE(email, '')) = lower($1)
+  AND email_verified = TRUE
+RETURNING
+	id::text,
+	keycloak_subject,
+	COALESCE(email, ''),
+	email_verified,
+	COALESCE(display_name, ''),
+	COALESCE(display_name_source, 'provider'),
+	COALESCE(avatar_url, ''),
+	COALESCE(given_name, ''),
+	COALESCE(family_name, ''),
+	COALESCE(locale, ''),
+	COALESCE(timezone, ''),
+	weather_location_enabled,
+	COALESCE(weather_location_source, 'none'),
+	COALESCE(weather_location_label, ''),
+	weather_latitude,
+	weather_longitude,
+	last_login_at,
+	created_at,
+	updated_at;
+`)).
+		WithArgs("jpaljasma@gmail.com", "cloud-subject-123", normalizeWriteTime(now)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"keycloak_subject",
+			"email",
+			"email_verified",
+			"display_name",
+			"display_name_source",
+			"avatar_url",
+			"given_name",
+			"family_name",
+			"locale",
+			"timezone",
+			"weather_location_enabled",
+			"weather_location_source",
+			"weather_location_label",
+			"weather_latitude",
+			"weather_longitude",
+			"last_login_at",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			"user-1",
+			"cloud-subject-123",
+			"jpaljasma@gmail.com",
+			true,
+			"JP",
+			"provider",
+			"",
+			"Jaan",
+			"Paljasma",
+			"en-US",
+			"America/New_York",
+			false,
+			"none",
+			"",
+			nil,
+			nil,
+			now,
+			now,
+			normalizeWriteTime(now),
+		))
+	mock.ExpectCommit()
+
+	got, err := store.ReconcileUserSubjectByEmail(context.Background(), ReconcileUserSubjectByEmailInput{
+		Email:       "jpaljasma@gmail.com",
+		UserSubject: "cloud-subject-123",
+	})
+	if err != nil {
+		t.Fatalf("ReconcileUserSubjectByEmail failed: %v", err)
+	}
+	if got.KeycloakSubject != "cloud-subject-123" {
+		t.Fatalf("keycloak subject mismatch: got=%s", got.KeycloakSubject)
+	}
+	if got.Email != "jpaljasma@gmail.com" {
+		t.Fatalf("email mismatch: got=%s", got.Email)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresStoreReconcileUserSubjectByEmailRejectsConflictingSubject(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	now := time.Date(2026, time.April, 15, 12, 30, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`
+SELECT
+	id::text,
+	keycloak_subject,
+	COALESCE(email, ''),
+	email_verified,
+	COALESCE(display_name, ''),
+	COALESCE(display_name_source, 'provider'),
+	COALESCE(avatar_url, ''),
+	COALESCE(given_name, ''),
+	COALESCE(family_name, ''),
+	COALESCE(locale, ''),
+	COALESCE(timezone, ''),
+	weather_location_enabled,
+	COALESCE(weather_location_source, 'none'),
+	COALESCE(weather_location_label, ''),
+	weather_latitude,
+	weather_longitude,
+	last_login_at,
+	created_at,
+	updated_at
+FROM users
+WHERE keycloak_subject = $1;
+`)).
+		WithArgs("cloud-subject-123").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"keycloak_subject",
+			"email",
+			"email_verified",
+			"display_name",
+			"display_name_source",
+			"avatar_url",
+			"given_name",
+			"family_name",
+			"locale",
+			"timezone",
+			"weather_location_enabled",
+			"weather_location_source",
+			"weather_location_label",
+			"weather_latitude",
+			"weather_longitude",
+			"last_login_at",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			"user-2",
+			"cloud-subject-123",
+			"someone-else@example.com",
+			true,
+			"Someone Else",
+			"provider",
+			"",
+			"Someone",
+			"Else",
+			"en-US",
+			"America/New_York",
+			false,
+			"none",
+			"",
+			nil,
+			nil,
+			now,
+			now,
+			now,
+		))
+	mock.ExpectRollback()
+
+	_, err = store.ReconcileUserSubjectByEmail(context.Background(), ReconcileUserSubjectByEmailInput{
+		Email:       "jpaljasma@gmail.com",
+		UserSubject: "cloud-subject-123",
+	})
+	if !errors.Is(err, ErrUserSubjectConflict) {
+		t.Fatalf("expected ErrUserSubjectConflict, got %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)

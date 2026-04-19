@@ -6,10 +6,24 @@ const ORIGINAL_WINDOW = globalThis.window;
 async function loadEnvModule({
   apiUrlEnv,
   wsUrlEnv,
+  cloudApiUrlEnv,
+  cloudWsUrlEnv,
+  oidcIssuerUrlEnv,
+  oidcClientIdEnv,
+  cloudOidcIssuerUrlEnv,
+  cloudOidcClientIdEnv,
+  defaultConnectionProfileEnv,
   extra = {}
 }: {
   apiUrlEnv?: string;
   wsUrlEnv?: string;
+  cloudApiUrlEnv?: string;
+  cloudWsUrlEnv?: string;
+  oidcIssuerUrlEnv?: string;
+  oidcClientIdEnv?: string;
+  cloudOidcIssuerUrlEnv?: string;
+  cloudOidcClientIdEnv?: string;
+  defaultConnectionProfileEnv?: string;
   extra?: Record<string, unknown>;
 }) {
   vi.resetModules();
@@ -24,6 +38,48 @@ async function loadEnvModule({
     delete process.env.EXPO_PUBLIC_WS_URL;
   } else {
     process.env.EXPO_PUBLIC_WS_URL = wsUrlEnv;
+  }
+
+  if (cloudApiUrlEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_CLOUD_API_URL;
+  } else {
+    process.env.EXPO_PUBLIC_CLOUD_API_URL = cloudApiUrlEnv;
+  }
+
+  if (cloudWsUrlEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_CLOUD_WS_URL;
+  } else {
+    process.env.EXPO_PUBLIC_CLOUD_WS_URL = cloudWsUrlEnv;
+  }
+
+  if (oidcIssuerUrlEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_OIDC_ISSUER_URL;
+  } else {
+    process.env.EXPO_PUBLIC_OIDC_ISSUER_URL = oidcIssuerUrlEnv;
+  }
+
+  if (oidcClientIdEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_OIDC_CLIENT_ID;
+  } else {
+    process.env.EXPO_PUBLIC_OIDC_CLIENT_ID = oidcClientIdEnv;
+  }
+
+  if (cloudOidcIssuerUrlEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL;
+  } else {
+    process.env.EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL = cloudOidcIssuerUrlEnv;
+  }
+
+  if (cloudOidcClientIdEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID;
+  } else {
+    process.env.EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID = cloudOidcClientIdEnv;
+  }
+
+  if (defaultConnectionProfileEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE;
+  } else {
+    process.env.EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE = defaultConnectionProfileEnv;
   }
 
   Object.defineProperty(globalThis, 'window', {
@@ -95,5 +151,31 @@ describe('env config resolution', () => {
     expect(env.wsUrl).toBe('wss://localhost/ws');
     expect(env.apiUrlExplicit).toBe(false);
     expect(env.wsUrlExplicit).toBe(false);
+  });
+
+  it('exposes a cloud profile and honors it as the active default when configured', async () => {
+    const { env, readConnectionProfile } = await loadEnvModule({
+      cloudApiUrlEnv: 'https://pulse.example.com',
+      cloudWsUrlEnv: 'wss://pulse.example.com/ws',
+      cloudOidcIssuerUrlEnv: 'https://pulse.example.com/realms/pulse',
+      cloudOidcClientIdEnv: 'pulse-universal-cloud',
+      defaultConnectionProfileEnv: 'cloud'
+    });
+
+    expect(env.defaultConnectionProfileId).toBe('cloud');
+    expect(env.connectionProfileId).toBe('cloud');
+    expect(env.apiUrl).toBe('https://pulse.example.com');
+    expect(env.wsUrl).toBe('wss://pulse.example.com/ws');
+    expect(readConnectionProfile('cloud').oidcClientId).toBe('pulse-universal-cloud');
+  });
+
+  it('falls back to the local profile when cloud is requested as default but not configured', async () => {
+    const { env } = await loadEnvModule({
+      defaultConnectionProfileEnv: 'cloud'
+    });
+
+    expect(env.defaultConnectionProfileId).toBe('local');
+    expect(env.connectionProfileId).toBe('local');
+    expect(env.apiUrl).toBe('https://localhost');
   });
 });

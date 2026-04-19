@@ -143,6 +143,18 @@ export type EnableProviderDeviceInput = {
   deadlineMs: number;
 };
 
+export type ImportProviderDeviceInput = {
+  userSubject: string;
+  provider: string;
+  credentialId: string;
+  providerDeviceId: string;
+  isActive: boolean;
+  ingestDesiredState?: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
 export type GetCurrentUserInput = {
   userSubject: string;
   authHeader?: string;
@@ -234,6 +246,10 @@ export interface ControlPlaneClient {
     providerDevice: ProviderDevice;
     userDevice: UserDevice;
   }>;
+  importProviderDevice(input: ImportProviderDeviceInput): Promise<{
+    providerDevice: ProviderDevice;
+    userDevice: UserDevice;
+  }>;
   close(): void;
 }
 
@@ -257,6 +273,7 @@ type GrpcControlPlaneClient = {
   ListAvailableProviderDevices: GrpcUnaryMethod;
   TestProviderDeviceMQTT: GrpcUnaryMethod;
   EnableProviderDevice: GrpcUnaryMethod;
+  ImportProviderDevice: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -301,6 +318,10 @@ type RawListAvailableProviderDevicesResponse = {
 };
 type RawTestProviderDeviceMQTTResponse = Partial<Record<keyof ProviderDeviceMQTTTestResult, unknown>>;
 type RawEnableProviderDeviceResponse = {
+  providerDevice?: unknown;
+  userDevice?: unknown;
+};
+type RawImportProviderDeviceResponse = {
   providerDevice?: unknown;
   userDevice?: unknown;
 };
@@ -502,6 +523,24 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
           provider: input.provider,
           credentialId: input.credentialId,
           providerDeviceId: input.providerDeviceId
+        },
+        input
+      );
+      return {
+        providerDevice: normalizeProviderDevice((response.providerDevice ?? {}) as RawProviderDevice),
+        userDevice: normalizeUserDevice((response.userDevice ?? {}) as RawUserDevice)
+      };
+    },
+    async importProviderDevice(input) {
+      const response = await unaryCall<RawImportProviderDeviceResponse>(
+        client.ImportProviderDevice.bind(client),
+        {
+          userSubject: input.userSubject,
+          provider: input.provider,
+          credentialId: input.credentialId,
+          providerDeviceId: input.providerDeviceId,
+          isActive: input.isActive,
+          ingestDesiredState: input.ingestDesiredState ?? ''
         },
         input
       );

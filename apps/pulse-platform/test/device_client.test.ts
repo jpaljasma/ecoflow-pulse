@@ -107,6 +107,7 @@ function makeControlPlaneClient(
     listAvailableProviderDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
     testProviderDeviceMQTT: vi.fn(),
     enableProviderDevice: vi.fn(),
+    importProviderDevice: vi.fn(),
     close: vi.fn(),
     ...overrides
   };
@@ -364,5 +365,46 @@ describe('device client', () => {
 
     expect(hydrated?.details?.stormGuardActive).toBe(false);
     expect(hydrated?.details?.stormGuardEndsAtUnixMs).toBeUndefined();
+  });
+
+  it('maps inactive provider-device imports through the control-plane client', async () => {
+    const importProviderDevice = vi.fn(async () => ({
+      providerDevice: makeProviderDevice(),
+      userDevice: {
+        deviceId: '22222222-2222-7222-8222-222222222222',
+        ecoflowSn: 'PULSEDPUX24K001',
+        productName: 'DPU-X 24 kWh',
+        model: 'DELTA Pro Ultra X',
+        role: 'admin',
+        createdAtUnixMs: '1772197190000',
+        updatedAtUnixMs: '1772197190000'
+      }
+    }));
+    const controlPlaneClient = makeControlPlaneClient({ importProviderDevice });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(),
+      close: vi.fn()
+    };
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+
+    const result = await client.importAvailableDevice(makeRequest(), {
+      provider: 'pulsemqtt',
+      credentialId: 'cred-1',
+      providerDeviceId: 'PULSEDPUX24K001',
+      isActive: false,
+      ingestDesiredState: 'paused'
+    });
+
+    expect(importProviderDevice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userSubject: 'dev-user@example.com',
+        provider: 'pulsemqtt',
+        credentialId: 'cred-1',
+        providerDeviceId: 'PULSEDPUX24K001',
+        isActive: false,
+        ingestDesiredState: 'paused'
+      })
+    );
+    expect(result).toEqual({ deviceId: '22222222-2222-7222-8222-222222222222' });
   });
 });

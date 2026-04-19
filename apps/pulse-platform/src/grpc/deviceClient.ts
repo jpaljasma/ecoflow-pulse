@@ -62,6 +62,10 @@ export interface DeviceClient {
     request: FastifyRequest,
     input: { provider: string; credentialId: string; providerDeviceId: string }
   ): Promise<{ deviceId: string }>;
+  importAvailableDevice(
+    request: FastifyRequest,
+    input: { provider: string; credentialId: string; providerDeviceId: string; isActive: boolean; ingestDesiredState?: string }
+  ): Promise<{ deviceId: string }>;
   close(): void;
 }
 
@@ -122,6 +126,21 @@ export function createDeviceClient(
         provider: input.provider,
         credentialId: input.credentialId,
         providerDeviceId: input.providerDeviceId,
+        authHeader: getAuthHeader(request),
+        requestID: getRequestID(request),
+        deadlineMs: config.grpcDeadlineMs
+      });
+      return { deviceId: response.userDevice.deviceId };
+    },
+    async importAvailableDevice(request, input) {
+      const userSubject = resolveUserSubject(config, request);
+      const response = await controlPlaneClient.importProviderDevice({
+        userSubject,
+        provider: input.provider,
+        credentialId: input.credentialId,
+        providerDeviceId: input.providerDeviceId,
+        isActive: input.isActive,
+        ingestDesiredState: input.ingestDesiredState,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
         deadlineMs: config.grpcDeadlineMs

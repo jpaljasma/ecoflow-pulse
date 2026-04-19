@@ -23,6 +23,8 @@ const (
 	pulseMQTTCABundlePath      = "/mqtt-ca.pem"
 )
 
+var ErrPulseMQTTDisabled = errors.New("pulse mqtt runtime disabled")
+
 func PulseMQTTRuntimeConfig(log *slog.Logger) (ecoflow.Config, error) {
 	cfg := ecoflow.DefaultConfig()
 	cfg.Environment = ecoflow.EnvironmentDev
@@ -37,6 +39,9 @@ func PulseMQTTRuntimeConfig(log *slog.Logger) (ecoflow.Config, error) {
 }
 
 func NewRuntimePulseMQTTAdapter(log *slog.Logger) (*EcoFlowAdapter, error) {
+	if !runtimecfg.Bool("PULSE_MQTT_EMULATOR_ENABLED", true) {
+		return nil, ErrPulseMQTTDisabled
+	}
 	cfg, err := PulseMQTTRuntimeConfig(log)
 	if err != nil {
 		return nil, err

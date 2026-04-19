@@ -725,6 +725,94 @@ func (s *ControlPlaneService) EnableProviderDevice(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
+	persisted, err := s.persistImportedProviderDevice(ctx, userSubject, provider, cred, discovered, true, "active")
+	if err != nil {
+		return nil, err
+	}
+	return &controlplanev1.EnableProviderDeviceResponse{
+		ProviderDevice: providerDeviceToProto(persisted.ProviderDevice),
+		UserDevice:     userDeviceToProto(persisted.UserDevice),
+	}, nil
+}
+
+func (s *ControlPlaneService) ImportProviderDevice(ctx context.Context, req *controlplanev1.ImportProviderDeviceRequest) (*controlplanev1.ImportProviderDeviceResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetCredentialId()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "credential_id required")
+	}
+	if strings.TrimSpace(req.GetProviderDeviceId()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "provider_device_id required")
+	}
+	cred, provider, err := s.getProviderCredentialForUser(ctx, userSubject, req.GetProvider(), req.GetCredentialId())
+	if err != nil {
+		return nil, err
+	}
+	ingestDesiredState, err := normalizeImportedIngestState(req.GetIngestDesiredState(), req.GetIsActive())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if req.GetIsActive() {
+		probe, err := s.probeProviderDeviceMQTT(ctx, provider, cred, req.GetProviderDeviceId())
+		if err != nil {
+			return nil, err
+		}
+		if !probe.GetSuccess() {
+			return nil, status.Errorf(codes.FailedPrecondition, "successful mqtt probe required before activation: %s", probe.GetStatus())
+		}
+	}
+	discovered, err := s.discoverProviderDeviceForCredential(ctx, provider, cred, req.GetProviderDeviceId())
+	if err != nil {
+		return nil, err
+	}
+	persisted, err := s.persistImportedProviderDevice(ctx, userSubject, provider, cred, discovered, req.GetIsActive(), ingestDesiredState)
+	if err != nil {
+		return nil, err
+	}
+	return &controlplanev1.ImportProviderDeviceResponse{
+		ProviderDevice: providerDeviceToProto(persisted.ProviderDevice),
+		UserDevice:     userDeviceToProto(persisted.UserDevice),
+	}, nil
+}
+
+func normalizeImportedIngestState(raw string, isActive bool) (string, error) {
+	state := strings.ToLower(strings.TrimSpace(raw))
+	if state == "" {
+		if isActive {
+			return "active", nil
+		}
+		return "paused", nil
+	}
+	switch state {
+	case "active", "draining", "paused":
+	default:
+		return "", fmt.Errorf("ingest_desired_state must be active, draining, or paused")
+	}
+	if isActive && state != "active" {
+		return "", fmt.Errorf("active provider devices must use ingest_desired_state=active")
+	}
+	if !isActive && state == "active" {
+		return "", fmt.Errorf("inactive provider devices cannot use ingest_desired_state=active")
+	}
+	return state, nil
+}
+
+type persistedImportedProviderDevice struct {
+	ProviderDevice controlplane.ProviderDevice
+	UserDevice     controlplane.UserDevice
+}
+
+func (s *ControlPlaneService) persistImportedProviderDevice(
+	ctx context.Context,
+	userSubject string,
+	provider string,
+	cred controlplane.ProviderCredential,
+	discovered controlplane.ProviderDevice,
+	isActive bool,
+	ingestDesiredState string,
+) (persistedImportedProviderDevice, error) {
 	created, err := s.store.CreateDevice(ctx, controlplane.CreateDeviceInput{
 		UserSubject: userSubject,
 		EcoflowSN:   discovered.CanonicalSN,
@@ -733,9 +821,9 @@ func (s *ControlPlaneService) EnableProviderDevice(ctx context.Context, req *con
 	})
 	if err != nil {
 		if errors.Is(err, controlplane.ErrUserNotFound) {
-			return nil, status.Error(codes.NotFound, err.Error())
+			return persistedImportedProviderDevice{}, status.Error(codes.NotFound, err.Error())
 		}
-		return nil, status.Errorf(codes.Internal, "create enabled device: %v", err)
+		return persistedImportedProviderDevice{}, status.Errorf(codes.Internal, "create imported device: %v", err)
 	}
 	persisted, err := s.store.UpsertProviderDevice(ctx, controlplane.UpsertProviderDeviceInput{
 		DeviceID:           created.DeviceID,
@@ -746,11 +834,11 @@ func (s *ControlPlaneService) EnableProviderDevice(ctx context.Context, req *con
 		Model:              discovered.Model,
 		Capabilities:       discovered.Capabilities,
 		Metadata:           discovered.Metadata,
-		IsActive:           true,
-		IngestDesiredState: "active",
+		IsActive:           isActive,
+		IngestDesiredState: ingestDesiredState,
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "persist enabled provider device: %v", err)
+		return persistedImportedProviderDevice{}, status.Errorf(codes.Internal, "persist imported provider device: %v", err)
 	}
 	persisted.CanonicalSN = created.EcoflowSN
 	if persisted.ProductName == "" {
@@ -759,9 +847,9 @@ func (s *ControlPlaneService) EnableProviderDevice(ctx context.Context, req *con
 	if persisted.Model == "" {
 		persisted.Model = created.Model
 	}
-	return &controlplanev1.EnableProviderDeviceResponse{
-		ProviderDevice: providerDeviceToProto(persisted),
-		UserDevice:     userDeviceToProto(created),
+	return persistedImportedProviderDevice{
+		ProviderDevice: persisted,
+		UserDevice:     created,
 	}, nil
 }
 

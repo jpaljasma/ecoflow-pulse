@@ -1,0 +1,132 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const STORAGE_KEY = 'pulse-connection-profile-v1';
+const persistedState = new Map<string, string>();
+const ORIGINAL_ENV = { ...process.env };
+const ORIGINAL_WINDOW = globalThis.window;
+
+const asyncStorageMock = {
+  getItem: vi.fn(async (key: string) => persistedState.get(key) ?? null),
+  setItem: vi.fn(async (key: string, value: string) => {
+    persistedState.set(key, value);
+  }),
+  removeItem: vi.fn(async (key: string) => {
+    persistedState.delete(key);
+  })
+};
+
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: asyncStorageMock
+}));
+
+async function loadStoreModule() {
+  vi.resetModules();
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      location: {
+        origin: 'https://localhost',
+        hostname: 'localhost',
+        protocol: 'https:',
+        port: ''
+      }
+    }
+  });
+
+  vi.doMock('react-native', () => ({
+    Platform: { OS: 'web' }
+  }));
+
+  vi.doMock('expo-linking', () => ({
+    default: {},
+    createURL: () => 'ecoflowpulse:///'
+  }));
+
+  vi.doMock('expo-constants', () => ({
+    default: {
+      expoConfig: {
+        extra: {}
+      }
+    }
+  }));
+
+  return import('./connectionProfileStore');
+}
+
+describe('connection profile store', () => {
+  beforeEach(() => {
+    persistedState.clear();
+    vi.clearAllMocks();
+    process.env = {
+      ...ORIGINAL_ENV,
+      EXPO_PUBLIC_CLOUD_API_URL: 'https://pulse.example.com',
+      EXPO_PUBLIC_CLOUD_WS_URL: 'wss://pulse.example.com/ws',
+      EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL: 'https://pulse.example.com/realms/pulse',
+      EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID: 'pulse-universal-cloud',
+      EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE: 'local'
+    };
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+    vi.unmock('react-native');
+    vi.unmock('expo-linking');
+    vi.unmock('expo-constants');
+    process.env = { ...ORIGINAL_ENV };
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: ORIGINAL_WINDOW
+    });
+  });
+
+  it('hydrates to the configured default profile when no preference is saved', async () => {
+    const { useConnectionProfileStore } = await loadStoreModule();
+    const { env } = await import('./env');
+
+    expect(useConnectionProfileStore.getState().profileId).toBe('local');
+
+    await useConnectionProfileStore.persist.rehydrate();
+
+    expect(useConnectionProfileStore.getState().profileId).toBe('local');
+    expect(useConnectionProfileStore.getState().hydrated).toBe(true);
+    expect(env.connectionProfileId).toBe('local');
+    expect(asyncStorageMock.getItem).toHaveBeenCalledWith(STORAGE_KEY);
+  });
+
+  it('restores a persisted cloud preference and syncs the active env profile', async () => {
+    persistedState.set(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: { profileId: 'cloud' },
+        version: 1
+      })
+    );
+
+    const { useConnectionProfileStore } = await loadStoreModule();
+    const { env } = await import('./env');
+
+    await useConnectionProfileStore.persist.rehydrate();
+
+    expect(useConnectionProfileStore.getState().profileId).toBe('cloud');
+    expect(useConnectionProfileStore.getState().hydrated).toBe(true);
+    expect(env.connectionProfileId).toBe('cloud');
+    expect(env.apiUrl).toBe('https://pulse.example.com');
+  });
+
+  it('persists profile changes after the user switches to cloud', async () => {
+    const { useConnectionProfileStore } = await loadStoreModule();
+
+    await useConnectionProfileStore.persist.rehydrate();
+    useConnectionProfileStore.getState().setProfileId('cloud');
+
+    await vi.waitFor(() => {
+      expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+        STORAGE_KEY,
+        expect.stringContaining('"profileId":"cloud"')
+      );
+    });
+
+    expect(JSON.parse(persistedState.get(STORAGE_KEY) ?? '{}').state.profileId).toBe('cloud');
+  });
+});

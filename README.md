@@ -80,6 +80,8 @@ operator-grade experience across web, iPhone, iPad, and Android.
   and local-day generation comparison.
 - Auth-aware universal client with Keycloak OIDC, Expo PKCE, persisted session
   hydration, and reconnect-safe realtime subscriptions.
+- App-wide connection profiles (`Local` / `Cloud`) so the same client can
+  switch API, websocket, and OIDC configuration together.
 - `Energy Impact` insights using versioned EPA eGRID2023, lifecycle/tree, and
   EV-consumption factors.
 - Theme-family support (`Original` / `New`) with system-controlled light/dark
@@ -94,7 +96,8 @@ operator-grade experience across web, iPhone, iPad, and Android.
 - Multi-replica local public edge and services for safer rollout validation and
   less disruption during restarts.
 - One-command local bring-up and targeted redeploy paths including
-  `make dev-up`, `make services-up`, and `make dev-web-deploy`.
+  `make local-up`, `make local-deploy`, `make cloud-up`,
+  `make cloud-refresh`, and `make services-image-push-cloud`.
 
 ### Data plane
 
@@ -140,8 +143,8 @@ operator-grade experience across web, iPhone, iPad, and Android.
 - CloudNativePG Postgres with Timescale support
 - NATS JetStream for telemetry streams and work queues
 - Valkey + Sentinel for live snapshots and distributed lease ownership
-- MinIO for local object archive
-- Keycloak for auth in local/dev
+- MinIO for local object archive and GCS for the hosted cloud archive
+- Keycloak for auth across local/dev/cloud
 - Helm + k3d for local cluster lifecycle
 
 ## Quality and Operability

@@ -256,6 +256,20 @@ message EnableProviderDeviceResponse {
   UserDevice user_device = 2;
 }
 
+message ImportProviderDeviceRequest {
+  string user_subject = 1;
+  string provider = 2;
+  string credential_id = 3;
+  string provider_device_id = 4;
+  bool is_active = 5;
+  string ingest_desired_state = 6;
+}
+
+message ImportProviderDeviceResponse {
+  ProviderDevice provider_device = 1;
+  UserDevice user_device = 2;
+}
+
 service ControlPlaneService {
   rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
   rpc UpdateCurrentUser(UpdateCurrentUserRequest) returns (UpdateCurrentUserResponse);
@@ -272,4 +286,5 @@ service ControlPlaneService {
   rpc ListAvailableProviderDevices(ListAvailableProviderDevicesRequest) returns (ListAvailableProviderDevicesResponse);
   rpc TestProviderDeviceMQTT(TestProviderDeviceMQTTRequest) returns (TestProviderDeviceMQTTResponse);
   rpc EnableProviderDevice(EnableProviderDeviceRequest) returns (EnableProviderDeviceResponse);
+  rpc ImportProviderDevice(ImportProviderDeviceRequest) returns (ImportProviderDeviceResponse);
 }

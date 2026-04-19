@@ -86,13 +86,15 @@ func main() {
 	}
 	defer func() { _ = manifestStore.Close() }()
 
-	objectCfg := replaycli.DefaultMinIOObjectReaderConfig()
+	objectCfg := replaycli.DefaultObjectReaderConfig()
+	objectCfg.Provider = replaycli.ObjectProvider(runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(objectCfg.Provider)))
 	objectCfg.Endpoint = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectCfg.Endpoint)
 	objectCfg.AccessKeyID = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", objectCfg.AccessKeyID)
 	objectCfg.SecretAccessKey = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", objectCfg.SecretAccessKey)
 	objectCfg.Region = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectCfg.Region)
 	objectCfg.Secure = runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectCfg.Secure)
-	objectReader, err := replaycli.NewMinIOObjectReader(objectCfg)
+	objectCfg.GCSProjectID = runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectCfg.GCSProjectID)
+	objectReader, err := replaycli.NewObjectReader(objectCfg)
 	if err != nil {
 		log.Error("init object reader failed", slog.String("error", err.Error()))
 		os.Exit(1)

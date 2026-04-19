@@ -12,9 +12,10 @@ Top-level structure:
   - `ecoflow-grpc-api`: internal gRPC API bootstrap server reused for both `telemetry` mode (health + telemetry + control-plane + inference services) and `energy` mode (health + energy/history services).
   - `ecoflow-inference-worker`: online insight projection worker (ingest envelopes + control-plane metadata -> Valkey device insights read model).
   - `ecoflow-ingest-worker`: distributed MQTT ingest assignment loop + session runner entrypoint.
+  - `ecoflow-user-subject-reconcile`: one-shot verified-email bootstrap helper for remapping restored users onto a new Keycloak subject after cloud auth cutover.
   - `ecoflow-rollup-worker`: Timescale rollup pipeline worker (ingest envelopes -> minute/hour/day rollup upserts).
-  - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects).
-  - `ecoflow-replay-cli`: archive replay CLI (device listing + per-device/fleet shard-time replay modes).
+  - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects in provider-aware object storage).
+  - `ecoflow-replay-cli`: archive replay CLI (device listing + per-device/fleet shard-time replay modes over provider-aware object storage).
   - `ecoflow-loadtest-ingest-bridge`: local load-test helper that accepts HTTP ingest payloads and publishes canonical telemetry envelopes to NATS.
   - `ecoflow-gap-detector`: projection lag detector that enqueues targeted replay jobs.
   - `ecoflow-gap-repair-worker`: gap-repair queue consumer that replays missing windows back into ingest subjects.
@@ -35,15 +36,15 @@ Top-level structure:
   - `pgsearchpath`: shared Postgres DSN helper for versioned `search_path` cutovers.
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
   - `provideradapter`: provider discovery/certification clients plus registry-backed adapter wiring for control-plane and ingest runtime dispatch.
-  - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + MinIO-compatible object writer).
+  - `archiveworker`: archive pipeline primitives (durable ingest consumer + shard/hour batching + provider-aware object-store writer).
   - `rollupworker`: rollup pipeline primitives (durable ingest consumer + explicit metric extraction + Timescale upserts).
-  - `replaycli`: manifest/object replay runtime (manifest query + object decode + replay publish runner).
+  - `replaycli`: manifest/object replay runtime (manifest query + object decode + replay publish runner over MinIO or GCS).
   - `gaprepair`: projection lag detection + replay queue consumer/publisher primitives.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
   - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths, plus shared JetStream handler-drain tracking used during worker shutdown.
 - `proto/`
-  - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Update/Activate credentials`, `ListDevices`, `DiscoverDevices`, MQTT validation-backed provider enablement).
+  - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Update/Activate credentials`, `ListDevices`, `DiscoverDevices`, MQTT validation-backed provider enablement, and inactive provider-device import).
   - `pulse/inference/v1/inference.proto`: online inference gRPC contract (`GetDeviceInsights`, `ListFleetInsights`).
   - `pulse/telemetry/v1/telemetry.proto`: telemetry gRPC contract (snapshot + server-stream updates).
   - `pulse/envelope/v1/envelope.proto`: canonical ingest/archive `TelemetryEnvelope` contract.
@@ -75,10 +76,10 @@ Top-level structure:
   - `charts/pulse-services`: services umbrella chart scaffold.
   - `db/migrations`: control-plane SQL migrations (M1+ schema evolution).
   - `db/pgroll/plans`: reserved location for future `pgroll` migration plans.
-  - `env/local` and `env/dev`: values files for local/dev deploys.
+  - `env/local`, `env/dev`, and `env/cloud`: values files for local, cost-min dev, and hosted cloud deploys.
   - `env/dev/recommended`: recommended (non-auto-applied) runtime policies,
     including ingest worker HPA baseline manifests and migration-hook values.
-  - `argocd/apps`: direct Argo CD apps (`pulse-platform`, `pulse-services`).
+  - `argocd/apps`: direct Argo CD apps for both dev and cloud (`pulse-platform`, `pulse-services`, `pulse-platform-cloud`, `pulse-services-cloud`).
   - `tilt/k3d-config.yaml`: k3d local cluster config.
 - `docs/`: developer documentation in Diataxis layout.
 - `load/k6/`: k6 load-test harness (ingest publish + websocket fanout + history query scenarios for M5 validation).

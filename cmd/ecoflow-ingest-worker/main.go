@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -104,9 +105,12 @@ func main() {
 		os.Exit(1)
 	}
 	pulseMQTTAdapter, err := provideradapter.NewRuntimePulseMQTTAdapter(log)
-	if err != nil {
+	if err != nil && !errors.Is(err, provideradapter.ErrPulseMQTTDisabled) {
 		log.Error("init pulse mqtt adapter failed", slog.String("error", err.Error()))
 		os.Exit(1)
+	}
+	if err != nil {
+		log.Info("pulse mqtt adapter disabled", slog.String("reason", err.Error()))
 	}
 	subjectCfg := telemetrybus.SubjectConfig{
 		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
@@ -178,6 +182,7 @@ func main() {
 	sessionCfg.PublishEnqueueTimeout = runtimecfg.DurationPositive("INGEST_PUBLISH_ENQUEUE_TIMEOUT", sessionCfg.PublishEnqueueTimeout)
 	sessionCfg.AllowUnorderedPublish = runtimecfg.Bool("INGEST_ALLOW_UNORDERED_PUBLISH", sessionCfg.AllowUnorderedPublish)
 	sessionCfg.DisableEnvelopeLabels = disableEnvelopeLabels
+	sessionCfg.MQTTClientIDNamespace = strings.TrimSpace(runtimecfg.EnvOrDefault("INGEST_MQTT_CLIENT_ID_NAMESPACE", runtimecfg.EnvOrDefault("PULSE_ENV", "local")))
 	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
 	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
 	ecoFlowRunner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
@@ -185,14 +190,16 @@ func main() {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	pulseMQTTRunner, err := ingestworker.NewCompatibleMQTTSessionRunner(controlplane.ProviderPulseMQTT, log, pulseMQTTAdapter, publisher, store, sessionCfg)
-	if err != nil {
-		log.Error("init pulse mqtt session runner failed", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
 	runner := ingestworker.NewProviderSessionRunner()
 	runner.Register(controlplane.ProviderEcoFlow, ecoFlowRunner)
-	runner.Register(controlplane.ProviderPulseMQTT, pulseMQTTRunner)
+	if pulseMQTTAdapter != nil {
+		pulseMQTTRunner, err := ingestworker.NewCompatibleMQTTSessionRunner(controlplane.ProviderPulseMQTT, log, pulseMQTTAdapter, publisher, store, sessionCfg)
+		if err != nil {
+			log.Error("init pulse mqtt session runner failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		runner.Register(controlplane.ProviderPulseMQTT, pulseMQTTRunner)
+	}
 
 	loopCfg := loadIngestLoopConfigFromEnv()
 	autoscaleMetrics := ingestworker.NewAutoscaleMetrics()
@@ -260,6 +267,7 @@ func main() {
 		slog.Duration("quota_fetch_timeout", sessionCfg.QuotaFetchTimeout),
 		slog.Duration("quota_refresh_interval", sessionCfg.QuotaRefreshInterval),
 		slog.Float64("quota_refresh_jitter", sessionCfg.QuotaRefreshJitter),
+		slog.String("mqtt_client_id_namespace", sessionCfg.MQTTClientIDNamespace),
 		slog.Bool("mqtt_payload_debug", sessionCfg.LogMQTTPayloadDebug),
 		slog.Int("mqtt_payload_sample_every", sessionCfg.LogMQTTPayloadSampleEvery),
 		slog.Bool("allow_unordered_publish", sessionCfg.AllowUnorderedPublish),

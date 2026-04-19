@@ -1,0 +1,38 @@
+fullnameOverride: argocd
+
+global:
+  domain: argocd.cloud.local
+
+configs:
+  params:
+    server.insecure: true
+
+server:
+  service:
+    type: ClusterIP
+
+controller:
+  replicas: 1
+  extraArgs:
+    - --repo-server-timeout-seconds=300
+
+repoServer:
+  replicas: 2
+  env:
+    - name: ARGOCD_EXEC_TIMEOUT
+      value: "300"
+
+applicationSet:
+  replicas: 2
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+redis:
+  enabled: true
+
+redis-ha:
+  enabled: false

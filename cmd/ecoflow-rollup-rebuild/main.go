@@ -22,24 +22,26 @@ import (
 
 func main() {
 	var (
-		fromRaw         string
-		toRaw           string
-		provider        string
-		deviceIDsRaw    string
-		providerIDsRaw  string
-		rawLogsRaw      string
-		archiveBucket   string
-		archivePrefix   string
-		directArchive   bool
-		maxObjects      int
-		chunkSize       int
-		parallelism     int
-		dbDSN           string
-		objectEndpoint  string
-		objectAccessKey string
-		objectSecretKey string
-		objectRegion    string
-		objectSecure    bool
+		fromRaw            string
+		toRaw              string
+		provider           string
+		deviceIDsRaw       string
+		providerIDsRaw     string
+		rawLogsRaw         string
+		archiveBucket      string
+		archivePrefix      string
+		directArchive      bool
+		maxObjects         int
+		chunkSize          int
+		parallelism        int
+		dbDSN              string
+		objectProvider     string
+		objectEndpoint     string
+		objectAccessKey    string
+		objectSecretKey    string
+		objectRegion       string
+		objectSecure       bool
+		objectGCSProjectID string
 	)
 
 	flag.StringVar(&fromRaw, "from", "", "Range start (RFC3339 or unix-ms). Default: now-24h")
@@ -55,11 +57,14 @@ func main() {
 	flag.IntVar(&chunkSize, "chunk-size", 500, "Bucket replacement chunk size per transaction")
 	flag.IntVar(&parallelism, "parallelism", 4, "Shard worker parallelism for archive object processing")
 	flag.StringVar(&dbDSN, "db-dsn", strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN")), "Postgres DSN for manifest + rollup tables")
-	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", replaycli.DefaultMinIOObjectReaderConfig().Endpoint), "Object store endpoint")
-	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", replaycli.DefaultMinIOObjectReaderConfig().AccessKeyID), "Object store access key")
-	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", replaycli.DefaultMinIOObjectReaderConfig().SecretAccessKey), "Object store secret key")
-	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", replaycli.DefaultMinIOObjectReaderConfig().Region), "Object store region")
-	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", replaycli.DefaultMinIOObjectReaderConfig().Secure), "Object store tls")
+	objectDefaults := replaycli.DefaultObjectReaderConfig()
+	flag.StringVar(&objectProvider, "object-provider", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_PROVIDER", string(objectDefaults.Provider)), "Object store provider: minio|gcs")
+	flag.StringVar(&objectEndpoint, "object-endpoint", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ENDPOINT", objectDefaults.Endpoint), "Object store endpoint")
+	flag.StringVar(&objectAccessKey, "object-access-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_ACCESS_KEY", objectDefaults.AccessKeyID), "Object store access key")
+	flag.StringVar(&objectSecretKey, "object-secret-key", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_SECRET_KEY", objectDefaults.SecretAccessKey), "Object store secret key")
+	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectDefaults.Region), "Object store region")
+	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectDefaults.Secure), "Object store tls")
+	flag.StringVar(&objectGCSProjectID, "object-gcs-project-id", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectDefaults.GCSProjectID), "Optional GCS project id for logging or bucket auto-create")
 	flag.Parse()
 
 	logCfg := pulselog.DefaultServiceConfig("rollup-rebuild")
@@ -116,12 +121,14 @@ func main() {
 			log.Error("init manifest store failed", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
-		objectReader, err := replaycli.NewMinIOObjectReader(replaycli.MinIOObjectReaderConfig{
+		objectReader, err := replaycli.NewObjectReader(replaycli.ObjectReaderConfig{
+			Provider:        replaycli.ObjectProvider(objectProvider),
 			Endpoint:        objectEndpoint,
 			AccessKeyID:     objectAccessKey,
 			SecretAccessKey: objectSecretKey,
 			Region:          objectRegion,
 			Secure:          objectSecure,
+			GCSProjectID:    objectGCSProjectID,
 		})
 		if err != nil {
 			log.Error("init object reader failed", slog.String("error", err.Error()))
@@ -168,14 +175,16 @@ func main() {
 			chunkSize,
 		)
 	} else if directArchive {
-		objects, listErr := rolluprebuild.ListArchiveObjectsDirect(
+		objects, listErr := replaycli.ListObjectsDirect(
 			ctx,
-			replaycli.MinIOObjectReaderConfig{
+			replaycli.ObjectReaderConfig{
+				Provider:        replaycli.ObjectProvider(objectProvider),
 				Endpoint:        objectEndpoint,
 				AccessKeyID:     objectAccessKey,
 				SecretAccessKey: objectSecretKey,
 				Region:          objectRegion,
 				Secure:          objectSecure,
+				GCSProjectID:    objectGCSProjectID,
 			},
 			strings.TrimSpace(archiveBucket),
 			strings.TrimSpace(archivePrefix),

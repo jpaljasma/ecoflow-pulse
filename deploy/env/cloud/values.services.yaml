@@ -1,0 +1,173 @@
+global:
+  environment: cloud
+
+scaffold:
+  enabled: true
+  message: "pulse-services cloud scaffold"
+
+runtime:
+  image:
+    repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services
+    tag: cloud-go1262-20260419-2
+    pullPolicy: IfNotPresent
+  serviceAccount:
+    create: true
+    name: pulse-services-runtime
+    annotations:
+      iam.gke.io/gcp-service-account: pulse-services-runtime@ecoflow-pulse-dev-260221-01.iam.gserviceaccount.com
+    automountServiceAccountToken: true
+  secret:
+    existingSecretName: pulse-services-runtime-secret
+  secretManager:
+    enabled: true
+    secretStore:
+      create: true
+      kind: SecretStore
+      name: pulse-services-gcp-secrets
+      projectId: ecoflow-pulse-dev-260221-01
+      clusterLocation: us-east1
+      clusterName: pulse-cloud
+    runtimeExternalSecret:
+      enabled: true
+      refreshInterval: 1h
+      targetSecretName: pulse-services-runtime-secret
+      data:
+        controlPlaneDBDSN: pulse-cloud-control-plane-db-dsn
+        archiveManifestDBDSN: pulse-cloud-archive-manifest-db-dsn
+  migrations:
+    enabled: false
+    namespace: pulse-platform
+    db:
+      host: pulse-platform-core-rw
+      port: 5432
+      name: pulse
+      sslmode: disable
+      credentialsSecretName: pulse-platform-core-app
+      usernameKey: username
+      passwordKey: password
+    policy:
+      rolloutEnv: cloud
+      requireBackup: true
+      backupRef: ""
+      forwardOnly: true
+  env:
+    controlPlaneDBDSN: ""
+    archiveManifestDBDSN: ""
+    ecoflowEnv: "dev"
+    ecoflowBaseUrl: "https://api-a.ecoflow.com"
+    dbSchemaSearchPath: ""
+    natsURLs: "nats://pulse-platform-cloud-nats.pulse-platform.svc.cluster.local:4222"
+    valkeyAddrs: "pulse-platform-cloud-valkey.pulse-platform.svc.cluster.local:26379"
+    valkeySentinelMasterSet: "myprimary"
+    grpcAuthMode: "keycloak"
+    keycloakIssuerUrl: "https://pulse.example.com/realms/pulse"
+    keycloakAudience: "pulse-universal-app"
+    keycloakJwksUrl: "http://pulse-platform-cloud-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs"
+    grpcAuthAllowMissingJwt: "false"
+    archiveObjectProvider: "gcs"
+    archiveObjectEndpoint: ""
+    archiveObjectAccessKey: ""
+    archiveObjectSecretKey: ""
+    archiveObjectBucket: "pulse-telemetry-raw"
+    archiveObjectPrefix: "raw"
+    archiveObjectRegion: "us-east1"
+    archiveObjectGCSProjectID: "ecoflow-pulse-dev-260221-01"
+    archiveObjectSecure: "true"
+    archiveObjectAutoCreateBucket: "false"
+    ingestNatsJSReplicas: "1"
+    gapRepairNatsJSReplicas: "1"
+    pulseMqttEmulatorEnabled: "false"
+    pulseMqttEmulatorBaseUrl: "http://pulse-services-cloud-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"
+    pulseMqttEmulatorBrokerHost: "pulse-services-cloud-pulse-mqtt-emulator.pulse-services.svc.cluster.local"
+    pulseMqttEmulatorBrokerPort: "8883"
+    pulseMqttEmulatorTLSServerName: "pulse-services-cloud-pulse-mqtt-emulator.pulse-services.svc.cluster.local"
+    pulseMqttEmulatorHTTPAddr: ":8080"
+    pulseMqttEmulatorMQTTAddr: ":8883"
+    pulseMqttEmulatorPublishInterval: "5s"
+    pulseMqttEmulatorDeviceSN: "PULSEDPUX24K001"
+    pulseMqttEmulatorDeviceName: "DPU-X 24 kWh"
+    pulseMqttEmulatorDeviceModel: "DELTA Pro Ultra X"
+    pulseMqttEmulatorBatteryPackCount: "4"
+    pulseMqttEmulatorBatteryPackEnergyWh: "6144"
+  workers:
+    ingest:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        maxUnavailable: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    inference:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        maxUnavailable: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    projection:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        maxUnavailable: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    rollup:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        maxUnavailable: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    archive:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        maxUnavailable: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    grpcApi:
+      enabled: true
+      replicaCount: 2
+      pdb:
+        enabled: true
+        minAvailable: 1
+      solarForecastVerificationInterval: "0s"
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    solarVerification:
+      enabled: true
+      replicaCount: 1
+      solarForecastVerificationInterval: "5m"
+      solarForecastVerificationBatchLimit: 8192
+      pdb:
+        enabled: true
+        maxUnavailable: 1
+    energyApi:
+      enabled: true
+      replicaCount: 2
+      pdb:
+        enabled: true
+        minAvailable: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    pulseMqttEmulator:
+      enabled: false

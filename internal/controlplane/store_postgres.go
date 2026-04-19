@@ -851,6 +851,112 @@ RETURNING
 	return out, nil
 }
 
+func (s *PostgresStore) ReconcileUserSubjectByEmail(ctx context.Context, in ReconcileUserSubjectByEmailInput) (CurrentUser, error) {
+	email := strings.TrimSpace(in.Email)
+	userSubject := strings.TrimSpace(in.UserSubject)
+	if email == "" {
+		return CurrentUser{}, ErrVerifiedEmailNotFound
+	}
+	if userSubject == "" {
+		return CurrentUser{}, ErrUserNotFound
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CurrentUser{}, fmt.Errorf("begin reconcile user subject tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	existingBySubject := tx.QueryRowContext(
+		ctx,
+		`
+SELECT
+	id::text,
+	keycloak_subject,
+	COALESCE(email, ''),
+	email_verified,
+	COALESCE(display_name, ''),
+	COALESCE(display_name_source, 'provider'),
+	COALESCE(avatar_url, ''),
+	COALESCE(given_name, ''),
+	COALESCE(family_name, ''),
+	COALESCE(locale, ''),
+	COALESCE(timezone, ''),
+	weather_location_enabled,
+	COALESCE(weather_location_source, 'none'),
+	COALESCE(weather_location_label, ''),
+	weather_latitude,
+	weather_longitude,
+	last_login_at,
+	created_at,
+	updated_at
+FROM users
+WHERE keycloak_subject = $1;
+`,
+		userSubject,
+	)
+	current, err := scanCurrentUser(existingBySubject)
+	switch {
+	case err == nil:
+		if strings.EqualFold(strings.TrimSpace(current.Email), email) {
+			if err := tx.Commit(); err != nil {
+				return CurrentUser{}, fmt.Errorf("commit reconcile user subject tx: %w", err)
+			}
+			return current, nil
+		}
+		return CurrentUser{}, ErrUserSubjectConflict
+	case errors.Is(err, sql.ErrNoRows):
+		// Continue to verified-email remap below.
+	default:
+		return CurrentUser{}, fmt.Errorf("lookup current user subject: %w", err)
+	}
+
+	row := tx.QueryRowContext(
+		ctx,
+		`
+UPDATE users
+SET keycloak_subject = $2,
+	updated_at = $3
+WHERE lower(COALESCE(email, '')) = lower($1)
+  AND email_verified = TRUE
+RETURNING
+	id::text,
+	keycloak_subject,
+	COALESCE(email, ''),
+	email_verified,
+	COALESCE(display_name, ''),
+	COALESCE(display_name_source, 'provider'),
+	COALESCE(avatar_url, ''),
+	COALESCE(given_name, ''),
+	COALESCE(family_name, ''),
+	COALESCE(locale, ''),
+	COALESCE(timezone, ''),
+	weather_location_enabled,
+	COALESCE(weather_location_source, 'none'),
+	COALESCE(weather_location_label, ''),
+	weather_latitude,
+	weather_longitude,
+	last_login_at,
+	created_at,
+	updated_at;
+`,
+		email,
+		userSubject,
+		normalizeWriteTime(s.now()),
+	)
+	out, err := scanCurrentUser(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return CurrentUser{}, ErrVerifiedEmailNotFound
+		}
+		return CurrentUser{}, fmt.Errorf("reconcile user subject by email: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return CurrentUser{}, fmt.Errorf("commit reconcile user subject tx: %w", err)
+	}
+	return out, nil
+}
+
 func (s *PostgresStore) UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error) {
 	now := normalizeWriteTime(s.now())
 	query := `
