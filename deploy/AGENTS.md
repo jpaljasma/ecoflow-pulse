@@ -36,3 +36,14 @@ This file adds deploy/runtime guidance for `deploy/` work on top of the reposito
    - `helm lint deploy/charts/pulse-services -f deploy/env/dev/values.services.yaml` when relevant
    - local `kubectl rollout status` / `make dev-deploy` when rollout behavior changed
 2. Record operational evidence in docs when the change affects deploy safety or recovery behavior.
+
+## Hosted GKE Learnings
+1. When a cloud StatefulSet needs a new PVC template, do not expect an in-place patch to converge:
+   - recreate the StatefulSet controller with orphaned pods,
+   - migrate one ordinal at a time,
+   - keep quorum/replica health green between ordinals.
+2. For hosted zonal HA, prefer efficient app nodes first:
+   - keep the public/stateless pool on `e2-standard-2` by default,
+   - only move public/auth traffic onto spare stateful-zone capacity when zonal stockout blocks the cleaner dedicated app-pool plan,
+   - document that compromise explicitly and revisit it later.
+3. For hosted CNPG zonal HA on `WaitForFirstConsumer` storage, verify where the replacement replica PVC binds before trusting the zone move; if you must intervene, preserve the primary, keep the off-zone PVC/data path honest, and let CNPG finish the final attach/promote path.

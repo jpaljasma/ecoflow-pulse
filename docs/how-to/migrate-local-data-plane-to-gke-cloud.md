@@ -103,6 +103,13 @@ Current hosted storage profile after the cutover:
   - NATS/Valkey are live at `3` members with the added stateful pools,
   - the one-time StatefulSet recreate is complete, so every live
     broker/replica PVC is now on `standard-rwo` / `20Gi`,
+  - CNPG is now zonally split across `us-east1-c` and `us-east1-d`,
+  - the public/auth path is now zonally split across `us-east1-d` and
+    `us-east1-b`,
+  - because a new `e2-standard-2` app pool in `us-east1-b` stocked out during
+    the live move, the second public zone currently reuses the spare
+    `stateful-pool-quorum` node instead of carrying additional dedicated app
+    capacity,
 - the steady-state cost-conscious HA target is `2` app nodes plus `1` node in
   each stateful pool.
 
