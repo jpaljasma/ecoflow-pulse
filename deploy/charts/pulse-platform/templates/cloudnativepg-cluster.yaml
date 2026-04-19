@@ -47,13 +47,19 @@ spec:
     limits:
       cpu: {{ .Values.cloudnativepgCluster.resources.limits.cpu | quote }}
       memory: {{ .Values.cloudnativepgCluster.resources.limits.memory | quote }}
-  {{- with .Values.cloudnativepgCluster.scheduling.affinity }}
+  {{- if or .Values.cloudnativepgCluster.scheduling.affinity .Values.cloudnativepgCluster.scheduling.nodeSelector .Values.cloudnativepgCluster.scheduling.tolerations }}
   affinity:
+    {{- with .Values.cloudnativepgCluster.scheduling.affinity }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
-  {{- with .Values.cloudnativepgCluster.scheduling.nodeSelector }}
-  nodeSelector:
-    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.cloudnativepgCluster.scheduling.nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.cloudnativepgCluster.scheduling.tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- end }}
   storage:
     {{- with .Values.cloudnativepgCluster.storage.storageClass }}

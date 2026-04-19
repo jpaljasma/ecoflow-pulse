@@ -215,6 +215,7 @@ cloudnativepgCluster:
       memory: 4Gi
   scheduling:
     nodeSelector: {}
+    tolerations: []
     affinity: {}
   bootstrap:
     database: pulse

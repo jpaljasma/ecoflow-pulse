@@ -233,6 +233,7 @@ cloudnativepgCluster:
   scheduling:
     nodeSelector:
       cloud.google.com/gke-nodepool: stateful-pool
+    tolerations: []
     affinity: {}
   bootstrap:
     database: pulse
