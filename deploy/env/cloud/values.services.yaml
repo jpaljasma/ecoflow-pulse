@@ -60,7 +60,7 @@ runtime:
     valkeyAddrs: "pulse-platform-cloud-valkey.pulse-platform.svc.cluster.local:26379"
     valkeySentinelMasterSet: "myprimary"
     grpcAuthMode: "keycloak"
-    keycloakIssuerUrl: "https://pulse.example.com/realms/pulse"
+    keycloakIssuerUrl: "https://pulse.34.73.53.93.sslip.io/realms/pulse"
     keycloakAudience: "pulse-universal-app"
     keycloakJwksUrl: "http://pulse-platform-cloud-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs"
     grpcAuthAllowMissingJwt: "false"

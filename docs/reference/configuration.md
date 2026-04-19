@@ -366,6 +366,9 @@ Runtime behavior:
 - the universal app now persists a single app-wide connection profile
   (`local` or `cloud`) and resolves API base URL, websocket URL, OIDC issuer,
   and OIDC client together from that selection.
+- users can switch that data source directly from the shared app menu or from
+  `Settings -> Data source`; the local profile is shown in-product as `k3d`
+  to make the local-vs-cloud choice explicit.
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - switching the connection profile clears auth/query state by profile key,
   recreates the realtime engine with the selected websocket endpoint, and

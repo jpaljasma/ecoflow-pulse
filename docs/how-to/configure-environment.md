@@ -81,6 +81,9 @@ Notes:
 
 - Leave `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_WS_URL` unset for the normal `https://localhost` local edge path unless you are intentionally overriding the browser targets.
 - If a build/deploy pipeline injects those values as empty strings, the web runtime now treats them as unset and falls back to secure localhost defaults.
+- Once both local and cloud values are present in the build, the frontend can
+  switch between `k3d` and cloud from the shared app menu or the Settings
+  screen without rebuilding.
 - Local sign-in + realtime telemetry also depend on the shared ingress routing:
   - `/realms` and `/resources` -> Keycloak
   - `/ws` -> realtime gateway

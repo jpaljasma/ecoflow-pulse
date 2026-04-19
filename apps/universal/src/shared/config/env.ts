@@ -256,7 +256,7 @@ const resolvedCloudWsUrl =
 const connectionProfiles: Record<ConnectionProfileId, ConnectionProfileConfig> = {
   local: {
     id: 'local',
-    label: 'Local',
+    label: 'k3d',
     apiUrl: resolvedLocalApiUrl,
     apiUrlExplicit:
       readConfiguredString(process.env.EXPO_PUBLIC_API_URL) !== undefined ||

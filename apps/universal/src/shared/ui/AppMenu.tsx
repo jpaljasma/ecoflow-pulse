@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { Image, Platform, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, XStack, YStack } from 'tamagui';
+import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { LogoutButton } from '@/features/auth/LogoutButton';
 import { useCurrentUser } from '@/features/profile/hooks';
 import { HeaderWeatherButton } from '@/features/weather/HeaderWeatherButton';
 import { useProfileWeather } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
+import { ConnectionProfileHint, ConnectionProfileSwitcher } from '@/shared/ui/ConnectionProfileSwitcher';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Sheet } from '@/shared/ui/Sheet';
 import { useThemeSemantics } from '@/shared/theme/semantic';
@@ -170,6 +171,47 @@ export function AppMenu({
                   setOpen(false);
                 }}
               />
+              <YStack
+                gap="$3"
+                marginTop="$2"
+                padding="$3"
+                borderRadius="$4"
+                style={{
+                  backgroundColor: semantics.sectionBackgroundStrong,
+                  borderColor: semantics.sectionBorder
+                }}
+                borderWidth={1}
+              >
+                <YStack gap="$2">
+                  <XStack alignItems="center" gap="$2">
+                    <MaterialCommunityIcons
+                      name="server-network-outline"
+                      size={18}
+                      color={semantics.subtleStrongText}
+                    />
+                    <Text fontSize="$4" fontWeight="800" color="$color">
+                      Data source
+                    </Text>
+                  </XStack>
+                  <Text fontSize="$2" color="$colorMuted">
+                    Switch this frontend between local k3d and cloud without leaving the menu.
+                  </Text>
+                </YStack>
+                <ConnectionProfileSwitcher variant="compact" />
+                <ConnectionProfileHint />
+                <Button
+                  chromeless
+                  padding="$0"
+                  height="auto"
+                  justifyContent="flex-start"
+                  onPress={() => {
+                    setOpen(false);
+                    router.push('/settings');
+                  }}
+                >
+                  Open full connection settings
+                </Button>
+              </YStack>
             </YStack>
           </ScrollView>
 
