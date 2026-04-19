@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM golang:1.26 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26.2 AS build
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -8,14 +8,14 @@ ARG TARGETARCH
 WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26,target=/go/pkg/mod,sharing=locked \
-    --mount=type=cache,id=ecoflow-pulse-go-build-1.26,target=/root/.cache/go-build,sharing=locked \
+RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26.2,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,id=ecoflow-pulse-go-build-1.26.2,target=/root/.cache/go-build,sharing=locked \
     go mod download
 
 COPY . .
 
-RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26,target=/go/pkg/mod,sharing=locked \
-    --mount=type=cache,id=ecoflow-pulse-go-build-1.26,target=/root/.cache/go-build,sharing=locked \
+RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26.2,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,id=ecoflow-pulse-go-build-1.26.2,target=/root/.cache/go-build,sharing=locked \
     set -euo pipefail; \
     export CGO_ENABLED=0 GOOS="${TARGETOS:-linux}" GOARCH="${TARGETARCH:-amd64}"; \
     for cmd in \
