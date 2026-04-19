@@ -93,12 +93,6 @@ runtime:
     defaultPodScheduling:
       nodeSelector:
         cloud.google.com/gke-nodepool: app-pool
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          matchLabelKeys:
-            - pod-template-hash
     ingest:
       enabled: true
       replicaCount: 1

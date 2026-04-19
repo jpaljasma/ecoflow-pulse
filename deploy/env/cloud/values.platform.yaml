@@ -171,6 +171,16 @@ nats:
             value: stateful
             effect: NoSchedule
         affinity: {}
+  natsBox:
+    deployment:
+      merge:
+        spec:
+          template:
+            spec:
+              nodeSelector:
+                cloud.google.com/gke-nodepool: app-pool
+              tolerations: []
+              affinity: {}
   config:
     cluster:
       enabled: false
@@ -517,6 +527,17 @@ external-secrets:
     podDisruptionBudget:
       enabled: true
       maxUnavailable: 1
+  certController:
+    nodeSelector:
+      cloud.google.com/gke-nodepool: app-pool
+    tolerations: []
+    affinity: {}
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        matchLabelKeys:
+          - pod-template-hash
   resources:
     requests:
       cpu: 50m
