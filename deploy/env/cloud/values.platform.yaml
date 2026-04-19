@@ -551,6 +551,8 @@ ingress-nginx:
     allowSnippetAnnotations: false
     replicaCount: 2
     minAvailable: 1
+    config:
+      no-tls-redirect-locations: "/.well-known/acme-challenge"
     tolerations:
       - key: workload
         operator: Equal
@@ -585,7 +587,7 @@ ingress-nginx:
             app.kubernetes.io/name: ingress-nginx
     admissionWebhooks:
       patch:
-        enabled: false
+        enabled: true
         nodeSelector:
           cloud.google.com/gke-nodepool: app-pool
         tolerations: []
