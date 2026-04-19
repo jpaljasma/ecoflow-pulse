@@ -64,7 +64,12 @@ runtime:
                     operator: In
                     values:
                       - app-pool
-                      - app-pool-ha
+                      - stateful-pool-quorum
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: stateful
+          effect: NoSchedule
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -136,7 +141,12 @@ runtime:
                     operator: In
                     values:
                       - app-pool
-                      - app-pool-ha
+                      - stateful-pool-quorum
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: stateful
+          effect: NoSchedule
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -436,7 +446,11 @@ keycloak:
   replicaCount: 2
   useHelmHooks: false
   proxyHeaders: xforwarded
-  tolerations: []
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: stateful
+      effect: NoSchedule
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -446,7 +460,7 @@ keycloak:
                 operator: In
                 values:
                   - app-pool
-                  - app-pool-ha
+                  - stateful-pool-quorum
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: topology.kubernetes.io/zone
@@ -537,7 +551,11 @@ ingress-nginx:
     allowSnippetAnnotations: false
     replicaCount: 2
     minAvailable: 1
-    tolerations: []
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
     affinity:
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
@@ -547,7 +565,7 @@ ingress-nginx:
                   operator: In
                   values:
                     - app-pool
-                    - app-pool-ha
+                    - stateful-pool-quorum
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: topology.kubernetes.io/zone
