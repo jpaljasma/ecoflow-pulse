@@ -105,7 +105,7 @@ runtime:
       energyGrpcApiAddr: pulse-services-cloud-go-energy-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
       nodeAuthMode: keycloak
-      keycloakIssuerUrl: https://pulse.example.com/realms/pulse
+      keycloakIssuerUrl: https://pulse.34.73.53.93.sslip.io/realms/pulse
       keycloakAudience: pulse-universal-app
       keycloakJwksUrl: http://pulse-platform-cloud-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
       keycloakUserInfoUrl: http://pulse-platform-cloud-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
@@ -113,11 +113,11 @@ runtime:
       publicDir: /app/apps/universal/dist
       realtimeGatewayUpstreamUrl: http://pulse-platform-cloud-realtime-gateway.pulse-platform.svc.cluster.local:8082
       devUserSubject: ""
-      publicPreconnectOrigins: "https://pulse.example.com"
-      corsAllowedOrigins: "https://pulse.example.com,http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
+      publicPreconnectOrigins: "https://pulse.34.73.53.93.sslip.io"
+      corsAllowedOrigins: "https://pulse.34.73.53.93.sslip.io,http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
     ingress:
       enabled: true
-      host: pulse.example.com
+      host: pulse.34.73.53.93.sslip.io
       proxyReadTimeoutSeconds: 3600
       proxySendTimeoutSeconds: 3600
       tls:
@@ -188,7 +188,7 @@ runtime:
       projectionKeyPrefix: pulse:projection
       telemetrySubjectPrefix: pulse.telemetry
       nodeAuthMode: keycloak
-      keycloakIssuerUrl: https://pulse.example.com/realms/pulse
+      keycloakIssuerUrl: https://pulse.34.73.53.93.sslip.io/realms/pulse
       keycloakAudience: pulse-universal-app
       keycloakJwksUrl: http://pulse-platform-cloud-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
       keycloakUserInfoUrl: http://pulse-platform-cloud-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
@@ -478,7 +478,7 @@ keycloak:
           app.kubernetes.io/name: keycloak
   extraEnvVars:
     - name: KC_HOSTNAME
-      value: https://pulse.example.com
+      value: https://pulse.34.73.53.93.sslip.io
   resources:
     requests:
       cpu: 150m
@@ -526,13 +526,13 @@ keycloakRealm:
     clientId: pulse-universal-app
     redirectUris:
       - ecoflowpulse://*
-      - https://pulse.example.com/*
+      - https://pulse.34.73.53.93.sslip.io/*
       - https://localhost/*
       - http://localhost:8081/*
       - https://127.0.0.1/*
       - http://127.0.0.1:8081/*
     webOrigins:
-      - https://pulse.example.com
+      - https://pulse.34.73.53.93.sslip.io
       - https://localhost
       - http://localhost:8081
       - https://127.0.0.1
