@@ -192,6 +192,9 @@ runtime:
 # Dependency chart values are intentionally minimal in scaffold mode.
 # Expand these blocks iteratively when each platform component is wired.
 nats: {}
+gkeStorageClasses:
+  enabled: false
+  items: []
 cloudnative-pg:
   nodeSelector: {}
   tolerations: []
@@ -217,6 +220,7 @@ cloudnativepgCluster:
     nodeSelector: {}
     tolerations: []
     affinity: {}
+  topologySpreadConstraints: []
   bootstrap:
     database: pulse
     owner: pulse
