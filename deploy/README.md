@@ -211,12 +211,9 @@ Cloud defaults in this branch:
     workloads,
   - `stateful-pool` in `us-east1-c` on `n2-highmem-4` for CNPG, NATS
     JetStream, and Valkey,
-- the next HA target prepared by this branch requires adding
-  `stateful-pool-ha` in `us-east1-d` before Argo syncs the new stateful
-  replica counts,
-- the recommended rollout-safe target also leaves room for an optional third
-  slot, `stateful-pool-quorum`, once you want the 3-member NATS/Valkey layers
-  to avoid packing two members onto one stateful zone,
+- the live cluster now also has:
+  - `stateful-pool-ha` in `us-east1-d` on `n2d-standard-4`,
+  - `stateful-pool-quorum` in `us-east1-b` on `n2d-standard-4`,
 - once that second stateful pool exists, the checked-in cloud overlay targets:
   - CNPG `2` instances with zone-aware anti-affinity,
   - NATS JetStream clustered `3`,
@@ -241,6 +238,18 @@ Cloud defaults in this branch:
 - this branch adds a GKE `standard-rwo-regional` storage class for future
   regional `pd-balanced` use, but does not force an in-place PVC migration for
   existing stateful claims,
+- live rollout evidence from this branch:
+  - CNPG is healthy at `2` instances,
+  - NATS is live at `3` brokers,
+  - Valkey/Sentinel is live at `3` nodes,
+  - the extra stateful node pools are serving real traffic in `us-east1-d` and
+    `us-east1-b`,
+- remaining storage nuance:
+  - CNPG already uses `standard-rwo` `50Gi`,
+  - existing NATS/Valkey StatefulSets still carry older immutable claim
+    templates, so the new brokers/replicas created during this rollout are
+    still on the older `standard` / `10Gi` and `8Gi` templates until a planned
+    StatefulSet recreate moves them fully to `standard-rwo` / `20Gi`,
 - for the current E2/N2 cloud mix, use that regional class selectively when a
   database-oriented recovery-time objective justifies the extra cost; do not
   default NATS/Valkey to regional disks before their application-level replica
@@ -269,20 +278,18 @@ Cloud defaults in this branch:
 
 Hosted rollout sequence for the multi-zone stateful HA target:
 
-1. Create `stateful-pool-ha` in `us-east1-d` with an x86 machine shape that can
-   host CNPG/NATS/Valkey replicas and `50Gi` `pd-balanced` boot disks.
-2. Keep the current `stateful-pool` in `us-east1-c` as the first stateful
+1. Keep `stateful-pool` in `us-east1-c` as the first stateful
    anchor; do not delete or rename it while existing zonal PVCs still target
    that zone.
-3. Let Argo sync the new cloud overlay only after both pools exist, because the
+2. Keep `stateful-pool-ha` (`us-east1-d`) and `stateful-pool-quorum`
+   (`us-east1-b`) available for the multi-zone stateful overlay, because the
    chart now allows stateful replicas to target either `stateful-pool` or
-   `stateful-pool-ha`.
-4. If you want the full rollout-safe target for clustered NATS and Valkey,
-   create `stateful-pool-quorum` as the third stateful slot before expecting
-   those 3-member systems to avoid double-packing one zone.
-5. Watch CNPG scale to `2`, NATS to `3`, and Valkey to `3` total nodes.
-6. Treat the new `standard-rwo-regional` storage class as an opt-in migration
+   the additional stateful pools.
+3. Watch CNPG scale to `2`, NATS to `3`, and Valkey to `3` total nodes.
+4. Treat the new `standard-rwo-regional` storage class as an opt-in migration
    target, not as an in-place mutation of existing PVCs.
+5. Plan a one-time NATS/Valkey StatefulSet recreate when you are ready to move
+   their older immutable claim templates fully onto `standard-rwo` / `20Gi`.
 
 Expected follow-up after the current hosted cutover:
 

@@ -44,9 +44,9 @@ Hosted cloud note:
   - keep `stateful-pool` as the current `us-east1-c` anchor,
   - add `stateful-pool-ha` in `us-east1-d` so CNPG, NATS, and Valkey can place
     replicas outside the current anchor zone,
-  - keep `stateful-pool-quorum` as the optional third stateful slot when
-    3-member consensus systems need full rollout-safe placement instead of
-    packing two members onto one zone,
+  - keep `stateful-pool-quorum` as the third stateful slot when 3-member
+    consensus systems need rollout-safe placement instead of packing two
+    members onto one zone,
 - the cheaper safe idle shape for that target is `2` app nodes plus `1`
   stateful node in each active stateful zone; the recommended rollout-safe HA
   target is three total stateful slots when NATS/Valkey are both running with
@@ -71,6 +71,13 @@ Hosted cloud note:
   - a third stateful slot/zone is the next step when we want the 3-member
     consensus systems to stay comfortably quorum-safe during rollouts and
     arbitrary single-zone loss.
+- live runtime note from this branch:
+  - CNPG is healthy at `2`,
+  - NATS is live at `3`,
+  - Valkey/Sentinel is live at `3`,
+  - older NATS/Valkey claim templates still need a planned StatefulSet recreate
+    before every broker/replica PVC fully converges to the newer
+    `standard-rwo` / `20Gi` target.
 
 ---
 
