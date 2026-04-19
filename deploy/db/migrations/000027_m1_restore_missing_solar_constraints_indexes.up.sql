@@ -18,6 +18,11 @@ BEGIN
         FROM pg_constraint
         WHERE conrelid = 'solar_forecast_runs'::regclass
           AND conname = 'uq_solar_forecast_runs_site_issued_version'
+    ) AND NOT EXISTS (
+        SELECT 1
+        FROM pg_class
+        WHERE relkind = 'i'
+          AND relname = 'uq_solar_forecast_runs_site_issued_version'
     ) THEN
         ALTER TABLE solar_forecast_runs
             ADD CONSTRAINT uq_solar_forecast_runs_site_issued_version UNIQUE (site_key, issued_at, forecast_version);
