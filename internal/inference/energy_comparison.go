@@ -2,8 +2,6 @@ package inference
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -15,6 +13,7 @@ import (
 	valkey "github.com/valkey-io/valkey-go"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/energydashboard"
+	"github.com/jpaljasma/ecoflow-pulse/internal/hashutil"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 )
 
@@ -156,19 +155,15 @@ func (s *ValkeyStore) energyComparisonKey(key EnergyComparisonCacheKey) string {
 	}
 	deviceIDs := append([]string(nil), key.ResolvedDeviceIDs...)
 	sort.Strings(deviceIDs)
-	h := sha1.New()
-	_, _ = h.Write([]byte(scopeTag))
-	_, _ = h.Write([]byte("|"))
-	_, _ = h.Write([]byte(strings.TrimSpace(key.DeviceID)))
-	_, _ = h.Write([]byte("|"))
-	_, _ = h.Write([]byte(strings.Join(deviceIDs, ",")))
-	_, _ = h.Write([]byte("|"))
-	_, _ = h.Write([]byte(strings.TrimSpace(key.Preset)))
-	_, _ = h.Write([]byte("|"))
-	_, _ = h.Write([]byte(strings.TrimSpace(key.Timezone)))
-	_, _ = h.Write([]byte("|"))
-	_, _ = fmt.Fprintf(h, "%.4f|%s|%d", key.GridPricePerKwh, strings.TrimSpace(key.Currency), key.RefreshSlotUnixMs)
-	return fmt.Sprintf("%s:{energy-comparison:%s}", s.keyPrefix, hex.EncodeToString(h.Sum(nil)))
+	digest := hashutil.XXH3Hex128(
+		scopeTag, "|",
+		strings.TrimSpace(key.DeviceID), "|",
+		strings.Join(deviceIDs, ","), "|",
+		strings.TrimSpace(key.Preset), "|",
+		strings.TrimSpace(key.Timezone), "|",
+		fmt.Sprintf("%.4f|%s|%d", key.GridPricePerKwh, strings.TrimSpace(key.Currency), key.RefreshSlotUnixMs),
+	)
+	return fmt.Sprintf("%s:{energy-comparison:%s}", s.keyPrefix, digest)
 }
 
 func BuildEnergyComparisonInsight(input EnergyComparisonInput) EnergyComparisonRecord {

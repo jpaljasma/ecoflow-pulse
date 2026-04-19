@@ -9,12 +9,15 @@ This file adds backend/runtime guidance for `internal/` work on top of the repos
    - bounded retries,
    - graceful shutdown,
    - no leaked transactions, goroutines, or connections.
-2. Shared behavior belongs in shared packages:
+2. Default non-cryptographic internal hashing to `XXH3_128`:
+   - use it for internal cache keys, internal dedup/checksum tags, and other high-volume pipeline hashing where collision resistance only needs to be pragmatic,
+   - keep SHA-2/HMAC style hashing for security boundaries, auth/signing, or places where an external protocol/storage contract explicitly requires it.
+3. Shared behavior belongs in shared packages:
    - connection-pool tuning,
    - compatibility shims,
    - metrics-server helpers,
    - retry helpers.
-3. Prefer fixes that keep worker behavior safe under multi-replica rolling updates, not just single-process local runs.
+4. Prefer fixes that keep worker behavior safe under multi-replica rolling updates, not just single-process local runs.
 
 ## Database and Messaging
 1. Idle connections and idle transactions must be bounded and cleaned up on normal shutdown.

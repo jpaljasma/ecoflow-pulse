@@ -32,6 +32,7 @@ Top-level structure:
 - `internal/`
   - `controlplane`: control-plane store abstractions and implementations (Postgres + in-memory).
   - `dbmigrate`: forward-only SQL migration loader/runner used by rollout jobs.
+  - `hashutil`: shared non-cryptographic hashing helpers; default internal hash home for `XXH3_128`.
   - `inference`: online inference read-model store, derivation logic, control-plane context resolver, and worker runtime.
   - `pgsearchpath`: shared Postgres DSN helper for versioned `search_path` cutovers.
   - `ingestworker`: distributed assignment poller/reconciler + provider session lifecycle manager.
@@ -91,3 +92,8 @@ Key dashboard-focused files:
 - `apps/pulse-platform/src/routes/devices.ts`: public REST device endpoints consumed by the app.
 - `apps/pulse-realtime-gateway/src/server.ts`: websocket gateway bootstrap and auth mode wiring.
 - `apps/pulse-realtime-gateway/src/live/*`: realtime snapshot + delta delivery pipeline.
+
+Hashing conventions:
+
+- Default new internal non-cryptographic hashes to `XXH3_128`, preferably through `internal/hashutil`.
+- Keep SHA-2/HMAC hashing only for cryptographic/security-sensitive flows or when an external contract explicitly requires that algorithm.

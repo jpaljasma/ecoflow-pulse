@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -67,4 +68,34 @@ func testEnergySeries(solarKwh, loadKwh, selfSufficiencyPct, _ float64, _ float6
 
 func floatPtr(value float64) *float64 {
 	return &value
+}
+
+func TestEnergyComparisonKeyDeterministicAcrossDeviceOrder(t *testing.T) {
+	t.Parallel()
+
+	store := &ValkeyStore{keyPrefix: defaultKeyPrefix}
+	a := store.energyComparisonKey(EnergyComparisonCacheKey{
+		ScopeMode:         "all",
+		ResolvedDeviceIDs: []string{"dev-b", "dev-a"},
+		Preset:            "last7d",
+		Timezone:          "America/New_York",
+		GridPricePerKwh:   0.30,
+		Currency:          "USD",
+		RefreshSlotUnixMs: 123456789,
+	})
+	b := store.energyComparisonKey(EnergyComparisonCacheKey{
+		ScopeMode:         "all",
+		ResolvedDeviceIDs: []string{"dev-a", "dev-b"},
+		Preset:            "last7d",
+		Timezone:          "America/New_York",
+		GridPricePerKwh:   0.30,
+		Currency:          "USD",
+		RefreshSlotUnixMs: 123456789,
+	})
+	if a != b {
+		t.Fatalf("expected stable key across resolved-device ordering:\n%s\n%s", a, b)
+	}
+	if !strings.HasPrefix(a, defaultKeyPrefix+":{energy-comparison:") {
+		t.Fatalf("unexpected cache key format: %q", a)
+	}
 }

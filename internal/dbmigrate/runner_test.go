@@ -1,6 +1,8 @@
 package dbmigrate
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,6 +67,9 @@ func TestLoadMigrationsLoadsAndSortsUpFilesOnly(t *testing.T) {
 	if migrations[0].Checksum == "" || migrations[1].Checksum == "" {
 		t.Fatalf("expected migration checksums to be populated")
 	}
+	if got, want := migrations[0].Checksum[:len(migrationChecksumVersion)+1], migrationChecksumVersion+":"; got != want {
+		t.Fatalf("expected versioned xxh3 checksum prefix, got %q want %q", got, want)
+	}
 }
 
 func TestCanAttemptLocalLegacyAdoption(t *testing.T) {
@@ -96,5 +101,20 @@ func TestCanAttemptLocalLegacyAdoption(t *testing.T) {
 	migration.Version = "000009_m1_user_profile_preferences"
 	if !canAttemptLocalLegacyAdoption(cfg, migration) {
 		t.Fatalf("expected user-profile migration to allow local adoption")
+	}
+}
+
+func TestMigrationChecksumMatchesLegacySHA256(t *testing.T) {
+	t.Parallel()
+
+	sqlBody := "CREATE TABLE foo(id bigint primary key);"
+	legacy := sha256.Sum256([]byte(sqlBody))
+	legacyHex := fmt.Sprintf("%x", legacy[:])
+
+	if !migrationChecksumMatches(legacyHex, sqlBody) {
+		t.Fatalf("expected legacy sha256 checksum to remain accepted")
+	}
+	if migrationChecksumMatches(legacyHex, sqlBody+" -- drift") {
+		t.Fatalf("expected legacy checksum mismatch after sql drift")
 	}
 }
