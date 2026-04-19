@@ -8,7 +8,7 @@ scaffold:
 runtime:
   image:
     repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services
-    tag: cloud-go1262-20260419-1
+    tag: cloud-go1262-20260419-2
     pullPolicy: IfNotPresent
   serviceAccount:
     create: true

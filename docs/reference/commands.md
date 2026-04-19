@@ -720,6 +720,8 @@ make gap-repair-worker
 make services-image-build-local
 make services-image-import-local
 make services-image-local-up
+make services-image-build-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>
+make services-image-push-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>
 make k3d-up
 make platform-up
 make platform-wait
@@ -923,6 +925,16 @@ Notes:
 - `make services-image-import-local` imports that local worker image into
   k3d cluster `$(K3D_CLUSTER_NAME)`.
 - `make services-image-local-up` runs build + import for local k3d in one step.
+- `make services-image-build-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>` builds the
+  hosted GKE services image for `linux/amd64` and tags it as
+  `$(SERVICES_CLOUD_IMAGE_REPO):$(SERVICES_CLOUD_IMAGE_TAG)`.
+  Use this when publishing Go worker/API images for `pulse-cloud`; it keeps the
+  cloud artifact architecture explicit so GKE does not pull a host-native
+  Apple-silicon image by mistake.
+- `make services-image-push-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>` runs the same
+  hosted-image build and pushes the resulting artifact to Artifact Registry.
+  The target refreshes Artifact Registry auth from `gcloud auth print-access-token`
+  into the repo-local Docker config before pushing.
 - `make public-images-build-local` builds the local public Node images
   `$(PLATFORM_APP_IMAGE_REPO):$(PLATFORM_APP_IMAGE_TAG)` and
   `$(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)` from

@@ -68,6 +68,8 @@ make k3d-up
 make platform-up
 make services-image-build-local
 make services-image-import-local
+make services-image-build-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>
+make services-image-push-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>
 make services-up
 make local-up
 make local-deploy
@@ -99,6 +101,9 @@ Defaults:
 - recommended operator-facing shortcuts are now:
   - `make local-up` for full local bring-up,
   - `make local-deploy` for incremental local rollouts,
+  - `make services-image-push-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>` for a
+    repeatable `linux/amd64` cloud services image build + push with Artifact
+    Registry auth refreshed from the current `gcloud` session,
   - `make cloud-up` for the hosted Argo bootstrap/apply/wait path,
   - `make cloud-refresh` for re-applying hosted Argo apps after branch changes,
   - `make cloud-status` for a quick hosted health snapshot.

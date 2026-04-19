@@ -96,8 +96,8 @@ operator-grade experience across web, iPhone, iPad, and Android.
 - Multi-replica local public edge and services for safer rollout validation and
   less disruption during restarts.
 - One-command local bring-up and targeted redeploy paths including
-  `make local-up`, `make local-deploy`, `make cloud-up`, and
-  `make cloud-refresh`.
+  `make local-up`, `make local-deploy`, `make cloud-up`,
+  `make cloud-refresh`, and `make services-image-push-cloud`.
 
 ### Data plane
 

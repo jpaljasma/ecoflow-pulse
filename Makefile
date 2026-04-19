@@ -12,6 +12,8 @@ PGROLL ?= pgroll
 PGROLL_REQUIRED ?= 0
 DOCKER_BUILDKIT ?= 1
 LOCAL_IMAGE_PLATFORM ?= $(shell arch="$$(uname -m)"; if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then printf 'linux/arm64'; elif [ "$$arch" = "x86_64" ] || [ "$$arch" = "amd64" ]; then printf 'linux/amd64'; else printf 'linux/amd64'; fi)
+CLOUD_IMAGE_PLATFORM ?= linux/amd64
+CLOUD_ARTIFACT_REGISTRY_HOST ?= us-east1-docker.pkg.dev
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 DOCKER_BUILDX_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-buildx
 GCLOUD ?= gcloud
@@ -97,6 +99,9 @@ DR_MINIO_MC_IMAGE ?= minio/mc:latest
 SERVICES_IMAGE_REPO ?= ecoflow-pulse/services
 SERVICES_IMAGE_TAG ?= local
 SERVICES_IMAGE ?= $(SERVICES_IMAGE_REPO):$(SERVICES_IMAGE_TAG)
+SERVICES_CLOUD_IMAGE_REPO ?= us-east1-docker.pkg.dev/$(GKE_CLOUD_PROJECT_ID)/ecoflow-pulse/services
+SERVICES_CLOUD_IMAGE_TAG ?= cloud-latest
+SERVICES_CLOUD_IMAGE ?= $(SERVICES_CLOUD_IMAGE_REPO):$(SERVICES_CLOUD_IMAGE_TAG)
 SERVICES_IMAGE_DOCKERFILE ?= deploy/docker/pulse-services.Dockerfile
 PLATFORM_APP_IMAGE_REPO ?= ecoflow-pulse/pulse-platform
 PLATFORM_APP_IMAGE_TAG ?= local
@@ -162,7 +167,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -372,9 +377,21 @@ docker-local-ready:
 	fi
 	@mkdir -p "$(DOCKER_CONFIG_LOCAL)"
 	@mkdir -p "$(DOCKER_BUILDX_CONFIG_LOCAL)"
+	@mkdir -p "$(DOCKER_CONFIG_LOCAL)/cli-plugins"
 	@if [ ! -f "$(DOCKER_CONFIG_LOCAL)/config.json" ]; then \
 		printf '{\n  "auths": {}\n}\n' > "$(DOCKER_CONFIG_LOCAL)/config.json"; \
 	fi
+	@set -euo pipefail; \
+		plugin_dst="$(DOCKER_CONFIG_LOCAL)/cli-plugins/docker-buildx"; \
+		plugin_src=""; \
+		if [ -x "$$HOME/.docker/cli-plugins/docker-buildx" ]; then \
+			plugin_src="$$HOME/.docker/cli-plugins/docker-buildx"; \
+		elif [ -x "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-buildx" ]; then \
+			plugin_src="/Applications/Docker.app/Contents/Resources/cli-plugins/docker-buildx"; \
+		fi; \
+		if [ -n "$$plugin_src" ]; then \
+			ln -sf "$$plugin_src" "$$plugin_dst"; \
+		fi
 
 k3d-local-ready:
 	@if ! command -v $(K3D) >/dev/null 2>&1; then \
@@ -439,6 +456,21 @@ services-image-import-local: k3d-local-ready
 services-image-local-up:
 	@$(MAKE) --no-print-directory services-image-build-local
 	@$(MAKE) --no-print-directory services-image-import-local
+
+services-image-build-cloud: docker-local-ready
+	@echo "building cloud services image $(SERVICES_CLOUD_IMAGE) for $(CLOUD_IMAGE_PLATFORM) from $(SERVICES_IMAGE_DOCKERFILE)"
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" BUILDX_CONFIG="$(DOCKER_BUILDX_CONFIG_LOCAL)" DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_CLOUD_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) -f $(SERVICES_IMAGE_DOCKERFILE) -t $(SERVICES_CLOUD_IMAGE) .; \
+	fi
+
+services-image-push-cloud: services-image-build-cloud
+	@echo "pushing cloud services image $(SERVICES_CLOUD_IMAGE)"
+	@set -euo pipefail; \
+		token="$$(CLOUDSDK_CONFIG="$${CLOUDSDK_CONFIG:-}" $(GCLOUD) auth print-access-token)"; \
+		printf '%s' "$$token" | DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) login -u oauth2accesstoken --password-stdin https://$(CLOUD_ARTIFACT_REGISTRY_HOST) >/dev/null; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) push $(SERVICES_CLOUD_IMAGE)
 
 platform-app-image-build-local: docker-local-ready
 	@echo "building public app image $(PLATFORM_APP_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
