@@ -8,8 +8,8 @@ Scope:
 - bootstrap the hosted `cloud` deploy profile on the regional GKE cluster
   `pulse-cloud` in `us-east1`,
 - converge the hosted cluster onto the current steady-state node pools:
-  `primary-pool` (`e2-standard-4`, public/stateless, `us-east1-d`) and
-  `stateful-pool` (`e2-standard-4`, stateful anchor, `us-east1-c`),
+  `app-pool` (`e2-standard-2`, public/stateless, `us-east1-d`) and
+  `stateful-pool` (`n2-highmem-4`, stateful anchor, `us-east1-c`),
 - restore the local control-plane/history database into cloud CNPG,
 - copy raw archive objects from local MinIO into cloud GCS without changing
   keys or prefixes,
@@ -29,7 +29,7 @@ Scope:
   - cluster: `pulse-cloud`
   - region: `us-east1`
   - expected node pools after hosted cutover:
-    - `primary-pool`
+    - `app-pool`
     - `stateful-pool`
 - cloud domain, TLS issuer, Artifact Registry image repos, and Secret Manager
   secret names have been set in `deploy/env/cloud/*.yaml`
@@ -78,19 +78,20 @@ Expected steady-state cloud topology from this branch:
 
 Current hosted storage profile after the cutover:
 
-- node pools use `100Gi` `pd-balanced` boot disks,
+- node pools use `50Gi` `pd-balanced` boot disks,
 - CNPG/NATS/Valkey now store real data on CSI-backed `standard-rwo`
   (`pd-balanced`) PVCs sized `50Gi`, `20Gi`, and `20Gi`,
-- the next sizing pass should move the general/public pool target toward
-  `e2-standard-2` while keeping CNPG on `e2-standard-4`,
 - SSD performance budget should stay on those PVCs first rather than on large
   node boot disks,
-- the live cluster now runs a cheaper safe idle posture of `1` `primary-pool`
-  node plus `1` `stateful-pool` node; scale `primary-pool` back to `2` before
+- the live cluster now runs a cheaper safe idle posture of `1` `app-pool`
+  node plus `1` `stateful-pool` node; scale `app-pool` back to `2` before
   larger rollouts so the public/stateless path regains surge headroom,
-- CNPG does not need a large node boot disk to retain data; after the PVC move,
-  future node-pool recreations should target roughly `50Gi` boot disks unless
-  node-local image/log pressure shows a real need for more.
+- CNPG does not need a large node boot disk to retain data; the durable
+  history/metadata path is the PVC, not the node root disk,
+- the current stateful PVCs are still zonal `us-east1-c` disks, so a different
+  zone is not a simple reschedule target for the existing claims; future
+  resiliency work needs multi-zone replicas and, where justified, regional
+  disks.
 
 ## 3. Restore the Local Control-Plane DB into Cloud CNPG
 

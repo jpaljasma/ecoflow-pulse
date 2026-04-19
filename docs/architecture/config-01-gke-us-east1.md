@@ -36,27 +36,33 @@ Hosted cloud note:
 
 - the current shared cloud data plane on `pulse-cloud` is now running this
   split explicitly with:
-  - `primary-pool`: `e2-standard-4` for public/stateless traffic,
-  - `stateful-pool`: `e2-standard-4` for CNPG/NATS/Valkey in `us-east1-c`,
-- the next optimization target is a finer-grained split:
-  - general/public app pool on `e2-standard-2` so autoscaling can add smaller,
-    cheaper increments of CPU/RAM,
-  - dedicated CNPG pool on `e2-standard-4` so Postgres keeps stable failover
-    and restore headroom,
-  - NATS/Valkey should keep SSD-backed PVCs and only stay on larger nodes when
-    real memory/latency evidence justifies it,
-- the cheaper safe idle shape is `1` primary node + `1` stateful node; scale
-  the primary pool back up before larger rollouts so public traffic keeps surge
-  headroom,
+  - `app-pool`: `e2-standard-2` for public/stateless traffic,
+  - `stateful-pool`: `n2-highmem-4` for CNPG/NATS/Valkey in `us-east1-c`,
+- the next optimization target is no longer SSD placement; it is multi-zone
+  stateful resilience:
+  - keep the app pool small and cheap so autoscaling adds smaller increments of
+    public/stateless capacity,
+  - keep the stateful anchor large enough for CNPG recovery headroom,
+  - add new multi-zone replica capacity for CNPG/NATS/Valkey instead of
+    concentrating every durable workload in one zonal anchor,
+- the cheaper safe idle shape is `1` `app-pool` node + `1` `stateful-pool`
+  node; scale the app pool back up before larger rollouts so public traffic
+  keeps surge headroom,
 - the live cloud storage profile now uses:
   - CNPG on `standard-rwo` (`pd-balanced`) at roughly `50Gi`
   - NATS JetStream on `standard-rwo` at roughly `20Gi`
   - Valkey on `standard-rwo` at roughly `20Gi`
 - SSDs should stay focused on those stateful PVCs first; node boot disks only
   need enough room for images, logs, and kubelet overhead,
-- the next storage optimization is future boot disks reduced toward `50Gi`,
-  because CNPG durability now sits on the database PVC rather than on node
-  boot storage.
+- the live hosted pool layout after the `2026-04-19` recovery is:
+  - `app-pool`: `e2-standard-2`, `50Gi` `pd-balanced`, public/stateless
+    workloads, currently serving from `us-east1-d`
+  - `stateful-pool`: `n2-highmem-4`, `50Gi` `pd-balanced`, CNPG/NATS/Valkey,
+    currently serving from `us-east1-c`
+- existing hosted CNPG/NATS/Valkey PVCs are still zonal `us-east1-c` disks, so
+  a different zone is not a simple reschedule target for the current claims;
+  future zonal resilience must come from multi-zone replicas and, where worth
+  it, regional disks.
 
 ---
 

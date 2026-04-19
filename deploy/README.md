@@ -206,17 +206,18 @@ Cloud defaults in this branch:
   public app `2`, realtime gateway `2`, gRPC API `2`, energy API `2`,
   ingest/inference/projection/archive `1`, rollup `1`,
   solar verification `1`,
-- the current hosted cluster layout uses two GKE Standard node pools, both on
-  `e2-standard-4`:
-  - `primary-pool` in `us-east1-d` for public/stateless workloads,
-  - `stateful-pool` in `us-east1-c` for CNPG, NATS JetStream, and Valkey,
-- the next node-shape task is to keep CNPG on `e2-standard-4` while moving the
-  general/public pool target toward `e2-standard-2`, so autoscaling can add
-  smaller increments of capacity without sizing every app node like a database
-  node,
-- the live cloud cluster now idles safely at `1` `primary-pool` node plus `1`
+- the current hosted cluster layout uses two GKE Standard node pools:
+  - `app-pool` in `us-east1-d` on `e2-standard-2` for public/stateless
+    workloads,
+  - `stateful-pool` in `us-east1-c` on `n2-highmem-4` for CNPG, NATS
+    JetStream, and Valkey,
+- the stateful anchor is intentionally larger than the public pool after the
+  `2026-04-19` recovery, because `us-east1-c` could not place the desired
+  `e2-standard-4` shape during the outage and the fastest safe recovery was a
+  same-zone x86 replacement that could reattach the existing zonal PVCs,
+- the live cloud cluster now idles safely at `1` `app-pool` node plus `1`
   `stateful-pool` node; before larger rollouts or noisy background catch-up,
-  scale `primary-pool` back to `2` nodes so public/stateless workloads regain
+  scale `app-pool` back to `2` nodes so public/stateless workloads regain
   deployment headroom,
 - CNPG is currently single-instance (`1`) with Timescale enabled,
 - CNPG pod disruption budgets are disabled in the cloud bootstrap profile so
@@ -229,11 +230,12 @@ Cloud defaults in this branch:
   sized `50Gi` for CNPG and `20Gi` each for JetStream and Valkey,
 - SSD-backed PVCs are the intended place to spend disk performance budget; do
   not treat node boot disks as the durability path for CNPG/NATS/Valkey,
-- hosted node boot disks are still `100Gi` `pd-balanced`; that is now the main
-  remaining disk-usage optimization because CNPG/NATS/Valkey durability lives
-  on their PVCs rather than the node boot disk,
-- future node-pool boot disks should be revisited toward `50Gi`, because CNPG
-  capacity belongs on the database PVC rather than on the node root disk,
+- hosted node boot disks are now `50Gi` `pd-balanced`; CNPG/NATS/Valkey
+  durability lives on their PVCs rather than on the node boot disk,
+- existing hosted stateful PVCs remain zonal `us-east1-c` claims, so a
+  different zone is not a simple reschedule path for the current data; future
+  resiliency work needs multi-zone replicas and, where justified, regional
+  disk-backed claims,
 - ingress-nginx stays enabled at `2` replicas with a matching PDB, and
   external-secrets runs controller/webhook replicas `2/2` with matching PDBs,
   while observability-lite remains temporarily disabled during initial
@@ -267,9 +269,9 @@ Expected follow-up after the current hosted cutover:
 - keep CNPG as the largest stateful PVC; database history retention and
   replay metadata belong on the CNPG PVC, while JetStream and Valkey can stay
   materially smaller,
-- revisit hosted node boot-disk size after the PVC migration so future pools do
-  not carry unnecessary SSD quota/cost; `50Gi` is the current right-sized
-  starting point unless node-local image/log pressure proves otherwise,
+- use future HA work to add multi-zone stateful replicas before spending more
+  SSD quota on larger boot disks; the current `50Gi` node roots are already
+  right-sized unless node-local image/log pressure proves otherwise,
 - follow the migration runbook in
   `docs/how-to/migrate-local-data-plane-to-gke-cloud.md`.
 
