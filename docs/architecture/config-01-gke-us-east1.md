@@ -34,29 +34,49 @@ Start with the same layout but increase capacity as needed.
 
 Hosted cloud note:
 
-- the current shared cloud data plane on `pulse-cloud` is now running this
-  split explicitly with:
-  - `primary-pool`: `e2-standard-4` for public/stateless traffic,
-  - `stateful-pool`: `e2-standard-4` for CNPG/NATS/Valkey in `us-east1-c`,
-- the next optimization target is a finer-grained split:
-  - general/public app pool on `e2-standard-2` so autoscaling can add smaller,
-    cheaper increments of CPU/RAM,
-  - dedicated CNPG pool on `e2-standard-4` so Postgres keeps stable failover
-    and restore headroom,
-  - NATS/Valkey should keep SSD-backed PVCs and only stay on larger nodes when
-    real memory/latency evidence justifies it,
-- the cheaper safe idle shape is `1` primary node + `1` stateful node; scale
-  the primary pool back up before larger rollouts so public traffic keeps surge
-  headroom,
+- the recovered live cluster is currently:
+  - `app-pool`: `e2-standard-2`, `50Gi` `pd-balanced`, public/stateless
+    traffic, currently serving from `us-east1-d`
+  - `stateful-pool`: `n2-highmem-4`, `50Gi` `pd-balanced`, current stateful
+    anchor, currently serving from `us-east1-c`
+- the next HA target from this branch is:
+  - keep `app-pool` small and cheap for public/stateless capacity,
+  - keep `stateful-pool` as the current `us-east1-c` anchor,
+  - add `stateful-pool-ha` in `us-east1-d` so CNPG, NATS, and Valkey can place
+    replicas outside the current anchor zone,
+  - keep `stateful-pool-quorum` as the third stateful slot when 3-member
+    consensus systems need rollout-safe placement instead of packing two
+    members onto one zone,
+- the cheaper safe idle shape for that target is `2` app nodes plus `1`
+  stateful node in each active stateful zone; the recommended rollout-safe HA
+  target is three total stateful slots when NATS/Valkey are both running with
+  3 members,
 - the live cloud storage profile now uses:
   - CNPG on `standard-rwo` (`pd-balanced`) at roughly `50Gi`
-  - NATS JetStream on `standard-rwo` at roughly `20Gi`
-  - Valkey on `standard-rwo` at roughly `20Gi`
+  - NATS JetStream on `standard-rwo` (`pd-balanced`) at roughly `20Gi`
+  - Valkey on `standard-rwo` (`pd-balanced`) at roughly `20Gi`
 - SSDs should stay focused on those stateful PVCs first; node boot disks only
   need enough room for images, logs, and kubelet overhead,
-- the next storage optimization is future boot disks reduced toward `50Gi`,
-  because CNPG durability now sits on the database PVC rather than on node
-  boot storage.
+- this branch also defines `standard-rwo-regional` as an optional regional
+  `pd-balanced` storage class for future DB-oriented migrations,
+- for the current E2/N2 cloud mix, prefer regional persistent disk over
+  Hyperdisk Balanced HA when disk-level zonal resilience is worth the extra
+  cost; GKE currently recommends Hyperdisk Balanced HA for 3rd-generation
+  machine series and regional PD for 2nd-generation series or older,
+- do not confuse “replicas in two zones” with “perfect arbitrary zone-loss
+  quorum” for every 3-member consensus system:
+  - CNPG gets a meaningful HA win with two instances across two zones,
+  - NATS JetStream `3` and Valkey/Sentinel `3` improve rollout safety and
+    partial zonal resilience in two zones,
+  - a third stateful slot/zone is the next step when we want the 3-member
+    consensus systems to stay comfortably quorum-safe during rollouts and
+    arbitrary single-zone loss.
+- live runtime note from this branch:
+  - CNPG is healthy at `2`,
+  - NATS is live at `3`,
+  - Valkey/Sentinel is live at `3`,
+  - the one-time NATS/Valkey StatefulSet recreate is complete, so every live
+    broker/replica PVC is now on the newer `standard-rwo` / `20Gi` target.
 
 ---
 

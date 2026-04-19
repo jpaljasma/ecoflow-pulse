@@ -206,22 +206,25 @@ Cloud defaults in this branch:
   public app `2`, realtime gateway `2`, gRPC API `2`, energy API `2`,
   ingest/inference/projection/archive `1`, rollup `1`,
   solar verification `1`,
-- the current hosted cluster layout uses two GKE Standard node pools, both on
-  `e2-standard-4`:
-  - `primary-pool` in `us-east1-d` for public/stateless workloads,
-  - `stateful-pool` in `us-east1-c` for CNPG, NATS JetStream, and Valkey,
-- the next node-shape task is to keep CNPG on `e2-standard-4` while moving the
-  general/public pool target toward `e2-standard-2`, so autoscaling can add
-  smaller increments of capacity without sizing every app node like a database
-  node,
-- the live cloud cluster now idles safely at `1` `primary-pool` node plus `1`
-  `stateful-pool` node; before larger rollouts or noisy background catch-up,
-  scale `primary-pool` back to `2` nodes so public/stateless workloads regain
-  deployment headroom,
-- CNPG is currently single-instance (`1`) with Timescale enabled,
-- CNPG pod disruption budgets are disabled in the cloud bootstrap profile so
-  GKE maintenance is not blocked by a single primary-only PDB during the
-  dev-stage hosted rollout,
+- the recovered live cluster shape today is:
+  - `app-pool` in `us-east1-d` on `e2-standard-2` for public/stateless
+    workloads,
+  - `stateful-pool` in `us-east1-c` on `n2-highmem-4` for CNPG, NATS
+    JetStream, and Valkey,
+- the live cluster now also has:
+  - `stateful-pool-ha` in `us-east1-d` on `n2d-standard-4`,
+  - `stateful-pool-quorum` in `us-east1-b` on `n2d-standard-4`,
+- once that second stateful pool exists, the checked-in cloud overlay targets:
+  - CNPG `2` instances with zone-aware anti-affinity,
+  - NATS JetStream clustered `3`,
+  - Valkey/Sentinel `3` nodes total with `sentinel.quorum=2`,
+- this branch keeps the public side on `e2-standard-2` and avoids forcing a
+  third stateful zone immediately, because the goal is safe rollouts/upgrades
+  and materially better zonal resilience without jumping straight to maximal
+  spend,
+- the HA target idle posture is `2` `app-pool` nodes plus `1` node in each
+  stateful pool; if you stay on a single `stateful-pool`, do not sync the
+  multi-zone stateful replica changes yet,
 - CNPG custom resources are rendered directly in the chart without Helm
   `lookup` gating so Argo CD can create the database cluster during cloud
   bootstrap syncs,
@@ -229,11 +232,25 @@ Cloud defaults in this branch:
   sized `50Gi` for CNPG and `20Gi` each for JetStream and Valkey,
 - SSD-backed PVCs are the intended place to spend disk performance budget; do
   not treat node boot disks as the durability path for CNPG/NATS/Valkey,
-- hosted node boot disks are still `100Gi` `pd-balanced`; that is now the main
-  remaining disk-usage optimization because CNPG/NATS/Valkey durability lives
-  on their PVCs rather than the node boot disk,
-- future node-pool boot disks should be revisited toward `50Gi`, because CNPG
-  capacity belongs on the database PVC rather than on the node root disk,
+- hosted node boot disks are now intended to stay at `50Gi` `pd-balanced`,
+  because CNPG/NATS/Valkey durability lives on their PVCs rather than on the
+  node boot disk,
+- this branch adds a GKE `standard-rwo-regional` storage class for future
+  regional `pd-balanced` use, but does not force an in-place PVC migration for
+  existing stateful claims,
+- live rollout evidence from this branch:
+  - CNPG is healthy at `2` instances,
+  - NATS is live at `3` brokers,
+  - Valkey/Sentinel is live at `3` nodes,
+  - the extra stateful node pools are serving real traffic in `us-east1-d` and
+    `us-east1-b`,
+- all live CNPG/NATS/Valkey PVCs are now converged on the intended
+  `standard-rwo` footprint (`50Gi` for CNPG, `20Gi` for NATS/Valkey), and the
+  superseded unattached disks from earlier migrations have been removed,
+- for the current E2/N2 cloud mix, use that regional class selectively when a
+  database-oriented recovery-time objective justifies the extra cost; do not
+  default NATS/Valkey to regional disks before their application-level replica
+  topology is in place,
 - ingress-nginx stays enabled at `2` replicas with a matching PDB, and
   external-secrets runs controller/webhook replicas `2/2` with matching PDBs,
   while observability-lite remains temporarily disabled during initial
@@ -256,6 +273,22 @@ Cloud defaults in this branch:
 - cloud Argo applications avoid `Replace=true` so immutable Job resources do
   not deadlock bootstrap retries.
 
+Hosted rollout sequence for the multi-zone stateful HA target:
+
+1. Keep `stateful-pool` in `us-east1-c` as the first stateful
+   anchor; do not delete or rename it while existing zonal PVCs still target
+   that zone.
+2. Keep `stateful-pool-ha` (`us-east1-d`) and `stateful-pool-quorum`
+   (`us-east1-b`) available for the multi-zone stateful overlay, because the
+   chart now allows stateful replicas to target either `stateful-pool` or
+   the additional stateful pools.
+3. Watch CNPG scale to `2`, NATS to `3`, and Valkey to `3` total nodes.
+4. Treat the new `standard-rwo-regional` storage class as an opt-in migration
+   target, not as an in-place mutation of existing PVCs.
+5. After the one-time StatefulSet recreate, verify that every live NATS/Valkey
+   PVC is on `standard-rwo` / `20Gi` and remove the superseded unattached
+   disks.
+
 Expected follow-up after the current hosted cutover:
 
 - replace placeholder cloud domain values (`pulse.example.com`),
@@ -267,9 +300,13 @@ Expected follow-up after the current hosted cutover:
 - keep CNPG as the largest stateful PVC; database history retention and
   replay metadata belong on the CNPG PVC, while JetStream and Valkey can stay
   materially smaller,
-- revisit hosted node boot-disk size after the PVC migration so future pools do
-  not carry unnecessary SSD quota/cost; `50Gi` is the current right-sized
-  starting point unless node-local image/log pressure proves otherwise,
+- add `stateful-pool-ha` before merging/applying the multi-zone stateful HA
+  overlay,
+- add `stateful-pool-quorum` when you want full 3-member rollout-safe placement
+  for NATS JetStream and Valkey/Sentinel,
+- decide later whether CNPG should migrate from zonal `standard-rwo` to the
+  prepared `standard-rwo-regional` class; do not treat that as part of the
+  first replica rollout,
 - follow the migration runbook in
   `docs/how-to/migrate-local-data-plane-to-gke-cloud.md`.
 

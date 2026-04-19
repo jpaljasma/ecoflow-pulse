@@ -8,8 +8,8 @@ Scope:
 - bootstrap the hosted `cloud` deploy profile on the regional GKE cluster
   `pulse-cloud` in `us-east1`,
 - converge the hosted cluster onto the current steady-state node pools:
-  `primary-pool` (`e2-standard-4`, public/stateless, `us-east1-d`) and
-  `stateful-pool` (`e2-standard-4`, stateful anchor, `us-east1-c`),
+  `app-pool` (`e2-standard-2`, public/stateless, `us-east1-d`) and
+  `stateful-pool` (`n2-highmem-4`, stateful anchor, `us-east1-c`),
 - restore the local control-plane/history database into cloud CNPG,
 - copy raw archive objects from local MinIO into cloud GCS without changing
   keys or prefixes,
@@ -29,8 +29,13 @@ Scope:
   - cluster: `pulse-cloud`
   - region: `us-east1`
   - expected node pools after hosted cutover:
-    - `primary-pool`
+    - `app-pool`
     - `stateful-pool`
+  - expected additional node pool before the multi-zone stateful HA overlay:
+    - `stateful-pool-ha`
+  - recommended additional third stateful slot before full 3-member consensus
+    rollout:
+    - `stateful-pool-quorum`
 - cloud domain, TLS issuer, Artifact Registry image repos, and Secret Manager
   secret names have been set in `deploy/env/cloud/*.yaml`
 - Workload Identity bindings exist for:
@@ -72,25 +77,34 @@ Expected steady-state cloud topology from this branch:
 - `pulse-services-go-archive`: `1`
 - `pulse-services-go-rollup`: `1`
 - `pulse-services-go-solar-verification`: `1`
-- `pulse-platform-core-1`: `1`
-- `pulse-platform-cloud-nats-0`: `1`
-- `pulse-platform-cloud-valkey-node-0`: `1`
+- `pulse-platform-core-*`: `2`
+- `pulse-platform-cloud-nats-*`: `3`
+- `pulse-platform-cloud-valkey-node-*`: `3`
 
 Current hosted storage profile after the cutover:
 
-- node pools use `100Gi` `pd-balanced` boot disks,
+- node pools use `50Gi` `pd-balanced` boot disks,
 - CNPG/NATS/Valkey now store real data on CSI-backed `standard-rwo`
   (`pd-balanced`) PVCs sized `50Gi`, `20Gi`, and `20Gi`,
-- the next sizing pass should move the general/public pool target toward
-  `e2-standard-2` while keeping CNPG on `e2-standard-4`,
 - SSD performance budget should stay on those PVCs first rather than on large
   node boot disks,
-- the live cluster now runs a cheaper safe idle posture of `1` `primary-pool`
-  node plus `1` `stateful-pool` node; scale `primary-pool` back to `2` before
-  larger rollouts so the public/stateless path regains surge headroom,
-- CNPG does not need a large node boot disk to retain data; after the PVC move,
-  future node-pool recreations should target roughly `50Gi` boot disks unless
-  node-local image/log pressure shows a real need for more.
+- the multi-zone stateful HA target from this branch assumes a second stateful
+  pool named `stateful-pool-ha` in `us-east1-d`,
+- the recommended full rollout-safe target for `NATS=3` and `Valkey=3` adds a
+  third stateful slot (`stateful-pool-quorum`) so those systems do not need to
+  pack two members onto one zone,
+- the branch also prepares `standard-rwo-regional` as an opt-in regional
+  `pd-balanced` class for future migrations where disk-level zonal resilience
+  is worth the extra cost,
+- existing zonal PVCs do not convert in place; a later regional-disk migration
+  is a separate storage move, not part of the first replica rollout,
+- live rollout note:
+  - CNPG is already on `standard-rwo` / `50Gi`,
+  - NATS/Valkey are live at `3` members with the added stateful pools,
+  - the one-time StatefulSet recreate is complete, so every live
+    broker/replica PVC is now on `standard-rwo` / `20Gi`,
+- the steady-state cost-conscious HA target is `2` app nodes plus `1` node in
+  each stateful pool.
 
 ## 3. Restore the Local Control-Plane DB into Cloud CNPG
 

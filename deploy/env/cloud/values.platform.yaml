@@ -138,17 +138,32 @@ runtime:
 
 nats:
   podTemplate:
+    topologySpreadConstraints:
+      topology.kubernetes.io/zone:
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      kubernetes.io/hostname:
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
     configChecksumAnnotation: true
     merge:
       spec:
-        nodeSelector:
-          cloud.google.com/gke-nodepool: stateful-pool
         tolerations:
           - key: workload
             operator: Equal
             value: stateful
             effect: NoSchedule
-        affinity: {}
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: cloud.google.com/gke-nodepool
+                      operator: In
+                      values:
+                        - stateful-pool
+                        - stateful-pool-ha
+                        - stateful-pool-quorum
   natsBox:
     deployment:
       merge:
@@ -161,8 +176,8 @@ nats:
               affinity: {}
   config:
     cluster:
-      enabled: false
-      replicas: 1
+      enabled: true
+      replicas: 3
     jetstream:
       enabled: true
       fileStore:
@@ -179,6 +194,22 @@ nats:
         - op: add
           path: /metadata/labels/release
           value: pulse-platform
+gkeStorageClasses:
+  enabled: true
+  items:
+    - name: standard-rwo-regional
+      labels:
+        app.kubernetes.io/name: pulse-platform
+        app.kubernetes.io/part-of: ecoflow-pulse
+      parameters:
+        type: pd-balanced
+        replication-type: regional-pd
+      allowedTopologies:
+        - matchLabelExpressions:
+            - key: topology.gke.io/zone
+              values:
+                - us-east1-c
+                - us-east1-d
 
 cloudnative-pg:
   nodeSelector:
@@ -188,8 +219,8 @@ cloudnative-pg:
 cloudnativepgCluster:
   enabled: true
   name: pulse-platform-core
-  instances: 1
-  enablePDB: false
+  instances: 2
+  enablePDB: true
   postgresUID: 26
   postgresGID: 26
   storage:
@@ -203,10 +234,34 @@ cloudnativepgCluster:
       cpu: 2
       memory: 4Gi
   scheduling:
-    nodeSelector:
-      cloud.google.com/gke-nodepool: stateful-pool
     tolerations: []
-    affinity: {}
+    affinity:
+      enablePodAntiAffinity: true
+      podAntiAffinityType: preferred
+      topologyKey: topology.kubernetes.io/zone
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                    - stateful-pool
+                    - stateful-pool-ha
+                    - stateful-pool-quorum
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          cnpg.io/cluster: pulse-platform-core
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          cnpg.io/cluster: pulse-platform-core
   bootstrap:
     database: pulse
     owner: pulse
@@ -245,61 +300,79 @@ valkey:
       additionalLabels:
         release: pulse-platform
   primary:
-    nodeSelector:
-      cloud.google.com/gke-nodepool: stateful-pool
-    tolerations:
-      - key: workload
-        operator: Equal
-        value: stateful
-        effect: NoSchedule
-    affinity: {}
     topologySpreadConstraints:
       - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
+        topologyKey: topology.kubernetes.io/zone
         whenUnsatisfiable: ScheduleAnyway
-        matchLabelKeys:
-          - apps.kubernetes.io/pod-index
-    persistence:
-      enabled: true
-      size: 20Gi
-      storageClass: standard-rwo
-    persistentVolumeClaimRetentionPolicy:
-      enabled: true
-      whenScaled: Retain
-      whenDeleted: Retain
-  replica:
-    replicaCount: 1
-    minReadySeconds: 10
-    terminationGracePeriodSeconds: 60
-    nodeSelector:
-      cloud.google.com/gke-nodepool: stateful-pool
-    tolerations:
-      - key: workload
-        operator: Equal
-        value: stateful
-        effect: NoSchedule
-    affinity: {}
-    persistence:
-      enabled: true
-      size: 20Gi
-      storageClass: standard-rwo
-    persistentVolumeClaimRetentionPolicy:
-      enabled: true
-      whenScaled: Retain
-      whenDeleted: Retain
-    topologySpreadConstraints:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: node
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
             app.kubernetes.io/component: node
-  pdb:
-    create: true
-    maxUnavailable: 1
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: standard-rwo
+    persistentVolumeClaimRetentionPolicy:
+      enabled: true
+      whenScaled: Retain
+      whenDeleted: Retain
+    pdb:
+      create: true
+      maxUnavailable: 1
+  replica:
+    replicaCount: 3
+    minReadySeconds: 10
+    podManagementPolicy: OrderedReady
+    terminationGracePeriodSeconds: 60
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                    - stateful-pool
+                    - stateful-pool-ha
+                    - stateful-pool-quorum
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: standard-rwo
+    persistentVolumeClaimRetentionPolicy:
+      enabled: true
+      whenScaled: Retain
+      whenDeleted: Retain
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: node
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: node
+    pdb:
+      create: true
+      minAvailable: 2
+      maxUnavailable: ""
   sentinel:
     enabled: true
-    quorum: 1
+    quorum: 2
     automateClusterRecovery: true
     downAfterMilliseconds: 2000
     failoverTimeout: 180000
