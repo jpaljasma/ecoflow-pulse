@@ -239,11 +239,18 @@ Cloud defaults in this branch:
   regional `pd-balanced` use, but does not force an in-place PVC migration for
   existing stateful claims,
 - live rollout evidence from this branch:
-  - CNPG is healthy at `2` instances,
+  - CNPG is healthy at `2` instances and split across `us-east1-c` and
+    `us-east1-d`,
   - NATS is live at `3` brokers,
   - Valkey/Sentinel is live at `3` nodes,
   - the extra stateful node pools are serving real traffic in `us-east1-d` and
     `us-east1-b`,
+  - public app, realtime gateway, ingress, and Keycloak are now split across
+    `us-east1-d` and `us-east1-b`,
+  - the second public zone currently uses the already-paid
+    `stateful-pool-quorum` node in `us-east1-b`; that kept the live move cost
+    efficient after `us-east1-b` returned `ZONE_RESOURCE_POOL_EXHAUSTED` for a
+    fresh `e2-standard-2` app pool,
 - all live CNPG/NATS/Valkey PVCs are now converged on the intended
   `standard-rwo` footprint (`50Gi` for CNPG, `20Gi` for NATS/Valkey), and the
   superseded unattached disks from earlier migrations have been removed,
@@ -304,6 +311,9 @@ Expected follow-up after the current hosted cutover:
   overlay,
 - add `stateful-pool-quorum` when you want full 3-member rollout-safe placement
   for NATS JetStream and Valkey/Sentinel,
+- revisit a dedicated `e2-standard-2` app pool in the second public zone only
+  if `us-east1-b` capacity loosens or if you want stricter stateless/stateful
+  separation than the current cost-efficient quorum-node reuse,
 - decide later whether CNPG should migrate from zonal `standard-rwo` to the
   prepared `standard-rwo-regional` class; do not treat that as part of the
   first replica rollout,

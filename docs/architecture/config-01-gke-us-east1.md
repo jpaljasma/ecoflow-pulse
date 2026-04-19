@@ -76,7 +76,16 @@ Hosted cloud note:
   - NATS is live at `3`,
   - Valkey/Sentinel is live at `3`,
   - the one-time NATS/Valkey StatefulSet recreate is complete, so every live
-    broker/replica PVC is now on the newer `standard-rwo` / `20Gi` target.
+    broker/replica PVC is now on the newer `standard-rwo` / `20Gi` target,
+  - CNPG is now genuinely zonal with one instance in `us-east1-c` and one in
+    `us-east1-d`,
+  - the public/auth path is now genuinely zonal as well:
+    public app, realtime, ingress, and Keycloak are split across
+    `us-east1-d` and `us-east1-b`,
+  - `app-pool` remains on efficient `e2-standard-2` nodes; because a dedicated
+    `e2-standard-2` app pool in `us-east1-b` stocked out during the live move,
+    the second public zone currently reuses spare `stateful-pool-quorum`
+    capacity instead of adding more permanent app-node cost.
 
 ---
 
