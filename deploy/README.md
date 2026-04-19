@@ -19,7 +19,9 @@ Current state: **platform + telemetry worker runtime in local k3d**.
   - Node BFF/WS gateway/query API remain staged for later milestones.
 - `env/local/`: local values overrides.
 - `env/dev/`: dev values overrides.
+- `env/cloud/`: hosted GKE cloud values overrides (`pulse-cloud`, `us-east1`).
 - `env/dev/values.argocd.yaml`: Argo CD bootstrap values for GKE dev.
+- `env/cloud/values.argocd.yaml`: Argo CD bootstrap values for the hosted cloud cluster.
 - `env/dev/guardrails/`: dev namespace guardrails (`ResourceQuota`, `LimitRange`).
 - `env/dev/recommended/`: recommended runtime policies not auto-applied by scaffold.
   - `pulse-services-go-ingest-hpa.recommended.yaml`: ingest worker HPA baseline.
@@ -28,6 +30,8 @@ Current state: **platform + telemetry worker runtime in local k3d**.
 - `argocd/apps/`: direct Argo CD Applications:
   - `pulse-platform`
   - `pulse-services`
+  - `pulse-platform-cloud`
+  - `pulse-services-cloud`
 - `tilt/k3d-config.yaml`: local k3d cluster config used by architecture docs.
 
 ## Namespaces
@@ -68,6 +72,11 @@ make argocd-bootstrap-dev GKE_PROJECT_ID=<project>
 make argocd-apps-dev GKE_PROJECT_ID=<project>
 make argocd-wait-apps GKE_PROJECT_ID=<project>
 make argocd-dev-up GKE_PROJECT_ID=<project>
+make gke-cloud-context
+make argocd-bootstrap-cloud
+make argocd-apps-cloud
+make argocd-wait-apps-cloud
+make argocd-cloud-up
 ```
 
 Defaults:
@@ -148,6 +157,77 @@ Defaults:
 - dev values also enable `external-secrets` + `observability-lite` using
   low-footprint resource limits.
 - GKE Argo CD bootstrap uses `deploy/env/dev/values.argocd.yaml`.
+- cloud values target the hosted regional cluster path:
+  - separate values overlays under `deploy/env/cloud`,
+  - Argo app manifests `pulse-platform-cloud` + `pulse-services-cloud`,
+  - regional GKE defaults `pulse-cloud` in `us-east1`,
+  - native GCS archive access through Workload Identity instead of MinIO/HMAC,
+  - Secret Manager-backed runtime secrets via `ExternalSecret`,
+  - local/cloud browser clients reach the hosted stack through the public HTTPS
+    BFF + `/ws`, while `go-grpc-api` remains internal-only.
+
+## Cloud Profile
+
+The hosted cloud profile is intentionally separate from the cost-min `dev`
+overlay. Use it for the real shared data plane in project
+`ecoflow-pulse-dev-260221-01`.
+
+Cloud defaults in this branch:
+
+- platform + services keep the same namespaces (`pulse-platform`,
+  `pulse-services`) and topology as local,
+- the checked-in cloud overlay is currently a bootstrap footprint sized to
+  converge on a fresh cluster under limited quota while still remaining
+  maintenance-safe on GKE:
+  public app `2`, realtime gateway `2`, gRPC API `2`, energy API `2`,
+  ingest/inference/projection/archive `1`, rollup `1`,
+- CNPG is currently single-instance (`1`) with Timescale enabled for bootstrap
+  bring-up,
+- CNPG pod disruption budgets are disabled in the cloud bootstrap profile so
+  GKE maintenance is not blocked by a single primary-only PDB during the
+  dev-stage hosted rollout,
+- CNPG custom resources are rendered directly in the chart without Helm
+  `lookup` gating so Argo CD can create the database cluster during cloud
+  bootstrap syncs,
+- bootstrap persistence is trimmed to small `pd-standard` volumes (`10Gi`
+  JetStream, `10Gi` CNPG, `8Gi` Valkey primary/replica) so the first cloud
+  rollout does not depend on regional SSD quota,
+- ingress-nginx stays enabled at `2` replicas with a matching PDB, and
+  external-secrets runs controller/webhook replicas `2/2` with matching PDBs,
+  while observability-lite remains temporarily disabled during initial
+  convergence,
+- archive storage switches to provider-aware `ARCHIVE_OBJECT_PROVIDER=gcs`,
+  bucket/prefix `pulse-telemetry-raw` / `raw`,
+- the hosted raw-archive bucket must carry the checked-in lifecycle policy at
+  `deploy/env/cloud/archive-object-lifecycle.json` so `raw/` objects delete at
+  `30 days`, and bucket soft delete should be disabled (`0`) so cloud
+  retention does not silently exceed the locked archive window,
+- services use a dedicated Kubernetes service account annotated for GKE
+  Workload Identity and read runtime secrets from Secret Manager-backed
+  `ExternalSecret`,
+- single-replica worker deployments render `maxUnavailable: 1` PDBs in the
+  cloud profile so their selectors are covered without producing
+  zero-eviction maintenance warnings,
+- Keycloak stays the auth system, with redirect/CORS allowances for both the
+  cloud domain and localhost Expo web-dev origins; Google social login and the
+  Keycloak config-cli import are temporarily held out of the bootstrap path
+  until the base platform is healthy,
+- Argo-managed cloud installs disable the vendored Helm admission/startup hook
+  jobs for `ingress-nginx`, `cert-manager`, `kube-prometheus-stack`, and
+  Keycloak so umbrella-chart syncs do not stall waiting on subchart hooks,
+- cloud Argo applications avoid `Replace=true` so immutable Job resources do
+  not deadlock bootstrap retries.
+
+Expected follow-up before first live sync:
+
+- replace placeholder cloud domain values (`pulse.example.com`),
+- confirm the Artifact Registry image repositories/tags used in
+  `deploy/env/cloud/*.yaml`,
+- populate the referenced Secret Manager secret names,
+- provision the matching GCP IAM service accounts and Workload Identity
+  bindings,
+- follow the migration runbook in
+  `docs/how-to/migrate-local-data-plane-to-gke-cloud.md`.
 
 ## Helm Dependency Bootstrap
 

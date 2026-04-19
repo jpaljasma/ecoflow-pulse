@@ -16,6 +16,7 @@ go run ./cmd/ecoflow-panel-select-train
 go run ./cmd/ecoflow-db-migrate-job
 go run ./cmd/ecoflow-grpc-api
 go run ./cmd/ecoflow-dev-seed
+go run ./cmd/ecoflow-user-subject-reconcile
 go run ./cmd/ecoflow-ingest-worker
 go run ./cmd/ecoflow-inference-worker
 go run ./cmd/ecoflow-rollup-worker
@@ -930,6 +931,9 @@ Notes:
   The two image builds run in parallel. Repeated local builds reuse Docker
   BuildKit NPM, Expo, and Metro cache mounts, so `npm ci` and Expo web export
   reruns can use previously downloaded packages and bundler state.
+  When corresponding `EXPO_PUBLIC_*` variables are set, the platform build also
+  forwards both the local-profile and cloud-profile universal app connection
+  settings into the exported web bundle.
   Like the services image, local public-image builds now target the host-native
   Linux platform explicitly so local k3d rollouts stay off Rosetta on Apple
   silicon.
@@ -1062,13 +1066,13 @@ Notes:
   - `REGEN_TO='2026-03-14T23:59:59Z'`
   - `REGEN_MAX_OBJECTS=500`
 - `make dev-archive-reconcile` is the local repair path when `make
-  dev-archive-audit` finds stale manifest rows pointing at missing MinIO
-  objects.
-  It port-forwards CNPG + MinIO automatically, deletes only stale
-  `archive_object_manifest` rows for the requested window, and reruns the
-  comparison before it exits.
-  It still exits non-zero if direct MinIO objects are missing manifest rows,
-  because that needs archive-worker/index repair rather than stale-row pruning.
+  dev-archive-audit` finds archive-manifest drift.
+  It port-forwards CNPG + MinIO automatically, deletes stale
+  `archive_object_manifest` rows that point at missing archive objects, and
+  backfills missing manifest rows by decoding the raw archive objects for the
+  requested window before rerunning the comparison.
+  It still exits non-zero when reconcile cannot rebuild the missing rows safely
+  from the archive contents.
 - `make dev-regen-data` rebuilds the last 48 hours of archived telemetry for all
   devices into rollup tables on local k3d using a direct archive-to-rollup
   rebuild path.
@@ -1222,6 +1226,12 @@ Notes:
   - `GKE_CLUSTER_NAME` (default `pulse-dev`)
   - `GKE_CLUSTER_ZONE` (default `us-east1-b`)
   - `GKE_BASELINE_NODEPOOL` (default `baseline-pool`; use `default-pool` if cluster was created via raw `gcloud container clusters create`)
+- `make gke-cloud-context` fetches kube credentials for the hosted regional
+  cloud cluster.
+  Defaults:
+  - `GKE_CLOUD_PROJECT_ID=ecoflow-pulse-dev-260221-01`
+  - `GKE_CLOUD_CLUSTER_NAME=pulse-cloud`
+  - `GKE_CLOUD_CLUSTER_REGION=us-east1`
 - `make gke-dev-guardrails` creates `pulse-dev` namespace if needed and applies:
   - `deploy/env/dev/guardrails/pulse-dev-resourcequota.yaml`
   - `deploy/env/dev/guardrails/pulse-dev-limitrange.yaml`
@@ -1254,6 +1264,23 @@ Notes:
   - Argo CD install/upgrade
   - direct app apply
   - app sync/health wait loop
+- `make argocd-bootstrap-cloud` installs/upgrades Argo CD on the hosted cloud
+  cluster using `deploy/env/cloud/values.argocd.yaml`.
+- `make argocd-apps-cloud` applies the hosted cloud app manifests:
+  - `deploy/argocd/apps/pulse-platform-cloud.yaml`
+  - `deploy/argocd/apps/pulse-services-cloud.yaml`
+- `make argocd-wait-apps-cloud` waits for `pulse-platform-cloud` and
+  `pulse-services-cloud` to reach `Synced` + `Healthy`.
+- `make argocd-cloud-up` is the full hosted-cloud bootstrap sequence:
+  - `make gke-cloud-context`
+  - Argo CD install/upgrade
+  - hosted cloud app apply
+  - app sync/health wait loop
+- apply the hosted raw-archive lifecycle contract with:
+  - `gcloud storage buckets update gs://pulse-telemetry-raw --project=ecoflow-pulse-dev-260221-01 --lifecycle-file=deploy/env/cloud/archive-object-lifecycle.json`
+  - `gcloud storage buckets update gs://pulse-telemetry-raw --project=ecoflow-pulse-dev-260221-01 --soft-delete-duration=0`
+  - verify with `gsutil lifecycle get gs://pulse-telemetry-raw`
+  - verify soft delete is disabled with `gcloud storage buckets describe gs://pulse-telemetry-raw --project=ecoflow-pulse-dev-260221-01 --format='json(lifecycle_config,soft_delete_policy)'`
 - pre-merge GKE validation pattern (when Argo apps track `main` but you need to validate branch changes):
   - patch app `spec.source.targetRevision=<branch>` with `argocd.argoproj.io/refresh=hard`,
   - run `make argocd-wait-apps`,

@@ -25,6 +25,9 @@ Runtime note:
   used by the EcoFlow adapter runtime and local env-backed credential tests.
 - the local services Helm release now injects those two vars into the Go service
   pods through `deploy/env/local/values.services.yaml`.
+- steady-state ingest MQTT sessions derive their broker `ClientID` from the
+  provider device ID plus `PULSE_ENV`, so `local` and `cloud` produce distinct
+  client IDs for the same EcoFlow device.
 
 ## Logging and Process Safety
 
@@ -44,6 +47,7 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `INGEST_QUOTA_REFRESH_INTERVAL` (default `30s`; periodic quota refresh cadence while an MQTT session is alive)
 - `INGEST_QUOTA_REFRESH_JITTER` (default `0.20`; proportional jitter applied to periodic quota refresh scheduling)
 - `INGEST_QUOTA_METRICS_INTERVAL` (default `30s`; jittered aggregate quota refresh metrics log interval, set `0` to disable)
+- `INGEST_MQTT_CLIENT_ID_NAMESPACE` (optional; overrides the environment namespace used when deriving steady-state EcoFlow MQTT client IDs; defaults to `PULSE_ENV`)
 
 ## Server Runtime
 
@@ -95,6 +99,61 @@ Deployment note:
 
 - local/dev Helm values keep request-serving `go-grpc-api` replicas traffic-only by setting `SOLAR_FORECAST_VERIFICATION_INTERVAL=0s` there, and run the background loop on separate `go-solar-verification` workers that cooperatively claim pending runs from Postgres.
 
+## Shared Archive Object Store Runtime
+
+These settings are shared across the archive worker, replay CLI, rollup rebuild,
+gap repair, history backfill, and gRPC history/archive readers:
+
+- `ARCHIVE_OBJECT_PROVIDER` (`minio|gcs`, default `minio`)
+- `ARCHIVE_OBJECT_ENDPOINT`
+  - required for `minio`,
+  - ignored for steady-state native GCS access.
+- `ARCHIVE_OBJECT_ACCESS_KEY`
+  - required for `minio`,
+  - normally unset for native GCS access through Workload Identity.
+- `ARCHIVE_OBJECT_SECRET_KEY`
+  - required for `minio`,
+  - normally unset for native GCS access through Workload Identity.
+- `ARCHIVE_OBJECT_BUCKET` (required logical bucket name, default `pulse-telemetry-raw`)
+- `ARCHIVE_OBJECT_PREFIX` (default `raw`)
+- `ARCHIVE_OBJECT_REGION`
+  - used for S3/MinIO signing,
+  - optional metadata for GCS flows.
+- `ARCHIVE_OBJECT_GCS_PROJECT_ID` (optional; used for cloud logging/bucket bootstrap context)
+- `ARCHIVE_OBJECT_SECURE` (default `false` for local MinIO; typically `true` in cloud)
+- `ARCHIVE_OBJECT_AUTO_CREATE_BUCKET`
+  - useful in local MinIO bootstrap,
+  - should normally stay `false` in cloud/GCS once the bucket is provisioned.
+- `INGEST_NATS_JS_REPLICAS`
+  - JetStream replica factor for the ingest stream bootstrap,
+  - set this to `1` when a bootstrap profile intentionally runs NATS without clustering.
+- `GAP_REPAIR_NATS_JS_REPLICAS`
+  - JetStream replica factor for the gap-repair stream bootstrap,
+  - set this to `1` when a bootstrap profile intentionally runs NATS without clustering.
+- `ARCHIVE_MANIFEST_DB_DSN`
+  - archive-manifest Postgres DSN for archive/rebuild/reconcile flows,
+  - archive worker falls back to `CONTROL_PLANE_DB_DSN` when unset.
+
+## Pulse MQTT Emulator Runtime
+
+- `PULSE_MQTT_EMULATOR_ENABLED` (default `true`; set `false` in cloud when the emulator service is intentionally absent)
+- `PULSE_MQTT_EMULATOR_BASE_URL`
+- `PULSE_MQTT_EMULATOR_BROKER_HOST`
+- `PULSE_MQTT_EMULATOR_BROKER_PORT`
+- `PULSE_MQTT_EMULATOR_TLS_SERVER_NAME`
+
+Cloud note:
+
+- the hosted `cloud` deploy overlay switches this runtime to
+  `ARCHIVE_OBJECT_PROVIDER=gcs` and relies on GKE Workload Identity instead of
+  HMAC keys for steady-state bucket access.
+- the hosted raw-archive bucket should use
+  `deploy/env/cloud/archive-object-lifecycle.json`, which deletes `raw/`
+  objects after `30 days`.
+- bucket soft delete should stay disabled (`0`) in cloud so the effective
+  hosted raw archive window remains aligned with the locked `30-day`
+  retention contract.
+
 ## Pulse Platform Node REST BFF (`apps/pulse-platform`)
 
 - `PULSE_PLATFORM_HOST` (default `0.0.0.0`)
@@ -105,6 +164,10 @@ Deployment note:
 - `PULSE_PLATFORM_DEV_SUBJECT` (optional in local noop mode; recommended for local UI work so the BFF can resolve the current user's devices without request headers)
 - `PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS` (optional comma/whitespace-delimited browser-facing origins for `Link: rel=preconnect` / `dns-prefetch` headers when API/WS are cross-origin)
 - `PULSE_PLATFORM_CORS_ALLOWED_ORIGINS` (optional comma/whitespace-delimited exact origins to allow for browser CORS requests; when unset, the public app keeps the existing permissive origin reflection behavior. Local/dev defaults include `http://localhost:8081` and `https://localhost:8081` for Expo web-dev access to `/api/*`.)
+- hosted cloud deployments should set `PULSE_PLATFORM_CORS_ALLOWED_ORIGINS` to
+  the first-party web origin plus the explicit localhost loopback origins used
+  by Expo web-dev (`http://localhost:8081`, `https://localhost:8081`,
+  `http://127.0.0.1:8081`, `https://127.0.0.1:8081`).
 - `GET /metrics` is exposed on the same public-app HTTP service for Prometheus/OTEL scrape collection. In Helm, enable `runtime.publicApp.metrics.serviceMonitor.enabled=true` to have observability-lite discover the endpoint automatically.
 - Expo web-dev note: when the universal app is served from loopback `:8081` and no explicit `EXPO_PUBLIC_API_URL` is set, the browser client now prefers `https://localhost` / `wss://localhost` automatically so local ingress redirects do not surface as browser CORS failures.
 - Empty-string `EXPO_PUBLIC_*` values are treated as unset in the universal web runtime. This matters for Docker/Helm-driven web builds, where missing args can appear as `""`; the browser should still fall back to the secure localhost defaults instead of generating broken API/WS URLs.
@@ -261,6 +324,21 @@ Operational rule:
 - `ECOFLOW_DEV_PROVIDER` (default `ecoflow`)
 - `ECOFLOW_DEV_SEED_SNS` (comma/whitespace-delimited serials, default `DEMOD2M00001057,DEMODPU0000294`)
 
+## User Subject Reconcile (`cmd/ecoflow-user-subject-reconcile`)
+
+- `CONTROL_PLANE_DB_DSN` (required unless `-dsn` is passed)
+- `-dsn` (optional CLI flag override for the control-plane Postgres DSN)
+- `-email` (required verified email to match in the restored `users` table)
+- `-user-subject` (required new Keycloak/OpenID subject to assign)
+
+Behavior:
+
+- if the target subject already exists for the same verified email, the command
+  returns success without changing ownership,
+- if the target subject already belongs to a different email, it fails closed
+  with a subject-conflict error,
+- otherwise it remaps the verified-email-matching user row to the new subject.
+
 ## Universal App (Expo)
 
 - `EXPO_PUBLIC_API_URL`
@@ -274,17 +352,30 @@ Operational rule:
   - native fallback behavior when unset: retry host variants (`<host>`, Expo host hints, `127.0.0.1`, `localhost`) and include both BFF-proxied (`/ws`) and standalone gateway (`:8082/ws`) paths
   - native debug override: set explicitly when bypassing BFF `/ws` proxy routing
 - `EXPO_PUBLIC_ASSET_BASE_URL`
-- `EXPO_PUBLIC_OIDC_ISSUER_URL` (Keycloak issuer URL for Authorization Code + PKCE)
-- `EXPO_PUBLIC_OIDC_CLIENT_ID` (public OIDC client ID for Expo app)
-- `EXPO_PUBLIC_OIDC_AUDIENCE` (optional audience for token exchange/validation alignment)
-- `EXPO_PUBLIC_OIDC_SCOPES` (optional, default `openid profile email offline_access`)
   - optional absolute base URL for product/brand images in native and web,
   - when unset on web, app uses `/public` local paths,
   - large product images can be remote URI-based and are cached via `expo-image` (`memory-disk`),
   - brand/logo assets are bundled local app assets for smooth top-bar and menu rendering.
+- `EXPO_PUBLIC_OIDC_ISSUER_URL` (Keycloak issuer URL for Authorization Code + PKCE)
+- `EXPO_PUBLIC_OIDC_CLIENT_ID` (public OIDC client ID for Expo app)
+- `EXPO_PUBLIC_OIDC_AUDIENCE` (optional audience for token exchange/validation alignment)
+- `EXPO_PUBLIC_OIDC_SCOPES` (optional, default `openid profile email offline_access`)
+- `EXPO_PUBLIC_CLOUD_API_URL` (cloud BFF base URL used by the `cloud` connection profile)
+- `EXPO_PUBLIC_CLOUD_WS_URL` (cloud websocket URL; when unset, derived from `EXPO_PUBLIC_CLOUD_API_URL`)
+- `EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL` (cloud Keycloak issuer URL for the `cloud` connection profile)
+- `EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID` (cloud public OIDC client ID)
+- `EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE` (optional cloud audience override)
+- `EXPO_PUBLIC_CLOUD_OIDC_SCOPES` (optional cloud scopes override; defaults to `openid profile email offline_access`)
+- `EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE` (`local|cloud`; defaults to `local` unless the requested profile is not configured)
 
 Runtime behavior:
+- the universal app now persists a single app-wide connection profile
+  (`local` or `cloud`) and resolves API base URL, websocket URL, OIDC issuer,
+  and OIDC client together from that selection.
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
+- switching the connection profile clears auth/query state by profile key,
+  recreates the realtime engine with the selected websocket endpoint, and
+  forces re-login when the issuer or client changes between profiles.
 - if auth is configured but no valid access token exists, the telemetry engine remains in `auth_required` and the devices screen shows a sign-in-required state instead of opening anonymous realtime connections.
 - authenticated REST requests that receive `401` should first try to recover with a fresher in-memory token or a one-time refresh-token exchange before falling back to `/login`; if recovery fails, redirect to login with a clear re-authentication message for long-idle sessions.
 - profile and homepage queries should preserve the last successful payload during routine refetch so deploy rollouts do not flash empty-state content; when a profile is missing `avatarUrl`, the profile page may trigger a one-shot authenticated `/api/v1/me/identity-refresh` in the background to backfill provider-managed social data.
