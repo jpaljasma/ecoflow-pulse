@@ -55,10 +55,6 @@ spec:
   nodeSelector:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- with .Values.cloudnativepgCluster.scheduling.tolerations }}
-  tolerations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
   storage:
     {{- with .Values.cloudnativepgCluster.storage.storageClass }}
     storageClass: {{ . | quote }}
