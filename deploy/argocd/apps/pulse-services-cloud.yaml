@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/jpaljasma/ecoflow-pulse.git
-    targetRevision: codex/cloud-data-plane
+    targetRevision: main
     path: deploy/charts/pulse-services
     helm:
       valueFiles:
