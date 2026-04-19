@@ -100,10 +100,9 @@ Current hosted storage profile after the cutover:
   is a separate storage move, not part of the first replica rollout,
 - live rollout note:
   - CNPG is already on `standard-rwo` / `50Gi`,
-  - NATS/Valkey can scale to `3` members with the added stateful pools,
-  - but their existing StatefulSets still need a planned recreate if you want
-    every broker/replica PVC to converge from the older `standard` templates to
-    `standard-rwo` / `20Gi`,
+  - NATS/Valkey are live at `3` members with the added stateful pools,
+  - the one-time StatefulSet recreate is complete, so every live
+    broker/replica PVC is now on `standard-rwo` / `20Gi`,
 - the steady-state cost-conscious HA target is `2` app nodes plus `1` node in
   each stateful pool.
 

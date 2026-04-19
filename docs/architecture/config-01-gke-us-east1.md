@@ -75,9 +75,8 @@ Hosted cloud note:
   - CNPG is healthy at `2`,
   - NATS is live at `3`,
   - Valkey/Sentinel is live at `3`,
-  - older NATS/Valkey claim templates still need a planned StatefulSet recreate
-    before every broker/replica PVC fully converges to the newer
-    `standard-rwo` / `20Gi` target.
+  - the one-time NATS/Valkey StatefulSet recreate is complete, so every live
+    broker/replica PVC is now on the newer `standard-rwo` / `20Gi` target.
 
 ---
 

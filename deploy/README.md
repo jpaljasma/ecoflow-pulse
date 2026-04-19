@@ -244,12 +244,9 @@ Cloud defaults in this branch:
   - Valkey/Sentinel is live at `3` nodes,
   - the extra stateful node pools are serving real traffic in `us-east1-d` and
     `us-east1-b`,
-- remaining storage nuance:
-  - CNPG already uses `standard-rwo` `50Gi`,
-  - existing NATS/Valkey StatefulSets still carry older immutable claim
-    templates, so the new brokers/replicas created during this rollout are
-    still on the older `standard` / `10Gi` and `8Gi` templates until a planned
-    StatefulSet recreate moves them fully to `standard-rwo` / `20Gi`,
+- all live CNPG/NATS/Valkey PVCs are now converged on the intended
+  `standard-rwo` footprint (`50Gi` for CNPG, `20Gi` for NATS/Valkey), and the
+  superseded unattached disks from earlier migrations have been removed,
 - for the current E2/N2 cloud mix, use that regional class selectively when a
   database-oriented recovery-time objective justifies the extra cost; do not
   default NATS/Valkey to regional disks before their application-level replica
@@ -288,8 +285,9 @@ Hosted rollout sequence for the multi-zone stateful HA target:
 3. Watch CNPG scale to `2`, NATS to `3`, and Valkey to `3` total nodes.
 4. Treat the new `standard-rwo-regional` storage class as an opt-in migration
    target, not as an in-place mutation of existing PVCs.
-5. Plan a one-time NATS/Valkey StatefulSet recreate when you are ready to move
-   their older immutable claim templates fully onto `standard-rwo` / `20Gi`.
+5. After the one-time StatefulSet recreate, verify that every live NATS/Valkey
+   PVC is on `standard-rwo` / `20Gi` and remove the superseded unattached
+   disks.
 
 Expected follow-up after the current hosted cutover:
 
