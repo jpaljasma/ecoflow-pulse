@@ -180,7 +180,7 @@ runtime:
         enabled: false
         interval: 30s
     env:
-      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
+      grpcApiAddr: pulse-services-cloud-go-grpc-api.pulse-services.svc.cluster.local:9090
       grpcDeadlineMs: "10000"
       natsURLs: nats://pulse-platform-cloud-nats.pulse-platform.svc.cluster.local:4222
       valkeyAddrs: pulse-platform-cloud-valkey.pulse-platform.svc.cluster.local:26379

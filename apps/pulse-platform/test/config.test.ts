@@ -53,6 +53,17 @@ describe('pulse-platform config', () => {
     expect(match?.[1]?.split(',')).toContain('https://localhost');
   });
 
+  it('keeps hosted cloud grpc upstreams aligned between public app and realtime gateway', () => {
+    const testDir = path.dirname(fileURLToPath(import.meta.url));
+    const valuesPath = path.resolve(testDir, '../../../deploy/env/cloud/values.platform.yaml');
+    const values = readFileSync(valuesPath, 'utf8');
+    const grpcMatches = [...values.matchAll(/grpcApiAddr:\s*([^\s]+)/g)].map((match) => match[1]);
+
+    expect(grpcMatches.length).toBeGreaterThanOrEqual(2);
+    expect(grpcMatches[0]).toBe('pulse-services-cloud-go-grpc-api.pulse-services.svc.cluster.local:9090');
+    expect(grpcMatches[1]).toBe('pulse-services-cloud-go-grpc-api.pulse-services.svc.cluster.local:9090');
+  });
+
   it('supports a dedicated energy grpc upstream override', () => {
     const config = loadConfig({
       GRPC_API_ADDR: '127.0.0.1:9090',
