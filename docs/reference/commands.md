@@ -310,6 +310,9 @@ NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-projection-worker
 ```
 
+Operational note:
+- the durable projection consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery.
+
 Run inference worker loop (consume ingest envelopes and build Valkey device insights):
 
 ```bash
@@ -319,6 +322,9 @@ VALKEY_SENTINEL_MASTER_SET='myprimary' \
 NATS_URLS='nats://127.0.0.1:4222' \
 go run ./cmd/ecoflow-inference-worker
 ```
+
+Operational note:
+- the durable inference consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery.
 
 Run rollup worker loop (consume ingest envelopes from JetStream and upsert minute/hour/day Timescale rollups):
 
@@ -332,6 +338,7 @@ Accuracy note:
 - the live rollup worker currently keeps per-device solar/energy carry state in
   process memory, so correctness requires a singleton live consumer until
   shard-affine consumption or persisted integration state is implemented.
+- the singleton rollup consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery.
 
 Run archive worker loop (consume ingest envelopes from JetStream and write protobuf+zstd objects to MinIO-compatible storage):
 
@@ -343,6 +350,9 @@ ARCHIVE_OBJECT_SECRET_KEY='minio123' \
 ARCHIVE_OBJECT_BUCKET='pulse-telemetry-raw' \
 go run ./cmd/ecoflow-archive-worker
 ```
+
+Operational note:
+- the durable archive consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery, while preserving periodic flushes and shutdown flush-on-exit behavior.
 
 Run replay CLI modes (manifest-backed listing + device/fleet replay to NATS replay subjects):
 

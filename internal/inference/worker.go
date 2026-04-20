@@ -123,18 +123,6 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("init jetstream context: %w", err)
 	}
-	sub, err := w.subscribe(js, w.tracker.Wrap(w.handleMessage))
-	if err != nil {
-		return fmt.Errorf("subscribe inference consumer: %w", err)
-	}
-	defer func() {
-		if err := sub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrBadSubscription) {
-			w.log.Warn("inference unsubscribe failed", slog.String("error", err.Error()))
-		}
-		if !w.tracker.WaitForIdle(w.cfg.DrainTimeout) {
-			w.log.Warn("inference handler drain timeout")
-		}
-	}()
 
 	w.log.Info("inference worker running",
 		slog.String("subject", telemetrybus.IngestWildcardSubject(w.cfg.SubjectConfig)),
@@ -146,8 +134,21 @@ func (w *Worker) Run(ctx context.Context) error {
 		slog.Duration("process_timeout", w.cfg.ProcessTimeout),
 	)
 
-	<-ctx.Done()
-	return nil
+	return telemetrybus.RunConsumerSupervisor(
+		ctx,
+		w.log,
+		js,
+		func(handler nats.MsgHandler) (telemetrybus.QueueSubscription, error) {
+			return w.subscribe(js, handler)
+		},
+		w.tracker.Wrap(w.handleMessage),
+		w.tracker,
+		telemetrybus.ConsumerSupervisorConfig{
+			StreamName:   w.cfg.StreamName,
+			Durable:      w.cfg.Durable,
+			DrainTimeout: w.cfg.DrainTimeout,
+		},
+	)
 }
 
 func (w *Worker) SetMetrics(metrics *workermetrics.Metrics) {

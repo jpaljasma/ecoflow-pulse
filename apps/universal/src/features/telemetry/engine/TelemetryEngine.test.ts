@@ -347,6 +347,53 @@ describe('TelemetryEngine', () => {
     vi.useRealTimers();
   });
 
+  it('keeps sparse streams active until the configured inactivity window elapses', () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({
+      createSocket,
+      snapshotIntervalMs: 20,
+      staleAfterMs: 50,
+      inactiveAfterMs: 500
+    });
+    let latestPayload:
+      | {
+          snapshots: Record<string, { stale: boolean; inactive: boolean; metrics: { pvW: number } | null }>;
+        }
+      | undefined;
+
+    engine.onSnapshot((payload) => {
+      latestPayload = payload as typeof latestPayload;
+    });
+
+    engine.connect();
+    engine.subscribe(['device-1']);
+    sockets[0]?.triggerOpen();
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 1,
+        metrics: { soc: 50, pvW: 200, loadW: 90, batteryW: 25, tempC: 21, acW: 30, dcW: 10 }
+      })
+    } as MessageEvent);
+
+    vi.advanceTimersByTime(100);
+    expect(latestPayload?.snapshots['device-1']?.stale).toBe(true);
+    expect(latestPayload?.snapshots['device-1']?.inactive).toBe(false);
+
+    vi.advanceTimersByTime(450);
+    expect(latestPayload?.snapshots['device-1']?.inactive).toBe(true);
+
+    engine.disconnect();
+    vi.useRealTimers();
+  });
+
   it('reports stale recovery after fresh data returns', () => {
     vi.useFakeTimers();
     const reportSpy = vi.spyOn(clientWsMetrics, 'reportClientWsMetric').mockResolvedValue();

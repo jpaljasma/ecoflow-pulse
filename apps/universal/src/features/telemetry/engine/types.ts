@@ -40,6 +40,7 @@ export type DeviceLiveDetail = {
 
 export type DeviceRuntime = {
   latest: DeviceLatest | null;
+  online: boolean;
   liveDetail: DeviceLiveDetail | null;
   metrics: Record<MetricKey, RingBuffer>;
   lastMessageAt: number;
