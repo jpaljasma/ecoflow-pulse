@@ -123,7 +123,7 @@ func superviseSubscription(
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			ok, reason, err := consumerHealthy(infoProvider, sub, cfg)
+			ok, recreate, reason, err := consumerHealthy(infoProvider, sub, cfg)
 			if ok {
 				continue
 			}
@@ -135,27 +135,31 @@ func superviseSubscription(
 			if err != nil {
 				attrs = append(attrs, slog.String("error", err.Error()))
 			}
+			if !recreate {
+				log.Warn("queue consumer check failed; keeping existing subscription", attrs...)
+				continue
+			}
 			log.Warn("queue consumer unhealthy; recreating subscription", attrs...)
 			return nil
 		}
 	}
 }
 
-func consumerHealthy(infoProvider ConsumerInfoProvider, sub QueueSubscription, cfg ConsumerSupervisorConfig) (bool, string, error) {
+func consumerHealthy(infoProvider ConsumerInfoProvider, sub QueueSubscription, cfg ConsumerSupervisorConfig) (bool, bool, string, error) {
 	if sub == nil || !sub.IsValid() {
-		return false, "subscription_invalid", nil
+		return false, true, "subscription_invalid", nil
 	}
 	_, err := infoProvider.ConsumerInfo(cfg.StreamName, cfg.Durable)
 	if err == nil {
-		return true, "", nil
+		return true, false, "", nil
 	}
 	switch {
 	case errors.Is(err, nats.ErrConsumerNotFound):
-		return false, "consumer_missing", nil
+		return false, true, "consumer_missing", nil
 	case errors.Is(err, nats.ErrStreamNotFound):
-		return false, "stream_missing", nil
+		return false, true, "stream_missing", nil
 	default:
-		return false, "consumer_check_failed", err
+		return false, false, "consumer_check_failed", err
 	}
 }
 

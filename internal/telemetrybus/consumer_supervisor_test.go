@@ -142,3 +142,56 @@ func TestRunConsumerSupervisorRetriesInitialSubscribeFailure(t *testing.T) {
 		t.Fatalf("expected subscribe retry, got %d attempts", attempts)
 	}
 }
+
+func TestRunConsumerSupervisorKeepsSubscriptionOnTransientConsumerCheckError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Millisecond)
+	defer cancel()
+
+	var (
+		mu            sync.Mutex
+		subs          []*fakeQueueSubscription
+		subscribeCall int
+	)
+	subscribe := func(nats.MsgHandler) (QueueSubscription, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		subscribeCall++
+		sub := &fakeQueueSubscription{valid: true}
+		subs = append(subs, sub)
+		return sub, nil
+	}
+	provider := &fakeConsumerInfoProvider{
+		errors: []error{errors.New("temporary jetstream api error"), nil, nil},
+	}
+
+	if err := RunConsumerSupervisor(
+		ctx,
+		nil,
+		provider,
+		subscribe,
+		func(*nats.Msg) {},
+		NewMsgHandlerTracker(),
+		ConsumerSupervisorConfig{
+			StreamName:      "PULSE_TELEMETRY_INGEST",
+			Durable:         "rollup-timeseries-v1",
+			MonitorInterval: 10 * time.Millisecond,
+			RetryBase:       10 * time.Millisecond,
+			RetryMax:        20 * time.Millisecond,
+			DrainTimeout:    10 * time.Millisecond,
+		},
+	); err != nil {
+		t.Fatalf("RunConsumerSupervisor() error = %v", err)
+	}
+
+	if subscribeCall != 1 {
+		t.Fatalf("expected to keep the original subscription on transient check errors, got %d subscribe calls", subscribeCall)
+	}
+	if provider.calls < 2 {
+		t.Fatalf("expected repeated consumer health checks, got %d calls", provider.calls)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("expected one live subscription, got %d", len(subs))
+	}
+}
