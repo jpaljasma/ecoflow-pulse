@@ -1,4 +1,5 @@
 import type { ProviderDevice } from '../grpc/controlPlaneClient.js';
+import { deriveStormGuardState } from './stormGuardState.js';
 
 export type DeviceCapabilities = Record<string, unknown>;
 type DeviceDiagnosticTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
@@ -1122,14 +1123,14 @@ function deriveStormGuardDetails(groups: GenericRecord): Pick<DeviceTelemetryDet
     ...groupRecords.map((group) => toPositiveNumber(group.stormPatternEndTime)),
     ...groupRecords.map((group) => toPositiveNumber(group.stormEndTimestamp))
   );
-  const hasStormGuardWindow = stormPatternEndTimeSeconds !== undefined && stormPatternEndTimeSeconds > 0;
+  const stormGuard = deriveStormGuardState({
+    open: stormPatternOpen,
+    endTimeSeconds: stormPatternEndTimeSeconds
+  });
 
   return {
-    stormGuardActive:
-      stormPatternOpen === true ||
-      hasStormGuardWindow,
-    stormGuardEndsAtUnixMs:
-      stormPatternEndTimeSeconds !== undefined ? stormPatternEndTimeSeconds * 1000 : undefined
+    stormGuardActive: stormGuard.active,
+    stormGuardEndsAtUnixMs: stormGuard.endsAtUnixMs
   };
 }
 

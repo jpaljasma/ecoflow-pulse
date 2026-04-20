@@ -114,6 +114,9 @@ function makeControlPlaneClient(
 }
 
 describe('device client', () => {
+  const futureStormEnd = () => Math.floor((Date.now() + 60 * 60 * 1000) / 1000);
+  const pastStormEnd = () => Math.floor((Date.now() - 60 * 60 * 1000) / 1000);
+
   it('falls back to normalized solar port watts when snapshot pv metrics are absent', async () => {
     const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [
@@ -308,7 +311,7 @@ describe('device client', () => {
           metrics: {
             'param.stormPatternEnable': 1,
             'param.stormPatternOpenFlag': 1,
-            'param.stormPatternEndTime': 1776247200,
+            'param.stormPatternEndTime': futureStormEnd(),
             'params.soc': 53.53,
             'params.wattsOutSum': 101
           }
@@ -321,7 +324,7 @@ describe('device client', () => {
     const [hydrated] = await client.listDevices(makeRequest());
 
     expect(hydrated?.details?.stormGuardActive).toBe(true);
-    expect(hydrated?.details?.stormGuardEndsAtUnixMs).toBe(1776247200 * 1000);
+    expect(hydrated?.details?.stormGuardEndsAtUnixMs).toBe(futureStormEnd() * 1000);
   });
 
   it('does not surface storm guard from snapshot metrics when the feature is enabled but inactive', async () => {
@@ -365,6 +368,49 @@ describe('device client', () => {
 
     expect(hydrated?.details?.stormGuardActive).toBe(false);
     expect(hydrated?.details?.stormGuardEndsAtUnixMs).toBeUndefined();
+  });
+
+  it('does not surface storm guard from expired snapshot windows when the open flag is false', async () => {
+    const device = makeProviderDevice();
+    device.metadata = {
+      groups: {
+        ...(device.metadata?.groups ?? {})
+      }
+    };
+
+    const controlPlaneClient = makeControlPlaneClient({
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [device]
+        }
+      ])
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '22222222-2222-7222-8222-222222222222',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'param.stormPatternEnable': 0,
+            'param.stormPatternOpenFlag': 0,
+            'param.stormPatternEndTime': pastStormEnd(),
+            'params.soc': 53.53,
+            'params.wattsOutSum': 101
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [hydrated] = await client.listDevices(makeRequest());
+
+    expect(hydrated?.details?.stormGuardActive).toBe(false);
+    expect(hydrated?.details?.stormGuardEndsAtUnixMs).toBe(pastStormEnd() * 1000);
   });
 
   it('maps inactive provider-device imports through the control-plane client', async () => {

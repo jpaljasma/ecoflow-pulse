@@ -22,6 +22,9 @@ function baseProviderDevice(overrides: Partial<ProviderDevice> = {}): ProviderDe
 }
 
 describe('provider device mapper', () => {
+  const futureStormEnd = () => Math.floor((Date.now() + 60 * 60 * 1000) / 1000);
+  const pastStormEnd = () => Math.floor((Date.now() - 60 * 60 * 1000) / 1000);
+
   it('maps DPU quota metadata into capabilities and details', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({
@@ -48,7 +51,7 @@ describe('provider device mapper', () => {
               dsgTimeTaskType: -1,
               stormPatternEnable: 1,
               stormPatternOpenFlag: 1,
-              stormPatternEndTime: 1773306000
+              stormPatternEndTime: futureStormEnd()
             },
             hs_yj751_pd_backend_addr: {
               inLvMpptVol: 64.2,
@@ -172,7 +175,7 @@ describe('provider device mapper', () => {
           expect.objectContaining({ key: 'bp-err-2', value: '2', tone: 'danger' })
         ]),
         stormGuardActive: true,
-        stormGuardEndsAtUnixMs: 1773306000 * 1000,
+        stormGuardEndsAtUnixMs: futureStormEnd() * 1000,
         timezoneId: 'America/New_York',
         timezoneOffsetMinutes: -300,
         timezoneMode: 'manual'
@@ -832,7 +835,7 @@ describe('provider device mapper', () => {
             pd: {
               stormIsEnable: 1,
               inStormMode: 1,
-              stormEndTimestamp: 1773306000
+              stormEndTimestamp: futureStormEnd()
             }
           }
         }
@@ -842,7 +845,7 @@ describe('provider device mapper', () => {
     expect(presentation.details).toEqual(
       expect.objectContaining({
         stormGuardActive: true,
-        stormGuardEndsAtUnixMs: 1773306000 * 1000
+        stormGuardEndsAtUnixMs: futureStormEnd() * 1000
       })
     );
   });
@@ -859,7 +862,7 @@ describe('provider device mapper', () => {
             hs_yj751_pd_app_set_info_addr: {
               stormPatternEnable: 1,
               stormPatternOpenFlag: 0,
-              stormPatternEndTime: 1773306000
+              stormPatternEndTime: futureStormEnd()
             }
           }
         }
@@ -869,9 +872,32 @@ describe('provider device mapper', () => {
     expect(presentation.details).toEqual(
       expect.objectContaining({
         stormGuardActive: true,
-        stormGuardEndsAtUnixMs: 1773306000 * 1000
+        stormGuardEndsAtUnixMs: futureStormEnd() * 1000
       })
     );
+  });
+
+  it('does not treat an expired storm guard window as active when open flag is false', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        providerDeviceId: 'DEMODPUSTORMEXPIRED0001',
+        canonicalSn: 'DEMODPUSTORMEXPIRED0001',
+        productName: 'DPU A 12 kWh',
+        model: 'DELTA Pro Ultra',
+        metadata: {
+          groups: {
+            hs_yj751_pd_app_set_info_addr: {
+              stormPatternEnable: 0,
+              stormPatternOpenFlag: 0,
+              stormPatternEndTime: pastStormEnd()
+            }
+          }
+        }
+      })
+    );
+
+    expect(presentation.details?.stormGuardActive).toBe(false);
+    expect(presentation.details?.stormGuardEndsAtUnixMs).toBe(pastStormEnd() * 1000);
   });
 
   it('does not treat storm guard as active for DPU d_addr enable-only payloads', () => {
