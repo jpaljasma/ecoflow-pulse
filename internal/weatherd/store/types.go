@@ -28,6 +28,7 @@ type SnapshotStore interface {
 	UpsertBiasStates(ctx context.Context, states []weatherd.BiasState) error
 	TouchRefreshCandidate(ctx context.Context, canonicalLocationKey string, req weatherd.Request, requestedAt time.Time) error
 	ListRecentRefreshCandidates(ctx context.Context, since time.Time) ([]weatherd.RefreshCandidate, error)
-	MarkRefreshCandidateRefreshed(ctx context.Context, canonicalLocationKey string, refreshedAt time.Time) error
+	ListDueRefreshCandidates(ctx context.Context, since, dueBefore time.Time) ([]weatherd.RefreshCandidate, error)
+	MarkRefreshCandidateRefreshed(ctx context.Context, canonicalLocationKey string, refreshedAt, nextRefreshAt time.Time) error
 	Close() error
 }

@@ -313,6 +313,7 @@ runtime:
       service:
         port: 9090
       solarForecastVerificationInterval: "15m"
+      weatherRefreshInterval: "0s"
       startupProbe:
         enabled: true
         initialDelaySeconds: 0
@@ -363,6 +364,36 @@ runtime:
           memory: 512Mi
         limits:
           cpu: 1
+          memory: 1Gi
+    scheduler:
+      enabled: false
+      replicaCount: 1
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      topologySpreadConstraints: []
+      deployment:
+        minReadySeconds: 10
+        terminationGracePeriodSeconds: 45
+        strategy:
+          maxUnavailable: 0
+          maxSurge: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+      service:
+        port: 9092
+      startupProbe:
+        enabled: true
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 24
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
           memory: 1Gi
     energyApi:
       enabled: false

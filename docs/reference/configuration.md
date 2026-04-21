@@ -94,10 +94,31 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`; Valkey device-insight read-model key prefix)
 - `SOLAR_FORECAST_VERIFICATION_INTERVAL` (default `15m`; when `> 0`, the solar verifier processes matured issued hourly rows on each pass)
 - `SOLAR_FORECAST_VERIFICATION_BATCH_LIMIT` (default `1536`; max number of pending solar hourly records the verification loop will process per pass)
+- `WEATHER_HOT_CACHE_TTL` (default `4h`; the canonical hot-cache and snapshot freshness window for weather reads)
+- `WEATHER_REFRESH_INTERVAL` (default `30m` for standalone grpc-api; Helm keeps request-serving `go-grpc-api` traffic-only with `0s`)
+- `WEATHER_RECENT_ACTIVE_WINDOW` (default `168h`; active-location lookback for background weather refresh)
 
 Deployment note:
 
 - local/dev Helm values keep request-serving `go-grpc-api` replicas traffic-only by setting `SOLAR_FORECAST_VERIFICATION_INTERVAL=0s` there, and run the background loop on separate `go-solar-verification` workers that cooperatively claim pending runs from Postgres.
+- local/dev Helm values also keep request-serving weather refresh traffic-only by setting `WEATHER_REFRESH_INTERVAL=0s` on `go-grpc-api`, with background weather refresh and prune work moved to the dedicated `go-scheduler` worker.
+
+## Background Scheduler Runtime
+
+The dedicated `cmd/ecoflow-scheduler` worker owns reusable recurring jobs for forecast refresh and hot-data pruning.
+
+- `SCHEDULER_METRICS_LISTEN_ADDR` (default empty; optional metrics server address)
+- `SCHEDULER_POLL_INTERVAL` (default `1m`; scheduler claim loop cadence)
+- `SCHEDULER_CLAIM_LIMIT` (default `8`; max recurring jobs claimed per poll)
+- `SCHEDULER_WEATHER_REFRESH_SCAN_INTERVAL` (default `5m`; how often the scheduler scans for due weather refresh candidates)
+- `SCHEDULER_WEATHER_PRUNE_INTERVAL` (default `24h`; weather hot-data prune cadence)
+- `SCHEDULER_SOLAR_PRUNE_INTERVAL` (default `24h`; solar hot-data prune cadence)
+- `WEATHER_VERIFICATION_RETENTION` (default `720h`; weather yesterday-verification retention)
+- `WEATHER_REFRESH_CANDIDATE_RETENTION` (default `336h`; stale weather refresh-candidate retention)
+- `SOLAR_FORECAST_RUN_RETENTION` (default `336h`; raw solar forecast run retention)
+- `SOLAR_FORECAST_DAILY_VERIFICATION_RETENTION` (default `1440h`; solar daily verification retention)
+- `SOLAR_FORECAST_PRUNE_RUN_BATCH_LIMIT` (default `250`; max runs pruned per batch)
+- `SOLAR_FORECAST_PRUNE_DAILY_BATCH_LIMIT` (default `1000`; max daily verification rows pruned per batch)
 
 ## Shared Archive Object Store Runtime
 

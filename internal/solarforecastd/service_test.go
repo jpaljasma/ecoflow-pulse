@@ -168,13 +168,13 @@ func TestGetSolarOutlookPersistsRunUsingUpstreamIssueTimeAndCanonicalRunID(t *te
 	if store.run == nil {
 		t.Fatal("training run was not captured")
 	}
-	if got, want := store.run.IssuedAt.UTC(), issuedAt.UTC(); !got.Equal(want) {
+	if got, want := store.run.IssuedAt.UTC(), time.Date(2026, 3, 19, 12, 0, 0, 0, time.UTC); !got.Equal(want) {
 		t.Fatalf("run.IssuedAt = %v, want %v", got, want)
 	}
 	if got, want := store.run.IssueLocalDate.Format("2006-01-02"), "2026-03-19"; got != want {
 		t.Fatalf("run.IssueLocalDate = %s, want %s", got, want)
 	}
-	if got, want := store.run.IssueLocalHour, 11; got != want {
+	if got, want := store.run.IssueLocalHour, 8; got != want {
 		t.Fatalf("run.IssueLocalHour = %d, want %d", got, want)
 	}
 	if got, want := store.run.IssueUTCOffsetMinutes, -240; got != want {

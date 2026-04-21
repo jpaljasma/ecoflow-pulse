@@ -8,7 +8,7 @@ scaffold:
 runtime:
   image:
     repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services
-    tag: cloud-go1262-20260420-selfheal1
+    tag: cloud-go1262-20260421-forecast-retention
     pullPolicy: IfNotPresent
   serviceAccount:
     create: true
@@ -162,6 +162,9 @@ runtime:
       pdb:
         enabled: true
         maxUnavailable: 1
+    scheduler:
+      enabled: true
+      replicaCount: 1
     energyApi:
       enabled: true
       replicaCount: 2

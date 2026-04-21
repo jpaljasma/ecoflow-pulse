@@ -87,6 +87,54 @@ func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
 
+func (s *PostgresStore) PruneRunsOlderThan(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 250
+	}
+	result, err := s.executor().ExecContext(ctx, `
+DELETE FROM solar_forecast_runs
+WHERE id IN (
+    SELECT id
+    FROM solar_forecast_runs
+    WHERE issue_local_date < $1
+    ORDER BY issue_local_date ASC, issued_at ASC
+    LIMIT $2
+);
+`, cutoff.UTC(), limit)
+	if err != nil {
+		return 0, fmt.Errorf("prune solar forecast runs: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("read pruned solar forecast run count: %w", err)
+	}
+	return rowsAffected, nil
+}
+
+func (s *PostgresStore) PruneDailyVerificationOlderThan(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
+	result, err := s.executor().ExecContext(ctx, `
+DELETE FROM solar_forecast_verification_daily
+WHERE (site_key, verification_local_date, forecast_version, served_variant, horizon_bucket) IN (
+    SELECT site_key, verification_local_date, forecast_version, served_variant, horizon_bucket
+    FROM solar_forecast_verification_daily
+    WHERE verification_local_date < $1
+    ORDER BY verification_local_date ASC, site_key ASC
+    LIMIT $2
+);
+`, cutoff.UTC(), limit)
+	if err != nil {
+		return 0, fmt.Errorf("prune solar forecast daily verification rows: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("read pruned solar forecast daily verification count: %w", err)
+	}
+	return rowsAffected, nil
+}
+
 func (s *PostgresStore) executor() sqlExecutor {
 	if s != nil && s.exec != nil {
 		return s.exec

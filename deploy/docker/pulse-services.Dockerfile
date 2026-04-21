@@ -27,6 +27,7 @@ RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26.2,target=/go/pkg/mod,sharing
         ecoflow-archive-worker \
         ecoflow-gap-detector \
         ecoflow-gap-repair-worker \
+        ecoflow-scheduler \
         ecoflow-solar-verifier \
         ecoflow-grpc-api \
         pulse-mqtt-emulator; do \

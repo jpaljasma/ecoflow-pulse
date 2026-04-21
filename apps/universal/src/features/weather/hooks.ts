@@ -22,7 +22,8 @@ type WeatherQueryOptions = {
   deviceId?: string;
 };
 
-const SOLAR_OUTLOOK_STALE_MS = 5 * 60_000;
+const FOUR_HOURS_MS = 4 * 60 * 60_000;
+const ONE_DAY_MS = 24 * 60 * 60_000;
 
 export function useWeatherForecast(options: WeatherQueryOptions = {}) {
   const { token, authKey = 'anonymous', locationKey = 'none', enabled = true } = options;
@@ -30,8 +31,8 @@ export function useWeatherForecast(options: WeatherQueryOptions = {}) {
     queryKey: [...buildWeatherQueryKey(authKey, locationKey), 'forecast'],
     queryFn: () => fetchWeatherForecast(token),
     enabled,
-    staleTime: 15 * 60_000,
-    gcTime: 30 * 60_000,
+    staleTime: FOUR_HOURS_MS,
+    gcTime: FOUR_HOURS_MS,
     placeholderData: (previous) => previous
   });
 }
@@ -42,8 +43,8 @@ export function useWeatherYesterdayVerification(options: WeatherQueryOptions = {
     queryKey: [...buildWeatherQueryKey(authKey, locationKey), 'yesterday'],
     queryFn: () => fetchWeatherYesterdayVerification(token),
     enabled,
-    staleTime: 30 * 60_000,
-    gcTime: 30 * 60_000,
+    staleTime: ONE_DAY_MS,
+    gcTime: ONE_DAY_MS,
     placeholderData: (previous) => previous
   });
 }
@@ -61,8 +62,8 @@ export function useSolarOutlook(options: WeatherQueryOptions & SolarOutlookScope
     queryKey: [...buildWeatherQueryKey(authKey, locationKey, scope, deviceId ?? ''), 'solar-outlook'],
     queryFn: () => fetchSolarOutlook(token, { scope, deviceId }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
-    staleTime: SOLAR_OUTLOOK_STALE_MS,
-    gcTime: 30 * 60_000,
+    staleTime: FOUR_HOURS_MS,
+    gcTime: FOUR_HOURS_MS,
     placeholderData: (previous) => previous
   });
 }

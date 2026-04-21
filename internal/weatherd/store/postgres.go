@@ -20,6 +20,12 @@ type PostgresStore struct {
 	nowFn func() time.Time
 }
 
+type WeatherPruneStats struct {
+	CompactedSnapshots  int64
+	PrunedVerifications int64
+	PrunedCandidates    int64
+}
+
 func NewPostgresStore(dsn string, nowFn func() time.Time) (*PostgresStore, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
@@ -67,8 +73,26 @@ func (s *PostgresStore) SaveForecastBundle(ctx context.Context, req weatherd.Req
 		return fmt.Errorf("begin weather snapshot tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	var snapshotID string
-	err = tx.QueryRowContext(ctx, `
+	var existingIssuedAt sql.NullTime
+	if err := tx.QueryRowContext(ctx, `
+SELECT issued_at
+FROM weather_forecast_snapshots
+WHERE canonical_location_key = $1
+ORDER BY issued_at DESC
+LIMIT 1;
+`, bundle.Provenance.CanonicalLocationKey).Scan(&existingIssuedAt); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("query existing weather snapshot: %w", err)
+	}
+	if existingIssuedAt.Valid && existingIssuedAt.Time.After(bundle.Provenance.IssuedAt.UTC()) {
+		return tx.Commit()
+	}
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM weather_forecast_snapshots
+WHERE canonical_location_key = $1;
+`, bundle.Provenance.CanonicalLocationKey); err != nil {
+		return fmt.Errorf("delete existing weather snapshots: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
 INSERT INTO weather_forecast_snapshots (
 	canonical_location_key,
 	timezone,
@@ -81,8 +105,7 @@ INSERT INTO weather_forecast_snapshots (
 	created_at,
 	updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
-RETURNING id::text;
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9);
 `,
 		bundle.Provenance.CanonicalLocationKey,
 		bundle.Provenance.Timezone,
@@ -93,22 +116,9 @@ RETURNING id::text;
 		encodedReq,
 		encodedBundle,
 		now,
-	).Scan(&snapshotID)
+	)
 	if err != nil {
 		return fmt.Errorf("insert weather snapshot: %w", err)
-	}
-	for _, point := range bundle.Hourly {
-		if _, err := tx.ExecContext(ctx, `
-INSERT INTO weather_forecast_points (
-	snapshot_id,
-	target_time,
-	created_at
-)
-VALUES ($1::uuid, $2, $3)
-ON CONFLICT (snapshot_id, target_time) DO NOTHING;
-`, snapshotID, point.Time.UTC(), now); err != nil {
-			return fmt.Errorf("insert weather forecast point: %w", err)
-		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit weather snapshot tx: %w", err)
@@ -330,6 +340,7 @@ ON CONFLICT (canonical_location_key)
 DO UPDATE SET
 	request_json = EXCLUDED.request_json,
 	last_requested_at = EXCLUDED.last_requested_at,
+	next_refresh_at = COALESCE(weather_refresh_candidates.next_refresh_at, EXCLUDED.last_requested_at),
 	updated_at = EXCLUDED.updated_at;
 `, canonicalLocationKey, raw, requestedAt.UTC())
 	if err != nil {
@@ -340,7 +351,7 @@ DO UPDATE SET
 
 func (s *PostgresStore) ListRecentRefreshCandidates(ctx context.Context, since time.Time) ([]weatherd.RefreshCandidate, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT canonical_location_key, request_json, last_requested_at, last_refreshed_at
+SELECT canonical_location_key, request_json, last_requested_at, last_refreshed_at, next_refresh_at
 FROM weather_refresh_candidates
 WHERE last_requested_at >= $1
 ORDER BY last_requested_at DESC;
@@ -354,7 +365,8 @@ ORDER BY last_requested_at DESC;
 		var row weatherd.RefreshCandidate
 		var raw []byte
 		var lastRefreshed sql.NullTime
-		if err := rows.Scan(&row.CanonicalLocationKey, &raw, &row.LastRequestedAt, &lastRefreshed); err != nil {
+		var nextRefresh sql.NullTime
+		if err := rows.Scan(&row.CanonicalLocationKey, &raw, &row.LastRequestedAt, &lastRefreshed, &nextRefresh); err != nil {
 			return nil, fmt.Errorf("scan weather refresh candidate: %w", err)
 		}
 		if err := json.Unmarshal(raw, &row.Request); err != nil {
@@ -364,6 +376,10 @@ ORDER BY last_requested_at DESC;
 			v := lastRefreshed.Time.UTC()
 			row.LastRefreshedAt = &v
 		}
+		if nextRefresh.Valid {
+			v := nextRefresh.Time.UTC()
+			row.NextRefreshAt = &v
+		}
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -372,17 +388,131 @@ ORDER BY last_requested_at DESC;
 	return out, nil
 }
 
-func (s *PostgresStore) MarkRefreshCandidateRefreshed(ctx context.Context, canonicalLocationKey string, refreshedAt time.Time) error {
+func (s *PostgresStore) ListDueRefreshCandidates(ctx context.Context, since, dueBefore time.Time) ([]weatherd.RefreshCandidate, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT canonical_location_key, request_json, last_requested_at, last_refreshed_at, next_refresh_at
+FROM weather_refresh_candidates
+WHERE last_requested_at >= $1
+  AND (next_refresh_at IS NULL OR next_refresh_at <= $2)
+ORDER BY COALESCE(next_refresh_at, last_requested_at) ASC;
+`, since.UTC(), dueBefore.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("query due weather refresh candidates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]weatherd.RefreshCandidate, 0, 16)
+	for rows.Next() {
+		var row weatherd.RefreshCandidate
+		var raw []byte
+		var lastRefreshed sql.NullTime
+		var nextRefresh sql.NullTime
+		if err := rows.Scan(&row.CanonicalLocationKey, &raw, &row.LastRequestedAt, &lastRefreshed, &nextRefresh); err != nil {
+			return nil, fmt.Errorf("scan due weather refresh candidate: %w", err)
+		}
+		if err := json.Unmarshal(raw, &row.Request); err != nil {
+			return nil, fmt.Errorf("decode due weather refresh candidate request: %w", err)
+		}
+		if lastRefreshed.Valid {
+			v := lastRefreshed.Time.UTC()
+			row.LastRefreshedAt = &v
+		}
+		if nextRefresh.Valid {
+			v := nextRefresh.Time.UTC()
+			row.NextRefreshAt = &v
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate due weather refresh candidates: %w", err)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) MarkRefreshCandidateRefreshed(ctx context.Context, canonicalLocationKey string, refreshedAt, nextRefreshAt time.Time) error {
 	_, err := s.db.ExecContext(ctx, `
 UPDATE weather_refresh_candidates
 SET last_refreshed_at = $2,
+	next_refresh_at = $3,
 	updated_at = $2
 WHERE canonical_location_key = $1;
-`, canonicalLocationKey, refreshedAt.UTC())
+`, canonicalLocationKey, refreshedAt.UTC(), nextRefreshAt.UTC())
 	if err != nil {
 		return fmt.Errorf("mark weather refresh candidate refreshed: %w", err)
 	}
 	return nil
+}
+
+func (s *PostgresStore) PruneHotData(ctx context.Context, verificationCutoff, candidateCutoff time.Time) (WeatherPruneStats, error) {
+	var stats WeatherPruneStats
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return stats, fmt.Errorf("begin weather prune tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	compacted, err := tx.ExecContext(ctx, `
+WITH ranked AS (
+    SELECT ctid,
+           row_number() OVER (
+               PARTITION BY canonical_location_key
+               ORDER BY issued_at DESC, updated_at DESC, id DESC
+           ) AS row_num
+    FROM weather_forecast_snapshots
+)
+DELETE FROM weather_forecast_snapshots s
+USING ranked r
+WHERE s.ctid = r.ctid
+  AND r.row_num > 1;
+`)
+	if err != nil {
+		return stats, fmt.Errorf("compact weather snapshots: %w", err)
+	}
+	stats.CompactedSnapshots, err = compacted.RowsAffected()
+	if err != nil {
+		return stats, fmt.Errorf("read compacted weather snapshot count: %w", err)
+	}
+
+	prunedVerifications, err := tx.ExecContext(ctx, `
+DELETE FROM weather_yesterday_verifications
+WHERE verification_date < $1;
+`, verificationCutoff.UTC())
+	if err != nil {
+		return stats, fmt.Errorf("prune weather verifications: %w", err)
+	}
+	stats.PrunedVerifications, err = prunedVerifications.RowsAffected()
+	if err != nil {
+		return stats, fmt.Errorf("read pruned weather verification count: %w", err)
+	}
+
+	prunedCandidates, err := tx.ExecContext(ctx, `
+DELETE FROM weather_refresh_candidates
+WHERE last_requested_at < $1;
+`, candidateCutoff.UTC())
+	if err != nil {
+		return stats, fmt.Errorf("prune weather refresh candidates: %w", err)
+	}
+	stats.PrunedCandidates, err = prunedCandidates.RowsAffected()
+	if err != nil {
+		return stats, fmt.Errorf("read pruned weather refresh candidate count: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+DELETE FROM weather_forecast_snapshots s
+WHERE s.issued_at < $1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM weather_refresh_candidates c
+      WHERE c.canonical_location_key = s.canonical_location_key
+        AND c.last_requested_at >= $1
+  );
+`, candidateCutoff.UTC()); err != nil {
+		return stats, fmt.Errorf("prune inactive weather snapshots: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return stats, fmt.Errorf("commit weather prune tx: %w", err)
+	}
+	return stats, nil
 }
 
 func chooseTime(primary, fallback time.Time) time.Time {

@@ -65,6 +65,9 @@ runtime:
           enabled: true
     solarVerification:
       enabled: true
+    scheduler:
+      enabled: true
+      replicaCount: 1
     energyApi:
       enabled: true
       replicaCount: 3

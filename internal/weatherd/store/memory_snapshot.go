@@ -14,7 +14,7 @@ import (
 type MemorySnapshotStore struct {
 	mu                sync.RWMutex
 	nowFn             func() time.Time
-	bundlesByKey      map[string][]weatherd.Bundle
+	bundlesByKey      map[string]weatherd.Bundle
 	requestToKey      map[string]string
 	verifications     map[string]weatherd.VerificationResult
 	biasByLocation    map[string]map[string]weatherd.BiasState
@@ -27,7 +27,7 @@ func NewMemorySnapshotStore(nowFn func() time.Time) *MemorySnapshotStore {
 	}
 	return &MemorySnapshotStore{
 		nowFn:             nowFn,
-		bundlesByKey:      map[string][]weatherd.Bundle{},
+		bundlesByKey:      map[string]weatherd.Bundle{},
 		requestToKey:      map[string]string{},
 		verifications:     map[string]weatherd.VerificationResult{},
 		biasByLocation:    map[string]map[string]weatherd.BiasState{},
@@ -39,10 +39,9 @@ func (s *MemorySnapshotStore) SaveForecastBundle(_ context.Context, req weatherd
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := bundle.Provenance.CanonicalLocationKey
-	s.bundlesByKey[key] = append(s.bundlesByKey[key], cloneBundle(bundle))
-	sort.Slice(s.bundlesByKey[key], func(i, j int) bool {
-		return s.bundlesByKey[key][i].Provenance.IssuedAt.After(s.bundlesByKey[key][j].Provenance.IssuedAt)
-	})
+	if existing, ok := s.bundlesByKey[key]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
+		s.bundlesByKey[key] = cloneBundle(bundle)
+	}
 	s.requestToKey[requestKey(req)] = key
 	return nil
 }
@@ -50,22 +49,24 @@ func (s *MemorySnapshotStore) SaveForecastBundle(_ context.Context, req weatherd
 func (s *MemorySnapshotStore) LatestBundle(_ context.Context, canonicalLocationKey string) (*weatherd.Bundle, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	rows := s.bundlesByKey[canonicalLocationKey]
-	if len(rows) == 0 {
+	row, ok := s.bundlesByKey[canonicalLocationKey]
+	if !ok {
 		return nil, nil
 	}
-	out := cloneBundle(rows[0])
+	out := cloneBundle(row)
 	return &out, nil
 }
 
 func (s *MemorySnapshotStore) LatestBundleBefore(_ context.Context, canonicalLocationKey string, before time.Time) (*weatherd.Bundle, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, row := range s.bundlesByKey[canonicalLocationKey] {
-		if row.Provenance.IssuedAt.Before(before.UTC()) {
-			out := cloneBundle(row)
-			return &out, nil
-		}
+	row, ok := s.bundlesByKey[canonicalLocationKey]
+	if !ok {
+		return nil, nil
+	}
+	if row.Provenance.IssuedAt.Before(before.UTC()) {
+		out := cloneBundle(row)
+		return &out, nil
 	}
 	return nil, nil
 }
@@ -132,6 +133,10 @@ func (s *MemorySnapshotStore) TouchRefreshCandidate(_ context.Context, canonical
 	row.CanonicalLocationKey = canonicalLocationKey
 	row.Request = req
 	row.LastRequestedAt = requestedAt.UTC()
+	if row.NextRefreshAt == nil {
+		v := requestedAt.UTC()
+		row.NextRefreshAt = &v
+	}
 	s.refreshCandidates[canonicalLocationKey] = row
 	s.requestToKey[requestKey(req)] = canonicalLocationKey
 	return nil
@@ -152,13 +157,42 @@ func (s *MemorySnapshotStore) ListRecentRefreshCandidates(_ context.Context, sin
 	return out, nil
 }
 
-func (s *MemorySnapshotStore) MarkRefreshCandidateRefreshed(_ context.Context, canonicalLocationKey string, refreshedAt time.Time) error {
+func (s *MemorySnapshotStore) ListDueRefreshCandidates(_ context.Context, since, dueBefore time.Time) ([]weatherd.RefreshCandidate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]weatherd.RefreshCandidate, 0, len(s.refreshCandidates))
+	for _, row := range s.refreshCandidates {
+		if row.LastRequestedAt.Before(since.UTC()) {
+			continue
+		}
+		if row.NextRefreshAt != nil && row.NextRefreshAt.After(dueBefore.UTC()) {
+			continue
+		}
+		out = append(out, cloneRefreshCandidate(row))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		left := out[i].LastRequestedAt
+		if out[i].NextRefreshAt != nil {
+			left = out[i].NextRefreshAt.UTC()
+		}
+		right := out[j].LastRequestedAt
+		if out[j].NextRefreshAt != nil {
+			right = out[j].NextRefreshAt.UTC()
+		}
+		return left.Before(right)
+	})
+	return out, nil
+}
+
+func (s *MemorySnapshotStore) MarkRefreshCandidateRefreshed(_ context.Context, canonicalLocationKey string, refreshedAt, nextRefreshAt time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	row := s.refreshCandidates[canonicalLocationKey]
 	row.CanonicalLocationKey = canonicalLocationKey
 	v := refreshedAt.UTC()
 	row.LastRefreshedAt = &v
+	next := nextRefreshAt.UTC()
+	row.NextRefreshAt = &next
 	s.refreshCandidates[canonicalLocationKey] = row
 	return nil
 }
@@ -211,6 +245,10 @@ func cloneRefreshCandidate(in weatherd.RefreshCandidate) weatherd.RefreshCandida
 	if in.LastRefreshedAt != nil {
 		v := *in.LastRefreshedAt
 		out.LastRefreshedAt = &v
+	}
+	if in.NextRefreshAt != nil {
+		v := *in.NextRefreshAt
+		out.NextRefreshAt = &v
 	}
 	return out
 }

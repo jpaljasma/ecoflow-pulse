@@ -54,7 +54,7 @@ func NewService(upstream Upstream, hotCache HotCache, snapshots SnapshotStore, b
 		return nil, errors.New("weather budget manager is required")
 	}
 	if cfg.HotTTL <= 0 {
-		cfg.HotTTL = 50 * time.Minute
+		cfg.HotTTL = 4 * time.Hour
 	}
 	if cfg.RecentActiveWindow <= 0 {
 		cfg.RecentActiveWindow = 7 * 24 * time.Hour
@@ -352,7 +352,8 @@ func (s *Service) GetYesterdayVerification(ctx context.Context, req Request) (*V
 }
 
 func (s *Service) RefreshRecentLocations(ctx context.Context) error {
-	candidates, err := s.snapshots.ListRecentRefreshCandidates(ctx, s.nowFn().UTC().Add(-s.activeWindow))
+	now := s.nowFn().UTC()
+	candidates, err := s.snapshots.ListDueRefreshCandidates(ctx, now.Add(-s.activeWindow), now)
 	if err != nil {
 		return err
 	}
@@ -392,7 +393,8 @@ func (s *Service) RefreshRecentLocations(ctx context.Context) error {
 			if err := s.hotCache.PutForecast(ctx, bundle.Provenance.CanonicalLocationKey, bundle, s.hotTTL); err != nil {
 				return err
 			}
-			if err := s.snapshots.MarkRefreshCandidateRefreshed(ctx, bundle.Provenance.CanonicalLocationKey, s.nowFn().UTC()); err != nil {
+			refreshedAt := s.nowFn().UTC()
+			if err := s.snapshots.MarkRefreshCandidateRefreshed(ctx, bundle.Provenance.CanonicalLocationKey, refreshedAt, refreshedAt.Add(s.hotTTL)); err != nil {
 				return err
 			}
 		}
@@ -466,6 +468,9 @@ func (s *Service) loadVerificationForecast(ctx context.Context, req Request, key
 	}
 	if err != nil {
 		return nil, "", err
+	}
+	if fallback == nil {
+		return nil, "", errors.New("weather previous runs unavailable")
 	}
 	fallback.Provenance.CanonicalLocationKey = key
 	fallback.Provenance.IssuedAt = s.nowFn().UTC()

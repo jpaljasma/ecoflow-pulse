@@ -296,7 +296,7 @@ func TestGetYesterdayVerificationUsesSnapshotAndImperialConversion(t *testing.T)
 		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
 	}
 	svc, err := weatherd.NewService(
-		&fakeUpstream{},
+		&fakeUpstream{previousRuns: priorForecast},
 		cache,
 		snapshots,
 		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
@@ -315,8 +315,8 @@ func TestGetYesterdayVerificationUsesSnapshotAndImperialConversion(t *testing.T)
 	if err != nil {
 		t.Fatalf("GetYesterdayVerification() error = %v", err)
 	}
-	if got := result.Provenance.VerificationSource; got != "snapshot" {
-		t.Fatalf("verification source = %q, want snapshot", got)
+	if got := result.Provenance.VerificationSource; got != "previous_runs" {
+		t.Fatalf("verification source = %q, want previous_runs", got)
 	}
 	assertClose(t, value(result.Hourly[0].ForecastRaw.Temperature), 46.4)
 	assertClose(t, value(result.Hourly[0].Actual.Temperature), 50)

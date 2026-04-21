@@ -17,7 +17,8 @@ import (
 )
 
 type fakeUpstream struct {
-	forecast *weatherd.Bundle
+	forecast     *weatherd.Bundle
+	previousRuns *weatherd.Bundle
 }
 
 func (f *fakeUpstream) FetchForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -32,7 +33,7 @@ func (f *fakeUpstream) FetchForecastBatch(_ context.Context, _ []weatherd.Reques
 }
 
 func (f *fakeUpstream) FetchPreviousRuns(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
-	return nil, nil
+	return cloneBundle(f.previousRuns), nil
 }
 
 func (f *fakeUpstream) FetchHistoricalForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -116,7 +117,7 @@ func TestWeatherServiceMapsYesterdayVerificationToProto(t *testing.T) {
 		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
 	}
 	domain, err := weatherd.NewService(
-		&fakeUpstream{},
+		&fakeUpstream{previousRuns: prior},
 		cache,
 		snapshots,
 		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
@@ -138,8 +139,8 @@ func TestWeatherServiceMapsYesterdayVerificationToProto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetYesterdayVerification() error = %v", err)
 	}
-	if got := resp.GetProvenance().GetVerificationSource(); got != "snapshot" {
-		t.Fatalf("verification source = %q, want snapshot", got)
+	if got := resp.GetProvenance().GetVerificationSource(); got != "previous_runs" {
+		t.Fatalf("verification source = %q, want previous_runs", got)
 	}
 	if len(resp.GetHourly()) != 1 {
 		t.Fatalf("hourly len = %d, want 1", len(resp.GetHourly()))
