@@ -87,4 +87,6 @@ type DailyRunRollupUpserter interface {
 type TrainingDataPruner interface {
 	PruneRunsOlderThan(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 	PruneDailyVerificationOlderThan(ctx context.Context, cutoff time.Time, limit int) (int64, error)
+	PruneOrphanedHourlyRecords(ctx context.Context, limit int) (int64, error)
+	PruneOrphanedRunDailyRollups(ctx context.Context, limit int) (int64, error)
 }

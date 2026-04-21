@@ -135,6 +135,54 @@ WHERE (site_key, verification_local_date, forecast_version, served_variant, hori
 	return rowsAffected, nil
 }
 
+func (s *PostgresStore) PruneOrphanedHourlyRecords(ctx context.Context, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 10000
+	}
+	result, err := s.executor().ExecContext(ctx, `
+DELETE FROM solar_forecast_hourly_training_records
+WHERE ctid IN (
+    SELECT h.ctid
+    FROM solar_forecast_hourly_training_records h
+    LEFT JOIN solar_forecast_runs r ON r.id = h.run_id
+    WHERE r.id IS NULL
+    LIMIT $1
+);
+`, limit)
+	if err != nil {
+		return 0, fmt.Errorf("prune orphaned solar forecast hourly rows: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("read pruned orphaned solar forecast hourly count: %w", err)
+	}
+	return rowsAffected, nil
+}
+
+func (s *PostgresStore) PruneOrphanedRunDailyRollups(ctx context.Context, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 5000
+	}
+	result, err := s.executor().ExecContext(ctx, `
+DELETE FROM solar_forecast_verification_daily_run_rollup
+WHERE ctid IN (
+    SELECT rr.ctid
+    FROM solar_forecast_verification_daily_run_rollup rr
+    LEFT JOIN solar_forecast_runs r ON r.id = rr.run_id
+    WHERE r.id IS NULL
+    LIMIT $1
+);
+`, limit)
+	if err != nil {
+		return 0, fmt.Errorf("prune orphaned solar forecast run daily rollup rows: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("read pruned orphaned solar forecast run daily rollup count: %w", err)
+	}
+	return rowsAffected, nil
+}
+
 func (s *PostgresStore) executor() sqlExecutor {
 	if s != nil && s.exec != nil {
 		return s.exec

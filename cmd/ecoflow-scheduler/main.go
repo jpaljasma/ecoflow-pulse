@@ -313,7 +313,34 @@ func runJob(
 				break
 			}
 		}
-		log.Info("solar hot data pruned", "pruned_runs", totalRuns, "pruned_daily_rows", totalDaily)
+		var orphanedHourly int64
+		for {
+			pruned, err := solarTrainingStore.PruneOrphanedHourlyRecords(ctx, runtimecfg.IntMin("SOLAR_FORECAST_PRUNE_ORPHANED_HOURLY_BATCH_LIMIT", 10000, 1))
+			if err != nil {
+				return err
+			}
+			orphanedHourly += pruned
+			if pruned == 0 {
+				break
+			}
+		}
+		var orphanedRunRollups int64
+		for {
+			pruned, err := solarTrainingStore.PruneOrphanedRunDailyRollups(ctx, runtimecfg.IntMin("SOLAR_FORECAST_PRUNE_ORPHANED_RUN_ROLLUP_BATCH_LIMIT", 5000, 1))
+			if err != nil {
+				return err
+			}
+			orphanedRunRollups += pruned
+			if pruned == 0 {
+				break
+			}
+		}
+		log.Info("solar hot data pruned",
+			"pruned_runs", totalRuns,
+			"pruned_daily_rows", totalDaily,
+			"pruned_orphaned_hourly_rows", orphanedHourly,
+			"pruned_orphaned_run_rollups", orphanedRunRollups,
+		)
 		return nil
 	default:
 		return fmt.Errorf("unsupported scheduler job type %q", job.JobType)
