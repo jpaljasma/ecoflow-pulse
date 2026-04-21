@@ -1000,6 +1000,47 @@ spec:
       app.kubernetes.io/component: go-scheduler
 {{- end }}
 {{- end }}
+{{- if .Values.runtime.workers.scheduler.metrics.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-scheduler-metrics
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workers.scheduler.service.port }}
+      targetPort: metrics
+{{- if and .Values.runtime.workers.scheduler.metrics.enabled .Values.runtime.workers.scheduler.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-scheduler
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+    release: {{ .Values.global.platformReleaseName }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-scheduler
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.scheduler.metrics.serviceMonitor.interval }}
+{{- end }}
+{{- end }}
 ---
 {{- if .Values.runtime.workers.energyApi.enabled }}
 apiVersion: apps/v1

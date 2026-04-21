@@ -145,10 +145,7 @@ export function useFleetSolarHistory(
     placeholderData: (previous) => previous
   });
 
-  return {
-    ...query,
-    data: query.data ?? emptySolarHistoryView()
-  };
+  return query;
 }
 
 export function useDevicePowerTrendHistory(

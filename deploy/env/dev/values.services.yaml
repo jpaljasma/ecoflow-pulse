@@ -68,6 +68,9 @@ runtime:
     scheduler:
       enabled: true
       replicaCount: 1
+      metrics:
+        serviceMonitor:
+          enabled: true
     energyApi:
       enabled: true
       replicaCount: 3

@@ -26,6 +26,13 @@ type WeatherPruneStats struct {
 	PrunedCandidates    int64
 }
 
+type WeatherRetainedCounts struct {
+	Snapshots            int64
+	Verifications        int64
+	RefreshCandidates    int64
+	DueRefreshCandidates int64
+}
+
 func NewPostgresStore(dsn string, nowFn func() time.Time) (*PostgresStore, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
@@ -513,6 +520,26 @@ WHERE s.issued_at < $1
 		return stats, fmt.Errorf("commit weather prune tx: %w", err)
 	}
 	return stats, nil
+}
+
+func (s *PostgresStore) CountHotData(ctx context.Context, dueBefore time.Time) (WeatherRetainedCounts, error) {
+	var counts WeatherRetainedCounts
+	err := s.db.QueryRowContext(ctx, `
+SELECT
+    (SELECT count(*) FROM weather_forecast_snapshots),
+    (SELECT count(*) FROM weather_yesterday_verifications),
+    (SELECT count(*) FROM weather_refresh_candidates),
+    (SELECT count(*) FROM weather_refresh_candidates WHERE next_refresh_at IS NULL OR next_refresh_at <= $1);
+`, dueBefore.UTC()).Scan(
+		&counts.Snapshots,
+		&counts.Verifications,
+		&counts.RefreshCandidates,
+		&counts.DueRefreshCandidates,
+	)
+	if err != nil {
+		return counts, fmt.Errorf("count retained weather hot data: %w", err)
+	}
+	return counts, nil
 }
 
 func chooseTime(primary, fallback time.Time) time.Time {

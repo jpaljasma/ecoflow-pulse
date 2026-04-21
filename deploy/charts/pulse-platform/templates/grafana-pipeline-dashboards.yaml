@@ -1251,6 +1251,108 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-forecast-retention
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  pulse-forecast-retention.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [{"expr": "max(pulse_scheduler_retained_rows{kind=\"weather_forecast_snapshots\"})", "refId": "A"}],
+          "title": "Weather Snapshots Retained",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [{"expr": "max(pulse_scheduler_retained_rows{kind=\"solar_forecast_hourly_training_records\"})", "refId": "A"}],
+          "title": "Solar Hourly Rows Retained",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+          "id": 3,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [{"expr": "time() - max(pulse_scheduler_last_successful_run_unixtime{job_type=\"weather.prune_hot_data\"})", "refId": "A"}],
+          "title": "Age Since Weather Prune",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+          "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+          "id": 4,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+          "targets": [{"expr": "time() - max(pulse_scheduler_last_successful_run_unixtime{job_type=\"solar.prune_hot_data\"})", "refId": "A"}],
+          "title": "Age Since Solar Prune",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+          "id": 5,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (kind) (increase(pulse_scheduler_cleanup_rows_total[24h]))", "legendFormat": {{ `"{{kind}}"` }}, "refId": "A"}
+          ],
+          "title": "Cleanup Rows in Last 24h",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+          "id": 6,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "sum by (job_type, result) (rate(pulse_scheduler_jobs_total[5m]))", "legendFormat": {{ `"{{job_type}} {{result}}"` }}, "refId": "A"}
+          ],
+          "title": "Scheduler Job Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 14},
+          "id": 7,
+          "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+          "targets": [
+            {"expr": "max by (kind) (pulse_scheduler_retained_rows)", "legendFormat": {{ `"{{kind}}"` }}, "refId": "A"}
+          ],
+          "title": "Retained Forecast Rows",
+          "type": "timeseries"
+        }
+      ],
+      "schemaVersion": 39,
+      "style": "dark",
+      "templating": {"list": []},
+      "time": {"from": "now-24h", "to": "now"},
+      "title": "Pulse Forecast Retention",
+      "uid": "pulse-forecast-retention",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: {{ include "pulse-platform.fullname" . }}-grafana-dashboard-platform-infra
   namespace: {{ .Release.Namespace }}
   labels:

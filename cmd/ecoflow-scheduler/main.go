@@ -62,6 +62,7 @@ func main() {
 	defer stopLogMetrics()
 
 	metricsRegistry := prometheus.NewRegistry()
+	schedulerMetrics := newSchedulerMetrics(metricsRegistry)
 	metricsListenAddr := runtimecfg.EnvOrDefault("SCHEDULER_METRICS_LISTEN_ADDR", "")
 	stopMetrics := workermetrics.StartServer(ctx, log, metricsRegistry, metricsListenAddr)
 	defer stopMetrics()
@@ -130,7 +131,10 @@ func main() {
 			return
 		}
 		for _, job := range jobs {
-			if err := runJob(ctx, log, job, weatherSvc, weatherSnapshots, solarTrainingStore); err != nil && ctx.Err() == nil {
+			startedAt := time.Now()
+			err := runJob(ctx, log, job, weatherSvc, weatherSnapshots, solarTrainingStore, schedulerMetrics)
+			schedulerMetrics.observeJobRun(job.JobType, err, time.Since(startedAt), time.Now())
+			if err != nil && ctx.Err() == nil {
 				log.Warn("scheduler job failed", "job_key", job.JobKey, "job_type", job.JobType, "error", err.Error())
 			}
 		}
@@ -260,6 +264,7 @@ func runJob(
 	weatherSvc *weatherd.Service,
 	weatherSnapshots *weatherstore.PostgresStore,
 	solarTrainingStore *solarstore.PostgresStore,
+	metrics *schedulerMetrics,
 ) error {
 	switch job.JobType {
 	case "weather.refresh_due_candidates":
@@ -278,6 +283,15 @@ func runJob(
 		)
 		if err != nil {
 			return err
+		}
+		metrics.observeCleanupRows(job.JobType, "weather_forecast_snapshots_compacted", stats.CompactedSnapshots)
+		metrics.observeCleanupRows(job.JobType, "weather_yesterday_verifications_pruned", stats.PrunedVerifications)
+		metrics.observeCleanupRows(job.JobType, "weather_refresh_candidates_pruned", stats.PrunedCandidates)
+		if counts, countErr := weatherSnapshots.CountHotData(ctx, time.Now().UTC()); countErr == nil {
+			metrics.setRetainedRows("weather_forecast_snapshots", counts.Snapshots)
+			metrics.setRetainedRows("weather_yesterday_verifications", counts.Verifications)
+			metrics.setRetainedRows("weather_refresh_candidates", counts.RefreshCandidates)
+			metrics.setRetainedRows("weather_refresh_candidates_due", counts.DueRefreshCandidates)
 		}
 		log.Info("weather hot data pruned",
 			"compacted_snapshots", stats.CompactedSnapshots,
@@ -334,6 +348,18 @@ func runJob(
 			if pruned == 0 {
 				break
 			}
+		}
+		metrics.observeCleanupRows(job.JobType, "solar_forecast_runs_pruned", totalRuns)
+		metrics.observeCleanupRows(job.JobType, "solar_forecast_verification_daily_pruned", totalDaily)
+		metrics.observeCleanupRows(job.JobType, "solar_forecast_hourly_training_records_orphaned_pruned", orphanedHourly)
+		metrics.observeCleanupRows(job.JobType, "solar_forecast_run_daily_rollups_orphaned_pruned", orphanedRunRollups)
+		if counts, countErr := solarTrainingStore.CountRetainedTrainingData(ctx); countErr == nil {
+			metrics.setRetainedRows("solar_forecast_runs", counts.Runs)
+			metrics.setRetainedRows("solar_forecast_hourly_training_records", counts.HourlyRows)
+			metrics.setRetainedRows("solar_forecast_verification_daily", counts.DailyVerificationRows)
+			metrics.setRetainedRows("solar_forecast_verification_daily_run_rollup", counts.RunDailyRollupRows)
+			metrics.setRetainedRows("solar_forecast_hourly_training_records_orphaned", counts.OrphanedHourlyRows)
+			metrics.setRetainedRows("solar_forecast_verification_daily_run_rollup_orphaned", counts.OrphanedRunDailyRollups)
 		}
 		log.Info("solar hot data pruned",
 			"pruned_runs", totalRuns,

@@ -383,6 +383,11 @@ runtime:
         minAvailable: 1
       service:
         port: 9092
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+          interval: 30s
       startupProbe:
         enabled: true
         initialDelaySeconds: 0

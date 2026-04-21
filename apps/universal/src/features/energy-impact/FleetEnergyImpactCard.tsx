@@ -90,8 +90,8 @@ export function FleetEnergyImpactCard({
 
   const displaySolarWh =
     period === 'today'
-      ? fleetSolarHistory.data.todayWh
-      : pastTwelveMonthsQuery.data ?? fleetSolarHistory.data.todayWh;
+      ? (fleetSolarHistory.data?.todayWh ?? 0)
+      : pastTwelveMonthsQuery.data ?? fleetSolarHistory.data?.todayWh ?? 0;
   const displayPeriod =
     period === 'past12Months' && pastTwelveMonthsQuery.data === undefined ? 'today' : period;
 

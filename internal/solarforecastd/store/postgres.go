@@ -58,6 +58,15 @@ type runDailyVerificationRollup struct {
 	UpdatedAt                time.Time
 }
 
+type TrainingDataRetainedCounts struct {
+	Runs                    int64
+	HourlyRows              int64
+	DailyVerificationRows   int64
+	RunDailyRollupRows      int64
+	OrphanedHourlyRows      int64
+	OrphanedRunDailyRollups int64
+}
+
 func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
@@ -181,6 +190,30 @@ WHERE ctid IN (
 		return 0, fmt.Errorf("read pruned orphaned solar forecast run daily rollup count: %w", err)
 	}
 	return rowsAffected, nil
+}
+
+func (s *PostgresStore) CountRetainedTrainingData(ctx context.Context) (TrainingDataRetainedCounts, error) {
+	var counts TrainingDataRetainedCounts
+	err := s.executor().QueryRowContext(ctx, `
+SELECT
+    (SELECT count(*) FROM solar_forecast_runs),
+    (SELECT count(*) FROM solar_forecast_hourly_training_records),
+    (SELECT count(*) FROM solar_forecast_verification_daily),
+    (SELECT count(*) FROM solar_forecast_verification_daily_run_rollup),
+    (SELECT count(*) FROM solar_forecast_hourly_training_records h LEFT JOIN solar_forecast_runs r ON r.id = h.run_id WHERE r.id IS NULL),
+    (SELECT count(*) FROM solar_forecast_verification_daily_run_rollup rr LEFT JOIN solar_forecast_runs r ON r.id = rr.run_id WHERE r.id IS NULL);
+`).Scan(
+		&counts.Runs,
+		&counts.HourlyRows,
+		&counts.DailyVerificationRows,
+		&counts.RunDailyRollupRows,
+		&counts.OrphanedHourlyRows,
+		&counts.OrphanedRunDailyRollups,
+	)
+	if err != nil {
+		return counts, fmt.Errorf("count retained solar forecast training data: %w", err)
+	}
+	return counts, nil
 }
 
 func (s *PostgresStore) executor() sqlExecutor {
