@@ -1165,5 +1165,5 @@ function firstDefined<T>(...values: (T | undefined)[]): T | undefined {
 }
 
 function stringOr(value: unknown, fallback: string): string {
-  return typeof value === 'string' && value.trim() !== '' ? value : fallback;
+  return typeof value === 'string' && value.trim().length > 0 ? value : fallback;
 }
