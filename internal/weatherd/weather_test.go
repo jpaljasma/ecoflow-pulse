@@ -315,8 +315,8 @@ func TestGetYesterdayVerificationUsesSnapshotAndImperialConversion(t *testing.T)
 	if err != nil {
 		t.Fatalf("GetYesterdayVerification() error = %v", err)
 	}
-	if got := result.Provenance.VerificationSource; got != "previous_runs" {
-		t.Fatalf("verification source = %q, want previous_runs", got)
+	if got := result.Provenance.VerificationSource; got != "snapshot" {
+		t.Fatalf("verification source = %q, want snapshot", got)
 	}
 	assertClose(t, value(result.Hourly[0].ForecastRaw.Temperature), 46.4)
 	assertClose(t, value(result.Hourly[0].Actual.Temperature), 50)

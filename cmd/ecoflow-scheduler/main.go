@@ -289,6 +289,7 @@ func runJob(
 		metrics.observeCleanupRows(job.JobType, "weather_refresh_candidates_pruned", stats.PrunedCandidates)
 		if counts, countErr := weatherSnapshots.CountHotData(ctx, time.Now().UTC()); countErr == nil {
 			metrics.setRetainedRows("weather_forecast_snapshots", counts.Snapshots)
+			metrics.setRetainedRows("weather_verification_forecast_anchors", counts.VerificationAnchors)
 			metrics.setRetainedRows("weather_yesterday_verifications", counts.Verifications)
 			metrics.setRetainedRows("weather_refresh_candidates", counts.RefreshCandidates)
 			metrics.setRetainedRows("weather_refresh_candidates_due", counts.DueRefreshCandidates)

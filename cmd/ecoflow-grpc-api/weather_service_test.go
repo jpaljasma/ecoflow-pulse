@@ -139,8 +139,8 @@ func TestWeatherServiceMapsYesterdayVerificationToProto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetYesterdayVerification() error = %v", err)
 	}
-	if got := resp.GetProvenance().GetVerificationSource(); got != "previous_runs" {
-		t.Fatalf("verification source = %q, want previous_runs", got)
+	if got := resp.GetProvenance().GetVerificationSource(); got != "snapshot" {
+		t.Fatalf("verification source = %q, want snapshot", got)
 	}
 	if len(resp.GetHourly()) != 1 {
 		t.Fatalf("hourly len = %d, want 1", len(resp.GetHourly()))
