@@ -12,13 +12,14 @@ import (
 )
 
 type MemorySnapshotStore struct {
-	mu                sync.RWMutex
-	nowFn             func() time.Time
-	bundlesByKey      map[string]weatherd.Bundle
-	requestToKey      map[string]string
-	verifications     map[string]weatherd.VerificationResult
-	biasByLocation    map[string]map[string]weatherd.BiasState
-	refreshCandidates map[string]weatherd.RefreshCandidate
+	mu                  sync.RWMutex
+	nowFn               func() time.Time
+	bundlesByKey        map[string]weatherd.Bundle
+	verificationAnchors map[string]weatherd.Bundle
+	requestToKey        map[string]string
+	verifications       map[string]weatherd.VerificationResult
+	biasByLocation      map[string]map[string]weatherd.BiasState
+	refreshCandidates   map[string]weatherd.RefreshCandidate
 }
 
 func NewMemorySnapshotStore(nowFn func() time.Time) *MemorySnapshotStore {
@@ -26,12 +27,13 @@ func NewMemorySnapshotStore(nowFn func() time.Time) *MemorySnapshotStore {
 		nowFn = time.Now
 	}
 	return &MemorySnapshotStore{
-		nowFn:             nowFn,
-		bundlesByKey:      map[string]weatherd.Bundle{},
-		requestToKey:      map[string]string{},
-		verifications:     map[string]weatherd.VerificationResult{},
-		biasByLocation:    map[string]map[string]weatherd.BiasState{},
-		refreshCandidates: map[string]weatherd.RefreshCandidate{},
+		nowFn:               nowFn,
+		bundlesByKey:        map[string]weatherd.Bundle{},
+		verificationAnchors: map[string]weatherd.Bundle{},
+		requestToKey:        map[string]string{},
+		verifications:       map[string]weatherd.VerificationResult{},
+		biasByLocation:      map[string]map[string]weatherd.BiasState{},
+		refreshCandidates:   map[string]weatherd.RefreshCandidate{},
 	}
 }
 
@@ -41,6 +43,10 @@ func (s *MemorySnapshotStore) SaveForecastBundle(_ context.Context, req weatherd
 	key := bundle.Provenance.CanonicalLocationKey
 	if existing, ok := s.bundlesByKey[key]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
 		s.bundlesByKey[key] = cloneBundle(bundle)
+	}
+	anchorKey := verificationAnchorKey(key, nextLocalDayStartUTC(bundle))
+	if existing, ok := s.verificationAnchors[anchorKey]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
+		s.verificationAnchors[anchorKey] = cloneBundle(bundle)
 	}
 	s.requestToKey[requestKey(req)] = key
 	return nil
@@ -69,6 +75,27 @@ func (s *MemorySnapshotStore) LatestBundleBefore(_ context.Context, canonicalLoc
 		return &out, nil
 	}
 	return nil, nil
+}
+
+func (s *MemorySnapshotStore) LoadVerificationForecastAnchor(_ context.Context, canonicalLocationKey string, verificationDate time.Time) (*weatherd.Bundle, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	row, ok := s.verificationAnchors[verificationAnchorKey(canonicalLocationKey, verificationDate)]
+	if !ok {
+		return nil, nil
+	}
+	out := cloneBundle(row)
+	return &out, nil
+}
+
+func (s *MemorySnapshotStore) UpsertVerificationForecastAnchor(_ context.Context, canonicalLocationKey string, verificationDate time.Time, bundle weatherd.Bundle) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := verificationAnchorKey(canonicalLocationKey, verificationDate)
+	if existing, ok := s.verificationAnchors[key]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
+		s.verificationAnchors[key] = cloneBundle(bundle)
+	}
+	return nil
 }
 
 func (s *MemorySnapshotStore) FindCanonicalLocationKeyByRequest(_ context.Context, req weatherd.Request) (string, error) {
@@ -251,4 +278,20 @@ func cloneRefreshCandidate(in weatherd.RefreshCandidate) weatherd.RefreshCandida
 		out.NextRefreshAt = &v
 	}
 	return out
+}
+
+func verificationAnchorKey(canonicalLocationKey string, verificationDate time.Time) string {
+	return canonicalLocationKey + "|" + verificationDate.UTC().Format(time.RFC3339)
+}
+
+func nextLocalDayStartUTC(bundle weatherd.Bundle) time.Time {
+	loc := time.UTC
+	if bundle.Provenance.Timezone != "" {
+		if loaded, err := time.LoadLocation(bundle.Provenance.Timezone); err == nil {
+			loc = loaded
+		}
+	}
+	issuedLocal := bundle.Provenance.IssuedAt.In(loc)
+	nextDay := time.Date(issuedLocal.Year(), issuedLocal.Month(), issuedLocal.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	return nextDay.UTC()
 }

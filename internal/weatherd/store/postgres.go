@@ -28,6 +28,7 @@ type WeatherPruneStats struct {
 
 type WeatherRetainedCounts struct {
 	Snapshots            int64
+	VerificationAnchors  int64
 	Verifications        int64
 	RefreshCandidates    int64
 	DueRefreshCandidates int64
@@ -127,6 +128,32 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9);
 	if err != nil {
 		return fmt.Errorf("insert weather snapshot: %w", err)
 	}
+	verificationDate := nextLocalDayStartUTCForPostgres(bundle)
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO weather_verification_forecast_anchors (
+	canonical_location_key,
+	verification_date,
+	issued_at,
+	bundle_json,
+	created_at,
+	updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $5)
+ON CONFLICT (canonical_location_key, verification_date)
+DO UPDATE SET
+	issued_at = EXCLUDED.issued_at,
+	bundle_json = EXCLUDED.bundle_json,
+	updated_at = EXCLUDED.updated_at
+WHERE EXCLUDED.issued_at >= weather_verification_forecast_anchors.issued_at;
+`,
+		bundle.Provenance.CanonicalLocationKey,
+		verificationDate.UTC(),
+		bundle.Provenance.IssuedAt.UTC(),
+		encodedBundle,
+		now,
+	); err != nil {
+		return fmt.Errorf("upsert weather verification forecast anchor: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit weather snapshot tx: %w", err)
 	}
@@ -152,6 +179,51 @@ WHERE canonical_location_key = $1
 ORDER BY issued_at DESC
 LIMIT 1;
 `, canonicalLocationKey, before.UTC())
+}
+
+func (s *PostgresStore) LoadVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*weatherd.Bundle, error) {
+	return s.loadBundle(ctx, `
+SELECT bundle_json
+FROM weather_verification_forecast_anchors
+WHERE canonical_location_key = $1
+  AND verification_date = $2
+LIMIT 1;
+`, canonicalLocationKey, verificationDate.UTC())
+}
+
+func (s *PostgresStore) UpsertVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time, bundle weatherd.Bundle) error {
+	raw, err := json.Marshal(bundle)
+	if err != nil {
+		return fmt.Errorf("marshal weather verification forecast anchor bundle: %w", err)
+	}
+	now := s.nowFn().UTC()
+	_, err = s.db.ExecContext(ctx, `
+INSERT INTO weather_verification_forecast_anchors (
+	canonical_location_key,
+	verification_date,
+	issued_at,
+	bundle_json,
+	created_at,
+	updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $5)
+ON CONFLICT (canonical_location_key, verification_date)
+DO UPDATE SET
+	issued_at = EXCLUDED.issued_at,
+	bundle_json = EXCLUDED.bundle_json,
+	updated_at = EXCLUDED.updated_at
+WHERE EXCLUDED.issued_at >= weather_verification_forecast_anchors.issued_at;
+`,
+		canonicalLocationKey,
+		verificationDate.UTC(),
+		bundle.Provenance.IssuedAt.UTC(),
+		raw,
+		now,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert weather verification forecast anchor: %w", err)
+	}
+	return nil
 }
 
 func (s *PostgresStore) FindCanonicalLocationKeyByRequest(ctx context.Context, req weatherd.Request) (string, error) {
@@ -504,6 +576,13 @@ WHERE last_requested_at < $1;
 	}
 
 	if _, err := tx.ExecContext(ctx, `
+DELETE FROM weather_verification_forecast_anchors
+WHERE verification_date < $1;
+`, verificationCutoff.UTC()); err != nil {
+		return stats, fmt.Errorf("prune weather verification forecast anchors: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
 DELETE FROM weather_forecast_snapshots s
 WHERE s.issued_at < $1
   AND NOT EXISTS (
@@ -527,11 +606,13 @@ func (s *PostgresStore) CountHotData(ctx context.Context, dueBefore time.Time) (
 	err := s.db.QueryRowContext(ctx, `
 SELECT
     (SELECT count(*) FROM weather_forecast_snapshots),
+    (SELECT count(*) FROM weather_verification_forecast_anchors),
     (SELECT count(*) FROM weather_yesterday_verifications),
     (SELECT count(*) FROM weather_refresh_candidates),
     (SELECT count(*) FROM weather_refresh_candidates WHERE next_refresh_at IS NULL OR next_refresh_at <= $1);
 `, dueBefore.UTC()).Scan(
 		&counts.Snapshots,
+		&counts.VerificationAnchors,
 		&counts.Verifications,
 		&counts.RefreshCandidates,
 		&counts.DueRefreshCandidates,
@@ -540,6 +621,18 @@ SELECT
 		return counts, fmt.Errorf("count retained weather hot data: %w", err)
 	}
 	return counts, nil
+}
+
+func nextLocalDayStartUTCForPostgres(bundle weatherd.Bundle) time.Time {
+	loc := time.UTC
+	if bundle.Provenance.Timezone != "" {
+		if loaded, err := time.LoadLocation(bundle.Provenance.Timezone); err == nil {
+			loc = loaded
+		}
+	}
+	issuedLocal := bundle.Provenance.IssuedAt.In(loc)
+	nextDay := time.Date(issuedLocal.Year(), issuedLocal.Month(), issuedLocal.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	return nextDay.UTC()
 }
 
 func chooseTime(primary, fallback time.Time) time.Time {

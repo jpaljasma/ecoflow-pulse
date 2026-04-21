@@ -443,6 +443,13 @@ func (s *Service) ensureLatestBundle(ctx context.Context, req Request, key strin
 }
 
 func (s *Service) loadVerificationForecast(ctx context.Context, req Request, key string, yesterdayStart time.Time) (*Bundle, string, error) {
+	anchor, err := s.snapshots.LoadVerificationForecastAnchor(ctx, key, yesterdayStart)
+	if err != nil {
+		return nil, "", err
+	}
+	if anchor != nil {
+		return anchor, "snapshot", nil
+	}
 	prior, err := s.snapshots.LatestBundleBefore(ctx, key, yesterdayStart)
 	if err != nil {
 		return nil, "", err
@@ -474,6 +481,9 @@ func (s *Service) loadVerificationForecast(ctx context.Context, req Request, key
 	}
 	fallback.Provenance.CanonicalLocationKey = key
 	fallback.Provenance.IssuedAt = s.nowFn().UTC()
+	if anchorErr := s.snapshots.UpsertVerificationForecastAnchor(ctx, key, yesterdayStart, *fallback); anchorErr != nil {
+		return nil, "", anchorErr
+	}
 	return fallback, "previous_runs", nil
 }
 

@@ -172,6 +172,8 @@ type SnapshotStore interface {
 	SaveForecastBundle(ctx context.Context, req Request, bundle Bundle) error
 	LatestBundle(ctx context.Context, canonicalLocationKey string) (*Bundle, error)
 	LatestBundleBefore(ctx context.Context, canonicalLocationKey string, before time.Time) (*Bundle, error)
+	LoadVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*Bundle, error)
+	UpsertVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time, bundle Bundle) error
 	FindCanonicalLocationKeyByRequest(ctx context.Context, req Request) (string, error)
 	LoadVerification(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*VerificationResult, error)
 	SaveVerification(ctx context.Context, result VerificationResult) error

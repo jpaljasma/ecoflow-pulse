@@ -22,6 +22,8 @@ type SnapshotStore interface {
 	SaveForecastBundle(ctx context.Context, req weatherd.Request, bundle weatherd.Bundle) error
 	LatestBundle(ctx context.Context, canonicalLocationKey string) (*weatherd.Bundle, error)
 	LatestBundleBefore(ctx context.Context, canonicalLocationKey string, before time.Time) (*weatherd.Bundle, error)
+	LoadVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*weatherd.Bundle, error)
+	UpsertVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time, bundle weatherd.Bundle) error
 	FindCanonicalLocationKeyByRequest(ctx context.Context, req weatherd.Request) (string, error)
 	SaveVerification(ctx context.Context, result weatherd.VerificationResult) error
 	LoadBiasStates(ctx context.Context, canonicalLocationKey string) ([]weatherd.BiasState, error)
