@@ -43,7 +43,7 @@ Top-level structure:
   - `gaprepair`: projection lag detection + replay queue consumer/publisher primitives.
   - `grpcserver`: standardized gRPC server builder (keepalive, HTTP/2 tuning, graceful shutdown).
   - `grpcmw`: standard gRPC middleware chain scaffolding (request-id, logging, recovery, auth hook).
-  - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths, plus shared JetStream handler-drain tracking used during worker shutdown.
+  - `telemetrybus`: deterministic NATS subject + shard routing helpers for M2 ingest/replay paths, plus shared JetStream handler-drain tracking and consumer self-healing supervision used by worker shutdown/rebind paths.
 - `proto/`
   - `pulse/controlplane/v1/control_plane.proto`: control-plane gRPC contract (`Create/List/Update/Activate credentials`, `ListDevices`, `DiscoverDevices`, MQTT validation-backed provider enablement, and inactive provider-device import).
   - `pulse/inference/v1/inference.proto`: online inference gRPC contract (`GetDeviceInsights`, `ListFleetInsights`).

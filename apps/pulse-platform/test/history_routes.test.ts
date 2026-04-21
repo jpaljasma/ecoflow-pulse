@@ -415,10 +415,10 @@ describe('pulse-platform history routes', () => {
     expect(response.json()).toEqual(
       expect.objectContaining({
         todayWh: 5,
-        yesterdayWh: 1,
-        deltaPct: 400,
+        yesterdayWh: 2,
+        deltaPct: 150,
         seriesWh: expect.arrayContaining([2, 3]),
-        yesterdaySeriesWh: expect.arrayContaining([1])
+        yesterdaySeriesWh: expect.arrayContaining([2])
       })
     );
 

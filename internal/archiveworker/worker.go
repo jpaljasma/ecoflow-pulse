@@ -296,11 +296,6 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("init jetstream context: %w", err)
 	}
-	sub, err := w.subscribe(js, w.tracker.Wrap(w.handleMessage))
-	if err != nil {
-		return fmt.Errorf("subscribe archive consumer: %w", err)
-	}
-
 	stopTicker := make(chan struct{})
 	var tickerWG sync.WaitGroup
 	tickerWG.Add(1)
@@ -338,10 +333,26 @@ func (w *Worker) Run(ctx context.Context) error {
 		slog.Int("dedup_max_entries", w.cfg.DedupMaxEntries),
 	)
 
-	<-ctx.Done()
+	runErr := telemetrybus.RunConsumerSupervisor(
+		ctx,
+		w.log,
+		js,
+		func(handler nats.MsgHandler) (telemetrybus.QueueSubscription, error) {
+			return w.subscribe(js, handler)
+		},
+		w.tracker.Wrap(w.handleMessage),
+		w.tracker,
+		telemetrybus.ConsumerSupervisorConfig{
+			StreamName:   w.cfg.StreamName,
+			Durable:      w.cfg.Durable,
+			DrainTimeout: w.cfg.DrainTimeout,
+		},
+	)
 	close(stopTicker)
 	tickerWG.Wait()
-	w.drainSubscription(sub)
+	if runErr != nil {
+		return runErr
+	}
 
 	flushCtx, cancel := context.WithTimeout(context.Background(), w.cfg.FlushTimeout)
 	defer cancel()
@@ -624,18 +635,6 @@ func (w *Worker) dropSegmentLocked(segment *archiveSegment) error {
 		_ = segment.encoder.Close()
 	}
 	return nil
-}
-
-func (w *Worker) drainSubscription(sub *nats.Subscription) {
-	if sub == nil {
-		return
-	}
-	if err := sub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrBadSubscription) {
-		w.log.Warn("archive unsubscribe failed", slog.String("error", err.Error()))
-	}
-	if !w.tracker.WaitForIdle(w.cfg.DrainTimeout) {
-		w.log.Warn("archive handler drain timeout")
-	}
 }
 
 func (s *archiveSegment) append(payload []byte, d delivery, recordTs int64, meta archiveRecordMeta) error {

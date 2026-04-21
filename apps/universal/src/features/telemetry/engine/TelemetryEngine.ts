@@ -22,6 +22,7 @@ type EngineOptions = {
   wsUrl?: string;
   snapshotIntervalMs?: number;
   staleAfterMs?: number;
+  inactiveAfterMs?: number;
   ringCapacity?: number;
   sparklinePoints?: number;
   heartbeatMs?: number;
@@ -66,6 +67,7 @@ export class TelemetryEngine {
   private readonly wsUrlExplicit: boolean;
   private readonly snapshotIntervalMs: number;
   private readonly staleAfterMs: number;
+  private readonly inactiveAfterMs: number;
   private readonly ringCapacity: number;
   private readonly sparklinePoints: number;
   private readonly heartbeatMs: number;
@@ -121,6 +123,7 @@ export class TelemetryEngine {
     this.wsCandidates = this.buildWsCandidates(this.wsUrl);
     this.snapshotIntervalMs = options.snapshotIntervalMs ?? 200;
     this.staleAfterMs = options.staleAfterMs ?? 5_000;
+    this.inactiveAfterMs = options.inactiveAfterMs ?? 60_000;
     this.ringCapacity = options.ringCapacity ?? 600;
     this.sparklinePoints = options.sparklinePoints ?? 60;
     this.heartbeatMs = options.heartbeatMs ?? 20_000;
@@ -357,20 +360,11 @@ export class TelemetryEngine {
     runtime.lastMessageAt = Date.now();
 
     if (message.type === 'device_status') {
+      runtime.online = message.online;
       const latest = runtime.latest;
-      runtime.latest = latest
-        ? { ...latest, ts: message.ts, online: message.online }
-        : {
-            ts: message.ts,
-            online: message.online,
-            soc: 0,
-            pvW: 0,
-            loadW: 0,
-            batteryW: 0,
-            tempC: 0,
-            acW: 0,
-            dcW: 0
-          };
+      if (latest) {
+        runtime.latest = { ...latest, ts: message.ts, online: message.online };
+      }
       return;
     }
 
@@ -384,9 +378,10 @@ export class TelemetryEngine {
       dcW: message.metrics.dcW ?? runtime.latest?.dcW ?? 0
     };
 
+    runtime.online = true;
     runtime.latest = {
       ts: message.ts,
-      online: runtime.latest?.online ?? true,
+      online: true,
       ...normalized
     };
     if (message.detail) {
@@ -410,6 +405,7 @@ export class TelemetryEngine {
 
     const runtime: DeviceRuntime = {
       latest: null,
+      online: false,
       liveDetail: null,
       metrics,
       lastMessageAt: 0
@@ -442,15 +438,15 @@ export class TelemetryEngine {
       }
 
       const latest = runtime.latest;
-      const stale = !latest || now - runtime.lastMessageAt > this.staleAfterMs;
-      const inactive = !latest || now - runtime.lastMessageAt > 60_000;
-      const online = latest?.online ?? false;
+      const online = latest?.online ?? runtime.online;
+      const stale = !online || now - runtime.lastMessageAt > this.staleAfterMs;
+      const inactive = !online || now - runtime.lastMessageAt > this.inactiveAfterMs;
 
       const status = stale
         ? 'stale'
-        : latest.batteryW > 20
+        : (latest?.batteryW ?? 0) > 20
           ? 'charging'
-          : latest.batteryW < -20
+          : (latest?.batteryW ?? 0) < -20
             ? 'discharging'
             : 'idle';
 

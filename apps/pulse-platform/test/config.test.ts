@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { loadConfig } from '../src/config.js';
 
@@ -39,6 +42,26 @@ describe('pulse-platform config', () => {
       'http://localhost:8081',
       'https://localhost:8081'
     ]);
+  });
+
+  it('keeps hosted cloud public-app CORS aligned with the shared localhost edge', () => {
+    const testDir = path.dirname(fileURLToPath(import.meta.url));
+    const valuesPath = path.resolve(testDir, '../../../deploy/env/cloud/values.platform.yaml');
+    const values = readFileSync(valuesPath, 'utf8');
+    const match = values.match(/corsAllowedOrigins:\s*"([^"]+)"/);
+
+    expect(match?.[1]?.split(',')).toContain('https://localhost');
+  });
+
+  it('keeps hosted cloud grpc upstreams aligned between public app and realtime gateway', () => {
+    const testDir = path.dirname(fileURLToPath(import.meta.url));
+    const valuesPath = path.resolve(testDir, '../../../deploy/env/cloud/values.platform.yaml');
+    const values = readFileSync(valuesPath, 'utf8');
+    const grpcMatches = [...values.matchAll(/grpcApiAddr:\s*([^\s]+)/g)].map((match) => match[1]);
+
+    expect(grpcMatches.length).toBeGreaterThanOrEqual(2);
+    expect(grpcMatches[0]).toBe('pulse-services-cloud-go-grpc-api.pulse-services.svc.cluster.local:9090');
+    expect(grpcMatches[1]).toBe('pulse-services-cloud-go-grpc-api.pulse-services.svc.cluster.local:9090');
   });
 
   it('supports a dedicated energy grpc upstream override', () => {

@@ -15,6 +15,7 @@ import {
   type DeviceCapabilities,
   type DeviceTelemetryDetails
 } from '../devices/providerDeviceMapper.js';
+import { deriveStormGuardState } from '../devices/stormGuardState.js';
 
 export type DeviceSummary = {
   id: string;
@@ -251,14 +252,13 @@ function deriveStormGuardFromSnapshotMetrics(
   ) {
     return undefined;
   }
+  const stormGuard = deriveStormGuardState({
+    open: toBooleanMetric(stormPatternOpen),
+    endTimeSeconds: stormPatternEndTimeSeconds
+  });
   return {
-    stormGuardActive:
-      toBooleanMetric(stormPatternOpen) === true ||
-      (stormPatternEndTimeSeconds ?? 0) > 0,
-    stormGuardEndsAtUnixMs:
-      stormPatternEndTimeSeconds !== undefined && stormPatternEndTimeSeconds > 0
-        ? Math.trunc(stormPatternEndTimeSeconds * 1000)
-        : undefined
+    stormGuardActive: stormGuard.active,
+    stormGuardEndsAtUnixMs: stormGuard.endsAtUnixMs
   };
 }
 

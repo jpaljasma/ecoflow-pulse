@@ -9,11 +9,13 @@ import type { CompareRollupSeries, RollupPoint, RollupSeries } from '../src/grpc
 function point({
   bucketStartUnixMs,
   bucketEndUnixMs,
-  solarGeneratedWh
+  solarGeneratedWh,
+  pvAvgW = 0
 }: {
   bucketStartUnixMs: number;
   bucketEndUnixMs: number;
   solarGeneratedWh: number;
+  pvAvgW?: number;
 }): RollupPoint {
   return {
     bucketStartUnixMs: String(bucketStartUnixMs),
@@ -29,7 +31,7 @@ function point({
       acInMaxW: 0,
       acOutputAvgW: 0,
       acOutputMaxW: 0,
-      pvAvgW: 0,
+      pvAvgW,
       pvMaxW: 0,
       dcAvgW: 0,
       dcMaxW: 0,
@@ -165,5 +167,28 @@ describe('backend solar history view', () => {
       seriesWh: Array.from({ length: 84 }, () => 0),
       yesterdaySeriesWh: Array.from({ length: 84 }, () => 0)
     });
+  });
+
+  it('falls back to bucket power when stored solar energy undercounts sparse samples', () => {
+    const fromUnixMs = Date.UTC(2026, 2, 6, 5, 0, 0);
+    const current = series(
+      [
+        point({
+          bucketStartUnixMs: fromUnixMs + 13 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs + 13 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 2,
+          pvAvgW: 360
+        })
+      ],
+      fromUnixMs
+    );
+
+    const view = buildCompareSolarHistoryView({
+      current,
+      previous: series([], fromUnixMs - 24 * 60 * 60 * 1000)
+    } satisfies CompareRollupSeries);
+
+    expect(view.todayWh).toBeCloseTo(6, 5);
+    expect(view.seriesWh[42]).toBeCloseTo(6, 5);
   });
 });

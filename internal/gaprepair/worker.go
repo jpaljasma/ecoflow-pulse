@@ -157,18 +157,6 @@ func (w *Worker) Run(ctx context.Context, subjectCfg telemetrybus.SubjectConfig)
 	}
 	subjectCfg = subjectCfg.Normalized()
 	w.subjectCfg = subjectCfg
-	sub, err := w.subscribe(js, w.tracker.Wrap(w.handleMsg))
-	if err != nil {
-		return fmt.Errorf("subscribe gap-repair consumer: %w", err)
-	}
-	defer func() {
-		if err := sub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrBadSubscription) {
-			w.log.Warn("gap-repair unsubscribe failed", slog.String("error", err.Error()))
-		}
-		if !w.tracker.WaitForIdle(w.cfg.DrainTimeout) {
-			w.log.Warn("gap-repair handler drain timeout")
-		}
-	}()
 
 	w.log.Info("gap-repair worker running",
 		slog.String("subject", telemetrybus.GapRepairWildcardSubject(subjectCfg)),
@@ -179,8 +167,21 @@ func (w *Worker) Run(ctx context.Context, subjectCfg telemetrybus.SubjectConfig)
 		slog.Int("max_ack_pending", w.cfg.MaxAckPending),
 		slog.Duration("process_timeout", w.cfg.ProcessTimeout),
 	)
-	<-ctx.Done()
-	return nil
+	return telemetrybus.RunConsumerSupervisor(
+		ctx,
+		w.log,
+		js,
+		func(handler nats.MsgHandler) (telemetrybus.QueueSubscription, error) {
+			return w.subscribe(js, handler)
+		},
+		w.tracker.Wrap(w.handleMsg),
+		w.tracker,
+		telemetrybus.ConsumerSupervisorConfig{
+			StreamName:   w.cfg.StreamName,
+			Durable:      w.cfg.Durable,
+			DrainTimeout: w.cfg.DrainTimeout,
+		},
+	)
 }
 
 func (w *Worker) defaultSubscribe(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error) {

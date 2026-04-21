@@ -105,5 +105,20 @@ function computeDeltaPct(todayWh: number, yesterdayWh: number): number | null {
 }
 
 function solarWhForPoint(point: RollupPoint): number {
-  return Math.max(0, point.metrics.solarGeneratedWh ?? 0);
+  const explicitWh = Math.max(0, point.metrics.solarGeneratedWh ?? 0);
+  const derivedWh = deriveBucketSolarWh(point);
+  return Math.max(explicitWh, derivedWh);
+}
+
+function deriveBucketSolarWh(point: RollupPoint): number {
+  const startMs = Number(point.bucketStartUnixMs);
+  const endMs = Number(point.bucketEndUnixMs);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return 0;
+  }
+  const durationHours = (endMs - startMs) / (60 * 60 * 1000);
+  if (!(durationHours > 0) || !(point.metrics.pvAvgW > 0)) {
+    return 0;
+  }
+  return point.metrics.pvAvgW * durationHours;
 }

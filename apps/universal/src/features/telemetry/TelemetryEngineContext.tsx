@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo } from 'react';
 import { useAuthSession } from '@/features/auth/hooks';
+import { useConnectionProfileStore } from '@/shared/config/connectionProfileStore';
 import { TelemetryEngine } from '@/features/telemetry/engine/TelemetryEngine';
 
 type TelemetryEngineContextValue = {
@@ -9,7 +10,20 @@ type TelemetryEngineContextValue = {
 const TelemetryEngineContext = createContext<TelemetryEngineContextValue | null>(null);
 
 export function TelemetryEngineProvider({ children }: { children: React.ReactNode }) {
-  const value = useMemo(() => ({ engine: new TelemetryEngine() }), []);
+  const profileId = useConnectionProfileStore((state) => state.profileId);
+  const value = useMemo(
+    () => ({
+      engine: new TelemetryEngine(
+        profileId === 'cloud'
+          ? {
+              staleAfterMs: 45_000,
+              inactiveAfterMs: 5 * 60_000
+            }
+          : undefined
+      )
+    }),
+    [profileId]
+  );
   const { authConfigured, authReady, token } = useAuthSession();
 
   useEffect(() => {

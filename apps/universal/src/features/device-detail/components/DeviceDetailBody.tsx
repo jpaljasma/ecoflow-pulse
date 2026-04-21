@@ -78,7 +78,8 @@ function detailStateLabel(state: DeviceDetailViewModel['detailState']): string {
 
 function connectionSummary(snapshot?: DeviceSnapshot): string {
   if (!snapshot) return 'Waiting for telemetry';
-  if (snapshot.inactive || snapshot.stale || !snapshot.online) return 'Live data paused';
+  if (snapshot.inactive || !snapshot.online) return 'Live data paused';
+  if (snapshot.stale) return 'Awaiting next telemetry update';
   return 'Live telemetry active';
 }
 
