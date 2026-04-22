@@ -1,0 +1,51 @@
+{{- if .Values.components.observabilityLite.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "pulse-platform.fullname" . }}-forecast-retention-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    release: {{ .Release.Name }}
+spec:
+  groups:
+    - name: pulse-forecast-retention
+      rules:
+        - alert: PulseWeatherPruneStale
+          expr: time() - max(pulse_scheduler_last_successful_run_unixtime{job_type="weather.prune_hot_data"}) > 36 * 60 * 60
+          for: 30m
+          labels:
+            severity: warning
+            service: pulse-scheduler
+          annotations:
+            summary: Weather prune job is stale
+            description: The weather hot-data prune job has not completed successfully for more than 36 hours.
+        - alert: PulseSolarPruneStale
+          expr: time() - max(pulse_scheduler_last_successful_run_unixtime{job_type="solar.prune_hot_data"}) > 36 * 60 * 60
+          for: 30m
+          labels:
+            severity: warning
+            service: pulse-scheduler
+          annotations:
+            summary: Solar prune job is stale
+            description: The solar hot-data prune job has not completed successfully for more than 36 hours.
+        - alert: PulseSchedulerJobErrors
+          expr: increase(pulse_scheduler_jobs_total{result="error"}[30m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+            service: pulse-scheduler
+          annotations:
+            summary: Scheduler job errors detected
+            description: One or more scheduler jobs have failed in the last 30 minutes.
+        - alert: PulseSolarForecastOrphanedRowsPresent
+          expr: max(pulse_scheduler_retained_rows{kind=~"solar_forecast_.*_orphaned"}) > 0
+          for: 15m
+          labels:
+            severity: warning
+            service: pulse-scheduler
+          annotations:
+            summary: Orphaned solar forecast rows remain
+            description: Orphaned solar forecast rows or rollups are still present after cleanup.
+{{- end }}

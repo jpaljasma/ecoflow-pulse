@@ -208,24 +208,26 @@ func (s *Service) GetYesterdayVerification(ctx context.Context, req Request) (*V
 			return nil, err
 		}
 		if cachedVerification != nil {
-			source = "stored_verification"
-			if req.UnitSystem == UnitSystemImperial {
-				converted := *cachedVerification
-				converted.UnitSystem = UnitSystemImperial
-				for idx := range converted.Hourly {
-					converted.Hourly[idx].ForecastRaw = ForecastValues(converted.Hourly[idx].ForecastRaw, UnitSystemImperial)
-					converted.Hourly[idx].ForecastCorrected = ForecastValues(converted.Hourly[idx].ForecastCorrected, UnitSystemImperial)
-					converted.Hourly[idx].Actual = ForecastValues(converted.Hourly[idx].Actual, UnitSystemImperial)
+			if cachedVerification.Provenance.VerificationSource != "previous_runs" {
+				source = "stored_verification"
+				if req.UnitSystem == UnitSystemImperial {
+					converted := *cachedVerification
+					converted.UnitSystem = UnitSystemImperial
+					for idx := range converted.Hourly {
+						converted.Hourly[idx].ForecastRaw = ForecastValues(converted.Hourly[idx].ForecastRaw, UnitSystemImperial)
+						converted.Hourly[idx].ForecastCorrected = ForecastValues(converted.Hourly[idx].ForecastCorrected, UnitSystemImperial)
+						converted.Hourly[idx].Actual = ForecastValues(converted.Hourly[idx].Actual, UnitSystemImperial)
+					}
+					if s.metrics != nil {
+						s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
+					}
+					return &converted, nil
 				}
 				if s.metrics != nil {
 					s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
 				}
-				return &converted, nil
+				return cachedVerification, nil
 			}
-			if s.metrics != nil {
-				s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
-			}
-			return cachedVerification, nil
 		}
 	}
 	latest, err := s.ensureLatestBundle(ctx, metricReq, key)

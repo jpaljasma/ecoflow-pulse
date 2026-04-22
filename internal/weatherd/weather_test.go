@@ -265,8 +265,8 @@ func TestGetYesterdayVerificationFallsBackToPreviousRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second GetYesterdayVerification() error = %v", err)
 	}
-	if got := resultAgain.Provenance.VerificationSource; got != "previous_runs" {
-		t.Fatalf("second verification source = %q, want previous_runs", got)
+	if got := resultAgain.Provenance.VerificationSource; got != "snapshot" {
+		t.Fatalf("second verification source = %q, want snapshot", got)
 	}
 	if upstream.previousRunCalls != 1 {
 		t.Fatalf("previous run calls after cache reuse = %d, want 1", upstream.previousRunCalls)
