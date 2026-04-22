@@ -313,7 +313,7 @@ runtime:
       service:
         port: 9090
       solarForecastVerificationInterval: "15m"
-      weatherRefreshInterval: "0s"
+      weatherRefreshInterval: "4h"
       startupProbe:
         enabled: true
         initialDelaySeconds: 0

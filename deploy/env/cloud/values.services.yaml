@@ -150,6 +150,7 @@ runtime:
         enabled: true
         minAvailable: 1
       solarForecastVerificationInterval: "0s"
+      weatherRefreshInterval: "0s"
       metrics:
         enabled: true
         serviceMonitor:

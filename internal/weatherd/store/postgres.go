@@ -565,7 +565,10 @@ WHERE verification_date < $1;
 
 	prunedCandidates, err := tx.ExecContext(ctx, `
 DELETE FROM weather_refresh_candidates
-WHERE last_requested_at < $1;
+WHERE GREATEST(
+    COALESCE(last_requested_at, TIMESTAMPTZ 'epoch'),
+    COALESCE(last_refreshed_at, TIMESTAMPTZ 'epoch')
+) < $1;
 `, candidateCutoff.UTC())
 	if err != nil {
 		return stats, fmt.Errorf("prune weather refresh candidates: %w", err)

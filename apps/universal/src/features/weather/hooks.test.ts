@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const reactQueryMock = vi.hoisted(() => ({
   useQuery: vi.fn()
@@ -24,6 +24,8 @@ const FOUR_HOURS_MS = 4 * 60 * 60_000;
 const ONE_DAY_MS = 24 * 60 * 60_000;
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-04-21T10:00:00-04:00'));
   reactQueryMock.useQuery.mockReset();
   reactQueryMock.useQuery.mockReturnValue({
     data: undefined,
@@ -33,6 +35,10 @@ beforeEach(() => {
   weatherApiMock.fetchSolarOutlook.mockReset();
   weatherApiMock.fetchWeatherForecast.mockReset();
   weatherApiMock.fetchWeatherYesterdayVerification.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('weather hooks', () => {
@@ -96,7 +102,8 @@ describe('weather hooks', () => {
     const config = reactQueryMock.useQuery.mock.calls[0]?.[0];
     expect(config.queryKey).toEqual([
       ...buildWeatherQueryKey('auth-1', '42.616:-77.401:America/New_York'),
-      'yesterday'
+      'yesterday',
+      '2026-04-21'
     ]);
     expect(config.enabled).toBe(false);
     expect(config.staleTime).toBe(ONE_DAY_MS);

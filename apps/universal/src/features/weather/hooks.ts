@@ -24,6 +24,11 @@ type WeatherQueryOptions = {
 
 const FOUR_HOURS_MS = 4 * 60 * 60_000;
 const ONE_DAY_MS = 24 * 60 * 60_000;
+function buildVerificationDayKey(now = new Date()): string {
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  return dayStart.toISOString().slice(0, 10);
+}
 
 export function useWeatherForecast(options: WeatherQueryOptions = {}) {
   const { token, authKey = 'anonymous', locationKey = 'none', enabled = true } = options;
@@ -39,8 +44,9 @@ export function useWeatherForecast(options: WeatherQueryOptions = {}) {
 
 export function useWeatherYesterdayVerification(options: WeatherQueryOptions = {}) {
   const { token, authKey = 'anonymous', locationKey = 'none', enabled = true } = options;
+  const dayKey = buildVerificationDayKey();
   return useQuery<WeatherYesterdayVerificationResponse>({
-    queryKey: [...buildWeatherQueryKey(authKey, locationKey), 'yesterday'],
+    queryKey: [...buildWeatherQueryKey(authKey, locationKey), 'yesterday', dayKey],
     queryFn: () => fetchWeatherYesterdayVerification(token),
     enabled,
     staleTime: ONE_DAY_MS,
