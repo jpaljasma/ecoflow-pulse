@@ -81,24 +81,12 @@ func (s *PostgresStore) SaveForecastBundle(ctx context.Context, req weatherd.Req
 		return fmt.Errorf("begin weather snapshot tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	var existingIssuedAt sql.NullTime
-	if err := tx.QueryRowContext(ctx, `
-SELECT issued_at
-FROM weather_forecast_snapshots
-WHERE canonical_location_key = $1
-ORDER BY issued_at DESC
-LIMIT 1;
-`, bundle.Provenance.CanonicalLocationKey).Scan(&existingIssuedAt); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("query existing weather snapshot: %w", err)
-	}
-	if existingIssuedAt.Valid && existingIssuedAt.Time.After(bundle.Provenance.IssuedAt.UTC()) {
-		return tx.Commit()
-	}
 	if _, err := tx.ExecContext(ctx, `
 DELETE FROM weather_forecast_snapshots
-WHERE canonical_location_key = $1;
-`, bundle.Provenance.CanonicalLocationKey); err != nil {
-		return fmt.Errorf("delete existing weather snapshots: %w", err)
+WHERE canonical_location_key = $1
+  AND issued_at = $2;
+`, bundle.Provenance.CanonicalLocationKey, bundle.Provenance.IssuedAt.UTC()); err != nil {
+		return fmt.Errorf("dedupe existing weather snapshot: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO weather_forecast_snapshots (
@@ -521,7 +509,7 @@ WHERE canonical_location_key = $1;
 	return nil
 }
 
-func (s *PostgresStore) PruneHotData(ctx context.Context, verificationCutoff, candidateCutoff time.Time) (WeatherPruneStats, error) {
+func (s *PostgresStore) PruneHotData(ctx context.Context, snapshotCutoff, verificationCutoff, candidateCutoff time.Time) (WeatherPruneStats, error) {
 	var stats WeatherPruneStats
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -532,6 +520,7 @@ func (s *PostgresStore) PruneHotData(ctx context.Context, verificationCutoff, ca
 	compacted, err := tx.ExecContext(ctx, `
 WITH ranked AS (
     SELECT ctid,
+           issued_at,
            row_number() OVER (
                PARTITION BY canonical_location_key
                ORDER BY issued_at DESC, updated_at DESC, id DESC
@@ -541,8 +530,9 @@ WITH ranked AS (
 DELETE FROM weather_forecast_snapshots s
 USING ranked r
 WHERE s.ctid = r.ctid
-  AND r.row_num > 1;
-`)
+  AND r.row_num > 1
+  AND r.issued_at < $1;
+`, snapshotCutoff.UTC())
 	if err != nil {
 		return stats, fmt.Errorf("compact weather snapshots: %w", err)
 	}

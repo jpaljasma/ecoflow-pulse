@@ -115,6 +115,7 @@ The dedicated `cmd/ecoflow-scheduler` worker owns reusable recurring jobs for fo
 - `SCHEDULER_SOLAR_PRUNE_INTERVAL` (default `24h`; solar hot-data prune cadence)
 - `WEATHER_VERIFICATION_RETENTION` (default `720h`; weather yesterday-verification retention)
 - `WEATHER_REFRESH_CANDIDATE_RETENTION` (default `336h`; stale weather refresh-candidate retention)
+- weather snapshot pruning keeps roughly the most recent `48h` of per-location bundles for verification lookback, then compacts older rows down to the latest surviving snapshot per location before inactive-location cleanup
 - `SOLAR_FORECAST_RUN_RETENTION` (default `336h`; raw solar forecast run retention)
 - `SOLAR_FORECAST_DAILY_VERIFICATION_RETENTION` (default `1440h`; solar daily verification retention)
 - `SOLAR_FORECAST_PRUNE_RUN_BATCH_LIMIT` (default `250`; max runs pruned per batch)

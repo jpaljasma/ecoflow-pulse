@@ -30,6 +30,7 @@ const (
 	defaultWeatherRefreshScanInterval          = 5 * time.Minute
 	defaultWeatherHotDataPruneInterval         = 24 * time.Hour
 	defaultSolarHotDataPruneInterval           = 24 * time.Hour
+	defaultWeatherSnapshotLookbackRetention    = 48 * time.Hour
 	defaultWeatherVerificationRetention        = 30 * 24 * time.Hour
 	defaultWeatherRefreshCandidateRetention    = 14 * 24 * time.Hour
 	defaultSolarForecastRunRetention           = 14 * 24 * time.Hour
@@ -278,6 +279,7 @@ func runJob(
 		}
 		stats, err := weatherSnapshots.PruneHotData(
 			ctx,
+			time.Now().UTC().Add(-defaultWeatherSnapshotLookbackRetention),
 			time.Now().UTC().Add(-runtimecfg.DurationNonNegative("WEATHER_VERIFICATION_RETENTION", defaultWeatherVerificationRetention)),
 			time.Now().UTC().Add(-runtimecfg.DurationNonNegative("WEATHER_REFRESH_CANDIDATE_RETENTION", defaultWeatherRefreshCandidateRetention)),
 		)
