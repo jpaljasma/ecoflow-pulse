@@ -218,11 +218,7 @@ export function PulseSidebarNav({
                 accessibilityState={focused ? { selected: true } : {}}
                 accessibilityLabel={item.label}
                 testID={`sidebar-${item.key}`}
-                onPress={() => {
-                  if (!focused) {
-                    router.replace(item.href);
-                  }
-                }}
+                onPress={() => router.replace(item.href)}
                 style={({ pressed }) => ({
                   minHeight: sidebarExpanded ? 58 : 54,
                   borderRadius: 18,
