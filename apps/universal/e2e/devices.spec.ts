@@ -31,6 +31,11 @@ test.describe('Universal web E2E', () => {
     await expect(page.getByText('Battery Packs')).toBeVisible();
     await expect(page.getByText('Solar Inputs')).toBeVisible();
     await expect(page.getByText('System Signals')).toBeVisible();
+
+    await page.getByTestId('sidebar-devices').click();
+
+    await expect(page).toHaveURL(/\/devices$/);
+    await expect(page.getByText('Pulse Fleet', { exact: true })).toBeVisible();
   });
 
   test('does not resolve serial route aliases', async ({ page }) => {
