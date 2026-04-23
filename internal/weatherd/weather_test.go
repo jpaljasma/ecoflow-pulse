@@ -40,6 +40,18 @@ func (f *fakeUpstream) FetchHistoricalForecast(_ context.Context, _ weatherd.Req
 	return nil, nil
 }
 
+type anchorlessSnapshotStore struct {
+	*store.MemorySnapshotStore
+}
+
+func (s *anchorlessSnapshotStore) LoadVerificationForecastAnchor(
+	_ context.Context,
+	_ string,
+	_ time.Time,
+) (*weatherd.Bundle, error) {
+	return nil, nil
+}
+
 func TestForecastValuesConvertsImperialLocally(t *testing.T) {
 	temp := 10.0
 	wind := 16.09344
@@ -320,6 +332,56 @@ func TestGetYesterdayVerificationUsesSnapshotAndImperialConversion(t *testing.T)
 	}
 	assertClose(t, value(result.Hourly[0].ForecastRaw.Temperature), 46.4)
 	assertClose(t, value(result.Hourly[0].Actual.Temperature), 50)
+}
+
+func TestGetYesterdayVerificationFallsBackToRecentSnapshotLookbackWhenAnchorMissing(t *testing.T) {
+	now := time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
+	cache := store.NewMemoryHotCache(func() time.Time { return now })
+	snapshots := &anchorlessSnapshotStore{MemorySnapshotStore: store.NewMemorySnapshotStore(func() time.Time { return now })}
+	req := weatherd.Request{
+		Latitude:   42.6,
+		Longitude:  -77.4,
+		UnitSystem: weatherd.UnitSystemMetric,
+		Timezone:   "UTC",
+	}
+	actualBundle := sampleBundle(now, "grid-key", []time.Time{
+		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
+	}, []float64{10})
+	priorForecast := sampleBundle(time.Date(2026, 3, 16, 20, 0, 0, 0, time.UTC), "grid-key", []time.Time{
+		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
+	}, []float64{8})
+	if err := snapshots.SaveForecastBundle(context.Background(), req, *actualBundle); err != nil {
+		t.Fatalf("SaveForecastBundle(actual) error = %v", err)
+	}
+	if err := snapshots.SaveForecastBundle(context.Background(), req, *priorForecast); err != nil {
+		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
+	}
+	upstream := &fakeUpstream{previousRuns: sampleBundle(now, "grid-key", []time.Time{
+		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
+	}, []float64{4})}
+	svc, err := weatherd.NewService(
+		upstream,
+		cache,
+		snapshots,
+		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
+		weatherd.Config{HotTTL: 50 * time.Minute, NowFn: func() time.Time { return now }},
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	result, err := svc.GetYesterdayVerification(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetYesterdayVerification() error = %v", err)
+	}
+	if got := result.Provenance.VerificationSource; got != "snapshot" {
+		t.Fatalf("verification source = %q, want snapshot", got)
+	}
+	if upstream.previousRunCalls != 0 {
+		t.Fatalf("previous run calls = %d, want 0", upstream.previousRunCalls)
+	}
+	assertClose(t, value(result.Hourly[0].ForecastRaw.Temperature), 8)
+	assertClose(t, value(result.Hourly[0].Actual.Temperature), 10)
 }
 
 func TestGetYesterdayVerificationReturnsBudgetErrorWithoutStoredBundle(t *testing.T) {

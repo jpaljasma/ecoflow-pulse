@@ -2091,14 +2091,6 @@ func alignToInterval(t time.Time, interval time.Duration) time.Time {
 	return t.UTC().Truncate(interval)
 }
 
-func singleDeviceID(deviceIDs []string, scopeMode string) *string {
-	if scopeMode != "device" || len(deviceIDs) != 1 {
-		return nil
-	}
-	id := deviceIDs[0]
-	return &id
-}
-
 func kwhToWh(value *float64) float64 {
 	if value == nil {
 		return 0

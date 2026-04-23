@@ -14,7 +14,7 @@ import (
 type MemorySnapshotStore struct {
 	mu                  sync.RWMutex
 	nowFn               func() time.Time
-	bundlesByKey        map[string]weatherd.Bundle
+	bundlesByKey        map[string][]weatherd.Bundle
 	verificationAnchors map[string]weatherd.Bundle
 	requestToKey        map[string]string
 	verifications       map[string]weatherd.VerificationResult
@@ -28,7 +28,7 @@ func NewMemorySnapshotStore(nowFn func() time.Time) *MemorySnapshotStore {
 	}
 	return &MemorySnapshotStore{
 		nowFn:               nowFn,
-		bundlesByKey:        map[string]weatherd.Bundle{},
+		bundlesByKey:        map[string][]weatherd.Bundle{},
 		verificationAnchors: map[string]weatherd.Bundle{},
 		requestToKey:        map[string]string{},
 		verifications:       map[string]weatherd.VerificationResult{},
@@ -41,9 +41,7 @@ func (s *MemorySnapshotStore) SaveForecastBundle(_ context.Context, req weatherd
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := bundle.Provenance.CanonicalLocationKey
-	if existing, ok := s.bundlesByKey[key]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
-		s.bundlesByKey[key] = cloneBundle(bundle)
-	}
+	s.bundlesByKey[key] = upsertBundleByIssuedAt(s.bundlesByKey[key], bundle)
 	anchorKey := verificationAnchorKey(key, nextLocalDayStartUTC(bundle))
 	if existing, ok := s.verificationAnchors[anchorKey]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
 		s.verificationAnchors[anchorKey] = cloneBundle(bundle)
@@ -55,24 +53,22 @@ func (s *MemorySnapshotStore) SaveForecastBundle(_ context.Context, req weatherd
 func (s *MemorySnapshotStore) LatestBundle(_ context.Context, canonicalLocationKey string) (*weatherd.Bundle, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	row, ok := s.bundlesByKey[canonicalLocationKey]
-	if !ok {
+	rows := s.bundlesByKey[canonicalLocationKey]
+	if len(rows) == 0 {
 		return nil, nil
 	}
-	out := cloneBundle(row)
+	out := cloneBundle(rows[0])
 	return &out, nil
 }
 
 func (s *MemorySnapshotStore) LatestBundleBefore(_ context.Context, canonicalLocationKey string, before time.Time) (*weatherd.Bundle, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	row, ok := s.bundlesByKey[canonicalLocationKey]
-	if !ok {
-		return nil, nil
-	}
-	if row.Provenance.IssuedAt.Before(before.UTC()) {
-		out := cloneBundle(row)
-		return &out, nil
+	for _, row := range s.bundlesByKey[canonicalLocationKey] {
+		if row.Provenance.IssuedAt.Before(before.UTC()) {
+			out := cloneBundle(row)
+			return &out, nil
+		}
 	}
 	return nil, nil
 }
@@ -276,6 +272,31 @@ func cloneRefreshCandidate(in weatherd.RefreshCandidate) weatherd.RefreshCandida
 	if in.NextRefreshAt != nil {
 		v := *in.NextRefreshAt
 		out.NextRefreshAt = &v
+	}
+	return out
+}
+
+func upsertBundleByIssuedAt(existing []weatherd.Bundle, bundle weatherd.Bundle) []weatherd.Bundle {
+	out := make([]weatherd.Bundle, 0, len(existing)+1)
+	inserted := false
+	issuedAt := bundle.Provenance.IssuedAt.UTC()
+	for _, row := range existing {
+		switch {
+		case row.Provenance.IssuedAt.Equal(issuedAt):
+			if !inserted {
+				out = append(out, cloneBundle(bundle))
+				inserted = true
+			}
+		case !inserted && row.Provenance.IssuedAt.Before(issuedAt):
+			out = append(out, cloneBundle(bundle))
+			out = append(out, cloneBundle(row))
+			inserted = true
+		default:
+			out = append(out, cloneBundle(row))
+		}
+	}
+	if !inserted {
+		out = append(out, cloneBundle(bundle))
 	}
 	return out
 }
