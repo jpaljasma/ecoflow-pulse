@@ -46,7 +46,7 @@ func newWeatherDomainFromEnv(log *slog.Logger, registerer prometheus.Registerer)
 			NowFn:          nowFn,
 		}),
 		weatherd.Config{
-			HotTTL:             runtimecfg.DurationNonNegative("WEATHER_HOT_CACHE_TTL", 50*time.Minute),
+			HotTTL:             runtimecfg.DurationNonNegative("WEATHER_HOT_CACHE_TTL", 4*time.Hour),
 			RecentActiveWindow: runtimecfg.DurationNonNegative("WEATHER_RECENT_ACTIVE_WINDOW", 7*24*time.Hour),
 			NowFn:              nowFn,
 			Metrics:            weatherd.NewMetrics(registerer),

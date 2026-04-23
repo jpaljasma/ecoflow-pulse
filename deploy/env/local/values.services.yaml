@@ -128,6 +128,12 @@ runtime:
               app.kubernetes.io/name: pulse-services
               app.kubernetes.io/instance: pulse-services
               app.kubernetes.io/component: go-solar-verification
+    scheduler:
+      enabled: true
+      replicaCount: 1
+      metrics:
+        serviceMonitor:
+          enabled: true
     energyApi:
       enabled: true
       replicaCount: 3

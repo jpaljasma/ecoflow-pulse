@@ -1376,6 +1376,7 @@ dev-deploy:
 		echo "restarting updated local deployments in dependency order"; \
 		echo "phase: verification"; \
 		recreate_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-solar-verification; \
+		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-scheduler; \
 		echo "phase: ingest"; \
 		restart_and_wait_if_exists $(SERVICES_NAMESPACE) pulse-services-go-ingest; \
 		echo "phase: transform"; \

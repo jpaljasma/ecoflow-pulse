@@ -79,6 +79,13 @@ function formatDeltaSummary(deltaPct: number | null | undefined): string {
   return 'Matching yesterday';
 }
 
+function describeSolarHistoryError(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  return 'Solar history unavailable right now.';
+}
+
 function FleetOverviewTile({
   icon,
   label,
@@ -256,6 +263,11 @@ export function SummaryPanel({
     () => (suppressFleetSolar ? displayFleetTrend.pv.map(() => 0) : displayFleetTrend.pv),
     [displayFleetTrend.pv, suppressFleetSolar]
   );
+  const fleetSolarHistoryView = fleetSolarHistory.data;
+  const fleetSolarHistoryErrorText =
+    fleetSolarHistory.error && !fleetSolarHistoryView
+      ? describeSolarHistoryError(fleetSolarHistory.error)
+      : undefined;
   const liveDeviceCount = useMemo(
     () => devices.filter((device) => !byId[device.id]?.inactive).length,
     [byId, devices]
@@ -385,10 +397,12 @@ export function SummaryPanel({
                 letterSpacing={-1.1}
                 style={{ fontSize: isTabletUp ? 62 : 48, lineHeight: isTabletUp ? 66 : 52 }}
               >
-                {formatWhAndKWh(fleetSolarHistory.data.todayWh)}
+                {formatWhAndKWh(fleetSolarHistoryView?.todayWh)}
               </Text>
               <Text fontSize="$3" style={{ color: semantics.subtleStrongText }}>
-                {formatDeltaSummary(fleetSolarHistory.data.deltaPct)} · {devices.length} devices in view
+                {fleetSolarHistoryErrorText
+                  ? fleetSolarHistoryErrorText
+                  : `${formatDeltaSummary(fleetSolarHistoryView?.deltaPct)} · ${devices.length} devices in view`}
               </Text>
             </YStack>
             <XStack gap="$2" flexWrap="wrap">
@@ -456,14 +470,18 @@ export function SummaryPanel({
         <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
           <YStack flex={1.2} minWidth={0}>
             <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="Today against yesterday">
-              <SolarGeneratedChart
-                valuesWh={fleetSolarHistory.data.seriesWh}
-                yesterdayValuesWh={fleetSolarHistory.data.yesterdaySeriesWh}
-                todayWh={fleetSolarHistory.data.todayWh}
-                yesterdayWh={fleetSolarHistory.data.yesterdayWh}
-                deltaPct={fleetSolarHistory.data.deltaPct}
-                points={SOLAR_HISTORY_POINTS}
-              />
+              {fleetSolarHistoryErrorText ? (
+                <Text style={{ color: semantics.subtleText }}>{fleetSolarHistoryErrorText}</Text>
+              ) : (
+                <SolarGeneratedChart
+                  valuesWh={fleetSolarHistoryView?.seriesWh}
+                  yesterdayValuesWh={fleetSolarHistoryView?.yesterdaySeriesWh}
+                  todayWh={fleetSolarHistoryView?.todayWh}
+                  yesterdayWh={fleetSolarHistoryView?.yesterdayWh}
+                  deltaPct={fleetSolarHistoryView?.deltaPct}
+                  points={SOLAR_HISTORY_POINTS}
+                />
+              )}
             </ChartSection>
           </YStack>
           <YStack flex={0.95} minWidth={0} gap="$3">
@@ -488,14 +506,18 @@ export function SummaryPanel({
       ) : (
         <YStack gap="$3">
           <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="Today against yesterday">
-            <SolarGeneratedChart
-              valuesWh={fleetSolarHistory.data.seriesWh}
-              yesterdayValuesWh={fleetSolarHistory.data.yesterdaySeriesWh}
-              todayWh={fleetSolarHistory.data.todayWh}
-              yesterdayWh={fleetSolarHistory.data.yesterdayWh}
-              deltaPct={fleetSolarHistory.data.deltaPct}
-              points={SOLAR_HISTORY_POINTS}
-            />
+            {fleetSolarHistoryErrorText ? (
+              <Text style={{ color: semantics.subtleText }}>{fleetSolarHistoryErrorText}</Text>
+            ) : (
+              <SolarGeneratedChart
+                valuesWh={fleetSolarHistoryView?.seriesWh}
+                yesterdayValuesWh={fleetSolarHistoryView?.yesterdaySeriesWh}
+                todayWh={fleetSolarHistoryView?.todayWh}
+                yesterdayWh={fleetSolarHistoryView?.yesterdayWh}
+                deltaPct={fleetSolarHistoryView?.deltaPct}
+                points={SOLAR_HISTORY_POINTS}
+              />
+            )}
           </ChartSection>
           <ChartSection title="Live Power Profile" subtitle="Fleet load against supply">
             <PowerTrendChart

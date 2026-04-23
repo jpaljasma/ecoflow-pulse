@@ -721,6 +721,8 @@ spec:
               value: "telemetry"
             - name: SOLAR_FORECAST_VERIFICATION_INTERVAL
               value: {{ .Values.runtime.workers.grpcApi.solarForecastVerificationInterval | quote }}
+            - name: WEATHER_REFRESH_INTERVAL
+              value: {{ .Values.runtime.workers.grpcApi.weatherRefreshInterval | quote }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -904,6 +906,139 @@ spec:
     matchLabels:
       {{- include "pulse-services.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: go-solar-verification
+{{- end }}
+{{- end }}
+---
+{{- if .Values.runtime.workers.scheduler.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-scheduler
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+spec:
+  replicas: {{ .Values.runtime.workers.scheduler.replicaCount }}
+  minReadySeconds: {{ .Values.runtime.workers.scheduler.deployment.minReadySeconds }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.runtime.workers.scheduler.deployment.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.runtime.workers.scheduler.deployment.strategy.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-scheduler
+  template:
+    metadata:
+      annotations:
+        checksum/runtime-env: {{ toJson .Values.runtime.env | sha256sum }}
+        checksum/runtime-secret: {{ printf "%s|%s|%s|%s|%s|%s|%s|%s" .Values.runtime.env.controlPlaneDBDSN .Values.runtime.env.archiveManifestDBDSN .Values.runtime.env.archiveObjectAccessKey .Values.runtime.env.archiveObjectSecretKey .Values.runtime.env.pulseMqttEmulatorAccessKey .Values.runtime.env.pulseMqttEmulatorSecretKey .Values.runtime.env.pulseMqttEmulatorMQTTUsername .Values.runtime.env.pulseMqttEmulatorMQTTPassword | sha256sum }}
+      labels:
+        {{- include "pulse-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: go-scheduler
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.runtime.workers.scheduler.deployment.terminationGracePeriodSeconds }}
+      {{- if include "pulse-services.serviceAccountName" . }}
+      serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
+      {{- end }}
+      {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.scheduler) | nindent 6 }}
+      containers:
+        - name: go-scheduler
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          command: ["/app/ecoflow-scheduler"]
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.runtime.workers.scheduler.service.port }}
+          env:
+            - name: SCHEDULER_METRICS_LISTEN_ADDR
+              value: {{ printf ":%v" .Values.runtime.workers.scheduler.service.port | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "pulse-services.fullname" . }}-runtime-env
+            - secretRef:
+                name: {{ include "pulse-services.runtimeSecretName" . }}
+          resources:
+            {{- toYaml .Values.runtime.workers.scheduler.resources | nindent 12 }}
+          {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
+          {{- if .Values.runtime.workers.scheduler.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: metrics
+            initialDelaySeconds: {{ .Values.runtime.workers.scheduler.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.runtime.workers.scheduler.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.runtime.workers.scheduler.startupProbe.failureThreshold }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+{{- if .Values.runtime.workers.scheduler.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-scheduler
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+spec:
+  {{- include "pulse-services.pdbSpec" .Values.runtime.workers.scheduler.pdb | nindent 2 }}
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-scheduler
+{{- end }}
+{{- end }}
+{{- if .Values.runtime.workers.scheduler.metrics.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-scheduler-metrics
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+spec:
+  selector:
+    {{- include "pulse-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+  ports:
+    - name: metrics
+      port: {{ .Values.runtime.workers.scheduler.service.port }}
+      targetPort: metrics
+{{- if and .Values.runtime.workers.scheduler.metrics.enabled .Values.runtime.workers.scheduler.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-scheduler
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-scheduler
+    release: {{ .Values.global.platformReleaseName }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pulse-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: go-scheduler
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespaces.services }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.runtime.workers.scheduler.metrics.serviceMonitor.interval }}
 {{- end }}
 {{- end }}
 ---

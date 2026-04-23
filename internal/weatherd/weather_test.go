@@ -265,8 +265,8 @@ func TestGetYesterdayVerificationFallsBackToPreviousRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second GetYesterdayVerification() error = %v", err)
 	}
-	if got := resultAgain.Provenance.VerificationSource; got != "previous_runs" {
-		t.Fatalf("second verification source = %q, want previous_runs", got)
+	if got := resultAgain.Provenance.VerificationSource; got != "snapshot" {
+		t.Fatalf("second verification source = %q, want snapshot", got)
 	}
 	if upstream.previousRunCalls != 1 {
 		t.Fatalf("previous run calls after cache reuse = %d, want 1", upstream.previousRunCalls)
@@ -296,7 +296,7 @@ func TestGetYesterdayVerificationUsesSnapshotAndImperialConversion(t *testing.T)
 		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
 	}
 	svc, err := weatherd.NewService(
-		&fakeUpstream{},
+		&fakeUpstream{previousRuns: priorForecast},
 		cache,
 		snapshots,
 		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),

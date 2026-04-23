@@ -54,7 +54,7 @@ func NewService(upstream Upstream, hotCache HotCache, snapshots SnapshotStore, b
 		return nil, errors.New("weather budget manager is required")
 	}
 	if cfg.HotTTL <= 0 {
-		cfg.HotTTL = 50 * time.Minute
+		cfg.HotTTL = 4 * time.Hour
 	}
 	if cfg.RecentActiveWindow <= 0 {
 		cfg.RecentActiveWindow = 7 * 24 * time.Hour
@@ -208,24 +208,26 @@ func (s *Service) GetYesterdayVerification(ctx context.Context, req Request) (*V
 			return nil, err
 		}
 		if cachedVerification != nil {
-			source = "stored_verification"
-			if req.UnitSystem == UnitSystemImperial {
-				converted := *cachedVerification
-				converted.UnitSystem = UnitSystemImperial
-				for idx := range converted.Hourly {
-					converted.Hourly[idx].ForecastRaw = ForecastValues(converted.Hourly[idx].ForecastRaw, UnitSystemImperial)
-					converted.Hourly[idx].ForecastCorrected = ForecastValues(converted.Hourly[idx].ForecastCorrected, UnitSystemImperial)
-					converted.Hourly[idx].Actual = ForecastValues(converted.Hourly[idx].Actual, UnitSystemImperial)
+			if cachedVerification.Provenance.VerificationSource != "previous_runs" {
+				source = "stored_verification"
+				if req.UnitSystem == UnitSystemImperial {
+					converted := *cachedVerification
+					converted.UnitSystem = UnitSystemImperial
+					for idx := range converted.Hourly {
+						converted.Hourly[idx].ForecastRaw = ForecastValues(converted.Hourly[idx].ForecastRaw, UnitSystemImperial)
+						converted.Hourly[idx].ForecastCorrected = ForecastValues(converted.Hourly[idx].ForecastCorrected, UnitSystemImperial)
+						converted.Hourly[idx].Actual = ForecastValues(converted.Hourly[idx].Actual, UnitSystemImperial)
+					}
+					if s.metrics != nil {
+						s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
+					}
+					return &converted, nil
 				}
 				if s.metrics != nil {
 					s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
 				}
-				return &converted, nil
+				return cachedVerification, nil
 			}
-			if s.metrics != nil {
-				s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
-			}
-			return cachedVerification, nil
 		}
 	}
 	latest, err := s.ensureLatestBundle(ctx, metricReq, key)
@@ -352,7 +354,8 @@ func (s *Service) GetYesterdayVerification(ctx context.Context, req Request) (*V
 }
 
 func (s *Service) RefreshRecentLocations(ctx context.Context) error {
-	candidates, err := s.snapshots.ListRecentRefreshCandidates(ctx, s.nowFn().UTC().Add(-s.activeWindow))
+	now := s.nowFn().UTC()
+	candidates, err := s.snapshots.ListDueRefreshCandidates(ctx, now.Add(-s.activeWindow), now)
 	if err != nil {
 		return err
 	}
@@ -392,7 +395,8 @@ func (s *Service) RefreshRecentLocations(ctx context.Context) error {
 			if err := s.hotCache.PutForecast(ctx, bundle.Provenance.CanonicalLocationKey, bundle, s.hotTTL); err != nil {
 				return err
 			}
-			if err := s.snapshots.MarkRefreshCandidateRefreshed(ctx, bundle.Provenance.CanonicalLocationKey, s.nowFn().UTC()); err != nil {
+			refreshedAt := s.nowFn().UTC()
+			if err := s.snapshots.MarkRefreshCandidateRefreshed(ctx, bundle.Provenance.CanonicalLocationKey, refreshedAt, refreshedAt.Add(s.hotTTL)); err != nil {
 				return err
 			}
 		}
@@ -441,6 +445,13 @@ func (s *Service) ensureLatestBundle(ctx context.Context, req Request, key strin
 }
 
 func (s *Service) loadVerificationForecast(ctx context.Context, req Request, key string, yesterdayStart time.Time) (*Bundle, string, error) {
+	anchor, err := s.snapshots.LoadVerificationForecastAnchor(ctx, key, yesterdayStart)
+	if err != nil {
+		return nil, "", err
+	}
+	if anchor != nil {
+		return anchor, "snapshot", nil
+	}
 	prior, err := s.snapshots.LatestBundleBefore(ctx, key, yesterdayStart)
 	if err != nil {
 		return nil, "", err
@@ -467,8 +478,14 @@ func (s *Service) loadVerificationForecast(ctx context.Context, req Request, key
 	if err != nil {
 		return nil, "", err
 	}
+	if fallback == nil {
+		return nil, "", errors.New("weather previous runs unavailable")
+	}
 	fallback.Provenance.CanonicalLocationKey = key
 	fallback.Provenance.IssuedAt = s.nowFn().UTC()
+	if anchorErr := s.snapshots.UpsertVerificationForecastAnchor(ctx, key, yesterdayStart, *fallback); anchorErr != nil {
+		return nil, "", anchorErr
+	}
 	return fallback, "previous_runs", nil
 }
 

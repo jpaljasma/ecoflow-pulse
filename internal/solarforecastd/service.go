@@ -133,6 +133,7 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	if len(siteDeviceIDs) == 0 {
 		siteDeviceIDs = append([]string(nil), deviceIDs...)
 	}
+	canonicalSiteDeviceIDs := append([]string(nil), siteDeviceIDs...)
 	useDeviceSiteAllocation := scopeMode == "device" && len(deviceIDs) == 1 && len(siteDeviceIDs) > 1
 
 	weatherReq := in.WeatherRequest.Normalized()
@@ -163,7 +164,6 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	actualTodayWh := todayActualWh(todayHistory.Points, loc, todayISO)
 	forecastHistory := todayHistory
 	forecastActualTodayWh := actualTodayWh
-	forecastDeviceIDs := append([]string(nil), deviceIDs...)
 	if useDeviceSiteAllocation {
 		telemetryLookbackStartedAt = time.Now()
 		forecastHistory, err = s.querySeries(ctx, siteDeviceIDs, todayStartLocal.UTC(), nowUTC, 32)
@@ -172,9 +172,8 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 			return nil, err
 		}
 		forecastActualTodayWh = todayActualWh(forecastHistory.Points, loc, todayISO)
-		forecastDeviceIDs = append([]string(nil), siteDeviceIDs...)
 	}
-	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, forecastDeviceIDs)
+	siteKey := buildSiteKey(bundle.Provenance.CanonicalLocationKey, canonicalSiteDeviceIDs)
 	forecastModel := "deterministic_baseline_v1"
 	servingState, err := s.loadServingState(ctx, siteKey, forecastModel)
 	if err != nil {
@@ -200,6 +199,10 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	daily := summarizeDailyOutlook(bundle.Hourly, bundle.Daily, capacity.EstimatedPeakWatts, forecastActualTodayWh, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	next24 := summarizeNext24Hours(bundle.Hourly, capacity.EstimatedPeakWatts, todayISO, todayRemainingScale, nowUTC, loc, calibrationIndex, recentSiteCalibration.MultiplicativeRatio)
 	today := firstDayForISO(daily, todayISO)
+	persistCapacity := capacity
+	persistDaily := cloneGenerationDays(daily)
+	persistNext24 := cloneGenerationPoints(next24)
+	persistToday := firstDayForISO(persistDaily, todayISO)
 	if useDeviceSiteAllocation {
 		shareLookbackStartLocal := todayStartLocal.AddDate(0, 0, -deviceShareLookbackDays)
 		deviceShareHistory, shareErr := s.queryLookbackSeries(ctx, deviceIDs, shareLookbackStartLocal.UTC(), nowUTC)
@@ -252,8 +255,22 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 		s.metrics.ObserveConfidence(outlook)
 		s.metrics.ObserveServedOutlook(siteKey, outlook, nowUTC)
 	}
+	trainingOutlook := canonicalTrainingOutlook(outlook, canonicalSiteDeviceIDs)
+	if useDeviceSiteAllocation {
+		trainingOutlook = canonicalTrainingOutlook(&Outlook{
+			Scope: Scope{
+				Mode:              "all",
+				ResolvedDeviceIDs: append([]string(nil), canonicalSiteDeviceIDs...),
+			},
+			Provenance:  outlook.Provenance,
+			Capacity:    persistCapacity,
+			Today:       persistToday,
+			Next7Days:   persistDaily,
+			Next24Hours: persistNext24,
+		}, canonicalSiteDeviceIDs)
+	}
 	trainingKickoffStartedAt := time.Now()
-	s.persistTrainingRunBestEffort(ctx, in, bundle, todayHistory, outlook, actualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale)
+	s.persistTrainingRunBestEffort(ctx, in, bundle, forecastHistory, trainingOutlook, forecastActualTodayWh, nowUTC, nowLocal, calibrationIndex, recentSiteCalibration.MultiplicativeRatio, todayRemainingScale)
 	stageTimings.trainingKickoff = time.Since(trainingKickoffStartedAt)
 	s.observeSolarStageTiming(scopeMode, solarForecastStageTrainingKickoff, nil, stageTimings.trainingKickoff)
 	return outlook, nil
@@ -884,7 +901,7 @@ func (s *Service) persistTrainingRun(
 	if s == nil || s.store == nil || bundle == nil || outlook == nil {
 		return nil
 	}
-	issueAt := bundle.Provenance.IssuedAt.UTC()
+	issueAt := alignToInterval(bundle.Provenance.IssuedAt.UTC(), 4*time.Hour)
 	issueLoc := loadLocation(outlook.Provenance.Timezone)
 	issueLocal := issueAt.In(issueLoc)
 	runUUID, err := uuid.NewV7()
@@ -911,8 +928,8 @@ func (s *Service) persistTrainingRun(
 	run := Run{
 		ID:                       runUUID.String(),
 		SiteKey:                  buildSiteKey(outlook.Provenance.CanonicalLocationKey, outlook.Scope.ResolvedDeviceIDs),
-		ScopeKind:                outlook.Scope.Mode,
-		DeviceID:                 singleDeviceID(outlook.Scope.ResolvedDeviceIDs, outlook.Scope.Mode),
+		ScopeKind:                "all",
+		DeviceID:                 nil,
 		ServedVariant:            normalizedServedVariant(outlook.Provenance.ServedVariant),
 		CanonicalLocationKey:     outlook.Provenance.CanonicalLocationKey,
 		Timezone:                 outlook.Provenance.Timezone,
@@ -2033,6 +2050,45 @@ func buildSiteKey(canonicalLocationKey string, deviceIDs []string) string {
 		return canonicalLocationKey
 	}
 	return canonicalLocationKey + "|" + strings.Join(deviceIDs, ",")
+}
+
+func canonicalTrainingOutlook(outlook *Outlook, siteDeviceIDs []string) *Outlook {
+	if outlook == nil {
+		return nil
+	}
+	out := *outlook
+	out.Scope = Scope{
+		Mode:              "all",
+		ResolvedDeviceIDs: append([]string(nil), siteDeviceIDs...),
+	}
+	out.Next7Days = cloneGenerationDays(outlook.Next7Days)
+	out.Next24Hours = cloneGenerationPoints(outlook.Next24Hours)
+	return &out
+}
+
+func cloneGenerationDays(days []GenerationDay) []GenerationDay {
+	if len(days) == 0 {
+		return nil
+	}
+	out := make([]GenerationDay, len(days))
+	copy(out, days)
+	return out
+}
+
+func cloneGenerationPoints(points []GenerationPoint) []GenerationPoint {
+	if len(points) == 0 {
+		return nil
+	}
+	out := make([]GenerationPoint, len(points))
+	copy(out, points)
+	return out
+}
+
+func alignToInterval(t time.Time, interval time.Duration) time.Time {
+	if interval <= 0 {
+		return t.UTC()
+	}
+	return t.UTC().Truncate(interval)
 }
 
 func singleDeviceID(deviceIDs []string, scopeMode string) *string {

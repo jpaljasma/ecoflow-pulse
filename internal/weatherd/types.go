@@ -154,6 +154,7 @@ type RefreshCandidate struct {
 	Request              Request    `json:"request"`
 	LastRequestedAt      time.Time  `json:"last_requested_at"`
 	LastRefreshedAt      *time.Time `json:"last_refreshed_at,omitempty"`
+	NextRefreshAt        *time.Time `json:"next_refresh_at,omitempty"`
 }
 
 type CachedBundle struct {
@@ -171,6 +172,8 @@ type SnapshotStore interface {
 	SaveForecastBundle(ctx context.Context, req Request, bundle Bundle) error
 	LatestBundle(ctx context.Context, canonicalLocationKey string) (*Bundle, error)
 	LatestBundleBefore(ctx context.Context, canonicalLocationKey string, before time.Time) (*Bundle, error)
+	LoadVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*Bundle, error)
+	UpsertVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time, bundle Bundle) error
 	FindCanonicalLocationKeyByRequest(ctx context.Context, req Request) (string, error)
 	LoadVerification(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*VerificationResult, error)
 	SaveVerification(ctx context.Context, result VerificationResult) error
@@ -178,6 +181,7 @@ type SnapshotStore interface {
 	UpsertBiasStates(ctx context.Context, states []BiasState) error
 	TouchRefreshCandidate(ctx context.Context, canonicalLocationKey string, req Request, requestedAt time.Time) error
 	ListRecentRefreshCandidates(ctx context.Context, since time.Time) ([]RefreshCandidate, error)
-	MarkRefreshCandidateRefreshed(ctx context.Context, canonicalLocationKey string, refreshedAt time.Time) error
+	ListDueRefreshCandidates(ctx context.Context, since, dueBefore time.Time) ([]RefreshCandidate, error)
+	MarkRefreshCandidateRefreshed(ctx context.Context, canonicalLocationKey string, refreshedAt, nextRefreshAt time.Time) error
 	Close() error
 }

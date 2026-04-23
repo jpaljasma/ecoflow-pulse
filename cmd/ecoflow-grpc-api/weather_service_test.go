@@ -17,7 +17,8 @@ import (
 )
 
 type fakeUpstream struct {
-	forecast *weatherd.Bundle
+	forecast     *weatherd.Bundle
+	previousRuns *weatherd.Bundle
 }
 
 func (f *fakeUpstream) FetchForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -32,7 +33,7 @@ func (f *fakeUpstream) FetchForecastBatch(_ context.Context, _ []weatherd.Reques
 }
 
 func (f *fakeUpstream) FetchPreviousRuns(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
-	return nil, nil
+	return cloneBundle(f.previousRuns), nil
 }
 
 func (f *fakeUpstream) FetchHistoricalForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -116,7 +117,7 @@ func TestWeatherServiceMapsYesterdayVerificationToProto(t *testing.T) {
 		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
 	}
 	domain, err := weatherd.NewService(
-		&fakeUpstream{},
+		&fakeUpstream{previousRuns: prior},
 		cache,
 		snapshots,
 		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
