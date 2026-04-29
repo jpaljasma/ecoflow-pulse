@@ -417,15 +417,18 @@ Runtime behavior:
   normal polling interval during the day and roll to a new query key shortly
   after local midnight so `today`/`yesterday` swap cleanly without requiring a
   manual reload.
-- solar history compares against the full previous local day, not a truncated
-  "same elapsed duration" window, so `Yesterday` stays complete during the day
-  and remains correct across spring-forward and fall-back clock changes.
+- solar history fetches the full previous local day for `Yesterday total`, but
+  percentage deltas compare `Today` against yesterday through the same elapsed
+  current-day duration so the running comparison is not diluted by the rest of
+  yesterday's production.
 - the universal client computes and sends explicit `compareFrom` / `compareTo`
   local-day bounds for solar history; DST-sensitive "previous period"
   subtraction on the server is not sufficient for the day after a clock shift.
-- the solar-generated chart renders the local `06:00` -> `20:00` window in
-  10-minute buckets and supports bucket inspection with hover on web and tap on
-  native via a shared crosshair/tooltip overlay.
+- the solar-generated chart renders weather-provided sunrise/sunset when
+  available, rounded to surrounding half-hour marks, in 10-minute step buckets;
+  without weather sun times it falls back to the local `06:00` -> `20:00`
+  window. It supports bucket inspection with hover on web and tap on native via
+  a shared crosshair/tooltip overlay.
 - the `Energy Impact` widget on `/devices` and `/device/{id}` uses real
   measured solar generation from `todayWh` only; it does not annualize or
   extrapolate. The current default factor is `NYUP` (`egrid2023_rev2`). See

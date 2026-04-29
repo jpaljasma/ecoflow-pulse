@@ -134,11 +134,96 @@ describe('backend solar history view', () => {
     expect(view.seriesWh).not.toContain(9);
   });
 
+  it('uses a custom daylight chart window with 10-minute buckets', () => {
+    const fromUnixMs = Date.UTC(2026, 3, 29, 4, 0, 0);
+    const current = series(
+      [
+        point({
+          bucketStartUnixMs: fromUnixMs + 6 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs + 6 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 2
+        }),
+        point({
+          bucketStartUnixMs: fromUnixMs + 20 * 60 * 60 * 1000 + 20 * 60_000,
+          bucketEndUnixMs: fromUnixMs + 20 * 60 * 60 * 1000 + 21 * 60_000,
+          solarGeneratedWh: 4
+        }),
+        point({
+          bucketStartUnixMs: fromUnixMs + 20 * 60 * 60 * 1000 + 30 * 60_000,
+          bucketEndUnixMs: fromUnixMs + 20 * 60 * 60 * 1000 + 31 * 60_000,
+          solarGeneratedWh: 9
+        })
+      ],
+      fromUnixMs
+    );
+
+    const view = buildCompareSolarHistoryView(
+      {
+        current,
+        previous: series([], fromUnixMs - 24 * 60 * 60 * 1000)
+      } satisfies CompareRollupSeries,
+      { windowStartMinutes: 6 * 60, windowEndMinutes: 20 * 60 + 30 }
+    );
+
+    expect(view.seriesWh).toHaveLength(87);
+    expect(view.seriesWh[0]).toBe(2);
+    expect(view.seriesWh[86]).toBe(4);
+    expect(view.seriesWh).not.toContain(9);
+  });
+
+  it('compares today against yesterday through the same elapsed time', () => {
+    const fromUnixMs = Date.UTC(2026, 3, 29, 4, 0, 0);
+    const current = series(
+      [
+        point({
+          bucketStartUnixMs: fromUnixMs + 8 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs + 8 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 10
+        }),
+        point({
+          bucketStartUnixMs: fromUnixMs + 9 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs + 9 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 10
+        })
+      ],
+      fromUnixMs
+    );
+    const previous = series(
+      [
+        point({
+          bucketStartUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 5
+        }),
+        point({
+          bucketStartUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 5
+        }),
+        point({
+          bucketStartUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000,
+          bucketEndUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000 + 60_000,
+          solarGeneratedWh: 90
+        })
+      ],
+      fromUnixMs - 24 * 60 * 60 * 1000
+    );
+    current.toUnixMs = String(fromUnixMs + 10 * 60 * 60 * 1000);
+
+    const view = buildCompareSolarHistoryView({ current, previous } satisfies CompareRollupSeries);
+
+    expect(view.todayWh).toBe(20);
+    expect(view.yesterdayRunningWh).toBe(10);
+    expect(view.yesterdayWh).toBe(100);
+    expect(view.deltaPct).toBe(100);
+  });
+
   it('combines fleet views server-side', () => {
     const combined = combineSolarHistoryViews([
       {
         todayWh: 100,
         yesterdayWh: 80,
+        yesterdayRunningWh: 60,
         deltaPct: 25,
         seriesWh: [100, 0, 0],
         yesterdaySeriesWh: [60, 20, 0]
@@ -146,6 +231,7 @@ describe('backend solar history view', () => {
       {
         todayWh: 50,
         yesterdayWh: 20,
+        yesterdayRunningWh: 20,
         deltaPct: 150,
         seriesWh: [0, 50, 0],
         yesterdaySeriesWh: [0, 20, 0]
@@ -154,7 +240,8 @@ describe('backend solar history view', () => {
 
     expect(combined.todayWh).toBe(150);
     expect(combined.yesterdayWh).toBe(100);
-    expect(combined.deltaPct).toBe(50);
+    expect(combined.yesterdayRunningWh).toBe(80);
+    expect(combined.deltaPct).toBe(87.5);
     expect(combined.seriesWh.slice(0, 3)).toEqual([100, 50, 0]);
     expect(combined.yesterdaySeriesWh.slice(0, 3)).toEqual([60, 40, 0]);
   });
@@ -163,6 +250,7 @@ describe('backend solar history view', () => {
     expect(emptySolarHistoryView()).toEqual({
       todayWh: 0,
       yesterdayWh: 0,
+      yesterdayRunningWh: 0,
       deltaPct: null,
       seriesWh: Array.from({ length: 84 }, () => 0),
       yesterdaySeriesWh: Array.from({ length: 84 }, () => 0)

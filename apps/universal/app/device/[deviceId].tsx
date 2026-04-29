@@ -12,7 +12,7 @@ import { useDevice, useDevices } from '@/features/devices/hooks';
 import type { DeviceSummary } from '@/features/devices/api';
 import { useCurrentUser } from '@/features/profile/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
-import { useSolarOutlook } from '@/features/weather/hooks';
+import { useSolarOutlook, useWeatherForecast } from '@/features/weather/hooks';
 import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { useDeviceInsights } from '@/features/inference/hooks';
 import {
@@ -33,7 +33,7 @@ import { useDevicePowerTrendHistory, useDeviceSolarHistory } from '@/features/hi
 import {
   mergeTrendPrefillWithLivePoints
 } from '@/features/history/powerTrend';
-import { SOLAR_HISTORY_POINTS } from '@/features/history/solar';
+import { resolveSolarHistoryWindow } from '@/features/history/solar';
 import { maskSerialNumber } from '@/features/telemetry/format';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 
@@ -133,13 +133,24 @@ export default function DeviceDetailScreen() {
     enabled: queryEnabled && Boolean(resolvedDeviceId)
   });
   const maxSolarWatts = getMaxSolarWatts(deviceQuery.data ?? routeDevice);
+  const resolvedWeatherState = resolveProfileWeatherState(currentUserQuery.data?.user);
+  const weatherForecastQuery = useWeatherForecast({
+    token,
+    authKey,
+    locationKey: resolvedWeatherState.locationKey,
+    enabled: queryEnabled && resolvedWeatherState.enabled
+  });
+  const solarHistoryWindow = useMemo(
+    () => resolveSolarHistoryWindow(weatherForecastQuery.data?.forecast),
+    [weatherForecastQuery.data?.forecast]
+  );
   const solarHistory = useDeviceSolarHistory(resolvedDeviceId, {
     token,
     authKey,
     enabled: queryEnabled && Boolean(resolvedDeviceId),
-    maxSolarWatts
+    maxSolarWatts,
+    window: solarHistoryWindow
   });
-  const resolvedWeatherState = resolveProfileWeatherState(currentUserQuery.data?.user);
   const deviceSolarOutlookQuery = useSolarOutlook({
     token,
     authKey,
@@ -173,9 +184,9 @@ export default function DeviceDetailScreen() {
     !blockingRouteError;
 
   const solarGeneratedTrend =
-    solarHistory.data?.seriesWh ?? Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0);
+    solarHistory.data?.seriesWh ?? Array.from({ length: solarHistoryWindow.points }, () => 0);
   const solarGeneratedYesterdayTrend =
-    solarHistory.data?.yesterdaySeriesWh ?? Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0);
+    solarHistory.data?.yesterdaySeriesWh ?? Array.from({ length: solarHistoryWindow.points }, () => 0);
 
   const detailTrend = useMemo(
     () => ({
@@ -239,7 +250,9 @@ export default function DeviceDetailScreen() {
       solarGeneratedYesterdayTrend={solarGeneratedYesterdayTrend}
       solarGeneratedTodayWh={solarHistory.data?.todayWh}
       solarGeneratedYesterdayWh={solarHistory.data?.yesterdayWh}
+      solarGeneratedYesterdayRunningWh={solarHistory.data?.yesterdayRunningWh}
       solarGeneratedDeltaPct={solarHistory.data?.deltaPct}
+      solarHistoryWindow={solarHistoryWindow}
       solarOutlook={deviceSolarOutlookQuery.data?.outlook}
       solarOutlookLoading={deviceSolarOutlookQuery.isLoading}
       solarOutlookErrorText={

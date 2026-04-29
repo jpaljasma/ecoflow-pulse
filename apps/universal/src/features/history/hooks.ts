@@ -9,9 +9,11 @@ import {
 import { ApiError } from '@/shared/api/restClient';
 import {
   buildSolarHistoryBounds,
+  defaultSolarHistoryWindow,
   msUntilNextLocalDay,
   SOLAR_HISTORY_POINTS,
-  historyRefreshIntervalMs
+  historyRefreshIntervalMs,
+  type SolarHistoryWindow
 } from '@/features/history/solar';
 import {
   buildPowerTrendBounds,
@@ -27,6 +29,7 @@ type HistoryQueryOptions = {
   enabled?: boolean;
   maxSolarWatts?: number;
   maxSolarWattsByDeviceId?: Record<string, number | undefined>;
+  window?: SolarHistoryWindow;
 };
 
 function buildDayKey(): string {
@@ -53,13 +56,14 @@ function isHistoryNotFound(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
-function emptySolarHistoryView(): SolarHistoryView {
+function emptySolarHistoryView(points = SOLAR_HISTORY_POINTS): SolarHistoryView {
   return {
     todayWh: 0,
     yesterdayWh: 0,
     deltaPct: null,
-    seriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0),
-    yesterdaySeriesWh: Array.from({ length: SOLAR_HISTORY_POINTS }, () => 0)
+    yesterdayRunningWh: 0,
+    seriesWh: Array.from({ length: points }, () => 0),
+    yesterdaySeriesWh: Array.from({ length: points }, () => 0)
   };
 }
 
@@ -72,10 +76,19 @@ export function useDeviceSolarHistory(
   options: HistoryQueryOptions = {}
 ) {
   const { token, authKey = 'anonymous', enabled = true, maxSolarWatts } = options;
+  const window = options.window ?? defaultSolarHistoryWindow();
   const dayKey = useSolarHistoryDayKey();
 
   return useQuery<SolarHistoryView>({
-    queryKey: ['device-solar-history', deviceId, dayKey, authKey, maxSolarWatts ?? null],
+    queryKey: [
+      'device-solar-history',
+      deviceId,
+      dayKey,
+      authKey,
+      maxSolarWatts ?? null,
+      window.startMinutes,
+      window.endMinutes
+    ],
     enabled: enabled && Boolean(deviceId),
     queryFn: async () => {
       const { from, to, compareFrom, compareTo } = buildSolarHistoryBounds();
@@ -86,11 +99,13 @@ export function useDeviceSolarHistory(
           toIso: to.toISOString(),
           compareFromIso: compareFrom.toISOString(),
           compareToIso: compareTo.toISOString(),
+          windowStartMinutes: window.startMinutes,
+          windowEndMinutes: window.endMinutes,
           token
         });
       } catch (error) {
         if (isHistoryNotFound(error)) {
-          return emptySolarHistoryView();
+          return emptySolarHistoryView(window.points);
         }
         throw error;
       }
@@ -107,6 +122,7 @@ export function useFleetSolarHistory(
   options: HistoryQueryOptions = {}
 ) {
   const { token, authKey = 'anonymous', enabled = true, maxSolarWattsByDeviceId } = options;
+  const window = options.window ?? defaultSolarHistoryWindow();
   const sortedIds = useMemo(() => [...deviceIds].sort(), [deviceIds]);
   const dayKey = useSolarHistoryDayKey();
   const maxSolarKey = useMemo(
@@ -119,7 +135,15 @@ export function useFleetSolarHistory(
   );
 
   const query = useQuery<SolarHistoryView>({
-    queryKey: ['fleet-solar-history', sortedIds, dayKey, authKey, maxSolarKey],
+    queryKey: [
+      'fleet-solar-history',
+      sortedIds,
+      dayKey,
+      authKey,
+      maxSolarKey,
+      window.startMinutes,
+      window.endMinutes
+    ],
     enabled: enabled && sortedIds.length > 0,
     queryFn: async () => {
       const { from, to, compareFrom, compareTo } = buildSolarHistoryBounds();
@@ -130,11 +154,13 @@ export function useFleetSolarHistory(
           toIso: to.toISOString(),
           compareFromIso: compareFrom.toISOString(),
           compareToIso: compareTo.toISOString(),
+          windowStartMinutes: window.startMinutes,
+          windowEndMinutes: window.endMinutes,
           token
         });
       } catch (error) {
         if (isHistoryNotFound(error)) {
-          return emptySolarHistoryView();
+          return emptySolarHistoryView(window.points);
         }
         throw error;
       }

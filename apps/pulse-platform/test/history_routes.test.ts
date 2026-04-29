@@ -416,7 +416,8 @@ describe('pulse-platform history routes', () => {
       expect.objectContaining({
         todayWh: 5,
         yesterdayWh: 2,
-        deltaPct: 150,
+        yesterdayRunningWh: 0,
+        deltaPct: null,
         seriesWh: expect.arrayContaining([2, 3]),
         yesterdaySeriesWh: expect.arrayContaining([2])
       })
