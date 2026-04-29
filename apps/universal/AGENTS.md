@@ -31,6 +31,12 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 2. Reuse fetched payloads aggressively for related widgets instead of refetching parallel slices of the same period.
 3. Device detail and shared chrome must receive explicit scope from the current page; do not silently re-derive unrelated global scope.
 
+## Auth and Browser Runtime
+1. iOS web sign-in must use a same-tab Authorization Code + PKCE redirect instead of relying on popup/opener completion.
+2. Store PKCE verifier/state only as short-lived browser state before leaving the app, then exchange the returned code from `/auth/callback`.
+3. Keep browser-specific auth workarounds centralized in shared auth helpers, with regression coverage for Safari and Chrome on iOS user agents.
+4. Preserve the existing Expo AuthSession popup/native behavior for desktop web and native app flows unless those paths are explicitly being changed and revalidated.
+
 ## Validation
 1. Run the relevant universal checks for touched areas:
    - `npm run -w apps/universal typecheck`
