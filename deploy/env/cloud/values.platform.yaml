@@ -92,7 +92,7 @@ runtime:
       minAvailable: 1
     image:
       repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-platform
-      tag: cloud-platform-20260421-forecast-retention2
+      tag: cloud-platform-20260429-ios-web-login
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
