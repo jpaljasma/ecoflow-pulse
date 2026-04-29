@@ -165,39 +165,44 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - keep `/realms` and `/resources` routed to Keycloak for OIDC discovery/login assets,
    - keep `/ws` routed to the realtime gateway,
    - treat missing edge routes as production-grade regressions because they break login or websocket telemetry in ways that look like frontend bugs.
-17. Profile timezone UX must stay selection-only and IANA-backed:
+17. iOS web auth must not depend on popup/opener PKCE completion:
+   - Safari and Chrome on iOS can lose or block `window.open` / `window.opener` auth handoff semantics,
+   - use a same-tab Authorization Code + PKCE redirect for iOS web browsers,
+   - persist only short-lived PKCE verifier/state before navigation and complete the code exchange from the callback route,
+   - keep this browser workaround centralized in the auth helper and covered by regression tests.
+18. Profile timezone UX must stay selection-only and IANA-backed:
    - use a type-ahead picker over real IANA timezone values,
    - do not allow arbitrary free-text timezone submission in the UI,
    - validate timezone values on both client and server.
-18. Public rollout settings must preserve seamless auth/realtime availability:
+19. Public rollout settings must preserve seamless auth/realtime availability:
    - public-facing Deployments should use RollingUpdate with `maxUnavailable: 0` and non-zero `maxSurge`,
    - keep readiness probes accurate enough that traffic never shifts onto pods before they can serve auth/bootstrap/realtime requests,
    - use graceful termination windows plus `preStop` drain behavior where needed so in-flight HTTP/WebSocket traffic is not cut off abruptly,
    - protect multi-replica public workloads with Pod Disruption Budgets so voluntary disruptions cannot take the whole user path down at once.
-19. Full local platform restarts must converge automatically:
+20. Full local platform restarts must converge automatically:
    - after Docker/k3d restarts, the cluster should recover to healthy without manual pod babysitting,
    - use startup probes and dependency-aware readiness where normal warmup would otherwise look like a crash loop,
    - treat “works after manual restart/delete” as an incomplete fix, not acceptable steady state.
-20. Graceful deploy behavior applies to background workers too:
+21. Graceful deploy behavior applies to background workers too:
    - routine deploys must not abruptly cut ingest, projection, rollup, archive, inference, or repair workers,
    - workers must stop accepting new work, drain or hand off in-flight work safely, and exit without corrupting state or causing duplicate side effects,
    - deployment/restart behavior that creates avoidable data gaps, replay debt, or crash-loop churn is an availability bug.
-21. Universal app iconography must use `MaterialCommunityIcons` for product UI elements:
+22. Universal app iconography must use `MaterialCommunityIcons` for product UI elements:
    - do not ship handmade emoji or ad-hoc Unicode glyphs as steady-state UI affordances, badges, nav controls, or metric labels,
    - when an icon is needed, prefer a named `MaterialCommunityIcons` glyph over inline text symbols,
    - keep icon+label patterns DRY through shared wrappers instead of repeating one-off icon/text stacks.
-22. Centralize third-party runtime shims and compatibility workarounds:
+23. Centralize third-party runtime shims and compatibility workarounds:
    - when a library needs a special import path, CommonJS shim, environment guard, or web-only workaround, put that behavior in one shared helper/module instead of copying the workaround into each feature file,
    - treat duplicated compatibility snippets as debt because they drift easily and can reintroduce the same runtime bug in only part of the app,
    - add or update regression coverage around the shared helper when the workaround affects app bootstrap or browser runtime behavior.
-23. Secondary detail panels should be collapsed and lazy-loaded when they are not needed for first paint:
+24. Secondary detail panels should be collapsed and lazy-loaded when they are not needed for first paint:
    - verification/history/explainer sections that are useful but secondary should stay out of the initial request path unless product requirements say otherwise,
    - first expand should trigger the fetch, preserve layout stability, and reuse cached data on reopen instead of refetching or blanking the card,
    - keep summary widgets truthful by omitting unavailable derived copy instead of filling space with noisy placeholder text.
-24. Shared weather and solar chrome must receive explicit scope from the current screen:
+25. Shared weather and solar chrome must receive explicit scope from the current screen:
    - top-bar/menu/header widgets must not assume site-wide solar scope by default when the current page is device-specific or the user has selected a device-specific forecast mode,
    - pass canonical UUID device IDs through shared widget props instead of re-deriving scope from unrelated global state.
-25. Client parsers must stay aligned with served forecast variants:
+26. Client parsers must stay aligned with served forecast variants:
    - when backend responses add new enum-like variants for provenance, calibration method, or scope metadata, update the universal client schema and copy in the same branch,
    - device-scoped forecast parse failures must surface as visible widget errors during development rather than silently dropping solar data.
 

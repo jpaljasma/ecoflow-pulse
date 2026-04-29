@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Spinner, Text, XStack, YStack } from 'tamagui';
 import { readOidcConfig, type OidcConfig } from '@/features/auth/oidcConfig';
 import { isSessionExpired, useAuthStore, type StoredOidcSession } from '@/features/auth/store';
+import {
+  beginFullPageWebAuthRedirect,
+  shouldUseFullPageWebAuthRedirect
+} from '@/features/auth/webPkceRedirect';
 import { Card } from '@/shared/ui/Card';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -158,6 +162,22 @@ function ConfiguredPkceCard({ variant, cfg, session, actions }: ConfiguredPkceCa
     actions.clearSession();
     setErrorText('');
     setStatusText('');
+    if (shouldUseFullPageWebAuthRedirect()) {
+      if (!request || !discovery) return;
+      setStatusText('Opening secure sign-in…');
+      try {
+        await beginFullPageWebAuthRedirect({
+          cfg,
+          discovery,
+          redirectUri,
+          request
+        });
+      } catch (err) {
+        setStatusText('');
+        setErrorText(err instanceof Error ? err.message : 'Unable to start sign-in');
+      }
+      return;
+    }
     await promptAsync();
   };
 
