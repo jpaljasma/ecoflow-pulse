@@ -34,6 +34,32 @@ iPad, and Android.
 - Local and cloud connection profiles so the same client can switch API,
   websocket, and OIDC endpoints together.
 
+### App Overview
+
+#### Device Command Center
+
+![DPU device overview](docs/assets/app-overview/dpu-detail.png)
+
+The device detail view brings the DELTA Pro Ultra picture, reserve/SOC status,
+live telemetry, today's solar, PV input, load, net balance, and history charts
+into one operational view for the selected device.
+
+#### Energy Balance
+
+![Energy balance dashboard](docs/assets/app-overview/energy-balance.png)
+
+The energy view shows solar generation, site load, battery net flow, grid value,
+self-sufficiency, SOC band movement, and scoped device/window details for the
+selected local-calendar period.
+
+#### Solar Forecast
+
+![Solar forecast dashboard](docs/assets/app-overview/solar-forecast.png)
+
+The forecast screen combines current weather, consent state, site/device scope,
+calibrated production estimates, and a seven-day outlook so expected solar
+generation is visible alongside weather context.
+
 ## Recent Important Updates (Apr 2026)
 
 - Solar history charts now align `Today so far` values with matched
