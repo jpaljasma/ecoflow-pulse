@@ -16,6 +16,11 @@ type SolarHistoryWindow = {
   points: number;
 };
 
+type SeriesWindowMs = {
+  fromMs: number;
+  toMs: number;
+};
+
 export type SolarHistoryView = {
   todayWh: number;
   yesterdayWh: number;
@@ -30,19 +35,23 @@ export function buildCompareSolarHistoryView(
   options: SolarHistoryWindowOptions = {}
 ): SolarHistoryView {
   const window = resolveSolarHistoryWindow(options);
-  const todayWh = sumSolarWh(series.current.points);
-  const yesterdayWh = sumSolarWh(series.previous.points);
+  const currentWindow = parseSeriesWindow(series.current);
+  const previousWindow = parseSeriesWindow(series.previous);
+  const currentPoints = pointsWithinSeriesWindow(series.current, currentWindow);
+  const previousPoints = pointsWithinSeriesWindow(series.previous, previousWindow);
+  const todayWh = sumSolarWh(currentPoints);
+  const yesterdayWh = sumSolarWh(previousPoints);
   const yesterdayRunningWh = sumSolarWhUntil(
-    series.previous.points,
-    runningCompareCutoffMs(series.current, series.previous)
+    previousPoints,
+    runningCompareCutoffMs(currentWindow, previousWindow, currentPoints)
   );
   return {
     todayWh,
     yesterdayWh,
     yesterdayRunningWh,
     deltaPct: computeDeltaPct(todayWh, yesterdayRunningWh),
-    seriesWh: buildSeriesWh(series.current.points, series.current.fromUnixMs, window),
-    yesterdaySeriesWh: buildSeriesWh(series.previous.points, series.previous.fromUnixMs, window)
+    seriesWh: buildSeriesWh(currentPoints, series.current.fromUnixMs, window),
+    yesterdaySeriesWh: buildSeriesWh(previousPoints, series.previous.fromUnixMs, window)
   };
 }
 
@@ -95,6 +104,25 @@ function sumSolarWh(points: RollupPoint[]): number {
     totalWh += solarWhForPoint(point);
   }
   return totalWh;
+}
+
+function parseSeriesWindow(series: RollupSeries): SeriesWindowMs | undefined {
+  const fromMs = Number(series.fromUnixMs);
+  const toMs = Number(series.toUnixMs);
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) {
+    return undefined;
+  }
+  return { fromMs, toMs };
+}
+
+function pointsWithinSeriesWindow(series: RollupSeries, window: SeriesWindowMs | undefined): RollupPoint[] {
+  if (!window) {
+    return series.points;
+  }
+  return series.points.filter((point) => {
+    const bucketStartMs = Number(point.bucketStartUnixMs);
+    return Number.isFinite(bucketStartMs) && bucketStartMs >= window.fromMs && bucketStartMs < window.toMs;
+  });
 }
 
 function sumSolarWhUntil(points: RollupPoint[], cutoffUnixMs: number | undefined): number {
@@ -154,20 +182,34 @@ function resolveSolarHistoryWindow(options: SolarHistoryWindowOptions): SolarHis
   };
 }
 
-function runningCompareCutoffMs(current: RollupSeries, previous: RollupSeries): number | undefined {
-  const currentFromMs = Number(current.fromUnixMs);
-  const currentToMs = Number(current.toUnixMs);
-  const previousFromMs = Number(previous.fromUnixMs);
-  const previousToMs = Number(previous.toUnixMs);
-  if (
-    !Number.isFinite(currentFromMs) ||
-    !Number.isFinite(currentToMs) ||
-    !Number.isFinite(previousFromMs)
-  ) {
+function runningCompareCutoffMs(
+  currentWindow: SeriesWindowMs | undefined,
+  previousWindow: SeriesWindowMs | undefined,
+  currentPoints: RollupPoint[]
+): number | undefined {
+  if (!currentWindow || !previousWindow) {
     return undefined;
   }
-  const cutoffMs = previousFromMs + Math.max(0, currentToMs - currentFromMs);
-  return Number.isFinite(previousToMs) ? Math.min(cutoffMs, previousToMs) : cutoffMs;
+  const currentDataToMs = latestCurrentSolarBucketEndMs(currentPoints) ?? currentWindow.toMs;
+  const cutoffMs =
+    previousWindow.fromMs +
+    Math.max(0, Math.min(currentDataToMs, currentWindow.toMs) - currentWindow.fromMs);
+  return Math.min(cutoffMs, previousWindow.toMs);
+}
+
+function latestCurrentSolarBucketEndMs(points: RollupPoint[]): number | undefined {
+  let latest: number | undefined;
+  for (const point of points) {
+    if (!(solarWhForPoint(point) > 0)) {
+      continue;
+    }
+    const bucketEndMs = Number(point.bucketEndUnixMs);
+    if (!Number.isFinite(bucketEndMs)) {
+      continue;
+    }
+    latest = latest === undefined ? bucketEndMs : Math.max(latest, bucketEndMs);
+  }
+  return latest;
 }
 
 function computeDeltaPct(todayWh: number, yesterdayWh: number): number | null {

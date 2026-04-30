@@ -6,6 +6,10 @@ import {
 } from '../src/history/solarView.js';
 import type { CompareRollupSeries, RollupPoint, RollupSeries } from '../src/grpc/telemetryClient.js';
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
 function point({
   bucketStartUnixMs,
   bucketEndUnixMs,
@@ -55,6 +59,15 @@ function point({
       batteryDischargeEnergyWh: 0
     }
   };
+}
+
+function solarPoint(dayStartUnixMs: number, hour: number, solarGeneratedWh: number, minute = 0): RollupPoint {
+  const bucketStartUnixMs = dayStartUnixMs + hour * HOUR_MS + minute * MINUTE_MS;
+  return point({
+    bucketStartUnixMs,
+    bucketEndUnixMs: bucketStartUnixMs + MINUTE_MS,
+    solarGeneratedWh
+  });
 }
 
 function series(points: RollupPoint[], fromUnixMs: number): RollupSeries {
@@ -173,42 +186,17 @@ describe('backend solar history view', () => {
 
   it('compares today against yesterday through the same elapsed time', () => {
     const fromUnixMs = Date.UTC(2026, 3, 29, 4, 0, 0);
-    const current = series(
-      [
-        point({
-          bucketStartUnixMs: fromUnixMs + 8 * 60 * 60 * 1000,
-          bucketEndUnixMs: fromUnixMs + 8 * 60 * 60 * 1000 + 60_000,
-          solarGeneratedWh: 10
-        }),
-        point({
-          bucketStartUnixMs: fromUnixMs + 9 * 60 * 60 * 1000,
-          bucketEndUnixMs: fromUnixMs + 9 * 60 * 60 * 1000 + 60_000,
-          solarGeneratedWh: 10
-        })
-      ],
-      fromUnixMs
-    );
+    const previousFromUnixMs = fromUnixMs - DAY_MS;
+    const current = series([solarPoint(fromUnixMs, 8, 10), solarPoint(fromUnixMs, 9, 10)], fromUnixMs);
     const previous = series(
       [
-        point({
-          bucketStartUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000,
-          bucketEndUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000 + 60_000,
-          solarGeneratedWh: 5
-        }),
-        point({
-          bucketStartUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000,
-          bucketEndUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000 + 60_000,
-          solarGeneratedWh: 5
-        }),
-        point({
-          bucketStartUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000,
-          bucketEndUnixMs: fromUnixMs - 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000 + 60_000,
-          solarGeneratedWh: 90
-        })
+        solarPoint(previousFromUnixMs, 8, 5),
+        solarPoint(previousFromUnixMs, 9, 5),
+        solarPoint(previousFromUnixMs, 18, 90)
       ],
-      fromUnixMs - 24 * 60 * 60 * 1000
+      previousFromUnixMs
     );
-    current.toUnixMs = String(fromUnixMs + 10 * 60 * 60 * 1000);
+    current.toUnixMs = String(fromUnixMs + 10 * HOUR_MS);
 
     const view = buildCompareSolarHistoryView({ current, previous } satisfies CompareRollupSeries);
 
@@ -216,6 +204,39 @@ describe('backend solar history view', () => {
     expect(view.yesterdayRunningWh).toBe(10);
     expect(view.yesterdayWh).toBe(100);
     expect(view.deltaPct).toBe(100);
+  });
+
+  it('limits yesterday running total to the latest current solar bucket', () => {
+    const fromUnixMs = Date.UTC(2026, 3, 29, 4, 0, 0);
+    const previousFromUnixMs = fromUnixMs - DAY_MS;
+    const current = series([solarPoint(fromUnixMs, 8, 10)], fromUnixMs);
+    const previous = series(
+      [solarPoint(previousFromUnixMs, 8, 20), solarPoint(previousFromUnixMs, 18, 200)],
+      previousFromUnixMs
+    );
+    current.toUnixMs = String(fromUnixMs + 20 * HOUR_MS);
+
+    const view = buildCompareSolarHistoryView({ current, previous } satisfies CompareRollupSeries);
+
+    expect(view.todayWh).toBe(10);
+    expect(view.yesterdayRunningWh).toBe(20);
+    expect(view.yesterdayWh).toBe(220);
+    expect(view.deltaPct).toBe(-50);
+  });
+
+  it('excludes current-day points that start after the requested window', () => {
+    const fromUnixMs = Date.UTC(2026, 3, 29, 4, 0, 0);
+    const current = series([solarPoint(fromUnixMs, 6, 4, 40), solarPoint(fromUnixMs, 7, 40, 10)], fromUnixMs);
+    current.toUnixMs = String(fromUnixMs + 6 * HOUR_MS + 52 * MINUTE_MS);
+
+    const view = buildCompareSolarHistoryView({
+      current,
+      previous: series([], fromUnixMs - DAY_MS)
+    } satisfies CompareRollupSeries);
+
+    expect(view.todayWh).toBe(4);
+    expect(view.seriesWh[4]).toBe(4);
+    expect(view.seriesWh[7]).toBe(0);
   });
 
   it('combines fleet views server-side', () => {

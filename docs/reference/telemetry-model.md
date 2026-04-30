@@ -199,7 +199,12 @@ Frontend rule:
   solar energy from `pvAvgW`.
 - solar history charts on `/devices` and `/device/{id}` overlay the previous
   day's bucket series as a thin dotted orange step line and show `Yesterday so
-  far`, `Today`, and `Yesterday total` legend values in the chart corner.
+  far`, `Today so far`, and `Yesterday total` legend values in the chart corner.
+- solar history chart buckets are absolute local time-of-day buckets anchored
+  to the displayed window start. If a payload has fewer buckets than the
+  displayed daylight window, pad missing buckets at the end rather than
+  right-aligning the payload; otherwise hover labels and visible values can
+  drift into future clock times.
 - solar history legends suppress percentage deltas when the previous-day
   baseline is below `24 Wh`; in that case they show absolute change instead,
   and use `new activity today` when yesterday is zero.

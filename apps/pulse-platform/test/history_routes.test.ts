@@ -17,6 +17,13 @@ import type {
   TelemetryHistoryClient
 } from '../src/grpc/telemetryClient.js';
 
+const DEVICE_A_ID = '019c9f0e-4521-775d-873e-e80039f16d75';
+const DEVICE_B_ID = '019c9f0e-452b-70eb-b3af-1c0f15c34416';
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const SPRING_FORWARD_CURRENT_FROM_MS = Date.parse('2026-03-08T00:00:00-05:00');
+const SPRING_FORWARD_PREVIOUS_FROM_MS = Date.parse('2026-03-07T00:00:00-05:00');
+
 function baseConfig(): AppConfig {
   return {
     host: '127.0.0.1',
@@ -35,7 +42,7 @@ function baseConfig(): AppConfig {
   };
 }
 
-function makeSeries(deviceId = '019c9f0e-4521-775d-873e-e80039f16d75'): RollupSeries {
+function makeSeries(deviceId = DEVICE_A_ID): RollupSeries {
   return {
     deviceId,
     resolution: 'hour',
@@ -85,21 +92,21 @@ function makeSeries(deviceId = '019c9f0e-4521-775d-873e-e80039f16d75'): RollupSe
 }
 
 function makeMinuteSeries(
-  deviceId = '019c9f0e-4521-775d-873e-e80039f16d75',
+  deviceId = DEVICE_A_ID,
   from = Date.UTC(2026, 2, 6, 5, 0, 0)
 ): RollupSeries {
   return {
     deviceId,
     resolution: 'minute',
     fromUnixMs: String(from),
-    toUnixMs: String(from + 3 * 60 * 60 * 1000),
+    toUnixMs: String(from + 7 * HOUR_MS),
     points: [
       {
-        bucketStartUnixMs: String(from + 6 * 60 * 60 * 1000),
-        bucketEndUnixMs: String(from + 6 * 60 * 60 * 1000 + 60_000),
+        bucketStartUnixMs: String(from + 6 * HOUR_MS),
+        bucketEndUnixMs: String(from + 6 * HOUR_MS + MINUTE_MS),
         sampleCount: 4,
-        firstTsUnixMs: String(from + 6 * 60 * 60 * 1000),
-        lastTsUnixMs: String(from + 6 * 60 * 60 * 1000 + 59_000),
+        firstTsUnixMs: String(from + 6 * HOUR_MS),
+        lastTsUnixMs: String(from + 6 * HOUR_MS + 59_000),
         metrics: {
           socAvgPct: 50,
           socMinPct: 49,
@@ -133,11 +140,11 @@ function makeMinuteSeries(
         }
       },
       {
-        bucketStartUnixMs: String(from + 6 * 60 * 60 * 1000 + 10 * 60_000),
-        bucketEndUnixMs: String(from + 6 * 60 * 60 * 1000 + 11 * 60_000),
+        bucketStartUnixMs: String(from + 6 * HOUR_MS + 10 * MINUTE_MS),
+        bucketEndUnixMs: String(from + 6 * HOUR_MS + 11 * MINUTE_MS),
         sampleCount: 4,
-        firstTsUnixMs: String(from + 6 * 60 * 60 * 1000 + 10 * 60_000),
-        lastTsUnixMs: String(from + 6 * 60 * 60 * 1000 + 10 * 60_000 + 59_000),
+        firstTsUnixMs: String(from + 6 * HOUR_MS + 10 * MINUTE_MS),
+        lastTsUnixMs: String(from + 6 * HOUR_MS + 10 * MINUTE_MS + 59_000),
         metrics: {
           socAvgPct: 52,
           socMinPct: 51,
@@ -384,13 +391,14 @@ describe('pulse-platform history routes', () => {
   });
 
   it('returns backend-computed device solar history', async () => {
-    const current = makeMinuteSeries();
-    const previousFirstPoint = current.points[0]!;
+    const current = makeMinuteSeries(DEVICE_A_ID, SPRING_FORWARD_CURRENT_FROM_MS);
+    const previous = makeMinuteSeries(DEVICE_A_ID, SPRING_FORWARD_PREVIOUS_FROM_MS);
+    const previousFirstPoint = previous.points[0]!;
     const client = makeClient({
       compareRollupRange: vi.fn(async () => ({
         current,
         previous: {
-          ...current,
+          ...previous,
           points: [{ ...previousFirstPoint, metrics: { ...previousFirstPoint.metrics, solarGeneratedWh: 1 } }]
         }
       } satisfies CompareRollupSeries))
@@ -405,10 +413,10 @@ describe('pulse-platform history routes', () => {
     expect(client.compareRollupRange).toHaveBeenCalledWith(
       expect.objectContaining({
         resolution: 'minute',
-        fromUnixMs: String(Date.parse('2026-03-08T00:00:00-05:00')),
+        fromUnixMs: String(SPRING_FORWARD_CURRENT_FROM_MS),
         toUnixMs: String(Date.parse('2026-03-08T07:00:00-04:00')),
-        compareFromUnixMs: String(Date.parse('2026-03-07T00:00:00-05:00')),
-        compareToUnixMs: String(Date.parse('2026-03-08T00:00:00-05:00')),
+        compareFromUnixMs: String(SPRING_FORWARD_PREVIOUS_FROM_MS),
+        compareToUnixMs: String(SPRING_FORWARD_CURRENT_FROM_MS),
         usePreviousPeriod: false
       })
     );
@@ -416,8 +424,8 @@ describe('pulse-platform history routes', () => {
       expect.objectContaining({
         todayWh: 5,
         yesterdayWh: 2,
-        yesterdayRunningWh: 0,
-        deltaPct: null,
+        yesterdayRunningWh: 2,
+        deltaPct: 150,
         seriesWh: expect.arrayContaining([2, 3]),
         yesterdaySeriesWh: expect.arrayContaining([2])
       })
@@ -427,10 +435,8 @@ describe('pulse-platform history routes', () => {
   });
 
   it('returns backend-computed fleet solar history', async () => {
-    const deviceA = '019c9f0e-4521-775d-873e-e80039f16d75';
-    const deviceB = '019c9f0e-452b-70eb-b3af-1c0f15c34416';
-    const seriesA = makeMinuteSeries(deviceA);
-    const seriesBBase = makeMinuteSeries(deviceB);
+    const seriesA = makeMinuteSeries(DEVICE_A_ID);
+    const seriesBBase = makeMinuteSeries(DEVICE_B_ID);
     const seriesBFirstPoint = seriesBBase.points[0]!;
     const seriesB: RollupSeries = {
       ...seriesBBase,
@@ -438,14 +444,14 @@ describe('pulse-platform history routes', () => {
     };
     const client = makeClient({
       compareRollupRange: vi.fn(async (input) => ({
-        current: input.deviceId === deviceA ? seriesA : seriesB,
+        current: input.deviceId === DEVICE_A_ID ? seriesA : seriesB,
         previous: { ...makeMinuteSeries(input.deviceId), points: [] }
       } satisfies CompareRollupSeries))
     });
     const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
-      url: `/api/v1/history/solar/fleet?deviceId=${deviceA}&deviceId=${deviceB}&from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00&compareFrom=2026-03-05T00:00:00-05:00&compareTo=2026-03-06T00:00:00-05:00`
+      url: `/api/v1/history/solar/fleet?deviceId=${DEVICE_A_ID}&deviceId=${DEVICE_B_ID}&from=2026-03-06T00:00:00-05:00&to=2026-03-06T15:00:00-05:00&compareFrom=2026-03-05T00:00:00-05:00&compareTo=2026-03-06T00:00:00-05:00`
     });
 
     expect(response.statusCode).toBe(200);
