@@ -65,6 +65,54 @@ func TestActiveForecastInputFromMetadataPreservesDeviceScopeWithSiteContext(t *t
 	}
 }
 
+func TestPostgresStoreListActiveForecastInputsLimitsNewestSitesAfterDeduplication(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	store := &PostgresStore{db: db}
+	since := time.Date(2026, 4, 29, 0, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`(?s)SELECT\s+timezone,\s+site_metadata_json\s+FROM\s+\(\s+SELECT DISTINCT ON \(site_key\)\s+site_key,\s+timezone,\s+site_metadata_json,\s+created_at\s+FROM solar_forecast_runs\s+WHERE created_at >= \$1\s+AND site_metadata_json \? 'request_latitude'\s+AND site_metadata_json \? 'request_longitude'\s+ORDER BY site_key, created_at DESC\s+\) latest\s+ORDER BY created_at DESC\s+LIMIT \$2;`).
+		WithArgs(since, 2).
+		WillReturnRows(sqlmock.NewRows([]string{"timezone", "site_metadata_json"}).
+			AddRow("America/New_York", []byte(`{
+				"scope_mode":"all",
+				"resolved_device_ids":["newest-site"],
+				"request_latitude":42.61,
+				"request_longitude":-77.40
+			}`)).
+			AddRow("America/New_York", []byte(`{
+				"scope_mode":"all",
+				"resolved_device_ids":["second-newest-site"],
+				"request_latitude":42.62,
+				"request_longitude":-77.41
+			}`)))
+
+	inputs, err := store.ListActiveForecastInputs(context.Background(), since, 2)
+	if err != nil {
+		t.Fatalf("ListActiveForecastInputs() error = %v", err)
+	}
+	if len(inputs) != 2 {
+		t.Fatalf("ListActiveForecastInputs() = %d inputs, want 2", len(inputs))
+	}
+	if got, want := inputs[0].ResolvedDeviceIDs, []string{"newest-site"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("first input device IDs = %#v, want %#v", got, want)
+	}
+	if got, want := inputs[1].ResolvedDeviceIDs, []string{"second-newest-site"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second input device IDs = %#v, want %#v", got, want)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations were not met: %v", err)
+	}
+}
+
 func TestPostgresStoreInsertRunUpsertsOnConflictAndReturnsCanonicalID(t *testing.T) {
 	t.Parallel()
 

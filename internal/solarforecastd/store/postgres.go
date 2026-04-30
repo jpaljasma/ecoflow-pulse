@@ -225,14 +225,22 @@ func (s *PostgresStore) ListActiveForecastInputs(ctx context.Context, since time
 		limit = 64
 	}
 	rows, err := s.executor().QueryContext(ctx, `
-SELECT DISTINCT ON (site_key)
+SELECT
 	timezone,
 	site_metadata_json
-FROM solar_forecast_runs
-WHERE created_at >= $1
-  AND site_metadata_json ? 'request_latitude'
-  AND site_metadata_json ? 'request_longitude'
-ORDER BY site_key, created_at DESC
+FROM (
+	SELECT DISTINCT ON (site_key)
+		site_key,
+		timezone,
+		site_metadata_json,
+		created_at
+	FROM solar_forecast_runs
+	WHERE created_at >= $1
+	  AND site_metadata_json ? 'request_latitude'
+	  AND site_metadata_json ? 'request_longitude'
+	ORDER BY site_key, created_at DESC
+) latest
+ORDER BY created_at DESC
 LIMIT $2;
 `, since.UTC(), limit)
 	if err != nil {
