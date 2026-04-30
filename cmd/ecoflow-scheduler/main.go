@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,10 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"fmt"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/scheduler"
+	"github.com/jpaljasma/ecoflow-pulse/internal/solarforecastd"
 	solarstore "github.com/jpaljasma/ecoflow-pulse/internal/solarforecastd/store"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/budget"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/openmeteo"
@@ -30,12 +32,39 @@ const (
 	defaultWeatherRefreshScanInterval          = 5 * time.Minute
 	defaultWeatherHotDataPruneInterval         = 24 * time.Hour
 	defaultSolarHotDataPruneInterval           = 24 * time.Hour
+	defaultSolarForecastRefreshInterval        = 24 * time.Hour
+	defaultSolarForecastRefreshActiveWindow    = 30 * 24 * time.Hour
 	defaultWeatherSnapshotLookbackRetention    = 48 * time.Hour
 	defaultWeatherVerificationRetention        = 30 * 24 * time.Hour
 	defaultWeatherRefreshCandidateRetention    = 14 * 24 * time.Hour
 	defaultSolarForecastRunRetention           = 14 * 24 * time.Hour
 	defaultSolarForecastDailyVerificationLimit = 60 * 24 * time.Hour
+	defaultSolarForecastRefreshBatchLimit      = 64
 )
+
+type activeSolarForecastRefresher interface {
+	RefreshActiveSolarForecasts(ctx context.Context, now time.Time, limit int) (solarForecastRefreshStats, error)
+}
+
+type solarForecastRefreshStats struct {
+	Candidates int
+	Refreshed  int
+	Failed     int
+}
+
+type solarForecastInputLister interface {
+	ListActiveForecastInputs(ctx context.Context, since time.Time, limit int) ([]solarforecastd.Input, error)
+}
+
+type solarForecastService interface {
+	GetSolarOutlook(ctx context.Context, in solarforecastd.Input) (*solarforecastd.Outlook, error)
+}
+
+type solarForecastRefreshWorker struct {
+	service      solarForecastService
+	inputs       solarForecastInputLister
+	activeWindow time.Duration
+}
 
 func main() {
 	logCfg := pulselog.DefaultServiceConfig("scheduler")
@@ -108,6 +137,13 @@ func main() {
 	}
 	defer cleanupSolarTrainingStore()
 
+	solarRefresher, cleanupSolarRefresher, err := newActiveSolarForecastRefresher(log, metricsRegistry, weatherSvc, solarTrainingStore)
+	if err != nil {
+		log.Error("scheduler solar refresh init failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer cleanupSolarRefresher()
+
 	if err := ensureDefaultJobs(ctx, store, nowFn()()); err != nil {
 		log.Error("scheduler job bootstrap failed", "error", err.Error())
 		os.Exit(1)
@@ -133,7 +169,7 @@ func main() {
 		}
 		for _, job := range jobs {
 			startedAt := time.Now()
-			err := runJob(ctx, log, job, weatherSvc, weatherSnapshots, solarTrainingStore, schedulerMetrics)
+			err := runJob(ctx, log, job, weatherSvc, weatherSnapshots, solarTrainingStore, solarRefresher, schedulerMetrics)
 			schedulerMetrics.observeJobRun(job.JobType, err, time.Since(startedAt), time.Now())
 			if err != nil && ctx.Err() == nil {
 				log.Warn("scheduler job failed", "job_key", job.JobKey, "job_type", job.JobType, "error", err.Error())
@@ -223,8 +259,45 @@ func newSolarTrainingStore() (*solarstore.PostgresStore, func(), error) {
 	return store, func() { _ = store.Close() }, nil
 }
 
+func newActiveSolarForecastRefresher(
+	log *slog.Logger,
+	registerer prometheus.Registerer,
+	weatherSvc *weatherd.Service,
+	solarTrainingStore *solarstore.PostgresStore,
+) (activeSolarForecastRefresher, func(), error) {
+	dsn := strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
+	reader, err := telemetryquery.NewPostgresReader(dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+	svc, err := solarforecastd.NewService(weatherSvc, reader, solarforecastd.Config{
+		Log:     log,
+		Store:   solarTrainingStore,
+		Metrics: solarforecastd.NewMetrics(registerer),
+	})
+	if err != nil {
+		_ = reader.Close()
+		return nil, nil, err
+	}
+	worker := &solarForecastRefreshWorker{
+		service:      svc,
+		inputs:       solarTrainingStore,
+		activeWindow: runtimecfg.DurationNonNegative("SCHEDULER_SOLAR_REFRESH_ACTIVE_WINDOW", defaultSolarForecastRefreshActiveWindow),
+	}
+	return worker, func() { _ = reader.Close() }, nil
+}
+
 func ensureDefaultJobs(ctx context.Context, store *scheduler.PostgresStore, now time.Time) error {
-	jobs := []scheduler.RecurringJob{
+	for _, job := range defaultSchedulerJobs(now) {
+		if err := store.EnsureJob(ctx, job, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func defaultSchedulerJobs(now time.Time) []scheduler.RecurringJob {
+	return []scheduler.RecurringJob{
 		{
 			JobKey:      "weather.refresh_due_candidates",
 			JobType:     "weather.refresh_due_candidates",
@@ -242,6 +315,14 @@ func ensureDefaultJobs(ctx context.Context, store *scheduler.PostgresStore, now 
 			PayloadJSON: []byte(`{}`),
 		},
 		{
+			JobKey:      "solar.refresh_active_forecasts",
+			JobType:     "solar.refresh_active_forecasts",
+			Interval:    runtimecfg.DurationNonNegative("SCHEDULER_SOLAR_REFRESH_INTERVAL", defaultSolarForecastRefreshInterval),
+			Enabled:     true,
+			NextRunAt:   now,
+			PayloadJSON: []byte(`{}`),
+		},
+		{
 			JobKey:      "solar.prune_hot_data",
 			JobType:     "solar.prune_hot_data",
 			Interval:    runtimecfg.DurationNonNegative("SCHEDULER_SOLAR_PRUNE_INTERVAL", defaultSolarHotDataPruneInterval),
@@ -250,12 +331,6 @@ func ensureDefaultJobs(ctx context.Context, store *scheduler.PostgresStore, now 
 			PayloadJSON: []byte(`{}`),
 		},
 	}
-	for _, job := range jobs {
-		if err := store.EnsureJob(ctx, job, now); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func runJob(
@@ -265,6 +340,7 @@ func runJob(
 	weatherSvc *weatherd.Service,
 	weatherSnapshots *weatherstore.PostgresStore,
 	solarTrainingStore *solarstore.PostgresStore,
+	solarRefresher activeSolarForecastRefresher,
 	metrics *schedulerMetrics,
 ) error {
 	switch job.JobType {
@@ -302,6 +378,20 @@ func runJob(
 			"pruned_candidates", stats.PrunedCandidates,
 		)
 		return nil
+	case "solar.refresh_active_forecasts":
+		if solarRefresher == nil {
+			return errors.New("solar forecast refresher is not configured")
+		}
+		stats, err := solarRefresher.RefreshActiveSolarForecasts(ctx, time.Now().UTC(), runtimecfg.IntMin("SCHEDULER_SOLAR_REFRESH_BATCH_LIMIT", defaultSolarForecastRefreshBatchLimit, 1))
+		metrics.observeCleanupRows(job.JobType, "solar_forecast_refresh_candidates", int64(stats.Candidates))
+		metrics.observeCleanupRows(job.JobType, "solar_forecast_refresh_success", int64(stats.Refreshed))
+		metrics.observeCleanupRows(job.JobType, "solar_forecast_refresh_failed", int64(stats.Failed))
+		log.Info("active solar forecasts refreshed",
+			"candidates", stats.Candidates,
+			"refreshed", stats.Refreshed,
+			"failed", stats.Failed,
+		)
+		return err
 	case "solar.prune_hot_data":
 		if solarTrainingStore == nil {
 			return errors.New("solar training store is not configured")
@@ -374,4 +464,33 @@ func runJob(
 	default:
 		return fmt.Errorf("unsupported scheduler job type %q", job.JobType)
 	}
+}
+
+func (w *solarForecastRefreshWorker) RefreshActiveSolarForecasts(ctx context.Context, now time.Time, limit int) (solarForecastRefreshStats, error) {
+	var stats solarForecastRefreshStats
+	if w == nil || w.service == nil || w.inputs == nil {
+		return stats, errors.New("solar forecast refresh worker is not configured")
+	}
+	if limit <= 0 {
+		limit = defaultSolarForecastRefreshBatchLimit
+	}
+	activeWindow := w.activeWindow
+	if activeWindow <= 0 {
+		activeWindow = defaultSolarForecastRefreshActiveWindow
+	}
+	inputs, err := w.inputs.ListActiveForecastInputs(ctx, now.UTC().Add(-activeWindow), limit)
+	if err != nil {
+		return stats, err
+	}
+	stats.Candidates = len(inputs)
+	errs := make([]error, 0)
+	for _, input := range inputs {
+		if _, refreshErr := w.service.GetSolarOutlook(ctx, input); refreshErr != nil {
+			stats.Failed++
+			errs = append(errs, refreshErr)
+			continue
+		}
+		stats.Refreshed++
+	}
+	return stats, errors.Join(errs...)
 }

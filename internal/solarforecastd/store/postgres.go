@@ -15,6 +15,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 	"github.com/jpaljasma/ecoflow-pulse/internal/solarforecastd"
+	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd"
 )
 
 type PostgresStore struct {
@@ -214,6 +215,144 @@ SELECT
 		return counts, fmt.Errorf("count retained solar forecast training data: %w", err)
 	}
 	return counts, nil
+}
+
+func (s *PostgresStore) ListActiveForecastInputs(ctx context.Context, since time.Time, limit int) ([]solarforecastd.Input, error) {
+	if s == nil || s.executor() == nil {
+		return nil, errors.New("solar forecast store is not configured")
+	}
+	if limit <= 0 {
+		limit = 64
+	}
+	rows, err := s.executor().QueryContext(ctx, `
+SELECT
+	timezone,
+	site_metadata_json
+FROM (
+	SELECT DISTINCT ON (site_key)
+		site_key,
+		timezone,
+		site_metadata_json,
+		created_at
+	FROM solar_forecast_runs
+	WHERE created_at >= $1
+	  AND site_metadata_json ? 'request_latitude'
+	  AND site_metadata_json ? 'request_longitude'
+	ORDER BY site_key, created_at DESC
+) latest
+ORDER BY created_at DESC
+LIMIT $2;
+`, since.UTC(), limit)
+	if err != nil {
+		return nil, fmt.Errorf("list active solar forecast inputs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]solarforecastd.Input, 0, limit)
+	for rows.Next() {
+		var (
+			timezone string
+			metadata []byte
+		)
+		if err := rows.Scan(&timezone, &metadata); err != nil {
+			return nil, fmt.Errorf("scan active solar forecast input: %w", err)
+		}
+		input, ok := activeForecastInputFromMetadata(timezone, metadata)
+		if !ok {
+			continue
+		}
+		out = append(out, input)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active solar forecast inputs: %w", err)
+	}
+	return out, nil
+}
+
+func activeForecastInputFromMetadata(timezone string, payload []byte) (solarforecastd.Input, bool) {
+	var metadata struct {
+		ScopeMode             string   `json:"scope_mode"`
+		ResolvedDeviceIDs     []string `json:"resolved_device_ids"`
+		SiteResolvedDeviceIDs []string `json:"site_resolved_device_ids"`
+		RequestLatitude       *float64 `json:"request_latitude"`
+		RequestLongitude      *float64 `json:"request_longitude"`
+		PanelTiltDegrees      *float64 `json:"panel_tilt_degrees"`
+		PanelAzimuthDegrees   *float64 `json:"panel_azimuth_degrees"`
+	}
+	if len(payload) == 0 {
+		return solarforecastd.Input{}, false
+	}
+	if err := json.Unmarshal(payload, &metadata); err != nil {
+		return solarforecastd.Input{}, false
+	}
+	if metadata.RequestLatitude == nil || metadata.RequestLongitude == nil {
+		return solarforecastd.Input{}, false
+	}
+	resolvedIDs := normalizedForecastDeviceIDs(metadata.ResolvedDeviceIDs)
+	siteIDs := normalizedForecastDeviceIDs(metadata.SiteResolvedDeviceIDs)
+	if len(siteIDs) == 0 {
+		siteIDs = append([]string(nil), resolvedIDs...)
+	}
+	if len(resolvedIDs) == 0 {
+		resolvedIDs = append([]string(nil), siteIDs...)
+	}
+	if len(resolvedIDs) == 0 {
+		return solarforecastd.Input{}, false
+	}
+	scopeMode := strings.ToLower(strings.TrimSpace(metadata.ScopeMode))
+	if scopeMode != "device" || len(resolvedIDs) != 1 {
+		scopeMode = "all"
+		resolvedIDs = append([]string(nil), siteIDs...)
+	}
+	scope := solarforecastd.Scope{
+		Mode:              scopeMode,
+		ResolvedDeviceIDs: append([]string(nil), resolvedIDs...),
+	}
+	if scopeMode == "device" {
+		scope.DeviceID = resolvedIDs[0]
+	}
+	return solarforecastd.Input{
+		WeatherRequest:        activeForecastWeatherRequest(*metadata.RequestLatitude, *metadata.RequestLongitude, timezone, metadata.PanelTiltDegrees, metadata.PanelAzimuthDegrees),
+		Scope:                 scope,
+		ResolvedDeviceIDs:     append([]string(nil), resolvedIDs...),
+		SiteResolvedDeviceIDs: append([]string(nil), siteIDs...),
+	}, true
+}
+
+func activeForecastWeatherRequest(latitude, longitude float64, timezone string, tilt, azimuth *float64) weatherd.Request {
+	req := weatherd.Request{
+		Latitude:   latitude,
+		Longitude:  longitude,
+		Timezone:   strings.TrimSpace(timezone),
+		UnitSystem: weatherd.UnitSystemMetric,
+	}
+	if tilt != nil {
+		value := *tilt
+		req.PanelTiltDegrees = &value
+	}
+	if azimuth != nil {
+		value := *azimuth
+		req.PanelAzimuthDegrees = &value
+	}
+	return req
+}
+
+func normalizedForecastDeviceIDs(ids []string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *PostgresStore) executor() sqlExecutor {

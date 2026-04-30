@@ -927,6 +927,124 @@ func TestObservedPowerCandidateUsesPVMaxWhenBatterySaturated(t *testing.T) {
 	}
 }
 
+func TestInferCapacityEstimateRecoversTowardObservedPeakWithoutCurrentIrradiance(t *testing.T) {
+	t.Parallel()
+
+	points := []telemetryquery.Point{
+		{
+			BucketStart: time.Date(2026, 3, 16, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 16, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1680),
+				SolarGeneratedWh: float64Ptr(1700),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 17, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 17, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVMaxW:           float64Ptr(4100),
+				PVAvgW:           float64Ptr(1760),
+				SolarGeneratedWh: float64Ptr(1750),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 18, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1840),
+				SolarGeneratedWh: float64Ptr(1830),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 19, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 19, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1930),
+				SolarGeneratedWh: float64Ptr(1910),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(2050),
+				SolarGeneratedWh: float64Ptr(2020),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 21, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 21, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(2140),
+				SolarGeneratedWh: float64Ptr(2120),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 22, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 22, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(2230),
+				SolarGeneratedWh: float64Ptr(2200),
+			},
+		},
+	}
+
+	got := inferCapacityEstimate(points, nil, time.UTC)
+
+	if got.EstimatedPeakWatts == nil {
+		t.Fatal("inferCapacityEstimate() estimated peak = nil, want value")
+	}
+	recoveryCeiling := math.Min(4100.0, 2200.0*observedPeakRecoveryScale)
+	wantEstimate := roundWatts(2200 + ((recoveryCeiling - 2200) * observedPeakRecoveryWeight))
+	if *got.EstimatedPeakWatts != wantEstimate {
+		t.Fatalf("inferCapacityEstimate() estimated peak = %v, want bounded observed-peak recovery %v", *got.EstimatedPeakWatts, wantEstimate)
+	}
+	if got.Method != "rolling_observed_p95" {
+		t.Fatalf("inferCapacityEstimate() method = %q, want rolling_observed_p95", got.Method)
+	}
+}
+
+func TestInferCapacityEstimateFromServingStateRecoversTowardFreshObservedPeak(t *testing.T) {
+	t.Parallel()
+
+	state := &ServingState{
+		SiteKey:                 "site-key",
+		ForecastVersion:         "deterministic_baseline_v1",
+		Timezone:                "America/New_York",
+		PotentialFinalEnvelopeW: float64Ptr(3000),
+		UpdatedAt:               time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+	}
+	points := []telemetryquery.Point{
+		{
+			BucketStart: time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVMaxW:           float64Ptr(4100),
+				PVAvgW:           float64Ptr(2200),
+				SolarGeneratedWh: float64Ptr(2100),
+			},
+		},
+	}
+
+	got := inferCapacityEstimateFromServingState(state, points, nil, time.UTC)
+
+	if got.EstimatedPeakWatts == nil {
+		t.Fatal("inferCapacityEstimateFromServingState() estimated peak = nil, want value")
+	}
+	recoveryCeiling := math.Min(4100.0, 3000.0*observedPeakRecoveryScale)
+	wantEstimate := roundWatts(3000 + ((recoveryCeiling - 3000) * observedPeakRecoveryWeight))
+	if *got.EstimatedPeakWatts != wantEstimate {
+		t.Fatalf("inferCapacityEstimateFromServingState() estimated peak = %v, want %v", *got.EstimatedPeakWatts, wantEstimate)
+	}
+	if got.ObservedPvWatts == nil || *got.ObservedPvWatts != 4100 {
+		t.Fatalf("inferCapacityEstimateFromServingState() observed PV = %v, want raw observed max 4100", valueOrZero(got.ObservedPvWatts))
+	}
+	if got.Method != "rolling_observed_p95" {
+		t.Fatalf("inferCapacityEstimateFromServingState() method = %q, want rolling_observed_p95", got.Method)
+	}
+}
+
 func TestInferCapacityEstimateUsesBoundedSaturatedPotentialEvidence(t *testing.T) {
 	t.Parallel()
 
@@ -1001,6 +1119,118 @@ func TestInferCapacityEstimateUsesBoundedSaturatedPotentialEvidence(t *testing.T
 	}
 	if *got.EstimatedPeakWatts >= 2200 {
 		t.Fatalf("inferCapacityEstimate() estimated peak = %v, want saturated uplift bounded below raw max spike", *got.EstimatedPeakWatts)
+	}
+}
+
+func TestAllocateCapacityEstimateUsesRecentDeviceEnvelopeAboveStaleShare(t *testing.T) {
+	t.Parallel()
+
+	site := CapacityEstimate{
+		EstimatedPeakWatts: float64Ptr(10000),
+		Method:             "rolling_observed_p95_and_irradiance",
+	}
+	points := make([]telemetryquery.Point, 0, 101)
+	for hour := 0; hour < 96; hour++ {
+		start := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC).Add(time.Duration(hour) * time.Hour)
+		points = append(points, telemetryquery.Point{
+			BucketStart: start,
+			BucketEnd:   start.Add(time.Hour),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(900 + float64(hour%6)*10),
+				PVMaxW:           float64Ptr(1050 + float64(hour%6)*10),
+				SolarGeneratedWh: float64Ptr(880 + float64(hour%6)*10),
+			},
+		})
+	}
+	for idx, sample := range []struct {
+		avg float64
+		max float64
+		gen float64
+	}{
+		{avg: 3200, max: 4100, gen: 3180},
+		{avg: 3400, max: 4200, gen: 3375},
+		{avg: 3600, max: 4350, gen: 3560},
+		{avg: 3800, max: 4500, gen: 3760},
+		{avg: 3900, max: 4700, gen: 3860},
+	} {
+		start := time.Date(2026, 3, 20, 15+idx, 0, 0, 0, time.UTC)
+		points = append(points, telemetryquery.Point{
+			BucketStart: start,
+			BucketEnd:   start.Add(time.Hour),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(sample.avg),
+				PVMaxW:           float64Ptr(sample.max),
+				SolarGeneratedWh: float64Ptr(sample.gen),
+			},
+		})
+	}
+
+	got := allocateCapacityEstimate(site, points, 0.20)
+
+	if got.EstimatedPeakWatts == nil {
+		t.Fatal("allocateCapacityEstimate() estimated peak = nil, want value")
+	}
+	if *got.EstimatedPeakWatts <= 2000 {
+		t.Fatalf("allocateCapacityEstimate() estimated peak = %v, want device envelope above stale site-share allocation", *got.EstimatedPeakWatts)
+	}
+	if *got.EstimatedPeakWatts >= 4700 {
+		t.Fatalf("allocateCapacityEstimate() estimated peak = %v, want corroborated envelope below raw single-hour PV max", *got.EstimatedPeakWatts)
+	}
+	if want := 3880.0; *got.EstimatedPeakWatts != want {
+		t.Fatalf("allocateCapacityEstimate() estimated peak = %v, want %v", *got.EstimatedPeakWatts, want)
+	}
+	if got.ObservedPvWatts == nil || *got.ObservedPvWatts != 4700 {
+		t.Fatalf("allocateCapacityEstimate() observed PV = %v, want raw observed max 4700", valueOrZero(got.ObservedPvWatts))
+	}
+}
+
+func TestAllocateCapacityEstimateDoesNotOverraiseFromIsolatedDeviceSpike(t *testing.T) {
+	t.Parallel()
+
+	site := CapacityEstimate{
+		EstimatedPeakWatts: float64Ptr(10000),
+		Method:             "rolling_observed_p95_and_irradiance",
+	}
+	points := []telemetryquery.Point{
+		{
+			BucketStart: time.Date(2026, 3, 20, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(900),
+				PVMaxW:           float64Ptr(980),
+				SolarGeneratedWh: float64Ptr(880),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 20, 16, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 20, 17, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1000),
+				PVMaxW:           float64Ptr(4700),
+				SolarGeneratedWh: float64Ptr(960),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 3, 20, 17, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 3, 20, 18, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(980),
+				PVMaxW:           float64Ptr(1100),
+				SolarGeneratedWh: float64Ptr(940),
+			},
+		},
+	}
+
+	got := allocateCapacityEstimate(site, points, 0.20)
+
+	if got.EstimatedPeakWatts == nil {
+		t.Fatal("allocateCapacityEstimate() estimated peak = nil, want value")
+	}
+	if want := 2000.0; *got.EstimatedPeakWatts != want {
+		t.Fatalf("allocateCapacityEstimate() estimated peak = %v, want stale site-share allocation %v", *got.EstimatedPeakWatts, want)
+	}
+	if got.ObservedPvWatts == nil || *got.ObservedPvWatts != 4700 {
+		t.Fatalf("allocateCapacityEstimate() observed PV = %v, want raw observed max 4700", valueOrZero(got.ObservedPvWatts))
 	}
 }
 

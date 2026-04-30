@@ -2,12 +2,116 @@ package store
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jpaljasma/ecoflow-pulse/internal/solarforecastd"
 )
+
+func TestActiveForecastInputFromMetadataBuildsAllScopeInput(t *testing.T) {
+	t.Parallel()
+
+	input, ok := activeForecastInputFromMetadata("America/New_York", []byte(`{
+		"scope_mode":"all",
+		"resolved_device_ids":["dev-b","dev-a","dev-a"],
+		"request_latitude":42.61,
+		"request_longitude":-77.40,
+		"panel_tilt_degrees":45,
+		"panel_azimuth_degrees":0
+	}`))
+	if !ok {
+		t.Fatal("activeForecastInputFromMetadata() ok = false, want true")
+	}
+	if got, want := input.Scope.Mode, "all"; got != want {
+		t.Fatalf("scope mode = %q, want %q", got, want)
+	}
+	if got, want := input.ResolvedDeviceIDs, []string{"dev-a", "dev-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("resolved device IDs = %#v, want %#v", got, want)
+	}
+	if got, want := input.WeatherRequest.Timezone, "America/New_York"; got != want {
+		t.Fatalf("timezone = %q, want %q", got, want)
+	}
+	if input.WeatherRequest.PanelTiltDegrees == nil || *input.WeatherRequest.PanelTiltDegrees != 45 {
+		t.Fatalf("panel tilt = %v, want 45", input.WeatherRequest.PanelTiltDegrees)
+	}
+}
+
+func TestActiveForecastInputFromMetadataPreservesDeviceScopeWithSiteContext(t *testing.T) {
+	t.Parallel()
+
+	input, ok := activeForecastInputFromMetadata("America/New_York", []byte(`{
+		"scope_mode":"device",
+		"resolved_device_ids":["dev-b"],
+		"site_resolved_device_ids":["dev-a","dev-b"],
+		"request_latitude":42.61,
+		"request_longitude":-77.40
+	}`))
+	if !ok {
+		t.Fatal("activeForecastInputFromMetadata() ok = false, want true")
+	}
+	if got, want := input.Scope.Mode, "device"; got != want {
+		t.Fatalf("scope mode = %q, want %q", got, want)
+	}
+	if got, want := input.Scope.DeviceID, "dev-b"; got != want {
+		t.Fatalf("scope device ID = %q, want %q", got, want)
+	}
+	if got, want := input.ResolvedDeviceIDs, []string{"dev-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("resolved device IDs = %#v, want %#v", got, want)
+	}
+	if got, want := input.SiteResolvedDeviceIDs, []string{"dev-a", "dev-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("site device IDs = %#v, want %#v", got, want)
+	}
+}
+
+func TestPostgresStoreListActiveForecastInputsLimitsNewestSitesAfterDeduplication(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	store := &PostgresStore{db: db}
+	since := time.Date(2026, 4, 29, 0, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`(?s)SELECT\s+timezone,\s+site_metadata_json\s+FROM\s+\(\s+SELECT DISTINCT ON \(site_key\)\s+site_key,\s+timezone,\s+site_metadata_json,\s+created_at\s+FROM solar_forecast_runs\s+WHERE created_at >= \$1\s+AND site_metadata_json \? 'request_latitude'\s+AND site_metadata_json \? 'request_longitude'\s+ORDER BY site_key, created_at DESC\s+\) latest\s+ORDER BY created_at DESC\s+LIMIT \$2;`).
+		WithArgs(since, 2).
+		WillReturnRows(sqlmock.NewRows([]string{"timezone", "site_metadata_json"}).
+			AddRow("America/New_York", []byte(`{
+				"scope_mode":"all",
+				"resolved_device_ids":["newest-site"],
+				"request_latitude":42.61,
+				"request_longitude":-77.40
+			}`)).
+			AddRow("America/New_York", []byte(`{
+				"scope_mode":"all",
+				"resolved_device_ids":["second-newest-site"],
+				"request_latitude":42.62,
+				"request_longitude":-77.41
+			}`)))
+
+	inputs, err := store.ListActiveForecastInputs(context.Background(), since, 2)
+	if err != nil {
+		t.Fatalf("ListActiveForecastInputs() error = %v", err)
+	}
+	if len(inputs) != 2 {
+		t.Fatalf("ListActiveForecastInputs() = %d inputs, want 2", len(inputs))
+	}
+	if got, want := inputs[0].ResolvedDeviceIDs, []string{"newest-site"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("first input device IDs = %#v, want %#v", got, want)
+	}
+	if got, want := inputs[1].ResolvedDeviceIDs, []string{"second-newest-site"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second input device IDs = %#v, want %#v", got, want)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations were not met: %v", err)
+	}
+}
 
 func TestPostgresStoreInsertRunUpsertsOnConflictAndReturnsCanonicalID(t *testing.T) {
 	t.Parallel()
