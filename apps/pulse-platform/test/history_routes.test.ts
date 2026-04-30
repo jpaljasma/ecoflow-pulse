@@ -445,7 +445,7 @@ describe('pulse-platform history routes', () => {
     const client = makeClient({
       compareRollupRange: vi.fn(async (input) => ({
         current: input.deviceId === DEVICE_A_ID ? seriesA : seriesB,
-        previous: { ...makeMinuteSeries(input.deviceId), points: [] }
+        previous: makeMinuteSeries(input.deviceId)
       } satisfies CompareRollupSeries))
     });
     const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
@@ -468,13 +468,15 @@ describe('pulse-platform history routes', () => {
     expect(body).toEqual(
       expect.objectContaining({
         todayWh: 9,
-        yesterdayWh: 0,
-        deltaPct: null
+        yesterdayWh: 10,
+        yesterdayRunningWh: 7
       })
     );
+    expect(body.deltaPct).toBeCloseTo(28.5714285714, 6);
     expect(body.seriesWh[0]).toBe(6);
     expect(body.seriesWh[1]).toBe(3);
-    expect(body.yesterdaySeriesWh).toEqual(expect.arrayContaining([0]));
+    expect(body.yesterdaySeriesWh[0]).toBe(4);
+    expect(body.yesterdaySeriesWh[1]).toBe(6);
 
     await app.close();
   });
