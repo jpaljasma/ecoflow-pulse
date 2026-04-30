@@ -7,10 +7,10 @@ import {
   buildEnergyRouteParams,
   buildPvEnvelopeSummary,
   buildPowerTrendSeries,
-  clampPvPowerToConfiguredLimit,
   detectDevicesTimezone,
   energyPresetLabel,
   formatDeltaPct,
+  normalizePvObservedPower,
   resolveEnergyRouteState
 } from '@/features/energy/model';
 
@@ -403,7 +403,7 @@ describe('energy route model', () => {
     expect(summary.rows[0]?.bottleneckHint).toBe('Within envelope');
   });
 
-  it('caps PV envelope observed power at the configured port limit', () => {
+  it('preserves PV envelope observed power above the configured port limit', () => {
     const summary = buildPvEnvelopeSummary(
       [
         {
@@ -434,11 +434,12 @@ describe('energy route model', () => {
       'all'
     );
 
-    expect(summary.observedPower).toBe(500);
-    expect(summary.utilizationPct).toBe(100);
-    expect(summary.rows[0]?.observedPower).toBe(500);
-    expect(summary.rows[0]?.bottleneckHint).toBe('Near power ceiling');
-    expect(summary.topDevicePeakLabel).toBe('Alpha · 500W');
-    expect(clampPvPowerToConfiguredLimit(581, 500)).toBe(500);
+    expect(summary.observedPower).toBe(581);
+    expect(summary.utilizationPct).toBeCloseTo(116.2);
+    expect(summary.rows[0]?.observedPower).toBe(581);
+    expect(summary.rows[0]?.powerUtilizationPct).toBeCloseTo(116.2);
+    expect(summary.rows[0]?.bottleneckHint).toBe('Above configured power');
+    expect(summary.topDevicePeakLabel).toBe('Alpha · 581W');
+    expect(normalizePvObservedPower(581)).toBe(581);
   });
 });

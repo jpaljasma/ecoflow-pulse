@@ -10,7 +10,6 @@ import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { useEnergyComparisonInsight, useEnergyDashboard, useEnergyPvPortHistory } from '@/features/energy/hooks';
 import type { EnergyPVPortHistory } from '@/features/energy/api';
 import {
-  clampPvPowerToConfiguredLimit,
   buildEnergyInsights,
   buildEnergyTrendSeries,
   buildPvEnvelopeSummary,
@@ -25,6 +24,7 @@ import {
   formatDeltaPct,
   MIN_MEANINGFUL_CURRENCY_BASELINE,
   MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH,
+  normalizePvObservedPower,
   resolveEnergyRouteState,
   type EnergyRouteState
 } from '@/features/energy/model';
@@ -107,8 +107,8 @@ function findPVHistoryRow(rows: EnergyPVPortHistory[], deviceId: string, portId:
   );
 }
 
-function displayHistoricalPvWatts(historyRow: EnergyPVPortHistory, configuredMaxWatts: number): number {
-  return clampPvPowerToConfiguredLimit(historyRow.maxObservedWatts, configuredMaxWatts);
+function displayHistoricalPvWatts(historyRow: EnergyPVPortHistory): number {
+  return normalizePvObservedPower(historyRow.maxObservedWatts);
 }
 
 function canonicalPvPortKey(portId: string): string {
@@ -1155,7 +1155,7 @@ export default function EnergyScreen() {
                           <XStack gap="$3" flexWrap="wrap">
                             <Stat
                               label="Hist max"
-                              value={pvHistoryQuery.isLoading ? '…' : historyRow ? `${Math.round(displayHistoricalPvWatts(historyRow, row.maxPower))}W` : '—'}
+                              value={pvHistoryQuery.isLoading ? '…' : historyRow ? `${Math.round(displayHistoricalPvWatts(historyRow))}W` : '—'}
                               compact
                             />
                             <Stat
@@ -1211,7 +1211,7 @@ export default function EnergyScreen() {
                             </Text>
                           ) : historyRow ? (
                             <XStack gap="$3" flexWrap="wrap">
-                              <Stat label="Hist max W" value={`${Math.round(displayHistoricalPvWatts(historyRow, row.maxPower))}W`} compact />
+                              <Stat label="Hist max W" value={`${Math.round(displayHistoricalPvWatts(historyRow))}W`} compact />
                               <Stat label="Hist max V" value={`${historyRow.maxObservedVolts.toFixed(1)}V`} compact />
                               <Stat label="Hist max A" value={`${historyRow.maxObservedAmps.toFixed(2)}A`} compact />
                               <Stat label="Samples" value={String(historyRow.sampleCount)} compact />

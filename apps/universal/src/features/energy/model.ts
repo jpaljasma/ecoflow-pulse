@@ -246,12 +246,11 @@ export type PvEnvelopeSummary = {
   rows: PvEnvelopeRow[];
 };
 
-export function clampPvPowerToConfiguredLimit(observedPower: number, maxPower: number): number {
-  const safeObservedPower = Math.max(0, observedPower);
-  if (!Number.isFinite(maxPower) || maxPower <= 0) {
-    return safeObservedPower;
+export function normalizePvObservedPower(observedPower: number | null | undefined): number {
+  if (observedPower === null || observedPower === undefined || !Number.isFinite(observedPower)) {
+    return 0;
   }
-  return Math.min(safeObservedPower, maxPower);
+  return Math.max(0, observedPower);
 }
 
 export function buildEnergyInsights(
@@ -319,10 +318,11 @@ export function buildPvEnvelopeSummary(
   const rows: PvEnvelopeRow[] = [];
   for (const device of scopedDevices) {
     for (const port of device.details?.solarPorts ?? []) {
-      const observedPower = clampPvPowerToConfiguredLimit(Math.max(0, port.watts ?? 0), Math.max(0, port.maxWatts ?? 0));
+      const maxPower = Math.max(0, port.maxWatts ?? 0);
+      const observedPower = normalizePvObservedPower(port.watts);
       const powerUtilizationPct =
-        port.maxWatts && port.maxWatts > 0 && port.watts !== undefined
-          ? Math.max(0, Math.min(100, (observedPower / port.maxWatts) * 100))
+        maxPower > 0 && port.watts !== undefined
+          ? Math.max(0, (observedPower / maxPower) * 100)
           : null;
       const voltageHeadroom =
         port.maxVolts !== undefined && port.volts !== undefined ? port.maxVolts - port.volts : null;
@@ -338,13 +338,13 @@ export function buildPvEnvelopeSummary(
         observedPower,
         maxVolts: Math.max(0, port.maxVolts ?? 0),
         maxAmps: Math.max(0, port.maxAmps ?? 0),
-        maxPower: Math.max(0, port.maxWatts ?? 0),
+        maxPower,
         powerUtilizationPct,
         voltageHeadroom,
         currentHeadroom,
         bottleneckHint: buildBottleneckHint({
           observedPower,
-          maxPower: Math.max(0, port.maxWatts ?? 0),
+          maxPower,
           observedAmps: Math.max(0, port.amps ?? 0),
           maxAmps: Math.max(0, port.maxAmps ?? 0),
           observedVolts: Math.max(0, port.volts ?? 0),
@@ -377,7 +377,7 @@ export function buildPvEnvelopeSummary(
     configuredVolts,
     observedAmps,
     configuredAmps,
-    utilizationPct: configuredPower > 0 ? Math.max(0, Math.min(100, (observedPower / configuredPower) * 100)) : null,
+    utilizationPct: configuredPower > 0 ? Math.max(0, (observedPower / configuredPower) * 100) : null,
     topDevicePeakLabel: topDevice ? `${topDevice.name} · ${Math.round(topDevice.power)}W` : null,
     rows
   };
@@ -471,6 +471,9 @@ function buildBottleneckHint({
   observedVolts: number;
   maxVolts: number;
 }): string {
+  if (maxPower > 0 && observedPower > maxPower) {
+    return 'Above configured power';
+  }
   if (maxPower > 0 && observedPower >= maxPower * 0.97) {
     return 'Near power ceiling';
   }
