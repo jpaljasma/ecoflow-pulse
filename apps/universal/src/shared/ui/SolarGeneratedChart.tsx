@@ -13,6 +13,7 @@ import { formatSolarLegendDelta } from '@/shared/ui/solarLegend';
 import {
   buildStepPolylinePoints,
   buildSvgStepPath,
+  normalizeSolarBucketSeries,
   type ChartPoint
 } from '@/shared/ui/solarGeneratedChartModel';
 
@@ -31,31 +32,13 @@ type AxisTick = {
   label: string;
   fraction: number;
 };
-
-function looksCumulative(values: number[]): boolean {
-  if (values.length < 8) return false;
-  let nonDecreasing = 0;
-  for (let i = 1; i < values.length; i += 1) {
-    if ((values[i] ?? 0) + EPSILON >= (values[i - 1] ?? 0)) nonDecreasing += 1;
-  }
-  const monotonicRatio = nonDecreasing / Math.max(1, values.length - 1);
-  const first = values[0] ?? 0;
-  const last = values[values.length - 1] ?? 0;
-  return monotonicRatio >= 0.92 && last > first + 1;
-}
-
-function toBucketSeries(values: number[]): number[] {
-  if (!looksCumulative(values)) return values;
-  const buckets: number[] = [];
-  let prev = Math.max(0, values[0] ?? 0);
-  for (let i = 0; i < values.length; i += 1) {
-    const curr = Math.max(0, values[i] ?? 0);
-    const delta = i === 0 ? curr : Math.max(0, curr - prev);
-    buckets.push(delta);
-    prev = curr;
-  }
-  return buckets;
-}
+type LegendItem = {
+  label: string;
+  value: string;
+  opacity: number;
+  lineColor?: string;
+  dotted?: boolean;
+};
 
 function toWattsFromWhPerBucket(valueWh: number): number {
   // 10-minute bucket energy (Wh) => average bucket power (W)
@@ -253,10 +236,32 @@ function LegendLine({ color, dotted = false }: { color: string; dotted?: boolean
         height: 0,
         borderTopWidth: dotted ? 1.5 : 2.5,
         borderColor: color,
-        borderStyle: dotted ? 'dashed' : 'solid',
-        marginTop: 8
+        borderStyle: dotted ? 'dashed' : 'solid'
       }}
     />
+  );
+}
+
+function SolarGeneratedLegend({ items }: { items: LegendItem[] }) {
+  return (
+    <XStack
+      justifyContent="flex-end"
+      alignItems="center"
+      flexWrap="wrap"
+      paddingHorizontal="$3"
+      paddingTop="$3"
+      paddingBottom="$1"
+      gap="$3"
+    >
+      {items.map((item) => (
+        <XStack key={item.label} gap="$2" alignItems="center" flexShrink={0}>
+          {item.lineColor ? <LegendLine dotted={item.dotted} color={item.lineColor} /> : null}
+          <Text fontSize="$1" opacity={item.opacity}>
+            {item.label}: {item.value}
+          </Text>
+        </XStack>
+      ))}
+    </XStack>
   );
 }
 
@@ -402,22 +407,14 @@ export function SolarGeneratedChart({
   const [width, setWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const semantics = useThemeSemantics();
-  const seriesBucketWh = useMemo(() => {
-    const trimmed = (valuesWh ?? []).slice(-points).map((v) => Math.max(0, v));
-    const padded =
-      trimmed.length >= points
-        ? trimmed
-        : [...Array.from({ length: points - trimmed.length }, () => 0), ...trimmed];
-    return toBucketSeries(padded);
-  }, [points, valuesWh]);
-  const yesterdaySeriesBucketWh = useMemo(() => {
-    const trimmed = (yesterdayValuesWh ?? []).slice(-points).map((v) => Math.max(0, v));
-    const padded =
-      trimmed.length >= points
-        ? trimmed
-        : [...Array.from({ length: points - trimmed.length }, () => 0), ...trimmed];
-    return toBucketSeries(padded);
-  }, [points, yesterdayValuesWh]);
+  const seriesBucketWh = useMemo(
+    () => normalizeSolarBucketSeries(valuesWh, points),
+    [points, valuesWh]
+  );
+  const yesterdaySeriesBucketWh = useMemo(
+    () => normalizeSolarBucketSeries(yesterdayValuesWh, points),
+    [points, yesterdayValuesWh]
+  );
   const seriesW = useMemo(() => seriesBucketWh.map(toWattsFromWhPerBucket), [seriesBucketWh]);
   const yesterdaySeriesW = useMemo(
     () => yesterdaySeriesBucketWh.map(toWattsFromWhPerBucket),
@@ -431,10 +428,33 @@ export function SolarGeneratedChart({
     [seriesW, yesterdaySeriesW]
   );
   const yAxisLabels = useMemo(() => [maxVal, maxVal / 2, 0], [maxVal]);
-  const runningYesterdayWh = yesterdayRunningWh ?? yesterdayWh;
+  const runningYesterdayWh = yesterdayRunningWh ?? null;
   const legendToday = `${formatWhAndKWh(todayWh)}${formatSolarLegendDelta(todayWh, runningYesterdayWh, deltaPct)}`;
   const legendYesterday = formatWhAndKWh(runningYesterdayWh);
   const legendYesterdayTotal = formatWhAndKWh(yesterdayWh);
+  const legendItems = useMemo<LegendItem[]>(
+    () => [
+      {
+        label: 'Yesterday so far',
+        value: legendYesterday,
+        opacity: 0.72,
+        lineColor: semantics.chartSolarMuted,
+        dotted: true
+      },
+      {
+        label: 'Today so far',
+        value: legendToday,
+        opacity: 0.9,
+        lineColor: semantics.chartSolar
+      },
+      {
+        label: 'Yesterday total',
+        value: legendYesterdayTotal,
+        opacity: 0.62
+      }
+    ],
+    [legendToday, legendYesterday, legendYesterdayTotal, semantics.chartSolar, semantics.chartSolarMuted]
+  );
   const xAxisTicks = useMemo(() => buildXAxisTicks(startMinutes, endMinutes), [endMinutes, startMinutes]);
 
   if (Platform.OS === 'web') {
@@ -462,23 +482,7 @@ export function SolarGeneratedChart({
         }}
         overflow="hidden"
       >
-        <YStack alignItems="flex-end" paddingHorizontal="$3" paddingTop="$3" paddingBottom="$1" gap="$1">
-          <XStack gap="$2" alignItems="center">
-            <LegendLine dotted color={semantics.chartSolarMuted} />
-            <Text fontSize="$1" opacity={0.72}>
-              Yesterday so far: {legendYesterday}
-            </Text>
-          </XStack>
-          <XStack gap="$2" alignItems="center">
-            <LegendLine color={semantics.chartSolar} />
-            <Text fontSize="$1" opacity={0.9}>
-              Today: {legendToday}
-            </Text>
-          </XStack>
-          <Text fontSize="$1" opacity={0.62}>
-            Yesterday total: {legendYesterdayTotal}
-          </Text>
-        </YStack>
+        <SolarGeneratedLegend items={legendItems} />
         <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
           <YStack width={Y_AXIS_WIDTH} height={WEB_CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
             {yAxisLabels.map((value, idx) => (
@@ -630,23 +634,7 @@ export function SolarGeneratedChart({
       }}
       overflow="hidden"
     >
-      <YStack alignItems="flex-end" paddingHorizontal="$3" paddingTop="$3" paddingBottom="$1" gap="$1">
-        <XStack gap="$2" alignItems="center">
-          <LegendLine dotted color={semantics.chartSolarMuted} />
-          <Text fontSize="$1" opacity={0.72}>
-            Yesterday so far: {legendYesterday}
-          </Text>
-        </XStack>
-        <XStack gap="$2" alignItems="center">
-          <LegendLine color={semantics.chartSolar} />
-          <Text fontSize="$1" opacity={0.9}>
-            Today: {legendToday}
-          </Text>
-        </XStack>
-        <Text fontSize="$1" opacity={0.62}>
-          Yesterday total: {legendYesterdayTotal}
-        </Text>
-      </YStack>
+      <SolarGeneratedLegend items={legendItems} />
       <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
         <YStack width={Y_AXIS_WIDTH} height={CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
           {yAxisLabels.map((value, idx) => (

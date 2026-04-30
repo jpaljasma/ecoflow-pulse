@@ -418,9 +418,9 @@ Runtime behavior:
   after local midnight so `today`/`yesterday` swap cleanly without requiring a
   manual reload.
 - solar history fetches the full previous local day for `Yesterday total`, but
-  percentage deltas compare `Today` against yesterday through the same elapsed
-  current-day duration so the running comparison is not diluted by the rest of
-  yesterday's production.
+  percentage deltas compare `Today so far` against yesterday through the latest
+  current-day solar bucket so the running comparison is not diluted by the rest
+  of yesterday's production.
 - the universal client computes and sends explicit `compareFrom` / `compareTo`
   local-day bounds for solar history; DST-sensitive "previous period"
   subtraction on the server is not sufficient for the day after a clock shift.

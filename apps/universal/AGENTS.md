@@ -30,6 +30,7 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
    - comparison periods rendered distinctly and accessibly.
 2. Reuse fetched payloads aggressively for related widgets instead of refetching parallel slices of the same period.
 3. Device detail and shared chrome must receive explicit scope from the current page; do not silently re-derive unrelated global scope.
+4. Shared chart primitives under `src/shared/ui` have additional nested guidance; read `src/shared/ui/AGENTS.md` before changing chart components, chart model helpers, hover/tap hit testing, axis labels, or bucket normalization.
 
 ## Auth and Browser Runtime
 1. iOS web sign-in must use a same-tab Authorization Code + PKCE redirect instead of relying on popup/opener completion.
