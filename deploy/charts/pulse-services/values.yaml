@@ -368,6 +368,9 @@ runtime:
     scheduler:
       enabled: false
       replicaCount: 1
+      solarRefreshInterval: "24h"
+      solarRefreshActiveWindow: "720h"
+      solarRefreshBatchLimit: "64"
       nodeSelector: {}
       tolerations: []
       affinity: {}

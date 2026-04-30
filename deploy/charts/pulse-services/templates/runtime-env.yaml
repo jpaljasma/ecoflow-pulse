@@ -1,4 +1,4 @@
-{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.inference.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled .Values.runtime.workers.grpcApi.enabled .Values.runtime.workers.energyApi.enabled .Values.runtime.workers.solarVerification.enabled .Values.runtime.workers.pulseMqttEmulator.enabled -}}
+{{- $workersEnabled := or .Values.runtime.workers.ingest.enabled .Values.runtime.workers.inference.enabled .Values.runtime.workers.projection.enabled .Values.runtime.workers.archive.enabled .Values.runtime.workers.rollup.enabled .Values.runtime.workers.grpcApi.enabled .Values.runtime.workers.energyApi.enabled .Values.runtime.workers.solarVerification.enabled .Values.runtime.workers.scheduler.enabled .Values.runtime.workers.pulseMqttEmulator.enabled -}}
 {{- if $workersEnabled }}
 {{- $grpcMetricsPort := "" -}}
 {{- if .Values.runtime.workers.energyApi.metrics.enabled -}}

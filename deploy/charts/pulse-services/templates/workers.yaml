@@ -954,6 +954,12 @@ spec:
           env:
             - name: SCHEDULER_METRICS_LISTEN_ADDR
               value: {{ printf ":%v" .Values.runtime.workers.scheduler.service.port | quote }}
+            - name: SCHEDULER_SOLAR_REFRESH_INTERVAL
+              value: {{ .Values.runtime.workers.scheduler.solarRefreshInterval | quote }}
+            - name: SCHEDULER_SOLAR_REFRESH_ACTIVE_WINDOW
+              value: {{ .Values.runtime.workers.scheduler.solarRefreshActiveWindow | quote }}
+            - name: SCHEDULER_SOLAR_REFRESH_BATCH_LIMIT
+              value: {{ .Values.runtime.workers.scheduler.solarRefreshBatchLimit | quote }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env

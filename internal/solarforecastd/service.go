@@ -40,9 +40,13 @@ const (
 	minSaturatedRelativeStrength  = 0.85
 	minSaturatedChargeEnergyWh    = 40.0
 	maxSaturatedChargeEnergyRatio = 0.15
+	observedPeakRecoveryScale     = 1.30
+	observedPeakRecoveryWeight    = 0.50
 	deviceShareLookbackDays       = 7
 	minDeviceShareDayWh           = 250.0
 	deviceShareRecentDayWeight    = 0.35
+	deviceCapacityLearningWindow  = 48 * time.Hour
+	minDeviceCapacitySamples      = 3
 )
 
 const sameDayCurtailmentReasonBatteryNearFull = "battery_near_full"
@@ -732,16 +736,10 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 		return CapacityEstimate{Method: "unavailable"}
 	}
 	if observedEnvelope > 0 {
-		estimate := observedEnvelope
+		estimate := recoverCapacityFromObservedPeak(observedEnvelope, observedPeak)
 		method := "rolling_observed_p95"
 		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
 			method = "rolling_observed_p95_and_irradiance"
-			if observedPeak > observedEnvelope {
-				recoveryCeiling := math.Min(observedPeak, observedEnvelope*1.3)
-				recoveryWeight := clamp((factor-0.35)/0.55, 0, 1) * 0.5
-				recovered := observedEnvelope + ((recoveryCeiling - observedEnvelope) * recoveryWeight)
-				estimate = math.Max(observedEnvelope, recovered)
-			}
 		}
 		capacity := CapacityEstimate{
 			EstimatedPeakWatts: floatPtr(roundWatts(estimate)),
@@ -761,17 +759,31 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 
 func inferCapacityEstimateFromServingState(state *ServingState, points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location) CapacityEstimate {
 	if state != nil && state.PotentialFinalEnvelopeW != nil && *state.PotentialFinalEnvelopeW > 0 {
-		estimate := *state.PotentialFinalEnvelopeW
+		observedPeak := observedPeakWatts(points)
+		estimate := recoverCapacityFromObservedPeak(*state.PotentialFinalEnvelopeW, observedPeak)
 		method := "rolling_observed_p95"
 		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
 			method = "rolling_observed_p95_and_irradiance"
 		}
-		return CapacityEstimate{
+		capacity := CapacityEstimate{
 			EstimatedPeakWatts: floatPtr(roundWatts(estimate)),
 			Method:             method,
 		}
+		if observedPeak > 0 {
+			capacity.ObservedPvWatts = floatPtr(roundWatts(observedPeak))
+		}
+		return capacity
 	}
 	return inferCapacityEstimate(points, current, loc)
+}
+
+func recoverCapacityFromObservedPeak(baseEnvelopeWatts, observedPeakWatts float64) float64 {
+	if baseEnvelopeWatts <= 0 || observedPeakWatts <= baseEnvelopeWatts {
+		return baseEnvelopeWatts
+	}
+	recoveryCeiling := math.Min(observedPeakWatts, baseEnvelopeWatts*observedPeakRecoveryScale)
+	recovered := baseEnvelopeWatts + ((recoveryCeiling - baseEnvelopeWatts) * observedPeakRecoveryWeight)
+	return math.Max(baseEnvelopeWatts, recovered)
 }
 
 func summarizeDailyOutlook(
@@ -1631,14 +1643,70 @@ func allocateCapacityEstimate(site CapacityEstimate, devicePoints []telemetryque
 	}
 	if observed := observedPeakWatts(devicePoints); observed > 0 {
 		out.ObservedPvWatts = floatPtr(roundWatts(observed))
-		if out.EstimatedPeakWatts == nil || *out.EstimatedPeakWatts < observed {
-			out.EstimatedPeakWatts = floatPtr(roundWatts(observed))
-		}
+	}
+	if learned := observedDeviceCapacityEnvelopeWatts(devicePoints); learned > 0 && (out.EstimatedPeakWatts == nil || *out.EstimatedPeakWatts < learned) {
+		out.EstimatedPeakWatts = floatPtr(roundWatts(learned))
 	}
 	if out.Method != "" {
 		out.Method += "_device_share"
 	}
 	return out
+}
+
+func observedDeviceCapacityEnvelopeWatts(points []telemetryquery.Point) float64 {
+	recent := recentDeviceCapacityPoints(points)
+	if observedCapacitySampleCount(recent) >= minDeviceCapacitySamples {
+		if evidence := observedPotentialWatts(recent, nil); evidence.finalEnvelopeW > 0 {
+			return evidence.finalEnvelopeW
+		}
+	}
+	if observedCapacitySampleCount(points) < minDeviceCapacitySamples {
+		return 0
+	}
+	return observedPotentialWatts(points, nil).finalEnvelopeW
+}
+
+func recentDeviceCapacityPoints(points []telemetryquery.Point) []telemetryquery.Point {
+	latest := latestDeviceCapacityTimestamp(points)
+	if latest.IsZero() {
+		return nil
+	}
+	cutoff := latest.Add(-deviceCapacityLearningWindow)
+	out := make([]telemetryquery.Point, 0, len(points))
+	for _, point := range points {
+		ts := point.BucketEnd
+		if ts.IsZero() {
+			ts = point.BucketStart
+		}
+		if !ts.Before(cutoff) {
+			out = append(out, point)
+		}
+	}
+	return out
+}
+
+func latestDeviceCapacityTimestamp(points []telemetryquery.Point) time.Time {
+	var latest time.Time
+	for _, point := range points {
+		ts := point.BucketEnd
+		if ts.IsZero() {
+			ts = point.BucketStart
+		}
+		if ts.After(latest) {
+			latest = ts
+		}
+	}
+	return latest
+}
+
+func observedCapacitySampleCount(points []telemetryquery.Point) int {
+	var count int
+	for _, point := range points {
+		if observedPowerCandidate(point) > 0 {
+			count++
+		}
+	}
+	return count
 }
 
 func allocateGenerationDays(days []GenerationDay, actualTodayWh float64, share float64, todayISO string) []GenerationDay {

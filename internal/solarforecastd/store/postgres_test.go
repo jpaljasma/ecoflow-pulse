@@ -2,12 +2,68 @@ package store
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jpaljasma/ecoflow-pulse/internal/solarforecastd"
 )
+
+func TestActiveForecastInputFromMetadataBuildsAllScopeInput(t *testing.T) {
+	t.Parallel()
+
+	input, ok := activeForecastInputFromMetadata("America/New_York", []byte(`{
+		"scope_mode":"all",
+		"resolved_device_ids":["dev-b","dev-a","dev-a"],
+		"request_latitude":42.61,
+		"request_longitude":-77.40,
+		"panel_tilt_degrees":45,
+		"panel_azimuth_degrees":0
+	}`))
+	if !ok {
+		t.Fatal("activeForecastInputFromMetadata() ok = false, want true")
+	}
+	if got, want := input.Scope.Mode, "all"; got != want {
+		t.Fatalf("scope mode = %q, want %q", got, want)
+	}
+	if got, want := input.ResolvedDeviceIDs, []string{"dev-a", "dev-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("resolved device IDs = %#v, want %#v", got, want)
+	}
+	if got, want := input.WeatherRequest.Timezone, "America/New_York"; got != want {
+		t.Fatalf("timezone = %q, want %q", got, want)
+	}
+	if input.WeatherRequest.PanelTiltDegrees == nil || *input.WeatherRequest.PanelTiltDegrees != 45 {
+		t.Fatalf("panel tilt = %v, want 45", input.WeatherRequest.PanelTiltDegrees)
+	}
+}
+
+func TestActiveForecastInputFromMetadataPreservesDeviceScopeWithSiteContext(t *testing.T) {
+	t.Parallel()
+
+	input, ok := activeForecastInputFromMetadata("America/New_York", []byte(`{
+		"scope_mode":"device",
+		"resolved_device_ids":["dev-b"],
+		"site_resolved_device_ids":["dev-a","dev-b"],
+		"request_latitude":42.61,
+		"request_longitude":-77.40
+	}`))
+	if !ok {
+		t.Fatal("activeForecastInputFromMetadata() ok = false, want true")
+	}
+	if got, want := input.Scope.Mode, "device"; got != want {
+		t.Fatalf("scope mode = %q, want %q", got, want)
+	}
+	if got, want := input.Scope.DeviceID, "dev-b"; got != want {
+		t.Fatalf("scope device ID = %q, want %q", got, want)
+	}
+	if got, want := input.ResolvedDeviceIDs, []string{"dev-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("resolved device IDs = %#v, want %#v", got, want)
+	}
+	if got, want := input.SiteResolvedDeviceIDs, []string{"dev-a", "dev-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("site device IDs = %#v, want %#v", got, want)
+	}
+}
 
 func TestPostgresStoreInsertRunUpsertsOnConflictAndReturnsCanonicalID(t *testing.T) {
 	t.Parallel()
