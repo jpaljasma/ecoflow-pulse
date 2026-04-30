@@ -62,7 +62,7 @@ export type CompareRollupSeries = z.infer<typeof CompareRollupSeriesSchema>;
 export const SolarHistoryViewSchema = z.object({
   todayWh: z.number(),
   yesterdayWh: z.number(),
-  yesterdayRunningWh: z.number().optional(),
+  yesterdayRunningWh: z.number(),
   deltaPct: z.number().nullable(),
   seriesWh: z.array(z.number()),
   yesterdaySeriesWh: z.array(z.number())
