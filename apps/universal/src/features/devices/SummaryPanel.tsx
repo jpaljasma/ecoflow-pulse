@@ -17,9 +17,12 @@ import { useFleetSummaryViewModel, type FleetTypeIcon } from '@/features/devices
 import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { useTelemetryFleetTrend, useTelemetrySnapshotsByIds } from '@/features/telemetry/hooks';
 import { useAuthSession } from '@/features/auth/hooks';
+import { useCurrentUser } from '@/features/profile/hooks';
 import { useFleetPowerTrendHistory, useFleetSolarHistory } from '@/features/history/hooks';
 import { mergeTrendPrefill } from '@/features/history/powerTrend';
-import { SOLAR_HISTORY_CHART_TITLE, SOLAR_HISTORY_POINTS } from '@/features/history/solar';
+import { resolveSolarHistoryWindow } from '@/features/history/solar';
+import { useWeatherForecast } from '@/features/weather/hooks';
+import { resolveProfileWeatherState } from '@/features/weather/model';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { IconLabel } from '@/shared/ui/IconLabel';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
@@ -202,6 +205,23 @@ export function SummaryPanel({
   const fleetTrend = useTelemetryFleetTrend();
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
   const historyEnabled = authReady && (!authConfigured || sessionValid) && deviceIds.length > 0;
+  const profileEnabled = authReady && (!authConfigured || sessionValid);
+  const currentUserQuery = useCurrentUser({
+    token,
+    authKey,
+    enabled: profileEnabled
+  });
+  const resolvedWeatherState = resolveProfileWeatherState(currentUserQuery.data?.user);
+  const weatherForecastQuery = useWeatherForecast({
+    token,
+    authKey,
+    locationKey: resolvedWeatherState.locationKey,
+    enabled: profileEnabled && resolvedWeatherState.enabled
+  });
+  const solarHistoryWindow = useMemo(
+    () => resolveSolarHistoryWindow(weatherForecastQuery.data?.forecast),
+    [weatherForecastQuery.data?.forecast]
+  );
   const maxSolarWattsByDeviceId = useMemo(
     () =>
       Object.fromEntries(
@@ -215,7 +235,8 @@ export function SummaryPanel({
     token,
     authKey,
     enabled: historyEnabled,
-    maxSolarWattsByDeviceId
+    maxSolarWattsByDeviceId,
+    window: solarHistoryWindow
   });
   const fleetPowerTrendHistory = useFleetPowerTrendHistory(deviceIds, {
     token,
@@ -469,7 +490,7 @@ export function SummaryPanel({
       {isTabletUp ? (
         <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
           <YStack flex={1.2} minWidth={0}>
-            <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="Today against yesterday">
+            <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
               {fleetSolarHistoryErrorText ? (
                 <Text style={{ color: semantics.subtleText }}>{fleetSolarHistoryErrorText}</Text>
               ) : (
@@ -478,8 +499,11 @@ export function SummaryPanel({
                   yesterdayValuesWh={fleetSolarHistoryView?.yesterdaySeriesWh}
                   todayWh={fleetSolarHistoryView?.todayWh}
                   yesterdayWh={fleetSolarHistoryView?.yesterdayWh}
+                  yesterdayRunningWh={fleetSolarHistoryView?.yesterdayRunningWh}
                   deltaPct={fleetSolarHistoryView?.deltaPct}
-                  points={SOLAR_HISTORY_POINTS}
+                  points={solarHistoryWindow.points}
+                  startMinutes={solarHistoryWindow.startMinutes}
+                  endMinutes={solarHistoryWindow.endMinutes}
                 />
               )}
             </ChartSection>
@@ -505,7 +529,7 @@ export function SummaryPanel({
         </XStack>
       ) : (
         <YStack gap="$3">
-          <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="Today against yesterday">
+          <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
             {fleetSolarHistoryErrorText ? (
               <Text style={{ color: semantics.subtleText }}>{fleetSolarHistoryErrorText}</Text>
             ) : (
@@ -514,8 +538,11 @@ export function SummaryPanel({
                 yesterdayValuesWh={fleetSolarHistoryView?.yesterdaySeriesWh}
                 todayWh={fleetSolarHistoryView?.todayWh}
                 yesterdayWh={fleetSolarHistoryView?.yesterdayWh}
+                yesterdayRunningWh={fleetSolarHistoryView?.yesterdayRunningWh}
                 deltaPct={fleetSolarHistoryView?.deltaPct}
-                points={SOLAR_HISTORY_POINTS}
+                points={solarHistoryWindow.points}
+                startMinutes={solarHistoryWindow.startMinutes}
+                endMinutes={solarHistoryWindow.endMinutes}
               />
             )}
           </ChartSection>

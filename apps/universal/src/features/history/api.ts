@@ -62,6 +62,7 @@ export type CompareRollupSeries = z.infer<typeof CompareRollupSeriesSchema>;
 export const SolarHistoryViewSchema = z.object({
   todayWh: z.number(),
   yesterdayWh: z.number(),
+  yesterdayRunningWh: z.number().optional(),
   deltaPct: z.number().nullable(),
   seriesWh: z.array(z.number()),
   yesterdaySeriesWh: z.array(z.number())
@@ -117,10 +118,14 @@ export async function fetchDeviceSolarHistory({
   toIso,
   compareFromIso,
   compareToIso,
+  windowStartMinutes,
+  windowEndMinutes,
   token
 }: Omit<HistoryRequest, 'resolution'> & {
   compareFromIso?: string;
   compareToIso?: string;
+  windowStartMinutes?: number;
+  windowEndMinutes?: number;
 }): Promise<SolarHistoryView> {
   const params = new URLSearchParams({
     from: fromIso,
@@ -129,6 +134,10 @@ export async function fetchDeviceSolarHistory({
   if (compareFromIso && compareToIso) {
     params.set('compareFrom', compareFromIso);
     params.set('compareTo', compareToIso);
+  }
+  if (windowStartMinutes !== undefined && windowEndMinutes !== undefined) {
+    params.set('windowStartMinutes', String(windowStartMinutes));
+    params.set('windowEndMinutes', String(windowEndMinutes));
   }
   const data = await requestJson<unknown>(`/api/v1/devices/${deviceId}/history/solar?${params.toString()}`, { token });
   return SolarHistoryViewSchema.parse(data);
@@ -140,6 +149,8 @@ export async function fetchFleetSolarHistory({
   toIso,
   compareFromIso,
   compareToIso,
+  windowStartMinutes,
+  windowEndMinutes,
   token
 }: {
   deviceIds: string[];
@@ -147,6 +158,8 @@ export async function fetchFleetSolarHistory({
   toIso: string;
   compareFromIso?: string;
   compareToIso?: string;
+  windowStartMinutes?: number;
+  windowEndMinutes?: number;
   token?: string;
 }): Promise<SolarHistoryView> {
   const params = new URLSearchParams({
@@ -156,6 +169,10 @@ export async function fetchFleetSolarHistory({
   if (compareFromIso && compareToIso) {
     params.set('compareFrom', compareFromIso);
     params.set('compareTo', compareToIso);
+  }
+  if (windowStartMinutes !== undefined && windowEndMinutes !== undefined) {
+    params.set('windowStartMinutes', String(windowStartMinutes));
+    params.set('windowEndMinutes', String(windowEndMinutes));
   }
   for (const deviceId of deviceIds) {
     params.append('deviceId', deviceId);

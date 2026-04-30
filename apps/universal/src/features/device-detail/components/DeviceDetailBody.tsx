@@ -13,7 +13,7 @@ import { DeviceSolarForecastCard } from '@/features/device-detail/components/Dev
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
 import type { DeviceDetailViewModel } from '@/features/device-detail/view-model';
-import { SOLAR_HISTORY_CHART_TITLE, SOLAR_HISTORY_POINTS } from '@/features/history/solar';
+import type { SolarHistoryWindow } from '@/features/history/solar';
 import type { DeviceInsights } from '@/features/inference/api';
 import { formatKWh, formatSoc, formatWhAndKWh } from '@/features/telemetry/format';
 import type { SolarOutlook } from '@/features/weather/model';
@@ -208,7 +208,9 @@ export function DeviceDetailBody({
   solarGeneratedYesterdayTrend,
   solarGeneratedTodayWh,
   solarGeneratedYesterdayWh,
+  solarGeneratedYesterdayRunningWh,
   solarGeneratedDeltaPct,
+  solarHistoryWindow,
   solarOutlook,
   solarOutlookLoading,
   solarOutlookErrorText,
@@ -231,7 +233,9 @@ export function DeviceDetailBody({
   solarGeneratedYesterdayTrend: number[];
   solarGeneratedTodayWh?: number;
   solarGeneratedYesterdayWh?: number;
+  solarGeneratedYesterdayRunningWh?: number;
   solarGeneratedDeltaPct?: number | null;
+  solarHistoryWindow: SolarHistoryWindow;
   solarOutlook?: SolarOutlook;
   solarOutlookLoading?: boolean;
   solarOutlookErrorText?: string;
@@ -517,14 +521,17 @@ export function DeviceDetailBody({
       {isTablet ? (
         <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
           <YStack flex={1.1} minWidth={0}>
-            <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="Today against yesterday">
+            <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
               <SolarGeneratedChart
                 valuesWh={solarGeneratedTrend}
                 yesterdayValuesWh={solarGeneratedYesterdayTrend}
                 todayWh={solarGeneratedTodayWh}
                 yesterdayWh={solarGeneratedYesterdayWh}
+                yesterdayRunningWh={solarGeneratedYesterdayRunningWh}
                 deltaPct={solarGeneratedDeltaPct}
-                points={SOLAR_HISTORY_POINTS}
+                points={solarHistoryWindow.points}
+                startMinutes={solarHistoryWindow.startMinutes}
+                endMinutes={solarHistoryWindow.endMinutes}
               />
             </ChartSection>
           </YStack>
@@ -543,14 +550,17 @@ export function DeviceDetailBody({
         </XStack>
       ) : (
         <YStack gap="$3">
-          <ChartSection title={SOLAR_HISTORY_CHART_TITLE} subtitle="Today against yesterday">
+          <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
             <SolarGeneratedChart
               valuesWh={solarGeneratedTrend}
               yesterdayValuesWh={solarGeneratedYesterdayTrend}
               todayWh={solarGeneratedTodayWh}
               yesterdayWh={solarGeneratedYesterdayWh}
+              yesterdayRunningWh={solarGeneratedYesterdayRunningWh}
               deltaPct={solarGeneratedDeltaPct}
-              points={SOLAR_HISTORY_POINTS}
+              points={solarHistoryWindow.points}
+              startMinutes={solarHistoryWindow.startMinutes}
+              endMinutes={solarHistoryWindow.endMinutes}
             />
           </ChartSection>
           <ChartSection title="Power profile" subtitle="Live supply against demand">

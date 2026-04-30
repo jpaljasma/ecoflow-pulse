@@ -4,6 +4,7 @@ import {
   buildTodayBounds,
   historyRefreshIntervalMs,
   msUntilNextLocalDay,
+  resolveSolarHistoryWindow,
   SOLAR_HISTORY_POINTS
 } from '@/features/history/solar';
 
@@ -44,6 +45,38 @@ describe('solar history helpers', () => {
 
   it('keeps the chart bucket count fixed', () => {
     expect(SOLAR_HISTORY_POINTS).toBe(84);
+  });
+
+  it('rounds a known sunrise and sunset to surrounding half-hour chart bounds', () => {
+    const window = resolveSolarHistoryWindow(
+      {
+        timezone: 'America/New_York',
+        daily: [
+          {
+            dateIso: '2026-04-29',
+            sunriseIso: '2026-04-29T10:16:00Z',
+            sunsetIso: '2026-04-30T00:01:00Z'
+          }
+        ]
+      },
+      new Date('2026-04-29T15:00:00Z')
+    );
+
+    expect(window).toEqual({
+      startMinutes: 6 * 60,
+      endMinutes: 20 * 60 + 30,
+      points: 87,
+      title: 'Solar Generated (6am-8:30pm, 10m buckets)'
+    });
+  });
+
+  it('falls back to the fixed legacy chart window when sun times are unavailable', () => {
+    expect(resolveSolarHistoryWindow(undefined, new Date('2026-04-29T15:00:00Z'))).toEqual({
+      startMinutes: 6 * 60,
+      endMinutes: 20 * 60,
+      points: SOLAR_HISTORY_POINTS,
+      title: 'Solar Generated (6am-8pm, 10m buckets)'
+    });
   });
 
   it('builds a full previous local day across spring-forward', () => {

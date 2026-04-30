@@ -4,14 +4,17 @@ import { Text, XStack, YStack } from 'tamagui';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
 import {
   SOLAR_HISTORY_BUCKET_MINUTES,
-  SOLAR_HISTORY_END_HOUR,
   SOLAR_HISTORY_POINTS,
-  SOLAR_HISTORY_START_HOUR,
-  SOLAR_HISTORY_TICK_HOURS
+  defaultSolarHistoryWindow
 } from '@/features/history/solar';
 import { formatW, formatWhAndKWh } from '@/features/telemetry/format';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { formatSolarLegendDelta } from '@/shared/ui/solarLegend';
+import {
+  buildStepPolylinePoints,
+  buildSvgStepPath,
+  type ChartPoint
+} from '@/shared/ui/solarGeneratedChartModel';
 
 const CHART_HEIGHT = 170;
 const WEB_CHART_HEIGHT = 210;
@@ -23,11 +26,11 @@ const X_AXIS_LABEL_WIDTH = 40;
 const TOOLTIP_WIDTH = 208;
 const TOOLTIP_TOP = 8;
 const SELECTION_DOT_SIZE = 8;
-const X_AXIS_TICKS = SOLAR_HISTORY_TICK_HOURS.map((hour) => ({
-  label: `${String(hour).padStart(2, '0')}:00`,
-  fraction: (hour - SOLAR_HISTORY_START_HOUR) / (SOLAR_HISTORY_END_HOUR - SOLAR_HISTORY_START_HOUR)
-}));
-type Point = { x: number; y: number };
+type Point = ChartPoint;
+type AxisTick = {
+  label: string;
+  fraction: number;
+};
 
 function looksCumulative(values: number[]): boolean {
   if (values.length < 8) return false;
@@ -109,53 +112,54 @@ function formatBucketClock(totalMinutes: number): string {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
-function formatBucketRangeLabel(index: number): string {
-  const startMinutes = SOLAR_HISTORY_START_HOUR * 60 + index * SOLAR_HISTORY_BUCKET_MINUTES;
+function formatBucketRangeLabel(index: number, windowStartMinutes: number): string {
+  const startMinutes = windowStartMinutes + index * SOLAR_HISTORY_BUCKET_MINUTES;
   const endMinutes = startMinutes + SOLAR_HISTORY_BUCKET_MINUTES;
   return `${formatBucketClock(startMinutes)} - ${formatBucketClock(endMinutes)}`;
+}
+
+function formatAxisClock(totalMinutes: number): string {
+  const minutesInDay = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hours = Math.floor(minutesInDay / 60);
+  const minutes = minutesInDay % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function buildXAxisTicks(startMinutes: number, endMinutes: number): AxisTick[] {
+  const span = Math.max(SOLAR_HISTORY_BUCKET_MINUTES, endMinutes - startMinutes);
+  const tickMinutes = new Set<number>([startMinutes, endMinutes]);
+  const firstThreeHour = Math.ceil(startMinutes / 180) * 180;
+  for (let minute = firstThreeHour; minute < endMinutes; minute += 180) {
+    if (minute > startMinutes) {
+      tickMinutes.add(minute);
+    }
+  }
+  return [...tickMinutes]
+    .sort((a, b) => a - b)
+    .map((minute) => ({
+      label: formatAxisClock(minute),
+      fraction: (minute - startMinutes) / span
+    }));
 }
 
 function tooltipLeftForX(x: number, width: number): number {
   return clamp(x - TOOLTIP_WIDTH / 2, 4, Math.max(4, width - TOOLTIP_WIDTH - 4));
 }
 
-function buildSkiaSmoothPath(points: Point[]) {
+function buildSkiaStepPath(points: Point[]) {
   if (points.length < 2) return null;
   const path = Skia.Path.Make();
   const first = pointAt(points, 0);
   path.moveTo(first.x, first.y);
 
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const p0 = pointAt(points, i - 1);
-    const p1 = pointAt(points, i);
-    const p2 = pointAt(points, i + 1);
-    const p3 = pointAt(points, i + 2);
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = pointAt(points, index - 1);
+    const next = pointAt(points, index);
+    path.lineTo(next.x, previous.y);
+    path.lineTo(next.x, next.y);
   }
 
   return path;
-}
-
-function buildSvgSmoothPath(points: Point[]): string {
-  if (points.length < 2) return '';
-  const first = pointAt(points, 0);
-  let d = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const p0 = pointAt(points, i - 1);
-    const p1 = pointAt(points, i);
-    const p2 = pointAt(points, i + 1);
-    const p3 = pointAt(points, i + 2);
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)} ${cp2x.toFixed(2)} ${cp2y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
-  }
-  return d;
 }
 
 function buildDashedSvgPath(points: Point[], dashLength = 4, gapLength = 6): string {
@@ -379,15 +383,21 @@ export function SolarGeneratedChart({
   yesterdayValuesWh,
   todayWh,
   yesterdayWh,
+  yesterdayRunningWh,
   deltaPct,
-  points = SOLAR_HISTORY_POINTS
+  points = SOLAR_HISTORY_POINTS,
+  startMinutes = defaultSolarHistoryWindow().startMinutes,
+  endMinutes = defaultSolarHistoryWindow().endMinutes
 }: {
   valuesWh: number[] | undefined;
   yesterdayValuesWh?: number[] | undefined;
   todayWh?: number | null;
   yesterdayWh?: number | null;
+  yesterdayRunningWh?: number | null;
   deltaPct?: number | null;
   points?: number;
+  startMinutes?: number;
+  endMinutes?: number;
 }) {
   const [width, setWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -421,8 +431,11 @@ export function SolarGeneratedChart({
     [seriesW, yesterdaySeriesW]
   );
   const yAxisLabels = useMemo(() => [maxVal, maxVal / 2, 0], [maxVal]);
-  const legendToday = `${formatWhAndKWh(todayWh)}${formatSolarLegendDelta(todayWh, yesterdayWh, deltaPct)}`;
-  const legendYesterday = formatWhAndKWh(yesterdayWh);
+  const runningYesterdayWh = yesterdayRunningWh ?? yesterdayWh;
+  const legendToday = `${formatWhAndKWh(todayWh)}${formatSolarLegendDelta(todayWh, runningYesterdayWh, deltaPct)}`;
+  const legendYesterday = formatWhAndKWh(runningYesterdayWh);
+  const legendYesterdayTotal = formatWhAndKWh(yesterdayWh);
+  const xAxisTicks = useMemo(() => buildXAxisTicks(startMinutes, endMinutes), [endMinutes, startMinutes]);
 
   if (Platform.OS === 'web') {
     const webWidth = Math.max(300, width);
@@ -431,13 +444,13 @@ export function SolarGeneratedChart({
     const activeIndex =
       selectedIndex === null ? null : clamp(selectedIndex, 0, Math.max(0, points - 1));
     const selectedX = activeIndex === null ? null : bucketCenterX(activeIndex, webWidth, points);
-    const d = buildSvgSmoothPath(chartPoints);
-    const yesterdayD = buildDashedSvgPath(yesterdayChartPoints);
+    const d = buildSvgStepPath(chartPoints);
+    const yesterdayD = buildDashedSvgPath(buildStepPolylinePoints(yesterdayChartPoints));
     const areaD = d
       ? `${d} L ${webWidth - PAD_X} ${WEB_CHART_HEIGHT - PAD_Y} L ${PAD_X} ${WEB_CHART_HEIGHT - PAD_Y} Z`
       : '';
     const horizontalGrid = [0, 0.5, 1].map((p) => PAD_Y + p * (WEB_CHART_HEIGHT - PAD_Y * 2));
-    const verticalGrid = X_AXIS_TICKS.map((tick) => PAD_X + tick.fraction * (webWidth - PAD_X * 2));
+    const verticalGrid = xAxisTicks.map((tick) => PAD_X + tick.fraction * (webWidth - PAD_X * 2));
 
     return (
       <YStack
@@ -453,7 +466,7 @@ export function SolarGeneratedChart({
           <XStack gap="$2" alignItems="center">
             <LegendLine dotted color={semantics.chartSolarMuted} />
             <Text fontSize="$1" opacity={0.72}>
-              Yesterday: {legendYesterday}
+              Yesterday so far: {legendYesterday}
             </Text>
           </XStack>
           <XStack gap="$2" alignItems="center">
@@ -462,6 +475,9 @@ export function SolarGeneratedChart({
               Today: {legendToday}
             </Text>
           </XStack>
+          <Text fontSize="$1" opacity={0.62}>
+            Yesterday total: {legendYesterdayTotal}
+          </Text>
         </YStack>
         <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
           <YStack width={Y_AXIS_WIDTH} height={WEB_CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
@@ -541,7 +557,7 @@ export function SolarGeneratedChart({
                   selectedX={selectedX}
                   todayPoint={chartPoints[activeIndex]}
                   yesterdayPoint={yesterdayChartPoints[activeIndex]}
-                  bucketLabel={formatBucketRangeLabel(activeIndex)}
+                  bucketLabel={formatBucketRangeLabel(activeIndex, startMinutes)}
                   todayBucketWh={seriesBucketWh[activeIndex] ?? 0}
                   todayBucketW={seriesW[activeIndex] ?? 0}
                   yesterdayBucketWh={yesterdaySeriesBucketWh[activeIndex] ?? 0}
@@ -564,7 +580,7 @@ export function SolarGeneratedChart({
               ) : null}
             </View>
             <View style={{ position: 'relative', height: 18 }}>
-              {X_AXIS_TICKS.map((tick) => {
+              {xAxisTicks.map((tick) => {
                 const left = clamp(
                   PAD_X + tick.fraction * (webWidth - PAD_X * 2) - X_AXIS_LABEL_WIDTH / 2,
                   0,
@@ -597,10 +613,10 @@ export function SolarGeneratedChart({
   const yesterdayChartPoints = buildPoints(yesterdaySeriesW, Math.max(width, 1), CHART_HEIGHT, maxVal);
   const activeIndex = selectedIndex === null ? null : clamp(selectedIndex, 0, Math.max(0, points - 1));
   const selectedX = activeIndex === null ? null : bucketCenterX(activeIndex, Math.max(width, 1), points);
-  const path = buildSkiaSmoothPath(chartPoints);
-  const yesterdayPath = buildDashedSkiaPath(yesterdayChartPoints);
+  const path = buildSkiaStepPath(chartPoints);
+  const yesterdayPath = buildDashedSkiaPath(buildStepPolylinePoints(yesterdayChartPoints));
   const horizontalGridY = [0, 0.5, 1].map((p) => PAD_Y + p * (CHART_HEIGHT - PAD_Y * 2));
-  const verticalGridX = X_AXIS_TICKS.map(
+  const verticalGridX = xAxisTicks.map(
     (tick) => PAD_X + tick.fraction * (Math.max(width, 1) - PAD_X * 2)
   );
 
@@ -618,7 +634,7 @@ export function SolarGeneratedChart({
         <XStack gap="$2" alignItems="center">
           <LegendLine dotted color={semantics.chartSolarMuted} />
           <Text fontSize="$1" opacity={0.72}>
-            Yesterday: {legendYesterday}
+            Yesterday so far: {legendYesterday}
           </Text>
         </XStack>
         <XStack gap="$2" alignItems="center">
@@ -627,6 +643,9 @@ export function SolarGeneratedChart({
             Today: {legendToday}
           </Text>
         </XStack>
+        <Text fontSize="$1" opacity={0.62}>
+          Yesterday total: {legendYesterdayTotal}
+        </Text>
       </YStack>
       <XStack padding="$2" paddingBottom="$1" alignItems="flex-start">
         <YStack width={Y_AXIS_WIDTH} height={CHART_HEIGHT} justifyContent="space-between" paddingTop="$1">
@@ -702,7 +721,7 @@ export function SolarGeneratedChart({
                   selectedX={selectedX}
                   todayPoint={chartPoints[activeIndex]}
                   yesterdayPoint={yesterdayChartPoints[activeIndex]}
-                  bucketLabel={formatBucketRangeLabel(activeIndex)}
+                  bucketLabel={formatBucketRangeLabel(activeIndex, startMinutes)}
                   todayBucketWh={seriesBucketWh[activeIndex] ?? 0}
                   todayBucketW={seriesW[activeIndex] ?? 0}
                   yesterdayBucketWh={yesterdaySeriesBucketWh[activeIndex] ?? 0}
@@ -736,7 +755,7 @@ export function SolarGeneratedChart({
             </Text>
           )}
           <View style={{ position: 'relative', height: 18 }}>
-            {X_AXIS_TICKS.map((tick) => {
+            {xAxisTicks.map((tick) => {
               const left = clamp(
                 PAD_X + tick.fraction * (Math.max(width, 1) - PAD_X * 2) - X_AXIS_LABEL_WIDTH / 2,
                 0,

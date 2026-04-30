@@ -32,8 +32,10 @@ const solarQuerySchema = z.object({
   to: timeParamSchema,
   compareFrom: timeParamSchema.optional(),
   compareTo: timeParamSchema.optional(),
+  windowStartMinutes: z.coerce.number().int().min(0).max(1430).optional(),
+  windowEndMinutes: z.coerce.number().int().min(10).max(1440).optional(),
   compare: z.enum(['previous_period']).optional().default('previous_period')
-});
+}).superRefine(validateSolarWindow);
 
 const solarFleetQuerySchema = z.object({
   deviceId: z.union([z.string().uuid(), z.array(z.string().uuid()).nonempty()]),
@@ -41,8 +43,10 @@ const solarFleetQuerySchema = z.object({
   to: timeParamSchema,
   compareFrom: timeParamSchema.optional(),
   compareTo: timeParamSchema.optional(),
+  windowStartMinutes: z.coerce.number().int().min(0).max(1430).optional(),
+  windowEndMinutes: z.coerce.number().int().min(10).max(1440).optional(),
   compare: z.enum(['previous_period']).optional().default('previous_period')
-});
+}).superRefine(validateSolarWindow);
 
 const energyDashboardQuerySchema = z
   .object({
@@ -148,7 +152,10 @@ export function registerHistoryRoutes(
           requestID: request.id,
           deadlineMs: app.telemetryDeadlineMs
         });
-        return buildCompareSolarHistoryView(result);
+        return buildCompareSolarHistoryView(result, {
+          windowStartMinutes: query.windowStartMinutes,
+          windowEndMinutes: query.windowEndMinutes
+        });
       } catch (error) {
         return handleRouteError(reply, error);
       }
@@ -176,7 +183,10 @@ export function registerHistoryRoutes(
               requestID: request.id,
               deadlineMs: app.telemetryDeadlineMs
             });
-            return buildCompareSolarHistoryView(result);
+            return buildCompareSolarHistoryView(result, {
+              windowStartMinutes: query.windowStartMinutes,
+              windowEndMinutes: query.windowEndMinutes
+            });
           })
         );
         return combineSolarHistoryViews(views);
@@ -259,6 +269,43 @@ export function registerHistoryRoutes(
       }
     }
   );
+}
+
+function validateSolarWindow(
+  value: {
+    windowStartMinutes?: number;
+    windowEndMinutes?: number;
+  },
+  ctx: z.RefinementCtx
+): void {
+  const hasStart = value.windowStartMinutes !== undefined;
+  const hasEnd = value.windowEndMinutes !== undefined;
+  if (hasStart !== hasEnd) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: hasStart ? ['windowEndMinutes'] : ['windowStartMinutes'],
+      message: 'windowStartMinutes and windowEndMinutes must be provided together'
+    });
+    return;
+  }
+  if (!hasStart || !hasEnd) {
+    return;
+  }
+  if ((value.windowStartMinutes ?? 0) % 10 !== 0 || (value.windowEndMinutes ?? 0) % 10 !== 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['windowStartMinutes'],
+      message: 'solar history window bounds must align to 10-minute buckets'
+    });
+    return;
+  }
+  if ((value.windowEndMinutes ?? 0) <= (value.windowStartMinutes ?? 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['windowEndMinutes'],
+      message: 'windowEndMinutes must be greater than windowStartMinutes'
+    });
+  }
 }
 
 function normalizeTime(value: string | number): string {
