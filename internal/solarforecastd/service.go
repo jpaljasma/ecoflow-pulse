@@ -47,6 +47,9 @@ const (
 	deviceShareRecentDayWeight    = 0.35
 	deviceCapacityLearningWindow  = 48 * time.Hour
 	minDeviceCapacitySamples      = 3
+	minCorroboratedPVMaxSamples   = 3
+	minCorroboratedPVMaxBaseRatio = 0.55
+	minCorroboratedPVMaxPeakRatio = 0.25
 )
 
 const sameDayCurtailmentReasonBatteryNearFull = "battery_near_full"
@@ -737,6 +740,9 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 	}
 	if observedEnvelope > 0 {
 		estimate := recoverCapacityFromObservedPeak(observedEnvelope, observedPeak)
+		if corroborated := corroboratedPVMaxEnvelopeWatts(points, observedEnvelope); corroborated > estimate {
+			estimate = corroborated
+		}
 		method := "rolling_observed_p95"
 		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
 			method = "rolling_observed_p95_and_irradiance"
@@ -761,6 +767,9 @@ func inferCapacityEstimateFromServingState(state *ServingState, points []telemet
 	if state != nil && state.PotentialFinalEnvelopeW != nil && *state.PotentialFinalEnvelopeW > 0 {
 		observedPeak := observedPeakWatts(points)
 		estimate := recoverCapacityFromObservedPeak(*state.PotentialFinalEnvelopeW, observedPeak)
+		if corroborated := corroboratedPVMaxEnvelopeWatts(points, *state.PotentialFinalEnvelopeW); corroborated > estimate {
+			estimate = corroborated
+		}
 		method := "rolling_observed_p95"
 		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
 			method = "rolling_observed_p95_and_irradiance"
@@ -1446,6 +1455,31 @@ func observedPeakWatts(points []telemetryquery.Point) float64 {
 		}
 	}
 	return peak
+}
+
+func corroboratedPVMaxEnvelopeWatts(points []telemetryquery.Point, baseEnvelopeWatts float64) float64 {
+	if baseEnvelopeWatts <= 0 {
+		return 0
+	}
+	threshold := math.Max(minSaturatedPotentialWatts, baseEnvelopeWatts*observedPeakRecoveryScale)
+	samples := make([]float64, 0, len(points))
+	for _, point := range points {
+		if point.Metrics.PVMaxW == nil || *point.Metrics.PVMaxW < threshold {
+			continue
+		}
+		observedPower := observedPowerCandidate(point)
+		if observedPower < math.Max(minSaturatedPotentialWatts, baseEnvelopeWatts*minCorroboratedPVMaxBaseRatio) {
+			continue
+		}
+		if observedPower < *point.Metrics.PVMaxW*minCorroboratedPVMaxPeakRatio {
+			continue
+		}
+		samples = append(samples, *point.Metrics.PVMaxW)
+	}
+	if len(samples) < minCorroboratedPVMaxSamples {
+		return 0
+	}
+	return percentile(samples, 0.95)
 }
 
 func observedPotentialWatts(points []telemetryquery.Point, loc *time.Location) potentialEvidence {

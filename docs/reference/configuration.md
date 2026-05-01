@@ -115,7 +115,7 @@ The dedicated `cmd/ecoflow-scheduler` worker owns reusable recurring jobs for fo
 - `SCHEDULER_SOLAR_REFRESH_INTERVAL` (default `24h`; active solar forecast refresh cadence)
 - `SCHEDULER_SOLAR_REFRESH_ACTIVE_WINDOW` (default `720h`; how far back recent solar forecast runs keep a site/device eligible for scheduled refresh)
 - `SCHEDULER_SOLAR_REFRESH_BATCH_LIMIT` (default `64`; max active solar forecast inputs refreshed per scheduler run)
-- Helm exposes the same defaults through `runtime.workers.scheduler.solarRefreshInterval`, `runtime.workers.scheduler.solarRefreshActiveWindow`, and `runtime.workers.scheduler.solarRefreshBatchLimit`; cloud values keep the scheduler worker enabled so panel-capacity learning refreshes without manual retraining.
+- Helm exposes the same defaults through `runtime.workers.scheduler.solarRefreshInterval`, `runtime.workers.scheduler.solarRefreshActiveWindow`, and `runtime.workers.scheduler.solarRefreshBatchLimit`; cloud values keep the scheduler worker enabled so panel-capacity learning refreshes without manual retraining. Sustained high PV-max evidence can lift a stale learned capacity envelope promptly, while isolated spikes remain bounded.
 - `SCHEDULER_SOLAR_PRUNE_INTERVAL` (default `24h`; solar hot-data prune cadence)
 - `WEATHER_VERIFICATION_RETENTION` (default `720h`; weather yesterday-verification retention)
 - `WEATHER_REFRESH_CANDIDATE_RETENTION` (default `336h`; stale weather refresh-candidate retention)
