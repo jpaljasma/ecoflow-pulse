@@ -186,7 +186,8 @@ func (s *Service) GetSolarOutlook(ctx context.Context, in Input) (outlook *Outlo
 	if err != nil {
 		return nil, err
 	}
-	capacity := inferCapacityEstimateFromServingState(servingState, forecastHistory.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc)
+	allowCorroboratedPVMaxPromotion := len(deviceIDs) == 1 && !useDeviceSiteAllocation
+	capacity := inferCapacityEstimateFromServingStateWithPVMaxPromotion(servingState, forecastHistory.Points, currentWeatherPoint(bundle.Hourly, nowUTC), loc, allowCorroboratedPVMaxPromotion)
 	calibrationLoadsStartedAt := time.Now()
 	calibrationStates, err := s.loadCalibrationStates(ctx, siteKey, forecastModel)
 	stageTimings.calibrationLoads = time.Since(calibrationLoadsStartedAt)
@@ -732,6 +733,10 @@ func sumMetrics(left, right telemetryquery.Metrics) telemetryquery.Metrics {
 }
 
 func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location) CapacityEstimate {
+	return inferCapacityEstimateWithPVMaxPromotion(points, current, loc, true)
+}
+
+func inferCapacityEstimateWithPVMaxPromotion(points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location, allowCorroboratedPVMaxPromotion bool) CapacityEstimate {
 	observedPeak := observedPeakWatts(points)
 	evidence := observedPotentialWatts(points, loc)
 	observedEnvelope := evidence.finalEnvelopeW
@@ -740,8 +745,10 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 	}
 	if observedEnvelope > 0 {
 		estimate := recoverCapacityFromObservedPeak(observedEnvelope, observedPeak)
-		if corroborated := corroboratedPVMaxEnvelopeWatts(points, observedEnvelope); corroborated > estimate {
-			estimate = corroborated
+		if allowCorroboratedPVMaxPromotion {
+			if corroborated := corroboratedPVMaxEnvelopeWatts(points, observedEnvelope); corroborated > estimate {
+				estimate = corroborated
+			}
 		}
 		method := "rolling_observed_p95"
 		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
@@ -764,11 +771,17 @@ func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.Hour
 }
 
 func inferCapacityEstimateFromServingState(state *ServingState, points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location) CapacityEstimate {
+	return inferCapacityEstimateFromServingStateWithPVMaxPromotion(state, points, current, loc, true)
+}
+
+func inferCapacityEstimateFromServingStateWithPVMaxPromotion(state *ServingState, points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location, allowCorroboratedPVMaxPromotion bool) CapacityEstimate {
 	if state != nil && state.PotentialFinalEnvelopeW != nil && *state.PotentialFinalEnvelopeW > 0 {
 		observedPeak := observedPeakWatts(points)
 		estimate := recoverCapacityFromObservedPeak(*state.PotentialFinalEnvelopeW, observedPeak)
-		if corroborated := corroboratedPVMaxEnvelopeWatts(points, *state.PotentialFinalEnvelopeW); corroborated > estimate {
-			estimate = corroborated
+		if allowCorroboratedPVMaxPromotion {
+			if corroborated := corroboratedPVMaxEnvelopeWatts(points, *state.PotentialFinalEnvelopeW); corroborated > estimate {
+				estimate = corroborated
+			}
 		}
 		method := "rolling_observed_p95"
 		if factor := resolveIrradianceFactor(current); factor >= 0.35 {
@@ -783,7 +796,7 @@ func inferCapacityEstimateFromServingState(state *ServingState, points []telemet
 		}
 		return capacity
 	}
-	return inferCapacityEstimate(points, current, loc)
+	return inferCapacityEstimateWithPVMaxPromotion(points, current, loc, allowCorroboratedPVMaxPromotion)
 }
 
 func recoverCapacityFromObservedPeak(baseEnvelopeWatts, observedPeakWatts float64) float64 {
