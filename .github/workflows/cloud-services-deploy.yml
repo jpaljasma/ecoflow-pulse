@@ -1,0 +1,126 @@
+name: Cloud Services Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - Go Tests
+    branches:
+      - main
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional services image tag override
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cloud-services-deploy-main
+  cancel-in-progress: false
+
+env:
+  ARGOCD_APP: pulse-services-cloud
+  ARGOCD_NAMESPACE: argocd
+  CLOUD_ARTIFACT_REGISTRY_HOST: us-east1-docker.pkg.dev
+  GKE_CLOUD_CLUSTER_NAME: pulse-cloud
+  GKE_CLOUD_CLUSTER_REGION: us-east1
+  GKE_CLOUD_PROJECT_ID: ecoflow-pulse-dev-260221-01
+  SERVICES_CLOUD_IMAGE_REPO: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services
+
+jobs:
+  deploy:
+    name: cloud-services-deploy
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    steps:
+      - name: Checkout merged main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve image tag
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
+            head_sha="${{ github.event.workflow_run.head_sha }}"
+          else
+            head_sha="${GITHUB_SHA}"
+          fi
+
+          requested_tag="${{ inputs.image_tag }}"
+          if [[ -n "${requested_tag}" ]]; then
+            tag="${requested_tag}"
+          else
+            tag="cloud-services-${head_sha:0:12}"
+          fi
+
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: gke-gcloud-auth-plugin
+
+      - name: Configure Artifact Registry Docker auth
+        run: gcloud auth configure-docker "${CLOUD_ARTIFACT_REGISTRY_HOST}" --quiet
+
+      - name: Build and push services image
+        run: make services-image-push-cloud SERVICES_CLOUD_IMAGE_TAG="${{ steps.image.outputs.tag }}"
+
+      - name: Fetch cloud cluster credentials
+        run: make gke-cloud-context
+
+      - name: Patch Argo services image tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          patch="$(
+            jq -n \
+              --arg repo "${SERVICES_CLOUD_IMAGE_REPO}" \
+              --arg tag "${{ steps.image.outputs.tag }}" \
+              '{
+                spec: {
+                  source: {
+                    helm: {
+                      parameters: [
+                        {name: "runtime.image.repository", value: $repo},
+                        {name: "runtime.image.tag", value: $tag}
+                      ]
+                    }
+                  }
+                }
+              }'
+          )"
+
+          kubectl -n "${ARGOCD_NAMESPACE}" patch application "${ARGOCD_APP}" --type merge --patch "${patch}"
+          kubectl -n "${ARGOCD_NAMESPACE}" annotate application "${ARGOCD_APP}" \
+            argocd.argoproj.io/refresh=hard \
+            ecoflow-pulse/deployed-services-sha="${{ steps.image.outputs.head_sha }}" \
+            ecoflow-pulse/deployed-services-tag="${{ steps.image.outputs.tag }}" \
+            --overwrite
+
+      - name: Wait for cloud services sync
+        run: make ARGOCD_CLOUD_APPS="${ARGOCD_APP}" argocd-wait-apps-cloud

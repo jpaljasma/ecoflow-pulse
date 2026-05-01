@@ -945,6 +945,16 @@ Notes:
   hosted-image build and pushes the resulting artifact to Artifact Registry.
   The target refreshes Artifact Registry auth from `gcloud auth print-access-token`
   into the repo-local Docker config before pushing.
+- `.github/workflows/cloud-services-deploy.yml` is the hosted main-merge deploy
+  path for Go services. After the `Go Tests` workflow succeeds on a `main`
+  push, it builds and pushes
+  `us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services:cloud-services-<sha>`,
+  patches the live `pulse-services-cloud` Argo Application Helm parameters to
+  that tag, hard-refreshes Argo, and waits for the application to return to
+  `Synced` + `Healthy`. The workflow authenticates with GitHub OIDC secrets
+  `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`; the deploy
+  identity needs Artifact Registry writer, GKE cluster read, and `argocd`
+  namespace RBAC for Argo `Application` patch/read operations.
 - `make public-images-build-local` builds the local public Node images
   `$(PLATFORM_APP_IMAGE_REPO):$(PLATFORM_APP_IMAGE_TAG)` and
   `$(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)` from
