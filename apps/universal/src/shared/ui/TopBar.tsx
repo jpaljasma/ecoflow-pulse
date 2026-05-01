@@ -49,7 +49,7 @@ export function TopBar({
       gap="$4"
     >
       {left ? <XStack>{left}</XStack> : null}
-      <YStack gap={eyebrow ? '$2' : '$1'} flex={titleFlex}>
+      <YStack gap={eyebrow ? '$2' : '$1'} flex={titleFlex} minWidth={0}>
         {eyebrow
           ? typeof eyebrow === 'string' || typeof eyebrow === 'number'
             ? (
@@ -83,7 +83,7 @@ export function TopBar({
           : null}
       </YStack>
       {right ? (
-        <XStack flex={rightFlex} justifyContent="flex-end" alignItems="flex-start">
+        <XStack flex={rightFlex} flexShrink={0} justifyContent="flex-end" alignItems="flex-start">
           {right}
         </XStack>
       ) : null}

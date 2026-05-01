@@ -6,15 +6,12 @@ import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import { Card } from '@/shared/ui/Card';
 import { ChartSection } from '@/shared/ui/ChartSection';
-import { MetricsGrid, type MetricsGridItem } from '@/shared/ui/MetricsGrid';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
-import { Stat } from '@/shared/ui/Stat';
 import { formatKWh, formatW, formatWhAndKWh } from '@/features/telemetry/format';
 import { CachedImage } from '@/shared/ui/CachedImage';
 import { env } from '@/shared/config/env';
 import { useFleetSummaryViewModel, type FleetTypeIcon } from '@/features/devices/view-model';
-import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { useTelemetryFleetTrend, useTelemetrySnapshotsByIds } from '@/features/telemetry/hooks';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useCurrentUser } from '@/features/profile/hooks';
@@ -24,10 +21,22 @@ import { resolveSolarHistoryWindow } from '@/features/history/solar';
 import { useWeatherForecast } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
 import { useThemeSemantics } from '@/shared/theme/semantic';
-import { IconLabel } from '@/shared/ui/IconLabel';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import { SocBar } from '@/shared/ui/SocBar';
+import {
+  buildFleetDevicePreview,
+  resolveFleetDevicePreviewLimit,
+  type FleetDevicePreviewChargeState,
+  type FleetDevicePreviewItem
+} from '@/features/devices/summaryPreview';
+import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
+import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
+import { buildEnergyRouteParams } from '@/features/energy/model';
 
 const SUMMARY_TREND_POINTS = 60;
+const FLEET_TILE_BASIS = 150;
+const FLEET_TILE_MIN_WIDTH = 140;
+const FLEET_TILE_MIN_HEIGHT = 132;
 
 function getMaxSolarWatts(device: DeviceSummary): number | undefined {
   const total = device.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
@@ -107,8 +116,9 @@ function FleetOverviewTile({
   return (
     <YStack
       flexGrow={1}
-      flexBasis={160}
-      minWidth={150}
+      flexBasis={FLEET_TILE_BASIS}
+      minWidth={FLEET_TILE_MIN_WIDTH}
+      minHeight={FLEET_TILE_MIN_HEIGHT}
       gap="$2"
       padding="$3"
       borderRadius="$4"
@@ -140,6 +150,115 @@ function FleetOverviewTile({
         {detail}
       </Text>
     </YStack>
+  );
+}
+
+function FleetDeviceChargeIcon({ state }: { state: FleetDevicePreviewChargeState }) {
+  const semantics = useThemeSemantics();
+  if (state === 'neutral') return null;
+  const isCharging = state === 'charging';
+  const color = isCharging ? semantics.chartBatteryCharge : semantics.chartLoad;
+
+  return (
+    <YStack
+      testID={`fleet-device-preview-${state}-icon`}
+      width={24}
+      height={24}
+      borderRadius={999}
+      alignItems="center"
+      justifyContent="center"
+      style={{ backgroundColor: `${color}1f` }}
+    >
+      <MaterialCommunityIcons
+        name={isCharging ? 'arrow-up-bold' : 'arrow-down-bold'}
+        size={15}
+        color={color}
+      />
+    </YStack>
+  );
+}
+
+function FleetDeviceTile({
+  item,
+  useRemoteImage
+}: {
+  item: FleetDevicePreviewItem;
+  useRemoteImage: boolean;
+}) {
+  const semantics = useThemeSemantics();
+  const { contentWidth } = useNavigationShellMetrics();
+  const isCompact = contentWidth < 640;
+  const { match, imageUri, fallbackSource } = resolveDeviceVisualAssets(item.device, {
+    useRemoteImage,
+    imageContext: 'list'
+  });
+  const imageWellHeight = isCompact ? 60 : 66;
+  const imageSize = isCompact ? 70 : 78;
+  const imageStyle = {
+    width: imageSize,
+    height: imageSize,
+    transform: [{ scale: isCompact ? 1.08 : 1.14 }]
+  };
+
+  return (
+    <Card
+      testID={`fleet-device-preview-${item.id}`}
+      flexGrow={1}
+      flexBasis={FLEET_TILE_BASIS}
+      minWidth={FLEET_TILE_MIN_WIDTH}
+      minHeight={FLEET_TILE_MIN_HEIGHT}
+      gap="$3"
+      padding="$3"
+      justifyContent="space-between"
+      pressStyle={{ scale: 0.995, opacity: 0.95 }}
+      hoverStyle={{
+        transform: [{ translateY: -2 }],
+        shadowOpacity: 0.12,
+        borderColor: '$accentColor'
+      }}
+      onPress={() => router.push(`/device/${item.id}`)}
+      role="button"
+      cursor="pointer"
+      style={{
+        backgroundColor: semantics.tileBackground,
+        borderColor: semantics.tileBorder
+      }}
+    >
+      <YStack
+        height={imageWellHeight}
+        alignItems="center"
+        justifyContent="center"
+        overflow="hidden"
+        style={{ backgroundColor: semantics.mutedPanelBackground }}
+        borderRadius={12}
+      >
+        <YStack
+          width={imageSize}
+          height={imageSize}
+          borderRadius={12}
+          overflow="hidden"
+          alignItems="center"
+          justifyContent="center"
+        >
+          {imageUri ? (
+            <CachedImage uri={imageUri} style={imageStyle} contentFit="contain" />
+          ) : fallbackSource ? (
+            <ExpoImage source={fallbackSource} style={imageStyle} contentFit="contain" />
+          ) : (
+            <MaterialCommunityIcons name={match.glyph.icon} size={22} color={semantics.subtleStrongText} />
+          )}
+        </YStack>
+      </YStack>
+      <YStack gap="$2" minWidth={0}>
+        <XStack alignItems="center" justifyContent="space-between" gap="$2">
+          <Text fontSize={isCompact ? '$2' : '$3'} fontWeight="800" numberOfLines={2} flex={1}>
+            {item.name}
+          </Text>
+          <FleetDeviceChargeIcon state={item.chargeState} />
+        </XStack>
+        <SocBar value={item.batteryPct} fullWidth />
+      </YStack>
+    </Card>
   );
 }
 
@@ -191,14 +310,15 @@ function FleetTypeChip({
 }
 
 export function SummaryPanel({
-  devices
+  devices,
+  onAllDevicesPress
 }: {
   devices: DeviceSummary[];
+  onAllDevicesPress?: () => void;
 }) {
   const semantics = useThemeSemantics();
   const { contentWidth } = useNavigationShellMetrics();
   const isTabletUp = contentWidth >= 768;
-  const isCompact = contentWidth < 720;
   const useRemoteImage = Boolean(env.assetBaseUrl);
   const deviceIds = devices.map((device) => device.id);
   const byId = useTelemetrySnapshotsByIds(deviceIds);
@@ -249,6 +369,11 @@ export function SummaryPanel({
     byId,
     useRemoteImage
   });
+  const previewLimit = resolveFleetDevicePreviewLimit(contentWidth);
+  const previewDevices = useMemo(
+    () => buildFleetDevicePreview(devices, { maxItems: previewLimit, snapshotsById: byId }),
+    [byId, devices, previewLimit]
+  );
   const suppressFleetSolar = useMemo(() => shouldSuppressFleetSolar(devices), [devices]);
   const displayPvW = suppressFleetSolar ? 0 : summary.pvW;
   const displayNetW =
@@ -294,71 +419,6 @@ export function SummaryPanel({
     [byId, devices]
   );
 
-  const telemetryItems = [
-    {
-      key: 'battery',
-      content: (
-        <Stat
-          label={<IconLabel icon="battery-high" label="Battery" />}
-          value={summary.totalCapacityKWh !== null ? formatKWh(summary.totalCapacityKWh) : '—'}
-          compact={isCompact}
-        />
-      )
-    },
-    {
-      key: 'soc',
-      content: <Stat label={<IconLabel icon="gauge" label="SOC" />} value={formatPct(summary.avgSocPct)} compact={isCompact} />
-    },
-    {
-      key: 'net',
-      content: <Stat label={<IconLabel icon="scale-balance" label="Net" />} value={formatW(displayNetW)} compact={isCompact} />
-    },
-    {
-      key: 'ac',
-      content: (
-        <Stat
-          label={<IconLabel icon="power-plug-outline" label="AC" />}
-          value={formatW(summary.acInW)}
-          tone={isMutedMetric(summary.acInW) ? 'muted' : 'default'}
-          compact={isCompact}
-        />
-      )
-    },
-    {
-      key: 'dc',
-      content: (
-        <Stat
-          label={<IconLabel icon="current-dc" label="DC" />}
-          value={formatW(summary.dcW)}
-          tone={isMutedMetric(summary.dcW) ? 'muted' : 'default'}
-          compact={isCompact}
-        />
-      )
-    },
-    {
-      key: 'pv',
-      content: (
-        <Stat
-          label={<IconLabel icon="white-balance-sunny" label="PV" />}
-          value={formatW(displayPvW)}
-          tone={isMutedMetric(displayPvW) ? 'muted' : 'default'}
-          compact={isCompact}
-        />
-      )
-    },
-    {
-      key: 'load',
-      content: (
-        <Stat
-          label={<IconLabel icon="home-outline" label="Load" />}
-          value={formatW(summary.loadW)}
-          tone={isMutedMetric(summary.loadW) ? 'muted' : 'default'}
-          compact={isCompact}
-        />
-      )
-    }
-  ] satisfies MetricsGridItem[];
-
   const overviewTiles = [
     {
       key: 'soc',
@@ -394,6 +454,58 @@ export function SummaryPanel({
     }
   ] as const;
 
+  const solarHistorySection = (
+    <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
+      {fleetSolarHistoryErrorText ? (
+        <Text style={{ color: semantics.subtleText }}>{fleetSolarHistoryErrorText}</Text>
+      ) : (
+        <SolarGeneratedChart
+          valuesWh={fleetSolarHistoryView?.seriesWh}
+          yesterdayValuesWh={fleetSolarHistoryView?.yesterdaySeriesWh}
+          todayWh={fleetSolarHistoryView?.todayWh}
+          yesterdayWh={fleetSolarHistoryView?.yesterdayWh}
+          yesterdayRunningWh={fleetSolarHistoryView?.yesterdayRunningWh}
+          deltaPct={fleetSolarHistoryView?.deltaPct}
+          points={solarHistoryWindow.points}
+          startMinutes={solarHistoryWindow.startMinutes}
+          endMinutes={solarHistoryWindow.endMinutes}
+        />
+      )}
+    </ChartSection>
+  );
+  const livePowerSection = (
+    <ChartSection title="Live Power Profile" subtitle="Fleet load against supply" fill>
+      <PowerTrendChart
+        solar={displayFleetTrendPv}
+        ac={displayFleetTrend.ac}
+        dc={displayFleetTrend.dc}
+        load={displayFleetTrend.load}
+        battery={displayFleetTrend.load.map(() => 0)}
+        points={SUMMARY_TREND_POINTS}
+      />
+    </ChartSection>
+  );
+  const energyImpactSection = (
+    <YStack testID="home-energy-impact" flex={1} height="100%">
+      <EnergyImpactCard
+        solarWh={fleetSolarHistoryView?.todayWh ?? 0}
+        period="today"
+        displayPeriod="today"
+        errorText={fleetSolarHistoryErrorText}
+        variant="summary"
+        fill
+        showPeriodControls={false}
+        energyLinkParams={buildEnergyRouteParams({
+          scope: 'all',
+          preset: 'today',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          includeComparison: true,
+          panel: 'impact'
+        })}
+      />
+    </YStack>
+  );
+
   return (
     <YStack gap="$3">
       <Card
@@ -404,8 +516,8 @@ export function SummaryPanel({
           borderColor: semantics.energyCardBorder
         }}
       >
-        <XStack alignItems="flex-start" justifyContent="space-between" gap="$4" flexWrap="wrap">
-          <YStack gap="$3" flex={1} minWidth={280}>
+        <XStack alignItems="stretch" justifyContent="space-between" gap="$4" flexWrap="wrap">
+          <YStack gap="$3" flex={1.1} minWidth={260} maxWidth={isTabletUp ? 520 : undefined}>
             <Text fontSize="$2" fontWeight="700" textTransform="uppercase" letterSpacing={0.8} style={{ color: semantics.solarBadgeTitle }}>
               Pulse Fleet
             </Text>
@@ -440,7 +552,35 @@ export function SummaryPanel({
             </XStack>
           </YStack>
 
-          <YStack gap="$3" flex={1} minWidth={280} maxWidth={isTabletUp ? 440 : undefined}>
+          <YStack gap="$3" flex={1} minWidth={280} maxWidth={isTabletUp ? 440 : undefined} justifyContent="space-between">
+            <XStack gap="$3" flexWrap="wrap">
+              {previewDevices.map((item) => (
+                <FleetDeviceTile key={item.id} item={item} useRemoteImage={useRemoteImage} />
+              ))}
+            </XStack>
+            <Button
+              size="$4"
+              borderRadius={999}
+              borderWidth={1}
+              paddingHorizontal="$4"
+              minHeight={42}
+              alignSelf="flex-start"
+              style={{
+                backgroundColor: semantics.actionBackground,
+                borderColor: semantics.actionBorder
+              }}
+              onPress={onAllDevicesPress}
+            >
+              <XStack alignItems="center" gap="$2">
+                <MaterialCommunityIcons name="format-list-bulleted" size={18} color={semantics.actionText} />
+                <Text style={{ color: semantics.actionText }} fontWeight="700">
+                  All Devices
+                </Text>
+              </XStack>
+            </Button>
+          </YStack>
+
+          <YStack gap="$3" flex={1} minWidth={280} maxWidth={isTabletUp ? 440 : undefined} justifyContent="space-between">
             <XStack gap="$3" flexWrap="wrap">
               {overviewTiles.map((tile) => (
                 <FleetOverviewTile
@@ -488,80 +628,22 @@ export function SummaryPanel({
       </Card>
 
       {isTabletUp ? (
-        <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
-          <YStack flex={1.2} minWidth={0}>
-            <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
-              {fleetSolarHistoryErrorText ? (
-                <Text style={{ color: semantics.subtleText }}>{fleetSolarHistoryErrorText}</Text>
-              ) : (
-                <SolarGeneratedChart
-                  valuesWh={fleetSolarHistoryView?.seriesWh}
-                  yesterdayValuesWh={fleetSolarHistoryView?.yesterdaySeriesWh}
-                  todayWh={fleetSolarHistoryView?.todayWh}
-                  yesterdayWh={fleetSolarHistoryView?.yesterdayWh}
-                  yesterdayRunningWh={fleetSolarHistoryView?.yesterdayRunningWh}
-                  deltaPct={fleetSolarHistoryView?.deltaPct}
-                  points={solarHistoryWindow.points}
-                  startMinutes={solarHistoryWindow.startMinutes}
-                  endMinutes={solarHistoryWindow.endMinutes}
-                />
-              )}
-            </ChartSection>
-          </YStack>
-          <YStack flex={0.95} minWidth={0} gap="$3">
-            <ChartSection title="Live Power Profile" subtitle="Fleet load against supply">
-              <PowerTrendChart
-                solar={displayFleetTrendPv}
-                ac={displayFleetTrend.ac}
-                dc={displayFleetTrend.dc}
-                load={displayFleetTrend.load}
-                battery={displayFleetTrend.load.map(() => 0)}
-                points={SUMMARY_TREND_POINTS}
-              />
-            </ChartSection>
-            <Card gap="$3" padding="$4" backgroundColor="$backgroundElevated">
-              <Text fontSize="$5" fontWeight="700">
-                Current telemetry
-              </Text>
-              <MetricsGrid items={telemetryItems} columns={2} />
-            </Card>
-          </YStack>
-        </XStack>
+        <YStack gap="$3">
+          {solarHistorySection}
+          <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+            <YStack flex={1} minWidth={0} alignSelf="stretch">
+              {livePowerSection}
+            </YStack>
+            <YStack flex={1} minWidth={0} alignSelf="stretch">
+              {energyImpactSection}
+            </YStack>
+          </XStack>
+        </YStack>
       ) : (
         <YStack gap="$3">
-          <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
-            {fleetSolarHistoryErrorText ? (
-              <Text style={{ color: semantics.subtleText }}>{fleetSolarHistoryErrorText}</Text>
-            ) : (
-              <SolarGeneratedChart
-                valuesWh={fleetSolarHistoryView?.seriesWh}
-                yesterdayValuesWh={fleetSolarHistoryView?.yesterdaySeriesWh}
-                todayWh={fleetSolarHistoryView?.todayWh}
-                yesterdayWh={fleetSolarHistoryView?.yesterdayWh}
-                yesterdayRunningWh={fleetSolarHistoryView?.yesterdayRunningWh}
-                deltaPct={fleetSolarHistoryView?.deltaPct}
-                points={solarHistoryWindow.points}
-                startMinutes={solarHistoryWindow.startMinutes}
-                endMinutes={solarHistoryWindow.endMinutes}
-              />
-            )}
-          </ChartSection>
-          <ChartSection title="Live Power Profile" subtitle="Fleet load against supply">
-            <PowerTrendChart
-              solar={displayFleetTrendPv}
-              ac={displayFleetTrend.ac}
-              dc={displayFleetTrend.dc}
-              load={displayFleetTrend.load}
-              battery={displayFleetTrend.load.map(() => 0)}
-              points={SUMMARY_TREND_POINTS}
-            />
-          </ChartSection>
-          <Card gap="$3" padding="$4" backgroundColor="$backgroundElevated">
-            <Text fontSize="$5" fontWeight="700">
-              Current telemetry
-            </Text>
-            <MetricsGrid items={telemetryItems} columns={isCompact ? 2 : 3} />
-          </Card>
+          {solarHistorySection}
+          {livePowerSection}
+          {energyImpactSection}
         </YStack>
       )}
     </YStack>

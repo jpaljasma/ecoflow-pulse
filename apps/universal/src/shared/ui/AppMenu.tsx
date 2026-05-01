@@ -14,6 +14,7 @@ import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Sheet } from '@/shared/ui/Sheet';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
+import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import appIcon from '../../../assets/icon.png';
 
 function describeQueryError(error: unknown): string | undefined {
@@ -35,6 +36,8 @@ export function AppMenu({
   const { token, authKey, authReady } = useAuthSession();
   const semantics = useThemeSemantics();
   const { spec } = useAppTheme();
+  const { contentWidth } = useNavigationShellMetrics();
+  const showHeaderWeather = contentWidth >= 560;
   const currentUserQuery = useCurrentUser({
     token,
     authKey,
@@ -66,14 +69,16 @@ export function AppMenu({
   return (
     <>
       <XStack gap="$2" alignItems="flex-start">
-        <HeaderWeatherButton
-          forecast={profileWeather.forecastQuery.data?.forecast}
-          solarOutlook={profileWeather.solarOutlook}
-          showConfigure={showConfigureWeather}
-          isLoading={headerWeatherLoading}
-          errorText={headerWeatherError}
-          onPress={() => router.push('/profile')}
-        />
+        {showHeaderWeather ? (
+          <HeaderWeatherButton
+            forecast={profileWeather.forecastQuery.data?.forecast}
+            solarOutlook={profileWeather.solarOutlook}
+            showConfigure={showConfigureWeather}
+            isLoading={headerWeatherLoading}
+            errorText={headerWeatherError}
+            onPress={() => router.push('/profile')}
+          />
+        ) : null}
 
         <Button
           size="$4"

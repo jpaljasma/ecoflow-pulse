@@ -33,6 +33,29 @@ Overview pages use:
 - supporting summary tiles
 - ambient gradients and contextual imagery where useful
 
+Home and fleet overview screens should use the first viewport as an operating
+console, not a sparse landing page.
+
+- Fill wide hero panels with useful navigation and state, not empty center
+  space.
+- Keep the fleet hero anchored by the primary daily solar metric, active device
+  shortcuts, and core metric tiles.
+- Device shortcuts should be image-forward and comparable in footprint to
+  adjacent metric tiles: thumbnail, device name, the shared SOC progress bar,
+  and only a compact state icon when charging or discharging.
+- Device shortcut grids show two items per row, active devices first, with a
+  two-row maximum on desktop/tablet and a one-row maximum on phone layouts.
+- Device shortcuts navigate directly to the device; a separate `All Devices`
+  control should sit below the shortcut grid and jump to the full inventory list
+  on the same page.
+- Solar generation history is the primary day context on the Devices overview
+  and should own a full-width row before secondary widgets.
+- Complementary operational widgets can sit side by side at `50/50` on
+  desktop/tablet with matched card height, and stack on phones. Remove redundant
+  telemetry summaries when the same signal is already present in primary tiles.
+- Optional header chrome must yield on narrow widths before it overlaps the
+  page title or product identity.
+
 ### Analysis
 
 Analysis screens should feel:

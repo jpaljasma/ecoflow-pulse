@@ -6,17 +6,21 @@ export function ChartSection({
   title,
   subtitle,
   right,
-  children
+  children,
+  fill = false
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
+  fill?: boolean;
 }) {
   const semantics = useThemeSemantics();
   return (
     <YStack
+      flex={fill ? 1 : undefined}
       gap="$2"
+      height={fill ? '100%' : undefined}
       padding="$4"
       borderRadius="$4"
       borderWidth={1}

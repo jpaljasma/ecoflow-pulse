@@ -846,57 +846,62 @@ Use this when working on `apps/universal` dashboard layout, telemetry rendering,
    - trendline rendering must be shared (`SparklineTrend`) so Home + Details behave identically,
    - avoid duplicating glyph/render logic in page files.
 
-2. Responsive trend layout rules:
+2. Before changing home, fleet overview, Energy overview, or shared dashboard
+   composition, read:
+   - `apps/universal/AGENTS.md`
+   - `docs/explanation/ui-visual-system.md`
+
+3. Responsive trend layout rules:
    - desktop: 2-column split (`Load Trend` / `PV Trend`, 50/50),
    - mobile: stacked trend containers,
    - trend data must be fixed-length and padded so charts start flat and grow with data.
 
-3. Scroll container rule for web:
+4. Scroll container rule for web:
    - keep app shell fixed,
    - scroll only inside the content pane,
    - enforce `flex: 1` + `minHeight: 0` on wrapper and `overflowY: auto` on web container to avoid resize-related scroll lock.
 
-4. Telemetry visual feedback rules:
+5. Telemetry visual feedback rules:
    - values in `[-0.5, 0.5]` for AC/DC/PV/Load should be muted (label + value),
    - use monochrome glyph labels for tintable icons in muted state,
    - cold temperature (`<= 2C`) should use snowflake + blue style.
 
-5. Mock telemetry mapping rules:
+6. Mock telemetry mapping rules:
    - prefer `telemetry_training.csv` for mock runtime playback,
    - map metrics by device serial and latest timestamp,
    - when multiple pack temps are present in a row, use median.
 
-6. Before every UI commit:
+7. Before every UI commit:
    - run `npm run -w apps/universal typecheck`
    - run `npm run -w apps/universal lint`
-7. Performance defaults for telemetry-heavy screens:
+8. Performance defaults for telemetry-heavy screens:
    - prefer per-device telemetry selectors (`useTelemetryDeviceSnapshot`) over passing large `byId` maps through props,
    - keep fleet/device trend aggregation in telemetry engine/store, not component-local `setInterval` state,
    - avoid page/card-level global rerenders for relative time labels; compute inactivity in snapshots and keep any "time ago" refresh isolated to leaf text components only when needed,
    - use virtualized list rendering on web and native (`FlatList`/virtualized path) instead of manual mapped grids for device cards.
 
-8. Cross-platform image loading rules (web + iOS):
+9. Cross-platform image loading rules (web + iOS):
    - treat brand assets and UI chrome assets as bundled/static first (logos, menu glyphs, icons),
    - for product photos, support bundled fallback for reliability and remote URI only when explicitly configured,
    - always include an error fallback path for fleet summary thumbnails and device cards/details (do not assume URI availability),
    - avoid custom web fetch/blob/object-URL image loops; prefer direct URI rendering with cache-friendly components,
    - if image requests spike, inspect Network for repeated same-filename fetches and verify image source stability per component.
 
-9. iOS layout/safe-area rules:
+10. iOS layout/safe-area rules:
    - top header/logo rows must account for safe area insets to avoid notch overlap,
    - avoid nested `VirtualizedList` inside plain `ScrollView` with same direction (RN warning, broken windowing),
    - keep list/detail scroll behavior explicit per platform (`FlatList` header pattern on index, dedicated scroll container on detail).
 
-10. Navigation interaction rules:
+11. Navigation interaction rules:
    - for iOS close/dismiss from detail, prefer `router.back()` when possible so transition direction feels native,
    - keep replace fallback to home route only when stack back is unavailable.
 
-11. Auth-aware realtime client rules:
+12. Auth-aware realtime client rules:
    - when OIDC is configured, gate both REST queries and websocket connect on persisted auth-store hydration,
    - expose explicit `auth_required` client transport state instead of attempting anonymous realtime fallback,
    - keep websocket lifecycle ownership in the provider/context layer so token refresh/reconnect does not clear per-screen subscriptions.
 
-12. Historical solar metric rules:
+13. Historical solar metric rules:
    - `solar_generated_wh` from backend storage/query results is authoritative for history/comparison views,
    - UI code must never derive historical solar energy from `pvAvgW` or raw power samples,
    - any solar-history repair, gap-fill, or regeneration logic must live in backend ingestion/query/storage paths, not in React components.
