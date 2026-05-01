@@ -217,8 +217,8 @@ Cloud defaults in this branch:
   - replace oversized stateful pools with `stateful-pool-e2`,
     `stateful-pool-ha-e2`, and `stateful-pool-quorum-e2`, each in its matching
     zone with `min=max=1`,
-  - keep the old stateful pool names in affinity during migration so PVC-bound
-    pods can move one ordinal at a time,
+  - keep cloud affinity pointed at the low-cost stateful pool names after the
+    migration is complete,
 - the live cluster that prompted this profile had three app-pool
   `e2-standard-2` nodes plus one `n2-highmem-4` and two `n2d-standard-4`
   stateful nodes; live pod requests and observed memory did not justify the
@@ -276,8 +276,8 @@ Hosted rollout sequence for the multi-zone stateful HA target:
 1. Sync the low-cost Helm overlay first so stateless replicas collapse before
    the cluster scales node pools.
 2. Create replacement `e2-standard-2` stateful pools in the same zones as the
-   existing PVC-backed pools; keep old and new pool names allowed in node
-   affinity during migration.
+   existing PVC-backed pools; during a future migration, old and new pool names
+   can be temporarily allowed in node affinity until the pods have moved.
 3. Move one stateful ordinal or CNPG instance at a time, keeping database,
    JetStream, and Sentinel health green between moves.
 4. Only after the replacement pods are healthy, reduce or delete the oversized
@@ -296,8 +296,6 @@ Expected follow-up after the current hosted cutover:
 - keep CNPG as the largest stateful PVC; database history retention and
   replay metadata belong on the CNPG PVC, while JetStream and Valkey can stay
   materially smaller,
-- remove the legacy oversized stateful pool names from cloud affinity after the
-  live migration is complete and the old pools are deleted,
 - revisit multi-replica public/auth/realtime replicas only when the budget
   allows the larger HA posture again,
 - decide later whether CNPG should migrate from zonal `standard-rwo` to the
