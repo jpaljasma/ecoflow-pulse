@@ -3,10 +3,10 @@
 This runbook captures the low-cost hosted posture for `pulse-cloud` in
 `ecoflow-pulse-dev-260221-01`.
 
-## Current Cost Driver
+## Pre-Right-Sizing Baseline
 
 The hosted cluster is GKE Standard, so the dominant cost follows the VM node
-pools. On 2026-05-01, the live cluster had:
+pools. Before right-sizing on 2026-05-01, the live cluster had:
 
 - `app-pool`: three `e2-standard-2` nodes
 - `stateful-pool`: one `n2-highmem-4` node
@@ -18,7 +18,7 @@ using only a small slice of their requested high-memory/general-purpose
 capacity. The low-cost target is to keep the same stateful application topology
 but run it on small nodes.
 
-## Low-Cost Target
+## Low-Cost Steady State
 
 - App pool: `e2-standard-2`, autoscaling `min=1`, `max=2`
 - Stateful pools: one `e2-standard-2` per stateful zone, `min=max=1`
@@ -171,13 +171,7 @@ done
 kubectl get nodes -L cloud.google.com/gke-nodepool,node.kubernetes.io/instance-type
 ```
 
-2. Remove legacy oversized node-pool names from cloud Helm affinity:
-
-- `stateful-pool`
-- `stateful-pool-ha`
-- `stateful-pool-quorum`
-
-Keep only:
+2. Confirm cloud Helm affinity keeps only the low-cost stateful pools:
 
 - `stateful-pool-e2`
 - `stateful-pool-ha-e2`
@@ -195,9 +189,6 @@ gcloud compute forwarding-rules list \
   --project ecoflow-pulse-dev-260221-01 \
   --format='table(name,region,IPAddress,target.basename(),loadBalancingScheme)'
 ```
-
-4. Commit the cleanup as a small follow-up PR once live verification proves the
-   old pools are gone.
 
 ## Verify
 
