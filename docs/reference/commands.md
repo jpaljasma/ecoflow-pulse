@@ -1263,7 +1263,14 @@ Notes:
   Optional variables:
   - `GKE_CLUSTER_NAME` (default `pulse-dev`)
   - `GKE_CLUSTER_ZONE` (default `us-east1-b`)
-  - `GKE_BASELINE_NODEPOOL` (default `baseline-pool`; use `default-pool` if cluster was created via raw `gcloud container clusters create`)
+  - `GKE_BASELINE_NODEPOOL` (default `baseline-pool`; use `default-pool` if
+    cluster was created via raw `gcloud container clusters create`)
+  Dataplane notes:
+  - `make gke-context` only fetches credentials; it does not create or mutate a
+    cluster dataplane.
+  - Fresh GKE dev clusters should be created from
+    `docs/how-to/setup-gke-dev-project.md`, which explicitly enables GKE
+    Dataplane V2 and alias IPs for new clusters.
 - `make gke-cloud-context` fetches kube credentials for the hosted regional
   cloud cluster.
   Defaults:
