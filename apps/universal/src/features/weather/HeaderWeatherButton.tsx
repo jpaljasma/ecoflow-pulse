@@ -42,6 +42,7 @@ export function HeaderWeatherButton({
     <XStack alignItems="center" gap="$2">
       <PulseStatusDot />
       <Button
+        testID="header-weather-button"
         size="$3"
         onPress={onPress}
         paddingHorizontal="$3"

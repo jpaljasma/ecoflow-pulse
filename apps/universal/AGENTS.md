@@ -19,6 +19,9 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 4. Dashboard design language is documented in
    `docs/explanation/ui-visual-system.md`; read that file before changing home,
    fleet overview, Energy overview, or shared dashboard composition.
+5. For iterative Pulse UI polish, use the project skill at
+   `.codex/skills/pulse-universal-ui-workflow/SKILL.md` so tests, visual QA,
+   docs, and PR packaging follow the same workflow.
 
 ## Home And Dashboard Layout
 1. Treat overview pages as operating consoles:
@@ -41,7 +44,15 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 4. Header chrome must be responsive:
    - hide optional weather/status controls on narrow widths before they overlap
      title, breadcrumb, or product identity,
-   - preserve route controls and current-page context as the priority content.
+   - preserve route controls and current-page context as the priority content,
+   - route the weather/solar header widget into Energy's Solar panel with the
+     current device scope when one is explicit, otherwise fleet scope.
+5. Device detail pages should prioritize hardware state before secondary
+   telemetry:
+   - show battery packs and solar inputs before downstream insight widgets,
+   - pair Energy Impact and Device Solar Forecast as matched-height 50/50 cards
+     on tablet/desktop,
+   - hide redundant live telemetry and diagnostics panels from the default page.
 
 ## Data and Routing
 1. Use canonical UUID device IDs in routes, params, and outbound links.
