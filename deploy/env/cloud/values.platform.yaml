@@ -52,7 +52,7 @@ secretManager:
 runtime:
   publicApp:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     scheduling:
       tolerations: []
       affinity:
@@ -64,12 +64,7 @@ runtime:
                     operator: In
                     values:
                       - app-pool
-                      - stateful-pool-quorum
-      tolerations:
-        - key: workload
-          operator: Equal
-          value: stateful
-          effect: NoSchedule
+                      - app-pool-e2
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -89,7 +84,7 @@ runtime:
               app.kubernetes.io/name: pulse-platform
     pdb:
       enabled: true
-      minAvailable: 1
+      maxUnavailable: 1
     image:
       repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-platform
       tag: cloud-platform-20260430-solar-history-running-wh
@@ -129,7 +124,7 @@ runtime:
         enabled: false
   realtimeGateway:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     scheduling:
       tolerations: []
       affinity:
@@ -141,12 +136,7 @@ runtime:
                     operator: In
                     values:
                       - app-pool
-                      - stateful-pool-quorum
-      tolerations:
-        - key: workload
-          operator: Equal
-          value: stateful
-          effect: NoSchedule
+                      - app-pool-e2
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -166,7 +156,7 @@ runtime:
               app.kubernetes.io/name: pulse-platform
     pdb:
       enabled: true
-      minAvailable: 1
+      maxUnavailable: 1
     image:
       repository: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-realtime-gateway
       tag: main
@@ -222,6 +212,9 @@ nats:
                         - stateful-pool
                         - stateful-pool-ha
                         - stateful-pool-quorum
+                        - stateful-pool-e2
+                        - stateful-pool-ha-e2
+                        - stateful-pool-quorum-e2
   natsBox:
     deployment:
       merge:
@@ -311,6 +304,9 @@ cloudnativepgCluster:
                     - stateful-pool
                     - stateful-pool-ha
                     - stateful-pool-quorum
+                    - stateful-pool-e2
+                    - stateful-pool-ha-e2
+                    - stateful-pool-quorum-e2
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: topology.kubernetes.io/zone
@@ -407,6 +403,9 @@ valkey:
                     - stateful-pool
                     - stateful-pool-ha
                     - stateful-pool-quorum
+                    - stateful-pool-e2
+                    - stateful-pool-ha-e2
+                    - stateful-pool-quorum-e2
     persistence:
       enabled: true
       size: 20Gi
@@ -443,7 +442,7 @@ valkey:
     valkeyShutdownWaitFailover: true
 
 keycloak:
-  replicaCount: 2
+  replicaCount: 1
   useHelmHooks: false
   proxyHeaders: xforwarded
   tolerations:
@@ -460,7 +459,7 @@ keycloak:
                 operator: In
                 values:
                   - app-pool
-                  - stateful-pool-quorum
+                  - app-pool-e2
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: topology.kubernetes.io/zone
@@ -549,8 +548,8 @@ keycloakRealm:
 ingress-nginx:
   controller:
     allowSnippetAnnotations: false
-    replicaCount: 2
-    minAvailable: 1
+    replicaCount: 1
+    maxUnavailable: 1
     config:
       no-tls-redirect-locations: "/.well-known/acme-challenge"
     tolerations:
@@ -567,7 +566,7 @@ ingress-nginx:
                   operator: In
                   values:
                     - app-pool
-                    - stateful-pool-quorum
+                    - app-pool-e2
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: topology.kubernetes.io/zone
@@ -622,7 +621,7 @@ cert-manager:
 
 external-secrets:
   installCRDs: true
-  replicaCount: 2
+  replicaCount: 1
   nodeSelector:
     cloud.google.com/gke-nodepool: app-pool
   tolerations: []
@@ -631,7 +630,7 @@ external-secrets:
     enabled: true
     maxUnavailable: 1
   webhook:
-    replicaCount: 2
+    replicaCount: 1
     nodeSelector:
       cloud.google.com/gke-nodepool: app-pool
     tolerations: []

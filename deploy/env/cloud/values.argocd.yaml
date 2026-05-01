@@ -17,13 +17,13 @@ controller:
     - --repo-server-timeout-seconds=300
 
 repoServer:
-  replicas: 2
+  replicas: 1
   env:
     - name: ARGOCD_EXEC_TIMEOUT
       value: "300"
 
 applicationSet:
-  replicas: 2
+  replicas: 1
 
 dex:
   enabled: false

@@ -28,6 +28,7 @@ This project uses the Diataxis framework for documentation structure.
 - [`how-to/rollout-schema-migrations-dev-staging-prod.md`](how-to/rollout-schema-migrations-dev-staging-prod.md)
 - [`how-to/prepare-pgroll-transition-local.md`](how-to/prepare-pgroll-transition-local.md)
 - [`how-to/migrate-local-data-plane-to-gke-cloud.md`](how-to/migrate-local-data-plane-to-gke-cloud.md)
+- [`how-to/reduce-hosted-gke-cost.md`](how-to/reduce-hosted-gke-cost.md)
 
 ### Reference
 
