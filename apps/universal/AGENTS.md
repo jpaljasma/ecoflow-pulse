@@ -16,6 +16,32 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
    - 44px minimum touch targets,
    - visible focus states on web,
    - do not rely on color alone for meaning.
+4. Dashboard design language is documented in
+   `docs/explanation/ui-visual-system.md`; read that file before changing home,
+   fleet overview, Energy overview, or shared dashboard composition.
+
+## Home And Dashboard Layout
+1. Treat overview pages as operating consoles:
+   - use the first viewport for useful live state and navigation,
+   - avoid sparse middle areas in wide hero panels,
+   - keep decorative treatment secondary to scan speed.
+2. Device shortcut tiles on the Devices home should stay image-forward and DRY:
+   - reuse the shared device-visual resolver for thumbnails and fallbacks,
+   - show thumbnail, name, the shared SOC progress bar, and a compact charging-state icon,
+   - sort active charging/discharging devices first with stable ordering,
+   - cap the preview to two rows on desktop/tablet and one row on phones,
+   - keep shortcut tiles visually comparable to neighboring metric tiles,
+   - place the `All Devices` action below the shortcut grid.
+3. Keep primary and secondary hierarchy clear:
+   - full-width solar generation history before secondary widgets,
+   - pair complementary widgets in a matched-height 50/50 row on desktop/tablet,
+   - stack paired widgets on phones,
+   - remove redundant telemetry cards when existing tiles already carry the
+     signal.
+4. Header chrome must be responsive:
+   - hide optional weather/status controls on narrow widths before they overlap
+     title, breadcrumb, or product identity,
+   - preserve route controls and current-page context as the priority content.
 
 ## Data and Routing
 1. Use canonical UUID device IDs in routes, params, and outbound links.

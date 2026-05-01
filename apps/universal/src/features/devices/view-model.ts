@@ -1,13 +1,12 @@
 import { useMemo } from 'react';
 import type { ComponentProps } from 'react';
+import type { ImageSourcePropType } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { getCapacityKWh } from '@/features/devices/capacity';
-import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { resolveNetPowerW } from '@/features/devices/net';
-import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
-import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
+import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
 
 export type FleetSummaryStats = {
   totalCapacityKWh: number | null;
@@ -23,7 +22,7 @@ export type FleetTypeIcon = {
   key: string;
   label: string;
   uri?: string;
-  fallback?: ReturnType<typeof getBundledDeviceFallback>;
+  fallback?: ImageSourcePropType;
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   active: boolean;
 };
@@ -116,10 +115,10 @@ export function useFleetSummaryViewModel({
     const out: FleetTypeIcon[] = [];
 
     for (const device of devices) {
-      const batteryCount =
-        device.details?.bpCount ??
-        ((device.capabilities as { batteryPacks?: number } | undefined)?.batteryPacks ?? 1);
-      const match = getDeviceAssetMatch(device.model, { batteryCount });
+      const { match, imageUri, fallbackSource } = resolveDeviceVisualAssets(device, {
+        useRemoteImage,
+        imageContext: 'list'
+      });
       const key = typeKey(device.model);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -132,11 +131,8 @@ export function useFleetSummaryViewModel({
       out.push({
         key,
         label: match.glyph.label,
-        uri:
-          useRemoteImage && match.slug
-            ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('list'))
-            : undefined,
-        fallback: match.slug ? getBundledDeviceFallback(match.slug, '256') : undefined,
+        uri: imageUri,
+        fallback: fallbackSource,
         icon: match.glyph.icon,
         active: hasActive
       });

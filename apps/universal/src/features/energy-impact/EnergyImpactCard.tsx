@@ -25,7 +25,8 @@ export function EnergyImpactCard({
   errorText,
   showPeriodControls = true,
   variant = 'detailed',
-  energyLinkParams
+  energyLinkParams,
+  fill = false
 }: {
   solarWh?: number;
   title?: string;
@@ -39,6 +40,7 @@ export function EnergyImpactCard({
   showPeriodControls?: boolean;
   variant?: 'detailed' | 'summary';
   energyLinkParams?: Record<string, string>;
+  fill?: boolean;
 }) {
   const router = useRouter();
   const semantics = useThemeSemantics();
@@ -54,7 +56,10 @@ export function EnergyImpactCard({
   if (variant === 'summary') {
     return (
       <Card
+        flex={fill ? 1 : undefined}
         gap="$3"
+        height={fill ? '100%' : undefined}
+        justifyContent={fill ? 'space-between' : undefined}
         minWidth={minWidth}
         minHeight={280}
         style={{ backgroundColor: semantics.energyCardBackground, borderColor: semantics.energyCardBorder }}
@@ -156,7 +161,13 @@ export function EnergyImpactCard({
   }
 
   return (
-    <Card gap="$3" minWidth={minWidth} style={{ backgroundColor: semantics.energyCardBackground, borderColor: semantics.energyCardBorder }}>
+    <Card
+      flex={fill ? 1 : undefined}
+      gap="$3"
+      height={fill ? '100%' : undefined}
+      minWidth={minWidth}
+      style={{ backgroundColor: semantics.energyCardBackground, borderColor: semantics.energyCardBorder }}
+    >
       <XStack justifyContent="space-between" alignItems="flex-start" gap="$2">
         <XStack alignItems="center" gap="$2">
           <YStack

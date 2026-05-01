@@ -13,12 +13,9 @@ import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
 import { Stat } from '@/shared/ui/Stat';
 import { formatAgo, formatEtaMinutes, formatKWh, formatW, maskSerialNumber } from '@/features/telemetry/format';
-import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { SocBar } from '@/shared/ui/SocBar';
-import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
 import { getStatusIconName } from '@/shared/ui/statusGlyph';
-import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 import { env } from '@/shared/config/env';
 import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
 import { MetricsGrid, type MetricsGridItem } from '@/shared/ui/MetricsGrid';
@@ -30,6 +27,7 @@ import { useDeviceSolarHistory } from '@/features/history/hooks';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { IconLabel } from '@/shared/ui/IconLabel';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
 
 function connectivityGlyph(
   snapshot: DeviceSnapshot | undefined,
@@ -84,22 +82,11 @@ export function DeviceCard({
     loadW,
     fallbackNetW: device.netW
   });
-  const batteryCount =
-    device.details?.bpCount ??
-    ((device.capabilities as { batteryPacks?: number } | undefined)?.batteryPacks ?? 1);
-  const match = getDeviceAssetMatch(device.model, { batteryCount });
   const useRemoteImage = Boolean(env.assetBaseUrl);
-  const imageUri = useMemo(
-    () =>
-      useRemoteImage && match.slug
-        ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize(imageContext))
-        : undefined,
-    [useRemoteImage, match.slug, imageContext]
-  );
-  const fallbackSource = useMemo(
-    () => (match.slug ? getBundledDeviceFallback(match.slug, '256') : undefined),
-    [match.slug]
-  );
+  const { match, imageUri, fallbackSource } = resolveDeviceVisualAssets(device, {
+    useRemoteImage,
+    imageContext
+  });
   const imageBoxSize = isDesktopWide ? 106 : isTabletUp ? 98 : 82;
   const railWidth = isDesktopWide ? 124 : isTabletUp ? 112 : 94;
 

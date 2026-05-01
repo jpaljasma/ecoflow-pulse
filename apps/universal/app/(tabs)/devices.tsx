@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Text, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
@@ -13,10 +13,9 @@ import {
   useTelemetrySubscription
 } from '@/features/telemetry/hooks';
 import { SummaryPanel } from '@/features/devices/SummaryPanel';
-import { DeviceList } from '@/features/devices/DeviceList';
+import { DeviceList, type DeviceListHandle } from '@/features/devices/DeviceList';
 import { AvailableDevicesPanel } from '@/features/devices/AvailableDevicesPanel';
 import { buildStormGuardBanner } from '@/features/devices/stormGuard';
-import { FleetEnergyImpactCard } from '@/features/energy-impact/FleetEnergyImpactCard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
@@ -24,6 +23,7 @@ import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 export default function DevicesScreen() {
   const { contentWidth } = useNavigationShellMetrics();
   const compactHeader = contentWidth < 430;
+  const deviceListRef = useRef<DeviceListHandle>(null);
   const { authConfigured, authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const devicesQuery = useDevices({
@@ -93,13 +93,18 @@ export default function DevicesScreen() {
       {devicesQuery.data ? (
         <YStack flex={1} minHeight={0}>
           <DeviceList
+            ref={deviceListRef}
             devices={devicesQuery.data.devices}
             connectionStatus={connectionStatus}
             header={(
               <YStack marginTop={10} marginBottom="$3" gap="$3">
                 {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
-                <SummaryPanel devices={devicesQuery.data.devices} />
-                <FleetEnergyImpactCard devices={devicesQuery.data.devices} />
+                <SummaryPanel
+                  devices={devicesQuery.data.devices}
+                  onAllDevicesPress={() => {
+                    deviceListRef.current?.scrollToDevices();
+                  }}
+                />
               </YStack>
             )}
             footer={(
