@@ -11,6 +11,20 @@ This config aims to keep costs low while still producing realistic failover beha
 
 ---
 
+## Networking dataplane
+- New GKE clusters should explicitly enable GKE Dataplane V2 with VPC-native
+  alias IPs (`--enable-dataplane-v2`, `--enable-ip-alias`).
+- Existing clusters keep their current dataplane; DPv2 is selected only when a
+  cluster is created.
+- Do not enable or disable legacy Kubernetes network policy flags on DPv2
+  clusters. DPv2 includes Kubernetes NetworkPolicy enforcement, and GKE rejects
+  separate network-policy toggles for that dataplane.
+- Prefer testing Pulse on DPv2 rather than preserving DPv1 by default. Document
+  any temporary DPv1 opt-out with the workload, reproduced failure, and planned
+  removal condition.
+
+---
+
 ## Dev node sizing (cheap)
 Use burstable E2 shared-core where feasible.
 

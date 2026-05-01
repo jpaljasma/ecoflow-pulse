@@ -62,15 +62,45 @@ gcloud services enable \
 
 ## 5. Create the GKE dev cluster (cost-min profile)
 
+Create new GKE dev clusters with GKE Dataplane V2 explicitly enabled. This
+keeps the runbook stable before and after Google's 2027 default change for new
+clusters, and exercises the networking stack future clusters will use by
+default.
+
 ```bash
 gcloud container clusters create "${GKE_CLUSTER_NAME}" \
   --project "${PROJECT_ID}" \
   --zone "${GKE_CLUSTER_ZONE}" \
+  --release-channel regular \
+  --enable-ip-alias \
+  --enable-dataplane-v2 \
   --machine-type e2-medium \
   --num-nodes 2 \
   --enable-autoscaling --min-nodes 2 --max-nodes 4 \
   --workload-pool "${PROJECT_ID}.svc.id.goog"
 ```
+
+Verify the dataplane before installing platform components:
+
+```bash
+gcloud container clusters describe "${GKE_CLUSTER_NAME}" \
+  --project "${PROJECT_ID}" \
+  --zone "${GKE_CLUSTER_ZONE}" \
+  --format='value(networkConfig.datapathProvider)'
+
+make gke-context GKE_PROJECT_ID="${PROJECT_ID}"
+kubectl -n kube-system get pods -l k8s-app=cilium -o wide
+```
+
+Expected:
+
+- datapath provider is `ADVANCED_DATAPATH`
+- `anetd` pods are present in `kube-system`
+
+Do not add a legacy dataplane opt-out unless a specific workload compatibility
+failure has been reproduced and documented. If a temporary DPv1 compatibility
+cluster is required after Google's 2027 default change, use the then-current
+`gcloud` opt-out flag and record the exception in the validation notes.
 
 ## 6. Bootstrap Argo CD and direct apps
 
