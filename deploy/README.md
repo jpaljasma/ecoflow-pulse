@@ -104,6 +104,9 @@ Defaults:
   - `make services-image-push-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>` for a
     repeatable `linux/amd64` cloud services image build + push with Artifact
     Registry auth refreshed from the current `gcloud` session,
+  - `.github/workflows/cloud-services-deploy.yml` for automatic hosted
+    `pulse-services-cloud` deployment after a successful `Go Tests` workflow on
+    `main`,
   - `make cloud-up` for the hosted Argo bootstrap/apply/wait path,
   - `make cloud-refresh` for re-applying hosted Argo apps after branch changes,
   - `make cloud-status` for a quick hosted health snapshot.
