@@ -6,6 +6,7 @@ import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { LogoutButton } from '@/features/auth/LogoutButton';
 import { useCurrentUser } from '@/features/profile/hooks';
+import { buildEnergyRouteParams, detectLocalTimezone } from '@/features/energy/model';
 import { HeaderWeatherButton } from '@/features/weather/HeaderWeatherButton';
 import { useProfileWeather } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
@@ -65,6 +66,19 @@ export function AppMenu({
     currentUserQuery.isLoading ||
     profileWeather.forecastQuery.isLoading ||
     profileWeather.solarOutlookQuery.isLoading;
+  const headerSolarScope = weatherScope === 'device' && weatherDeviceId ? 'device' : 'all';
+  const profileTimezone =
+    typeof currentUserQuery.data?.user.timezone === 'string' && currentUserQuery.data.user.timezone
+      ? currentUserQuery.data.user.timezone
+      : undefined;
+  const headerSolarRouteParams = buildEnergyRouteParams({
+    scope: headerSolarScope,
+    deviceId: headerSolarScope === 'device' ? weatherDeviceId : undefined,
+    preset: 'today',
+    timezone: profileTimezone ?? detectLocalTimezone(),
+    includeComparison: true,
+    panel: 'solar'
+  });
 
   return (
     <>
@@ -76,7 +90,12 @@ export function AppMenu({
             showConfigure={showConfigureWeather}
             isLoading={headerWeatherLoading}
             errorText={headerWeatherError}
-            onPress={() => router.push('/profile')}
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/energy',
+                params: headerSolarRouteParams
+              })
+            }
           />
         ) : null}
 

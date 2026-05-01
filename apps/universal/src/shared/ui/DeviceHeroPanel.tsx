@@ -66,7 +66,7 @@ export function DeviceHeroPanel({
                 height: imageHeight * imageScale,
                 transform: imageOffsetY ? [{ translateY: imageOffsetY }] : undefined
               }}
-              contentFit="cover"
+              contentFit="contain"
               onError={() => setImageFailed(true)}
             />
           ) : fallbackSource ? (
@@ -77,7 +77,7 @@ export function DeviceHeroPanel({
                 height: imageHeight * imageScale,
                 transform: imageOffsetY ? [{ translateY: imageOffsetY }] : undefined
               }}
-              contentFit="cover"
+              contentFit="contain"
             />
           ) : (
             <MaterialCommunityIcons

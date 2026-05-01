@@ -23,11 +23,13 @@ function isHistoryNotFound(error: unknown): boolean {
 export function DeviceEnergyImpactCard({
   deviceId,
   todaySolarWh,
-  variant = 'summary'
+  variant = 'summary',
+  fill = false
 }: {
   deviceId?: string;
   todaySolarWh?: number;
   variant?: 'detailed' | 'summary';
+  fill?: boolean;
 }) {
   const [period, setPeriod] = useState<EnergyImpactPeriod>('today');
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
@@ -77,6 +79,7 @@ export function DeviceEnergyImpactCard({
       isLoading={period === 'past12Months' && pastTwelveMonthsQuery.isFetching}
       errorText={period === 'past12Months' && pastTwelveMonthsQuery.error ? 'Past 12 months history unavailable.' : undefined}
       variant={variant}
+      fill={fill}
       showPeriodControls={variant !== 'summary'}
       energyLinkParams={
         variant === 'summary'

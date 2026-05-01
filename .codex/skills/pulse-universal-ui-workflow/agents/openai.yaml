@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pulse Universal UI Workflow"
+  short_description: "Reusable workflow for Pulse universal-app UI polish."
+  default_prompt: "Polish a Pulse universal-app UI surface using the project workflow."

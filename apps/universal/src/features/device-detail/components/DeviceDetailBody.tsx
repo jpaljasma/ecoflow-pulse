@@ -8,7 +8,6 @@ import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { DeviceEnergyImpactCard } from '@/features/energy-impact/DeviceEnergyImpactCard';
 import { buildStormGuardLabel } from '@/features/devices/stormGuard';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
-import { DiagnosticsSection } from '@/features/device-detail/components/DiagnosticsSection';
 import { DeviceSolarForecastCard } from '@/features/device-detail/components/DeviceSolarForecastCard';
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
@@ -21,41 +20,13 @@ import { useThemeSemantics } from '@/shared/theme/semantic';
 import { Card } from '@/shared/ui/Card';
 import { ChartSection } from '@/shared/ui/ChartSection';
 import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
-import { IconLabel } from '@/shared/ui/IconLabel';
-import { MetricsGrid, type MetricsGridItem } from '@/shared/ui/MetricsGrid';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
-import { Stat } from '@/shared/ui/Stat';
 import { StormGuardChip } from '@/shared/ui/StormGuardChip';
 
 const DETAIL_TREND_POINTS = 60;
-
-function metricLabel(label: string) {
-  switch (label) {
-    case 'AC':
-      return <IconLabel icon="power-plug-outline" label="AC" />;
-    case 'DC':
-      return <IconLabel icon="current-dc" label="DC" />;
-    case 'PV':
-      return <IconLabel icon="white-balance-sunny" label="PV" />;
-    case 'Load':
-      return <IconLabel icon="home-outline" label="Load" />;
-    case 'Net':
-      return <IconLabel icon="scale-balance" label="Net" />;
-    case 'Battery':
-      return <IconLabel icon="battery-high" label="Battery" />;
-    case 'Temp':
-      return <IconLabel icon="thermometer" label="Temp" />;
-    case 'State':
-      return <IconLabel icon="checkbox-blank-circle-outline" label="State" />;
-    case 'ETA':
-      return <IconLabel icon="timer-sand" label="ETA" />;
-    default:
-      return label;
-  }
-}
 
 function formatDeltaSummary(deltaPct: number | null | undefined): string {
   if (deltaPct === null || deltaPct === undefined || Number.isNaN(deltaPct)) {
@@ -80,7 +51,7 @@ function connectionSummary(snapshot?: DeviceSnapshot): string {
   if (!snapshot) return 'Waiting for telemetry';
   if (snapshot.inactive || !snapshot.online) return 'Live data paused';
   if (snapshot.stale) return 'Awaiting next telemetry update';
-  return 'Live telemetry active';
+  return 'Realtime active';
 }
 
 function resolveDetailSoc(
@@ -268,27 +239,6 @@ export function DeviceDetailBody({
   const stateLabel = detailStateLabel(vm.detailState);
   const liveSummary = connectionSummary(snapshot);
 
-  const detailMetricItems: MetricsGridItem[] = vm.metricCells.flatMap((cell) => {
-    if (
-      cell.kind === 'today' ||
-      cell.key === 'pv' ||
-      cell.key === 'load' ||
-      cell.key === 'net' ||
-      cell.key === 'state'
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        key: cell.key,
-        content: (
-          <Stat label={metricLabel(cell.label)} value={cell.value} tone={cell.tone ?? 'default'} />
-        )
-      }
-    ];
-  });
-
   const heroTiles = [
     {
       key: 'today',
@@ -327,7 +277,6 @@ export function DeviceDetailBody({
   const hasBatteryPacks = vm.batteryPacks.length > 0 || typeof vm.details?.bpCount === 'number';
   const hasSolarInputs = vm.solarPorts.length > 0;
   const hasSignals = vm.signalPills.length > 0;
-  const hasDiagnostics = vm.diagnosticPills.length > 0;
 
   return (
     <YStack gap="$3">
@@ -576,44 +525,6 @@ export function DeviceDetailBody({
         </YStack>
       )}
 
-      <Card gap="$3" padding="$4" backgroundColor="$backgroundElevated">
-        <Text fontSize="$5" fontWeight="700">
-          Live telemetry
-        </Text>
-        <Text fontSize="$3" style={{ color: semantics.subtleText }}>
-          AC, DC, battery, thermal, and runtime signals for the current device state.
-        </Text>
-        <MetricsGrid items={detailMetricItems} columns={isDesktop ? 3 : isTablet ? 3 : 2} />
-      </Card>
-
-      {isTablet ? (
-        <XStack gap="$3" alignItems="stretch" flexWrap="wrap">
-          <YStack flex={1} minWidth={isDesktop ? 360 : 320}>
-            <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
-          </YStack>
-          <YStack flex={1} minWidth={isDesktop ? 360 : 320}>
-            <DeviceSolarForecastCard
-              deviceName={device?.name}
-              deviceId={device?.id}
-              solarOutlook={solarOutlook}
-              isLoading={solarOutlookLoading}
-              errorText={solarOutlookErrorText}
-            />
-          </YStack>
-        </XStack>
-      ) : (
-        <YStack gap="$3">
-          <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
-          <DeviceSolarForecastCard
-            deviceName={device?.name}
-            deviceId={device?.id}
-            solarOutlook={solarOutlook}
-            isLoading={solarOutlookLoading}
-            errorText={solarOutlookErrorText}
-          />
-        </YStack>
-      )}
-
       {hasBatteryPacks || hasSolarInputs ? (
         <XStack gap="$3" flexWrap="wrap">
           {hasBatteryPacks ? (
@@ -633,15 +544,40 @@ export function DeviceDetailBody({
         </XStack>
       ) : null}
 
+      {isTablet ? (
+        <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+          <YStack testID="device-energy-impact-panel" flex={1} minWidth={0} alignSelf="stretch">
+            <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} fill />
+          </YStack>
+          <YStack testID="device-solar-forecast-panel" flex={1} minWidth={0} alignSelf="stretch">
+            <DeviceSolarForecastCard
+              deviceName={device?.name}
+              deviceId={device?.id}
+              solarOutlook={solarOutlook}
+              isLoading={solarOutlookLoading}
+              errorText={solarOutlookErrorText}
+              fill
+            />
+          </YStack>
+        </XStack>
+      ) : (
+        <YStack gap="$3">
+          <YStack testID="device-energy-impact-panel">
+            <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
+          </YStack>
+          <DeviceSolarForecastCard
+            deviceName={device?.name}
+            deviceId={device?.id}
+            solarOutlook={solarOutlook}
+            isLoading={solarOutlookLoading}
+            errorText={solarOutlookErrorText}
+          />
+        </YStack>
+      )}
+
       {hasSignals ? (
         <XStack gap="$3" flexWrap="wrap">
           <SystemSignalsSection pills={vm.signalPills} minWidth={isDesktop ? 360 : 280} />
-        </XStack>
-      ) : null}
-
-      {hasDiagnostics ? (
-        <XStack gap="$3" flexWrap="wrap">
-          <DiagnosticsSection pills={vm.diagnosticPills} minWidth={isDesktop ? 360 : 280} />
         </XStack>
       ) : null}
     </YStack>

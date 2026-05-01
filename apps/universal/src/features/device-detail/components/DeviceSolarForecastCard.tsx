@@ -16,13 +16,15 @@ export function DeviceSolarForecastCard({
   deviceId,
   solarOutlook,
   isLoading,
-  errorText
+  errorText,
+  fill = false
 }: {
   deviceName?: string;
   deviceId?: string;
   solarOutlook?: SolarOutlook;
   isLoading?: boolean;
   errorText?: string;
+  fill?: boolean;
 }) {
   if (!isLoading && !solarOutlook && !errorText) {
     return null;
@@ -34,7 +36,7 @@ export function DeviceSolarForecastCard({
   const provenanceSummary = formatSolarProvenanceSummary(solarOutlook);
 
   return (
-    <Card gap="$3">
+    <Card flex={fill ? 1 : undefined} height={fill ? '100%' : undefined} justifyContent={fill ? 'space-between' : undefined} minHeight={280} gap="$3">
       <YStack gap="$1">
         <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
           <XStack alignItems="center" gap="$2">

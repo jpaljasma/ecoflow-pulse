@@ -180,6 +180,17 @@ Within Energy, the experience is split into three deep-linkable panes:
 Compact Energy Impact widgets on Devices and per-device pages should stay summary-only
 and link into the full `Energy > Impact` pane using the current fleet or device scope.
 
+Device detail pages should read as hardware-first operating views.
+
+- Battery Packs and Solar Inputs belong before secondary insight widgets.
+- Redundant live-telemetry and diagnostic panels should stay hidden from the
+  default detail view when their signal is already represented in hero tiles,
+  hardware sections, or System Signals.
+- Energy Impact and Device Solar Forecast should sit side by side at `50/50`
+  with matched height on tablet/desktop, then stack on phones.
+- Shared header weather/solar chrome should open `Energy > Solar` with device
+  scope on device pages and fleet scope elsewhere.
+
 Settings subpages should follow the same shell contract:
 
 - sidebar-visible on larger layouts
