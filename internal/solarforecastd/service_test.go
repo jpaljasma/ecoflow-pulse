@@ -113,6 +113,219 @@ func TestGetSolarOutlookPersistsTrainingRunForAllScope(t *testing.T) {
 	}
 }
 
+func TestGetSolarOutlookKeepsAggregateSummedPVMaxRecoveryBounded(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 4, 30, 16, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	weather := &stubWeatherForecaster{
+		bundle: testBundle(nowUTC, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
+	}
+	query := &stubTelemetryReader{
+		aggregateSeries: telemetryquery.Series{
+			DeviceID:   "dev-a,dev-b",
+			Resolution: telemetryquery.ResolutionHour,
+			Points: []telemetryquery.Point{
+				{
+					BucketStart: time.Date(2026, 4, 30, 13, 0, 0, 0, time.UTC),
+					BucketEnd:   time.Date(2026, 4, 30, 14, 0, 0, 0, time.UTC),
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(7100),
+						PVAvgW:           float64Ptr(2500),
+						SolarGeneratedWh: float64Ptr(2480),
+					},
+				},
+				{
+					BucketStart: time.Date(2026, 4, 30, 14, 0, 0, 0, time.UTC),
+					BucketEnd:   time.Date(2026, 4, 30, 15, 0, 0, 0, time.UTC),
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(7400),
+						PVAvgW:           float64Ptr(2550),
+						SolarGeneratedWh: float64Ptr(2530),
+					},
+				},
+				{
+					BucketStart: time.Date(2026, 4, 30, 15, 0, 0, 0, time.UTC),
+					BucketEnd:   time.Date(2026, 4, 30, 16, 0, 0, 0, time.UTC),
+					Metrics: telemetryquery.Metrics{
+						PVMaxW:           float64Ptr(7600),
+						PVAvgW:           float64Ptr(2700),
+						SolarGeneratedWh: float64Ptr(2680),
+					},
+				},
+			},
+		},
+	}
+	store := &capturingTrainingStore{
+		servingState: &ServingState{
+			SiteKey:                 "grid:42.61:-77.40:290|tilt:45|az:0|dev-a,dev-b",
+			ForecastVersion:         "deterministic_baseline_v1",
+			Timezone:                "America/New_York",
+			PotentialFinalEnvelopeW: float64Ptr(1510),
+			UpdatedAt:               nowUTC.Add(-time.Hour),
+		},
+	}
+	svc, err := NewService(weather, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(prometheus.NewRegistry()),
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	outlook, err := svc.GetSolarOutlook(context.Background(), Input{
+		WeatherRequest: weatherd.Request{
+			Latitude:   42.61,
+			Longitude:  -77.40,
+			Timezone:   "America/New_York",
+			UnitSystem: weatherd.UnitSystemMetric,
+		},
+		Scope:             Scope{Mode: "all"},
+		ResolvedDeviceIDs: []string{"dev-b", "dev-a"},
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+	if outlook.Capacity.EstimatedPeakWatts == nil {
+		t.Fatal("capacity estimated peak = nil, want value")
+	}
+	recoveryCeiling := math.Min(7600.0, 1510.0*observedPeakRecoveryScale)
+	wantEstimate := roundWatts(1510 + ((recoveryCeiling - 1510) * observedPeakRecoveryWeight))
+	if *outlook.Capacity.EstimatedPeakWatts != wantEstimate {
+		t.Fatalf("capacity estimated peak = %v, want bounded aggregate recovery %v", *outlook.Capacity.EstimatedPeakWatts, wantEstimate)
+	}
+}
+
+func TestGetSolarOutlookKeepsDeviceAllocatedSummedPVMaxRecoveryBounded(t *testing.T) {
+	t.Parallel()
+
+	nowUTC := time.Date(2026, 4, 30, 16, 0, 0, 0, time.UTC)
+	loc := mustLocation(t, "America/New_York")
+	weather := &stubWeatherForecaster{
+		bundle: testBundle(nowUTC, loc, "grid:42.61:-77.40:290|tilt:45|az:0"),
+	}
+	devicePoints := []telemetryquery.Point{
+		{
+			BucketStart: time.Date(2026, 4, 30, 13, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 4, 30, 14, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1000),
+				SolarGeneratedWh: float64Ptr(1000),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 4, 30, 14, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 4, 30, 15, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1000),
+				SolarGeneratedWh: float64Ptr(1000),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 4, 30, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 4, 30, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVAvgW:           float64Ptr(1000),
+				SolarGeneratedWh: float64Ptr(1000),
+			},
+		},
+	}
+	sitePoints := []telemetryquery.Point{
+		{
+			BucketStart: time.Date(2026, 4, 30, 13, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 4, 30, 14, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVMaxW:           float64Ptr(7100),
+				PVAvgW:           float64Ptr(2000),
+				SolarGeneratedWh: float64Ptr(2000),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 4, 30, 14, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 4, 30, 15, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVMaxW:           float64Ptr(7400),
+				PVAvgW:           float64Ptr(2000),
+				SolarGeneratedWh: float64Ptr(2000),
+			},
+		},
+		{
+			BucketStart: time.Date(2026, 4, 30, 15, 0, 0, 0, time.UTC),
+			BucketEnd:   time.Date(2026, 4, 30, 16, 0, 0, 0, time.UTC),
+			Metrics: telemetryquery.Metrics{
+				PVMaxW:           float64Ptr(7600),
+				PVAvgW:           float64Ptr(2000),
+				SolarGeneratedWh: float64Ptr(2000),
+			},
+		},
+	}
+	query := &stubTelemetryReader{
+		queryRangeFn: func(_ context.Context, q telemetryquery.RangeQuery) (telemetryquery.Series, error) {
+			return telemetryquery.Series{
+				DeviceID:   q.DeviceID,
+				Resolution: telemetryquery.ResolutionHour,
+				Points:     devicePoints,
+			}, nil
+		},
+		queryRangeManyFn: func(_ context.Context, q telemetryquery.AggregateRangeQuery) (telemetryquery.Series, error) {
+			return telemetryquery.Series{
+				DeviceID:   q.AggregateID,
+				Resolution: telemetryquery.ResolutionHour,
+				Points:     sitePoints,
+			}, nil
+		},
+	}
+	store := &capturingTrainingStore{
+		servingState: &ServingState{
+			SiteKey:                 "grid:42.61:-77.40:290|tilt:45|az:0|dev-a,dev-b",
+			ForecastVersion:         "deterministic_baseline_v1",
+			Timezone:                "America/New_York",
+			PotentialFinalEnvelopeW: float64Ptr(1510),
+			UpdatedAt:               nowUTC.Add(-time.Hour),
+		},
+	}
+	svc, err := NewService(weather, query, Config{
+		Log:                   slog.New(slog.NewTextHandler(testWriter{t}, nil)),
+		Store:                 store,
+		Metrics:               NewMetrics(prometheus.NewRegistry()),
+		NowFn:                 func() time.Time { return nowUTC },
+		PersistTrainingInline: true,
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	outlook, err := svc.GetSolarOutlook(context.Background(), Input{
+		WeatherRequest: weatherd.Request{
+			Latitude:   42.61,
+			Longitude:  -77.40,
+			Timezone:   "America/New_York",
+			UnitSystem: weatherd.UnitSystemMetric,
+		},
+		Scope:                 Scope{Mode: "device", DeviceID: "dev-a"},
+		ResolvedDeviceIDs:     []string{"dev-a"},
+		SiteResolvedDeviceIDs: []string{"dev-a", "dev-b"},
+	})
+	if err != nil {
+		t.Fatalf("GetSolarOutlook() error = %v", err)
+	}
+	if outlook.Capacity.EstimatedPeakWatts == nil {
+		t.Fatal("capacity estimated peak = nil, want value")
+	}
+	if got, want := outlook.Capacity.Method, "rolling_observed_p95_and_irradiance_device_share"; got != want {
+		t.Fatalf("capacity method = %q, want %q", got, want)
+	}
+	recoveryCeiling := math.Min(7600.0, 1510.0*observedPeakRecoveryScale)
+	boundedSiteEstimate := roundWatts(1510 + ((recoveryCeiling - 1510) * observedPeakRecoveryWeight))
+	wantEstimate := math.Max(roundWatts(boundedSiteEstimate*0.5), 1000)
+	if *outlook.Capacity.EstimatedPeakWatts != wantEstimate {
+		t.Fatalf("capacity estimated peak = %v, want bounded device allocation %v", *outlook.Capacity.EstimatedPeakWatts, wantEstimate)
+	}
+}
+
 func TestGetSolarOutlookPersistsRunUsingUpstreamIssueTimeAndCanonicalRunID(t *testing.T) {
 	t.Parallel()
 
