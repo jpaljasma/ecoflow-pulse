@@ -145,10 +145,10 @@ runtime:
           enabled: false
     grpcApi:
       enabled: true
-      replicaCount: 2
+      replicaCount: 1
       pdb:
         enabled: true
-        minAvailable: 1
+        maxUnavailable: 1
       solarForecastVerificationInterval: "0s"
       weatherRefreshInterval: "0s"
       metrics:
@@ -168,10 +168,10 @@ runtime:
       replicaCount: 1
     energyApi:
       enabled: true
-      replicaCount: 2
+      replicaCount: 1
       pdb:
         enabled: true
-        minAvailable: 1
+        maxUnavailable: 1
       metrics:
         enabled: true
         serviceMonitor:
