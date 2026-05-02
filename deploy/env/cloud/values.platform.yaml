@@ -212,6 +212,9 @@ nats:
                         - stateful-pool-e2
                         - stateful-pool-ha-e2
                         - stateful-pool-quorum-e2
+                        - stateful-pool-medium
+                        - stateful-pool-ha-medium
+                        - stateful-pool-quorum-medium
   natsBox:
     deployment:
       merge:
@@ -301,6 +304,9 @@ cloudnativepgCluster:
                     - stateful-pool-e2
                     - stateful-pool-ha-e2
                     - stateful-pool-quorum-e2
+                    - stateful-pool-medium
+                    - stateful-pool-ha-medium
+                    - stateful-pool-quorum-medium
   topologySpreadConstraints:
     - maxSkew: 1
       topologyKey: topology.kubernetes.io/zone
@@ -397,6 +403,9 @@ valkey:
                     - stateful-pool-e2
                     - stateful-pool-ha-e2
                     - stateful-pool-quorum-e2
+                    - stateful-pool-medium
+                    - stateful-pool-ha-medium
+                    - stateful-pool-quorum-medium
     persistence:
       enabled: true
       size: 20Gi
