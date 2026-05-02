@@ -209,9 +209,6 @@ nats:
                     - key: cloud.google.com/gke-nodepool
                       operator: In
                       values:
-                        - stateful-pool-e2
-                        - stateful-pool-ha-e2
-                        - stateful-pool-quorum-e2
                         - stateful-pool-medium
                         - stateful-pool-ha-medium
                         - stateful-pool-quorum-medium
@@ -301,9 +298,6 @@ cloudnativepgCluster:
                 - key: cloud.google.com/gke-nodepool
                   operator: In
                   values:
-                    - stateful-pool-e2
-                    - stateful-pool-ha-e2
-                    - stateful-pool-quorum-e2
                     - stateful-pool-medium
                     - stateful-pool-ha-medium
                     - stateful-pool-quorum-medium
@@ -400,9 +394,6 @@ valkey:
                 - key: cloud.google.com/gke-nodepool
                   operator: In
                   values:
-                    - stateful-pool-e2
-                    - stateful-pool-ha-e2
-                    - stateful-pool-quorum-e2
                     - stateful-pool-medium
                     - stateful-pool-ha-medium
                     - stateful-pool-quorum-medium
