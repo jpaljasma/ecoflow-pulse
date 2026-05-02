@@ -21,7 +21,7 @@ but run it on small nodes.
 ## Low-Cost Steady State
 
 - App pool: `e2-standard-2`, autoscaling `min=1`, `max=2`
-- Stateful pools: one `e2-standard-2` per stateful zone, `min=max=1`
+- Stateful pools: one shared-core `e2-medium` per stateful zone, `min=max=1`
 - Platform replicas:
   - public app `1`
   - realtime gateway `1`
@@ -41,8 +41,10 @@ Using the public Compute Engine SKU model returned by the Cloud Billing Catalog
 API for Americas on 2026-05-01, the live node mix is roughly `$0.80/hour` before
 disks, load balancers, GKE management fees, logging, or traffic. Four
 `e2-standard-2` nodes are roughly `$0.27/hour` and five are roughly
-`$0.34/hour`, so the low-cost target cuts VM spend by about 58-66% depending on
-whether the app pool needs one or two nodes.
+`$0.34/hour`. With two app-pool `e2-standard-2` nodes and three shared-core
+`e2-medium` stateful nodes, the target is roughly `$0.23/hour`, cutting VM
+spend by about 70% before disks, load balancers, GKE management fees, logging,
+or traffic.
 
 ## Apply the Overlay
 
@@ -79,15 +81,15 @@ gcloud container node-pools update app-pool \
   --max-nodes 2
 ```
 
-Create one low-cost replacement stateful pool per existing stateful zone:
+Create one shared-core replacement stateful pool per existing stateful zone:
 
 ```bash
-gcloud container node-pools create stateful-pool-e2 \
+gcloud container node-pools create stateful-pool-medium \
   --cluster pulse-cloud \
   --region us-east1 \
   --node-locations us-east1-c \
   --project ecoflow-pulse-dev-260221-01 \
-  --machine-type e2-standard-2 \
+  --machine-type e2-medium \
   --disk-type pd-balanced \
   --disk-size 50 \
   --num-nodes 1 \
@@ -96,12 +98,12 @@ gcloud container node-pools create stateful-pool-e2 \
   --total-max-nodes 1 \
   --node-taints workload=stateful:NoSchedule
 
-gcloud container node-pools create stateful-pool-ha-e2 \
+gcloud container node-pools create stateful-pool-ha-medium \
   --cluster pulse-cloud \
   --region us-east1 \
   --node-locations us-east1-d \
   --project ecoflow-pulse-dev-260221-01 \
-  --machine-type e2-standard-2 \
+  --machine-type e2-medium \
   --disk-type pd-balanced \
   --disk-size 50 \
   --num-nodes 1 \
@@ -110,12 +112,12 @@ gcloud container node-pools create stateful-pool-ha-e2 \
   --total-max-nodes 1 \
   --node-taints workload=stateful:NoSchedule
 
-gcloud container node-pools create stateful-pool-quorum-e2 \
+gcloud container node-pools create stateful-pool-quorum-medium \
   --cluster pulse-cloud \
   --region us-east1 \
   --node-locations us-east1-b \
   --project ecoflow-pulse-dev-260221-01 \
-  --machine-type e2-standard-2 \
+  --machine-type e2-medium \
   --disk-type pd-balanced \
   --disk-size 50 \
   --num-nodes 1 \
@@ -137,21 +139,21 @@ kubectl -n pulse-platform get pods -o wide
 kubectl -n pulse-platform get cluster,pod,pvc
 ```
 
-After all PVC-backed pods are healthy on the low-cost pools, delete the old
-oversized pools:
+After all PVC-backed pods are healthy on the shared-core pools, delete the old
+stateful pools:
 
 ```bash
-gcloud container node-pools delete stateful-pool \
+gcloud container node-pools delete stateful-pool-e2 \
   --cluster pulse-cloud \
   --region us-east1 \
   --project ecoflow-pulse-dev-260221-01
 
-gcloud container node-pools delete stateful-pool-ha \
+gcloud container node-pools delete stateful-pool-ha-e2 \
   --cluster pulse-cloud \
   --region us-east1 \
   --project ecoflow-pulse-dev-260221-01
 
-gcloud container node-pools delete stateful-pool-quorum \
+gcloud container node-pools delete stateful-pool-quorum-e2 \
   --cluster pulse-cloud \
   --region us-east1 \
   --project ecoflow-pulse-dev-260221-01
@@ -165,7 +167,7 @@ there are no dangling edges or stragglers.
 1. Confirm no workloads still reference or run on old pools:
 
 ```bash
-for pool in stateful-pool stateful-pool-ha stateful-pool-quorum; do
+for pool in stateful-pool-e2 stateful-pool-ha-e2 stateful-pool-quorum-e2; do
   kubectl get nodes -l "cloud.google.com/gke-nodepool=${pool}" -o wide
 done
 kubectl get nodes -L cloud.google.com/gke-nodepool,node.kubernetes.io/instance-type
@@ -173,9 +175,9 @@ kubectl get nodes -L cloud.google.com/gke-nodepool,node.kubernetes.io/instance-t
 
 2. Confirm cloud Helm affinity keeps only the low-cost stateful pools:
 
-- `stateful-pool-e2`
-- `stateful-pool-ha-e2`
-- `stateful-pool-quorum-e2`
+- `stateful-pool-medium`
+- `stateful-pool-ha-medium`
+- `stateful-pool-quorum-medium`
 
 3. Check for orphaned storage or load-balancer resources:
 
@@ -200,5 +202,6 @@ kubectl -n pulse-services get deploy,pods
 kubectl -n argocd get applications.argoproj.io pulse-platform-cloud pulse-services-cloud
 ```
 
-The steady state should have no `n2-highmem-4` or `n2d-standard-4` nodes unless
-there is an intentional temporary migration window.
+The steady state should have no `n2-highmem-4`, `n2d-standard-4`, or
+stateful `e2-standard-2` nodes unless there is an intentional temporary
+migration window.

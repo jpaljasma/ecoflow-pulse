@@ -212,19 +212,20 @@ Cloud defaults in this branch:
   solar verification `1`,
 - Argo CD cloud bootstrap keeps the application controller, repo server, and
   ApplicationSet controller single-replica,
-- the low-cost node target is `e2-standard-2` for all always-on pools:
+- the low-cost node target keeps app workloads on `e2-standard-2` and trials
+  shared-core `e2-medium` for the stateful quorum pools:
   - keep `app-pool` on `e2-standard-2`,
-  - replace oversized stateful pools with `stateful-pool-e2`,
-    `stateful-pool-ha-e2`, and `stateful-pool-quorum-e2`, each in its matching
-    zone with `min=max=1`,
-  - keep cloud affinity pointed at the low-cost stateful pool names after the
-    migration is complete,
+  - replace the current `e2-standard-2` stateful pools with
+    `stateful-pool-medium`, `stateful-pool-ha-medium`, and
+    `stateful-pool-quorum-medium`, each in its matching zone with `min=max=1`,
+  - keep the existing `stateful-pool-*-e2` names temporarily allowed during
+    migration so PVC-backed pods can move one ordinal at a time,
 - the live cluster that prompted this profile had three app-pool
   `e2-standard-2` nodes plus one `n2-highmem-4` and two `n2d-standard-4`
   stateful nodes; live pod requests and observed memory did not justify the
   high-memory/general-purpose stateful shape,
-- the expected steady low-cost shape is four or five `e2-standard-2` nodes:
-  one or two app nodes plus one small stateful node in each stateful zone,
+- the expected steady low-cost shape is one or two `e2-standard-2` app nodes
+  plus one `e2-medium` shared-core stateful node in each stateful zone,
 - the profile keeps the stateful application topology intact while right-sizing
   the nodes:
   - CNPG remains `2` instances with zone-aware anti-affinity,
@@ -275,13 +276,13 @@ Hosted rollout sequence for the multi-zone stateful HA target:
 
 1. Sync the low-cost Helm overlay first so stateless replicas collapse before
    the cluster scales node pools.
-2. Create replacement `e2-standard-2` stateful pools in the same zones as the
+2. Create replacement `e2-medium` stateful pools in the same zones as the
    existing PVC-backed pools; during a future migration, old and new pool names
    can be temporarily allowed in node affinity until the pods have moved.
 3. Move one stateful ordinal or CNPG instance at a time, keeping database,
    JetStream, and Sentinel health green between moves.
-4. Only after the replacement pods are healthy, reduce or delete the oversized
-   `n2-highmem-4` / `n2d-standard-4` pools.
+4. Only after the replacement pods are healthy, delete the superseded stateful
+   pools from the previous machine class.
 5. Treat the `standard-rwo-regional` storage class as an opt-in recovery-time
    migration target, not as part of the cost-cutting path.
 
