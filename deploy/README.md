@@ -212,14 +212,11 @@ Cloud defaults in this branch:
   solar verification `1`,
 - Argo CD cloud bootstrap keeps the application controller, repo server, and
   ApplicationSet controller single-replica,
-- the low-cost node target keeps app workloads on `e2-standard-2` and trials
-  shared-core `e2-medium` for the stateful quorum pools:
+- the low-cost node target keeps app workloads on `e2-standard-2` and runs
+  the stateful quorum pools on shared-core `e2-medium` nodes:
   - keep `app-pool` on `e2-standard-2`,
-  - replace the current `e2-standard-2` stateful pools with
-    `stateful-pool-medium`, `stateful-pool-ha-medium`, and
+  - keep `stateful-pool-medium`, `stateful-pool-ha-medium`, and
     `stateful-pool-quorum-medium`, each in its matching zone with `min=max=1`,
-  - keep the existing `stateful-pool-*-e2` names temporarily allowed during
-    migration so PVC-backed pods can move one ordinal at a time,
 - the live cluster that prompted this profile had three app-pool
   `e2-standard-2` nodes plus one `n2-highmem-4` and two `n2d-standard-4`
   stateful nodes; live pod requests and observed memory did not justify the
