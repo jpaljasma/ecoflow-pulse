@@ -1,7 +1,6 @@
 import type { ComponentProps } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -22,6 +21,7 @@ import { ChartSection } from '@/shared/ui/ChartSection';
 import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
+import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { StormGuardChip } from '@/shared/ui/StormGuardChip';
@@ -283,46 +283,43 @@ export function DeviceDetailBody({
       <Card
         gap="$4"
         padding={isTablet ? '$5' : '$4'}
-        style={
-          Platform.OS === 'web'
-            ? {
-                backgroundImage: `${semantics.heroBackground}, radial-gradient(circle at 74% 20%, ${semantics.heroGlow} 0%, rgba(0,0,0,0) 46%)`,
-                borderColor: semantics.heroBorder
-              }
-            : {
-                backgroundColor: semantics.surfaceRaised,
-                borderColor: semantics.heroBorder
-              }
-        }
+        position="relative"
+        overflow="hidden"
+        style={{
+          backgroundColor: semantics.surfaceRaised,
+          borderColor: semantics.heroBorder
+        }}
       >
-        <DeviceHeroPanel
-          stacked={!isTablet}
-          leftWidth={isTablet ? mediaColumnWidth : '100%'}
-          imageWidth={isTablet ? mediaColumnWidth : mobileImageSize}
-          imageHeight={mediaBoxHeight}
-          imageScale={isTablet ? vm.desktopScale : 1.35}
-          imageOffsetY={isTablet ? vm.desktopOffsetY : 0}
-          imageUri={vm.deviceAsset?.uri}
-          fallbackSource={vm.detailFallback}
-          iconFallback={vm.deviceAsset?.icon}
-          leftFooter={(
-            <YStack gap="$2" alignItems="center">
-              {device ? (
-                <PowerFlowGlyph
-                  status={vm.detailState}
-                  pvW={vm.displayPvW ?? snapshot?.metrics?.pvW ?? device?.pvW}
-                  loadW={snapshot?.metrics?.loadW ?? device?.loadW}
-                  fontSize={isDesktop ? '$8' : '$7'}
-                  lineHeight={isDesktop ? 30 : 26}
-                />
-              ) : null}
-              <Text fontSize="$2" fontWeight="700" style={{ color: semantics.subtleStrongText }} textAlign="center">
-                {device?.model ?? 'Energy system'}
-              </Text>
-            </YStack>
-          )}
-          right={(
-            <YStack gap="$4" flex={1} minWidth={0}>
+        <PulseHeroBackground variant="device" sizes="(min-width: 1280px) 1180px, 100vw" />
+        <YStack style={{ position: 'relative', zIndex: 1 }}>
+          <DeviceHeroPanel
+            stacked={!isTablet}
+            leftWidth={isTablet ? mediaColumnWidth : '100%'}
+            imageWidth={isTablet ? mediaColumnWidth : mobileImageSize}
+            imageHeight={mediaBoxHeight}
+            imageScale={isTablet ? vm.desktopScale : 1.35}
+            imageOffsetY={isTablet ? vm.desktopOffsetY : 0}
+            imageUri={vm.deviceAsset?.uri}
+            fallbackSource={vm.detailFallback}
+            iconFallback={vm.deviceAsset?.icon}
+            leftFooter={(
+              <YStack gap="$2" alignItems="center">
+                {device ? (
+                  <PowerFlowGlyph
+                    status={vm.detailState}
+                    pvW={vm.displayPvW ?? snapshot?.metrics?.pvW ?? device?.pvW}
+                    loadW={snapshot?.metrics?.loadW ?? device?.loadW}
+                    fontSize={isDesktop ? '$8' : '$7'}
+                    lineHeight={isDesktop ? 30 : 26}
+                  />
+                ) : null}
+                <Text fontSize="$2" fontWeight="700" style={{ color: semantics.subtleStrongText }} textAlign="center">
+                  {device?.model ?? 'Energy system'}
+                </Text>
+              </YStack>
+            )}
+            right={(
+              <YStack gap="$4" flex={1} minWidth={0}>
               <XStack alignItems="flex-start" justifyContent="space-between" gap="$3" flexWrap="wrap">
                 <XStack gap="$2" flexWrap="wrap" flex={1}>
                   <XStack
@@ -462,9 +459,10 @@ export function DeviceDetailBody({
                   />
                 ))}
               </XStack>
-            </YStack>
-          )}
-        />
+              </YStack>
+            )}
+          />
+        </YStack>
       </Card>
 
       {isTablet ? (
