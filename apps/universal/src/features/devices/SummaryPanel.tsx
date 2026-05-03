@@ -22,6 +22,7 @@ import { useWeatherForecast } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 import { SocBar } from '@/shared/ui/SocBar';
 import {
   buildFleetDevicePreview,
@@ -511,12 +512,21 @@ export function SummaryPanel({
       <Card
         gap="$4"
         padding={isTabletUp ? '$5' : '$4'}
+        position="relative"
+        overflow="hidden"
         style={{
           backgroundColor: semantics.energyCardBackground,
           borderColor: semantics.energyCardBorder
         }}
       >
-        <XStack alignItems="stretch" justifyContent="space-between" gap="$4" flexWrap="wrap">
+        <PulseHeroBackground variant="fleet" sizes="(min-width: 1600px) 2000px, 100vw" />
+        <XStack
+          alignItems="stretch"
+          justifyContent="space-between"
+          gap="$4"
+          flexWrap="wrap"
+          style={{ position: 'relative', zIndex: 1 }}
+        >
           <YStack gap="$3" flex={1.1} minWidth={260} maxWidth={isTabletUp ? 520 : undefined}>
             <Text fontSize="$2" fontWeight="700" textTransform="uppercase" letterSpacing={0.8} style={{ color: semantics.solarBadgeTitle }}>
               Pulse Fleet
