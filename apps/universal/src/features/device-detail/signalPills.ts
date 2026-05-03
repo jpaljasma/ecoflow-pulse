@@ -27,11 +27,19 @@ type DeviceDetailExtras = {
   diagnostics?: DeviceDetailDiagnosticsEntry[];
 };
 
+type DeviceDetailPowerBalance = {
+  acInW?: number;
+  pvW?: number;
+  loadW?: number;
+  netW?: number;
+};
+
 export type DetailSignalPillVM = {
   key: string;
   label: string;
   on?: boolean;
   value?: string;
+  standalone?: boolean;
   tone: UiTone;
 };
 
@@ -93,18 +101,46 @@ function modeTone(value: string | undefined): UiTone {
   return 'info';
 }
 
+function finiteNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function isSolarPassthroughBalance(powerBalance: DeviceDetailPowerBalance | undefined): boolean {
+  const pvW = finiteNumber(powerBalance?.pvW);
+  const loadW = finiteNumber(powerBalance?.loadW);
+  const netW = finiteNumber(powerBalance?.netW);
+  const acInW = finiteNumber(powerBalance?.acInW) ?? 0;
+  if (pvW === undefined || loadW === undefined || netW === undefined) {
+    return false;
+  }
+
+  if (pvW < 25 || loadW < 20) {
+    return false;
+  }
+
+  const acInputNoiseFloorW = Math.max(8, pvW * 0.02);
+  if (acInW > acInputNoiseFloorW) {
+    return false;
+  }
+
+  const selfLoadCeilingW = Math.max(45, Math.min(80, pvW * 0.12));
+  return netW >= -5 && netW <= selfLoadCeilingW;
+}
+
 function buildPrimarySignalPills({
   liveSignals,
   details,
   supportsEvCharging,
   supportsBatteryHeating,
-  preconditioningOn
+  preconditioningOn,
+  powerBalance
 }: {
   liveSignals?: DeviceLiveSignals;
   details: DeviceDetailExtras | undefined;
   supportsEvCharging: boolean;
   supportsBatteryHeating: boolean;
   preconditioningOn: boolean | undefined;
+  powerBalance?: DeviceDetailPowerBalance;
 }): DetailSignalPillVM[] {
   const acOn = liveSignals?.acOn ?? details?.acOn;
   const usbOn = liveSignals?.usbOn ?? details?.usbOn;
@@ -165,10 +201,20 @@ function buildPrimarySignalPills({
       ? [{ key: 'preconditioning', label: 'Preconditioning', on: preconditioningOn, tone: signalTone(preconditioningOn) }]
       : []),
     { key: 'fan', label: 'Fan', on: fanOn, tone: signalTone(fanOn) },
-    { key: 'solar', label: 'Solar Charging', on: solarChargingOn, tone: signalTone(solarChargingOn) }
+    { key: 'solar', label: 'Solar Charging', on: solarChargingOn, tone: signalTone(solarChargingOn) },
+    ...(isSolarPassthroughBalance(powerBalance)
+      ? [
+          {
+            key: 'solar-passthrough',
+            label: 'Solar Passthrough',
+            standalone: true,
+            tone: 'success' as const
+          }
+        ]
+      : [])
   ];
 
-  return signalPills.filter((pill) => pill.on !== undefined || pill.value !== undefined);
+  return signalPills.filter((pill) => pill.standalone === true || pill.on !== undefined || pill.value !== undefined);
 }
 
 function buildDiagnosticPills(details: DeviceDetailExtras | undefined): DetailDiagnosticPillVM[] {
@@ -185,13 +231,15 @@ export function buildDeviceDetailSignalPills({
   details,
   supportsEvCharging,
   supportsBatteryHeating,
-  preconditioningOn
+  preconditioningOn,
+  powerBalance
 }: {
   liveSignals?: DeviceLiveSignals;
   details: DeviceSummary['details'] | undefined;
   supportsEvCharging: boolean;
   supportsBatteryHeating: boolean;
   preconditioningOn: boolean | undefined;
+  powerBalance?: DeviceDetailPowerBalance;
 }): {
   signalPills: DetailSignalPillVM[];
   diagnosticPills: DetailDiagnosticPillVM[];
@@ -203,7 +251,8 @@ export function buildDeviceDetailSignalPills({
       details: extras,
       supportsEvCharging,
       supportsBatteryHeating,
-      preconditioningOn
+      preconditioningOn,
+      powerBalance
     }),
     diagnosticPills: buildDiagnosticPills(extras)
   };

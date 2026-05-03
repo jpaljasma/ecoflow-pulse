@@ -144,6 +144,68 @@ describe('device detail live-detail helpers', () => {
     ]);
   });
 
+  it('adds a solar passthrough system signal when PV covers load plus small self-load overhead', () => {
+    const { signalPills } = buildDeviceDetailSignalPills({
+      details: undefined,
+      supportsEvCharging: false,
+      supportsBatteryHeating: false,
+      preconditioningOn: undefined,
+      powerBalance: {
+        acInW: 0,
+        pvW: 706,
+        loadW: 682,
+        netW: 40
+      }
+    });
+
+    expect(signalPills).toEqual([
+      expect.objectContaining({
+        key: 'solar-passthrough',
+        label: 'Solar Passthrough',
+        standalone: true,
+        tone: 'success'
+      })
+    ]);
+  });
+
+  it('does not label solar passthrough when PV is rebuilding reserve', () => {
+    const { signalPills } = buildDeviceDetailSignalPills({
+      details: undefined,
+      supportsEvCharging: false,
+      supportsBatteryHeating: false,
+      preconditioningOn: undefined,
+      powerBalance: {
+        acInW: 0,
+        pvW: 920,
+        loadW: 360,
+        netW: 560
+      }
+    });
+
+    expect(signalPills).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'solar-passthrough' })])
+    );
+  });
+
+  it('does not label solar passthrough when AC input is part of the balance', () => {
+    const { signalPills } = buildDeviceDetailSignalPills({
+      details: undefined,
+      supportsEvCharging: false,
+      supportsBatteryHeating: false,
+      preconditioningOn: undefined,
+      powerBalance: {
+        acInW: 360,
+        pvW: 360,
+        loadW: 690,
+        netW: 30
+      }
+    });
+
+    expect(signalPills).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'solar-passthrough' })])
+    );
+  });
+
   it('builds extended system signals and diagnostics from device details', () => {
     const details: DeviceSummary['details'] = {
       acOn: true,
