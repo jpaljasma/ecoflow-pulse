@@ -219,7 +219,13 @@ export function useDeviceDetailViewModel({
     details,
     supportsEvCharging,
     supportsBatteryHeating,
-    preconditioningOn
+    preconditioningOn,
+    powerBalance: {
+      acInW,
+      pvW,
+      loadW,
+      netW
+    }
   });
 
   const metricCells = useMemo<DetailMetricCellVM[]>(() => {

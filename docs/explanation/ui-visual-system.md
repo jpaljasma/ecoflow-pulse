@@ -186,6 +186,9 @@ Device detail pages should read as hardware-first operating views.
 - Redundant live-telemetry and diagnostic panels should stay hidden from the
   default detail view when their signal is already represented in hero tiles,
   hardware sections, or System Signals.
+- Metric-derived System Signals, such as solar passthrough, should stay
+  generic across device models and come from observed PV/load/net balance
+  rather than provider- or model-specific mode guesses.
 - Energy Impact and Device Solar Forecast should sit side by side at `50/50`
   with matched height on tablet/desktop, then stack on phones.
 - Shared header weather/solar chrome should open `Energy > Solar` with device

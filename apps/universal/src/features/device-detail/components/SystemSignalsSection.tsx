@@ -4,6 +4,16 @@ import { SectionCard } from '@/shared/ui/SectionCard';
 import type { DetailSignalPillVM } from '@/features/device-detail/view-model';
 import { IconLabel } from '@/shared/ui/IconLabel';
 
+function signalPillLabel(pill: DetailSignalPillVM): string {
+  if (pill.standalone === true) {
+    return pill.label;
+  }
+  if (pill.value !== undefined) {
+    return `${pill.label} · ${pill.value}`;
+  }
+  return `${pill.on ? 'On' : 'Off'} · ${pill.label}`;
+}
+
 export function SystemSignalsSection({
   pills,
   minWidth
@@ -17,11 +27,7 @@ export function SystemSignalsSection({
         {pills.map((pill) => (
           <Pill
             key={pill.key}
-            label={
-              pill.value !== undefined
-                ? `${pill.label} · ${pill.value}`
-                : `${pill.on ? 'On' : 'Off'} · ${pill.label}`
-            }
+            label={signalPillLabel(pill)}
             tone={pill.tone}
           />
         ))}
