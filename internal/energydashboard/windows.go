@@ -54,7 +54,7 @@ func ResolveWindow(now time.Time, loc *time.Location, preset Preset) (Window, er
 	switch preset {
 	case PresetToday:
 		from := startOfDay(localNow)
-		return newWindow(from, localNow, from.AddDate(0, 0, -1), from), nil
+		return newWindow(from, localNow, from.AddDate(0, 0, -1), localNow.AddDate(0, 0, -1)), nil
 	case PresetPast24Hours:
 		from := localNow.Add(-24 * time.Hour)
 		return newWindow(from, localNow, from.Add(-24*time.Hour), from), nil

@@ -441,6 +441,11 @@ Runtime behavior:
   by the page's global device/window controls instead of a separate local
   period switch, so the impact wording always follows the selected Energy
   dashboard scope and date range.
+- `/energy` `Today` uses local midnight to now and compares against yesterday
+  from local midnight to the same local clock time; `Last 24h` remains a
+  rolling 24-hour window compared with the preceding 24 hours. This keeps
+  Energy balance and Power profile buckets aligned while preserving
+  local-calendar semantics for the default dashboard.
 - the `/energy` page keeps its `Solar against load` controls collapsed by
   default behind an explicit expand/collapse affordance so the summary content
   stays visible first on smaller screens.
