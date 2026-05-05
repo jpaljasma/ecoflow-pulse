@@ -730,7 +730,7 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 	from := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
 	to := now
 	previousFrom := from.AddDate(0, 0, -1)
-	previousTo := from
+	previousTo := now.AddDate(0, 0, -1)
 	currentPV := 400.0
 	currentLoad := 300.0
 	currentACIn := 90.0
@@ -860,6 +860,9 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 	}
 	if got := len(resp.GetPreviousEnergyPoints()); got != 1 {
 		t.Fatalf("previous energy point count mismatch: got=%d want=1", got)
+	}
+	if got := resp.GetWindow().GetPreviousToUnixMs(); got != previousTo.UnixMilli() {
+		t.Fatalf("previous window to mismatch: got=%d want=%d", got, previousTo.UnixMilli())
 	}
 }
 

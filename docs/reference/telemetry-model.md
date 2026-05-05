@@ -229,6 +229,10 @@ Frontend rule:
 - `/energy` reuses the same impact methodology, but binds it to the active
   Energy dashboard scope/window so the card reflects the currently selected
   device/fleet range instead of exposing its own independent period controls.
+- the Energy dashboard's `Today` window is a partial local-calendar day
+  (`local midnight -> now`), and its previous comparison is yesterday over the
+  same local clock span. The `Last 24h` preset is the rolling elapsed-time
+  comparison (`now-24h -> now` against the preceding 24 hours).
 - the same card also exposes a conservative mature-tree equivalent using PV
   lifecycle `CO2e` benchmark math. Methodology and constants live in
   [`tree-equivalent.md`](tree-equivalent.md).
