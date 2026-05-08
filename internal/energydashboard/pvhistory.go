@@ -10,10 +10,11 @@ import (
 	"time"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrypayload"
 	"google.golang.org/protobuf/proto"
 )
 
-const quotaPayloadType = "ecoflow.quota.normalized"
+const quotaPayloadType = telemetrypayload.LegacyEcoFlowQuotaPayloadType
 
 type PVPortHistory struct {
 	DeviceID          string
@@ -106,7 +107,7 @@ func rowsFromPVPorts(ports map[string]PVPortHistory) []PVPortHistory {
 }
 
 func extractPVPortObservations(env *envelopev1.TelemetryEnvelope) ([]PVPortHistory, time.Time, bool) {
-	if env == nil || env.GetPayloadType() != quotaPayloadType || len(env.GetPayload()) == 0 {
+	if env == nil || !telemetrypayload.IsNormalizedParamsPayloadType(env.GetPayloadType()) || len(env.GetPayload()) == 0 {
 		return nil, time.Time{}, false
 	}
 

@@ -14,17 +14,22 @@ const integrationListQuerySchema = z.object({
   provider: z.string().trim().min(1).max(64).optional()
 });
 
-const createIntegrationSchema = z.object({
-  provider: z.string().trim().min(1).max(64),
+const integrationConfigSchema = z.record(z.unknown());
+const integrationCredentialFields = {
   accessKey: z.string().trim().min(1).max(512),
   accessSecret: z.string().trim().min(1).max(512),
   isActive: z.boolean().optional().default(true)
+};
+
+const createIntegrationSchema = z.object({
+  provider: z.string().trim().min(1).max(64),
+  ...integrationCredentialFields,
+  config: integrationConfigSchema.optional().default({})
 });
 
 const updateIntegrationSchema = z.object({
-  accessKey: z.string().trim().min(1).max(512),
-  accessSecret: z.string().trim().min(1).max(512),
-  isActive: z.boolean().optional().default(true)
+  ...integrationCredentialFields,
+  config: integrationConfigSchema.optional()
 });
 
 const setActiveSchema = z.object({
@@ -66,6 +71,7 @@ export function registerIntegrationRoutes(
         provider: body.provider,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
+        config: body.config,
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -89,6 +95,7 @@ export function registerIntegrationRoutes(
         credentialId: params.credentialId,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
+        ...(body.config === undefined ? {} : { config: body.config }),
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -130,6 +137,7 @@ function toIntegrationResponse(integration: ProviderCredential): Record<string, 
     id: integration.id,
     provider: integration.provider,
     accessKeyMask: integration.accessKeyMask,
+    config: integration.config ?? {},
     isActive: integration.isActive,
     createdAtUnixMs: integration.createdAtUnixMs,
     updatedAtUnixMs: integration.updatedAtUnixMs

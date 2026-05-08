@@ -60,6 +60,7 @@ export type ProviderCredential = {
   id: string;
   provider: string;
   accessKeyMask: string;
+  config?: Record<string, unknown>;
   isActive: boolean;
   createdAtUnixMs: string;
   updatedAtUnixMs: string;
@@ -175,6 +176,7 @@ export type CreateProviderCredentialInput = {
   provider: string;
   accessKey: string;
   secretKey: string;
+  config?: Record<string, unknown>;
   isActive: boolean;
   authHeader?: string;
   requestID?: string;
@@ -186,6 +188,7 @@ export type UpdateProviderCredentialInput = {
   credentialId: string;
   accessKey: string;
   secretKey: string;
+  config?: Record<string, unknown>;
   isActive: boolean;
   authHeader?: string;
   requestID?: string;
@@ -428,6 +431,7 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
           provider: input.provider,
           accessKey: input.accessKey,
           secretKey: input.secretKey,
+          config: input.config ?? {},
           isActive: input.isActive
         },
         input
@@ -435,15 +439,19 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
       return normalizeProviderCredentialRow((response.credential ?? {}) as RawProviderCredential);
     },
     async updateProviderCredential(input) {
+      const request: Record<string, unknown> = {
+        userSubject: input.userSubject,
+        credentialId: input.credentialId,
+        accessKey: input.accessKey,
+        secretKey: input.secretKey,
+        isActive: input.isActive
+      };
+      if (input.config !== undefined) {
+        request.config = input.config;
+      }
       const response = await unaryCall<RawProviderCredentialResponse>(
         client.UpdateProviderCredential.bind(client),
-        {
-          userSubject: input.userSubject,
-          credentialId: input.credentialId,
-          accessKey: input.accessKey,
-          secretKey: input.secretKey,
-          isActive: input.isActive
-        },
+        request,
         input
       );
       return normalizeProviderCredentialRow((response.credential ?? {}) as RawProviderCredential);
@@ -600,6 +608,7 @@ function normalizeProviderCredentialRow(credential: RawProviderCredential): Prov
     id: normalizeString(credential.id),
     provider: normalizeString(credential.provider),
     accessKeyMask: normalizeString(credential.accessKeyMask),
+    config: normalizeRecord(credential.config),
     isActive: Boolean(credential.isActive),
     createdAtUnixMs: normalizeString(credential.createdAtUnixMs),
     updatedAtUnixMs: normalizeString(credential.updatedAtUnixMs)

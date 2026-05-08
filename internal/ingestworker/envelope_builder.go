@@ -12,15 +12,17 @@ import (
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrypayload"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 	"github.com/tidwall/gjson"
 )
 
 const (
-	defaultEnvelopeVersion  = 1
-	defaultPayloadVersion   = 1
-	defaultRawPayloadType   = "ecoflow.mqtt.raw"
-	defaultQuotaPayloadType = "ecoflow.quota.normalized"
+	defaultEnvelopeVersion        = 1
+	defaultPayloadVersion         = 1
+	defaultRawPayloadType         = "ecoflow.mqtt.raw"
+	defaultQuotaPayloadType       = telemetrypayload.LegacyEcoFlowQuotaPayloadType
+	providerNormalizedPayloadType = telemetrypayload.ProviderNormalizedPayloadType
 )
 
 func init() {
@@ -133,13 +135,30 @@ func (b telemetryEnvelopeBuilder) BuildQuota(
 	params map[string]any,
 	observedAt time.Time,
 ) (*envelopev1.TelemetryEnvelope, error) {
+	return b.buildParamsEnvelope(params, observedAt, defaultQuotaPayloadType, "quota", "quota")
+}
+
+func (b telemetryEnvelopeBuilder) BuildProviderNormalizedParams(
+	params map[string]any,
+	observedAt time.Time,
+) (*envelopev1.TelemetryEnvelope, error) {
+	return b.buildParamsEnvelope(params, observedAt, providerNormalizedPayloadType, "mqtt", "quota")
+}
+
+func (b telemetryEnvelopeBuilder) buildParamsEnvelope(
+	params map[string]any,
+	observedAt time.Time,
+	payloadType string,
+	source string,
+	typeCode string,
+) (*envelopev1.TelemetryEnvelope, error) {
 	envelopeID, err := newEnvelopeID()
 	if err != nil {
 		return nil, err
 	}
 	observed := observedAt.UTC()
 	payload, err := json.Marshal(map[string]any{
-		"typeCode": "quota",
+		"typeCode": typeCode,
 		"params":   params,
 	})
 	if err != nil {
@@ -159,9 +178,9 @@ func (b telemetryEnvelopeBuilder) BuildQuota(
 		ObservedTimeUnixMs: observed.UnixMilli(),
 		IngestedTimeUnixMs: observed.UnixMilli(),
 		SourceKind:         envelopev1.SourceKind_SOURCE_KIND_MQTT_QUOTA,
-		Source:             "quota",
-		TypeCode:           "quota",
-		PayloadType:        defaultQuotaPayloadType,
+		Source:             source,
+		TypeCode:           typeCode,
+		PayloadType:        payloadType,
 		PayloadVersion:     defaultPayloadVersion,
 		PayloadEncoding:    envelopev1.PayloadEncoding_PAYLOAD_ENCODING_JSON_UTF8,
 		Payload:            payload,

@@ -181,9 +181,18 @@ func main() {
 		if pulseMQTTErr != nil {
 			log.Info("pulse mqtt adapter disabled", "reason", pulseMQTTErr.Error())
 		}
+		pecronAdapter, pecronErr := provideradapter.NewRuntimePecronAdapter()
+		if pecronErr != nil {
+			log.Error("init pecron adapter failed", "error", pecronErr.Error())
+			os.Exit(1)
+		}
 		adapterRegistry.RegisterDiscoverer(
 			controlplane.ProviderEcoFlow,
 			ecoFlowAdapter,
+		)
+		adapterRegistry.RegisterDiscoverer(
+			controlplane.ProviderPecron,
+			pecronAdapter,
 		)
 		if pulseMQTTAdapter != nil {
 			adapterRegistry.RegisterDiscoverer(

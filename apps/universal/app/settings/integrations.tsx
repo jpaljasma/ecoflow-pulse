@@ -27,6 +27,14 @@ import { useThemeSemantics } from '@/shared/theme/semantic';
 
 const defaultProvider = 'ecoflow';
 
+const PECRON_REGION_OPTIONS = [
+  { id: 'us', label: 'US' },
+  { id: 'eu', label: 'EU' },
+  { id: 'cn', label: 'CN' }
+] as const;
+
+type PecronRegion = (typeof PECRON_REGION_OPTIONS)[number]['id'];
+
 const CONNECTOR_CATALOG = [
   {
     id: 'ecoflow',
@@ -41,6 +49,12 @@ const CONNECTOR_CATALOG = [
     activationDescription:
       'Activation runs provider discovery and MQTT checks for the EcoFlow devices already enabled on this account.',
     configureTitle: 'Configure EcoFlow',
+    accessKeyLabel: 'Access Key',
+    accessSecretLabel: 'Access Secret',
+    accessKeyPlaceholder: 'Paste Access Key',
+    accessSecretPlaceholder: 'Paste Access Secret',
+    replacementAccessKeyPlaceholder: 'Paste replacement Access Key',
+    replacementAccessSecretPlaceholder: 'Paste replacement Access Secret',
     createDescription:
       'Paste your EcoFlow Access Key and Access Secret to create the first configured connection.',
     addFallbackDescription: 'Store another EcoFlow credential as a fallback or future replacement.',
@@ -63,6 +77,12 @@ const CONNECTOR_CATALOG = [
     activationDescription:
       'Activation runs emulator discovery and MQTT checks for the emulator-backed devices already enabled on this account.',
     configureTitle: 'Configure Pulse MQTT Emulator',
+    accessKeyLabel: 'Access Key',
+    accessSecretLabel: 'Access Secret',
+    accessKeyPlaceholder: 'Paste Access Key',
+    accessSecretPlaceholder: 'Paste Access Secret',
+    replacementAccessKeyPlaceholder: 'Paste replacement Access Key',
+    replacementAccessSecretPlaceholder: 'Paste replacement Access Secret',
     createDescription:
       'Paste the emulator Access Key and Access Secret to create the first configured local connector.',
     addFallbackDescription: 'Store another emulator credential as a fallback or future replacement.',
@@ -71,6 +91,34 @@ const CONNECTOR_CATALOG = [
     reviewDescription: 'Activate this saved emulator credential as-is or rotate its secret before making it live.',
     emptyStateDescription:
       'Add your first Pulse MQTT emulator key pair and Pulse will validate it before activation.'
+  },
+  {
+    id: 'pecron',
+    title: 'Pecron',
+    description:
+      'Connect a Pecron cloud account, select the cloud region, discover E1000LFP devices, and stream read-only telemetry through the shared Pulse pipeline.',
+    icon: 'battery-sync-outline' as const,
+    catalogTitle: 'Pecron E1000LFP is available in Pulse',
+    catalogDescription:
+      'Unofficial Pecron cloud integration with region-aware discovery, REST snapshots, and MQTT live telemetry.',
+    validationLabel: 'Cloud REST + MQTT',
+    activationDescription:
+      'Activation signs in to the selected Pecron region, discovers supported devices, and validates the MQTT live feed for enabled E1000LFP units.',
+    configureTitle: 'Configure Pecron',
+    accessKeyLabel: 'Email',
+    accessSecretLabel: 'Password',
+    accessKeyPlaceholder: 'Pecron account email',
+    accessSecretPlaceholder: 'Pecron account password',
+    replacementAccessKeyPlaceholder: 'Replacement Pecron account email',
+    replacementAccessSecretPlaceholder: 'Replacement Pecron password',
+    createDescription:
+      'Enter the Pecron account email and password used by the Pecron app, then choose the matching cloud region.',
+    addFallbackDescription: 'Store another Pecron credential as a fallback or future replacement.',
+    rotateDescription:
+      'Replace the active Pecron account credentials. Pulse will validate discovery and MQTT before switching the live connection.',
+    reviewDescription: 'Activate this saved Pecron credential as-is or rotate its password before making it live.',
+    emptyStateDescription:
+      'Add your first Pecron account and Pulse will validate it before activation.'
   }
 ] as const;
 
@@ -94,6 +142,7 @@ export default function IntegrationSettingsScreen() {
   const semantics = useThemeSemantics();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const [selectedProvider, setSelectedProvider] = useState(defaultProvider);
+  const [selectedRegion, setSelectedRegion] = useState<PecronRegion>('us');
 
   const integrationsQuery = useIntegrations({
     token,
@@ -161,6 +210,7 @@ export default function IntegrationSettingsScreen() {
     setAccessKey('');
     setAccessSecret('');
     setActivateOnSave(selected?.isActive ?? true);
+    setSelectedRegion(regionFromIntegration(selected) ?? 'us');
     setFlashMessage('');
   }, [integrations, selectedCredentialId]);
 
@@ -203,6 +253,7 @@ export default function IntegrationSettingsScreen() {
           values: {
             accessKey,
             accessSecret,
+            config: buildIntegrationConfig(selectedProvider, selectedRegion),
             isActive: activateOnSave
           }
         });
@@ -217,6 +268,7 @@ export default function IntegrationSettingsScreen() {
           provider: selectedProvider,
           accessKey,
           accessSecret,
+          config: buildIntegrationConfig(selectedProvider, selectedRegion),
           isActive: activateOnSave
         });
         setSelectedCredentialId(created.id);
@@ -616,27 +668,57 @@ export default function IntegrationSettingsScreen() {
                         </YStack>
 
                         <YStack gap="$2">
-                          <Text fontWeight="700">Access Key</Text>
+                          <Text fontWeight="700">{selectedConnector.accessKeyLabel}</Text>
                           <AppTextInput
                             value={accessKey}
                             onChangeText={setAccessKey}
                             autoCapitalize="none"
                             autoCorrect={false}
-                            placeholder={selectedIntegration ? 'Paste replacement Access Key' : 'Paste Access Key'}
+                            placeholder={
+                              selectedIntegration
+                                ? selectedConnector.replacementAccessKeyPlaceholder
+                                : selectedConnector.accessKeyPlaceholder
+                            }
                           />
                         </YStack>
 
                         <YStack gap="$2">
-                          <Text fontWeight="700">Access Secret</Text>
+                          <Text fontWeight="700">{selectedConnector.accessSecretLabel}</Text>
                           <AppTextInput
                             value={accessSecret}
                             onChangeText={setAccessSecret}
                             autoCapitalize="none"
                             autoCorrect={false}
                             secureTextEntry
-                            placeholder={selectedIntegration ? 'Paste replacement Access Secret' : 'Paste Access Secret'}
+                            placeholder={
+                              selectedIntegration
+                                ? selectedConnector.replacementAccessSecretPlaceholder
+                                : selectedConnector.accessSecretPlaceholder
+                            }
                           />
                         </YStack>
+
+                        {selectedProvider === 'pecron' ? (
+                          <YStack gap="$2">
+                            <Text fontWeight="700">Cloud region</Text>
+                            <XStack gap="$2" flexWrap="wrap">
+                              {PECRON_REGION_OPTIONS.map((region) => (
+                                <Button
+                                  key={region.id}
+                                  size="$4"
+                                  themeInverse={selectedRegion === region.id}
+                                  chromeless={selectedRegion !== region.id}
+                                  onPress={() => setSelectedRegion(region.id)}
+                                >
+                                  {region.label}
+                                </Button>
+                              ))}
+                            </XStack>
+                            <Text color="$colorMuted">
+                              Select the same Pecron cloud region used by the mobile app for this account.
+                            </Text>
+                          </YStack>
+                        ) : null}
 
                         <YStack gap="$2">
                           <Text fontWeight="700">Activation behavior</Text>
@@ -915,7 +997,9 @@ function CredentialInventoryRow({
             />
           </XStack>
           <Text color="$colorMuted">
-            Updated {formatTimestamp(integration.updatedAtUnixMs)}
+            {integration.provider === 'pecron'
+              ? `${formatPecronRegion(regionFromIntegration(integration))} region. Updated ${formatTimestamp(integration.updatedAtUnixMs)}`
+              : `Updated ${formatTimestamp(integration.updatedAtUnixMs)}`}
           </Text>
         </YStack>
 
@@ -1017,6 +1101,30 @@ function StatusPill({
       </Text>
     </XStack>
   );
+}
+
+function buildIntegrationConfig(provider: string, region: PecronRegion): Record<string, unknown> {
+  if (provider !== 'pecron') {
+    return {};
+  }
+  return { region };
+}
+
+function regionFromIntegration(integration: Integration | null): PecronRegion | null {
+  if (!integration || integration.provider !== 'pecron') {
+    return null;
+  }
+  return normalizePecronRegion(integration.config?.region);
+}
+
+function normalizePecronRegion(value: unknown): PecronRegion {
+  const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return PECRON_REGION_OPTIONS.some((region) => region.id === text) ? (text as PecronRegion) : 'us';
+}
+
+function formatPecronRegion(region: PecronRegion | null): string {
+  const normalized = region ?? 'us';
+  return PECRON_REGION_OPTIONS.find((option) => option.id === normalized)?.label ?? 'US';
 }
 
 function formatTimestamp(unixMs: string): string {

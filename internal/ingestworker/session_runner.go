@@ -671,8 +671,20 @@ func credentialFromAssignment(a controlplane.IngestAssignment) controlplane.Prov
 		Provider:  a.Provider,
 		AccessKey: a.AccessKey,
 		SecretKey: a.SecretKey,
+		Config:    cloneAssignmentConfig(a.CredentialConfig),
 		IsActive:  a.CredentialIsActive,
 	}
+}
+
+func cloneAssignmentConfig(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func (r *EcoFlowSessionRunner) providerName() string {

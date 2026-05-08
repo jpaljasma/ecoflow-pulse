@@ -152,7 +152,10 @@ General derivation rules:
 - explicit zero values are preserved so stale positive readings do not linger,
 - capped/canonical fields are preferred over obviously broken fallback values,
 - derived channels are intended to be source-agnostic across MQTT, quota, and
-  replay envelopes.
+  replay envelopes,
+- non-EcoFlow provider payloads must be decoded into canonical params before
+  entering the shared ingest publisher path. Pecron E1000LFP REST/MQTT `kv`
+  payloads use the generic `provider.params.normalized` envelope payload type.
 
 ## Live Detail Derivation
 

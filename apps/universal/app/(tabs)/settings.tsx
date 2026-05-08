@@ -140,7 +140,7 @@ export default function SettingsScreen() {
                         Integration Settings
                       </Text>
                       <Text color="$colorMuted" opacity={0.94} fontSize="$3" lineHeight={22}>
-                        Manage provider credentials, rotate EcoFlow keys, and validate MQTT before activation.
+                        Manage provider credentials, rotate connector keys, and validate MQTT before activation.
                       </Text>
                     </YStack>
                   </XStack>

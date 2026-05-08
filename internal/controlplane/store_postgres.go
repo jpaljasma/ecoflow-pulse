@@ -87,14 +87,19 @@ INSERT INTO provider_credentials (
 	secret_key_ciphertext,
 	access_key_hash,
 	access_key_mask,
+	provider_config,
 	is_active,
 	created_at,
 	updated_at
 )
-VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $8)
-RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created_at, updated_at;
+VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, is_active, created_at, updated_at;
 `
 	var out ProviderCredential
+	configJSON, err := marshalProviderCredentialConfig(in.Config)
+	if err != nil {
+		return ProviderCredential{}, fmt.Errorf("marshal provider credential config: %w", err)
+	}
 	row := tx.QueryRowContext(
 		ctx,
 		query,
@@ -104,6 +109,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 		[]byte(in.SecretKey),
 		HashAccessKey(in.AccessKey),
 		MaskAccessKey(in.AccessKey),
+		configJSON,
 		in.IsActive,
 		now,
 	)
@@ -112,6 +118,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 		&out.UserID,
 		&out.Provider,
 		&out.AccessKeyMask,
+		(*jsonbMap)(&out.Config),
 		&out.IsActive,
 		&out.CreatedAt,
 		&out.UpdatedAt,
@@ -140,6 +147,7 @@ SELECT
 	pc.user_id::text,
 	pc.provider,
 	pc.access_key_mask,
+	pc.provider_config,
 	pc.is_active,
 	pc.created_at,
 	pc.updated_at
@@ -163,6 +171,7 @@ ORDER BY pc.created_at DESC, pc.id DESC;
 			&row.UserID,
 			&row.Provider,
 			&row.AccessKeyMask,
+			(*jsonbMap)(&row.Config),
 			&row.IsActive,
 			&row.CreatedAt,
 			&row.UpdatedAt,
@@ -202,7 +211,7 @@ UPDATE provider_credentials
 SET is_active = $2,
     updated_at = $3
 WHERE id = $1::uuid
-RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created_at, updated_at;
+RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, is_active, created_at, updated_at;
 `
 	var out ProviderCredential
 	row := tx.QueryRowContext(ctx, query, target.ID, in.IsActive, now)
@@ -211,6 +220,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 		&out.UserID,
 		&out.Provider,
 		&out.AccessKeyMask,
+		(*jsonbMap)(&out.Config),
 		&out.IsActive,
 		&out.CreatedAt,
 		&out.UpdatedAt,
@@ -258,12 +268,17 @@ SET access_key_ciphertext = $2,
     secret_key_ciphertext = $3,
     access_key_hash = $4,
     access_key_mask = $5,
-    is_active = $6,
-    updated_at = $7
+    provider_config = $6,
+    is_active = $7,
+    updated_at = $8
 WHERE id = $1::uuid
-RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created_at, updated_at;
+RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, is_active, created_at, updated_at;
 `
 	var out ProviderCredential
+	configJSON, err := marshalProviderCredentialConfig(in.Config)
+	if err != nil {
+		return ProviderCredential{}, fmt.Errorf("marshal provider credential config: %w", err)
+	}
 	row := tx.QueryRowContext(
 		ctx,
 		query,
@@ -272,6 +287,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 		[]byte(in.SecretKey),
 		HashAccessKey(in.AccessKey),
 		MaskAccessKey(in.AccessKey),
+		configJSON,
 		in.IsActive,
 		now,
 	)
@@ -280,6 +296,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 		&out.UserID,
 		&out.Provider,
 		&out.AccessKeyMask,
+		(*jsonbMap)(&out.Config),
 		&out.IsActive,
 		&out.CreatedAt,
 		&out.UpdatedAt,
@@ -399,6 +416,7 @@ SELECT
 	pc.access_key_mask,
 	pc.access_key_ciphertext,
 	pc.secret_key_ciphertext,
+	pc.provider_config,
 	pc.is_active,
 	pc.created_at,
 	pc.updated_at
@@ -418,6 +436,7 @@ WHERE pc.id = $1::uuid
 		&out.AccessKeyMask,
 		&accessKeyBytes,
 		&secretKeyBytes,
+		(*jsonbMap)(&out.Config),
 		&out.IsActive,
 		&out.CreatedAt,
 		&out.UpdatedAt,
@@ -1189,6 +1208,7 @@ SELECT
 	COALESCE(pd.model, d.model, ''),
 	pc.access_key_ciphertext,
 	pc.secret_key_ciphertext,
+	pc.provider_config,
 	pd.is_active,
 	pc.is_active,
 	pd.ingest_desired_state
@@ -1210,6 +1230,7 @@ ORDER BY pd.provider ASC, pd.provider_device_id ASC;
 		var row IngestAssignment
 		var accessKeyBytes []byte
 		var secretKeyBytes []byte
+		var credentialConfig jsonbMap
 		if err := rows.Scan(
 			&row.Provider,
 			&row.ProviderDeviceID,
@@ -1219,6 +1240,7 @@ ORDER BY pd.provider ASC, pd.provider_device_id ASC;
 			&row.Model,
 			&accessKeyBytes,
 			&secretKeyBytes,
+			&credentialConfig,
 			&row.DeviceIsActive,
 			&row.CredentialIsActive,
 			&row.IngestDesiredState,
@@ -1227,6 +1249,7 @@ ORDER BY pd.provider ASC, pd.provider_device_id ASC;
 		}
 		row.AccessKey = string(accessKeyBytes)
 		row.SecretKey = string(secretKeyBytes)
+		row.CredentialConfig = cloneAnyMap(map[string]any(credentialConfig))
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -1277,6 +1300,13 @@ func marshalJSONBMap(value map[string]any) ([]byte, error) {
 		return nil, err
 	}
 	return encoded, nil
+}
+
+func marshalProviderCredentialConfig(value map[string]any) ([]byte, error) {
+	if len(value) == 0 {
+		return []byte("{}"), nil
+	}
+	return marshalJSONBMap(cloneAnyMap(value))
 }
 
 type currentUserScanner interface {
