@@ -1050,6 +1050,62 @@ func TestListAvailableProviderDevicesSkipsCredentialsMissingMaterial(t *testing.
 	}
 }
 
+func TestListAvailableProviderDevicesSkipsUnsupportedAdapterCredential(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	svc.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{{
+			Provider:         controlplane.ProviderEcoFlow,
+			ProviderDeviceID: "SN-AVAILABLE",
+			ProductName:      "DELTA 2 Max",
+			Model:            "DELTA 2 Max",
+		}},
+	})
+	svc.RegisterDiscoverer(controlplane.ProviderPulseMQTT, staticDiscoverer{
+		discover: func(controlplane.ProviderCredential) ([]controlplane.ProviderDevice, error) {
+			return nil, provideradapter.ErrUnsupportedProvider
+		},
+	})
+
+	_, err := store.CreateProviderCredential(context.Background(), controlplane.CreateProviderCredentialInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "ecoflow-key",
+		SecretKey:   "ecoflow-secret",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create ecoflow credential failed: %v", err)
+	}
+	_, err = store.CreateProviderCredential(context.Background(), controlplane.CreateProviderCredentialInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderPulseMQTT,
+		AccessKey:   "pulse-key",
+		SecretKey:   "pulse-secret",
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create pulsemqtt credential failed: %v", err)
+	}
+
+	resp, err := svc.ListAvailableProviderDevices(context.Background(), &controlplanev1.ListAvailableProviderDevicesRequest{
+		UserSubject: "dev-user",
+	})
+	if err != nil {
+		t.Fatalf("ListAvailableProviderDevices failed: %v", err)
+	}
+	if !resp.GetHasActiveCredentials() {
+		t.Fatal("expected active credentials")
+	}
+	if got := len(resp.GetDevices()); got != 1 {
+		t.Fatalf("available device count=%d want 1", got)
+	}
+	if got := resp.GetDevices()[0].GetProvider(); got != controlplane.ProviderEcoFlow {
+		t.Fatalf("provider=%q want %q", got, controlplane.ProviderEcoFlow)
+	}
+}
+
 func TestTestProviderDeviceMQTTSuccess(t *testing.T) {
 	t.Parallel()
 

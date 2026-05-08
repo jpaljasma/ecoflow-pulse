@@ -46,6 +46,7 @@ runtime:
   migrations:
     enabled: false
     namespace: pulse-platform
+    serviceAccountName: ""
     db:
       host: pulse-platform-core-rw
       port: 5432

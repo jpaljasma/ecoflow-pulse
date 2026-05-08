@@ -55,6 +55,7 @@ In dev, backups are not required by policy:
 runtime:
   migrations:
     enabled: true
+    serviceAccountName: ""
     policy:
       rolloutEnv: dev
       requireBackup: false
@@ -112,5 +113,8 @@ runtime:
 
 - Local-first remains the required development path. The hook job does not
   replace the manual local validation commands.
+- The migration hook runs in `runtime.migrations.namespace`; leave
+  `runtime.migrations.serviceAccountName` empty unless the named service
+  account exists in that same namespace.
 - `pgroll` adoption remains a separate follow-up. This rollout path only covers
   the current SQL migration contract.

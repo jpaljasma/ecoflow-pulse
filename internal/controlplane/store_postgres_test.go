@@ -40,6 +40,15 @@ func TestPostgresStoreRequireCurrentSchemaFailsWhenProviderConfigColumnMissing(t
 	}
 }
 
+func TestProviderConfigColumnSchemaQueryUsesSearchPathResolution(t *testing.T) {
+	if !strings.Contains(providerConfigColumnSchemaQuery, "to_regclass('provider_credentials')") {
+		t.Fatal("schema gate should resolve provider_credentials through the active search_path")
+	}
+	if strings.Contains(providerConfigColumnSchemaQuery, "current_schema()") {
+		t.Fatal("schema gate must not inspect only current_schema()")
+	}
+}
+
 func TestPostgresStoreRequireCurrentSchemaAcceptsProviderConfigColumn(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

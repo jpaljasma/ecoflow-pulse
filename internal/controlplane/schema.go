@@ -10,11 +10,16 @@ import (
 var ErrSchemaNotReady = errors.New("control-plane schema not ready")
 
 const providerConfigColumnSchemaQuery = `
-SELECT data_type, is_nullable
-FROM information_schema.columns
-WHERE table_schema = current_schema()
-  AND table_name = 'provider_credentials'
-  AND column_name = 'provider_config';
+WITH resolved_provider_credentials AS (
+	SELECT to_regclass('provider_credentials') AS relation_oid
+)
+SELECT a.atttypid::regtype::text AS data_type,
+	CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable
+FROM resolved_provider_credentials rpc
+JOIN pg_attribute a ON a.attrelid = rpc.relation_oid
+WHERE a.attnum > 0
+  AND NOT a.attisdropped
+  AND a.attname = 'provider_config';
 `
 
 // RequireCurrentSchema fails before workers start if the database is older than
