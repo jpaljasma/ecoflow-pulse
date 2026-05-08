@@ -493,7 +493,7 @@ export INGEST_DISABLE_ENVELOPE_LABELS=false
 export INGEST_NATS_JS_BOOTSTRAP_ENABLED=true
 export INGEST_NATS_JS_STREAM_NAME='PULSE_TELEMETRY_INGEST'
 export INGEST_NATS_JS_REPLICAS=3
-export INGEST_NATS_JS_MAX_AGE=72h
+export INGEST_NATS_JS_MAX_AGE=12h
 export INGEST_NATS_JS_MAX_BYTES=0
 
 # Envelope publish policy (retry/backpressure tuning)
@@ -736,6 +736,9 @@ make services-image-import-local
 make services-image-local-up
 make services-image-build-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>
 make services-image-push-cloud SERVICES_CLOUD_IMAGE_TAG=<tag>
+make platform-app-image-push-cloud PLATFORM_APP_CLOUD_IMAGE_TAG=<tag>
+make realtime-gateway-image-push-cloud REALTIME_GATEWAY_CLOUD_IMAGE_TAG=<tag>
+make public-images-push-cloud PLATFORM_APP_CLOUD_IMAGE_TAG=<tag> REALTIME_GATEWAY_CLOUD_IMAGE_TAG=<tag>
 make k3d-up
 make platform-up
 make platform-wait
@@ -950,11 +953,12 @@ Notes:
   The target refreshes Artifact Registry auth from `gcloud auth print-access-token`
   into the repo-local Docker config before pushing.
 - `.github/workflows/cloud-services-deploy.yml` is the hosted main-merge deploy
-  path for Go services. After the `Go Tests` workflow succeeds on a `main`
-  push, it builds and pushes
-  `us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services:cloud-services-<sha>`,
-  patches the live `pulse-services-cloud` Argo Application Helm parameters to
-  that tag, hard-refreshes Argo, and waits for the application to return to
+  path. After `Go Tests` succeeds on a `main` push, the workflow waits for the
+  same commit's `Frontend CI`, `DB Migrations CI`, and `Proto CI` runs to
+  succeed before publishing anything. It then builds and pushes the services,
+  public app, and realtime gateway images with the same SHA-derived tag, patches
+  both `pulse-services-cloud` and `pulse-platform-cloud` Argo Application Helm
+  parameters, hard-refreshes Argo, and waits for both applications to return to
   `Synced` + `Healthy`. The workflow authenticates with GitHub OIDC secrets
   `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`; the deploy
   identity needs Artifact Registry writer, GKE cluster read, and `argocd`
@@ -973,6 +977,13 @@ Notes:
   Like the services image, local public-image builds now target the host-native
   Linux platform explicitly so local k3d rollouts stay off Rosetta on Apple
   silicon.
+- `make platform-app-image-push-cloud PLATFORM_APP_CLOUD_IMAGE_TAG=<tag>` builds
+  and pushes the hosted public app image for `linux/amd64`.
+- `make realtime-gateway-image-push-cloud REALTIME_GATEWAY_CLOUD_IMAGE_TAG=<tag>`
+  builds and pushes the hosted realtime websocket gateway image for
+  `linux/amd64`.
+- `make public-images-push-cloud PLATFORM_APP_CLOUD_IMAGE_TAG=<tag> REALTIME_GATEWAY_CLOUD_IMAGE_TAG=<tag>`
+  builds and pushes both hosted public images in parallel.
 - `make public-images-import-local` imports those local public images into k3d
   cluster `$(K3D_CLUSTER_NAME)`.
   It imports both images in one `k3d image import` call to avoid repeated tools

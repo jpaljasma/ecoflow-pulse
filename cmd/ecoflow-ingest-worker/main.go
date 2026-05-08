@@ -61,6 +61,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = store.Close() }()
+	if err := requireControlPlaneSchema(context.Background(), log, store, startupretry.DefaultOptions()); err != nil {
+		log.Error("control-plane schema is not ready", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	valkeyAddrs := runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_ADDRS", "127.0.0.1:6379"))
 	valkeyCfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
@@ -319,6 +323,20 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("ingest worker stopped")
+}
+
+type controlPlaneSchemaValidator interface {
+	RequireCurrentSchema(context.Context) error
+}
+
+func requireControlPlaneSchema(ctx context.Context, log *slog.Logger, validator controlPlaneSchemaValidator, opts startupretry.Options) error {
+	if validator == nil {
+		return errors.New("control-plane schema validator is required")
+	}
+	_, err := startupretry.Retry(ctx, log, "ingest control-plane schema", opts, func(ctx context.Context) (struct{}, error) {
+		return struct{}{}, validator.RequireCurrentSchema(ctx)
+	})
+	return err
 }
 
 func loadIngestLoopConfigFromEnv() ingestworker.Config {

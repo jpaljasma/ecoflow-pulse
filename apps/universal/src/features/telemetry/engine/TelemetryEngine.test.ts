@@ -112,6 +112,25 @@ describe('TelemetryEngine', () => {
     expect(engine.getStatus()).toBe('connecting');
   });
 
+  it('redacts websocket auth tokens from connection logs', () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const createSocket = vi.fn((url: string) => createFakeSocket(url));
+    const engine = new TelemetryEngine({ createSocket });
+
+    engine.connect('mock-access-token', { authRequired: true });
+
+    expect(createSocket).toHaveBeenCalledWith(expect.stringContaining('token=mock-access-token'));
+    expect(infoSpy).toHaveBeenCalledWith(
+      '[TelemetryEngine] opening websocket',
+      expect.objectContaining({
+        url: expect.stringContaining('token=redacted')
+      })
+    );
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain('mock-access-token');
+
+    engine.disconnect();
+  });
+
   it('falls back to localhost websocket endpoint after reconnect', () => {
     vi.useFakeTimers();
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);

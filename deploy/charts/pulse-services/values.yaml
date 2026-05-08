@@ -95,6 +95,7 @@ runtime:
     archiveObjectSecure: "false"
     archiveObjectAutoCreateBucket: "true"
     ingestNatsJSReplicas: "3"
+    ingestNatsJSMaxAge: "12h"
     gapRepairNatsJSReplicas: "3"
     pulseMqttEmulatorEnabled: "true"
     pulseMqttEmulatorBaseUrl: "http://pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"

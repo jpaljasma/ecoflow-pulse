@@ -106,10 +106,17 @@ SERVICES_IMAGE_DOCKERFILE ?= deploy/docker/pulse-services.Dockerfile
 PLATFORM_APP_IMAGE_REPO ?= ecoflow-pulse/pulse-platform
 PLATFORM_APP_IMAGE_TAG ?= local
 PLATFORM_APP_IMAGE ?= $(PLATFORM_APP_IMAGE_REPO):$(PLATFORM_APP_IMAGE_TAG)
+PLATFORM_APP_CLOUD_IMAGE_REPO ?= us-east1-docker.pkg.dev/$(GKE_CLOUD_PROJECT_ID)/ecoflow-pulse/pulse-platform
+PLATFORM_APP_CLOUD_IMAGE_TAG ?= cloud-latest
+PLATFORM_APP_CLOUD_IMAGE ?= $(PLATFORM_APP_CLOUD_IMAGE_REPO):$(PLATFORM_APP_CLOUD_IMAGE_TAG)
 PLATFORM_APP_IMAGE_DOCKERFILE ?= deploy/docker/pulse-platform.Dockerfile
+PLATFORM_APP_BUILD_ARG_VARS ?= EXPO_PUBLIC_API_URL EXPO_PUBLIC_WS_URL EXPO_PUBLIC_OIDC_ISSUER_URL EXPO_PUBLIC_OIDC_CLIENT_ID EXPO_PUBLIC_OIDC_AUDIENCE EXPO_PUBLIC_OIDC_SCOPES EXPO_PUBLIC_CLOUD_API_URL EXPO_PUBLIC_CLOUD_WS_URL EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE EXPO_PUBLIC_CLOUD_OIDC_SCOPES EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE
 REALTIME_GATEWAY_IMAGE_REPO ?= ecoflow-pulse/pulse-realtime-gateway
 REALTIME_GATEWAY_IMAGE_TAG ?= local
 REALTIME_GATEWAY_IMAGE ?= $(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)
+REALTIME_GATEWAY_CLOUD_IMAGE_REPO ?= us-east1-docker.pkg.dev/$(GKE_CLOUD_PROJECT_ID)/ecoflow-pulse/pulse-realtime-gateway
+REALTIME_GATEWAY_CLOUD_IMAGE_TAG ?= cloud-latest
+REALTIME_GATEWAY_CLOUD_IMAGE ?= $(REALTIME_GATEWAY_CLOUD_IMAGE_REPO):$(REALTIME_GATEWAY_CLOUD_IMAGE_TAG)
 REALTIME_GATEWAY_IMAGE_DOCKERFILE ?= deploy/docker/pulse-realtime-gateway.Dockerfile
 SERVICES_AUTO_BUILD_IMAGE ?= 1
 DEV_DEPLOY_HELM ?= auto
@@ -167,7 +174,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local realtime-gateway-image-build-local public-images-build-local public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -479,7 +486,7 @@ platform-app-image-build-local: docker-local-ready
 			set -a; source ./.env; set +a; \
 		fi; \
 		set --; \
-		for var in EXPO_PUBLIC_API_URL EXPO_PUBLIC_WS_URL EXPO_PUBLIC_OIDC_ISSUER_URL EXPO_PUBLIC_OIDC_CLIENT_ID EXPO_PUBLIC_OIDC_AUDIENCE EXPO_PUBLIC_OIDC_SCOPES EXPO_PUBLIC_CLOUD_API_URL EXPO_PUBLIC_CLOUD_WS_URL EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE EXPO_PUBLIC_CLOUD_OIDC_SCOPES EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE; do \
+		for var in $(PLATFORM_APP_BUILD_ARG_VARS); do \
 			case "$$var" in \
 				EXPO_PUBLIC_API_URL) val="$${EXPO_PUBLIC_API_URL:-}" ;; \
 				EXPO_PUBLIC_WS_URL) val="$${EXPO_PUBLIC_WS_URL:-}" ;; \
@@ -506,6 +513,44 @@ platform-app-image-build-local: docker-local-ready
 				DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_IMAGE) .; \
 			fi
 
+platform-app-image-build-cloud: docker-local-ready
+	@echo "building cloud public app image $(PLATFORM_APP_CLOUD_IMAGE) for $(CLOUD_IMAGE_PLATFORM) from $(PLATFORM_APP_IMAGE_DOCKERFILE)"
+	@set -euo pipefail; \
+		set --; \
+		for var in $(PLATFORM_APP_BUILD_ARG_VARS); do \
+			case "$$var" in \
+				EXPO_PUBLIC_API_URL) val="$${EXPO_PUBLIC_API_URL:-}" ;; \
+				EXPO_PUBLIC_WS_URL) val="$${EXPO_PUBLIC_WS_URL:-}" ;; \
+				EXPO_PUBLIC_OIDC_ISSUER_URL) val="$${EXPO_PUBLIC_OIDC_ISSUER_URL:-}" ;; \
+				EXPO_PUBLIC_OIDC_CLIENT_ID) val="$${EXPO_PUBLIC_OIDC_CLIENT_ID:-}" ;; \
+				EXPO_PUBLIC_OIDC_AUDIENCE) val="$${EXPO_PUBLIC_OIDC_AUDIENCE:-}" ;; \
+				EXPO_PUBLIC_OIDC_SCOPES) val="$${EXPO_PUBLIC_OIDC_SCOPES:-}" ;; \
+				EXPO_PUBLIC_CLOUD_API_URL) val="$${EXPO_PUBLIC_CLOUD_API_URL:-}" ;; \
+				EXPO_PUBLIC_CLOUD_WS_URL) val="$${EXPO_PUBLIC_CLOUD_WS_URL:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL) val="$${EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID) val="$${EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE) val="$${EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE:-}" ;; \
+				EXPO_PUBLIC_CLOUD_OIDC_SCOPES) val="$${EXPO_PUBLIC_CLOUD_OIDC_SCOPES:-}" ;; \
+				EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE) val="$${EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE:-}" ;; \
+				*) val="" ;; \
+			esac; \
+			if [ -n "$$val" ]; then \
+				set -- "$$@" --build-arg "$$var=$$val"; \
+			fi; \
+		done; \
+		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+			DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" BUILDX_CONFIG="$(DOCKER_BUILDX_CONFIG_LOCAL)" DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_CLOUD_IMAGE) .; \
+		else \
+			DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) "$$@" -f $(PLATFORM_APP_IMAGE_DOCKERFILE) -t $(PLATFORM_APP_CLOUD_IMAGE) .; \
+		fi
+
+platform-app-image-push-cloud: platform-app-image-build-cloud
+	@echo "pushing cloud public app image $(PLATFORM_APP_CLOUD_IMAGE)"
+	@set -euo pipefail; \
+		token="$$(CLOUDSDK_CONFIG="$${CLOUDSDK_CONFIG:-}" $(GCLOUD) auth print-access-token)"; \
+		printf '%s' "$$token" | DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) login -u oauth2accesstoken --password-stdin https://$(CLOUD_ARTIFACT_REGISTRY_HOST) >/dev/null; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) push $(PLATFORM_APP_CLOUD_IMAGE)
+
 realtime-gateway-image-build-local: docker-local-ready
 	@echo "building realtime gateway image $(REALTIME_GATEWAY_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
@@ -514,8 +559,29 @@ realtime-gateway-image-build-local: docker-local-ready
 		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(LOCAL_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_IMAGE) .; \
 	fi
 
+realtime-gateway-image-build-cloud: docker-local-ready
+	@echo "building cloud realtime gateway image $(REALTIME_GATEWAY_CLOUD_IMAGE) for $(CLOUD_IMAGE_PLATFORM) from $(REALTIME_GATEWAY_IMAGE_DOCKERFILE)"
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ]; then \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" BUILDX_CONFIG="$(DOCKER_BUILDX_CONFIG_LOCAL)" DOCKER_BUILDKIT=1 $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_CLOUD_IMAGE) .; \
+	else \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) build --platform $(CLOUD_IMAGE_PLATFORM) -f $(REALTIME_GATEWAY_IMAGE_DOCKERFILE) -t $(REALTIME_GATEWAY_CLOUD_IMAGE) .; \
+	fi
+
+realtime-gateway-image-push-cloud: realtime-gateway-image-build-cloud
+	@echo "pushing cloud realtime gateway image $(REALTIME_GATEWAY_CLOUD_IMAGE)"
+	@set -euo pipefail; \
+		token="$$(CLOUDSDK_CONFIG="$${CLOUDSDK_CONFIG:-}" $(GCLOUD) auth print-access-token)"; \
+		printf '%s' "$$token" | DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) login -u oauth2accesstoken --password-stdin https://$(CLOUD_ARTIFACT_REGISTRY_HOST) >/dev/null; \
+		DOCKER_CONFIG="$(DOCKER_CONFIG_LOCAL)" $(DOCKER) push $(REALTIME_GATEWAY_CLOUD_IMAGE)
+
 public-images-build-local:
 	@$(MAKE) --no-print-directory -j2 platform-app-image-build-local realtime-gateway-image-build-local
+
+public-images-build-cloud:
+	@$(MAKE) --no-print-directory -j2 platform-app-image-build-cloud realtime-gateway-image-build-cloud
+
+public-images-push-cloud:
+	@$(MAKE) --no-print-directory -j2 platform-app-image-push-cloud realtime-gateway-image-push-cloud
 
 public-images-import-local: k3d-local-ready
 	@echo "importing public app and realtime gateway images into k3d cluster $(K3D_CLUSTER_NAME)"

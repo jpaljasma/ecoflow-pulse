@@ -275,7 +275,10 @@ export class TelemetryEngine {
       ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(this.token)}`
       : baseUrl;
 
-    console.info('[TelemetryEngine] opening websocket', { url, attempt: this.reconnectAttempt + 1 });
+    console.info('[TelemetryEngine] opening websocket', {
+      url: redactWebsocketUrlForLog(url),
+      attempt: this.reconnectAttempt + 1
+    });
 
     this.ws = this.createSocket(url);
 
@@ -816,6 +819,18 @@ export class TelemetryEngine {
       dcSum: current.dc,
       count: 1
     };
+  }
+}
+
+function redactWebsocketUrlForLog(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has('token')) {
+      parsed.searchParams.set('token', 'redacted');
+    }
+    return parsed.toString();
+  } catch {
+    return url.replace(/([?&]token=)[^&]*/i, '$1redacted');
   }
 }
 
