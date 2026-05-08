@@ -253,7 +253,7 @@ func (a *PecronAdapter) ProbeMQTT(
 		return MQTTProbeResult{
 			Success:          true,
 			Status:           "ok",
-			SampleTopic:      strings.TrimSpace(msg.Topic),
+			SampleTopic:      redactPecronTopic(msg.Topic),
 			PayloadBytes:     int64(len(msg.Payload)),
 			ObservedAtUnixMS: a.now().UTC().UnixMilli(),
 		}, nil
@@ -396,6 +396,19 @@ func mergeAnyMaps(left map[string]any, right map[string]any) map[string]any {
 		out[key] = value
 	}
 	return out
+}
+
+func redactPecronTopic(topic string) string {
+	topic = strings.TrimSpace(topic)
+	if topic == "" {
+		return ""
+	}
+	parts := strings.Split(topic, "/")
+	if len(parts) >= 5 && parts[0] == "q" {
+		parts[3] = "redacted"
+		return strings.Join(parts, "/")
+	}
+	return "redacted"
 }
 
 func mqttProbeStatus(err error, fallback string) string {

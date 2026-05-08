@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
@@ -324,7 +325,7 @@ func readMQTTProbeLoop(
 		case msg := <-msgCh:
 			target, ok := targetsByTopic[msg.Topic]
 			if !ok {
-				log.Printf("mqtt message on untracked topic: topic=%s bytes=%d", msg.Topic, len(msg.Payload))
+				log.Printf("mqtt message on untracked topic: topic=%s bytes=%d", logredact.Topic(msg.Topic), len(msg.Payload))
 				continue
 			}
 			target.messageCount++

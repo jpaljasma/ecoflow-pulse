@@ -14,6 +14,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ankersolix"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 	"google.golang.org/grpc/codes"
@@ -200,9 +201,12 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
-	config := structToMap(req.GetConfig())
 	if !s.supportsProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
+	}
+	config, err := normalizeProviderCredentialConfig(provider, structToMap(req.GetConfig()))
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	if strings.TrimSpace(req.GetAccessKey()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "access_key required")
@@ -318,9 +322,18 @@ func (s *ControlPlaneService) UpdateProviderCredential(ctx context.Context, req 
 	if err != nil {
 		return nil, err
 	}
-	config := existing.Config
+	config := cloneMap(existing.Config)
 	if req.GetConfig() != nil {
-		config = structToMap(req.GetConfig())
+		incomingConfig := structToMap(req.GetConfig())
+		if controlplane.NormalizeProvider(existing.Provider) == controlplane.ProviderAnkerSolix {
+			config = mergeProviderCredentialConfig(config, incomingConfig)
+		} else {
+			config = incomingConfig
+		}
+	}
+	config, err = normalizeProviderCredentialConfig(existing.Provider, config)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	if req.GetIsActive() {
 		if err := s.validateProviderCredentialActivation(ctx, userSubject, controlplane.ProviderCredential{
@@ -722,7 +735,7 @@ func (s *ControlPlaneService) probeProviderDeviceMQTT(
 	return &controlplanev1.TestProviderDeviceMQTTResponse{
 		Success:          true,
 		Status:           "ok",
-		SampleTopic:      strings.TrimSpace(msg.Topic),
+		SampleTopic:      redactMQTTSampleTopic(msg.Topic),
 		PayloadBytes:     int64(len(msg.Payload)),
 		ObservedAtUnixMs: time.Now().UTC().UnixMilli(),
 	}, nil
@@ -743,16 +756,19 @@ func (s *ControlPlaneService) EnableProviderDevice(ctx context.Context, req *con
 	if err != nil {
 		return nil, err
 	}
+	discovered, err := s.discoverProviderDeviceForCredential(ctx, provider, cred, req.GetProviderDeviceId())
+	if err != nil {
+		return nil, err
+	}
+	if err := validateProviderDeviceImportable(provider, discovered); err != nil {
+		return nil, err
+	}
 	probe, err := s.probeProviderDeviceMQTT(ctx, provider, cred, req.GetProviderDeviceId())
 	if err != nil {
 		return nil, err
 	}
 	if !probe.GetSuccess() {
 		return nil, status.Errorf(codes.FailedPrecondition, "successful mqtt probe required before enablement: %s", probe.GetStatus())
-	}
-	discovered, err := s.discoverProviderDeviceForCredential(ctx, provider, cred, req.GetProviderDeviceId())
-	if err != nil {
-		return nil, err
 	}
 	persisted, err := s.persistImportedProviderDevice(ctx, userSubject, provider, cred, discovered, true, "active")
 	if err != nil {
@@ -783,6 +799,13 @@ func (s *ControlPlaneService) ImportProviderDevice(ctx context.Context, req *con
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	discovered, err := s.discoverProviderDeviceForCredential(ctx, provider, cred, req.GetProviderDeviceId())
+	if err != nil {
+		return nil, err
+	}
+	if err := validateProviderDeviceImportable(provider, discovered); err != nil {
+		return nil, err
+	}
 	if req.GetIsActive() {
 		probe, err := s.probeProviderDeviceMQTT(ctx, provider, cred, req.GetProviderDeviceId())
 		if err != nil {
@@ -791,10 +814,6 @@ func (s *ControlPlaneService) ImportProviderDevice(ctx context.Context, req *con
 		if !probe.GetSuccess() {
 			return nil, status.Errorf(codes.FailedPrecondition, "successful mqtt probe required before activation: %s", probe.GetStatus())
 		}
-	}
-	discovered, err := s.discoverProviderDeviceForCredential(ctx, provider, cred, req.GetProviderDeviceId())
-	if err != nil {
-		return nil, err
 	}
 	persisted, err := s.persistImportedProviderDevice(ctx, userSubject, provider, cred, discovered, req.GetIsActive(), ingestDesiredState)
 	if err != nil {
@@ -1102,6 +1121,8 @@ func availableProviderDeviceToProto(in controlplane.ProviderDevice) *controlplan
 		CanonicalSn:      in.CanonicalSN,
 		ProductName:      in.ProductName,
 		Model:            in.Model,
+		Capabilities:     mapToStructProto(in.Capabilities),
+		Metadata:         mapToStructProto(in.Metadata),
 	}
 }
 
@@ -1192,11 +1213,117 @@ func structToMap(in *structpb.Struct) map[string]any {
 	return out
 }
 
+func cloneMap(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func mergeProviderCredentialConfig(base map[string]any, patch map[string]any) map[string]any {
+	if len(base) == 0 && len(patch) == 0 {
+		return nil
+	}
+	out := cloneMap(base)
+	if out == nil {
+		out = make(map[string]any, len(patch))
+	}
+	for key, value := range patch {
+		out[key] = value
+	}
+	return out
+}
+
+func normalizeProviderCredentialConfig(provider string, config map[string]any) (map[string]any, error) {
+	if controlplane.NormalizeProvider(provider) != controlplane.ProviderAnkerSolix {
+		return cloneMap(config), nil
+	}
+	server, err := configString(config, "server")
+	if err != nil {
+		return nil, err
+	}
+	country, err := configString(config, "country")
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := ankersolix.ResolveConfig(server, country)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"server":  string(cfg.Server),
+		"country": cfg.Country,
+	}, nil
+}
+
+func configString(config map[string]any, key string) (string, error) {
+	if len(config) == 0 {
+		return "", nil
+	}
+	value, ok := config[key]
+	if !ok {
+		return "", nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("anker solix config %s must be a string", key)
+	}
+	return strings.TrimSpace(text), nil
+}
+
+func validateProviderDeviceImportable(provider string, device controlplane.ProviderDevice) error {
+	if controlplane.NormalizeProvider(provider) != controlplane.ProviderAnkerSolix {
+		return nil
+	}
+	if ankerSolixProviderDeviceEnableable(device) {
+		return nil
+	}
+	return status.Errorf(
+		codes.FailedPrecondition,
+		"anker solix device is not enableable for mqtt ingest: %s",
+		ankerSolixSupportStatus(device),
+	)
+}
+
+func ankerSolixProviderDeviceEnableable(device controlplane.ProviderDevice) bool {
+	if device.Capabilities["mqtt_supported"] == true {
+		return true
+	}
+	return strings.EqualFold(ankerSolixSupportStatus(device), string(ankersolix.SupportEnabled))
+}
+
+func ankerSolixSupportStatus(device controlplane.ProviderDevice) string {
+	for _, record := range []map[string]any{device.Metadata, device.Capabilities} {
+		if len(record) == 0 {
+			continue
+		}
+		for _, key := range []string{"support_status", "supportStatus", "mqtt_support_status", "mqttSupportStatus"} {
+			if value, ok := record[key]; ok {
+				if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+					return text
+				}
+			}
+		}
+	}
+	return "unknown"
+}
+
+func redactMQTTSampleTopic(topic string) string {
+	if strings.TrimSpace(topic) == "" {
+		return ""
+	}
+	return "redacted"
+}
+
 func mqttProbeResultToProto(in provideradapter.MQTTProbeResult) *controlplanev1.TestProviderDeviceMQTTResponse {
 	return &controlplanev1.TestProviderDeviceMQTTResponse{
 		Success:          in.Success,
 		Status:           in.Status,
-		SampleTopic:      in.SampleTopic,
+		SampleTopic:      redactMQTTSampleTopic(in.SampleTopic),
 		PayloadBytes:     in.PayloadBytes,
 		ObservedAtUnixMs: in.ObservedAtUnixMS,
 	}

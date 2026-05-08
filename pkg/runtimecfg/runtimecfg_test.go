@@ -56,6 +56,23 @@ func TestUint32(t *testing.T) {
 	}
 }
 
+func TestByteRange(t *testing.T) {
+	t.Setenv("RUNTIMECFG_TEST_BYTE", "2")
+	if got := runtimecfg.ByteRange("RUNTIMECFG_TEST_BYTE", 1, 0, 2); got != 2 {
+		t.Fatalf("expected 2, got %d", got)
+	}
+
+	t.Setenv("RUNTIMECFG_TEST_BYTE", "3")
+	if got := runtimecfg.ByteRange("RUNTIMECFG_TEST_BYTE", 1, 0, 2); got != 1 {
+		t.Fatalf("expected fallback 1 for out-of-range value, got %d", got)
+	}
+
+	t.Setenv("RUNTIMECFG_TEST_BYTE", "256")
+	if got := runtimecfg.ByteRange("RUNTIMECFG_TEST_BYTE", 1, 0, 2); got != 1 {
+		t.Fatalf("expected fallback 1 for uint8 overflow, got %d", got)
+	}
+}
+
 func TestFloat64NonNegative(t *testing.T) {
 	t.Setenv("RUNTIMECFG_TEST_FLOAT", "1.25")
 	if got := runtimecfg.Float64NonNegative("RUNTIMECFG_TEST_FLOAT", 0.5); got != 1.25 {
@@ -86,6 +103,16 @@ func TestIntParsers(t *testing.T) {
 	}
 	if got := runtimecfg.IntMin("RUNTIMECFG_TEST_INT", 5, 1); got != 5 {
 		t.Fatalf("expected fallback 5, got %d", got)
+	}
+
+	t.Setenv("RUNTIMECFG_TEST_INT", "2")
+	if got := runtimecfg.IntRange("RUNTIMECFG_TEST_INT", 5, 0, 2); got != 2 {
+		t.Fatalf("expected 2, got %d", got)
+	}
+
+	t.Setenv("RUNTIMECFG_TEST_INT", "3")
+	if got := runtimecfg.IntRange("RUNTIMECFG_TEST_INT", 5, 0, 2); got != 5 {
+		t.Fatalf("expected fallback 5 for out-of-range value, got %d", got)
 	}
 }
 

@@ -144,15 +144,10 @@ func (s *MQTTSubscriber) Close() error {
 }
 
 func waitPahoToken(ctx context.Context, token mqtt.Token, action string) error {
-	done := make(chan struct{})
-	go func() {
-		token.Wait()
-		close(done)
-	}()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-done:
+	case <-token.Done():
 		if err := token.Error(); err != nil {
 			return fmt.Errorf("%s: %w", action, err)
 		}

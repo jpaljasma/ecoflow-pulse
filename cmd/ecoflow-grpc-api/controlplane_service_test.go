@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ankersolix"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 	"google.golang.org/grpc/codes"
@@ -365,6 +367,74 @@ func TestProviderCredentialConfigRoundTripsWithoutSecretMaterial(t *testing.T) {
 	}
 	if listResp.GetCredentials()[0].GetAccessKeyMask() == "AKCONFIG1234" {
 		t.Fatalf("expected masked access key in list response")
+	}
+}
+
+func TestAnkerSolixCredentialConfigDefaultsAndPatchPreservesExistingServer(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	svc.RegisterDiscoverer(controlplane.ProviderAnkerSolix, staticDiscoverer{})
+	config, err := structpb.NewStruct(map[string]any{"server": "eu", "country": "DE"})
+	if err != nil {
+		t.Fatalf("build config: %v", err)
+	}
+	createResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderAnkerSolix,
+		AccessKey:   "owner@example.test",
+		SecretKey:   "password",
+		Config:      config,
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	createdConfig := createResp.GetCredential().GetConfig().AsMap()
+	if createdConfig["server"] != "eu" || createdConfig["country"] != "DE" {
+		t.Fatalf("created config = %#v, want eu/DE", createdConfig)
+	}
+
+	patchConfig, err := structpb.NewStruct(map[string]any{"country": "FI"})
+	if err != nil {
+		t.Fatalf("build patch config: %v", err)
+	}
+	updateResp, err := svc.UpdateProviderCredential(context.Background(), &controlplanev1.UpdateProviderCredentialRequest{
+		UserSubject:  "dev-user",
+		CredentialId: createResp.GetCredential().GetId(),
+		AccessKey:    "owner@example.test",
+		SecretKey:    "replacement",
+		Config:       patchConfig,
+		IsActive:     false,
+	})
+	if err != nil {
+		t.Fatalf("update credential failed: %v", err)
+	}
+	updatedConfig := updateResp.GetCredential().GetConfig().AsMap()
+	if updatedConfig["server"] != "eu" || updatedConfig["country"] != "FI" {
+		t.Fatalf("updated config = %#v, want preserved eu server and FI country", updatedConfig)
+	}
+}
+
+func TestAnkerSolixCredentialConfigRejectsInvalidDirectValues(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	svc.RegisterDiscoverer(controlplane.ProviderAnkerSolix, staticDiscoverer{})
+	config, err := structpb.NewStruct(map[string]any{"server": "cn", "country": "USA"})
+	if err != nil {
+		t.Fatalf("build config: %v", err)
+	}
+	_, err = svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderAnkerSolix,
+		AccessKey:   "owner@example.test",
+		SecretKey:   "password",
+		Config:      config,
+		IsActive:    false,
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("expected InvalidArgument, got %v", err)
 	}
 }
 
@@ -825,6 +895,8 @@ func TestListAvailableProviderDevicesReturnsUnconfiguredOnly(t *testing.T) {
 				CanonicalSN:      "DEMODNEWDEVICE02",
 				ProductName:      "Garage Delta 2",
 				Model:            "DELTA 2",
+				Capabilities:     map[string]any{"mqtt_supported": true},
+				Metadata:         map[string]any{"support_status": "enabled"},
 			},
 		},
 	})
@@ -844,6 +916,12 @@ func TestListAvailableProviderDevicesReturnsUnconfiguredOnly(t *testing.T) {
 	}
 	if got := resp.GetDevices()[0].GetProviderDeviceId(); got != "DEMODNEWDEVICE02" {
 		t.Fatalf("provider_device_id=%q want DEMODNEWDEVICE02", got)
+	}
+	if got := resp.GetDevices()[0].GetCapabilities().AsMap()["mqtt_supported"]; got != true {
+		t.Fatalf("capabilities mqtt_supported=%#v", got)
+	}
+	if got := resp.GetDevices()[0].GetMetadata().AsMap()["support_status"]; got != "enabled" {
+		t.Fatalf("metadata support_status=%#v", got)
 	}
 }
 
@@ -1033,6 +1111,9 @@ func TestTestProviderDeviceMQTTSuccess(t *testing.T) {
 	if got := resp.GetPayloadBytes(); got != int64(len(`{"id":1}`)) {
 		t.Fatalf("payload_bytes=%d want %d", got, len(`{"id":1}`))
 	}
+	if got := resp.GetSampleTopic(); got != "redacted" {
+		t.Fatalf("sample_topic=%q want redacted", got)
+	}
 }
 
 func TestTestProviderDeviceMQTTUsesProviderSpecificProbeWhenAvailable(t *testing.T) {
@@ -1092,7 +1173,7 @@ func TestTestProviderDeviceMQTTUsesProviderSpecificProbeWhenAvailable(t *testing
 	if !prober.called {
 		t.Fatalf("provider-specific prober was not called")
 	}
-	if !resp.GetSuccess() || resp.GetSampleTopic() != "q/2/d/qdp11vxgaabbccddeeff/bus_" {
+	if !resp.GetSuccess() || resp.GetSampleTopic() != "redacted" {
 		t.Fatalf("unexpected probe response: %+v", resp)
 	}
 }
@@ -1290,6 +1371,72 @@ func TestImportProviderDevicePersistsInactiveAssignment(t *testing.T) {
 	}
 	if got := listed[0].IngestDesiredState; got != "paused" {
 		t.Fatalf("persisted ingest_desired_state=%q want paused", got)
+	}
+}
+
+func TestImportAnkerSolixUnsupportedDeviceFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	svc.RegisterDiscoverer(controlplane.ProviderAnkerSolix, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{
+			{
+				Provider:         controlplane.ProviderAnkerSolix,
+				ProviderDeviceID: "a1785:SN-C2000",
+				CanonicalSN:      "ANKER-A1785-SN-C2000",
+				ProductName:      "Anker SOLIX needs sample",
+				Model:            "A1785",
+				Capabilities: map[string]any{
+					"mqtt_supported": false,
+					"support_status": string(ankersolix.SupportNeedsSample),
+				},
+				Metadata: map[string]any{
+					"support_status": string(ankersolix.SupportNeedsSample),
+				},
+			},
+		},
+	})
+	config, err := structpb.NewStruct(map[string]any{"server": "com", "country": "US"})
+	if err != nil {
+		t.Fatalf("build config: %v", err)
+	}
+	credResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderAnkerSolix,
+		AccessKey:   "owner@example.test",
+		SecretKey:   "password",
+		Config:      config,
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+
+	_, err = svc.ImportProviderDevice(context.Background(), &controlplanev1.ImportProviderDeviceRequest{
+		UserSubject:        "dev-user",
+		Provider:           controlplane.ProviderAnkerSolix,
+		CredentialId:       credResp.GetCredential().GetId(),
+		ProviderDeviceId:   "a1785:SN-C2000",
+		IsActive:           false,
+		IngestDesiredState: "paused",
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expected FailedPrecondition, got %v", err)
+	}
+	if strings.Contains(status.Convert(err).Message(), "SN-C2000") {
+		t.Fatalf("failure message leaked provider device id: %v", err)
+	}
+
+	listed, listErr := store.ListProviderDevices(context.Background(), controlplane.ListProviderDevicesInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderAnkerSolix,
+		ActiveOnly:  false,
+	})
+	if listErr != nil {
+		t.Fatalf("list provider devices failed: %v", listErr)
+	}
+	if len(listed) != 0 {
+		t.Fatalf("expected no unsupported Anker provider devices to be persisted, got %d", len(listed))
 	}
 }
 

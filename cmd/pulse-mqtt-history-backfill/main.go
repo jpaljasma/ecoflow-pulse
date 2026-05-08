@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rolluprebuild"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
@@ -298,7 +299,7 @@ func run(ctx context.Context, log *slog.Logger, cfg config) error {
 	}
 	log.Info("pulse mqtt history backfill completed",
 		slog.String("provider", cfg.provider),
-		slog.String("provider_device_id", cfg.providerDeviceID),
+		slog.String("provider_device_ref", logredact.Identifier(cfg.providerDeviceID)),
 		slog.Time("from", cfg.from),
 		slog.Time("to", cfg.to),
 		slog.Int("replay_samples", replayResult.SamplesPublished),

@@ -460,7 +460,7 @@ export INGEST_MQTT_AUTH_ALERT_WINDOW=10m
 export INGEST_MQTT_AUTH_ALERT_THRESHOLD=5
 export INGEST_MQTT_AUTH_ALERT_COOLDOWN=5m
 
-# Optional sampled payload logging (debug-only, off by default)
+# Optional sampled MQTT debug metadata logging (debug-only, off by default; redacts raw topics/payloads)
 export INGEST_MQTT_LOG_PAYLOAD_DEBUG=false
 export INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY=100
 
@@ -468,6 +468,10 @@ export INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY=100
 export INGEST_QUOTA_FETCH_TIMEOUT=8s
 export INGEST_QUOTA_REFRESH_INTERVAL=30s
 export INGEST_QUOTA_REFRESH_JITTER=0.20
+
+# Anker SOLIX Cloud MQTT telemetry trigger cadence
+export INGEST_ANKER_SOLIX_REALTIME_TRIGGER_TIMEOUT=300s
+export INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH=270s
 
 # Lease-loss spike alerting (heartbeat renew rejected: missing)
 export INGEST_LEASE_MISSING_ALERT_WINDOW=5m

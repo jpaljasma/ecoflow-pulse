@@ -71,7 +71,7 @@ export function registerIntegrationRoutes(
         provider: body.provider,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
-        config: body.config,
+        config: normalizeProviderCredentialConfig(body.provider, body.config),
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -95,7 +95,9 @@ export function registerIntegrationRoutes(
         credentialId: params.credentialId,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
-        ...(body.config === undefined ? {} : { config: body.config }),
+        ...(body.config === undefined
+          ? {}
+          : { config: normalizeProviderCredentialUpdateConfig(body.config) }),
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -130,6 +132,62 @@ export function registerIntegrationRoutes(
       return handleGrpcRouteError(config, reply, error);
     }
   });
+}
+
+function normalizeProviderCredentialConfig(
+  provider: string,
+  config: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (provider !== 'anker_solix') {
+    return config ?? {};
+  }
+  return {
+    server: normalizeAnkerSolixServer(config?.server),
+    country: normalizeAnkerSolixCountry(config?.country)
+  };
+}
+
+function normalizeProviderCredentialUpdateConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...config };
+  if ('server' in config) {
+    out.server = normalizeAnkerSolixServer(config.server, false);
+  }
+  if ('country' in config) {
+    out.country = normalizeAnkerSolixCountry(config.country, false);
+  }
+  return out;
+}
+
+function normalizeAnkerSolixServer(value: unknown, allowDefault = true): 'com' | 'eu' {
+  if (value === undefined && allowDefault) {
+    return 'com';
+  }
+  const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (text === 'com' || text === 'eu') {
+    return text;
+  }
+  throwAnkerSolixConfigIssue('server', 'Anker SOLIX server must be com or eu');
+}
+
+function normalizeAnkerSolixCountry(value: unknown, allowDefault = true): string {
+  if (value === undefined && allowDefault) {
+    return 'US';
+  }
+  const text = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  if (/^[A-Z]{2}$/.test(text)) {
+    return text;
+  }
+  throwAnkerSolixConfigIssue('country', 'Anker SOLIX country must be an ISO-2 country code');
+}
+
+function throwAnkerSolixConfigIssue(path: string, message: string): never {
+  throw new z.ZodError([
+    {
+      code: z.ZodIssueCode.custom,
+      path: ['config', path],
+      message
+    }
+  ]);
 }
 
 function toIntegrationResponse(integration: ProviderCredential): Record<string, unknown> {

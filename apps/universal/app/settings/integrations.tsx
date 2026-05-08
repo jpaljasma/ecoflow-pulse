@@ -11,6 +11,18 @@ import {
   useSetIntegrationActive,
   useUpdateIntegration
 } from '@/features/integrations/hooks';
+import {
+  ANKER_SOLIX_SERVER_OPTIONS,
+  CONNECTOR_CATALOG,
+  DEFAULT_PROVIDER,
+  PECRON_REGION_OPTIONS,
+  buildProviderCredentialConfig,
+  createProviderConfigDraft,
+  formatIntegrationConfigSummary,
+  getConnectorCopy,
+  normalizeCountryInput,
+  type ProviderConfigDraft
+} from '@/features/integrations/providerCatalog';
 import type { Integration } from '@/features/integrations/schema';
 import { ApiError } from '@/shared/api/restClient';
 import { AppMenu } from '@/shared/ui/AppMenu';
@@ -25,109 +37,6 @@ import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
-const defaultProvider = 'ecoflow';
-
-const PECRON_REGION_OPTIONS = [
-  { id: 'us', label: 'US' },
-  { id: 'eu', label: 'EU' },
-  { id: 'cn', label: 'CN' }
-] as const;
-
-type PecronRegion = (typeof PECRON_REGION_OPTIONS)[number]['id'];
-
-const CONNECTOR_CATALOG = [
-  {
-    id: 'ecoflow',
-    title: 'EcoFlow',
-    description:
-      'Connect your EcoFlow account keys, keep backup credentials inactive, and let Pulse validate provider access plus MQTT before switching the live connector.',
-    icon: 'transmission-tower-export' as const,
-    catalogTitle: 'EcoFlow is available in Pulse',
-    catalogDescription:
-      'Native provider integration with discovery, saved credential rotation, and MQTT validation.',
-    validationLabel: 'Provider + MQTT',
-    activationDescription:
-      'Activation runs provider discovery and MQTT checks for the EcoFlow devices already enabled on this account.',
-    configureTitle: 'Configure EcoFlow',
-    accessKeyLabel: 'Access Key',
-    accessSecretLabel: 'Access Secret',
-    accessKeyPlaceholder: 'Paste Access Key',
-    accessSecretPlaceholder: 'Paste Access Secret',
-    replacementAccessKeyPlaceholder: 'Paste replacement Access Key',
-    replacementAccessSecretPlaceholder: 'Paste replacement Access Secret',
-    createDescription:
-      'Paste your EcoFlow Access Key and Access Secret to create the first configured connection.',
-    addFallbackDescription: 'Store another EcoFlow credential as a fallback or future replacement.',
-    rotateDescription:
-      'Replace the active key material. Pulse will validate the replacement before switching the live connection.',
-    reviewDescription: 'Activate this saved key as-is or rotate its secret before making it live.',
-    emptyStateDescription:
-      'Add your first EcoFlow key pair and Pulse will validate it before activation.'
-  },
-  {
-    id: 'pulsemqtt',
-    title: 'Pulse MQTT Emulator',
-    description:
-      'Use the local EcoFlow-compatible emulator for signed discovery, MQTT validation, and emulator-backed DPU-X testing without a real upstream account.',
-    icon: 'server-network' as const,
-    catalogTitle: 'Pulse MQTT Emulator is available in Pulse',
-    catalogDescription:
-      'Local provider integration with signed REST discovery, MQTT certification, and emulator-backed quota streaming.',
-    validationLabel: 'Signed REST + MQTT',
-    activationDescription:
-      'Activation runs emulator discovery and MQTT checks for the emulator-backed devices already enabled on this account.',
-    configureTitle: 'Configure Pulse MQTT Emulator',
-    accessKeyLabel: 'Access Key',
-    accessSecretLabel: 'Access Secret',
-    accessKeyPlaceholder: 'Paste Access Key',
-    accessSecretPlaceholder: 'Paste Access Secret',
-    replacementAccessKeyPlaceholder: 'Paste replacement Access Key',
-    replacementAccessSecretPlaceholder: 'Paste replacement Access Secret',
-    createDescription:
-      'Paste the emulator Access Key and Access Secret to create the first configured local connector.',
-    addFallbackDescription: 'Store another emulator credential as a fallback or future replacement.',
-    rotateDescription:
-      'Replace the active emulator key material. Pulse will validate the replacement before switching the live connection.',
-    reviewDescription: 'Activate this saved emulator credential as-is or rotate its secret before making it live.',
-    emptyStateDescription:
-      'Add your first Pulse MQTT emulator key pair and Pulse will validate it before activation.'
-  },
-  {
-    id: 'pecron',
-    title: 'Pecron',
-    description:
-      'Connect a Pecron cloud account, select the cloud region, discover E1000LFP devices, and stream read-only telemetry through the shared Pulse pipeline.',
-    icon: 'battery-sync-outline' as const,
-    catalogTitle: 'Pecron E1000LFP is available in Pulse',
-    catalogDescription:
-      'Unofficial Pecron cloud integration with region-aware discovery, REST snapshots, and MQTT live telemetry.',
-    validationLabel: 'Cloud REST + MQTT',
-    activationDescription:
-      'Activation signs in to the selected Pecron region, discovers supported devices, and validates the MQTT live feed for enabled E1000LFP units.',
-    configureTitle: 'Configure Pecron',
-    accessKeyLabel: 'Email',
-    accessSecretLabel: 'Password',
-    accessKeyPlaceholder: 'Pecron account email',
-    accessSecretPlaceholder: 'Pecron account password',
-    replacementAccessKeyPlaceholder: 'Replacement Pecron account email',
-    replacementAccessSecretPlaceholder: 'Replacement Pecron password',
-    createDescription:
-      'Enter the Pecron account email and password used by the Pecron app, then choose the matching cloud region.',
-    addFallbackDescription: 'Store another Pecron credential as a fallback or future replacement.',
-    rotateDescription:
-      'Replace the active Pecron account credentials. Pulse will validate discovery and MQTT before switching the live connection.',
-    reviewDescription: 'Activate this saved Pecron credential as-is or rotate its password before making it live.',
-    emptyStateDescription:
-      'Add your first Pecron account and Pulse will validate it before activation.'
-  }
-] as const;
-
-type ConnectorCopy = (typeof CONNECTOR_CATALOG)[number];
-
-function getConnectorCopy(provider: string): ConnectorCopy {
-  return CONNECTOR_CATALOG.find((item) => item.id === provider) ?? CONNECTOR_CATALOG[0];
-}
-
 export default function IntegrationSettingsScreen() {
   const router = useRouter();
   const {
@@ -141,8 +50,10 @@ export default function IntegrationSettingsScreen() {
   const { token, authKey } = useAuthSession();
   const semantics = useThemeSemantics();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
-  const [selectedProvider, setSelectedProvider] = useState(defaultProvider);
-  const [selectedRegion, setSelectedRegion] = useState<PecronRegion>('us');
+  const [selectedProvider, setSelectedProvider] = useState(DEFAULT_PROVIDER);
+  const [providerConfigDraft, setProviderConfigDraft] = useState<ProviderConfigDraft>(() =>
+    createProviderConfigDraft(DEFAULT_PROVIDER)
+  );
 
   const integrationsQuery = useIntegrations({
     token,
@@ -210,9 +121,9 @@ export default function IntegrationSettingsScreen() {
     setAccessKey('');
     setAccessSecret('');
     setActivateOnSave(selected?.isActive ?? true);
-    setSelectedRegion(regionFromIntegration(selected) ?? 'us');
+    setProviderConfigDraft(createProviderConfigDraft(selectedProvider, selected?.config));
     setFlashMessage('');
-  }, [integrations, selectedCredentialId]);
+  }, [integrations, selectedCredentialId, selectedProvider]);
 
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
@@ -253,7 +164,7 @@ export default function IntegrationSettingsScreen() {
           values: {
             accessKey,
             accessSecret,
-            config: buildIntegrationConfig(selectedProvider, selectedRegion),
+            config: buildProviderCredentialConfig(selectedProvider, providerConfigDraft),
             isActive: activateOnSave
           }
         });
@@ -268,7 +179,7 @@ export default function IntegrationSettingsScreen() {
           provider: selectedProvider,
           accessKey,
           accessSecret,
-          config: buildIntegrationConfig(selectedProvider, selectedRegion),
+          config: buildProviderCredentialConfig(selectedProvider, providerConfigDraft),
           isActive: activateOnSave
         });
         setSelectedCredentialId(created.id);
@@ -368,7 +279,7 @@ export default function IntegrationSettingsScreen() {
                         }}
                       >
                         <MaterialCommunityIcons
-                          name={selectedConnector.icon}
+                          name={selectedConnector.icon as keyof typeof MaterialCommunityIcons.glyphMap}
                           size={24}
                           color={semantics.actionText}
                         />
@@ -439,7 +350,7 @@ export default function IntegrationSettingsScreen() {
                         key={connector.id}
                         title={connector.title}
                         description={connector.description}
-                        icon={connector.icon}
+                        icon={connector.icon as keyof typeof MaterialCommunityIcons.glyphMap}
                         configured={connector.savedCount > 0}
                         activeLabel={connector.activeLabel}
                         savedCount={connector.savedCount}
@@ -503,7 +414,7 @@ export default function IntegrationSettingsScreen() {
                           }}
                         >
                           <MaterialCommunityIcons
-                            name={selectedConnector.icon}
+                            name={selectedConnector.icon as keyof typeof MaterialCommunityIcons.glyphMap}
                             size={22}
                             color={semantics.actionText}
                           />
@@ -698,27 +609,11 @@ export default function IntegrationSettingsScreen() {
                           />
                         </YStack>
 
-                        {selectedProvider === 'pecron' ? (
-                          <YStack gap="$2">
-                            <Text fontWeight="700">Cloud region</Text>
-                            <XStack gap="$2" flexWrap="wrap">
-                              {PECRON_REGION_OPTIONS.map((region) => (
-                                <Button
-                                  key={region.id}
-                                  size="$4"
-                                  themeInverse={selectedRegion === region.id}
-                                  chromeless={selectedRegion !== region.id}
-                                  onPress={() => setSelectedRegion(region.id)}
-                                >
-                                  {region.label}
-                                </Button>
-                              ))}
-                            </XStack>
-                            <Text color="$colorMuted">
-                              Select the same Pecron cloud region used by the mobile app for this account.
-                            </Text>
-                          </YStack>
-                        ) : null}
+                        <ProviderConfigControls
+                          provider={selectedProvider}
+                          draft={providerConfigDraft}
+                          onChange={setProviderConfigDraft}
+                        />
 
                         <YStack gap="$2">
                           <Text fontWeight="700">Activation behavior</Text>
@@ -956,6 +851,83 @@ function ConnectorInventoryItem({
   );
 }
 
+function ProviderConfigControls({
+  provider,
+  draft,
+  onChange
+}: {
+  provider: string;
+  draft: ProviderConfigDraft;
+  onChange: (draft: ProviderConfigDraft) => void;
+}) {
+  if (provider === 'pecron') {
+    return (
+      <YStack gap="$2">
+        <Text fontWeight="700">Cloud region</Text>
+        <XStack gap="$2" flexWrap="wrap">
+          {PECRON_REGION_OPTIONS.map((region) => (
+            <Button
+              key={region.id}
+              size="$4"
+              themeInverse={draft.pecronRegion === region.id}
+              chromeless={draft.pecronRegion !== region.id}
+              onPress={() => onChange({ ...draft, pecronRegion: region.id })}
+            >
+              {region.label}
+            </Button>
+          ))}
+        </XStack>
+        <Text color="$colorMuted">
+          Select the same Pecron cloud region used by the mobile app for this account.
+        </Text>
+      </YStack>
+    );
+  }
+
+  if (provider === 'anker_solix') {
+    return (
+      <YStack gap="$3">
+        <YStack gap="$2">
+          <Text fontWeight="700">Cloud server</Text>
+          <XStack gap="$2" flexWrap="wrap">
+            {ANKER_SOLIX_SERVER_OPTIONS.map((server) => (
+              <Button
+                key={server.id}
+                size="$4"
+                themeInverse={draft.ankerSolixServer === server.id}
+                chromeless={draft.ankerSolixServer !== server.id}
+                onPress={() => onChange({ ...draft, ankerSolixServer: server.id })}
+              >
+                {server.label}
+              </Button>
+            ))}
+          </XStack>
+        </YStack>
+
+        <YStack gap="$2" maxWidth={220}>
+          <Text fontWeight="700">Account country</Text>
+          <AppTextInput
+            compact
+            value={draft.ankerSolixCountry}
+            onChangeText={(value) => onChange({ ...draft, ankerSolixCountry: normalizeCountryInput(value) })}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={2}
+            placeholder="US"
+          />
+        </YStack>
+
+        <Text color="$colorMuted">
+          Use the same server and two-letter country assignment as the Anker app. A mismatched
+          server/country can sign in but discover no SOLIX devices.
+        </Text>
+      </YStack>
+    );
+  }
+
+  return null;
+}
+
 function CredentialInventoryRow({
   integration,
   pending,
@@ -970,6 +942,7 @@ function CredentialInventoryRow({
   onActivate: () => void;
 }) {
   const semantics = useThemeSemantics();
+  const configSummary = formatIntegrationConfigSummary(integration);
 
   return (
     <YStack
@@ -997,8 +970,8 @@ function CredentialInventoryRow({
             />
           </XStack>
           <Text color="$colorMuted">
-            {integration.provider === 'pecron'
-              ? `${formatPecronRegion(regionFromIntegration(integration))} region. Updated ${formatTimestamp(integration.updatedAtUnixMs)}`
+            {configSummary
+              ? `${configSummary}. Updated ${formatTimestamp(integration.updatedAtUnixMs)}`
               : `Updated ${formatTimestamp(integration.updatedAtUnixMs)}`}
           </Text>
         </YStack>
@@ -1101,30 +1074,6 @@ function StatusPill({
       </Text>
     </XStack>
   );
-}
-
-function buildIntegrationConfig(provider: string, region: PecronRegion): Record<string, unknown> {
-  if (provider !== 'pecron') {
-    return {};
-  }
-  return { region };
-}
-
-function regionFromIntegration(integration: Integration | null): PecronRegion | null {
-  if (!integration || integration.provider !== 'pecron') {
-    return null;
-  }
-  return normalizePecronRegion(integration.config?.region);
-}
-
-function normalizePecronRegion(value: unknown): PecronRegion {
-  const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  return PECRON_REGION_OPTIONS.some((region) => region.id === text) ? (text as PecronRegion) : 'us';
-}
-
-function formatPecronRegion(region: PecronRegion | null): string {
-  const normalized = region ?? 'us';
-  return PECRON_REGION_OPTIONS.find((option) => option.id === normalized)?.label ?? 'US';
 }
 
 function formatTimestamp(unixMs: string): string {

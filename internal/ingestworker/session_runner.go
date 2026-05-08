@@ -320,7 +320,7 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 		if ecoflow.IsBusinessErrorCode(err, ecoflowAccessKeyInvalidCode) {
 			r.log.Warn("ecoflow credential rejected; stopping session for credential refresh",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 				slog.String("error", err.Error()),
 			)
 			return fmt.Errorf("%w: %v", ErrEcoFlowCredentialRejected, err)
@@ -329,7 +329,7 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 			authRejectCount, authRejectsPerMin, spike := authRejects.Record(r.nowFn().UTC())
 			r.log.Warn("ecoflow mqtt connect rejected by broker; refreshing certification and retrying",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 				slog.String("error", err.Error()),
 				slog.Int("auth_rejects_in_window", authRejectCount),
 				slog.Float64("auth_rejects_per_min", authRejectsPerMin),
@@ -338,7 +338,7 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 			if spike {
 				r.log.Warn("ecoflow mqtt auth-reject spike detected",
 					slog.String("provider", a.Provider),
-					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 					slog.Int("auth_rejects_in_window", authRejectCount),
 					slog.Float64("auth_rejects_per_min", authRejectsPerMin),
 					slog.Duration("window", cfg.AuthAlertWindow),
@@ -355,7 +355,7 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 			if spike {
 				r.log.Warn("ecoflow mqtt eof reconnect-rate spike detected",
 					slog.String("provider", a.Provider),
-					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 					slog.Int("eof_reconnects_in_window", eofReconnectCount),
 					slog.Float64("eof_reconnects_per_min", eofReconnectsPerMin),
 					slog.Duration("window", cfg.ReconnectAlertWindow),
@@ -371,7 +371,7 @@ func (r *EcoFlowSessionRunner) Run(ctx context.Context, a controlplane.IngestAss
 		retryIn := applySessionJitter(backoff, cfg.ReconnectJitter)
 		logFields := []any{
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 			slog.Duration("retry_in", retryIn),
 		}
@@ -398,7 +398,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 	credential := credentialFromAssignment(a)
 	cert, err := r.adapter.GetMQTTCertification(ctx, credential, a.ProviderDeviceID)
 	if err != nil {
-		return false, fmt.Errorf("resolve mqtt certification for %s/%s: %w", a.Provider, a.ProviderDeviceID, err)
+		return false, fmt.Errorf("resolve mqtt certification for %s/%s: %w", a.Provider, providerDeviceLogRef(a.Provider, a.ProviderDeviceID), err)
 	}
 
 	address, topic, err := provideradapter.BuildMQTTAddressAndTopic(cert, a.ProviderDeviceID)
@@ -432,8 +432,8 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 	}
 	r.log.Info("ecoflow ingest session connected",
 		slog.String("provider", a.Provider),
-		slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
-		slog.String("topic", topic),
+		slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
+		slog.String("topic", mqttTopicLogRef(topic)),
 		slog.String("broker", address),
 	)
 
@@ -456,7 +456,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 	if err := r.publishQuotaSnapshot(quotaCtx, a, asyncPublisher, envelopeBuilder, quotaRefreshReasonBootstrap, r.nowFn().UTC()); err != nil {
 		r.log.Warn("ecoflow quota bootstrap failed; continuing with mqtt session",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -472,7 +472,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 			if publishErr != nil {
 				r.log.Warn("ecoflow ingest publish failed; dropping envelope and keeping mqtt session alive",
 					slog.String("provider", a.Provider),
-					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 					slog.String("error", publishErr.Error()),
 				)
 			}
@@ -499,10 +499,9 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 		if cfg.LogMQTTPayloadDebug && (cfg.LogMQTTPayloadSampleEvery <= 1 || messageCount%cfg.LogMQTTPayloadSampleEvery == 0) {
 			r.log.Debug("ecoflow ingest mqtt message sampled",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
-				slog.String("topic", msg.Topic),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
+				slog.String("topic", mqttTopicLogRef(msg.Topic)),
 				slog.Int("payload_bytes", len(msg.Payload)),
-				slog.String("payload_raw", string(msg.Payload)),
 				slog.Int("sample_every", cfg.LogMQTTPayloadSampleEvery),
 			)
 		}
@@ -516,7 +515,7 @@ func (r *EcoFlowSessionRunner) runSessionOnce(
 			}
 			r.log.Warn("ecoflow ingest publish enqueue failed; dropping envelope and keeping mqtt session alive",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 				slog.String("error", publishErr.Error()),
 			)
 			continue
@@ -539,7 +538,7 @@ func (r *EcoFlowSessionRunner) runQuotaRefreshLoop(
 		if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, quotaRefreshReasonPeriodic, r.nowFn().UTC()); err != nil {
 			r.log.Warn("ecoflow quota refresh failed; keeping mqtt session alive",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 				slog.String("error", err.Error()),
 			)
 		}
@@ -558,7 +557,7 @@ func (r *EcoFlowSessionRunner) tryQuotaRefresh(
 	if err := r.publishQuotaSnapshot(ctx, a, asyncPublisher, envelopeBuilder, reason, observedAt); err != nil {
 		r.log.Warn(logMsg,
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -605,7 +604,7 @@ func (r *EcoFlowSessionRunner) publishQuotaSnapshot(
 		r.quotaMetrics.recordMetadataUpsertFailure()
 		r.log.Warn("ecoflow quota metadata upsert failed; continuing",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -624,7 +623,7 @@ func (r *EcoFlowSessionRunner) publishQuotaSnapshot(
 		r.quotaMetrics.recordPublishFailure()
 		r.log.Warn("ecoflow quota publish enqueue failed; dropping quota frame",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -646,7 +645,7 @@ func (r *EcoFlowSessionRunner) logQuotaRefreshApplied(
 	}
 	attrs := []any{
 		slog.String("provider", a.Provider),
-		slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+		slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 		slog.String("reason", string(reason)),
 		slog.Time("observed_at", observedAt.UTC()),
 		slog.Int("params_count", paramsCount),

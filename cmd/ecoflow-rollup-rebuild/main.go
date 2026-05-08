@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rolluprebuild"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rollupworker"
@@ -151,8 +152,8 @@ func main() {
 		slog.Time("from", time.UnixMilli(fromUnixMS).UTC()),
 		slog.Time("to", time.UnixMilli(toUnixMS).UTC()),
 		slog.String("provider", strings.TrimSpace(provider)),
-		slog.Any("device_ids", runtimecfg.SplitNonEmpty(deviceIDsRaw)),
-		slog.Any("provider_device_ids", runtimecfg.SplitNonEmpty(providerIDsRaw)),
+		slog.Int("device_id_count", len(runtimecfg.SplitNonEmpty(deviceIDsRaw))),
+		slog.Int("provider_device_id_count", len(runtimecfg.SplitNonEmpty(providerIDsRaw))),
 		slog.Any("raw_logs", rawLogInputs),
 		slog.Bool("direct_archive", directArchive),
 		slog.String("archive_bucket", strings.TrimSpace(archiveBucket)),
@@ -222,8 +223,8 @@ func main() {
 			slog.Time("from", time.UnixMilli(fromUnixMS).UTC()),
 			slog.Time("to", time.UnixMilli(toUnixMS).UTC()),
 			slog.String("provider", strings.TrimSpace(provider)),
-			slog.Any("device_ids", deviceIDs),
-			slog.Any("provider_device_ids", providerDeviceIDs),
+			slog.Int("device_id_count", len(deviceIDs)),
+			slog.Int("provider_device_id_count", len(providerDeviceIDs)),
 			slog.Bool("direct_archive", directArchive),
 			slog.String("archive_bucket", strings.TrimSpace(archiveBucket)),
 			slog.String("archive_prefix", strings.TrimSpace(archivePrefix)),
@@ -271,7 +272,7 @@ func main() {
 	} else {
 		for _, line := range diffMinuteSummaries(preMinuteSummary, postMinuteSummary) {
 			log.Info("rollup bucket diff",
-				slog.String("provider_device_id", line.ProviderDeviceID),
+				slog.String("provider_device_ref", logredact.Identifier(line.ProviderDeviceID)),
 				slog.Int("pre_total_buckets", line.PreTotalBuckets),
 				slog.Int("post_total_buckets", line.PostTotalBuckets),
 				slog.Int("bucket_delta", line.PostTotalBuckets-line.PreTotalBuckets),

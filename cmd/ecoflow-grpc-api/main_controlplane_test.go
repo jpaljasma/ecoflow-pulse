@@ -9,6 +9,7 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
+	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 )
 
 func TestNewControlPlaneStoreFromEnvFallback(t *testing.T) {
@@ -128,6 +129,35 @@ func TestGRPCServiceModeFromEnvRejectsUnknownMode(t *testing.T) {
 	_, err := grpcServiceModeFromEnv()
 	if err == nil {
 		t.Fatal("expected error for unsupported service mode")
+	}
+}
+
+func TestRegisterControlPlaneDiscoverersIncludesAnkerSolix(t *testing.T) {
+	t.Parallel()
+
+	registry := provideradapter.NewRegistry()
+	registerControlPlaneDiscoverers(
+		registry,
+		staticDiscoverer{},
+		staticDiscoverer{},
+		staticDiscoverer{},
+		nil,
+	)
+
+	for _, provider := range []string{
+		controlplane.ProviderEcoFlow,
+		controlplane.ProviderPecron,
+		controlplane.ProviderAnkerSolix,
+	} {
+		if !registry.Supports(provider) {
+			t.Fatalf("expected registry to support %s", provider)
+		}
+		if _, ok := registry.Discoverer(provider); !ok {
+			t.Fatalf("expected discoverer for %s", provider)
+		}
+	}
+	if registry.Supports(controlplane.ProviderPulseMQTT) {
+		t.Fatal("did not expect pulse mqtt without adapter")
 	}
 }
 

@@ -8,10 +8,12 @@ rollups, weather context, and solar forecasting into one operator-grade app for
 web, iPhone, iPad, and Android.
 
 > [!NOTE]
-> Pulse is built around provider adapters for EcoFlow and Pecron, an Expo
+> Pulse is built around provider adapters for EcoFlow, Pecron, and Anker SOLIX,
+> an Expo
 > universal client, a Node REST BFF, Go gRPC/data services, NATS JetStream,
 > Valkey, Postgres/Timescale, object archive storage, and Kubernetes-first
-> deployment. Pecron support is read-only and unofficial/reverse-engineered.
+> deployment. Pecron and Anker SOLIX cloud support are read-only and
+> unofficial/reverse-engineered.
 
 ## Current Product
 
@@ -85,6 +87,8 @@ Actively validated:
 - DELTA 2 (D2)
 - DELTA 2 Max (D2M)
 - Pecron E1000LFP (`p11vxg`, read-only cloud telemetry)
+- Anker SOLIX power stations and home-battery systems with mapped Cloud MQTT
+  telemetry (`anker_solix`, read-only unofficial integration)
 
 ## Platform Capabilities
 

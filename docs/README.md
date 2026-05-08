@@ -25,6 +25,7 @@ This project uses the Diataxis framework for documentation structure.
 - [`how-to/seed-local-provider-data.md`](how-to/seed-local-provider-data.md)
 - [`how-to/pulse-mqtt-emulator-local.md`](how-to/pulse-mqtt-emulator-local.md)
 - [`how-to/configure-pecron-cloud.md`](how-to/configure-pecron-cloud.md)
+- [`how-to/configure-anker-solix-cloud-mqtt.md`](how-to/configure-anker-solix-cloud-mqtt.md)
 - [`how-to/dr-backup-restore-local.md`](how-to/dr-backup-restore-local.md)
 - [`how-to/rollout-schema-migrations-dev-staging-prod.md`](how-to/rollout-schema-migrations-dev-staging-prod.md)
 - [`how-to/prepare-pgroll-transition-local.md`](how-to/prepare-pgroll-transition-local.md)

@@ -41,6 +41,8 @@ export type AvailableProviderDevice = {
   canonicalSn: string;
   productName: string;
   model: string;
+  capabilities?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 };
 
 export type AvailableProviderDevicesResponse = {
@@ -648,7 +650,9 @@ function normalizeAvailableProviderDevice(device: RawAvailableProviderDevice): A
     credentialId: normalizeString(device.credentialId),
     canonicalSn: normalizeString(device.canonicalSn),
     productName: normalizeString(device.productName),
-    model: normalizeString(device.model)
+    model: normalizeString(device.model),
+    capabilities: normalizeRecord(device.capabilities),
+    metadata: normalizeRecord(device.metadata)
   };
 }
 

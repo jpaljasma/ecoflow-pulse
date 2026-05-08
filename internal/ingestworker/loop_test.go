@@ -116,6 +116,30 @@ func TestDefaultConfigLeaseMissingAlertDefaults(t *testing.T) {
 	}
 }
 
+func TestSanitizeAssignmentKeepsProviderSpecificDeviceIDSemantics(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		raw      string
+		want     string
+	}{
+		{name: "ecoflow uppercases serial", provider: controlplane.ProviderEcoFlow, raw: " demod2m00001057 ", want: "DEMOD2M00001057"},
+		{name: "pecron lowercases ref", provider: controlplane.ProviderPecron, raw: " P11VXG:AABBCCDDEEFF ", want: "p11vxg:aabbccddeeff"},
+		{name: "anker preserves serial casing", provider: controlplane.ProviderAnkerSolix, raw: " A1783:SN-C2000 ", want: "a1783:SN-C2000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeAssignment(controlplane.IngestAssignment{
+				Provider:         tt.provider,
+				ProviderDeviceID: tt.raw,
+			}).ProviderDeviceID
+			if got != tt.want {
+				t.Fatalf("provider device id = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoopStopsOnCredentialDisable(t *testing.T) {
 	t.Parallel()
 

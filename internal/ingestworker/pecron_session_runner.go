@@ -204,7 +204,7 @@ func (r *PecronSessionRunner) Run(ctx context.Context, a controlplane.IngestAssi
 		retryIn := applySessionJitter(backoff, cfg.ReconnectJitter)
 		r.log.Warn("pecron ingest session error; reconnecting",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 			slog.Duration("retry_in", retryIn),
 		)
@@ -241,7 +241,7 @@ func (r *PecronSessionRunner) runSessionOnce(
 
 	r.log.Info("pecron ingest session connected",
 		slog.String("provider", a.Provider),
-		slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+		slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 		slog.String("broker", connectedAddress),
 	)
 
@@ -262,7 +262,7 @@ func (r *PecronSessionRunner) runSessionOnce(
 		if err := r.publishSnapshot(refreshCtx, a, asyncPublisher, envelopeBuilder, r.nowFn().UTC()); err != nil {
 			r.log.Warn("pecron snapshot bootstrap failed; continuing with mqtt session",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 				slog.String("error", err.Error()),
 			)
 		}
@@ -280,7 +280,7 @@ func (r *PecronSessionRunner) runSessionOnce(
 			if publishErr != nil {
 				r.log.Warn("pecron ingest publish failed; dropping envelope and keeping mqtt session alive",
 					slog.String("provider", a.Provider),
-					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 					slog.String("error", publishErr.Error()),
 				)
 			}
@@ -325,7 +325,7 @@ func (r *PecronSessionRunner) runSessionOnce(
 			}
 			r.log.Warn("pecron ingest publish enqueue failed; dropping envelope and keeping mqtt session alive",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 				slog.String("error", publishErr.Error()),
 			)
 		}
@@ -381,7 +381,7 @@ func subscribePecronTopics(ctx context.Context, subscriber mqttSubscriber, topic
 	}
 	for _, topic := range topics {
 		if err := subscriber.Subscribe(ctx, topic, qos); err != nil {
-			return fmt.Errorf("subscribe pecron mqtt topic %s: %w", topic, err)
+			return fmt.Errorf("subscribe pecron mqtt topic %s: %w", mqttTopicLogRef(topic), err)
 		}
 	}
 	return nil
@@ -402,7 +402,7 @@ func (r *PecronSessionRunner) runSnapshotRefreshLoop(
 		if err := r.publishSnapshot(ctx, a, asyncPublisher, envelopeBuilder, r.nowFn().UTC()); err != nil {
 			r.log.Warn("pecron snapshot refresh failed; keeping mqtt session alive",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 				slog.String("error", err.Error()),
 			)
 		}
@@ -437,7 +437,7 @@ func (r *PecronSessionRunner) publishSnapshot(
 	}); err != nil {
 		r.log.Warn("pecron snapshot metadata upsert failed; continuing",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -451,7 +451,7 @@ func (r *PecronSessionRunner) publishSnapshot(
 	if err := asyncPublisher.Publish(ctx, envelope); err != nil && !errors.Is(err, context.Canceled) && ctx.Err() == nil {
 		r.log.Warn("pecron snapshot publish enqueue failed; dropping snapshot frame",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 	}
