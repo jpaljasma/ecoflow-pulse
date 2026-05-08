@@ -12,6 +12,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/energydashboard"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrypayload"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -315,7 +316,7 @@ func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs [
 				return status.Errorf(codes.Internal, "decode archive object for energy pv history: %v", err)
 			}
 			rows, err := energydashboard.SummarizePVPortHistoryFrames(frames, func(env *envelopev1.TelemetryEnvelope) bool {
-				if env.GetPayloadType() != "ecoflow.quota.normalized" {
+				if !telemetrypayload.IsNormalizedParamsPayloadType(env.GetPayloadType()) {
 					return false
 				}
 				providerDeviceID := strings.ToUpper(strings.TrimSpace(env.GetEcoflowSn()))

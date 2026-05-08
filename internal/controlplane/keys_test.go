@@ -13,6 +13,9 @@ func TestIsSupportedProvider(t *testing.T) {
 	if !IsSupportedProvider("PulseMQTT") {
 		t.Fatalf("expected pulsemqtt to be supported")
 	}
+	if !IsSupportedProvider(" PECRON ") {
+		t.Fatalf("expected pecron to be supported")
+	}
 	if IsSupportedProvider("unknown") {
 		t.Fatalf("expected unknown provider to be unsupported")
 	}

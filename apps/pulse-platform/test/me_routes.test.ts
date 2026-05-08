@@ -105,6 +105,7 @@ function sampleProviderCredential(): ProviderCredential {
     id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
     provider: 'ecoflow',
     accessKeyMask: 'AK12...7890',
+    config: {},
     isActive: true,
     createdAtUnixMs: '1773430000000',
     updatedAtUnixMs: '1773430800000'
@@ -202,6 +203,7 @@ describe('pulse-platform current user routes', () => {
           id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
           provider: 'ecoflow',
           accessKeyMask: 'AK12...7890',
+          config: {},
           isActive: true,
           createdAtUnixMs: '1773430000000',
           updatedAtUnixMs: '1773430800000'
@@ -216,6 +218,7 @@ describe('pulse-platform current user routes', () => {
     const updateProviderCredential = vi.fn(async () => ({
       ...sampleProviderCredential(),
       accessKeyMask: 'NEW1...9999',
+      config: { region: 'eu' },
       updatedAtUnixMs: '1773431800000'
     }));
     const controlPlaneClient = makeControlPlaneClient({ updateProviderCredential });
@@ -229,6 +232,7 @@ describe('pulse-platform current user routes', () => {
       payload: {
         accessKey: 'NEW123456789999',
         accessSecret: 'SECRET123456789999',
+        config: { region: 'eu' },
         isActive: true
       }
     });
@@ -239,6 +243,7 @@ describe('pulse-platform current user routes', () => {
         credentialId: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
         accessKey: 'NEW123456789999',
         secretKey: 'SECRET123456789999',
+        config: { region: 'eu' },
         isActive: true
       })
     );
@@ -247,11 +252,62 @@ describe('pulse-platform current user routes', () => {
         id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
         provider: 'ecoflow',
         accessKeyMask: 'NEW1...9999',
+        config: { region: 'eu' },
         isActive: true,
         createdAtUnixMs: '1773430000000',
         updatedAtUnixMs: '1773431800000'
       }
     });
+
+    await app.close();
+  });
+
+  it('creates Pecron integrations with non-secret region config', async () => {
+    const createProviderCredential = vi.fn(async () => ({
+      ...sampleProviderCredential(),
+      provider: 'pecron',
+      accessKeyMask: 'owne...test',
+      config: { region: 'eu' }
+    }));
+    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/integrations',
+      payload: {
+        provider: 'pecron',
+        accessKey: 'owner@example.test',
+        accessSecret: 'pecron-password',
+        config: { region: 'eu' },
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(createProviderCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'pecron',
+        accessKey: 'owner@example.test',
+        secretKey: 'pecron-password',
+        config: { region: 'eu' },
+        isActive: true
+      })
+    );
+    expect(response.json()).toEqual({
+      integration: {
+        id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+        provider: 'pecron',
+        accessKeyMask: 'owne...test',
+        config: { region: 'eu' },
+        isActive: true,
+        createdAtUnixMs: '1773430000000',
+        updatedAtUnixMs: '1773430800000'
+      }
+    });
+    expect(response.body).not.toContain('pecron-password');
 
     await app.close();
   });

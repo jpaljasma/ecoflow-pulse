@@ -127,12 +127,13 @@ INSERT INTO provider_credentials (
 	secret_key_ciphertext,
 	access_key_hash,
 	access_key_mask,
+	provider_config,
 	is_active,
 	created_at,
 	updated_at
 )
-VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $8)
-RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created_at, updated_at;
+VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, is_active, created_at, updated_at;
 `)).
 		WithArgs(
 			userID,
@@ -141,6 +142,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 			[]byte("SECRETKEY123"),
 			HashAccessKey("ACCESSKEY123"),
 			MaskAccessKey("ACCESSKEY123"),
+			[]byte("{}"),
 			true,
 			writeTime,
 		).
@@ -149,6 +151,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 			"user_id",
 			"provider",
 			"access_key_mask",
+			"provider_config",
 			"is_active",
 			"created_at",
 			"updated_at",
@@ -157,6 +160,7 @@ RETURNING id::text, user_id::text, provider, access_key_mask, is_active, created
 			userID,
 			ProviderEcoFlow,
 			MaskAccessKey("ACCESSKEY123"),
+			[]byte("{}"),
 			true,
 			writeTime,
 			writeTime,

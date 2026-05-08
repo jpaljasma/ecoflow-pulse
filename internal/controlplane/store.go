@@ -9,6 +9,7 @@ import (
 const (
 	ProviderEcoFlow   = "ecoflow"
 	ProviderPulseMQTT = "pulsemqtt"
+	ProviderPecron    = "pecron"
 )
 
 var (
@@ -31,6 +32,7 @@ type ProviderCredential struct {
 	// They must never be exposed through user-facing API responses.
 	AccessKey string
 	SecretKey string
+	Config    map[string]any
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -96,6 +98,7 @@ type IngestAssignment struct {
 	Model              string
 	AccessKey          string
 	SecretKey          string
+	CredentialConfig   map[string]any
 	DeviceIsActive     bool
 	CredentialIsActive bool
 	IngestDesiredState string
@@ -106,6 +109,7 @@ type CreateProviderCredentialInput struct {
 	Provider    string
 	AccessKey   string
 	SecretKey   string
+	Config      map[string]any
 	IsActive    bool
 }
 
@@ -125,6 +129,7 @@ type UpdateProviderCredentialInput struct {
 	CredentialID string
 	AccessKey    string
 	SecretKey    string
+	Config       map[string]any
 	IsActive     bool
 }
 

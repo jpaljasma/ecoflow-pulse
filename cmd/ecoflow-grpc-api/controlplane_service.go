@@ -42,6 +42,10 @@ type mqttCertificationResolver interface {
 	GetMQTTCertification(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (ecoflow.GeneralInfoMQTTCertification, error)
 }
 
+type providerMQTTProber interface {
+	ProbeMQTT(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string, timeout time.Duration) (provideradapter.MQTTProbeResult, error)
+}
+
 type mqttResolverTLSConfigProvider interface {
 	MQTTTLSConfig() *tls.Config
 }
@@ -196,6 +200,7 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 		return nil, err
 	}
 	provider := controlplane.NormalizeProvider(req.GetProvider())
+	config := structToMap(req.GetConfig())
 	if !s.supportsProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
 	}
@@ -210,6 +215,7 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 			Provider:  provider,
 			AccessKey: req.GetAccessKey(),
 			SecretKey: req.GetSecretKey(),
+			Config:    config,
 			IsActive:  true,
 		}); err != nil {
 			return nil, err
@@ -220,6 +226,7 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 		Provider:    provider,
 		AccessKey:   req.GetAccessKey(),
 		SecretKey:   req.GetSecretKey(),
+		Config:      config,
 		IsActive:    req.GetIsActive(),
 	})
 	if err != nil {
@@ -311,6 +318,10 @@ func (s *ControlPlaneService) UpdateProviderCredential(ctx context.Context, req 
 	if err != nil {
 		return nil, err
 	}
+	config := existing.Config
+	if req.GetConfig() != nil {
+		config = structToMap(req.GetConfig())
+	}
 	if req.GetIsActive() {
 		if err := s.validateProviderCredentialActivation(ctx, userSubject, controlplane.ProviderCredential{
 			ID:        existing.ID,
@@ -318,6 +329,7 @@ func (s *ControlPlaneService) UpdateProviderCredential(ctx context.Context, req 
 			Provider:  existing.Provider,
 			AccessKey: req.GetAccessKey(),
 			SecretKey: req.GetSecretKey(),
+			Config:    config,
 			IsActive:  true,
 		}); err != nil {
 			return nil, err
@@ -328,6 +340,7 @@ func (s *ControlPlaneService) UpdateProviderCredential(ctx context.Context, req 
 		CredentialID: req.GetCredentialId(),
 		AccessKey:    req.GetAccessKey(),
 		SecretKey:    req.GetSecretKey(),
+		Config:       config,
 		IsActive:     req.GetIsActive(),
 	})
 	if err != nil {
@@ -633,6 +646,22 @@ func (s *ControlPlaneService) probeProviderDeviceMQTT(
 	cred controlplane.ProviderCredential,
 	providerDeviceID string,
 ) (*controlplanev1.TestProviderDeviceMQTTResponse, error) {
+	if discoverer, ok := s.adapters.Discoverer(provider); ok {
+		if prober, ok := discoverer.(providerMQTTProber); ok {
+			result, err := prober.ProbeMQTT(ctx, cred, providerDeviceID, s.mqttProbeTimeout)
+			if err != nil {
+				switch {
+				case errors.Is(err, provideradapter.ErrProviderDeviceNotFound):
+					return nil, status.Error(codes.NotFound, err.Error())
+				case errors.Is(err, provideradapter.ErrInactiveCredential), errors.Is(err, provideradapter.ErrMissingCredentialMaterial):
+					return nil, status.Error(codes.FailedPrecondition, err.Error())
+				default:
+					return nil, status.Errorf(codes.Internal, "probe provider mqtt: %v", err)
+				}
+			}
+			return mqttProbeResultToProto(result), nil
+		}
+	}
 	resolver, tlsConfig, err := s.mqttResolver(provider)
 	if err != nil {
 		return nil, err
@@ -1044,6 +1073,7 @@ func providerCredentialToProto(in controlplane.ProviderCredential) *controlplane
 		IsActive:        in.IsActive,
 		CreatedAtUnixMs: in.CreatedAt.UnixMilli(),
 		UpdatedAtUnixMs: in.UpdatedAt.UnixMilli(),
+		Config:          mapToStructProto(in.Config),
 	}
 }
 
@@ -1149,4 +1179,25 @@ func mapToStructProto(in map[string]any) *structpb.Struct {
 		return nil
 	}
 	return out
+}
+
+func structToMap(in *structpb.Struct) map[string]any {
+	if in == nil || len(in.GetFields()) == 0 {
+		return nil
+	}
+	out := in.AsMap()
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func mqttProbeResultToProto(in provideradapter.MQTTProbeResult) *controlplanev1.TestProviderDeviceMQTTResponse {
+	return &controlplanev1.TestProviderDeviceMQTTResponse{
+		Success:          in.Success,
+		Status:           in.Status,
+		SampleTopic:      in.SampleTopic,
+		PayloadBytes:     in.PayloadBytes,
+		ObservedAtUnixMs: in.ObservedAtUnixMS,
+	}
 }

@@ -112,6 +112,11 @@ func main() {
 	if err != nil {
 		log.Info("pulse mqtt adapter disabled", slog.String("reason", err.Error()))
 	}
+	pecronAdapter, err := provideradapter.NewRuntimePecronAdapter()
+	if err != nil {
+		log.Error("init pecron adapter failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	subjectCfg := telemetrybus.SubjectConfig{
 		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
 		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
@@ -185,6 +190,23 @@ func main() {
 	sessionCfg.MQTTClientIDNamespace = strings.TrimSpace(runtimecfg.EnvOrDefault("INGEST_MQTT_CLIENT_ID_NAMESPACE", runtimecfg.EnvOrDefault("PULSE_ENV", "local")))
 	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
 	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
+	pecronSessionCfg := ingestworker.DefaultPecronSessionConfig()
+	pecronSessionCfg.ShardCount = sessionCfg.ShardCount
+	pecronSessionCfg.MQTTClientIDNamespace = sessionCfg.MQTTClientIDNamespace
+	pecronSessionCfg.KeepAlive = sessionCfg.KeepAlive
+	pecronSessionCfg.ConnectTimeout = sessionCfg.ConnectTimeout
+	pecronSessionCfg.ReadTimeout = sessionCfg.ReadTimeout
+	pecronSessionCfg.ReconnectInitialBackoff = sessionCfg.ReconnectInitialBackoff
+	pecronSessionCfg.ReconnectMaxBackoff = sessionCfg.ReconnectMaxBackoff
+	pecronSessionCfg.ReconnectJitter = sessionCfg.ReconnectJitter
+	pecronSessionCfg.SnapshotFetchTimeout = sessionCfg.QuotaFetchTimeout
+	pecronSessionCfg.SnapshotRefreshInterval = sessionCfg.QuotaRefreshInterval
+	pecronSessionCfg.SnapshotRefreshJitter = sessionCfg.QuotaRefreshJitter
+	pecronSessionCfg.PublishQueueSize = sessionCfg.PublishQueueSize
+	pecronSessionCfg.PublishWorkers = sessionCfg.PublishWorkers
+	pecronSessionCfg.PublishEnqueueTimeout = sessionCfg.PublishEnqueueTimeout
+	pecronSessionCfg.AllowUnorderedPublish = sessionCfg.AllowUnorderedPublish
+	pecronSessionCfg.DisableEnvelopeLabels = sessionCfg.DisableEnvelopeLabels
 	ecoFlowRunner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
 	if err != nil {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
@@ -192,6 +214,12 @@ func main() {
 	}
 	runner := ingestworker.NewProviderSessionRunner()
 	runner.Register(controlplane.ProviderEcoFlow, ecoFlowRunner)
+	pecronRunner, err := ingestworker.NewPecronSessionRunner(log, pecronAdapter, publisher, store, pecronSessionCfg)
+	if err != nil {
+		log.Error("init pecron session runner failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	runner.Register(controlplane.ProviderPecron, pecronRunner)
 	if pulseMQTTAdapter != nil {
 		pulseMQTTRunner, err := ingestworker.NewCompatibleMQTTSessionRunner(controlplane.ProviderPulseMQTT, log, pulseMQTTAdapter, publisher, store, sessionCfg)
 		if err != nil {

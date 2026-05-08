@@ -30,6 +30,7 @@ type ProviderCredential struct {
 	IsActive        bool                   `protobuf:"varint,4,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
 	CreatedAtUnixMs int64                  `protobuf:"varint,5,opt,name=created_at_unix_ms,json=createdAtUnixMs,proto3" json:"created_at_unix_ms,omitempty"`
 	UpdatedAtUnixMs int64                  `protobuf:"varint,6,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
+	Config          *structpb.Struct       `protobuf:"bytes,7,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -106,6 +107,13 @@ func (x *ProviderCredential) GetUpdatedAtUnixMs() int64 {
 	return 0
 }
 
+func (x *ProviderCredential) GetConfig() *structpb.Struct {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
 type CreateProviderCredentialRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
@@ -113,6 +121,7 @@ type CreateProviderCredentialRequest struct {
 	AccessKey     string                 `protobuf:"bytes,3,opt,name=access_key,json=accessKey,proto3" json:"access_key,omitempty"`
 	SecretKey     string                 `protobuf:"bytes,4,opt,name=secret_key,json=secretKey,proto3" json:"secret_key,omitempty"`
 	IsActive      bool                   `protobuf:"varint,5,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	Config        *structpb.Struct       `protobuf:"bytes,6,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -180,6 +189,13 @@ func (x *CreateProviderCredentialRequest) GetIsActive() bool {
 		return x.IsActive
 	}
 	return false
+}
+
+func (x *CreateProviderCredentialRequest) GetConfig() *structpb.Struct {
+	if x != nil {
+		return x.Config
+	}
+	return nil
 }
 
 type CreateProviderCredentialResponse struct {
@@ -433,6 +449,7 @@ type UpdateProviderCredentialRequest struct {
 	AccessKey     string                 `protobuf:"bytes,3,opt,name=access_key,json=accessKey,proto3" json:"access_key,omitempty"`
 	SecretKey     string                 `protobuf:"bytes,4,opt,name=secret_key,json=secretKey,proto3" json:"secret_key,omitempty"`
 	IsActive      bool                   `protobuf:"varint,5,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	Config        *structpb.Struct       `protobuf:"bytes,6,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -500,6 +517,13 @@ func (x *UpdateProviderCredentialRequest) GetIsActive() bool {
 		return x.IsActive
 	}
 	return false
+}
+
+func (x *UpdateProviderCredentialRequest) GetConfig() *structpb.Struct {
+	if x != nil {
+		return x.Config
+	}
+	return nil
 }
 
 type UpdateProviderCredentialResponse struct {
@@ -2606,14 +2630,15 @@ var File_pulse_controlplane_v1_control_plane_proto protoreflect.FileDescriptor
 
 const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\n" +
-	")pulse/controlplane/v1/control_plane.proto\x12\x15pulse.controlplane.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xdf\x01\n" +
+	")pulse/controlplane/v1/control_plane.proto\x12\x15pulse.controlplane.v1\x1a\x1cgoogle/protobuf/struct.proto\"\x90\x02\n" +
 	"\x12ProviderCredential\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12&\n" +
 	"\x0faccess_key_mask\x18\x03 \x01(\tR\raccessKeyMask\x12\x1b\n" +
 	"\tis_active\x18\x04 \x01(\bR\bisActive\x12+\n" +
 	"\x12created_at_unix_ms\x18\x05 \x01(\x03R\x0fcreatedAtUnixMs\x12+\n" +
-	"\x12updated_at_unix_ms\x18\x06 \x01(\x03R\x0fupdatedAtUnixMs\"\xbb\x01\n" +
+	"\x12updated_at_unix_ms\x18\x06 \x01(\x03R\x0fupdatedAtUnixMs\x12/\n" +
+	"\x06config\x18\a \x01(\v2\x17.google.protobuf.StructR\x06config\"\xec\x01\n" +
 	"\x1fCreateProviderCredentialRequest\x12!\n" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x1d\n" +
@@ -2621,7 +2646,8 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"access_key\x18\x03 \x01(\tR\taccessKey\x12\x1d\n" +
 	"\n" +
 	"secret_key\x18\x04 \x01(\tR\tsecretKey\x12\x1b\n" +
-	"\tis_active\x18\x05 \x01(\bR\bisActive\"m\n" +
+	"\tis_active\x18\x05 \x01(\bR\bisActive\x12/\n" +
+	"\x06config\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x06config\"m\n" +
 	" CreateProviderCredentialResponse\x12I\n" +
 	"\n" +
 	"credential\x18\x01 \x01(\v2).pulse.controlplane.v1.ProviderCredentialR\n" +
@@ -2638,7 +2664,7 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"#SetProviderCredentialActiveResponse\x12I\n" +
 	"\n" +
 	"credential\x18\x01 \x01(\v2).pulse.controlplane.v1.ProviderCredentialR\n" +
-	"credential\"\xc4\x01\n" +
+	"credential\"\xf5\x01\n" +
 	"\x1fUpdateProviderCredentialRequest\x12!\n" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12#\n" +
 	"\rcredential_id\x18\x02 \x01(\tR\fcredentialId\x12\x1d\n" +
@@ -2646,7 +2672,8 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"access_key\x18\x03 \x01(\tR\taccessKey\x12\x1d\n" +
 	"\n" +
 	"secret_key\x18\x04 \x01(\tR\tsecretKey\x12\x1b\n" +
-	"\tis_active\x18\x05 \x01(\bR\bisActive\"m\n" +
+	"\tis_active\x18\x05 \x01(\bR\bisActive\x12/\n" +
+	"\x06config\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x06config\"m\n" +
 	" UpdateProviderCredentialResponse\x12I\n" +
 	"\n" +
 	"credential\x18\x01 \x01(\v2).pulse.controlplane.v1.ProviderCredentialR\n" +
@@ -2894,64 +2921,67 @@ var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*structpb.Struct)(nil),                      // 39: google.protobuf.Struct
 }
 var file_pulse_controlplane_v1_control_plane_proto_depIdxs = []int32{
-	0,  // 0: pulse.controlplane.v1.CreateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	0,  // 1: pulse.controlplane.v1.ListProviderCredentialsResponse.credentials:type_name -> pulse.controlplane.v1.ProviderCredential
-	0,  // 2: pulse.controlplane.v1.SetProviderCredentialActiveResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	0,  // 3: pulse.controlplane.v1.UpdateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	39, // 4: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
-	39, // 5: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
-	11, // 6: pulse.controlplane.v1.GetCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
-	12, // 7: pulse.controlplane.v1.GetCurrentUserResponse.authorization:type_name -> pulse.controlplane.v1.AuthorizationSummary
-	11, // 8: pulse.controlplane.v1.UpdateCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
-	11, // 9: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
-	10, // 10: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	10, // 11: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
-	10, // 12: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
-	9,  // 13: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	25, // 14: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
-	9,  // 15: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	30, // 16: pulse.controlplane.v1.ListAvailableProviderDevicesResponse.devices:type_name -> pulse.controlplane.v1.AvailableProviderDevice
-	9,  // 17: pulse.controlplane.v1.EnableProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
-	10, // 18: pulse.controlplane.v1.EnableProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
-	9,  // 19: pulse.controlplane.v1.ImportProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
-	10, // 20: pulse.controlplane.v1.ImportProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
-	13, // 21: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:input_type -> pulse.controlplane.v1.GetCurrentUserRequest
-	15, // 22: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:input_type -> pulse.controlplane.v1.UpdateCurrentUserRequest
-	17, // 23: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:input_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
-	1,  // 24: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
-	3,  // 25: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
-	5,  // 26: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
-	7,  // 27: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:input_type -> pulse.controlplane.v1.UpdateProviderCredentialRequest
-	19, // 28: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
-	21, // 29: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
-	23, // 30: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
-	26, // 31: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
-	28, // 32: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
-	31, // 33: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:input_type -> pulse.controlplane.v1.ListAvailableProviderDevicesRequest
-	33, // 34: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:input_type -> pulse.controlplane.v1.TestProviderDeviceMQTTRequest
-	35, // 35: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:input_type -> pulse.controlplane.v1.EnableProviderDeviceRequest
-	37, // 36: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:input_type -> pulse.controlplane.v1.ImportProviderDeviceRequest
-	14, // 37: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:output_type -> pulse.controlplane.v1.GetCurrentUserResponse
-	16, // 38: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:output_type -> pulse.controlplane.v1.UpdateCurrentUserResponse
-	18, // 39: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:output_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
-	2,  // 40: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
-	4,  // 41: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
-	6,  // 42: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
-	8,  // 43: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:output_type -> pulse.controlplane.v1.UpdateProviderCredentialResponse
-	20, // 44: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
-	22, // 45: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
-	24, // 46: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
-	27, // 47: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
-	29, // 48: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
-	32, // 49: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:output_type -> pulse.controlplane.v1.ListAvailableProviderDevicesResponse
-	34, // 50: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:output_type -> pulse.controlplane.v1.TestProviderDeviceMQTTResponse
-	36, // 51: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:output_type -> pulse.controlplane.v1.EnableProviderDeviceResponse
-	38, // 52: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:output_type -> pulse.controlplane.v1.ImportProviderDeviceResponse
-	37, // [37:53] is the sub-list for method output_type
-	21, // [21:37] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	39, // 0: pulse.controlplane.v1.ProviderCredential.config:type_name -> google.protobuf.Struct
+	39, // 1: pulse.controlplane.v1.CreateProviderCredentialRequest.config:type_name -> google.protobuf.Struct
+	0,  // 2: pulse.controlplane.v1.CreateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
+	0,  // 3: pulse.controlplane.v1.ListProviderCredentialsResponse.credentials:type_name -> pulse.controlplane.v1.ProviderCredential
+	0,  // 4: pulse.controlplane.v1.SetProviderCredentialActiveResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
+	39, // 5: pulse.controlplane.v1.UpdateProviderCredentialRequest.config:type_name -> google.protobuf.Struct
+	0,  // 6: pulse.controlplane.v1.UpdateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
+	39, // 7: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
+	39, // 8: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
+	11, // 9: pulse.controlplane.v1.GetCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	12, // 10: pulse.controlplane.v1.GetCurrentUserResponse.authorization:type_name -> pulse.controlplane.v1.AuthorizationSummary
+	11, // 11: pulse.controlplane.v1.UpdateCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	11, // 12: pulse.controlplane.v1.RefreshCurrentUserIdentityResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
+	10, // 13: pulse.controlplane.v1.CreateDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	10, // 14: pulse.controlplane.v1.LinkDeviceResponse.device:type_name -> pulse.controlplane.v1.UserDevice
+	10, // 15: pulse.controlplane.v1.ListUserDevicesResponse.devices:type_name -> pulse.controlplane.v1.UserDevice
+	9,  // 16: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	25, // 17: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
+	9,  // 18: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
+	30, // 19: pulse.controlplane.v1.ListAvailableProviderDevicesResponse.devices:type_name -> pulse.controlplane.v1.AvailableProviderDevice
+	9,  // 20: pulse.controlplane.v1.EnableProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
+	10, // 21: pulse.controlplane.v1.EnableProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
+	9,  // 22: pulse.controlplane.v1.ImportProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
+	10, // 23: pulse.controlplane.v1.ImportProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
+	13, // 24: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:input_type -> pulse.controlplane.v1.GetCurrentUserRequest
+	15, // 25: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:input_type -> pulse.controlplane.v1.UpdateCurrentUserRequest
+	17, // 26: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:input_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
+	1,  // 27: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
+	3,  // 28: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
+	5,  // 29: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
+	7,  // 30: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:input_type -> pulse.controlplane.v1.UpdateProviderCredentialRequest
+	19, // 31: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
+	21, // 32: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
+	23, // 33: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
+	26, // 34: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
+	28, // 35: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
+	31, // 36: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:input_type -> pulse.controlplane.v1.ListAvailableProviderDevicesRequest
+	33, // 37: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:input_type -> pulse.controlplane.v1.TestProviderDeviceMQTTRequest
+	35, // 38: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:input_type -> pulse.controlplane.v1.EnableProviderDeviceRequest
+	37, // 39: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:input_type -> pulse.controlplane.v1.ImportProviderDeviceRequest
+	14, // 40: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:output_type -> pulse.controlplane.v1.GetCurrentUserResponse
+	16, // 41: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:output_type -> pulse.controlplane.v1.UpdateCurrentUserResponse
+	18, // 42: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:output_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
+	2,  // 43: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
+	4,  // 44: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
+	6,  // 45: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
+	8,  // 46: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:output_type -> pulse.controlplane.v1.UpdateProviderCredentialResponse
+	20, // 47: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
+	22, // 48: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
+	24, // 49: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
+	27, // 50: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
+	29, // 51: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
+	32, // 52: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:output_type -> pulse.controlplane.v1.ListAvailableProviderDevicesResponse
+	34, // 53: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:output_type -> pulse.controlplane.v1.TestProviderDeviceMQTTResponse
+	36, // 54: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:output_type -> pulse.controlplane.v1.EnableProviderDeviceResponse
+	38, // 55: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:output_type -> pulse.controlplane.v1.ImportProviderDeviceResponse
+	40, // [40:56] is the sub-list for method output_type
+	24, // [24:40] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_pulse_controlplane_v1_control_plane_proto_init() }

@@ -18,12 +18,14 @@ const createIntegrationSchema = z.object({
   provider: z.string().trim().min(1).max(64),
   accessKey: z.string().trim().min(1).max(512),
   accessSecret: z.string().trim().min(1).max(512),
+  config: z.record(z.unknown()).optional().default({}),
   isActive: z.boolean().optional().default(true)
 });
 
 const updateIntegrationSchema = z.object({
   accessKey: z.string().trim().min(1).max(512),
   accessSecret: z.string().trim().min(1).max(512),
+  config: z.record(z.unknown()).optional().default({}),
   isActive: z.boolean().optional().default(true)
 });
 
@@ -66,6 +68,7 @@ export function registerIntegrationRoutes(
         provider: body.provider,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
+        config: body.config,
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -89,6 +92,7 @@ export function registerIntegrationRoutes(
         credentialId: params.credentialId,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
+        config: body.config,
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -130,6 +134,7 @@ function toIntegrationResponse(integration: ProviderCredential): Record<string, 
     id: integration.id,
     provider: integration.provider,
     accessKeyMask: integration.accessKeyMask,
+    config: integration.config ?? {},
     isActive: integration.isActive,
     createdAtUnixMs: integration.createdAtUnixMs,
     updatedAtUnixMs: integration.updatedAtUnixMs

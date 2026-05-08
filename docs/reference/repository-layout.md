@@ -26,6 +26,7 @@ Top-level structure:
 - `pkg/`
   - `ecoflow`: core API client and signing.
   - `ecoflowmqtt`: MQTT subscriber primitives.
+  - `pecron`: unofficial Pecron cloud REST/MQTT client and E1000LFP telemetry normalization.
   - `panelselect`: panel selection model, feature tracker, and predictor.
   - `ecoflowserver`: server helpers and middleware.
   - `logger`: structured logging package with bounded async queueing and queue-depth metrics.

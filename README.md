@@ -2,16 +2,16 @@
 
 <img src="apps/universal/assets/icon.png" alt="EcoFlow Pulse app icon" style="width:50%; height:auto;">
 
-EcoFlow Pulse is a realtime energy control room for EcoFlow devices. It combines
-live MQTT telemetry, authenticated device access, historical rollups, weather
-context, and solar forecasting into one operator-grade app for web, iPhone,
-iPad, and Android.
+EcoFlow Pulse is a realtime energy control room for portable power systems. It
+combines live provider telemetry, authenticated device access, historical
+rollups, weather context, and solar forecasting into one operator-grade app for
+web, iPhone, iPad, and Android.
 
 > [!NOTE]
-> Pulse is built around the official EcoFlow API, EcoFlow MQTT streams, an Expo
+> Pulse is built around provider adapters for EcoFlow and Pecron, an Expo
 > universal client, a Node REST BFF, Go gRPC/data services, NATS JetStream,
 > Valkey, Postgres/Timescale, object archive storage, and Kubernetes-first
-> deployment.
+> deployment. Pecron support is read-only and unofficial/reverse-engineered.
 
 ## Current Product
 
@@ -84,6 +84,7 @@ Actively validated:
 - DELTA Pro Ultra (DPU)
 - DELTA 2 (D2)
 - DELTA 2 Max (D2M)
+- Pecron E1000LFP (`p11vxg`, read-only cloud telemetry)
 
 ## Platform Capabilities
 

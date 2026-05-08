@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
@@ -15,6 +16,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type staticDiscoverer struct {
@@ -36,6 +38,17 @@ func (d staticDiscoverer) GetMQTTCertification(context.Context, controlplane.Pro
 		return ecoflow.GeneralInfoMQTTCertification{}, d.certErr
 	}
 	return d.cert, nil
+}
+
+type staticProviderMQTTProber struct {
+	staticDiscoverer
+	result provideradapter.MQTTProbeResult
+	called bool
+}
+
+func (p *staticProviderMQTTProber) ProbeMQTT(context.Context, controlplane.ProviderCredential, string, time.Duration) (provideradapter.MQTTProbeResult, error) {
+	p.called = true
+	return p.result, nil
 }
 
 type staticProbeSubscriber struct {
@@ -295,6 +308,63 @@ func TestCreateAndListProviderCredentials(t *testing.T) {
 	}
 	if got := len(listResp.GetCredentials()); got != 1 {
 		t.Fatalf("expected 1 credential, got %d", got)
+	}
+}
+
+func TestProviderCredentialConfigRoundTripsWithoutSecretMaterial(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	config, err := structpb.NewStruct(map[string]any{"region": "eu"})
+	if err != nil {
+		t.Fatalf("build config: %v", err)
+	}
+	createResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		AccessKey:   "AKCONFIG1234",
+		SecretKey:   "SKCONFIG1234",
+		Config:      config,
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+	if got := createResp.GetCredential().GetConfig().AsMap()["region"]; got != "eu" {
+		t.Fatalf("created config region = %#v, want eu", got)
+	}
+
+	updatedConfig, err := structpb.NewStruct(map[string]any{"region": "cn"})
+	if err != nil {
+		t.Fatalf("build updated config: %v", err)
+	}
+	updateResp, err := svc.UpdateProviderCredential(context.Background(), &controlplanev1.UpdateProviderCredentialRequest{
+		UserSubject:  "dev-user",
+		CredentialId: createResp.GetCredential().GetId(),
+		AccessKey:    "AKCONFIG1234",
+		SecretKey:    "SKCONFIG5678",
+		Config:       updatedConfig,
+		IsActive:     false,
+	})
+	if err != nil {
+		t.Fatalf("update credential failed: %v", err)
+	}
+	if got := updateResp.GetCredential().GetConfig().AsMap()["region"]; got != "cn" {
+		t.Fatalf("updated config region = %#v, want cn", got)
+	}
+
+	listResp, err := svc.ListProviderCredentials(context.Background(), &controlplanev1.ListProviderCredentialsRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+	})
+	if err != nil {
+		t.Fatalf("list credentials failed: %v", err)
+	}
+	if got := listResp.GetCredentials()[0].GetConfig().AsMap()["region"]; got != "cn" {
+		t.Fatalf("listed config region = %#v, want cn", got)
+	}
+	if listResp.GetCredentials()[0].GetAccessKeyMask() == "AKCONFIG1234" {
+		t.Fatalf("expected masked access key in list response")
 	}
 }
 
@@ -962,6 +1032,68 @@ func TestTestProviderDeviceMQTTSuccess(t *testing.T) {
 	}
 	if got := resp.GetPayloadBytes(); got != int64(len(`{"id":1}`)) {
 		t.Fatalf("payload_bytes=%d want %d", got, len(`{"id":1}`))
+	}
+}
+
+func TestTestProviderDeviceMQTTUsesProviderSpecificProbeWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	prober := &staticProviderMQTTProber{
+		staticDiscoverer: staticDiscoverer{
+			devices: []controlplane.ProviderDevice{
+				{
+					Provider:         controlplane.ProviderPecron,
+					ProviderDeviceID: "p11vxg:aabbccddeeff",
+					CanonicalSN:      "PECRON-P11VXG-AABBCCDDEEFF",
+					ProductName:      "Pecron E1000LFP",
+					Model:            "E1000LFP",
+				},
+			},
+		},
+		result: provideradapter.MQTTProbeResult{
+			Success:          true,
+			Status:           "ok",
+			SampleTopic:      "q/2/d/qdp11vxgaabbccddeeff/bus_",
+			PayloadBytes:     42,
+			ObservedAtUnixMS: 1770000000000,
+		},
+	}
+	svc.RegisterDiscoverer(controlplane.ProviderPecron, prober)
+	svc.newMQTTSubscriber = func(ecoflowmqtt.Config) (mqttProbeSubscriber, error) {
+		t.Fatalf("generic EcoFlow MQTT subscriber should not be used for Pecron probe")
+		return nil, nil
+	}
+	config, err := structpb.NewStruct(map[string]any{"region": "us"})
+	if err != nil {
+		t.Fatalf("build config: %v", err)
+	}
+	credResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderPecron,
+		AccessKey:   "owner@example.test",
+		SecretKey:   "password",
+		Config:      config,
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatalf("create credential failed: %v", err)
+	}
+
+	resp, err := svc.TestProviderDeviceMQTT(context.Background(), &controlplanev1.TestProviderDeviceMQTTRequest{
+		UserSubject:      "dev-user",
+		Provider:         controlplane.ProviderPecron,
+		CredentialId:     credResp.GetCredential().GetId(),
+		ProviderDeviceId: "p11vxg:aabbccddeeff",
+	})
+	if err != nil {
+		t.Fatalf("test provider device mqtt failed: %v", err)
+	}
+	if !prober.called {
+		t.Fatalf("provider-specific prober was not called")
+	}
+	if !resp.GetSuccess() || resp.GetSampleTopic() != "q/2/d/qdp11vxgaabbccddeeff/bus_" {
+		t.Fatalf("unexpected probe response: %+v", resp)
 	}
 }
 

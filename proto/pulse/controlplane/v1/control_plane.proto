@@ -13,6 +13,7 @@ message ProviderCredential {
   bool is_active = 4;
   int64 created_at_unix_ms = 5;
   int64 updated_at_unix_ms = 6;
+  google.protobuf.Struct config = 7;
 }
 
 message CreateProviderCredentialRequest {
@@ -21,6 +22,7 @@ message CreateProviderCredentialRequest {
   string access_key = 3;
   string secret_key = 4;
   bool is_active = 5;
+  google.protobuf.Struct config = 6;
 }
 
 message CreateProviderCredentialResponse {
@@ -52,6 +54,7 @@ message UpdateProviderCredentialRequest {
   string access_key = 3;
   string secret_key = 4;
   bool is_active = 5;
+  google.protobuf.Struct config = 6;
 }
 
 message UpdateProviderCredentialResponse {

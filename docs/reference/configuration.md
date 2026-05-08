@@ -19,8 +19,11 @@ Environment-specific credential keys (preferred):
 
 Runtime note:
 
-- request-serving EcoFlow integrations still use per-user credential material from
-  `provider_credentials` in Postgres,
+- request-serving EcoFlow and Pecron integrations use per-user credential material
+  from `provider_credentials` in Postgres,
+- provider credential config is non-secret JSON. Pecron currently stores
+  `region` as `us`, `eu`, or `cn`; clients receive this config with masked
+  credential metadata only.
 - `ECOFLOW_ENV` / `ECOFLOW_BASE_URL` supply the shared provider profile/endpoints
   used by the EcoFlow adapter runtime and local env-backed credential tests.
 - the local services Helm release now injects those two vars into the Go service
@@ -28,6 +31,10 @@ Runtime note:
 - steady-state ingest MQTT sessions derive their broker `ClientID` from the
   provider device ID plus `PULSE_ENV`, so `local` and `cloud` produce distinct
   client IDs for the same EcoFlow device.
+- Pecron cloud runtime endpoints are selected by saved provider credential
+  `region`. Pecron REST snapshots and MQTT-over-WebSocket `kv` payloads are
+  decoded into canonical provider telemetry before entering the shared ingest
+  publisher path.
 
 ## Logging and Process Safety
 

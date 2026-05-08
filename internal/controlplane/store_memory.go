@@ -123,6 +123,7 @@ func (s *MemoryStore) CreateProviderCredential(_ context.Context, in CreateProvi
 		AccessKeyMask: MaskAccessKey(in.AccessKey),
 		AccessKey:     in.AccessKey,
 		SecretKey:     in.SecretKey,
+		Config:        cloneAnyMap(in.Config),
 		IsActive:      in.IsActive,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -137,7 +138,7 @@ func (s *MemoryStore) CreateProviderCredential(_ context.Context, in CreateProvi
 	if row.IsActive {
 		s.rebindProviderDevicesLocked(userID, row.Provider, row.ID, now)
 	}
-	return row, nil
+	return cloneProviderCredential(row), nil
 }
 
 func (s *MemoryStore) ListProviderCredentials(_ context.Context, in ListProviderCredentialsInput) ([]ProviderCredential, error) {
@@ -159,6 +160,7 @@ func (s *MemoryStore) ListProviderCredentials(_ context.Context, in ListProvider
 		}
 		row.AccessKey = ""
 		row.SecretKey = ""
+		row.Config = cloneAnyMap(row.Config)
 		out = append(out, row)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -192,7 +194,7 @@ func (s *MemoryStore) SetProviderCredentialActive(_ context.Context, in SetProvi
 	if in.IsActive {
 		s.rebindProviderDevicesLocked(userID, row.Provider, row.ID, now)
 	}
-	return row, nil
+	return cloneProviderCredential(row), nil
 }
 
 func (s *MemoryStore) UpdateProviderCredential(_ context.Context, in UpdateProviderCredentialInput) (ProviderCredential, error) {
@@ -210,6 +212,7 @@ func (s *MemoryStore) UpdateProviderCredential(_ context.Context, in UpdateProvi
 	now := normalizeWriteTime(s.now())
 	row.AccessKey = in.AccessKey
 	row.SecretKey = in.SecretKey
+	row.Config = cloneAnyMap(in.Config)
 	row.AccessKeyMask = MaskAccessKey(in.AccessKey)
 	row.IsActive = in.IsActive
 	row.UpdatedAt = now
@@ -223,7 +226,7 @@ func (s *MemoryStore) UpdateProviderCredential(_ context.Context, in UpdateProvi
 	if row.IsActive {
 		s.rebindProviderDevicesLocked(userID, row.Provider, row.ID, now)
 	}
-	return row, nil
+	return cloneProviderCredential(row), nil
 }
 
 func (s *MemoryStore) GetProviderCredential(_ context.Context, userSubject string, credentialID string) (ProviderCredential, error) {
@@ -238,7 +241,7 @@ func (s *MemoryStore) GetProviderCredential(_ context.Context, userSubject strin
 	if !ok || row.UserID != userID {
 		return ProviderCredential{}, ErrCredentialNotFound
 	}
-	return row, nil
+	return cloneProviderCredential(row), nil
 }
 
 func (s *MemoryStore) setExclusiveCredentialActiveLocked(userID, provider, credentialID string, now time.Time) {
@@ -686,6 +689,7 @@ func (s *MemoryStore) ListIngestAssignments(_ context.Context, in ListIngestAssi
 			Model:              dev.Model,
 			AccessKey:          cred.AccessKey,
 			SecretKey:          cred.SecretKey,
+			CredentialConfig:   cloneAnyMap(cred.Config),
 			DeviceIsActive:     dev.IsActive,
 			CredentialIsActive: cred.IsActive,
 			IngestDesiredState: dev.IngestDesiredState,
@@ -770,6 +774,12 @@ func cloneProviderDevice(in ProviderDevice) ProviderDevice {
 	out := in
 	out.Capabilities = cloneAnyMap(in.Capabilities)
 	out.Metadata = cloneAnyMap(in.Metadata)
+	return out
+}
+
+func cloneProviderCredential(in ProviderCredential) ProviderCredential {
+	out := in
+	out.Config = cloneAnyMap(in.Config)
 	return out
 }
 
