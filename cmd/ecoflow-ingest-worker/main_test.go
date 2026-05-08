@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,10 +10,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestworker"
+	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/pecron"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+func TestRequireControlPlaneSchemaRejectsMissingProviderConfigColumn(t *testing.T) {
+	validator := &fakeSchemaValidator{err: controlplane.ErrSchemaNotReady}
+
+	err := requireControlPlaneSchema(context.Background(), nil, validator, startupretry.Options{
+		Timeout:        time.Millisecond,
+		InitialBackoff: time.Millisecond,
+		MaxBackoff:     time.Millisecond,
+	})
+	if !errors.Is(err, controlplane.ErrSchemaNotReady) {
+		t.Fatalf("error=%v, want ErrSchemaNotReady", err)
+	}
+	if validator.calls == 0 {
+		t.Fatal("expected schema validator to be called")
+	}
+}
 
 func TestLoadIngestLoopConfigFromEnv(t *testing.T) {
 	t.Setenv("INGEST_WORKER_ID", "worker-test")
@@ -36,6 +55,16 @@ func TestLoadIngestLoopConfigFromEnv(t *testing.T) {
 	if cfg.StartWorkers != 17 || cfg.StartQueueSize != 99 || cfg.LeaseMissingAlertThreshold != 7 || cfg.LeaseMissingAlertWindow != 6*time.Minute || cfg.LeaseMissingAlertCooldown != 3*time.Minute {
 		t.Fatalf("worker sizing mismatch: %+v", cfg)
 	}
+}
+
+type fakeSchemaValidator struct {
+	err   error
+	calls int
+}
+
+func (f *fakeSchemaValidator) RequireCurrentSchema(context.Context) error {
+	f.calls++
+	return f.err
 }
 
 func TestLoadIngestLoopConfigFromEnvGeneratesWorkerID(t *testing.T) {

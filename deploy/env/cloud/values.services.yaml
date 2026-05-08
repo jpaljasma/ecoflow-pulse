@@ -35,7 +35,7 @@ runtime:
         controlPlaneDBDSN: pulse-cloud-control-plane-db-dsn
         archiveManifestDBDSN: pulse-cloud-archive-manifest-db-dsn
   migrations:
-    enabled: false
+    enabled: true
     namespace: pulse-platform
     db:
       host: pulse-platform-core-rw
@@ -46,8 +46,8 @@ runtime:
       usernameKey: username
       passwordKey: password
     policy:
-      rolloutEnv: cloud
-      requireBackup: true
+      rolloutEnv: dev
+      requireBackup: false
       backupRef: ""
       forwardOnly: true
   env:
@@ -75,6 +75,7 @@ runtime:
     archiveObjectSecure: "true"
     archiveObjectAutoCreateBucket: "false"
     ingestNatsJSReplicas: "1"
+    ingestNatsJSMaxAge: "6h"
     gapRepairNatsJSReplicas: "1"
     pulseMqttEmulatorEnabled: "false"
     pulseMqttEmulatorBaseUrl: "http://pulse-services-cloud-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"

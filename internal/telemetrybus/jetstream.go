@@ -13,7 +13,7 @@ import (
 const (
 	defaultIngestStreamName      = "PULSE_TELEMETRY_INGEST"
 	defaultIngestStreamReplicas  = 3
-	defaultIngestStreamMaxAge    = 72 * time.Hour
+	defaultIngestStreamMaxAge    = 12 * time.Hour
 	defaultIngestStreamStorage   = nats.FileStorage
 	defaultIngestStreamRetention = nats.LimitsPolicy
 )

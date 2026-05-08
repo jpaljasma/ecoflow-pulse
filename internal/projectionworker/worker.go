@@ -153,16 +153,14 @@ func (w *Worker) SetMetrics(metrics *workermetrics.Metrics) {
 }
 
 func (w *Worker) defaultSubscribe(js nats.JetStreamContext, handler nats.MsgHandler) (*nats.Subscription, error) {
-	return js.QueueSubscribe(
-		telemetrybus.IngestWildcardSubject(w.cfg.SubjectConfig),
-		w.cfg.QueueGroup,
-		handler,
-		nats.BindStream(strings.TrimSpace(w.cfg.StreamName)),
-		nats.Durable(strings.TrimSpace(w.cfg.Durable)),
-		nats.ManualAck(),
-		nats.AckWait(w.cfg.AckWait),
-		nats.MaxAckPending(w.cfg.MaxAckPending),
-	)
+	return telemetrybus.QueueSubscribeIngest(js, telemetrybus.IngestQueueSubscribeConfig{
+		SubjectConfig: w.cfg.SubjectConfig,
+		StreamName:    w.cfg.StreamName,
+		Durable:       w.cfg.Durable,
+		QueueGroup:    w.cfg.QueueGroup,
+		AckWait:       w.cfg.AckWait,
+		MaxAckPending: w.cfg.MaxAckPending,
+	}, handler)
 }
 
 func (w *Worker) handleMessage(msg *nats.Msg) {

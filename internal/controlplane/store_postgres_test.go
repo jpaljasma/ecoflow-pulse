@@ -5,11 +5,70 @@ import (
 	"database/sql"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
+
+func TestPostgresStoreRequireCurrentSchemaFailsWhenProviderConfigColumnMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	mock.ExpectQuery(regexp.QuoteMeta(providerConfigColumnSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"data_type", "is_nullable"}))
+
+	err = store.RequireCurrentSchema(context.Background())
+	if err == nil {
+		t.Fatal("expected missing provider_config column error")
+	}
+	if !errors.Is(err, ErrSchemaNotReady) {
+		t.Fatalf("error=%v, want ErrSchemaNotReady", err)
+	}
+	if !strings.Contains(err.Error(), "provider_credentials.provider_config") {
+		t.Fatalf("error=%q, want provider_config context", err.Error())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestProviderConfigColumnSchemaQueryUsesSearchPathResolution(t *testing.T) {
+	if !strings.Contains(providerConfigColumnSchemaQuery, "to_regclass('provider_credentials')") {
+		t.Fatal("schema gate should resolve provider_credentials through the active search_path")
+	}
+	if strings.Contains(providerConfigColumnSchemaQuery, "current_schema()") {
+		t.Fatal("schema gate must not inspect only current_schema()")
+	}
+}
+
+func TestPostgresStoreRequireCurrentSchemaAcceptsProviderConfigColumn(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	mock.ExpectQuery(regexp.QuoteMeta(providerConfigColumnSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"data_type", "is_nullable"}).AddRow("jsonb", "NO"))
+
+	if err := store.RequireCurrentSchema(context.Background()); err != nil {
+		t.Fatalf("RequireCurrentSchema failed: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
 
 func TestPostgresStoreListUserDevicesRetriesTransientPressure(t *testing.T) {
 	t.Setenv("DB_READ_RETRY_MAX_ATTEMPTS", "2")

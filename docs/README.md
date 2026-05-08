@@ -15,6 +15,9 @@ This project uses the Diataxis framework for documentation structure.
 
 ### How-to Guides
 
+Provider integrations include local/provider seeding, the Pulse MQTT emulator,
+Pecron E1000LFP cloud, and Anker SOLIX Cloud MQTT onboarding.
+
 - [`how-to/configure-environment.md`](how-to/configure-environment.md)
 - [`how-to/add-solar-panel-to-db.md`](how-to/add-solar-panel-to-db.md)
 - [`how-to/generate-pv-fingerprints.md`](how-to/generate-pv-fingerprints.md)

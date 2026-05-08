@@ -948,7 +948,8 @@ func (s *ControlPlaneService) listAvailableProviderDevices(ctx context.Context, 
 		if err != nil {
 			switch {
 			case errors.Is(err, provideradapter.ErrInactiveCredential),
-				errors.Is(err, provideradapter.ErrMissingCredentialMaterial):
+				errors.Is(err, provideradapter.ErrMissingCredentialMaterial),
+				errors.Is(err, provideradapter.ErrUnsupportedProvider):
 				continue
 			default:
 				return nil, true, err

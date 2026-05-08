@@ -34,6 +34,7 @@ data:
   ARCHIVE_OBJECT_SECURE: {{ .Values.runtime.env.archiveObjectSecure | quote }}
   ARCHIVE_OBJECT_AUTO_CREATE_BUCKET: {{ .Values.runtime.env.archiveObjectAutoCreateBucket | quote }}
   INGEST_NATS_JS_REPLICAS: {{ .Values.runtime.env.ingestNatsJSReplicas | quote }}
+  INGEST_NATS_JS_MAX_AGE: {{ .Values.runtime.env.ingestNatsJSMaxAge | quote }}
   GAP_REPAIR_NATS_JS_REPLICAS: {{ .Values.runtime.env.gapRepairNatsJSReplicas | quote }}
   PULSE_MQTT_EMULATOR_ENABLED: {{ .Values.runtime.env.pulseMqttEmulatorEnabled | quote }}
   PULSE_MQTT_EMULATOR_BASE_URL: {{ .Values.runtime.env.pulseMqttEmulatorBaseUrl | quote }}

@@ -170,6 +170,10 @@ gap repair, history backfill, and gRPC history/archive readers:
 - `INGEST_NATS_JS_REPLICAS`
   - JetStream replica factor for the ingest stream bootstrap,
   - set this to `1` when a bootstrap profile intentionally runs NATS without clustering.
+- `INGEST_NATS_JS_MAX_AGE`
+  - JetStream ingest retention horizon (default `12h`; hosted cloud uses `6h`),
+  - keep this bounded so recreated durable consumers cannot accumulate a
+    multi-day backlog before live telemetry catches up.
 - `GAP_REPAIR_NATS_JS_REPLICAS`
   - JetStream replica factor for the gap-repair stream bootstrap,
   - set this to `1` when a bootstrap profile intentionally runs NATS without clustering.

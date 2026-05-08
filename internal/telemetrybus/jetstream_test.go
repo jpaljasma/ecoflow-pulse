@@ -65,7 +65,7 @@ func TestEnsureJetStreamIngestStreamUpdatesWhenConfigDiffers(t *testing.T) {
 			Enabled:    true,
 			StreamName: "PULSE_TELEMETRY_INGEST",
 			Replicas:   3,
-			MaxAge:     72 * time.Hour,
+			MaxAge:     24 * time.Hour,
 			Storage:    nats.FileStorage,
 		},
 	)
@@ -86,7 +86,7 @@ func TestEnsureJetStreamIngestStreamNoopWhenConfigMatches(t *testing.T) {
 				Name:      "PULSE_TELEMETRY_INGEST",
 				Subjects:  []string{"pulse.telemetry.ingest.*"},
 				Retention: nats.LimitsPolicy,
-				MaxAge:    72 * time.Hour,
+				MaxAge:    12 * time.Hour,
 				Storage:   nats.FileStorage,
 				Replicas:  3,
 			},

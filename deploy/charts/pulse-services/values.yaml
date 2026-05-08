@@ -46,6 +46,7 @@ runtime:
   migrations:
     enabled: false
     namespace: pulse-platform
+    serviceAccountName: ""
     db:
       host: pulse-platform-core-rw
       port: 5432
@@ -95,6 +96,7 @@ runtime:
     archiveObjectSecure: "false"
     archiveObjectAutoCreateBucket: "true"
     ingestNatsJSReplicas: "3"
+    ingestNatsJSMaxAge: "12h"
     gapRepairNatsJSReplicas: "3"
     pulseMqttEmulatorEnabled: "true"
     pulseMqttEmulatorBaseUrl: "http://pulse-services-pulse-mqtt-emulator.pulse-services.svc.cluster.local:8080"

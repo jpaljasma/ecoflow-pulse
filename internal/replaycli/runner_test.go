@@ -112,6 +112,64 @@ func TestRunnerReplayFleetPublishesAll(t *testing.T) {
 	}
 }
 
+func TestRunnerReplayFleetFiltersFramesToRequestedWindow(t *testing.T) {
+	t.Parallel()
+
+	manifest := &fakeManifestStore{
+		fleetObjects: []ManifestObject{
+			{
+				ObjectBucket: "raw",
+				ObjectKey:    "obj-window",
+				Shard:        11,
+			},
+		},
+	}
+	objReader := &fakeObjectReader{
+		byPath: map[string][]byte{
+			"raw/obj-window": encodeFramedZstdPayload(t, [][]byte{
+				mustEnvelopeBytes(t, &envelopev1.TelemetryEnvelope{DeviceId: "before", IngestedTimeUnixMs: 100, Shard: 11, ShardCount: 128}),
+				mustEnvelopeBytes(t, &envelopev1.TelemetryEnvelope{DeviceId: "inside", IngestedTimeUnixMs: 200, Shard: 11, ShardCount: 128}),
+				mustEnvelopeBytes(t, &envelopev1.TelemetryEnvelope{DeviceId: "after", IngestedTimeUnixMs: 300, Shard: 11, ShardCount: 128}),
+			}),
+		},
+	}
+	publisher := &fakePublisher{}
+
+	runner, err := NewRunner(slog.Default(), manifest, objReader, publisher)
+	if err != nil {
+		t.Fatalf("new replay runner: %v", err)
+	}
+	defer func() { _ = runner.Close() }()
+
+	report, err := runner.ReplayFleet(context.Background(), ReplayRequest{
+		FromUnixMS: 150,
+		ToUnixMS:   250,
+		Shards:     []uint32{11},
+	})
+	if err != nil {
+		t.Fatalf("replay fleet: %v", err)
+	}
+	if report.MessagesDecoded != 3 {
+		t.Fatalf("decoded count mismatch: got=%d want=3", report.MessagesDecoded)
+	}
+	if report.MessagesPublished != 1 {
+		t.Fatalf("published count mismatch: got=%d want=1", report.MessagesPublished)
+	}
+	if report.MessagesFiltered != 2 {
+		t.Fatalf("filtered count mismatch: got=%d want=2", report.MessagesFiltered)
+	}
+	if got := len(publisher.records); got != 1 {
+		t.Fatalf("publisher record count mismatch: got=%d want=1", got)
+	}
+	var published envelopev1.TelemetryEnvelope
+	if err := proto.Unmarshal(publisher.records[0].payload, &published); err != nil {
+		t.Fatalf("unmarshal published envelope: %v", err)
+	}
+	if published.GetDeviceId() != "inside" {
+		t.Fatalf("published device mismatch: got=%q want=%q", published.GetDeviceId(), "inside")
+	}
+}
+
 func TestRunnerReplayStopsOnPublishFailure(t *testing.T) {
 	t.Parallel()
 

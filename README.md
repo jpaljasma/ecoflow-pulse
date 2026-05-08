@@ -144,6 +144,7 @@ Useful deploy targets:
 - `make cloud-up`
 - `make cloud-refresh`
 - `make services-image-push-cloud`
+- `make public-images-push-cloud`
 
 ## Documentation
 

@@ -84,7 +84,7 @@ func (r *Runner) ReplayDevices(ctx context.Context, request ReplayRequest) (Repl
 	report.ObjectsMatched = len(objects)
 	deviceFilter := makeSet(deviceIDs)
 	providerFilter := makeSet(providerDeviceIDs)
-	err = r.processObjects(ctx, objects, report.Mode, func(env *envelopev1.TelemetryEnvelope) bool {
+	err = r.processObjects(ctx, objects, report.Mode, request.FromUnixMS, request.ToUnixMS, func(env *envelopev1.TelemetryEnvelope) bool {
 		if env == nil {
 			return false
 		}
@@ -126,7 +126,7 @@ func (r *Runner) ReplayFleet(ctx context.Context, request ReplayRequest) (Replay
 		return report, fmt.Errorf("query manifests by fleet window: %w", err)
 	}
 	report.ObjectsMatched = len(objects)
-	err = r.processObjects(ctx, objects, report.Mode, func(_ *envelopev1.TelemetryEnvelope) bool { return true }, &report)
+	err = r.processObjects(ctx, objects, report.Mode, request.FromUnixMS, request.ToUnixMS, func(_ *envelopev1.TelemetryEnvelope) bool { return true }, &report)
 	report.FinishedAt = time.Now().UTC()
 	if err != nil {
 		return report, err
@@ -138,6 +138,8 @@ func (r *Runner) processObjects(
 	ctx context.Context,
 	objects []ManifestObject,
 	mode string,
+	fromUnixMS int64,
+	toUnixMS int64,
 	shouldPublish func(*envelopev1.TelemetryEnvelope) bool,
 	report *ReplayReport,
 ) error {
@@ -170,6 +172,10 @@ func (r *Runner) processObjects(
 				}
 				if ts > report.LastMessageUnixMS {
 					report.LastMessageUnixMS = ts
+				}
+				if ts < fromUnixMS || ts > toUnixMS {
+					report.MessagesFiltered++
+					continue
 				}
 			}
 			if !shouldPublish(&env) {
