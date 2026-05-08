@@ -14,19 +14,22 @@ const integrationListQuerySchema = z.object({
   provider: z.string().trim().min(1).max(64).optional()
 });
 
-const createIntegrationSchema = z.object({
-  provider: z.string().trim().min(1).max(64),
+const integrationConfigSchema = z.record(z.unknown());
+const integrationCredentialFields = {
   accessKey: z.string().trim().min(1).max(512),
   accessSecret: z.string().trim().min(1).max(512),
-  config: z.record(z.unknown()).optional().default({}),
   isActive: z.boolean().optional().default(true)
+};
+
+const createIntegrationSchema = z.object({
+  provider: z.string().trim().min(1).max(64),
+  ...integrationCredentialFields,
+  config: integrationConfigSchema.optional().default({})
 });
 
 const updateIntegrationSchema = z.object({
-  accessKey: z.string().trim().min(1).max(512),
-  accessSecret: z.string().trim().min(1).max(512),
-  config: z.record(z.unknown()).optional().default({}),
-  isActive: z.boolean().optional().default(true)
+  ...integrationCredentialFields,
+  config: integrationConfigSchema.optional()
 });
 
 const setActiveSchema = z.object({
@@ -92,7 +95,7 @@ export function registerIntegrationRoutes(
         credentialId: params.credentialId,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
-        config: body.config,
+        ...(body.config === undefined ? {} : { config: body.config }),
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),

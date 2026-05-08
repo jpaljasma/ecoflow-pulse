@@ -439,16 +439,19 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
       return normalizeProviderCredentialRow((response.credential ?? {}) as RawProviderCredential);
     },
     async updateProviderCredential(input) {
+      const request: Record<string, unknown> = {
+        userSubject: input.userSubject,
+        credentialId: input.credentialId,
+        accessKey: input.accessKey,
+        secretKey: input.secretKey,
+        isActive: input.isActive
+      };
+      if (input.config !== undefined) {
+        request.config = input.config;
+      }
       const response = await unaryCall<RawProviderCredentialResponse>(
         client.UpdateProviderCredential.bind(client),
-        {
-          userSubject: input.userSubject,
-          credentialId: input.credentialId,
-          accessKey: input.accessKey,
-          secretKey: input.secretKey,
-          config: input.config ?? {},
-          isActive: input.isActive
-        },
+        request,
         input
       );
       return normalizeProviderCredentialRow((response.credential ?? {}) as RawProviderCredential);

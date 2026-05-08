@@ -215,7 +215,7 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('updates provider credentials through /api/v1/integrations/:credentialId', async () => {
-    const updateProviderCredential = vi.fn(async () => ({
+    const updateProviderCredential = vi.fn<ControlPlaneClient['updateProviderCredential']>(async () => ({
       ...sampleProviderCredential(),
       accessKeyMask: 'NEW1...9999',
       config: { region: 'eu' },
@@ -252,6 +252,48 @@ describe('pulse-platform current user routes', () => {
         id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
         provider: 'ecoflow',
         accessKeyMask: 'NEW1...9999',
+        config: { region: 'eu' },
+        isActive: true,
+        createdAtUnixMs: '1773430000000',
+        updatedAtUnixMs: '1773431800000'
+      }
+    });
+
+    await app.close();
+  });
+
+  it('preserves provider credential config when an update omits config', async () => {
+    const updateProviderCredential = vi.fn<ControlPlaneClient['updateProviderCredential']>(async () => ({
+      ...sampleProviderCredential(),
+      provider: 'pecron',
+      accessKeyMask: 'owne...test',
+      config: { region: 'eu' },
+      updatedAtUnixMs: '1773431800000'
+    }));
+    const controlPlaneClient = makeControlPlaneClient({ updateProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/integrations/019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+      payload: {
+        accessKey: 'owner@example.test',
+        accessSecret: 'new-pecron-password',
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const updateInput = updateProviderCredential.mock.calls[0]?.[0];
+    expect(updateInput).toBeDefined();
+    expect(Object.prototype.hasOwnProperty.call(updateInput, 'config')).toBe(false);
+    expect(response.json()).toEqual({
+      integration: {
+        id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+        provider: 'pecron',
+        accessKeyMask: 'owne...test',
         config: { region: 'eu' },
         isActive: true,
         createdAtUnixMs: '1773430000000',

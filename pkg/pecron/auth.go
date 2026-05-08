@@ -56,7 +56,11 @@ func EncryptPassword(password string, randomValue string) (string, error) {
 // BuildLoginSignature returns SHA-256(email + encrypted_password + random +
 // userDomainSecret), matching the reverse-engineered mobile app request.
 func BuildLoginSignature(email string, encryptedPassword string, randomValue string, secret string) string {
-	sum := sha256.Sum256([]byte(email + encryptedPassword + randomValue + secret))
+	payload := email + encryptedPassword + randomValue + secret
+	// Pecron's cloud expects this SHA-256 request signature over the encrypted
+	// login payload and nonce. It is protocol signing, not credential storage.
+	// codeql[go/weak-sensitive-data-hashing]
+	sum := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(sum[:])
 }
 

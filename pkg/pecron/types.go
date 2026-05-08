@@ -66,20 +66,7 @@ var regions = map[Region]RegionConfig{
 }
 
 func (c RegionConfig) MQTTBrokerAddresses() []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, 1+len(c.MQTTFallbackAddresses))
-	for _, address := range append([]string{c.MQTTAddress}, c.MQTTFallbackAddresses...) {
-		normalized := strings.TrimSpace(address)
-		if normalized == "" {
-			continue
-		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		out = append(out, normalized)
-	}
-	return out
+	return brokerAddressList(c.MQTTAddress, c.MQTTFallbackAddresses)
 }
 
 func ResolveRegion(raw string) (RegionConfig, error) {
@@ -224,9 +211,13 @@ type MQTTSession struct {
 }
 
 func (s MQTTSession) BrokerAddresses() []string {
+	return brokerAddressList(s.Address, s.Addresses)
+}
+
+func brokerAddressList(primary string, fallbacks []string) []string {
 	seen := map[string]struct{}{}
-	out := make([]string, 0, 1+len(s.Addresses))
-	for _, address := range append([]string{s.Address}, s.Addresses...) {
+	out := make([]string, 0, 1+len(fallbacks))
+	for _, address := range append([]string{primary}, fallbacks...) {
 		normalized := strings.TrimSpace(address)
 		if normalized == "" {
 			continue
