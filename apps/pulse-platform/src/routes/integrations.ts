@@ -71,7 +71,7 @@ export function registerIntegrationRoutes(
         provider: body.provider,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
-        config: body.config,
+        config: normalizeProviderCredentialConfig(body.provider, body.config),
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -95,7 +95,9 @@ export function registerIntegrationRoutes(
         credentialId: params.credentialId,
         accessKey: body.accessKey,
         secretKey: body.accessSecret,
-        ...(body.config === undefined ? {} : { config: body.config }),
+        ...(body.config === undefined
+          ? {}
+          : { config: normalizeProviderCredentialUpdateConfig(body.config) }),
         isActive: body.isActive,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
@@ -130,6 +132,40 @@ export function registerIntegrationRoutes(
       return handleGrpcRouteError(config, reply, error);
     }
   });
+}
+
+function normalizeProviderCredentialConfig(
+  provider: string,
+  config: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (provider !== 'anker_solix') {
+    return config ?? {};
+  }
+  return {
+    server: normalizeAnkerSolixServer(config?.server),
+    country: normalizeAnkerSolixCountry(config?.country)
+  };
+}
+
+function normalizeProviderCredentialUpdateConfig(config: Record<string, unknown>): Record<string, unknown> {
+  if ('server' in config || 'country' in config) {
+    return {
+      ...config,
+      server: normalizeAnkerSolixServer(config.server),
+      country: normalizeAnkerSolixCountry(config.country)
+    };
+  }
+  return config;
+}
+
+function normalizeAnkerSolixServer(value: unknown): 'com' | 'eu' {
+  const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return text === 'eu' ? 'eu' : 'com';
+}
+
+function normalizeAnkerSolixCountry(value: unknown): string {
+  const text = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  return /^[A-Z]{2}$/.test(text) ? text : 'US';
 }
 
 function toIntegrationResponse(integration: ProviderCredential): Record<string, unknown> {

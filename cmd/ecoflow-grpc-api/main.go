@@ -186,20 +186,12 @@ func main() {
 			log.Error("init pecron adapter failed", "error", pecronErr.Error())
 			os.Exit(1)
 		}
-		adapterRegistry.RegisterDiscoverer(
-			controlplane.ProviderEcoFlow,
-			ecoFlowAdapter,
-		)
-		adapterRegistry.RegisterDiscoverer(
-			controlplane.ProviderPecron,
-			pecronAdapter,
-		)
-		if pulseMQTTAdapter != nil {
-			adapterRegistry.RegisterDiscoverer(
-				controlplane.ProviderPulseMQTT,
-				pulseMQTTAdapter,
-			)
+		ankerSolixAdapter, ankerSolixErr := provideradapter.NewRuntimeAnkerSolixAdapter()
+		if ankerSolixErr != nil {
+			log.Error("init anker solix adapter failed", "error", ankerSolixErr.Error())
+			os.Exit(1)
 		}
+		registerControlPlaneDiscoverers(adapterRegistry, ecoFlowAdapter, pecronAdapter, ankerSolixAdapter, pulseMQTTAdapter)
 		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
 		weatherv1.RegisterWeatherServiceServer(s, NewWeatherServiceWithDeps(WeatherServiceDeps{
@@ -291,6 +283,24 @@ func grpcServiceModeFromEnv() (grpcServiceMode, error) {
 		return mode, nil
 	default:
 		return "", fmt.Errorf("unsupported GRPC_SERVICE_MODE %q", mode)
+	}
+}
+
+func registerControlPlaneDiscoverers(
+	registry *provideradapter.Registry,
+	ecoFlow provideradapter.Discoverer,
+	pecron provideradapter.Discoverer,
+	ankerSolix provideradapter.Discoverer,
+	pulseMQTT provideradapter.Discoverer,
+) {
+	if registry == nil {
+		return
+	}
+	registry.RegisterDiscoverer(controlplane.ProviderEcoFlow, ecoFlow)
+	registry.RegisterDiscoverer(controlplane.ProviderPecron, pecron)
+	registry.RegisterDiscoverer(controlplane.ProviderAnkerSolix, ankerSolix)
+	if pulseMQTT != nil {
+		registry.RegisterDiscoverer(controlplane.ProviderPulseMQTT, pulseMQTT)
 	}
 }
 

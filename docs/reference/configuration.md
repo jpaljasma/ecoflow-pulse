@@ -19,11 +19,12 @@ Environment-specific credential keys (preferred):
 
 Runtime note:
 
-- request-serving EcoFlow and Pecron integrations use per-user credential material
-  from `provider_credentials` in Postgres,
-- provider credential config is non-secret JSON. Pecron currently stores
-  `region` as `us`, `eu`, or `cn`; clients receive this config with masked
-  credential metadata only.
+- request-serving EcoFlow, Pecron, and Anker SOLIX integrations use per-user
+  credential material from `provider_credentials` in Postgres,
+- provider credential config is non-secret JSON. Pecron stores `region` as
+  `us`, `eu`, or `cn`; Anker SOLIX stores `server` as `com` or `eu` plus
+  two-letter `country`. Clients receive this config with masked credential
+  metadata only.
 - `ECOFLOW_ENV` / `ECOFLOW_BASE_URL` supply the shared provider profile/endpoints
   used by the EcoFlow adapter runtime and local env-backed credential tests.
 - the local services Helm release now injects those two vars into the Go service
@@ -35,6 +36,10 @@ Runtime note:
   `region`. Pecron REST snapshots and MQTT-over-WebSocket `kv` payloads are
   decoded into canonical provider telemetry before entering the shared ingest
   publisher path.
+- Anker SOLIX cloud runtime endpoints are selected by saved provider credential
+  `server` and `country`. REST is used for login, discovery, and MQTT
+  certificate bootstrap; MQTT TLS telemetry is decoded into canonical provider
+  telemetry before entering the shared ingest publisher path.
 
 ## Logging and Process Safety
 
@@ -56,6 +61,8 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `INGEST_PECRON_SNAPSHOT_FETCH_TIMEOUT` (default `10s`; per-call timeout for Pecron REST bootstrap/refresh snapshots)
 - `INGEST_PECRON_SNAPSHOT_REFRESH_INTERVAL` (default `70s`; Pecron REST snapshot refresh cadence while MQTT is alive; values below `63s` are rejected to avoid Pecron `4026` rate-limit exhaustion)
 - `INGEST_PECRON_SNAPSHOT_REFRESH_JITTER` (default `0.20`; proportional jitter applied to Pecron REST snapshot refresh scheduling)
+- `INGEST_ANKER_SOLIX_REALTIME_TRIGGER_TIMEOUT` (default `300s`; Anker SOLIX MQTT realtime trigger lifetime)
+- `INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH` (default `270s`; refresh cadence before the trigger expires)
 - `INGEST_QUOTA_METRICS_INTERVAL` (default `30s`; jittered aggregate quota refresh metrics log interval, set `0` to disable)
 - `INGEST_MQTT_CLIENT_ID_NAMESPACE` (optional; overrides the environment namespace used when deriving steady-state EcoFlow MQTT client IDs; defaults to `PULSE_ENV`)
 

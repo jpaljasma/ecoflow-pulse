@@ -354,6 +354,91 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
+  it('creates Anker SOLIX integrations with non-secret cloud config', async () => {
+    const createProviderCredential = vi.fn(async () => ({
+      ...sampleProviderCredential(),
+      provider: 'anker_solix',
+      accessKeyMask: 'owne...test',
+      config: { server: 'com', country: 'US' }
+    }));
+    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/integrations',
+      payload: {
+        provider: 'anker_solix',
+        accessKey: 'owner@example.test',
+        accessSecret: 'anker-password',
+        config: { server: 'com', country: 'US' },
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(createProviderCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'anker_solix',
+        accessKey: 'owner@example.test',
+        secretKey: 'anker-password',
+        config: { server: 'com', country: 'US' },
+        isActive: true
+      })
+    );
+    expect(response.json()).toEqual({
+      integration: {
+        id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+        provider: 'anker_solix',
+        accessKeyMask: 'owne...test',
+        config: { server: 'com', country: 'US' },
+        isActive: true,
+        createdAtUnixMs: '1773430000000',
+        updatedAtUnixMs: '1773430800000'
+      }
+    });
+    expect(response.body).not.toContain('anker-password');
+
+    await app.close();
+  });
+
+  it('defaults Anker SOLIX cloud config when clients omit it', async () => {
+    const createProviderCredential = vi.fn(async () => ({
+      ...sampleProviderCredential(),
+      provider: 'anker_solix',
+      accessKeyMask: 'owne...test',
+      config: { server: 'com', country: 'US' }
+    }));
+    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/integrations',
+      payload: {
+        provider: 'anker_solix',
+        accessKey: 'owner@example.test',
+        accessSecret: 'anker-password',
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(createProviderCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'anker_solix',
+        config: { server: 'com', country: 'US' }
+      })
+    );
+    expect(response.body).not.toContain('anker-password');
+
+    await app.close();
+  });
+
   it('returns conflict when creating a duplicate integration access key', async () => {
     const createProviderCredential = vi.fn(async () => {
       throw {

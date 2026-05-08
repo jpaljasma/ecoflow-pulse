@@ -825,6 +825,8 @@ func TestListAvailableProviderDevicesReturnsUnconfiguredOnly(t *testing.T) {
 				CanonicalSN:      "DEMODNEWDEVICE02",
 				ProductName:      "Garage Delta 2",
 				Model:            "DELTA 2",
+				Capabilities:     map[string]any{"mqtt_supported": true},
+				Metadata:         map[string]any{"support_status": "enabled"},
 			},
 		},
 	})
@@ -844,6 +846,12 @@ func TestListAvailableProviderDevicesReturnsUnconfiguredOnly(t *testing.T) {
 	}
 	if got := resp.GetDevices()[0].GetProviderDeviceId(); got != "DEMODNEWDEVICE02" {
 		t.Fatalf("provider_device_id=%q want DEMODNEWDEVICE02", got)
+	}
+	if got := resp.GetDevices()[0].GetCapabilities().AsMap()["mqtt_supported"]; got != true {
+		t.Fatalf("capabilities mqtt_supported=%#v", got)
+	}
+	if got := resp.GetDevices()[0].GetMetadata().AsMap()["support_status"]; got != "enabled" {
+		t.Fatalf("metadata support_status=%#v", got)
 	}
 }
 

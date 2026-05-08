@@ -117,6 +117,49 @@ describe('device client', () => {
   const futureStormEnd = () => Math.floor((Date.now() + 60 * 60 * 1000) / 1000);
   const pastStormEnd = () => Math.floor((Date.now() - 60 * 60 * 1000) / 1000);
 
+  it('preserves available device metadata for provider discovery UI', async () => {
+    const controlPlaneClient = makeControlPlaneClient({
+      listAvailableProviderDevices: vi.fn(async () => ({
+        hasActiveCredentials: true,
+        devices: [
+          {
+            provider: 'anker_solix',
+            providerDeviceId: 'A1783:REDACTED',
+            credentialId: 'cred-1',
+            canonicalSn: 'ANKER-A1783-001',
+            productName: 'Anker SOLIX C2000 Gen 2',
+            model: 'A1783',
+            capabilities: { mqttTelemetry: 'basic' },
+            metadata: { family: 'power_station', support_status: 'partial' }
+          }
+        ]
+      }))
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(),
+      close: vi.fn()
+    };
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+
+    const result = await client.listAvailableDevices(makeRequest());
+
+    expect(result).toEqual({
+      hasActiveCredentials: true,
+      devices: [
+        {
+          provider: 'anker_solix',
+          providerDeviceId: 'A1783:REDACTED',
+          credentialId: 'cred-1',
+          serialNumber: 'ANKER-A1783-001',
+          name: 'Anker SOLIX C2000 Gen 2',
+          model: 'A1783',
+          capabilities: { mqttTelemetry: 'basic' },
+          metadata: { family: 'power_station', support_status: 'partial' }
+        }
+      ]
+    });
+  });
+
   it('falls back to normalized solar port watts when snapshot pv metrics are absent', async () => {
     const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [

@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	ProviderEcoFlow   = "ecoflow"
-	ProviderPulseMQTT = "pulsemqtt"
-	ProviderPecron    = "pecron"
+	ProviderEcoFlow    = "ecoflow"
+	ProviderPulseMQTT  = "pulsemqtt"
+	ProviderPecron     = "pecron"
+	ProviderAnkerSolix = "anker_solix"
 )
 
 var (

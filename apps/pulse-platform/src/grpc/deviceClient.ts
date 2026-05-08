@@ -44,6 +44,8 @@ export type AvailableDeviceSummary = {
   serialNumber: string;
   name: string;
   model: string;
+  capabilities?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 };
 
 export type AvailableDevicesResult = {
@@ -322,7 +324,9 @@ function mapAvailableProviderDevice(device: AvailableProviderDevice): AvailableD
     credentialId: device.credentialId,
     serialNumber: device.canonicalSn || device.providerDeviceId,
     name: device.productName || device.model || device.canonicalSn || device.providerDeviceId,
-    model: device.model || device.productName || 'Unknown EcoFlow'
+    model: device.model || device.productName || 'Unknown device',
+    capabilities: device.capabilities,
+    metadata: device.metadata
   };
 }
 

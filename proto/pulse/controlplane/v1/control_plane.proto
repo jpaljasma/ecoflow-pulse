@@ -220,6 +220,8 @@ message AvailableProviderDevice {
   string canonical_sn = 4;
   string product_name = 5;
   string model = 6;
+  google.protobuf.Struct capabilities = 7;
+  google.protobuf.Struct metadata = 8;
 }
 
 message ListAvailableProviderDevicesRequest {

@@ -16,6 +16,9 @@ func TestIsSupportedProvider(t *testing.T) {
 	if !IsSupportedProvider(" PECRON ") {
 		t.Fatalf("expected pecron to be supported")
 	}
+	if !IsSupportedProvider(" Anker_Solix ") {
+		t.Fatalf("expected anker_solix to be supported")
+	}
 	if IsSupportedProvider("unknown") {
 		t.Fatalf("expected unknown provider to be unsupported")
 	}

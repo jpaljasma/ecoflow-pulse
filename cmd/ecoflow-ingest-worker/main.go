@@ -117,6 +117,11 @@ func main() {
 		log.Error("init pecron adapter failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	ankerSolixAdapter, err := provideradapter.NewRuntimeAnkerSolixAdapter()
+	if err != nil {
+		log.Error("init anker solix adapter failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	subjectCfg := telemetrybus.SubjectConfig{
 		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
 		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
@@ -191,6 +196,7 @@ func main() {
 	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
 	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
 	pecronSessionCfg := loadPecronSessionConfigFromEnv(sessionCfg)
+	ankerSolixSessionCfg := loadAnkerSolixSessionConfigFromEnv(sessionCfg)
 	ecoFlowRunner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
 	if err != nil {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
@@ -204,6 +210,12 @@ func main() {
 		os.Exit(1)
 	}
 	runner.Register(controlplane.ProviderPecron, pecronRunner)
+	ankerSolixRunner, err := ingestworker.NewAnkerSolixSessionRunner(log, ankerSolixAdapter, publisher, ankerSolixSessionCfg)
+	if err != nil {
+		log.Error("init anker solix session runner failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	runner.Register(controlplane.ProviderAnkerSolix, ankerSolixRunner)
 	if pulseMQTTAdapter != nil {
 		pulseMQTTRunner, err := ingestworker.NewCompatibleMQTTSessionRunner(controlplane.ProviderPulseMQTT, log, pulseMQTTAdapter, publisher, store, sessionCfg)
 		if err != nil {
@@ -282,6 +294,9 @@ func main() {
 		slog.Duration("pecron_snapshot_fetch_timeout", pecronSessionCfg.SnapshotFetchTimeout),
 		slog.Duration("pecron_snapshot_refresh_interval", pecronSessionCfg.SnapshotRefreshInterval),
 		slog.Float64("pecron_snapshot_refresh_jitter", pecronSessionCfg.SnapshotRefreshJitter),
+		slog.Duration("anker_solix_realtime_trigger_timeout", ankerSolixSessionCfg.RealtimeTriggerTimeout),
+		slog.Duration("anker_solix_realtime_trigger_refresh_interval", ankerSolixSessionCfg.RealtimeTriggerRefreshInterval),
+		slog.Float64("anker_solix_realtime_trigger_refresh_jitter", ankerSolixSessionCfg.RealtimeTriggerRefreshJitter),
 		slog.String("mqtt_client_id_namespace", sessionCfg.MQTTClientIDNamespace),
 		slog.Bool("mqtt_payload_debug", sessionCfg.LogMQTTPayloadDebug),
 		slog.Int("mqtt_payload_sample_every", sessionCfg.LogMQTTPayloadSampleEvery),
@@ -354,6 +369,28 @@ func loadPecronSessionConfigFromEnv(base ingestworker.EcoFlowSessionConfig) inge
 	cfg.SnapshotFetchTimeout = runtimecfg.DurationPositive("INGEST_PECRON_SNAPSHOT_FETCH_TIMEOUT", cfg.SnapshotFetchTimeout)
 	cfg.SnapshotRefreshInterval = runtimecfg.DurationPositive("INGEST_PECRON_SNAPSHOT_REFRESH_INTERVAL", cfg.SnapshotRefreshInterval)
 	cfg.SnapshotRefreshJitter = runtimecfg.Float64NonNegative("INGEST_PECRON_SNAPSHOT_REFRESH_JITTER", cfg.SnapshotRefreshJitter)
+	return cfg
+}
+
+func loadAnkerSolixSessionConfigFromEnv(base ingestworker.EcoFlowSessionConfig) ingestworker.AnkerSolixSessionConfig {
+	cfg := ingestworker.DefaultAnkerSolixSessionConfig()
+	cfg.ShardCount = base.ShardCount
+	cfg.MQTTClientIDNamespace = base.MQTTClientIDNamespace
+	cfg.KeepAlive = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_MQTT_KEEPALIVE", base.KeepAlive)
+	cfg.ConnectTimeout = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_MQTT_CONNECT_TIMEOUT", base.ConnectTimeout)
+	cfg.ReadTimeout = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_MQTT_READ_TIMEOUT", base.ReadTimeout)
+	cfg.SubscribeQoS = byte(runtimecfg.IntMin("INGEST_ANKER_SOLIX_MQTT_SUBSCRIBE_QOS", int(cfg.SubscribeQoS), 0))
+	cfg.ReconnectInitialBackoff = base.ReconnectInitialBackoff
+	cfg.ReconnectMaxBackoff = base.ReconnectMaxBackoff
+	cfg.ReconnectJitter = base.ReconnectJitter
+	cfg.PublishQueueSize = base.PublishQueueSize
+	cfg.PublishWorkers = base.PublishWorkers
+	cfg.PublishEnqueueTimeout = base.PublishEnqueueTimeout
+	cfg.AllowUnorderedPublish = base.AllowUnorderedPublish
+	cfg.DisableEnvelopeLabels = base.DisableEnvelopeLabels
+	cfg.RealtimeTriggerTimeout = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_TIMEOUT", cfg.RealtimeTriggerTimeout)
+	cfg.RealtimeTriggerRefreshInterval = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH_INTERVAL", cfg.RealtimeTriggerRefreshInterval)
+	cfg.RealtimeTriggerRefreshJitter = runtimecfg.Float64NonNegative("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH_JITTER", cfg.RealtimeTriggerRefreshJitter)
 	return cfg
 }
 

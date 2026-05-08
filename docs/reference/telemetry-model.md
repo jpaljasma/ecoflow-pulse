@@ -155,7 +155,8 @@ General derivation rules:
   replay envelopes,
 - non-EcoFlow provider payloads must be decoded into canonical params before
   entering the shared ingest publisher path. Pecron E1000LFP REST/MQTT `kv`
-  payloads use the generic `provider.params.normalized` envelope payload type.
+  payloads and Anker SOLIX Cloud MQTT payloads use the generic
+  `provider.params.normalized` envelope payload type.
 
 ## Live Detail Derivation
 

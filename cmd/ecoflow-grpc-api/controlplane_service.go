@@ -1102,6 +1102,8 @@ func availableProviderDeviceToProto(in controlplane.ProviderDevice) *controlplan
 		CanonicalSn:      in.CanonicalSN,
 		ProductName:      in.ProductName,
 		Model:            in.Model,
+		Capabilities:     mapToStructProto(in.Capabilities),
+		Metadata:         mapToStructProto(in.Metadata),
 	}
 }
 

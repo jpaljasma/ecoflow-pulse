@@ -67,4 +67,34 @@ describe('integration schemas', () => {
       })
     ).toThrow();
   });
+
+  it('preserves Anker SOLIX Cloud MQTT config while keeping credentials write-only', () => {
+    const payload = CreateIntegrationPayloadSchema.parse({
+      provider: 'anker_solix',
+      accessKey: 'owner@example.test',
+      accessSecret: 'anker-password',
+      config: { server: 'com', country: 'US' },
+      isActive: true
+    });
+
+    expect(payload).toMatchObject({
+      provider: 'anker_solix',
+      config: { server: 'com', country: 'US' },
+      isActive: true
+    });
+
+    const integration = IntegrationSchema.parse({
+      id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+      provider: 'anker_solix',
+      accessKeyMask: 'owne...test',
+      config: { server: 'com', country: 'US' },
+      isActive: true,
+      createdAtUnixMs: '1773430000000',
+      updatedAtUnixMs: '1773430800000'
+    });
+
+    expect(integration).not.toHaveProperty('accessKey');
+    expect(integration).not.toHaveProperty('accessSecret');
+    expect(integration.config).toEqual({ server: 'com', country: 'US' });
+  });
 });

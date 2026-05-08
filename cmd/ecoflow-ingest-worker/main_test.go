@@ -72,6 +72,40 @@ func TestLoadPecronSessionConfigAllowsExplicitSafeRESTCadence(t *testing.T) {
 	}
 }
 
+func TestLoadAnkerSolixSessionConfigUsesBalancedRealtimeCadence(t *testing.T) {
+	base := ingestworker.DefaultEcoFlowSessionConfig()
+	base.QuotaRefreshInterval = 30 * time.Second
+	base.QuotaRefreshJitter = 0.4
+
+	cfg := loadAnkerSolixSessionConfigFromEnv(base)
+	if cfg.RealtimeTriggerTimeout != 300*time.Second {
+		t.Fatalf("trigger timeout = %s, want 300s", cfg.RealtimeTriggerTimeout)
+	}
+	if cfg.RealtimeTriggerRefreshInterval != 270*time.Second {
+		t.Fatalf("trigger refresh interval = %s, want 270s", cfg.RealtimeTriggerRefreshInterval)
+	}
+	if cfg.RealtimeTriggerRefreshJitter != 0.10 {
+		t.Fatalf("trigger refresh jitter = %v, want provider default 0.10", cfg.RealtimeTriggerRefreshJitter)
+	}
+}
+
+func TestLoadAnkerSolixSessionConfigAllowsExplicitRealtimeCadence(t *testing.T) {
+	t.Setenv("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_TIMEOUT", "10m")
+	t.Setenv("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH_INTERVAL", "9m")
+	t.Setenv("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH_JITTER", "0.2")
+
+	cfg := loadAnkerSolixSessionConfigFromEnv(ingestworker.DefaultEcoFlowSessionConfig())
+	if cfg.RealtimeTriggerTimeout != 10*time.Minute {
+		t.Fatalf("trigger timeout = %s, want 10m", cfg.RealtimeTriggerTimeout)
+	}
+	if cfg.RealtimeTriggerRefreshInterval != 9*time.Minute {
+		t.Fatalf("trigger refresh interval = %s, want 9m", cfg.RealtimeTriggerRefreshInterval)
+	}
+	if cfg.RealtimeTriggerRefreshJitter != 0.2 {
+		t.Fatalf("trigger refresh jitter = %v, want 0.2", cfg.RealtimeTriggerRefreshJitter)
+	}
+}
+
 func TestStartAutoscaleMetricsServerDrainEndpointMarksReadyFalse(t *testing.T) {
 	t.Parallel()
 

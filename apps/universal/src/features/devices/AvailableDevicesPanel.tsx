@@ -9,6 +9,11 @@ import {
   useImportAvailableDevice,
   useTestAvailableDeviceMQTT
 } from '@/features/devices/hooks';
+import {
+  describeAvailableDeviceSupport,
+  formatProviderLabel,
+  type AvailableDeviceSupport
+} from '@/features/integrations/providerCatalog';
 import { maskSerialNumber } from '@/features/telemetry/format';
 import { Card } from '@/shared/ui/Card';
 
@@ -176,6 +181,8 @@ function AvailableDeviceCard({
   const importMutation = useImportAvailableDevice({ token, authKey });
   const busy = testMutation.isPending || enableMutation.isPending || importMutation.isPending;
   const canEnable = probeResult?.success === true;
+  const support = describeAvailableDeviceSupport(device);
+  const enableableByCatalog = support?.enableable !== false;
 
   async function runProbe() {
     const result = await testMutation.mutateAsync({
@@ -228,8 +235,16 @@ function AvailableDeviceCard({
           </XStack>
           <Text color="$colorMuted">{device.model}</Text>
           <Text color="$colorMuted">
-            {device.provider.toUpperCase()} · {maskSerialNumber(device.serialNumber)}
+            {formatProviderLabel(device.provider)} · {maskSerialNumber(device.serialNumber)}
           </Text>
+          {support ? (
+            <YStack gap="$1" marginTop="$1">
+              <SupportBadge support={support} />
+              <Text color="$colorMuted" fontSize="$2">
+                {support.detail}
+              </Text>
+            </YStack>
+          ) : null}
         </YStack>
 
         <YStack gap="$2" minWidth={180}>
@@ -238,7 +253,7 @@ function AvailableDeviceCard({
             onPress={() => {
               void runProbe();
             }}
-            disabled={busy}
+            disabled={busy || !enableableByCatalog}
             icon={
               testMutation.isPending ? (
                 <Spinner size="small" color="white" />
@@ -255,7 +270,7 @@ function AvailableDeviceCard({
             onPress={() => {
               void enableDevice();
             }}
-            disabled={!canEnable || busy}
+            disabled={!canEnable || busy || !enableableByCatalog}
             icon={
               enableMutation.isPending ? (
                 <Spinner size="small" color="rgba(10,132,255,0.9)" />
@@ -292,7 +307,9 @@ function AvailableDeviceCard({
           </Text>
         ) : (
           <Text color="$colorMuted">
-            Run a short MQTT probe first. Enable stays locked until live data is observed.
+            {enableableByCatalog
+              ? 'Run a short MQTT probe first. Enable stays locked until live data is observed.'
+              : 'This model is visible for tracking, but V1 does not enable standalone MQTT ingest for it yet.'}
           </Text>
         )}
         {enableMutation.isSuccess ? (
@@ -304,6 +321,62 @@ function AvailableDeviceCard({
       </YStack>
     </Card>
   );
+}
+
+function SupportBadge({ support }: { support: AvailableDeviceSupport }) {
+  const colors = supportToneColors(support.tone);
+
+  return (
+    <XStack
+      alignSelf="flex-start"
+      alignItems="center"
+      gap="$1"
+      paddingHorizontal="$2"
+      paddingVertical="$1"
+      borderRadius={999}
+      borderWidth={1}
+      style={{
+        backgroundColor: colors.backgroundColor,
+        borderColor: colors.borderColor
+      }}
+    >
+      <MaterialCommunityIcons name={colors.icon} size={14} color={colors.textColor} />
+      <Text fontSize="$2" fontWeight="700" style={{ color: colors.textColor }}>
+        {support.label}
+      </Text>
+    </XStack>
+  );
+}
+
+function supportToneColors(tone: AvailableDeviceSupport['tone']): {
+  backgroundColor: string;
+  borderColor: string;
+  textColor: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+} {
+  switch (tone) {
+    case 'success':
+      return {
+        backgroundColor: 'rgba(18,140,88,0.12)',
+        borderColor: 'rgba(18,140,88,0.26)',
+        textColor: 'rgba(18,140,88,0.96)',
+        icon: 'check-circle-outline'
+      };
+    case 'warning':
+      return {
+        backgroundColor: 'rgba(245,158,11,0.12)',
+        borderColor: 'rgba(245,158,11,0.30)',
+        textColor: 'rgba(180,83,9,0.96)',
+        icon: 'alert-circle-outline'
+      };
+    default:
+      return {
+        backgroundColor: 'rgba(107,114,128,0.10)',
+        borderColor: 'rgba(107,114,128,0.24)',
+        textColor: 'rgba(75,85,99,0.96)',
+        icon: 'flask-outline'
+      };
+  }
 }
 
 function formatProbeStatus(result: DeviceMQTTTestResult): string {

@@ -100,7 +100,9 @@ export const AvailableDeviceSchema = z.object({
   credentialId: z.string(),
   serialNumber: z.string(),
   name: z.string(),
-  model: z.string()
+  model: z.string(),
+  capabilities: z.record(z.unknown()).optional(),
+  metadata: z.record(z.unknown()).optional()
 });
 
 export const AvailableDevicesResponseSchema = z.object({
