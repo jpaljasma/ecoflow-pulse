@@ -53,6 +53,23 @@ func Uint32(key string, fallback uint32) uint32 {
 	return uint32(v)
 }
 
+// ByteRange parses a uint8 env value that must be within [min, max].
+func ByteRange(key string, fallback byte, min byte, max byte) byte {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" || max < min {
+		return fallback
+	}
+	v, err := strconv.ParseUint(raw, 10, 8)
+	if err != nil {
+		return fallback
+	}
+	parsed := byte(v)
+	if parsed < min || parsed > max {
+		return fallback
+	}
+	return parsed
+}
+
 // Float64NonNegative parses a non-negative float64 env var.
 func Float64NonNegative(key string, fallback float64) float64 {
 	raw := strings.TrimSpace(os.Getenv(key))
