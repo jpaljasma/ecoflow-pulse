@@ -207,6 +207,7 @@ func (r *AnkerSolixSessionRunner) Run(ctx context.Context, a controlplane.Ingest
 	}
 	cfg := r.cfg.normalized()
 	backoff := cfg.ReconnectInitialBackoff
+	logDeviceRef := providerDeviceLogRef(a.Provider, a.ProviderDeviceID)
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -218,7 +219,7 @@ func (r *AnkerSolixSessionRunner) Run(ctx context.Context, a controlplane.Ingest
 		retryIn := applySessionJitter(backoff, cfg.ReconnectJitter)
 		r.log.Warn("anker solix ingest session error; reconnecting",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+			slog.String("provider_device_ref", logDeviceRef),
 			slog.String("error", err.Error()),
 			slog.Duration("retry_in", retryIn),
 		)
@@ -238,6 +239,7 @@ func (r *AnkerSolixSessionRunner) runSessionOnce(
 	a controlplane.IngestAssignment,
 	cfg AnkerSolixSessionConfig,
 ) (connected bool, err error) {
+	logDeviceRef := providerDeviceLogRef(a.Provider, a.ProviderDeviceID)
 	credential := credentialFromAssignment(a)
 	session, err := r.adapter.MQTTSession(ctx, credential, a.ProviderDeviceID)
 	if err != nil {
@@ -257,7 +259,7 @@ func (r *AnkerSolixSessionRunner) runSessionOnce(
 	}
 	r.log.Info("anker solix ingest session connected",
 		slog.String("provider", a.Provider),
-		slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+		slog.String("provider_device_ref", logDeviceRef),
 		slog.String("broker", connectedAddress),
 	)
 
@@ -286,7 +288,7 @@ func (r *AnkerSolixSessionRunner) runSessionOnce(
 			if publishErr != nil {
 				r.log.Warn("anker solix ingest publish failed; dropping envelope and keeping mqtt session alive",
 					slog.String("provider", a.Provider),
-					slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+					slog.String("provider_device_ref", logDeviceRef),
 					slog.String("error", publishErr.Error()),
 				)
 			}
@@ -297,6 +299,9 @@ func (r *AnkerSolixSessionRunner) runSessionOnce(
 		if readErr != nil {
 			if errors.Is(readErr, context.Canceled) || ctx.Err() != nil {
 				return true, nil
+			}
+			if errors.Is(readErr, context.DeadlineExceeded) {
+				continue
 			}
 			return true, fmt.Errorf("read anker solix mqtt message: %w", readErr)
 		}
@@ -331,7 +336,7 @@ func (r *AnkerSolixSessionRunner) runSessionOnce(
 			}
 			r.log.Warn("anker solix ingest publish enqueue failed; dropping envelope and keeping mqtt session alive",
 				slog.String("provider", a.Provider),
-				slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
+				slog.String("provider_device_ref", logDeviceRef),
 				slog.String("error", publishErr.Error()),
 			)
 		}
@@ -357,6 +362,7 @@ func (r *AnkerSolixSessionRunner) connectSubscriber(
 			ConnectTimeout: cfg.ConnectTimeout,
 			ReadTimeout:    cfg.ReadTimeout,
 			TLSConfig:      session.TLSConfig,
+			BufferSize:     cfg.PublishQueueSize,
 		})
 		if err != nil {
 			lastErr = fmt.Errorf("init anker solix mqtt subscriber for %s: %w", address, err)
@@ -386,7 +392,7 @@ func subscribeAnkerSolixSessionTopics(ctx context.Context, subscriber ankerSolix
 	}
 	for _, topic := range topics {
 		if err := subscriber.Subscribe(ctx, topic, qos); err != nil {
-			return fmt.Errorf("subscribe anker solix mqtt topic %s: %w", topic, err)
+			return fmt.Errorf("subscribe anker solix mqtt topic %s: %w", mqttTopicLogRef(topic), err)
 		}
 	}
 	return nil
@@ -406,7 +412,7 @@ func (r *AnkerSolixSessionRunner) runRealtimeTriggerRefreshLoop(
 		if err := r.publishTrigger(ctx, subscriber, session, cfg.RealtimeTriggerTimeout, r.nowFn().UTC()); err != nil {
 			r.log.Warn("anker solix realtime trigger refresh failed; keeping mqtt session alive",
 				slog.String("provider", controlplane.ProviderAnkerSolix),
-				slog.String("provider_device_id", session.DeviceRef.ProviderDeviceID()),
+				slog.String("provider_device_ref", providerDeviceLogRef(controlplane.ProviderAnkerSolix, session.DeviceRef.ProviderDeviceID())),
 				slog.String("error", err.Error()),
 			)
 		}

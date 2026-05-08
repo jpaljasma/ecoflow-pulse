@@ -484,8 +484,8 @@ func (c *Client) logOutgoingRequest(
 		slog.Int("max_attempts", c.retryPolicy.MaxAttempts),
 		slog.Int("body_bytes", bodyBytes),
 		slog.String("accept_encoding", strings.ToLower(strings.TrimSpace(acceptEncoding))),
-		slog.String("access_key_suffix", accessKeySuffix(req.Header.Get(HeaderAccessKey))),
-		slog.String("nonce", req.Header.Get(HeaderNonce)),
+		slog.String("access_key_ref", redactedHeader(req.Header.Get(HeaderAccessKey))),
+		slog.String("nonce_ref", redactedHeader(req.Header.Get(HeaderNonce))),
 	}
 	if c.advancedDebugTelemetry {
 		current := captureRuntimeSnapshot(c.now())
@@ -633,12 +633,11 @@ func (c *Client) logResponse(
 	c.logger.DebugContext(ctx, "ecoflow response received", args...)
 }
 
-func accessKeySuffix(accessKey string) string {
-	trimmed := strings.TrimSpace(accessKey)
-	if len(trimmed) <= 4 {
-		return trimmed
+func redactedHeader(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
 	}
-	return trimmed[len(trimmed)-4:]
+	return "redacted"
 }
 
 func errorString(err error) string {

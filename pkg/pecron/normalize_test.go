@@ -60,6 +60,13 @@ func TestNormalizeE1000LFPTelemetryMapsCloudKVToCanonicalParams(t *testing.T) {
 	if got := out.Metadata["product_key"]; got != ProductKeyE1000LFP {
 		t.Fatalf("product_key metadata = %#v", got)
 	}
+	if _, ok := out.Metadata["raw_groups"]; ok {
+		t.Fatalf("metadata should not expose raw telemetry values: %#v", out.Metadata)
+	}
+	fields, ok := out.Metadata["field_names"].([]any)
+	if !ok || len(fields) == 0 {
+		t.Fatalf("field_names metadata = %#v, want non-empty []any", out.Metadata["field_names"])
+	}
 }
 
 func TestNormalizeTelemetryHandlesKnownCloudQuirks(t *testing.T) {

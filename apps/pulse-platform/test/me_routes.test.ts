@@ -304,6 +304,41 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
+  it('patches only provided Anker SOLIX config keys', async () => {
+    const updateProviderCredential = vi.fn<ControlPlaneClient['updateProviderCredential']>(async () => ({
+      ...sampleProviderCredential(),
+      provider: 'anker_solix',
+      accessKeyMask: 'owne...test',
+      config: { server: 'eu', country: 'FI' },
+      updatedAtUnixMs: '1773431800000'
+    }));
+    const controlPlaneClient = makeControlPlaneClient({ updateProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/integrations/019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
+      payload: {
+        accessKey: 'owner@example.test',
+        accessSecret: 'new-anker-password',
+        config: { country: 'fi' },
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(updateProviderCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: { country: 'FI' }
+      })
+    );
+    expect(response.body).not.toContain('new-anker-password');
+
+    await app.close();
+  });
+
   it('creates Pecron integrations with non-secret region config', async () => {
     const createProviderCredential = vi.fn(async () => ({
       ...sampleProviderCredential(),
@@ -434,6 +469,32 @@ describe('pulse-platform current user routes', () => {
         config: { server: 'com', country: 'US' }
       })
     );
+    expect(response.body).not.toContain('anker-password');
+
+    await app.close();
+  });
+
+  it('rejects invalid Anker SOLIX cloud config at the BFF boundary', async () => {
+    const createProviderCredential = vi.fn(async () => sampleProviderCredential());
+    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/integrations',
+      payload: {
+        provider: 'anker_solix',
+        accessKey: 'owner@example.test',
+        accessSecret: 'anker-password',
+        config: { server: 'cn', country: 'USA' },
+        isActive: true
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(createProviderCredential).not.toHaveBeenCalled();
     expect(response.body).not.toContain('anker-password');
 
     await app.close();

@@ -3,6 +3,7 @@ package pecron
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -71,7 +72,7 @@ func NormalizeTelemetry(device Device, kv map[string]any) NormalizedTelemetry {
 		"provider":          "pecron",
 		"product_key":       ref.ProductKey,
 		"device_key_suffix": suffix(ref.DeviceKey, 6),
-		"raw_groups":        cloneMap(kv),
+		"field_names":       sortedFieldPaths(kv),
 	}
 	model := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(device.ProductName), " ", ""))
 	if model == "" {
@@ -115,6 +116,34 @@ func NormalizeTelemetry(device Device, kv map[string]any) NormalizedTelemetry {
 		Params:       collapseEmptyMap(params),
 		Capabilities: collapseEmptyMap(capabilities),
 		Metadata:     collapseEmptyMap(metadata),
+	}
+}
+
+func sortedFieldPaths(values map[string]any) []any {
+	if len(values) == 0 {
+		return nil
+	}
+	fields := make([]string, 0, len(values))
+	collectFieldPaths("", values, &fields)
+	sort.Strings(fields)
+	out := make([]any, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, field)
+	}
+	return out
+}
+
+func collectFieldPaths(prefix string, values map[string]any, out *[]string) {
+	for key, value := range values {
+		path := key
+		if prefix != "" {
+			path = prefix + "." + key
+		}
+		if nested := asMap(value); len(nested) > 0 {
+			collectFieldPaths(path, nested, out)
+			continue
+		}
+		*out = append(*out, path)
 	}
 }
 

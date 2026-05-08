@@ -379,7 +379,7 @@ func loadAnkerSolixSessionConfigFromEnv(base ingestworker.EcoFlowSessionConfig) 
 	cfg.KeepAlive = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_MQTT_KEEPALIVE", base.KeepAlive)
 	cfg.ConnectTimeout = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_MQTT_CONNECT_TIMEOUT", base.ConnectTimeout)
 	cfg.ReadTimeout = runtimecfg.DurationPositive("INGEST_ANKER_SOLIX_MQTT_READ_TIMEOUT", base.ReadTimeout)
-	cfg.SubscribeQoS = byte(runtimecfg.IntMin("INGEST_ANKER_SOLIX_MQTT_SUBSCRIBE_QOS", int(cfg.SubscribeQoS), 0))
+	cfg.SubscribeQoS = byte(runtimecfg.IntRange("INGEST_ANKER_SOLIX_MQTT_SUBSCRIBE_QOS", int(cfg.SubscribeQoS), 0, 2))
 	cfg.ReconnectInitialBackoff = base.ReconnectInitialBackoff
 	cfg.ReconnectMaxBackoff = base.ReconnectMaxBackoff
 	cfg.ReconnectJitter = base.ReconnectJitter

@@ -148,24 +148,46 @@ function normalizeProviderCredentialConfig(
 }
 
 function normalizeProviderCredentialUpdateConfig(config: Record<string, unknown>): Record<string, unknown> {
-  if ('server' in config || 'country' in config) {
-    return {
-      ...config,
-      server: normalizeAnkerSolixServer(config.server),
-      country: normalizeAnkerSolixCountry(config.country)
-    };
+  const out = { ...config };
+  if ('server' in config) {
+    out.server = normalizeAnkerSolixServer(config.server, false);
   }
-  return config;
+  if ('country' in config) {
+    out.country = normalizeAnkerSolixCountry(config.country, false);
+  }
+  return out;
 }
 
-function normalizeAnkerSolixServer(value: unknown): 'com' | 'eu' {
+function normalizeAnkerSolixServer(value: unknown, allowDefault = true): 'com' | 'eu' {
+  if (value === undefined && allowDefault) {
+    return 'com';
+  }
   const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  return text === 'eu' ? 'eu' : 'com';
+  if (text === 'com' || text === 'eu') {
+    return text;
+  }
+  throwAnkerSolixConfigIssue('server', 'Anker SOLIX server must be com or eu');
 }
 
-function normalizeAnkerSolixCountry(value: unknown): string {
+function normalizeAnkerSolixCountry(value: unknown, allowDefault = true): string {
+  if (value === undefined && allowDefault) {
+    return 'US';
+  }
   const text = typeof value === 'string' ? value.trim().toUpperCase() : '';
-  return /^[A-Z]{2}$/.test(text) ? text : 'US';
+  if (/^[A-Z]{2}$/.test(text)) {
+    return text;
+  }
+  throwAnkerSolixConfigIssue('country', 'Anker SOLIX country must be an ISO-2 country code');
+}
+
+function throwAnkerSolixConfigIssue(path: string, message: string): never {
+  throw new z.ZodError([
+    {
+      code: z.ZodIssueCode.custom,
+      path: ['config', path],
+      message
+    }
+  ]);
 }
 
 function toIntegrationResponse(integration: ProviderCredential): Record<string, unknown> {

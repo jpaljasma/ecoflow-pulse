@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -199,9 +200,10 @@ type MQTTConfig struct {
 }
 
 type MQTTSubscriber struct {
-	cfg    MQTTConfig
-	client mqtt.Client
-	msgs   chan ecoflowmqtt.Message
+	cfg             MQTTConfig
+	client          mqtt.Client
+	msgs            chan ecoflowmqtt.Message
+	droppedMessages atomic.Uint64
 }
 
 func NewMQTTSubscriber(cfg MQTTConfig) (*MQTTSubscriber, error) {
@@ -263,11 +265,25 @@ func (s *MQTTSubscriber) Subscribe(ctx context.Context, topic string, qos byte) 
 			Retain:    msg.Retained(),
 			Duplicate: msg.Duplicate(),
 		}
+		s.enqueueMessage(out)
+	}), "subscribe anker solix mqtt")
+}
+
+func (s *MQTTSubscriber) enqueueMessage(msg ecoflowmqtt.Message) {
+	select {
+	case s.msgs <- msg:
+	default:
 		select {
-		case s.msgs <- out:
+		case <-s.msgs:
+			s.droppedMessages.Add(1)
 		default:
 		}
-	}), "subscribe anker solix mqtt")
+		select {
+		case s.msgs <- msg:
+		default:
+			s.droppedMessages.Add(1)
+		}
+	}
 }
 
 func (s *MQTTSubscriber) Publish(ctx context.Context, topic string, payload []byte, qos byte) error {
@@ -301,20 +317,22 @@ func (s *MQTTSubscriber) Disconnect() error {
 	return nil
 }
 
+func (s *MQTTSubscriber) DroppedMessages() uint64 {
+	if s == nil {
+		return 0
+	}
+	return s.droppedMessages.Load()
+}
+
 func (s *MQTTSubscriber) Close() error {
 	return s.Disconnect()
 }
 
 func waitPahoToken(ctx context.Context, token mqtt.Token, action string) error {
-	done := make(chan struct{})
-	go func() {
-		token.Wait()
-		close(done)
-	}()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-done:
+	case <-token.Done():
 		if err := token.Error(); err != nil {
 			return fmt.Errorf("%s: %w", action, err)
 		}

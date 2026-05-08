@@ -161,52 +161,6 @@ export const CONNECTOR_CATALOG = [
   }
 ] as const satisfies readonly ConnectorCopy[];
 
-const ANKER_SOLIX_SUPPORTED_MODELS = new Set([
-  'A1722',
-  'A1723',
-  'A1725',
-  'A1726',
-  'A1727',
-  'A1728',
-  'A1729',
-  'A1761',
-  'A1763',
-  'A1780',
-  'A1780P',
-  'A1782',
-  'A1783',
-  'A1790',
-  'A1790P',
-  'A17B1',
-  'A17C0',
-  'A17C1',
-  'A17C2',
-  'A17C3',
-  'A17C5',
-  'A17E1',
-  'A5101',
-  'A5102',
-  'A5103',
-  'A5220',
-  'A7320',
-  'AE100',
-  'AX170'
-]);
-
-const ANKER_SOLIX_UNSUPPORTED_MODELS = new Set([
-  'A1753',
-  'A1754',
-  'A1755',
-  'A1762',
-  'A1765',
-  'A1771',
-  'A1772',
-  'A1781',
-  'A1785',
-  'A17E2',
-  'AS100'
-]);
-
 export type AvailableDeviceSupport = {
   label: string;
   detail: string;
@@ -278,16 +232,8 @@ export function describeAvailableDeviceSupport(
     return null;
   }
   const status = supportStatusFromRecord(device.metadata) ?? supportStatusFromRecord(device.capabilities);
-  const model = extractModelCode(device.model || device.name);
-  const normalizedStatus =
-    status ??
-    (model && ANKER_SOLIX_SUPPORTED_MODELS.has(model)
-      ? 'supported'
-      : model && ANKER_SOLIX_UNSUPPORTED_MODELS.has(model)
-        ? 'unsupported'
-        : null);
 
-  switch (normalizedStatus) {
+  switch (status) {
     case 'supported':
       return {
         label: 'Supported',
@@ -318,7 +264,12 @@ export function describeAvailableDeviceSupport(
         detail: 'Pulse discovered this SOLIX model, but needs a tested MQTT descriptor before enablement.'
       };
     default:
-      return null;
+      return {
+        label: 'Needs sample',
+        tone: 'neutral',
+        enableable: false,
+        detail: 'Pulse did not receive a tested Anker SOLIX support descriptor for this device yet.'
+      };
   }
 }
 
@@ -381,9 +332,4 @@ function supportStatusFromRecord(
     return 'unsupported';
   }
   return null;
-}
-
-function extractModelCode(value: string): string | null {
-  const match = value.toUpperCase().match(/\b(?:A\d{4}P?|A\d{2}[A-Z]\d|AX\d{3}|AE\d{3}|AS\d{3})\b/);
-  return match?.[0] ?? null;
 }

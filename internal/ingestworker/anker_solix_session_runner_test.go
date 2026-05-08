@@ -57,6 +57,8 @@ func TestAnkerSolixSessionRunnerPublishesDecodedMQTTIntoSharedEnvelopePipeline(t
 	}
 	subscriber := &fakeAnkerSolixSubscriber{
 		reads: []fakeReadResult{{
+			err: context.DeadlineExceeded,
+		}, {
 			msg: ecoflowmqtt.Message{
 				Topic:   "dt/anker_power/A1783/SN-C2000/param_info",
 				Payload: []byte("decoded by injected decoder"),
@@ -176,6 +178,17 @@ func TestDefaultAnkerSolixSessionConfigUsesBalancedRealtimeRefresh(t *testing.T)
 	}
 	if cfg.RealtimeTriggerRefreshInterval >= cfg.RealtimeTriggerTimeout {
 		t.Fatalf("refresh interval should be before trigger timeout: %+v", cfg)
+	}
+}
+
+func TestAnkerSolixLogDeviceRefRedactsProviderDeviceID(t *testing.T) {
+	t.Parallel()
+
+	if got := providerDeviceLogRef(controlplane.ProviderAnkerSolix, "A1783:SN-C2000"); got != "A1783:redacted" {
+		t.Fatalf("log device ref = %q", got)
+	}
+	if got := providerDeviceLogRef(controlplane.ProviderAnkerSolix, "not-a-provider-id"); got != "redacted" {
+		t.Fatalf("invalid log device ref = %q", got)
 	}
 }
 

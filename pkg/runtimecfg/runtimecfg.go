@@ -105,6 +105,19 @@ func IntMin(key string, fallback int, min int) int {
 	return v
 }
 
+// IntRange parses an int env value that must be within [min, max].
+func IntRange(key string, fallback int, min int, max int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" || max < min {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < min || v > max {
+		return fallback
+	}
+	return v
+}
+
 // Int64Min parses an int64 env value that must be >= min.
 func Int64Min(key string, fallback int64, min int64) int64 {
 	raw := strings.TrimSpace(os.Getenv(key))

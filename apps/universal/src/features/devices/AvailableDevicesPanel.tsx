@@ -182,7 +182,7 @@ function AvailableDeviceCard({
   const busy = testMutation.isPending || enableMutation.isPending || importMutation.isPending;
   const canEnable = probeResult?.success === true;
   const support = describeAvailableDeviceSupport(device);
-  const enableableByCatalog = support?.enableable !== false;
+  const enableableByCatalog = device.provider === 'anker_solix' ? support?.enableable === true : true;
 
   async function runProbe() {
     const result = await testMutation.mutateAsync({
@@ -286,7 +286,7 @@ function AvailableDeviceCard({
             onPress={() => {
               void importDeviceInactive();
             }}
-            disabled={busy}
+            disabled={busy || !enableableByCatalog}
             icon={
               importMutation.isPending ? (
                 <Spinner size="small" color="white" />

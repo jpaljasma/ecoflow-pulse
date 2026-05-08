@@ -161,7 +161,10 @@ func (p *asyncEnvelopePublisher) Close() error {
 			p.cancel()
 		case <-time.After(closeTimeout):
 			p.cancel()
-			<-drained
+			select {
+			case <-drained:
+			case <-time.After(closeTimeout):
+			}
 		}
 	})
 	return nil

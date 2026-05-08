@@ -460,7 +460,7 @@ export INGEST_MQTT_AUTH_ALERT_WINDOW=10m
 export INGEST_MQTT_AUTH_ALERT_THRESHOLD=5
 export INGEST_MQTT_AUTH_ALERT_COOLDOWN=5m
 
-# Optional sampled payload logging (debug-only, off by default)
+# Optional sampled MQTT debug metadata logging (debug-only, off by default; redacts raw topics/payloads)
 export INGEST_MQTT_LOG_PAYLOAD_DEBUG=false
 export INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY=100
 

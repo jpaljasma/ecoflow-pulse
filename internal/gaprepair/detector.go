@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	replayv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/replay/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 )
@@ -250,7 +251,7 @@ func (d *Detector) DetectAndEnqueue(ctx context.Context) (DetectorReport, error)
 		if d.cfg.DryRun {
 			d.log.Info("gap detector dry-run planned replay",
 				slog.String("provider", plan.request.GetProvider()),
-				slog.String("provider_device_id", plan.request.GetProviderDeviceId()),
+				slog.String("provider_device_ref", logredact.Identifier(plan.request.GetProviderDeviceId())),
 				slog.Int64("from_unix_ms", plan.request.GetFromUnixMs()),
 				slog.Int64("to_unix_ms", plan.request.GetToUnixMs()),
 				slog.String("reason", plan.request.GetReason()),
@@ -263,7 +264,7 @@ func (d *Detector) DetectAndEnqueue(ctx context.Context) (DetectorReport, error)
 			report.Skipped++
 			d.log.Warn("gap detector enqueue failed",
 				slog.String("provider", plan.request.GetProvider()),
-				slog.String("provider_device_id", plan.request.GetProviderDeviceId()),
+				slog.String("provider_device_ref", logredact.Identifier(plan.request.GetProviderDeviceId())),
 				slog.String("error", err.Error()),
 			)
 			continue
@@ -340,7 +341,7 @@ func (d *Detector) evaluateAssignments(
 				if err != nil {
 					d.log.Warn("gap detector snapshot read failed",
 						slog.String("provider", a.Provider),
-						slog.String("provider_device_id", a.ProviderDeviceID),
+						slog.String("provider_device_ref", logredact.Identifier(a.ProviderDeviceID)),
 						slog.String("error", err.Error()),
 					)
 					continue

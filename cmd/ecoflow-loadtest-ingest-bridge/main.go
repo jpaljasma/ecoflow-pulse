@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
@@ -259,8 +260,8 @@ func (s *ingestServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	if err := telemetrybus.PublishEnvelope(ctx, s.publisher, envelope); err != nil {
 		s.rejected.Add(1)
 		s.log.Warn("publish envelope failed",
-			slog.String("device_id", normalized.DeviceID),
-			slog.String("serial_number", normalized.SerialNumber),
+			slog.String("device_id_ref", logredact.Identifier(normalized.DeviceID)),
+			slog.String("serial_number_ref", logredact.Identifier(normalized.SerialNumber)),
 			slog.String("error", err.Error()),
 		)
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "publish_failed", "message": err.Error()})

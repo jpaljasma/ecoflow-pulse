@@ -93,8 +93,12 @@ func TestLoadAnkerSolixSessionConfigAllowsExplicitRealtimeCadence(t *testing.T) 
 	t.Setenv("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_TIMEOUT", "10m")
 	t.Setenv("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH_INTERVAL", "9m")
 	t.Setenv("INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH_JITTER", "0.2")
+	t.Setenv("INGEST_ANKER_SOLIX_MQTT_SUBSCRIBE_QOS", "2")
 
 	cfg := loadAnkerSolixSessionConfigFromEnv(ingestworker.DefaultEcoFlowSessionConfig())
+	if cfg.SubscribeQoS != 2 {
+		t.Fatalf("subscribe qos = %d, want 2", cfg.SubscribeQoS)
+	}
 	if cfg.RealtimeTriggerTimeout != 10*time.Minute {
 		t.Fatalf("trigger timeout = %s, want 10m", cfg.RealtimeTriggerTimeout)
 	}
@@ -103,6 +107,15 @@ func TestLoadAnkerSolixSessionConfigAllowsExplicitRealtimeCadence(t *testing.T) 
 	}
 	if cfg.RealtimeTriggerRefreshJitter != 0.2 {
 		t.Fatalf("trigger refresh jitter = %v, want 0.2", cfg.RealtimeTriggerRefreshJitter)
+	}
+}
+
+func TestLoadAnkerSolixSessionConfigRejectsOutOfRangeQoS(t *testing.T) {
+	t.Setenv("INGEST_ANKER_SOLIX_MQTT_SUBSCRIBE_QOS", "255")
+
+	cfg := loadAnkerSolixSessionConfigFromEnv(ingestworker.DefaultEcoFlowSessionConfig())
+	if cfg.SubscribeQoS != ingestworker.DefaultAnkerSolixSessionConfig().SubscribeQoS {
+		t.Fatalf("subscribe qos = %d, want provider default", cfg.SubscribeQoS)
 	}
 }
 

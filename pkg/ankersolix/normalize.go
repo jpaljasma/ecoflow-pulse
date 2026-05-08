@@ -2,6 +2,7 @@ package ankersolix
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -31,7 +32,7 @@ func NormalizeTelemetry(ref DeviceRef, values map[string]any) NormalizedTelemetr
 		"device_sn_suffix": suffix(ref.DeviceSN, 6),
 		"family":           string(capability.Family),
 		"support_status":   string(capability.Status),
-		"raw_fields":       cloneMap(values),
+		"field_names":      sortedFieldNames(values),
 	}
 	if capability.DisplayName != "" {
 		metadata["model"] = capability.DisplayName
@@ -248,6 +249,22 @@ func addPortMetadata(metadata map[string]any, values map[string]any) {
 	if len(ports) > 0 {
 		metadata["ports"] = ports
 	}
+}
+
+func sortedFieldNames(values map[string]any) []any {
+	if len(values) == 0 {
+		return nil
+	}
+	fields := make([]string, 0, len(values))
+	for key := range values {
+		fields = append(fields, key)
+	}
+	sort.Strings(fields)
+	out := make([]any, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, field)
+	}
+	return out
 }
 
 func suffix(value string, max int) string {

@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 )
 
 func TestConfigDefaultsValidationAndEndpoints(t *testing.T) {
@@ -243,6 +245,9 @@ func TestMQTTTLSConfigTopicsAndWrapperDecode(t *testing.T) {
 		t.Fatalf("TLS config missing certs: %#v", tlsCfg)
 	}
 	ref := DeviceRef{ProductCode: "A1783", DeviceSN: "SN-C2000"}
+	if got := ref.ProviderDeviceID(); got != "a1783:SN-C2000" {
+		t.Fatalf("provider device id = %q", got)
+	}
 	if got := SubscribeTopic(info, ref); got != "dt/anker_power/A1783/SN-C2000/#" {
 		t.Fatalf("subscribe topic = %q", got)
 	}
@@ -279,6 +284,30 @@ func TestMQTTTLSConfigTopicsAndWrapperDecode(t *testing.T) {
 	}
 	if !bytes.Equal(msg.Data, frame) {
 		t.Fatal("decoded data mismatch")
+	}
+}
+
+func TestMQTTSubscriberKeepsNewestMessageWhenBufferIsFull(t *testing.T) {
+	subscriber, err := NewMQTTSubscriber(MQTTConfig{
+		Address:    "aiot-mqtt.anker.example:8883",
+		ClientID:   "client-1",
+		BufferSize: 1,
+	})
+	if err != nil {
+		t.Fatalf("NewMQTTSubscriber() error = %v", err)
+	}
+	subscriber.enqueueMessage(ecoflowmqtt.Message{Topic: "old"})
+	subscriber.enqueueMessage(ecoflowmqtt.Message{Topic: "new"})
+
+	msg, err := subscriber.ReadMessage(context.Background())
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	if msg.Topic != "new" {
+		t.Fatalf("topic = %q, want newest message", msg.Topic)
+	}
+	if subscriber.DroppedMessages() != 1 {
+		t.Fatalf("dropped messages = %d, want 1", subscriber.DroppedMessages())
 	}
 }
 
@@ -517,6 +546,31 @@ func TestZeroPreservationAndPartialMerge(t *testing.T) {
 	assertNumber(t, telemetry.Params, "wattsOutSum", 0)
 	assertNumber(t, telemetry.Params, "pv1ChargeWatts", 0)
 	assertNumber(t, telemetry.Params, "pv2ChargeWatts", 85)
+}
+
+func TestNormalizeTelemetryDoesNotExposeRawSensitiveFields(t *testing.T) {
+	telemetry := NormalizeTelemetry(DeviceRef{ProductCode: "A1783", DeviceSN: "SN-C2000"}, map[string]any{
+		"device_sn":       "SN-C2000",
+		"battery_soc":     float64(80),
+		"pv_1_power":      float64(120),
+		"mystery_counter": float64(5),
+	})
+	if _, ok := telemetry.Metadata["raw_fields"]; ok {
+		t.Fatalf("metadata should not expose raw telemetry values: %#v", telemetry.Metadata)
+	}
+	fields, ok := telemetry.Metadata["field_names"].([]any)
+	if !ok {
+		t.Fatalf("metadata field_names = %#v", telemetry.Metadata["field_names"])
+	}
+	want := []string{"battery_soc", "device_sn", "mystery_counter", "pv_1_power"}
+	if len(fields) != len(want) {
+		t.Fatalf("field_names = %#v, want %#v", fields, want)
+	}
+	for i := range want {
+		if fields[i] != want[i] {
+			t.Fatalf("field_names[%d] = %q, want %q", i, fields[i], want[i])
+		}
+	}
 }
 
 func testP256PrivateKey(hexScalar string) (*ecdh.PrivateKey, error) {

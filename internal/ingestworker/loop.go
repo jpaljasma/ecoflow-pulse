@@ -14,6 +14,8 @@ import (
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/ankersolix"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/pecron"
 )
 
 const (
@@ -408,7 +410,7 @@ func (l *Loop) startSession(ctx context.Context, a controlplane.IngestAssignment
 	if err != nil {
 		l.log.Warn("lease acquire failed",
 			slog.String("provider", a.Provider),
-			slog.String("provider_device_id", a.ProviderDeviceID),
+			slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 			slog.String("error", err.Error()),
 		)
 		return
@@ -457,7 +459,7 @@ func (l *Loop) startSession(ctx context.Context, a controlplane.IngestAssignment
 
 	l.log.Info("ingest session started",
 		slog.String("provider", a.Provider),
-		slog.String("provider_device_id", a.ProviderDeviceID),
+		slog.String("provider_device_ref", providerDeviceLogRef(a.Provider, a.ProviderDeviceID)),
 		slog.String("worker_id", l.cfg.WorkerID),
 	)
 }
@@ -604,7 +606,7 @@ func (l *Loop) nextPollInterval() time.Duration {
 }
 
 func assignmentKey(provider, providerDeviceID string) string {
-	return sanitizeProvider(provider) + "|" + strings.ToUpper(strings.TrimSpace(providerDeviceID))
+	return sanitizeProvider(provider) + "|" + normalizeProviderDeviceIDForProvider(provider, providerDeviceID)
 }
 
 func sanitizeProvider(provider string) string {
@@ -613,7 +615,7 @@ func sanitizeProvider(provider string) string {
 
 func sanitizeAssignment(a controlplane.IngestAssignment) controlplane.IngestAssignment {
 	a.Provider = sanitizeProvider(a.Provider)
-	a.ProviderDeviceID = strings.ToUpper(strings.TrimSpace(a.ProviderDeviceID))
+	a.ProviderDeviceID = normalizeProviderDeviceIDForProvider(a.Provider, a.ProviderDeviceID)
 	a.DeviceID = strings.TrimSpace(a.DeviceID)
 	a.CredentialID = strings.TrimSpace(a.CredentialID)
 	a.ProductName = strings.TrimSpace(a.ProductName)
@@ -622,6 +624,24 @@ func sanitizeAssignment(a controlplane.IngestAssignment) controlplane.IngestAssi
 	a.SecretKey = strings.TrimSpace(a.SecretKey)
 	a.IngestDesiredState = strings.ToLower(strings.TrimSpace(a.IngestDesiredState))
 	return a
+}
+
+func normalizeProviderDeviceIDForProvider(provider string, providerDeviceID string) string {
+	providerDeviceID = strings.TrimSpace(providerDeviceID)
+	switch sanitizeProvider(provider) {
+	case controlplane.ProviderAnkerSolix:
+		if ref, err := ankersolix.ParseProviderDeviceID(providerDeviceID); err == nil {
+			return ref.ProviderDeviceID()
+		}
+		return providerDeviceID
+	case controlplane.ProviderPecron:
+		if ref, err := pecron.ParseProviderDeviceID(providerDeviceID); err == nil {
+			return ref.ProviderDeviceID()
+		}
+		return strings.ToLower(providerDeviceID)
+	default:
+		return strings.ToUpper(providerDeviceID)
+	}
 }
 
 func sameRuntimeAssignment(current, next controlplane.IngestAssignment) bool {

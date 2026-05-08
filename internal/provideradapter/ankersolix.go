@@ -169,7 +169,7 @@ func (a *AnkerSolixAdapter) MQTTSession(
 		return AnkerSolixMQTTSession{}, err
 	}
 	if !deviceAnkerSolixEnableable(device) {
-		return AnkerSolixMQTTSession{}, fmt.Errorf("%w: %s", errAnkerSolixDeviceNotEnableable, providerDeviceID)
+		return AnkerSolixMQTTSession{}, errAnkerSolixDeviceNotEnableable
 	}
 	info, err := client.GetMQTTInfo(ctx, session)
 	if err != nil {
@@ -224,7 +224,7 @@ func (a *AnkerSolixAdapter) ProbeMQTT(
 		return MQTTProbeResult{
 			Success:          true,
 			Status:           "ok",
-			SampleTopic:      strings.TrimSpace(msg.Topic),
+			SampleTopic:      redactAnkerSolixTopic(msg.Topic),
 			PayloadBytes:     int64(len(msg.Payload)),
 			ObservedAtUnixMS: a.now().UTC().UnixMilli(),
 		}, nil
@@ -245,6 +245,7 @@ func (a *AnkerSolixAdapter) connectProbeSubscriber(ctx context.Context, session 
 			ConnectTimeout: 10 * time.Second,
 			ReadTimeout:    10 * time.Second,
 			TLSConfig:      session.TLSConfig,
+			BufferSize:     32,
 		})
 		if err != nil {
 			lastErr = fmt.Errorf("init anker solix mqtt probe subscriber for %s: %w", address, err)
@@ -330,7 +331,7 @@ func (a *AnkerSolixAdapter) describeDevice(
 			return mapped, nil
 		}
 	}
-	return controlplane.ProviderDevice{}, fmt.Errorf("%w: %s", ErrProviderDeviceNotFound, targetID)
+	return controlplane.ProviderDevice{}, ErrProviderDeviceNotFound
 }
 
 type AnkerSolixMQTTSession struct {
@@ -481,7 +482,7 @@ func subscribeAnkerSolixTopics(ctx context.Context, subscriber ankerSolixMQTTSub
 	}
 	for _, topic := range topics {
 		if err := subscriber.Subscribe(ctx, topic, qos); err != nil {
-			return fmt.Errorf("subscribe anker solix mqtt topic %s: %w", topic, err)
+			return fmt.Errorf("subscribe anker solix mqtt topic %s: %w", redactAnkerSolixTopic(topic), err)
 		}
 	}
 	return nil
@@ -544,4 +545,13 @@ func brokerAddressList(primary string, fallbacks []string) []string {
 		out = append(out, candidate)
 	}
 	return out
+}
+
+func redactAnkerSolixTopic(topic string) string {
+	parts := strings.Split(strings.TrimSpace(topic), "/")
+	if len(parts) >= 4 && parts[0] == "dt" {
+		parts[3] = "redacted"
+		return strings.Join(parts, "/")
+	}
+	return ""
 }

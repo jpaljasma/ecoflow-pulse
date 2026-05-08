@@ -106,7 +106,7 @@ func (r DeviceRef) ProviderDeviceID() string {
 	if r.ProductCode == "" || r.DeviceSN == "" {
 		return ""
 	}
-	return strings.ToLower(r.ProductCode) + ":" + strings.ToLower(r.DeviceSN)
+	return strings.ToLower(r.ProductCode) + ":" + r.DeviceSN
 }
 
 func ParseProviderDeviceID(raw string) (DeviceRef, error) {

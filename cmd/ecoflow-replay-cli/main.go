@@ -251,8 +251,8 @@ func runListDevices(
 	providers := mapKeys(providerSet)
 	log.Info("manifest device listing",
 		slog.Int("objects_matched", len(objects)),
-		slog.Int("device_ids", len(devices)),
-		slog.Int("provider_device_ids", len(providers)),
+		slog.Int("device_id_count", len(devices)),
+		slog.Int("provider_device_id_count", len(providers)),
 		slog.Time("from", time.UnixMilli(fromUnixMS).UTC()),
 		slog.Time("to", time.UnixMilli(toUnixMS).UTC()),
 	)

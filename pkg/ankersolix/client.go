@@ -172,7 +172,7 @@ func (c *Client) request(ctx context.Context, method string, path string, sessio
 		return &APIError{
 			HTTPStatus: resp.StatusCode,
 			Code:       codeInt(envelope.Code, resp.StatusCode),
-			Message:    firstNonEmpty(envelope.Message, string(payload), resp.Status),
+			Message:    firstNonEmpty(envelope.Message, resp.Status),
 		}
 	}
 	if err := json.Unmarshal(payload, &envelope); err != nil {

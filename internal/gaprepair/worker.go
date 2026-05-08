@@ -9,6 +9,7 @@ import (
 	"time"
 
 	replayv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/replay/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/nats-io/nats.go"
@@ -246,7 +247,7 @@ func (w *Worker) handleDelivery(msg delivery) {
 		w.log.Warn("gap-repair replay failed; nacking",
 			slog.String("request_id", normalized.GetRequestId()),
 			slog.String("provider", normalized.GetProvider()),
-			slog.String("provider_device_id", normalized.GetProviderDeviceId()),
+			slog.String("provider_device_ref", logredact.Identifier(normalized.GetProviderDeviceId())),
 			slog.String("error", runErr.Error()),
 			slog.Int("replay_failures_in_window", failCount),
 			slog.Float64("replay_failures_per_min", failPerMin),
@@ -260,7 +261,7 @@ func (w *Worker) handleDelivery(msg delivery) {
 				slog.Int("threshold", w.cfg.ReplayFailureAlertThreshold),
 				slog.Duration("cooldown", w.cfg.ReplayFailureAlertCooldown),
 				slog.String("provider", normalized.GetProvider()),
-				slog.String("provider_device_id", normalized.GetProviderDeviceId()),
+				slog.String("provider_device_ref", logredact.Identifier(normalized.GetProviderDeviceId())),
 			)
 		}
 		if nakErr := msg.Nak(); nakErr != nil {
@@ -275,7 +276,7 @@ func (w *Worker) handleDelivery(msg delivery) {
 	w.log.Info("gap-repair replay completed",
 		slog.String("request_id", normalized.GetRequestId()),
 		slog.String("provider", normalized.GetProvider()),
-		slog.String("provider_device_id", normalized.GetProviderDeviceId()),
+		slog.String("provider_device_ref", logredact.Identifier(normalized.GetProviderDeviceId())),
 		slog.Int64("from_unix_ms", normalized.GetFromUnixMs()),
 		slog.Int64("to_unix_ms", normalized.GetToUnixMs()),
 	)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 )
@@ -63,7 +64,7 @@ func main() {
 	if err != nil {
 		switch {
 		case errors.Is(err, controlplane.ErrVerifiedEmailNotFound):
-			log.Error("verified email was not found", "email", cfg.email)
+			log.Error("verified email was not found", "email_ref", logredact.Email(cfg.email))
 		case errors.Is(err, controlplane.ErrUserSubjectConflict):
 			log.Error("target subject already belongs to another user", "user_subject", cfg.userSubject)
 		default:

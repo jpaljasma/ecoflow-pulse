@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"math/big"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -157,6 +158,12 @@ func TestAnkerSolixAdapterProbeMQTTUsesProviderTransport(t *testing.T) {
 	}
 	if len(factory.configs) != 1 || factory.configs[0].Address != "aiot-mqtt.anker.example:8883" {
 		t.Fatalf("subscriber configs = %#v", factory.configs)
+	}
+	if factory.configs[0].BufferSize != 32 {
+		t.Fatalf("probe buffer size = %d, want 32", factory.configs[0].BufferSize)
+	}
+	if strings.Contains(result.SampleTopic, "ankersn001") {
+		t.Fatalf("probe sample topic leaked serial: %q", result.SampleTopic)
 	}
 	if got := len(subscriber.published); got != 1 {
 		t.Fatalf("published trigger commands = %d, want 1", got)

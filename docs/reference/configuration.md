@@ -53,8 +53,8 @@ Common service/worker logging knobs (`cmd/ecoflow-ingest-worker`, `cmd/ecoflow-p
 
 Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 
-- `INGEST_MQTT_LOG_PAYLOAD_DEBUG` (default `false`; payload logging stays off hot path)
-- `INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY` (default `100`; sampled debug payload logging interval)
+- `INGEST_MQTT_LOG_PAYLOAD_DEBUG` (default `false`; sampled MQTT debug logs stay off the hot path and redact topics/raw payload bodies)
+- `INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY` (default `100`; sampled debug metadata logging interval)
 - `INGEST_QUOTA_FETCH_TIMEOUT` (default `10s`; per-call timeout for `GetDeviceAllQuota()` bootstrap/refresh pulls)
 - `INGEST_QUOTA_REFRESH_INTERVAL` (default `30s`; periodic quota refresh cadence while an MQTT session is alive)
 - `INGEST_QUOTA_REFRESH_JITTER` (default `0.20`; proportional jitter applied to periodic quota refresh scheduling)

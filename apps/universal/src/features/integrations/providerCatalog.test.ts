@@ -91,6 +91,16 @@ describe('provider catalog helpers', () => {
       label: 'Needs sample',
       tone: 'neutral'
     });
+
+    expect(
+      describeAvailableDeviceSupport(makeAvailableDevice({
+        provider: 'anker_solix',
+        model: 'A1783'
+      }))
+    ).toMatchObject({
+      label: 'Needs sample',
+      enableable: false
+    });
   });
 });
 
