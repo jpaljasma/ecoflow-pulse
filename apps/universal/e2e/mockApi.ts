@@ -862,6 +862,11 @@ export async function mockApiRoutes(page: Page): Promise<void> {
       return;
     }
 
+    if (pathname === '/api/v1/integrations') {
+      await fulfillJson(route, { integrations: [] });
+      return;
+    }
+
     if (pathname === '/api/v1/weather/forecast') {
       await fulfillJson(route, { forecast: buildWeatherForecast() });
       return;
