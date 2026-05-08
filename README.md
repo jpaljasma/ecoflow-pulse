@@ -38,13 +38,13 @@ web, iPhone, iPad, and Android.
 
 ### App Overview
 
-#### Device Command Center
+#### Fleet Dashboard
 
-![DPU device overview](docs/assets/app-overview/dpu-detail.png)
+![Pulse fleet dashboard](docs/assets/app-overview/fleet-dashboard.png)
 
-The device detail view brings the DELTA Pro Ultra picture, reserve/SOC status,
-live telemetry, today's solar, PV input, load, net balance, and history charts
-into one operational view for the selected device.
+The fleet dashboard brings solar generation, device SOC, battery capacity, live
+load, PV input, and day-over-day history into one operational view across active
+systems.
 
 #### Energy Balance
 
