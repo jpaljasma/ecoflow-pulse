@@ -1350,7 +1350,7 @@ dev-web-deploy:
 					echo "restarting $$ns/$$name"; \
 					$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
 					echo "waiting for $$ns/$$name"; \
-					$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
+					KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 300s; \
 				else \
 					echo "skipping missing deployment $$ns/$$name"; \
 				fi; \
@@ -1406,7 +1406,9 @@ dev-deploy:
 			$(MAKE) --no-print-directory SERVICES_AUTO_BUILD_IMAGE=0 services-up; \
 		else \
 			echo "skipping services Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
-		fi
+		fi; \
+		echo "applying local database migrations before service restarts"; \
+		$(MAKE) --no-print-directory db-migrate-up-local
 	@set -euo pipefail; \
 		restart_and_wait_if_exists() { \
 			ns="$$1"; \
@@ -1415,7 +1417,7 @@ dev-deploy:
 				echo "restarting $$ns/$$name"; \
 				$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
 				echo "waiting for $$ns/$$name"; \
-				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
+				KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 300s; \
 			else \
 				echo "skipping missing deployment $$ns/$$name"; \
 			fi; \
@@ -1430,11 +1432,11 @@ dev-deploy:
 				fi; \
 				echo "recycling $$ns/$$name"; \
 				$(LOCAL_KUBECTL) -n "$$ns" scale deploy/"$$name" --replicas=0; \
-				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=180s; \
+				KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 180s; \
 				echo "restoring $$ns/$$name replicas=$$replicas"; \
 				$(LOCAL_KUBECTL) -n "$$ns" scale deploy/"$$name" --replicas="$$replicas"; \
 				echo "waiting for $$ns/$$name"; \
-				$(LOCAL_KUBECTL) -n "$$ns" rollout status deploy/"$$name" --timeout=300s; \
+				KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 300s; \
 			else \
 				echo "skipping missing deployment $$ns/$$name"; \
 			fi; \

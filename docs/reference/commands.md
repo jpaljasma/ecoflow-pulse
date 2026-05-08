@@ -1084,7 +1084,8 @@ Notes:
   Before applying the release it now also waits for the platform dependency
   endpoints consumed by the services layer: CNPG rw, NATS, Valkey, and MinIO.
 - `make dev-deploy` is the incremental local redeploy path for code changes:
-  rebuild/import local public + services images, then restart
+  rebuild/import local public + services images, apply any pending local
+  database migrations, then restart
   `pulse-services-go-solar-verification` first by scaling it to `0` and back to
   its current replica count, then roll `pulse-services-go-ingest`,
   `pulse-services-go-projection`, `pulse-services-go-rollup`,
@@ -1095,6 +1096,11 @@ Notes:
   The verifier recycle is a local rollout safeguard: it clears stale
   long-lived Postgres transactions before the ingest phase so new worker pods
   do not deadlock on exhausted connection slots.
+  Running migrations before worker restarts keeps schema-gated workers from
+  entering a rollout timeout when the only issue is a pending migration.
+  If a rollout still times out, the target prints deployment state, related
+  pod events, and recent current/previous logs before exiting so startup guard
+  errors are visible in the failed command output.
   This path is rollout-safe and PVC-safe: it replaces pods in place without
   deleting the k3d cluster or removing Postgres/MinIO/NATS/Valkey storage.
   By default (`DEV_DEPLOY_HELM=auto`) it skips Helm re-apply when local
