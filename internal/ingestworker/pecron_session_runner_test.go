@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,6 +123,90 @@ func TestProviderSessionRunnerSupportsPecronRegistration(t *testing.T) {
 	err := runner.Run(context.Background(), controlplane.IngestAssignment{Provider: " PECRON "})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Run() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestDefaultPecronSessionConfigHonorsCloudRateLimitFloor(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultPecronSessionConfig()
+	if cfg.SnapshotRefreshInterval != pecron.RecommendedCloudRESTPollInterval {
+		t.Fatalf("snapshot refresh interval = %s, want %s", cfg.SnapshotRefreshInterval, pecron.RecommendedCloudRESTPollInterval)
+	}
+	if cfg.SnapshotRefreshInterval < pecron.MinCloudRESTPollInterval {
+		t.Fatalf("snapshot refresh interval %s is below Pecron floor %s", cfg.SnapshotRefreshInterval, pecron.MinCloudRESTPollInterval)
+	}
+}
+
+func TestPecronSessionConfigRejectsSnapshotRefreshBelowCloudFloor(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewPecronSessionRunner(
+		testLogger(),
+		fakePecronSnapshotter{},
+		&fakeEnvelopePublisher{},
+		&fakeProviderDeviceUpdater{},
+		PecronSessionConfig{
+			PublishQueueSize:         4,
+			PublishWorkers:           1,
+			PublishEnqueueTimeout:    time.Second,
+			SnapshotRefreshInterval:  pecron.MinCloudRESTPollInterval - time.Second,
+			DisableSnapshotBootstrap: true,
+		},
+	)
+	if err == nil {
+		t.Fatal("expected below-floor Pecron snapshot refresh interval to fail")
+	}
+	if !strings.Contains(err.Error(), "pecron cloud REST snapshot refresh interval") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestPecronSessionRunnerConnectsUsingBrokerFallback(t *testing.T) {
+	t.Parallel()
+
+	runner, err := NewPecronSessionRunner(
+		testLogger(),
+		fakePecronSnapshotter{},
+		&fakeEnvelopePublisher{},
+		&fakeProviderDeviceUpdater{},
+		PecronSessionConfig{
+			PublishQueueSize:         4,
+			PublishWorkers:           1,
+			PublishEnqueueTimeout:    time.Second,
+			DisableSnapshotBootstrap: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewPecronSessionRunner() error = %v", err)
+	}
+	first := &fakeMQTTSubscriber{connectErr: errors.New("primary unavailable")}
+	second := &fakeMQTTSubscriber{}
+	factory := &fakePecronSubscriberFactory{subscribers: []mqttSubscriber{first, second}}
+	runner.newSubscriber = factory.new
+
+	subscriber, address, err := runner.connectSubscriber(context.Background(), pecron.MQTTSession{
+		Address:   "primary.example:8443",
+		Addresses: []string{"primary.example:8443", "fallback.example:8443"},
+		Path:      "/ws/v2",
+		Token:     "token",
+		Topics:    []string{"q/2/d/qdp11vxgaabbccddeeff/bus_"},
+	}, "client-id", runner.cfg)
+	if err != nil {
+		t.Fatalf("connectSubscriber() error = %v", err)
+	}
+	defer func() { _ = subscriber.Close() }()
+	if address != "fallback.example:8443" {
+		t.Fatalf("connected address = %q, want fallback", address)
+	}
+	if got := first.closeCalls.Load(); got != 1 {
+		t.Fatalf("primary close calls = %d, want 1", got)
+	}
+	if len(factory.configs) != 2 {
+		t.Fatalf("subscriber configs = %d, want 2", len(factory.configs))
+	}
+	if factory.configs[0].Address != "primary.example:8443" || factory.configs[1].Address != "fallback.example:8443" {
+		t.Fatalf("subscriber addresses = %#v", factory.configs)
 	}
 }
 

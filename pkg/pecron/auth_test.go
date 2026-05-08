@@ -23,6 +23,28 @@ func TestResolveRegionNormalizesPecronRegions(t *testing.T) {
 	}
 }
 
+func TestResolveRegionKeepsKnownMQTTBrokerAliases(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := ResolveRegion("EU")
+	if err != nil {
+		t.Fatalf("ResolveRegion() error = %v", err)
+	}
+	got := cfg.MQTTBrokerAddresses()
+	want := []string{
+		"iot-south.acceleronix.io:8443",
+		"iot-south.quecteleu.com:8443",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("broker addresses = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("broker addresses = %#v, want %#v", got, want)
+		}
+	}
+}
+
 func TestBuildLoginSignature(t *testing.T) {
 	t.Parallel()
 

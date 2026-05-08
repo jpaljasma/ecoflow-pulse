@@ -15,16 +15,23 @@ const (
 	RegionCN Region = "cn"
 
 	ProductKeyE1000LFP = "p11vxg"
+
+	// Pecron's cloud REST endpoints appear to enforce a per-account daily
+	// polling budget of roughly 1280 requests. Keep snapshot refreshes at or
+	// above the empirical floor and default to the safer cadence.
+	MinCloudRESTPollInterval         = 63 * time.Second
+	RecommendedCloudRESTPollInterval = 70 * time.Second
 )
 
 type RegionConfig struct {
-	ID               Region
-	Name             string
-	BaseURL          string
-	MQTTAddress      string
-	MQTTPath         string
-	UserDomain       string
-	UserDomainSecret string
+	ID                    Region
+	Name                  string
+	BaseURL               string
+	MQTTAddress           string
+	MQTTFallbackAddresses []string
+	MQTTPath              string
+	UserDomain            string
+	UserDomainSecret      string
 }
 
 var regions = map[Region]RegionConfig{
@@ -38,13 +45,14 @@ var regions = map[Region]RegionConfig{
 		UserDomainSecret: "HARsQXfeex8vxyaPRAM8fyjqqVuH2uxAGQ3inJ8XxTiB",
 	},
 	RegionEU: {
-		ID:               RegionEU,
-		Name:             "Europe",
-		BaseURL:          "https://iot-api.acceleronix.io",
-		MQTTAddress:      "iot-south.acceleronix.io:8443",
-		MQTTPath:         "/ws/v2",
-		UserDomain:       "C.DM.10351.1",
-		UserDomainSecret: "FA5ZHXSka8y9GHvU91Hz1vWvaDSHE2mGW5B7bpn3fXTW",
+		ID:                    RegionEU,
+		Name:                  "Europe",
+		BaseURL:               "https://iot-api.acceleronix.io",
+		MQTTAddress:           "iot-south.acceleronix.io:8443",
+		MQTTFallbackAddresses: []string{"iot-south.quecteleu.com:8443"},
+		MQTTPath:              "/ws/v2",
+		UserDomain:            "C.DM.10351.1",
+		UserDomainSecret:      "FA5ZHXSka8y9GHvU91Hz1vWvaDSHE2mGW5B7bpn3fXTW",
 	},
 	RegionCN: {
 		ID:               RegionCN,
@@ -55,6 +63,23 @@ var regions = map[Region]RegionConfig{
 		UserDomain:       "C.DM.5903.1",
 		UserDomainSecret: "EufftRJSuWuVY7c6txzGifV9bJcfXHAFa7hXY5doXSn7",
 	},
+}
+
+func (c RegionConfig) MQTTBrokerAddresses() []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, 1+len(c.MQTTFallbackAddresses))
+	for _, address := range append([]string{c.MQTTAddress}, c.MQTTFallbackAddresses...) {
+		normalized := strings.TrimSpace(address)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }
 
 func ResolveRegion(raw string) (RegionConfig, error) {
@@ -190,9 +215,27 @@ type TSLProperty struct {
 }
 
 type MQTTSession struct {
-	Address  string
-	Path     string
-	Token    string
-	ClientID string
-	Topics   []string
+	Address   string
+	Addresses []string
+	Path      string
+	Token     string
+	ClientID  string
+	Topics    []string
+}
+
+func (s MQTTSession) BrokerAddresses() []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, 1+len(s.Addresses))
+	for _, address := range append([]string{s.Address}, s.Addresses...) {
+		normalized := strings.TrimSpace(address)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }

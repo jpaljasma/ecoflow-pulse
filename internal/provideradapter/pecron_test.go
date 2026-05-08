@@ -135,6 +135,44 @@ func TestPecronAdapterSnapshotNormalizesTelemetry(t *testing.T) {
 	}
 }
 
+func TestPecronAdapterMQTTSessionCarriesRegionBrokerFallbacks(t *testing.T) {
+	t.Parallel()
+
+	client := &fakePecronClient{
+		devices: []pecron.Device{{
+			ProductKey:  pecron.ProductKeyE1000LFP,
+			DeviceKey:   "aabbccddeeff",
+			DeviceName:  "Garage Pecron",
+			ProductName: "E1000LFP",
+			Online:      true,
+		}},
+	}
+	adapter := NewPecronAdapter(PecronAdapterConfig{
+		ClientFactory: StaticPecronClientFactory(client),
+	})
+	session, err := adapter.MQTTSession(context.Background(), controlplane.ProviderCredential{
+		ID:        "cred-1",
+		Provider:  controlplane.ProviderPecron,
+		AccessKey: "owner@example.test",
+		SecretKey: "password",
+		Config:    map[string]any{"region": "eu"},
+		IsActive:  true,
+	}, "p11vxg:aabbccddeeff")
+	if err != nil {
+		t.Fatalf("MQTTSession() error = %v", err)
+	}
+	want := []string{"iot-south.acceleronix.io:8443", "iot-south.quecteleu.com:8443"}
+	got := session.BrokerAddresses()
+	if len(got) != len(want) {
+		t.Fatalf("broker addresses = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("broker addresses = %#v, want %#v", got, want)
+		}
+	}
+}
+
 func TestPecronAdapterValidationGuards(t *testing.T) {
 	t.Parallel()
 

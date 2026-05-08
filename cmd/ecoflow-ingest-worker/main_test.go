@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jpaljasma/ecoflow-pulse/internal/ingestworker"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/pecron"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -40,6 +42,33 @@ func TestLoadIngestLoopConfigFromEnvGeneratesWorkerID(t *testing.T) {
 	cfg := loadIngestLoopConfigFromEnv()
 	if strings.TrimSpace(cfg.WorkerID) == "" {
 		t.Fatal("expected generated worker id")
+	}
+}
+
+func TestLoadPecronSessionConfigUsesProviderSpecificRESTCadence(t *testing.T) {
+	base := ingestworker.DefaultEcoFlowSessionConfig()
+	base.QuotaRefreshInterval = 30 * time.Second
+	base.QuotaRefreshJitter = 0.4
+
+	cfg := loadPecronSessionConfigFromEnv(base)
+	if cfg.SnapshotRefreshInterval != pecron.RecommendedCloudRESTPollInterval {
+		t.Fatalf("snapshot refresh interval = %s, want %s", cfg.SnapshotRefreshInterval, pecron.RecommendedCloudRESTPollInterval)
+	}
+	if cfg.SnapshotRefreshJitter != 0.20 {
+		t.Fatalf("snapshot refresh jitter = %v, want provider default 0.20", cfg.SnapshotRefreshJitter)
+	}
+}
+
+func TestLoadPecronSessionConfigAllowsExplicitSafeRESTCadence(t *testing.T) {
+	t.Setenv("INGEST_PECRON_SNAPSHOT_REFRESH_INTERVAL", "90s")
+	t.Setenv("INGEST_PECRON_SNAPSHOT_REFRESH_JITTER", "0.1")
+
+	cfg := loadPecronSessionConfigFromEnv(ingestworker.DefaultEcoFlowSessionConfig())
+	if cfg.SnapshotRefreshInterval != 90*time.Second {
+		t.Fatalf("snapshot refresh interval = %s, want 90s", cfg.SnapshotRefreshInterval)
+	}
+	if cfg.SnapshotRefreshJitter != 0.1 {
+		t.Fatalf("snapshot refresh jitter = %v, want 0.1", cfg.SnapshotRefreshJitter)
 	}
 }
 

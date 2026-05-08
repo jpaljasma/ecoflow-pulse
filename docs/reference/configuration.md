@@ -53,6 +53,9 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `INGEST_QUOTA_FETCH_TIMEOUT` (default `10s`; per-call timeout for `GetDeviceAllQuota()` bootstrap/refresh pulls)
 - `INGEST_QUOTA_REFRESH_INTERVAL` (default `30s`; periodic quota refresh cadence while an MQTT session is alive)
 - `INGEST_QUOTA_REFRESH_JITTER` (default `0.20`; proportional jitter applied to periodic quota refresh scheduling)
+- `INGEST_PECRON_SNAPSHOT_FETCH_TIMEOUT` (default `10s`; per-call timeout for Pecron REST bootstrap/refresh snapshots)
+- `INGEST_PECRON_SNAPSHOT_REFRESH_INTERVAL` (default `70s`; Pecron REST snapshot refresh cadence while MQTT is alive; values below `63s` are rejected to avoid Pecron `4026` rate-limit exhaustion)
+- `INGEST_PECRON_SNAPSHOT_REFRESH_JITTER` (default `0.20`; proportional jitter applied to Pecron REST snapshot refresh scheduling)
 - `INGEST_QUOTA_METRICS_INTERVAL` (default `30s`; jittered aggregate quota refresh metrics log interval, set `0` to disable)
 - `INGEST_MQTT_CLIENT_ID_NAMESPACE` (optional; overrides the environment namespace used when deriving steady-state EcoFlow MQTT client IDs; defaults to `PULSE_ENV`)
 

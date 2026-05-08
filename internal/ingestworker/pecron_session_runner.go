@@ -66,7 +66,7 @@ func DefaultPecronSessionConfig() PecronSessionConfig {
 		ReconnectJitter:         defaultMQTTReconnectJitter,
 
 		SnapshotFetchTimeout:    10 * time.Second,
-		SnapshotRefreshInterval: 70 * time.Second,
+		SnapshotRefreshInterval: pecron.RecommendedCloudRESTPollInterval,
 		SnapshotRefreshJitter:   0.20,
 	}
 }
@@ -126,6 +126,14 @@ func (c PecronSessionConfig) normalized() PecronSessionConfig {
 func (c PecronSessionConfig) validate() error {
 	if c.PublishWorkers > 1 && !c.AllowUnorderedPublish {
 		return errors.New("publish_workers > 1 requires allow_unordered_publish=true")
+	}
+	if c.SnapshotRefreshInterval < pecron.MinCloudRESTPollInterval {
+		return fmt.Errorf(
+			"pecron cloud REST snapshot refresh interval %s is below the %s floor; use %s or higher to avoid code 4026 rate-limit exhaustion",
+			c.SnapshotRefreshInterval,
+			pecron.MinCloudRESTPollInterval,
+			pecron.RecommendedCloudRESTPollInterval,
+		)
 	}
 	return nil
 }
@@ -225,32 +233,16 @@ func (r *PecronSessionRunner) runSessionOnce(
 	if cfg.MQTTClientIDNamespace != "" {
 		clientID = ecoflowmqtt.BuildClientIDWithNamespace(cfg.MQTTClientIDNamespace, clientID)
 	}
-	subscriber, err := r.newSubscriber(pecron.MQTTConfig{
-		Address:        session.Address,
-		Path:           session.Path,
-		Token:          session.Token,
-		ClientID:       clientID,
-		KeepAlive:      cfg.KeepAlive,
-		ConnectTimeout: cfg.ConnectTimeout,
-		ReadTimeout:    cfg.ReadTimeout,
-	})
+	subscriber, connectedAddress, err := r.connectSubscriber(ctx, session, clientID, cfg)
 	if err != nil {
-		return false, fmt.Errorf("init pecron mqtt subscriber: %w", err)
+		return false, err
 	}
 	defer func() { _ = subscriber.Close() }()
 
-	if err := subscriber.Connect(ctx); err != nil {
-		return false, fmt.Errorf("connect pecron mqtt subscriber: %w", err)
-	}
-	for _, topic := range session.Topics {
-		if err := subscriber.Subscribe(ctx, topic, cfg.SubscribeQoS); err != nil {
-			return false, fmt.Errorf("subscribe pecron mqtt topic %s: %w", topic, err)
-		}
-	}
 	r.log.Info("pecron ingest session connected",
 		slog.String("provider", a.Provider),
 		slog.String("provider_device_id", strings.TrimSpace(a.ProviderDeviceID)),
-		slog.String("broker", session.Address),
+		slog.String("broker", connectedAddress),
 	)
 
 	asyncPublisher := newAsyncEnvelopePublisher(ctx, r.publisher, cfg.PublishQueueSize, cfg.PublishWorkers, cfg.PublishEnqueueTimeout)
@@ -338,6 +330,61 @@ func (r *PecronSessionRunner) runSessionOnce(
 			)
 		}
 	}
+}
+
+func (r *PecronSessionRunner) connectSubscriber(
+	ctx context.Context,
+	session pecron.MQTTSession,
+	clientID string,
+	cfg PecronSessionConfig,
+) (mqttSubscriber, string, error) {
+	addresses := session.BrokerAddresses()
+	if len(addresses) == 0 {
+		return nil, "", errors.New("pecron mqtt session has no broker addresses")
+	}
+	var lastErr error
+	for _, address := range addresses {
+		subscriber, err := r.newSubscriber(pecron.MQTTConfig{
+			Address:        address,
+			Path:           session.Path,
+			Token:          session.Token,
+			ClientID:       clientID,
+			KeepAlive:      cfg.KeepAlive,
+			ConnectTimeout: cfg.ConnectTimeout,
+			ReadTimeout:    cfg.ReadTimeout,
+		})
+		if err != nil {
+			lastErr = fmt.Errorf("init pecron mqtt subscriber for %s: %w", address, err)
+			continue
+		}
+		if err := subscriber.Connect(ctx); err != nil {
+			_ = subscriber.Close()
+			lastErr = fmt.Errorf("connect pecron mqtt subscriber %s: %w", address, err)
+			continue
+		}
+		if err := subscribePecronTopics(ctx, subscriber, session.Topics, cfg.SubscribeQoS); err != nil {
+			_ = subscriber.Close()
+			lastErr = fmt.Errorf("subscribe pecron mqtt topics on %s: %w", address, err)
+			continue
+		}
+		return subscriber, address, nil
+	}
+	if lastErr == nil {
+		lastErr = errors.New("pecron mqtt subscriber could not connect")
+	}
+	return nil, "", lastErr
+}
+
+func subscribePecronTopics(ctx context.Context, subscriber mqttSubscriber, topics []string, qos byte) error {
+	if len(topics) == 0 {
+		return errors.New("pecron mqtt session has no subscribe topics")
+	}
+	for _, topic := range topics {
+		if err := subscriber.Subscribe(ctx, topic, qos); err != nil {
+			return fmt.Errorf("subscribe pecron mqtt topic %s: %w", topic, err)
+		}
+	}
+	return nil
 }
 
 func (r *PecronSessionRunner) runSnapshotRefreshLoop(

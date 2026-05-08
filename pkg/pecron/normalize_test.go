@@ -62,6 +62,75 @@ func TestNormalizeE1000LFPTelemetryMapsCloudKVToCanonicalParams(t *testing.T) {
 	}
 }
 
+func TestNormalizeTelemetryHandlesKnownCloudQuirks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		kv         map[string]any
+		wantParams map[string]any
+		absent     []string
+	}{
+		{
+			name: "host packet SOC refreshes standalone E1000 when top-level SOC is stale",
+			kv: map[string]any{
+				"battery_percentage":   100,
+				"host_packet_data_jdb": map[string]any{"host_packet_electric_percentage": 82},
+			},
+			wantParams: map[string]any{"soc": float64(82), "f32ShowSoc": float64(82)},
+		},
+		{
+			name: "total input and output fall back to component sums when top-level totals are absent",
+			kv: map[string]any{
+				"ac_data_input_hm":  map[string]any{"ac_input_power": 150},
+				"dc_data_input_hm":  map[string]any{"dc_input_power": 20},
+				"ac_data_output_hm": map[string]any{"ac_output_power": 100},
+				"dc_data_output_hm": map[string]any{"dc_output_power": 30},
+			},
+			wantParams: map[string]any{"wattsInSum": float64(170), "wattsOutSum": float64(130)},
+		},
+		{
+			name: "component zero totals are emitted when idle components are observed",
+			kv: map[string]any{
+				"ac_data_input_hm": map[string]any{"ac_input_power": 0},
+				"dc_data_input_hm": map[string]any{"dc_input_power": 0},
+			},
+			wantParams: map[string]any{"wattsInSum": float64(0)},
+			absent:     []string{"wattsOutSum"},
+		},
+		{
+			name: "missing totals and components do not invent idle zeros",
+			kv: map[string]any{
+				"host_packet_data_jdb": map[string]any{"host_packet_temp": 24},
+			},
+			absent: []string{"wattsInSum", "wattsOutSum"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := NormalizeTelemetry(Device{
+				ProductKey:  ProductKeyE1000LFP,
+				DeviceKey:   "aabbccddeeff",
+				ProductName: "E1000LFP",
+			}, tt.kv)
+			for key, want := range tt.wantParams {
+				if got := out.Params[key]; got != want {
+					t.Fatalf("%s = %#v, want %#v (params=%#v)", key, got, want, out.Params)
+				}
+			}
+			for _, key := range tt.absent {
+				if _, ok := out.Params[key]; ok {
+					t.Fatalf("%s should be absent from params %#v", key, out.Params)
+				}
+			}
+		})
+	}
+}
+
 func TestMergeMQTTKVAccumulatesPartialPackets(t *testing.T) {
 	t.Parallel()
 
@@ -82,6 +151,31 @@ func TestMergeMQTTKVAccumulatesPartialPackets(t *testing.T) {
 	nested := merged["dc_data_input_hm"].(map[string]any)
 	if got := nested["gx16mf1_input_power"]; got != 88 {
 		t.Fatalf("nested input not merged: %#v", nested)
+	}
+}
+
+func TestMergeMQTTKVPreservesLastGoodVoltageAcrossPlaceholderPackets(t *testing.T) {
+	t.Parallel()
+
+	state := map[string]any{
+		"host_packet_data_jdb": map[string]any{
+			"host_packet_voltage": 53.1,
+			"host_packet_temp":    28,
+		},
+	}
+	merged := MergeKV(state, map[string]any{
+		"host_packet_data_jdb": map[string]any{
+			"host_packet_voltage": 0,
+			"host_packet_temp":    29,
+		},
+	})
+
+	host := asMap(merged["host_packet_data_jdb"])
+	if got := host["host_packet_voltage"]; got != 53.1 {
+		t.Fatalf("host_packet_voltage = %#v, want last-good 53.1", got)
+	}
+	if got := host["host_packet_temp"]; got != 29 {
+		t.Fatalf("host_packet_temp = %#v, want fresh temp 29", got)
 	}
 }
 

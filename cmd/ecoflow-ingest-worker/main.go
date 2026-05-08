@@ -190,23 +190,7 @@ func main() {
 	sessionCfg.MQTTClientIDNamespace = strings.TrimSpace(runtimecfg.EnvOrDefault("INGEST_MQTT_CLIENT_ID_NAMESPACE", runtimecfg.EnvOrDefault("PULSE_ENV", "local")))
 	sessionCfg.LogMQTTPayloadDebug = runtimecfg.Bool("INGEST_MQTT_LOG_PAYLOAD_DEBUG", sessionCfg.LogMQTTPayloadDebug)
 	sessionCfg.LogMQTTPayloadSampleEvery = runtimecfg.IntMin("INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY", sessionCfg.LogMQTTPayloadSampleEvery, 1)
-	pecronSessionCfg := ingestworker.DefaultPecronSessionConfig()
-	pecronSessionCfg.ShardCount = sessionCfg.ShardCount
-	pecronSessionCfg.MQTTClientIDNamespace = sessionCfg.MQTTClientIDNamespace
-	pecronSessionCfg.KeepAlive = sessionCfg.KeepAlive
-	pecronSessionCfg.ConnectTimeout = sessionCfg.ConnectTimeout
-	pecronSessionCfg.ReadTimeout = sessionCfg.ReadTimeout
-	pecronSessionCfg.ReconnectInitialBackoff = sessionCfg.ReconnectInitialBackoff
-	pecronSessionCfg.ReconnectMaxBackoff = sessionCfg.ReconnectMaxBackoff
-	pecronSessionCfg.ReconnectJitter = sessionCfg.ReconnectJitter
-	pecronSessionCfg.SnapshotFetchTimeout = sessionCfg.QuotaFetchTimeout
-	pecronSessionCfg.SnapshotRefreshInterval = sessionCfg.QuotaRefreshInterval
-	pecronSessionCfg.SnapshotRefreshJitter = sessionCfg.QuotaRefreshJitter
-	pecronSessionCfg.PublishQueueSize = sessionCfg.PublishQueueSize
-	pecronSessionCfg.PublishWorkers = sessionCfg.PublishWorkers
-	pecronSessionCfg.PublishEnqueueTimeout = sessionCfg.PublishEnqueueTimeout
-	pecronSessionCfg.AllowUnorderedPublish = sessionCfg.AllowUnorderedPublish
-	pecronSessionCfg.DisableEnvelopeLabels = sessionCfg.DisableEnvelopeLabels
+	pecronSessionCfg := loadPecronSessionConfigFromEnv(sessionCfg)
 	ecoFlowRunner, err := ingestworker.NewEcoFlowSessionRunner(log, adapter, publisher, store, sessionCfg)
 	if err != nil {
 		log.Error("init session runner failed", slog.String("error", err.Error()))
@@ -295,6 +279,9 @@ func main() {
 		slog.Duration("quota_fetch_timeout", sessionCfg.QuotaFetchTimeout),
 		slog.Duration("quota_refresh_interval", sessionCfg.QuotaRefreshInterval),
 		slog.Float64("quota_refresh_jitter", sessionCfg.QuotaRefreshJitter),
+		slog.Duration("pecron_snapshot_fetch_timeout", pecronSessionCfg.SnapshotFetchTimeout),
+		slog.Duration("pecron_snapshot_refresh_interval", pecronSessionCfg.SnapshotRefreshInterval),
+		slog.Float64("pecron_snapshot_refresh_jitter", pecronSessionCfg.SnapshotRefreshJitter),
 		slog.String("mqtt_client_id_namespace", sessionCfg.MQTTClientIDNamespace),
 		slog.Bool("mqtt_payload_debug", sessionCfg.LogMQTTPayloadDebug),
 		slog.Int("mqtt_payload_sample_every", sessionCfg.LogMQTTPayloadSampleEvery),
@@ -347,6 +334,27 @@ func loadIngestLoopConfigFromEnv() ingestworker.Config {
 		LeaseMissingAlertThreshold: leaseMissingAlertThreshold,
 		LeaseMissingAlertCooldown:  leaseMissingAlertCooldown,
 	}
+}
+
+func loadPecronSessionConfigFromEnv(base ingestworker.EcoFlowSessionConfig) ingestworker.PecronSessionConfig {
+	cfg := ingestworker.DefaultPecronSessionConfig()
+	cfg.ShardCount = base.ShardCount
+	cfg.MQTTClientIDNamespace = base.MQTTClientIDNamespace
+	cfg.KeepAlive = base.KeepAlive
+	cfg.ConnectTimeout = base.ConnectTimeout
+	cfg.ReadTimeout = base.ReadTimeout
+	cfg.ReconnectInitialBackoff = base.ReconnectInitialBackoff
+	cfg.ReconnectMaxBackoff = base.ReconnectMaxBackoff
+	cfg.ReconnectJitter = base.ReconnectJitter
+	cfg.PublishQueueSize = base.PublishQueueSize
+	cfg.PublishWorkers = base.PublishWorkers
+	cfg.PublishEnqueueTimeout = base.PublishEnqueueTimeout
+	cfg.AllowUnorderedPublish = base.AllowUnorderedPublish
+	cfg.DisableEnvelopeLabels = base.DisableEnvelopeLabels
+	cfg.SnapshotFetchTimeout = runtimecfg.DurationPositive("INGEST_PECRON_SNAPSHOT_FETCH_TIMEOUT", cfg.SnapshotFetchTimeout)
+	cfg.SnapshotRefreshInterval = runtimecfg.DurationPositive("INGEST_PECRON_SNAPSHOT_REFRESH_INTERVAL", cfg.SnapshotRefreshInterval)
+	cfg.SnapshotRefreshJitter = runtimecfg.Float64NonNegative("INGEST_PECRON_SNAPSHOT_REFRESH_JITTER", cfg.SnapshotRefreshJitter)
+	return cfg
 }
 
 func startAutoscaleMetricsServer(ctx context.Context, log *slog.Logger, registry *prometheus.Registry, listenAddr string) func() {

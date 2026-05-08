@@ -29,16 +29,38 @@ func DecodeMQTTBusPayload(payload []byte) (MQTTBusMessage, error) {
 }
 
 func MergeKV(base map[string]any, next map[string]any) map[string]any {
+	return mergeKVAtPath(base, next, "")
+}
+
+func mergeKVAtPath(base map[string]any, next map[string]any, parentPath string) map[string]any {
 	out := cloneMap(base)
 	for key, value := range next {
+		path := key
+		if parentPath != "" {
+			path = parentPath + "." + key
+		}
 		if nested := asMap(value); len(nested) > 0 {
 			existing := asMap(out[key])
-			out[key] = MergeKV(existing, nested)
+			out[key] = mergeKVAtPath(existing, nested, path)
+			continue
+		}
+		if preserveExistingValue(path, out[key], value) {
 			continue
 		}
 		out[key] = value
 	}
 	return out
+}
+
+func preserveExistingValue(path string, existing any, next any) bool {
+	switch path {
+	case "host_packet_data_jdb.host_packet_voltage":
+		oldValue, oldOK := toFloat(existing)
+		newValue, newOK := toFloat(next)
+		return oldOK && oldValue > 0 && newOK && newValue <= 0
+	default:
+		return false
+	}
 }
 
 func NormalizeTelemetry(device Device, kv map[string]any) NormalizedTelemetry {
@@ -63,13 +85,14 @@ func NormalizeTelemetry(device Device, kv map[string]any) NormalizedTelemetry {
 		capabilities["supports_ups_mode"] = true
 	}
 
-	copyNumber(params, "soc", firstNumber(kv, "battery_percentage", "host_packet_data_jdb.host_packet_electric_percentage"))
+	copyNumber(params, "soc", firstNumber(kv, "host_packet_data_jdb.host_packet_electric_percentage", "battery_percentage"))
 	if params["soc"] != nil {
 		params["f32ShowSoc"] = params["soc"]
 	}
-	copyNumber(params, "wattsInSum", firstNumber(kv, "total_input_power"))
-	copyNumber(params, "wattsOutSum", firstNumber(kv, "total_output_power"))
+	copyNumber(params, "wattsInSum", totalInputPower(kv))
+	copyNumber(params, "wattsOutSum", totalOutputPower(kv))
 	copyNumber(params, "remainTime", firstNumber(kv, "remain_time"))
+	copyNumber(params, "dsgRemainTime", firstNumber(kv, "remain_time"))
 	copyNumber(params, "chgRemainTime", firstNumber(kv, "remain_charging_time"))
 	copyNumber(params, "batVol", firstNumber(kv, "host_packet_data_jdb.host_packet_voltage"))
 	copyNumber(params, "batAmp", firstNumber(kv, "host_packet_data_jdb.host_packet_current"))
@@ -159,6 +182,47 @@ func firstNumber(root map[string]any, paths ...string) any {
 		}
 	}
 	return nil
+}
+
+func totalInputPower(root map[string]any) any {
+	if value := firstNumber(root, "total_input_power"); value != nil {
+		return value
+	}
+	if sum, ok := sumFirstNumbers(
+		root,
+		[]string{"ac_data_input_hm.ac_input_power", "ac_data_input_hm.ac_power"},
+		[]string{"dc_data_input_hm.dc_input_power"},
+	); ok {
+		return sum
+	}
+	return nil
+}
+
+func totalOutputPower(root map[string]any) any {
+	if value := firstNumber(root, "total_output_power"); value != nil {
+		return value
+	}
+	if sum, ok := sumFirstNumbers(
+		root,
+		[]string{"ac_data_output_hm.ac_output_power"},
+		[]string{"dc_data_output_hm.dc_output_power"},
+	); ok {
+		return sum
+	}
+	return nil
+}
+
+func sumFirstNumbers(root map[string]any, groups ...[]string) (float64, bool) {
+	var sum float64
+	observed := false
+	for _, group := range groups {
+		if value := firstNumber(root, group...); value != nil {
+			number, _ := toFloat(value)
+			sum += number
+			observed = true
+		}
+	}
+	return sum, observed
 }
 
 func firstBool(root map[string]any, paths ...string) any {

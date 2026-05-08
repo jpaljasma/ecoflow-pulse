@@ -37,6 +37,14 @@ Pecron REST and MQTT payloads are decoded at the provider boundary in
 `kv` packets, normalizes E1000LFP fields, and publishes canonical telemetry
 envelopes through the same publisher path used by other providers.
 
+The decoder also carries known cloud quirks from `jsight/unofficial-pecron-api`
+and `attractify-logan/pecron-monitor`: REST `customizeTslInfo` values may arrive
+under multiple value keys, `remain_time` and `remain_charging_time` can carry the
+same value, and MQTT packets may be partial. Pulse keeps last-good voltage values
+across placeholder zero-voltage packets and derives missing total input/output
+watts from observed AC/DC components instead of inventing provider-specific
+downstream logic.
+
 Downstream projection, archive, rollup, realtime, and UI code should continue to
 treat telemetry as provider-neutral canonical params. Pecron-specific logic
 belongs in the provider adapter, Pecron decoder, or ingest session runner.
@@ -60,8 +68,18 @@ exactly two PV inputs.
 
 Use MQTT for steady-state live telemetry. REST snapshots are for login,
 discovery, bootstrap, and periodic state refresh. Keep manual discovery
-operator-triggered and avoid tight REST polling loops because Pecron does not
-publish a public rate-limit contract for these reverse-engineered endpoints.
+operator-triggered and avoid tight REST polling loops.
+
+`attractify-logan/pecron-monitor` documents Pecron cloud `code 4026` as a
+per-account daily polling budget of roughly 1280 polls/day. Pulse therefore uses
+a 70s Pecron REST snapshot refresh default and rejects Pecron snapshot refresh
+intervals below the documented 63s floor. If `4026` appears in logs, raise
+`INGEST_PECRON_SNAPSHOT_REFRESH_INTERVAL` above 70s and prefer MQTT for live
+updates.
+
+Pulse does not enable Pecron `high_frequency_reporting` in V1. It is a write
+control, and the same quirks log notes that leaving it enabled can also burn the
+cloud polling budget.
 
 ## Troubleshooting
 
@@ -70,3 +88,12 @@ publish a public rate-limit contract for these reverse-engineered endpoints.
   in the Pecron app and wait for the next live telemetry packet.
 - If fields disappear or change shape, isolate fixes in `pkg/pecron` tests before
   touching projection, archive, rollups, realtime, or UI code.
+
+## Reference Implementations Reviewed
+
+- [`jsight/unofficial-pecron-api`](https://github.com/jsight/unofficial-pecron-api):
+  REST authentication, device listing, current attributes, TSL parsing, region
+  endpoints, and known remaining-time behavior.
+- [`attractify-logan/pecron-monitor`](https://github.com/attractify-logan/pecron-monitor):
+  cloud MQTT topic behavior, partial packet merge behavior, REST fallback, EU
+  MQTT broker alias, and the documented Pecron cloud rate-limit quirks.

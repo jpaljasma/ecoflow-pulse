@@ -3,6 +3,7 @@ package pecron
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,35 @@ type CloudClient interface {
 type Client struct {
 	region RegionConfig
 	http   *http.Client
+}
+
+type APIError struct {
+	Code    string
+	Message string
+	Type    string
+}
+
+func (e *APIError) Error() string {
+	if e == nil {
+		return ""
+	}
+	message := strings.TrimSpace(e.Message)
+	if message == "" {
+		message = "pecron api error"
+	}
+	code := strings.TrimSpace(e.Code)
+	if code == "" {
+		return message
+	}
+	return "pecron api code " + code + ": " + message
+}
+
+func (e *APIError) RateLimited() bool {
+	return e != nil && strings.TrimSpace(e.Code) == "4026"
+}
+
+func (e *APIError) DeviceNotBound() bool {
+	return e != nil && strings.TrimSpace(e.Code) == "4007"
 }
 
 func NewClient(region RegionConfig, httpClient *http.Client) *Client {
@@ -71,6 +101,15 @@ func (c *Client) Login(ctx context.Context, email string, password string) (Sess
 	expiresAt := time.Time{}
 	if data.AccessToken.ExpirationTime > 0 {
 		expiresAt = time.UnixMilli(data.AccessToken.ExpirationTime).UTC()
+	}
+	claims := decodeJWTClaims(data.AccessToken.Token)
+	if data.UID == "" {
+		data.UID = claimText(claims, "uid")
+	}
+	if expiresAt.IsZero() {
+		if exp, ok := toFloat(claims["exp"]); ok && exp > 0 {
+			expiresAt = time.Unix(int64(exp), 0).UTC()
+		}
 	}
 	return Session{
 		AccessToken:  strings.TrimSpace(data.AccessToken.Token),
@@ -161,9 +200,11 @@ func (c *Client) DeviceKV(ctx context.Context, session Session, ref DeviceRef) (
 	query := "pk=" + url.QueryEscape(ref.ProductKey) + "&dk=" + url.QueryEscape(ref.DeviceKey)
 	var raw struct {
 		CustomizeTSLInfo []struct {
-			ResourceCode  string `json:"resourceCode"`
-			ResourceValue any    `json:"resourceValce"`
-			DataType      any    `json:"dataType"`
+			ResourceCode        string `json:"resourceCode"`
+			ResourceValue       any    `json:"resourceValce"`
+			ResourceValueAlias  any    `json:"resourceValue"`
+			ResourceValueAlias2 any    `json:"value"`
+			DataType            any    `json:"dataType"`
 		} `json:"customizeTslInfo"`
 	}
 	if err := c.request(ctx, http.MethodGet, "/v2/binding/enduserapi/getDeviceBusinessAttributes", query, nil, "", session.AccessToken, &raw); err != nil {
@@ -172,10 +213,15 @@ func (c *Client) DeviceKV(ctx context.Context, session Session, ref DeviceRef) (
 	out := make(map[string]any, len(raw.CustomizeTSLInfo))
 	for _, row := range raw.CustomizeTSLInfo {
 		code := strings.TrimSpace(row.ResourceCode)
-		if code == "" || row.ResourceValue == nil {
+		rawValue := firstNonEmptyPresent(row.ResourceValue, row.ResourceValueAlias, row.ResourceValueAlias2)
+		if code == "" || rawValue == nil {
 			continue
 		}
-		out[code] = convertRESTValue(row.ResourceValue, row.DataType)
+		value := convertRESTValue(rawValue, row.DataType)
+		if text, ok := value.(string); ok && strings.TrimSpace(text) == "" {
+			continue
+		}
+		out[code] = value
 	}
 	return out, nil
 }
@@ -228,16 +274,18 @@ func (c *Client) request(
 	var envelope struct {
 		Code any             `json:"code"`
 		Msg  string          `json:"msg"`
+		Type string          `json:"type"`
 		Data json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return fmt.Errorf("decode pecron response: %w", err)
 	}
 	if codeString(envelope.Code) != "200" {
-		if strings.TrimSpace(envelope.Msg) == "" {
-			envelope.Msg = "pecron api error"
+		return &APIError{
+			Code:    codeString(envelope.Code),
+			Message: envelope.Msg,
+			Type:    envelope.Type,
 		}
-		return fmt.Errorf("pecron api code %s: %s", codeString(envelope.Code), envelope.Msg)
 	}
 	if out == nil {
 		return nil
@@ -306,7 +354,7 @@ func convertRESTValue(value any, dataType any) any {
 	if raw == "" || raw == "<nil>" {
 		return ""
 	}
-	kind := strings.ToLower(strings.TrimSpace(asString(dataType)))
+	kind := strings.ToLower(strings.TrimSpace(describeTSLDataType(dataType)))
 	if strings.Contains(kind, "struct") || strings.Contains(kind, "object") || strings.Contains(kind, "json") {
 		var parsed any
 		if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
@@ -329,15 +377,59 @@ func convertRESTValue(value any, dataType any) any {
 	return raw
 }
 
+func decodeJWTClaims(token string) map[string]any {
+	parts := strings.Split(strings.TrimSpace(token), ".")
+	if len(parts) < 2 {
+		return nil
+	}
+	payload := parts[1]
+	decoded, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		decoded, err = base64.StdEncoding.DecodeString(payload + strings.Repeat("=", (4-len(payload)%4)%4))
+		if err != nil {
+			return nil
+		}
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(decoded, &claims); err != nil {
+		return nil
+	}
+	return claims
+}
+
+func claimText(claims map[string]any, key string) string {
+	if len(claims) == 0 {
+		return ""
+	}
+	value := strings.TrimSpace(asString(claims[key]))
+	if value == "<nil>" {
+		return ""
+	}
+	return value
+}
+
+func firstNonEmptyPresent(values ...any) any {
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		if text, ok := value.(string); ok && strings.TrimSpace(text) == "" {
+			continue
+		}
+		return value
+	}
+	return nil
+}
+
 func describeTSLDataType(value any) string {
+	record := asMap(value)
+	if len(record) > 0 {
+		return firstText(record, "type", "name")
+	}
 	if text := strings.TrimSpace(asString(value)); text != "" && text != "<nil>" {
 		return text
 	}
-	record := asMap(value)
-	if len(record) == 0 {
-		return ""
-	}
-	return firstText(record, "type", "name")
+	return ""
 }
 
 func tslAccessWritable(accessMode string) bool {

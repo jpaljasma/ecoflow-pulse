@@ -165,11 +165,12 @@ func (a *PecronAdapter) MQTTSession(
 		clientIDSeed = ref.DeviceKey
 	}
 	return pecron.MQTTSession{
-		Address:  region.MQTTAddress,
-		Path:     region.MQTTPath,
-		Token:    session.AccessToken,
-		ClientID: fmt.Sprintf("qu_%s_%d", clientIDSeed, a.now().UTC().UnixMilli()),
-		Topics:   pecron.MQTTSubscribeTopics(ref),
+		Address:   region.MQTTAddress,
+		Addresses: region.MQTTBrokerAddresses(),
+		Path:      region.MQTTPath,
+		Token:     session.AccessToken,
+		ClientID:  fmt.Sprintf("qu_%s_%d", clientIDSeed, a.now().UTC().UnixMilli()),
+		Topics:    pecron.MQTTSubscribeTopics(ref),
 	}, nil
 }
 
@@ -196,42 +197,71 @@ func (a *PecronAdapter) ProbeMQTT(
 	if err != nil {
 		return MQTTProbeResult{}, err
 	}
-	subscriber, err := a.newSubscriber(pecron.MQTTConfig{
-		Address:        session.Address,
-		Path:           session.Path,
-		Token:          session.Token,
-		ClientID:       session.ClientID,
-		KeepAlive:      90 * time.Second,
-		ConnectTimeout: 10 * time.Second,
-		ReadTimeout:    10 * time.Second,
-	})
-	if err != nil {
-		return MQTTProbeResult{}, fmt.Errorf("init pecron mqtt probe subscriber: %w", err)
-	}
-	defer func() { _ = subscriber.Close() }()
-	if err := subscriber.Connect(probeCtx); err != nil {
-		return MQTTProbeResult{Status: mqttProbeStatus(err, "connect_failed")}, nil
-	}
-	for _, topic := range session.Topics {
-		if !strings.HasSuffix(topic, "/bus_") {
+	var lastStatus string
+	for _, address := range session.BrokerAddresses() {
+		subscriber, err := a.newSubscriber(pecron.MQTTConfig{
+			Address:        address,
+			Path:           session.Path,
+			Token:          session.Token,
+			ClientID:       session.ClientID,
+			KeepAlive:      90 * time.Second,
+			ConnectTimeout: 10 * time.Second,
+			ReadTimeout:    10 * time.Second,
+		})
+		if err != nil {
+			return MQTTProbeResult{}, fmt.Errorf("init pecron mqtt probe subscriber: %w", err)
+		}
+		closed := false
+		closeSubscriber := func() {
+			if closed {
+				return
+			}
+			_ = subscriber.Close()
+			closed = true
+		}
+		if err := subscriber.Connect(probeCtx); err != nil {
+			closeSubscriber()
+			lastStatus = mqttProbeStatus(err, "connect_failed")
 			continue
 		}
-		if err := subscriber.Subscribe(probeCtx, topic, 1); err != nil {
-			return MQTTProbeResult{Status: mqttProbeStatus(err, "subscribe_failed")}, nil
+		subscribed := false
+		for _, topic := range session.Topics {
+			if !strings.HasSuffix(topic, "/bus_") {
+				continue
+			}
+			if err := subscriber.Subscribe(probeCtx, topic, 1); err != nil {
+				closeSubscriber()
+				lastStatus = mqttProbeStatus(err, "subscribe_failed")
+				break
+			}
+			subscribed = true
+			break
 		}
-		break
+		if !subscribed {
+			closeSubscriber()
+			if lastStatus == "" {
+				lastStatus = "subscribe_failed"
+			}
+			continue
+		}
+		msg, err := subscriber.ReadMessage(probeCtx)
+		closeSubscriber()
+		if err != nil {
+			lastStatus = mqttProbeStatus(err, "no_messages")
+			continue
+		}
+		return MQTTProbeResult{
+			Success:          true,
+			Status:           "ok",
+			SampleTopic:      strings.TrimSpace(msg.Topic),
+			PayloadBytes:     int64(len(msg.Payload)),
+			ObservedAtUnixMS: a.now().UTC().UnixMilli(),
+		}, nil
 	}
-	msg, err := subscriber.ReadMessage(probeCtx)
-	if err != nil {
-		return MQTTProbeResult{Status: mqttProbeStatus(err, "no_messages")}, nil
+	if lastStatus == "" {
+		lastStatus = "connect_failed"
 	}
-	return MQTTProbeResult{
-		Success:          true,
-		Status:           "ok",
-		SampleTopic:      strings.TrimSpace(msg.Topic),
-		PayloadBytes:     int64(len(msg.Payload)),
-		ObservedAtUnixMS: a.now().UTC().UnixMilli(),
-	}, nil
+	return MQTTProbeResult{Status: lastStatus}, nil
 }
 
 func (a *PecronAdapter) sessionForCredential(
