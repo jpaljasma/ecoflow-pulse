@@ -184,17 +184,22 @@ func (s *InferenceService) GetEnergyComparisonInsight(ctx context.Context, req *
 	if s.queryReader == nil {
 		return nil, status.Error(codes.Unavailable, "energy comparison inference unavailable")
 	}
-	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone())
+	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone(), req.GetDate())
 	if err != nil {
 		return nil, err
 	}
 	now := s.nowFn().UTC()
+	dateKey := ""
+	if preset == energydashboard.PresetToday {
+		dateKey = strings.TrimSpace(req.GetDate())
+	}
 	cacheKey := inference.EnergyComparisonCacheKey{
 		ScopeMode:         scope.Mode,
 		DeviceID:          scope.DeviceID,
 		ResolvedDeviceIDs: append([]string(nil), scope.ResolvedDeviceIDs...),
 		Preset:            string(preset),
 		Timezone:          loc.String(),
+		Date:              dateKey,
 		GridPricePerKwh:   req.GetGridPricePerKwh(),
 		Currency:          strings.TrimSpace(req.GetCurrency()),
 		RefreshSlotUnixMs: now.Truncate(time.Hour).UnixMilli(),
@@ -363,7 +368,7 @@ func pendingDeviceInsights(deviceID string) inference.DeviceInsights {
 	}
 }
 
-func (s *InferenceService) resolveEnergyScopeWindow(ctx context.Context, deviceID string, useAllDevices bool, presetRaw, timezone string) (energydashboard.Scope, energydashboard.Window, *time.Location, energydashboard.Preset, error) {
+func (s *InferenceService) resolveEnergyScopeWindow(ctx context.Context, deviceID string, useAllDevices bool, presetRaw, timezone, selectedDate string) (energydashboard.Scope, energydashboard.Window, *time.Location, energydashboard.Preset, error) {
 	preset, err := energydashboard.ParsePreset(presetRaw)
 	if err != nil {
 		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.InvalidArgument, err.Error())
@@ -395,7 +400,7 @@ func (s *InferenceService) resolveEnergyScopeWindow(ctx context.Context, deviceI
 	if err != nil {
 		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.PermissionDenied, err.Error())
 	}
-	window, err := energydashboard.ResolveWindow(s.nowFn(), loc, preset)
+	window, err := energydashboard.ResolveWindowForDate(s.nowFn(), loc, preset, selectedDate)
 	if err != nil {
 		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.InvalidArgument, err.Error())
 	}

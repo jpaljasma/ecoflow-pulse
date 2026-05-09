@@ -16,8 +16,7 @@ export const ENERGY_PRESETS: EnergyPreset[] = [
 ];
 
 export const MIN_MEANINGFUL_CURRENCY_BASELINE = 0.01;
-export const MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH =
-  MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH / 1000;
+export const MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH = MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH / 1000;
 
 export const ENERGY_PANELS = ['overview', 'solar', 'impact'] as const;
 
@@ -30,6 +29,17 @@ export type EnergyRouteState = {
   timezone: string;
   includeComparison: boolean;
   panel: EnergyPanel;
+  date?: string;
+};
+
+export type EnergyCalendarRouteState = {
+  scope: 'device' | 'all';
+  deviceId?: string;
+  year: number;
+  month: number;
+  timezone: string;
+  gridPricePerKwh?: number;
+  currency?: string;
 };
 
 export function detectLocalTimezone(): string {
@@ -43,8 +53,10 @@ export function detectDevicesTimezone(devices: DeviceSummary[]): string | undefi
 export function resolveEnergyRouteState(
   params: Record<string, string | string[] | undefined>,
   availableDeviceIds: string[] = [],
-  fallbackTimezone = detectLocalTimezone()
+  fallbackTimezone = detectLocalTimezone(),
+  now = new Date()
 ): EnergyRouteState {
+  void now;
   const requestedDevice = normalizeScalar(params.device);
   const requestedScope = normalizeScalar(params.scope);
   const requestedDeviceId = requestedDevice && requestedDevice !== 'all' ? requestedDevice : normalizeScalar(params.deviceId);
@@ -52,6 +64,7 @@ export function resolveEnergyRouteState(
   const requestedTimezone = normalizeScalar(params.tz) || normalizeScalar(params.timezone);
   const compareParam = normalizeScalar(params.compare);
   const requestedPanel = normalizeScalar(params.panel);
+  const requestedDate = normalizeCalendarDateIso(normalizeScalar(params.date));
   const includeComparison =
     compareParam !== undefined
       ? parseBooleanParam(compareParam === '1' ? 'true' : compareParam === '0' ? 'false' : compareParam, true)
@@ -61,15 +74,12 @@ export function resolveEnergyRouteState(
     requestedDevice === 'all'
       ? 'all'
       : requestedScope === 'device' || requestedScope === 'all'
-      ? requestedScope
-      : requestedDeviceId
-        ? 'device'
-        : 'all';
+        ? requestedScope
+        : requestedDeviceId
+          ? 'device'
+          : 'all';
 
-  let deviceId =
-    requestedDeviceId && availableDeviceIds.includes(requestedDeviceId)
-      ? requestedDeviceId
-      : undefined;
+  let deviceId = requestedDeviceId && availableDeviceIds.includes(requestedDeviceId) ? requestedDeviceId : undefined;
 
   if (scope === 'device' && !deviceId && availableDeviceIds.length > 0) {
     deviceId = availableDeviceIds[0];
@@ -81,25 +91,87 @@ export function resolveEnergyRouteState(
   return {
     scope,
     deviceId: scope === 'device' ? deviceId : undefined,
-    preset: ENERGY_PRESETS.includes(requestedPreset as EnergyPreset)
-      ? (requestedPreset as EnergyPreset)
-      : 'today',
+    preset: ENERGY_PRESETS.includes(requestedPreset as EnergyPreset) ? (requestedPreset as EnergyPreset) : 'today',
     timezone: requestedTimezone || fallbackTimezone || 'UTC',
     includeComparison,
-    panel: ENERGY_PANELS.includes(requestedPanel as EnergyPanel)
-      ? (requestedPanel as EnergyPanel)
-      : 'overview'
+    panel: ENERGY_PANELS.includes(requestedPanel as EnergyPanel) ? (requestedPanel as EnergyPanel) : 'overview',
+    ...(requestedDate ? { date: requestedDate } : {})
   };
 }
 
 export function buildEnergyRouteParams(state: EnergyRouteState): Record<string, string> {
-  return {
+  const params: Record<string, string> = {
     device: state.scope === 'device' && state.deviceId ? state.deviceId : 'all',
     preset: state.preset,
     tz: state.timezone,
     compare: state.includeComparison ? '1' : '0',
     panel: state.panel
   };
+  if (state.date) {
+    params.date = state.date;
+  }
+  return params;
+}
+
+export function resolveEnergyCalendarRouteState(
+  params: Record<string, string | string[] | undefined>,
+  availableDeviceIds: string[] = [],
+  fallbackTimezone = detectLocalTimezone(),
+  now = new Date()
+): EnergyCalendarRouteState {
+  const requestedScope = normalizeScalar(params.scope);
+  const requestedDevice = normalizeScalar(params.device);
+  const requestedDeviceId =
+    normalizeScalar(params.deviceId) || (requestedDevice && requestedDevice !== 'all' ? requestedDevice : undefined);
+  const requestedYear = Number.parseInt(normalizeScalar(params.year) ?? '', 10);
+  const requestedMonth = Number.parseInt(normalizeScalar(params.month) ?? '', 10);
+  const requestedTimezone = normalizeScalar(params.tz) || normalizeScalar(params.timezone);
+  const gridPricePerKwh = normalizeNumericParam(normalizeScalar(params.gridPricePerKwh));
+  const currency = normalizeScalar(params.currency) || undefined;
+
+  let scope: 'device' | 'all' =
+    requestedScope === 'device' || requestedScope === 'all' ? requestedScope : requestedDeviceId ? 'device' : 'all';
+  let deviceId = requestedDeviceId && availableDeviceIds.includes(requestedDeviceId) ? requestedDeviceId : undefined;
+
+  if (scope === 'device' && !deviceId && availableDeviceIds.length > 0) {
+    deviceId = availableDeviceIds[0];
+  }
+  if (scope === 'device' && !deviceId) {
+    scope = 'all';
+  }
+
+  const fallbackMonth = getTimezoneMonthParts(now, requestedTimezone || fallbackTimezone || 'UTC');
+  const year = Number.isFinite(requestedYear) && requestedYear > 0 ? requestedYear : fallbackMonth.year;
+  const month = Number.isFinite(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12 ? requestedMonth : fallbackMonth.month;
+
+  return {
+    scope,
+    deviceId: scope === 'device' ? deviceId : undefined,
+    year,
+    month,
+    timezone: requestedTimezone || fallbackTimezone || 'UTC',
+    ...(gridPricePerKwh !== undefined ? { gridPricePerKwh } : {}),
+    ...(currency ? { currency } : {})
+  };
+}
+
+export function buildEnergyCalendarRouteParams(state: EnergyCalendarRouteState): Record<string, string> {
+  const params: Record<string, string> = {
+    scope: state.scope,
+    year: String(state.year),
+    month: String(state.month),
+    timezone: state.timezone
+  };
+  if (state.scope === 'device' && state.deviceId) {
+    params.deviceId = state.deviceId;
+  }
+  if (state.gridPricePerKwh !== undefined && Number.isFinite(state.gridPricePerKwh)) {
+    params.gridPricePerKwh = String(state.gridPricePerKwh);
+  }
+  if (state.currency) {
+    params.currency = state.currency;
+  }
+  return params;
 }
 
 export function energyPanelLabel(panel: EnergyPanel): string {
@@ -136,6 +208,60 @@ export function energyPresetLabel(preset: EnergyPreset): string {
     case 'last12m':
       return 'Last 12 months';
   }
+}
+
+export function formatEnergyCalendarMonthLabel(year: number, month: number, timezone: string): string {
+  const firstOfMonth = new Date(Date.UTC(year, month - 1, 1, 12));
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: timezone
+    }).format(firstOfMonth);
+  } catch {
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'long',
+      year: 'numeric'
+    }).format(firstOfMonth);
+  }
+}
+
+export function getTimezoneMonthParts(date: Date, timezone: string): { year: number; month: number } {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit'
+    }).formatToParts(date);
+    const year = Number(parts.find((part) => part.type === 'year')?.value);
+    const month = Number(parts.find((part) => part.type === 'month')?.value);
+    if (Number.isFinite(year) && Number.isFinite(month)) {
+      return { year, month };
+    }
+  } catch {
+    // Fall through to UTC fallback below.
+  }
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+export function getTimezoneDateIso(date: Date, timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(date);
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    if (year && month && day) {
+      return `${year}-${month}-${day}`;
+    }
+  } catch {
+    // Fall through to UTC fallback below.
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 export function buildPowerTrendSeries(points: EnergyRollupPoint[]): {
@@ -261,14 +387,11 @@ export function buildEnergyInsights(
 ): EnergyInsightCard[] {
   const bestSolar = findBestBucket(points, 'pvAvgW');
   const bestLoad = findBestBucket(points, 'loadAvgW');
-  const loadValues = points
-    .map((point) => point.metrics.loadAvgW)
-    .filter((value) => Number.isFinite(value));
+  const loadValues = points.map((point) => point.metrics.loadAvgW).filter((value) => Number.isFinite(value));
   const sortedLoads = [...loadValues].sort((left, right) => left - right);
   const baseLoad = quantile(sortedLoads, 0.1);
   const spikeLoad = quantile(sortedLoads, 0.95);
-  const spikeFactor =
-    baseLoad !== null && spikeLoad !== null && baseLoad > 0 ? spikeLoad / baseLoad : null;
+  const spikeFactor = baseLoad !== null && spikeLoad !== null && baseLoad > 0 ? spikeLoad / baseLoad : null;
   const clippingInsight = buildClippingInsight(pvRows);
 
   return [
@@ -305,29 +428,43 @@ export function buildEnergyInsights(
   ];
 }
 
-export function buildPvEnvelopeSummary(
-  devices: DeviceSummary[],
-  scope: 'device' | 'all',
-  deviceId?: string
-): PvEnvelopeSummary {
-  const scopedDevices =
-    scope === 'device' && deviceId
-      ? devices.filter((device) => device.id === deviceId)
-      : devices;
+function normalizeCalendarDateIso(input: string | undefined | null): string | undefined {
+  if (!input || !/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return undefined;
+  }
+  const [yearText, monthText, dayText] = input.split('-');
+  const year = Number.parseInt(yearText ?? '', 10);
+  const month = Number.parseInt(monthText ?? '', 10);
+  const day = Number.parseInt(dayText ?? '', 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return undefined;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) {
+    return undefined;
+  }
+  return input;
+}
+
+function normalizeNumericParam(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export function buildPvEnvelopeSummary(devices: DeviceSummary[], scope: 'device' | 'all', deviceId?: string): PvEnvelopeSummary {
+  const scopedDevices = scope === 'device' && deviceId ? devices.filter((device) => device.id === deviceId) : devices;
 
   const rows: PvEnvelopeRow[] = [];
   for (const device of scopedDevices) {
     for (const port of device.details?.solarPorts ?? []) {
       const maxPower = Math.max(0, port.maxWatts ?? 0);
       const observedPower = normalizePvObservedPower(port.watts);
-      const powerUtilizationPct =
-        maxPower > 0 && port.watts !== undefined
-          ? Math.max(0, (observedPower / maxPower) * 100)
-          : null;
-      const voltageHeadroom =
-        port.maxVolts !== undefined && port.volts !== undefined ? port.maxVolts - port.volts : null;
-      const currentHeadroom =
-        port.maxAmps !== undefined && port.amps !== undefined ? port.maxAmps - port.amps : null;
+      const powerUtilizationPct = maxPower > 0 && port.watts !== undefined ? Math.max(0, (observedPower / maxPower) * 100) : null;
+      const voltageHeadroom = port.maxVolts !== undefined && port.volts !== undefined ? port.maxVolts - port.volts : null;
+      const currentHeadroom = port.maxAmps !== undefined && port.amps !== undefined ? port.maxAmps - port.amps : null;
       rows.push({
         deviceId: device.id,
         deviceName: device.name,
@@ -413,10 +550,7 @@ function presetLabelForInsight(preset: EnergyPreset): string {
   }
 }
 
-function findBestBucket(
-  points: EnergyRollupPoint[],
-  metric: 'pvAvgW' | 'loadAvgW'
-): { label: string; value: number } | null {
+function findBestBucket(points: EnergyRollupPoint[], metric: 'pvAvgW' | 'loadAvgW'): { label: string; value: number } | null {
   let bestPoint: EnergyRollupPoint | null = null;
   let bestValue = -1;
   for (const point of points) {
@@ -503,9 +637,7 @@ function buildClippingInsight(rows: PvEnvelopeRow[]): string {
   });
   const topRows = prioritizedRows.slice(0, 2);
 
-  return topRows
-    .map((row) => `${formatPvRowLabel(row)} is ${row.bottleneckHint.toLowerCase()}.`)
-    .join(' ');
+  return topRows.map((row) => `${formatPvRowLabel(row)} is ${row.bottleneckHint.toLowerCase()}.`).join(' ');
 }
 
 function formatPvRowLabel(row: PvEnvelopeRow): string {

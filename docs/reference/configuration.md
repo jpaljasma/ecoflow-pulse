@@ -467,6 +467,14 @@ Runtime behavior:
   rolling 24-hour window compared with the preceding 24 hours. This keeps
   Energy balance and Power profile buckets aligned while preserving
   local-calendar semantics for the default dashboard.
+- `/energy-calendar` is a primary navigation route after `Energy`; it loads one
+  Sunday-start visible month for the selected fleet/device scope and prefetches
+  adjacent months. Its selected-month totals include only in-month days, while
+  muted leading/trailing days can still show their real daily totals.
+- `/energy?preset=today&date=YYYY-MM-DD` selects an explicit local calendar
+  day. Historical selected dates query the full local midnight-to-midnight day;
+  the current local day still queries local midnight to now, and comparison
+  uses the prior local-day window.
 - the `/energy` page keeps its `Solar against load` controls collapsed by
   default behind an explicit expand/collapse affordance so the summary content
   stays visible first on smaller screens.

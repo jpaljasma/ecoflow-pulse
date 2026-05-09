@@ -66,14 +66,7 @@ export type DeviceInsights = {
   insights: DeviceInsight[];
 };
 
-export type EnergyComparisonCardCategory =
-  | 'unspecified'
-  | 'self_sufficiency'
-  | 'solar'
-  | 'load'
-  | 'battery'
-  | 'grid'
-  | 'value';
+export type EnergyComparisonCardCategory = 'unspecified' | 'self_sufficiency' | 'solar' | 'load' | 'battery' | 'grid' | 'value';
 
 export type EnergyComparisonCard = {
   category: EnergyComparisonCardCategory;
@@ -131,6 +124,7 @@ export type GetEnergyComparisonInsightInput = {
   useAllDevices: boolean;
   preset: string;
   timezone: string;
+  date?: string;
   gridPricePerKwh?: number;
   currency?: string;
   authHeader?: string;
@@ -212,16 +206,12 @@ const kindToProtoValue: Partial<Record<InsightKind, string>> = {
   solar_add_on: 'INSIGHT_KIND_SOLAR_ADD_ON',
   solar_upgrade: 'INSIGHT_KIND_SOLAR_UPGRADE',
   energy_shift: 'INSIGHT_KIND_ENERGY_SHIFT',
-  maintenance: 'INSIGHT_KIND_MAINTENANCE'
-  ,
+  maintenance: 'INSIGHT_KIND_MAINTENANCE',
   energy_comparison: 'INSIGHT_KIND_ENERGY_COMPARISON'
 };
 
 export function createInferenceClient(address: string): InferenceClient {
-  const client = new inferenceProto.pulse.inference.v1.InferenceService(
-    address,
-    grpc.credentials.createInsecure()
-  );
+  const client = new inferenceProto.pulse.inference.v1.InferenceService(address, grpc.credentials.createInsecure());
   return {
     async getDeviceInsights(input) {
       const request: Record<string, unknown> = {
@@ -236,11 +226,7 @@ export function createInferenceClient(address: string): InferenceClient {
           maxItems: input.maxItems ?? 0
         };
       }
-      const response = await unaryCall<RawGetDeviceInsightsResponse>(
-        client.GetDeviceInsights.bind(client),
-        request,
-        input
-      );
+      const response = await unaryCall<RawGetDeviceInsightsResponse>(client.GetDeviceInsights.bind(client), request, input);
       return normalizeDeviceInsights(response.insights);
     },
     async getEnergyComparisonInsight(input) {
@@ -249,7 +235,8 @@ export function createInferenceClient(address: string): InferenceClient {
         preset: input.preset,
         timezone: input.timezone,
         gridPricePerKwh: input.gridPricePerKwh ?? 0,
-        currency: input.currency ?? ''
+        currency: input.currency ?? '',
+        date: input.date ?? ''
       };
       if (input.deviceId) {
         request.deviceId = input.deviceId;
@@ -270,7 +257,12 @@ export function createInferenceClient(address: string): InferenceClient {
 function unaryCall<T>(
   method: GrpcUnaryMethod,
   request: Record<string, unknown>,
-  input: { authHeader?: string; userSubject?: string; requestID?: string; deadlineMs: number }
+  input: {
+    authHeader?: string;
+    userSubject?: string;
+    requestID?: string;
+    deadlineMs: number;
+  }
 ): Promise<T> {
   const metadata = new grpc.Metadata();
   if (input.authHeader) {
@@ -283,18 +275,13 @@ function unaryCall<T>(
     metadata.set('x-request-id', input.requestID);
   }
   return new Promise<T>((resolve, reject) => {
-    method(
-      request,
-      metadata,
-      { deadline: new Date(Date.now() + input.deadlineMs) },
-      (error, response) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(response as T);
+    method(request, metadata, { deadline: new Date(Date.now() + input.deadlineMs) }, (error, response) => {
+      if (error) {
+        reject(error);
+        return;
       }
-    );
+      resolve(response as T);
+    });
   });
 }
 
@@ -304,9 +291,7 @@ function normalizeDeviceInsights(value: RawDeviceInsights | undefined): DeviceIn
     status: normalizeInsightStatus(value?.status),
     statusDetail: normalizeString(value?.statusDetail),
     refreshedAtUnixMs: normalizeString(value?.refreshedAtUnixMs),
-    insights: Array.isArray(value?.insights)
-      ? value.insights.map((entry) => normalizeDeviceInsight(entry as RawDeviceInsight))
-      : []
+    insights: Array.isArray(value?.insights) ? value.insights.map((entry) => normalizeDeviceInsight(entry as RawDeviceInsight)) : []
   };
 }
 
@@ -324,12 +309,8 @@ function normalizeDeviceInsight(value: RawDeviceInsight): DeviceInsight {
     generatedAtUnixMs: normalizeString(value.generatedAtUnixMs),
     expiresAtUnixMs: normalizeString(value.expiresAtUnixMs),
     tags: Array.isArray(value.tags) ? value.tags.filter((entry): entry is string => typeof entry === 'string') : [],
-    evidence: Array.isArray(value.evidence)
-      ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence))
-      : [],
-    actions: Array.isArray(value.actions)
-      ? value.actions.map((entry) => normalizeInsightAction(entry as RawInsightAction))
-      : [],
+    evidence: Array.isArray(value.evidence) ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence)) : [],
+    actions: Array.isArray(value.actions) ? value.actions.map((entry) => normalizeInsightAction(entry as RawInsightAction)) : [],
     attributes: normalizeRecord(value.attributes)
   };
 }
@@ -402,12 +383,8 @@ function normalizeEnergyComparisonInsight(value: RawEnergyComparisonInsight): En
     generatedAtUnixMs: normalizeString(value.generatedAtUnixMs),
     expiresAtUnixMs: normalizeString(value.expiresAtUnixMs),
     tags: Array.isArray(value.tags) ? value.tags.filter((entry): entry is string => typeof entry === 'string') : [],
-    cards: Array.isArray(value.cards)
-      ? value.cards.map((entry) => normalizeEnergyComparisonCard(entry as RawEnergyComparisonCard))
-      : [],
-    evidence: Array.isArray(value.evidence)
-      ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence))
-      : [],
+    cards: Array.isArray(value.cards) ? value.cards.map((entry) => normalizeEnergyComparisonCard(entry as RawEnergyComparisonCard)) : [],
+    evidence: Array.isArray(value.evidence) ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence)) : [],
     attributes: normalizeRecord(value.attributes)
   };
 }
@@ -420,9 +397,7 @@ function normalizeEnergyComparisonCard(value: RawEnergyComparisonCard): EnergyCo
     recommendation: normalizeString(value.recommendation),
     score: normalizeNumber(value.score),
     confidence: normalizeNumber(value.confidence),
-    evidence: Array.isArray(value.evidence)
-      ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence))
-      : [],
+    evidence: Array.isArray(value.evidence) ? value.evidence.map((entry) => normalizeInsightEvidence(entry as RawInsightEvidence)) : [],
     attributes: normalizeRecord(value.attributes)
   };
 }

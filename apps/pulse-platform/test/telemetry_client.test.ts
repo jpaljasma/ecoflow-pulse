@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RollupPoint } from '../src/grpc/telemetryClient.js';
-import { fillDerivedBucketEnergy } from '../src/grpc/telemetryClient.js';
+import { buildEnergyCalendarRequest, buildEnergyDashboardRequest, fillDerivedBucketEnergy } from '../src/grpc/telemetryClient.js';
 
 function makePoint(overrides: Partial<RollupPoint['metrics']> = {}, bucketStartUnixMs = '0', bucketEndUnixMs = '60000'): RollupPoint {
   return {
@@ -105,5 +105,53 @@ describe('telemetry client bucket energy derivation', () => {
     expect(point.metrics.solarGeneratedWh).toBe(240);
     expect(point.metrics.acInputEnergyWh).toBe(125);
     expect(point.metrics.batteryDischargeEnergyWh).toBe(70);
+  });
+});
+
+describe('telemetry client energy request builders', () => {
+  it('builds calendar requests with explicit month, timezone, and scope fields', () => {
+    expect(
+      buildEnergyCalendarRequest({
+        deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+        useAllDevices: false,
+        year: 2026,
+        month: 3,
+        timezone: 'America/New_York',
+        gridPricePerKwh: 0.3,
+        currency: 'USD',
+        deadlineMs: 2500
+      })
+    ).toEqual({
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
+      useAllDevices: false,
+      year: 2026,
+      month: 3,
+      timezone: 'America/New_York',
+      gridPricePerKwh: 0.3,
+      currency: 'USD'
+    });
+  });
+
+  it('passes selected dashboard dates through without rewriting them', () => {
+    expect(
+      buildEnergyDashboardRequest({
+        deviceId: undefined,
+        useAllDevices: true,
+        preset: 'today',
+        timezone: 'America/New_York',
+        includeComparison: true,
+        date: '2026-03-08',
+        deadlineMs: 2500
+      })
+    ).toEqual({
+      deviceId: '',
+      useAllDevices: true,
+      preset: 'today',
+      timezone: 'America/New_York',
+      includeComparison: true,
+      date: '2026-03-08',
+      gridPricePerKwh: 0,
+      currency: ''
+    });
   });
 });

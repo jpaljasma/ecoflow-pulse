@@ -164,6 +164,7 @@ message GetEnergyComparisonInsightRequest {
   string timezone = 4;
   double grid_price_per_kwh = 5;
   string currency = 6;
+  string date = 7;
 }
 
 message GetEnergyComparisonInsightResponse {

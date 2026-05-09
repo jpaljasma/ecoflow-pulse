@@ -3,6 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import { pulsePrimaryNavItems } from '@/shared/ui/pulsePrimaryNav';
 import { PulseTabBar } from '@/shared/ui/PulseTabBar';
 
 export default function TabsLayout() {
@@ -44,56 +45,19 @@ export default function TabsLayout() {
             }
       }}
     >
-      <Tabs.Screen
-        name="devices"
-        options={{
-          title: 'Devices',
-          tabBarButtonTestID: 'tab-devices',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="view-dashboard-outline" size={size} color={color} />
-          )
-        }}
-      />
-      <Tabs.Screen
-        name="energy"
-        options={{
-          title: 'Energy',
-          tabBarButtonTestID: 'tab-energy',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="lightning-bolt-outline" size={size} color={color} />
-          )
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarButtonTestID: 'tab-settings',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="tune-variant" size={size} color={color} />
-          )
-        }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: 'Search',
-          tabBarButtonTestID: 'tab-search',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="magnify" size={size} color={color} />
-          )
-        }}
-      />
-      <Tabs.Screen
-        name="about"
-        options={{
-          title: 'About',
-          tabBarButtonTestID: 'tab-about',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="information-outline" size={size} color={color} />
-          )
-        }}
-      />
+      {pulsePrimaryNavItems.map((item) => (
+        <Tabs.Screen
+          key={item.key}
+          name={item.key}
+          options={{
+            title: item.label,
+            tabBarButtonTestID: `tab-${item.key}`,
+            tabBarIcon: ({ color, size }) => (
+              <MaterialCommunityIcons name={item.icon} size={size} color={color} />
+            )
+          }}
+        />
+      ))}
     </Tabs>
   );
 }

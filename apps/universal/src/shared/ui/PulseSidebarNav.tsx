@@ -1,61 +1,15 @@
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
-import type { ComponentProps } from 'react';
-import appIcon from '../../../assets/icon.png';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { useNavigationShellStore } from '@/shared/ui/navigationShellStore';
+import { PulseMark } from '@/shared/ui/PulseMark';
+import { pulsePrimaryNavItems, type PulsePrimaryNavKey } from '@/shared/ui/pulsePrimaryNav';
 
-type PulsePrimaryNavItem = {
-  key: PulsePrimaryNavKey;
-  label: string;
-  href: string;
-  icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
-};
-
-export type PulsePrimaryNavKey = 'devices' | 'energy' | 'settings' | 'search' | 'about';
-
-const pulsePrimaryNavItems: PulsePrimaryNavItem[] = [
-  {
-    key: 'devices',
-    label: 'Devices',
-    href: '/(tabs)/devices',
-    icon: 'view-dashboard-outline'
-  },
-  {
-    key: 'energy',
-    label: 'Energy',
-    href: '/(tabs)/energy',
-    icon: 'lightning-bolt-outline'
-  },
-  {
-    key: 'settings',
-    label: 'Settings',
-    href: '/(tabs)/settings',
-    icon: 'tune-variant'
-  },
-  {
-    key: 'search',
-    label: 'Search',
-    href: '/(tabs)/search',
-    icon: 'magnify'
-  },
-  {
-    key: 'about',
-    label: 'About',
-    href: '/(tabs)/about',
-    icon: 'information-outline'
-  }
-];
-
-export function PulseSidebarNav({
-  activeKey
-}: {
-  activeKey: PulsePrimaryNavKey;
-}) {
+export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }) {
   const router = useRouter();
   const { spec } = useAppTheme();
   const semantics = useThemeSemantics();
@@ -81,45 +35,16 @@ export function PulseSidebarNav({
       <YStack flex={1} gap="$4">
         {sidebarExpanded ? (
           <XStack alignItems="center" justifyContent="space-between" gap="$3">
-            <Pressable
-              onPress={() => router.replace('/(tabs)/devices')}
-              accessibilityRole="button"
-              accessibilityLabel="Go to Pulse home"
-            >
-              <XStack
-                alignItems="center"
-                gap="$3"
-                paddingVertical="$2"
-                paddingHorizontal="$2"
-              >
-                <YStack
-                  width={42}
-                  height={42}
-                  borderRadius={16}
-                  alignItems="center"
-                  justifyContent="center"
-                  borderWidth={1}
-                  style={{
-                    backgroundColor: semantics.navBrandBackground,
-                    borderColor: semantics.navBrandBorder
-                  }}
-                >
-                  <Image
-                    source={appIcon}
-                    style={{ width: 30, height: 30, borderRadius: 9 }}
-                    resizeMode="contain"
-                  />
+            <Pressable onPress={() => router.replace('/(tabs)/devices')} accessibilityRole="button" accessibilityLabel="Go to Pulse home">
+              <XStack alignItems="center" gap="$3" paddingVertical="$2" paddingHorizontal="$2">
+                <YStack width={42} height={42} alignItems="center" justifyContent="center" borderRadius={16}>
+                  <PulseMark size={38} />
                 </YStack>
                 <YStack gap={2}>
                   <Text fontSize="$6" fontWeight="800" letterSpacing={-0.3}>
                     Pulse
                   </Text>
-                  <Text
-                    fontSize="$2"
-                    textTransform="uppercase"
-                    letterSpacing={0.7}
-                    style={{ color: semantics.navSectionLabel }}
-                  >
+                  <Text fontSize="$2" textTransform="uppercase" letterSpacing={0.7} style={{ color: semantics.navSectionLabel }}>
                     Workspace
                   </Text>
                 </YStack>
@@ -147,28 +72,9 @@ export function PulseSidebarNav({
           </XStack>
         ) : (
           <YStack alignItems="center" gap="$3">
-            <Pressable
-              onPress={() => router.replace('/(tabs)/devices')}
-              accessibilityRole="button"
-              accessibilityLabel="Go to Pulse home"
-            >
-              <YStack
-                width={52}
-                height={52}
-                borderRadius={18}
-                alignItems="center"
-                justifyContent="center"
-                borderWidth={1}
-                style={{
-                  backgroundColor: semantics.navBrandBackground,
-                  borderColor: semantics.navBrandBorder
-                }}
-              >
-                <Image
-                  source={appIcon}
-                  style={{ width: 34, height: 34, borderRadius: 10 }}
-                  resizeMode="contain"
-                />
+            <Pressable onPress={() => router.replace('/(tabs)/devices')} accessibilityRole="button" accessibilityLabel="Go to Pulse home">
+              <YStack width={52} height={52} alignItems="center" justifyContent="center" borderRadius={18}>
+                <PulseMark size={46} />
               </YStack>
             </Pressable>
 
@@ -232,11 +138,7 @@ export function PulseSidebarNav({
                   alignItems: sidebarExpanded ? 'stretch' : 'center'
                 })}
               >
-                <XStack
-                  alignItems="center"
-                  justifyContent={sidebarExpanded ? 'space-between' : 'center'}
-                  gap="$3"
-                >
+                <XStack alignItems="center" justifyContent={sidebarExpanded ? 'space-between' : 'center'} gap="$3">
                   <XStack alignItems="center" gap="$3" flex={1}>
                     <YStack
                       width={sidebarExpanded ? 38 : 40}
@@ -245,9 +147,7 @@ export function PulseSidebarNav({
                       alignItems="center"
                       justifyContent="center"
                       style={{
-                        backgroundColor: focused
-                          ? semantics.navItemActiveIconBackground
-                          : semantics.navItemIdleIconBackground
+                        backgroundColor: focused ? semantics.navItemActiveIconBackground : semantics.navItemIdleIconBackground
                       }}
                     >
                       <MaterialCommunityIcons
@@ -263,7 +163,9 @@ export function PulseSidebarNav({
                           fontSize="$4"
                           fontWeight={focused ? '800' : '700'}
                           numberOfLines={1}
-                          style={{ color: focused ? semantics.navItemActiveText : semantics.navItemIdleText }}
+                          style={{
+                            color: focused ? semantics.navItemActiveText : semantics.navItemIdleText
+                          }}
                         >
                           {item.label}
                         </Text>
@@ -272,7 +174,9 @@ export function PulseSidebarNav({
                           numberOfLines={1}
                           textTransform="uppercase"
                           letterSpacing={0.55}
-                          style={{ color: focused ? semantics.navItemActiveSubtleText : semantics.navSectionLabel }}
+                          style={{
+                            color: focused ? semantics.navItemActiveSubtleText : semantics.navSectionLabel
+                          }}
                         >
                           {focused ? 'Current view' : 'Open view'}
                         </Text>
@@ -281,12 +185,7 @@ export function PulseSidebarNav({
                   </XStack>
 
                   {sidebarExpanded && focused ? (
-                    <YStack
-                      width={8}
-                      height={8}
-                      borderRadius={999}
-                      style={{ backgroundColor: semantics.navItemIndicator }}
-                    />
+                    <YStack width={8} height={8} borderRadius={999} style={{ backgroundColor: semantics.navItemIndicator }} />
                   ) : null}
                 </XStack>
               </Pressable>
@@ -296,17 +195,4 @@ export function PulseSidebarNav({
       </YStack>
     </View>
   );
-}
-
-export function resolvePulsePrimaryNavKey(routeName: string): PulsePrimaryNavKey {
-  switch (routeName) {
-    case 'energy':
-    case 'settings':
-    case 'search':
-    case 'about':
-      return routeName;
-    case 'devices':
-    default:
-      return 'devices';
-  }
 }

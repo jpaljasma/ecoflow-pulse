@@ -177,6 +177,11 @@ Within Energy, the experience is split into three deep-linkable panes:
 - `Solar` for weather-aware forecast and verification
 - `Impact` for the full avoided-emissions detail view
 
+`Energy Calendar` is a separate primary navigation page directly after
+`Energy`. Its calendar surface should reuse the Pulse Fleet hero's full-width
+gradient/lattice material while keeping the Apple-like month grid dense,
+legible, and tile based.
+
 Compact Energy Impact widgets on Devices and per-device pages should stay summary-only
 and link into the full `Energy > Impact` pane using the current fleet or device scope.
 
@@ -193,6 +198,10 @@ Device detail pages should read as hardware-first operating views.
   with matched height on tablet/desktop, then stack on phones.
 - Shared header weather/solar chrome should open `Energy > Solar` with device
   scope on device pages and fleet scope elsewhere.
+
+In-app chrome should use the shared `PulseMark` vector mark for sidebar, menu,
+about, logo, and loading surfaces. Expo install icons, favicons, and touch
+icons remain separate app assets unless an asset refresh is explicitly scoped.
 
 Settings subpages should follow the same shell contract:
 

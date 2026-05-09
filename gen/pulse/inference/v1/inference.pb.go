@@ -1267,6 +1267,7 @@ type GetEnergyComparisonInsightRequest struct {
 	Timezone        string                 `protobuf:"bytes,4,opt,name=timezone,proto3" json:"timezone,omitempty"`
 	GridPricePerKwh float64                `protobuf:"fixed64,5,opt,name=grid_price_per_kwh,json=gridPricePerKwh,proto3" json:"grid_price_per_kwh,omitempty"`
 	Currency        string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
+	Date            string                 `protobuf:"bytes,7,opt,name=date,proto3" json:"date,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1339,6 +1340,13 @@ func (x *GetEnergyComparisonInsightRequest) GetGridPricePerKwh() float64 {
 func (x *GetEnergyComparisonInsightRequest) GetCurrency() string {
 	if x != nil {
 		return x.Currency
+	}
+	return ""
+}
+
+func (x *GetEnergyComparisonInsightRequest) GetDate() string {
+	if x != nil {
+		return x.Date
 	}
 	return ""
 }
@@ -1495,14 +1503,15 @@ const file_pulse_inference_v1_inference_proto_rawDesc = "" +
 	"\bevidence\x18\x10 \x03(\v2#.pulse.inference.v1.InsightEvidenceR\bevidence\x127\n" +
 	"\n" +
 	"attributes\x18\x11 \x01(\v2\x17.google.protobuf.StructR\n" +
-	"attributes\"\xe5\x01\n" +
+	"attributes\"\xf9\x01\n" +
 	"!GetEnergyComparisonInsightRequest\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12&\n" +
 	"\x0fuse_all_devices\x18\x02 \x01(\bR\ruseAllDevices\x12\x16\n" +
 	"\x06preset\x18\x03 \x01(\tR\x06preset\x12\x1a\n" +
 	"\btimezone\x18\x04 \x01(\tR\btimezone\x12+\n" +
 	"\x12grid_price_per_kwh\x18\x05 \x01(\x01R\x0fgridPricePerKwh\x12\x1a\n" +
-	"\bcurrency\x18\x06 \x01(\tR\bcurrency\"\xcb\x01\n" +
+	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12\x12\n" +
+	"\x04date\x18\a \x01(\tR\x04date\"\xcb\x01\n" +
 	"\"GetEnergyComparisonInsightResponse\x129\n" +
 	"\x06status\x18\x01 \x01(\x0e2!.pulse.inference.v1.InsightStatusR\x06status\x12#\n" +
 	"\rstatus_detail\x18\x02 \x01(\tR\fstatusDetail\x12E\n" +
