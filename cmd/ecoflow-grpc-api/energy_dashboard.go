@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func (s *EnergyService) GetEnergyDashboard(ctx context.Context, req *telemetryv1.GetEnergyDashboardRequest) (*telemetryv1.GetEnergyDashboardResponse, error) {
@@ -150,15 +152,52 @@ func (s *EnergyService) GetEnergyCalendar(ctx context.Context, req *telemetryv1.
 	if err != nil {
 		return nil, err
 	}
+	now := s.now()
+	cacheKey, cacheable := energyCalendarCacheKey(now, scope, loc, int(req.GetYear()), int(req.GetMonth()), req.GetGridPricePerKwh(), req.GetCurrency())
+	if cacheable {
+		if cached := s.readCachedEnergyCalendar(cacheKey); cached != nil {
+			s.maybeEnableHistoryCompression(ctx, cached)
+			return cached, nil
+		}
+		value, err, _ := s.energyCalendarGroup.Do(cacheKey, func() (any, error) {
+			if cached := s.readCachedEnergyCalendar(cacheKey); cached != nil {
+				return cached, nil
+			}
+			resp, buildErr := s.buildEnergyCalendarResponse(ctx, req, scope, loc, now)
+			if buildErr != nil {
+				return nil, buildErr
+			}
+			s.writeEnergyCalendarCache(cacheKey, resp, energyCalendarCacheExpiresAt(now, loc))
+			return cloneEnergyCalendarResponse(resp), nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		resp, ok := value.(*telemetryv1.GetEnergyCalendarResponse)
+		if !ok || resp == nil {
+			return nil, status.Error(codes.Internal, "energy calendar cache returned invalid response")
+		}
+		s.maybeEnableHistoryCompression(ctx, resp)
+		return resp, nil
+	}
+	resp, err := s.buildEnergyCalendarResponse(ctx, req, scope, loc, now)
+	if err != nil {
+		return nil, err
+	}
+	s.maybeEnableHistoryCompression(ctx, resp)
+	return resp, nil
+}
+
+func (s *EnergyService) buildEnergyCalendarResponse(ctx context.Context, req *telemetryv1.GetEnergyCalendarRequest, scope energydashboard.Scope, loc *time.Location, now time.Time) (*telemetryv1.GetEnergyCalendarResponse, error) {
 	calendar, err := energydashboard.BuildCalendarMonth(
-		s.now(),
+		now,
 		loc,
 		int(req.GetYear()),
 		int(req.GetMonth()),
 		req.GetGridPricePerKwh(),
 		req.GetCurrency(),
 		func(from, to time.Time) (telemetryquery.Series, error) {
-			return s.queryScopeSeries(ctx, scope, energyCalendarResolutionForWindow(s.now(), loc, from), from, to)
+			return s.queryScopeSeries(ctx, scope, energyCalendarResolutionForRange(s.now(), loc, from, to), from, to)
 		},
 	)
 	if err != nil {
@@ -184,21 +223,112 @@ func (s *EnergyService) GetEnergyCalendar(ctx context.Context, req *telemetryv1.
 			Currency:          calendar.SelectedMonthTotals.Currency,
 		},
 	}
-	s.maybeEnableHistoryCompression(ctx, resp)
 	return resp, nil
 }
 
-func energyCalendarResolutionForWindow(now time.Time, loc *time.Location, from time.Time) telemetryquery.Resolution {
+func energyCalendarCacheKey(now time.Time, scope energydashboard.Scope, loc *time.Location, year, month int, gridPricePerKWh float64, currency string) (string, bool) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	localNow := now.In(loc)
+	if localNow.Year() == year && int(localNow.Month()) == month {
+		return "", false
+	}
+	parts := []string{
+		"v1",
+		loc.String(),
+		strconv.Itoa(year),
+		strconv.Itoa(month),
+		scope.Mode,
+		scope.DeviceID,
+		strings.Join(scope.ResolvedDeviceIDs, ","),
+		strconv.FormatFloat(gridPricePerKWh, 'g', -1, 64),
+		currency,
+	}
+	return strings.Join(parts, "|"), true
+}
+
+func energyCalendarCacheExpiresAt(now time.Time, loc *time.Location) time.Time {
+	if loc == nil {
+		loc = time.UTC
+	}
+	localNow := now.In(loc)
+	nextLocalMidnight := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	midnightExpiry := nextLocalMidnight.UTC().Add(time.Second)
+	ttlExpiry := now.UTC().Add(defaultEnergyCalendarCacheTTL)
+	if midnightExpiry.Before(ttlExpiry) {
+		return midnightExpiry
+	}
+	return ttlExpiry
+}
+
+func (s *EnergyService) readCachedEnergyCalendar(key string) *telemetryv1.GetEnergyCalendarResponse {
+	if key == "" {
+		return nil
+	}
+	now := s.now().UTC()
+	s.energyCalendarMu.Lock()
+	defer s.energyCalendarMu.Unlock()
+	entry, ok := s.energyCalendarCache[key]
+	if !ok {
+		return nil
+	}
+	if !now.Before(entry.expiresAt) {
+		delete(s.energyCalendarCache, key)
+		return nil
+	}
+	return cloneEnergyCalendarResponse(entry.resp)
+}
+
+func (s *EnergyService) writeEnergyCalendarCache(key string, resp *telemetryv1.GetEnergyCalendarResponse, expiresAt time.Time) {
+	if key == "" || resp == nil {
+		return
+	}
+	now := s.now().UTC()
+	s.energyCalendarMu.Lock()
+	defer s.energyCalendarMu.Unlock()
+	for existingKey, entry := range s.energyCalendarCache {
+		if !now.Before(entry.expiresAt) {
+			delete(s.energyCalendarCache, existingKey)
+		}
+	}
+	if len(s.energyCalendarCache) >= 128 {
+		for existingKey := range s.energyCalendarCache {
+			delete(s.energyCalendarCache, existingKey)
+			break
+		}
+	}
+	s.energyCalendarCache[key] = energyCalendarCacheEntry{
+		resp:      cloneEnergyCalendarResponse(resp),
+		expiresAt: expiresAt.UTC(),
+	}
+}
+
+func cloneEnergyCalendarResponse(resp *telemetryv1.GetEnergyCalendarResponse) *telemetryv1.GetEnergyCalendarResponse {
+	if resp == nil {
+		return nil
+	}
+	cloned, ok := proto.Clone(resp).(*telemetryv1.GetEnergyCalendarResponse)
+	if !ok {
+		return nil
+	}
+	return cloned
+}
+
+func energyCalendarResolutionForRange(now time.Time, loc *time.Location, from, to time.Time) telemetryquery.Resolution {
 	if loc == nil {
 		loc = time.UTC
 	}
 	localFrom := from.In(loc)
+	localTo := to.In(loc)
 	localNow := now.In(loc)
-	if localFrom.Year() == localNow.Year() && localFrom.Month() == localNow.Month() && localFrom.Day() == localNow.Day() {
+	if !localNow.Before(localFrom) && localNow.Before(localTo) {
 		return telemetryquery.ResolutionHour
 	}
 	utcFrom := from.UTC()
-	if utcFrom.Hour() != 0 || utcFrom.Minute() != 0 || utcFrom.Second() != 0 || utcFrom.Nanosecond() != 0 {
+	utcTo := to.UTC()
+	if utcFrom.Hour() != 0 || utcFrom.Minute() != 0 || utcFrom.Second() != 0 || utcFrom.Nanosecond() != 0 ||
+		utcTo.Hour() != 0 || utcTo.Minute() != 0 || utcTo.Second() != 0 || utcTo.Nanosecond() != 0 {
 		return telemetryquery.ResolutionHour
 	}
 	return telemetryquery.ResolutionDay

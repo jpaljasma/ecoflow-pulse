@@ -530,6 +530,8 @@ export default function EnergyCalendarScreen() {
 
   const previousPrefetching = useIsFetching({ queryKey: previousQueryKey, exact: true }) > 0;
   const nextPrefetching = useIsFetching({ queryKey: nextQueryKey, exact: true }) > 0;
+  const shouldPrefetchPreviousMonth = previousCachePolicy.liveDayKey === null;
+  const shouldPrefetchNextMonth = nextCachePolicy.liveDayKey === null;
   const monthOptions = useMemo(
     () =>
       ENERGY_CALENDAR_MONTHS.map((label, index) => ({
@@ -570,28 +572,32 @@ export default function EnergyCalendarScreen() {
       token
     };
 
-    void queryClient.prefetchQuery({
-      queryKey: previousQueryKey,
-      queryFn: () =>
-        fetchEnergyCalendar({
-          ...calendarArgs,
-          year: previousMonth.year,
-          month: previousMonth.month
-        }),
-      staleTime: previousCachePolicy.staleTime,
-      gcTime: previousCachePolicy.gcTime
-    });
-    void queryClient.prefetchQuery({
-      queryKey: nextQueryKey,
-      queryFn: () =>
-        fetchEnergyCalendar({
-          ...calendarArgs,
-          year: nextMonth.year,
-          month: nextMonth.month
-        }),
-      staleTime: nextCachePolicy.staleTime,
-      gcTime: nextCachePolicy.gcTime
-    });
+    if (shouldPrefetchPreviousMonth) {
+      void queryClient.prefetchQuery({
+        queryKey: previousQueryKey,
+        queryFn: () =>
+          fetchEnergyCalendar({
+            ...calendarArgs,
+            year: previousMonth.year,
+            month: previousMonth.month
+          }),
+        staleTime: previousCachePolicy.staleTime,
+        gcTime: previousCachePolicy.gcTime
+      });
+    }
+    if (shouldPrefetchNextMonth) {
+      void queryClient.prefetchQuery({
+        queryKey: nextQueryKey,
+        queryFn: () =>
+          fetchEnergyCalendar({
+            ...calendarArgs,
+            year: nextMonth.year,
+            month: nextMonth.month
+          }),
+        staleTime: nextCachePolicy.staleTime,
+        gcTime: nextCachePolicy.gcTime
+      });
+    }
   }, [
     allowed,
     authReady,
@@ -613,6 +619,8 @@ export default function EnergyCalendarScreen() {
     routeState.deviceId,
     routeState.scope,
     routeState.timezone,
+    shouldPrefetchNextMonth,
+    shouldPrefetchPreviousMonth,
     token
   ]);
 

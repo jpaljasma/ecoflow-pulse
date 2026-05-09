@@ -247,7 +247,9 @@ Frontend rule:
 - Public Energy requests resolve local-calendar timezone from the current user
   profile rather than appending timezone query parameters. Calendar current-day
   cells are backed by live current-day rollups so today matches the homepage
-  solar total while closed days can use durable daily rollups.
+  solar total. Non-current Calendar months are cacheable as complete
+  user-visible month responses; the current profile-local month stays on the
+  live path so today is not hidden behind a stale month cache.
 - the same card also exposes a conservative mature-tree equivalent using PV
   lifecycle `CO2e` benchmark math. Methodology and constants live in
   [`tree-equivalent.md`](tree-equivalent.md).

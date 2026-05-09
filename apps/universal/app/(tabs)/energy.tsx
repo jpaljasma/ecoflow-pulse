@@ -16,6 +16,7 @@ import {
   buildEnergyRouteParams,
   buildPowerTrendSeries,
   buildWindowLabel,
+  formatEnergyDateLabel,
   getTimezoneDateIso,
   ENERGY_PANELS,
   ENERGY_PRESETS,
@@ -98,24 +99,6 @@ function formatObservedAtLabel(unixMs: string): string {
     hour: 'numeric',
     minute: '2-digit'
   }).format(new Date(parsed));
-}
-
-function formatEnergyDateLabel(dateIso: string, timezone: string): string {
-  const date = new Date(`${dateIso}T12:00:00Z`);
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      timeZone: timezone
-    }).format(date);
-  } catch {
-    return new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    }).format(date);
-  }
 }
 
 function shiftEnergyDateIso(dateIso: string, deltaDays: number): string {
@@ -719,7 +702,7 @@ export default function EnergyScreen() {
                       }}
                     >
                       <Text fontSize="$2" fontWeight="700" style={{ color: semantics.subtleStrongText }}>
-                        {formatEnergyDateLabel(selectedDateIso, routeState.timezone)}
+                        {formatEnergyDateLabel(selectedDateIso)}
                       </Text>
                     </YStack>
                   </XStack>

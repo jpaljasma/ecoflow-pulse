@@ -484,7 +484,9 @@ Runtime behavior:
 - Energy Calendar treats the current profile-local month as live data: current
   day tiles use fresh current-day rollups, refetch on the live path, and refresh
   after the next profile-local midnight; closed historical months can stay
-  cached aggressively.
+  cached aggressively. The universal client caches historical month payloads
+  and warms adjacent non-live months, while the Go Energy service caches
+  already-computed non-current month responses behind a bounded in-memory cache.
 - `/energy?preset=today&date=YYYY-MM-DD` selects an explicit local calendar
   day. Historical selected dates query the full local midnight-to-midnight day;
   the current local day still queries local midnight to now, and comparison

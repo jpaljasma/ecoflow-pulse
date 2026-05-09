@@ -1428,8 +1428,8 @@ func TestGetEnergyCalendarReturnsVisibleMonthGridAndTotals(t *testing.T) {
 
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
-	if got := len(reader.queries); got == 0 {
-		t.Fatal("expected calendar RPC to query visible historical days")
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
 	}
 }
 
@@ -1439,6 +1439,7 @@ func TestGetEnergyCalendarUsesLiveRollupsForCurrentDay(t *testing.T) {
 	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
 	loc := mustLoadLocation(t, "America/New_York")
 	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	visibleFrom := time.Date(2026, time.April, 26, 0, 0, 0, 0, loc).UTC()
 	todayFrom := time.Date(2026, time.May, 9, 0, 0, 0, 0, loc).UTC()
 	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
 		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
@@ -1448,7 +1449,7 @@ func TestGetEnergyCalendarUsesLiveRollupsForCurrentDay(t *testing.T) {
 		series: []telemetryquery.Series{{
 			DeviceID:   deviceID,
 			Resolution: telemetryquery.ResolutionHour,
-			From:       todayFrom,
+			From:       visibleFrom,
 			To:         now.UTC(),
 			Points: []telemetryquery.Point{{
 				BucketStart: todayFrom,
@@ -1484,15 +1485,15 @@ func TestGetEnergyCalendarUsesLiveRollupsForCurrentDay(t *testing.T) {
 
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
-	var currentDayQuery telemetryquery.RangeQuery
-	for _, query := range reader.queries {
-		if query.From.Equal(todayFrom) && query.To.Equal(now.UTC()) {
-			currentDayQuery = query
-			break
-		}
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
 	}
-	if currentDayQuery.Resolution != telemetryquery.ResolutionHour {
-		t.Fatalf("current-day resolution mismatch: got=%v want=%v", currentDayQuery.Resolution, telemetryquery.ResolutionHour)
+	query := reader.queries[0]
+	if query.Resolution != telemetryquery.ResolutionHour {
+		t.Fatalf("current-day range resolution mismatch: got=%v want=%v", query.Resolution, telemetryquery.ResolutionHour)
+	}
+	if !query.From.Equal(visibleFrom) || !query.To.Equal(now.UTC()) {
+		t.Fatalf("current-day range mismatch: got=%s -> %s want=%s -> %s", query.From, query.To, visibleFrom, now.UTC())
 	}
 }
 
@@ -1532,15 +1533,112 @@ func TestGetEnergyCalendarUsesHourlyRollupsForProfileLocalHistoricalDays(t *test
 
 	reader.mu.Lock()
 	defer reader.mu.Unlock()
-	for _, query := range reader.queries {
-		if query.From.Equal(historicalFrom) && query.To.Equal(historicalTo) {
-			if query.Resolution != telemetryquery.ResolutionHour {
-				t.Fatalf("historical local-day resolution mismatch: got=%v want=%v", query.Resolution, telemetryquery.ResolutionHour)
-			}
-			return
-		}
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
 	}
-	t.Fatalf("expected historical local-day query %s -> %s", historicalFrom.Format(time.RFC3339), historicalTo.Format(time.RFC3339))
+	query := reader.queries[0]
+	if query.Resolution != telemetryquery.ResolutionHour {
+		t.Fatalf("historical local-day range resolution mismatch: got=%v want=%v", query.Resolution, telemetryquery.ResolutionHour)
+	}
+	if query.From.After(historicalFrom) || query.To.Before(historicalTo) {
+		t.Fatalf("historical local-day range does not cover %s -> %s: got=%s -> %s", historicalFrom.Format(time.RFC3339), historicalTo.Format(time.RFC3339), query.From.Format(time.RFC3339), query.To.Format(time.RFC3339))
+	}
+}
+
+func TestGetEnergyCalendarCachesHistoricalMonthResponse(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &calendarQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+	req := &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           4,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	}
+
+	first, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req)
+	if err != nil {
+		t.Fatalf("first GetEnergyCalendar failed: %v", err)
+	}
+	findCalendarProtoDay(t, first.GetVisibleDays(), "2026-04-13").SolarGeneratedKwh = 999
+	second, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req)
+	if err != nil {
+		t.Fatalf("second GetEnergyCalendar failed: %v", err)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+	if got, want := findCalendarProtoDay(t, second.GetVisibleDays(), "2026-04-13").GetSolarGeneratedKwh(), 1.0; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("cached calendar response was mutated: got=%v want=%v", got, want)
+	}
+}
+
+func TestGetEnergyCalendarDoesNotCacheCurrentMonthResponse(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &calendarQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+	req := &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           5,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	}
+
+	if _, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req); err != nil {
+		t.Fatalf("first GetEnergyCalendar failed: %v", err)
+	}
+	if _, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req); err != nil {
+		t.Fatalf("second GetEnergyCalendar failed: %v", err)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got, want := len(reader.queries), 2; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+}
+
+func TestEnergyCalendarCacheExpiresAtUsesProfileLocalMidnight(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.November, 1, 13, 30, 0, 0, loc)
+	expiresAt := energyCalendarCacheExpiresAt(now, loc)
+
+	if got, want := expiresAt.Sub(now.UTC()), 10*time.Hour+30*time.Minute+time.Second; got != want {
+		t.Fatalf("cache expiry duration mismatch across fall-back day: got=%v want=%v", got, want)
+	}
 }
 
 type fakeSnapshotReader struct {
@@ -1845,18 +1943,26 @@ func (r *calendarQueryReader) QueryRange(_ context.Context, query telemetryquery
 	defer r.mu.Unlock()
 
 	r.queries = append(r.queries, query)
+	points := make([]telemetryquery.Point, 0, 42)
+	for bucketStart := query.From; bucketStart.Before(query.To); bucketStart = bucketStart.Add(24 * time.Hour) {
+		bucketEnd := bucketStart.Add(24 * time.Hour)
+		if bucketEnd.After(query.To) {
+			bucketEnd = query.To
+		}
+		points = append(points, telemetryquery.Point{
+			BucketStart: bucketStart,
+			BucketEnd:   bucketEnd,
+			Metrics: telemetryquery.Metrics{
+				SolarGeneratedWh: floatPtr(1000),
+			},
+		})
+	}
 	return telemetryquery.Series{
 		DeviceID:   query.DeviceID,
 		Resolution: query.Resolution,
 		From:       query.From,
 		To:         query.To,
-		Points: []telemetryquery.Point{{
-			BucketStart: query.From,
-			BucketEnd:   query.To,
-			Metrics: telemetryquery.Metrics{
-				SolarGeneratedWh: floatPtr(1000),
-			},
-		}},
+		Points:     points,
 	}, nil
 }
 

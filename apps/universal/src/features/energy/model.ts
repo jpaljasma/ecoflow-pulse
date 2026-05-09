@@ -440,6 +440,24 @@ export function normalizePvObservedPower(observedPower: number | null | undefine
   return Math.max(0, observedPower);
 }
 
+export function formatEnergyDateLabel(dateIso: string): string {
+  const parts = parseCalendarDateIso(dateIso);
+  if (!parts) {
+    return dateIso;
+  }
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0));
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC'
+    }).format(date);
+  } catch {
+    return dateIso;
+  }
+}
+
 export function buildEnergyInsights(
   points: EnergyRollupPoint[],
   timezone: string,
@@ -489,22 +507,35 @@ export function buildEnergyInsights(
   ];
 }
 
-function normalizeCalendarDateIso(input: string | undefined | null): string | undefined {
+type CalendarDateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
+function parseCalendarDateIso(input: string | undefined | null): CalendarDateParts | null {
   if (!input || !/^\d{4}-\d{2}-\d{2}$/.test(input)) {
-    return undefined;
+    return null;
   }
   const [yearText, monthText, dayText] = input.split('-');
   const year = Number.parseInt(yearText ?? '', 10);
   const month = Number.parseInt(monthText ?? '', 10);
   const day = Number.parseInt(dayText ?? '', 10);
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-    return undefined;
+    return null;
   }
   const date = new Date(Date.UTC(year, month - 1, day));
   if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function normalizeCalendarDateIso(input: string | undefined | null): string | undefined {
+  if (!parseCalendarDateIso(input)) {
     return undefined;
   }
-  return input;
+  return input ?? undefined;
 }
 
 function normalizeNumericParam(value: string | undefined): number | undefined {

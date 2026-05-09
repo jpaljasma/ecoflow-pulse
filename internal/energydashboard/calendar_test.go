@@ -115,18 +115,38 @@ func TestBuildCalendarMonthReturnsSundayStartVisibleGridWithAdjacentDays(t *test
 
 	loc := mustLoadLocation(t, "America/New_York")
 	now := time.Date(2026, time.May, 15, 12, 0, 0, 0, loc)
-	var queried []string
+	var queried []struct {
+		from string
+		to   string
+	}
 
 	calendar, err := BuildCalendarMonth(now, loc, 2026, 5, 0.30, "USD", func(from, to time.Time) (telemetryquery.Series, error) {
-		queried = append(queried, from.In(loc).Format("2006-01-02"))
-		return telemetryquery.Series{
-			Points: []telemetryquery.Point{{
-				BucketStart: from,
-				BucketEnd:   to,
+		queried = append(queried, struct {
+			from string
+			to   string
+		}{
+			from: from.In(loc).Format(time.RFC3339),
+			to:   to.In(loc).Format(time.RFC3339),
+		})
+		points := make([]telemetryquery.Point, 0, 24)
+		for day := from.In(loc); day.Before(to.In(loc)); day = day.AddDate(0, 0, 1) {
+			dayStart := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, loc).UTC()
+			dayEnd := dayStart.AddDate(0, 0, 1)
+			if dayEnd.After(to) {
+				dayEnd = to
+			}
+			points = append(points, telemetryquery.Point{
+				BucketStart: dayStart,
+				BucketEnd:   dayEnd,
 				Metrics: telemetryquery.Metrics{
 					SolarGeneratedWh: floatPtr(1000),
 				},
-			}},
+			})
+		}
+		return telemetryquery.Series{
+			From:   from,
+			To:     to,
+			Points: points,
 		}, nil
 	})
 	if err != nil {
@@ -187,8 +207,14 @@ func TestBuildCalendarMonthReturnsSundayStartVisibleGridWithAdjacentDays(t *test
 		t.Fatalf("selected-month currency mismatch: got=%s want=%s", got, want)
 	}
 
-	if got := len(queried); got == 0 {
-		t.Fatal("expected calendar builder to query visible historical days")
+	if got, want := len(queried), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+	if got, want := queried[0].from, "2026-04-26T00:00:00-04:00"; got != want {
+		t.Fatalf("calendar query from mismatch: got=%s want=%s", got, want)
+	}
+	if got, want := queried[0].to, "2026-05-15T12:00:00-04:00"; got != want {
+		t.Fatalf("calendar query to mismatch: got=%s want=%s", got, want)
 	}
 }
 

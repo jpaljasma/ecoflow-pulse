@@ -9,6 +9,7 @@ import {
   buildPvEnvelopeSummary,
   buildPowerTrendSeries,
   energyPresetLabel,
+  formatEnergyDateLabel,
   formatDeltaPct,
   msUntilNextTimezoneDate,
   normalizePvObservedPower,
@@ -114,6 +115,10 @@ describe('energy route model', () => {
       panel: 'overview',
       date: '2026-05-09'
     });
+  });
+
+  it('formats selected date labels without timezone day rollover', () => {
+    expect(formatEnergyDateLabel('2026-05-09')).toContain('May 9');
   });
 
   it('defaults the calendar route to all devices and the current local month', () => {

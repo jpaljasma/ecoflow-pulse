@@ -53,8 +53,8 @@ func ResolveSelectedDateWindow(now time.Time, loc *time.Location, year, month, d
 	return newWindow(from, to, previousFrom, previousTo), nil
 }
 
-func BuildCalendarMonth(now time.Time, loc *time.Location, year, month int, gridPricePerKWh float64, currency string, queryDay func(from, to time.Time) (telemetryquery.Series, error)) (CalendarMonth, error) {
-	if queryDay == nil {
+func BuildCalendarMonth(now time.Time, loc *time.Location, year, month int, gridPricePerKWh float64, currency string, queryRange func(from, to time.Time) (telemetryquery.Series, error)) (CalendarMonth, error) {
+	if queryRange == nil {
 		return CalendarMonth{}, fmt.Errorf("calendar query function is required")
 	}
 	if loc == nil {
@@ -69,8 +69,25 @@ func BuildCalendarMonth(now time.Time, loc *time.Location, year, month int, grid
 	nowLocal := now.In(loc)
 	todayStart := startOfDay(nowLocal)
 	out := CalendarMonth{
-		Year:  year,
-		Month: month,
+		Year:        year,
+		Month:       month,
+		VisibleDays: make([]CalendarDay, 0, int(visibleTo.Sub(visibleFrom).Hours()/24)+1),
+	}
+
+	rangeSeries := telemetryquery.Series{
+		From: visibleFrom.UTC(),
+		To:   visibleFrom.UTC(),
+	}
+	dataTo := visibleTo
+	if nowLocal.Before(dataTo) {
+		dataTo = nowLocal
+	}
+	if dataTo.After(visibleFrom) {
+		series, err := queryRange(visibleFrom.UTC(), dataTo.UTC())
+		if err != nil {
+			return CalendarMonth{}, err
+		}
+		rangeSeries = series
 	}
 
 	for day := visibleFrom; day.Before(visibleTo); day = day.AddDate(0, 0, 1) {
@@ -93,10 +110,7 @@ func BuildCalendarMonth(now time.Time, loc *time.Location, year, month int, grid
 		if err != nil {
 			return CalendarMonth{}, err
 		}
-		series, err := queryDay(window.From.UTC(), window.To.UTC())
-		if err != nil {
-			return CalendarMonth{}, err
-		}
+		series := sliceCalendarSeries(rangeSeries, window.From.UTC(), window.To.UTC())
 		totals := TotalsFromSeries(series)
 		dayCell.HasData = len(series.Points) > 0
 		dayCell.SolarGeneratedKWh = totals.SolarGeneratedWh / 1000
@@ -110,6 +124,27 @@ func BuildCalendarMonth(now time.Time, loc *time.Location, year, month int, grid
 
 	out.SelectedMonthTotals.Currency = currency
 	return out, nil
+}
+
+func sliceCalendarSeries(series telemetryquery.Series, from, to time.Time) telemetryquery.Series {
+	out := telemetryquery.Series{
+		DeviceID:             series.DeviceID,
+		Resolution:           series.Resolution,
+		From:                 from,
+		To:                   to,
+		EnergyBucketCoverage: series.EnergyBucketCoverage,
+	}
+	if !to.After(from) || len(series.Points) == 0 {
+		return out
+	}
+	out.Points = make([]telemetryquery.Point, 0, len(series.Points))
+	for _, point := range series.Points {
+		if point.BucketStart.Before(from) || !point.BucketStart.Before(to) {
+			continue
+		}
+		out.Points = append(out.Points, point)
+	}
+	return out
 }
 
 func calendarMonthVisibleWindow(year, month int, loc *time.Location) (time.Time, time.Time, error) {

@@ -101,9 +101,10 @@ commit from a clean feature branch.
   parameters. Resolve local-calendar timezone from the current user profile,
   while retaining legacy inbound parsing only when compatibility requires it.
 - Calendar data loading should be lazy and steady: load the selected month,
-  prefetch previous/next, preserve stale data during transitions, aggressively
-  cache closed historical months, and keep the current profile-local month on a
-  live refresh path that rolls after profile-local midnight, including DST days.
+  prefetch adjacent non-live months, preserve stale data during transitions,
+  aggressively cache closed historical months on both the client and service
+  path, and keep the current profile-local month on a live refresh path that
+  rolls after profile-local midnight, including DST days.
 
 ## Common Validation Targets
 
