@@ -996,6 +996,10 @@ Notes:
   readiness, then rollout-restarts:
   - `pulse-platform-public-app`
   - `pulse-platform-realtime-gateway`
+  By default, the local rollout wait returns once the new desired replicas are
+  observed, ready, and available; old replicas may continue graceful termination
+  in the background. Set `LOCAL_ROLLOUT_WAIT_MODE=strict` to wait for
+  Kubernetes' full `rollout status` completion including old-pod termination.
   Use this when you want to push just the local web/public edge changes into
   the k3d stack without touching `pulse-services`.
 - WebSocket note for local multi-replica testing:
@@ -1092,10 +1096,17 @@ Notes:
   `pulse-services-go-archive`, `pulse-services-go-inference`,
   `pulse-services-go-grpc-api`, `pulse-services-go-energy-api`,
   `pulse-platform-realtime-gateway`, and `pulse-platform-public-app`, waiting
-  for each rollout to finish.
+  for each rollout to reach the local availability gate.
   The verifier recycle is a local rollout safeguard: it clears stale
   long-lived Postgres transactions before the ingest phase so new worker pods
-  do not deadlock on exhausted connection slots.
+  do not deadlock on exhausted connection slots. Its scale-down wait remains
+  strict so the old verifier pod exits before replicas are restored.
+  `LOCAL_ROLLOUT_WAIT_MODE=available` is the default local restart behavior:
+  it requires the Deployment to observe the latest generation, replace the
+  desired replica count, and report all desired replicas ready and available
+  with zero unavailable replicas. Use `LOCAL_ROLLOUT_WAIT_MODE=strict make
+  dev-deploy` when you need the command to wait through the old-pod termination
+  tail as well.
   Running migrations before worker restarts keeps schema-gated workers from
   entering a rollout timeout when the only issue is a pending migration.
   If a rollout still times out, the target prints deployment state, related
