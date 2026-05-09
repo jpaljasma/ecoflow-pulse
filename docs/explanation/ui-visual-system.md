@@ -180,7 +180,14 @@ Within Energy, the experience is split into three deep-linkable panes:
 `Energy Calendar` is a separate primary navigation page directly after
 `Energy`. Its calendar surface should reuse the Pulse Fleet hero's full-width
 gradient/lattice material while keeping the Apple-like month grid dense,
-legible, and tile based.
+legible, and tile based. Desktop and tablet layouts use a true seven-column
+grid (`repeat(7, minmax(0, 1fr))`) so every day cell has identical horizontal
+math; avoid percentage rows that can drift under padding or wrapping. Clickable
+day tiles should use the same pointer cursor, subtle lift, alpha background
+change, stable shadow, and press feedback as the Pulse Fleet device tiles.
+Calendar route state should not
+carry timezone query parameters; local day labels come from the profile
+timezone.
 
 Compact Energy Impact widgets on Devices and per-device pages should stay summary-only
 and link into the full `Energy > Impact` pane using the current fleet or device scope.

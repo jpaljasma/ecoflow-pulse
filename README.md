@@ -25,6 +25,8 @@ web, iPhone, iPad, and Android.
 - `Energy` dashboard for fleet or single-device solar, load, battery, PV
   envelope, comparison windows, value estimates, and on-demand long-range
   history.
+- `Energy Calendar` heatmap for fleet or device solar generation by local day,
+  with generated-value totals and drill-through into the Energy dashboard.
 - Weather and solar outlook widgets driven by saved profile location, Open-Meteo
   forecasts, yesterday verification, energy truth, and calibrated site/device
   forecast models.
@@ -53,6 +55,14 @@ systems.
 The energy view shows solar generation, site load, battery net flow, grid value,
 self-sufficiency, SOC band movement, and scoped device/window details for the
 selected local-calendar period.
+
+#### Energy Calendar
+
+![Energy calendar dashboard](docs/assets/app-overview/energy-calendar.png)
+
+The calendar view shows fleet or device solar generation by local day with
+month navigation, heatmap tiles, generated-value totals, and direct
+drill-through into the Energy dashboard for the selected date.
 
 #### Solar Forecast
 

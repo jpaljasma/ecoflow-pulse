@@ -312,6 +312,8 @@ go run ./cmd/ecoflow-projection-worker
 
 Operational note:
 - the durable projection consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery.
+- existing durable consumers with older immutable deliver-policy settings are bound in place instead of leaving the worker in a retry loop.
+- worker `/readyz` and `pulse_worker_consumer_*` metrics report whether the JetStream consumer is actually attached.
 
 Run inference worker loop (consume ingest envelopes and build Valkey device insights):
 
@@ -325,6 +327,8 @@ go run ./cmd/ecoflow-inference-worker
 
 Operational note:
 - the durable inference consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery.
+- existing durable consumers with older immutable deliver-policy settings are bound in place instead of leaving the worker in a retry loop.
+- worker `/readyz` and `pulse_worker_consumer_*` metrics report whether the JetStream consumer is actually attached.
 
 Run rollup worker loop (consume ingest envelopes from JetStream and upsert minute/hour/day Timescale rollups):
 
@@ -339,6 +343,8 @@ Accuracy note:
   process memory, so correctness requires a singleton live consumer until
   shard-affine consumption or persisted integration state is implemented.
 - the singleton rollup consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery.
+- existing durable consumers with older immutable deliver-policy settings are bound in place instead of leaving the worker in a retry loop.
+- worker `/readyz` and `pulse_worker_consumer_*` metrics report whether the JetStream consumer is actually attached.
 
 Run archive worker loop (consume ingest envelopes from JetStream and write protobuf+zstd objects to MinIO-compatible storage):
 
@@ -353,6 +359,8 @@ go run ./cmd/ecoflow-archive-worker
 
 Operational note:
 - the durable archive consumer now recreates its JetStream subscription automatically if the consumer disappears or the subscription goes invalid during rollout or broker recovery, while preserving periodic flushes and shutdown flush-on-exit behavior.
+- existing durable consumers with older immutable deliver-policy settings are bound in place instead of leaving the worker in a retry loop.
+- worker `/readyz` and `pulse_worker_consumer_*` metrics report whether the JetStream consumer is actually attached.
 
 Run replay CLI modes (manifest-backed listing + device/fleet replay to NATS replay subjects):
 

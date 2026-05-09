@@ -1433,6 +1433,116 @@ func TestGetEnergyCalendarReturnsVisibleMonthGridAndTotals(t *testing.T) {
 	}
 }
 
+func TestGetEnergyCalendarUsesLiveRollupsForCurrentDay(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	todayFrom := time.Date(2026, time.May, 9, 0, 0, 0, 0, loc).UTC()
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	solarGenerated := 7520.0
+	reader := &fakeQueryReader{
+		series: []telemetryquery.Series{{
+			DeviceID:   deviceID,
+			Resolution: telemetryquery.ResolutionHour,
+			From:       todayFrom,
+			To:         now.UTC(),
+			Points: []telemetryquery.Point{{
+				BucketStart: todayFrom,
+				BucketEnd:   now.UTC(),
+				Metrics: telemetryquery.Metrics{
+					SolarGeneratedWh: &solarGenerated,
+				},
+			}},
+		}},
+	}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+
+	resp, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           5,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	})
+	if err != nil {
+		t.Fatalf("GetEnergyCalendar failed: %v", err)
+	}
+	today := findCalendarProtoDay(t, resp.GetVisibleDays(), "2026-05-09")
+	if got, want := today.GetSolarGeneratedKwh(), 7.52; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("current-day solar mismatch: got=%v want=%v", got, want)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	var currentDayQuery telemetryquery.RangeQuery
+	for _, query := range reader.queries {
+		if query.From.Equal(todayFrom) && query.To.Equal(now.UTC()) {
+			currentDayQuery = query
+			break
+		}
+	}
+	if currentDayQuery.Resolution != telemetryquery.ResolutionHour {
+		t.Fatalf("current-day resolution mismatch: got=%v want=%v", currentDayQuery.Resolution, telemetryquery.ResolutionHour)
+	}
+}
+
+func TestGetEnergyCalendarUsesHourlyRollupsForProfileLocalHistoricalDays(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	historicalFrom := time.Date(2026, time.May, 6, 0, 0, 0, 0, loc).UTC()
+	historicalTo := time.Date(2026, time.May, 7, 0, 0, 0, 0, loc).UTC()
+	if historicalFrom.Hour() == 0 {
+		t.Fatal("test setup must use a local day window that does not align with UTC midnight")
+	}
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &calendarQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+
+	_, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           5,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	})
+	if err != nil {
+		t.Fatalf("GetEnergyCalendar failed: %v", err)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	for _, query := range reader.queries {
+		if query.From.Equal(historicalFrom) && query.To.Equal(historicalTo) {
+			if query.Resolution != telemetryquery.ResolutionHour {
+				t.Fatalf("historical local-day resolution mismatch: got=%v want=%v", query.Resolution, telemetryquery.ResolutionHour)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected historical local-day query %s -> %s", historicalFrom.Format(time.RFC3339), historicalTo.Format(time.RFC3339))
+}
+
 type fakeSnapshotReader struct {
 	snapshot *projectionworker.SnapshotReadModel
 	err      error

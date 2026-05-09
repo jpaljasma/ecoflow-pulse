@@ -1,12 +1,14 @@
-import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyRequest, preHandlerHookHandler } from 'fastify';
 import { z } from 'zod';
 import type { ServiceError } from '@grpc/grpc-js';
 import { status as grpcStatus } from '@grpc/grpc-js';
 
 import type { AppConfig } from '../config.js';
+import type { ControlPlaneClient } from '../grpc/controlPlaneClient.js';
 import type { InferenceClient } from '../grpc/inferenceClient.js';
 import type { TelemetryHistoryClient } from '../grpc/telemetryClient.js';
 import { buildCompareSolarHistoryView, combineSolarHistoryViews } from '../history/solarView.js';
+import { loadCurrentUserBootstrap } from './currentUserContext.js';
 
 const resolutionSchema = z.enum(['minute', 'hour', 'day']);
 const timeParamSchema = z.union([z.string(), z.number()]);
@@ -56,7 +58,6 @@ const energyDashboardQuerySchema = z
     deviceId: z.string().uuid().optional(),
     scope: energyScopeSchema.optional().default('device'),
     preset: z.enum(['today', 'past24h', 'yesterday', 'last7d', 'last30d', 'thisWeek', 'previousWeek', 'thisMonth', 'lastMonth', 'last12m']),
-    timezone: z.string().trim().min(1),
     date: selectedDateSchema.optional(),
     includeComparison: booleanQuerySchema.optional().default(true),
     gridPricePerKwh: z.coerce.number().finite().nonnegative().optional(),
@@ -78,7 +79,6 @@ const energyCalendarQuerySchema = z
     scope: energyScopeSchema,
     year: z.coerce.number().int(),
     month: z.coerce.number().int().min(1).max(12),
-    timezone: z.string().trim().min(1),
     gridPricePerKwh: z.coerce.number().finite().nonnegative().optional(),
     currency: z.string().trim().min(1).max(8).optional()
   })
@@ -97,7 +97,8 @@ export function registerHistoryRoutes(
   config: AppConfig,
   historyClient: TelemetryHistoryClient,
   inferenceClient: InferenceClient,
-  authPreHandler: preHandlerHookHandler
+  authPreHandler: preHandlerHookHandler,
+  controlPlaneClient?: ControlPlaneClient
 ): void {
   const historyPreHandlers = [app.rateLimit(app.historyRateLimit), authPreHandler];
 
@@ -207,11 +208,12 @@ export function registerHistoryRoutes(
   app.get('/api/v1/energy/dashboard', { preHandler: historyPreHandlers }, async (request, reply) => {
     try {
       const query = energyDashboardQuerySchema.parse(request.query);
+      const timezone = await resolveEnergyTimezone(app, config, controlPlaneClient, request);
       const result = await historyClient.getEnergyDashboard({
         deviceId: query.scope === 'device' ? query.deviceId : undefined,
         useAllDevices: query.scope === 'all',
         preset: query.preset,
-        timezone: query.timezone,
+        timezone,
         date: query.date,
         includeComparison: query.includeComparison,
         gridPricePerKwh: query.gridPricePerKwh,
@@ -230,12 +232,13 @@ export function registerHistoryRoutes(
   app.get('/api/v1/energy/calendar', { preHandler: historyPreHandlers }, async (request, reply) => {
     try {
       const query = energyCalendarQuerySchema.parse(request.query);
+      const timezone = await resolveEnergyTimezone(app, config, controlPlaneClient, request);
       const result = await historyClient.getEnergyCalendar({
         deviceId: query.scope === 'device' ? query.deviceId : undefined,
         useAllDevices: query.scope === 'all',
         year: query.year,
         month: query.month,
-        timezone: query.timezone,
+        timezone,
         gridPricePerKwh: query.gridPricePerKwh,
         currency: query.currency,
         authHeader: extractAuthHeader(request),
@@ -252,11 +255,12 @@ export function registerHistoryRoutes(
   app.get('/api/v1/energy/pv-history', { preHandler: historyPreHandlers }, async (request, reply) => {
     try {
       const query = energyDashboardQuerySchema.parse(request.query);
+      const timezone = await resolveEnergyTimezone(app, config, controlPlaneClient, request);
       const result = await historyClient.getEnergyPvPortHistory({
         deviceId: query.scope === 'device' ? query.deviceId : undefined,
         useAllDevices: query.scope === 'all',
         preset: query.preset,
-        timezone: query.timezone,
+        timezone,
         date: query.date,
         authHeader: extractAuthHeader(request),
         userSubject: resolveUserSubject(config, request),
@@ -272,11 +276,12 @@ export function registerHistoryRoutes(
   app.get('/api/v1/energy/comparison-insight', { preHandler: historyPreHandlers }, async (request, reply) => {
     try {
       const query = energyDashboardQuerySchema.parse(request.query);
+      const timezone = await resolveEnergyTimezone(app, config, controlPlaneClient, request);
       const result = await inferenceClient.getEnergyComparisonInsight({
         deviceId: query.scope === 'device' ? query.deviceId : undefined,
         useAllDevices: query.scope === 'all',
         preset: query.preset,
-        timezone: query.timezone,
+        timezone,
         date: query.date,
         gridPricePerKwh: query.gridPricePerKwh,
         currency: query.currency,
@@ -327,6 +332,23 @@ function validateSolarWindow(
       message: 'windowEndMinutes must be greater than windowStartMinutes'
     });
   }
+}
+
+async function resolveEnergyTimezone(
+  app: FastifyInstance,
+  config: AppConfig,
+  controlPlaneClient: ControlPlaneClient | undefined,
+  request: FastifyRequest
+): Promise<string> {
+  if (!controlPlaneClient) {
+    throw new Error('profile timezone unavailable: control plane client is not configured');
+  }
+  const bootstrap = await loadCurrentUserBootstrap(app, config, controlPlaneClient, request);
+  const profileTimezone = bootstrap.user.timezone.trim();
+  if (!profileTimezone) {
+    throw new Error('profile timezone unavailable: current user timezone is not set');
+  }
+  return profileTimezone;
 }
 
 function normalizeTime(value: string | number): string {
@@ -395,6 +417,9 @@ function handleRouteError(reply: { code: (code: number) => { send: (body: unknow
   }
   if (error instanceof Error && error.message.startsWith('invalid time value:')) {
     return reply.code(400).send({ error: 'invalid_request', message: error.message });
+  }
+  if (error instanceof Error && error.message.startsWith('profile timezone unavailable:')) {
+    return reply.code(503).send({ error: 'profile_timezone_unavailable', message: error.message });
   }
   if (isServiceError(error)) {
     return reply.code(mapGrpcCodeToHTTP(error.code)).send({

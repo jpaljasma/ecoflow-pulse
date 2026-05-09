@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchEnergyCalendar,
@@ -6,6 +7,7 @@ import {
   fetchEnergyPvPortHistory,
   type EnergyPreset
 } from '@/features/energy/api';
+import { buildEnergyCalendarCachePolicy } from '@/features/energy/model';
 
 export function buildEnergyCalendarQueryKey({
   authKey = 'anonymous',
@@ -15,7 +17,8 @@ export function buildEnergyCalendarQueryKey({
   month,
   timezone,
   gridPricePerKwh,
-  currency
+  currency,
+  liveDayKey = null
 }: {
   authKey?: string;
   scope: 'device' | 'all';
@@ -25,6 +28,7 @@ export function buildEnergyCalendarQueryKey({
   timezone: string;
   gridPricePerKwh?: number;
   currency?: string;
+  liveDayKey?: string | null;
 }) {
   return [
     'energy-calendar',
@@ -34,9 +38,44 @@ export function buildEnergyCalendarQueryKey({
     year,
     month,
     timezone,
+    liveDayKey,
     gridPricePerKwh ?? null,
     currency ?? null
   ] as const;
+}
+
+export function useEnergyCalendarCachePolicy({
+  year,
+  month,
+  timezone
+}: {
+  year: number;
+  month: number;
+  timezone: string;
+}) {
+  const [now, setNow] = useState(() => new Date());
+  const policy = useMemo(
+    () =>
+      buildEnergyCalendarCachePolicy({
+        year,
+        month,
+        timezone,
+        now
+      }),
+    [month, now, timezone, year]
+  );
+
+  useEffect(() => {
+    if (policy.midnightRefreshMs === null) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => {
+      setNow(new Date());
+    }, Math.min(Math.max(policy.midnightRefreshMs + 1000, 1000), 2_147_483_647));
+    return () => clearTimeout(timeout);
+  }, [policy.liveDayKey, policy.midnightRefreshMs]);
+
+  return policy;
 }
 
 export function useEnergyDashboard(
@@ -87,7 +126,6 @@ export function useEnergyDashboard(
         scope,
         deviceId,
         preset,
-        timezone,
         includeComparison,
         date,
         gridPricePerKwh,
@@ -132,7 +170,6 @@ export function useEnergyPvPortHistory(
         scope,
         deviceId,
         preset,
-        timezone,
         date,
         token
     }),
@@ -188,7 +225,6 @@ export function useEnergyComparisonInsight(
         scope,
         deviceId,
         preset,
-        timezone,
         date,
         gridPricePerKwh,
         currency,
@@ -229,6 +265,12 @@ export function useEnergyCalendar(
     enabled?: boolean;
   } = {}
 ) {
+  const cachePolicy = useEnergyCalendarCachePolicy({
+    year,
+    month,
+    timezone
+  });
+
   return useQuery({
     queryKey: buildEnergyCalendarQueryKey({
       authKey,
@@ -237,6 +279,7 @@ export function useEnergyCalendar(
       year,
       month,
       timezone,
+      liveDayKey: cachePolicy.liveDayKey,
       gridPricePerKwh,
       currency
     }),
@@ -246,14 +289,14 @@ export function useEnergyCalendar(
         deviceId,
         year,
         month,
-        timezone,
         gridPricePerKwh,
         currency,
         token
       }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
-    staleTime: 5 * 60_000,
-    gcTime: 30 * 60_000,
+    staleTime: cachePolicy.staleTime,
+    gcTime: cachePolicy.gcTime,
+    refetchInterval: cachePolicy.refetchInterval,
     placeholderData: (previous) => previous
   });
 }

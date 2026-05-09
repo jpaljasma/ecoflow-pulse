@@ -2,6 +2,7 @@ package workermetrics
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -109,6 +110,56 @@ func TestStartServerDrainEndpointMarksReadyFalse(t *testing.T) {
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("GET /readyz after drain status = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
 	}
+}
+
+func TestMetricsConsumerSubscriptionReadiness(t *testing.T) {
+	t.Parallel()
+
+	metrics := New("test")
+	if ok, reason := metrics.ReadyStatus(); !ok || reason != "ok" {
+		t.Fatalf("ReadyStatus() = %v, %q; want ready ok", ok, reason)
+	}
+
+	metrics.RequireConsumerSubscription()
+	if ok, reason := metrics.ReadyStatus(); ok || reason != "consumer_not_subscribed" {
+		t.Fatalf("ReadyStatus() after requiring consumer = %v, %q; want not ready consumer_not_subscribed", ok, reason)
+	}
+
+	metrics.ObserveConsumerSubscribed("PULSE_TELEMETRY_INGEST", "rollup-timeseries-v1")
+	if ok, reason := metrics.ReadyStatus(); !ok || reason != "ok" {
+		t.Fatalf("ReadyStatus() after subscribe = %v, %q; want ready ok", ok, reason)
+	}
+
+	metrics.ObserveConsumerSubscribeFailure("PULSE_TELEMETRY_INGEST", "rollup-timeseries-v1", errors.New("boom"))
+	if ok, reason := metrics.ReadyStatus(); ok || reason != "consumer_not_subscribed" {
+		t.Fatalf("ReadyStatus() after subscribe failure = %v, %q; want not ready consumer_not_subscribed", ok, reason)
+	}
+}
+
+func TestStartServerWithReadinessMarksReadyFalse(t *testing.T) {
+	t.Parallel()
+
+	metrics := New("test")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop := StartServerWithReadiness(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), metrics.Registry(), "127.0.0.1:19114", func() (bool, string) {
+		return false, "consumer_not_subscribed"
+	})
+	defer stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://127.0.0.1:19114/readyz")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusServiceUnavailable {
+				return
+			}
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	t.Fatal("metrics server did not expose readiness failure")
 }
 
 func BenchmarkMetricsStartMessage(b *testing.B) {

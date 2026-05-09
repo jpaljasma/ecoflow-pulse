@@ -51,6 +51,13 @@ Common service/worker logging knobs (`cmd/ecoflow-ingest-worker`, `cmd/ecoflow-p
 - `LOG_ASYNC_BYPASS_LEVEL` (default `warn`; warn/error logs bypass queue sync)
 - `LOG_METRICS_INTERVAL` (default `30s`; set `0` to disable async queue metrics logs)
 
+Durable ingest consumers (`cmd/ecoflow-projection-worker`, `cmd/ecoflow-archive-worker`, `cmd/ecoflow-rollup-worker`, `cmd/ecoflow-inference-worker`) also expose subscription watchdog state on their metrics server:
+
+- `/readyz` returns unavailable while the required JetStream durable consumer is not attached
+- `pulse_worker_consumer_ready`
+- `pulse_worker_consumer_subscribe_total{outcome="success|failure"}`
+- `pulse_worker_consumer_consecutive_subscribe_failures`
+
 Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 
 - `INGEST_MQTT_LOG_PAYLOAD_DEBUG` (default `false`; sampled MQTT debug logs stay off the hot path and redact topics/raw payload bodies)
@@ -471,6 +478,13 @@ Runtime behavior:
   Sunday-start visible month for the selected fleet/device scope and prefetches
   adjacent months. Its selected-month totals include only in-month days, while
   muted leading/trailing days can still show their real daily totals.
+- Energy and Energy Calendar resolve user-facing local-day timezone from the
+  logged-in profile. App-generated Energy URLs and BFF requests should not carry
+  `tz`/`timezone` query parameters.
+- Energy Calendar treats the current profile-local month as live data: current
+  day tiles use fresh current-day rollups, refetch on the live path, and refresh
+  after the next profile-local midnight; closed historical months can stay
+  cached aggressively.
 - `/energy?preset=today&date=YYYY-MM-DD` selects an explicit local calendar
   day. Historical selected dates query the full local midnight-to-midnight day;
   the current local day still queries local midnight to now, and comparison

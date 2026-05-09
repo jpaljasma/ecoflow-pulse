@@ -78,6 +78,7 @@ func main() {
 		os.Exit(1)
 	}
 	metrics := workermetrics.New("rollup")
+	metrics.RequireConsumerSubscription()
 	worker.SetMetrics(metrics)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -86,7 +87,7 @@ func main() {
 	metricsListenAddr := strings.TrimSpace(os.Getenv("ROLLUP_METRICS_LISTEN_ADDR"))
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "rollup-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
-	stopMetricsServer := workermetrics.StartServer(ctx, log, metrics.Registry(), metricsListenAddr)
+	stopMetricsServer := workermetrics.StartServerWithReadiness(ctx, log, metrics.Registry(), metricsListenAddr, metrics.ReadyStatus)
 	defer stopMetricsServer()
 
 	log.Info("rollup worker starting",

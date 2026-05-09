@@ -17,6 +17,11 @@ export const ENERGY_PRESETS: EnergyPreset[] = [
 
 export const MIN_MEANINGFUL_CURRENCY_BASELINE = 0.01;
 export const MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_KWH = MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH / 1000;
+export const ENERGY_CALENDAR_LIVE_STALE_MS = 30_000;
+export const ENERGY_CALENDAR_LIVE_GC_MS = 10 * 60_000;
+export const ENERGY_CALENDAR_LIVE_REFETCH_MS = 60_000;
+export const ENERGY_CALENDAR_HISTORICAL_STALE_MS = 12 * 60 * 60_000;
+export const ENERGY_CALENDAR_HISTORICAL_GC_MS = 24 * 60 * 60_000;
 
 export const ENERGY_PANELS = ['overview', 'solar', 'impact'] as const;
 
@@ -46,10 +51,6 @@ export function detectLocalTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
-export function detectDevicesTimezone(devices: DeviceSummary[]): string | undefined {
-  return devices.find((device) => device.details?.timezoneId)?.details?.timezoneId;
-}
-
 export function resolveEnergyRouteState(
   params: Record<string, string | string[] | undefined>,
   availableDeviceIds: string[] = [],
@@ -61,7 +62,6 @@ export function resolveEnergyRouteState(
   const requestedScope = normalizeScalar(params.scope);
   const requestedDeviceId = requestedDevice && requestedDevice !== 'all' ? requestedDevice : normalizeScalar(params.deviceId);
   const requestedPreset = normalizeScalar(params.preset);
-  const requestedTimezone = normalizeScalar(params.tz) || normalizeScalar(params.timezone);
   const compareParam = normalizeScalar(params.compare);
   const requestedPanel = normalizeScalar(params.panel);
   const requestedDate = normalizeCalendarDateIso(normalizeScalar(params.date));
@@ -92,7 +92,7 @@ export function resolveEnergyRouteState(
     scope,
     deviceId: scope === 'device' ? deviceId : undefined,
     preset: ENERGY_PRESETS.includes(requestedPreset as EnergyPreset) ? (requestedPreset as EnergyPreset) : 'today',
-    timezone: requestedTimezone || fallbackTimezone || 'UTC',
+    timezone: fallbackTimezone || 'UTC',
     includeComparison,
     panel: ENERGY_PANELS.includes(requestedPanel as EnergyPanel) ? (requestedPanel as EnergyPanel) : 'overview',
     ...(requestedDate ? { date: requestedDate } : {})
@@ -103,7 +103,6 @@ export function buildEnergyRouteParams(state: EnergyRouteState): Record<string, 
   const params: Record<string, string> = {
     device: state.scope === 'device' && state.deviceId ? state.deviceId : 'all',
     preset: state.preset,
-    tz: state.timezone,
     compare: state.includeComparison ? '1' : '0',
     panel: state.panel
   };
@@ -125,7 +124,6 @@ export function resolveEnergyCalendarRouteState(
     normalizeScalar(params.deviceId) || (requestedDevice && requestedDevice !== 'all' ? requestedDevice : undefined);
   const requestedYear = Number.parseInt(normalizeScalar(params.year) ?? '', 10);
   const requestedMonth = Number.parseInt(normalizeScalar(params.month) ?? '', 10);
-  const requestedTimezone = normalizeScalar(params.tz) || normalizeScalar(params.timezone);
   const gridPricePerKwh = normalizeNumericParam(normalizeScalar(params.gridPricePerKwh));
   const currency = normalizeScalar(params.currency) || undefined;
 
@@ -140,7 +138,7 @@ export function resolveEnergyCalendarRouteState(
     scope = 'all';
   }
 
-  const fallbackMonth = getTimezoneMonthParts(now, requestedTimezone || fallbackTimezone || 'UTC');
+  const fallbackMonth = getTimezoneMonthParts(now, fallbackTimezone || 'UTC');
   const year = Number.isFinite(requestedYear) && requestedYear > 0 ? requestedYear : fallbackMonth.year;
   const month = Number.isFinite(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12 ? requestedMonth : fallbackMonth.month;
 
@@ -149,7 +147,7 @@ export function resolveEnergyCalendarRouteState(
     deviceId: scope === 'device' ? deviceId : undefined,
     year,
     month,
-    timezone: requestedTimezone || fallbackTimezone || 'UTC',
+    timezone: fallbackTimezone || 'UTC',
     ...(gridPricePerKwh !== undefined ? { gridPricePerKwh } : {}),
     ...(currency ? { currency } : {})
   };
@@ -159,8 +157,7 @@ export function buildEnergyCalendarRouteParams(state: EnergyCalendarRouteState):
   const params: Record<string, string> = {
     scope: state.scope,
     year: String(state.year),
-    month: String(state.month),
-    timezone: state.timezone
+    month: String(state.month)
   };
   if (state.scope === 'device' && state.deviceId) {
     params.deviceId = state.deviceId;
@@ -262,6 +259,70 @@ export function getTimezoneDateIso(date: Date, timezone: string): string {
     // Fall through to UTC fallback below.
   }
   return date.toISOString().slice(0, 10);
+}
+
+export function msUntilNextTimezoneDate(date: Date, timezone: string): number {
+  const startMs = date.getTime();
+  const currentDateIso = getTimezoneDateIso(date, timezone);
+  let lowMs = startMs;
+  let highMs = startMs + 36 * 60 * 60_000;
+
+  while (getTimezoneDateIso(new Date(highMs), timezone) === currentDateIso) {
+    highMs += 12 * 60 * 60_000;
+    if (highMs - startMs > 72 * 60 * 60_000) {
+      return 24 * 60 * 60_000;
+    }
+  }
+
+  while (highMs - lowMs > 1) {
+    const midMs = Math.floor((lowMs + highMs) / 2);
+    if (getTimezoneDateIso(new Date(midMs), timezone) === currentDateIso) {
+      lowMs = midMs;
+    } else {
+      highMs = midMs;
+    }
+  }
+
+  return Math.max(1, highMs - startMs);
+}
+
+export function buildEnergyCalendarCachePolicy({
+  year,
+  month,
+  timezone,
+  now = new Date()
+}: {
+  year: number;
+  month: number;
+  timezone: string;
+  now?: Date;
+}): {
+  liveDayKey: string | null;
+  staleTime: number;
+  gcTime: number;
+  refetchInterval: number | false;
+  midnightRefreshMs: number | null;
+} {
+  const currentMonth = getTimezoneMonthParts(now, timezone);
+  const isLiveMonth = currentMonth.year === year && currentMonth.month === month;
+
+  if (!isLiveMonth) {
+    return {
+      liveDayKey: null,
+      staleTime: ENERGY_CALENDAR_HISTORICAL_STALE_MS,
+      gcTime: ENERGY_CALENDAR_HISTORICAL_GC_MS,
+      refetchInterval: false,
+      midnightRefreshMs: msUntilNextTimezoneDate(now, timezone)
+    };
+  }
+
+  return {
+    liveDayKey: getTimezoneDateIso(now, timezone),
+    staleTime: ENERGY_CALENDAR_LIVE_STALE_MS,
+    gcTime: ENERGY_CALENDAR_LIVE_GC_MS,
+    refetchInterval: ENERGY_CALENDAR_LIVE_REFETCH_MS,
+    midnightRefreshMs: msUntilNextTimezoneDate(now, timezone)
+  };
 }
 
 export function buildPowerTrendSeries(points: EnergyRollupPoint[]): {

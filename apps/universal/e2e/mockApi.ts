@@ -614,7 +614,7 @@ function buildEnergyDashboard({
   scope = 'all',
   deviceId,
   preset = 'today',
-  timezone = 'UTC'
+  timezone = PROFILE_TIMEZONE
 }: {
   includeComparison?: boolean;
   scope?: 'all' | 'device';
@@ -867,7 +867,7 @@ function buildEnergyCalendar({
   deviceId,
   year = 2026,
   month = 3,
-  timezone = 'UTC'
+  timezone = PROFILE_TIMEZONE
 }: {
   scope?: 'all' | 'device';
   deviceId?: string;
@@ -1086,7 +1086,7 @@ export async function mockApiRoutes(page: Page): Promise<void> {
           scope,
           deviceId: url.searchParams.get('deviceId') ?? undefined,
           preset: url.searchParams.get('preset') ?? 'today',
-          timezone: url.searchParams.get('timezone') ?? 'UTC'
+          timezone: url.searchParams.get('timezone') ?? PROFILE_TIMEZONE
         })
       );
       return;
@@ -1102,7 +1102,7 @@ export async function mockApiRoutes(page: Page): Promise<void> {
           deviceId: url.searchParams.get('deviceId') ?? undefined,
           year: Number.parseInt(url.searchParams.get('year') ?? '2026', 10),
           month: Number.parseInt(url.searchParams.get('month') ?? '3', 10),
-          timezone: url.searchParams.get('timezone') ?? 'UTC'
+          timezone: url.searchParams.get('timezone') ?? PROFILE_TIMEZONE
         })
       );
       return;
@@ -1116,7 +1116,7 @@ export async function mockApiRoutes(page: Page): Promise<void> {
         scope,
         deviceId: url.searchParams.get('deviceId') ?? undefined,
         preset: url.searchParams.get('preset') ?? 'today',
-        timezone: url.searchParams.get('timezone') ?? 'UTC'
+        timezone: url.searchParams.get('timezone') ?? PROFILE_TIMEZONE
       });
       await fulfillJson(route, { pvPortHistory: dashboard.pvPortHistory });
       return;
@@ -1136,7 +1136,7 @@ export async function mockApiRoutes(page: Page): Promise<void> {
             resolvedDeviceIds: scope === 'device' ? [url.searchParams.get('deviceId') ?? DPU_DEVICE_ID] : [DPU_DEVICE_ID, D2M_DEVICE_ID]
           },
           preset: url.searchParams.get('preset') ?? 'today',
-          timezone: url.searchParams.get('timezone') ?? 'UTC',
+          timezone: url.searchParams.get('timezone') ?? PROFILE_TIMEZONE,
           verdictClass: 'solar_freedom_up',
           headline: 'More solar freedom',
           summary: 'Self-sufficiency improved versus the previous window.',

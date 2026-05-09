@@ -346,6 +346,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			StreamName:   w.cfg.StreamName,
 			Durable:      w.cfg.Durable,
 			DrainTimeout: w.cfg.DrainTimeout,
+			Observer:     w.metrics,
 		},
 	)
 	close(stopTicker)

@@ -83,11 +83,35 @@ commit from a clean feature branch.
   clearer in primary tiles, hardware sections, or route-specific detail views.
 - Header weather/solar chrome should route to Energy's Solar panel with the
   current scope (`device` when explicit, otherwise `all`).
+- Energy Calendar is a full-page primary route after Energy, not a nested Energy
+  panel. Keep the accepted visual target close to the mockup: Pulse Fleet
+  hero-style gradient/lattice material, Apple-like month header, top-right
+  solar/value totals, Sunday-start weekday row, and professional labels only.
+- Calendar day cells on desktop/tablet must be a true seven-column grid:
+  `repeat(7, minmax(0, 1fr))` inside a constrained full-width frame. Do not use
+  wrapping percentage cells when the requirement is equal horizontal tile math.
+- Clickable Calendar tiles should feel like Pulse Fleet tiles: pointer cursor on
+  web, subtle upward hover, alpha background lift, stable shadow, and small
+  press scale/opacity feedback. Future/inactive cells should not advertise
+  clickability.
+- Use `MaterialCommunityIcons` for Calendar money, solar, loading, navigation,
+  and device-scope glyphs. Avoid emoji, ad-hoc Unicode, and one-off handmade
+  marks in product UI.
+- Energy and Calendar route builders should not emit `tz` or `timezone` query
+  parameters. Resolve local-calendar timezone from the current user profile,
+  while retaining legacy inbound parsing only when compatibility requires it.
+- Calendar data loading should be lazy and steady: load the selected month,
+  prefetch previous/next, preserve stale data during transitions, aggressively
+  cache closed historical months, and keep the current profile-local month on a
+  live refresh path that rolls after profile-local midnight, including DST days.
 
 ## Common Validation Targets
 
 - Devices overview: `apps/universal/e2e/devices.spec.ts`
 - Energy route state: `apps/universal/src/features/energy/model.test.ts`
+- Energy Calendar route state/API/cache: `apps/universal/src/features/energy/model.test.ts`
+  and `apps/universal/src/features/energy/api.test.ts`
+- Energy Calendar browser layout: `apps/universal/e2e/energy-calendar.spec.ts`
 - Device detail composition:
   `apps/universal/src/features/device-detail/components/DeviceDetailBody.tsx`
 - Shared header solar/weather route:

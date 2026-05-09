@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config.js';
+import type { ControlPlaneClient } from '../src/grpc/controlPlaneClient.js';
 import type { DeviceClient } from '../src/grpc/deviceClient.js';
 import type { InferenceClient } from '../src/grpc/inferenceClient.js';
 import type {
@@ -330,6 +331,21 @@ function makeDeviceClient(): DeviceClient {
   };
 }
 
+function makeControlPlaneClient(timezone = 'America/Los_Angeles'): ControlPlaneClient {
+  return {
+    getCurrentUser: vi.fn(async () => ({
+      user: {
+        timezone
+      },
+      authorization: {
+        tokenRoles: [],
+        deviceCount: 0
+      }
+    })),
+    close: vi.fn()
+  } as unknown as ControlPlaneClient;
+}
+
 function makeInferenceClient(): InferenceClient {
   return {
     getDeviceInsights: vi.fn(),
@@ -538,10 +554,12 @@ describe('pulse-platform history routes', () => {
 
   it('returns energy dashboard for a single device', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/New_York')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/dashboard?scope=device&deviceId=019c9f0e-4521-775d-873e-e80039f16d75&preset=today&timezone=America%2FNew_York&gridPricePerKwh=0.30&currency=USD',
+      url: '/api/v1/energy/dashboard?scope=device&deviceId=019c9f0e-4521-775d-873e-e80039f16d75&preset=today&gridPricePerKwh=0.30&currency=USD',
       headers: {
         authorization: 'Bearer dashboard-token'
       }
@@ -576,12 +594,45 @@ describe('pulse-platform history routes', () => {
     await app.close();
   });
 
-  it('passes selected energy dates through to the dashboard client', async () => {
+  it('resolves energy dashboard timezone from the current user profile when omitted', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const controlPlaneClient = makeControlPlaneClient('America/Los_Angeles');
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/dashboard?scope=all&preset=today&timezone=America%2FNew_York&date=2026-03-08',
+      url: '/api/v1/energy/dashboard?scope=all&preset=today&gridPricePerKwh=0.30&currency=USD',
+      headers: {
+        authorization: 'Bearer dashboard-token'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(controlPlaneClient.getCurrentUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userSubject: 'dev-user-subject',
+        authHeader: 'Bearer dashboard-token'
+      })
+    );
+    expect(client.getEnergyDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useAllDevices: true,
+        timezone: 'America/Los_Angeles'
+      })
+    );
+
+    await app.close();
+  });
+
+  it('passes selected energy dates through to the dashboard client', async () => {
+    const client = makeClient();
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/New_York')
+    });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/energy/dashboard?scope=all&preset=today&date=2026-03-08',
       headers: {
         authorization: 'Bearer dashboard-token'
       }
@@ -609,10 +660,12 @@ describe('pulse-platform history routes', () => {
     const client = makeClient({
       getEnergyCalendar: vi.fn(async () => calendar)
     });
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/New_York')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/calendar?scope=all&year=2026&month=3&timezone=America%2FNew_York&gridPricePerKwh=0.30&currency=USD',
+      url: '/api/v1/energy/calendar?scope=all&year=2026&month=3&gridPricePerKwh=0.30&currency=USD',
       headers: {
         authorization: 'Bearer calendar-token'
       }
@@ -642,7 +695,7 @@ describe('pulse-platform history routes', () => {
     const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/calendar?scope=device&year=2026&month=3&timezone=America%2FNew_York&deviceId=not-a-uuid'
+      url: '/api/v1/energy/calendar?scope=device&year=2026&month=3&deviceId=not-a-uuid'
     });
 
     expect(response.statusCode).toBe(400);
@@ -666,10 +719,12 @@ describe('pulse-platform history routes', () => {
     const client = makeClient({
       getEnergyDashboard: vi.fn(async () => dashboard)
     });
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/Los_Angeles')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/dashboard?scope=all&preset=last7d&timezone=America%2FLos_Angeles&includeComparison=false'
+      url: '/api/v1/energy/dashboard?scope=all&preset=last7d&includeComparison=false'
     });
 
     expect(response.statusCode).toBe(200);
@@ -697,10 +752,12 @@ describe('pulse-platform history routes', () => {
 
   it('returns energy pv history separately from the dashboard payload', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/Los_Angeles')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/pv-history?scope=all&preset=today&timezone=America%2FLos_Angeles&date=2026-05-09'
+      url: '/api/v1/energy/pv-history?scope=all&preset=today&date=2026-05-09'
     });
 
     expect(response.statusCode).toBe(200);
@@ -725,10 +782,12 @@ describe('pulse-platform history routes', () => {
 
   it('returns cached energy comparison insight independently from the dashboard payload', async () => {
     const inferenceClient = makeInferenceClient();
-    const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), inferenceClient);
+    const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), inferenceClient, {
+      controlPlaneClient: makeControlPlaneClient('America/Los_Angeles')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/comparison-insight?scope=all&preset=today&timezone=America%2FLos_Angeles&date=2026-05-09&gridPricePerKwh=0.30&currency=USD',
+      url: '/api/v1/energy/comparison-insight?scope=all&preset=today&date=2026-05-09&gridPricePerKwh=0.30&currency=USD',
       headers: {
         authorization: 'Bearer comparison-token'
       }
@@ -763,10 +822,12 @@ describe('pulse-platform history routes', () => {
 
   it('accepts the rolling past24h energy preset', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/New_York')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/dashboard?scope=all&preset=past24h&timezone=America%2FNew_York&includeComparison=true'
+      url: '/api/v1/energy/dashboard?scope=all&preset=past24h&includeComparison=true'
     });
 
     expect(response.statusCode).toBe(200);
@@ -785,10 +846,12 @@ describe('pulse-platform history routes', () => {
 
   it('accepts the completed last30d energy preset', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/New_York')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/dashboard?scope=all&preset=last30d&timezone=America%2FNew_York&includeComparison=true'
+      url: '/api/v1/energy/dashboard?scope=all&preset=last30d&includeComparison=true'
     });
 
     expect(response.statusCode).toBe(200);
@@ -807,10 +870,12 @@ describe('pulse-platform history routes', () => {
 
   it('accepts the calendar lastMonth energy preset', async () => {
     const client = makeClient();
-    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient());
+    const app = buildApp(baseConfig(), client, makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient('America/New_York')
+    });
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/dashboard?scope=all&preset=lastMonth&timezone=America%2FNew_York&includeComparison=true'
+      url: '/api/v1/energy/dashboard?scope=all&preset=lastMonth&includeComparison=true'
     });
 
     expect(response.statusCode).toBe(200);
@@ -831,7 +896,7 @@ describe('pulse-platform history routes', () => {
     const app = buildApp(baseConfig(), makeClient(), makeDeviceClient(), makeInferenceClient());
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/energy/dashboard?scope=device&preset=today&timezone=America%2FNew_York'
+      url: '/api/v1/energy/dashboard?scope=device&preset=today'
     });
 
     expect(response.statusCode).toBe(400);

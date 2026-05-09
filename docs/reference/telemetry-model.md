@@ -244,6 +244,10 @@ Frontend rule:
 - `/api/v1/energy/calendar` exposes a Sunday-start visible month for fleet or
   canonical UUID device scope. It includes muted adjacent-month cells, per-day
   solar/value totals, `hasData`, future flags, and selected-month-only totals.
+- Public Energy requests resolve local-calendar timezone from the current user
+  profile rather than appending timezone query parameters. Calendar current-day
+  cells are backed by live current-day rollups so today matches the homepage
+  solar total while closed days can use durable daily rollups.
 - the same card also exposes a conservative mature-tree equivalent using PV
   lifecycle `CO2e` benchmark math. Methodology and constants live in
   [`tree-equivalent.md`](tree-equivalent.md).

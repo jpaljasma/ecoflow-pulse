@@ -50,6 +50,30 @@ func (f *fakeConsumerInfoProvider) ConsumerInfo(string, string, ...nats.JSOpt) (
 	return &nats.ConsumerInfo{}, nil
 }
 
+type fakeConsumerSupervisorObserver struct {
+	mu         sync.Mutex
+	failures   int
+	subscribed int
+}
+
+func (f *fakeConsumerSupervisorObserver) ObserveConsumerSubscribeFailure(string, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failures++
+}
+
+func (f *fakeConsumerSupervisorObserver) ObserveConsumerSubscribed(string, string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.subscribed++
+}
+
+func (f *fakeConsumerSupervisorObserver) snapshot() (failures int, subscribed int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.failures, f.subscribed
+}
+
 func TestRunConsumerSupervisorResubscribesWhenConsumerDisappears(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +164,52 @@ func TestRunConsumerSupervisorRetriesInitialSubscribeFailure(t *testing.T) {
 
 	if attempts < 2 {
 		t.Fatalf("expected subscribe retry, got %d attempts", attempts)
+	}
+}
+
+func TestRunConsumerSupervisorReportsSubscribeHealth(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	attempts := 0
+	subscribe := func(nats.MsgHandler) (QueueSubscription, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, errors.New("consumer config drift")
+		}
+		cancel()
+		return &fakeQueueSubscription{valid: true}, nil
+	}
+	observer := &fakeConsumerSupervisorObserver{}
+
+	if err := RunConsumerSupervisor(
+		ctx,
+		nil,
+		&fakeConsumerInfoProvider{},
+		subscribe,
+		func(*nats.Msg) {},
+		NewMsgHandlerTracker(),
+		ConsumerSupervisorConfig{
+			StreamName:      "PULSE_TELEMETRY_INGEST",
+			Durable:         "rollup-timeseries-v1",
+			MonitorInterval: 10 * time.Millisecond,
+			RetryBase:       10 * time.Millisecond,
+			RetryMax:        20 * time.Millisecond,
+			DrainTimeout:    10 * time.Millisecond,
+			Observer:        observer,
+		},
+	); err != nil {
+		t.Fatalf("RunConsumerSupervisor() error = %v", err)
+	}
+
+	failures, subscribed := observer.snapshot()
+	if failures != 1 {
+		t.Fatalf("expected one subscribe failure observation, got %d", failures)
+	}
+	if subscribed != 1 {
+		t.Fatalf("expected one subscribed observation, got %d", subscribed)
 	}
 }
 

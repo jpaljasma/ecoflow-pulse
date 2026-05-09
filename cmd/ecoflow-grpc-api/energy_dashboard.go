@@ -158,7 +158,7 @@ func (s *EnergyService) GetEnergyCalendar(ctx context.Context, req *telemetryv1.
 		req.GetGridPricePerKwh(),
 		req.GetCurrency(),
 		func(from, to time.Time) (telemetryquery.Series, error) {
-			return s.queryScopeSeries(ctx, scope, telemetryquery.ResolutionDay, from, to)
+			return s.queryScopeSeries(ctx, scope, energyCalendarResolutionForWindow(s.now(), loc, from), from, to)
 		},
 	)
 	if err != nil {
@@ -186,6 +186,22 @@ func (s *EnergyService) GetEnergyCalendar(ctx context.Context, req *telemetryv1.
 	}
 	s.maybeEnableHistoryCompression(ctx, resp)
 	return resp, nil
+}
+
+func energyCalendarResolutionForWindow(now time.Time, loc *time.Location, from time.Time) telemetryquery.Resolution {
+	if loc == nil {
+		loc = time.UTC
+	}
+	localFrom := from.In(loc)
+	localNow := now.In(loc)
+	if localFrom.Year() == localNow.Year() && localFrom.Month() == localNow.Month() && localFrom.Day() == localNow.Day() {
+		return telemetryquery.ResolutionHour
+	}
+	utcFrom := from.UTC()
+	if utcFrom.Hour() != 0 || utcFrom.Minute() != 0 || utcFrom.Second() != 0 || utcFrom.Nanosecond() != 0 {
+		return telemetryquery.ResolutionHour
+	}
+	return telemetryquery.ResolutionDay
 }
 
 func (s *EnergyService) getCachedPVPortHistory(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) ([]energydashboard.PVPortHistory, error) {

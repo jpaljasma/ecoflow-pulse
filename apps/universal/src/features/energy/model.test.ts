@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { DeviceSummary } from '@/features/devices/api';
 import {
+  buildEnergyCalendarCachePolicy,
   buildEnergyInsights,
   buildEnergyCalendarRouteParams,
   buildWindowLabel,
@@ -8,9 +8,9 @@ import {
   buildEnergyRouteParams,
   buildPvEnvelopeSummary,
   buildPowerTrendSeries,
-  detectDevicesTimezone,
   energyPresetLabel,
   formatDeltaPct,
+  msUntilNextTimezoneDate,
   normalizePvObservedPower,
   resolveEnergyCalendarRouteState,
   resolveEnergyRouteState
@@ -38,54 +38,7 @@ describe('energy route model', () => {
     expect(state.preset).toBe('last7d');
   });
 
-  it('uses the first device-reported timezone when the route does not specify one', () => {
-    const devices: DeviceSummary[] = [
-      {
-        id: '019c9f0e-4521-775d-873e-e80039f16d75',
-        serialNumber: 'SN-1',
-        name: 'DPU',
-        model: 'DELTA Pro Ultra',
-        online: true,
-        batteryPct: 50,
-        state: 'idle',
-        etaMinutes: 0,
-        details: {
-          timezoneId: 'America/New_York'
-        }
-      },
-      {
-        id: '019c9f0e-4521-775d-873e-e80039f16d76',
-        serialNumber: 'SN-2',
-        name: 'D2M',
-        model: 'DELTA 2 Max',
-        online: true,
-        batteryPct: 60,
-        state: 'idle',
-        etaMinutes: 0,
-        details: {
-          timezoneId: 'America/Los_Angeles'
-        }
-      }
-    ];
-
-    expect(detectDevicesTimezone(devices)).toBe('America/New_York');
-    expect(
-      resolveEnergyRouteState(
-        {},
-        devices.map((device) => device.id),
-        detectDevicesTimezone(devices)
-      )
-    ).toEqual({
-      scope: 'all',
-      deviceId: undefined,
-      preset: 'today',
-      timezone: 'America/New_York',
-      includeComparison: true,
-      panel: 'overview'
-    });
-  });
-
-  it('omits deviceId from route params for all-device mode', () => {
+  it('omits deviceId and timezone from route params for all-device mode', () => {
     expect(
       buildEnergyRouteParams({
         scope: 'all',
@@ -97,7 +50,6 @@ describe('energy route model', () => {
     ).toEqual({
       device: 'all',
       preset: 'today',
-      tz: 'UTC',
       compare: '0',
       panel: 'impact'
     });
@@ -112,13 +64,14 @@ describe('energy route model', () => {
         compare: '0',
         panel: 'solar'
       },
-      ['019c9f0e-4521-775d-873e-e80039f16d75']
+      ['019c9f0e-4521-775d-873e-e80039f16d75'],
+      'America/New_York'
     );
     expect(specState).toEqual({
       scope: 'all',
       deviceId: undefined,
       preset: 'today',
-      timezone: 'UTC',
+      timezone: 'America/New_York',
       includeComparison: false,
       panel: 'solar'
     });
@@ -157,7 +110,6 @@ describe('energy route model', () => {
     expect(buildEnergyRouteParams(state)).toEqual({
       device: 'all',
       preset: 'today',
-      tz: 'America/New_York',
       compare: '1',
       panel: 'overview',
       date: '2026-05-09'
@@ -178,7 +130,7 @@ describe('energy route model', () => {
     });
   });
 
-  it('round-trips calendar route params with a device scope', () => {
+  it('builds calendar route params without carrying timezone', () => {
     expect(
       buildEnergyCalendarRouteParams({
         scope: 'device',
@@ -194,10 +146,41 @@ describe('energy route model', () => {
       deviceId: '019c9f0e-4521-775d-873e-e80039f16d75',
       year: '2026',
       month: '11',
-      timezone: 'UTC',
       gridPricePerKwh: '0.24',
       currency: 'USD'
     });
+  });
+
+  it('computes the next local midnight across spring-forward DST', () => {
+    const now = new Date('2026-03-08T04:30:00Z');
+
+    expect(msUntilNextTimezoneDate(now, 'America/New_York')).toBe(30 * 60 * 1000);
+  });
+
+  it('computes the next local midnight during the fall-back DST day', () => {
+    const now = new Date('2026-11-01T04:30:00Z');
+
+    expect(msUntilNextTimezoneDate(now, 'America/New_York')).toBe(24.5 * 60 * 60 * 1000);
+  });
+
+  it('marks only the current profile-local month as live cache data', () => {
+    const live = buildEnergyCalendarCachePolicy({
+      year: 2026,
+      month: 5,
+      timezone: 'America/New_York',
+      now: new Date('2026-05-09T17:30:00Z')
+    });
+    const historical = buildEnergyCalendarCachePolicy({
+      year: 2026,
+      month: 4,
+      timezone: 'America/New_York',
+      now: new Date('2026-05-09T17:30:00Z')
+    });
+
+    expect(live.liveDayKey).toBe('2026-05-09');
+    expect(live.staleTime).toBeLessThan(historical.staleTime);
+    expect(historical.liveDayKey).toBeNull();
+    expect(historical.refetchInterval).toBe(false);
   });
 
   it('maps rollup points into power trend arrays', () => {

@@ -1,4 +1,4 @@
-import { createElement, startTransition, useEffect, useMemo } from 'react';
+import { createElement, startTransition, useEffect, useMemo, type ComponentProps } from 'react';
 import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,10 +10,11 @@ import { useDevices } from '@/features/devices/hooks';
 import { fetchEnergyCalendar, type EnergyCalendarVisibleDay } from '@/features/energy/api';
 import { buildEnergyCalendarQueryKey, useEnergyCalendar } from '@/features/energy/hooks';
 import { useEnergySettingsStore } from '@/features/energy/store';
+import { useCurrentUser } from '@/features/profile/hooks';
 import {
+  buildEnergyCalendarCachePolicy,
   buildEnergyCalendarRouteParams,
   buildEnergyRouteParams,
-  detectDevicesTimezone,
   formatEnergyCalendarMonthLabel,
   getTimezoneDateIso,
   resolveEnergyCalendarRouteState,
@@ -42,9 +43,10 @@ const ENERGY_CALENDAR_MONTHS = [
   'December'
 ] as const;
 const ENERGY_CALENDAR_MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-const ENERGY_CALENDAR_GRID_MIN_WIDTH = 840;
+const ENERGY_CALENDAR_DESKTOP_TILE_HEIGHT = 106;
 
 type CalendarSurfaceTheme = ReturnType<typeof buildCalendarSurfaceTheme>;
+type CalendarCellHoverStyle = NonNullable<ComponentProps<typeof Button>['hoverStyle']>;
 
 function formatCurrency(amount: number, currency: string): string {
   return new Intl.NumberFormat(undefined, {
@@ -66,7 +68,7 @@ function formatTileKwh(amount: number, compact = false): string {
   return `${new Intl.NumberFormat(undefined, {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1
-  }).format(amount)}${compact ? '' : 'kWh'}`;
+  }).format(amount)}${compact ? '' : ' kWh'}`;
 }
 
 function shiftCalendarMonth(year: number, month: number, delta: number): { year: number; month: number } {
@@ -144,9 +146,11 @@ function buildCalendarSurfaceTheme(
     totalBorder: withAlpha(mutedBase, isDark ? 0.28 : 0.3),
     weekdayBorder: withAlpha(mutedBase, isDark ? 0.22 : 0.36),
     tileBackground: isDark ? withAlpha(tileBase, 0.62) : withAlpha(tileBase, 0.78),
+    tileHoverBackground: isDark ? withAlpha(tileBase, 0.74) : withAlpha(tileBase, 0.88),
     tileMutedBackground: isDark ? withAlpha(tileBase, 0.2) : withAlpha(tileBase, 0.28),
+    tileMutedHoverBackground: isDark ? withAlpha(tileBase, 0.3) : withAlpha(tileBase, 0.38),
     tileBorder: withAlpha(mutedBase, isDark ? 0.22 : 0.32),
-    tileHoverBorder: withAlpha(spec.colors.accentColor, isDark ? 0.54 : 0.44),
+    tileHoverShadow: isDark ? '0 16px 38px rgba(0, 0, 0, 0.26)' : '0 14px 34px rgba(26, 59, 88, 0.16)',
     unavailableText: withAlpha(spec.colors.colorMuted, isDark ? 0.62 : 0.7),
     heatLow: isDark ? mix(tileBase, spec.semantic.info, 0.22) : mix(tileBase, spec.semantic.info, 0.12),
     heatHigh: isDark ? mix(spec.semantic.success, spec.semantic.solar, 0.18) : mix(spec.semantic.success, spec.semantic.solar, 0.14),
@@ -154,12 +158,23 @@ function buildCalendarSurfaceTheme(
   };
 }
 
-function heatmapBackground(theme: CalendarSurfaceTheme, intensity: number, hasData: boolean, muted: boolean, inactive: boolean): string {
+function heatmapBackground(
+  theme: CalendarSurfaceTheme,
+  intensity: number,
+  hasData: boolean,
+  muted: boolean,
+  inactive: boolean,
+  hover = false
+): string {
   if (inactive || !hasData) {
+    if (hover) {
+      return muted ? theme.tileMutedHoverBackground : theme.tileHoverBackground;
+    }
     return muted ? theme.tileMutedBackground : theme.tileBackground;
   }
   const heat = mix(theme.heatLow, theme.heatHigh, clamp(intensity, 0, 1));
-  return withAlpha(heat, muted ? Math.min(theme.heatAlpha, 0.38) : theme.heatAlpha);
+  const alpha = muted ? Math.min(theme.heatAlpha, 0.38) : theme.heatAlpha;
+  return withAlpha(heat, hover ? Math.min(alpha + (muted ? 0.08 : 0.12), 0.96) : alpha);
 }
 
 function calendarCellStyle({
@@ -181,12 +196,49 @@ function calendarCellStyle({
 }) {
   return {
     backgroundColor: heatmapBackground(theme, intensity, hasData, muted, !active),
-    borderColor: selected ? theme.selectedDot : active ? theme.tileBorder : theme.tileBorder,
+    borderColor: selected ? theme.selectedDot : theme.tileBorder,
     opacity: muted ? 0.78 : active ? 1 : 0.62,
-    minHeight: compact ? 82 : 112,
-    padding: compact ? 7 : 10,
-    borderRadius: compact ? 6 : 5,
+    minHeight: compact ? 82 : ENERGY_CALENDAR_DESKTOP_TILE_HEIGHT,
+    padding: compact ? 7 : 13,
+    borderRadius: compact ? 6 : 0,
     justifyContent: 'space-between' as const
+  };
+}
+
+function calendarCellTransitionStyle(active: boolean) {
+  if (Platform.OS !== 'web') {
+    return {};
+  }
+  return {
+    cursor: active ? 'pointer' : 'default',
+    transition: 'background-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease, transform 150ms ease'
+  };
+}
+
+function calendarCellHoverStyle(theme: CalendarSurfaceTheme, active: boolean, backgroundColor: string) {
+  if (!active) {
+    return undefined;
+  }
+  return {
+    transform: [{ translateY: -2 }],
+    backgroundColor: backgroundColor as CalendarCellHoverStyle['backgroundColor'],
+    shadowOpacity: 0.12,
+    opacity: 1,
+    ...(Platform.OS === 'web'
+      ? {
+          boxShadow: theme.tileHoverShadow
+        }
+      : {})
+  };
+}
+
+function calendarCellPressStyle(active: boolean) {
+  if (!active) {
+    return undefined;
+  }
+  return {
+    scale: 0.995,
+    opacity: 0.95
   };
 }
 
@@ -368,10 +420,15 @@ export default function EnergyCalendarScreen() {
     authKey,
     enabled: authReady && allowed
   });
+  const currentUserQuery = useCurrentUser({
+    token,
+    authKey,
+    enabled: authReady && allowed
+  });
   const devices = useMemo(() => devicesQuery.data?.devices ?? [], [devicesQuery.data?.devices]);
   const fallbackTimezone = useMemo(
-    () => detectDevicesTimezone(devices) || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-    [devices]
+    () => currentUserQuery.data?.user.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    [currentUserQuery.data?.user.timezone]
   );
   const routeState = useMemo(
     () =>
@@ -402,6 +459,24 @@ export default function EnergyCalendarScreen() {
 
   const previousMonth = useMemo(() => shiftCalendarMonth(routeState.year, routeState.month, -1), [routeState.month, routeState.year]);
   const nextMonth = useMemo(() => shiftCalendarMonth(routeState.year, routeState.month, 1), [routeState.month, routeState.year]);
+  const previousCachePolicy = useMemo(
+    () =>
+      buildEnergyCalendarCachePolicy({
+        year: previousMonth.year,
+        month: previousMonth.month,
+        timezone: routeState.timezone
+      }),
+    [previousMonth.month, previousMonth.year, routeState.timezone]
+  );
+  const nextCachePolicy = useMemo(
+    () =>
+      buildEnergyCalendarCachePolicy({
+        year: nextMonth.year,
+        month: nextMonth.month,
+        timezone: routeState.timezone
+      }),
+    [nextMonth.month, nextMonth.year, routeState.timezone]
+  );
   const previousQueryKey = useMemo(
     () =>
       buildEnergyCalendarQueryKey({
@@ -411,6 +486,7 @@ export default function EnergyCalendarScreen() {
         year: previousMonth.year,
         month: previousMonth.month,
         timezone: routeState.timezone,
+        liveDayKey: previousCachePolicy.liveDayKey,
         gridPricePerKwh: Number.parseFloat(gridPricePerKwhInput) || undefined,
         currency
       }),
@@ -420,6 +496,7 @@ export default function EnergyCalendarScreen() {
       gridPricePerKwhInput,
       previousMonth.month,
       previousMonth.year,
+      previousCachePolicy.liveDayKey,
       routeState.deviceId,
       routeState.scope,
       routeState.timezone
@@ -434,10 +511,21 @@ export default function EnergyCalendarScreen() {
         year: nextMonth.year,
         month: nextMonth.month,
         timezone: routeState.timezone,
+        liveDayKey: nextCachePolicy.liveDayKey,
         gridPricePerKwh: Number.parseFloat(gridPricePerKwhInput) || undefined,
         currency
       }),
-    [authKey, currency, gridPricePerKwhInput, nextMonth.month, nextMonth.year, routeState.deviceId, routeState.scope, routeState.timezone]
+    [
+      authKey,
+      currency,
+      gridPricePerKwhInput,
+      nextMonth.month,
+      nextMonth.year,
+      nextCachePolicy.liveDayKey,
+      routeState.deviceId,
+      routeState.scope,
+      routeState.timezone
+    ]
   );
 
   const previousPrefetching = useIsFetching({ queryKey: previousQueryKey, exact: true }) > 0;
@@ -477,7 +565,6 @@ export default function EnergyCalendarScreen() {
     const calendarArgs = {
       scope: routeState.scope,
       deviceId: routeState.deviceId,
-      timezone: routeState.timezone,
       gridPricePerKwh: Number.parseFloat(gridPricePerKwhInput) || undefined,
       currency,
       token
@@ -491,7 +578,8 @@ export default function EnergyCalendarScreen() {
           year: previousMonth.year,
           month: previousMonth.month
         }),
-      staleTime: 5 * 60_000
+      staleTime: previousCachePolicy.staleTime,
+      gcTime: previousCachePolicy.gcTime
     });
     void queryClient.prefetchQuery({
       queryKey: nextQueryKey,
@@ -501,7 +589,8 @@ export default function EnergyCalendarScreen() {
           year: nextMonth.year,
           month: nextMonth.month
         }),
-      staleTime: 5 * 60_000
+      staleTime: nextCachePolicy.staleTime,
+      gcTime: nextCachePolicy.gcTime
     });
   }, [
     allowed,
@@ -512,9 +601,13 @@ export default function EnergyCalendarScreen() {
     gridPricePerKwhInput,
     nextMonth.month,
     nextMonth.year,
+    nextCachePolicy.gcTime,
+    nextCachePolicy.staleTime,
     nextQueryKey,
     previousMonth.month,
     previousMonth.year,
+    previousCachePolicy.gcTime,
+    previousCachePolicy.staleTime,
     previousQueryKey,
     queryClient,
     routeState.deviceId,
@@ -583,39 +676,39 @@ export default function EnergyCalendarScreen() {
   const calendarWeeks = chunkCalendarWeeks(calendarDays);
   const selectedDeviceOption = routeState.scope === 'device' && routeState.deviceId ? routeState.deviceId : 'all';
   const webGridViewportStyle =
-    Platform.OS === 'web' ? ({ overflowX: 'auto' } as Record<string, string>) : undefined;
-  const desktopTileGap = 2;
-  const desktopTileGapTotal = desktopTileGap * 6;
-  const desktopTileWidth =
-    Platform.OS === 'web' && !compactCalendar ? `calc((100% - ${desktopTileGapTotal}px) / 7)` : undefined;
-  const desktopTileSizingStyle =
-    Platform.OS === 'web' && !compactCalendar && desktopTileWidth
-      ? ({
-          width: desktopTileWidth,
-          flexBasis: desktopTileWidth,
-          maxWidth: desktopTileWidth,
-          boxSizing: 'border-box'
-        } as Record<string, string>)
-      : undefined;
-  const webHeaderGridStyle =
+    Platform.OS === 'web' ? ({ overflowX: 'hidden', minWidth: 0 } as Record<string, string | number>) : undefined;
+  const desktopSevenColumnGridStyle =
     Platform.OS === 'web' && !compactCalendar
       ? ({
-          display: 'flex',
-          columnGap: `${desktopTileGap}px`
-        } as Record<string, string>)
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+          columnGap: 0,
+          rowGap: 0,
+          width: '100%',
+          minWidth: 0
+        } as Record<string, string | number>)
       : undefined;
-  const webTileGridStyle =
+  const desktopCellSizingStyle =
     Platform.OS === 'web' && !compactCalendar
       ? ({
-          display: 'flex',
-          flexWrap: 'wrap',
-          columnGap: `${desktopTileGap}px`,
-          rowGap: `${desktopTileGap}px`,
-          alignItems: 'stretch'
-        } as Record<string, string>)
+          width: '100%',
+          minWidth: 0,
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          overflow: 'hidden'
+        } as Record<string, string | number>)
+      : undefined;
+  const desktopGridFrameStyle =
+    Platform.OS === 'web' && !compactCalendar
+      ? ({
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: calendarTheme.tileBorder,
+          borderRadius: 8,
+          overflow: 'hidden'
+        } as Record<string, string | number>)
       : undefined;
   const calendarColumnWidth = Platform.OS === 'web' ? undefined : `${100 / 7}%`;
-  const calendarGridMinWidth = compactCalendar ? 0 : ENERGY_CALENDAR_GRID_MIN_WIDTH;
   const monthTitleSize = compactCalendar ? 36 : 48;
   const monthTitleLineHeight = compactCalendar ? 42 : 54;
   const tileIconSize = compactCalendar ? 10 : 17;
@@ -807,7 +900,7 @@ export default function EnergyCalendarScreen() {
                         {selectedMonthTotals ? formatTotalKwh(selectedMonthTotals.solarGeneratedKwh) : '-'}
                       </Text>
                       <Text fontSize="$1" fontWeight="700" style={{ color: calendarTheme.mutedText }}>
-                        solar
+                        Solar generated
                       </Text>
                     </YStack>
                   </XStack>
@@ -819,7 +912,7 @@ export default function EnergyCalendarScreen() {
                         {selectedMonthTotals ? formatCurrency(selectedMonthTotals.estimatedValue, selectedMonthTotals.currency) : '-'}
                       </Text>
                       <Text fontSize="$1" fontWeight="700" style={{ color: calendarTheme.mutedText }}>
-                        saved
+                        Saved
                       </Text>
                     </YStack>
                   </XStack>
@@ -879,6 +972,7 @@ export default function EnergyCalendarScreen() {
                           style={{ borderBottomColor: calendarTheme.weekdayBorder }}
                         >
                           {week.map((day) => {
+                            const dayIntensity = maxSolar > 0 ? Math.max(0.14, day.solarGeneratedKwh / maxSolar) : 0.14;
                             const selected = day.isToday || day.dateIso === todayDateIso;
                             const isMuted = !day.isCurrentMonth;
                             const isInactive = day.isFuture;
@@ -886,6 +980,14 @@ export default function EnergyCalendarScreen() {
                               isMuted || isInactive ? calendarTheme.unavailableText : calendarTheme.text;
                             const moneyBar = metricBarWidth(day.estimatedValue, maxValue);
                             const solarBar = metricBarWidth(day.solarGeneratedKwh, maxSolar);
+                            const hoverBackground = heatmapBackground(
+                              calendarTheme,
+                              dayIntensity,
+                              day.hasData,
+                              isMuted,
+                              isInactive,
+                              true
+                            );
                             return (
                               <Button
                                 key={day.dateIso}
@@ -893,13 +995,17 @@ export default function EnergyCalendarScreen() {
                                 minHeight={92}
                                 borderWidth={0}
                                 disabled={isInactive}
+                                cursor={isInactive ? 'default' : 'pointer'}
+                                hoverStyle={calendarCellHoverStyle(calendarTheme, !isInactive, hoverBackground)}
+                                pressStyle={calendarCellPressStyle(!isInactive)}
                                 testID={`energy-calendar-day-${day.dateIso}`}
                                 onPress={() => openEnergyForDate(day.dateIso)}
                                 style={{
                                   backgroundColor: 'transparent',
                                   borderRadius: 0,
                                   padding: 0,
-                                  opacity: isMuted ? 0.62 : isInactive ? 0.52 : 1
+                                  opacity: isMuted ? 0.62 : isInactive ? 0.52 : 1,
+                                  ...calendarCellTransitionStyle(!isInactive)
                                 }}
                               >
                                 <YStack flex={1} alignItems="center" justifyContent="flex-start" gap="$2" paddingVertical="$2">
@@ -967,13 +1073,13 @@ export default function EnergyCalendarScreen() {
                   </YStack>
                 ) : (
                 <YStack width="100%" style={webGridViewportStyle}>
-                  <YStack minWidth={calendarGridMinWidth} width="100%">
+                  <YStack width="100%" minWidth={0}>
                     <XStack
                       gap={0}
                       borderBottomWidth={1}
                       paddingBottom="$2"
                       flexWrap={Platform.OS === 'web' ? undefined : 'wrap'}
-                      style={{ borderBottomColor: calendarTheme.weekdayBorder, ...webHeaderGridStyle }}
+                      style={{ borderBottomColor: calendarTheme.weekdayBorder, ...desktopSevenColumnGridStyle }}
                     >
                       {ENERGY_CALENDAR_WEEKDAYS.map((weekday) => (
                         <Text
@@ -982,19 +1088,30 @@ export default function EnergyCalendarScreen() {
                           textAlign="center"
                           fontSize={dayHeaderFontSize}
                           fontWeight="600"
-                          style={{ color: calendarTheme.mutedText, ...desktopTileSizingStyle }}
+                          style={{ color: calendarTheme.mutedText, ...desktopCellSizingStyle }}
                         >
                           {weekday}
                         </Text>
                       ))}
                     </XStack>
 
-                    <XStack gap={0} flexWrap={Platform.OS === 'web' ? undefined : 'wrap'} style={webTileGridStyle}>
-                      {calendarDays.map((day) => {
+                    <YStack width="100%" style={desktopGridFrameStyle}>
+                    <XStack gap={0} flexWrap={Platform.OS === 'web' ? undefined : 'wrap'} style={desktopSevenColumnGridStyle}>
+                      {calendarDays.map((day, dayIndex) => {
                         const dayIntensity = maxSolar > 0 ? Math.max(0.14, day.solarGeneratedKwh / maxSolar) : 0.14;
                         const selected = day.isToday || day.dateIso === todayDateIso;
                         const isMuted = !day.isCurrentMonth;
                         const isInactive = day.isFuture;
+                        const rightEdge = (dayIndex + 1) % 7 === 0;
+                        const bottomEdge = dayIndex >= calendarDays.length - 7;
+                        const hoverBackground = heatmapBackground(
+                          calendarTheme,
+                          dayIntensity,
+                          day.hasData,
+                          isMuted || isInactive,
+                          isInactive,
+                          true
+                        );
                         const dayTextColor = selected
                           ? calendarTheme.text
                           : isMuted || isInactive
@@ -1004,10 +1121,14 @@ export default function EnergyCalendarScreen() {
                           <Button
                             key={day.dateIso}
                             width={calendarColumnWidth}
-                            borderWidth={1}
+                            borderWidth={0}
                             disabled={isInactive}
+                            cursor={isInactive ? 'default' : 'pointer'}
+                            hoverStyle={calendarCellHoverStyle(calendarTheme, !isInactive, hoverBackground)}
+                            pressStyle={calendarCellPressStyle(!isInactive)}
                             testID={`energy-calendar-day-${day.dateIso}`}
                             onPress={() => openEnergyForDate(day.dateIso)}
+                            unstyled
                             style={{
                               ...calendarCellStyle({
                                 theme: calendarTheme,
@@ -1018,10 +1139,15 @@ export default function EnergyCalendarScreen() {
                                 hasData: day.hasData,
                                 compact: compactCalendar
                               }),
-                              ...desktopTileSizingStyle
+                              ...desktopCellSizingStyle,
+                              borderRightWidth: rightEdge ? 0 : 1,
+                              borderBottomWidth: bottomEdge ? 0 : 1,
+                              borderStyle: 'solid',
+                              boxShadow: selected ? `inset 0 0 0 1px ${calendarTheme.selectedDot}` : 'none',
+                              ...calendarCellTransitionStyle(!isInactive)
                             }}
                           >
-                            <YStack flex={1} gap="$3" justifyContent="space-between">
+                            <YStack flex={1} minWidth={0} gap="$3" justifyContent="space-between">
                               <XStack alignItems="center" justifyContent="space-between" gap="$2">
                                 <Text fontSize="$5" fontWeight="800" style={{ color: dayTextColor }}>
                                   {formatDayHeader(day, false)}
@@ -1041,7 +1167,7 @@ export default function EnergyCalendarScreen() {
                                 </XStack>
                               </XStack>
 
-                              <YStack gap="$2">
+                              <YStack gap="$2" minWidth={0}>
                                 <XStack alignItems="center" gap="$1">
                                   <MaterialCommunityIcons name="currency-usd" size={tileIconSize} color={calendarTheme.money} />
                                   <Text fontSize={tileFontSize} fontWeight="800" style={{ color: dayTextColor }} numberOfLines={1}>
@@ -1064,6 +1190,7 @@ export default function EnergyCalendarScreen() {
                         );
                       })}
                     </XStack>
+                    </YStack>
                   </YStack>
                 </YStack>
                 )

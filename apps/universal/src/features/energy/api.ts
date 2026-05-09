@@ -222,7 +222,6 @@ export async function fetchEnergyDashboard({
   scope,
   deviceId,
   preset,
-  timezone,
   includeComparison = true,
   date,
   gridPricePerKwh,
@@ -232,7 +231,6 @@ export async function fetchEnergyDashboard({
   scope: 'device' | 'all';
   deviceId?: string;
   preset: EnergyPreset;
-  timezone: string;
   includeComparison?: boolean;
   date?: string;
   gridPricePerKwh?: number;
@@ -242,7 +240,6 @@ export async function fetchEnergyDashboard({
   const params = new URLSearchParams({
     scope,
     preset,
-    timezone,
     includeComparison: includeComparison ? 'true' : 'false'
   });
   if (scope === 'device' && deviceId) {
@@ -265,21 +262,18 @@ export async function fetchEnergyPvPortHistory({
   scope,
   deviceId,
   preset,
-  timezone,
   date,
   token
 }: {
   scope: 'device' | 'all';
   deviceId?: string;
   preset: EnergyPreset;
-  timezone: string;
   date?: string;
   token?: string;
 }): Promise<EnergyPVPortHistory[]> {
   const params = new URLSearchParams({
     scope,
-    preset,
-    timezone
+    preset
   });
   if (scope === 'device' && deviceId) {
     params.set('deviceId', deviceId);
@@ -295,7 +289,6 @@ export async function fetchEnergyComparisonInsight({
   scope,
   deviceId,
   preset,
-  timezone,
   date,
   gridPricePerKwh,
   currency,
@@ -304,7 +297,6 @@ export async function fetchEnergyComparisonInsight({
   scope: 'device' | 'all';
   deviceId?: string;
   preset: EnergyPreset;
-  timezone: string;
   date?: string;
   gridPricePerKwh?: number;
   currency?: string;
@@ -312,8 +304,7 @@ export async function fetchEnergyComparisonInsight({
 }): Promise<EnergyComparisonInsightResponse> {
   const params = new URLSearchParams({
     scope,
-    preset,
-    timezone
+    preset
   });
   if (scope === 'device' && deviceId) {
     params.set('deviceId', deviceId);
@@ -336,7 +327,6 @@ export async function fetchEnergyCalendar({
   deviceId,
   year,
   month,
-  timezone,
   gridPricePerKwh,
   currency,
   token
@@ -345,7 +335,6 @@ export async function fetchEnergyCalendar({
   deviceId?: string;
   year: number;
   month: number;
-  timezone: string;
   gridPricePerKwh?: number;
   currency?: string;
   token?: string;
@@ -357,7 +346,6 @@ export async function fetchEnergyCalendar({
   }
   params.set('year', String(year));
   params.set('month', String(month));
-  params.set('timezone', timezone);
   if (gridPricePerKwh !== undefined && Number.isFinite(gridPricePerKwh)) {
     params.set('gridPricePerKwh', String(gridPricePerKwh));
   }
