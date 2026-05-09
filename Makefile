@@ -32,6 +32,9 @@ PLATFORM_NAMESPACE ?= pulse-platform
 SERVICES_NAMESPACE ?= pulse-services
 DELETE_CLUSTER ?= 0
 WAIT_TIMEOUT ?= 600s
+LOCAL_ROLLOUT_WAIT_MODE ?= available
+LOCAL_ROLLOUT_STATUS = LOCAL_ROLLOUT_WAIT_MODE="$(LOCAL_ROLLOUT_WAIT_MODE)" KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)"
+LOCAL_ROLLOUT_STATUS_STRICT = LOCAL_ROLLOUT_WAIT_MODE=strict KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)"
 HELM_RETRY_MAX ?= 6
 HELM_RETRY_DELAY_SEC ?= 5
 GKE_PROJECT_ID ?=
@@ -1350,7 +1353,7 @@ dev-web-deploy:
 					echo "restarting $$ns/$$name"; \
 					$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
 					echo "waiting for $$ns/$$name"; \
-					KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 300s; \
+					$(LOCAL_ROLLOUT_STATUS) "$$ns" "$$name" 300s; \
 				else \
 					echo "skipping missing deployment $$ns/$$name"; \
 				fi; \
@@ -1417,7 +1420,7 @@ dev-deploy:
 				echo "restarting $$ns/$$name"; \
 				$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
 				echo "waiting for $$ns/$$name"; \
-				KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 300s; \
+				$(LOCAL_ROLLOUT_STATUS) "$$ns" "$$name" 300s; \
 			else \
 				echo "skipping missing deployment $$ns/$$name"; \
 			fi; \
@@ -1432,11 +1435,11 @@ dev-deploy:
 				fi; \
 				echo "recycling $$ns/$$name"; \
 				$(LOCAL_KUBECTL) -n "$$ns" scale deploy/"$$name" --replicas=0; \
-				KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 180s; \
+				$(LOCAL_ROLLOUT_STATUS_STRICT) "$$ns" "$$name" 180s; \
 				echo "restoring $$ns/$$name replicas=$$replicas"; \
 				$(LOCAL_KUBECTL) -n "$$ns" scale deploy/"$$name" --replicas="$$replicas"; \
 				echo "waiting for $$ns/$$name"; \
-				KUBECTL="$(KUBECTL)" sh scripts/local-rollout-status.sh "$(K3D_CONTEXT)" "$$ns" "$$name" 300s; \
+				$(LOCAL_ROLLOUT_STATUS) "$$ns" "$$name" 300s; \
 			else \
 				echo "skipping missing deployment $$ns/$$name"; \
 			fi; \
