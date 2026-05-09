@@ -87,10 +87,7 @@ function netSummary(state: DeviceDetailViewModel['detailState']): string {
   return 'System balance is steady';
 }
 
-function detailMetricAccent(
-  key: 'today' | 'pv' | 'load' | 'net',
-  semantics: ReturnType<typeof useThemeSemantics>
-): string {
+function detailMetricAccent(key: 'today' | 'pv' | 'load' | 'net', semantics: ReturnType<typeof useThemeSemantics>): string {
   switch (key) {
     case 'today':
     case 'pv':
@@ -132,13 +129,7 @@ function DetailHeroTile({
       }}
     >
       <XStack alignItems="center" justifyContent="space-between" gap="$2">
-        <Text
-          fontSize="$2"
-          fontWeight="700"
-          textTransform="uppercase"
-          letterSpacing={0.6}
-          style={{ color: semantics.subtleStrongText }}
-        >
+        <Text fontSize="$2" fontWeight="700" textTransform="uppercase" letterSpacing={0.6} style={{ color: semantics.subtleStrongText }}>
           {label}
         </Text>
         <YStack
@@ -302,7 +293,7 @@ export function DeviceDetailBody({
             imageUri={vm.deviceAsset?.uri}
             fallbackSource={vm.detailFallback}
             iconFallback={vm.deviceAsset?.icon}
-            leftFooter={(
+            leftFooter={
               <YStack gap="$2" alignItems="center">
                 {device ? (
                   <PowerFlowGlyph
@@ -317,150 +308,181 @@ export function DeviceDetailBody({
                   {device?.model ?? 'Energy system'}
                 </Text>
               </YStack>
-            )}
-            right={(
+            }
+            right={
               <YStack gap="$4" flex={1} minWidth={0}>
-              <XStack alignItems="flex-start" justifyContent="space-between" gap="$3" flexWrap="wrap">
-                <XStack gap="$2" flexWrap="wrap" flex={1}>
-                  <XStack
-                    alignItems="center"
-                    gap="$2"
-                    paddingHorizontal="$3"
-                    paddingVertical="$2"
-                    borderRadius={999}
-                    borderWidth={1}
-                    style={{
-                      backgroundColor: semantics.tileBackground,
-                      borderColor: stateAccent
-                    }}
-                  >
-                    <MaterialCommunityIcons name="battery-heart-variant" size={16} color={stateAccent} />
-                    <Text fontSize="$2" fontWeight="700" style={{ color: stateAccent }}>
-                      {stateLabel}
-                    </Text>
-                  </XStack>
-                  {stormGuardLabel ? (
-                    <StormGuardChip label={stormGuardLabel} />
-                  ) : null}
-                  <XStack
-                    alignItems="center"
-                    gap="$2"
-                    paddingHorizontal="$3"
-                    paddingVertical="$2"
-                    borderRadius={999}
-                    borderWidth={1}
-                    style={{
-                      backgroundColor: semantics.mutedPanelBackground,
-                      borderColor: semantics.mutedPanelBorder
-                    }}
-                  >
-                    <MaterialCommunityIcons name={vm.connectionGlyph} size={16} color={semantics.subtleStrongText} />
-                    <Text fontSize="$2" fontWeight="700" style={{ color: semantics.subtleStrongText }}>
-                      {liveSummary}
-                    </Text>
-                  </XStack>
-                </XStack>
-
-                {device ? (
-                  <Button
-                    size="$3"
-                    borderRadius={999}
-                    borderWidth={1}
-                    paddingHorizontal="$4"
-                    minHeight={42}
-                    style={{
-                      backgroundColor: semantics.actionBackground,
-                      borderColor: semantics.actionBorder
-                    }}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/(tabs)/energy',
-                        params: {
-                          device: device.id,
-                          preset: 'today',
-                          compare: '1'
-                        }
-                      })
-                    }
-                  >
-                    <XStack alignItems="center" gap="$2">
-                      <MaterialCommunityIcons name="lightning-bolt-outline" size={18} color={semantics.actionText} />
-                      <Text style={{ color: semantics.actionText }} fontWeight="700">
-                        Open Energy
-                      </Text>
-                    </XStack>
-                  </Button>
-                ) : null}
-              </XStack>
-
-              <YStack gap="$2">
-                <Text
-                  fontSize="$2"
-                  fontWeight="700"
-                  textTransform="uppercase"
-                  letterSpacing={0.8}
-                  style={{ color: semantics.subtleStrongText }}
-                >
-                  Battery reserve
-                </Text>
-                <XStack alignItems="flex-end" gap="$3" flexWrap="wrap">
-                  <Text
-                    fontWeight="800"
-                    letterSpacing={-1}
-                    style={{ fontSize: isTablet ? 60 : 46, lineHeight: isTablet ? 62 : 48 }}
-                  >
-                    {heroSoc}
-                  </Text>
-                  {heroEta && heroEta !== '—' ? (
-                    <YStack
-                      gap={2}
-                      marginBottom="$2"
+                <XStack alignItems="flex-start" justifyContent="space-between" gap="$3" flexWrap="wrap">
+                  <XStack gap="$2" flexWrap="wrap" flex={1}>
+                    <XStack
+                      alignItems="center"
+                      gap="$2"
                       paddingHorizontal="$3"
                       paddingVertical="$2"
-                      borderRadius="$4"
+                      borderRadius={999}
                       borderWidth={1}
                       style={{
                         backgroundColor: semantics.tileBackground,
-                        borderColor: semantics.tileBorder
+                        borderColor: stateAccent
                       }}
                     >
-                      <Text
-                        fontSize="$2"
-                        fontWeight="700"
-                        textTransform="uppercase"
-                        letterSpacing={0.6}
-                        style={{ color: semantics.subtleStrongText }}
+                      <MaterialCommunityIcons name="battery-heart-variant" size={16} color={stateAccent} />
+                      <Text fontSize="$2" fontWeight="700" style={{ color: stateAccent }}>
+                        {stateLabel}
+                      </Text>
+                    </XStack>
+                    {stormGuardLabel ? <StormGuardChip label={stormGuardLabel} /> : null}
+                    <XStack
+                      alignItems="center"
+                      gap="$2"
+                      paddingHorizontal="$3"
+                      paddingVertical="$2"
+                      borderRadius={999}
+                      borderWidth={1}
+                      style={{
+                        backgroundColor: semantics.mutedPanelBackground,
+                        borderColor: semantics.mutedPanelBorder
+                      }}
+                    >
+                      <MaterialCommunityIcons name={vm.connectionGlyph} size={16} color={semantics.subtleStrongText} />
+                      <Text fontSize="$2" fontWeight="700" style={{ color: semantics.subtleStrongText }}>
+                        {liveSummary}
+                      </Text>
+                    </XStack>
+                  </XStack>
+
+                  {device ? (
+                    <XStack gap="$2" flexWrap="wrap" justifyContent="flex-end">
+                      <Button
+                        size="$3"
+                        borderRadius={999}
+                        borderWidth={1}
+                        paddingHorizontal="$4"
+                        minHeight={42}
+                        style={{
+                          backgroundColor: semantics.actionBackground,
+                          borderColor: semantics.actionBorder
+                        }}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(tabs)/energy',
+                            params: {
+                              device: device.id,
+                              preset: 'today',
+                              compare: '1'
+                            }
+                          })
+                        }
                       >
-                        ETA
-                      </Text>
-                      <Text fontSize="$4" fontWeight="700">
-                        {heroEta}
-                      </Text>
-                    </YStack>
+                        <XStack alignItems="center" gap="$2">
+                          <MaterialCommunityIcons name="lightning-bolt-outline" size={18} color={semantics.actionText} />
+                          <Text style={{ color: semantics.actionText }} fontWeight="700">
+                            Open Energy
+                          </Text>
+                        </XStack>
+                      </Button>
+                      <Button
+                        size="$3"
+                        borderRadius={999}
+                        borderWidth={1}
+                        paddingHorizontal="$4"
+                        minHeight={42}
+                        testID="device-open-energy-calendar"
+                        style={{
+                          backgroundColor: semantics.actionBackground,
+                          borderColor: semantics.actionBorder
+                        }}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(tabs)/energy-calendar',
+                            params: {
+                              scope: 'device',
+                              deviceId: device.id
+                            }
+                          })
+                        }
+                      >
+                        <XStack alignItems="center" gap="$2">
+                          <MaterialCommunityIcons name="calendar-month-outline" size={18} color={semantics.actionText} />
+                          <Text style={{ color: semantics.actionText }} fontWeight="700">
+                            Calendar
+                          </Text>
+                        </XStack>
+                      </Button>
+                    </XStack>
                   ) : null}
                 </XStack>
-                <Text fontSize="$3" style={{ color: semantics.subtleStrongText }}>
-                  {capacitySummary}
-                </Text>
-              </YStack>
 
-              <SocBar value={resolvedSoc} fullWidth />
+                <YStack gap="$2">
+                  <Text
+                    fontSize="$2"
+                    fontWeight="700"
+                    textTransform="uppercase"
+                    letterSpacing={0.8}
+                    style={{ color: semantics.subtleStrongText }}
+                  >
+                    Battery reserve
+                  </Text>
+                  <XStack alignItems="flex-end" gap="$3" flexWrap="wrap">
+                    <Text
+                      fontWeight="800"
+                      letterSpacing={-1}
+                      style={{
+                        fontSize: isTablet ? 60 : 46,
+                        lineHeight: isTablet ? 62 : 48
+                      }}
+                    >
+                      {heroSoc}
+                    </Text>
+                    {heroEta && heroEta !== '—' ? (
+                      <YStack
+                        gap={2}
+                        marginBottom="$2"
+                        paddingHorizontal="$3"
+                        paddingVertical="$2"
+                        borderRadius="$4"
+                        borderWidth={1}
+                        style={{
+                          backgroundColor: semantics.tileBackground,
+                          borderColor: semantics.tileBorder
+                        }}
+                      >
+                        <Text
+                          fontSize="$2"
+                          fontWeight="700"
+                          textTransform="uppercase"
+                          letterSpacing={0.6}
+                          style={{ color: semantics.subtleStrongText }}
+                        >
+                          ETA
+                        </Text>
+                        <Text fontSize="$4" fontWeight="700">
+                          {heroEta}
+                        </Text>
+                      </YStack>
+                    ) : null}
+                  </XStack>
+                  <Text fontSize="$3" style={{ color: semantics.subtleStrongText }}>
+                    {capacitySummary}
+                  </Text>
+                </YStack>
 
-              <XStack gap="$3" flexWrap="wrap">
-                {heroTiles.map((tile) => (
-                  <DetailHeroTile
-                    key={tile.key}
-                    icon={tile.icon}
-                    label={tile.label}
-                    value={tile.value}
-                    detail={tile.detail}
-                    accent={tile.accent}
-                    semantics={semantics}
-                  />
-                ))}
-              </XStack>
+                <SocBar value={resolvedSoc} fullWidth />
+
+                <XStack gap="$3" flexWrap="wrap">
+                  {heroTiles.map((tile) => (
+                    <DetailHeroTile
+                      key={tile.key}
+                      icon={tile.icon}
+                      label={tile.label}
+                      value={tile.value}
+                      detail={tile.detail}
+                      accent={tile.accent}
+                      semantics={semantics}
+                    />
+                  ))}
+                </XStack>
               </YStack>
-            )}
+            }
           />
         </YStack>
       </Card>
@@ -536,9 +558,7 @@ export function DeviceDetailBody({
               minWidth={isDesktop ? 320 : 280}
             />
           ) : null}
-          {hasSolarInputs ? (
-            <SolarInputsSection ports={vm.solarPorts} minWidth={isDesktop ? 320 : 280} />
-          ) : null}
+          {hasSolarInputs ? <SolarInputsSection ports={vm.solarPorts} minWidth={isDesktop ? 320 : 280} /> : null}
         </XStack>
       ) : null}
 

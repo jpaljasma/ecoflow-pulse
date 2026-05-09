@@ -114,6 +114,92 @@ export type EnergyDashboard = {
   pvPortHistory: EnergyPVPortHistory[];
 };
 
+export type EnergyCalendar = {
+  scope: EnergyScope;
+  selectedMonth: {
+    year: number;
+    month: number;
+    totals: {
+      solarGeneratedKwh: number;
+      estimatedValue: number;
+      currency: string;
+    };
+  };
+  visibleDays: {
+    dateIso: string;
+    year: number;
+    month: number;
+    day: number;
+    solarGeneratedKwh: number;
+    estimatedValue: number;
+    currency: string;
+    isCurrentMonth: boolean;
+    hasData: boolean;
+    isFuture: boolean;
+  }[];
+};
+
+type EnergyCalendarTotals = {
+  solarGeneratedKwh: number;
+  estimatedValue: number;
+  currency: string;
+};
+
+type EnergyCalendarDay = {
+  dateIso: string;
+  year: number;
+  month: number;
+  day: number;
+  solarGeneratedKwh: number;
+  estimatedValue: number;
+  currency: string;
+  isCurrentMonth: boolean;
+  hasData: boolean;
+  isFuture: boolean;
+};
+
+type EnergyCalendarRawTotals = {
+  solarGeneratedKwh?: unknown;
+  estimatedValue?: unknown;
+  currency?: unknown;
+};
+
+type EnergyCalendarRawDay = {
+  date?: unknown;
+  year?: unknown;
+  month?: unknown;
+  day?: unknown;
+  inSelectedMonth?: unknown;
+  hasData?: unknown;
+  isFuture?: unknown;
+  solarGeneratedKwh?: unknown;
+  estimatedValue?: unknown;
+  currency?: unknown;
+};
+
+type RawGetEnergyCalendarResponse = {
+  scope?: RawEnergyScope;
+  year?: unknown;
+  month?: unknown;
+  timezone?: unknown;
+  visibleDays?: unknown;
+  selectedMonthTotals?: EnergyCalendarRawTotals;
+};
+
+type LegacyEnergyCalendar = {
+  scope?: EnergyScope;
+  month?: {
+    year?: number;
+    month?: number;
+  };
+  days?: unknown[];
+  summary?: {
+    solarGeneratedKwh: number;
+    estimatedValue: number;
+    currency: string;
+  };
+};
+
 export type EnergyPVPortHistory = {
   deviceId: string;
   portId: string;
@@ -167,7 +253,22 @@ export type GetEnergyDashboardInput = {
   useAllDevices: boolean;
   preset: string;
   timezone: string;
+  date?: string;
   includeComparison: boolean;
+  gridPricePerKwh?: number;
+  currency?: string;
+  authHeader?: string;
+  userSubject?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type GetEnergyCalendarInput = {
+  deviceId?: string;
+  useAllDevices: boolean;
+  year: number;
+  month: number;
+  timezone: string;
   gridPricePerKwh?: number;
   currency?: string;
   authHeader?: string;
@@ -181,6 +282,7 @@ export type GetEnergyPvPortHistoryInput = {
   useAllDevices: boolean;
   preset: string;
   timezone: string;
+  date?: string;
   authHeader?: string;
   userSubject?: string;
   requestID?: string;
@@ -191,6 +293,7 @@ export interface TelemetryHistoryClient {
   queryRollupRange(input: QueryRollupRangeInput): Promise<RollupSeries>;
   compareRollupRange(input: CompareRollupRangeInput): Promise<CompareRollupSeries>;
   getEnergyDashboard(input: GetEnergyDashboardInput): Promise<EnergyDashboard>;
+  getEnergyCalendar(input: GetEnergyCalendarInput): Promise<EnergyCalendar>;
   getEnergyPvPortHistory(input: GetEnergyPvPortHistoryInput): Promise<EnergyPVPortHistory[]>;
   close(): void;
 }
@@ -217,6 +320,7 @@ type GrpcEnergyClient = {
   CompareRollupRange: GrpcUnaryMethod;
   GetEnergyDashboard: GrpcUnaryMethod;
   GetEnergyPvPortHistory: GrpcUnaryMethod;
+  GetEnergyCalendar: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -229,11 +333,7 @@ type TelemetryProto = {
           credentials: grpc.ChannelCredentials,
           options?: Record<string, unknown>
         ) => GrpcTelemetryClient;
-        EnergyService: new (
-          address: string,
-          credentials: grpc.ChannelCredentials,
-          options?: Record<string, unknown>
-        ) => GrpcEnergyClient;
+        EnergyService: new (address: string, credentials: grpc.ChannelCredentials, options?: Record<string, unknown>) => GrpcEnergyClient;
       };
     };
   };
@@ -407,10 +507,7 @@ const metricsKeys: (keyof RollupMetrics)[] = [
 ];
 
 export function createTelemetryHistoryClient(address: string): TelemetryHistoryClient {
-  const client = new telemetryProto.pulse.telemetry.v1.EnergyService(
-    address,
-    grpc.credentials.createInsecure()
-  );
+  const client = new telemetryProto.pulse.telemetry.v1.EnergyService(address, grpc.credentials.createInsecure());
   return {
     async queryRollupRange(input) {
       const response = await unaryCall<RawQueryRollupRangeResponse>(
@@ -439,11 +536,7 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
       if (input.compareToUnixMs) {
         request.compareToUnixMs = input.compareToUnixMs;
       }
-      const response = await unaryCall<RawCompareRollupRangeResponse>(
-        client.CompareRollupRange.bind(client),
-        request,
-        input
-      );
+      const response = await unaryCall<RawCompareRollupRangeResponse>(client.CompareRollupRange.bind(client), request, input);
       return {
         current: normalizeSeries(response.current),
         previous: normalizeSeries(response.previous)
@@ -452,18 +545,18 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
     async getEnergyDashboard(input) {
       const response = await unaryCall<RawGetEnergyDashboardResponse>(
         client.GetEnergyDashboard.bind(client),
-        {
-          deviceId: input.deviceId ?? '',
-          useAllDevices: input.useAllDevices,
-          preset: input.preset,
-          timezone: input.timezone,
-          includeComparison: input.includeComparison,
-          gridPricePerKwh: input.gridPricePerKwh ?? 0,
-          currency: input.currency ?? ''
-        },
+        buildEnergyDashboardRequest(input),
         input
       );
       return normalizeEnergyDashboard(response);
+    },
+    async getEnergyCalendar(input) {
+      const response = await unaryCall<RawGetEnergyCalendarResponse>(
+        client.GetEnergyCalendar.bind(client),
+        buildEnergyCalendarRequest(input),
+        input
+      );
+      return normalizeEnergyCalendar(response);
     },
     async getEnergyPvPortHistory(input) {
       const response = await unaryCall<RawGetEnergyPvPortHistoryResponse>(
@@ -472,7 +565,8 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
           deviceId: input.deviceId ?? '',
           useAllDevices: input.useAllDevices,
           preset: input.preset,
-          timezone: input.timezone
+          timezone: input.timezone,
+          date: input.date ?? ''
         },
         input
       );
@@ -484,11 +578,36 @@ export function createTelemetryHistoryClient(address: string): TelemetryHistoryC
   };
 }
 
+export function buildEnergyDashboardRequest(input: GetEnergyDashboardInput): Record<string, unknown> {
+  const request: Record<string, unknown> = {
+    deviceId: input.deviceId ?? '',
+    useAllDevices: input.useAllDevices,
+    preset: input.preset,
+    timezone: input.timezone,
+    includeComparison: input.includeComparison,
+    gridPricePerKwh: input.gridPricePerKwh ?? 0,
+    currency: input.currency ?? ''
+  };
+  if (input.date) {
+    request.date = input.date;
+  }
+  return request;
+}
+
+export function buildEnergyCalendarRequest(input: GetEnergyCalendarInput): Record<string, unknown> {
+  return {
+    deviceId: input.deviceId ?? '',
+    useAllDevices: input.useAllDevices,
+    year: input.year,
+    month: input.month,
+    timezone: input.timezone,
+    gridPricePerKwh: input.gridPricePerKwh ?? 0,
+    currency: input.currency ?? ''
+  };
+}
+
 export function createTelemetrySnapshotClient(address: string): TelemetrySnapshotClient {
-  const client = new telemetryProto.pulse.telemetry.v1.TelemetryService(
-    address,
-    grpc.credentials.createInsecure()
-  );
+  const client = new telemetryProto.pulse.telemetry.v1.TelemetryService(address, grpc.credentials.createInsecure());
   return {
     async getSnapshot(input) {
       const response = await unaryCall<RawGetSnapshotResponse>(
@@ -511,7 +630,12 @@ export function createTelemetrySnapshotClient(address: string): TelemetrySnapsho
 function unaryCall<T>(
   method: GrpcUnaryMethod,
   request: Record<string, unknown>,
-  input: { authHeader?: string; userSubject?: string; requestID?: string; deadlineMs: number }
+  input: {
+    authHeader?: string;
+    userSubject?: string;
+    requestID?: string;
+    deadlineMs: number;
+  }
 ): Promise<T> {
   const metadata = new grpc.Metadata();
   if (input.authHeader) {
@@ -524,18 +648,13 @@ function unaryCall<T>(
     metadata.set('x-request-id', input.requestID);
   }
   return new Promise<T>((resolve, reject) => {
-    method(
-      request,
-      metadata,
-      { deadline: new Date(Date.now() + input.deadlineMs) },
-      (error, response) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(response as T);
+    method(request, metadata, { deadline: new Date(Date.now() + input.deadlineMs) }, (error, response) => {
+      if (error) {
+        reject(error);
+        return;
       }
-    );
+      resolve(response as T);
+    });
   });
 }
 
@@ -678,6 +797,55 @@ function normalizeEnergyDashboard(response: RawGetEnergyDashboardResponse): Ener
   };
 }
 
+function normalizeEnergyCalendar(response: RawGetEnergyCalendarResponse | LegacyEnergyCalendar): EnergyCalendar {
+  if ('selectedMonth' in response && Array.isArray((response as EnergyCalendar).visibleDays)) {
+    return response as EnergyCalendar;
+  }
+
+  const raw = response as RawGetEnergyCalendarResponse;
+  const selectedMonthTotals = normalizeEnergyCalendarTotals(raw.selectedMonthTotals);
+  return {
+    scope: {
+      mode: normalizeString(raw.scope?.mode),
+      deviceId: normalizeString(raw.scope?.deviceId),
+      resolvedDeviceIds: Array.isArray(raw.scope?.resolvedDeviceIds)
+        ? raw.scope.resolvedDeviceIds.map((value) => normalizeString(value))
+        : []
+    },
+    selectedMonth: {
+      year: normalizeInt(raw.year),
+      month: normalizeInt(raw.month),
+      totals: selectedMonthTotals
+    },
+    visibleDays: Array.isArray(raw.visibleDays)
+      ? raw.visibleDays.map((day) => normalizeEnergyCalendarDay(day as EnergyCalendarRawDay, selectedMonthTotals.currency))
+      : []
+  };
+}
+
+function normalizeEnergyCalendarTotals(value: EnergyCalendarRawTotals | undefined): EnergyCalendarTotals {
+  return {
+    solarGeneratedKwh: normalizeNumber(value?.solarGeneratedKwh),
+    estimatedValue: normalizeNumber(value?.estimatedValue),
+    currency: normalizeString(value?.currency)
+  };
+}
+
+function normalizeEnergyCalendarDay(value: EnergyCalendarRawDay, fallbackCurrency: string): EnergyCalendarDay {
+  return {
+    dateIso: normalizeString(value.date),
+    year: normalizeInt(value.year),
+    month: normalizeInt(value.month),
+    day: normalizeInt(value.day),
+    solarGeneratedKwh: normalizeNumber(value.solarGeneratedKwh),
+    estimatedValue: normalizeNumber(value.estimatedValue),
+    currency: normalizeString(value.currency) || fallbackCurrency,
+    isCurrentMonth: normalizeBoolean(value.inSelectedMonth),
+    hasData: normalizeBoolean(value.hasData),
+    isFuture: normalizeBoolean(value.isFuture)
+  };
+}
+
 function normalizeEnergySummary(summary: RawEnergySummary | undefined): EnergySummary {
   return {
     solarGeneratedKwh: normalizeEnergyValueComparison(summary?.solarGeneratedKwh),
@@ -716,9 +884,7 @@ function normalizePoints(points: unknown): RollupPoint[] {
 }
 
 function normalizePVPortHistoryRows(rows: unknown): EnergyPVPortHistory[] {
-  return Array.isArray(rows)
-    ? rows.map((row) => normalizePVPortHistoryRow(row as RawEnergyPVPortHistory))
-    : [];
+  return Array.isArray(rows) ? rows.map((row) => normalizePVPortHistoryRow(row as RawEnergyPVPortHistory)) : [];
 }
 
 function normalizePVPortHistoryRow(row: RawEnergyPVPortHistory): EnergyPVPortHistory {
@@ -781,6 +947,19 @@ function normalizeNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value === 'true' || value === '1';
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  return false;
 }
 
 function normalizeNullableNumber(value: unknown): number | null {

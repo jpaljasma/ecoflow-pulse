@@ -1,6 +1,6 @@
-import { Image, Pressable } from 'react-native';
-import { Text, XStack, YStack } from 'tamagui';
-import appIcon from '../../../assets/icon.png';
+import { Pressable } from 'react-native';
+import { Text, XStack } from 'tamagui';
+import { PulseMark } from '@/shared/ui/PulseMark';
 
 export function BrandLogo({
   compact = false,
@@ -16,25 +16,13 @@ export function BrandLogo({
 
   const content = (
     <XStack alignItems="center" gap="$3">
-      <YStack
-        width={iconSize}
-        height={iconSize}
-        alignItems="center"
-        justifyContent="center"
-        overflow="hidden"
-      >
-        <Image
-          source={appIcon}
-          style={{ width: iconSize, height: iconSize, borderRadius: iconSize * 0.28 }}
-          resizeMode="contain"
-        />
-      </YStack>
+      <PulseMark size={iconSize} />
       <Text
         fontFamily="$heading"
         fontSize={pulseSize}
         lineHeight={pulseSize}
         fontWeight="800"
-        letterSpacing={-0.7}
+        letterSpacing={0}
       >
         Pulse
       </Text>

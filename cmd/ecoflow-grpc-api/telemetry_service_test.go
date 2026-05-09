@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -866,6 +867,59 @@ func TestGetEnergyDashboardReturnsSingleDeviceSummary(t *testing.T) {
 	}
 }
 
+func TestGetEnergyDashboardUsesSelectedDateWindow(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f56"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 11, 30, 0, 0, loc)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMOD2M00001057", ProductName: "Kitchen Delta 2 Max", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &fakeQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+
+	_, err := svc.GetEnergyDashboard(
+		grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}),
+		&telemetryv1.GetEnergyDashboardRequest{
+			DeviceId:          deviceID,
+			Preset:            "today",
+			Timezone:          "America/New_York",
+			Date:              "2026-03-08",
+			IncludeComparison: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("GetEnergyDashboard failed: %v", err)
+	}
+
+	expectedCurrentFrom := time.Date(2026, time.March, 8, 5, 0, 0, 0, time.UTC)
+	expectedCurrentTo := time.Date(2026, time.March, 9, 4, 0, 0, 0, time.UTC)
+	expectedPreviousFrom := time.Date(2026, time.March, 7, 5, 0, 0, 0, time.UTC)
+	expectedPreviousTo := time.Date(2026, time.March, 8, 5, 0, 0, 0, time.UTC)
+	foundCurrent := false
+	foundPrevious := false
+	for _, query := range reader.queries {
+		if query.From.Equal(expectedCurrentFrom) && query.To.Equal(expectedCurrentTo) {
+			foundCurrent = true
+		}
+		if query.From.Equal(expectedPreviousFrom) && query.To.Equal(expectedPreviousTo) {
+			foundPrevious = true
+		}
+	}
+	if !foundCurrent {
+		t.Fatalf("expected selected current date window [%s,%s), got=%v", expectedCurrentFrom, expectedCurrentTo, reader.queries)
+	}
+	if !foundPrevious {
+		t.Fatalf("expected selected previous date window [%s,%s), got=%v", expectedPreviousFrom, expectedPreviousTo, reader.queries)
+	}
+}
+
 func TestGetEnergyDashboardUsesVisibleDevicesForAllScope(t *testing.T) {
 	t.Parallel()
 
@@ -1293,6 +1347,300 @@ func TestGetEnergyDashboardLeavesPVHistoryForLazyLoad(t *testing.T) {
 	}
 }
 
+func TestGetEnergyCalendarReturnsVisibleMonthGridAndTotals(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 15, 12, 0, 0, 0, loc)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &calendarQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+
+	resp, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           5,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	})
+	if err != nil {
+		t.Fatalf("GetEnergyCalendar failed: %v", err)
+	}
+	if got, want := resp.GetScope().GetMode(), "single"; got != want {
+		t.Fatalf("scope mode mismatch: got=%s want=%s", got, want)
+	}
+	if got, want := len(resp.GetVisibleDays()), 42; got != want {
+		t.Fatalf("visible day count mismatch: got=%d want=%d", got, want)
+	}
+	if got, want := resp.GetVisibleDays()[0].GetDate(), "2026-04-26"; got != want {
+		t.Fatalf("first visible date mismatch: got=%s want=%s", got, want)
+	}
+	if got, want := resp.GetVisibleDays()[0].GetYear(), int32(2026); got != want {
+		t.Fatalf("first visible year mismatch: got=%d want=%d", got, want)
+	}
+	if resp.GetVisibleDays()[0].GetInSelectedMonth() {
+		t.Fatal("expected leading adjacent day to be outside the selected month")
+	}
+
+	may15 := findCalendarProtoDay(t, resp.GetVisibleDays(), "2026-05-15")
+	if !may15.GetHasData() {
+		t.Fatal("expected current selected day to have data")
+	}
+	if may15.GetIsFuture() {
+		t.Fatal("expected current selected day not to be future")
+	}
+	if got, want := may15.GetSolarGeneratedKwh(), 1.0; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("selected-day solar mismatch: got=%v want=%v", got, want)
+	}
+	if got, want := may15.GetEstimatedValue(), 0.30; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("selected-day estimated value mismatch: got=%v want=%v", got, want)
+	}
+	if got, want := may15.GetCurrency(), "USD"; got != want {
+		t.Fatalf("selected-day currency mismatch: got=%s want=%s", got, want)
+	}
+
+	futureDay := findCalendarProtoDay(t, resp.GetVisibleDays(), "2026-05-20")
+	if !futureDay.GetIsFuture() {
+		t.Fatal("expected future day to be flagged future")
+	}
+	if futureDay.GetHasData() {
+		t.Fatal("expected future day to skip data fetches")
+	}
+
+	if got, want := resp.GetSelectedMonthTotals().GetSolarGeneratedKwh(), 15.0; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("selected-month solar total mismatch: got=%v want=%v", got, want)
+	}
+	if got, want := resp.GetSelectedMonthTotals().GetEstimatedValue(), 4.5; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("selected-month estimated value mismatch: got=%v want=%v", got, want)
+	}
+	if got, want := resp.GetSelectedMonthTotals().GetCurrency(), "USD"; got != want {
+		t.Fatalf("selected-month currency mismatch: got=%s want=%s", got, want)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+}
+
+func TestGetEnergyCalendarUsesLiveRollupsForCurrentDay(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	visibleFrom := time.Date(2026, time.April, 26, 0, 0, 0, 0, loc).UTC()
+	todayFrom := time.Date(2026, time.May, 9, 0, 0, 0, 0, loc).UTC()
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	solarGenerated := 7520.0
+	reader := &fakeQueryReader{
+		series: []telemetryquery.Series{{
+			DeviceID:   deviceID,
+			Resolution: telemetryquery.ResolutionHour,
+			From:       visibleFrom,
+			To:         now.UTC(),
+			Points: []telemetryquery.Point{{
+				BucketStart: todayFrom,
+				BucketEnd:   now.UTC(),
+				Metrics: telemetryquery.Metrics{
+					SolarGeneratedWh: &solarGenerated,
+				},
+			}},
+		}},
+	}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+
+	resp, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           5,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	})
+	if err != nil {
+		t.Fatalf("GetEnergyCalendar failed: %v", err)
+	}
+	today := findCalendarProtoDay(t, resp.GetVisibleDays(), "2026-05-09")
+	if got, want := today.GetSolarGeneratedKwh(), 7.52; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("current-day solar mismatch: got=%v want=%v", got, want)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+	query := reader.queries[0]
+	if query.Resolution != telemetryquery.ResolutionHour {
+		t.Fatalf("current-day range resolution mismatch: got=%v want=%v", query.Resolution, telemetryquery.ResolutionHour)
+	}
+	if !query.From.Equal(visibleFrom) || !query.To.Equal(now.UTC()) {
+		t.Fatalf("current-day range mismatch: got=%s -> %s want=%s -> %s", query.From, query.To, visibleFrom, now.UTC())
+	}
+}
+
+func TestGetEnergyCalendarUsesHourlyRollupsForProfileLocalHistoricalDays(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	historicalFrom := time.Date(2026, time.May, 6, 0, 0, 0, 0, loc).UTC()
+	historicalTo := time.Date(2026, time.May, 7, 0, 0, 0, 0, loc).UTC()
+	if historicalFrom.Hour() == 0 {
+		t.Fatal("test setup must use a local day window that does not align with UTC midnight")
+	}
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &calendarQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+
+	_, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           5,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	})
+	if err != nil {
+		t.Fatalf("GetEnergyCalendar failed: %v", err)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+	query := reader.queries[0]
+	if query.Resolution != telemetryquery.ResolutionHour {
+		t.Fatalf("historical local-day range resolution mismatch: got=%v want=%v", query.Resolution, telemetryquery.ResolutionHour)
+	}
+	if query.From.After(historicalFrom) || query.To.Before(historicalTo) {
+		t.Fatalf("historical local-day range does not cover %s -> %s: got=%s -> %s", historicalFrom.Format(time.RFC3339), historicalTo.Format(time.RFC3339), query.From.Format(time.RFC3339), query.To.Format(time.RFC3339))
+	}
+}
+
+func TestGetEnergyCalendarCachesHistoricalMonthResponse(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &calendarQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+	req := &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           4,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	}
+
+	first, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req)
+	if err != nil {
+		t.Fatalf("first GetEnergyCalendar failed: %v", err)
+	}
+	findCalendarProtoDay(t, first.GetVisibleDays(), "2026-04-13").SolarGeneratedKwh = 999
+	second, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req)
+	if err != nil {
+		t.Fatalf("second GetEnergyCalendar failed: %v", err)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got, want := len(reader.queries), 1; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+	if got, want := findCalendarProtoDay(t, second.GetVisibleDays(), "2026-04-13").GetSolarGeneratedKwh(), 1.0; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("cached calendar response was mutated: got=%v want=%v", got, want)
+	}
+}
+
+func TestGetEnergyCalendarDoesNotCacheCurrentMonthResponse(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+	reader := &calendarQueryReader{}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: store,
+		QueryReader:       reader,
+		Now:               func() time.Time { return now },
+	})
+	req := &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           5,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	}
+
+	if _, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req); err != nil {
+		t.Fatalf("first GetEnergyCalendar failed: %v", err)
+	}
+	if _, err := svc.GetEnergyCalendar(grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"}), req); err != nil {
+		t.Fatalf("second GetEnergyCalendar failed: %v", err)
+	}
+
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	if got, want := len(reader.queries), 2; got != want {
+		t.Fatalf("calendar query count mismatch: got=%d want=%d", got, want)
+	}
+}
+
+func TestEnergyCalendarCacheExpiresAtUsesProfileLocalMidnight(t *testing.T) {
+	t.Parallel()
+
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.November, 1, 13, 30, 0, 0, loc)
+	expiresAt := energyCalendarCacheExpiresAt(now, loc)
+
+	if got, want := expiresAt.Sub(now.UTC()), 10*time.Hour+30*time.Minute+time.Second; got != want {
+		t.Fatalf("cache expiry duration mismatch across fall-back day: got=%v want=%v", got, want)
+	}
+}
+
 type fakeSnapshotReader struct {
 	snapshot *projectionworker.SnapshotReadModel
 	err      error
@@ -1583,4 +1931,61 @@ func encodeArchiveFramesForTest(t *testing.T, envelopes []*envelopev1.TelemetryE
 	}
 	defer func() { _ = encoder.Close() }()
 	return encoder.EncodeAll(raw.Bytes(), nil)
+}
+
+type calendarQueryReader struct {
+	mu      sync.Mutex
+	queries []telemetryquery.RangeQuery
+}
+
+func (r *calendarQueryReader) QueryRange(_ context.Context, query telemetryquery.RangeQuery) (telemetryquery.Series, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.queries = append(r.queries, query)
+	points := make([]telemetryquery.Point, 0, 42)
+	for bucketStart := query.From; bucketStart.Before(query.To); bucketStart = bucketStart.Add(24 * time.Hour) {
+		bucketEnd := bucketStart.Add(24 * time.Hour)
+		if bucketEnd.After(query.To) {
+			bucketEnd = query.To
+		}
+		points = append(points, telemetryquery.Point{
+			BucketStart: bucketStart,
+			BucketEnd:   bucketEnd,
+			Metrics: telemetryquery.Metrics{
+				SolarGeneratedWh: floatPtr(1000),
+			},
+		})
+	}
+	return telemetryquery.Series{
+		DeviceID:   query.DeviceID,
+		Resolution: query.Resolution,
+		From:       query.From,
+		To:         query.To,
+		Points:     points,
+	}, nil
+}
+
+func (r *calendarQueryReader) Close() error { return nil }
+
+func findCalendarProtoDay(t *testing.T, days []*telemetryv1.EnergyCalendarDay, date string) *telemetryv1.EnergyCalendarDay {
+	t.Helper()
+
+	for _, day := range days {
+		if day.GetDate() == date {
+			return day
+		}
+	}
+	t.Fatalf("calendar day %s not found", date)
+	return nil
+}
+
+func mustLoadLocation(t *testing.T, name string) *time.Location {
+	t.Helper()
+
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		t.Fatalf("LoadLocation(%q) failed: %v", name, err)
+	}
+	return loc
 }

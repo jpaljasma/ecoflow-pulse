@@ -97,6 +97,7 @@ export function classifyPublicPathname(pathname: string): string | null {
     case '/profile':
     case '/devices':
     case '/energy':
+    case '/energy-calendar':
     case '/settings':
     case '/settings/integrations':
       return pathname;
@@ -105,6 +106,7 @@ export function classifyPublicPathname(pathname: string): string | null {
     case '/api/v1/solar/outlook':
       return pathname;
     case '/api/v1/energy/dashboard':
+    case '/api/v1/energy/calendar':
     case '/api/v1/energy/pv-history':
     case '/api/v1/energy/comparison-insight':
       return pathname;
@@ -144,12 +146,7 @@ export function classifyPublicPathname(pathname: string): string | null {
   return '/app/other';
 }
 
-export function observePublicRequest(input: {
-  pathname: string;
-  method: string;
-  statusCode: number;
-  durationSeconds: number;
-}): void {
+export function observePublicRequest(input: { pathname: string; method: string; statusCode: number; durationSeconds: number }): void {
   const route = classifyPublicPathname(input.pathname);
   if (!route) {
     return;
@@ -167,10 +164,7 @@ export function resetPublicMetrics(): void {
   registry.resetMetrics();
 }
 
-export type AuthSessionRecoveryOutcome =
-  | 'recovered_in_memory'
-  | 'recovered_refresh'
-  | 'reauth_redirect';
+export type AuthSessionRecoveryOutcome = 'recovered_in_memory' | 'recovered_refresh' | 'reauth_redirect';
 
 export function observeAuthSessionRecovery(outcome: AuthSessionRecoveryOutcome): void {
   authSessionRecoveryTotal.labels(outcome).inc();
@@ -188,9 +182,7 @@ export function observeClientRestRequest(input: {
 }): void {
   const method = input.method.toUpperCase();
   clientRestRequestsTotal.labels(input.route, method, input.outcome, input.statusClass).inc();
-  clientRestRequestDurationSeconds
-    .labels(input.route, method, input.outcome)
-    .observe(Math.max(0, input.durationSeconds));
+  clientRestRequestDurationSeconds.labels(input.route, method, input.outcome).observe(Math.max(0, input.durationSeconds));
   if (input.errorKind !== 'none') {
     clientRestErrorsTotal.labels(input.route, method, input.errorKind).inc();
   }
@@ -202,9 +194,7 @@ export function observeClientWsConnection(input: {
   durationSeconds: number;
 }): void {
   clientWsConnectionsTotal.labels(input.phase, input.outcome).inc();
-  clientWsConnectDurationSeconds
-    .labels(input.phase, input.outcome)
-    .observe(Math.max(0, input.durationSeconds));
+  clientWsConnectDurationSeconds.labels(input.phase, input.outcome).observe(Math.max(0, input.durationSeconds));
 }
 
 export function observeClientWsDisconnect(

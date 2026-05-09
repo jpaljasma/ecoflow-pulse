@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Image, Platform, ScrollView } from 'react-native';
+import { Platform, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
@@ -13,10 +13,10 @@ import { resolveProfileWeatherState } from '@/features/weather/model';
 import { ConnectionProfileHint, ConnectionProfileSwitcher } from '@/shared/ui/ConnectionProfileSwitcher';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Sheet } from '@/shared/ui/Sheet';
+import { PulseMark } from '@/shared/ui/PulseMark';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
-import appIcon from '../../../assets/icon.png';
 
 function describeQueryError(error: unknown): string | undefined {
   if (!error) {
@@ -120,9 +120,7 @@ export function AppMenu({
           }}
           aria-label="Open menu"
         >
-          <XStack width={26} height={26} alignItems="center" justifyContent="center">
-            <Image source={appIcon} style={{ width: 20, height: 20, borderRadius: 6 }} resizeMode="contain" />
-          </XStack>
+          <PulseMark size={22} />
         </Button>
       </XStack>
 

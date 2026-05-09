@@ -51,6 +51,13 @@ Common service/worker logging knobs (`cmd/ecoflow-ingest-worker`, `cmd/ecoflow-p
 - `LOG_ASYNC_BYPASS_LEVEL` (default `warn`; warn/error logs bypass queue sync)
 - `LOG_METRICS_INTERVAL` (default `30s`; set `0` to disable async queue metrics logs)
 
+Durable ingest consumers (`cmd/ecoflow-projection-worker`, `cmd/ecoflow-archive-worker`, `cmd/ecoflow-rollup-worker`, `cmd/ecoflow-inference-worker`) also expose subscription watchdog state on their metrics server:
+
+- `/readyz` returns unavailable while the required JetStream durable consumer is not attached
+- `pulse_worker_consumer_ready`
+- `pulse_worker_consumer_subscribe_total{outcome="success|failure"}`
+- `pulse_worker_consumer_consecutive_subscribe_failures`
+
 Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 
 - `INGEST_MQTT_LOG_PAYLOAD_DEBUG` (default `false`; sampled MQTT debug logs stay off the hot path and redact topics/raw payload bodies)
@@ -467,6 +474,23 @@ Runtime behavior:
   rolling 24-hour window compared with the preceding 24 hours. This keeps
   Energy balance and Power profile buckets aligned while preserving
   local-calendar semantics for the default dashboard.
+- `/energy-calendar` is a primary navigation route after `Energy`; it loads one
+  Sunday-start visible month for the selected fleet/device scope and prefetches
+  adjacent months. Its selected-month totals include only in-month days, while
+  muted leading/trailing days can still show their real daily totals.
+- Energy and Energy Calendar resolve user-facing local-day timezone from the
+  logged-in profile. App-generated Energy URLs and BFF requests should not carry
+  `tz`/`timezone` query parameters.
+- Energy Calendar treats the current profile-local month as live data: current
+  day tiles use fresh current-day rollups, refetch on the live path, and refresh
+  after the next profile-local midnight; closed historical months can stay
+  cached aggressively. The universal client caches historical month payloads
+  and warms adjacent non-live months, while the Go Energy service caches
+  already-computed non-current month responses behind a bounded in-memory cache.
+- `/energy?preset=today&date=YYYY-MM-DD` selects an explicit local calendar
+  day. Historical selected dates query the full local midnight-to-midnight day;
+  the current local day still queries local midnight to now, and comparison
+  uses the prior local-day window.
 - the `/energy` page keeps its `Solar against load` controls collapsed by
   default behind an explicit expand/collapse affordance so the summary content
   stays visible first on smaller screens.

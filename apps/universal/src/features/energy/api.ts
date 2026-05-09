@@ -162,6 +162,38 @@ const EnergyComparisonInsightResponseSchema = z.object({
   insight: EnergyComparisonInsightSchema.optional()
 });
 
+const EnergyCalendarSelectedMonthTotalsSchema = z.object({
+  solarGeneratedKwh: z.number(),
+  estimatedValue: z.number(),
+  currency: z.string()
+});
+
+const EnergyCalendarSelectedMonthSchema = z.object({
+  year: z.number().int(),
+  month: z.number().int(),
+  totals: EnergyCalendarSelectedMonthTotalsSchema
+});
+
+const EnergyCalendarVisibleDaySchema = z.object({
+  dateIso: z.string(),
+  year: z.number().int(),
+  month: z.number().int(),
+  day: z.number().int(),
+  solarGeneratedKwh: z.number(),
+  estimatedValue: z.number(),
+  currency: z.string(),
+  isCurrentMonth: z.boolean(),
+  hasData: z.boolean(),
+  isToday: z.boolean().optional().default(false),
+  isFuture: z.boolean()
+});
+
+const EnergyCalendarSchema = z.object({
+  scope: EnergyScopeSchema,
+  selectedMonth: EnergyCalendarSelectedMonthSchema,
+  visibleDays: z.array(EnergyCalendarVisibleDaySchema)
+});
+
 export const EnergyDashboardSchema = z.object({
   scope: EnergyScopeSchema,
   window: EnergyWindowSchema,
@@ -181,13 +213,17 @@ export type EnergyRollupPoint = z.infer<typeof RollupPointSchema>;
 export type EnergyPVPortHistory = z.infer<typeof EnergyPVPortHistorySchema>;
 export type EnergyComparisonInsight = z.infer<typeof EnergyComparisonInsightSchema>;
 export type EnergyComparisonInsightResponse = z.infer<typeof EnergyComparisonInsightResponseSchema>;
+export type EnergyCalendarSelectedMonthTotals = z.infer<typeof EnergyCalendarSelectedMonthTotalsSchema>;
+export type EnergyCalendarSelectedMonth = z.infer<typeof EnergyCalendarSelectedMonthSchema>;
+export type EnergyCalendarVisibleDay = z.infer<typeof EnergyCalendarVisibleDaySchema>;
+export type EnergyCalendar = z.infer<typeof EnergyCalendarSchema>;
 
 export async function fetchEnergyDashboard({
   scope,
   deviceId,
   preset,
-  timezone,
   includeComparison = true,
+  date,
   gridPricePerKwh,
   currency,
   token
@@ -195,8 +231,8 @@ export async function fetchEnergyDashboard({
   scope: 'device' | 'all';
   deviceId?: string;
   preset: EnergyPreset;
-  timezone: string;
   includeComparison?: boolean;
+  date?: string;
   gridPricePerKwh?: number;
   currency?: string;
   token?: string;
@@ -204,11 +240,13 @@ export async function fetchEnergyDashboard({
   const params = new URLSearchParams({
     scope,
     preset,
-    timezone,
     includeComparison: includeComparison ? 'true' : 'false'
   });
   if (scope === 'device' && deviceId) {
     params.set('deviceId', deviceId);
+  }
+  if (date) {
+    params.set('date', date);
   }
   if (gridPricePerKwh !== undefined && Number.isFinite(gridPricePerKwh)) {
     params.set('gridPricePerKwh', String(gridPricePerKwh));
@@ -224,22 +262,24 @@ export async function fetchEnergyPvPortHistory({
   scope,
   deviceId,
   preset,
-  timezone,
+  date,
   token
 }: {
   scope: 'device' | 'all';
   deviceId?: string;
   preset: EnergyPreset;
-  timezone: string;
+  date?: string;
   token?: string;
 }): Promise<EnergyPVPortHistory[]> {
   const params = new URLSearchParams({
     scope,
-    preset,
-    timezone
+    preset
   });
   if (scope === 'device' && deviceId) {
     params.set('deviceId', deviceId);
+  }
+  if (date) {
+    params.set('date', date);
   }
   const data = await requestJson<unknown>(`/api/v1/energy/pv-history?${params.toString()}`, { token });
   return EnergyPVPortHistoryResponseSchema.parse(data).pvPortHistory;
@@ -249,7 +289,7 @@ export async function fetchEnergyComparisonInsight({
   scope,
   deviceId,
   preset,
-  timezone,
+  date,
   gridPricePerKwh,
   currency,
   token
@@ -257,18 +297,20 @@ export async function fetchEnergyComparisonInsight({
   scope: 'device' | 'all';
   deviceId?: string;
   preset: EnergyPreset;
-  timezone: string;
+  date?: string;
   gridPricePerKwh?: number;
   currency?: string;
   token?: string;
 }): Promise<EnergyComparisonInsightResponse> {
   const params = new URLSearchParams({
     scope,
-    preset,
-    timezone
+    preset
   });
   if (scope === 'device' && deviceId) {
     params.set('deviceId', deviceId);
+  }
+  if (date) {
+    params.set('date', date);
   }
   if (gridPricePerKwh !== undefined && Number.isFinite(gridPricePerKwh)) {
     params.set('gridPricePerKwh', String(gridPricePerKwh));
@@ -278,4 +320,38 @@ export async function fetchEnergyComparisonInsight({
   }
   const data = await requestJson<unknown>(`/api/v1/energy/comparison-insight?${params.toString()}`, { token });
   return EnergyComparisonInsightResponseSchema.parse(data);
+}
+
+export async function fetchEnergyCalendar({
+  scope,
+  deviceId,
+  year,
+  month,
+  gridPricePerKwh,
+  currency,
+  token
+}: {
+  scope: 'device' | 'all';
+  deviceId?: string;
+  year: number;
+  month: number;
+  gridPricePerKwh?: number;
+  currency?: string;
+  token?: string;
+}): Promise<EnergyCalendar> {
+  const params = new URLSearchParams();
+  params.set('scope', scope);
+  if (scope === 'device' && deviceId) {
+    params.set('deviceId', deviceId);
+  }
+  params.set('year', String(year));
+  params.set('month', String(month));
+  if (gridPricePerKwh !== undefined && Number.isFinite(gridPricePerKwh)) {
+    params.set('gridPricePerKwh', String(gridPricePerKwh));
+  }
+  if (currency) {
+    params.set('currency', currency);
+  }
+  const data = await requestJson<unknown>(`/api/v1/energy/calendar?${params.toString()}`, { token });
+  return EnergyCalendarSchema.parse(data);
 }

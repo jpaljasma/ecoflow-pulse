@@ -1788,6 +1788,7 @@ type GetEnergyDashboardRequest struct {
 	IncludeComparison bool                   `protobuf:"varint,5,opt,name=include_comparison,json=includeComparison,proto3" json:"include_comparison,omitempty"`
 	GridPricePerKwh   float64                `protobuf:"fixed64,6,opt,name=grid_price_per_kwh,json=gridPricePerKwh,proto3" json:"grid_price_per_kwh,omitempty"`
 	Currency          string                 `protobuf:"bytes,7,opt,name=currency,proto3" json:"currency,omitempty"`
+	Date              string                 `protobuf:"bytes,8,opt,name=date,proto3" json:"date,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1867,6 +1868,13 @@ func (x *GetEnergyDashboardRequest) GetGridPricePerKwh() float64 {
 func (x *GetEnergyDashboardRequest) GetCurrency() string {
 	if x != nil {
 		return x.Currency
+	}
+	return ""
+}
+
+func (x *GetEnergyDashboardRequest) GetDate() string {
+	if x != nil {
+		return x.Date
 	}
 	return ""
 }
@@ -1985,6 +1993,7 @@ type GetEnergyPvPortHistoryRequest struct {
 	UseAllDevices bool                   `protobuf:"varint,2,opt,name=use_all_devices,json=useAllDevices,proto3" json:"use_all_devices,omitempty"`
 	Preset        string                 `protobuf:"bytes,3,opt,name=preset,proto3" json:"preset,omitempty"`
 	Timezone      string                 `protobuf:"bytes,4,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	Date          string                 `protobuf:"bytes,5,opt,name=date,proto3" json:"date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2047,6 +2056,13 @@ func (x *GetEnergyPvPortHistoryRequest) GetTimezone() string {
 	return ""
 }
 
+func (x *GetEnergyPvPortHistoryRequest) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
 type GetEnergyPvPortHistoryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Scope         *EnergyScope           `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
@@ -2103,6 +2119,358 @@ func (x *GetEnergyPvPortHistoryResponse) GetWindow() *EnergyWindow {
 func (x *GetEnergyPvPortHistoryResponse) GetPvPortHistory() []*EnergyPVPortHistory {
 	if x != nil {
 		return x.PvPortHistory
+	}
+	return nil
+}
+
+type GetEnergyCalendarRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	DeviceId        string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	UseAllDevices   bool                   `protobuf:"varint,2,opt,name=use_all_devices,json=useAllDevices,proto3" json:"use_all_devices,omitempty"`
+	Year            int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
+	Month           int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
+	Timezone        string                 `protobuf:"bytes,5,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	GridPricePerKwh float64                `protobuf:"fixed64,6,opt,name=grid_price_per_kwh,json=gridPricePerKwh,proto3" json:"grid_price_per_kwh,omitempty"`
+	Currency        string                 `protobuf:"bytes,7,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GetEnergyCalendarRequest) Reset() {
+	*x = GetEnergyCalendarRequest{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyCalendarRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyCalendarRequest) ProtoMessage() {}
+
+func (x *GetEnergyCalendarRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyCalendarRequest.ProtoReflect.Descriptor instead.
+func (*GetEnergyCalendarRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetEnergyCalendarRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+func (x *GetEnergyCalendarRequest) GetUseAllDevices() bool {
+	if x != nil {
+		return x.UseAllDevices
+	}
+	return false
+}
+
+func (x *GetEnergyCalendarRequest) GetYear() int32 {
+	if x != nil {
+		return x.Year
+	}
+	return 0
+}
+
+func (x *GetEnergyCalendarRequest) GetMonth() int32 {
+	if x != nil {
+		return x.Month
+	}
+	return 0
+}
+
+func (x *GetEnergyCalendarRequest) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *GetEnergyCalendarRequest) GetGridPricePerKwh() float64 {
+	if x != nil {
+		return x.GridPricePerKwh
+	}
+	return 0
+}
+
+func (x *GetEnergyCalendarRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+type EnergyCalendarDay struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Date              string                 `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	Year              int32                  `protobuf:"varint,2,opt,name=year,proto3" json:"year,omitempty"`
+	Month             int32                  `protobuf:"varint,3,opt,name=month,proto3" json:"month,omitempty"`
+	Day               int32                  `protobuf:"varint,4,opt,name=day,proto3" json:"day,omitempty"`
+	InSelectedMonth   bool                   `protobuf:"varint,5,opt,name=in_selected_month,json=inSelectedMonth,proto3" json:"in_selected_month,omitempty"`
+	HasData           bool                   `protobuf:"varint,6,opt,name=has_data,json=hasData,proto3" json:"has_data,omitempty"`
+	IsFuture          bool                   `protobuf:"varint,7,opt,name=is_future,json=isFuture,proto3" json:"is_future,omitempty"`
+	SolarGeneratedKwh float64                `protobuf:"fixed64,8,opt,name=solar_generated_kwh,json=solarGeneratedKwh,proto3" json:"solar_generated_kwh,omitempty"`
+	EstimatedValue    float64                `protobuf:"fixed64,9,opt,name=estimated_value,json=estimatedValue,proto3" json:"estimated_value,omitempty"`
+	Currency          string                 `protobuf:"bytes,10,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EnergyCalendarDay) Reset() {
+	*x = EnergyCalendarDay{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyCalendarDay) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyCalendarDay) ProtoMessage() {}
+
+func (x *EnergyCalendarDay) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyCalendarDay.ProtoReflect.Descriptor instead.
+func (*EnergyCalendarDay) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *EnergyCalendarDay) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *EnergyCalendarDay) GetYear() int32 {
+	if x != nil {
+		return x.Year
+	}
+	return 0
+}
+
+func (x *EnergyCalendarDay) GetMonth() int32 {
+	if x != nil {
+		return x.Month
+	}
+	return 0
+}
+
+func (x *EnergyCalendarDay) GetDay() int32 {
+	if x != nil {
+		return x.Day
+	}
+	return 0
+}
+
+func (x *EnergyCalendarDay) GetInSelectedMonth() bool {
+	if x != nil {
+		return x.InSelectedMonth
+	}
+	return false
+}
+
+func (x *EnergyCalendarDay) GetHasData() bool {
+	if x != nil {
+		return x.HasData
+	}
+	return false
+}
+
+func (x *EnergyCalendarDay) GetIsFuture() bool {
+	if x != nil {
+		return x.IsFuture
+	}
+	return false
+}
+
+func (x *EnergyCalendarDay) GetSolarGeneratedKwh() float64 {
+	if x != nil {
+		return x.SolarGeneratedKwh
+	}
+	return 0
+}
+
+func (x *EnergyCalendarDay) GetEstimatedValue() float64 {
+	if x != nil {
+		return x.EstimatedValue
+	}
+	return 0
+}
+
+func (x *EnergyCalendarDay) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+type EnergyCalendarTotals struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SolarGeneratedKwh float64                `protobuf:"fixed64,1,opt,name=solar_generated_kwh,json=solarGeneratedKwh,proto3" json:"solar_generated_kwh,omitempty"`
+	EstimatedValue    float64                `protobuf:"fixed64,2,opt,name=estimated_value,json=estimatedValue,proto3" json:"estimated_value,omitempty"`
+	Currency          string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EnergyCalendarTotals) Reset() {
+	*x = EnergyCalendarTotals{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnergyCalendarTotals) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnergyCalendarTotals) ProtoMessage() {}
+
+func (x *EnergyCalendarTotals) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnergyCalendarTotals.ProtoReflect.Descriptor instead.
+func (*EnergyCalendarTotals) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *EnergyCalendarTotals) GetSolarGeneratedKwh() float64 {
+	if x != nil {
+		return x.SolarGeneratedKwh
+	}
+	return 0
+}
+
+func (x *EnergyCalendarTotals) GetEstimatedValue() float64 {
+	if x != nil {
+		return x.EstimatedValue
+	}
+	return 0
+}
+
+func (x *EnergyCalendarTotals) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+type GetEnergyCalendarResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Scope               *EnergyScope           `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	Year                int32                  `protobuf:"varint,2,opt,name=year,proto3" json:"year,omitempty"`
+	Month               int32                  `protobuf:"varint,3,opt,name=month,proto3" json:"month,omitempty"`
+	Timezone            string                 `protobuf:"bytes,4,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	VisibleDays         []*EnergyCalendarDay   `protobuf:"bytes,5,rep,name=visible_days,json=visibleDays,proto3" json:"visible_days,omitempty"`
+	SelectedMonthTotals *EnergyCalendarTotals  `protobuf:"bytes,6,opt,name=selected_month_totals,json=selectedMonthTotals,proto3" json:"selected_month_totals,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *GetEnergyCalendarResponse) Reset() {
+	*x = GetEnergyCalendarResponse{}
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEnergyCalendarResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEnergyCalendarResponse) ProtoMessage() {}
+
+func (x *GetEnergyCalendarResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_telemetry_v1_telemetry_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEnergyCalendarResponse.ProtoReflect.Descriptor instead.
+func (*GetEnergyCalendarResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *GetEnergyCalendarResponse) GetScope() *EnergyScope {
+	if x != nil {
+		return x.Scope
+	}
+	return nil
+}
+
+func (x *GetEnergyCalendarResponse) GetYear() int32 {
+	if x != nil {
+		return x.Year
+	}
+	return 0
+}
+
+func (x *GetEnergyCalendarResponse) GetMonth() int32 {
+	if x != nil {
+		return x.Month
+	}
+	return 0
+}
+
+func (x *GetEnergyCalendarResponse) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+func (x *GetEnergyCalendarResponse) GetVisibleDays() []*EnergyCalendarDay {
+	if x != nil {
+		return x.VisibleDays
+	}
+	return nil
+}
+
+func (x *GetEnergyCalendarResponse) GetSelectedMonthTotals() *EnergyCalendarTotals {
+	if x != nil {
+		return x.SelectedMonthTotals
 	}
 	return nil
 }
@@ -2310,7 +2678,7 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x13last_observed_watts\x18\t \x01(\x01R\x11lastObservedWatts\x121\n" +
 	"\x15last_observed_unix_ms\x18\n" +
 	" \x01(\x03R\x12lastObservedUnixMs\x12!\n" +
-	"\fsample_count\x18\v \x01(\rR\vsampleCount\"\x8c\x02\n" +
+	"\fsample_count\x18\v \x01(\rR\vsampleCount\"\xa0\x02\n" +
 	"\x19GetEnergyDashboardRequest\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12&\n" +
 	"\x0fuse_all_devices\x18\x02 \x01(\bR\ruseAllDevices\x12\x16\n" +
@@ -2318,7 +2686,8 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\btimezone\x18\x04 \x01(\tR\btimezone\x12-\n" +
 	"\x12include_comparison\x18\x05 \x01(\bR\x11includeComparison\x12+\n" +
 	"\x12grid_price_per_kwh\x18\x06 \x01(\x01R\x0fgridPricePerKwh\x12\x1a\n" +
-	"\bcurrency\x18\a \x01(\tR\bcurrency\"\xad\x05\n" +
+	"\bcurrency\x18\a \x01(\tR\bcurrency\x12\x12\n" +
+	"\x04date\x18\b \x01(\tR\x04date\"\xad\x05\n" +
 	"\x1aGetEnergyDashboardResponse\x125\n" +
 	"\x05scope\x18\x01 \x01(\v2\x1f.pulse.telemetry.v1.EnergyScopeR\x05scope\x128\n" +
 	"\x06window\x18\x02 \x01(\v2 .pulse.telemetry.v1.EnergyWindowR\x06window\x12;\n" +
@@ -2328,16 +2697,48 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x16previous_energy_points\x18\x06 \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x14previousEnergyPoints\x12Q\n" +
 	"\x14current_power_points\x18\a \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x12currentPowerPoints\x12S\n" +
 	"\x15previous_power_points\x18\b \x03(\v2\x1f.pulse.telemetry.v1.RollupPointR\x13previousPowerPoints\x12O\n" +
-	"\x0fpv_port_history\x18\t \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory\"\x98\x01\n" +
+	"\x0fpv_port_history\x18\t \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory\"\xac\x01\n" +
 	"\x1dGetEnergyPvPortHistoryRequest\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12&\n" +
 	"\x0fuse_all_devices\x18\x02 \x01(\bR\ruseAllDevices\x12\x16\n" +
 	"\x06preset\x18\x03 \x01(\tR\x06preset\x12\x1a\n" +
-	"\btimezone\x18\x04 \x01(\tR\btimezone\"\xe2\x01\n" +
+	"\btimezone\x18\x04 \x01(\tR\btimezone\x12\x12\n" +
+	"\x04date\x18\x05 \x01(\tR\x04date\"\xe2\x01\n" +
 	"\x1eGetEnergyPvPortHistoryResponse\x125\n" +
 	"\x05scope\x18\x01 \x01(\v2\x1f.pulse.telemetry.v1.EnergyScopeR\x05scope\x128\n" +
 	"\x06window\x18\x02 \x01(\v2 .pulse.telemetry.v1.EnergyWindowR\x06window\x12O\n" +
-	"\x0fpv_port_history\x18\x03 \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory*\x8a\x01\n" +
+	"\x0fpv_port_history\x18\x03 \x03(\v2'.pulse.telemetry.v1.EnergyPVPortHistoryR\rpvPortHistory\"\xee\x01\n" +
+	"\x18GetEnergyCalendarRequest\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12&\n" +
+	"\x0fuse_all_devices\x18\x02 \x01(\bR\ruseAllDevices\x12\x12\n" +
+	"\x04year\x18\x03 \x01(\x05R\x04year\x12\x14\n" +
+	"\x05month\x18\x04 \x01(\x05R\x05month\x12\x1a\n" +
+	"\btimezone\x18\x05 \x01(\tR\btimezone\x12+\n" +
+	"\x12grid_price_per_kwh\x18\x06 \x01(\x01R\x0fgridPricePerKwh\x12\x1a\n" +
+	"\bcurrency\x18\a \x01(\tR\bcurrency\"\xbc\x02\n" +
+	"\x11EnergyCalendarDay\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x12\x12\n" +
+	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
+	"\x05month\x18\x03 \x01(\x05R\x05month\x12\x10\n" +
+	"\x03day\x18\x04 \x01(\x05R\x03day\x12*\n" +
+	"\x11in_selected_month\x18\x05 \x01(\bR\x0finSelectedMonth\x12\x19\n" +
+	"\bhas_data\x18\x06 \x01(\bR\ahasData\x12\x1b\n" +
+	"\tis_future\x18\a \x01(\bR\bisFuture\x12.\n" +
+	"\x13solar_generated_kwh\x18\b \x01(\x01R\x11solarGeneratedKwh\x12'\n" +
+	"\x0festimated_value\x18\t \x01(\x01R\x0eestimatedValue\x12\x1a\n" +
+	"\bcurrency\x18\n" +
+	" \x01(\tR\bcurrency\"\x8b\x01\n" +
+	"\x14EnergyCalendarTotals\x12.\n" +
+	"\x13solar_generated_kwh\x18\x01 \x01(\x01R\x11solarGeneratedKwh\x12'\n" +
+	"\x0festimated_value\x18\x02 \x01(\x01R\x0eestimatedValue\x12\x1a\n" +
+	"\bcurrency\x18\x03 \x01(\tR\bcurrency\"\xc0\x02\n" +
+	"\x19GetEnergyCalendarResponse\x125\n" +
+	"\x05scope\x18\x01 \x01(\v2\x1f.pulse.telemetry.v1.EnergyScopeR\x05scope\x12\x12\n" +
+	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
+	"\x05month\x18\x03 \x01(\x05R\x05month\x12\x1a\n" +
+	"\btimezone\x18\x04 \x01(\tR\btimezone\x12H\n" +
+	"\fvisible_days\x18\x05 \x03(\v2%.pulse.telemetry.v1.EnergyCalendarDayR\vvisibleDays\x12\\\n" +
+	"\x15selected_month_totals\x18\x06 \x01(\v2(.pulse.telemetry.v1.EnergyCalendarTotalsR\x13selectedMonthTotals*\x8a\x01\n" +
 	"\x10RollupResolution\x12!\n" +
 	"\x1dROLLUP_RESOLUTION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18ROLLUP_RESOLUTION_MINUTE\x10\x01\x12\x1a\n" +
@@ -2345,12 +2746,13 @@ const file_pulse_telemetry_v1_telemetry_proto_rawDesc = "" +
 	"\x15ROLLUP_RESOLUTION_DAY\x10\x032\xce\x01\n" +
 	"\x10TelemetryService\x12^\n" +
 	"\vGetSnapshot\x12&.pulse.telemetry.v1.GetSnapshotRequest\x1a'.pulse.telemetry.v1.GetSnapshotResponse\x12Z\n" +
-	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x012\xe9\x03\n" +
+	"\tSubscribe\x12$.pulse.telemetry.v1.SubscribeRequest\x1a%.pulse.telemetry.v1.SubscribeResponse0\x012\xdb\x04\n" +
 	"\rEnergyService\x12m\n" +
 	"\x10QueryRollupRange\x12+.pulse.telemetry.v1.QueryRollupRangeRequest\x1a,.pulse.telemetry.v1.QueryRollupRangeResponse\x12s\n" +
 	"\x12CompareRollupRange\x12-.pulse.telemetry.v1.CompareRollupRangeRequest\x1a..pulse.telemetry.v1.CompareRollupRangeResponse\x12s\n" +
 	"\x12GetEnergyDashboard\x12-.pulse.telemetry.v1.GetEnergyDashboardRequest\x1a..pulse.telemetry.v1.GetEnergyDashboardResponse\x12\x7f\n" +
-	"\x16GetEnergyPvPortHistory\x121.pulse.telemetry.v1.GetEnergyPvPortHistoryRequest\x1a2.pulse.telemetry.v1.GetEnergyPvPortHistoryResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
+	"\x16GetEnergyPvPortHistory\x121.pulse.telemetry.v1.GetEnergyPvPortHistoryRequest\x1a2.pulse.telemetry.v1.GetEnergyPvPortHistoryResponse\x12p\n" +
+	"\x11GetEnergyCalendar\x12,.pulse.telemetry.v1.GetEnergyCalendarRequest\x1a-.pulse.telemetry.v1.GetEnergyCalendarResponseBGZEgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1;telemetryv1b\x06proto3"
 
 var (
 	file_pulse_telemetry_v1_telemetry_proto_rawDescOnce sync.Once
@@ -2365,7 +2767,7 @@ func file_pulse_telemetry_v1_telemetry_proto_rawDescGZIP() []byte {
 }
 
 var file_pulse_telemetry_v1_telemetry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_pulse_telemetry_v1_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_pulse_telemetry_v1_telemetry_proto_goTypes = []any{
 	(RollupResolution)(0),                  // 0: pulse.telemetry.v1.RollupResolution
 	(*Cursor)(nil),                         // 1: pulse.telemetry.v1.Cursor
@@ -2393,14 +2795,18 @@ var file_pulse_telemetry_v1_telemetry_proto_goTypes = []any{
 	(*GetEnergyDashboardResponse)(nil),     // 23: pulse.telemetry.v1.GetEnergyDashboardResponse
 	(*GetEnergyPvPortHistoryRequest)(nil),  // 24: pulse.telemetry.v1.GetEnergyPvPortHistoryRequest
 	(*GetEnergyPvPortHistoryResponse)(nil), // 25: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse
-	nil,                                    // 26: pulse.telemetry.v1.Snapshot.MetricsEntry
-	nil,                                    // 27: pulse.telemetry.v1.Delta.ChangedEntry
+	(*GetEnergyCalendarRequest)(nil),       // 26: pulse.telemetry.v1.GetEnergyCalendarRequest
+	(*EnergyCalendarDay)(nil),              // 27: pulse.telemetry.v1.EnergyCalendarDay
+	(*EnergyCalendarTotals)(nil),           // 28: pulse.telemetry.v1.EnergyCalendarTotals
+	(*GetEnergyCalendarResponse)(nil),      // 29: pulse.telemetry.v1.GetEnergyCalendarResponse
+	nil,                                    // 30: pulse.telemetry.v1.Snapshot.MetricsEntry
+	nil,                                    // 31: pulse.telemetry.v1.Delta.ChangedEntry
 }
 var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	1,  // 0: pulse.telemetry.v1.Snapshot.cursor:type_name -> pulse.telemetry.v1.Cursor
-	26, // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
+	30, // 1: pulse.telemetry.v1.Snapshot.metrics:type_name -> pulse.telemetry.v1.Snapshot.MetricsEntry
 	1,  // 2: pulse.telemetry.v1.Delta.cursor:type_name -> pulse.telemetry.v1.Cursor
-	27, // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
+	31, // 3: pulse.telemetry.v1.Delta.changed:type_name -> pulse.telemetry.v1.Delta.ChangedEntry
 	1,  // 4: pulse.telemetry.v1.Heartbeat.cursor:type_name -> pulse.telemetry.v1.Cursor
 	2,  // 5: pulse.telemetry.v1.GetSnapshotResponse.snapshot:type_name -> pulse.telemetry.v1.Snapshot
 	1,  // 6: pulse.telemetry.v1.SubscribeRequest.from:type_name -> pulse.telemetry.v1.Cursor
@@ -2433,23 +2839,28 @@ var file_pulse_telemetry_v1_telemetry_proto_depIdxs = []int32{
 	16, // 33: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse.scope:type_name -> pulse.telemetry.v1.EnergyScope
 	17, // 34: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse.window:type_name -> pulse.telemetry.v1.EnergyWindow
 	21, // 35: pulse.telemetry.v1.GetEnergyPvPortHistoryResponse.pv_port_history:type_name -> pulse.telemetry.v1.EnergyPVPortHistory
-	5,  // 36: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
-	7,  // 37: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
-	12, // 38: pulse.telemetry.v1.EnergyService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
-	14, // 39: pulse.telemetry.v1.EnergyService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
-	22, // 40: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:input_type -> pulse.telemetry.v1.GetEnergyDashboardRequest
-	24, // 41: pulse.telemetry.v1.EnergyService.GetEnergyPvPortHistory:input_type -> pulse.telemetry.v1.GetEnergyPvPortHistoryRequest
-	6,  // 42: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
-	8,  // 43: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
-	13, // 44: pulse.telemetry.v1.EnergyService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
-	15, // 45: pulse.telemetry.v1.EnergyService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
-	23, // 46: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:output_type -> pulse.telemetry.v1.GetEnergyDashboardResponse
-	25, // 47: pulse.telemetry.v1.EnergyService.GetEnergyPvPortHistory:output_type -> pulse.telemetry.v1.GetEnergyPvPortHistoryResponse
-	42, // [42:48] is the sub-list for method output_type
-	36, // [36:42] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	16, // 36: pulse.telemetry.v1.GetEnergyCalendarResponse.scope:type_name -> pulse.telemetry.v1.EnergyScope
+	27, // 37: pulse.telemetry.v1.GetEnergyCalendarResponse.visible_days:type_name -> pulse.telemetry.v1.EnergyCalendarDay
+	28, // 38: pulse.telemetry.v1.GetEnergyCalendarResponse.selected_month_totals:type_name -> pulse.telemetry.v1.EnergyCalendarTotals
+	5,  // 39: pulse.telemetry.v1.TelemetryService.GetSnapshot:input_type -> pulse.telemetry.v1.GetSnapshotRequest
+	7,  // 40: pulse.telemetry.v1.TelemetryService.Subscribe:input_type -> pulse.telemetry.v1.SubscribeRequest
+	12, // 41: pulse.telemetry.v1.EnergyService.QueryRollupRange:input_type -> pulse.telemetry.v1.QueryRollupRangeRequest
+	14, // 42: pulse.telemetry.v1.EnergyService.CompareRollupRange:input_type -> pulse.telemetry.v1.CompareRollupRangeRequest
+	22, // 43: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:input_type -> pulse.telemetry.v1.GetEnergyDashboardRequest
+	24, // 44: pulse.telemetry.v1.EnergyService.GetEnergyPvPortHistory:input_type -> pulse.telemetry.v1.GetEnergyPvPortHistoryRequest
+	26, // 45: pulse.telemetry.v1.EnergyService.GetEnergyCalendar:input_type -> pulse.telemetry.v1.GetEnergyCalendarRequest
+	6,  // 46: pulse.telemetry.v1.TelemetryService.GetSnapshot:output_type -> pulse.telemetry.v1.GetSnapshotResponse
+	8,  // 47: pulse.telemetry.v1.TelemetryService.Subscribe:output_type -> pulse.telemetry.v1.SubscribeResponse
+	13, // 48: pulse.telemetry.v1.EnergyService.QueryRollupRange:output_type -> pulse.telemetry.v1.QueryRollupRangeResponse
+	15, // 49: pulse.telemetry.v1.EnergyService.CompareRollupRange:output_type -> pulse.telemetry.v1.CompareRollupRangeResponse
+	23, // 50: pulse.telemetry.v1.EnergyService.GetEnergyDashboard:output_type -> pulse.telemetry.v1.GetEnergyDashboardResponse
+	25, // 51: pulse.telemetry.v1.EnergyService.GetEnergyPvPortHistory:output_type -> pulse.telemetry.v1.GetEnergyPvPortHistoryResponse
+	29, // 52: pulse.telemetry.v1.EnergyService.GetEnergyCalendar:output_type -> pulse.telemetry.v1.GetEnergyCalendarResponse
+	46, // [46:53] is the sub-list for method output_type
+	39, // [39:46] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_pulse_telemetry_v1_telemetry_proto_init() }
@@ -2470,7 +2881,7 @@ func file_pulse_telemetry_v1_telemetry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_telemetry_v1_telemetry_proto_rawDesc), len(file_pulse_telemetry_v1_telemetry_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   27,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

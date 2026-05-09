@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { XStack, YStack } from 'tamagui';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
-import { PulseSidebarNav, type PulsePrimaryNavKey } from '@/shared/ui/PulseSidebarNav';
+import { PulseSidebarNav } from '@/shared/ui/PulseSidebarNav';
+import type { PulsePrimaryNavKey } from '@/shared/ui/pulsePrimaryNav';
 
 export function SecondaryPageShell({
   activeNavKey,

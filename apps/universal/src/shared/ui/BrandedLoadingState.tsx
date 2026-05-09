@@ -1,7 +1,6 @@
-import { ActivityIndicator, Image } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { Text, YStack } from 'tamagui';
-import { useThemeSemantics } from '@/shared/theme/semantic';
-import appIcon from '../../../assets/icon.png';
+import { PulseMark } from '@/shared/ui/PulseMark';
 
 export function BrandedLoadingState({
   message = 'Loading…',
@@ -10,23 +9,16 @@ export function BrandedLoadingState({
   message?: string;
   minHeight?: number;
 }) {
-  const semantics = useThemeSemantics();
-
   return (
     <YStack minHeight={minHeight} alignItems="center" justifyContent="center" gap="$4">
       <YStack
         width={68}
         height={68}
-        borderRadius="$4"
         alignItems="center"
         justifyContent="center"
-        borderWidth={1}
-        style={{
-          backgroundColor: semantics.mutedPanelBackground,
-          borderColor: semantics.mutedPanelBorder
-        }}
+        borderRadius="$4"
       >
-        <Image source={appIcon} style={{ width: 34, height: 34 }} resizeMode="contain" />
+        <PulseMark size={58} />
       </YStack>
       <ActivityIndicator size="large" />
       <Text color="$color" opacity={0.96} fontSize="$5" fontWeight="700">

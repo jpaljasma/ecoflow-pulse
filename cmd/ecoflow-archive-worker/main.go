@@ -90,6 +90,7 @@ func main() {
 	}
 
 	metrics := workermetrics.New("archive")
+	metrics.RequireConsumerSubscription()
 	worker, err := archiveworker.New(log, natsConn, objectStore, cfg, archiveworker.WithManifestStore(manifestStore), archiveworker.WithMetrics(metrics))
 	if err != nil {
 		log.Error("init archive worker failed", slog.String("error", err.Error()))
@@ -102,7 +103,7 @@ func main() {
 	metricsListenAddr := strings.TrimSpace(os.Getenv("ARCHIVE_METRICS_LISTEN_ADDR"))
 	stopLogMetrics := pulselog.StartAsyncMetricsReporter(ctx, log, "archive-worker", asyncLogHandler, logMetricsInterval)
 	defer stopLogMetrics()
-	stopMetricsServer := workermetrics.StartServer(ctx, log, metrics.Registry(), metricsListenAddr)
+	stopMetricsServer := workermetrics.StartServerWithReadiness(ctx, log, metrics.Registry(), metricsListenAddr, metrics.ReadyStatus)
 	defer stopMetricsServer()
 
 	log.Info("archive worker starting",

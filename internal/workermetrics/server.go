@@ -13,7 +13,13 @@ import (
 
 const drainHookDelay = 5 * time.Second
 
+type ReadinessFunc func() (bool, string)
+
 func StartServer(ctx context.Context, log *slog.Logger, registry *prometheus.Registry, listenAddr string) func() {
+	return StartServerWithReadiness(ctx, log, registry, listenAddr, nil)
+}
+
+func StartServerWithReadiness(ctx context.Context, log *slog.Logger, registry *prometheus.Registry, listenAddr string, readiness ReadinessFunc) func() {
 	if ctx == nil || log == nil || registry == nil || listenAddr == "" {
 		return func() {}
 	}
@@ -28,6 +34,16 @@ func StartServer(ctx context.Context, log *slog.Logger, registry *prometheus.Reg
 		if draining.Load() {
 			http.Error(w, "draining", http.StatusServiceUnavailable)
 			return
+		}
+		if readiness != nil {
+			ok, reason := readiness()
+			if !ok {
+				if reason == "" {
+					reason = "not_ready"
+				}
+				http.Error(w, reason, http.StatusServiceUnavailable)
+				return
+			}
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))

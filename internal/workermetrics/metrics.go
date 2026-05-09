@@ -1,6 +1,7 @@
 package workermetrics
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,6 +17,12 @@ type Metrics struct {
 	flushDuration    prometheus.Histogram
 	lastFlushRecords prometheus.Gauge
 	lastFlushBytes   prometheus.Gauge
+
+	consumerRequired            atomic.Bool
+	consumerReady               atomic.Bool
+	consumerReadyGauge          prometheus.Gauge
+	consumerSubscribeTotal      *prometheus.CounterVec
+	consumerConsecutiveFailures prometheus.Gauge
 }
 
 func New(component string) *Metrics {
@@ -53,7 +60,21 @@ func New(component string) *Metrics {
 			Name: "pulse_worker_last_flush_bytes",
 			Help: "Number of bytes in the most recent flush.",
 		}),
+		consumerReadyGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "pulse_worker_consumer_ready",
+			Help: "Whether the worker's required NATS consumer subscription is currently attached.",
+		}),
+		consumerSubscribeTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "pulse_worker_consumer_subscribe_total",
+			Help: "Total NATS consumer subscription outcomes by outcome.",
+		}, []string{"outcome"}),
+		consumerConsecutiveFailures: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "pulse_worker_consumer_consecutive_subscribe_failures",
+			Help: "Consecutive NATS consumer subscription failures since the last successful attach.",
+		}),
 	}
+	m.consumerReady.Store(true)
+	m.consumerReadyGauge.Set(1)
 	registerer.MustRegister(
 		m.inflight,
 		m.messagesTotal,
@@ -62,6 +83,9 @@ func New(component string) *Metrics {
 		m.flushDuration,
 		m.lastFlushRecords,
 		m.lastFlushBytes,
+		m.consumerReadyGauge,
+		m.consumerSubscribeTotal,
+		m.consumerConsecutiveFailures,
 	)
 	return m
 }
@@ -100,4 +124,45 @@ func (m *Metrics) ObserveFlush(outcome string, duration time.Duration, records i
 	m.flushDuration.Observe(duration.Seconds())
 	m.lastFlushRecords.Set(float64(records))
 	m.lastFlushBytes.Set(float64(bytes))
+}
+
+func (m *Metrics) RequireConsumerSubscription() {
+	if m == nil {
+		return
+	}
+	m.consumerRequired.Store(true)
+	m.consumerReady.Store(false)
+	m.consumerReadyGauge.Set(0)
+}
+
+func (m *Metrics) ObserveConsumerSubscribeFailure(string, string, error) {
+	if m == nil {
+		return
+	}
+	m.consumerRequired.Store(true)
+	m.consumerReady.Store(false)
+	m.consumerReadyGauge.Set(0)
+	m.consumerSubscribeTotal.WithLabelValues("failure").Inc()
+	m.consumerConsecutiveFailures.Inc()
+}
+
+func (m *Metrics) ObserveConsumerSubscribed(string, string) {
+	if m == nil {
+		return
+	}
+	m.consumerRequired.Store(true)
+	m.consumerReady.Store(true)
+	m.consumerReadyGauge.Set(1)
+	m.consumerSubscribeTotal.WithLabelValues("success").Inc()
+	m.consumerConsecutiveFailures.Set(0)
+}
+
+func (m *Metrics) ReadyStatus() (bool, string) {
+	if m == nil {
+		return true, "ok"
+	}
+	if m.consumerRequired.Load() && !m.consumerReady.Load() {
+		return false, "consumer_not_subscribed"
+	}
+	return true, "ok"
 }

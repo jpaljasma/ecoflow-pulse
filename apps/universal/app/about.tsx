@@ -1,18 +1,17 @@
 import { useRouter } from 'expo-router';
 import { Animated, ScrollView } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
 import { Text, XStack, YStack } from 'tamagui';
 import { TopBar } from '@/shared/ui/TopBar';
 import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { Card } from '@/shared/ui/Card';
 import { AppMenu } from '@/shared/ui/AppMenu';
 import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
+import { PulseMark } from '@/shared/ui/PulseMark';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { appMetadata } from '@/shared/theme/catalog';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
-import appIcon from '../assets/icon.png';
 
 const capabilityItems = [
   {
@@ -105,30 +104,7 @@ export default function AboutScreen() {
                 flexWrap="wrap"
               >
                 <XStack gap="$4" alignItems={isTablet ? 'center' : 'flex-start'} flexWrap="wrap" flex={1}>
-                  <YStack
-                    width={isTablet ? 112 : 96}
-                    height={isTablet ? 112 : 96}
-                    borderRadius="$5"
-                    alignItems="center"
-                    justifyContent="center"
-                    borderWidth={1}
-                    style={{
-                      backgroundColor: semantics.mutedPanelBackground,
-                      borderColor: semantics.mutedPanelBorder
-                    }}
-                  >
-                    <ExpoImage
-                      source={appIcon}
-                      style={{
-                        width: isTablet ? 88 : 74,
-                        height: isTablet ? 88 : 74,
-                        borderRadius: isTablet ? 22 : 18
-                      }}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      transition={120}
-                    />
-                  </YStack>
+                  <PulseMark size={isTablet ? 112 : 96} />
 
                   <YStack gap="$3" flex={1} minWidth={280} maxWidth={700}>
                     <YStack gap="$2">

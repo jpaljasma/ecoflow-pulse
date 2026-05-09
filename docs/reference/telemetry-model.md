@@ -237,6 +237,19 @@ Frontend rule:
   (`local midnight -> now`), and its previous comparison is yesterday over the
   same local clock span. The `Last 24h` preset is the rolling elapsed-time
   comparison (`now-24h -> now` against the preceding 24 hours).
+- `date=YYYY-MM-DD` on the `Today` Energy preset turns the dashboard into a
+  selected local-day view: past dates use the full local day, the current date
+  remains partial through `now`, and the previous series follows the prior
+  local-day window.
+- `/api/v1/energy/calendar` exposes a Sunday-start visible month for fleet or
+  canonical UUID device scope. It includes muted adjacent-month cells, per-day
+  solar/value totals, `hasData`, future flags, and selected-month-only totals.
+- Public Energy requests resolve local-calendar timezone from the current user
+  profile rather than appending timezone query parameters. Calendar current-day
+  cells are backed by live current-day rollups so today matches the homepage
+  solar total. Non-current Calendar months are cacheable as complete
+  user-visible month responses; the current profile-local month stays on the
+  live path so today is not hidden behind a stale month cache.
 - the same card also exposes a conservative mature-tree equivalent using PV
   lifecycle `CO2e` benchmark math. Methodology and constants live in
   [`tree-equivalent.md`](tree-equivalent.md).

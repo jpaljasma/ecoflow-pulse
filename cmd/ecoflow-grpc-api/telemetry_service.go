@@ -54,6 +54,9 @@ type EnergyService struct {
 	pvPortHistoryCache   map[string]pvPortHistoryCacheEntry
 	pvPortHistoryMu      sync.Mutex
 	pvPortHistoryGroup   singleflight.Group
+	energyCalendarCache  map[string]energyCalendarCacheEntry
+	energyCalendarMu     sync.Mutex
+	energyCalendarGroup  singleflight.Group
 	now                  func() time.Time
 }
 
@@ -75,15 +78,21 @@ var defaultSnapshotMetrics = map[string]float64{
 }
 
 const (
-	defaultSubscribeUpdateHz     uint32 = 4
-	maxSubscribeUpdateHz         uint32 = 50
-	defaultMaxQueryBuckets              = 10_000
-	defaultHistoryGzipMinBytes          = 16 << 10 // 16 KiB
-	defaultPVPortHistoryCacheTTL        = 15 * time.Second
+	defaultSubscribeUpdateHz      uint32 = 4
+	maxSubscribeUpdateHz          uint32 = 50
+	defaultMaxQueryBuckets               = 10_000
+	defaultHistoryGzipMinBytes           = 16 << 10 // 16 KiB
+	defaultPVPortHistoryCacheTTL         = 15 * time.Second
+	defaultEnergyCalendarCacheTTL        = 12 * time.Hour
 )
 
 type pvPortHistoryCacheEntry struct {
 	rows      []energydashboard.PVPortHistory
+	expiresAt time.Time
+}
+
+type energyCalendarCacheEntry struct {
+	resp      *telemetryv1.GetEnergyCalendarResponse
 	expiresAt time.Time
 }
 
@@ -140,6 +149,7 @@ func NewEnergyServiceWithDeps(deps EnergyServiceDeps) *EnergyService {
 		maxQueryBuckets:      maxQueryBuckets,
 		historyGzipMinBytes:  historyGzipMinBytes,
 		pvPortHistoryCache:   map[string]pvPortHistoryCacheEntry{},
+		energyCalendarCache:  map[string]energyCalendarCacheEntry{},
 		now:                  nowFn,
 	}
 }

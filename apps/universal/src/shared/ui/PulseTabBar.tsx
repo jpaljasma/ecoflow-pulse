@@ -1,6 +1,7 @@
 import { BottomTabBar, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
-import { PulseSidebarNav, resolvePulsePrimaryNavKey } from '@/shared/ui/PulseSidebarNav';
+import { PulseSidebarNav } from '@/shared/ui/PulseSidebarNav';
+import { resolvePulsePrimaryNavKey } from '@/shared/ui/pulsePrimaryNav';
 
 export function PulseTabBar(props: BottomTabBarProps) {
   const { isSidebarMode } = useNavigationShellMetrics();

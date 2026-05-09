@@ -27,6 +27,11 @@ type ConsumerInfoProvider interface {
 	ConsumerInfo(stream, consumer string, opts ...nats.JSOpt) (*nats.ConsumerInfo, error)
 }
 
+type ConsumerSupervisorObserver interface {
+	ObserveConsumerSubscribeFailure(stream, durable string, err error)
+	ObserveConsumerSubscribed(stream, durable string)
+}
+
 type ConsumerSupervisorConfig struct {
 	StreamName      string
 	Durable         string
@@ -34,6 +39,7 @@ type ConsumerSupervisorConfig struct {
 	MonitorInterval time.Duration
 	RetryBase       time.Duration
 	RetryMax        time.Duration
+	Observer        ConsumerSupervisorObserver
 }
 
 func (c ConsumerSupervisorConfig) normalized() ConsumerSupervisorConfig {
@@ -84,6 +90,9 @@ func RunConsumerSupervisor(
 
 		sub, err := subscribe(handler)
 		if err != nil {
+			if cfg.Observer != nil {
+				cfg.Observer.ObserveConsumerSubscribeFailure(cfg.StreamName, cfg.Durable, err)
+			}
 			attempt += 1
 			delay := computeConsumerRetryBackoff(cfg.RetryBase, cfg.RetryMax, attempt)
 			log.Warn("queue consumer subscribe failed; retrying",
@@ -100,6 +109,9 @@ func RunConsumerSupervisor(
 		}
 
 		attempt = 0
+		if cfg.Observer != nil {
+			cfg.Observer.ObserveConsumerSubscribed(cfg.StreamName, cfg.Durable)
+		}
 		if err := superviseSubscription(ctx, log, infoProvider, sub, tracker, cfg); err != nil {
 			return err
 		}

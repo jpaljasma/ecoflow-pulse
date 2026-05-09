@@ -112,7 +112,7 @@ export function buildApp(
       );
     }
     registerDeviceRoutes(scopedApp, config, deviceClient, inferenceClient, authPreHandler);
-    registerHistoryRoutes(scopedApp, config, historyClient, inferenceClient, authPreHandler);
+    registerHistoryRoutes(scopedApp, config, historyClient, inferenceClient, authPreHandler, options.controlPlaneClient);
   });
   if (config.publicDir && fs.existsSync(config.publicDir)) {
     const indexHtmlPath = path.join(config.publicDir, 'index.html');

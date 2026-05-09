@@ -92,6 +92,7 @@ type EnergyComparisonCacheKey struct {
 	ResolvedDeviceIDs []string
 	Preset            string
 	Timezone          string
+	Date              string
 	GridPricePerKwh   float64
 	Currency          string
 	RefreshSlotUnixMs int64
@@ -161,6 +162,7 @@ func (s *ValkeyStore) energyComparisonKey(key EnergyComparisonCacheKey) string {
 		strings.Join(deviceIDs, ","), "|",
 		strings.TrimSpace(key.Preset), "|",
 		strings.TrimSpace(key.Timezone), "|",
+		strings.TrimSpace(key.Date), "|",
 		fmt.Sprintf("%.4f|%s|%d", key.GridPricePerKwh, strings.TrimSpace(key.Currency), key.RefreshSlotUnixMs),
 	)
 	return fmt.Sprintf("%s:{energy-comparison:%s}", s.keyPrefix, digest)

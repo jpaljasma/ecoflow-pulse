@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,13 +18,14 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func (s *EnergyService) GetEnergyDashboard(ctx context.Context, req *telemetryv1.GetEnergyDashboardRequest) (*telemetryv1.GetEnergyDashboardResponse, error) {
 	if s.queryReader == nil {
 		return nil, status.Error(codes.Unavailable, "telemetry history unavailable")
 	}
-	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone())
+	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone(), req.GetDate())
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +116,7 @@ func (s *EnergyService) GetEnergyDashboard(ctx context.Context, req *telemetryv1
 }
 
 func (s *EnergyService) GetEnergyPvPortHistory(ctx context.Context, req *telemetryv1.GetEnergyPvPortHistoryRequest) (*telemetryv1.GetEnergyPvPortHistoryResponse, error) {
-	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone())
+	scope, window, loc, preset, err := s.resolveEnergyScopeWindow(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetPreset(), req.GetTimezone(), req.GetDate())
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +142,196 @@ func (s *EnergyService) GetEnergyPvPortHistory(ctx context.Context, req *telemet
 	}
 	s.maybeEnableHistoryCompression(ctx, resp)
 	return resp, nil
+}
+
+func (s *EnergyService) GetEnergyCalendar(ctx context.Context, req *telemetryv1.GetEnergyCalendarRequest) (*telemetryv1.GetEnergyCalendarResponse, error) {
+	if s.queryReader == nil {
+		return nil, status.Error(codes.Unavailable, "telemetry history unavailable")
+	}
+	scope, loc, err := s.resolveEnergyCalendarScope(ctx, req.GetDeviceId(), req.GetUseAllDevices(), req.GetTimezone())
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	cacheKey, cacheable := energyCalendarCacheKey(now, scope, loc, int(req.GetYear()), int(req.GetMonth()), req.GetGridPricePerKwh(), req.GetCurrency())
+	if cacheable {
+		if cached := s.readCachedEnergyCalendar(cacheKey); cached != nil {
+			s.maybeEnableHistoryCompression(ctx, cached)
+			return cached, nil
+		}
+		value, err, _ := s.energyCalendarGroup.Do(cacheKey, func() (any, error) {
+			if cached := s.readCachedEnergyCalendar(cacheKey); cached != nil {
+				return cached, nil
+			}
+			resp, buildErr := s.buildEnergyCalendarResponse(ctx, req, scope, loc, now)
+			if buildErr != nil {
+				return nil, buildErr
+			}
+			s.writeEnergyCalendarCache(cacheKey, resp, energyCalendarCacheExpiresAt(now, loc))
+			return cloneEnergyCalendarResponse(resp), nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		resp, ok := value.(*telemetryv1.GetEnergyCalendarResponse)
+		if !ok || resp == nil {
+			return nil, status.Error(codes.Internal, "energy calendar cache returned invalid response")
+		}
+		s.maybeEnableHistoryCompression(ctx, resp)
+		return resp, nil
+	}
+	resp, err := s.buildEnergyCalendarResponse(ctx, req, scope, loc, now)
+	if err != nil {
+		return nil, err
+	}
+	s.maybeEnableHistoryCompression(ctx, resp)
+	return resp, nil
+}
+
+func (s *EnergyService) buildEnergyCalendarResponse(ctx context.Context, req *telemetryv1.GetEnergyCalendarRequest, scope energydashboard.Scope, loc *time.Location, now time.Time) (*telemetryv1.GetEnergyCalendarResponse, error) {
+	calendar, err := energydashboard.BuildCalendarMonth(
+		now,
+		loc,
+		int(req.GetYear()),
+		int(req.GetMonth()),
+		req.GetGridPricePerKwh(),
+		req.GetCurrency(),
+		func(from, to time.Time) (telemetryquery.Series, error) {
+			return s.queryScopeSeries(ctx, scope, energyCalendarResolutionForRange(s.now(), loc, from, to), from, to)
+		},
+	)
+	if err != nil {
+		if code := status.Code(err); code != codes.Unknown {
+			return nil, err
+		}
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	resp := &telemetryv1.GetEnergyCalendarResponse{
+		Scope: &telemetryv1.EnergyScope{
+			Mode:              scope.Mode,
+			DeviceId:          scope.DeviceID,
+			ResolvedDeviceIds: append([]string(nil), scope.ResolvedDeviceIDs...),
+		},
+		Year:        int32(calendar.Year),
+		Month:       int32(calendar.Month),
+		Timezone:    loc.String(),
+		VisibleDays: calendarDaysToProto(calendar.VisibleDays),
+		SelectedMonthTotals: &telemetryv1.EnergyCalendarTotals{
+			SolarGeneratedKwh: calendar.SelectedMonthTotals.SolarGeneratedKWh,
+			EstimatedValue:    calendar.SelectedMonthTotals.EstimatedValue,
+			Currency:          calendar.SelectedMonthTotals.Currency,
+		},
+	}
+	return resp, nil
+}
+
+func energyCalendarCacheKey(now time.Time, scope energydashboard.Scope, loc *time.Location, year, month int, gridPricePerKWh float64, currency string) (string, bool) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	localNow := now.In(loc)
+	if localNow.Year() == year && int(localNow.Month()) == month {
+		return "", false
+	}
+	parts := []string{
+		"v1",
+		loc.String(),
+		strconv.Itoa(year),
+		strconv.Itoa(month),
+		scope.Mode,
+		scope.DeviceID,
+		strings.Join(scope.ResolvedDeviceIDs, ","),
+		strconv.FormatFloat(gridPricePerKWh, 'g', -1, 64),
+		currency,
+	}
+	return strings.Join(parts, "|"), true
+}
+
+func energyCalendarCacheExpiresAt(now time.Time, loc *time.Location) time.Time {
+	if loc == nil {
+		loc = time.UTC
+	}
+	localNow := now.In(loc)
+	nextLocalMidnight := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	midnightExpiry := nextLocalMidnight.UTC().Add(time.Second)
+	ttlExpiry := now.UTC().Add(defaultEnergyCalendarCacheTTL)
+	if midnightExpiry.Before(ttlExpiry) {
+		return midnightExpiry
+	}
+	return ttlExpiry
+}
+
+func (s *EnergyService) readCachedEnergyCalendar(key string) *telemetryv1.GetEnergyCalendarResponse {
+	if key == "" {
+		return nil
+	}
+	now := s.now().UTC()
+	s.energyCalendarMu.Lock()
+	defer s.energyCalendarMu.Unlock()
+	entry, ok := s.energyCalendarCache[key]
+	if !ok {
+		return nil
+	}
+	if !now.Before(entry.expiresAt) {
+		delete(s.energyCalendarCache, key)
+		return nil
+	}
+	return cloneEnergyCalendarResponse(entry.resp)
+}
+
+func (s *EnergyService) writeEnergyCalendarCache(key string, resp *telemetryv1.GetEnergyCalendarResponse, expiresAt time.Time) {
+	if key == "" || resp == nil {
+		return
+	}
+	now := s.now().UTC()
+	s.energyCalendarMu.Lock()
+	defer s.energyCalendarMu.Unlock()
+	for existingKey, entry := range s.energyCalendarCache {
+		if !now.Before(entry.expiresAt) {
+			delete(s.energyCalendarCache, existingKey)
+		}
+	}
+	if len(s.energyCalendarCache) >= 128 {
+		for existingKey := range s.energyCalendarCache {
+			delete(s.energyCalendarCache, existingKey)
+			break
+		}
+	}
+	s.energyCalendarCache[key] = energyCalendarCacheEntry{
+		resp:      cloneEnergyCalendarResponse(resp),
+		expiresAt: expiresAt.UTC(),
+	}
+}
+
+func cloneEnergyCalendarResponse(resp *telemetryv1.GetEnergyCalendarResponse) *telemetryv1.GetEnergyCalendarResponse {
+	if resp == nil {
+		return nil
+	}
+	cloned, ok := proto.Clone(resp).(*telemetryv1.GetEnergyCalendarResponse)
+	if !ok {
+		return nil
+	}
+	return cloned
+}
+
+func energyCalendarResolutionForRange(now time.Time, loc *time.Location, from, to time.Time) telemetryquery.Resolution {
+	if loc == nil {
+		loc = time.UTC
+	}
+	localFrom := from.In(loc)
+	localTo := to.In(loc)
+	localNow := now.In(loc)
+	if !localNow.Before(localFrom) && localNow.Before(localTo) {
+		return telemetryquery.ResolutionHour
+	}
+	utcFrom := from.UTC()
+	utcTo := to.UTC()
+	if utcFrom.Hour() != 0 || utcFrom.Minute() != 0 || utcFrom.Second() != 0 || utcFrom.Nanosecond() != 0 ||
+		utcTo.Hour() != 0 || utcTo.Minute() != 0 || utcTo.Second() != 0 || utcTo.Nanosecond() != 0 {
+		return telemetryquery.ResolutionHour
+	}
+	return telemetryquery.ResolutionDay
 }
 
 func (s *EnergyService) getCachedPVPortHistory(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
@@ -211,7 +403,7 @@ func pvPortHistoryCacheKey(deviceIDs []string, resolution telemetryquery.Resolut
 	return strings.Join(parts, ",") + "|" + resolution.String() + "|" + from.UTC().Format(time.RFC3339Nano) + "|" + to.UTC().Format(time.RFC3339Nano)
 }
 
-func (s *EnergyService) resolveEnergyScopeWindow(ctx context.Context, deviceID string, useAllDevices bool, presetRaw, timezone string) (energydashboard.Scope, energydashboard.Window, *time.Location, energydashboard.Preset, error) {
+func (s *EnergyService) resolveEnergyScopeWindow(ctx context.Context, deviceID string, useAllDevices bool, presetRaw, timezone, selectedDate string) (energydashboard.Scope, energydashboard.Window, *time.Location, energydashboard.Preset, error) {
 	preset, err := energydashboard.ParsePreset(presetRaw)
 	if err != nil {
 		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.InvalidArgument, err.Error())
@@ -231,11 +423,31 @@ func (s *EnergyService) resolveEnergyScopeWindow(ctx context.Context, deviceID s
 	if err != nil {
 		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.PermissionDenied, err.Error())
 	}
-	window, err := energydashboard.ResolveWindow(s.now(), loc, preset)
+	window, err := energydashboard.ResolveWindowForDate(s.now(), loc, preset, selectedDate)
 	if err != nil {
 		return energydashboard.Scope{}, energydashboard.Window{}, nil, "", status.Error(codes.InvalidArgument, err.Error())
 	}
 	return scope, window, loc, preset, nil
+}
+
+func (s *EnergyService) resolveEnergyCalendarScope(ctx context.Context, deviceID string, useAllDevices bool, timezone string) (energydashboard.Scope, *time.Location, error) {
+	loc := time.UTC
+	var err error
+	if tz := strings.TrimSpace(timezone); tz != "" {
+		loc, err = time.LoadLocation(tz)
+		if err != nil {
+			return energydashboard.Scope{}, nil, status.Errorf(codes.InvalidArgument, "invalid timezone: %v", err)
+		}
+	}
+	visibleDeviceIDs, err := s.resolveVisibleDeviceIDs(ctx, deviceID, useAllDevices)
+	if err != nil {
+		return energydashboard.Scope{}, nil, err
+	}
+	scope, err := energydashboard.ResolveScope(scopeRequestValue(deviceID, useAllDevices), visibleDeviceIDs)
+	if err != nil {
+		return energydashboard.Scope{}, nil, status.Error(codes.PermissionDenied, err.Error())
+	}
+	return scope, loc, nil
 }
 
 func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
@@ -731,6 +943,25 @@ func pvPortHistoryRows(rows []telemetryquery.PVPortHistory) []energydashboard.PV
 			LastObservedWatts: row.LastObservedWatts,
 			LastObservedAt:    row.LastObservedAt,
 			SampleCount:       row.SampleCount,
+		})
+	}
+	return out
+}
+
+func calendarDaysToProto(days []energydashboard.CalendarDay) []*telemetryv1.EnergyCalendarDay {
+	out := make([]*telemetryv1.EnergyCalendarDay, 0, len(days))
+	for _, day := range days {
+		out = append(out, &telemetryv1.EnergyCalendarDay{
+			Date:              day.Date,
+			Year:              int32(day.Year),
+			Month:             int32(day.Month),
+			Day:               int32(day.Day),
+			InSelectedMonth:   day.InSelectedMonth,
+			HasData:           day.HasData,
+			IsFuture:          day.IsFuture,
+			SolarGeneratedKwh: day.SolarGeneratedKWh,
+			EstimatedValue:    day.EstimatedValue,
+			Currency:          day.Currency,
 		})
 	}
 	return out

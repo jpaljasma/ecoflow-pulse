@@ -2,6 +2,7 @@ package energydashboard
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -92,6 +93,18 @@ func ResolveWindow(now time.Time, loc *time.Location, preset Preset) (Window, er
 	}
 }
 
+func ResolveWindowForDate(now time.Time, loc *time.Location, preset Preset, selectedDate string) (Window, error) {
+	selectedDate = strings.TrimSpace(selectedDate)
+	if selectedDate == "" || preset != PresetToday {
+		return ResolveWindow(now, loc, preset)
+	}
+	year, month, day, err := parseLocalDate(selectedDate)
+	if err != nil {
+		return Window{}, err
+	}
+	return ResolveSelectedDateWindow(now, loc, year, month, day)
+}
+
 func newWindow(from, to, previousFrom, previousTo time.Time) Window {
 	return Window{
 		From:         from.UTC(),
@@ -114,4 +127,23 @@ func startOfWeek(t time.Time) time.Time {
 
 func startOfMonth(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
+}
+
+func parseLocalDate(raw string) (int, int, int, error) {
+	if len(raw) != len("2006-01-02") || raw[4] != '-' || raw[7] != '-' {
+		return 0, 0, 0, fmt.Errorf("invalid selected date: %s", raw)
+	}
+	year, err := strconv.Atoi(raw[0:4])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("invalid selected date: %s", raw)
+	}
+	month, err := strconv.Atoi(raw[5:7])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("invalid selected date: %s", raw)
+	}
+	day, err := strconv.Atoi(raw[8:10])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("invalid selected date: %s", raw)
+	}
+	return year, month, day, nil
 }

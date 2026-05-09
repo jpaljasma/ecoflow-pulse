@@ -225,6 +225,7 @@ message GetEnergyDashboardRequest {
   bool include_comparison = 5;
   double grid_price_per_kwh = 6;
   string currency = 7;
+  string date = 8;
 }
 
 message GetEnergyDashboardResponse {
@@ -244,12 +245,51 @@ message GetEnergyPvPortHistoryRequest {
   bool use_all_devices = 2;
   string preset = 3;
   string timezone = 4;
+  string date = 5;
 }
 
 message GetEnergyPvPortHistoryResponse {
   EnergyScope scope = 1;
   EnergyWindow window = 2;
   repeated EnergyPVPortHistory pv_port_history = 3;
+}
+
+message GetEnergyCalendarRequest {
+  string device_id = 1;
+  bool use_all_devices = 2;
+  int32 year = 3;
+  int32 month = 4;
+  string timezone = 5;
+  double grid_price_per_kwh = 6;
+  string currency = 7;
+}
+
+message EnergyCalendarDay {
+  string date = 1;
+  int32 year = 2;
+  int32 month = 3;
+  int32 day = 4;
+  bool in_selected_month = 5;
+  bool has_data = 6;
+  bool is_future = 7;
+  double solar_generated_kwh = 8;
+  double estimated_value = 9;
+  string currency = 10;
+}
+
+message EnergyCalendarTotals {
+  double solar_generated_kwh = 1;
+  double estimated_value = 2;
+  string currency = 3;
+}
+
+message GetEnergyCalendarResponse {
+  EnergyScope scope = 1;
+  int32 year = 2;
+  int32 month = 3;
+  string timezone = 4;
+  repeated EnergyCalendarDay visible_days = 5;
+  EnergyCalendarTotals selected_month_totals = 6;
 }
 
 service TelemetryService {
@@ -262,4 +302,5 @@ service EnergyService {
   rpc CompareRollupRange(CompareRollupRangeRequest) returns (CompareRollupRangeResponse);
   rpc GetEnergyDashboard(GetEnergyDashboardRequest) returns (GetEnergyDashboardResponse);
   rpc GetEnergyPvPortHistory(GetEnergyPvPortHistoryRequest) returns (GetEnergyPvPortHistoryResponse);
+  rpc GetEnergyCalendar(GetEnergyCalendarRequest) returns (GetEnergyCalendarResponse);
 }
