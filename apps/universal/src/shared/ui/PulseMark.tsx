@@ -1,24 +1,27 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { YStack } from 'tamagui';
-import { useThemeSemantics } from '@/shared/theme/semantic';
+import { Image, StyleSheet } from 'react-native';
+
+import { PULSE_MARK_ICON_SOURCE } from '@/shared/ui/pulseMarkAsset';
 
 export function PulseMark({ size = 42 }: { size?: number }) {
-  const semantics = useThemeSemantics();
-
   return (
-    <YStack
-      width={size}
-      height={size}
-      alignItems="center"
-      justifyContent="center"
-      borderRadius={Math.round(size * 0.28)}
-      borderWidth={1}
-      style={{
-        backgroundColor: semantics.navBrandBackground,
-        borderColor: semantics.navBrandBorder
-      }}
-    >
-      <MaterialCommunityIcons name="heart-pulse" size={Math.round(size * 0.58)} color={semantics.chartSolar} />
-    </YStack>
+    <Image
+      source={PULSE_MARK_ICON_SOURCE}
+      resizeMode="contain"
+      accessibilityIgnoresInvertColors
+      style={[
+        styles.icon,
+        {
+          width: size,
+          height: size,
+          borderRadius: Math.round(size * 0.24)
+        }
+      ]}
+    />
   );
 }
+
+const styles = StyleSheet.create({
+  icon: {
+    overflow: 'hidden'
+  }
+});

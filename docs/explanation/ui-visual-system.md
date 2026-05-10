@@ -206,9 +206,10 @@ Device detail pages should read as hardware-first operating views.
 - Shared header weather/solar chrome should open `Energy > Solar` with device
   scope on device pages and fleet scope elsewhere.
 
-In-app chrome should use the shared `PulseMark` vector mark for sidebar, menu,
-about, logo, and loading surfaces. Expo install icons, favicons, and touch
-icons remain separate app assets unless an asset refresh is explicitly scoped.
+In-app chrome should use the shared `PulseMark` component backed by
+`apps/universal/assets/icon.png` for sidebar, menu, about, logo, and loading
+surfaces. That asset is part of the same generated icon system as the Expo
+install icons, favicon, touch icon, and social share preview.
 
 Settings subpages should follow the same shell contract:
 
@@ -288,10 +289,10 @@ Recommended semantic roles:
 
 The icon should be Pulse-branded, not OEM-branded.
 
-Approved direction:
+Approved v2 direction:
 
 - abstract Pulse monogram first
-- subtle solar-rise cue
+- horizon-cut `P` with a subtle solar-rise cue
 - rounded-square tile
 - luxury-tech finish
 - dark graphite base
@@ -301,29 +302,28 @@ Approved direction:
 Avoid:
 
 - literal houses, panels, plugs, or bolts
+- hearts or heart-pulse symbols
 - generic green-energy clichés
 - over-detailed marks that collapse at small size
 
-### Primary Icon Concept
+### Active Icon Concept
 
-Concept name: `Pulse Arc`
+Concept name: `Horizon Cut P`
 
 Design intent:
 
-- abstract `P`
-- pulse / flow path
-- slight sunrise cue in the upper arc
+- abstract `P` formed by an open cyan arc and short stem
+- thin horizon cut through the bowl
+- restrained warm sun rising from the horizon
+- energy autonomy without literal hardware
 - strong silhouette at app-icon sizes
 
-### Secondary Icon Concept
+Source and export workflow:
 
-Concept name: `Split Pulse`
-
-Design intent:
-
-- slightly more futuristic
-- more motion-forward
-- still abstract and brand-led
+- vector master: `apps/universal/assets/pulsemark-v2-horizon-cut.svg`
+- raster export script: `apps/universal/scripts/generate_app_icons.py`
+- generated outputs include app icon, adaptive foreground, favicon, touch icon,
+  social share image, and web metadata shell
 
 ## Icon Prompt Directions
 

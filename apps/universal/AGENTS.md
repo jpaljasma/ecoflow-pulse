@@ -10,7 +10,9 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
    - avoid ad-hoc repeated color literals or one-off component variants.
 2. Keep Pulse branding canonical:
    - no new explicit EcoFlow branding in user-facing product chrome unless a screen is intentionally describing provider integration,
-   - app icons, splash assets, and navigation chrome should align with the Pulse visual system.
+   - app icons, splash assets, and navigation chrome should align with the Pulse visual system,
+   - shared product marks in chrome should render the canonical `apps/universal/assets/icon.png` through `PulseMark`,
+   - keep Pulse marks on the `Horizon Cut P` direction; do not reintroduce heart-pulse symbols, houses, panels, plugs, bolts, or OEM marks as product chrome.
 3. Accessibility is mandatory:
    - WCAG AA minimum for text and controls,
    - 44px minimum touch targets,
