@@ -117,6 +117,25 @@ def arc_point(
     return (center_x + radius_x * math.cos(radians), center_y + radius_y * math.sin(radians))
 
 
+def quadratic_curve(
+    start: tuple[float, float],
+    control: tuple[float, float],
+    end: tuple[float, float],
+    steps: int,
+) -> list[tuple[float, float]]:
+    points: list[tuple[float, float]] = []
+    for index in range(steps + 1):
+        t = index / steps
+        inverse = 1 - t
+        points.append(
+            (
+                inverse * inverse * start[0] + 2 * inverse * t * control[0] + t * t * end[0],
+                inverse * inverse * start[1] + 2 * inverse * t * control[1] + t * t * end[1],
+            )
+        )
+    return points
+
+
 def draw_tapered_arc(
     image: Image.Image,
     bbox: tuple[float, float, float, float],
@@ -133,23 +152,32 @@ def draw_tapered_arc(
     radius_y = (bottom - top) / 2
     half_width = width / 2
     steps = 112
-    angles = [start_degrees + (end_degrees - start_degrees) * i / steps for i in range(steps + 1)]
+    outer_tail_start = end_degrees - 14
+    inner_tail_start = end_degrees - 8
+    outer_angles = [start_degrees + (outer_tail_start - start_degrees) * i / steps for i in range(steps + 1)]
+    inner_angles = [start_degrees + (inner_tail_start - start_degrees) * i / steps for i in range(steps + 1)]
     outer = [
         arc_point(center_x, center_y, radius_x + half_width, radius_y + half_width, angle)
-        for angle in angles
+        for angle in outer_angles
     ]
     inner = [
         arc_point(center_x, center_y, radius_x - half_width, radius_y - half_width, angle)
-        for angle in reversed(angles[:-3])
+        for angle in reversed(inner_angles)
     ]
     tangent_radians = math.radians(end_degrees)
+    tip_width = min(width, 68)
     tip = (
-        center_x + radius_x * math.cos(tangent_radians) - math.sin(tangent_radians) * width * 0.42,
-        center_y + radius_y * math.sin(tangent_radians) + math.cos(tangent_radians) * width * 0.42,
+        center_x + radius_x * math.cos(tangent_radians) - math.sin(tangent_radians) * tip_width * 0.55,
+        center_y + radius_y * math.sin(tangent_radians) + math.cos(tangent_radians) * tip_width * 0.55,
     )
+    control_width = min(width, 68)
+    outer_control = (tip[0] + control_width * 1.05, tip[1] - control_width * 0.58)
+    inner_control = (tip[0] + control_width * 0.22, tip[1] - control_width * 0.95)
+    outer_tail = quadratic_curve(outer[-1], outer_control, tip, 22)
+    inner_tail = quadratic_curve(tip, inner_control, inner[0], 18)
     layer = make_canvas(image.size[0])
     draw = ImageDraw.Draw(layer)
-    draw.polygon([*outer[:-2], tip, *inner], fill=color)
+    draw.polygon([*outer, *outer_tail[1:], *inner_tail[1:], *inner[1:]], fill=color)
     if blur_radius:
         layer = layer.filter(ImageFilter.GaussianBlur(blur_radius))
     image.alpha_composite(layer)
@@ -182,9 +210,9 @@ def draw_horizon_cut_motif(image: Image.Image, size: int, pulse_alpha: int = 255
     arc_width = max(34, int(size * 0.061))
     arc_bbox = (size * 0.205, size * 0.18, size * 0.79, size * 0.765)
 
-    draw_tapered_arc(image, arc_bbox, 180, 416, hex_rgba(CYAN, min(106, pulse_alpha)), arc_width + max(28, size // 22), int(size * 0.034))
-    draw_tapered_arc(image, arc_bbox, 180, 416, hex_rgba("#083c58", min(172, pulse_alpha)), arc_width + max(4, size // 180))
-    draw_tapered_arc(image, arc_bbox, 180, 416, hex_rgba(CYAN, min(255, pulse_alpha)), arc_width)
+    draw_tapered_arc(image, arc_bbox, 180, 418, hex_rgba(CYAN, min(106, pulse_alpha)), arc_width + max(28, size // 22), int(size * 0.034))
+    draw_tapered_arc(image, arc_bbox, 180, 418, hex_rgba("#083c58", min(172, pulse_alpha)), arc_width + max(4, size // 180))
+    draw_tapered_arc(image, arc_bbox, 180, 418, hex_rgba(CYAN, min(255, pulse_alpha)), arc_width)
     draw_arc_stroke(
         image,
         (size * 0.228, size * 0.205, size * 0.765, size * 0.73),
@@ -195,22 +223,22 @@ def draw_horizon_cut_motif(image: Image.Image, size: int, pulse_alpha: int = 255
     )
 
     stem = [
-        (size * 0.218, size * 0.565),
-        (size * 0.273, size * 0.565),
-        (size * 0.273, size * 0.742),
-        (size * 0.218, size * 0.797),
+        (size * 0.179, size * 0.565),
+        (size * 0.234, size * 0.565),
+        (size * 0.234, size * 0.742),
+        (size * 0.179, size * 0.797),
     ]
     stem_glow = make_canvas(size)
     ImageDraw.Draw(stem_glow).polygon(stem, fill=hex_rgba(CYAN, min(132, pulse_alpha)))
     image.alpha_composite(stem_glow.filter(ImageFilter.GaussianBlur(int(size * 0.032))))
     draw.polygon(stem, fill=hex_rgba("#1aa3d2", min(246, pulse_alpha)))
     draw.line(
-        [(size * 0.264, size * 0.58), (size * 0.264, size * 0.732), (size * 0.232, size * 0.764)],
+        [(size * 0.225, size * 0.58), (size * 0.225, size * 0.732), (size * 0.193, size * 0.764)],
         fill=hex_rgba("#9eefff", min(100, pulse_alpha)),
         width=max(3, size // 210),
     )
     draw.line(
-        [(size * 0.217, size * 0.574), (size * 0.217, size * 0.786)],
+        [(size * 0.178, size * 0.574), (size * 0.178, size * 0.786)],
         fill=hex_rgba("#062238", min(160, pulse_alpha)),
         width=max(3, size // 190),
     )
@@ -325,8 +353,8 @@ def build_master_svg() -> str:
   </defs>
   <rect width="1024" height="1024" rx="230" fill="url(#tile)"/>
   <rect x="61" y="61" width="902" height="902" rx="246" fill="#132033" fill-opacity="0.12" stroke="#f4f7fb" stroke-opacity="0.08" stroke-width="5"/>
-  <path d="M179 497C179 310 326 180 512 180C715 180 845 354 805 556C782 667 711 733 610 770C648 710 697 655 722 549C756 406 667 247 512 247C366 247 241 352 241 497Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
-  <path d="M223 579H280V760L223 817Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
+  <path d="M179 497C179 310 326 180 512 180C715 180 845 354 805 556C790 636 752 693 708 719C681 732 655 748 636 758C651 693 665 690 682 690C736 558 756 406 667 247C512 247 366 352 241 497Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
+  <path d="M183 579H240V760L183 817Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
   <circle cx="512" cy="499" r="76" fill="url(#sun)" clip-path="url(#aboveHorizon)" filter="url(#goldGlow)"/>
   <path d="M0 546C238 512 402 501 512 500C686 498 842 511 1024 536" fill="none" stroke="{GOLD}" stroke-width="4" stroke-linecap="round" filter="url(#goldGlow)"/>
 </svg>

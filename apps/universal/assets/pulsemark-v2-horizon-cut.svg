@@ -30,8 +30,8 @@
   </defs>
   <rect width="1024" height="1024" rx="230" fill="url(#tile)"/>
   <rect x="61" y="61" width="902" height="902" rx="246" fill="#132033" fill-opacity="0.12" stroke="#f4f7fb" stroke-opacity="0.08" stroke-width="5"/>
-  <path d="M179 497C179 310 326 180 512 180C715 180 845 354 805 556C782 667 711 733 610 770C648 710 697 655 722 549C756 406 667 247 512 247C366 247 241 352 241 497Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
-  <path d="M223 579H280V760L223 817Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
+  <path d="M179 497C179 310 326 180 512 180C715 180 845 354 805 556C790 636 752 693 708 719C681 732 655 748 636 758C651 693 665 690 682 690C736 558 756 406 667 247C512 247 366 352 241 497Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
+  <path d="M183 579H240V760L183 817Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
   <circle cx="512" cy="499" r="76" fill="url(#sun)" clip-path="url(#aboveHorizon)" filter="url(#goldGlow)"/>
   <path d="M0 546C238 512 402 501 512 500C686 498 842 511 1024 536" fill="none" stroke="#ffd45c" stroke-width="4" stroke-linecap="round" filter="url(#goldGlow)"/>
 </svg>
