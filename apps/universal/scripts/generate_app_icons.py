@@ -89,6 +89,30 @@ def draw_smooth_line(
     image.alpha_composite(layer)
 
 
+def scale_points(points: list[tuple[float, float]], scale: int) -> list[tuple[float, float]]:
+    return [(x * scale, y * scale) for x, y in points]
+
+
+def draw_antialiased_polygon(
+    image: Image.Image,
+    points: list[tuple[float, float]],
+    color: tuple[int, int, int, int],
+    blur_radius: int = 0,
+    scale: int = 4,
+) -> None:
+    if blur_radius:
+        layer = make_canvas(image.size[0])
+        ImageDraw.Draw(layer).polygon(points, fill=color)
+        layer = layer.filter(ImageFilter.GaussianBlur(blur_radius))
+        image.alpha_composite(layer)
+        return
+
+    layer = make_canvas(image.size[0] * scale)
+    ImageDraw.Draw(layer).polygon(scale_points(points, scale), fill=color)
+    layer = layer.resize(image.size, Image.Resampling.LANCZOS)
+    image.alpha_composite(layer)
+
+
 def draw_arc_stroke(
     image: Image.Image,
     bbox: tuple[float, float, float, float],
@@ -117,9 +141,10 @@ def arc_point(
     return (center_x + radius_x * math.cos(radians), center_y + radius_y * math.sin(radians))
 
 
-def quadratic_curve(
+def cubic_curve(
     start: tuple[float, float],
-    control: tuple[float, float],
+    control_one: tuple[float, float],
+    control_two: tuple[float, float],
     end: tuple[float, float],
     steps: int,
 ) -> list[tuple[float, float]]:
@@ -129,11 +154,123 @@ def quadratic_curve(
         inverse = 1 - t
         points.append(
             (
-                inverse * inverse * start[0] + 2 * inverse * t * control[0] + t * t * end[0],
-                inverse * inverse * start[1] + 2 * inverse * t * control[1] + t * t * end[1],
+                inverse**3 * start[0]
+                + 3 * inverse * inverse * t * control_one[0]
+                + 3 * inverse * t * t * control_two[0]
+                + t**3 * end[0],
+                inverse**3 * start[1]
+                + 3 * inverse * inverse * t * control_one[1]
+                + 3 * inverse * t * t * control_two[1]
+                + t**3 * end[1],
             )
         )
     return points
+
+
+def ellipse_points(
+    center_x: float,
+    center_y: float,
+    radius_x: float,
+    radius_y: float,
+    start_degrees: float,
+    end_degrees: float,
+    steps: int,
+) -> list[tuple[float, float]]:
+    return [
+        arc_point(
+            center_x,
+            center_y,
+            radius_x,
+            radius_y,
+            start_degrees + (end_degrees - start_degrees) * index / steps,
+        )
+        for index in range(steps + 1)
+    ]
+
+
+def ellipse_through_points(
+    start: tuple[float, float],
+    end: tuple[float, float],
+    start_degrees: float,
+    end_degrees: float,
+    steps: int,
+) -> list[tuple[float, float]]:
+    start_cos = math.cos(math.radians(start_degrees))
+    end_cos = math.cos(math.radians(end_degrees))
+    start_sin = math.sin(math.radians(start_degrees))
+    end_sin = math.sin(math.radians(end_degrees))
+    center_x = (start[0] * end_cos - end[0] * start_cos) / (end_cos - start_cos)
+    radius_x = (start[0] - center_x) / start_cos
+    center_y = (start[1] * end_sin - end[1] * start_sin) / (end_sin - start_sin)
+    radius_y = (start[1] - center_y) / start_sin
+    return ellipse_points(center_x, center_y, radius_x, radius_y, start_degrees, end_degrees, steps)
+
+
+def horizon_cut_p_arc_points(
+    size: int,
+    bbox: tuple[float, float, float, float],
+    start_degrees: float,
+    width: int,
+) -> list[tuple[float, float]]:
+    left, top, right, bottom = bbox
+    center_x = (left + right) / 2
+    center_y = (top + bottom) / 2
+    radius_x = (right - left) / 2
+    radius_y = (bottom - top) / 2
+    half_width = width / 2
+    steps = 192
+    outer_join_degrees = 344
+    inner_join_degrees = 344
+    outer = ellipse_points(
+        center_x,
+        center_y,
+        radius_x + half_width,
+        radius_y + half_width,
+        start_degrees,
+        outer_join_degrees,
+        steps,
+    )
+    inner = ellipse_points(
+        center_x,
+        center_y,
+        radius_x - half_width,
+        radius_y - half_width,
+        inner_join_degrees,
+        start_degrees,
+        steps,
+    )
+    top_outer_anchor = arc_point(
+        center_x,
+        center_y,
+        radius_x + half_width,
+        radius_y + half_width,
+        outer_join_degrees,
+    )
+    top_inner_anchor = arc_point(
+        center_x,
+        center_y,
+        radius_x - half_width,
+        radius_y - half_width,
+        inner_join_degrees,
+    )
+    tip = (size * 0.598, size * 0.656)
+    outer_crescent = ellipse_through_points(top_outer_anchor, tip, -11.5, 73.0, 112)
+    inner_crescent = ellipse_through_points(tip, top_inner_anchor, 71.0, -13.5, 112)
+    return [*outer, *outer_crescent[1:], *inner_crescent[1:], *inner[1:]]
+
+
+def svg_number(value: float) -> str:
+    rounded = round(value, 1)
+    if rounded == int(rounded):
+        return str(int(rounded))
+    return f"{rounded:.1f}"
+
+
+def svg_polygon_path(points: list[tuple[float, float]]) -> str:
+    first, *rest = points
+    path = f"M{svg_number(first[0])} {svg_number(first[1])}"
+    path += "".join(f"L{svg_number(x)} {svg_number(y)}" for x, y in rest)
+    return f"{path}Z"
 
 
 def draw_tapered_arc(
@@ -145,42 +282,12 @@ def draw_tapered_arc(
     width: int,
     blur_radius: int = 0,
 ) -> None:
-    left, top, right, bottom = bbox
-    center_x = (left + right) / 2
-    center_y = (top + bottom) / 2
-    radius_x = (right - left) / 2
-    radius_y = (bottom - top) / 2
-    half_width = width / 2
-    steps = 112
-    outer_tail_start = end_degrees - 14
-    inner_tail_start = end_degrees - 8
-    outer_angles = [start_degrees + (outer_tail_start - start_degrees) * i / steps for i in range(steps + 1)]
-    inner_angles = [start_degrees + (inner_tail_start - start_degrees) * i / steps for i in range(steps + 1)]
-    outer = [
-        arc_point(center_x, center_y, radius_x + half_width, radius_y + half_width, angle)
-        for angle in outer_angles
-    ]
-    inner = [
-        arc_point(center_x, center_y, radius_x - half_width, radius_y - half_width, angle)
-        for angle in reversed(inner_angles)
-    ]
-    tangent_radians = math.radians(end_degrees)
-    tip_width = min(width, 68)
-    tip = (
-        center_x + radius_x * math.cos(tangent_radians) - math.sin(tangent_radians) * tip_width * 0.55,
-        center_y + radius_y * math.sin(tangent_radians) + math.cos(tangent_radians) * tip_width * 0.55,
+    draw_antialiased_polygon(
+        image,
+        horizon_cut_p_arc_points(image.size[0], bbox, start_degrees, width),
+        color,
+        blur_radius,
     )
-    control_width = min(width, 68)
-    outer_control = (tip[0] + control_width * 1.05, tip[1] - control_width * 0.58)
-    inner_control = (tip[0] + control_width * 0.22, tip[1] - control_width * 0.95)
-    outer_tail = quadratic_curve(outer[-1], outer_control, tip, 22)
-    inner_tail = quadratic_curve(tip, inner_control, inner[0], 18)
-    layer = make_canvas(image.size[0])
-    draw = ImageDraw.Draw(layer)
-    draw.polygon([*outer, *outer_tail[1:], *inner_tail[1:], *inner[1:]], fill=color)
-    if blur_radius:
-        layer = layer.filter(ImageFilter.GaussianBlur(blur_radius))
-    image.alpha_composite(layer)
 
 
 def horizon_y(size: int, x: float) -> float:
@@ -210,35 +317,35 @@ def draw_horizon_cut_motif(image: Image.Image, size: int, pulse_alpha: int = 255
     arc_width = max(34, int(size * 0.061))
     arc_bbox = (size * 0.205, size * 0.18, size * 0.79, size * 0.765)
 
-    draw_tapered_arc(image, arc_bbox, 180, 418, hex_rgba(CYAN, min(106, pulse_alpha)), arc_width + max(28, size // 22), int(size * 0.034))
-    draw_tapered_arc(image, arc_bbox, 180, 418, hex_rgba("#083c58", min(172, pulse_alpha)), arc_width + max(4, size // 180))
-    draw_tapered_arc(image, arc_bbox, 180, 418, hex_rgba(CYAN, min(255, pulse_alpha)), arc_width)
+    draw_tapered_arc(image, arc_bbox, 180, 404, hex_rgba(CYAN, min(106, pulse_alpha)), arc_width + max(28, size // 22), int(size * 0.034))
+    draw_tapered_arc(image, arc_bbox, 180, 404, hex_rgba("#083c58", min(150, pulse_alpha)), arc_width)
+    draw_tapered_arc(image, arc_bbox, 180, 404, hex_rgba(CYAN, min(255, pulse_alpha)), arc_width)
     draw_arc_stroke(
         image,
         (size * 0.228, size * 0.205, size * 0.765, size * 0.73),
         195,
-        346,
+        318,
         hex_rgba("#bbf5ff", min(92, pulse_alpha)),
         max(4, size // 150),
     )
 
     stem = [
-        (size * 0.179, size * 0.565),
-        (size * 0.234, size * 0.565),
-        (size * 0.234, size * 0.742),
-        (size * 0.179, size * 0.797),
+        (size * 0.17, size * 0.565),
+        (size * 0.225, size * 0.565),
+        (size * 0.225, size * 0.742),
+        (size * 0.17, size * 0.797),
     ]
     stem_glow = make_canvas(size)
     ImageDraw.Draw(stem_glow).polygon(stem, fill=hex_rgba(CYAN, min(132, pulse_alpha)))
     image.alpha_composite(stem_glow.filter(ImageFilter.GaussianBlur(int(size * 0.032))))
-    draw.polygon(stem, fill=hex_rgba("#1aa3d2", min(246, pulse_alpha)))
+    draw_antialiased_polygon(image, stem, hex_rgba(CYAN, min(246, pulse_alpha)))
     draw.line(
-        [(size * 0.225, size * 0.58), (size * 0.225, size * 0.732), (size * 0.193, size * 0.764)],
+        [(size * 0.216, size * 0.58), (size * 0.216, size * 0.732), (size * 0.184, size * 0.764)],
         fill=hex_rgba("#9eefff", min(100, pulse_alpha)),
         width=max(3, size // 210),
     )
     draw.line(
-        [(size * 0.178, size * 0.574), (size * 0.178, size * 0.786)],
+        [(size * 0.169, size * 0.574), (size * 0.169, size * 0.786)],
         fill=hex_rgba("#062238", min(160, pulse_alpha)),
         width=max(3, size // 190),
     )
@@ -321,6 +428,24 @@ def build_adaptive_foreground(size: int = 1024) -> Image.Image:
 
 
 def build_master_svg() -> str:
+    size = 1024
+    arc_width = max(34, int(size * 0.061))
+    arc_path = svg_polygon_path(
+        horizon_cut_p_arc_points(
+            size,
+            (size * 0.205, size * 0.18, size * 0.79, size * 0.765),
+            180,
+            arc_width,
+        )
+    )
+    stem_path = svg_polygon_path(
+        [
+            (size * 0.17, size * 0.565),
+            (size * 0.225, size * 0.565),
+            (size * 0.225, size * 0.742),
+            (size * 0.17, size * 0.797),
+        ]
+    )
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="PulseMark v2 Horizon Cut P">
   <defs>
     <linearGradient id="tile" x1="120" y1="80" x2="910" y2="960" gradientUnits="userSpaceOnUse">
@@ -353,8 +478,8 @@ def build_master_svg() -> str:
   </defs>
   <rect width="1024" height="1024" rx="230" fill="url(#tile)"/>
   <rect x="61" y="61" width="902" height="902" rx="246" fill="#132033" fill-opacity="0.12" stroke="#f4f7fb" stroke-opacity="0.08" stroke-width="5"/>
-  <path d="M179 497C179 310 326 180 512 180C715 180 845 354 805 556C790 636 752 693 708 719C681 732 655 748 636 758C651 693 665 690 682 690C736 558 756 406 667 247C512 247 366 352 241 497Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
-  <path d="M183 579H240V760L183 817Z" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
+  <path d="{arc_path}" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
+  <path d="{stem_path}" fill="url(#cyanStroke)" filter="url(#cyanGlow)"/>
   <circle cx="512" cy="499" r="76" fill="url(#sun)" clip-path="url(#aboveHorizon)" filter="url(#goldGlow)"/>
   <path d="M0 546C238 512 402 501 512 500C686 498 842 511 1024 536" fill="none" stroke="{GOLD}" stroke-width="4" stroke-linecap="round" filter="url(#goldGlow)"/>
 </svg>
