@@ -206,9 +206,10 @@ Device detail pages should read as hardware-first operating views.
 - Shared header weather/solar chrome should open `Energy > Solar` with device
   scope on device pages and fleet scope elsewhere.
 
-In-app chrome should use the shared `PulseMark` vector mark for sidebar, menu,
-about, logo, and loading surfaces. Expo install icons, favicons, and touch
-icons remain separate app assets unless an asset refresh is explicitly scoped.
+In-app chrome should use the shared `PulseMark` component backed by
+`apps/universal/assets/icon.png` for sidebar, menu, about, logo, and loading
+surfaces. Expo install icons, favicons, and touch icons remain separate app
+assets unless an asset refresh is explicitly scoped.
 
 Settings subpages should follow the same shell contract:
 
