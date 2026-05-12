@@ -110,6 +110,12 @@ The cost-min overlays keep:
 - GCS raw archive storage,
 - External Secrets for runtime secret sync.
 
+The services overlay trims unused workers while keeping required data-plane
+workers on the base `app-pool` placement. Do not move `go-ingest`, `go-archive`,
+or `go-rollup` onto the shared-core stateful pools, and do not delete the app
+pool, until a fresh request-headroom gate proves those nodes can absorb the
+pods without pending workloads.
+
 The overlays disable:
 - public app,
 - realtime gateway,
@@ -121,7 +127,8 @@ The overlays disable:
 
 ## 6. Argo Removal And Cleanup
 
-After `make cloud-cost-min-deploy` is healthy, remove Argo deliberately:
+After `make cloud-cost-min-deploy` is healthy and the direct deploy workflow is
+the default path, remove Argo deliberately:
 
 ```bash
 kubectl -n argocd get applications.argoproj.io

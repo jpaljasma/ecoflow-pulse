@@ -20,7 +20,7 @@ nats:
     enabled: false
 
 cloudnative-pg:
-  nodeSelector: {}
+  nodeSelector: null
   tolerations:
     - key: workload
       operator: Equal
@@ -39,7 +39,7 @@ cloudnative-pg:
                   - stateful-pool-quorum-medium
 
 external-secrets:
-  nodeSelector: {}
+  nodeSelector: null
   tolerations:
     - key: workload
       operator: Equal
@@ -57,7 +57,7 @@ external-secrets:
                   - stateful-pool-ha-medium
                   - stateful-pool-quorum-medium
   webhook:
-    nodeSelector: {}
+    nodeSelector: null
     tolerations:
       - key: workload
         operator: Equal
@@ -75,7 +75,7 @@ external-secrets:
                     - stateful-pool-ha-medium
                     - stateful-pool-quorum-medium
   certController:
-    nodeSelector: {}
+    nodeSelector: null
     tolerations:
       - key: workload
         operator: Equal
