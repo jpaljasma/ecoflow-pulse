@@ -26,8 +26,14 @@ PLATFORM_CHART ?= deploy/charts/pulse-platform
 SERVICES_CHART ?= deploy/charts/pulse-services
 LOCAL_PLATFORM_VALUES ?= deploy/env/local/values.platform.yaml
 LOCAL_SERVICES_VALUES ?= deploy/env/local/values.services.yaml
+CLOUD_PLATFORM_VALUES ?= deploy/env/cloud/values.platform.yaml
+CLOUD_SERVICES_VALUES ?= deploy/env/cloud/values.services.yaml
+CLOUD_COST_MIN_PLATFORM_VALUES ?= deploy/env/cloud/values.platform.cost-min.yaml
+CLOUD_COST_MIN_SERVICES_VALUES ?= deploy/env/cloud/values.services.cost-min.yaml
 PLATFORM_RELEASE ?= pulse-platform
 SERVICES_RELEASE ?= pulse-services
+CLOUD_PLATFORM_RELEASE ?= pulse-platform-cloud
+CLOUD_SERVICES_RELEASE ?= pulse-services-cloud
 PLATFORM_NAMESPACE ?= pulse-platform
 SERVICES_NAMESPACE ?= pulse-services
 DELETE_CLUSTER ?= 0
@@ -74,6 +80,13 @@ DB_MIGRATION_SECRET ?= pulse-platform-core-app
 DB_MIGRATION_DB ?= pulse
 PGROLL_LOCAL_PORT ?= 15433
 DB_MIGRATION_LOCAL_PORT ?= 15434
+CLOUD_DB_LOCAL_PORT ?= 25432
+CLOUD_DB_ENV_FILE ?= .tmp/cloud-postgres.env
+CLOUD_HELM_TAKE_OWNERSHIP ?= 1
+CLOUD_HELM_SERVER_SIDE ?= true
+CLOUD_HELM_EXTRA_ARGS ?=
+CLOUD_PLATFORM_HELM_SET_ARGS ?=
+CLOUD_SERVICES_HELM_SET_ARGS ?=
 PGROLL_PLAN ?=
 DB_SEED_LOCAL_PORT ?= 15432
 DB_SEED_USER_SUBJECT ?= dev-user@example.com
@@ -177,7 +190,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-db-forward cloud-db-env cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -443,7 +456,11 @@ chart-deps-local: helm-local-ready
 			$(HELM) dependency build --skip-refresh "$$chart"; \
 			exit 0; \
 		fi; \
-		vendored_count="$$(find "$$charts_dir" -mindepth 1 -maxdepth 1 -name '*.tgz' 2>/dev/null | wc -l | tr -d '[:space:]')"; \
+		if [ -d "$$charts_dir" ]; then \
+			vendored_count="$$(find "$$charts_dir" -mindepth 1 -maxdepth 1 -name '*.tgz' | wc -l | tr -d '[:space:]')"; \
+		else \
+			vendored_count=0; \
+		fi; \
 		if [ "$$vendored_count" != "$$dep_count" ]; then \
 			echo "vendored chart packages missing for $$chart; running helm dependency build --skip-refresh"; \
 			$(HELM) dependency build --skip-refresh "$$chart"; \
@@ -2449,16 +2466,166 @@ cloud-up: argocd-cloud-up
 
 cloud-refresh: argocd-apps-cloud argocd-wait-apps-cloud
 
+cloud-health-gate: gke-cloud-context
+	@set -euo pipefail; \
+	platform_ns="$(PLATFORM_NAMESPACE)"; \
+	services_ns="$(SERVICES_NAMESPACE)"; \
+	cluster="$(DB_MIGRATION_CLUSTER)"; \
+	echo "checking CNPG cluster $$cluster"; \
+	ready="$$( $(KUBECTL) -n "$$platform_ns" get cluster "$$cluster" -o jsonpath='{.status.readyInstances}' 2>/dev/null || true )"; \
+	ready="$${ready:-0}"; \
+	current_primary="$$( $(KUBECTL) -n "$$platform_ns" get cluster "$$cluster" -o jsonpath='{.status.currentPrimary}' 2>/dev/null || true )"; \
+	if [ "$$ready" -lt 2 ] || [ -z "$$current_primary" ]; then \
+		echo "CNPG is not ready enough for rollout (readyInstances=$$ready currentPrimary=$${current_primary:-n/a})"; \
+		$(KUBECTL) -n "$$platform_ns" get cluster "$$cluster" -o yaml || true; \
+		exit 1; \
+	fi; \
+	rw_ips="$$( $(KUBECTL) -n "$$platform_ns" get endpoints "$$cluster-rw" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true )"; \
+	if [ -z "$$rw_ips" ]; then \
+		echo "CNPG rw endpoint $$cluster-rw has no ready addresses"; \
+		exit 1; \
+	fi; \
+	for sts in "$(CLOUD_PLATFORM_RELEASE)-nats:3" "$(CLOUD_PLATFORM_RELEASE)-valkey-node:3"; do \
+		name="$${sts%%:*}"; \
+		want="$${sts##*:}"; \
+		got="$$( $(KUBECTL) -n "$$platform_ns" get statefulset "$$name" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true )"; \
+		got="$${got:-0}"; \
+		if [ "$$got" -lt "$$want" ]; then \
+			echo "statefulset/$$name is not ready enough (ready=$$got want=$$want)"; \
+			$(KUBECTL) -n "$$platform_ns" get statefulset "$$name" -o wide || true; \
+			exit 1; \
+		fi; \
+	done; \
+	bad_pods="$$( $(KUBECTL) get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null || true )"; \
+	if [ -n "$$bad_pods" ]; then \
+		echo "non-running pods block rollout:"; \
+		printf '%s\n' "$$bad_pods"; \
+		exit 1; \
+	fi; \
+	for deploy in "$(CLOUD_SERVICES_RELEASE)-go-ingest" "$(CLOUD_SERVICES_RELEASE)-go-archive" "$(CLOUD_SERVICES_RELEASE)-go-rollup"; do \
+		if $(KUBECTL) -n "$$services_ns" get deploy "$$deploy" >/dev/null 2>&1; then \
+			if $(KUBECTL) -n "$$services_ns" logs deploy/"$$deploy" --since=10m 2>/dev/null | grep -Eiq 'dropping envelope|drain failed|publish failed'; then \
+				echo "recent failure/drop log found in deployment/$$deploy; aborting rollout gate"; \
+				exit 1; \
+			fi; \
+		fi; \
+	done; \
+	echo "cloud health gate passed: CNPG ready=$$ready primary=$$current_primary rw=$$rw_ips"
+
+cloud-platform-apply: gke-cloud-context cloud-health-gate
+	@$(MAKE) --no-print-directory chart-deps-local CHART=$(PLATFORM_CHART)
+	@set -euo pipefail; \
+	value_args=""; \
+	for values in $(CLOUD_PLATFORM_VALUES); do \
+		value_args="$$value_args -f $$values"; \
+	done; \
+	ownership_args=""; \
+	case "$(CLOUD_HELM_TAKE_OWNERSHIP)" in 1|true|TRUE|yes|YES) ownership_args="--take-ownership" ;; esac; \
+	server_side_args=""; \
+	if [ -n "$(CLOUD_HELM_SERVER_SIDE)" ]; then \
+		server_side_args="--server-side=$(CLOUD_HELM_SERVER_SIDE)"; \
+	fi; \
+	echo "applying $(CLOUD_PLATFORM_RELEASE) with values: $(CLOUD_PLATFORM_VALUES)"; \
+	$(HELM) upgrade --install $(CLOUD_PLATFORM_RELEASE) $(PLATFORM_CHART) \
+		--namespace $(PLATFORM_NAMESPACE) \
+		--create-namespace \
+		$$value_args \
+		$$ownership_args \
+		$$server_side_args \
+		$(CLOUD_PLATFORM_HELM_SET_ARGS) \
+		$(CLOUD_HELM_EXTRA_ARGS)
+	@set -euo pipefail; \
+	ns="$(PLATFORM_NAMESPACE)"; \
+	wait_rollout() { \
+		kind="$$1"; name="$$2"; timeout="$$3"; \
+		if $(KUBECTL) -n "$$ns" get "$$kind" "$$name" >/dev/null 2>&1; then \
+			echo "waiting for $$kind/$$name"; \
+			$(KUBECTL) -n "$$ns" rollout status "$$kind/$$name" --timeout="$$timeout"; \
+		fi; \
+	}; \
+	wait_rollout deployment $(CLOUD_PLATFORM_RELEASE)-external-secrets 300s; \
+	wait_rollout deployment $(CLOUD_PLATFORM_RELEASE)-external-secrets-webhook 300s; \
+	wait_rollout deployment $(CLOUD_PLATFORM_RELEASE)-public-app 300s; \
+	wait_rollout deployment $(CLOUD_PLATFORM_RELEASE)-realtime-gateway 300s; \
+	wait_rollout statefulset $(CLOUD_PLATFORM_RELEASE)-nats $(WAIT_TIMEOUT); \
+	wait_rollout statefulset $(CLOUD_PLATFORM_RELEASE)-valkey-node $(WAIT_TIMEOUT); \
+	$(KUBECTL) -n "$$ns" wait --for=condition=Ready cluster/$(DB_MIGRATION_CLUSTER) --timeout=$(WAIT_TIMEOUT)
+	@$(MAKE) --no-print-directory cloud-health-gate
+
+cloud-services-apply: gke-cloud-context cloud-health-gate
+	@$(MAKE) --no-print-directory chart-deps-local CHART=$(SERVICES_CHART)
+	@set -euo pipefail; \
+	value_args=""; \
+	for values in $(CLOUD_SERVICES_VALUES); do \
+		value_args="$$value_args -f $$values"; \
+	done; \
+	ownership_args=""; \
+	case "$(CLOUD_HELM_TAKE_OWNERSHIP)" in 1|true|TRUE|yes|YES) ownership_args="--take-ownership" ;; esac; \
+	server_side_args=""; \
+	if [ -n "$(CLOUD_HELM_SERVER_SIDE)" ]; then \
+		server_side_args="--server-side=$(CLOUD_HELM_SERVER_SIDE)"; \
+	fi; \
+	echo "applying $(CLOUD_SERVICES_RELEASE) with values: $(CLOUD_SERVICES_VALUES)"; \
+	$(HELM) upgrade --install $(CLOUD_SERVICES_RELEASE) $(SERVICES_CHART) \
+		--namespace $(SERVICES_NAMESPACE) \
+		--create-namespace \
+		$$value_args \
+		$$ownership_args \
+		$$server_side_args \
+		$(CLOUD_SERVICES_HELM_SET_ARGS) \
+		$(CLOUD_HELM_EXTRA_ARGS)
+	@set -euo pipefail; \
+	ns="$(SERVICES_NAMESPACE)"; \
+	for component in go-ingest go-archive go-rollup go-projection go-inference go-grpc-api go-energy-api go-solar-verification go-scheduler; do \
+		deploy="$(CLOUD_SERVICES_RELEASE)-$$component"; \
+		if $(KUBECTL) -n "$$ns" get deploy "$$deploy" >/dev/null 2>&1; then \
+			echo "waiting for deployment/$$deploy"; \
+			$(KUBECTL) -n "$$ns" rollout status deploy/"$$deploy" --timeout=$(WAIT_TIMEOUT); \
+		fi; \
+	done
+	@$(MAKE) --no-print-directory cloud-health-gate
+
+cloud-deploy: cloud-platform-apply cloud-services-apply
+
+cloud-cost-min-deploy:
+	$(MAKE) cloud-deploy \
+		CLOUD_PLATFORM_VALUES="$(CLOUD_PLATFORM_VALUES) $(CLOUD_COST_MIN_PLATFORM_VALUES)" \
+		CLOUD_SERVICES_VALUES="$(CLOUD_SERVICES_VALUES) $(CLOUD_COST_MIN_SERVICES_VALUES)"
+
+cloud-db-forward: gke-cloud-context
+	@echo "forwarding cloud CNPG rw service to 127.0.0.1:$(CLOUD_DB_LOCAL_PORT)"
+	$(KUBECTL) -n $(PLATFORM_NAMESPACE) port-forward --address 127.0.0.1 svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432
+
+cloud-db-env: gke-cloud-context
+	@set -euo pipefail; \
+	mkdir -p "$(dir $(CLOUD_DB_ENV_FILE))"; \
+	user="$$( $(KUBECTL) -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.username}' | base64 -d )"; \
+	pass="$$( $(KUBECTL) -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.password}' | base64 -d )"; \
+	dsn="host=127.0.0.1 port=$(CLOUD_DB_LOCAL_PORT) user=$$user password=$$pass dbname=$(DB_MIGRATION_DB) sslmode=disable"; \
+	quote_single() { printf "%s" "$$1" | sed "s/'/'\\\\''/g"; }; \
+	qdsn="$$(quote_single "$$dsn")"; \
+	umask 077; \
+	{ \
+		echo "# Generated by make cloud-db-env. Keep this file local."; \
+		echo "# In another shell, run: make cloud-db-forward"; \
+		printf "export CONTROL_PLANE_DB_DSN='%s'\n" "$$qdsn"; \
+		printf "export ARCHIVE_MANIFEST_DB_DSN='%s'\n" "$$qdsn"; \
+		printf "export ROLLUP_DB_DSN='%s'\n" "$$qdsn"; \
+	} > "$(CLOUD_DB_ENV_FILE)"; \
+	chmod 600 "$(CLOUD_DB_ENV_FILE)"; \
+	echo "wrote $(CLOUD_DB_ENV_FILE) for 127.0.0.1:$(CLOUD_DB_LOCAL_PORT) without printing credentials"
+
 cloud-status: gke-cloud-context
 	@echo "cloud cluster: $(GKE_CLOUD_CLUSTER_NAME) ($(GKE_CLOUD_CLUSTER_REGION))"
-	@echo "argocd applications"
-	@$(KUBECTL) -n $(ARGOCD_NAMESPACE) get applications.argoproj.io
+	@echo "argocd applications (if installed)"
+	@$(KUBECTL) -n $(ARGOCD_NAMESPACE) get applications.argoproj.io 2>/dev/null || echo "argocd applications not found"
 	@echo "platform namespace ($(PLATFORM_NAMESPACE))"
 	@$(KUBECTL) -n $(PLATFORM_NAMESPACE) get pods
+	@$(KUBECTL) -n $(PLATFORM_NAMESPACE) get cluster,statefulset,endpoints 2>/dev/null || true
 	@echo "services namespace ($(SERVICES_NAMESPACE))"
-	@$(KUBECTL) -n $(SERVICES_NAMESPACE) get pods
+	@$(KUBECTL) -n $(SERVICES_NAMESPACE) get deploy,pdb,pods
 	@echo "nodes"
-	@$(KUBECTL) get nodes
+	@$(KUBECTL) get nodes -L cloud.google.com/gke-nodepool,node.kubernetes.io/instance-type,topology.kubernetes.io/zone
 
 web-stop:
 	@pids="$$(lsof -tiTCP:$(WEB_PORT) -sTCP:LISTEN 2>/dev/null || true)"; \

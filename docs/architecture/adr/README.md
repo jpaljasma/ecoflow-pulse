@@ -28,6 +28,8 @@
 - [ADR-0022-client-observed-websocket-slos.md](./ADR-0022-client-observed-websocket-slos.md)
 - [ADR-0023-weather-forecast-service-open-meteo-snapshots-and-bias-correction.md](./ADR-0023-weather-forecast-service-open-meteo-snapshots-and-bias-correction.md)
 - [ADR-0024-solar-generation-forecast-service-energy-truth-weather-features-and-site-learning.md](./ADR-0024-solar-generation-forecast-service-energy-truth-weather-features-and-site-learning.md)
+- [ADR-0025-background-worker-rollout-drain-contract.md](./ADR-0025-background-worker-rollout-drain-contract.md)
+- [ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md](./ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md)
 ---
 
 ## How to add an ADR

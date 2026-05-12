@@ -14,6 +14,14 @@ on:
         description: Optional services image tag override
         required: false
         type: string
+      deploy_mode:
+        description: Use argo until the hosted cluster is cut over to direct Helm.
+        required: false
+        default: argo
+        type: choice
+        options:
+          - argo
+          - direct
 
 permissions:
   actions: read
@@ -181,7 +189,21 @@ jobs:
       - name: Fetch cloud cluster credentials
         run: make gke-cloud-context
 
+      - name: Direct Helm cloud deploy
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy_mode == 'direct'
+        env:
+          CLOUD_PLATFORM_HELM_SET_ARGS: >-
+            --set runtime.publicApp.image.repository=${{ env.PLATFORM_APP_CLOUD_IMAGE_REPO }}
+            --set runtime.publicApp.image.tag=${{ steps.image.outputs.tag }}
+            --set runtime.realtimeGateway.image.repository=${{ env.REALTIME_GATEWAY_CLOUD_IMAGE_REPO }}
+            --set runtime.realtimeGateway.image.tag=${{ steps.image.outputs.tag }}
+          CLOUD_SERVICES_HELM_SET_ARGS: >-
+            --set runtime.image.repository=${{ env.SERVICES_CLOUD_IMAGE_REPO }}
+            --set runtime.image.tag=${{ steps.image.outputs.tag }}
+        run: make cloud-deploy
+
       - name: Patch Argo image tags
+        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'argo'
         shell: bash
         run: |
           set -euo pipefail
@@ -238,4 +260,5 @@ jobs:
             --overwrite
 
       - name: Wait for cloud apps sync
+        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'argo'
         run: make ARGOCD_CLOUD_APPS="${ARGOCD_PLATFORM_APP} ${ARGOCD_SERVICES_APP}" argocd-wait-apps-cloud

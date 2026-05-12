@@ -1006,7 +1006,7 @@ spec:
       app.kubernetes.io/component: go-scheduler
 {{- end }}
 {{- end }}
-{{- if .Values.runtime.workers.scheduler.metrics.enabled }}
+{{- if and .Values.runtime.workers.scheduler.enabled .Values.runtime.workers.scheduler.metrics.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -1023,7 +1023,7 @@ spec:
     - name: metrics
       port: {{ .Values.runtime.workers.scheduler.service.port }}
       targetPort: metrics
-{{- if and .Values.runtime.workers.scheduler.metrics.enabled .Values.runtime.workers.scheduler.metrics.serviceMonitor.enabled }}
+{{- if and .Values.runtime.workers.scheduler.enabled .Values.runtime.workers.scheduler.metrics.enabled .Values.runtime.workers.scheduler.metrics.serviceMonitor.enabled }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

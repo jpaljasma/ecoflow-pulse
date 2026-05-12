@@ -61,6 +61,17 @@ make cloud-up
 make cloud-status
 ```
 
+Direct hosted cloud operations, used after the no-outage Argo cutover gates are
+proven:
+
+```bash
+make cloud-health-gate
+make cloud-deploy
+make cloud-cost-min-deploy
+make cloud-db-env
+make cloud-db-forward
+```
+
 Expanded commands:
 
 ```bash
@@ -109,6 +120,12 @@ Defaults:
     `main`,
   - `make cloud-up` for the hosted Argo bootstrap/apply/wait path,
   - `make cloud-refresh` for re-applying hosted Argo apps after branch changes,
+  - `make cloud-deploy` for the direct Helm hosted apply path once Argo cutover
+    is being validated,
+  - `make cloud-cost-min-deploy` for the explicit ingest/storage-only overlay
+    after local cloud-Postgres app mode is proven,
+  - `make cloud-db-env` and `make cloud-db-forward` for local services reading
+    cloud CNPG through a private port-forward,
   - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).
@@ -211,7 +228,9 @@ Cloud defaults in this branch:
   ingest/inference/projection/archive `1`, rollup `1`, scheduler `1`,
   solar verification `1`,
 - Argo CD cloud bootstrap keeps the application controller, repo server, and
-  ApplicationSet controller single-replica,
+  ApplicationSet controller single-replica until the direct Helm cutover in
+  [ADR-0026](../docs/architecture/adr/ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md)
+  is proven,
 - the low-cost node target keeps app workloads on `e2-standard-2` and runs
   the stateful quorum pools on shared-core `e2-medium` nodes:
   - keep `app-pool` on `e2-standard-2`,
@@ -256,9 +275,10 @@ Cloud defaults in this branch:
 - services use a dedicated Kubernetes service account annotated for GKE
   Workload Identity and read runtime secrets from Secret Manager-backed
   `ExternalSecret`,
-- single-replica worker deployments render `maxUnavailable: 1` PDBs in the
-  cloud profile so their selectors are covered without producing
-  zero-eviction maintenance warnings,
+- ingest now runs as `2` cloud replicas; archive and rollup remain singleton
+  durable-consumer workers,
+- ingest/archive/rollup PDBs use `minAvailable: 1` in the cloud profile so
+  voluntary disruption cannot evict the only available durable worker,
 - Keycloak stays the auth system, with redirect/CORS allowances for both the
   cloud domain and localhost Expo web-dev origins; Google social login and the
   Keycloak config-cli import are temporarily held out of the bootstrap path
@@ -268,6 +288,12 @@ Cloud defaults in this branch:
   Keycloak so umbrella-chart syncs do not stall waiting on subchart hooks,
 - cloud Argo applications avoid `Replace=true` so immutable Job resources do
   not deadlock bootstrap retries.
+
+The explicit cost-min overlays in `deploy/env/cloud/*.cost-min.yaml` are not
+referenced by the Argo Applications. Apply them only with
+`make cloud-cost-min-deploy` after local app cloud-Postgres mode and direct Helm
+apply have both been validated. See
+[`docs/how-to/no-planned-outage-cloud-cost-rollout.md`](../docs/how-to/no-planned-outage-cloud-cost-rollout.md).
 
 Hosted rollout sequence for the multi-zone stateful HA target:
 
