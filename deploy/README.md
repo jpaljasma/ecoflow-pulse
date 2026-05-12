@@ -70,6 +70,8 @@ make cloud-deploy
 make cloud-cost-min-deploy
 make cloud-db-env
 make cloud-db-forward
+make cloud-db-forward-start
+make dev-up-cloud-db
 ```
 
 Expanded commands:
@@ -124,8 +126,14 @@ Defaults:
     is being validated,
   - `make cloud-cost-min-deploy` for the explicit ingest/storage-only overlay
     after local cloud-Postgres app mode is proven,
-  - `make cloud-db-env` and `make cloud-db-forward` for local services reading
-    cloud CNPG through a private port-forward,
+  - `make cloud-db-env`, `make cloud-db-forward`, and
+    `make cloud-db-forward-start` for host-side Go tools reading cloud CNPG
+    through a loopback port-forward,
+  - `make local-cloud-db-env`, `make services-up-cloud-db`, and
+    `make dev-up-cloud-db` for local k3d API backend pods reading cloud CNPG
+    through a Docker-reachable background forward while local side-effect
+    workers are disabled and the normal `make services-up` / `make dev-up` path
+    stays fully local,
   - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).

@@ -81,7 +81,18 @@ DB_MIGRATION_DB ?= pulse
 PGROLL_LOCAL_PORT ?= 15433
 DB_MIGRATION_LOCAL_PORT ?= 15434
 CLOUD_DB_LOCAL_PORT ?= 25432
+CLOUD_DB_FORWARD_ADDRESS ?= 127.0.0.1
 CLOUD_DB_ENV_FILE ?= .tmp/cloud-postgres.env
+CLOUD_DB_FORWARD_PID_FILE ?= .tmp/cloud-db-forward.pid
+CLOUD_DB_FORWARD_LOG_FILE ?= .tmp/cloud-db-forward.log
+CLOUD_DB_FORWARD_PLIST ?= .tmp/cloud-db-forward.plist
+CLOUD_DB_FORWARD_RUNNER ?= .tmp/cloud-db-forward-runner.sh
+CLOUD_DB_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-db-forward
+LOCAL_CLOUD_DB_FORWARD_ADDRESS ?= 0.0.0.0
+LOCAL_CLOUD_DB_HOST ?= host.docker.internal
+LOCAL_CLOUD_DB_PORT ?= $(CLOUD_DB_LOCAL_PORT)
+LOCAL_CLOUD_DB_SERVICES_VALUES ?= .tmp/local-cloud-db.services.values.yaml
+CLOUD_KUBE_CONTEXT ?= gke_$(GKE_CLOUD_PROJECT_ID)_$(GKE_CLOUD_CLUSTER_REGION)_$(GKE_CLOUD_CLUSTER_NAME)
 CLOUD_HELM_TAKE_OWNERSHIP ?= 1
 CLOUD_HELM_SERVER_SIDE ?= true
 CLOUD_HELM_EXTRA_ARGS ?=
@@ -190,7 +201,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system services-up services-wait dev-up local-up local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-db-forward cloud-db-env cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -1143,6 +1154,36 @@ edge-verify-http3-local:
 	fi; \
 	echo "verified HTTP/3 via curl (--http3-only) and Alt-Svc on $$url"
 
+local-cloud-db-env: gke-cloud-context
+	@set -euo pipefail; \
+	mkdir -p "$(dir $(LOCAL_CLOUD_DB_SERVICES_VALUES))"; \
+	user="$$( $(KUBECTL) -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.username}' | base64 -d )"; \
+	pass="$$( $(KUBECTL) -n $(PLATFORM_NAMESPACE) get secret $(DB_MIGRATION_SECRET) -o jsonpath='{.data.password}' | base64 -d )"; \
+	dsn="host=$(LOCAL_CLOUD_DB_HOST) port=$(LOCAL_CLOUD_DB_PORT) user=$$user password=$$pass dbname=$(DB_MIGRATION_DB) sslmode=disable"; \
+	quote_single() { printf "%s" "$$1" | sed "s/'/'\\\\''/g"; }; \
+	qdsn="$$(quote_single "$$dsn")"; \
+	umask 077; \
+	{ \
+		echo "# Generated by make local-cloud-db-env. Keep this file local."; \
+		echo "# In another shell, keep the forward open: make cloud-db-forward"; \
+		echo "runtime:"; \
+		echo "  env:"; \
+		printf "    controlPlaneDBDSN: '%s'\n" "$$qdsn"; \
+		printf "    archiveManifestDBDSN: '%s'\n" "$$qdsn"; \
+		echo "    pulseMqttEmulatorEnabled: 'false'"; \
+		echo "  workers:"; \
+		for worker in ingest inference projection rollup archive solarVerification scheduler pulseMqttEmulator; do \
+			echo "    $$worker:"; \
+			echo "      enabled: false"; \
+		done; \
+		echo "    grpcApi:"; \
+		echo "      enabled: true"; \
+		echo "    energyApi:"; \
+		echo "      enabled: true"; \
+	} > "$(LOCAL_CLOUD_DB_SERVICES_VALUES)"; \
+	chmod 600 "$(LOCAL_CLOUD_DB_SERVICES_VALUES)"; \
+	echo "wrote $(LOCAL_CLOUD_DB_SERVICES_VALUES) for $(LOCAL_CLOUD_DB_HOST):$(LOCAL_CLOUD_DB_PORT) without printing credentials"
+
 services-up: helm-local-ready
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 		$(MAKE) services-image-local-up; \
@@ -1178,14 +1219,27 @@ services-up: helm-local-ready
 		wait_endpoints $(PLATFORM_RELEASE)-minio 36 "MinIO service"; \
 		wait_endpoints $(PLATFORM_RELEASE)-keycloak-headless 36 "Keycloak service"
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(SERVICES_CHART)
+	@set -euo pipefail; \
+	set --; \
+	for values in $(LOCAL_SERVICES_VALUES); do \
+		set -- "$$@" -f "$$values"; \
+	done; \
+	echo "applying $(SERVICES_RELEASE) with values: $(LOCAL_SERVICES_VALUES)"; \
 	$(LOCAL_HELM) upgrade --install $(SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) --create-namespace \
 		$(LOCAL_HELM_UPGRADE_FLAGS) \
-		-f $(LOCAL_SERVICES_VALUES)
+		"$$@"
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 		echo "restarting $(SERVICES_RELEASE) deployments to pick up imported :local image"; \
 		$(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) rollout restart deploy -l app.kubernetes.io/instance=$(SERVICES_RELEASE); \
 	fi
+
+services-up-cloud-db:
+	$(MAKE) --no-print-directory cloud-db-forward-start \
+		CLOUD_DB_FORWARD_ADDRESS="$(LOCAL_CLOUD_DB_FORWARD_ADDRESS)"
+	$(MAKE) --no-print-directory local-cloud-db-env
+	$(MAKE) --no-print-directory services-up \
+		LOCAL_SERVICES_VALUES="$(LOCAL_SERVICES_VALUES) $(LOCAL_CLOUD_DB_SERVICES_VALUES)"
 
 services-wait:
 	@if ! command -v $(KUBECTL) >/dev/null 2>&1; then \
@@ -1262,7 +1316,11 @@ dev-grafana:
 
 dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait
 
+dev-up-cloud-db: k3d-up public-images-local-up platform-up platform-wait services-up-cloud-db services-wait
+
 local-up: dev-up
+
+local-up-cloud-db: dev-up-cloud-db
 
 local-deploy: dev-deploy
 
@@ -2515,9 +2573,9 @@ cloud-health-gate: gke-cloud-context
 cloud-platform-apply: gke-cloud-context cloud-health-gate
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(PLATFORM_CHART)
 	@set -euo pipefail; \
-	value_args=""; \
+	set --; \
 	for values in $(CLOUD_PLATFORM_VALUES); do \
-		value_args="$$value_args -f $$values"; \
+		set -- "$$@" -f "$$values"; \
 	done; \
 	ownership_args=""; \
 	case "$(CLOUD_HELM_TAKE_OWNERSHIP)" in 1|true|TRUE|yes|YES) ownership_args="--take-ownership" ;; esac; \
@@ -2529,7 +2587,7 @@ cloud-platform-apply: gke-cloud-context cloud-health-gate
 	$(HELM) upgrade --install $(CLOUD_PLATFORM_RELEASE) $(PLATFORM_CHART) \
 		--namespace $(PLATFORM_NAMESPACE) \
 		--create-namespace \
-		$$value_args \
+		"$$@" \
 		$$ownership_args \
 		$$server_side_args \
 		$(CLOUD_PLATFORM_HELM_SET_ARGS) \
@@ -2555,9 +2613,9 @@ cloud-platform-apply: gke-cloud-context cloud-health-gate
 cloud-services-apply: gke-cloud-context cloud-health-gate
 	@$(MAKE) --no-print-directory chart-deps-local CHART=$(SERVICES_CHART)
 	@set -euo pipefail; \
-	value_args=""; \
+	set --; \
 	for values in $(CLOUD_SERVICES_VALUES); do \
-		value_args="$$value_args -f $$values"; \
+		set -- "$$@" -f "$$values"; \
 	done; \
 	ownership_args=""; \
 	case "$(CLOUD_HELM_TAKE_OWNERSHIP)" in 1|true|TRUE|yes|YES) ownership_args="--take-ownership" ;; esac; \
@@ -2569,7 +2627,7 @@ cloud-services-apply: gke-cloud-context cloud-health-gate
 	$(HELM) upgrade --install $(CLOUD_SERVICES_RELEASE) $(SERVICES_CHART) \
 		--namespace $(SERVICES_NAMESPACE) \
 		--create-namespace \
-		$$value_args \
+		"$$@" \
 		$$ownership_args \
 		$$server_side_args \
 		$(CLOUD_SERVICES_HELM_SET_ARGS) \
@@ -2593,8 +2651,139 @@ cloud-cost-min-deploy:
 		CLOUD_SERVICES_VALUES="$(CLOUD_SERVICES_VALUES) $(CLOUD_COST_MIN_SERVICES_VALUES)"
 
 cloud-db-forward: gke-cloud-context
-	@echo "forwarding cloud CNPG rw service to 127.0.0.1:$(CLOUD_DB_LOCAL_PORT)"
-	$(KUBECTL) -n $(PLATFORM_NAMESPACE) port-forward --address 127.0.0.1 svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432
+	@echo "forwarding cloud CNPG rw service to $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT)"
+	$(KUBECTL) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432
+
+cloud-db-forward-start: gke-cloud-context
+	@set -euo pipefail; \
+	mkdir -p "$(dir $(CLOUD_DB_FORWARD_PID_FILE))" "$(dir $(CLOUD_DB_FORWARD_LOG_FILE))" "$(dir $(CLOUD_DB_FORWARD_PLIST))" "$(dir $(CLOUD_DB_FORWARD_RUNNER))"; \
+	pid_pattern="port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432"; \
+	pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
+	if [ -n "$$pid" ] && nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+		echo "$$pid" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
+		echo "cloud DB forward already running on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (pid $$pid)"; \
+		exit 0; \
+	fi; \
+	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"; \
+	if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+		echo "cloud DB forward port $(CLOUD_DB_LOCAL_PORT) is already reachable"; \
+		exit 0; \
+	fi; \
+	echo "starting cloud DB forward on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (log: $(CLOUD_DB_FORWARD_LOG_FILE))"; \
+	kubectl_bin="$$(command -v $(KUBECTL))"; \
+	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
+		runner="$(abspath $(CLOUD_DB_FORWARD_RUNNER))"; \
+		plist="$(abspath $(CLOUD_DB_FORWARD_PLIST))"; \
+		log="$(abspath $(CLOUD_DB_FORWARD_LOG_FILE))"; \
+		path_env="$$(dirname "$$kubectl_bin"):/usr/local/google-cloud-sdk/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; \
+		{ \
+			printf '%s\n' '#!/usr/bin/env sh'; \
+			printf '%s\n' 'exec "$$@"'; \
+		} > "$$runner"; \
+		chmod 700 "$$runner"; \
+		{ \
+			printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
+			printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
+			printf '%s\n' '<plist version="1.0">'; \
+			printf '%s\n' '<dict>'; \
+			printf '%s\n' '  <key>Label</key>'; \
+			printf '  <string>%s</string>\n' '$(CLOUD_DB_FORWARD_LABEL)'; \
+			printf '%s\n' '  <key>ProgramArguments</key>'; \
+			printf '%s\n' '  <array>'; \
+			printf '    <string>%s</string>\n' "$$runner"; \
+			printf '    <string>%s</string>\n' "$$kubectl_bin"; \
+			printf '%s\n' '    <string>--context</string>'; \
+			printf '    <string>%s</string>\n' '$(CLOUD_KUBE_CONTEXT)'; \
+			printf '%s\n' '    <string>-n</string>'; \
+			printf '    <string>%s</string>\n' '$(PLATFORM_NAMESPACE)'; \
+			printf '%s\n' '    <string>port-forward</string>'; \
+			printf '%s\n' '    <string>--address</string>'; \
+			printf '    <string>%s</string>\n' '$(CLOUD_DB_FORWARD_ADDRESS)'; \
+			printf '    <string>svc/%s-rw</string>\n' '$(DB_MIGRATION_CLUSTER)'; \
+			printf '    <string>%s:5432</string>\n' '$(CLOUD_DB_LOCAL_PORT)'; \
+			printf '%s\n' '  </array>'; \
+			printf '%s\n' '  <key>EnvironmentVariables</key>'; \
+			printf '%s\n' '  <dict>'; \
+			printf '%s\n' '    <key>HOME</key>'; \
+			printf '    <string>%s</string>\n' "$$HOME"; \
+			printf '%s\n' '    <key>PATH</key>'; \
+			printf '    <string>%s</string>\n' "$$path_env"; \
+			printf '%s\n' '    <key>USE_GKE_GCLOUD_AUTH_PLUGIN</key>'; \
+			printf '%s\n' '    <string>True</string>'; \
+			printf '%s\n' '  </dict>'; \
+			printf '%s\n' '  <key>RunAtLoad</key><true/>'; \
+			printf '%s\n' '  <key>KeepAlive</key><true/>'; \
+			printf '%s\n' '  <key>StandardOutPath</key>'; \
+			printf '  <string>%s</string>\n' "$$log"; \
+			printf '%s\n' '  <key>StandardErrorPath</key>'; \
+			printf '  <string>%s</string>\n' "$$log"; \
+			printf '%s\n' '</dict>'; \
+			printf '%s\n' '</plist>'; \
+		} > "$$plist"; \
+		domain="gui/$$(id -u)"; \
+		launchctl bootout "$$domain/$(CLOUD_DB_FORWARD_LABEL)" >/dev/null 2>&1 || true; \
+		launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
+		launchctl bootstrap "$$domain" "$$plist"; \
+	else \
+		$(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432 >"$(CLOUD_DB_FORWARD_LOG_FILE)" 2>&1 & \
+	fi; \
+	for _ in $$(seq 1 30); do \
+		if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+			pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
+			if [ -n "$$pid" ]; then \
+				echo "$$pid" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
+			fi; \
+			echo "cloud DB forward ready on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (pid $$pid)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "cloud DB forward did not become ready"; \
+	tail -40 "$(CLOUD_DB_FORWARD_LOG_FILE)" || true; \
+	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"; \
+	exit 1
+
+cloud-db-forward-stop:
+	@set -euo pipefail; \
+	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
+		domain="gui/$$(id -u)"; \
+		launchctl bootout "$$domain/$(CLOUD_DB_FORWARD_LABEL)" >/dev/null 2>&1 || true; \
+		if [ -f "$(CLOUD_DB_FORWARD_PLIST)" ]; then \
+			launchctl bootout "$$domain" "$(abspath $(CLOUD_DB_FORWARD_PLIST))" >/dev/null 2>&1 || true; \
+		fi; \
+	fi; \
+	pid="$$(cat "$(CLOUD_DB_FORWARD_PID_FILE)" 2>/dev/null || true)"; \
+	if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
+		echo "stopping cloud DB forward pid $$pid"; \
+		kill "$$pid" >/dev/null 2>&1 || true; \
+	else \
+		pids="$$(pgrep -f 'port-forward --address .* svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432' || true)"; \
+		if [ -n "$$pids" ]; then \
+			echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
+			echo "stopped cloud DB forward process(es)"; \
+		else \
+			echo "cloud DB forward pid is not running"; \
+		fi; \
+	fi; \
+	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"
+
+cloud-db-forward-status:
+	@set -euo pipefail; \
+	pid="$$(cat "$(CLOUD_DB_FORWARD_PID_FILE)" 2>/dev/null || true)"; \
+	if [ -z "$$pid" ] || ! kill -0 "$$pid" >/dev/null 2>&1; then \
+		pid="$$(pgrep -f 'port-forward --address .* svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432' | head -n1 || true)"; \
+	fi; \
+	if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
+		echo "cloud DB forward process is running (pid $$pid)"; \
+	else \
+		echo "cloud DB forward process is not running from $(CLOUD_DB_FORWARD_PID_FILE)"; \
+	fi; \
+	if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+		echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is reachable"; \
+	else \
+		echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is not reachable"; \
+		exit 1; \
+	fi
 
 cloud-db-env: gke-cloud-context
 	@set -euo pipefail; \
