@@ -77,6 +77,7 @@ spec:
     helm:
       valueFiles:
         - ../../env/cloud/values.platform.yaml
+        - ../../env/cloud/values.platform.cost-min.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: pulse-platform

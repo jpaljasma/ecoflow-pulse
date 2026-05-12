@@ -289,10 +289,10 @@ Cloud defaults in this branch:
 - cloud Argo applications avoid `Replace=true` so immutable Job resources do
   not deadlock bootstrap retries.
 
-The explicit cost-min overlays in `deploy/env/cloud/*.cost-min.yaml` are not
-referenced by the Argo Applications. Apply them only with
-`make cloud-cost-min-deploy` after local app cloud-Postgres mode and direct Helm
-apply have both been validated. See
+The explicit cost-min overlays in `deploy/env/cloud/*.cost-min.yaml` are the
+hosted ingest/storage-only cloud shape after the no-outage cutover. Keep the
+cloud Argo Applications and direct Helm target on these overlays until Argo is
+removed; use `make cloud-cost-min-deploy` for manual direct applies. See
 [`docs/how-to/no-planned-outage-cloud-cost-rollout.md`](../docs/how-to/no-planned-outage-cloud-cost-rollout.md).
 
 Hosted rollout sequence for the multi-zone stateful HA target:

@@ -200,7 +200,7 @@ jobs:
           CLOUD_SERVICES_HELM_SET_ARGS: >-
             --set runtime.image.repository=${{ env.SERVICES_CLOUD_IMAGE_REPO }}
             --set runtime.image.tag=${{ steps.image.outputs.tag }}
-        run: make cloud-deploy
+        run: make cloud-cost-min-deploy
 
       - name: Patch Argo image tags
         if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'argo'
