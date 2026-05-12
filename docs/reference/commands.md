@@ -1380,7 +1380,27 @@ Notes:
   `CONTROL_PLANE_DB_DSN`, `ARCHIVE_MANIFEST_DB_DSN`, and `ROLLUP_DB_DSN`
   pointing to `127.0.0.1:25432`.
 - `make cloud-db-forward` keeps a private `kubectl port-forward` from
-  `127.0.0.1:25432` to hosted `pulse-platform-core-rw`.
+  `127.0.0.1:25432` to hosted `pulse-platform-core-rw`. Override
+  `CLOUD_DB_FORWARD_ADDRESS` only when your local container runtime cannot reach
+  the default loopback-bound forward.
+- `make cloud-db-forward-start`, `make cloud-db-forward-status`, and
+  `make cloud-db-forward-stop` manage the same forward as a background local
+  process using `.tmp/cloud-db-forward.pid`, `.tmp/cloud-db-forward.log`, and on
+  macOS a temporary LaunchAgent under `.tmp/`.
+- `make local-cloud-db-env` writes local-only
+  `.tmp/local-cloud-db.services.values.yaml` with Helm values that point local
+  k3d backend pods at `host.docker.internal:25432`.
+- `make services-up-cloud-db` runs the normal local services deploy with the
+  generated cloud-Postgres overlay and starts the background cloud DB forward
+  first. It binds the forward with `LOCAL_CLOUD_DB_FORWARD_ADDRESS=0.0.0.0` by
+  default so k3d pods can reach it through Docker; override that value if your
+  local container runtime supports a narrower host address. In this mode local
+  `go-grpc-api` and `go-energy-api` stay enabled, and local side-effect workers
+  are disabled to avoid competing with cloud ingest. `make services-up` is the
+  switch back to fully local k3d CNPG and workers.
+- `make dev-up-cloud-db` brings up the local platform and public edge, then
+  deploys backend services against cloud Postgres. `make dev-up` is the full
+  local reset path.
 - `make cloud-status` prints hosted Argo applications when present,
   `pulse-platform` pods/stateful resources/endpoints, `pulse-services`
   deployments/PDBs/pods, and the node list after fetching the cloud kube

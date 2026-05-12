@@ -56,6 +56,20 @@ In one terminal, keep the private cloud CNPG port-forward open:
 make cloud-db-forward
 ```
 
+For a background-managed forward, use:
+
+```bash
+make cloud-db-forward-start
+make cloud-db-forward-status
+```
+
+The foreground/default forward binds to `127.0.0.1` for host-run Go services.
+The k3d cloud-DB target below starts the background forward with
+`LOCAL_CLOUD_DB_FORWARD_ADDRESS=0.0.0.0` by default so Docker/k3d pods can reach
+it through `host.docker.internal`. Use that mode only on a trusted local machine
+or override the address if your container runtime has a narrower reachable host
+address.
+
 In another terminal, source the generated file before running local Go services:
 
 ```bash
@@ -64,6 +78,34 @@ source .tmp/cloud-postgres.env
 
 The generated DSNs point to `127.0.0.1:25432`. This does not expose Postgres
 publicly; it only works while the authenticated `kubectl port-forward` is open.
+
+For local backend pods running inside k3d, generate the local-only Helm overlay
+and redeploy services with it:
+
+```bash
+make local-cloud-db-env
+make services-up-cloud-db
+make services-wait
+```
+
+Or bring up the full local stack with cloud Postgres for service pods:
+
+```bash
+make dev-up-cloud-db
+```
+
+The generated overlay points service pods at
+`host.docker.internal:25432`. `make services-up-cloud-db` starts the
+Docker-reachable background forward automatically and manages it through
+`make cloud-db-forward-status` / `make cloud-db-forward-stop`. The cloud-DB
+overlay keeps local API backends enabled and disables local
+side-effect workers such as ingest, projection, archive, rollup, scheduler,
+solar verification, inference, and the MQTT emulator so the local stack does not
+compete with cloud ingest/storage. The regular local commands remain fully
+local: rerun `make services-up` to move backend pods back to local k3d CNPG and
+restore the local workers, or `make dev-up` to converge the full stack back to
+local k3d storage. Stop the background forward with `make cloud-db-forward-stop`
+when you no longer need cloud DB access.
 
 Validate at least one local API or CLI path against cloud data before continuing.
 For example, start the local Go API with the sourced env and verify device or
