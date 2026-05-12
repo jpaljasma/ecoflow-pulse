@@ -96,10 +96,10 @@ runtime:
         cloud.google.com/gke-nodepool: app-pool
     ingest:
       enabled: true
-      replicaCount: 1
+      replicaCount: 2
       pdb:
         enabled: true
-        maxUnavailable: 1
+        minAvailable: 1
       metrics:
         enabled: true
         serviceMonitor:
@@ -129,7 +129,7 @@ runtime:
       replicaCount: 1
       pdb:
         enabled: true
-        maxUnavailable: 1
+        minAvailable: 1
       metrics:
         enabled: true
         serviceMonitor:
@@ -139,7 +139,7 @@ runtime:
       replicaCount: 1
       pdb:
         enabled: true
-        maxUnavailable: 1
+        minAvailable: 1
       metrics:
         enabled: true
         serviceMonitor:

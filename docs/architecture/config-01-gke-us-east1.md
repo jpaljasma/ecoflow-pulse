@@ -7,7 +7,10 @@ This config aims to keep costs low while still producing realistic failover beha
 ## Cluster choice
 - **GKE Standard, Regional**, region **us-east1**
 - Release channel: **Regular**
-- GitOps: **Argo CD**
+- GitOps/dev parity: **Argo CD**
+- Hosted cost-min operations: direct Helm after the no-outage cutover gates in
+  [ADR-0026](./adr/ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md)
+  pass.
 
 ---
 

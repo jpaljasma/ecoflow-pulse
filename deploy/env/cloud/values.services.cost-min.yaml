@@ -1,0 +1,50 @@
+runtime:
+  workers:
+    defaultPodScheduling:
+      nodeSelector: {}
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: stateful
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: cloud.google.com/gke-nodepool
+                    operator: In
+                    values:
+                      - stateful-pool-medium
+                      - stateful-pool-ha-medium
+                      - stateful-pool-quorum-medium
+    ingest:
+      enabled: true
+      replicaCount: 2
+      pdb:
+        enabled: true
+        minAvailable: 1
+    archive:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+    rollup:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        minAvailable: 1
+    inference:
+      enabled: false
+    projection:
+      enabled: false
+    grpcApi:
+      enabled: false
+    solarVerification:
+      enabled: false
+    scheduler:
+      enabled: false
+    energyApi:
+      enabled: false

@@ -34,6 +34,7 @@ Pecron E1000LFP cloud, and Anker SOLIX Cloud MQTT onboarding.
 - [`how-to/prepare-pgroll-transition-local.md`](how-to/prepare-pgroll-transition-local.md)
 - [`how-to/migrate-local-data-plane-to-gke-cloud.md`](how-to/migrate-local-data-plane-to-gke-cloud.md)
 - [`how-to/reduce-hosted-gke-cost.md`](how-to/reduce-hosted-gke-cost.md)
+- [`how-to/no-planned-outage-cloud-cost-rollout.md`](how-to/no-planned-outage-cloud-cost-rollout.md)
 
 ### Reference
 

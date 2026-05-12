@@ -1,0 +1,94 @@
+components:
+  keycloak:
+    enabled: false
+  ingressNginx:
+    enabled: false
+  certManager:
+    enabled: false
+
+runtime:
+  publicApp:
+    enabled: false
+  realtimeGateway:
+    enabled: false
+
+keycloakRealm:
+  enabled: false
+
+nats:
+  natsBox:
+    enabled: false
+
+cloudnative-pg:
+  nodeSelector: {}
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: stateful
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: cloud.google.com/gke-nodepool
+                operator: In
+                values:
+                  - stateful-pool-medium
+                  - stateful-pool-ha-medium
+                  - stateful-pool-quorum-medium
+
+external-secrets:
+  nodeSelector: {}
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: stateful
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: cloud.google.com/gke-nodepool
+                operator: In
+                values:
+                  - stateful-pool-medium
+                  - stateful-pool-ha-medium
+                  - stateful-pool-quorum-medium
+  webhook:
+    nodeSelector: {}
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                    - stateful-pool-medium
+                    - stateful-pool-ha-medium
+                    - stateful-pool-quorum-medium
+  certController:
+    nodeSelector: {}
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: stateful
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                    - stateful-pool-medium
+                    - stateful-pool-ha-medium
+                    - stateful-pool-quorum-medium

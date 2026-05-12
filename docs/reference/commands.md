@@ -1366,9 +1366,25 @@ Notes:
 - `make cloud-refresh` reapplies the hosted cloud app manifests and waits for
   `pulse-platform-cloud` and `pulse-services-cloud` to return to `Synced` +
   `Healthy`.
-- `make cloud-status` prints the hosted Argo applications, `pulse-platform`
-  pods, `pulse-services` pods, and current node list after fetching the cloud
-  kube context.
+- `make cloud-health-gate` verifies hosted CNPG, NATS, Valkey, pod phase, and
+  recent ingest/archive/rollup logs before disruptive cloud work.
+- `make cloud-platform-apply` directly runs Helm against the hosted platform
+  release `pulse-platform-cloud` using `CLOUD_PLATFORM_VALUES`.
+- `make cloud-services-apply` directly runs Helm against the hosted services
+  release `pulse-services-cloud` using `CLOUD_SERVICES_VALUES`.
+- `make cloud-deploy` runs the direct hosted platform and services Helm applies.
+- `make cloud-cost-min-deploy` adds the explicit
+  `deploy/env/cloud/*.cost-min.yaml` overlays for ingest/storage-only hosted
+  mode. Run it only after local cloud-Postgres mode and direct Helm are proven.
+- `make cloud-db-env` writes local-only `.tmp/cloud-postgres.env` with
+  `CONTROL_PLANE_DB_DSN`, `ARCHIVE_MANIFEST_DB_DSN`, and `ROLLUP_DB_DSN`
+  pointing to `127.0.0.1:25432`.
+- `make cloud-db-forward` keeps a private `kubectl port-forward` from
+  `127.0.0.1:25432` to hosted `pulse-platform-core-rw`.
+- `make cloud-status` prints hosted Argo applications when present,
+  `pulse-platform` pods/stateful resources/endpoints, `pulse-services`
+  deployments/PDBs/pods, and the node list after fetching the cloud kube
+  context.
 - pre-merge GKE validation pattern (when Argo apps track `main` but you need to validate branch changes):
   - patch app `spec.source.targetRevision=<branch>` with `argocd.argoproj.io/refresh=hard`,
   - run `make argocd-wait-apps`,
