@@ -144,7 +144,8 @@ Defaults:
     app/realtime gateway while keeping websocket telemetry on the cloud
     NATS/Valkey path; these cloud-data local workflows build the web bundle
     with `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings labels the active
-    source as cloud data even though the browser edge remains local,
+    source as Cloud even though the browser edge remains local, and the local
+    build scrubs hosted `EXPO_PUBLIC_CLOUD_*` values so auth/HTTP stay local,
   - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).

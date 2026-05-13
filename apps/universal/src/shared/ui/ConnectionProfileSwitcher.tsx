@@ -26,6 +26,17 @@ type ConnectionProfilePresentation = {
 
 function describeConnectionProfile(profile: ConnectionProfileConfig): ConnectionProfilePresentation {
   if (profile.id === 'cloud') {
+    if (profile.edge === 'local') {
+      return {
+        iconName: 'cloud-sync-outline',
+        title: 'Cloud',
+        statusDescription: 'Cloud data',
+        activeStatusDescription: 'Selected',
+        detailedDescription: 'Use the local HTTPS edge while database and realtime telemetry come from cloud.',
+        compactDescription: 'Local edge with cloud data.'
+      };
+    }
+
     return {
       iconName: 'cloud-outline',
       title: 'Cloud',
@@ -33,17 +44,6 @@ function describeConnectionProfile(profile: ConnectionProfileConfig): Connection
       activeStatusDescription: 'Selected',
       detailedDescription: 'Use the hosted HTTPS API, websocket gateway, and cloud OIDC issuer.',
       compactDescription: 'Hosted API, realtime, and auth.'
-    };
-  }
-
-  if (profile.dataPlane === 'cloud') {
-    return {
-      iconName: 'cloud-sync-outline',
-      title: 'Local',
-      statusDescription: 'Cloud data',
-      activeStatusDescription: 'Cloud data',
-      detailedDescription: 'Use the local k3d HTTPS edge while database and realtime telemetry come from cloud.',
-      compactDescription: 'Local edge with cloud data.'
     };
   }
 

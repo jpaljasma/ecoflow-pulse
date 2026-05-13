@@ -536,6 +536,9 @@ platform-app-image-build-local: docker-local-ready
 		if [ -f .env ]; then \
 			set -a; source ./.env; set +a; \
 		fi; \
+		if [ "$${EXPO_PUBLIC_LOCAL_DATA_PLANE:-}" = "cloud" ]; then \
+			unset EXPO_PUBLIC_CLOUD_API_URL EXPO_PUBLIC_CLOUD_WS_URL EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE EXPO_PUBLIC_CLOUD_OIDC_SCOPES; \
+		fi; \
 		set --; \
 		for var in $(PLATFORM_APP_BUILD_ARG_VARS); do \
 			case "$$var" in \
