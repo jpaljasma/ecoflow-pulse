@@ -13,6 +13,7 @@ async function loadEnvModule({
   cloudOidcIssuerUrlEnv,
   cloudOidcClientIdEnv,
   defaultConnectionProfileEnv,
+  localDataPlaneEnv,
   extra = {}
 }: {
   apiUrlEnv?: string;
@@ -24,6 +25,7 @@ async function loadEnvModule({
   cloudOidcIssuerUrlEnv?: string;
   cloudOidcClientIdEnv?: string;
   defaultConnectionProfileEnv?: string;
+  localDataPlaneEnv?: string;
   extra?: Record<string, unknown>;
 }) {
   vi.resetModules();
@@ -80,6 +82,12 @@ async function loadEnvModule({
     delete process.env.EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE;
   } else {
     process.env.EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE = defaultConnectionProfileEnv;
+  }
+
+  if (localDataPlaneEnv === undefined) {
+    delete process.env.EXPO_PUBLIC_LOCAL_DATA_PLANE;
+  } else {
+    process.env.EXPO_PUBLIC_LOCAL_DATA_PLANE = localDataPlaneEnv;
   }
 
   Object.defineProperty(globalThis, 'window', {
@@ -177,5 +185,15 @@ describe('env config resolution', () => {
     expect(env.defaultConnectionProfileId).toBe('local');
     expect(env.connectionProfileId).toBe('local');
     expect(env.apiUrl).toBe('https://localhost');
+  });
+
+  it('marks the local edge as cloud-backed when the local data plane is cloud', async () => {
+    const { env, readConnectionProfile } = await loadEnvModule({
+      localDataPlaneEnv: 'cloud'
+    });
+
+    expect(env.connectionProfileId).toBe('local');
+    expect(readConnectionProfile('local').dataPlane).toBe('cloud');
+    expect(env.activeConnectionProfile.dataPlane).toBe('cloud');
   });
 });

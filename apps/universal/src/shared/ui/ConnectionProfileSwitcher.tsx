@@ -1,7 +1,11 @@
 import type { ComponentProps } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
-import { type ConnectionProfileId, readConnectionProfiles } from '@/shared/config/env';
+import {
+  type ConnectionProfileConfig,
+  type ConnectionProfileId,
+  readConnectionProfiles
+} from '@/shared/config/env';
 import { useConnectionProfileStore } from '@/shared/config/connectionProfileStore';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
@@ -15,25 +19,39 @@ type ConnectionProfilePresentation = {
   iconName: ComponentProps<typeof MaterialCommunityIcons>['name'];
   title: string;
   statusDescription: string;
+  activeStatusDescription: string;
   detailedDescription: string;
   compactDescription: string;
 };
 
-function describeConnectionProfile(profileId: ConnectionProfileId): ConnectionProfilePresentation {
-  if (profileId === 'cloud') {
+function describeConnectionProfile(profile: ConnectionProfileConfig): ConnectionProfilePresentation {
+  if (profile.id === 'cloud') {
     return {
       iconName: 'cloud-outline',
       title: 'Cloud',
       statusDescription: 'Hosted stack',
+      activeStatusDescription: 'Selected',
       detailedDescription: 'Use the hosted HTTPS API, websocket gateway, and cloud OIDC issuer.',
       compactDescription: 'Hosted API, realtime, and auth.'
     };
   }
 
+  if (profile.dataPlane === 'cloud') {
+    return {
+      iconName: 'cloud-sync-outline',
+      title: 'Local',
+      statusDescription: 'Cloud data',
+      activeStatusDescription: 'Cloud data',
+      detailedDescription: 'Use the local k3d HTTPS edge while database and realtime telemetry come from cloud.',
+      compactDescription: 'Local edge with cloud data.'
+    };
+  }
+
   return {
     iconName: 'laptop',
-    title: 'k3d',
+    title: 'Local',
     statusDescription: 'Local stack',
+    activeStatusDescription: 'Selected',
     detailedDescription: 'Use your local k3d HTTPS edge and development services on this machine or LAN.',
     compactDescription: 'Local k3d edge and development services.'
   };
@@ -53,7 +71,7 @@ export function ConnectionProfileSwitcher({
     <XStack gap="$3" flexWrap="wrap" alignItems="stretch">
       {(Object.keys(connectionProfiles) as ConnectionProfileId[]).map((profileId) => {
         const profile = connectionProfiles[profileId];
-        const presentation = describeConnectionProfile(profileId);
+        const presentation = describeConnectionProfile(profile);
         const selected = profileId === connectionProfileId;
         const disabled = !profile.configured;
         const cardBackground = selected
@@ -73,8 +91,8 @@ export function ConnectionProfileSwitcher({
               onSelectionChange?.(profileId);
             }}
             flexGrow={1}
-            flexBasis={isCompact ? 0 : '100%'}
-            minWidth={isCompact ? 132 : 280}
+            flexBasis={0}
+            minWidth={isCompact ? 132 : 320}
             borderRadius="$3"
             borderWidth={selected ? 1.5 : 1}
             padding={isCompact ? '$3' : '$4'}
@@ -113,14 +131,14 @@ export function ConnectionProfileSwitcher({
                     />
                   </YStack>
                   <YStack gap="$1" flex={1}>
-                    <Text fontSize={isCompact ? '$4' : '$5'} fontWeight="800" letterSpacing={-0.1}>
+                    <Text fontSize={isCompact ? '$4' : '$5'} fontWeight="800" letterSpacing={0}>
                       {presentation.title}
                     </Text>
                     <Text fontSize="$2" color="$colorMuted">
                       {disabled
                         ? 'Not configured'
                         : selected
-                          ? 'Selected'
+                          ? presentation.activeStatusDescription
                           : presentation.statusDescription}
                     </Text>
                   </YStack>

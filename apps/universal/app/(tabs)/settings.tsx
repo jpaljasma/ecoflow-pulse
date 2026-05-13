@@ -16,6 +16,7 @@ import { themeFamilyOptions } from '@/shared/theme/catalog';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeStore } from '@/shared/theme/store';
 import { useConnectionProfileStore } from '@/shared/config/connectionProfileStore';
+import { readConnectionProfile } from '@/shared/config/env';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 
 export default function SettingsScreen() {
@@ -26,6 +27,11 @@ export default function SettingsScreen() {
   const themeFamily = useThemeStore((state) => state.family);
   const setThemeFamily = useThemeStore((state) => state.setFamily);
   const connectionProfileId = useConnectionProfileStore((state) => state.profileId);
+  const activeConnectionProfile = readConnectionProfile(connectionProfileId);
+  const activeDataSourceLabel =
+    activeConnectionProfile.dataPlane === 'cloud'
+      ? 'Cloud data'
+      : activeConnectionProfile.label;
   const { mode, spec, isDark } = useAppTheme();
   const systemModeLabel = mode === 'dark' ? 'Dark' : 'Light';
 
@@ -93,7 +99,7 @@ export default function SettingsScreen() {
                     Data source
                   </Text>
                   <Text color="$colorMuted" opacity={0.94} fontSize="$3" lineHeight={24}>
-                    Choose whether this frontend talks to your local k3d stack or the hosted cloud stack.
+                    Choose whether this frontend uses Local or Cloud data.
                   </Text>
                 </YStack>
                 <XStack
@@ -108,7 +114,7 @@ export default function SettingsScreen() {
                 >
                   <YStack width={6} height={6} borderRadius={999} backgroundColor="$accentColor" />
                   <Text fontSize="$2" fontWeight="700" opacity={0.94}>
-                    Active: {connectionProfileId === 'cloud' ? 'Cloud' : 'k3d'}
+                    Active: {activeDataSourceLabel}
                   </Text>
                 </XStack>
               </XStack>

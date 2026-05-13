@@ -29,10 +29,12 @@ type RuntimeConnectionOverrides = {
 };
 
 export type ConnectionProfileId = 'local' | 'cloud';
+export type ConnectionDataPlane = 'local' | 'cloud';
 
 export type ConnectionProfileConfig = {
   id: ConnectionProfileId;
   label: string;
+  dataPlane: ConnectionDataPlane;
   apiUrl: string;
   apiUrlExplicit: boolean;
   wsUrl: string;
@@ -56,6 +58,7 @@ type EnvShape = {
   readonly defaultConnectionProfileId: ConnectionProfileId;
   readonly connectionProfiles: Record<ConnectionProfileId, ConnectionProfileConfig>;
   readonly activeConnectionProfile: ConnectionProfileConfig;
+  readonly activeDataPlane: ConnectionDataPlane;
   apiUrl: string;
   apiUrlExplicit: boolean;
   wsUrl: string;
@@ -199,6 +202,17 @@ function readConnectionProfileId(value: unknown): ConnectionProfileId | null {
   }
 }
 
+function readConnectionDataPlane(value: unknown): ConnectionDataPlane | null {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  switch (normalized) {
+    case 'local':
+    case 'cloud':
+      return normalized;
+    default:
+      return null;
+  }
+}
+
 const localApiUrlFromConfig =
   readConfiguredString(process.env.EXPO_PUBLIC_API_URL) ??
   readConfiguredString((extra as { apiUrl?: unknown }).apiUrl);
@@ -225,6 +239,11 @@ const localOidcScopes =
 const resolvedLocalApiUrl = localApiUrlFromConfig ?? defaultApiBase;
 const resolvedLocalWsUrl =
   localWsUrlFromConfig ?? deriveWsUrlFromApiUrl(resolvedLocalApiUrl) ?? defaultWsUrl;
+const localDataPlane =
+  readConnectionDataPlane(
+    readConfiguredString(process.env.EXPO_PUBLIC_LOCAL_DATA_PLANE) ??
+      readConfiguredString((extra as { localDataPlane?: unknown }).localDataPlane)
+  ) ?? 'local';
 
 const cloudApiUrlFromConfig =
   readConfiguredString(process.env.EXPO_PUBLIC_CLOUD_API_URL) ??
@@ -256,7 +275,8 @@ const resolvedCloudWsUrl =
 const connectionProfiles: Record<ConnectionProfileId, ConnectionProfileConfig> = {
   local: {
     id: 'local',
-    label: 'k3d',
+    label: 'Local',
+    dataPlane: localDataPlane,
     apiUrl: resolvedLocalApiUrl,
     apiUrlExplicit:
       readConfiguredString(process.env.EXPO_PUBLIC_API_URL) !== undefined ||
@@ -274,6 +294,7 @@ const connectionProfiles: Record<ConnectionProfileId, ConnectionProfileConfig> =
   cloud: {
     id: 'cloud',
     label: 'Cloud',
+    dataPlane: 'cloud',
     apiUrl: resolvedCloudApiUrl,
     apiUrlExplicit:
       readConfiguredString(process.env.EXPO_PUBLIC_CLOUD_API_URL) !== undefined ||
@@ -400,6 +421,9 @@ export const env: EnvShape = {
   },
   get activeConnectionProfile() {
     return readActiveConnectionProfile();
+  },
+  get activeDataPlane() {
+    return readActiveConnectionProfile().dataPlane;
   },
   get apiUrl() {
     return readActiveConnectionProfile().apiUrl;
