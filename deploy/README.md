@@ -71,6 +71,9 @@ make cloud-cost-min-deploy
 make cloud-db-env
 make cloud-db-forward
 make cloud-db-forward-start
+make cloud-realtime-forward-start
+make cloud-realtime-forward-status
+make dev-web-deploy-cloud-realtime
 make dev-up-cloud-db
 ```
 
@@ -132,8 +135,14 @@ Defaults:
   - `make local-cloud-db-env`, `make services-up-cloud-db`, and
     `make dev-up-cloud-db` for local k3d API backend pods reading cloud CNPG
     through a Docker-reachable background forward while local side-effect
-    workers are disabled and the normal `make services-up` / `make dev-up` path
-    stays fully local,
+    workers are disabled; this cloud-data mode also points the local realtime
+    gateway at cloud NATS/Valkey through Docker-reachable forwards so live data
+    comes from the hosted data plane,
+  - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
+    `make cloud-realtime-forward-stop`, and
+    `make dev-web-deploy-cloud-realtime` for refreshing only the local public
+    app/realtime gateway while keeping websocket telemetry on the cloud
+    NATS/Valkey path,
   - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).

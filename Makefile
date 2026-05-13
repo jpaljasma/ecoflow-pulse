@@ -88,10 +88,29 @@ CLOUD_DB_FORWARD_LOG_FILE ?= .tmp/cloud-db-forward.log
 CLOUD_DB_FORWARD_PLIST ?= .tmp/cloud-db-forward.plist
 CLOUD_DB_FORWARD_RUNNER ?= .tmp/cloud-db-forward-runner.sh
 CLOUD_DB_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-db-forward
+CLOUD_REALTIME_FORWARD_ADDRESS ?= 127.0.0.1
+CLOUD_NATS_LOCAL_PORT ?= 24222
+CLOUD_VALKEY_LOCAL_PORT ?= 26380
+CLOUD_NATS_SERVICE ?= $(CLOUD_PLATFORM_RELEASE)-nats
+CLOUD_VALKEY_SERVICE ?= $(CLOUD_PLATFORM_RELEASE)-valkey
+CLOUD_NATS_FORWARD_PID_FILE ?= .tmp/cloud-nats-forward.pid
+CLOUD_NATS_FORWARD_LOG_FILE ?= .tmp/cloud-nats-forward.log
+CLOUD_NATS_FORWARD_PLIST ?= .tmp/cloud-nats-forward.plist
+CLOUD_NATS_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-nats-forward
+CLOUD_VALKEY_FORWARD_PID_FILE ?= .tmp/cloud-valkey-forward.pid
+CLOUD_VALKEY_FORWARD_LOG_FILE ?= .tmp/cloud-valkey-forward.log
+CLOUD_VALKEY_FORWARD_PLIST ?= .tmp/cloud-valkey-forward.plist
+CLOUD_VALKEY_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-valkey-forward
+CLOUD_REALTIME_FORWARD_RUNNER ?= .tmp/cloud-realtime-forward-runner.sh
 LOCAL_CLOUD_DB_FORWARD_ADDRESS ?= 0.0.0.0
 LOCAL_CLOUD_DB_HOST ?= host.docker.internal
 LOCAL_CLOUD_DB_PORT ?= $(CLOUD_DB_LOCAL_PORT)
 LOCAL_CLOUD_DB_SERVICES_VALUES ?= .tmp/local-cloud-db.services.values.yaml
+LOCAL_CLOUD_REALTIME_FORWARD_ADDRESS ?= 0.0.0.0
+LOCAL_CLOUD_REALTIME_HOST ?= host.docker.internal
+LOCAL_CLOUD_NATS_PORT ?= $(CLOUD_NATS_LOCAL_PORT)
+LOCAL_CLOUD_VALKEY_PORT ?= $(CLOUD_VALKEY_LOCAL_PORT)
+LOCAL_CLOUD_REALTIME_PLATFORM_VALUES ?= .tmp/local-cloud-realtime.platform.values.yaml
 CLOUD_KUBE_CONTEXT ?= gke_$(GKE_CLOUD_PROJECT_ID)_$(GKE_CLOUD_CLUSTER_REGION)_$(GKE_CLOUD_CLUSTER_NAME)
 CLOUD_HELM_TAKE_OWNERSHIP ?= 1
 CLOUD_HELM_SERVER_SIDE ?= true
@@ -156,7 +175,8 @@ RACE_STRESS_COUNT ?= 5
 LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
 LOCAL_HELM = $(HELM) --kube-context $(K3D_CONTEXT)
 LOCAL_HELM_UPGRADE_FLAGS ?= --server-side=true --force-conflicts
-PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace $(LOCAL_HELM_UPGRADE_FLAGS) -f $(LOCAL_PLATFORM_VALUES)
+LOCAL_PLATFORM_HELM_VALUES_ARGS = $(foreach values,$(LOCAL_PLATFORM_VALUES),-f $(values))
+PLATFORM_HELM_APPLY = $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) --namespace $(PLATFORM_NAMESPACE) --create-namespace $(LOCAL_HELM_UPGRADE_FLAGS) $(LOCAL_PLATFORM_HELM_VALUES_ARGS)
 LOCAL_PLATFORM_MANIFEST ?= $(CURDIR)/.tmp/pulse-platform.rendered.yaml
 K6_SCRIPT ?= load/k6/main.js
 K6_API_BASE_URL ?= http://127.0.0.1
@@ -201,7 +221,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -722,7 +742,7 @@ platform-up: helm-local-ready
 				if $(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
 					--namespace $(PLATFORM_NAMESPACE) --create-namespace \
 					$(LOCAL_HELM_UPGRADE_FLAGS) \
-					-f $(LOCAL_PLATFORM_VALUES) \
+					$(LOCAL_PLATFORM_HELM_VALUES_ARGS) \
 					"$$@" 2>&1 | tee "$$helm_log"; then \
 					rm -f "$$helm_log"; \
 					return 0; \
@@ -741,7 +761,7 @@ platform-up: helm-local-ready
 					$(LOCAL_HELM) upgrade --install $(PLATFORM_RELEASE) $(PLATFORM_CHART) \
 						--namespace $(PLATFORM_NAMESPACE) --create-namespace \
 						$(LOCAL_HELM_UPGRADE_FLAGS) \
-						-f $(LOCAL_PLATFORM_VALUES) \
+						$(LOCAL_PLATFORM_HELM_VALUES_ARGS) \
 						"$$@"; \
 				else \
 					echo "retrying pulse-platform helm apply after Valkey StatefulSet recreation"; \
@@ -844,7 +864,12 @@ platform-up: helm-local-ready
 			echo "waiting for existing cert-manager cainjector to become ready before Helm apply"; \
 			$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) rollout status deploy/$(PLATFORM_RELEASE)-cert-manager-cainjector --timeout=180s; \
 		fi; \
-		obs_enabled="$$(python3 -c 'import yaml; from pathlib import Path; vals = yaml.safe_load(Path("$(LOCAL_PLATFORM_VALUES)").read_text()); print(bool(vals.get("components", {}).get("observabilityLite", {}).get("enabled", False)))')"; \
+		obs_enabled="$$(awk ' \
+			/^[^[:space:]]/ { top=$$1; sub(":", "", top); section="" } \
+			top == "components" && /^[[:space:]]+observabilityLite:/ { section="observabilityLite" } \
+			top == "components" && section == "observabilityLite" && /^[[:space:]]+enabled:[[:space:]]*true[[:space:]]*$$/ { found=1 } \
+			END { print found ? "True" : "False" } \
+		' $(LOCAL_PLATFORM_VALUES))"; \
 		if [ "$$obs_enabled" = "True" ]; then \
 			ensure_prometheus_operator_crds; \
 		fi; \
@@ -1184,6 +1209,23 @@ local-cloud-db-env: gke-cloud-context
 	chmod 600 "$(LOCAL_CLOUD_DB_SERVICES_VALUES)"; \
 	echo "wrote $(LOCAL_CLOUD_DB_SERVICES_VALUES) for $(LOCAL_CLOUD_DB_HOST):$(LOCAL_CLOUD_DB_PORT) without printing credentials"
 
+local-cloud-realtime-env:
+	@set -euo pipefail; \
+	mkdir -p "$(dir $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES))"; \
+	umask 077; \
+	{ \
+		echo "# Generated by make local-cloud-realtime-env. Keep this file local."; \
+		echo "# In another shell, keep the forwards open: make cloud-realtime-forward-start CLOUD_REALTIME_FORWARD_ADDRESS=$(LOCAL_CLOUD_REALTIME_FORWARD_ADDRESS)"; \
+		echo "runtime:"; \
+		echo "  realtimeGateway:"; \
+		echo "    env:"; \
+		printf "      natsURLs: 'nats://%s:%s'\n" "$(LOCAL_CLOUD_REALTIME_HOST)" "$(LOCAL_CLOUD_NATS_PORT)"; \
+		printf "      valkeyAddrs: '%s:%s'\n" "$(LOCAL_CLOUD_REALTIME_HOST)" "$(LOCAL_CLOUD_VALKEY_PORT)"; \
+		echo "      valkeySentinelMasterSet: ''"; \
+	} > "$(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"; \
+	chmod 600 "$(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"; \
+	echo "wrote $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES) for cloud NATS/Valkey via $(LOCAL_CLOUD_REALTIME_HOST)"
+
 services-up: helm-local-ready
 	@if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 		$(MAKE) services-image-local-up; \
@@ -1316,7 +1358,15 @@ dev-grafana:
 
 dev-up: k3d-up public-images-local-up platform-up platform-wait services-up services-wait
 
-dev-up-cloud-db: k3d-up public-images-local-up platform-up platform-wait services-up-cloud-db services-wait
+dev-up-cloud-db: k3d-up public-images-local-up
+	$(MAKE) --no-print-directory cloud-realtime-forward-start \
+		CLOUD_REALTIME_FORWARD_ADDRESS="$(LOCAL_CLOUD_REALTIME_FORWARD_ADDRESS)"
+	$(MAKE) --no-print-directory local-cloud-realtime-env
+	$(MAKE) --no-print-directory platform-up \
+		LOCAL_PLATFORM_VALUES="$(LOCAL_PLATFORM_VALUES) $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"
+	$(MAKE) --no-print-directory platform-wait
+	$(MAKE) --no-print-directory services-up-cloud-db
+	$(MAKE) --no-print-directory services-wait
 
 local-up: dev-up
 
@@ -1440,6 +1490,14 @@ dev-web-deploy:
 	@echo "showing platform deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) logs deploy/pulse-platform-realtime-gateway --since=5m
+
+dev-web-deploy-cloud-realtime:
+	$(MAKE) --no-print-directory cloud-realtime-forward-start \
+		CLOUD_REALTIME_FORWARD_ADDRESS="$(LOCAL_CLOUD_REALTIME_FORWARD_ADDRESS)"
+	$(MAKE) --no-print-directory local-cloud-realtime-env
+	$(MAKE) --no-print-directory dev-web-deploy \
+		DEV_DEPLOY_HELM=always \
+		LOCAL_PLATFORM_VALUES="$(LOCAL_PLATFORM_VALUES) $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"
 
 dev-deploy:
 	@set -euo pipefail; \
@@ -2784,6 +2842,175 @@ cloud-db-forward-status:
 		echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is not reachable"; \
 		exit 1; \
 	fi
+
+cloud-realtime-forward: gke-cloud-context
+	@echo "forwarding cloud NATS to $(CLOUD_REALTIME_FORWARD_ADDRESS):$(CLOUD_NATS_LOCAL_PORT)"
+	@$(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_REALTIME_FORWARD_ADDRESS) svc/$(CLOUD_NATS_SERVICE) $(CLOUD_NATS_LOCAL_PORT):4222 & \
+	nats_pid="$$!"; \
+	echo "forwarding cloud Valkey to $(CLOUD_REALTIME_FORWARD_ADDRESS):$(CLOUD_VALKEY_LOCAL_PORT)"; \
+	trap 'kill "$$nats_pid" >/dev/null 2>&1 || true' INT TERM EXIT; \
+	$(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_REALTIME_FORWARD_ADDRESS) svc/$(CLOUD_VALKEY_SERVICE) $(CLOUD_VALKEY_LOCAL_PORT):6379
+
+cloud-realtime-forward-start: gke-cloud-context
+	@set -euo pipefail; \
+	mkdir -p "$(dir $(CLOUD_NATS_FORWARD_PID_FILE))" "$(dir $(CLOUD_NATS_FORWARD_LOG_FILE))" "$(dir $(CLOUD_NATS_FORWARD_PLIST))" "$(dir $(CLOUD_VALKEY_FORWARD_PID_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_LOG_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_PLIST))" "$(dir $(CLOUD_REALTIME_FORWARD_RUNNER))"; \
+	kubectl_bin="$$(command -v $(KUBECTL))"; \
+	start_forward() { \
+		label="$$1"; \
+		service="$$2"; \
+		local_port="$$3"; \
+		remote_port="$$4"; \
+		pid_file="$$5"; \
+		log_file="$$6"; \
+		plist_file="$$7"; \
+		launch_label="$$8"; \
+		pid_pattern="port-forward --address $(CLOUD_REALTIME_FORWARD_ADDRESS) svc/$$service $$local_port:$$remote_port"; \
+		pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
+		if [ -n "$$pid" ] && nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+			echo "$$pid" > "$$pid_file"; \
+			echo "$$label forward already running on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (pid $$pid)"; \
+			return 0; \
+		fi; \
+		rm -f "$$pid_file"; \
+		if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+			echo "$$label forward port $$local_port is already reachable"; \
+			return 0; \
+		fi; \
+		echo "starting $$label forward on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (log: $$log_file)"; \
+		if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
+			runner="$(abspath $(CLOUD_REALTIME_FORWARD_RUNNER))"; \
+			plist="$$(cd "$$(dirname "$$plist_file")" && pwd)/$$(basename "$$plist_file")"; \
+			log="$$(cd "$$(dirname "$$log_file")" && pwd)/$$(basename "$$log_file")"; \
+			path_env="$$(dirname "$$kubectl_bin"):/usr/local/google-cloud-sdk/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; \
+			{ \
+				printf '%s\n' '#!/usr/bin/env sh'; \
+				printf '%s\n' 'exec "$$@"'; \
+			} > "$$runner"; \
+			chmod 700 "$$runner"; \
+			{ \
+				printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
+				printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
+				printf '%s\n' '<plist version="1.0">'; \
+				printf '%s\n' '<dict>'; \
+				printf '%s\n' '  <key>Label</key>'; \
+				printf '  <string>%s</string>\n' "$$launch_label"; \
+				printf '%s\n' '  <key>ProgramArguments</key>'; \
+				printf '%s\n' '  <array>'; \
+				printf '    <string>%s</string>\n' "$$runner"; \
+				printf '    <string>%s</string>\n' "$$kubectl_bin"; \
+				printf '%s\n' '    <string>--context</string>'; \
+				printf '    <string>%s</string>\n' '$(CLOUD_KUBE_CONTEXT)'; \
+				printf '%s\n' '    <string>-n</string>'; \
+				printf '    <string>%s</string>\n' '$(PLATFORM_NAMESPACE)'; \
+				printf '%s\n' '    <string>port-forward</string>'; \
+				printf '%s\n' '    <string>--address</string>'; \
+				printf '    <string>%s</string>\n' '$(CLOUD_REALTIME_FORWARD_ADDRESS)'; \
+				printf '    <string>svc/%s</string>\n' "$$service"; \
+				printf '    <string>%s:%s</string>\n' "$$local_port" "$$remote_port"; \
+				printf '%s\n' '  </array>'; \
+				printf '%s\n' '  <key>EnvironmentVariables</key>'; \
+				printf '%s\n' '  <dict>'; \
+				printf '%s\n' '    <key>HOME</key>'; \
+				printf '    <string>%s</string>\n' "$$HOME"; \
+				printf '%s\n' '    <key>PATH</key>'; \
+				printf '    <string>%s</string>\n' "$$path_env"; \
+				printf '%s\n' '    <key>USE_GKE_GCLOUD_AUTH_PLUGIN</key>'; \
+				printf '%s\n' '    <string>True</string>'; \
+				printf '%s\n' '  </dict>'; \
+				printf '%s\n' '  <key>RunAtLoad</key><true/>'; \
+				printf '%s\n' '  <key>KeepAlive</key><true/>'; \
+				printf '%s\n' '  <key>StandardOutPath</key>'; \
+				printf '  <string>%s</string>\n' "$$log"; \
+				printf '%s\n' '  <key>StandardErrorPath</key>'; \
+				printf '  <string>%s</string>\n' "$$log"; \
+				printf '%s\n' '</dict>'; \
+				printf '%s\n' '</plist>'; \
+			} > "$$plist"; \
+			domain="gui/$$(id -u)"; \
+			launchctl bootout "$$domain/$$launch_label" >/dev/null 2>&1 || true; \
+			launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
+			launchctl bootstrap "$$domain" "$$plist"; \
+		else \
+			nohup $(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_REALTIME_FORWARD_ADDRESS) "svc/$$service" "$$local_port:$$remote_port" >"$$log_file" 2>&1 & \
+		fi; \
+		for _ in $$(seq 1 30); do \
+			if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+				pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
+				if [ -n "$$pid" ]; then \
+					echo "$$pid" > "$$pid_file"; \
+				fi; \
+				echo "$$label forward ready on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (pid $$pid)"; \
+				return 0; \
+			fi; \
+			sleep 1; \
+		done; \
+		echo "$$label forward did not become ready"; \
+		tail -40 "$$log_file" || true; \
+		rm -f "$$pid_file"; \
+		return 1; \
+	}; \
+	start_forward "cloud NATS" "$(CLOUD_NATS_SERVICE)" "$(CLOUD_NATS_LOCAL_PORT)" 4222 "$(CLOUD_NATS_FORWARD_PID_FILE)" "$(CLOUD_NATS_FORWARD_LOG_FILE)" "$(CLOUD_NATS_FORWARD_PLIST)" "$(CLOUD_NATS_FORWARD_LABEL)"; \
+	start_forward "cloud Valkey" "$(CLOUD_VALKEY_SERVICE)" "$(CLOUD_VALKEY_LOCAL_PORT)" 6379 "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "$(CLOUD_VALKEY_FORWARD_LOG_FILE)" "$(CLOUD_VALKEY_FORWARD_PLIST)" "$(CLOUD_VALKEY_FORWARD_LABEL)"
+
+cloud-realtime-forward-stop:
+	@set -euo pipefail; \
+	stop_forward() { \
+		label="$$1"; \
+		pid_file="$$2"; \
+		pattern="$$3"; \
+		plist_file="$$4"; \
+		launch_label="$$5"; \
+		if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
+			domain="gui/$$(id -u)"; \
+			launchctl bootout "$$domain/$$launch_label" >/dev/null 2>&1 || true; \
+			if [ -f "$$plist_file" ]; then \
+				plist="$$(cd "$$(dirname "$$plist_file")" && pwd)/$$(basename "$$plist_file")"; \
+				launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
+			fi; \
+		fi; \
+		pid="$$(cat "$$pid_file" 2>/dev/null || true)"; \
+		if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
+			echo "stopping $$label forward pid $$pid"; \
+			kill "$$pid" >/dev/null 2>&1 || true; \
+		else \
+			pids="$$(pgrep -f "$$pattern" || true)"; \
+			if [ -n "$$pids" ]; then \
+				echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
+				echo "stopped $$label forward process(es)"; \
+			else \
+				echo "$$label forward pid is not running"; \
+			fi; \
+		fi; \
+		rm -f "$$pid_file"; \
+	}; \
+	stop_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_NATS_SERVICE) $(CLOUD_NATS_LOCAL_PORT):4222" "$(CLOUD_NATS_FORWARD_PLIST)" "$(CLOUD_NATS_FORWARD_LABEL)"; \
+	stop_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_VALKEY_SERVICE) $(CLOUD_VALKEY_LOCAL_PORT):6379" "$(CLOUD_VALKEY_FORWARD_PLIST)" "$(CLOUD_VALKEY_FORWARD_LABEL)"
+
+cloud-realtime-forward-status:
+	@set -euo pipefail; \
+	status_forward() { \
+		label="$$1"; \
+		pid_file="$$2"; \
+		pattern="$$3"; \
+		local_port="$$4"; \
+		pid="$$(cat "$$pid_file" 2>/dev/null || true)"; \
+		if [ -z "$$pid" ] || ! kill -0 "$$pid" >/dev/null 2>&1; then \
+			pid="$$(pgrep -f "$$pattern" | head -n1 || true)"; \
+		fi; \
+		if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
+			echo "$$label forward process is running (pid $$pid)"; \
+		else \
+			echo "$$label forward process is not running"; \
+		fi; \
+		if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+			echo "127.0.0.1:$$local_port is reachable"; \
+		else \
+			echo "127.0.0.1:$$local_port is not reachable"; \
+			return 1; \
+		fi; \
+	}; \
+	status_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_NATS_SERVICE) $(CLOUD_NATS_LOCAL_PORT):4222" "$(CLOUD_NATS_LOCAL_PORT)"; \
+	status_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_VALKEY_SERVICE) $(CLOUD_VALKEY_LOCAL_PORT):6379" "$(CLOUD_VALKEY_LOCAL_PORT)"
 
 cloud-db-env: gke-cloud-context
 	@set -euo pipefail; \
