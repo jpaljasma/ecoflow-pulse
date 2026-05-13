@@ -769,6 +769,29 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
+  it('accepts client-observed REST metrics for the energy calendar route', async () => {
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient: makeControlPlaneClient()
+    });
+
+    const event = await app.inject({
+      method: 'POST',
+      url: '/api/v1/client-metrics/rest',
+      payload: {
+        route: '/api/v1/energy/calendar',
+        method: 'GET',
+        outcome: 'success',
+        statusClass: '2xx',
+        durationMs: 45,
+        errorKind: 'none'
+      }
+    });
+
+    expect(event.statusCode).toBe(202);
+
+    await app.close();
+  });
+
   it('accepts client-observed REST metrics for available-device routes', async () => {
     const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
       controlPlaneClient: makeControlPlaneClient()
