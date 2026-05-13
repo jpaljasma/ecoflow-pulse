@@ -1412,12 +1412,13 @@ Notes:
   deploys backend services against cloud Postgres and realtime against cloud
   NATS/Valkey. It builds the local web bundle with
   `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings shows the active source as
-  cloud data even though the browser edge is still `https://localhost`.
+  Cloud even though the browser edge is still `https://localhost`.
   `make dev-up` is the full local reset path.
 - `make dev-web-deploy-cloud-realtime` refreshes only the local public app and
   realtime gateway with the generated cloud-realtime overlay and the same
-  cloud-data UI flag. Use it when the local web/auth shell is already up and
-  cloud remains the telemetry data plane.
+  cloud-data UI flag. Hosted `EXPO_PUBLIC_CLOUD_*` values from `.env` are
+  scrubbed from this local-edge build so the Cloud choice keeps using local
+  auth/HTTP while cloud remains the telemetry data plane.
 - `make cloud-status` prints hosted Argo applications when present,
   `pulse-platform` pods/stateful resources/endpoints, `pulse-services`
   deployments/PDBs/pods, and the node list after fetching the cloud kube

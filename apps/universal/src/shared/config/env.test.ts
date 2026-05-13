@@ -187,13 +187,25 @@ describe('env config resolution', () => {
     expect(env.apiUrl).toBe('https://localhost');
   });
 
-  it('marks the local edge as cloud-backed when the local data plane is cloud', async () => {
+  it('models local-edge cloud-data mode as the active cloud profile', async () => {
     const { env, readConnectionProfile } = await loadEnvModule({
+      cloudApiUrlEnv: 'https://pulse.example.com',
+      cloudWsUrlEnv: 'wss://pulse.example.com/ws',
+      cloudOidcIssuerUrlEnv: 'https://pulse.example.com/realms/pulse',
+      cloudOidcClientIdEnv: 'pulse-universal-cloud',
+      defaultConnectionProfileEnv: 'local',
       localDataPlaneEnv: 'cloud'
     });
 
-    expect(env.connectionProfileId).toBe('local');
-    expect(readConnectionProfile('local').dataPlane).toBe('cloud');
+    expect(env.defaultConnectionProfileId).toBe('cloud');
+    expect(env.connectionProfileId).toBe('cloud');
+    expect(readConnectionProfile('local').dataPlane).toBe('local');
+    expect(readConnectionProfile('cloud').edge).toBe('local');
+    expect(readConnectionProfile('cloud').dataPlane).toBe('cloud');
+    expect(readConnectionProfile('cloud').apiUrl).toBe('https://localhost');
+    expect(readConnectionProfile('cloud').wsUrl).toBe('wss://localhost/ws');
+    expect(readConnectionProfile('cloud').oidcIssuerUrl).toBe('');
+    expect(readConnectionProfile('cloud').oidcClientId).toBe('');
     expect(env.activeConnectionProfile.dataPlane).toBe('cloud');
   });
 });

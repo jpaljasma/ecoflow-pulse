@@ -415,14 +415,19 @@ Behavior:
 - `EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE` (optional cloud audience override)
 - `EXPO_PUBLIC_CLOUD_OIDC_SCOPES` (optional cloud scopes override; defaults to `openid profile email offline_access`)
 - `EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE` (`local|cloud`; defaults to `local` unless the requested profile is not configured)
+- `EXPO_PUBLIC_LOCAL_DATA_PLANE` (`local|cloud`; defaults to `local`)
 
 Runtime behavior:
 - the universal app now persists a single app-wide connection profile
   (`local` or `cloud`) and resolves API base URL, websocket URL, OIDC issuer,
   and OIDC client together from that selection.
+- when `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud`, the `cloud` profile uses the
+  local HTTPS edge, local OIDC issuer, and cloud-backed database/realtime data
+  plane. In product UI this is Cloud, not Local, because the selected source of
+  user data is cloud.
 - users can switch that data source directly from the shared app menu or from
-  `Settings -> Data source`; the local profile is shown in-product as `k3d`
-  to make the local-vs-cloud choice explicit.
+  `Settings -> Data source`; the product-facing choices are `Local` and
+  `Cloud`.
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - switching the connection profile clears auth/query state by profile key,
   recreates the realtime engine with the selected websocket endpoint, and

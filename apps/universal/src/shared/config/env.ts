@@ -30,10 +30,12 @@ type RuntimeConnectionOverrides = {
 
 export type ConnectionProfileId = 'local' | 'cloud';
 export type ConnectionDataPlane = 'local' | 'cloud';
+export type ConnectionEdge = 'local' | 'hosted';
 
 export type ConnectionProfileConfig = {
   id: ConnectionProfileId;
   label: string;
+  edge: ConnectionEdge;
   dataPlane: ConnectionDataPlane;
   apiUrl: string;
   apiUrlExplicit: boolean;
@@ -271,12 +273,33 @@ const cloudOidcScopes =
 const resolvedCloudApiUrl = cloudApiUrlFromConfig ?? '';
 const resolvedCloudWsUrl =
   cloudWsUrlFromConfig ?? deriveWsUrlFromApiUrl(resolvedCloudApiUrl) ?? '';
+const useLocalEdgeForCloudProfile = localDataPlane === 'cloud';
+
+const resolvedCloudProfileApiUrl = useLocalEdgeForCloudProfile
+  ? resolvedLocalApiUrl
+  : resolvedCloudApiUrl;
+const resolvedCloudProfileWsUrl = useLocalEdgeForCloudProfile
+  ? resolvedLocalWsUrl
+  : resolvedCloudWsUrl;
+const resolvedCloudProfileOidcIssuerUrl = useLocalEdgeForCloudProfile
+  ? localOidcIssuerUrl
+  : cloudOidcIssuerUrl;
+const resolvedCloudProfileOidcClientId = useLocalEdgeForCloudProfile
+  ? localOidcClientId
+  : cloudOidcClientId;
+const resolvedCloudProfileOidcAudience = useLocalEdgeForCloudProfile
+  ? localOidcAudience
+  : cloudOidcAudience;
+const resolvedCloudProfileOidcScopes = useLocalEdgeForCloudProfile
+  ? localOidcScopes
+  : cloudOidcScopes;
 
 const connectionProfiles: Record<ConnectionProfileId, ConnectionProfileConfig> = {
   local: {
     id: 'local',
     label: 'Local',
-    dataPlane: localDataPlane,
+    edge: 'local',
+    dataPlane: 'local',
     apiUrl: resolvedLocalApiUrl,
     apiUrlExplicit:
       readConfiguredString(process.env.EXPO_PUBLIC_API_URL) !== undefined ||
@@ -294,28 +317,32 @@ const connectionProfiles: Record<ConnectionProfileId, ConnectionProfileConfig> =
   cloud: {
     id: 'cloud',
     label: 'Cloud',
+    edge: useLocalEdgeForCloudProfile ? 'local' : 'hosted',
     dataPlane: 'cloud',
-    apiUrl: resolvedCloudApiUrl,
+    apiUrl: resolvedCloudProfileApiUrl,
     apiUrlExplicit:
+      useLocalEdgeForCloudProfile ||
       readConfiguredString(process.env.EXPO_PUBLIC_CLOUD_API_URL) !== undefined ||
       readConfiguredString((extra as { cloudApiUrl?: unknown }).cloudApiUrl) !== undefined,
-    wsUrl: resolvedCloudWsUrl,
+    wsUrl: resolvedCloudProfileWsUrl,
     wsUrlExplicit:
+      useLocalEdgeForCloudProfile ||
       readConfiguredString(process.env.EXPO_PUBLIC_CLOUD_WS_URL) !== undefined ||
       readConfiguredString((extra as { cloudWsUrl?: unknown }).cloudWsUrl) !== undefined,
-    oidcIssuerUrl: cloudOidcIssuerUrl,
-    oidcClientId: cloudOidcClientId,
-    oidcAudience: cloudOidcAudience,
-    oidcScopes: cloudOidcScopes,
-    configured: Boolean(resolvedCloudApiUrl && resolvedCloudWsUrl)
+    oidcIssuerUrl: resolvedCloudProfileOidcIssuerUrl,
+    oidcClientId: resolvedCloudProfileOidcClientId,
+    oidcAudience: resolvedCloudProfileOidcAudience,
+    oidcScopes: resolvedCloudProfileOidcScopes,
+    configured: Boolean(resolvedCloudProfileApiUrl && resolvedCloudProfileWsUrl)
   }
 };
 
-const configuredDefaultConnectionProfileId =
-  readConnectionProfileId(
-    readConfiguredString(process.env.EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE) ??
-      readConfiguredString((extra as { defaultConnectionProfile?: unknown }).defaultConnectionProfile)
-  ) ?? 'local';
+const configuredDefaultConnectionProfileId = useLocalEdgeForCloudProfile
+  ? 'cloud'
+  : readConnectionProfileId(
+      readConfiguredString(process.env.EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE) ??
+        readConfiguredString((extra as { defaultConnectionProfile?: unknown }).defaultConnectionProfile)
+    ) ?? 'local';
 
 export const defaultConnectionProfileId =
   connectionProfiles[configuredDefaultConnectionProfileId].configured

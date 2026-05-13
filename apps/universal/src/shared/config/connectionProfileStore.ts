@@ -33,6 +33,13 @@ function applyProfileSelection(profileId: ConnectionProfileId): ConnectionProfil
   return normalized;
 }
 
+function migrateProfileId(value: unknown, version: number): ConnectionProfileId {
+  if (version < 2 && value === 'local' && defaultConnectionProfileId === 'cloud') {
+    return 'cloud';
+  }
+  return normalizeProfileId(value);
+}
+
 export const useConnectionProfileStore = create<ConnectionProfileState>()(
   persist(
     (set) => ({
@@ -46,13 +53,13 @@ export const useConnectionProfileStore = create<ConnectionProfileState>()(
     }),
     {
       name: 'pulse-connection-profile-v1',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({ profileId: state.profileId }),
-      migrate: (persistedState) => {
+      migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<{ profileId: ConnectionProfileId }>;
         return {
-          profileId: normalizeProfileId(state.profileId)
+          profileId: migrateProfileId(state.profileId, version)
         };
       },
       onRehydrateStorage: () => (state) => {

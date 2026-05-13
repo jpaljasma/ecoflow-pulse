@@ -129,4 +129,25 @@ describe('connection profile store', () => {
 
     expect(JSON.parse(persistedState.get(STORAGE_KEY) ?? '{}').state.profileId).toBe('cloud');
   });
+
+  it('migrates old local selections to cloud in local-edge cloud-data mode', async () => {
+    process.env.EXPO_PUBLIC_LOCAL_DATA_PLANE = 'cloud';
+    persistedState.set(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: { profileId: 'local' },
+        version: 1
+      })
+    );
+
+    const { useConnectionProfileStore } = await loadStoreModule();
+    const { env } = await import('./env');
+
+    await useConnectionProfileStore.persist.rehydrate();
+
+    expect(useConnectionProfileStore.getState().profileId).toBe('cloud');
+    expect(env.connectionProfileId).toBe('cloud');
+    expect(env.activeConnectionProfile.edge).toBe('local');
+    expect(env.activeConnectionProfile.dataPlane).toBe('cloud');
+  });
 });
