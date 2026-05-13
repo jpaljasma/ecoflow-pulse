@@ -14,6 +14,7 @@ import type {
 import {
   ClientMessageSchema,
   type ServerDeviceStatusMessage,
+  type ServerPongMessage,
   type ServerTelemetryMessage
 } from './schemas.js';
 import { realtimeMetrics } from './metrics.js';
@@ -133,6 +134,7 @@ class GatewaySession {
         }
         break;
       case 'ping':
+        this.send({ type: 'pong', ts: Date.now() });
         break;
     }
   }
@@ -272,7 +274,7 @@ class GatewaySession {
     } satisfies ServerDeviceStatusMessage);
   }
 
-  private send(message: ServerTelemetryMessage | ServerDeviceStatusMessage): void {
+  private send(message: ServerTelemetryMessage | ServerDeviceStatusMessage | ServerPongMessage): void {
     if (this.closed || this.socket.readyState !== 1) {
       return;
     }

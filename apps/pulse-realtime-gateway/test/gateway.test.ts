@@ -265,6 +265,22 @@ describe('pulse-realtime-gateway', () => {
     await app.close();
   });
 
+  it('responds to client heartbeat pings so idle connections stay fresh', async () => {
+    const client = new FakeLiveClient();
+    const app = buildApp(baseConfig(), client);
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(JSON.stringify({ type: 'ping', ts: 123 }));
+
+    expect(await nextMessage(ws)).toEqual({
+      type: 'pong',
+      ts: expect.any(Number)
+    });
+
+    await closeWebSocket(ws);
+    await app.close();
+  });
+
   it('reconnects device streams after retryable errors', async () => {
     const client = new FakeLiveClient();
     const app = buildApp(baseConfig(), client);

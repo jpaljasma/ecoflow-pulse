@@ -1387,6 +1387,16 @@ Notes:
   `make cloud-db-forward-stop` manage the same forward as a background local
   process using `.tmp/cloud-db-forward.pid`, `.tmp/cloud-db-forward.log`, and on
   macOS a temporary LaunchAgent under `.tmp/`.
+- `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
+  and `make cloud-realtime-forward-stop` manage background forwards from
+  `127.0.0.1:24222` to hosted NATS and `127.0.0.1:26380` to hosted Valkey.
+  `dev-up-cloud-db` binds them on `0.0.0.0` so local k3d pods can reach them
+  through `host.docker.internal`.
+- `make local-cloud-realtime-env` writes local-only
+  `.tmp/local-cloud-realtime.platform.values.yaml` with Helm values that point
+  the local realtime gateway at the cloud NATS/Valkey forwards. It uses direct
+  Valkey on the forwarded data port instead of Sentinel so the local pod does
+  not receive cloud-internal Sentinel addresses it cannot route to.
 - `make local-cloud-db-env` writes local-only
   `.tmp/local-cloud-db.services.values.yaml` with Helm values that point local
   k3d backend pods at `host.docker.internal:25432`.
@@ -1399,8 +1409,15 @@ Notes:
   are disabled to avoid competing with cloud ingest. `make services-up` is the
   switch back to fully local k3d CNPG and workers.
 - `make dev-up-cloud-db` brings up the local platform and public edge, then
-  deploys backend services against cloud Postgres. `make dev-up` is the full
-  local reset path.
+  deploys backend services against cloud Postgres and realtime against cloud
+  NATS/Valkey. It builds the local web bundle with
+  `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings shows the active source as
+  cloud data even though the browser edge is still `https://localhost`.
+  `make dev-up` is the full local reset path.
+- `make dev-web-deploy-cloud-realtime` refreshes only the local public app and
+  realtime gateway with the generated cloud-realtime overlay and the same
+  cloud-data UI flag. Use it when the local web/auth shell is already up and
+  cloud remains the telemetry data plane.
 - `make cloud-status` prints hosted Argo applications when present,
   `pulse-platform` pods/stateful resources/endpoints, `pulse-services`
   deployments/PDBs/pods, and the node list after fetching the cloud kube

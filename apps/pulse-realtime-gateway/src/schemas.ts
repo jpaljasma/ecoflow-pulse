@@ -76,3 +76,8 @@ export type ServerDeviceStatusMessage = {
   ts: number;
   online: boolean;
 };
+
+export type ServerPongMessage = {
+  type: 'pong';
+  ts: number;
+};

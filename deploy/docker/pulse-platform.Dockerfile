@@ -37,6 +37,7 @@ ARG EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID
 ARG EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE
 ARG EXPO_PUBLIC_CLOUD_OIDC_SCOPES
 ARG EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE
+ARG EXPO_PUBLIC_LOCAL_DATA_PLANE
 RUN --mount=type=cache,id=ecoflow-pulse-expo-node20-bookworm,target=/root/.expo,sharing=locked \
     --mount=type=cache,id=ecoflow-pulse-metro-node20-bookworm,target=/tmp/metro-cache,sharing=locked \
     EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL}" \
@@ -52,6 +53,7 @@ RUN --mount=type=cache,id=ecoflow-pulse-expo-node20-bookworm,target=/root/.expo,
     EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE="${EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE}" \
     EXPO_PUBLIC_CLOUD_OIDC_SCOPES="${EXPO_PUBLIC_CLOUD_OIDC_SCOPES}" \
     EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE="${EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE}" \
+    EXPO_PUBLIC_LOCAL_DATA_PLANE="${EXPO_PUBLIC_LOCAL_DATA_PLANE}" \
     CI=1 EXPO_NO_TELEMETRY=1 npm run -w apps/universal export:web:ci -- --output-dir dist
 RUN npm prune --omit=dev
 
