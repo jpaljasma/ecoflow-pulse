@@ -134,10 +134,10 @@ Defaults:
     through a loopback port-forward,
   - `make local-cloud-db-env`, `make services-up-cloud-db`, and
     `make dev-up-cloud-db` for local k3d API backend pods reading cloud CNPG
-    through a Docker-reachable background forward while local side-effect
-    workers are disabled; this cloud-data mode also points the local realtime
-    gateway at cloud NATS/Valkey through Docker-reachable forwards so live data
-    comes from the hosted data plane,
+    through an explicitly started Docker-managed background forward while local
+    side-effect workers are disabled; this cloud-data mode also points the local
+    realtime gateway at cloud NATS/Valkey through Docker-managed forwards so
+    live data comes from the hosted data plane,
   - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
     `make cloud-realtime-forward-stop`, and
     `make dev-web-deploy-cloud-realtime` for refreshing only the local public

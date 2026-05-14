@@ -84,24 +84,25 @@ CLOUD_DB_LOCAL_PORT ?= 25432
 CLOUD_DB_FORWARD_ADDRESS ?= 127.0.0.1
 CLOUD_DB_ENV_FILE ?= .tmp/cloud-postgres.env
 CLOUD_DB_FORWARD_PID_FILE ?= .tmp/cloud-db-forward.pid
-CLOUD_DB_FORWARD_LOG_FILE ?= .tmp/cloud-db-forward.log
-CLOUD_DB_FORWARD_PLIST ?= .tmp/cloud-db-forward.plist
 CLOUD_DB_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-db-forward
-CLOUD_FORWARD_LAUNCHD_DIR ?= $(HOME)/Library/LaunchAgents
-CLOUD_FORWARD_LAUNCHD_LOG_DIR ?= $(HOME)/Library/Logs/ecoflow-pulse
+CLOUD_DB_FORWARD_CONTAINER ?= ecoflow-pulse-cloud-db-forward
+CLOUD_FORWARD_IMAGE ?= ecoflow-pulse/cloud-forward:local
+CLOUD_FORWARD_DOCKERFILE ?= deploy/docker/cloud-forward.Dockerfile
+CLOUD_FORWARD_DOCKER_PLATFORM ?= linux/amd64
+CLOUD_FORWARD_RESTART ?= unless-stopped
+CLOUD_FORWARD_KUBECONFIG_DIR ?= $(HOME)/.kube
+CLOUD_FORWARD_GCLOUD_CONFIG_DIR ?= $(HOME)/.config/gcloud
 CLOUD_REALTIME_FORWARD_ADDRESS ?= 127.0.0.1
 CLOUD_NATS_LOCAL_PORT ?= 24222
 CLOUD_VALKEY_LOCAL_PORT ?= 26380
 CLOUD_NATS_SERVICE ?= $(CLOUD_PLATFORM_RELEASE)-nats
 CLOUD_VALKEY_SERVICE ?= $(CLOUD_PLATFORM_RELEASE)-valkey
 CLOUD_NATS_FORWARD_PID_FILE ?= .tmp/cloud-nats-forward.pid
-CLOUD_NATS_FORWARD_LOG_FILE ?= .tmp/cloud-nats-forward.log
-CLOUD_NATS_FORWARD_PLIST ?= .tmp/cloud-nats-forward.plist
 CLOUD_NATS_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-nats-forward
+CLOUD_NATS_FORWARD_CONTAINER ?= ecoflow-pulse-cloud-nats-forward
 CLOUD_VALKEY_FORWARD_PID_FILE ?= .tmp/cloud-valkey-forward.pid
-CLOUD_VALKEY_FORWARD_LOG_FILE ?= .tmp/cloud-valkey-forward.log
-CLOUD_VALKEY_FORWARD_PLIST ?= .tmp/cloud-valkey-forward.plist
 CLOUD_VALKEY_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-valkey-forward
+CLOUD_VALKEY_FORWARD_CONTAINER ?= ecoflow-pulse-cloud-valkey-forward
 LOCAL_CLOUD_DB_FORWARD_ADDRESS ?= 0.0.0.0
 LOCAL_CLOUD_DB_HOST ?= host.docker.internal
 LOCAL_CLOUD_DB_PORT ?= $(CLOUD_DB_LOCAL_PORT)
@@ -223,7 +224,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -2721,137 +2722,106 @@ cloud-cost-min-deploy:
 		CLOUD_PLATFORM_VALUES="$(CLOUD_PLATFORM_VALUES) $(CLOUD_COST_MIN_PLATFORM_VALUES)" \
 		CLOUD_SERVICES_VALUES="$(CLOUD_SERVICES_VALUES) $(CLOUD_COST_MIN_SERVICES_VALUES)"
 
+cloud-forward-image-build:
+	docker build \
+		--platform "$(CLOUD_FORWARD_DOCKER_PLATFORM)" \
+		-f "$(CLOUD_FORWARD_DOCKERFILE)" \
+		-t "$(CLOUD_FORWARD_IMAGE)" \
+		.
+
 cloud-db-forward: gke-cloud-context
-	@echo "forwarding cloud CNPG rw service to $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT)"
-	$(KUBECTL) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432
+	@$(MAKE) --no-print-directory cloud-db-forward-start
+	@echo "following $(CLOUD_DB_FORWARD_CONTAINER) logs; stop with: make cloud-db-forward-stop"
+	docker logs -f "$(CLOUD_DB_FORWARD_CONTAINER)"
 
 cloud-db-forward-start: gke-cloud-context
 	@set -euo pipefail; \
-	mkdir -p "$(dir $(CLOUD_DB_FORWARD_PID_FILE))" "$(dir $(CLOUD_DB_FORWARD_LOG_FILE))" "$(dir $(CLOUD_DB_FORWARD_PLIST))"; \
-	pid_pattern="port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432"; \
-	pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
-	if [ -n "$$pid" ] && nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
-		echo "$$pid" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
-		echo "cloud DB forward already running on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (pid $$pid)"; \
-		exit 0; \
+	mkdir -p "$(dir $(CLOUD_DB_FORWARD_PID_FILE))"; \
+	container="$(CLOUD_DB_FORWARD_CONTAINER)"; \
+	if docker inspect "$$container" >/dev/null 2>&1; then \
+		if [ "$$(docker inspect -f '{{.State.Running}}' "$$container")" = "true" ]; then \
+			if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+				echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
+				echo "cloud DB forward container is running ($$container)"; \
+				exit 0; \
+			fi; \
+			echo "cloud DB forward container is running but 127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is not reachable"; \
+			docker logs --tail 80 "$$container" || true; \
+			exit 1; \
+		fi; \
+		docker rm "$$container" >/dev/null; \
+	fi; \
+	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
+		domain="gui/$$(id -u)"; \
+		launchctl bootout "$$domain/$(CLOUD_DB_FORWARD_LABEL)" >/dev/null 2>&1 || true; \
+		rm -f "$$HOME/Library/LaunchAgents/$(CLOUD_DB_FORWARD_LABEL).plist"; \
+	fi; \
+	pids="$$(pgrep -f 'port-forward --address .* svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432' || true)"; \
+	if [ -n "$$pids" ]; then \
+		echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
 	fi; \
 	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"; \
 	if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
-		echo "cloud DB forward port $(CLOUD_DB_LOCAL_PORT) is already reachable"; \
+		echo "cloud DB forward port $(CLOUD_DB_LOCAL_PORT) is already reachable but not managed by Docker"; \
 		exit 0; \
 	fi; \
-	kubectl_bin="$$(command -v $(KUBECTL))"; \
-	plist="$(abspath $(CLOUD_DB_FORWARD_PLIST))"; \
-	log="$(abspath $(CLOUD_DB_FORWARD_LOG_FILE))"; \
-	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
-		launchd_dir="$(CLOUD_FORWARD_LAUNCHD_DIR)"; \
-		launchd_log_dir="$(CLOUD_FORWARD_LAUNCHD_LOG_DIR)"; \
-		mkdir -p "$$launchd_dir" "$$launchd_log_dir"; \
-		plist="$$launchd_dir/$(CLOUD_DB_FORWARD_LABEL).plist"; \
-		log="$$launchd_log_dir/$(CLOUD_DB_FORWARD_LABEL).log"; \
+	if ! docker image inspect "$(CLOUD_FORWARD_IMAGE)" >/dev/null 2>&1; then \
+		$(MAKE) --no-print-directory cloud-forward-image-build; \
 	fi; \
-	echo "starting cloud DB forward on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (log: $$log)"; \
-	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
-		path_env="$$(dirname "$$kubectl_bin"):/usr/local/google-cloud-sdk/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; \
-		{ \
-			printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
-			printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
-			printf '%s\n' '<plist version="1.0">'; \
-			printf '%s\n' '<dict>'; \
-			printf '%s\n' '  <key>Label</key>'; \
-			printf '  <string>%s</string>\n' '$(CLOUD_DB_FORWARD_LABEL)'; \
-			printf '%s\n' '  <key>ProgramArguments</key>'; \
-			printf '%s\n' '  <array>'; \
-			printf '    <string>%s</string>\n' "$$kubectl_bin"; \
-			printf '%s\n' '    <string>--context</string>'; \
-			printf '    <string>%s</string>\n' '$(CLOUD_KUBE_CONTEXT)'; \
-			printf '%s\n' '    <string>-n</string>'; \
-			printf '    <string>%s</string>\n' '$(PLATFORM_NAMESPACE)'; \
-			printf '%s\n' '    <string>port-forward</string>'; \
-			printf '%s\n' '    <string>--address</string>'; \
-			printf '    <string>%s</string>\n' '$(CLOUD_DB_FORWARD_ADDRESS)'; \
-			printf '    <string>svc/%s-rw</string>\n' '$(DB_MIGRATION_CLUSTER)'; \
-			printf '    <string>%s:5432</string>\n' '$(CLOUD_DB_LOCAL_PORT)'; \
-			printf '%s\n' '  </array>'; \
-			printf '%s\n' '  <key>EnvironmentVariables</key>'; \
-			printf '%s\n' '  <dict>'; \
-			printf '%s\n' '    <key>HOME</key>'; \
-			printf '    <string>%s</string>\n' "$$HOME"; \
-			printf '%s\n' '    <key>PATH</key>'; \
-			printf '    <string>%s</string>\n' "$$path_env"; \
-			printf '%s\n' '    <key>USE_GKE_GCLOUD_AUTH_PLUGIN</key>'; \
-			printf '%s\n' '    <string>True</string>'; \
-			printf '%s\n' '  </dict>'; \
-			printf '%s\n' '  <key>RunAtLoad</key><true/>'; \
-			printf '%s\n' '  <key>KeepAlive</key><true/>'; \
-			printf '%s\n' '  <key>StandardOutPath</key>'; \
-			printf '  <string>%s</string>\n' "$$log"; \
-			printf '%s\n' '  <key>StandardErrorPath</key>'; \
-			printf '  <string>%s</string>\n' "$$log"; \
-			printf '%s\n' '</dict>'; \
-			printf '%s\n' '</plist>'; \
-		} > "$$plist"; \
-		domain="gui/$$(id -u)"; \
-		launchctl bootout "$$domain/$(CLOUD_DB_FORWARD_LABEL)" >/dev/null 2>&1 || true; \
-		launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
-		launchctl bootstrap "$$domain" "$$plist"; \
-	else \
-		$(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432 >"$$log" 2>&1 & \
-	fi; \
+	echo "starting cloud DB forward container $$container on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT)"; \
+	docker run -d \
+		--name "$$container" \
+		--restart "$(CLOUD_FORWARD_RESTART)" \
+		--platform "$(CLOUD_FORWARD_DOCKER_PLATFORM)" \
+		-p "$(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT):$(CLOUD_DB_LOCAL_PORT)" \
+		-v "$(CLOUD_FORWARD_KUBECONFIG_DIR):/root/.kube:ro" \
+		-v "$(CLOUD_FORWARD_GCLOUD_CONFIG_DIR):/root/.config/gcloud" \
+		-e KUBECONFIG=/root/.kube/config \
+		-e CLOUDSDK_CONFIG=/root/.config/gcloud \
+		-e USE_GKE_GCLOUD_AUTH_PLUGIN=True \
+		"$(CLOUD_FORWARD_IMAGE)" \
+		kubectl --context "$(CLOUD_KUBE_CONTEXT)" -n "$(PLATFORM_NAMESPACE)" port-forward --address 0.0.0.0 svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432 >/dev/null; \
 	for _ in $$(seq 1 30); do \
 		if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
-			pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
-			if [ -n "$$pid" ]; then \
-				echo "$$pid" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
-			fi; \
-			echo "cloud DB forward ready on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (pid $$pid)"; \
+			echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
+			echo "cloud DB forward ready on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) ($$container)"; \
 			exit 0; \
 		fi; \
 		sleep 1; \
 	done; \
 	echo "cloud DB forward did not become ready"; \
-	tail -40 "$$log" || true; \
+	docker logs --tail 80 "$$container" || true; \
 	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"; \
 	exit 1
 
 cloud-db-forward-stop:
 	@set -euo pipefail; \
+	container="$(CLOUD_DB_FORWARD_CONTAINER)"; \
+	if docker inspect "$$container" >/dev/null 2>&1; then \
+		echo "stopping cloud DB forward container $$container"; \
+		docker rm -f "$$container" >/dev/null; \
+	else \
+		echo "cloud DB forward container is not running"; \
+	fi; \
 	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
 		domain="gui/$$(id -u)"; \
 		launchctl bootout "$$domain/$(CLOUD_DB_FORWARD_LABEL)" >/dev/null 2>&1 || true; \
-		launchd_plist="$(CLOUD_FORWARD_LAUNCHD_DIR)/$(CLOUD_DB_FORWARD_LABEL).plist"; \
-		if [ -f "$$launchd_plist" ]; then \
-			launchctl bootout "$$domain" "$$launchd_plist" >/dev/null 2>&1 || true; \
-		fi; \
-		if [ -f "$(CLOUD_DB_FORWARD_PLIST)" ]; then \
-			launchctl bootout "$$domain" "$(abspath $(CLOUD_DB_FORWARD_PLIST))" >/dev/null 2>&1 || true; \
-		fi; \
+		rm -f "$$HOME/Library/LaunchAgents/$(CLOUD_DB_FORWARD_LABEL).plist"; \
 	fi; \
-	pid="$$(cat "$(CLOUD_DB_FORWARD_PID_FILE)" 2>/dev/null || true)"; \
-	if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
-		echo "stopping cloud DB forward pid $$pid"; \
-		kill "$$pid" >/dev/null 2>&1 || true; \
-	else \
-		pids="$$(pgrep -f 'port-forward --address .* svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432' || true)"; \
-		if [ -n "$$pids" ]; then \
-			echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
-			echo "stopped cloud DB forward process(es)"; \
-		else \
-			echo "cloud DB forward pid is not running"; \
-		fi; \
+	pids="$$(pgrep -f 'port-forward --address .* svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432' || true)"; \
+	if [ -n "$$pids" ]; then \
+		echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
+		echo "stopped legacy cloud DB forward process(es)"; \
 	fi; \
 	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"
 
 cloud-db-forward-status:
 	@set -euo pipefail; \
-	pid="$$(cat "$(CLOUD_DB_FORWARD_PID_FILE)" 2>/dev/null || true)"; \
-	if [ -z "$$pid" ] || ! kill -0 "$$pid" >/dev/null 2>&1; then \
-		pid="$$(pgrep -f 'port-forward --address .* svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432' | head -n1 || true)"; \
-	fi; \
-	if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
-		echo "cloud DB forward process is running (pid $$pid)"; \
+	container="$(CLOUD_DB_FORWARD_CONTAINER)"; \
+	if docker inspect "$$container" >/dev/null 2>&1 && [ "$$(docker inspect -f '{{.State.Running}}' "$$container")" = "true" ]; then \
+		echo "cloud DB forward container is running ($$container)"; \
 	else \
-		echo "cloud DB forward process is not running from $(CLOUD_DB_FORWARD_PID_FILE)"; \
+		echo "cloud DB forward container is not running"; \
 	fi; \
 	if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
 		echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is reachable"; \
@@ -2870,102 +2840,73 @@ cloud-realtime-forward: gke-cloud-context
 
 cloud-realtime-forward-start: gke-cloud-context
 	@set -euo pipefail; \
-	mkdir -p "$(dir $(CLOUD_NATS_FORWARD_PID_FILE))" "$(dir $(CLOUD_NATS_FORWARD_LOG_FILE))" "$(dir $(CLOUD_NATS_FORWARD_PLIST))" "$(dir $(CLOUD_VALKEY_FORWARD_PID_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_LOG_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_PLIST))"; \
-	kubectl_bin="$$(command -v $(KUBECTL))"; \
+	mkdir -p "$(dir $(CLOUD_NATS_FORWARD_PID_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_PID_FILE))"; \
+	if ! docker image inspect "$(CLOUD_FORWARD_IMAGE)" >/dev/null 2>&1; then \
+		$(MAKE) --no-print-directory cloud-forward-image-build; \
+	fi; \
 	start_forward() { \
 		label="$$1"; \
 		service="$$2"; \
 		local_port="$$3"; \
 		remote_port="$$4"; \
 		pid_file="$$5"; \
-		log_file="$$6"; \
-		plist_file="$$7"; \
-		launch_label="$$8"; \
-		pid_pattern="port-forward --address $(CLOUD_REALTIME_FORWARD_ADDRESS) svc/$$service $$local_port:$$remote_port"; \
-		pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
-		if [ -n "$$pid" ] && nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
-			echo "$$pid" > "$$pid_file"; \
-			echo "$$label forward already running on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (pid $$pid)"; \
-			return 0; \
+		container="$$6"; \
+		launch_label="$$7"; \
+		if docker inspect "$$container" >/dev/null 2>&1; then \
+			if [ "$$(docker inspect -f '{{.State.Running}}' "$$container")" = "true" ]; then \
+				if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+					echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$$pid_file"; \
+					echo "$$label forward container is running ($$container)"; \
+					return 0; \
+				fi; \
+				echo "$$label forward container is running but 127.0.0.1:$$local_port is not reachable"; \
+				docker logs --tail 80 "$$container" || true; \
+				return 1; \
+			fi; \
+			docker rm "$$container" >/dev/null; \
 		fi; \
 		rm -f "$$pid_file"; \
-		if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
-			echo "$$label forward port $$local_port is already reachable"; \
-			return 0; \
-		fi; \
 		if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
-			launchd_dir="$(CLOUD_FORWARD_LAUNCHD_DIR)"; \
-			launchd_log_dir="$(CLOUD_FORWARD_LAUNCHD_LOG_DIR)"; \
-			mkdir -p "$$launchd_dir" "$$launchd_log_dir"; \
-			plist="$$launchd_dir/$$launch_label.plist"; \
-			log="$$launchd_log_dir/$$launch_label.log"; \
-			log_file="$$log"; \
-			path_env="$$(dirname "$$kubectl_bin"):/usr/local/google-cloud-sdk/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; \
-			echo "starting $$label forward on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (log: $$log_file)"; \
-			{ \
-				printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
-				printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
-				printf '%s\n' '<plist version="1.0">'; \
-				printf '%s\n' '<dict>'; \
-				printf '%s\n' '  <key>Label</key>'; \
-				printf '  <string>%s</string>\n' "$$launch_label"; \
-				printf '%s\n' '  <key>ProgramArguments</key>'; \
-				printf '%s\n' '  <array>'; \
-				printf '    <string>%s</string>\n' "$$kubectl_bin"; \
-				printf '%s\n' '    <string>--context</string>'; \
-				printf '    <string>%s</string>\n' '$(CLOUD_KUBE_CONTEXT)'; \
-				printf '%s\n' '    <string>-n</string>'; \
-				printf '    <string>%s</string>\n' '$(PLATFORM_NAMESPACE)'; \
-				printf '%s\n' '    <string>port-forward</string>'; \
-				printf '%s\n' '    <string>--address</string>'; \
-				printf '    <string>%s</string>\n' '$(CLOUD_REALTIME_FORWARD_ADDRESS)'; \
-				printf '    <string>svc/%s</string>\n' "$$service"; \
-				printf '    <string>%s:%s</string>\n' "$$local_port" "$$remote_port"; \
-				printf '%s\n' '  </array>'; \
-				printf '%s\n' '  <key>EnvironmentVariables</key>'; \
-				printf '%s\n' '  <dict>'; \
-				printf '%s\n' '    <key>HOME</key>'; \
-				printf '    <string>%s</string>\n' "$$HOME"; \
-				printf '%s\n' '    <key>PATH</key>'; \
-				printf '    <string>%s</string>\n' "$$path_env"; \
-				printf '%s\n' '    <key>USE_GKE_GCLOUD_AUTH_PLUGIN</key>'; \
-				printf '%s\n' '    <string>True</string>'; \
-				printf '%s\n' '  </dict>'; \
-				printf '%s\n' '  <key>RunAtLoad</key><true/>'; \
-				printf '%s\n' '  <key>KeepAlive</key><true/>'; \
-				printf '%s\n' '  <key>StandardOutPath</key>'; \
-				printf '  <string>%s</string>\n' "$$log"; \
-				printf '%s\n' '  <key>StandardErrorPath</key>'; \
-				printf '  <string>%s</string>\n' "$$log"; \
-				printf '%s\n' '</dict>'; \
-				printf '%s\n' '</plist>'; \
-			} > "$$plist"; \
 			domain="gui/$$(id -u)"; \
 			launchctl bootout "$$domain/$$launch_label" >/dev/null 2>&1 || true; \
-			launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
-			launchctl bootstrap "$$domain" "$$plist"; \
-		else \
-			echo "starting $$label forward on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (log: $$log_file)"; \
-			nohup $(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_REALTIME_FORWARD_ADDRESS) "svc/$$service" "$$local_port:$$remote_port" >"$$log_file" 2>&1 & \
+			rm -f "$$HOME/Library/LaunchAgents/$$launch_label.plist"; \
 		fi; \
+		pids="$$(pgrep -f "port-forward --address .* svc/$$service $$local_port:$$remote_port" || true)"; \
+		if [ -n "$$pids" ]; then \
+			echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
+		fi; \
+		if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+			echo "$$label forward port $$local_port is already reachable but not managed by Docker"; \
+			return 0; \
+		fi; \
+		echo "starting $$label forward container $$container on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port"; \
+		docker run -d \
+			--name "$$container" \
+			--restart "$(CLOUD_FORWARD_RESTART)" \
+			--platform "$(CLOUD_FORWARD_DOCKER_PLATFORM)" \
+			-p "$(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port:$$local_port" \
+			-v "$(CLOUD_FORWARD_KUBECONFIG_DIR):/root/.kube:ro" \
+			-v "$(CLOUD_FORWARD_GCLOUD_CONFIG_DIR):/root/.config/gcloud" \
+			-e KUBECONFIG=/root/.kube/config \
+			-e CLOUDSDK_CONFIG=/root/.config/gcloud \
+			-e USE_GKE_GCLOUD_AUTH_PLUGIN=True \
+			"$(CLOUD_FORWARD_IMAGE)" \
+			kubectl --context "$(CLOUD_KUBE_CONTEXT)" -n "$(PLATFORM_NAMESPACE)" port-forward --address 0.0.0.0 "svc/$$service" "$$local_port:$$remote_port" >/dev/null; \
 		for _ in $$(seq 1 30); do \
 			if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
-				pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
-				if [ -n "$$pid" ]; then \
-					echo "$$pid" > "$$pid_file"; \
-				fi; \
-				echo "$$label forward ready on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (pid $$pid)"; \
+				echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$$pid_file"; \
+				echo "$$label forward ready on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port ($$container)"; \
 				return 0; \
 			fi; \
 			sleep 1; \
 		done; \
 		echo "$$label forward did not become ready"; \
-		tail -40 "$$log_file" || true; \
+		docker logs --tail 80 "$$container" || true; \
 		rm -f "$$pid_file"; \
 		return 1; \
 	}; \
-	start_forward "cloud NATS" "$(CLOUD_NATS_SERVICE)" "$(CLOUD_NATS_LOCAL_PORT)" 4222 "$(CLOUD_NATS_FORWARD_PID_FILE)" "$(CLOUD_NATS_FORWARD_LOG_FILE)" "$(CLOUD_NATS_FORWARD_PLIST)" "$(CLOUD_NATS_FORWARD_LABEL)"; \
-	start_forward "cloud Valkey" "$(CLOUD_VALKEY_SERVICE)" "$(CLOUD_VALKEY_LOCAL_PORT)" 6379 "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "$(CLOUD_VALKEY_FORWARD_LOG_FILE)" "$(CLOUD_VALKEY_FORWARD_PLIST)" "$(CLOUD_VALKEY_FORWARD_LABEL)"
+	start_forward "cloud NATS" "$(CLOUD_NATS_SERVICE)" "$(CLOUD_NATS_LOCAL_PORT)" 4222 "$(CLOUD_NATS_FORWARD_PID_FILE)" "$(CLOUD_NATS_FORWARD_CONTAINER)" "$(CLOUD_NATS_FORWARD_LABEL)"; \
+	start_forward "cloud Valkey" "$(CLOUD_VALKEY_SERVICE)" "$(CLOUD_VALKEY_LOCAL_PORT)" 6379 "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "$(CLOUD_VALKEY_FORWARD_CONTAINER)" "$(CLOUD_VALKEY_FORWARD_LABEL)"
 
 cloud-realtime-forward-stop:
 	@set -euo pipefail; \
@@ -2973,53 +2914,39 @@ cloud-realtime-forward-stop:
 		label="$$1"; \
 		pid_file="$$2"; \
 		pattern="$$3"; \
-		plist_file="$$4"; \
+		container="$$4"; \
 		launch_label="$$5"; \
+		if docker inspect "$$container" >/dev/null 2>&1; then \
+			echo "stopping $$label forward container $$container"; \
+			docker rm -f "$$container" >/dev/null; \
+		else \
+			echo "$$label forward container is not running"; \
+		fi; \
 		if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
 			domain="gui/$$(id -u)"; \
 			launchctl bootout "$$domain/$$launch_label" >/dev/null 2>&1 || true; \
-			launchd_plist="$(CLOUD_FORWARD_LAUNCHD_DIR)/$$launch_label.plist"; \
-			if [ -f "$$launchd_plist" ]; then \
-				launchctl bootout "$$domain" "$$launchd_plist" >/dev/null 2>&1 || true; \
-			fi; \
-			if [ -f "$$plist_file" ]; then \
-				plist="$$(cd "$$(dirname "$$plist_file")" && pwd)/$$(basename "$$plist_file")"; \
-				launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
-			fi; \
+			rm -f "$$HOME/Library/LaunchAgents/$$launch_label.plist"; \
 		fi; \
-		pid="$$(cat "$$pid_file" 2>/dev/null || true)"; \
-		if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
-			echo "stopping $$label forward pid $$pid"; \
-			kill "$$pid" >/dev/null 2>&1 || true; \
-		else \
-			pids="$$(pgrep -f "$$pattern" || true)"; \
-			if [ -n "$$pids" ]; then \
-				echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
-				echo "stopped $$label forward process(es)"; \
-			else \
-				echo "$$label forward pid is not running"; \
-			fi; \
+		pids="$$(pgrep -f "$$pattern" || true)"; \
+		if [ -n "$$pids" ]; then \
+			echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
+			echo "stopped legacy $$label forward process(es)"; \
 		fi; \
 		rm -f "$$pid_file"; \
 	}; \
-	stop_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_NATS_SERVICE) $(CLOUD_NATS_LOCAL_PORT):4222" "$(CLOUD_NATS_FORWARD_PLIST)" "$(CLOUD_NATS_FORWARD_LABEL)"; \
-	stop_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_VALKEY_SERVICE) $(CLOUD_VALKEY_LOCAL_PORT):6379" "$(CLOUD_VALKEY_FORWARD_PLIST)" "$(CLOUD_VALKEY_FORWARD_LABEL)"
+	stop_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_NATS_SERVICE) $(CLOUD_NATS_LOCAL_PORT):4222" "$(CLOUD_NATS_FORWARD_CONTAINER)" "$(CLOUD_NATS_FORWARD_LABEL)"; \
+	stop_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_VALKEY_SERVICE) $(CLOUD_VALKEY_LOCAL_PORT):6379" "$(CLOUD_VALKEY_FORWARD_CONTAINER)" "$(CLOUD_VALKEY_FORWARD_LABEL)"
 
 cloud-realtime-forward-status:
 	@set -euo pipefail; \
 	status_forward() { \
 		label="$$1"; \
-		pid_file="$$2"; \
-		pattern="$$3"; \
-		local_port="$$4"; \
-		pid="$$(cat "$$pid_file" 2>/dev/null || true)"; \
-		if [ -z "$$pid" ] || ! kill -0 "$$pid" >/dev/null 2>&1; then \
-			pid="$$(pgrep -f "$$pattern" | head -n1 || true)"; \
-		fi; \
-		if [ -n "$$pid" ] && kill -0 "$$pid" >/dev/null 2>&1; then \
-			echo "$$label forward process is running (pid $$pid)"; \
+		container="$$2"; \
+		local_port="$$3"; \
+		if docker inspect "$$container" >/dev/null 2>&1 && [ "$$(docker inspect -f '{{.State.Running}}' "$$container")" = "true" ]; then \
+			echo "$$label forward container is running ($$container)"; \
 		else \
-			echo "$$label forward process is not running"; \
+			echo "$$label forward container is not running"; \
 		fi; \
 		if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
 			echo "127.0.0.1:$$local_port is reachable"; \
@@ -3028,8 +2955,8 @@ cloud-realtime-forward-status:
 			return 1; \
 		fi; \
 	}; \
-	status_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_NATS_SERVICE) $(CLOUD_NATS_LOCAL_PORT):4222" "$(CLOUD_NATS_LOCAL_PORT)"; \
-	status_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "port-forward --address .* svc/$(CLOUD_VALKEY_SERVICE) $(CLOUD_VALKEY_LOCAL_PORT):6379" "$(CLOUD_VALKEY_LOCAL_PORT)"
+	status_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_CONTAINER)" "$(CLOUD_NATS_LOCAL_PORT)"; \
+	status_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_CONTAINER)" "$(CLOUD_VALKEY_LOCAL_PORT)"
 
 cloud-db-env: gke-cloud-context
 	@set -euo pipefail; \

@@ -1385,19 +1385,23 @@ Notes:
 - `make cloud-db-env` writes local-only `.tmp/cloud-postgres.env` with
   `CONTROL_PLANE_DB_DSN`, `ARCHIVE_MANIFEST_DB_DSN`, and `ROLLUP_DB_DSN`
   pointing to `127.0.0.1:25432`.
-- `make cloud-db-forward` keeps a private `kubectl port-forward` from
-  `127.0.0.1:25432` to hosted `pulse-platform-core-rw`. Override
-  `CLOUD_DB_FORWARD_ADDRESS` only when your local container runtime cannot reach
-  the default loopback-bound forward.
+- `make cloud-forward-image-build` builds the local Docker image used by
+  background cloud DB/NATS/Valkey forwards. The start targets build it
+  automatically when it is missing.
+- `make cloud-db-forward` starts the Docker-managed cloud DB forward, then
+  follows the container logs.
 - `make cloud-db-forward-start`, `make cloud-db-forward-status`, and
   `make cloud-db-forward-stop` manage the same forward as a background local
-  process using `.tmp/cloud-db-forward.pid`; on macOS the persistent
-  LaunchAgent lives under `~/Library/LaunchAgents` and writes logs under
-  `~/Library/Logs/ecoflow-pulse`.
+  Docker container named `ecoflow-pulse-cloud-db-forward` by default. The
+  container mounts kubeconfig read-only and the local gcloud config read-write
+  so the GKE auth plugin can refresh cached tokens. Override
+  `CLOUD_DB_FORWARD_ADDRESS` only when your local container runtime cannot reach
+  the default loopback-bound forward.
 - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
   and `make cloud-realtime-forward-stop` manage background forwards from
-  `127.0.0.1:24222` to hosted NATS and `127.0.0.1:26380` to hosted Valkey;
-  macOS uses the same LaunchAgent/log locations as the cloud DB forward.
+  `127.0.0.1:24222` to hosted NATS and `127.0.0.1:26380` to hosted Valkey in
+  Docker containers named `ecoflow-pulse-cloud-nats-forward` and
+  `ecoflow-pulse-cloud-valkey-forward` by default.
   `dev-up-cloud-db` binds them on `0.0.0.0` so local k3d pods can reach them
   through `host.docker.internal`.
 - `make local-cloud-realtime-env` writes local-only

@@ -70,6 +70,11 @@ it through `host.docker.internal`. Use that mode only on a trusted local machine
 or override the address if your container runtime has a narrower reachable host
 address.
 
+Background forwards are Docker-managed and only run after you explicitly start
+them. Use `make cloud-db-forward-stop` and `make cloud-realtime-forward-stop` to
+remove the containers when you want the local stack disconnected from hosted
+data.
+
 In another terminal, source the generated file before running local Go services:
 
 ```bash
@@ -96,7 +101,7 @@ make dev-up-cloud-db
 
 The generated overlay points service pods at
 `host.docker.internal:25432`. `make services-up-cloud-db` starts the
-Docker-reachable background forward automatically and manages it through
+Docker-managed background forward automatically and manages it through
 `make cloud-db-forward-status` / `make cloud-db-forward-stop`. The cloud-DB
 overlay keeps local API backends enabled and disables local
 side-effect workers such as ingest, projection, archive, rollup, scheduler,
