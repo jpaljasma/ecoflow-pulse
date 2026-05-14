@@ -169,8 +169,8 @@ The overlays disable:
 
 ## 6. Argo Removal And Cleanup
 
-After `make cloud-cost-min-deploy` is healthy and the direct deploy workflow is
-the default path, remove Argo deliberately:
+After `make cloud-cost-min-deploy` is healthy and the GitHub hosted deploy
+workflow defaults to direct Helm, remove Argo deliberately:
 
 ```bash
 kubectl -n argocd get applications.argoproj.io
@@ -198,6 +198,10 @@ gcloud compute disks list \
 
 Do not delete the app pool until `make cloud-status` shows required workloads no
 longer scheduling there and the health gate remains green.
+
+After Argo removal, keep the workflow's manual `argo` deploy mode reserved for a
+cluster where Argo CD has been reinstalled. The hosted main-merge path should
+continue to deploy through direct Helm.
 
 ## Rollback Defaults
 
