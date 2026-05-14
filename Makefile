@@ -114,6 +114,8 @@ LOCAL_CLOUD_REALTIME_PLATFORM_VALUES ?= .tmp/local-cloud-realtime.platform.value
 CLOUD_KUBE_CONTEXT ?= gke_$(GKE_CLOUD_PROJECT_ID)_$(GKE_CLOUD_CLUSTER_REGION)_$(GKE_CLOUD_CLUSTER_NAME)
 CLOUD_HELM_TAKE_OWNERSHIP ?= 1
 CLOUD_HELM_SERVER_SIDE ?= true
+CLOUD_HELM_FORCE_CONFLICTS ?= 1
+CLOUD_HELM_FORCE_CONFLICTS_ARGS = $(if $(filter 1 true TRUE yes YES,$(CLOUD_HELM_FORCE_CONFLICTS)),--force-conflicts,)
 CLOUD_HELM_EXTRA_ARGS ?=
 CLOUD_PLATFORM_HELM_SET_ARGS ?=
 CLOUD_SERVICES_HELM_SET_ARGS ?=
@@ -2657,6 +2659,7 @@ cloud-platform-apply: gke-cloud-context cloud-health-gate
 		"$$@" \
 		$$ownership_args \
 		$$server_side_args \
+		$(CLOUD_HELM_FORCE_CONFLICTS_ARGS) \
 		$(CLOUD_PLATFORM_HELM_SET_ARGS) \
 		$(CLOUD_HELM_EXTRA_ARGS)
 	@set -euo pipefail; \
@@ -2697,6 +2700,7 @@ cloud-services-apply: gke-cloud-context cloud-health-gate
 		"$$@" \
 		$$ownership_args \
 		$$server_side_args \
+		$(CLOUD_HELM_FORCE_CONFLICTS_ARGS) \
 		$(CLOUD_SERVICES_HELM_SET_ARGS) \
 		$(CLOUD_HELM_EXTRA_ARGS)
 	@set -euo pipefail; \

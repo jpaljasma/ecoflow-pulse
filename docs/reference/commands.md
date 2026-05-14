@@ -1371,9 +1371,13 @@ Notes:
 - `make cloud-health-gate` verifies hosted CNPG, NATS, Valkey, pod phase, and
   recent ingest/archive/rollup logs before disruptive cloud work.
 - `make cloud-platform-apply` directly runs Helm against the hosted platform
-  release `pulse-platform-cloud` using `CLOUD_PLATFORM_VALUES`.
+  release `pulse-platform-cloud` using `CLOUD_PLATFORM_VALUES`. Cloud applies
+  use server-side apply, Helm ownership takeover, and `--force-conflicts` by
+  default so direct Helm can claim stale Argo-managed fields after Argo removal.
 - `make cloud-services-apply` directly runs Helm against the hosted services
-  release `pulse-services-cloud` using `CLOUD_SERVICES_VALUES`.
+  release `pulse-services-cloud` using `CLOUD_SERVICES_VALUES`. Set
+  `CLOUD_HELM_FORCE_CONFLICTS=0` only after confirming no stale field manager
+  conflicts remain.
 - `make cloud-deploy` runs the direct hosted platform and services Helm applies.
 - `make cloud-cost-min-deploy` adds the explicit
   `deploy/env/cloud/*.cost-min.yaml` overlays for ingest/storage-only hosted
