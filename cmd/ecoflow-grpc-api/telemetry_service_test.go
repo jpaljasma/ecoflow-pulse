@@ -8,11 +8,13 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	telemetryv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/telemetry/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
@@ -20,7 +22,9 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"github.com/klauspost/compress/zstd"
+	valkey "github.com/valkey-io/valkey-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -64,6 +68,40 @@ func newTestService() *TelemetryService {
 
 func newTestEnergyService() *EnergyService {
 	return NewEnergyService(slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func newTestValkeyCache(t *testing.T, server *miniredis.Miniredis, namespace string, nowFn func() time.Time) *valkeycache.Client {
+	t.Helper()
+
+	client, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress:  []string{server.Addr()},
+		DisableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("new valkey client: %v", err)
+	}
+	t.Cleanup(client.Close)
+
+	cache, err := valkeycache.New(client, valkeycache.Options{
+		Prefix:    "pulse",
+		Namespace: namespace,
+		Now:       nowFn,
+	})
+	if err != nil {
+		t.Fatalf("new valkey cache %q: %v", namespace, err)
+	}
+	return cache
+}
+
+func assertValkeyCacheKeyPrefix(t *testing.T, server *miniredis.Miniredis, prefix string) {
+	t.Helper()
+
+	for _, key := range server.Keys() {
+		if strings.HasPrefix(key, prefix) {
+			return
+		}
+	}
+	t.Fatalf("expected valkey key with prefix %q, got %#v", prefix, server.Keys())
 }
 
 func numberPtr(value float64) *float64 {
@@ -1206,6 +1244,91 @@ func TestGetEnergyPvPortHistoryCachesRepeatedRequests(t *testing.T) {
 	}
 }
 
+func TestGetEnergyPvPortHistoryUsesValkeyAcrossServiceInstances(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f60"
+	providerDeviceID := "PV-CACHE-DEVICE"
+	now := time.Date(2026, time.March, 2, 12, 0, 0, 0, time.UTC)
+	server := miniredis.RunT(t)
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"})
+	req := &telemetryv1.GetEnergyPvPortHistoryRequest{
+		UseAllDevices: true,
+		Preset:        "today",
+		Timezone:      "UTC",
+	}
+	payload := encodeArchiveFramesForTest(t, []*envelopev1.TelemetryEnvelope{{
+		DeviceId:           deviceID,
+		EcoflowSn:          providerDeviceID,
+		PayloadType:        "ecoflow.quota.normalized",
+		ObservedTimeUnixMs: now.Add(-5 * time.Minute).UnixMilli(),
+		Payload:            []byte(`{"params":{"inLvMpptVol":48.2,"inLvMpptAmp":4.4,"pv1ChargeWatts":212.1}}`),
+		Labels:             map[string]string{"provider_device_id": providerDeviceID},
+	}})
+	manifest := fakeManifestStore{
+		objects: []replaycli.ManifestObject{{
+			Provider:          controlplane.ProviderEcoFlow,
+			ObjectBucket:      "pulse-telemetry-raw",
+			ObjectKey:         "pv-cache.pb.zst",
+			ProviderDeviceIDs: []string{providerDeviceID},
+		}},
+	}
+
+	var firstReads atomic.Int32
+	firstSvc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:                  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore:    newPVPortCacheTestStore(deviceID, providerDeviceID),
+		Now:                  func() time.Time { return now },
+		PVPortHistoryCache:   newTestValkeyCache(t, server, "energy-pv-port-history-e2e", func() time.Time { return now }),
+		ArchiveManifestStore: manifest,
+		ArchiveObjectReader: fakeObjectReader{
+			read: func(bucket, key string) ([]byte, error) {
+				firstReads.Add(1)
+				return payload, nil
+			},
+		},
+	})
+	first, err := firstSvc.GetEnergyPvPortHistory(ctx, req)
+	if err != nil {
+		t.Fatalf("first GetEnergyPvPortHistory failed: %v", err)
+	}
+	if got := len(first.GetPvPortHistory()); got != 1 {
+		t.Fatalf("first pv history count = %d, want 1", got)
+	}
+
+	var secondReads atomic.Int32
+	secondSvc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:                  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore:    newPVPortCacheTestStore(deviceID, providerDeviceID),
+		Now:                  func() time.Time { return now },
+		PVPortHistoryCache:   newTestValkeyCache(t, server, "energy-pv-port-history-e2e", func() time.Time { return now }),
+		ArchiveManifestStore: manifest,
+		ArchiveObjectReader: fakeObjectReader{
+			read: func(bucket, key string) ([]byte, error) {
+				secondReads.Add(1)
+				return nil, errors.New("second service should read pv history from valkey")
+			},
+		},
+	})
+	second, err := secondSvc.GetEnergyPvPortHistory(ctx, req)
+	if err != nil {
+		t.Fatalf("second GetEnergyPvPortHistory failed: %v", err)
+	}
+	if got := firstReads.Load(); got != 1 {
+		t.Fatalf("first service archive reads = %d, want 1", got)
+	}
+	if got := secondReads.Load(); got != 0 {
+		t.Fatalf("second service archive reads = %d, want 0", got)
+	}
+	if got := len(second.GetPvPortHistory()); got != 1 {
+		t.Fatalf("second pv history count = %d, want 1", got)
+	}
+	if got, want := second.GetPvPortHistory()[0].GetMaxObservedWatts(), 212.1; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("cached pv watts = %v, want %v", got, want)
+	}
+	assertValkeyCacheKeyPrefix(t, server, "pulse:energy-pv-port-history-e2e:{pv-port-history}:xxh3-128:")
+}
+
 func TestGetEnergyPvPortHistoryPrefersPersistedPVPortRows(t *testing.T) {
 	t.Parallel()
 
@@ -1590,6 +1713,68 @@ func TestGetEnergyCalendarCachesHistoricalMonthResponse(t *testing.T) {
 	}
 }
 
+func TestGetEnergyCalendarUsesValkeyAcrossServiceInstances(t *testing.T) {
+	t.Parallel()
+
+	deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f61"
+	loc := mustLoadLocation(t, "America/New_York")
+	now := time.Date(2026, time.May, 9, 13, 15, 0, 0, loc)
+	server := miniredis.RunT(t)
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{Subject: "dev-user"})
+	req := &telemetryv1.GetEnergyCalendarRequest{
+		DeviceId:        deviceID,
+		Year:            2026,
+		Month:           4,
+		Timezone:        "America/New_York",
+		GridPricePerKwh: 0.30,
+		Currency:        "USD",
+	}
+
+	firstReader := &calendarQueryReader{}
+	firstSvc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:                 slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore:   newEnergyCalendarCacheTestStore(deviceID),
+		QueryReader:         firstReader,
+		Now:                 func() time.Time { return now },
+		EnergyCalendarCache: newTestValkeyCache(t, server, "energy-calendar-e2e", func() time.Time { return now }),
+	})
+	first, err := firstSvc.GetEnergyCalendar(ctx, req)
+	if err != nil {
+		t.Fatalf("first GetEnergyCalendar failed: %v", err)
+	}
+	findCalendarProtoDay(t, first.GetVisibleDays(), "2026-04-13").SolarGeneratedKwh = 999
+
+	secondReader := &calendarQueryReader{}
+	secondSvc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:                 slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore:   newEnergyCalendarCacheTestStore(deviceID),
+		QueryReader:         secondReader,
+		Now:                 func() time.Time { return now },
+		EnergyCalendarCache: newTestValkeyCache(t, server, "energy-calendar-e2e", func() time.Time { return now }),
+	})
+	second, err := secondSvc.GetEnergyCalendar(ctx, req)
+	if err != nil {
+		t.Fatalf("second GetEnergyCalendar failed: %v", err)
+	}
+
+	firstReader.mu.Lock()
+	firstQueries := len(firstReader.queries)
+	firstReader.mu.Unlock()
+	if firstQueries != 1 {
+		t.Fatalf("first service calendar query count = %d, want 1", firstQueries)
+	}
+	secondReader.mu.Lock()
+	secondQueries := len(secondReader.queries)
+	secondReader.mu.Unlock()
+	if secondQueries != 0 {
+		t.Fatalf("second service calendar query count = %d, want 0", secondQueries)
+	}
+	if got, want := findCalendarProtoDay(t, second.GetVisibleDays(), "2026-04-13").GetSolarGeneratedKwh(), 1.0; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("valkey calendar response was mutated or missed: got=%v want=%v", got, want)
+	}
+	assertValkeyCacheKeyPrefix(t, server, "pulse:energy-calendar-e2e:{calendar}:xxh3-128:")
+}
+
 func TestGetEnergyCalendarDoesNotCacheCurrentMonthResponse(t *testing.T) {
 	t.Parallel()
 
@@ -1803,6 +1988,21 @@ func newFakeControlPlaneStore(userDevices map[string][]controlplane.UserDevice) 
 		userDevices:     userDevices,
 		providerDevices: map[string]controlplane.ProviderDevice{},
 	}
+}
+
+func newEnergyCalendarCacheTestStore(deviceID string) *fakeControlPlaneStore {
+	return newFakeControlPlaneStore(map[string][]controlplane.UserDevice{
+		"dev-user": {{DeviceID: deviceID, EcoflowSN: "DEMO", ProductName: "Garage", Model: "DELTA 2 Max", Role: "admin"}},
+	})
+}
+
+func newPVPortCacheTestStore(deviceID, providerDeviceID string) *fakeControlPlaneStore {
+	store := newEnergyCalendarCacheTestStore(deviceID)
+	store.providerDevices[deviceID] = controlplane.ProviderDevice{
+		Provider:         controlplane.ProviderEcoFlow,
+		ProviderDeviceID: providerDeviceID,
+	}
+	return store
 }
 
 func (f *fakeControlPlaneStore) CreateProviderCredential(context.Context, controlplane.CreateProviderCredentialInput) (controlplane.ProviderCredential, error) {
