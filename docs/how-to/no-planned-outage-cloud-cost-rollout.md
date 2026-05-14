@@ -199,9 +199,11 @@ gcloud compute disks list \
 Do not delete the app pool until `make cloud-status` shows required workloads no
 longer scheduling there and the health gate remains green.
 
-After Argo removal, keep the workflow's manual `argo` deploy mode reserved for a
-cluster where Argo CD has been reinstalled. The hosted main-merge path should
-continue to deploy through direct Helm.
+After Argo removal, the hosted main-merge workflow should deploy only the
+cost-min `pulse-services-cloud` release through direct Helm. Apply platform
+chart changes manually with `make cloud-platform-apply` or
+`make cloud-cost-min-deploy` from an operator context because that chart manages
+cluster-scoped CRDs, RBAC, and webhooks.
 
 ## Rollback Defaults
 

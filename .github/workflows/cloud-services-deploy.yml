@@ -14,14 +14,6 @@ on:
         description: Optional services image tag override
         required: false
         type: string
-      deploy_mode:
-        description: Use direct Helm by default; argo is legacy and requires Argo CD to be installed.
-        required: false
-        default: direct
-        type: choice
-        options:
-          - direct
-          - argo
 
 permissions:
   actions: read
@@ -33,16 +25,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  ARGOCD_PLATFORM_APP: pulse-platform-cloud
-  ARGOCD_SERVICES_APP: pulse-services-cloud
-  ARGOCD_NAMESPACE: argocd
   CLOUD_ARTIFACT_REGISTRY_HOST: us-east1-docker.pkg.dev
   GKE_CLOUD_CLUSTER_NAME: pulse-cloud
   GKE_CLOUD_CLUSTER_REGION: us-east1
   GKE_CLOUD_PROJECT_ID: ecoflow-pulse-dev-260221-01
-  PUBLIC_CLOUD_ORIGIN: https://pulse.34.73.53.93.sslip.io
-  PLATFORM_APP_CLOUD_IMAGE_REPO: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-platform
-  REALTIME_GATEWAY_CLOUD_IMAGE_REPO: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/pulse-realtime-gateway
   SERVICES_CLOUD_IMAGE_REPO: us-east1-docker.pkg.dev/ecoflow-pulse-dev-260221-01/ecoflow-pulse/services
 
 jobs:
@@ -167,120 +153,20 @@ jobs:
       - name: Configure Artifact Registry Docker auth
         run: gcloud auth configure-docker "${CLOUD_ARTIFACT_REGISTRY_HOST}" --quiet
 
-      - name: Build and push deploy images
-        env:
-          EXPO_PUBLIC_API_URL: ${{ env.PUBLIC_CLOUD_ORIGIN }}
-          EXPO_PUBLIC_WS_URL: wss://pulse.34.73.53.93.sslip.io/ws
-          EXPO_PUBLIC_OIDC_ISSUER_URL: ${{ env.PUBLIC_CLOUD_ORIGIN }}/realms/pulse
-          EXPO_PUBLIC_OIDC_CLIENT_ID: pulse-universal-app
-          EXPO_PUBLIC_OIDC_AUDIENCE: pulse-universal-app
-          EXPO_PUBLIC_OIDC_SCOPES: openid profile email offline_access
-          EXPO_PUBLIC_CLOUD_API_URL: ${{ env.PUBLIC_CLOUD_ORIGIN }}
-          EXPO_PUBLIC_CLOUD_WS_URL: wss://pulse.34.73.53.93.sslip.io/ws
-          EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL: ${{ env.PUBLIC_CLOUD_ORIGIN }}/realms/pulse
-          EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID: pulse-universal-app
-          EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE: pulse-universal-app
-          EXPO_PUBLIC_CLOUD_OIDC_SCOPES: openid profile email offline_access
-          EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE: cloud
+      - name: Build and push services image
         run: >-
-          make -j3
+          make
           services-image-push-cloud
-          platform-app-image-push-cloud
-          realtime-gateway-image-push-cloud
           SERVICES_CLOUD_IMAGE_TAG="${{ steps.image.outputs.tag }}"
-          PLATFORM_APP_CLOUD_IMAGE_TAG="${{ steps.image.outputs.tag }}"
-          REALTIME_GATEWAY_CLOUD_IMAGE_TAG="${{ steps.image.outputs.tag }}"
 
       - name: Fetch cloud cluster credentials
         run: make gke-cloud-context
 
-      - name: Configure Helm chart repositories
-        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'direct'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          helm repo add nats https://nats-io.github.io/k8s/helm/charts/
-          helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo add minio https://charts.min.io/
-          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-          helm repo add jetstack https://charts.jetstack.io
-          helm repo add external-secrets https://charts.external-secrets.io
-          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-          helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-          helm repo update
-
-      - name: Direct Helm cloud deploy
-        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'direct'
+      - name: Direct Helm cloud services deploy
         env:
-          CLOUD_PLATFORM_HELM_SET_ARGS: >-
-            --set runtime.publicApp.image.repository=${{ env.PLATFORM_APP_CLOUD_IMAGE_REPO }}
-            --set runtime.publicApp.image.tag=${{ steps.image.outputs.tag }}
-            --set runtime.realtimeGateway.image.repository=${{ env.REALTIME_GATEWAY_CLOUD_IMAGE_REPO }}
-            --set runtime.realtimeGateway.image.tag=${{ steps.image.outputs.tag }}
           CLOUD_SERVICES_HELM_SET_ARGS: >-
             --set runtime.image.repository=${{ env.SERVICES_CLOUD_IMAGE_REPO }}
             --set runtime.image.tag=${{ steps.image.outputs.tag }}
-        run: make cloud-cost-min-deploy
-
-      - name: Patch Argo image tags
-        if: github.event_name == 'workflow_dispatch' && inputs.deploy_mode == 'argo'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          services_patch="$(
-            jq -n \
-              --arg repo "${SERVICES_CLOUD_IMAGE_REPO}" \
-              --arg tag "${{ steps.image.outputs.tag }}" \
-              '{
-                spec: {
-                  source: {
-                    helm: {
-                      parameters: [
-                        {name: "runtime.image.repository", value: $repo},
-                        {name: "runtime.image.tag", value: $tag}
-                      ]
-                    }
-                  }
-                }
-              }'
-          )"
-          platform_patch="$(
-            jq -n \
-              --arg public_repo "${PLATFORM_APP_CLOUD_IMAGE_REPO}" \
-              --arg realtime_repo "${REALTIME_GATEWAY_CLOUD_IMAGE_REPO}" \
-              --arg tag "${{ steps.image.outputs.tag }}" \
-              '{
-                spec: {
-                  source: {
-                    helm: {
-                      parameters: [
-                        {name: "runtime.publicApp.image.repository", value: $public_repo},
-                        {name: "runtime.publicApp.image.tag", value: $tag},
-                        {name: "runtime.realtimeGateway.image.repository", value: $realtime_repo},
-                        {name: "runtime.realtimeGateway.image.tag", value: $tag}
-                      ]
-                    }
-                  }
-                }
-              }'
-          )"
-
-          kubectl -n "${ARGOCD_NAMESPACE}" patch application "${ARGOCD_SERVICES_APP}" --type merge --patch "${services_patch}"
-          kubectl -n "${ARGOCD_NAMESPACE}" patch application "${ARGOCD_PLATFORM_APP}" --type merge --patch "${platform_patch}"
-          kubectl -n "${ARGOCD_NAMESPACE}" annotate application "${ARGOCD_SERVICES_APP}" \
-            argocd.argoproj.io/refresh=hard \
-            ecoflow-pulse/deployed-services-sha="${{ steps.image.outputs.head_sha }}" \
-            ecoflow-pulse/deployed-services-tag="${{ steps.image.outputs.tag }}" \
-            --overwrite
-          kubectl -n "${ARGOCD_NAMESPACE}" annotate application "${ARGOCD_PLATFORM_APP}" \
-            argocd.argoproj.io/refresh=hard \
-            ecoflow-pulse/deployed-platform-sha="${{ steps.image.outputs.head_sha }}" \
-            ecoflow-pulse/deployed-platform-tag="${{ steps.image.outputs.tag }}" \
-            --overwrite
-
-      - name: Wait for cloud apps sync
-        if: github.event_name == 'workflow_dispatch' && inputs.deploy_mode == 'argo'
-        run: make ARGOCD_CLOUD_APPS="${ARGOCD_PLATFORM_APP} ${ARGOCD_SERVICES_APP}" argocd-wait-apps-cloud
+        run: >-
+          make cloud-services-apply
+          CLOUD_SERVICES_VALUES="deploy/env/cloud/values.services.yaml deploy/env/cloud/values.services.cost-min.yaml"
