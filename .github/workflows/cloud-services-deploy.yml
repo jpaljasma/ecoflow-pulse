@@ -15,13 +15,13 @@ on:
         required: false
         type: string
       deploy_mode:
-        description: Use argo until the hosted cluster is cut over to direct Helm.
+        description: Use direct Helm by default; argo is legacy and requires Argo CD to be installed.
         required: false
-        default: argo
+        default: direct
         type: choice
         options:
-          - argo
           - direct
+          - argo
 
 permissions:
   actions: read
@@ -190,7 +190,7 @@ jobs:
         run: make gke-cloud-context
 
       - name: Direct Helm cloud deploy
-        if: github.event_name == 'workflow_dispatch' && inputs.deploy_mode == 'direct'
+        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'direct'
         env:
           CLOUD_PLATFORM_HELM_SET_ARGS: >-
             --set runtime.publicApp.image.repository=${{ env.PLATFORM_APP_CLOUD_IMAGE_REPO }}
@@ -203,7 +203,7 @@ jobs:
         run: make cloud-cost-min-deploy
 
       - name: Patch Argo image tags
-        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'argo'
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy_mode == 'argo'
         shell: bash
         run: |
           set -euo pipefail
@@ -260,5 +260,5 @@ jobs:
             --overwrite
 
       - name: Wait for cloud apps sync
-        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'argo'
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy_mode == 'argo'
         run: make ARGOCD_CLOUD_APPS="${ARGOCD_PLATFORM_APP} ${ARGOCD_SERVICES_APP}" argocd-wait-apps-cloud

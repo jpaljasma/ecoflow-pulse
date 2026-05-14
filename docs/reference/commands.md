@@ -964,13 +964,14 @@ Notes:
   path. After `Go Tests` succeeds on a `main` push, the workflow waits for the
   same commit's `Frontend CI`, `DB Migrations CI`, and `Proto CI` runs to
   succeed before publishing anything. It then builds and pushes the services,
-  public app, and realtime gateway images with the same SHA-derived tag, patches
-  both `pulse-services-cloud` and `pulse-platform-cloud` Argo Application Helm
-  parameters, hard-refreshes Argo, and waits for both applications to return to
-  `Synced` + `Healthy`. The workflow authenticates with GitHub OIDC secrets
+  public app, and realtime gateway images with the same SHA-derived tag and
+  applies the hosted cost-min platform/services releases through direct Helm.
+  The workflow authenticates with GitHub OIDC secrets
   `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`; the deploy
-  identity needs Artifact Registry writer, GKE cluster read, and `argocd`
-  namespace RBAC for Argo `Application` patch/read operations.
+  identity needs Artifact Registry writer plus GKE cluster and Kubernetes
+  namespace permissions for the `pulse-platform` and `pulse-services` Helm
+  releases. Manual dispatch still exposes a legacy `argo` deploy mode, but that
+  option requires Argo CD to be installed in the hosted cluster.
 - `make public-images-build-local` builds the local public Node images
   `$(PLATFORM_APP_IMAGE_REPO):$(PLATFORM_APP_IMAGE_TAG)` and
   `$(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)` from
