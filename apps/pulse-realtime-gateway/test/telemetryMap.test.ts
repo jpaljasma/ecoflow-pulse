@@ -204,6 +204,17 @@ describe('telemetryMap', () => {
     expect(metrics.soc).toBeCloseTo(73.15, 2);
   });
 
+  it('does not let stale top-level soc override canonical provider soc', () => {
+    const metrics = deriveTelemetryMetrics({
+      soc: 98.8,
+      'params.soc': 71,
+      'params.wattsInSum': 889.79,
+      'params.wattsOutSum': 705.89
+    });
+
+    expect(metrics.soc).toBeCloseTo(71, 2);
+  });
+
   it('derives live D2M system signals and solar ports for device detail realtime updates', () => {
     const detail = deriveTelemetryDetail({
       'params.pv1ChargeWatts': 25,

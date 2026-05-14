@@ -68,7 +68,7 @@ export function mergeRawMetrics(
 export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemetryMetrics {
   const soc = firstNumber(
     raw,
-    'soc',
+    // Provider-specific SOC fields are the freshest source in merged live snapshots.
     'params.f32LcdShowSoc',
     'params.lcdShowSoc',
     'params.f32ShowSoc',
@@ -77,6 +77,7 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
     'params.cmsBattSoc',
     'params.soc',
     'param.soc',
+    'soc',
     'params.bpPowerSoc'
   ) ?? 0;
 

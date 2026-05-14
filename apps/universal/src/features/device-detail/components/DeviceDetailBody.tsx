@@ -8,6 +8,7 @@ import { DeviceEnergyImpactCard } from '@/features/energy-impact/DeviceEnergyImp
 import { buildStormGuardLabel } from '@/features/devices/stormGuard';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
 import { DeviceSolarForecastCard } from '@/features/device-detail/components/DeviceSolarForecastCard';
+import { resolveDeviceSocPct } from '@/features/devices/soc';
 import { SolarInputsSection } from '@/features/device-detail/components/SolarInputsSection';
 import { SystemSignalsSection } from '@/features/device-detail/components/SystemSignalsSection';
 import type { DeviceDetailViewModel } from '@/features/device-detail/view-model';
@@ -52,33 +53,6 @@ function connectionSummary(snapshot?: DeviceSnapshot): string {
   if (snapshot.inactive || !snapshot.online) return 'Live data paused';
   if (snapshot.stale) return 'Awaiting next telemetry update';
   return 'Realtime active';
-}
-
-function resolveDetailSoc(
-  details: DeviceSummary['details'] | undefined,
-  snapshot: DeviceSnapshot | undefined,
-  device: DeviceSummary | undefined
-): number | undefined {
-  if (typeof details?.overallSocPct === 'number' && Number.isFinite(details.overallSocPct)) {
-    return details.overallSocPct;
-  }
-
-  const packSocs = (details?.packs ?? [])
-    .map((pack) => pack.socPct)
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-  if (packSocs.length > 0) {
-    return packSocs.reduce((total, value) => total + value, 0) / packSocs.length;
-  }
-
-  if (typeof snapshot?.metrics?.soc === 'number' && Number.isFinite(snapshot.metrics.soc)) {
-    return snapshot.metrics.soc;
-  }
-
-  if (typeof device?.batteryPct === 'number' && Number.isFinite(device.batteryPct)) {
-    return device.batteryPct;
-  }
-
-  return undefined;
 }
 
 function netSummary(state: DeviceDetailViewModel['detailState']): string {
@@ -211,7 +185,7 @@ export function DeviceDetailBody({
       .map((cell) => [cell.key, cell])
   );
 
-  const resolvedSoc = resolveDetailSoc(vm.details, snapshot, device);
+  const resolvedSoc = resolveDeviceSocPct({ device, details: vm.details, snapshot });
   const heroSoc = formatSoc(resolvedSoc);
   const heroEta = statCellByKey.get('eta')?.value;
   const stormGuardLabel = buildStormGuardLabel(vm.details);

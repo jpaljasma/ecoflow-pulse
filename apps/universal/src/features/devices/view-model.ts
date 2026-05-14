@@ -7,6 +7,7 @@ import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { resolveNetPowerW } from '@/features/devices/net';
 import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
+import { resolveDeviceSocPct } from '@/features/devices/soc';
 
 export type FleetSummaryStats = {
   totalCapacityKWh: number | null;
@@ -83,7 +84,7 @@ export function useFleetSummaryViewModel({
       }
 
       const snapshot = byId[device.id];
-      const soc = snapshot?.metrics?.soc ?? device.batteryPct;
+      const soc = resolveDeviceSocPct({ device, snapshot }) ?? 0;
       socSum += soc;
 
       acInW += snapshot?.metrics?.acW ?? device.acInW ?? 0;

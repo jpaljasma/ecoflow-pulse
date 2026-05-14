@@ -468,6 +468,60 @@ describe('TelemetryEngine', () => {
     vi.useRealTimers();
   });
 
+  it('does not let older websocket telemetry replace the latest device metrics', () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocketType[] = [];
+    const createSocket = vi.fn((url: string) => {
+      const socket = createFakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    });
+    const engine = new TelemetryEngine({
+      createSocket,
+      snapshotIntervalMs: 20
+    });
+    let latestPayload:
+      | {
+          snapshots: Record<string, { metrics: { ts: number; soc: number; pvW: number } | null }>;
+        }
+      | undefined;
+
+    engine.onSnapshot((payload) => {
+      latestPayload = payload as typeof latestPayload;
+    });
+    engine.connect();
+    engine.subscribe(['device-1']);
+    sockets[0]?.triggerOpen();
+
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 2,
+        metrics: { soc: 71, pvW: 500, loadW: 90, batteryW: 25, tempC: 21, acW: 30, dcW: 10 }
+      })
+    } as MessageEvent);
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'telemetry',
+        deviceId: 'device-1',
+        ts: 1,
+        metrics: { soc: 98.8, pvW: 200, loadW: 80, batteryW: 20, tempC: 20, acW: 20, dcW: 5 }
+      })
+    } as MessageEvent);
+
+    vi.advanceTimersByTime(20);
+
+    expect(latestPayload?.snapshots['device-1']?.metrics).toMatchObject({
+      ts: 2,
+      soc: 71,
+      pvW: 500
+    });
+
+    engine.disconnect();
+    vi.useRealTimers();
+  });
+
   it('tracks how many fleet trend buckets contain real live data', () => {
     vi.useFakeTimers();
     const sockets: FakeSocketType[] = [];

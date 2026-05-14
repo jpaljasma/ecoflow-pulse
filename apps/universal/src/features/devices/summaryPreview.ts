@@ -1,5 +1,6 @@
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
+import { resolveDeviceSocPct } from '@/features/devices/soc';
 
 export type FleetDevicePreviewChargeState = 'charging' | 'discharging' | 'neutral';
 
@@ -11,11 +12,6 @@ export type FleetDevicePreviewItem = {
   chargeState: FleetDevicePreviewChargeState;
   device: DeviceSummary;
 };
-
-function clampPct(value: number | null | undefined): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  return Math.max(0, Math.min(100, value));
-}
 
 function resolveChargeState(
   device: DeviceSummary,
@@ -54,7 +50,7 @@ export function buildFleetDevicePreview(
         id: device.id,
         name: device.name,
         model: device.model,
-        batteryPct: clampPct(snapshot?.metrics?.soc ?? device.batteryPct),
+        batteryPct: resolveDeviceSocPct({ device, snapshot }) ?? null,
         chargeState,
         device,
         originalIndex: index
