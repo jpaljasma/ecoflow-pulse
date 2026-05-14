@@ -963,18 +963,16 @@ Notes:
 - `.github/workflows/cloud-services-deploy.yml` is the hosted main-merge deploy
   path. After `Go Tests` succeeds on a `main` push, the workflow waits for the
   same commit's `Frontend CI`, `DB Migrations CI`, and `Proto CI` runs to
-  succeed before publishing anything. It then builds and pushes the services,
-  public app, and realtime gateway images with the same SHA-derived tag and
-  applies the hosted cost-min platform/services releases through direct Helm.
-  The runner pins Helm v4.1.1 for the direct apply flags and configures the
-  Helm dependency repositories before applying so a fresh GitHub runner can
-  rebuild chart dependencies from `Chart.lock`. The workflow authenticates with
-  GitHub OIDC secrets
+  succeed before publishing anything. In ingest/storage-only cloud mode, it
+  builds and pushes only the services image, then applies the cost-min
+  `pulse-services-cloud` release through direct Helm. The runner pins Helm
+  v4.1.1 for the direct apply flags. Platform release changes remain an
+  operator-driven `make cloud-platform-apply` / `make cloud-cost-min-deploy`
+  action because that chart manages cluster-scoped CRDs, RBAC, and webhooks.
+  The workflow authenticates with GitHub OIDC secrets
   `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`; the deploy
-  identity needs Artifact Registry writer plus GKE cluster and Kubernetes
-  namespace permissions for the `pulse-platform` and `pulse-services` Helm
-  releases. Manual dispatch still exposes a legacy `argo` deploy mode, but that
-  option requires Argo CD to be installed in the hosted cluster.
+  identity needs Artifact Registry writer plus GKE cluster read access and
+  Kubernetes namespace permissions for the `pulse-services` Helm release.
 - `make public-images-build-local` builds the local public Node images
   `$(PLATFORM_APP_IMAGE_REPO):$(PLATFORM_APP_IMAGE_TAG)` and
   `$(REALTIME_GATEWAY_IMAGE_REPO):$(REALTIME_GATEWAY_IMAGE_TAG)` from
