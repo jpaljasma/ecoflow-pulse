@@ -245,6 +245,7 @@ function makeSolarForecastClient(overrides: Partial<SolarForecastClient> = {}): 
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe('pulse-platform weather routes', () => {
@@ -409,6 +410,56 @@ describe('pulse-platform weather routes', () => {
       })
     );
     expect(response.json()).toEqual(sampleVerification());
+
+    await app.close();
+  });
+
+  it('does not reuse yesterday verification across local-day boundaries', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T03:59:30.000Z'));
+    const controlPlaneClient = makeControlPlaneClient();
+    const weatherClient = makeWeatherClient({
+      getYesterdayVerification: vi.fn(async () => ({
+        verification: {
+          ...sampleVerification().verification,
+          issuedAtUnixMs: String(Date.now())
+        }
+      }))
+    });
+    const app = buildApp(
+      {
+        ...baseConfig(),
+        bffCache: {
+          enabled: true,
+          maxEntries: 100,
+          weatherForecastTtlMs: 0,
+          weatherYesterdayTtlMs: 300000
+        }
+      },
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient,
+        weatherClient
+      }
+    );
+
+    const beforeMidnight = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/yesterday'
+    });
+    vi.setSystemTime(new Date('2026-05-15T04:00:30.000Z'));
+    const afterMidnight = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/yesterday'
+    });
+
+    expect(beforeMidnight.statusCode).toBe(200);
+    expect(afterMidnight.statusCode).toBe(200);
+    expect(beforeMidnight.json().verification.issuedAtUnixMs).toBe('1778817570000');
+    expect(afterMidnight.json().verification.issuedAtUnixMs).toBe('1778817630000');
+    expect(weatherClient.getYesterdayVerification).toHaveBeenCalledTimes(2);
 
     await app.close();
   });

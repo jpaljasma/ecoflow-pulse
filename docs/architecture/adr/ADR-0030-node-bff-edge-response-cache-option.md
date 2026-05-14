@@ -29,6 +29,8 @@ Add an optional in-process BFF response cache for low-risk public read routes.
 - Metrics are low-cardinality and label only cache namespace and result.
 - Route keys may include canonical request/location attributes, but metrics and
   logs must not expose raw keys or user-linked identifiers.
+- Relative-day routes must include the resolved local-day bucket in their cache
+  key, or bypass this edge cache when the local day cannot be derived.
 
 Weather forecast and yesterday-verification responses are the first BFF cache
 pilot because they are read-heavy, already backed by Go/Valkey caching, and can

@@ -70,7 +70,7 @@ export function registerWeatherRoutes(
       const result = await loadWithOptionalBffCache(
         bffCache,
         'weather_yesterday',
-        buildWeatherCacheKey(input),
+        buildWeatherYesterdayCacheKey(input),
         config.bffCache?.weatherYesterdayTtlMs ?? 0,
         () => weatherClient.getYesterdayVerification(input)
       );
@@ -84,11 +84,11 @@ export function registerWeatherRoutes(
 async function loadWithOptionalBffCache<T>(
   cache: BffResponseCache | undefined,
   namespace: string,
-  key: string,
+  key: string | undefined,
   ttlMs: number,
   loader: () => Promise<T>
 ): Promise<T> {
-  if (!cache) {
+  if (!cache || !key) {
     return await loader();
   }
   return await cache.getOrLoad(namespace, key, ttlMs, loader);
@@ -101,13 +101,48 @@ function buildWeatherCacheKey(input: {
   panelTiltDegrees?: number;
   panelAzimuthDegrees?: number;
   timezone: string;
-}): string {
+}, extras: Record<string, string> = {}): string {
   return JSON.stringify({
     latitude: input.latitude,
     longitude: input.longitude,
     unitSystem: input.unitSystem,
     panelTiltDegrees: input.panelTiltDegrees,
     panelAzimuthDegrees: input.panelAzimuthDegrees,
-    timezone: input.timezone
+    timezone: input.timezone,
+    ...extras
   });
+}
+
+function buildWeatherYesterdayCacheKey(input: WeatherRequest): string | undefined {
+  const localDate = localDateBucket(input.timezone, Date.now());
+  if (!localDate) {
+    return undefined;
+  }
+  return buildWeatherCacheKey(input, { localDate });
+}
+
+function localDateBucket(timezone: string, nowMs: number): string | undefined {
+  if (!timezone || timezone === 'auto') {
+    return undefined;
+  }
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date(nowMs));
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    if (!year || !month || !day) {
+      return undefined;
+    }
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return undefined;
+    }
+    throw error;
+  }
 }
