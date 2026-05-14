@@ -86,8 +86,9 @@ CLOUD_DB_ENV_FILE ?= .tmp/cloud-postgres.env
 CLOUD_DB_FORWARD_PID_FILE ?= .tmp/cloud-db-forward.pid
 CLOUD_DB_FORWARD_LOG_FILE ?= .tmp/cloud-db-forward.log
 CLOUD_DB_FORWARD_PLIST ?= .tmp/cloud-db-forward.plist
-CLOUD_DB_FORWARD_RUNNER ?= .tmp/cloud-db-forward-runner.sh
 CLOUD_DB_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-db-forward
+CLOUD_FORWARD_LAUNCHD_DIR ?= $(HOME)/Library/LaunchAgents
+CLOUD_FORWARD_LAUNCHD_LOG_DIR ?= $(HOME)/Library/Logs/ecoflow-pulse
 CLOUD_REALTIME_FORWARD_ADDRESS ?= 127.0.0.1
 CLOUD_NATS_LOCAL_PORT ?= 24222
 CLOUD_VALKEY_LOCAL_PORT ?= 26380
@@ -101,7 +102,6 @@ CLOUD_VALKEY_FORWARD_PID_FILE ?= .tmp/cloud-valkey-forward.pid
 CLOUD_VALKEY_FORWARD_LOG_FILE ?= .tmp/cloud-valkey-forward.log
 CLOUD_VALKEY_FORWARD_PLIST ?= .tmp/cloud-valkey-forward.plist
 CLOUD_VALKEY_FORWARD_LABEL ?= com.ecoflow-pulse.cloud-valkey-forward
-CLOUD_REALTIME_FORWARD_RUNNER ?= .tmp/cloud-realtime-forward-runner.sh
 LOCAL_CLOUD_DB_FORWARD_ADDRESS ?= 0.0.0.0
 LOCAL_CLOUD_DB_HOST ?= host.docker.internal
 LOCAL_CLOUD_DB_PORT ?= $(CLOUD_DB_LOCAL_PORT)
@@ -2727,7 +2727,7 @@ cloud-db-forward: gke-cloud-context
 
 cloud-db-forward-start: gke-cloud-context
 	@set -euo pipefail; \
-	mkdir -p "$(dir $(CLOUD_DB_FORWARD_PID_FILE))" "$(dir $(CLOUD_DB_FORWARD_LOG_FILE))" "$(dir $(CLOUD_DB_FORWARD_PLIST))" "$(dir $(CLOUD_DB_FORWARD_RUNNER))"; \
+	mkdir -p "$(dir $(CLOUD_DB_FORWARD_PID_FILE))" "$(dir $(CLOUD_DB_FORWARD_LOG_FILE))" "$(dir $(CLOUD_DB_FORWARD_PLIST))"; \
 	pid_pattern="port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432"; \
 	pid="$$(pgrep -f "$$pid_pattern" | head -n1 || true)"; \
 	if [ -n "$$pid" ] && nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
@@ -2740,18 +2740,19 @@ cloud-db-forward-start: gke-cloud-context
 		echo "cloud DB forward port $(CLOUD_DB_LOCAL_PORT) is already reachable"; \
 		exit 0; \
 	fi; \
-	echo "starting cloud DB forward on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (log: $(CLOUD_DB_FORWARD_LOG_FILE))"; \
 	kubectl_bin="$$(command -v $(KUBECTL))"; \
+	plist="$(abspath $(CLOUD_DB_FORWARD_PLIST))"; \
+	log="$(abspath $(CLOUD_DB_FORWARD_LOG_FILE))"; \
 	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
-		runner="$(abspath $(CLOUD_DB_FORWARD_RUNNER))"; \
-		plist="$(abspath $(CLOUD_DB_FORWARD_PLIST))"; \
-		log="$(abspath $(CLOUD_DB_FORWARD_LOG_FILE))"; \
+		launchd_dir="$(CLOUD_FORWARD_LAUNCHD_DIR)"; \
+		launchd_log_dir="$(CLOUD_FORWARD_LAUNCHD_LOG_DIR)"; \
+		mkdir -p "$$launchd_dir" "$$launchd_log_dir"; \
+		plist="$$launchd_dir/$(CLOUD_DB_FORWARD_LABEL).plist"; \
+		log="$$launchd_log_dir/$(CLOUD_DB_FORWARD_LABEL).log"; \
+	fi; \
+	echo "starting cloud DB forward on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) (log: $$log)"; \
+	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
 		path_env="$$(dirname "$$kubectl_bin"):/usr/local/google-cloud-sdk/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; \
-		{ \
-			printf '%s\n' '#!/usr/bin/env sh'; \
-			printf '%s\n' 'exec "$$@"'; \
-		} > "$$runner"; \
-		chmod 700 "$$runner"; \
 		{ \
 			printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
 			printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
@@ -2761,7 +2762,6 @@ cloud-db-forward-start: gke-cloud-context
 			printf '  <string>%s</string>\n' '$(CLOUD_DB_FORWARD_LABEL)'; \
 			printf '%s\n' '  <key>ProgramArguments</key>'; \
 			printf '%s\n' '  <array>'; \
-			printf '    <string>%s</string>\n' "$$runner"; \
 			printf '    <string>%s</string>\n' "$$kubectl_bin"; \
 			printf '%s\n' '    <string>--context</string>'; \
 			printf '    <string>%s</string>\n' '$(CLOUD_KUBE_CONTEXT)'; \
@@ -2796,7 +2796,7 @@ cloud-db-forward-start: gke-cloud-context
 		launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
 		launchctl bootstrap "$$domain" "$$plist"; \
 	else \
-		$(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432 >"$(CLOUD_DB_FORWARD_LOG_FILE)" 2>&1 & \
+		$(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_DB_FORWARD_ADDRESS) svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432 >"$$log" 2>&1 & \
 	fi; \
 	for _ in $$(seq 1 30); do \
 		if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
@@ -2810,7 +2810,7 @@ cloud-db-forward-start: gke-cloud-context
 		sleep 1; \
 	done; \
 	echo "cloud DB forward did not become ready"; \
-	tail -40 "$(CLOUD_DB_FORWARD_LOG_FILE)" || true; \
+	tail -40 "$$log" || true; \
 	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"; \
 	exit 1
 
@@ -2819,6 +2819,10 @@ cloud-db-forward-stop:
 	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
 		domain="gui/$$(id -u)"; \
 		launchctl bootout "$$domain/$(CLOUD_DB_FORWARD_LABEL)" >/dev/null 2>&1 || true; \
+		launchd_plist="$(CLOUD_FORWARD_LAUNCHD_DIR)/$(CLOUD_DB_FORWARD_LABEL).plist"; \
+		if [ -f "$$launchd_plist" ]; then \
+			launchctl bootout "$$domain" "$$launchd_plist" >/dev/null 2>&1 || true; \
+		fi; \
 		if [ -f "$(CLOUD_DB_FORWARD_PLIST)" ]; then \
 			launchctl bootout "$$domain" "$(abspath $(CLOUD_DB_FORWARD_PLIST))" >/dev/null 2>&1 || true; \
 		fi; \
@@ -2866,7 +2870,7 @@ cloud-realtime-forward: gke-cloud-context
 
 cloud-realtime-forward-start: gke-cloud-context
 	@set -euo pipefail; \
-	mkdir -p "$(dir $(CLOUD_NATS_FORWARD_PID_FILE))" "$(dir $(CLOUD_NATS_FORWARD_LOG_FILE))" "$(dir $(CLOUD_NATS_FORWARD_PLIST))" "$(dir $(CLOUD_VALKEY_FORWARD_PID_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_LOG_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_PLIST))" "$(dir $(CLOUD_REALTIME_FORWARD_RUNNER))"; \
+	mkdir -p "$(dir $(CLOUD_NATS_FORWARD_PID_FILE))" "$(dir $(CLOUD_NATS_FORWARD_LOG_FILE))" "$(dir $(CLOUD_NATS_FORWARD_PLIST))" "$(dir $(CLOUD_VALKEY_FORWARD_PID_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_LOG_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_PLIST))"; \
 	kubectl_bin="$$(command -v $(KUBECTL))"; \
 	start_forward() { \
 		label="$$1"; \
@@ -2889,17 +2893,15 @@ cloud-realtime-forward-start: gke-cloud-context
 			echo "$$label forward port $$local_port is already reachable"; \
 			return 0; \
 		fi; \
-		echo "starting $$label forward on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (log: $$log_file)"; \
 		if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
-			runner="$(abspath $(CLOUD_REALTIME_FORWARD_RUNNER))"; \
-			plist="$$(cd "$$(dirname "$$plist_file")" && pwd)/$$(basename "$$plist_file")"; \
-			log="$$(cd "$$(dirname "$$log_file")" && pwd)/$$(basename "$$log_file")"; \
+			launchd_dir="$(CLOUD_FORWARD_LAUNCHD_DIR)"; \
+			launchd_log_dir="$(CLOUD_FORWARD_LAUNCHD_LOG_DIR)"; \
+			mkdir -p "$$launchd_dir" "$$launchd_log_dir"; \
+			plist="$$launchd_dir/$$launch_label.plist"; \
+			log="$$launchd_log_dir/$$launch_label.log"; \
+			log_file="$$log"; \
 			path_env="$$(dirname "$$kubectl_bin"):/usr/local/google-cloud-sdk/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; \
-			{ \
-				printf '%s\n' '#!/usr/bin/env sh'; \
-				printf '%s\n' 'exec "$$@"'; \
-			} > "$$runner"; \
-			chmod 700 "$$runner"; \
+			echo "starting $$label forward on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (log: $$log_file)"; \
 			{ \
 				printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
 				printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
@@ -2909,7 +2911,6 @@ cloud-realtime-forward-start: gke-cloud-context
 				printf '  <string>%s</string>\n' "$$launch_label"; \
 				printf '%s\n' '  <key>ProgramArguments</key>'; \
 				printf '%s\n' '  <array>'; \
-				printf '    <string>%s</string>\n' "$$runner"; \
 				printf '    <string>%s</string>\n' "$$kubectl_bin"; \
 				printf '%s\n' '    <string>--context</string>'; \
 				printf '    <string>%s</string>\n' '$(CLOUD_KUBE_CONTEXT)'; \
@@ -2944,6 +2945,7 @@ cloud-realtime-forward-start: gke-cloud-context
 			launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \
 			launchctl bootstrap "$$domain" "$$plist"; \
 		else \
+			echo "starting $$label forward on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port (log: $$log_file)"; \
 			nohup $(KUBECTL) --context $(CLOUD_KUBE_CONTEXT) -n $(PLATFORM_NAMESPACE) port-forward --address $(CLOUD_REALTIME_FORWARD_ADDRESS) "svc/$$service" "$$local_port:$$remote_port" >"$$log_file" 2>&1 & \
 		fi; \
 		for _ in $$(seq 1 30); do \
@@ -2976,6 +2978,10 @@ cloud-realtime-forward-stop:
 		if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
 			domain="gui/$$(id -u)"; \
 			launchctl bootout "$$domain/$$launch_label" >/dev/null 2>&1 || true; \
+			launchd_plist="$(CLOUD_FORWARD_LAUNCHD_DIR)/$$launch_label.plist"; \
+			if [ -f "$$launchd_plist" ]; then \
+				launchctl bootout "$$domain" "$$launchd_plist" >/dev/null 2>&1 || true; \
+			fi; \
 			if [ -f "$$plist_file" ]; then \
 				plist="$$(cd "$$(dirname "$$plist_file")" && pwd)/$$(basename "$$plist_file")"; \
 				launchctl bootout "$$domain" "$$plist" >/dev/null 2>&1 || true; \

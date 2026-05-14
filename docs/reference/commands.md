@@ -1391,11 +1391,13 @@ Notes:
   the default loopback-bound forward.
 - `make cloud-db-forward-start`, `make cloud-db-forward-status`, and
   `make cloud-db-forward-stop` manage the same forward as a background local
-  process using `.tmp/cloud-db-forward.pid`, `.tmp/cloud-db-forward.log`, and on
-  macOS a temporary LaunchAgent under `.tmp/`.
+  process using `.tmp/cloud-db-forward.pid`; on macOS the persistent
+  LaunchAgent lives under `~/Library/LaunchAgents` and writes logs under
+  `~/Library/Logs/ecoflow-pulse`.
 - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
   and `make cloud-realtime-forward-stop` manage background forwards from
-  `127.0.0.1:24222` to hosted NATS and `127.0.0.1:26380` to hosted Valkey.
+  `127.0.0.1:24222` to hosted NATS and `127.0.0.1:26380` to hosted Valkey;
+  macOS uses the same LaunchAgent/log locations as the cloud DB forward.
   `dev-up-cloud-db` binds them on `0.0.0.0` so local k3d pods can reach them
   through `host.docker.internal`.
 - `make local-cloud-realtime-env` writes local-only
