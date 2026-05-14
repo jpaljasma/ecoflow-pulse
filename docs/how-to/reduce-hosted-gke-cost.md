@@ -46,6 +46,25 @@ disks, load balancers, GKE management fees, logging, or traffic. Four
 spend by about 70% before disks, load balancers, GKE management fees, logging,
 or traffic.
 
+## App-Pool Removal Gate
+
+Keep the app pool in the current hosted cost-min shape. It is not safe to
+distribute the remaining app-pool workloads onto the three `e2-medium`
+stateful nodes and delete `app-pool` until a new design proves all of these:
+
+- GKE-managed system pods have a safe untainted placement path.
+- Stateful nodes have enough Kubernetes request headroom, not just low observed
+  CPU.
+- `go-archive` and `go-rollup` singleton PDBs will not block migration.
+- CNPG, NATS, and Valkey remain healthy through the placement change.
+
+The 2026-05-14 live check blocked app-pool removal: stateful node CPU requests
+were already about `88%`, `88%`, and `67%` allocated, the required
+`go-ingest`/`go-archive`/`go-rollup` workers requested about `600m` CPU, and a
+server dry-run drain of the app node hit `go-archive` and `go-rollup` PDB
+protection. Keep `app-pool` at `e2-standard-2`, `min=1`, `max=2` until those
+conditions change.
+
 ## Apply the Overlay
 
 Merge and sync the low-cost values first. That reduces stateless scheduling

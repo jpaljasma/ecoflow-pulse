@@ -363,11 +363,18 @@ export class TelemetryEngine {
     runtime.lastMessageAt = Date.now();
 
     if (message.type === 'device_status') {
-      runtime.online = message.online;
       const latest = runtime.latest;
       if (latest) {
+        if (message.ts < latest.ts) {
+          return;
+        }
         runtime.latest = { ...latest, ts: message.ts, online: message.online };
       }
+      runtime.online = message.online;
+      return;
+    }
+
+    if (runtime.latest && message.ts < runtime.latest.ts) {
       return;
     }
 

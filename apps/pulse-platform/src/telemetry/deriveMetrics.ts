@@ -15,7 +15,7 @@ const ANDERSON_POWER_NOISE_FLOOR_W = 0.5;
 export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics {
   const soc = firstNumber(
     raw,
-    'soc',
+    // Provider-specific SOC fields are the freshest source in merged live snapshots.
     'params.f32LcdShowSoc',
     'params.lcdShowSoc',
     'params.f32ShowSoc',
@@ -24,6 +24,7 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
     'params.cmsBattSoc',
     'params.soc',
     'param.soc',
+    'soc',
     'params.bpPowerSoc'
   ) ?? 0;
 
