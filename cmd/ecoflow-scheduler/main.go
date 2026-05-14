@@ -210,6 +210,7 @@ func newWeatherHotCache(nowFn func() time.Time) (weatherd.HotCache, func(), erro
 	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+	ingestlease.ConfigureClientSideCacheFromEnv(&cfg)
 	ingestlease.ConfigureSentinelFromEnv(&cfg)
 	client, err := ingestlease.NewValkeyClient(cfg)
 	if err != nil {

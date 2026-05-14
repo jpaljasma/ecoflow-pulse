@@ -2,7 +2,6 @@ package inference
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -15,6 +14,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/energydashboard"
 	"github.com/jpaljasma/ecoflow-pulse/internal/hashutil"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 )
 
 const (
@@ -117,19 +117,17 @@ type EnergyComparisonInput struct {
 }
 
 func (s *ValkeyStore) GetEnergyComparison(ctx context.Context, key EnergyComparisonCacheKey) (*EnergyComparisonRecord, error) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(s.energyComparisonKey(key)).Build()).ToString()
+	cache, err := s.energyComparisonCacheClient()
 	if err != nil {
-		if errorsIsValkeyNil(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("read energy comparison cache: %w", err)
-	}
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
+		return nil, err
 	}
 	var out EnergyComparisonRecord
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil, fmt.Errorf("decode energy comparison cache: %w", err)
+	ok, err := cache.GetJSON(ctx, s.energyComparisonKey(key), &out, valkeycache.ReadOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("read energy comparison cache: %w", err)
+	}
+	if !ok {
+		return nil, nil
 	}
 	if out.Insight != nil {
 		cloned := cloneEnergyComparisonInsight(*out.Insight)
@@ -139,14 +137,11 @@ func (s *ValkeyStore) GetEnergyComparison(ctx context.Context, key EnergyCompari
 }
 
 func (s *ValkeyStore) PutEnergyComparison(ctx context.Context, key EnergyComparisonCacheKey, value EnergyComparisonRecord) error {
-	encoded, err := json.Marshal(value)
+	cache, err := s.energyComparisonCacheClient()
 	if err != nil {
-		return fmt.Errorf("marshal energy comparison cache: %w", err)
+		return err
 	}
-	return s.client.Do(
-		ctx,
-		s.client.B().Set().Key(s.energyComparisonKey(key)).Value(valkey.BinaryString(encoded)).ExSeconds(int64(energyComparisonTTL/time.Second)).Build(),
-	).Error()
+	return cache.SetJSON(ctx, s.energyComparisonKey(key), value, valkeycache.SetOptions{TTL: energyComparisonTTL})
 }
 
 func (s *ValkeyStore) energyComparisonKey(key EnergyComparisonCacheKey) string {
@@ -165,7 +160,35 @@ func (s *ValkeyStore) energyComparisonKey(key EnergyComparisonCacheKey) string {
 		strings.TrimSpace(key.Date), "|",
 		fmt.Sprintf("%.4f|%s|%d", key.GridPricePerKwh, strings.TrimSpace(key.Currency), key.RefreshSlotUnixMs),
 	)
-	return fmt.Sprintf("%s:{energy-comparison:%s}", s.keyPrefix, digest)
+	prefix, namespace := valkeycache.SplitKeyPrefix(s.keyPrefix, "pulse", "inference")
+	builder := valkeycache.NewKeyBuilder(prefix, namespace+"-energy-comparison")
+	return builder.KeyWithDigest("energy-comparison-"+scopeTag, digest)
+}
+
+func (s *ValkeyStore) energyComparisonCacheClient() (*valkeycache.Client, error) {
+	if s.energyComparisonCache != nil {
+		return s.energyComparisonCache, nil
+	}
+	if s.client == nil {
+		return nil, fmt.Errorf("energy comparison cache client is not configured")
+	}
+	cfg := ValkeyStoreConfig{KeyPrefix: s.keyPrefix, NowFn: s.nowFn}
+	return newEnergyComparisonCache(s.client, cfg)
+}
+
+func newEnergyComparisonCache(client valkey.Client, cfg ValkeyStoreConfig) (*valkeycache.Client, error) {
+	prefix, namespace := valkeycache.SplitKeyPrefix(cfg.KeyPrefix, "pulse", "inference")
+	localTTL := cfg.EnergyComparisonLocalTTL
+	if localTTL <= 0 {
+		localTTL = defaultEnergyComparisonLocalTTL
+	}
+	return valkeycache.New(client, valkeycache.Options{
+		Prefix:          prefix,
+		Namespace:       namespace + "-energy-comparison",
+		ContentType:     "application/json",
+		DefaultLocalTTL: localTTL,
+		Now:             cfg.NowFn,
+	})
 }
 
 func BuildEnergyComparisonInsight(input EnergyComparisonInput) EnergyComparisonRecord {
@@ -483,8 +506,4 @@ func cloneEnergyComparisonInsight(in EnergyComparisonInsight) EnergyComparisonIn
 	out.Evidence = append([]Evidence(nil), in.Evidence...)
 	out.Attributes = cloneAnyMap(in.Attributes)
 	return out
-}
-
-func errorsIsValkeyNil(err error) bool {
-	return err != nil && err == valkey.Nil
 }

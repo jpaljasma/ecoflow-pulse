@@ -242,6 +242,28 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - do not leave local MinIO in ephemeral mode when replay, rebuild, or gap repair depend on it,
    - rebuild tooling must fail closed on archive/object mismatches rather than replacing DB windows with partial coverage.
 
+## Cache and Valkey Runtime Rules
+1. Treat shared cache behavior and Valkey runtime behavior as separate layers:
+   - cache substrate rules are governed by ADR-0028,
+   - Valkey topology/client runtime rules are governed by ADR-0004 and ADR-0029.
+2. Cache behavior belongs in shared Go cache helpers, not repeated per service:
+   - canonical keys use `prefix:namespace:{partition}:xxh3-128:<digest>`,
+   - use `internal/hashutil.XXH3Hex128` for non-crypto cache digests,
+   - use versioned tag invalidation; do not scan keys or maintain reverse indexes for invalidation,
+   - use `singleflight` for read-through loaders that can stampede on concurrent misses.
+3. Sensitive cache entries must fail closed:
+   - provider MQTT/session/certification material must be encrypted with AES-GCM before storage,
+   - if cache encryption is unavailable, bypass the sensitive cache rather than writing plaintext,
+   - never expose raw cache keys, provider IDs, serial numbers, or encryption key material in metrics, docs, PRs, or logs.
+4. Valkey client setup must stay centralized:
+   - use shared client helpers for Sentinel, auth, retry, backoff, jitter, reconnect, and client-side-cache settings,
+   - keep lease/script clients client-side-cache disabled,
+   - enable Valkey client-side caching only through shared cache read paths with explicit local TTLs.
+5. Cache hot-path changes need evidence:
+   - add or update unit/integration/end-to-end coverage for business cache users,
+   - run `make test-race` for concurrency-sensitive cache/session changes,
+   - update benchmarks when keying, envelope, compression, encryption, retries, or goroutine use changes materially.
+
 ## Browser Edge Learnings
 1. Browser-facing HTTP/2/HTTP/3 support is an ingress/public-edge concern, not a Node runtime concern.
 2. HTTP/3 at ingress requires all of:
@@ -383,6 +405,8 @@ These rules are mandatory for all new platform work and are sourced from:
    - NATS JetStream
 3. Hot cache:
    - Valkey (Redis-compatible), replication + Sentinel (no cluster mode in v1)
+   - shared cache substrate rules follow ADR-0028
+   - Valkey cache runtime/client rules follow ADR-0029
 4. Databases:
    - Postgres (control plane) + TimescaleDB (rollups/history), operated via CloudNativePG
 5. Replay archive:
