@@ -189,6 +189,23 @@ jobs:
       - name: Fetch cloud cluster credentials
         run: make gke-cloud-context
 
+      - name: Configure Helm chart repositories
+        if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'direct'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+          helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add minio https://charts.min.io/
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo add external-secrets https://charts.external-secrets.io
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo update
+
       - name: Direct Helm cloud deploy
         if: github.event_name != 'workflow_dispatch' || inputs.deploy_mode == 'direct'
         env:
