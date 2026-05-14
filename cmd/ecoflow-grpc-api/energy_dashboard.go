@@ -168,7 +168,7 @@ func (s *EnergyService) GetEnergyCalendar(ctx context.Context, req *telemetryv1.
 			if buildErr != nil {
 				return nil, buildErr
 			}
-			s.writeEnergyCalendarCache(cacheKey, resp, energyCalendarCacheExpiresAt(now, loc))
+			s.writeEnergyCalendarCache(ctx, cacheKey, resp, energyCalendarCacheExpiresAt(now, loc))
 			return cloneEnergyCalendarResponse(resp), nil
 		})
 		if err != nil {
@@ -295,7 +295,7 @@ func (s *EnergyService) readCachedEnergyCalendar(ctx context.Context, key string
 	return cloneEnergyCalendarResponse(entry.resp)
 }
 
-func (s *EnergyService) writeEnergyCalendarCache(key string, resp *telemetryv1.GetEnergyCalendarResponse, expiresAt time.Time) {
+func (s *EnergyService) writeEnergyCalendarCache(ctx context.Context, key string, resp *telemetryv1.GetEnergyCalendarResponse, expiresAt time.Time) {
 	if key == "" || resp == nil {
 		return
 	}
@@ -305,7 +305,7 @@ func (s *EnergyService) writeEnergyCalendarCache(key string, resp *telemetryv1.G
 			if encoded, err := proto.Marshal(resp); err != nil {
 				s.log.Warn("energy calendar valkey cache encode failed", "error", err.Error())
 			} else if err := s.energyCalendarValkey.SetBytes(
-				context.Background(),
+				ctx,
 				s.energyCalendarValkey.Key("calendar", key),
 				encoded,
 				valkeycache.SetOptions{TTL: ttl, ContentType: "application/protobuf"},
@@ -377,7 +377,7 @@ func (s *EnergyService) getCachedPVPortHistory(ctx context.Context, deviceIDs []
 		if err != nil {
 			return nil, err
 		}
-		s.writePVPortHistoryCache(key, rows, s.now().Add(defaultPVPortHistoryCacheTTL))
+		s.writePVPortHistoryCache(ctx, key, rows, s.now().Add(defaultPVPortHistoryCacheTTL))
 		return rows, nil
 	})
 	if err != nil {
@@ -411,11 +411,11 @@ func (s *EnergyService) readPVPortHistoryCache(ctx context.Context, key string, 
 	return clonePVPortHistoryRows(entry.rows), true
 }
 
-func (s *EnergyService) writePVPortHistoryCache(key string, rows []energydashboard.PVPortHistory, expiresAt time.Time) {
+func (s *EnergyService) writePVPortHistoryCache(ctx context.Context, key string, rows []energydashboard.PVPortHistory, expiresAt time.Time) {
 	if s.pvPortHistoryValkey != nil {
 		if ttl := expiresAt.UTC().Sub(s.now().UTC()); ttl > 0 {
 			if err := s.pvPortHistoryValkey.SetJSON(
-				context.Background(),
+				ctx,
 				s.pvPortHistoryValkey.Key("pv-port-history", key),
 				rows,
 				valkeycache.SetOptions{TTL: ttl},
