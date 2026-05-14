@@ -113,6 +113,10 @@ runtime:
       devUserSubject: dev-user@example.com
       publicPreconnectOrigins: ""
       corsAllowedOrigins: ""
+      bffCacheEnabled: "false"
+      bffCacheMaxEntries: "1000"
+      weatherForecastCacheTtlMs: "30000"
+      weatherYesterdayCacheTtlMs: "300000"
     ingress:
       enabled: false
       className: nginx

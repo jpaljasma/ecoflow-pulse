@@ -7,6 +7,7 @@ import fastifyStatic from '@fastify/static';
 import rateLimit, { type RateLimitOptions } from 'fastify-rate-limit';
 
 import { buildAuthPreHandler } from './auth.js';
+import { createBffCache } from './cache/bffCache.js';
 import type { AppConfig } from './config.js';
 import type { ControlPlaneClient } from './grpc/controlPlaneClient.js';
 import type { DeviceClient } from './grpc/deviceClient.js';
@@ -20,6 +21,7 @@ import {
   type HtmlDeliveryPlan
 } from './httpDelivery.js';
 import {
+  observeBffCacheOperation,
   observePublicRequest,
   publicMetricsContentType,
   renderPublicMetrics
@@ -51,6 +53,17 @@ export function buildApp(
   const app = Fastify({ logger: false });
   const authPreHandler = options.authPreHandler ?? buildAuthPreHandler(config);
   const historyRateLimit = buildHistoryRateLimit(config);
+  const bffCacheConfig = config.bffCache ?? {
+    enabled: false,
+    maxEntries: 1000,
+    weatherForecastTtlMs: 0,
+    weatherYesterdayTtlMs: 0
+  };
+  const bffCache = createBffCache({
+    enabled: bffCacheConfig.enabled,
+    maxEntries: bffCacheConfig.maxEntries,
+    observe: observeBffCacheOperation
+  });
   app.decorate('telemetryDeadlineMs', config.grpcDeadlineMs);
   app.decorate('historyRateLimit', historyRateLimit);
   app.get('/healthz', async () => ({ ok: true }));
@@ -96,10 +109,11 @@ export function buildApp(
     if (options.controlPlaneClient && options.weatherClient) {
       registerWeatherRoutes(
         scopedApp,
-        config,
+        { ...config, bffCache: bffCacheConfig },
         options.controlPlaneClient,
         options.weatherClient,
-        authPreHandler
+        authPreHandler,
+        bffCache
       );
     }
     if (options.controlPlaneClient && options.solarForecastClient) {
@@ -155,6 +169,7 @@ export function buildApp(
     });
   }
   app.addHook('onClose', async () => {
+    bffCache.clear();
     options.controlPlaneClient?.close();
     options.weatherClient?.close();
     options.solarForecastClient?.close();

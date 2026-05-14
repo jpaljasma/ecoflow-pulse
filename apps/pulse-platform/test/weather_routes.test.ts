@@ -29,6 +29,12 @@ function baseConfig(): AppConfig {
       max: 120,
       timeWindowMs: 60000
     },
+    bffCache: {
+      enabled: false,
+      maxEntries: 1000,
+      weatherForecastTtlMs: 30000,
+      weatherYesterdayTtlMs: 300000
+    },
     auth: { mode: 'noop', allowMissingJwt: true }
   };
 }
@@ -239,6 +245,7 @@ function makeSolarForecastClient(overrides: Partial<SolarForecastClient> = {}): 
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe('pulse-platform weather routes', () => {
@@ -269,6 +276,43 @@ describe('pulse-platform weather routes', () => {
     );
     expect(response.json()).toEqual(sampleForecast());
     expect(response.json().forecast.daily[0]?.dateIso).toBe('2026-03-17');
+
+    await app.close();
+  });
+
+  it('serves weather forecasts through the optional BFF cache', async () => {
+    const controlPlaneClient = makeControlPlaneClient();
+    const weatherClient = makeWeatherClient();
+    const config = {
+      ...baseConfig(),
+      bffCache: {
+        enabled: true,
+        maxEntries: 100,
+        weatherForecastTtlMs: 60_000,
+        weatherYesterdayTtlMs: 0
+      }
+    };
+    const app = buildApp(config, makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient,
+      weatherClient
+    });
+
+    const [first, second] = await Promise.all([
+      app.inject({ method: 'GET', url: '/api/v1/weather/forecast' }),
+      app.inject({ method: 'GET', url: '/api/v1/weather/forecast' })
+    ]);
+    const third = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/forecast'
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(third.statusCode).toBe(200);
+    expect(first.json()).toEqual(sampleForecast());
+    expect(second.json()).toEqual(sampleForecast());
+    expect(third.json()).toEqual(sampleForecast());
+    expect(weatherClient.get7DayForecast).toHaveBeenCalledOnce();
 
     await app.close();
   });
@@ -366,6 +410,56 @@ describe('pulse-platform weather routes', () => {
       })
     );
     expect(response.json()).toEqual(sampleVerification());
+
+    await app.close();
+  });
+
+  it('does not reuse yesterday verification across local-day boundaries', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T03:59:30.000Z'));
+    const controlPlaneClient = makeControlPlaneClient();
+    const weatherClient = makeWeatherClient({
+      getYesterdayVerification: vi.fn(async () => ({
+        verification: {
+          ...sampleVerification().verification,
+          issuedAtUnixMs: String(Date.now())
+        }
+      }))
+    });
+    const app = buildApp(
+      {
+        ...baseConfig(),
+        bffCache: {
+          enabled: true,
+          maxEntries: 100,
+          weatherForecastTtlMs: 0,
+          weatherYesterdayTtlMs: 300000
+        }
+      },
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient,
+        weatherClient
+      }
+    );
+
+    const beforeMidnight = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/yesterday'
+    });
+    vi.setSystemTime(new Date('2026-05-15T04:00:30.000Z'));
+    const afterMidnight = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/yesterday'
+    });
+
+    expect(beforeMidnight.statusCode).toBe(200);
+    expect(afterMidnight.statusCode).toBe(200);
+    expect(beforeMidnight.json().verification.issuedAtUnixMs).toBe('1778817570000');
+    expect(afterMidnight.json().verification.issuedAtUnixMs).toBe('1778817630000');
+    expect(weatherClient.getYesterdayVerification).toHaveBeenCalledTimes(2);
 
     await app.close();
   });
