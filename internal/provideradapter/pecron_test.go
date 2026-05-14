@@ -1,23 +1,32 @@
 package provideradapter
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/pecron"
+	valkey "github.com/valkey-io/valkey-go"
 )
 
 type fakePecronClient struct {
-	loginEmail    string
-	loginPassword string
-	devices       []pecron.Device
-	kv            map[string]any
-	err           error
+	loginEmail       string
+	loginPassword    string
+	loginCalls       int
+	listDevicesCalls int
+	devices          []pecron.Device
+	kv               map[string]any
+	err              error
 }
 
 func (f *fakePecronClient) Login(_ context.Context, email, password string) (pecron.Session, error) {
+	f.loginCalls++
 	f.loginEmail = email
 	f.loginPassword = password
 	if f.err != nil {
@@ -27,6 +36,7 @@ func (f *fakePecronClient) Login(_ context.Context, email, password string) (pec
 }
 
 func (f *fakePecronClient) ListDevices(context.Context, pecron.Session) ([]pecron.Device, error) {
+	f.listDevicesCalls++
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -169,6 +179,95 @@ func TestPecronAdapterMQTTSessionCarriesRegionBrokerFallbacks(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("broker addresses = %#v, want %#v", got, want)
+		}
+	}
+}
+
+func TestPecronAdapterMQTTSessionUsesEncryptedSharedCache(t *testing.T) {
+	t.Parallel()
+
+	server := miniredis.RunT(t)
+	valkeyClient, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress:  []string{server.Addr()},
+		DisableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("new valkey client: %v", err)
+	}
+	t.Cleanup(valkeyClient.Close)
+	keyring, err := valkeycache.NewKeyring("v1", map[string][]byte{"v1": bytes.Repeat([]byte{0x42}, 32)})
+	if err != nil {
+		t.Fatalf("new keyring: %v", err)
+	}
+	clock := time.Date(2026, time.May, 14, 12, 0, 0, 0, time.UTC)
+	cacheClient, err := valkeycache.New(valkeyClient, valkeycache.Options{
+		Prefix:    "pulse",
+		Namespace: "provider-mqtt-session",
+		Keyring:   keyring,
+		Now:       func() time.Time { return clock },
+	})
+	if err != nil {
+		t.Fatalf("new cache client: %v", err)
+	}
+	sessionCache := NewMQTTSessionCache(cacheClient, MQTTSessionCacheConfig{
+		IdleTTL:  time.Minute,
+		MaxAge:   time.Hour,
+		LocalTTL: time.Second,
+		Now:      func() time.Time { return clock },
+	})
+
+	client := &fakePecronClient{
+		devices: []pecron.Device{{
+			ProductKey:  pecron.ProductKeyE1000LFP,
+			DeviceKey:   "aabbccddeeff",
+			DeviceName:  "Garage Pecron",
+			ProductName: "E1000LFP",
+			Online:      true,
+		}},
+	}
+	adapter := NewPecronAdapter(PecronAdapterConfig{
+		ClientFactory:    StaticPecronClientFactory(client),
+		MQTTSessionCache: sessionCache,
+		Now:              func() time.Time { return clock },
+	})
+	credential := controlplane.ProviderCredential{
+		ID:        "cred-1",
+		Provider:  controlplane.ProviderPecron,
+		AccessKey: "owner@example.test",
+		SecretKey: "password",
+		Config:    map[string]any{"region": "us"},
+		IsActive:  true,
+	}
+
+	first, err := adapter.MQTTSession(context.Background(), credential, "p11vxg:aabbccddeeff")
+	if err != nil {
+		t.Fatalf("first MQTTSession() error = %v", err)
+	}
+	if client.loginCalls != 1 || client.listDevicesCalls != 1 {
+		t.Fatalf("provider calls after first session: login=%d list=%d, want 1/1", client.loginCalls, client.listDevicesCalls)
+	}
+	clock = clock.Add(time.Second)
+	client.err = errors.New("provider should not be called after encrypted session cache warmup")
+	second, err := adapter.MQTTSession(context.Background(), credential, "p11vxg:aabbccddeeff")
+	if err != nil {
+		t.Fatalf("second MQTTSession() error = %v", err)
+	}
+	if client.loginCalls != 1 || client.listDevicesCalls != 1 {
+		t.Fatalf("provider calls after cache hit: login=%d list=%d, want 1/1", client.loginCalls, client.listDevicesCalls)
+	}
+	if second.Token != first.Token {
+		t.Fatalf("cached token = %q, want %q", second.Token, first.Token)
+	}
+	if second.ClientID == first.ClientID {
+		t.Fatalf("cached MQTT client ID was not refreshed: %q", second.ClientID)
+	}
+	for _, key := range server.Keys() {
+		raw, err := server.Get(key)
+		if err != nil {
+			t.Fatalf("miniredis get %q: %v", key, err)
+		}
+		if strings.Contains(raw, first.Token) {
+			t.Fatalf("cache key %q stored plaintext provider token: %q", key, raw)
 		}
 	}
 }

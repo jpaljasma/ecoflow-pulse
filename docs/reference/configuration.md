@@ -72,6 +72,18 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH` (default `270s`; refresh cadence before the trigger expires)
 - `INGEST_QUOTA_METRICS_INTERVAL` (default `30s`; jittered aggregate quota refresh metrics log interval, set `0` to disable)
 - `INGEST_MQTT_CLIENT_ID_NAMESPACE` (optional; overrides the environment namespace used when deriving steady-state EcoFlow MQTT client IDs; defaults to `PULSE_ENV`)
+- `PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX` (default `pulse:provider-mqtt-session`; shared Valkey cache key prefix for encrypted provider MQTT session/certification material)
+- `PROVIDER_MQTT_SESSION_CACHE_IDLE_TTL` (default `30m`; sliding idle TTL for encrypted provider MQTT session material)
+- `PROVIDER_MQTT_SESSION_CACHE_MAX_AGE` (default `6h`; conservative hard cap when the provider does not return an explicit expiry)
+- `PROVIDER_MQTT_SESSION_CACHE_LOCAL_TTL` (default `5s`; valkey-go client-side-cache TTL for provider-session cache reads)
+
+Shared Go Valkey cache knobs:
+
+- `VALKEY_CACHE_CLIENT_SIDE_CACHE_ENABLED` (default `true` for shared cache clients; legacy lease/script clients still keep valkey-go client-side caching disabled)
+- `VALKEY_CACHE_SIZE_EACH_CONN` (optional bytes; valkey-go client-side-cache size per connection, default library behavior when empty)
+- `VALKEY_CACHE_CLIENT_TRACKING_OPTIONS` (default `OPTIN`; passed to valkey-go client tracking for cache clients)
+- `VALKEY_CACHE_ENCRYPTION_KEY_ID` (required with `VALKEY_CACHE_ENCRYPTION_KEYS` before sensitive provider-session caching is enabled)
+- `VALKEY_CACHE_ENCRYPTION_KEYS` (secret; comma-separated `key-id:base64-aes-key` entries; provider-session caching is bypassed when unset)
 
 ## Server Runtime
 
@@ -116,6 +128,10 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`; Valkey device-insight read-model key prefix)
+- `INFERENCE_ENERGY_COMPARISON_CACHE_LOCAL_TTL` (default `30s`; valkey-go local TTL for energy-comparison cache reads)
+- `ENERGY_CACHE_KEY_PREFIX` (default `pulse:energy`; Valkey cache key prefix for EnergyService calendar/PV history caches)
+- `ENERGY_CALENDAR_CACHE_LOCAL_TTL` (default `5s`; valkey-go local TTL for EnergyService calendar cache reads)
+- `ENERGY_PV_PORT_HISTORY_CACHE_LOCAL_TTL` (default `5s`; valkey-go local TTL for EnergyService PV-port history cache reads)
 - `SOLAR_FORECAST_VERIFICATION_INTERVAL` (default `15m`; when `> 0`, the solar verifier processes matured issued hourly rows on each pass)
 - `SOLAR_FORECAST_VERIFICATION_BATCH_LIMIT` (default `1536`; max number of pending solar hourly records the verification loop will process per pass)
 - `WEATHER_HOT_CACHE_TTL` (default `4h`; the canonical hot-cache and snapshot freshness window for weather reads)
@@ -352,6 +368,8 @@ Operational rule:
 - `VALKEY_PASSWORD` (optional)
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`)
 - `INFERENCE_CONTEXT_CACHE_TTL` (default `1m`; control-plane device-context cache TTL)
+- `INFERENCE_CONTEXT_CACHE_LOCAL_TTL` (default `10s`; valkey-go local TTL for inference control-plane device-context cache reads)
+- `INFERENCE_ENERGY_COMPARISON_CACHE_LOCAL_TTL` (default `30s`; valkey-go local TTL for energy-comparison cache reads when the inference store is used as a cache)
 - `TELEMETRY_SUBJECT_PREFIX`
 - `TELEMETRY_SHARD_COUNT`
 - `INFERENCE_INGEST_STREAM_NAME` (default `PULSE_TELEMETRY_INGEST`)

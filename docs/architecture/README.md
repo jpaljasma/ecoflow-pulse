@@ -131,7 +131,9 @@ The control plane uses provider-aware entities while keeping ownership primitive
 ### Technology choices (locked)
 - **Cloud / K8s:** **GKE** (region **us-east1**) first, portable to EKS later
 - **Streaming / queue:** **NATS JetStream**
-- **Live cache:** **Valkey** (Redis-compatible) in **replication + Sentinel** mode
+- **Live cache runtime:** **Valkey** (Redis-compatible) in **replication + Sentinel** mode
+- **Shared cache substrate:** canonical keys, envelopes, compression, encryption,
+  tag invalidation, and cache metrics as defined in ADR-0028
 - **Control-plane DB:** **Postgres** (CloudNativePG operator)
 - **Telemetry rollups/history v1:** **TimescaleDB** (Postgres extension)
 - **Raw archive + replay source of truth:** object storage, **protobuf + zstd**
@@ -163,6 +165,8 @@ The control plane uses provider-aware entities while keeping ownership primitive
 ### Why Valkey
 - Open-source posture and compatibility with Redis OSS clients.
 - Keeps cost/ops simple for v1 with a clean swap path to hosted caches later.
+- Cache behavior and Valkey runtime are intentionally split in ADR-0028 and
+  ADR-0029 so future backend changes do not rewrite service-level cache policy.
 
 ---
 

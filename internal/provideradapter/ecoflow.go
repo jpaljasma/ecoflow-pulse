@@ -69,6 +69,7 @@ type EcoFlowAdapter struct {
 	provider      string
 	factory       EcoFlowClientFactory
 	mqttTLSConfig *tls.Config
+	sessionCache  *MQTTSessionCache
 }
 
 func NewEcoFlowAdapter(factory EcoFlowClientFactory) *EcoFlowAdapter {
@@ -87,6 +88,12 @@ func NewEcoFlowCompatibleAdapter(
 		provider:      controlplane.NormalizeProvider(provider),
 		factory:       factory,
 		mqttTLSConfig: cloneTLSConfig(mqttTLSConfig),
+	}
+}
+
+func (a *EcoFlowAdapter) SetMQTTSessionCache(cache *MQTTSessionCache) {
+	if a != nil {
+		a.sessionCache = cache
 	}
 }
 
@@ -128,6 +135,12 @@ func (a *EcoFlowAdapter) DiscoverDevices(ctx context.Context, credential control
 }
 
 func (a *EcoFlowAdapter) GetMQTTCertification(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string) (ecoflow.GeneralInfoMQTTCertification, error) {
+	if err := a.validateCredential(credential); err != nil {
+		return ecoflow.GeneralInfoMQTTCertification{}, err
+	}
+	if cached, ok := a.sessionCache.GetEcoFlowCertification(ctx, a.providerName(), credential, providerDeviceID); ok {
+		return cached, nil
+	}
 	generalInfo, err := a.generalInfoForCredential(credential)
 	if err != nil {
 		return ecoflow.GeneralInfoMQTTCertification{}, err
@@ -146,6 +159,7 @@ func (a *EcoFlowAdapter) GetMQTTCertification(ctx context.Context, credential co
 		strings.TrimSpace(cert.Port) == "" {
 		return ecoflow.GeneralInfoMQTTCertification{}, ErrInvalidMQTTCertification
 	}
+	a.sessionCache.PutEcoFlowCertification(ctx, a.providerName(), credential, providerDeviceID, cert)
 	return cert, nil
 }
 
@@ -202,23 +216,30 @@ func BuildMQTTAddressAndTopic(
 }
 
 func (a *EcoFlowAdapter) generalInfoForCredential(credential controlplane.ProviderCredential) (EcoFlowGeneralInfo, error) {
-	if controlplane.NormalizeProvider(credential.Provider) != a.providerName() {
-		return nil, ErrUnsupportedProvider
-	}
-	if !credential.IsActive {
-		return nil, ErrInactiveCredential
+	if err := a.validateCredential(credential); err != nil {
+		return nil, err
 	}
 	accessKey := strings.TrimSpace(credential.AccessKey)
 	secretKey := strings.TrimSpace(credential.SecretKey)
-	if accessKey == "" || secretKey == "" {
-		return nil, ErrMissingCredentialMaterial
-	}
 
 	client, err := a.factory.NewClient(accessKey, secretKey)
 	if err != nil {
 		return nil, fmt.Errorf("create ecoflow adapter client: %w", err)
 	}
 	return client.GeneralInfo(), nil
+}
+
+func (a *EcoFlowAdapter) validateCredential(credential controlplane.ProviderCredential) error {
+	if controlplane.NormalizeProvider(credential.Provider) != a.providerName() {
+		return ErrUnsupportedProvider
+	}
+	if !credential.IsActive {
+		return ErrInactiveCredential
+	}
+	if strings.TrimSpace(credential.AccessKey) == "" || strings.TrimSpace(credential.SecretKey) == "" {
+		return ErrMissingCredentialMaterial
+	}
+	return nil
 }
 
 func mapEcoFlowDevice(device ecoflow.GeneralInfoDevice, credentialID string, provider string) (controlplane.ProviderDevice, bool) {

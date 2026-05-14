@@ -32,6 +32,7 @@ type AnkerSolixAdapterConfig struct {
 	ClientFactory         AnkerSolixClientFactory
 	MQTTSubscriberFactory ankerSolixMQTTSubscriberFactory
 	DecodeMQTTMessage     AnkerSolixMessageDecoder
+	MQTTSessionCache      *MQTTSessionCache
 	Now                   func() time.Time
 }
 
@@ -39,6 +40,7 @@ type AnkerSolixAdapter struct {
 	factory       AnkerSolixClientFactory
 	newSubscriber ankerSolixMQTTSubscriberFactory
 	decodeMQTT    AnkerSolixMessageDecoder
+	sessionCache  *MQTTSessionCache
 	now           func() time.Time
 }
 
@@ -99,12 +101,19 @@ func NewAnkerSolixAdapter(cfg AnkerSolixAdapterConfig) *AnkerSolixAdapter {
 		factory:       cfg.ClientFactory,
 		newSubscriber: cfg.MQTTSubscriberFactory,
 		decodeMQTT:    cfg.DecodeMQTTMessage,
+		sessionCache:  cfg.MQTTSessionCache,
 		now:           cfg.Now,
 	}
 }
 
 func NewRuntimeAnkerSolixAdapter() (*AnkerSolixAdapter, error) {
 	return NewAnkerSolixAdapter(AnkerSolixAdapterConfig{}), nil
+}
+
+func (a *AnkerSolixAdapter) SetMQTTSessionCache(cache *MQTTSessionCache) {
+	if a != nil {
+		a.sessionCache = cache
+	}
 }
 
 func (a *AnkerSolixAdapter) DiscoverDevices(ctx context.Context, credential controlplane.ProviderCredential) ([]controlplane.ProviderDevice, error) {
@@ -160,6 +169,12 @@ func (a *AnkerSolixAdapter) MQTTSession(
 	credential controlplane.ProviderCredential,
 	providerDeviceID string,
 ) (AnkerSolixMQTTSession, error) {
+	if err := validateAnkerSolixCredential(credential); err != nil {
+		return AnkerSolixMQTTSession{}, err
+	}
+	if cached, ok := a.sessionCache.GetAnkerSolix(ctx, credential, providerDeviceID); ok {
+		return cached, nil
+	}
 	client, session, cfg, err := a.sessionForCredential(ctx, credential)
 	if err != nil {
 		return AnkerSolixMQTTSession{}, err
@@ -183,7 +198,9 @@ func (a *AnkerSolixAdapter) MQTTSession(
 	if err != nil {
 		return AnkerSolixMQTTSession{}, err
 	}
-	return newAnkerSolixMQTTSession(info, ref, tlsConfig), nil
+	mqttSession := newAnkerSolixMQTTSession(info, ref, tlsConfig)
+	a.sessionCache.PutAnkerSolix(ctx, credential, providerDeviceID, mqttSession)
+	return mqttSession, nil
 }
 
 func (a *AnkerSolixAdapter) ProbeMQTT(
@@ -273,17 +290,11 @@ func (a *AnkerSolixAdapter) sessionForCredential(
 	ctx context.Context,
 	credential controlplane.ProviderCredential,
 ) (ankerSolixCloudClient, ankersolix.Session, ankersolix.Config, error) {
-	if controlplane.NormalizeProvider(credential.Provider) != controlplane.ProviderAnkerSolix {
-		return nil, ankersolix.Session{}, ankersolix.Config{}, ErrUnsupportedProvider
-	}
-	if !credential.IsActive {
-		return nil, ankersolix.Session{}, ankersolix.Config{}, ErrInactiveCredential
+	if err := validateAnkerSolixCredential(credential); err != nil {
+		return nil, ankersolix.Session{}, ankersolix.Config{}, err
 	}
 	email := strings.TrimSpace(credential.AccessKey)
 	password := strings.TrimSpace(credential.SecretKey)
-	if email == "" || password == "" {
-		return nil, ankersolix.Session{}, ankersolix.Config{}, ErrMissingCredentialMaterial
-	}
 	cfg, err := ankersolix.ResolveConfig(
 		configString(credential.Config, "server", string(ankersolix.ServerCOM)),
 		configString(credential.Config, "country", "US"),
@@ -303,6 +314,19 @@ func (a *AnkerSolixAdapter) sessionForCredential(
 		return nil, ankersolix.Session{}, ankersolix.Config{}, errors.New("anker solix login returned empty auth token")
 	}
 	return client, session, cfg, nil
+}
+
+func validateAnkerSolixCredential(credential controlplane.ProviderCredential) error {
+	if controlplane.NormalizeProvider(credential.Provider) != controlplane.ProviderAnkerSolix {
+		return ErrUnsupportedProvider
+	}
+	if !credential.IsActive {
+		return ErrInactiveCredential
+	}
+	if strings.TrimSpace(credential.AccessKey) == "" || strings.TrimSpace(credential.SecretKey) == "" {
+		return ErrMissingCredentialMaterial
+	}
+	return nil
 }
 
 func (a *AnkerSolixAdapter) describeDevice(

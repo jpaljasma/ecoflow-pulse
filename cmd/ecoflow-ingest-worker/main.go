@@ -20,6 +20,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 	"github.com/nats-io/nats.go"
@@ -102,12 +103,19 @@ func main() {
 		log.Error("init nats connection failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	mqttSessionCache, cleanupMQTTSessionCache, err := newProviderMQTTSessionCacheFromEnv(log)
+	if err != nil {
+		log.Error("init provider mqtt session cache failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer cleanupMQTTSessionCache()
 
 	adapter, err := provideradapter.NewRuntimeEcoFlowAdapter(log)
 	if err != nil {
 		log.Error("init ecoflow adapter failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	adapter.SetMQTTSessionCache(mqttSessionCache)
 	pulseMQTTAdapter, err := provideradapter.NewRuntimePulseMQTTAdapter(log)
 	if err != nil && !errors.Is(err, provideradapter.ErrPulseMQTTDisabled) {
 		log.Error("init pulse mqtt adapter failed", slog.String("error", err.Error()))
@@ -121,11 +129,13 @@ func main() {
 		log.Error("init pecron adapter failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	pecronAdapter.SetMQTTSessionCache(mqttSessionCache)
 	ankerSolixAdapter, err := provideradapter.NewRuntimeAnkerSolixAdapter()
 	if err != nil {
 		log.Error("init anker solix adapter failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	ankerSolixAdapter.SetMQTTSessionCache(mqttSessionCache)
 	subjectCfg := telemetrybus.SubjectConfig{
 		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
 		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
@@ -323,6 +333,59 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("ingest worker stopped")
+}
+
+func newProviderMQTTSessionCacheFromEnv(log *slog.Logger) (*provideradapter.MQTTSessionCache, func(), error) {
+	keyID := strings.TrimSpace(os.Getenv("VALKEY_CACHE_ENCRYPTION_KEY_ID"))
+	keySpec := strings.TrimSpace(os.Getenv("VALKEY_CACHE_ENCRYPTION_KEYS"))
+	if keyID == "" || keySpec == "" {
+		log.Info("provider mqtt session cache disabled", "reason", "VALKEY_CACHE_ENCRYPTION_KEY_ID or VALKEY_CACHE_ENCRYPTION_KEYS not set")
+		return nil, func() {}, nil
+	}
+	valkeyAddrs := runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_ADDRS", "127.0.0.1:6379"))
+	if len(valkeyAddrs) == 0 {
+		log.Info("provider mqtt session cache disabled", "reason", "VALKEY_ADDRS not set")
+		return nil, func() {}, nil
+	}
+	keyring, err := valkeycache.NewKeyringFromSpec(keyID, keySpec)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
+	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
+	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+	ingestlease.ConfigureClientSideCacheFromEnv(&cfg)
+	ingestlease.ConfigureSentinelFromEnv(&cfg)
+	client, err := ingestlease.NewValkeyClient(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	prefix, namespace := valkeycache.SplitKeyPrefix(runtimecfg.EnvOrDefault("PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX", "pulse:provider-mqtt-session"), "pulse", "provider-mqtt-session")
+	cacheClient, err := valkeycache.New(client, valkeycache.Options{
+		Prefix:          prefix,
+		Namespace:       namespace,
+		ContentType:     "application/json",
+		Keyring:         keyring,
+		Encrypt:         true,
+		DefaultLocalTTL: runtimecfg.DurationNonNegative("PROVIDER_MQTT_SESSION_CACHE_LOCAL_TTL", 5*time.Second),
+		Now:             time.Now,
+	})
+	if err != nil {
+		client.Close()
+		return nil, nil, err
+	}
+	cache := provideradapter.NewMQTTSessionCache(cacheClient, provideradapter.MQTTSessionCacheConfig{
+		IdleTTL:  runtimecfg.DurationPositive("PROVIDER_MQTT_SESSION_CACHE_IDLE_TTL", 30*time.Minute),
+		MaxAge:   runtimecfg.DurationPositive("PROVIDER_MQTT_SESSION_CACHE_MAX_AGE", 6*time.Hour),
+		LocalTTL: runtimecfg.DurationNonNegative("PROVIDER_MQTT_SESSION_CACHE_LOCAL_TTL", 5*time.Second),
+		Now:      time.Now,
+	})
+	log.Info("provider mqtt session cache enabled",
+		"valkey_addrs", strings.Join(valkeyAddrs, ","),
+		"key_prefix", runtimecfg.EnvOrDefault("PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX", "pulse:provider-mqtt-session"),
+		"client_side_cache_enabled", cfg.ClientSideCacheEnabled,
+	)
+	return cache, func() { client.Close() }, nil
 }
 
 type controlPlaneSchemaValidator interface {

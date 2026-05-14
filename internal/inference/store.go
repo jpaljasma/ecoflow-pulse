@@ -9,10 +9,12 @@ import (
 	"time"
 
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	valkey "github.com/valkey-io/valkey-go"
 )
 
 const defaultKeyPrefix = "pulse:inference"
+const defaultEnergyComparisonLocalTTL = 30 * time.Second
 
 type Identity struct {
 	DeviceID  string
@@ -51,8 +53,9 @@ type ReadModel struct {
 }
 
 type ValkeyStoreConfig struct {
-	KeyPrefix string
-	NowFn     func() time.Time
+	KeyPrefix                string
+	EnergyComparisonLocalTTL time.Duration
+	NowFn                    func() time.Time
 }
 
 func DefaultValkeyStoreConfig() ValkeyStoreConfig {
@@ -69,9 +72,10 @@ type Store interface {
 }
 
 type ValkeyStore struct {
-	client    valkey.Client
-	keyPrefix string
-	nowFn     func() time.Time
+	client                valkey.Client
+	keyPrefix             string
+	energyComparisonCache *valkeycache.Client
+	nowFn                 func() time.Time
 }
 
 func NewValkeyStore(client valkey.Client, cfg ValkeyStoreConfig) (*ValkeyStore, error) {
@@ -84,10 +88,15 @@ func NewValkeyStore(client valkey.Client, cfg ValkeyStoreConfig) (*ValkeyStore, 
 	if cfg.NowFn == nil {
 		cfg.NowFn = time.Now
 	}
+	energyCache, err := newEnergyComparisonCache(client, cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &ValkeyStore{
-		client:    client,
-		keyPrefix: strings.TrimSpace(cfg.KeyPrefix),
-		nowFn:     cfg.NowFn,
+		client:                client,
+		keyPrefix:             strings.TrimSpace(cfg.KeyPrefix),
+		energyComparisonCache: energyCache,
+		nowFn:                 cfg.NowFn,
 	}, nil
 }
 

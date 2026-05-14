@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 )
 
 type DeviceContextResolver interface {
@@ -15,6 +16,7 @@ type DeviceContextResolver interface {
 
 type ControlPlaneResolverConfig struct {
 	CacheTTL time.Duration
+	Cache    *valkeycache.Client
 	NowFn    func() time.Time
 }
 
@@ -28,6 +30,7 @@ func DefaultControlPlaneResolverConfig() ControlPlaneResolverConfig {
 type ControlPlaneResolver struct {
 	store    controlplane.Store
 	cacheTTL time.Duration
+	valkey   *valkeycache.Client
 	nowFn    func() time.Time
 
 	mu    sync.RWMutex
@@ -52,6 +55,7 @@ func NewControlPlaneResolver(store controlplane.Store, cfg ControlPlaneResolverC
 	return &ControlPlaneResolver{
 		store:    store,
 		cacheTTL: cfg.CacheTTL,
+		valkey:   cfg.Cache,
 		nowFn:    cfg.NowFn,
 		cache:    map[string]resolverCacheEntry{},
 	}, nil
@@ -65,6 +69,13 @@ func (r *ControlPlaneResolver) ResolveDeviceContext(ctx context.Context, deviceI
 		return cloneDeviceContext(entry.device), nil
 	}
 	r.mu.RUnlock()
+	if r.valkey != nil {
+		var cached DeviceContext
+		ok, err := r.valkey.GetJSON(ctx, r.valkey.Key("device-context", "device_id="+deviceID), &cached, valkeycache.ReadOptions{})
+		if err == nil && ok {
+			return cloneDeviceContext(cached), nil
+		}
+	}
 
 	row, err := r.store.GetProviderDeviceByDeviceID(ctx, deviceID)
 	if err != nil {
@@ -84,5 +95,8 @@ func (r *ControlPlaneResolver) ResolveDeviceContext(ctx context.Context, deviceI
 		expiresAt: now.Add(r.cacheTTL),
 	}
 	r.mu.Unlock()
+	if r.valkey != nil {
+		_ = r.valkey.SetJSON(ctx, r.valkey.Key("device-context", "device_id="+deviceID), device, valkeycache.SetOptions{TTL: r.cacheTTL})
+	}
 	return device, nil
 }

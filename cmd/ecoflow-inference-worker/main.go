@@ -7,12 +7,14 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/inference"
 	"github.com/jpaljasma/ecoflow-pulse/internal/ingestlease"
 	"github.com/jpaljasma/ecoflow-pulse/internal/startupretry"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
@@ -56,6 +58,7 @@ func main() {
 	valkeyCfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	valkeyCfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	valkeyCfg.Password = os.Getenv("VALKEY_PASSWORD")
+	ingestlease.ConfigureClientSideCacheFromEnv(&valkeyCfg)
 	ingestlease.ConfigureSentinelFromEnv(&valkeyCfg)
 	client, err := startupretry.Retry(context.Background(), log, "inference valkey client", startupretry.DefaultOptions(), func(_ context.Context) (valkey.Client, error) {
 		return ingestlease.NewValkeyClient(valkeyCfg)
@@ -67,14 +70,28 @@ func main() {
 	defer client.Close()
 
 	store, err := inference.NewValkeyStore(client, inference.ValkeyStoreConfig{
-		KeyPrefix: runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference"),
+		KeyPrefix:                runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference"),
+		EnergyComparisonLocalTTL: runtimecfg.DurationNonNegative("INFERENCE_ENERGY_COMPARISON_CACHE_LOCAL_TTL", 30*time.Second),
 	})
 	if err != nil {
 		log.Error("init inference store failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
+	contextCachePrefix, contextCacheNamespace := valkeycache.SplitKeyPrefix(runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference"), "pulse", "inference")
+	contextCache, err := valkeycache.New(client, valkeycache.Options{
+		Prefix:          contextCachePrefix,
+		Namespace:       contextCacheNamespace + "-device-context",
+		ContentType:     "application/json",
+		DefaultLocalTTL: runtimecfg.DurationNonNegative("INFERENCE_CONTEXT_CACHE_LOCAL_TTL", 10*time.Second),
+		Now:             time.Now,
+	})
+	if err != nil {
+		log.Error("init inference context valkey cache failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	resolver, err := inference.NewControlPlaneResolver(controlPlaneStore, inference.ControlPlaneResolverConfig{
 		CacheTTL: runtimecfg.DurationPositive("INFERENCE_CONTEXT_CACHE_TTL", inference.DefaultControlPlaneResolverConfig().CacheTTL),
+		Cache:    contextCache,
 	})
 	if err != nil {
 		log.Error("init inference resolver failed", slog.String("error", err.Error()))

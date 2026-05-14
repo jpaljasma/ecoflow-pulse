@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/budget"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/store"
+	valkey "github.com/valkey-io/valkey-go"
 )
 
 type fakeUpstream struct {
@@ -224,6 +226,66 @@ func TestGet7DayForecastServesFreshHotCache(t *testing.T) {
 		t.Fatalf("forecast calls = %d, want 0", upstream.forecastCalls)
 	}
 	assertClose(t, value(got.Hourly[0].Raw.Temperature), 9)
+}
+
+func TestGet7DayForecastUsesSharedValkeyHotCacheAcrossServices(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
+	server := miniredis.RunT(t)
+	snapshots := store.NewMemorySnapshotStore(func() time.Time { return now })
+	req := weatherd.Request{
+		Latitude:   42.6,
+		Longitude:  -77.4,
+		UnitSystem: weatherd.UnitSystemMetric,
+		Timezone:   "UTC",
+	}
+	firstUpstream := &fakeUpstream{
+		forecast: sampleBundle(now, "", []time.Time{now}, []float64{21}),
+	}
+	firstSvc, err := weatherd.NewService(
+		firstUpstream,
+		newValkeyHotCacheForWeatherTest(t, server, func() time.Time { return now }),
+		snapshots,
+		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
+		weatherd.Config{HotTTL: time.Hour, NowFn: func() time.Time { return now }},
+	)
+	if err != nil {
+		t.Fatalf("first NewService() error = %v", err)
+	}
+	first, err := firstSvc.Get7DayForecast(context.Background(), req)
+	if err != nil {
+		t.Fatalf("first Get7DayForecast() error = %v", err)
+	}
+	if firstUpstream.forecastCalls != 1 {
+		t.Fatalf("first upstream forecast calls = %d, want 1", firstUpstream.forecastCalls)
+	}
+	if first.Provenance.CanonicalLocationKey == "" {
+		t.Fatal("expected first forecast to establish a canonical cache key")
+	}
+
+	secondUpstream := &fakeUpstream{}
+	secondSvc, err := weatherd.NewService(
+		secondUpstream,
+		newValkeyHotCacheForWeatherTest(t, server, func() time.Time { return now.Add(time.Minute) }),
+		snapshots,
+		budget.New(budget.Config{DailyLimit: 0, PerMinuteLimit: 0, NowFn: func() time.Time { return now.Add(time.Minute) }}),
+		weatherd.Config{HotTTL: time.Hour, NowFn: func() time.Time { return now.Add(time.Minute) }},
+	)
+	if err != nil {
+		t.Fatalf("second NewService() error = %v", err)
+	}
+	second, err := secondSvc.Get7DayForecast(context.Background(), req)
+	if err != nil {
+		t.Fatalf("second Get7DayForecast() error = %v", err)
+	}
+	if secondUpstream.forecastCalls != 0 {
+		t.Fatalf("second upstream forecast calls = %d, want 0", secondUpstream.forecastCalls)
+	}
+	if second.Provenance.CanonicalLocationKey != first.Provenance.CanonicalLocationKey {
+		t.Fatalf("cached canonical key = %q, want %q", second.Provenance.CanonicalLocationKey, first.Provenance.CanonicalLocationKey)
+	}
+	assertClose(t, value(second.Hourly[0].Raw.Temperature), 21)
 }
 
 func TestGetYesterdayVerificationFallsBackToPreviousRuns(t *testing.T) {
@@ -498,6 +560,24 @@ func cloneBundleForTest(in *weatherd.Bundle) *weatherd.Bundle {
 	out.Hourly = append([]weatherd.HourlyForecastPoint(nil), in.Hourly...)
 	out.Daily = append([]weatherd.DailyForecastPoint(nil), in.Daily...)
 	return &out
+}
+
+func newValkeyHotCacheForWeatherTest(t *testing.T, server *miniredis.Miniredis, nowFn func() time.Time) *store.ValkeyHotCache {
+	t.Helper()
+
+	client, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress:  []string{server.Addr()},
+		DisableCache: true,
+	})
+	if err != nil {
+		t.Fatalf("new valkey client: %v", err)
+	}
+	t.Cleanup(client.Close)
+	cache, err := store.NewValkeyHotCache(client, "pulse:weather", nowFn)
+	if err != nil {
+		t.Fatalf("new valkey hot cache: %v", err)
+	}
+	return cache
 }
 
 func value(v *float64) float64 {
