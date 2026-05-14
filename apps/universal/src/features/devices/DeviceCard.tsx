@@ -28,6 +28,7 @@ import { useThemeSemantics } from '@/shared/theme/semantic';
 import { IconLabel } from '@/shared/ui/IconLabel';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
+import { resolveDeviceSocPct } from '@/features/devices/soc';
 
 function connectivityGlyph(
   snapshot: DeviceSnapshot | undefined,
@@ -71,6 +72,7 @@ export function DeviceCard({
   const isTabletUp = width >= 768;
   const isDesktopWide = width >= 1200;
   const metrics = snapshot?.metrics;
+  const socPct = resolveDeviceSocPct({ device, snapshot });
   const pvW = metrics?.pvW ?? device.pvW;
   const acInW = metrics?.acW ?? device.acInW;
   const dcW = metrics?.dcW ?? device.dcW;
@@ -311,7 +313,7 @@ export function DeviceCard({
               {stormGuardLabel ? <StormGuardChip label={stormGuardLabel} /> : null}
 
               <YStack gap="$2">
-                <SocBar value={metrics?.soc ?? device.batteryPct} />
+                <SocBar value={socPct} />
                 <MetricsGrid items={metricItems} columns={3} />
               </YStack>
 
