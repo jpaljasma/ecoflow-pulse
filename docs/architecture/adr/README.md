@@ -30,6 +30,7 @@
 - [ADR-0024-solar-generation-forecast-service-energy-truth-weather-features-and-site-learning.md](./ADR-0024-solar-generation-forecast-service-energy-truth-weather-features-and-site-learning.md)
 - [ADR-0025-background-worker-rollout-drain-contract.md](./ADR-0025-background-worker-rollout-drain-contract.md)
 - [ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md](./ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md)
+- [ADR-0027-valkey-cache-layer-keying-compression-encryption-and-invalidation.md](./ADR-0027-valkey-cache-layer-keying-compression-encryption-and-invalidation.md)
 ---
 
 ## How to add an ADR

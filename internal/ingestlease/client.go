@@ -49,6 +49,10 @@ type ValkeyClientConfig struct {
 	BlockingPoolSize    int
 	BlockingPoolCleanup time.Duration
 
+	ClientSideCacheEnabled bool
+	CacheSizeEachConn      int
+	ClientTrackingOptions  []string
+
 	DisableRetry bool
 	RetryDelay   valkey.RetryDelayFn
 }
@@ -73,8 +77,16 @@ func DefaultValkeyClientConfig(initAddresses []string) ValkeyClientConfig {
 
 // NewValkeyClient constructs a cluster-aware valkey-go client.
 func NewValkeyClient(cfg ValkeyClientConfig) (valkey.Client, error) {
+	opt, err := buildValkeyClientOption(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return valkey.NewClient(opt)
+}
+
+func buildValkeyClientOption(cfg ValkeyClientConfig) (valkey.ClientOption, error) {
 	if len(cfg.InitAddresses) == 0 {
-		return nil, fmt.Errorf("at least one valkey init address is required")
+		return valkey.ClientOption{}, fmt.Errorf("at least one valkey init address is required")
 	}
 
 	addrs := make([]string, 0, len(cfg.InitAddresses))
@@ -84,7 +96,7 @@ func NewValkeyClient(cfg ValkeyClientConfig) (valkey.Client, error) {
 		}
 	}
 	if len(addrs) == 0 {
-		return nil, fmt.Errorf("at least one non-empty valkey init address is required")
+		return valkey.ClientOption{}, fmt.Errorf("at least one non-empty valkey init address is required")
 	}
 
 	opt := valkey.ClientOption{
@@ -103,13 +115,17 @@ func NewValkeyClient(cfg ValkeyClientConfig) (valkey.Client, error) {
 		ShuffleInit:         true,
 		DisableRetry:        cfg.DisableRetry,
 		RetryDelay:          chooseRetryDelay(cfg.RetryDelay),
-		DisableCache:        true,
+		DisableCache:        !cfg.ClientSideCacheEnabled,
 		ClusterOption: valkey.ClusterOption{
 			ShardsRefreshInterval: chooseDuration(cfg.ShardsRefreshInterval, defaultClusterRefresh),
 			MaxMovedRedirections:  chooseInt(cfg.MaxMovedRedirects, defaultMovedRedirections),
 		},
 	}
-	return valkey.NewClient(opt)
+	if cfg.ClientSideCacheEnabled {
+		opt.CacheSizeEachConn = cfg.CacheSizeEachConn
+		opt.ClientTrackingOptions = append([]string(nil), cfg.ClientTrackingOptions...)
+	}
+	return opt, nil
 }
 
 func defaultClientRetryDelay() valkey.RetryDelayFn {

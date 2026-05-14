@@ -95,7 +95,7 @@ func TestEnergyComparisonKeyDeterministicAcrossDeviceOrder(t *testing.T) {
 	if a != b {
 		t.Fatalf("expected stable key across resolved-device ordering:\n%s\n%s", a, b)
 	}
-	if !strings.HasPrefix(a, defaultKeyPrefix+":{energy-comparison:") {
+	if !strings.HasPrefix(a, "pulse:inference-energy-comparison:{energy-comparison-all}:xxh3-128:") {
 		t.Fatalf("unexpected cache key format: %q", a)
 	}
 }

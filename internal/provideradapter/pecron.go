@@ -20,12 +20,14 @@ type PecronClientFactory interface {
 type PecronAdapterConfig struct {
 	ClientFactory         PecronClientFactory
 	MQTTSubscriberFactory pecronMQTTSubscriberFactory
+	MQTTSessionCache      *MQTTSessionCache
 	Now                   func() time.Time
 }
 
 type PecronAdapter struct {
 	factory       PecronClientFactory
 	newSubscriber pecronMQTTSubscriberFactory
+	sessionCache  *MQTTSessionCache
 	now           func() time.Time
 }
 
@@ -74,12 +76,19 @@ func NewPecronAdapter(cfg PecronAdapterConfig) *PecronAdapter {
 	return &PecronAdapter{
 		factory:       cfg.ClientFactory,
 		newSubscriber: cfg.MQTTSubscriberFactory,
+		sessionCache:  cfg.MQTTSessionCache,
 		now:           cfg.Now,
 	}
 }
 
 func NewRuntimePecronAdapter() (*PecronAdapter, error) {
 	return NewPecronAdapter(PecronAdapterConfig{}), nil
+}
+
+func (a *PecronAdapter) SetMQTTSessionCache(cache *MQTTSessionCache) {
+	if a != nil {
+		a.sessionCache = cache
+	}
 }
 
 func (a *PecronAdapter) DiscoverDevices(ctx context.Context, credential controlplane.ProviderCredential) ([]controlplane.ProviderDevice, error) {
@@ -148,6 +157,12 @@ func (a *PecronAdapter) MQTTSession(
 	credential controlplane.ProviderCredential,
 	providerDeviceID string,
 ) (pecron.MQTTSession, error) {
+	if err := validatePecronCredential(credential); err != nil {
+		return pecron.MQTTSession{}, err
+	}
+	if cached, ok := a.sessionCache.GetPecron(ctx, credential, providerDeviceID); ok {
+		return cached, nil
+	}
 	client, session, region, err := a.sessionForCredential(ctx, credential)
 	if err != nil {
 		return pecron.MQTTSession{}, err
@@ -164,14 +179,16 @@ func (a *PecronAdapter) MQTTSession(
 	if clientIDSeed == "" {
 		clientIDSeed = ref.DeviceKey
 	}
-	return pecron.MQTTSession{
+	mqttSession := pecron.MQTTSession{
 		Address:   region.MQTTAddress,
 		Addresses: region.MQTTBrokerAddresses(),
 		Path:      region.MQTTPath,
 		Token:     session.AccessToken,
 		ClientID:  fmt.Sprintf("qu_%s_%d", clientIDSeed, a.now().UTC().UnixMilli()),
 		Topics:    pecron.MQTTSubscribeTopics(ref),
-	}, nil
+	}
+	a.sessionCache.PutPecron(ctx, credential, providerDeviceID, mqttSession, clientIDSeed, session.ExpiresAt)
+	return mqttSession, nil
 }
 
 type MQTTProbeResult struct {
@@ -268,17 +285,11 @@ func (a *PecronAdapter) sessionForCredential(
 	ctx context.Context,
 	credential controlplane.ProviderCredential,
 ) (pecron.CloudClient, pecron.Session, pecron.RegionConfig, error) {
-	if controlplane.NormalizeProvider(credential.Provider) != controlplane.ProviderPecron {
-		return nil, pecron.Session{}, pecron.RegionConfig{}, ErrUnsupportedProvider
-	}
-	if !credential.IsActive {
-		return nil, pecron.Session{}, pecron.RegionConfig{}, ErrInactiveCredential
+	if err := validatePecronCredential(credential); err != nil {
+		return nil, pecron.Session{}, pecron.RegionConfig{}, err
 	}
 	email := strings.TrimSpace(credential.AccessKey)
 	password := strings.TrimSpace(credential.SecretKey)
-	if email == "" || password == "" {
-		return nil, pecron.Session{}, pecron.RegionConfig{}, ErrMissingCredentialMaterial
-	}
 	region, err := pecron.ResolveRegion(configString(credential.Config, "region", string(pecron.RegionUS)))
 	if err != nil {
 		return nil, pecron.Session{}, pecron.RegionConfig{}, err
@@ -295,6 +306,19 @@ func (a *PecronAdapter) sessionForCredential(
 		return nil, pecron.Session{}, pecron.RegionConfig{}, errors.New("pecron login returned empty access token")
 	}
 	return client, session, region, nil
+}
+
+func validatePecronCredential(credential controlplane.ProviderCredential) error {
+	if controlplane.NormalizeProvider(credential.Provider) != controlplane.ProviderPecron {
+		return ErrUnsupportedProvider
+	}
+	if !credential.IsActive {
+		return ErrInactiveCredential
+	}
+	if strings.TrimSpace(credential.AccessKey) == "" || strings.TrimSpace(credential.SecretKey) == "" {
+		return ErrMissingCredentialMaterial
+	}
+	return nil
 }
 
 func (a *PecronAdapter) describeDevice(

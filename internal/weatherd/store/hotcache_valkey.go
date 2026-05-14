@@ -2,20 +2,21 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd"
 	valkey "github.com/valkey-io/valkey-go"
 )
 
 const defaultHotCacheKeyPrefix = "pulse:weather"
+const defaultHotCacheLocalTTL = 5 * time.Second
 
 type ValkeyHotCache struct {
-	client    valkey.Client
+	cache     *valkeycache.Client
 	keyPrefix string
 	nowFn     func() time.Time
 }
@@ -30,24 +31,32 @@ func NewValkeyHotCache(client valkey.Client, keyPrefix string, nowFn func() time
 	if nowFn == nil {
 		nowFn = time.Now
 	}
+	prefix, namespace := splitCacheKeyPrefix(keyPrefix)
+	cache, err := valkeycache.New(client, valkeycache.Options{
+		Prefix:          prefix,
+		Namespace:       namespace,
+		ContentType:     "application/json",
+		DefaultLocalTTL: defaultHotCacheLocalTTL,
+		Now:             nowFn,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &ValkeyHotCache{
-		client:    client,
+		cache:     cache,
 		keyPrefix: strings.TrimSpace(keyPrefix),
 		nowFn:     nowFn,
 	}, nil
 }
 
 func (c *ValkeyHotCache) GetForecast(ctx context.Context, key string) (*weatherd.CachedBundle, error) {
-	raw, err := c.client.Do(ctx, c.client.B().Get().Key(c.hotKey(key)).Build()).ToString()
+	var out weatherd.CachedBundle
+	ok, err := c.cache.GetJSON(ctx, c.hotKey(key), &out, valkeycache.ReadOptions{})
 	if err != nil {
-		if errors.Is(err, valkey.Nil) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("read weather hot cache: %w", err)
 	}
-	var out weatherd.CachedBundle
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil, fmt.Errorf("decode weather hot cache: %w", err)
+	if !ok {
+		return nil, nil
 	}
 	return &out, nil
 }
@@ -59,21 +68,14 @@ func (c *ValkeyHotCache) PutForecast(ctx context.Context, key string, bundle wea
 		CachedAt:   now,
 		StaleAfter: now.Add(ttl),
 	}
-	encoded, err := json.Marshal(row)
-	if err != nil {
-		return fmt.Errorf("marshal weather hot cache: %w", err)
-	}
-	if err := c.client.Do(
-		ctx,
-		c.client.B().Set().Key(c.hotKey(key)).Value(valkey.BinaryString(encoded)).ExSeconds(int64(ttl.Seconds())).Build(),
-	).Error(); err != nil {
+	if err := c.cache.SetJSON(ctx, c.hotKey(key), row, valkeycache.SetOptions{TTL: ttl}); err != nil {
 		return fmt.Errorf("write weather hot cache: %w", err)
 	}
 	return nil
 }
 
 func (c *ValkeyHotCache) hotKey(key string) string {
-	return fmt.Sprintf("%s:{%s}:forecast", c.keyPrefix, sanitizeKeySegment(key))
+	return c.cache.Key(sanitizeKeySegment(key), "forecast")
 }
 
 func sanitizeKeySegment(in string) string {
@@ -82,4 +84,16 @@ func sanitizeKeySegment(in string) string {
 	clean = strings.ReplaceAll(clean, "}", "_")
 	clean = strings.ReplaceAll(clean, " ", "_")
 	return clean
+}
+
+func splitCacheKeyPrefix(keyPrefix string) (string, string) {
+	keyPrefix = strings.Trim(strings.TrimSpace(keyPrefix), ":")
+	if keyPrefix == "" {
+		keyPrefix = defaultHotCacheKeyPrefix
+	}
+	prefix, namespace, ok := strings.Cut(keyPrefix, ":")
+	if !ok {
+		return prefix, "weather"
+	}
+	return prefix, namespace
 }

@@ -20,6 +20,19 @@ data:
   NATS_URLS: {{ .Values.runtime.env.natsURLs | quote }}
   VALKEY_ADDRS: {{ .Values.runtime.env.valkeyAddrs | quote }}
   VALKEY_SENTINEL_MASTER_SET: {{ .Values.runtime.env.valkeySentinelMasterSet | quote }}
+  VALKEY_CACHE_CLIENT_SIDE_CACHE_ENABLED: {{ .Values.runtime.env.valkeyCacheClientSideCacheEnabled | quote }}
+  VALKEY_CACHE_SIZE_EACH_CONN: {{ .Values.runtime.env.valkeyCacheSizeEachConn | quote }}
+  VALKEY_CACHE_CLIENT_TRACKING_OPTIONS: {{ .Values.runtime.env.valkeyCacheClientTrackingOptions | quote }}
+  VALKEY_CACHE_ENCRYPTION_KEY_ID: {{ .Values.runtime.env.valkeyCacheEncryptionKeyID | quote }}
+  PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX: {{ .Values.runtime.env.providerMqttSessionCacheKeyPrefix | quote }}
+  PROVIDER_MQTT_SESSION_CACHE_IDLE_TTL: {{ .Values.runtime.env.providerMqttSessionCacheIdleTTL | quote }}
+  PROVIDER_MQTT_SESSION_CACHE_MAX_AGE: {{ .Values.runtime.env.providerMqttSessionCacheMaxAge | quote }}
+  PROVIDER_MQTT_SESSION_CACHE_LOCAL_TTL: {{ .Values.runtime.env.providerMqttSessionCacheLocalTTL | quote }}
+  ENERGY_CACHE_KEY_PREFIX: {{ .Values.runtime.env.energyCacheKeyPrefix | quote }}
+  ENERGY_CALENDAR_CACHE_LOCAL_TTL: {{ .Values.runtime.env.energyCalendarCacheLocalTTL | quote }}
+  ENERGY_PV_PORT_HISTORY_CACHE_LOCAL_TTL: {{ .Values.runtime.env.energyPvPortHistoryCacheLocalTTL | quote }}
+  INFERENCE_ENERGY_COMPARISON_CACHE_LOCAL_TTL: {{ .Values.runtime.env.inferenceEnergyComparisonCacheLocalTTL | quote }}
+  INFERENCE_CONTEXT_CACHE_LOCAL_TTL: {{ .Values.runtime.env.inferenceContextCacheLocalTTL | quote }}
   GRPC_AUTH_MODE: {{ .Values.runtime.env.grpcAuthMode | quote }}
   KEYCLOAK_ISSUER_URL: {{ .Values.runtime.env.keycloakIssuerUrl | quote }}
   KEYCLOAK_AUDIENCE: {{ .Values.runtime.env.keycloakAudience | quote }}
@@ -69,6 +82,7 @@ stringData:
   ARCHIVE_MANIFEST_DB_DSN: {{ .Values.runtime.env.archiveManifestDBDSN | quote }}
   ARCHIVE_OBJECT_ACCESS_KEY: {{ .Values.runtime.env.archiveObjectAccessKey | quote }}
   ARCHIVE_OBJECT_SECRET_KEY: {{ .Values.runtime.env.archiveObjectSecretKey | quote }}
+  VALKEY_CACHE_ENCRYPTION_KEYS: {{ .Values.runtime.env.valkeyCacheEncryptionKeys | quote }}
   PULSE_MQTT_EMULATOR_ACCESS_KEY: {{ .Values.runtime.env.pulseMqttEmulatorAccessKey | quote }}
   PULSE_MQTT_EMULATOR_SECRET_KEY: {{ .Values.runtime.env.pulseMqttEmulatorSecretKey | quote }}
   PULSE_MQTT_EMULATOR_MQTT_USERNAME: {{ .Values.runtime.env.pulseMqttEmulatorMQTTUsername | quote }}

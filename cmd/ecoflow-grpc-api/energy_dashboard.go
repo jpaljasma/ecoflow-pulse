@@ -15,6 +15,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrypayload"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -155,12 +156,12 @@ func (s *EnergyService) GetEnergyCalendar(ctx context.Context, req *telemetryv1.
 	now := s.now()
 	cacheKey, cacheable := energyCalendarCacheKey(now, scope, loc, int(req.GetYear()), int(req.GetMonth()), req.GetGridPricePerKwh(), req.GetCurrency())
 	if cacheable {
-		if cached := s.readCachedEnergyCalendar(cacheKey); cached != nil {
+		if cached := s.readCachedEnergyCalendar(ctx, cacheKey); cached != nil {
 			s.maybeEnableHistoryCompression(ctx, cached)
 			return cached, nil
 		}
 		value, err, _ := s.energyCalendarGroup.Do(cacheKey, func() (any, error) {
-			if cached := s.readCachedEnergyCalendar(cacheKey); cached != nil {
+			if cached := s.readCachedEnergyCalendar(ctx, cacheKey); cached != nil {
 				return cached, nil
 			}
 			resp, buildErr := s.buildEnergyCalendarResponse(ctx, req, scope, loc, now)
@@ -262,9 +263,23 @@ func energyCalendarCacheExpiresAt(now time.Time, loc *time.Location) time.Time {
 	return ttlExpiry
 }
 
-func (s *EnergyService) readCachedEnergyCalendar(key string) *telemetryv1.GetEnergyCalendarResponse {
+func (s *EnergyService) readCachedEnergyCalendar(ctx context.Context, key string) *telemetryv1.GetEnergyCalendarResponse {
 	if key == "" {
 		return nil
+	}
+	if s.energyCalendarValkey != nil {
+		cacheKey := s.energyCalendarValkey.Key("calendar", key)
+		raw, ok, err := s.energyCalendarValkey.GetBytes(ctx, cacheKey, valkeycache.ReadOptions{})
+		if err == nil && ok {
+			var out telemetryv1.GetEnergyCalendarResponse
+			unmarshalErr := proto.Unmarshal(raw, &out)
+			if unmarshalErr == nil {
+				return cloneEnergyCalendarResponse(&out)
+			}
+			s.log.Warn("energy calendar valkey cache decode failed", "error", unmarshalErr.Error())
+		} else if err != nil {
+			s.log.Warn("energy calendar valkey cache read failed", "error", err.Error())
+		}
 	}
 	now := s.now().UTC()
 	s.energyCalendarMu.Lock()
@@ -285,6 +300,20 @@ func (s *EnergyService) writeEnergyCalendarCache(key string, resp *telemetryv1.G
 		return
 	}
 	now := s.now().UTC()
+	if s.energyCalendarValkey != nil {
+		if ttl := expiresAt.UTC().Sub(now); ttl > 0 {
+			if encoded, err := proto.Marshal(resp); err != nil {
+				s.log.Warn("energy calendar valkey cache encode failed", "error", err.Error())
+			} else if err := s.energyCalendarValkey.SetBytes(
+				context.Background(),
+				s.energyCalendarValkey.Key("calendar", key),
+				encoded,
+				valkeycache.SetOptions{TTL: ttl, ContentType: "application/protobuf"},
+			); err != nil {
+				s.log.Warn("energy calendar valkey cache write failed", "error", err.Error())
+			}
+		}
+	}
 	s.energyCalendarMu.Lock()
 	defer s.energyCalendarMu.Unlock()
 	for existingKey, entry := range s.energyCalendarCache {
@@ -337,11 +366,11 @@ func energyCalendarResolutionForRange(now time.Time, loc *time.Location, from, t
 func (s *EnergyService) getCachedPVPortHistory(ctx context.Context, deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) ([]energydashboard.PVPortHistory, error) {
 	key := pvPortHistoryCacheKey(deviceIDs, resolution, from, to)
 	now := s.now()
-	if rows, ok := s.readPVPortHistoryCache(key, now); ok {
+	if rows, ok := s.readPVPortHistoryCache(ctx, key, now); ok {
 		return rows, nil
 	}
 	value, err, _ := s.pvPortHistoryGroup.Do(key, func() (any, error) {
-		if rows, ok := s.readPVPortHistoryCache(key, s.now()); ok {
+		if rows, ok := s.readPVPortHistoryCache(ctx, key, s.now()); ok {
 			return rows, nil
 		}
 		rows, err := s.queryScopePVPortHistory(ctx, deviceIDs, resolution, from, to)
@@ -358,7 +387,17 @@ func (s *EnergyService) getCachedPVPortHistory(ctx context.Context, deviceIDs []
 	return rows, nil
 }
 
-func (s *EnergyService) readPVPortHistoryCache(key string, now time.Time) ([]energydashboard.PVPortHistory, bool) {
+func (s *EnergyService) readPVPortHistoryCache(ctx context.Context, key string, now time.Time) ([]energydashboard.PVPortHistory, bool) {
+	if s.pvPortHistoryValkey != nil {
+		var rows []energydashboard.PVPortHistory
+		ok, err := s.pvPortHistoryValkey.GetJSON(ctx, s.pvPortHistoryValkey.Key("pv-port-history", key), &rows, valkeycache.ReadOptions{})
+		if err == nil && ok {
+			return clonePVPortHistoryRows(rows), true
+		}
+		if err != nil {
+			s.log.Warn("pv port history valkey cache read failed", "error", err.Error())
+		}
+	}
 	s.pvPortHistoryMu.Lock()
 	defer s.pvPortHistoryMu.Unlock()
 	entry, ok := s.pvPortHistoryCache[key]
@@ -369,12 +408,22 @@ func (s *EnergyService) readPVPortHistoryCache(key string, now time.Time) ([]ene
 		delete(s.pvPortHistoryCache, key)
 		return nil, false
 	}
-	rows := make([]energydashboard.PVPortHistory, len(entry.rows))
-	copy(rows, entry.rows)
-	return rows, true
+	return clonePVPortHistoryRows(entry.rows), true
 }
 
 func (s *EnergyService) writePVPortHistoryCache(key string, rows []energydashboard.PVPortHistory, expiresAt time.Time) {
+	if s.pvPortHistoryValkey != nil {
+		if ttl := expiresAt.UTC().Sub(s.now().UTC()); ttl > 0 {
+			if err := s.pvPortHistoryValkey.SetJSON(
+				context.Background(),
+				s.pvPortHistoryValkey.Key("pv-port-history", key),
+				rows,
+				valkeycache.SetOptions{TTL: ttl},
+			); err != nil {
+				s.log.Warn("pv port history valkey cache write failed", "error", err.Error())
+			}
+		}
+	}
 	s.pvPortHistoryMu.Lock()
 	defer s.pvPortHistoryMu.Unlock()
 	now := s.now()
@@ -395,6 +444,12 @@ func (s *EnergyService) writePVPortHistoryCache(key string, rows []energydashboa
 		rows:      cachedRows,
 		expiresAt: expiresAt,
 	}
+}
+
+func clonePVPortHistoryRows(rows []energydashboard.PVPortHistory) []energydashboard.PVPortHistory {
+	cloned := make([]energydashboard.PVPortHistory, len(rows))
+	copy(cloned, rows)
+	return cloned
 }
 
 func pvPortHistoryCacheKey(deviceIDs []string, resolution telemetryquery.Resolution, from, to time.Time) string {

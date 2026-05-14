@@ -18,6 +18,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/projectionworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
@@ -51,9 +52,11 @@ type EnergyService struct {
 	archiveObjectReader  replaycli.ObjectReader
 	maxQueryBuckets      int
 	historyGzipMinBytes  int
+	pvPortHistoryValkey  *valkeycache.Client
 	pvPortHistoryCache   map[string]pvPortHistoryCacheEntry
 	pvPortHistoryMu      sync.Mutex
 	pvPortHistoryGroup   singleflight.Group
+	energyCalendarValkey *valkeycache.Client
 	energyCalendarCache  map[string]energyCalendarCacheEntry
 	energyCalendarMu     sync.Mutex
 	energyCalendarGroup  singleflight.Group
@@ -68,6 +71,8 @@ type EnergyServiceDeps struct {
 	ArchiveObjectReader  replaycli.ObjectReader
 	MaxQueryBuckets      int
 	HistoryGzipMinBytes  int
+	PVPortHistoryCache   *valkeycache.Client
+	EnergyCalendarCache  *valkeycache.Client
 	Now                  func() time.Time
 }
 
@@ -148,7 +153,9 @@ func NewEnergyServiceWithDeps(deps EnergyServiceDeps) *EnergyService {
 		archiveObjectReader:  deps.ArchiveObjectReader,
 		maxQueryBuckets:      maxQueryBuckets,
 		historyGzipMinBytes:  historyGzipMinBytes,
+		pvPortHistoryValkey:  deps.PVPortHistoryCache,
 		pvPortHistoryCache:   map[string]pvPortHistoryCacheEntry{},
+		energyCalendarValkey: deps.EnergyCalendarCache,
 		energyCalendarCache:  map[string]energyCalendarCacheEntry{},
 		now:                  nowFn,
 	}

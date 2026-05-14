@@ -28,6 +28,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
 	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
@@ -228,6 +229,12 @@ func main() {
 			os.Exit(1)
 		}
 		defer cleanupArchiveReaders()
+		energyCalendarCache, pvPortHistoryCache, cleanupEnergyCaches, energyCacheErr := newEnergyValkeyCachesFromEnv(log)
+		if energyCacheErr != nil {
+			log.Error("energy valkey cache init failed", "error", energyCacheErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupEnergyCaches()
 
 		telemetryv1.RegisterEnergyServiceServer(s, NewEnergyServiceWithDeps(EnergyServiceDeps{
 			Log:                  log,
@@ -236,6 +243,8 @@ func main() {
 			ArchiveManifestStore: archiveManifestStore,
 			ArchiveObjectReader:  archiveObjectReader,
 			HistoryGzipMinBytes:  runtimecfg.IntMin("GRPC_HISTORY_GZIP_MIN_BYTES", defaultHistoryGzipMinBytes, 0),
+			EnergyCalendarCache:  energyCalendarCache,
+			PVPortHistoryCache:   pvPortHistoryCache,
 		}))
 	}
 
@@ -386,6 +395,53 @@ func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.Snaps
 	return store, func() { client.Close() }, nil
 }
 
+func newEnergyValkeyCachesFromEnv(log *slog.Logger) (*valkeycache.Client, *valkeycache.Client, func(), error) {
+	valkeyAddrs := runtimecfg.SplitNonEmpty(strings.TrimSpace(os.Getenv("VALKEY_ADDRS")))
+	if len(valkeyAddrs) == 0 {
+		log.Info("energy valkey caches disabled", "reason", "VALKEY_ADDRS not set")
+		return nil, nil, func() {}, nil
+	}
+	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
+	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
+	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+	configureValkeyCacheClientFromEnv(&cfg)
+	ingestlease.ConfigureSentinelFromEnv(&cfg)
+
+	client, err := ingestlease.NewValkeyClient(cfg)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	prefix, namespace := splitRuntimeCachePrefix(runtimecfg.EnvOrDefault("ENERGY_CACHE_KEY_PREFIX", "pulse:energy"), "energy")
+	calendar, err := valkeycache.New(client, valkeycache.Options{
+		Prefix:          prefix,
+		Namespace:       namespace + "-calendar",
+		ContentType:     "application/protobuf",
+		DefaultLocalTTL: runtimecfg.DurationNonNegative("ENERGY_CALENDAR_CACHE_LOCAL_TTL", 5*time.Second),
+		Now:             time.Now,
+	})
+	if err != nil {
+		client.Close()
+		return nil, nil, nil, err
+	}
+	pvPortHistory, err := valkeycache.New(client, valkeycache.Options{
+		Prefix:          prefix,
+		Namespace:       namespace + "-pv-port-history",
+		ContentType:     "application/json",
+		DefaultLocalTTL: runtimecfg.DurationNonNegative("ENERGY_PV_PORT_HISTORY_CACHE_LOCAL_TTL", 5*time.Second),
+		Now:             time.Now,
+	})
+	if err != nil {
+		client.Close()
+		return nil, nil, nil, err
+	}
+	log.Info("energy valkey caches enabled",
+		"valkey_addrs", strings.Join(valkeyAddrs, ","),
+		"key_prefix", runtimecfg.EnvOrDefault("ENERGY_CACHE_KEY_PREFIX", "pulse:energy"),
+		"client_side_cache_enabled", cfg.ClientSideCacheEnabled,
+	)
+	return calendar, pvPortHistory, func() { client.Close() }, nil
+}
+
 func newTelemetryQueryReaderFromEnv(log *slog.Logger) (telemetryquery.Reader, func(), error) {
 	dsn := strings.TrimSpace(os.Getenv("CONTROL_PLANE_DB_DSN"))
 	if dsn == "" {
@@ -452,6 +508,7 @@ func newInferenceReaderFromEnv(log *slog.Logger) (inference.Reader, func(), erro
 	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	cfg.Password = os.Getenv("VALKEY_PASSWORD")
+	configureValkeyCacheClientFromEnv(&cfg)
 	ingestlease.ConfigureSentinelFromEnv(&cfg)
 
 	client, err := ingestlease.NewValkeyClient(cfg)
@@ -472,4 +529,28 @@ func newInferenceReaderFromEnv(log *slog.Logger) (inference.Reader, func(), erro
 		"key_prefix", strings.TrimSpace(runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference")),
 	)
 	return store, func() { client.Close() }, nil
+}
+
+func configureValkeyCacheClientFromEnv(cfg *ingestlease.ValkeyClientConfig) {
+	if cfg == nil {
+		return
+	}
+	cfg.ClientSideCacheEnabled = runtimecfg.Bool("VALKEY_CACHE_CLIENT_SIDE_CACHE_ENABLED", true)
+	cfg.CacheSizeEachConn = runtimecfg.IntMin("VALKEY_CACHE_SIZE_EACH_CONN", 0, 0)
+	cfg.ClientTrackingOptions = runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_CACHE_CLIENT_TRACKING_OPTIONS", "OPTIN"))
+}
+
+func splitRuntimeCachePrefix(raw, defaultNamespace string) (string, string) {
+	raw = strings.Trim(strings.TrimSpace(raw), ":")
+	if raw == "" {
+		return "pulse", defaultNamespace
+	}
+	prefix, namespace, ok := strings.Cut(raw, ":")
+	if !ok {
+		return prefix, defaultNamespace
+	}
+	if strings.TrimSpace(namespace) == "" {
+		namespace = defaultNamespace
+	}
+	return prefix, namespace
 }
