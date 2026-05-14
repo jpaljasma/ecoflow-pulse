@@ -126,7 +126,8 @@ The direct path uses:
 - release `pulse-services-cloud` in namespace `pulse-services`,
 - `helm upgrade --install`,
 - `--take-ownership`,
-- `--server-side=true`.
+- `--server-side=true`,
+- `--force-conflicts` while taking over stale Argo-managed fields.
 
 Keep Argo installed until this direct apply succeeds and the health gate passes.
 
@@ -157,6 +158,11 @@ workers on the base `app-pool` placement. Do not move `go-ingest`, `go-archive`,
 or `go-rollup` onto the shared-core stateful pools, and do not delete the app
 pool, until a fresh request-headroom gate proves those nodes can absorb the
 pods without pending workloads.
+
+Keep `app-pool` autoscaling at `min=1`, `max=2` for no-planned-outage services
+rollouts. Steady state should run on one `e2-standard-2` app node, but
+`go-ingest` with two replicas and `maxUnavailable=0` needs a temporary surge
+slot during image rollouts.
 
 The overlays disable:
 - public app,
