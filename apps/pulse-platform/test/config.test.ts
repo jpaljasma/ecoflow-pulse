@@ -12,6 +12,8 @@ describe('pulse-platform config', () => {
     expect(config.port).toBe(18081);
     expect(config.energyGrpcApiAddr).toBe('127.0.0.1:9090');
     expect(config.corsAllowedOrigins).toEqual([]);
+    expect(config.bffCache?.enabled).toBe(false);
+    expect(config.bffCache?.weatherForecastTtlMs).toBe(30000);
   });
 
   it('supports optional noop dev subject override', () => {
@@ -72,5 +74,21 @@ describe('pulse-platform config', () => {
 
     expect(config.grpcApiAddr).toBe('127.0.0.1:9090');
     expect(config.energyGrpcApiAddr).toBe('127.0.0.1:9191');
+  });
+
+  it('parses optional BFF cache settings', () => {
+    const config = loadConfig({
+      PULSE_PLATFORM_BFF_CACHE_ENABLED: 'true',
+      PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES: '2500',
+      PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS: '45000',
+      PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS: '600000'
+    });
+
+    expect(config.bffCache).toEqual({
+      enabled: true,
+      maxEntries: 2500,
+      weatherForecastTtlMs: 45000,
+      weatherYesterdayTtlMs: 600000
+    });
   });
 });

@@ -33,6 +33,7 @@
 - [ADR-0027-valkey-cache-layer-keying-compression-encryption-and-invalidation.md](./ADR-0027-valkey-cache-layer-keying-compression-encryption-and-invalidation.md)
 - [ADR-0028-shared-cache-substrate-keying-compression-encryption-and-invalidation.md](./ADR-0028-shared-cache-substrate-keying-compression-encryption-and-invalidation.md)
 - [ADR-0029-valkey-cache-runtime-client-topology-and-reliability.md](./ADR-0029-valkey-cache-runtime-client-topology-and-reliability.md)
+- [ADR-0030-node-bff-edge-response-cache-option.md](./ADR-0030-node-bff-edge-response-cache-option.md)
 ---
 
 ## How to add an ADR

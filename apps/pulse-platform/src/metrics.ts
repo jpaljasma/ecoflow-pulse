@@ -89,6 +89,13 @@ const clientWsStaleRecoveryDurationSeconds = new Histogram({
   registers: [registry]
 });
 
+const bffCacheOperationsTotal = new Counter({
+  name: 'pulse_public_bff_cache_operations_total',
+  help: 'Public Node BFF in-process cache operations by namespace and result.',
+  labelNames: ['namespace', 'result'] as const,
+  registers: [registry]
+});
+
 export function classifyPublicPathname(pathname: string): string | null {
   switch (pathname) {
     case '/':
@@ -104,6 +111,8 @@ export function classifyPublicPathname(pathname: string): string | null {
     case '/api/v1/me':
     case '/api/v1/integrations':
     case '/api/v1/solar/outlook':
+    case '/api/v1/weather/forecast':
+    case '/api/v1/weather/yesterday':
       return pathname;
     case '/api/v1/energy/dashboard':
     case '/api/v1/energy/calendar':
@@ -209,6 +218,10 @@ export function observeClientWsFreshnessTransition(state: 'stale' | 'fresh'): vo
 
 export function observeClientWsStaleRecoveryDuration(durationSeconds: number): void {
   clientWsStaleRecoveryDurationSeconds.observe(Math.max(0, durationSeconds));
+}
+
+export function observeBffCacheOperation(input: { namespace: string; result: string }): void {
+  bffCacheOperationsTotal.labels(input.namespace, input.result).inc();
 }
 
 export async function renderPublicMetrics(): Promise<string> {

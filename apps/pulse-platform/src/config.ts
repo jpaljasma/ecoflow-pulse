@@ -13,6 +13,12 @@ const envSchema = z.object({
   PULSE_PLATFORM_CORS_ALLOWED_ORIGINS: z.string().trim().default(''),
   PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10000).default(120),
   PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
+  PULSE_PLATFORM_BFF_CACHE_ENABLED: z
+    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0'), z.literal('')])
+    .default(''),
+  PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(100000).default(1000),
+  PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS: z.coerce.number().int().min(0).max(3600000).default(30000),
+  PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS: z.coerce.number().int().min(0).max(3600000).default(300000),
   NODE_AUTH_MODE: z.enum(['noop', 'keycloak']).default('noop'),
   KEYCLOAK_ISSUER_URL: z.string().trim().default(''),
   KEYCLOAK_AUDIENCE: z.string().trim().default(''),
@@ -37,6 +43,12 @@ export type AppConfig = {
   historyRateLimit: {
     max: number;
     timeWindowMs: number;
+  };
+  bffCache?: {
+    enabled: boolean;
+    maxEntries: number;
+    weatherForecastTtlMs: number;
+    weatherYesterdayTtlMs: number;
   };
   auth:
     | { mode: 'noop'; allowMissingJwt: true }
@@ -70,6 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
         max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
         timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
       },
+      bffCache: buildBffCacheConfig(parsed),
       auth: { mode: 'noop', allowMissingJwt: true }
     };
   }
@@ -94,6 +107,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
       timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
     },
+    bffCache: buildBffCacheConfig(parsed),
     auth: {
       mode: 'keycloak',
       issuerUrl: parsed.KEYCLOAK_ISSUER_URL,
@@ -102,6 +116,17 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       userInfoUrl: parsed.KEYCLOAK_USERINFO_URL || undefined,
       allowMissingJwt
     }
+  };
+}
+
+function buildBffCacheConfig(parsed: z.infer<typeof envSchema>): AppConfig['bffCache'] {
+  return {
+    enabled:
+      parsed.PULSE_PLATFORM_BFF_CACHE_ENABLED === 'true' ||
+      parsed.PULSE_PLATFORM_BFF_CACHE_ENABLED === '1',
+    maxEntries: parsed.PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES,
+    weatherForecastTtlMs: parsed.PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS,
+    weatherYesterdayTtlMs: parsed.PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS
   };
 }
 

@@ -251,6 +251,7 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - use `internal/hashutil.XXH3Hex128` for non-crypto cache digests,
    - use versioned tag invalidation; do not scan keys or maintain reverse indexes for invalidation,
    - use `singleflight` for read-through loaders that can stampede on concurrent misses.
+   - Node BFF caches are optional edge response caches only; they must stay bounded, in-process, low-cardinality, and subordinate to the Go/Valkey cache substrate.
 3. Sensitive cache entries must fail closed:
    - provider MQTT/session/certification material must be encrypted with AES-GCM before storage,
    - if cache encryption is unavailable, bypass the sensitive cache rather than writing plaintext,

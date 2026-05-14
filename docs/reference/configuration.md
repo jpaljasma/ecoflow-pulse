@@ -237,6 +237,10 @@ Cloud note:
 - Empty-string `EXPO_PUBLIC_*` values are treated as unset in the universal web runtime. This matters for Docker/Helm-driven web builds, where missing args can appear as `""`; the browser should still fall back to the secure localhost defaults instead of generating broken API/WS URLs.
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS` (default `60000`; rate-limit window for authenticated history endpoints)
+- `PULSE_PLATFORM_BFF_CACHE_ENABLED` (default `false`; enables the optional Node BFF in-process response cache for selected public read routes)
+- `PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES` (default `1000`; maximum in-process BFF response-cache entries per public-app pod)
+- `PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS` (default `30000`; BFF edge TTL for `GET /api/v1/weather/forecast` when the BFF cache is enabled)
+- `PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS` (default `300000`; BFF edge TTL for `GET /api/v1/weather/yesterday` when the BFF cache is enabled)
 - `NODE_AUTH_MODE` (`noop|keycloak`, default `noop`)
   - `noop`: local/dev mode, bearer token optional, forwarded only if present.
   - `keycloak`: validate bearer JWT using the shared Node JWKS package before forwarding to gRPC.
