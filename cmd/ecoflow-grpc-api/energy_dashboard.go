@@ -528,15 +528,9 @@ func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs [
 		return nil, nil
 	}
 
-	providerDeviceIDs := make([]string, 0, len(deviceIDs))
-	for _, deviceID := range deviceIDs {
-		row, err := s.controlPlaneStore.GetProviderDeviceByDeviceID(ctx, deviceID)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "resolve provider device for energy pv history: %v", err)
-		}
-		if strings.EqualFold(strings.TrimSpace(row.Provider), controlplane.ProviderEcoFlow) && strings.TrimSpace(row.ProviderDeviceID) != "" {
-			providerDeviceIDs = append(providerDeviceIDs, row.ProviderDeviceID)
-		}
+	providerDeviceIDs, err := s.resolveEcoFlowProviderDeviceIDs(ctx, deviceIDs)
+	if err != nil {
+		return nil, err
 	}
 	if len(providerDeviceIDs) == 0 {
 		return nil, nil
@@ -617,6 +611,36 @@ func (s *EnergyService) queryScopePVPortHistory(ctx context.Context, deviceIDs [
 		return rows[i].DeviceID < rows[j].DeviceID
 	})
 	return rows, nil
+}
+
+func (s *EnergyService) resolveEcoFlowProviderDeviceIDs(ctx context.Context, deviceIDs []string) ([]string, error) {
+	providerDeviceIDs := make([]string, len(deviceIDs))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(16)
+	for idx, deviceID := range deviceIDs {
+		idx := idx
+		deviceID := deviceID
+		group.Go(func() error {
+			row, err := s.controlPlaneStore.GetProviderDeviceByDeviceID(groupCtx, deviceID)
+			if err != nil {
+				return status.Errorf(codes.Internal, "resolve provider device for energy pv history: %v", err)
+			}
+			if strings.EqualFold(strings.TrimSpace(row.Provider), controlplane.ProviderEcoFlow) {
+				providerDeviceIDs[idx] = strings.TrimSpace(row.ProviderDeviceID)
+			}
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(providerDeviceIDs))
+	for _, id := range providerDeviceIDs {
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
 
 func pvPortHistoryResolutionForPreset(preset energydashboard.Preset) telemetryquery.Resolution {

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	valkey "github.com/valkey-io/valkey-go"
@@ -130,6 +131,7 @@ func buildValkeyClientOption(cfg ValkeyClientConfig) (valkey.ClientOption, error
 
 func defaultClientRetryDelay() valkey.RetryDelayFn {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	var rngMu sync.Mutex
 	return func(attempts int, _ valkey.Completed, _ error) time.Duration {
 		if attempts < 1 {
 			attempts = 1
@@ -139,7 +141,9 @@ func defaultClientRetryDelay() valkey.RetryDelayFn {
 			base = float64(defaultRetryMaxBackoff)
 		}
 		jitterSpan := base * defaultRetryJitterFraction
+		rngMu.Lock()
 		jitter := (rng.Float64()*2 - 1) * jitterSpan
+		rngMu.Unlock()
 		delay := time.Duration(base + jitter)
 		if delay < defaultRetryMinBackoff {
 			return defaultRetryMinBackoff

@@ -26,6 +26,30 @@ func TestKeyBuilderStableAndHashTagged(t *testing.T) {
 	}
 }
 
+func TestSplitKeyPrefixAppliesDefaults(t *testing.T) {
+	tests := []struct {
+		name          string
+		raw           string
+		defaultPrefix string
+		defaultNS     string
+		wantPrefix    string
+		wantNS        string
+	}{
+		{name: "empty", raw: "", defaultPrefix: "pulse", defaultNS: "weather", wantPrefix: "pulse", wantNS: "weather"},
+		{name: "prefix only", raw: "pulse", defaultPrefix: "pulse", defaultNS: "weather", wantPrefix: "pulse", wantNS: "weather"},
+		{name: "prefix and namespace", raw: "pulse:energy", defaultPrefix: "pulse", defaultNS: "weather", wantPrefix: "pulse", wantNS: "energy"},
+		{name: "trim", raw: " :cache: ", defaultPrefix: "", defaultNS: "fallback", wantPrefix: "cache", wantNS: "fallback"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotPrefix, gotNS := SplitKeyPrefix(tc.raw, tc.defaultPrefix, tc.defaultNS)
+			if gotPrefix != tc.wantPrefix || gotNS != tc.wantNS {
+				t.Fatalf("SplitKeyPrefix(%q) = %q, %q; want %q, %q", tc.raw, gotPrefix, gotNS, tc.wantPrefix, tc.wantNS)
+			}
+		})
+	}
+}
+
 func TestTagInvalidationUsesVersionedKeys(t *testing.T) {
 	ctx := context.Background()
 	server := miniredis.RunT(t)

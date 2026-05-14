@@ -58,9 +58,7 @@ func main() {
 	valkeyCfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	valkeyCfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	valkeyCfg.Password = os.Getenv("VALKEY_PASSWORD")
-	valkeyCfg.ClientSideCacheEnabled = runtimecfg.Bool("VALKEY_CACHE_CLIENT_SIDE_CACHE_ENABLED", true)
-	valkeyCfg.CacheSizeEachConn = runtimecfg.IntMin("VALKEY_CACHE_SIZE_EACH_CONN", 0, 0)
-	valkeyCfg.ClientTrackingOptions = runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_CACHE_CLIENT_TRACKING_OPTIONS", "OPTIN"))
+	ingestlease.ConfigureClientSideCacheFromEnv(&valkeyCfg)
 	ingestlease.ConfigureSentinelFromEnv(&valkeyCfg)
 	client, err := startupretry.Retry(context.Background(), log, "inference valkey client", startupretry.DefaultOptions(), func(_ context.Context) (valkey.Client, error) {
 		return ingestlease.NewValkeyClient(valkeyCfg)
@@ -79,7 +77,7 @@ func main() {
 		log.Error("init inference store failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	contextCachePrefix, contextCacheNamespace := splitInferenceCachePrefix(runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference"), "inference")
+	contextCachePrefix, contextCacheNamespace := valkeycache.SplitKeyPrefix(runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference"), "pulse", "inference")
 	contextCache, err := valkeycache.New(client, valkeycache.Options{
 		Prefix:          contextCachePrefix,
 		Namespace:       contextCacheNamespace + "-device-context",
@@ -162,21 +160,6 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("inference worker stopped")
-}
-
-func splitInferenceCachePrefix(raw, defaultNamespace string) (string, string) {
-	raw = strings.Trim(strings.TrimSpace(raw), ":")
-	if raw == "" {
-		return "pulse", defaultNamespace
-	}
-	prefix, namespace, ok := strings.Cut(raw, ":")
-	if !ok {
-		return prefix, defaultNamespace
-	}
-	if strings.TrimSpace(namespace) == "" {
-		namespace = defaultNamespace
-	}
-	return prefix, namespace
 }
 
 func loadInferenceWorkerConfigFromEnv() inference.Config {

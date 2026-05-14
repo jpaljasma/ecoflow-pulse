@@ -160,7 +160,7 @@ func (s *ValkeyStore) energyComparisonKey(key EnergyComparisonCacheKey) string {
 		strings.TrimSpace(key.Date), "|",
 		fmt.Sprintf("%.4f|%s|%d", key.GridPricePerKwh, strings.TrimSpace(key.Currency), key.RefreshSlotUnixMs),
 	)
-	prefix, namespace := splitCacheKeyPrefix(s.keyPrefix, "inference")
+	prefix, namespace := valkeycache.SplitKeyPrefix(s.keyPrefix, "pulse", "inference")
 	builder := valkeycache.NewKeyBuilder(prefix, namespace+"-energy-comparison")
 	return builder.KeyWithDigest("energy-comparison-"+scopeTag, digest)
 }
@@ -177,7 +177,7 @@ func (s *ValkeyStore) energyComparisonCacheClient() (*valkeycache.Client, error)
 }
 
 func newEnergyComparisonCache(client valkey.Client, cfg ValkeyStoreConfig) (*valkeycache.Client, error) {
-	prefix, namespace := splitCacheKeyPrefix(cfg.KeyPrefix, "inference")
+	prefix, namespace := valkeycache.SplitKeyPrefix(cfg.KeyPrefix, "pulse", "inference")
 	localTTL := cfg.EnergyComparisonLocalTTL
 	if localTTL <= 0 {
 		localTTL = defaultEnergyComparisonLocalTTL
@@ -189,21 +189,6 @@ func newEnergyComparisonCache(client valkey.Client, cfg ValkeyStoreConfig) (*val
 		DefaultLocalTTL: localTTL,
 		Now:             cfg.NowFn,
 	})
-}
-
-func splitCacheKeyPrefix(keyPrefix, defaultNamespace string) (string, string) {
-	keyPrefix = strings.Trim(strings.TrimSpace(keyPrefix), ":")
-	if keyPrefix == "" {
-		keyPrefix = defaultKeyPrefix
-	}
-	prefix, namespace, ok := strings.Cut(keyPrefix, ":")
-	if !ok {
-		return prefix, defaultNamespace
-	}
-	if strings.TrimSpace(namespace) == "" {
-		namespace = defaultNamespace
-	}
-	return prefix, namespace
 }
 
 func BuildEnergyComparisonInsight(input EnergyComparisonInput) EnergyComparisonRecord {

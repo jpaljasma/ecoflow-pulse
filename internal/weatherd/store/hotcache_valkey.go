@@ -31,7 +31,7 @@ func NewValkeyHotCache(client valkey.Client, keyPrefix string, nowFn func() time
 	if nowFn == nil {
 		nowFn = time.Now
 	}
-	prefix, namespace := splitCacheKeyPrefix(keyPrefix)
+	prefix, namespace := valkeycache.SplitKeyPrefix(keyPrefix, "pulse", "weather")
 	cache, err := valkeycache.New(client, valkeycache.Options{
 		Prefix:          prefix,
 		Namespace:       namespace,
@@ -84,16 +84,4 @@ func sanitizeKeySegment(in string) string {
 	clean = strings.ReplaceAll(clean, "}", "_")
 	clean = strings.ReplaceAll(clean, " ", "_")
 	return clean
-}
-
-func splitCacheKeyPrefix(keyPrefix string) (string, string) {
-	keyPrefix = strings.Trim(strings.TrimSpace(keyPrefix), ":")
-	if keyPrefix == "" {
-		keyPrefix = defaultHotCacheKeyPrefix
-	}
-	prefix, namespace, ok := strings.Cut(keyPrefix, ":")
-	if !ok {
-		return prefix, "weather"
-	}
-	return prefix, namespace
 }

@@ -404,14 +404,14 @@ func newEnergyValkeyCachesFromEnv(log *slog.Logger) (*valkeycache.Client, *valke
 	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	cfg.Password = os.Getenv("VALKEY_PASSWORD")
-	configureValkeyCacheClientFromEnv(&cfg)
+	ingestlease.ConfigureClientSideCacheFromEnv(&cfg)
 	ingestlease.ConfigureSentinelFromEnv(&cfg)
 
 	client, err := ingestlease.NewValkeyClient(cfg)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	prefix, namespace := splitRuntimeCachePrefix(runtimecfg.EnvOrDefault("ENERGY_CACHE_KEY_PREFIX", "pulse:energy"), "energy")
+	prefix, namespace := valkeycache.SplitKeyPrefix(runtimecfg.EnvOrDefault("ENERGY_CACHE_KEY_PREFIX", "pulse:energy"), "pulse", "energy")
 	calendar, err := valkeycache.New(client, valkeycache.Options{
 		Prefix:          prefix,
 		Namespace:       namespace + "-calendar",
@@ -508,7 +508,7 @@ func newInferenceReaderFromEnv(log *slog.Logger) (inference.Reader, func(), erro
 	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	cfg.Password = os.Getenv("VALKEY_PASSWORD")
-	configureValkeyCacheClientFromEnv(&cfg)
+	ingestlease.ConfigureClientSideCacheFromEnv(&cfg)
 	ingestlease.ConfigureSentinelFromEnv(&cfg)
 
 	client, err := ingestlease.NewValkeyClient(cfg)
@@ -529,28 +529,4 @@ func newInferenceReaderFromEnv(log *slog.Logger) (inference.Reader, func(), erro
 		"key_prefix", strings.TrimSpace(runtimecfg.EnvOrDefault("INFERENCE_KEY_PREFIX", "pulse:inference")),
 	)
 	return store, func() { client.Close() }, nil
-}
-
-func configureValkeyCacheClientFromEnv(cfg *ingestlease.ValkeyClientConfig) {
-	if cfg == nil {
-		return
-	}
-	cfg.ClientSideCacheEnabled = runtimecfg.Bool("VALKEY_CACHE_CLIENT_SIDE_CACHE_ENABLED", true)
-	cfg.CacheSizeEachConn = runtimecfg.IntMin("VALKEY_CACHE_SIZE_EACH_CONN", 0, 0)
-	cfg.ClientTrackingOptions = runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_CACHE_CLIENT_TRACKING_OPTIONS", "OPTIN"))
-}
-
-func splitRuntimeCachePrefix(raw, defaultNamespace string) (string, string) {
-	raw = strings.Trim(strings.TrimSpace(raw), ":")
-	if raw == "" {
-		return "pulse", defaultNamespace
-	}
-	prefix, namespace, ok := strings.Cut(raw, ":")
-	if !ok {
-		return prefix, defaultNamespace
-	}
-	if strings.TrimSpace(namespace) == "" {
-		namespace = defaultNamespace
-	}
-	return prefix, namespace
 }

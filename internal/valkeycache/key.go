@@ -41,6 +41,27 @@ func (b KeyBuilder) KeyWithDigest(partition, digest string) string {
 	)
 }
 
+// SplitKeyPrefix parses a "prefix:namespace" cache prefix, applying defaults
+// for empty values while preserving caller-owned prefix names.
+func SplitKeyPrefix(raw, defaultPrefix, defaultNamespace string) (string, string) {
+	raw = strings.Trim(strings.TrimSpace(raw), ":")
+	if defaultPrefix = strings.TrimSpace(defaultPrefix); defaultPrefix == "" {
+		defaultPrefix = "pulse"
+	}
+	defaultNamespace = strings.TrimSpace(defaultNamespace)
+	if raw == "" {
+		return defaultPrefix, defaultNamespace
+	}
+	prefix, namespace, ok := strings.Cut(raw, ":")
+	if !ok {
+		return prefix, defaultNamespace
+	}
+	if strings.TrimSpace(namespace) == "" {
+		namespace = defaultNamespace
+	}
+	return prefix, namespace
+}
+
 func sanitizeSegment(in string) string {
 	clean := strings.TrimSpace(in)
 	clean = strings.ReplaceAll(clean, "{", "_")

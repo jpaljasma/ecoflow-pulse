@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1826,6 +1827,53 @@ func TestEnergyCalendarCacheExpiresAtUsesProfileLocalMidnight(t *testing.T) {
 	}
 }
 
+func BenchmarkResolveEcoFlowProviderDeviceIDs(b *testing.B) {
+	deviceIDs := make([]string, 16)
+	store := newFakeControlPlaneStore(map[string][]controlplane.UserDevice{})
+	for idx := range deviceIDs {
+		deviceID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef" + strconv.Itoa(100+idx)
+		deviceIDs[idx] = deviceID
+		store.providerDevices[deviceID] = controlplane.ProviderDevice{
+			Provider:         controlplane.ProviderEcoFlow,
+			ProviderDeviceID: "provider-device-" + strconv.Itoa(idx),
+		}
+	}
+	delayedStore := &delayedProviderDeviceStore{
+		fakeControlPlaneStore: store,
+		delay:                 time.Millisecond,
+	}
+	svc := NewEnergyServiceWithDeps(EnergyServiceDeps{
+		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ControlPlaneStore: delayedStore,
+	})
+	ctx := context.Background()
+
+	b.Run("parallel", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			ids, err := svc.resolveEcoFlowProviderDeviceIDs(ctx, deviceIDs)
+			if err != nil {
+				b.Fatalf("resolve provider device ids: %v", err)
+			}
+			if len(ids) != len(deviceIDs) {
+				b.Fatalf("resolved ids = %d, want %d", len(ids), len(deviceIDs))
+			}
+		}
+	})
+	b.Run("serial-baseline", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			ids, err := resolveEcoFlowProviderDeviceIDsSerial(ctx, delayedStore, deviceIDs)
+			if err != nil {
+				b.Fatalf("resolve provider device ids serial: %v", err)
+			}
+			if len(ids) != len(deviceIDs) {
+				b.Fatalf("resolved ids = %d, want %d", len(ids), len(deviceIDs))
+			}
+		}
+	})
+}
+
 type fakeSnapshotReader struct {
 	snapshot *projectionworker.SnapshotReadModel
 	err      error
@@ -1983,6 +2031,24 @@ type fakeControlPlaneStore struct {
 	providerDevices map[string]controlplane.ProviderDevice
 }
 
+type delayedProviderDeviceStore struct {
+	*fakeControlPlaneStore
+	delay time.Duration
+}
+
+func (f *delayedProviderDeviceStore) GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (controlplane.ProviderDevice, error) {
+	if f.delay > 0 {
+		timer := time.NewTimer(f.delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return controlplane.ProviderDevice{}, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return f.fakeControlPlaneStore.GetProviderDeviceByDeviceID(ctx, deviceID)
+}
+
 func newFakeControlPlaneStore(userDevices map[string][]controlplane.UserDevice) *fakeControlPlaneStore {
 	return &fakeControlPlaneStore{
 		userDevices:     userDevices,
@@ -2069,6 +2135,22 @@ func (f *fakeControlPlaneStore) GetProviderDeviceByDeviceID(_ context.Context, d
 		return controlplane.ProviderDevice{}, errors.New("not implemented")
 	}
 	return row, nil
+}
+
+func resolveEcoFlowProviderDeviceIDsSerial(ctx context.Context, store controlplane.Store, deviceIDs []string) ([]string, error) {
+	out := make([]string, 0, len(deviceIDs))
+	for _, deviceID := range deviceIDs {
+		row, err := store.GetProviderDeviceByDeviceID(ctx, deviceID)
+		if err != nil {
+			return nil, err
+		}
+		if strings.EqualFold(strings.TrimSpace(row.Provider), controlplane.ProviderEcoFlow) {
+			if id := strings.TrimSpace(row.ProviderDeviceID); id != "" {
+				out = append(out, id)
+			}
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeControlPlaneStore) ListIngestAssignments(context.Context, controlplane.ListIngestAssignmentsInput) ([]controlplane.IngestAssignment, error) {

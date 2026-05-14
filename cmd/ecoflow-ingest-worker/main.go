@@ -354,15 +354,13 @@ func newProviderMQTTSessionCacheFromEnv(log *slog.Logger) (*provideradapter.MQTT
 	cfg := ingestlease.DefaultValkeyClientConfig(valkeyAddrs)
 	cfg.Username = strings.TrimSpace(os.Getenv("VALKEY_USERNAME"))
 	cfg.Password = os.Getenv("VALKEY_PASSWORD")
-	cfg.ClientSideCacheEnabled = runtimecfg.Bool("VALKEY_CACHE_CLIENT_SIDE_CACHE_ENABLED", true)
-	cfg.CacheSizeEachConn = runtimecfg.IntMin("VALKEY_CACHE_SIZE_EACH_CONN", 0, 0)
-	cfg.ClientTrackingOptions = runtimecfg.SplitNonEmpty(runtimecfg.EnvOrDefault("VALKEY_CACHE_CLIENT_TRACKING_OPTIONS", "OPTIN"))
+	ingestlease.ConfigureClientSideCacheFromEnv(&cfg)
 	ingestlease.ConfigureSentinelFromEnv(&cfg)
 	client, err := ingestlease.NewValkeyClient(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	prefix, namespace := splitProviderSessionCachePrefix(runtimecfg.EnvOrDefault("PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX", "pulse:provider-mqtt-session"))
+	prefix, namespace := valkeycache.SplitKeyPrefix(runtimecfg.EnvOrDefault("PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX", "pulse:provider-mqtt-session"), "pulse", "provider-mqtt-session")
 	cacheClient, err := valkeycache.New(client, valkeycache.Options{
 		Prefix:          prefix,
 		Namespace:       namespace,
@@ -388,21 +386,6 @@ func newProviderMQTTSessionCacheFromEnv(log *slog.Logger) (*provideradapter.MQTT
 		"client_side_cache_enabled", cfg.ClientSideCacheEnabled,
 	)
 	return cache, func() { client.Close() }, nil
-}
-
-func splitProviderSessionCachePrefix(raw string) (string, string) {
-	raw = strings.Trim(strings.TrimSpace(raw), ":")
-	if raw == "" {
-		return "pulse", "provider-mqtt-session"
-	}
-	prefix, namespace, ok := strings.Cut(raw, ":")
-	if !ok {
-		return prefix, "provider-mqtt-session"
-	}
-	if strings.TrimSpace(namespace) == "" {
-		namespace = "provider-mqtt-session"
-	}
-	return prefix, namespace
 }
 
 type controlPlaneSchemaValidator interface {
