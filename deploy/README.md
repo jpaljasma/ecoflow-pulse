@@ -262,6 +262,9 @@ Cloud defaults in this branch:
   high-memory/general-purpose stateful shape,
 - the expected steady low-cost shape is one or two `e2-standard-2` app nodes
   plus one `e2-medium` shared-core stateful node in each stateful zone,
+- do not delete the final `app-pool` node in the current cost-min shape: it is
+  the only untainted placement path for GKE-managed system pods and the
+  required Pulse data-plane workers,
 - the profile keeps the stateful application topology intact while right-sizing
   the nodes:
   - CNPG remains `2` instances with zone-aware anti-affinity,
@@ -328,6 +331,16 @@ Hosted rollout sequence for the multi-zone stateful HA target:
    pools from the previous machine class.
 5. Treat the `standard-rwo-regional` storage class as an opt-in recovery-time
    migration target, not as part of the cost-cutting path.
+
+Do not treat the app pool as part of the stateful-pool cleanup. A 2026-05-14
+live check found the three `e2-medium` stateful nodes already CPU-request tight
+(`88%`, `88%`, and `67%` allocated), while the remaining
+`go-ingest`/`go-archive`/`go-rollup` workers request about `600m` CPU and
+GKE-managed system pods still run on the untainted app node. Server dry-run
+drain also showed singleton `go-archive` and `go-rollup` PDBs block eviction.
+Keep `app-pool` at `e2-standard-2`, autoscaling `min=1`, `max=2` until a
+future design proves enough stateful-node headroom, safe system-pod placement,
+and non-blocking worker disruption budgets.
 
 Expected follow-up after the current hosted cutover:
 

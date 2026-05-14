@@ -3,6 +3,9 @@ runtime:
     defaultPodScheduling:
       # Keep required data-plane workers on the base app-pool placement until a
       # separate request-headroom gate proves stateful nodes can absorb them.
+      # Do not repoint these workers at the tainted e2-medium stateful pools
+      # just to remove app-pool; the current cost-min shape still needs one
+      # untainted e2-standard-2 node for GKE system pods and worker rollouts.
       nodeSelector:
         cloud.google.com/gke-nodepool: app-pool
     ingest:

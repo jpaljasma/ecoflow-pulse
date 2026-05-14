@@ -159,6 +159,15 @@ or `go-rollup` onto the shared-core stateful pools, and do not delete the app
 pool, until a fresh request-headroom gate proves those nodes can absorb the
 pods without pending workloads.
 
+As of the 2026-05-14 live check, app-pool removal is blocked. The three
+`e2-medium` stateful nodes were already CPU-request constrained (`88%`, `88%`,
+and `67%` allocated), while the required workers still request about `600m`
+CPU. The app node also hosts GKE-managed system pods, including DNS, metrics,
+konnectivity, event exporter, and managed Prometheus components. A server
+dry-run drain of the app node hit singleton `go-archive` and `go-rollup` PDB
+protection. Keep the app pool unless a later migration plan resolves all three
+constraints.
+
 Keep `app-pool` autoscaling at `min=1`, `max=2` for no-planned-outage services
 rollouts. Steady state should run on one `e2-standard-2` app node, but
 `go-ingest` with two replicas and `maxUnavailable=0` needs a temporary surge
