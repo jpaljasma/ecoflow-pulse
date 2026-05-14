@@ -159,6 +159,11 @@ jobs:
         with:
           install_components: gke-gcloud-auth-plugin
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.1.1
+
       - name: Configure Artifact Registry Docker auth
         run: gcloud auth configure-docker "${CLOUD_ARTIFACT_REGISTRY_HOST}" --quiet
 
