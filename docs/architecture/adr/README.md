@@ -31,6 +31,8 @@
 - [ADR-0025-background-worker-rollout-drain-contract.md](./ADR-0025-background-worker-rollout-drain-contract.md)
 - [ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md](./ADR-0026-hosted-cloud-cost-min-direct-helm-operations.md)
 - [ADR-0027-valkey-cache-layer-keying-compression-encryption-and-invalidation.md](./ADR-0027-valkey-cache-layer-keying-compression-encryption-and-invalidation.md)
+- [ADR-0028-shared-cache-substrate-keying-compression-encryption-and-invalidation.md](./ADR-0028-shared-cache-substrate-keying-compression-encryption-and-invalidation.md)
+- [ADR-0029-valkey-cache-runtime-client-topology-and-reliability.md](./ADR-0029-valkey-cache-runtime-client-topology-and-reliability.md)
 ---
 
 ## How to add an ADR

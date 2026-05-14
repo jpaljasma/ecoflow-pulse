@@ -1,6 +1,7 @@
 # ADR-0027: Valkey Cache Layer Keying, Compression, Encryption, and Invalidation
 
-**Status:** Accepted
+**Status:** Superseded
+**Superseded by:** ADR-0028, ADR-0029
 **Date:** 2026-05-14
 **Related:** ADR-0004
 
