@@ -317,6 +317,58 @@ describe('pulse-platform weather routes', () => {
     await app.close();
   });
 
+  it('partitions BFF weather forecast cache entries by requested data plane', async () => {
+    const controlPlaneClient = makeControlPlaneClient();
+    let callCount = 0;
+    const weatherClient = makeWeatherClient({
+      get7DayForecast: vi.fn(async () => ({
+        forecast: {
+          ...sampleForecast().forecast,
+          issuedAtUnixMs: String(++callCount)
+        }
+      }))
+    });
+    const config = {
+      ...baseConfig(),
+      bffCache: {
+        enabled: true,
+        maxEntries: 100,
+        weatherForecastTtlMs: 60_000,
+        weatherYesterdayTtlMs: 0
+      }
+    };
+    const app = buildApp(config, makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient,
+      weatherClient
+    });
+
+    const localFirst = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/forecast',
+      headers: { 'x-pulse-data-plane': 'local' }
+    });
+    const cloudFirst = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/forecast',
+      headers: { 'x-pulse-data-plane': 'cloud' }
+    });
+    const localSecond = await app.inject({
+      method: 'GET',
+      url: '/api/v1/weather/forecast',
+      headers: { 'x-pulse-data-plane': 'local' }
+    });
+
+    expect(localFirst.statusCode).toBe(200);
+    expect(cloudFirst.statusCode).toBe(200);
+    expect(localSecond.statusCode).toBe(200);
+    expect(localFirst.json().forecast.issuedAtUnixMs).toBe('1');
+    expect(cloudFirst.json().forecast.issuedAtUnixMs).toBe('2');
+    expect(localSecond.json().forecast.issuedAtUnixMs).toBe('1');
+    expect(weatherClient.get7DayForecast).toHaveBeenCalledTimes(2);
+
+    await app.close();
+  });
+
   it('uses the saved weather profile location for solar outlook requests', async () => {
     const controlPlaneClient = makeControlPlaneClient();
     const solarForecastClient = makeSolarForecastClient();

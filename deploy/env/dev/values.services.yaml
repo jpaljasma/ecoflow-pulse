@@ -8,6 +8,11 @@ scaffold:
 runtime:
   env:
     dbSchemaSearchPath: ""
+    projectionKeyPrefix: "pulse:dev-projection"
+    weatherKeyPrefix: "pulse:dev-weather"
+    inferenceKeyPrefix: "pulse:dev-inference"
+    providerMqttSessionCacheKeyPrefix: "pulse:dev-provider-mqtt-session"
+    energyCacheKeyPrefix: "pulse:dev-energy"
   migrations:
     enabled: false
     namespace: pulse-platform

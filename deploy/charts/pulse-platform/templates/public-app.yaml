@@ -81,6 +81,8 @@ spec:
               value: {{ .Values.runtime.publicApp.env.publicPreconnectOrigins | quote }}
             - name: PULSE_PLATFORM_CORS_ALLOWED_ORIGINS
               value: {{ .Values.runtime.publicApp.env.corsAllowedOrigins | quote }}
+            - name: PULSE_PLATFORM_DATA_PLANE
+              value: {{ .Values.runtime.publicApp.env.dataPlane | quote }}
             - name: PULSE_PLATFORM_BFF_CACHE_ENABLED
               value: {{ .Values.runtime.publicApp.env.bffCacheEnabled | quote }}
             - name: PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES

@@ -145,7 +145,10 @@ Defaults:
     NATS/Valkey path; these cloud-data local workflows build the web bundle
     with `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings labels the active
     source as Cloud even though the browser edge remains local, and the local
-    build scrubs hosted `EXPO_PUBLIC_CLOUD_*` values so auth/HTTP stay local,
+    build scrubs hosted `EXPO_PUBLIC_CLOUD_*` values so auth/HTTP stay local.
+    The generated overlays also mark the public app as `cloud` data-plane mode
+    and move Go Valkey cache prefixes onto `cloud-*` namespaces so local cache
+    entries cannot be reused for cloud-data reads.
   - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).

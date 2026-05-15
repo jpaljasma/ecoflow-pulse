@@ -252,6 +252,7 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - use versioned tag invalidation; do not scan keys or maintain reverse indexes for invalidation,
    - use `singleflight` for read-through loaders that can stampede on concurrent misses.
    - Node BFF caches are optional edge response caches only; they must stay bounded, in-process, low-cardinality, and subordinate to the Go/Valkey cache substrate.
+   - cache keys and cache prefixes must include a low-cardinality data-plane partition (`local` vs `cloud`) anywhere a local edge, browser profile switch, or local Valkey instance can serve both modes.
 3. Sensitive cache entries must fail closed:
    - provider MQTT/session/certification material must be encrypted with AES-GCM before storage,
    - if cache encryption is unavailable, bypass the sensitive cache rather than writing plaintext,

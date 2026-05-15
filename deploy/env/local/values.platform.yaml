@@ -58,6 +58,8 @@ runtime:
       devUserSubject: ""
       publicPreconnectOrigins: ""
       corsAllowedOrigins: "http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
+      dataPlane: local
+      bffCacheEnabled: "true"
     ingress:
       enabled: true
       host: localhost

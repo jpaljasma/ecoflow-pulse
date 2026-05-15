@@ -11,6 +11,11 @@ const { reportClientRestMetric } = vi.hoisted(() => ({
   reportClientRestMetric: vi.fn()
 }));
 
+type MutableMockEnv = {
+  activeConnectionProfile: { dataPlane: 'local' | 'cloud' };
+  activeDataPlane: 'local' | 'cloud';
+};
+
 vi.mock('@/features/auth/sessionRecoveryCoordinator', () => ({
   recoverSessionForUnauthorizedRequest,
   triggerSessionExpiredRedirect
@@ -33,7 +38,12 @@ vi.mock('@/shared/config/env', () => ({
     apiUrlExplicit: false,
     wsUrl: 'ws://192.168.50.62:8082/ws',
     wsUrlExplicit: false,
-    nativeHostHints: []
+    nativeHostHints: [],
+    connectionProfileId: 'local',
+    activeDataPlane: 'local',
+    activeConnectionProfile: {
+      dataPlane: 'local'
+    }
   }
 }));
 
@@ -48,6 +58,9 @@ describe('requestJson', () => {
     reportClientRestMetric.mockReset();
     env.apiUrlExplicit = false;
     env.apiUrl = 'http://192.168.50.62:18081';
+    env.connectionProfileId = 'local';
+    (env as unknown as MutableMockEnv).activeDataPlane = 'local';
+    (env as unknown as MutableMockEnv).activeConnectionProfile = { dataPlane: 'local' };
   });
 
   it('retries with localhost fallback on network failure for native defaults', async () => {
@@ -125,6 +138,29 @@ describe('requestJson', () => {
     expect(fetchSpy.mock.calls[1]?.[0]).toBe('http://localhost:18081/api/devices');
     expect(fetchSpy.mock.calls[2]?.[0]).toBe('http://127.0.0.1/api/devices');
     expect(reportClientRestMetric).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends active connection profile and data-plane headers on REST requests', async () => {
+    env.connectionProfileId = 'cloud';
+    (env as unknown as MutableMockEnv).activeDataPlane = 'cloud';
+    (env as unknown as MutableMockEnv).activeConnectionProfile = { dataPlane: 'cloud' };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+
+    await requestJson('/api/v1/weather/forecast', {
+      token: 'token-123'
+    });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect((fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined)?.headers).toMatchObject({
+      Authorization: 'Bearer token-123',
+      'X-Pulse-Connection-Profile': 'cloud',
+      'X-Pulse-Data-Plane': 'cloud'
+    });
   });
 
   it('retries once with a recovered session token after a 401 response', async () => {
