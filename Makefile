@@ -1205,6 +1205,9 @@ local-cloud-db-env: gke-cloud-context
 		printf "    controlPlaneDBDSN: '%s'\n" "$$qdsn"; \
 		printf "    archiveManifestDBDSN: '%s'\n" "$$qdsn"; \
 		echo "    pulseMqttEmulatorEnabled: 'false'"; \
+		printf "    natsURLs: 'nats://%s:%s'\n" "$(LOCAL_CLOUD_REALTIME_HOST)" "$(LOCAL_CLOUD_NATS_PORT)"; \
+		printf "    valkeyAddrs: '%s:%s'\n" "$(LOCAL_CLOUD_REALTIME_HOST)" "$(LOCAL_CLOUD_VALKEY_PORT)"; \
+		echo "    valkeySentinelMasterSet: ''"; \
 		echo "    projectionKeyPrefix: 'pulse:cloud-projection'"; \
 		echo "    weatherKeyPrefix: 'pulse:cloud-weather'"; \
 		echo "    inferenceKeyPrefix: 'pulse:cloud-inference'"; \

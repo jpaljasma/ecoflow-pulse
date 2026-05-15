@@ -205,6 +205,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
 26. Client parsers must stay aligned with served forecast variants:
    - when backend responses add new enum-like variants for provenance, calibration method, or scope metadata, update the universal client schema and copy in the same branch,
    - device-scoped forecast parse failures must surface as visible widget errors during development rather than silently dropping solar data.
+27. Local/cloud connection profile persistence must follow the active build mode:
+   - local cloud-data builds should present `Cloud` while still using the local browser/API/OIDC edge,
+   - persist the active build default with the selected profile so switching between true Local and local-edge Cloud cannot reuse stale state from the other mode,
+   - normal local builds must not let stale Cloud state send unauthenticated login to hosted `sslip.io` OIDC discovery.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.

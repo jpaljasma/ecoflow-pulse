@@ -76,6 +76,7 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 2. Store PKCE verifier/state only as short-lived browser state before leaving the app, then exchange the returned code from `/auth/callback`.
 3. Keep browser-specific auth workarounds centralized in shared auth helpers, with regression coverage for desktop/local web plus Safari and Chrome on iOS user agents.
 4. Preserve the existing Expo AuthSession popup/native behavior for native app flows unless those paths are explicitly being changed and revalidated.
+5. In local workflows, `Cloud` can mean local browser/API/OIDC edge with a cloud data plane; connection-profile persistence must include the active build default so switching between true Local and local-edge Cloud does not reuse stale issuer/API state.
 
 ## Validation
 1. Run the relevant universal checks for touched areas:

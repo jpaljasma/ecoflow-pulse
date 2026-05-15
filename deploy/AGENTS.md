@@ -37,6 +37,7 @@ This file adds deploy/runtime guidance for `deploy/` work on top of the reposito
 2. Keep cache namespaces partitioned by data plane when local and cloud modes can share an edge or Valkey instance:
    - BFF edge cache keys should use `PULSE_PLATFORM_DATA_PLANE` or the validated `X-Pulse-Data-Plane` request header,
    - Go Valkey cache prefixes in Helm values should remain mode-specific (`local-*`, `dev-*`, `cloud-*`) for projection, weather, inference, provider-session, and energy caches.
+   - local-edge cloud-data services should point Go API cache clients at the cloud Valkey forward, not at the local in-cluster Valkey with only cloud-prefixed keys.
 3. Do not change the Valkey replication + Sentinel topology, persistence mode, or cluster-mode posture without a new ADR.
 4. Cache encryption keys and provider session material must stay in Kubernetes Secrets or an approved external secret source; do not commit sample plaintext keys that could be mistaken for usable secrets.
 5. Lease/script clients and cache clients may share chart plumbing, but their client-side-cache defaults must stay distinct:

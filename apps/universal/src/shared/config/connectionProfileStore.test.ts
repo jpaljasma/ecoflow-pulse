@@ -64,6 +64,8 @@ describe('connection profile store', () => {
       EXPO_PUBLIC_CLOUD_WS_URL: 'wss://pulse.example.com/ws',
       EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL: 'https://pulse.example.com/realms/pulse',
       EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID: 'pulse-universal-cloud',
+      EXPO_PUBLIC_OIDC_ISSUER_URL: 'https://localhost/realms/pulse',
+      EXPO_PUBLIC_OIDC_CLIENT_ID: 'pulse-universal-app',
       EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE: 'local'
     };
   });
@@ -98,8 +100,8 @@ describe('connection profile store', () => {
     persistedState.set(
       STORAGE_KEY,
       JSON.stringify({
-        state: { profileId: 'cloud' },
-        version: 1
+        state: { profileId: 'cloud', defaultProfileId: 'local' },
+        version: 3
       })
     );
 
@@ -128,6 +130,9 @@ describe('connection profile store', () => {
     });
 
     expect(JSON.parse(persistedState.get(STORAGE_KEY) ?? '{}').state.profileId).toBe('cloud');
+    expect(JSON.parse(persistedState.get(STORAGE_KEY) ?? '{}').state.defaultProfileId).toBe(
+      'local'
+    );
   });
 
   it('migrates old local selections to cloud in local-edge cloud-data mode', async () => {
@@ -149,5 +154,47 @@ describe('connection profile store', () => {
     expect(env.connectionProfileId).toBe('cloud');
     expect(env.activeConnectionProfile.edge).toBe('local');
     expect(env.activeConnectionProfile.dataPlane).toBe('cloud');
+  });
+
+  it('switches stale local-mode state to cloud when the active build uses local edge with cloud data', async () => {
+    process.env.EXPO_PUBLIC_LOCAL_DATA_PLANE = 'cloud';
+    persistedState.set(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: { profileId: 'local', defaultProfileId: 'local' },
+        version: 3
+      })
+    );
+
+    const { useConnectionProfileStore } = await loadStoreModule();
+    const { env } = await import('./env');
+
+    await useConnectionProfileStore.persist.rehydrate();
+
+    expect(useConnectionProfileStore.getState().profileId).toBe('cloud');
+    expect(env.connectionProfileId).toBe('cloud');
+    expect(env.apiUrl).toBe('https://localhost');
+    expect(env.oidcIssuerUrl).toBe('https://localhost/realms/pulse');
+    expect(env.activeConnectionProfile.edge).toBe('local');
+    expect(env.activeConnectionProfile.dataPlane).toBe('cloud');
+  });
+
+  it('migrates stale cloud selections back to local in normal local mode', async () => {
+    persistedState.set(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: { profileId: 'cloud', defaultProfileId: 'cloud' },
+        version: 3
+      })
+    );
+
+    const { useConnectionProfileStore } = await loadStoreModule();
+    const { env } = await import('./env');
+
+    await useConnectionProfileStore.persist.rehydrate();
+
+    expect(useConnectionProfileStore.getState().profileId).toBe('local');
+    expect(env.connectionProfileId).toBe('local');
+    expect(env.oidcIssuerUrl).toBe('https://localhost/realms/pulse');
   });
 });

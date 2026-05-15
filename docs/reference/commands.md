@@ -1411,7 +1411,9 @@ Notes:
   not receive cloud-internal Sentinel addresses it cannot route to.
 - `make local-cloud-db-env` writes local-only
   `.tmp/local-cloud-db.services.values.yaml` with Helm values that point local
-  k3d backend pods at `host.docker.internal:25432`.
+  k3d backend pods at cloud Postgres through `host.docker.internal:25432` and
+  cloud NATS/Valkey through the same Docker-managed forwards used by the
+  realtime gateway.
 - `make services-up-cloud-db` runs the normal local services deploy with the
   generated cloud-Postgres overlay and starts the background cloud DB forward
   first. It binds the forward with `LOCAL_CLOUD_DB_FORWARD_ADDRESS=0.0.0.0` by
@@ -1425,8 +1427,8 @@ Notes:
   NATS/Valkey. It builds the local web bundle with
   `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings shows the active source as
   Cloud even though the browser edge is still `https://localhost`. The generated
-  services overlay also switches Go cache prefixes to `cloud-*` namespaces when
-  local Valkey is still the cache endpoint.
+  services overlay also points Go cache clients at the cloud Valkey forward and
+  switches cache prefixes to `cloud-*` namespaces.
   `make dev-up` is the full local reset path.
 - `make dev-web-deploy-cloud-realtime` refreshes only the local public app and
   realtime gateway with the generated cloud-realtime overlay and the same

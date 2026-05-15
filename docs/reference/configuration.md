@@ -145,6 +145,9 @@ Deployment note:
 - local/dev Helm values keep request-serving `go-grpc-api` replicas traffic-only by setting `SOLAR_FORECAST_VERIFICATION_INTERVAL=0s` there, and run the background loop on separate `go-solar-verification` workers that cooperatively claim pending runs from Postgres.
 - local/dev Helm values also keep request-serving weather refresh traffic-only by setting `WEATHER_REFRESH_INTERVAL=0s` on `go-grpc-api`, with background weather refresh and prune work moved to the dedicated `go-scheduler` worker.
 - Helm values keep Valkey cache prefixes data-plane-specific (`local-*`, `dev-*`, `cloud-*`) so local cloud-data workflows cannot reuse stale local-mode projection, weather, inference, provider-session, or energy entries from a shared Valkey instance.
+- local cloud-data service overlays point Go API cache clients at the cloud
+  Valkey forward and clear Sentinel discovery, because cloud-internal Sentinel
+  addresses are not routable from local k3d pods.
 
 ## Background Scheduler Runtime
 
@@ -454,6 +457,10 @@ Runtime behavior:
 - users can switch that data source directly from the shared app menu or from
   `Settings -> Data source`; the product-facing choices are `Local` and
   `Cloud`.
+- connection-profile persistence stores both the selected profile and the
+  active build default; when the app switches between true Local and local-edge
+  Cloud builds, stale state from the other mode is normalized to the current
+  default so login does not keep using hosted `sslip.io` OIDC discovery.
 - browser REST requests include `X-Pulse-Connection-Profile` and
   `X-Pulse-Data-Plane` so optional BFF edge caches partition local and cloud
   mode responses even when both modes use the same local HTTPS edge.
