@@ -139,7 +139,9 @@ Defaults:
     Go API cache clients and the local realtime gateway at cloud NATS/Valkey
     through Docker-managed forwards so live data and cache reads come from the
     hosted data plane; the forward start targets restart stale managed
-    containers when the local port is no longer reachable,
+    containers when protocol probes fail, and new forward containers supervise
+    their child `kubectl port-forward` process so broken-but-running tunnels
+    are restarted automatically,
   - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
     `make cloud-realtime-forward-stop`, and
     `make dev-web-deploy-cloud-realtime` for refreshing only the local public
