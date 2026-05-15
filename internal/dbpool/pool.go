@@ -91,9 +91,29 @@ func IsTransientReadError(err error) bool {
 		return pgErr.Code == pgTooManyClientsCode
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "sqlstate 53300") ||
-		strings.Contains(msg, "too many clients already") ||
-		strings.Contains(msg, "remaining connection slots are reserved")
+	return containsAny(
+		msg,
+		"sqlstate 53300",
+		"too many clients already",
+		"remaining connection slots are reserved",
+		"failed to receive message",
+		"unexpected eof",
+		"server closed the connection unexpectedly",
+		"connection reset by peer",
+		"connection refused",
+		"broken pipe",
+		"i/o timeout",
+		"use of closed network connection",
+	)
+}
+
+func containsAny(value string, needles ...string) bool {
+	for _, needle := range needles {
+		if strings.Contains(value, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 type poolConfig struct {

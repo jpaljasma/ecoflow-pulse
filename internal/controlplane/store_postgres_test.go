@@ -145,6 +145,98 @@ ORDER BY d.product_name ASC, d.ecoflow_sn ASC;
 	}
 }
 
+func TestPostgresStoreListProviderDevicesRetriesConnectionDrop(t *testing.T) {
+	t.Setenv("DB_READ_RETRY_MAX_ATTEMPTS", "2")
+	t.Setenv("DB_READ_RETRY_INITIAL_BACKOFF", "1ms")
+	t.Setenv("DB_READ_RETRY_MAX_BACKOFF", "1ms")
+	t.Setenv("DB_READ_RETRY_JITTER_FACTOR", "0")
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	query := `
+	SELECT
+		pd.id::text,
+		pd.device_id::text,
+		pd.provider,
+		pd.provider_device_id,
+		pd.credential_id::text,
+		d.ecoflow_sn,
+		COALESCE(pd.product_name, d.product_name, ''),
+		COALESCE(pd.model, d.model, ''),
+		pd.capabilities,
+		pd.metadata,
+		pd.is_active,
+		pd.ingest_desired_state
+	FROM provider_devices pd
+	JOIN devices d ON d.id = pd.device_id
+	JOIN user_devices ud ON ud.device_id = d.id
+	JOIN users u ON u.id = ud.user_id
+	WHERE u.keycloak_subject = $1
+	  AND ($2 = '' OR pd.provider = $2)
+	  AND (NOT $3 OR pd.is_active = TRUE)
+	ORDER BY pd.provider ASC, d.product_name ASC, d.ecoflow_sn ASC;
+	`
+
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs("subject-123", ProviderEcoFlow, false).
+		WillReturnError(errors.New("failed to receive message: unexpected EOF"))
+
+	rows := sqlmock.NewRows([]string{
+		"id",
+		"device_id",
+		"provider",
+		"provider_device_id",
+		"credential_id",
+		"ecoflow_sn",
+		"product_name",
+		"model",
+		"capabilities",
+		"metadata",
+		"is_active",
+		"ingest_desired_state",
+	}).AddRow(
+		"provider-device-1",
+		"device-1",
+		ProviderEcoFlow,
+		"provider-device-id-1",
+		"credential-1",
+		"SN-001",
+		"PowerPulse",
+		"Model X",
+		"{}",
+		"{}",
+		true,
+		"active",
+	)
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs("subject-123", ProviderEcoFlow, false).
+		WillReturnRows(rows)
+
+	got, err := store.ListProviderDevices(context.Background(), ListProviderDevicesInput{
+		UserSubject: "subject-123",
+		Provider:    ProviderEcoFlow,
+	})
+	if err != nil {
+		t.Fatalf("ListProviderDevices failed: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("provider device count mismatch: got=%d want=1", len(got))
+	}
+	if got[0].DeviceID != "device-1" {
+		t.Fatalf("device id mismatch: got=%s", got[0].DeviceID)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestPostgresStoreCreateProviderCredentialActiveHandlesEmptyExcludeID(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

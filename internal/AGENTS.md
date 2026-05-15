@@ -42,6 +42,7 @@ This file adds backend/runtime guidance for `internal/` work on top of the repos
 2. Retry only safe transient operations, with short backoff and jitter.
 3. Preserve write safety: do not add automatic retries to writes unless idempotency and side effects are explicitly handled.
 4. Background workers must release leases, subscriptions, and DB resources cleanly during drain.
+5. Transient dependency drops such as EOF, connection reset/refused, broken pipe, or timeout should be retried for safe request paths and reported as temporary unavailability after retries are exhausted.
 
 ## Go Quality Gates
 1. Keep `golangci-lint run ./...` clean.

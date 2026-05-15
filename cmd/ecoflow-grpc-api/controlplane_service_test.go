@@ -79,6 +79,22 @@ func (s *staticProbeSubscriber) Close() error {
 	return nil
 }
 
+type transientCurrentUserStore struct {
+	*controlplane.MemoryStore
+}
+
+func (s *transientCurrentUserStore) GetOrProvisionCurrentUser(context.Context, controlplane.GetOrProvisionCurrentUserInput) (controlplane.CurrentUser, error) {
+	return controlplane.CurrentUser{}, fmt.Errorf("get current user: failed to receive message: unexpected EOF")
+}
+
+type transientProviderDevicesStore struct {
+	*controlplane.MemoryStore
+}
+
+func (s *transientProviderDevicesStore) ListProviderDevices(context.Context, controlplane.ListProviderDevicesInput) ([]controlplane.ProviderDevice, error) {
+	return nil, fmt.Errorf("query provider devices: failed to receive message: unexpected EOF")
+}
+
 func newControlPlaneServiceForTest() (*ControlPlaneService, *controlplane.MemoryStore) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := controlplane.NewMemoryStore()
@@ -95,6 +111,32 @@ func newControlPlaneServiceForTest() (*ControlPlaneService, *controlplane.Memory
 		},
 	})
 	return NewControlPlaneService(log, store, registry), store
+}
+
+func TestGetCurrentUserReturnsUnavailableForTransientStoreError(t *testing.T) {
+	t.Parallel()
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &transientCurrentUserStore{MemoryStore: controlplane.NewMemoryStore()}
+	svc := NewControlPlaneService(log, store, provideradapter.NewRegistry())
+
+	_, err := svc.GetCurrentUser(context.Background(), &controlplanev1.GetCurrentUserRequest{UserSubject: "dev-user"})
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("expected Unavailable, got %v", err)
+	}
+}
+
+func TestListDevicesReturnsUnavailableForTransientStoreError(t *testing.T) {
+	t.Parallel()
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &transientProviderDevicesStore{MemoryStore: controlplane.NewMemoryStore()}
+	svc := NewControlPlaneService(log, store, provideradapter.NewRegistry())
+
+	_, err := svc.ListDevices(context.Background(), &controlplanev1.ListDevicesRequest{UserSubject: "dev-user"})
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("expected Unavailable, got %v", err)
+	}
 }
 
 func TestCreateProviderCredentialValidation(t *testing.T) {

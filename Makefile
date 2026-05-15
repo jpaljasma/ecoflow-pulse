@@ -224,7 +224,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up public-deployments-restart-local k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -1242,7 +1242,8 @@ local-cloud-realtime-env:
 		printf "      natsURLs: 'nats://%s:%s'\n" "$(LOCAL_CLOUD_REALTIME_HOST)" "$(LOCAL_CLOUD_NATS_PORT)"; \
 		printf "      valkeyAddrs: '%s:%s'\n" "$(LOCAL_CLOUD_REALTIME_HOST)" "$(LOCAL_CLOUD_VALKEY_PORT)"; \
 		echo "      valkeySentinelMasterSet: ''"; \
-	} > "$(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"; \
+		echo "      projectionKeyPrefix: 'pulse:cloud-projection'"; \
+		} > "$(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"; \
 	chmod 600 "$(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"; \
 	echo "wrote $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES) for cloud NATS/Valkey via $(LOCAL_CLOUD_REALTIME_HOST)"
 
@@ -1388,6 +1389,7 @@ dev-up-cloud-db:
 	$(MAKE) --no-print-directory platform-up \
 		LOCAL_PLATFORM_VALUES="$(LOCAL_PLATFORM_VALUES) $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"
 	$(MAKE) --no-print-directory platform-wait
+	$(MAKE) --no-print-directory public-deployments-restart-local
 	$(MAKE) --no-print-directory services-up-cloud-db
 	$(MAKE) --no-print-directory services-wait
 
@@ -1435,6 +1437,24 @@ dev-down:
 # dev-deploy defaults to a Helm fast path (`DEV_DEPLOY_HELM=auto`) that skips Helm re-apply unless the
 # local chart/values files changed or the release is missing. Use `DEV_DEPLOY_HELM=always` to force full Helm apply.
 # The rollout restart calls are important because the images use the same :local tag with IfNotPresent, so importing alone will not replace already-running pods.
+public-deployments-restart-local:
+	@set -euo pipefail; \
+		restart_and_wait_if_exists() { \
+			ns="$$1"; \
+			name="$$2"; \
+			if $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" >/dev/null 2>&1; then \
+				echo "restarting $$ns/$$name"; \
+				$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
+				echo "waiting for $$ns/$$name"; \
+				$(LOCAL_ROLLOUT_STATUS) "$$ns" "$$name" 300s; \
+			else \
+				echo "skipping missing deployment $$ns/$$name"; \
+			fi; \
+		}; \
+		echo "restarting updated public deployments"; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
+		restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app
+
 dev-web-deploy:
 	@set -euo pipefail; \
 		if [ -f .env ]; then \
@@ -1494,21 +1514,7 @@ dev-web-deploy:
 		if [ "$${DEV_DEPLOY_SKIP_PUBLIC_RESTART:-0}" = "1" ]; then \
 			echo "skipping public deployment restart (DEV_DEPLOY_SKIP_PUBLIC_RESTART=1)"; \
 		else \
-			restart_and_wait_if_exists() { \
-				ns="$$1"; \
-				name="$$2"; \
-				if $(LOCAL_KUBECTL) -n "$$ns" get deploy/"$$name" >/dev/null 2>&1; then \
-					echo "restarting $$ns/$$name"; \
-					$(LOCAL_KUBECTL) -n "$$ns" rollout restart deploy/"$$name"; \
-					echo "waiting for $$ns/$$name"; \
-					$(LOCAL_ROLLOUT_STATUS) "$$ns" "$$name" 300s; \
-				else \
-					echo "skipping missing deployment $$ns/$$name"; \
-				fi; \
-			}; \
-			echo "restarting updated public deployments"; \
-			restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-realtime-gateway; \
-			restart_and_wait_if_exists $(PLATFORM_NAMESPACE) pulse-platform-public-app; \
+			$(MAKE) --no-print-directory public-deployments-restart-local; \
 		fi
 	@echo "showing platform deployment state and recent realtime gateway logs"
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy
@@ -2759,9 +2765,11 @@ cloud-db-forward-start: gke-cloud-context
 			fi; \
 			echo "cloud DB forward container is running but 127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is not reachable"; \
 			docker logs --tail 80 "$$container" || true; \
-			exit 1; \
+			echo "restarting stale cloud DB forward container $$container"; \
+			docker rm -f "$$container" >/dev/null; \
+		else \
+			docker rm "$$container" >/dev/null; \
 		fi; \
-		docker rm "$$container" >/dev/null; \
 	fi; \
 	if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \
 		domain="gui/$$(id -u)"; \
@@ -2873,9 +2881,11 @@ cloud-realtime-forward-start: gke-cloud-context
 				fi; \
 				echo "$$label forward container is running but 127.0.0.1:$$local_port is not reachable"; \
 				docker logs --tail 80 "$$container" || true; \
-				return 1; \
+				echo "restarting stale $$label forward container $$container"; \
+				docker rm -f "$$container" >/dev/null; \
+			else \
+				docker rm "$$container" >/dev/null; \
 			fi; \
-			docker rm "$$container" >/dev/null; \
 		fi; \
 		rm -f "$$pid_file"; \
 		if [ "$$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then \

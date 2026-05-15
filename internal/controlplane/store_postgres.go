@@ -773,20 +773,22 @@ RETURNING
 	created_at,
 	updated_at;
 `
-	row := s.db.QueryRowContext(
-		ctx,
-		query,
-		strings.TrimSpace(in.UserSubject),
-		strings.TrimSpace(in.Email),
-		in.EmailVerified,
-		providerDisplayName,
-		strings.TrimSpace(in.AvatarURL),
-		strings.TrimSpace(in.GivenName),
-		strings.TrimSpace(in.FamilyName),
-		strings.TrimSpace(in.Locale),
-		now,
-	)
-	out, err := scanCurrentUser(row)
+	out, err := dbpool.RetryRead(ctx, func(ctx context.Context) (CurrentUser, error) {
+		row := s.db.QueryRowContext(
+			ctx,
+			query,
+			strings.TrimSpace(in.UserSubject),
+			strings.TrimSpace(in.Email),
+			in.EmailVerified,
+			providerDisplayName,
+			strings.TrimSpace(in.AvatarURL),
+			strings.TrimSpace(in.GivenName),
+			strings.TrimSpace(in.FamilyName),
+			strings.TrimSpace(in.Locale),
+			now,
+		)
+		return scanCurrentUser(row)
+	})
 	if err != nil {
 		return CurrentUser{}, fmt.Errorf("get or provision current user: %w", err)
 	}
@@ -1111,37 +1113,39 @@ WHERE u.keycloak_subject = $1
   AND (NOT $3 OR pd.is_active = TRUE)
 ORDER BY pd.provider ASC, d.product_name ASC, d.ecoflow_sn ASC;
 `
-	rows, err := s.db.QueryContext(ctx, query, in.UserSubject, provider, in.ActiveOnly)
-	if err != nil {
-		return nil, fmt.Errorf("query provider devices: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	out := make([]ProviderDevice, 0, 8)
-	for rows.Next() {
-		var row ProviderDevice
-		if err := rows.Scan(
-			&row.ID,
-			&row.DeviceID,
-			&row.Provider,
-			&row.ProviderDeviceID,
-			&row.CredentialID,
-			&row.CanonicalSN,
-			&row.ProductName,
-			&row.Model,
-			(*jsonbMap)(&row.Capabilities),
-			(*jsonbMap)(&row.Metadata),
-			&row.IsActive,
-			&row.IngestDesiredState,
-		); err != nil {
-			return nil, fmt.Errorf("scan provider devices row: %w", err)
+	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]ProviderDevice, error) {
+		rows, err := s.db.QueryContext(ctx, query, in.UserSubject, provider, in.ActiveOnly)
+		if err != nil {
+			return nil, fmt.Errorf("query provider devices: %w", err)
 		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate provider devices rows: %w", err)
-	}
-	return out, nil
+		defer func() { _ = rows.Close() }()
+
+		out := make([]ProviderDevice, 0, 8)
+		for rows.Next() {
+			var row ProviderDevice
+			if err := rows.Scan(
+				&row.ID,
+				&row.DeviceID,
+				&row.Provider,
+				&row.ProviderDeviceID,
+				&row.CredentialID,
+				&row.CanonicalSN,
+				&row.ProductName,
+				&row.Model,
+				(*jsonbMap)(&row.Capabilities),
+				(*jsonbMap)(&row.Metadata),
+				&row.IsActive,
+				&row.IngestDesiredState,
+			); err != nil {
+				return nil, fmt.Errorf("scan provider devices row: %w", err)
+			}
+			out = append(out, row)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate provider devices rows: %w", err)
+		}
+		return out, nil
+	})
 }
 
 func (s *PostgresStore) GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (ProviderDevice, error) {
@@ -1173,27 +1177,29 @@ ORDER BY
 	pd.provider_device_id ASC
 LIMIT 1;
 `
-	var row ProviderDevice
-	if err := s.db.QueryRowContext(ctx, query, deviceID).Scan(
-		&row.ID,
-		&row.DeviceID,
-		&row.Provider,
-		&row.ProviderDeviceID,
-		&row.CredentialID,
-		&row.CanonicalSN,
-		&row.ProductName,
-		&row.Model,
-		(*jsonbMap)(&row.Capabilities),
-		(*jsonbMap)(&row.Metadata),
-		&row.IsActive,
-		&row.IngestDesiredState,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ProviderDevice{}, ErrDeviceNotFound
+	return dbpool.RetryRead(ctx, func(ctx context.Context) (ProviderDevice, error) {
+		var row ProviderDevice
+		if err := s.db.QueryRowContext(ctx, query, deviceID).Scan(
+			&row.ID,
+			&row.DeviceID,
+			&row.Provider,
+			&row.ProviderDeviceID,
+			&row.CredentialID,
+			&row.CanonicalSN,
+			&row.ProductName,
+			&row.Model,
+			(*jsonbMap)(&row.Capabilities),
+			(*jsonbMap)(&row.Metadata),
+			&row.IsActive,
+			&row.IngestDesiredState,
+		); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ProviderDevice{}, ErrDeviceNotFound
+			}
+			return ProviderDevice{}, fmt.Errorf("query provider device by device id: %w", err)
 		}
-		return ProviderDevice{}, fmt.Errorf("query provider device by device id: %w", err)
-	}
-	return row, nil
+		return row, nil
+	})
 }
 
 func (s *PostgresStore) ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error) {

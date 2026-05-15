@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 
 const createClientMock = vi.fn();
 const createSentinelMock = vi.fn();
@@ -58,4 +59,74 @@ describe('ValkeySnapshotStore', () => {
     expect(sentinelClient.connect).toHaveBeenCalledTimes(1);
     expect(sentinelClient.close).toHaveBeenCalledTimes(1);
   });
+
+  it('handles Valkey socket errors without crashing and reconnects on the next read', async () => {
+    const firstClient = makeClient();
+    const secondClient = makeClient();
+    createClientMock
+      .mockReturnValueOnce(firstClient)
+      .mockReturnValueOnce(secondClient);
+
+    const { ValkeySnapshotStore } = await import('../src/snapshot/valkeySnapshotStore.js');
+    const store = new ValkeySnapshotStore({
+      addrs: ['127.0.0.1:26380'],
+      keyPrefix: 'pulse:projection'
+    });
+
+    await store.getSnapshot('dev-1');
+
+    expect(() => firstClient.emit('error', new Error('socket closed unexpectedly'))).not.toThrow();
+
+    await store.getSnapshot('dev-1');
+    await store.close();
+
+    expect(createClientMock).toHaveBeenCalledTimes(2);
+    expect(firstClient.close).toHaveBeenCalledTimes(1);
+    expect(secondClient.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores stale end events from an old Valkey client after reconnecting', async () => {
+    const firstClient = makeClient();
+    const secondClient = makeClient();
+    let resolveOldClose: (() => void) | undefined;
+    firstClient.close = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOldClose = resolve;
+        })
+    );
+    createClientMock
+      .mockReturnValueOnce(firstClient)
+      .mockReturnValueOnce(secondClient);
+
+    const { ValkeySnapshotStore } = await import('../src/snapshot/valkeySnapshotStore.js');
+    const store = new ValkeySnapshotStore({
+      addrs: ['127.0.0.1:26380'],
+      keyPrefix: 'pulse:projection'
+    });
+
+    await store.getSnapshot('dev-1');
+    firstClient.emit('error', new Error('socket closed unexpectedly'));
+    await store.getSnapshot('dev-1');
+
+    firstClient.emit('end');
+    await store.getSnapshot('dev-1');
+    resolveOldClose?.();
+    await store.close();
+
+    expect(createClientMock).toHaveBeenCalledTimes(2);
+    expect(secondClient.close).toHaveBeenCalledTimes(1);
+  });
 });
+
+function makeClient() {
+  const client = new EventEmitter() as EventEmitter & {
+    connect: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  };
+  client.connect = vi.fn().mockResolvedValue(undefined);
+  client.get = vi.fn().mockResolvedValue(null);
+  client.close = vi.fn().mockResolvedValue(undefined);
+  return client;
+}

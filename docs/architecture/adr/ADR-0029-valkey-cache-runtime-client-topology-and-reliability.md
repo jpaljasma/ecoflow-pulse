@@ -36,6 +36,9 @@ helpers, but they must keep their runtime modes explicit.
   path explicitly handles side effects.
 - Client behavior must reliably reconnect after disconnects, Sentinel primary
   changes, and transient network failures.
+- Node-based Valkey readers must attach socket `error`/`end` handlers, reset any
+  cached client promises on disconnect, and reconnect on the next read rather
+  than allowing an unhandled EventEmitter error to terminate the process.
 - Lock/write paths must target a writable primary through Sentinel, not random
   replica fan-out endpoints.
 - Cache key design comes from ADR-0028; Valkey clients must not introduce
@@ -97,7 +100,8 @@ runtime. Do not silently replace the ADR-0004 topology.
 ## Validation Expectations
 
 - Unit tests cover retry/backoff/jitter configuration, reconnect-safe helper
-  setup, and explicit client-side-cache opt-in/opt-out modes.
+  setup, Node socket error handling, and explicit client-side-cache opt-in/opt-out
+  modes.
 - Integration tests cover Valkey `GET`, `SET`, `PEXPIRE`, and `INCR` paths with
   miniredis where supported.
 - Live Valkey client-side-cache validation stays behind an explicit integration

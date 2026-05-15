@@ -1396,19 +1396,28 @@ Notes:
   container mounts kubeconfig read-only and the local gcloud config read-write
   so the GKE auth plugin can refresh cached tokens. Override
   `CLOUD_DB_FORWARD_ADDRESS` only when your local container runtime cannot reach
-  the default loopback-bound forward.
+  the default loopback-bound forward. If the managed container is still running
+  but the local DB port is not reachable, `cloud-db-forward-start` removes and
+  relaunches it instead of leaving a stale forward in place.
 - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
   and `make cloud-realtime-forward-stop` manage background forwards from
   `127.0.0.1:24222` to hosted NATS and `127.0.0.1:26380` to hosted Valkey in
   Docker containers named `ecoflow-pulse-cloud-nats-forward` and
   `ecoflow-pulse-cloud-valkey-forward` by default.
   `dev-up-cloud-db` binds them on `0.0.0.0` so local k3d pods can reach them
-  through `host.docker.internal`.
+  through `host.docker.internal`. The start target restarts a managed forward
+  container when its local port has gone unreachable.
+- `make public-deployments-restart-local` restarts the local public app and
+  realtime gateway deployments after same-tag `:local` image imports. It is
+  called by `dev-web-deploy` and `dev-up-cloud-db` so imported public images
+  are actually picked up by running pods.
 - `make local-cloud-realtime-env` writes local-only
   `.tmp/local-cloud-realtime.platform.values.yaml` with Helm values that point
   the local realtime gateway at the cloud NATS/Valkey forwards. It uses direct
   Valkey on the forwarded data port instead of Sentinel so the local pod does
-  not receive cloud-internal Sentinel addresses it cannot route to.
+  not receive cloud-internal Sentinel addresses it cannot route to. It also
+  switches the gateway snapshot prefix to `pulse:cloud-projection` so websocket
+  initial snapshots read the hosted projection data plane.
 - `make local-cloud-db-env` writes local-only
   `.tmp/local-cloud-db.services.values.yaml` with Helm values that point local
   k3d backend pods at cloud Postgres through `host.docker.internal:25432` and
