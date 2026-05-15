@@ -327,6 +327,41 @@ describe('device client', () => {
     expect(device?.details?.overallSocPct).toBeCloseTo(25.49, 2);
   });
 
+  it('uses provider remain-time details when live snapshot ETA fields are absent', async () => {
+    const controlPlaneClient = makeControlPlaneClient({
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [makeProviderDevice()]
+        }
+      ])
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '22222222-2222-7222-8222-222222222222',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'params.soc': 53.53,
+            'params.wattsOutSum': 101,
+            'params.temp': 29
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [device] = await client.listDevices(makeRequest());
+
+    expect(device?.etaMinutes).toBe(1331);
+    expect(device?.details?.estimateEtaMin).toBe(1331);
+    expect(device?.details?.remainGlobalMin).toBe(1331);
+  });
+
   it('surfaces storm guard from live snapshot metrics when metadata groups do not include it', async () => {
     const device = makeProviderDevice();
     device.metadata = {

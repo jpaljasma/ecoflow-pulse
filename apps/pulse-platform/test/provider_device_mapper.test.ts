@@ -146,6 +146,9 @@ describe('provider device mapper', () => {
         socWindowMinPct: 12,
         socWindowMaxPct: 95,
         backupReservePct: 18,
+        estimateEtaMin: 322,
+        estimateSource: 'provider detail',
+        remainGlobalMin: 322,
         packs: [
           expect.objectContaining({
             id: 'bp1',

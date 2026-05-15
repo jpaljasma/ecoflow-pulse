@@ -43,6 +43,12 @@ export type DeviceTelemetryDetails = {
   socWindowMinPct?: number;
   socWindowMaxPct?: number;
   backupReservePct?: number;
+  estimateMode?: string;
+  estimateSource?: string;
+  estimateEtaMin?: number;
+  remainChargeMin?: number;
+  remainDischargeMin?: number;
+  remainGlobalMin?: number;
   acOn?: boolean;
   dcOn?: boolean;
   usbOn?: boolean;
@@ -261,6 +267,12 @@ function buildDpuDetails(
   const chgTimeTaskType = toNumber(appshow.chgTimeTaskType);
   const dsgTimeTaskType = toNumber(appshow.dsgTimeTaskType);
   const inferredPassthroughMode = inferDpuPassthroughModeFromPower(appshow, backend);
+  const etaDetails = deriveProviderEtaDetails({
+    remainGlobalMin: firstDefined(toNumber(appshow.remainTime), toNumber(backend.remainTime)),
+    remainChargeMin: firstDefined(toNumber(appshow.chgRemainTime), toNumber(backend.chgRemainTime)),
+    remainDischargeMin: firstDefined(toNumber(appshow.dsgRemainTime), toNumber(backend.dsgRemainTime)),
+    packs
+  });
 
   pushDiagnostic(diagnostics, 'dpu-sys-work-mode', 'System Work Mode', describeRawEnumValue(sysWorkMode), 'info');
   pushDiagnostic(diagnostics, 'dpu-sys-work-status', 'System Work Status', describeRawEnumValue(sysWorkSta), 'info');
@@ -295,6 +307,7 @@ function buildDpuDetails(
     socWindowMinPct: toNumber(appset.dsgMinSoc),
     socWindowMaxPct: toNumber(appset.chgMaxSoc),
     backupReservePct: firstDefined(toNumber(appset.sysBackupSoc), toNumber(appset.backupRatio)),
+    ...etaDetails,
     acOn: anyPositive(
       appshow.outAcTtPwr,
       appshow.outAcL11Pwr,
@@ -417,6 +430,12 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
   const bmsWarState = toNumber(bmsEmsStatus.bmsWarState);
   const emsIsNormalFlag = toNumber(bmsEmsStatus.emsIsNormalFlag);
   const chgDsgState = toNumber(pd.chgDsgState);
+  const etaDetails = deriveProviderEtaDetails({
+    remainGlobalMin: firstDefined(toNumber(bmsStatus.remainTime), toNumber(pd.remainTime)),
+    remainChargeMin: firstDefined(toNumber(bmsEmsStatus.chgRemainTime), toNumber(pd.chgRemainTime)),
+    remainDischargeMin: firstDefined(toNumber(bmsEmsStatus.dsgRemainTime), toNumber(pd.dsgRemainTime)),
+    packs
+  });
 
   pushDiagnostic(
     diagnostics,
@@ -448,6 +467,7 @@ function buildD2mDetails(groups: GenericRecord, bpCount?: number): DeviceTelemet
     socWindowMinPct: firstDefined(toNumber(bmsEmsStatus.minDsgSoc), toNumber(pd.minAcSoc), toNumber(bmsStatus.minSoc), toNumber(bmsKitInfo.minSoc)),
     socWindowMaxPct: firstDefined(toNumber(bmsEmsStatus.maxChargeSoc), toNumber(bmsStatus.maxSoc), toNumber(bmsKitInfo.maxSoc)),
     backupReservePct: firstDefined(toNumber(pd.minAcSoc), toNumber(bmsEmsStatus.minOpenOilEb)),
+    ...etaDetails,
     acOn: truthyNumber(inv.cfgAcEnabled) || anyPositive(inv.outputWatts),
     dcOn: dc12vOn || truthyNumber(pd.carState),
     usbOn,
@@ -556,6 +576,12 @@ function buildDelta2Details(groups: GenericRecord, bpCount?: number): DeviceTele
   const bmsWarState = toNumber(ems.bmsWarState);
   const emsIsNormalFlag = toNumber(ems.emsIsNormalFlag);
   const chgDsgState = toNumber(pd.chgDsgState);
+  const etaDetails = deriveProviderEtaDetails({
+    remainGlobalMin: firstDefined(toNumber(bmsMaster.remainTime), toNumber(pd.remainTime)),
+    remainChargeMin: firstDefined(toNumber(ems.chgRemainTime), toNumber(pd.chgRemainTime)),
+    remainDischargeMin: firstDefined(toNumber(ems.dsgRemainTime), toNumber(pd.dsgRemainTime)),
+    packs
+  });
 
   pushDiagnostic(
     diagnostics,
@@ -602,6 +628,7 @@ function buildDelta2Details(groups: GenericRecord, bpCount?: number): DeviceTele
       toNumber(pd.minAcSoc),
       toNumber(pd.minAcoutSoc)
     ),
+    ...etaDetails,
     acOn: truthyNumber(inv.cfgAcEnabled) || truthyNumber(pd.acEnabled) || anyPositive(inv.outputWatts, pd.outputWatts),
     dcOn: dc12vOn || truthyNumber(pd.carState),
     usbOn,
@@ -814,6 +841,62 @@ function deriveBatteryNetPower(record: GenericRecord): number | undefined {
     return undefined;
   }
   return (input ?? 0) - (output ?? 0);
+}
+
+export function deriveDeviceDetailsEtaMinutes(
+  details?: Pick<
+    DeviceTelemetryDetails,
+    'estimateEtaMin' | 'remainGlobalMin' | 'remainDischargeMin' | 'remainChargeMin' | 'packs'
+  >
+): number | undefined {
+  return firstDefined(
+    positiveMinutes(details?.estimateEtaMin),
+    positiveMinutes(details?.remainGlobalMin),
+    positiveMinutes(details?.remainDischargeMin),
+    positiveMinutes(details?.remainChargeMin),
+    maxPackRemainMinutes(details?.packs ?? [])
+  );
+}
+
+function deriveProviderEtaDetails(input: {
+  remainGlobalMin?: number;
+  remainChargeMin?: number;
+  remainDischargeMin?: number;
+  packs: BatteryPackDetail[];
+}): Pick<
+  DeviceTelemetryDetails,
+  'estimateEtaMin' | 'estimateSource' | 'remainChargeMin' | 'remainDischargeMin' | 'remainGlobalMin'
+> {
+  const remainGlobalMin = positiveMinutes(input.remainGlobalMin) ?? maxPackRemainMinutes(input.packs);
+  const remainChargeMin = positiveMinutes(input.remainChargeMin);
+  const remainDischargeMin = positiveMinutes(input.remainDischargeMin);
+  const estimateEtaMin = deriveDeviceDetailsEtaMinutes({
+    remainGlobalMin,
+    remainChargeMin,
+    remainDischargeMin,
+    packs: input.packs
+  });
+  if (estimateEtaMin === undefined) {
+    return {};
+  }
+  return {
+    estimateEtaMin,
+    estimateSource: 'provider detail',
+    remainChargeMin,
+    remainDischargeMin,
+    remainGlobalMin
+  };
+}
+
+function maxPackRemainMinutes(packs: BatteryPackDetail[]): number | undefined {
+  const values = packs
+    .map((pack) => positiveMinutes(pack.remainMinutes))
+    .filter((value): value is number => value !== undefined);
+  return values.length > 0 ? Math.max(...values) : undefined;
+}
+
+function positiveMinutes(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
 }
 
 function pushDiagnostic(
