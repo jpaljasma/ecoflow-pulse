@@ -12,6 +12,7 @@ import (
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ankersolix"
@@ -102,6 +103,13 @@ func (s *ControlPlaneService) supportsProvider(provider string) bool {
 	return controlplane.IsSupportedProvider(provider)
 }
 
+func controlPlaneStoreError(operation string, err error) error {
+	if dbpool.IsTransientReadError(err) {
+		return status.Error(codes.Unavailable, operation+" temporarily unavailable")
+	}
+	return status.Errorf(codes.Internal, "%s: %v", operation, err)
+}
+
 func (s *ControlPlaneService) GetCurrentUser(ctx context.Context, req *controlplanev1.GetCurrentUserRequest) (*controlplanev1.GetCurrentUserResponse, error) {
 	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
 	if err != nil {
@@ -119,11 +127,11 @@ func (s *ControlPlaneService) GetCurrentUser(ctx context.Context, req *controlpl
 		Locale:        claims.Locale,
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get current user: %v", err)
+		return nil, controlPlaneStoreError("get current user", err)
 	}
 	devices, err := s.store.ListUserDevices(ctx, controlplane.ListUserDevicesInput{UserSubject: userSubject})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list current user devices: %v", err)
+		return nil, controlPlaneStoreError("list current user devices", err)
 	}
 	return &controlplanev1.GetCurrentUserResponse{
 		User: currentUserToProto(user, claims.AuthMethod),
@@ -488,7 +496,7 @@ func (s *ControlPlaneService) ListUserDevices(ctx context.Context, req *controlp
 		UserSubject: userSubject,
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list user devices: %v", err)
+		return nil, controlPlaneStoreError("list user devices", err)
 	}
 	devices := make([]*controlplanev1.UserDevice, 0, len(rows))
 	for i := range rows {
@@ -512,7 +520,7 @@ func (s *ControlPlaneService) ListDevices(ctx context.Context, req *controlplane
 		ActiveOnly:  req.GetActiveOnly(),
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list provider devices: %v", err)
+		return nil, controlPlaneStoreError("list provider devices", err)
 	}
 	groupByProvider := map[string]*controlplanev1.ProviderDeviceGroup{}
 	order := make([]string, 0, 2)

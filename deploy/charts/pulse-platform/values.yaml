@@ -113,6 +113,7 @@ runtime:
       devUserSubject: dev-user@example.com
       publicPreconnectOrigins: ""
       corsAllowedOrigins: ""
+      dataPlane: "local"
       bffCacheEnabled: "false"
       bffCacheMaxEntries: "1000"
       weatherForecastCacheTtlMs: "30000"

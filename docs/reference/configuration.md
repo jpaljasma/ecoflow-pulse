@@ -127,6 +127,7 @@ Shared Go Valkey cache knobs:
 - `VALKEY_SENTINEL_PASSWORD` (optional)
 - `VALKEY_USERNAME` (optional)
 - `VALKEY_PASSWORD` (optional)
+- `PROJECTION_KEY_PREFIX` (default `pulse:projection`; Valkey live projection snapshot key prefix)
 - `INFERENCE_KEY_PREFIX` (default `pulse:inference`; Valkey device-insight read-model key prefix)
 - `INFERENCE_ENERGY_COMPARISON_CACHE_LOCAL_TTL` (default `30s`; valkey-go local TTL for energy-comparison cache reads)
 - `ENERGY_CACHE_KEY_PREFIX` (default `pulse:energy`; Valkey cache key prefix for EnergyService calendar/PV history caches)
@@ -134,6 +135,7 @@ Shared Go Valkey cache knobs:
 - `ENERGY_PV_PORT_HISTORY_CACHE_LOCAL_TTL` (default `5s`; valkey-go local TTL for EnergyService PV-port history cache reads)
 - `SOLAR_FORECAST_VERIFICATION_INTERVAL` (default `15m`; when `> 0`, the solar verifier processes matured issued hourly rows on each pass)
 - `SOLAR_FORECAST_VERIFICATION_BATCH_LIMIT` (default `1536`; max number of pending solar hourly records the verification loop will process per pass)
+- `WEATHER_KEY_PREFIX` (default `pulse:weather`; Valkey weather hot-cache key prefix)
 - `WEATHER_HOT_CACHE_TTL` (default `4h`; the canonical hot-cache and snapshot freshness window for weather reads)
 - `WEATHER_REFRESH_INTERVAL` (default `30m` for standalone grpc-api; Helm keeps request-serving `go-grpc-api` traffic-only with `0s`)
 - `WEATHER_RECENT_ACTIVE_WINDOW` (default `168h`; active-location lookback for background weather refresh)
@@ -142,6 +144,10 @@ Deployment note:
 
 - local/dev Helm values keep request-serving `go-grpc-api` replicas traffic-only by setting `SOLAR_FORECAST_VERIFICATION_INTERVAL=0s` there, and run the background loop on separate `go-solar-verification` workers that cooperatively claim pending runs from Postgres.
 - local/dev Helm values also keep request-serving weather refresh traffic-only by setting `WEATHER_REFRESH_INTERVAL=0s` on `go-grpc-api`, with background weather refresh and prune work moved to the dedicated `go-scheduler` worker.
+- Helm values keep Valkey cache prefixes data-plane-specific (`local-*`, `dev-*`, `cloud-*`) so local cloud-data workflows cannot reuse stale local-mode projection, weather, inference, provider-session, or energy entries from a shared Valkey instance.
+- local cloud-data service overlays point Go API cache clients at the cloud
+  Valkey forward and clear Sentinel discovery, because cloud-internal Sentinel
+  addresses are not routable from local k3d pods.
 
 ## Background Scheduler Runtime
 
@@ -237,6 +243,7 @@ Cloud note:
 - Empty-string `EXPO_PUBLIC_*` values are treated as unset in the universal web runtime. This matters for Docker/Helm-driven web builds, where missing args can appear as `""`; the browser should still fall back to the secure localhost defaults instead of generating broken API/WS URLs.
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX` (default `120`; per-IP budget for authenticated history endpoints)
 - `PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS` (default `60000`; rate-limit window for authenticated history endpoints)
+- `PULSE_PLATFORM_DATA_PLANE` (`local|cloud`, default `local`; low-cardinality runtime fallback for BFF edge cache partitioning when a request does not send `X-Pulse-Data-Plane`)
 - `PULSE_PLATFORM_BFF_CACHE_ENABLED` (default `false`; enables the optional Node BFF in-process response cache for selected public read routes)
 - `PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES` (default `1000`; maximum in-process BFF response-cache entries per public-app pod)
 - `PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS` (default `30000`; BFF edge TTL for `GET /api/v1/weather/forecast` when the BFF cache is enabled)
@@ -450,6 +457,16 @@ Runtime behavior:
 - users can switch that data source directly from the shared app menu or from
   `Settings -> Data source`; the product-facing choices are `Local` and
   `Cloud`.
+- connection-profile persistence stores both the selected profile and the
+  active build default; when the app switches between true Local and local-edge
+  Cloud builds, stale state from the other mode is normalized to the current
+  default so login does not keep using hosted `sslip.io` OIDC discovery.
+- browser REST requests include `X-Pulse-Connection-Profile` and
+  `X-Pulse-Data-Plane` so optional BFF edge caches partition local and cloud
+  mode responses even when both modes use the same local HTTPS edge.
+- browser PKCE sign-in uses a same-tab redirect when the current tab can be
+  navigated, avoiding popup/opener behavior that local and embedded browser
+  surfaces can block.
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - switching the connection profile clears auth/query state by profile key,
   recreates the realtime engine with the selected websocket endpoint, and

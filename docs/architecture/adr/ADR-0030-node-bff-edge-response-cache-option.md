@@ -29,6 +29,10 @@ Add an optional in-process BFF response cache for low-risk public read routes.
 - Metrics are low-cardinality and label only cache namespace and result.
 - Route keys may include canonical request/location attributes, but metrics and
   logs must not expose raw keys or user-linked identifiers.
+- Route keys must include the low-cardinality data-plane dimension (`local` or
+  `cloud`) from `X-Pulse-Data-Plane`, falling back to
+  `PULSE_PLATFORM_DATA_PLANE`, so local-edge cloud-data sessions cannot reuse
+  local-mode BFF cache entries.
 - Relative-day routes must include the resolved local-day bucket in their cache
   key, or bypass this edge cache when the local day cannot be derived.
 

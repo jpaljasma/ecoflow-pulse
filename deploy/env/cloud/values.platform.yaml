@@ -110,6 +110,8 @@ runtime:
       devUserSubject: ""
       publicPreconnectOrigins: "https://pulse.34.73.53.93.sslip.io"
       corsAllowedOrigins: "https://pulse.34.73.53.93.sslip.io,https://localhost,http://localhost:8081,https://localhost:8081,http://127.0.0.1:8081,https://127.0.0.1:8081"
+      dataPlane: cloud
+      bffCacheEnabled: "true"
     ingress:
       enabled: true
       host: pulse.34.73.53.93.sslip.io
@@ -175,7 +177,7 @@ runtime:
       natsURLs: nats://pulse-platform-cloud-nats.pulse-platform.svc.cluster.local:4222
       valkeyAddrs: pulse-platform-cloud-valkey.pulse-platform.svc.cluster.local:26379
       valkeySentinelMasterSet: myprimary
-      projectionKeyPrefix: pulse:projection
+      projectionKeyPrefix: pulse:cloud-projection
       telemetrySubjectPrefix: pulse.telemetry
       nodeAuthMode: keycloak
       keycloakIssuerUrl: https://pulse.34.73.53.93.sslip.io/realms/pulse

@@ -165,9 +165,9 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - keep `/realms` and `/resources` routed to Keycloak for OIDC discovery/login assets,
    - keep `/ws` routed to the realtime gateway,
    - treat missing edge routes as production-grade regressions because they break login or websocket telemetry in ways that look like frontend bugs.
-17. iOS web auth must not depend on popup/opener PKCE completion:
-   - Safari and Chrome on iOS can lose or block `window.open` / `window.opener` auth handoff semantics,
-   - use a same-tab Authorization Code + PKCE redirect for iOS web browsers,
+17. Browser web auth must not depend on popup/opener PKCE completion:
+   - local, embedded, Safari, and Chrome on iOS browser surfaces can lose or block `window.open` / `window.opener` auth handoff semantics,
+   - use a same-tab Authorization Code + PKCE redirect for browser web sign-in when the current tab can be navigated,
    - persist only short-lived PKCE verifier/state before navigation and complete the code exchange from the callback route,
    - keep this browser workaround centralized in the auth helper and covered by regression tests.
 18. Profile timezone UX must stay selection-only and IANA-backed:
@@ -205,6 +205,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
 26. Client parsers must stay aligned with served forecast variants:
    - when backend responses add new enum-like variants for provenance, calibration method, or scope metadata, update the universal client schema and copy in the same branch,
    - device-scoped forecast parse failures must surface as visible widget errors during development rather than silently dropping solar data.
+27. Local/cloud connection profile persistence must follow the active build mode:
+   - local cloud-data builds should present `Cloud` while still using the local browser/API/OIDC edge,
+   - persist the active build default with the selected profile so switching between true Local and local-edge Cloud cannot reuse stale state from the other mode,
+   - normal local builds must not let stale Cloud state send unauthenticated login to hosted `sslip.io` OIDC discovery.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.
@@ -252,6 +256,7 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - use versioned tag invalidation; do not scan keys or maintain reverse indexes for invalidation,
    - use `singleflight` for read-through loaders that can stampede on concurrent misses.
    - Node BFF caches are optional edge response caches only; they must stay bounded, in-process, low-cardinality, and subordinate to the Go/Valkey cache substrate.
+   - cache keys and cache prefixes must include a low-cardinality data-plane partition (`local` vs `cloud`) anywhere a local edge, browser profile switch, or local Valkey instance can serve both modes.
 3. Sensitive cache entries must fail closed:
    - provider MQTT/session/certification material must be encrypted with AES-GCM before storage,
    - if cache encryption is unavailable, bypass the sensitive cache rather than writing plaintext,

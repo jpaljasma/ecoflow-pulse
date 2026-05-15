@@ -11,6 +11,7 @@ const envSchema = z.object({
   PULSE_PLATFORM_DEV_SUBJECT: z.string().trim().default(''),
   PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS: z.string().trim().default(''),
   PULSE_PLATFORM_CORS_ALLOWED_ORIGINS: z.string().trim().default(''),
+  PULSE_PLATFORM_DATA_PLANE: z.union([z.literal('local'), z.literal('cloud'), z.literal('')]).default('local'),
   PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10000).default(120),
   PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   PULSE_PLATFORM_BFF_CACHE_ENABLED: z
@@ -40,6 +41,7 @@ export type AppConfig = {
   devUserSubject?: string;
   publicPreconnectOrigins: string[];
   corsAllowedOrigins: string[];
+  dataPlane?: 'local' | 'cloud';
   historyRateLimit: {
     max: number;
     timeWindowMs: number;
@@ -78,6 +80,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,
       publicPreconnectOrigins: splitCsvList(parsed.PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS),
       corsAllowedOrigins: splitCsvList(parsed.PULSE_PLATFORM_CORS_ALLOWED_ORIGINS),
+      dataPlane: buildDataPlane(parsed),
       historyRateLimit: {
         max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
         timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
@@ -103,6 +106,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     devUserSubject: parsed.PULSE_PLATFORM_DEV_SUBJECT || undefined,
     publicPreconnectOrigins: splitCsvList(parsed.PULSE_PLATFORM_PUBLIC_PRECONNECT_ORIGINS),
     corsAllowedOrigins: splitCsvList(parsed.PULSE_PLATFORM_CORS_ALLOWED_ORIGINS),
+    dataPlane: buildDataPlane(parsed),
     historyRateLimit: {
       max: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_MAX,
       timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
@@ -128,6 +132,10 @@ function buildBffCacheConfig(parsed: z.infer<typeof envSchema>): AppConfig['bffC
     weatherForecastTtlMs: parsed.PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS,
     weatherYesterdayTtlMs: parsed.PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS
   };
+}
+
+function buildDataPlane(parsed: z.infer<typeof envSchema>): 'local' | 'cloud' {
+  return parsed.PULSE_PLATFORM_DATA_PLANE === 'cloud' ? 'cloud' : 'local';
 }
 
 function splitCsvList(input: string): string[] {

@@ -12,9 +12,22 @@ import { create, createJSONStorage, persist } from '@/shared/state/zustand';
 type ConnectionProfileState = {
   hydrated: boolean;
   profileId: ConnectionProfileId;
+  defaultProfileId: ConnectionProfileId;
   setHydrated: (hydrated: boolean) => void;
   setProfileId: (profileId: ConnectionProfileId) => void;
 };
+
+type PersistedConnectionProfileState = Partial<{
+  profileId: ConnectionProfileId;
+  defaultProfileId: ConnectionProfileId;
+}>;
+
+function readPersistedProfileId(value: unknown): ConnectionProfileId | null {
+  if (value === 'cloud' || value === 'local') {
+    return value;
+  }
+  return null;
+}
 
 function normalizeProfileId(value: unknown): ConnectionProfileId {
   if (value === 'cloud' && isConnectionProfileConfigured('cloud')) {
@@ -33,9 +46,40 @@ function applyProfileSelection(profileId: ConnectionProfileId): ConnectionProfil
   return normalized;
 }
 
-function migrateProfileId(value: unknown, version: number): ConnectionProfileId {
-  if (version < 2 && value === 'local' && defaultConnectionProfileId === 'cloud') {
+function resolvePersistedProfileId(
+  value: unknown,
+  version: number | undefined,
+  persistedDefaultProfileId: unknown
+): ConnectionProfileId {
+  const persistedDefault = readPersistedProfileId(persistedDefaultProfileId);
+  if (persistedDefault && persistedDefault !== defaultConnectionProfileId) {
+    return defaultConnectionProfileId;
+  }
+
+  if (
+    !persistedDefault &&
+    value !== undefined &&
+    normalizeProfileId(value) !== defaultConnectionProfileId &&
+    (version === undefined || version >= 3)
+  ) {
+    return defaultConnectionProfileId;
+  }
+
+  if (
+    version !== undefined &&
+    version < 2 &&
+    value === 'local' &&
+    defaultConnectionProfileId === 'cloud'
+  ) {
     return 'cloud';
+  }
+  if (
+    version !== undefined &&
+    version < 3 &&
+    value === 'cloud' &&
+    defaultConnectionProfileId === 'local'
+  ) {
+    return 'local';
   }
   return normalizeProfileId(value);
 }
@@ -45,28 +89,36 @@ export const useConnectionProfileStore = create<ConnectionProfileState>()(
     (set) => ({
       hydrated: false,
       profileId: applyProfileSelection(defaultConnectionProfileId),
+      defaultProfileId: defaultConnectionProfileId,
       setHydrated: (hydrated) => set({ hydrated }),
       setProfileId: (profileId) =>
         set(() => ({
-          profileId: applyProfileSelection(profileId)
+          profileId: applyProfileSelection(profileId),
+          defaultProfileId: defaultConnectionProfileId
         }))
     }),
     {
       name: 'pulse-connection-profile-v1',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ profileId: state.profileId }),
+      partialize: (state) => ({
+        profileId: state.profileId,
+        defaultProfileId: state.defaultProfileId
+      }),
       migrate: (persistedState, version) => {
-        const state = (persistedState ?? {}) as Partial<{ profileId: ConnectionProfileId }>;
+        const state = (persistedState ?? {}) as PersistedConnectionProfileState;
         return {
-          profileId: migrateProfileId(state.profileId, version)
+          profileId: resolvePersistedProfileId(state.profileId, version, state.defaultProfileId),
+          defaultProfileId: defaultConnectionProfileId
         };
       },
       onRehydrateStorage: () => (state) => {
         if (!state) {
           return;
         }
-        state.setProfileId(state.profileId);
+        state.setProfileId(
+          resolvePersistedProfileId(state.profileId, undefined, state.defaultProfileId)
+        );
         state.setHydrated(true);
       }
     }

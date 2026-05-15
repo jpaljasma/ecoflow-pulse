@@ -135,9 +135,11 @@ Defaults:
   - `make local-cloud-db-env`, `make services-up-cloud-db`, and
     `make dev-up-cloud-db` for local k3d API backend pods reading cloud CNPG
     through an explicitly started Docker-managed background forward while local
-    side-effect workers are disabled; this cloud-data mode also points the local
-    realtime gateway at cloud NATS/Valkey through Docker-managed forwards so
-    live data comes from the hosted data plane,
+    side-effect workers are disabled; this cloud-data mode also points local
+    Go API cache clients and the local realtime gateway at cloud NATS/Valkey
+    through Docker-managed forwards so live data and cache reads come from the
+    hosted data plane; the forward start targets restart stale managed
+    containers when the local port is no longer reachable,
   - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
     `make cloud-realtime-forward-stop`, and
     `make dev-web-deploy-cloud-realtime` for refreshing only the local public
@@ -145,7 +147,13 @@ Defaults:
     NATS/Valkey path; these cloud-data local workflows build the web bundle
     with `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings labels the active
     source as Cloud even though the browser edge remains local, and the local
-    build scrubs hosted `EXPO_PUBLIC_CLOUD_*` values so auth/HTTP stay local,
+    build scrubs hosted `EXPO_PUBLIC_CLOUD_*` values so auth/HTTP stay local.
+    The generated overlays also mark the public app as `cloud` data-plane mode,
+    point Go cache clients and realtime snapshot reads at the cloud Valkey
+    forward, and move cache/projection prefixes onto `cloud-*` namespaces so
+    local cache entries cannot be reused for cloud-data reads. `dev-up-cloud-db`
+    restarts same-tag local public deployments after importing images so pods
+    cannot keep stale public app or realtime gateway code.
   - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).

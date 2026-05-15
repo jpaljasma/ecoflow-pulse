@@ -24,6 +24,9 @@ data:
   VALKEY_CACHE_SIZE_EACH_CONN: {{ .Values.runtime.env.valkeyCacheSizeEachConn | quote }}
   VALKEY_CACHE_CLIENT_TRACKING_OPTIONS: {{ .Values.runtime.env.valkeyCacheClientTrackingOptions | quote }}
   VALKEY_CACHE_ENCRYPTION_KEY_ID: {{ .Values.runtime.env.valkeyCacheEncryptionKeyID | quote }}
+  PROJECTION_KEY_PREFIX: {{ .Values.runtime.env.projectionKeyPrefix | quote }}
+  WEATHER_KEY_PREFIX: {{ .Values.runtime.env.weatherKeyPrefix | quote }}
+  INFERENCE_KEY_PREFIX: {{ .Values.runtime.env.inferenceKeyPrefix | quote }}
   PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX: {{ .Values.runtime.env.providerMqttSessionCacheKeyPrefix | quote }}
   PROVIDER_MQTT_SESSION_CACHE_IDLE_TTL: {{ .Values.runtime.env.providerMqttSessionCacheIdleTTL | quote }}
   PROVIDER_MQTT_SESSION_CACHE_MAX_AGE: {{ .Values.runtime.env.providerMqttSessionCacheMaxAge | quote }}

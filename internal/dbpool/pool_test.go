@@ -75,3 +75,19 @@ func TestIsTransientReadErrorRecognizesPgErrorCode(t *testing.T) {
 		t.Fatal("expected pg too-many-clients error to be retryable")
 	}
 }
+
+func TestIsTransientReadErrorRecognizesConnectionDrops(t *testing.T) {
+	cases := []string{
+		"failed to connect to user=pulse database=pulse: 192.168.65.254:25432 (host.docker.internal): failed to receive message: unexpected EOF",
+		"server closed the connection unexpectedly",
+		"read tcp 127.0.0.1:25432: connection reset by peer",
+		"dial tcp 127.0.0.1:25432: connect: connection refused",
+		"write tcp 127.0.0.1:25432: broken pipe",
+		"i/o timeout",
+	}
+	for _, msg := range cases {
+		if !IsTransientReadError(errors.New(msg)) {
+			t.Fatalf("expected connection-drop error to be retryable: %q", msg)
+		}
+	}
+}

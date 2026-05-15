@@ -12,6 +12,7 @@ import type { TelemetrySnapshotClient } from './telemetryClient.js';
 import { deriveTelemetryMetrics, deriveTelemetryState, deriveTelemetryEtaMinutes } from '../telemetry/deriveMetrics.js';
 import {
   buildProviderDevicePresentation,
+  deriveDeviceDetailsEtaMinutes,
   type DeviceCapabilities,
   type DeviceTelemetryDetails
 } from '../devices/providerDeviceMapper.js';
@@ -177,12 +178,13 @@ async function hydrateDevice(
     const details = mergeSnapshotDetails(presentation.details, rawMetrics);
     const pvW = deriveSummaryPvWatts(derived.pvW, details);
     const telemetryTsMs = parsePositiveInt(response.snapshot?.cursor?.tsUnixMs);
+    const state = deriveTelemetryState(derived.batteryW);
     return {
       ...base,
       online: telemetryTsMs !== null ? Date.now() - telemetryTsMs <= 30_000 : false,
       batteryPct: clampPercent(details?.overallSocPct ?? derived.soc),
-      state: deriveTelemetryState(derived.batteryW),
-      etaMinutes: deriveTelemetryEtaMinutes(rawMetrics, derived.batteryW),
+      state,
+      etaMinutes: deriveSummaryEtaMinutes(deriveTelemetryEtaMinutes(rawMetrics, derived.batteryW), details),
       pvW,
       acInW: derived.acW,
       dcW: derived.dcW,
@@ -435,6 +437,13 @@ function deriveSummaryPvWatts(rawPvW: number, details?: DeviceTelemetryDetails):
     return saneRawPvW;
   }
   return saneRawPvW;
+}
+
+function deriveSummaryEtaMinutes(rawEtaMinutes: number, details?: DeviceTelemetryDetails): number {
+  if (Number.isFinite(rawEtaMinutes) && rawEtaMinutes > 0) {
+    return Math.round(rawEtaMinutes);
+  }
+  return deriveDeviceDetailsEtaMinutes(details) ?? 0;
 }
 
 function sanePositive(value: number | undefined): number | undefined {

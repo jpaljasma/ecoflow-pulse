@@ -21,6 +21,9 @@ This file adds deploy/runtime guidance for `deploy/` work on top of the reposito
    - `make services-image-import-local`
    - `make dev-deploy`
 3. Do not introduce manual pod babysitting as the expected recovery path; if a rollout only works after deleting pods by hand, treat that as an incomplete fix.
+4. Docker-managed local-cloud forwards must recover gracefully:
+   - start targets should restart stale managed containers when the local port is no longer reachable,
+   - do not make manual container deletion the normal recovery step for dropped DB/NATS/Valkey forwards.
 
 ## Helm and Values
 1. Keep chart behavior aligned between templates and local/dev values.
@@ -34,12 +37,17 @@ This file adds deploy/runtime guidance for `deploy/` work on top of the reposito
 1. Keep cache knobs separate from Valkey runtime knobs in values, docs, and secrets:
    - cache knobs include namespace TTLs, compression thresholds, encryption key ids, encryption keys, sensitive-cache enablement, and tag/version TTL policy,
    - Valkey knobs include Sentinel addresses, master set name, credentials, database, TLS, retry/backoff/jitter, reconnect, and client-side-cache settings.
-2. Do not change the Valkey replication + Sentinel topology, persistence mode, or cluster-mode posture without a new ADR.
-3. Cache encryption keys and provider session material must stay in Kubernetes Secrets or an approved external secret source; do not commit sample plaintext keys that could be mistaken for usable secrets.
-4. Lease/script clients and cache clients may share chart plumbing, but their client-side-cache defaults must stay distinct:
+2. Keep cache namespaces partitioned by data plane when local and cloud modes can share an edge or Valkey instance:
+   - BFF edge cache keys should use `PULSE_PLATFORM_DATA_PLANE` or the validated `X-Pulse-Data-Plane` request header,
+   - Go Valkey cache prefixes in Helm values should remain mode-specific (`local-*`, `dev-*`, `cloud-*`) for projection, weather, inference, provider-session, and energy caches.
+   - realtime gateway projection snapshot prefixes must match the data-plane projection writer (`pulse:local-projection`, `pulse:dev-projection`, or `pulse:cloud-projection`).
+   - local-edge cloud-data services should point Go API cache clients at the cloud Valkey forward, not at the local in-cluster Valkey with only cloud-prefixed keys.
+3. Do not change the Valkey replication + Sentinel topology, persistence mode, or cluster-mode posture without a new ADR.
+4. Cache encryption keys and provider session material must stay in Kubernetes Secrets or an approved external secret source; do not commit sample plaintext keys that could be mistaken for usable secrets.
+5. Lease/script clients and cache clients may share chart plumbing, but their client-side-cache defaults must stay distinct:
    - lease/script paths disabled,
    - shared cache read paths opt in with explicit local TTLs.
-5. Valkey durability settings are part of the default availability baseline:
+6. Valkey durability settings are part of the default availability baseline:
    - keep AOF and PVC-backed data nodes where cache/snapshot data must survive routine restarts,
    - treat PVC loss as a storage incident, not normal rollout behavior.
 

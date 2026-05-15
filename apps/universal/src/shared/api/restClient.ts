@@ -88,7 +88,8 @@ async function requestJsonInternal<T>(
     : buildApiBaseCandidates(env.apiUrl).map((base) => `${base}${path}`);
   const attemptedUrls: string[] = [];
   const headers: Record<string, string> = {
-    Accept: 'application/json'
+    Accept: 'application/json',
+    ...buildPulseRoutingHeaders()
   };
 
   if (body !== undefined) {
@@ -178,6 +179,19 @@ async function requestJsonInternal<T>(
     `Request failed before receiving response for ${method} ${path}. Tried: ${attemptedUrls.join(', ')}`,
     0
   );
+}
+
+function buildPulseRoutingHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const profileId = env.connectionProfileId;
+  const dataPlane = env.activeDataPlane;
+  if (profileId === 'local' || profileId === 'cloud') {
+    headers['X-Pulse-Connection-Profile'] = profileId;
+  }
+  if (dataPlane === 'local' || dataPlane === 'cloud') {
+    headers['X-Pulse-Data-Plane'] = dataPlane;
+  }
+  return headers;
 }
 
 export async function requestJson<T>(

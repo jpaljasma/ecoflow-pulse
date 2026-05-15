@@ -1,4 +1,4 @@
-import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyRequest, preHandlerHookHandler } from 'fastify';
 
 import type { AppConfig } from '../config.js';
 import type { BffResponseCache } from '../cache/bffCache.js';
@@ -40,7 +40,7 @@ export function registerWeatherRoutes(
       const result = await loadWithOptionalBffCache(
         bffCache,
         'weather_forecast',
-        buildWeatherCacheKey(input),
+        buildWeatherCacheKey(input, requestCacheDimensions(request, config)),
         config.bffCache?.weatherForecastTtlMs ?? 0,
         () => weatherClient.get7DayForecast(input)
       );
@@ -70,7 +70,7 @@ export function registerWeatherRoutes(
       const result = await loadWithOptionalBffCache(
         bffCache,
         'weather_yesterday',
-        buildWeatherYesterdayCacheKey(input),
+        buildWeatherYesterdayCacheKey(input, requestCacheDimensions(request, config)),
         config.bffCache?.weatherYesterdayTtlMs ?? 0,
         () => weatherClient.getYesterdayVerification(input)
       );
@@ -113,12 +113,41 @@ function buildWeatherCacheKey(input: {
   });
 }
 
-function buildWeatherYesterdayCacheKey(input: WeatherRequest): string | undefined {
+function buildWeatherYesterdayCacheKey(
+  input: WeatherRequest,
+  extras: Record<string, string>
+): string | undefined {
   const localDate = localDateBucket(input.timezone, Date.now());
   if (!localDate) {
     return undefined;
   }
-  return buildWeatherCacheKey(input, { localDate });
+  return buildWeatherCacheKey(input, { ...extras, localDate });
+}
+
+function requestCacheDimensions(
+  request: FastifyRequest,
+  config: AppConfig
+): Record<string, string> {
+  return {
+    dataPlane: requestDataPlane(request, config)
+  };
+}
+
+function requestDataPlane(request: FastifyRequest, config: AppConfig): 'local' | 'cloud' {
+  const header = headerString(request, 'x-pulse-data-plane')?.toLowerCase();
+  if (header === 'local' || header === 'cloud') {
+    return header;
+  }
+  return config.dataPlane ?? 'local';
+}
+
+function headerString(request: FastifyRequest, key: string): string | undefined {
+  const value = request.headers[key];
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  return undefined;
 }
 
 function localDateBucket(timezone: string, nowMs: number): string | undefined {

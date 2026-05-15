@@ -72,10 +72,11 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 4. Shared chart primitives under `src/shared/ui` have additional nested guidance; read `src/shared/ui/AGENTS.md` before changing chart components, chart model helpers, hover/tap hit testing, axis labels, or bucket normalization.
 
 ## Auth and Browser Runtime
-1. iOS web sign-in must use a same-tab Authorization Code + PKCE redirect instead of relying on popup/opener completion.
+1. Browser web sign-in must use a same-tab Authorization Code + PKCE redirect when the current tab can be navigated; do not rely on popup/opener completion for web browsers because local, iOS, and embedded browser surfaces can block `window.open`.
 2. Store PKCE verifier/state only as short-lived browser state before leaving the app, then exchange the returned code from `/auth/callback`.
-3. Keep browser-specific auth workarounds centralized in shared auth helpers, with regression coverage for Safari and Chrome on iOS user agents.
-4. Preserve the existing Expo AuthSession popup/native behavior for desktop web and native app flows unless those paths are explicitly being changed and revalidated.
+3. Keep browser-specific auth workarounds centralized in shared auth helpers, with regression coverage for desktop/local web plus Safari and Chrome on iOS user agents.
+4. Preserve the existing Expo AuthSession popup/native behavior for native app flows unless those paths are explicitly being changed and revalidated.
+5. In local workflows, `Cloud` can mean local browser/API/OIDC edge with a cloud data plane; connection-profile persistence must include the active build default so switching between true Local and local-edge Cloud does not reuse stale issuer/API state.
 
 ## Validation
 1. Run the relevant universal checks for touched areas:

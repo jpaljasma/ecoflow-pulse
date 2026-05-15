@@ -37,6 +37,11 @@ runtime:
     # resolve the current primary instead of pinning a pod hostname.
     valkeyAddrs: "pulse-platform-valkey.pulse-platform.svc.cluster.local:26379"
     valkeySentinelMasterSet: "myprimary"
+    projectionKeyPrefix: "pulse:local-projection"
+    weatherKeyPrefix: "pulse:local-weather"
+    inferenceKeyPrefix: "pulse:local-inference"
+    providerMqttSessionCacheKeyPrefix: "pulse:local-provider-mqtt-session"
+    energyCacheKeyPrefix: "pulse:local-energy"
     grpcAuthMode: "keycloak"
     keycloakIssuerUrl: "https://localhost/realms/pulse"
     keycloakAudience: "pulse-universal-app"
