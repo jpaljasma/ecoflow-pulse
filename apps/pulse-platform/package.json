@@ -18,7 +18,7 @@
     "@fastify/static": "^9.0.0",
     "@grpc/grpc-js": "^1.14.0",
     "@grpc/proto-loader": "^0.8.0",
-    "fastify": "^5.8.3",
+    "fastify": "^5.8.5",
     "fastify-rate-limit": "npm:@fastify/rate-limit@^10.3.0",
     "http-proxy": "^1.18.1",
     "prom-client": "^15.1.3",
