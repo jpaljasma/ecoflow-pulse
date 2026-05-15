@@ -64,6 +64,8 @@ describe('connection profile store', () => {
       EXPO_PUBLIC_CLOUD_WS_URL: 'wss://pulse.example.com/ws',
       EXPO_PUBLIC_CLOUD_OIDC_ISSUER_URL: 'https://pulse.example.com/realms/pulse',
       EXPO_PUBLIC_CLOUD_OIDC_CLIENT_ID: 'pulse-universal-cloud',
+      EXPO_PUBLIC_API_URL: 'https://localhost',
+      EXPO_PUBLIC_WS_URL: 'wss://localhost/ws',
       EXPO_PUBLIC_OIDC_ISSUER_URL: 'https://localhost/realms/pulse',
       EXPO_PUBLIC_OIDC_CLIENT_ID: 'pulse-universal-app',
       EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE: 'local'
