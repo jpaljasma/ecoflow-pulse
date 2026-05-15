@@ -53,6 +53,19 @@ describe('web PKCE full-page redirect helpers', () => {
     });
   });
 
+  it('uses full-page redirect for desktop web browsers so popup blockers cannot trap sign-in', () => {
+    expect(shouldUseFullPageWebAuthRedirect()).toBe(true);
+  });
+
+  it('does not force full-page redirect without a browser navigation surface', () => {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: undefined
+    });
+
+    expect(shouldUseFullPageWebAuthRedirect()).toBe(false);
+  });
+
   it('uses full-page redirect for iOS Safari and Chrome user agents', () => {
     expect(
       shouldUseFullPageWebAuthRedirect(

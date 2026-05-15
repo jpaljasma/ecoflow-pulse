@@ -33,6 +33,10 @@ export type FullPageWebAuthRedirectResult =
   | { type: 'error'; message: string };
 
 export function shouldUseFullPageWebAuthRedirect(userAgent?: string): boolean {
+  if (canNavigateCurrentBrowserTab()) {
+    return true;
+  }
+
   const ua =
     userAgent ??
     (typeof window !== 'undefined' && typeof window.navigator?.userAgent === 'string'
@@ -47,6 +51,10 @@ export function shouldUseFullPageWebAuthRedirect(userAgent?: string): boolean {
       ? window.navigator.maxTouchPoints
       : 0;
   return /\bMacintosh\b/i.test(ua) && maxTouchPoints > 1;
+}
+
+function canNavigateCurrentBrowserTab(): boolean {
+  return typeof window !== 'undefined' && typeof window.location?.assign === 'function';
 }
 
 export async function beginFullPageWebAuthRedirect({

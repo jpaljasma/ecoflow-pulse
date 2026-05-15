@@ -165,9 +165,9 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - keep `/realms` and `/resources` routed to Keycloak for OIDC discovery/login assets,
    - keep `/ws` routed to the realtime gateway,
    - treat missing edge routes as production-grade regressions because they break login or websocket telemetry in ways that look like frontend bugs.
-17. iOS web auth must not depend on popup/opener PKCE completion:
-   - Safari and Chrome on iOS can lose or block `window.open` / `window.opener` auth handoff semantics,
-   - use a same-tab Authorization Code + PKCE redirect for iOS web browsers,
+17. Browser web auth must not depend on popup/opener PKCE completion:
+   - local, embedded, Safari, and Chrome on iOS browser surfaces can lose or block `window.open` / `window.opener` auth handoff semantics,
+   - use a same-tab Authorization Code + PKCE redirect for browser web sign-in when the current tab can be navigated,
    - persist only short-lived PKCE verifier/state before navigation and complete the code exchange from the callback route,
    - keep this browser workaround centralized in the auth helper and covered by regression tests.
 18. Profile timezone UX must stay selection-only and IANA-backed:

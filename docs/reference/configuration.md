@@ -457,6 +457,9 @@ Runtime behavior:
 - browser REST requests include `X-Pulse-Connection-Profile` and
   `X-Pulse-Data-Plane` so optional BFF edge caches partition local and cloud
   mode responses even when both modes use the same local HTTPS edge.
+- browser PKCE sign-in uses a same-tab redirect when the current tab can be
+  navigated, avoiding popup/opener behavior that local and embedded browser
+  surfaces can block.
 - if OIDC is configured, the universal app waits for persisted auth-store hydration before issuing REST requests or opening the realtime websocket.
 - switching the connection profile clears auth/query state by profile key,
   recreates the realtime engine with the selected websocket endpoint, and
