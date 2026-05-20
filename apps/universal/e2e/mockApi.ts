@@ -955,8 +955,45 @@ async function fulfillJson(route: Route, payload: unknown, status = 200): Promis
   });
 }
 
+async function seedAuthenticatedSession(page: Page): Promise<void> {
+  await page.addInitScript((configuredApiUrl) => {
+    const deriveIssuerUrl = (apiUrl: string): string => {
+      const parsed = new URL(apiUrl);
+      const normalizedPath = parsed.pathname.replace(/\/+$/, '');
+      const basePath = normalizedPath.endsWith('/api')
+        ? normalizedPath.slice(0, normalizedPath.length - '/api'.length)
+        : normalizedPath;
+      const issuerPath = `${basePath}/realms/pulse`.replace(/\/{2,}/g, '/');
+      const host = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+
+      return `${parsed.protocol}//${host}${issuerPath}`;
+    };
+
+    const issuerUrl = deriveIssuerUrl(configuredApiUrl || window.location.origin);
+    localStorage.setItem(
+      'pulse-oidc-session-v1',
+      JSON.stringify({
+        state: {
+          session: {
+            issuerUrl,
+            clientId: 'pulse-universal-app',
+            accessToken: 'web-e2e-access-token',
+            refreshToken: 'web-e2e-refresh-token',
+            idToken: 'web-e2e-id-token',
+            tokenType: 'Bearer',
+            expiresAtUnixMs: Date.now() + 60 * 60_000,
+            updatedAtUnixMs: Date.now()
+          }
+        },
+        version: 0
+      })
+    );
+  }, process.env.EXPO_PUBLIC_API_URL?.trim() ?? '');
+}
+
 export async function mockApiRoutes(page: Page): Promise<void> {
   currentUserBootstrap = JSON.parse(JSON.stringify(CURRENT_USER_BOOTSTRAP)) as CurrentUserPayload;
+  await seedAuthenticatedSession(page);
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     const { pathname } = url;
