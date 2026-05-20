@@ -103,18 +103,7 @@ func (s *MQTTSubscriber) Connect(ctx context.Context) error {
 		s.writeMu.Unlock()
 		_ = conn.Close()
 	}
-	connect := packets.NewControlPacket(packets.Connect).(*packets.ConnectPacket)
-	connect.ProtocolName = "MQTT"
-	connect.ProtocolVersion = 4
-	connect.CleanSession = true
-	connect.Keepalive = keepAliveSeconds(s.cfg.KeepAlive)
-	connect.ClientIdentifier = s.cfg.ClientID
-	// Pecron's broker expects the Python Paho wire shape: username flag set
-	// with a zero-length username and the access token carried as password.
-	connect.UsernameFlag = true
-	connect.Username = ""
-	connect.PasswordFlag = true
-	connect.Password = []byte(s.cfg.Token)
+	connect := newPecronConnectPacket(s.cfg)
 	if err := s.writeControlPacket(ctx, connect, s.writeTimeout()); err != nil {
 		cleanup()
 		return fmt.Errorf("connect pecron mqtt: %w", err)
@@ -288,6 +277,22 @@ func (s *MQTTSubscriber) Disconnect() error {
 }
 
 func (s *MQTTSubscriber) Close() error { return s.Disconnect() }
+
+func newPecronConnectPacket(cfg MQTTConfig) *packets.ConnectPacket {
+	connect := packets.NewControlPacket(packets.Connect).(*packets.ConnectPacket)
+	connect.ProtocolName = "MQTT"
+	connect.ProtocolVersion = 4
+	connect.CleanSession = true
+	connect.Keepalive = keepAliveSeconds(cfg.KeepAlive)
+	connect.ClientIdentifier = cfg.ClientID
+	// Pecron's broker expects the Python Paho wire shape: username flag set
+	// with a zero-length username and the access token carried as password.
+	connect.UsernameFlag = true
+	connect.Username = ""
+	connect.PasswordFlag = true
+	connect.Password = []byte(cfg.Token)
+	return connect
+}
 
 func (s *MQTTSubscriber) writeControlPacket(ctx context.Context, packet packets.ControlPacket, timeout time.Duration) error {
 	if s == nil {

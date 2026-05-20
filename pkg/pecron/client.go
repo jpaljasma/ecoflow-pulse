@@ -81,6 +81,9 @@ func (c *Client) Login(ctx context.Context, email string, password string) (Sess
 			return Session{}, ctx.Err()
 		}
 		lastErr = err
+		if !pecronDomainRetryable(err) {
+			return Session{}, err
+		}
 	}
 	if lastErr != nil {
 		return Session{}, lastErr
@@ -184,7 +187,7 @@ func (c *Client) ListDevices(ctx context.Context, session Session) ([]Device, er
 }
 
 func (c *Client) ProductTSL(ctx context.Context, session Session, productKey string) ([]TSLProperty, error) {
-	productKey = strings.ToLower(strings.TrimSpace(productKey))
+	productKey = strings.TrimSpace(productKey)
 	if productKey == "" {
 		return nil, errors.New("product key is required")
 	}
@@ -316,6 +319,19 @@ func (c *Client) request(
 		return fmt.Errorf("decode pecron data: %w", err)
 	}
 	return nil
+}
+
+func pecronDomainRetryable(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch strings.TrimSpace(apiErr.Code) {
+	case "5015", "5031", "5420":
+		return true
+	default:
+		return false
+	}
 }
 
 func rawList(raw any) []any {
