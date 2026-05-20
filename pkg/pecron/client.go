@@ -70,6 +70,25 @@ func NewClient(region RegionConfig, httpClient *http.Client) *Client {
 }
 
 func (c *Client) Login(ctx context.Context, email string, password string) (Session, error) {
+	domains := c.region.loginDomains()
+	var lastErr error
+	for _, domain := range domains {
+		session, err := c.loginWithDomain(ctx, email, password, domain)
+		if err == nil {
+			return session, nil
+		}
+		if ctx.Err() != nil {
+			return Session{}, ctx.Err()
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return Session{}, lastErr
+	}
+	return Session{}, errors.New("pecron login domain is not configured")
+}
+
+func (c *Client) loginWithDomain(ctx context.Context, email string, password string, domain loginDomain) (Session, error) {
 	randomValue, err := GenerateRandom()
 	if err != nil {
 		return Session{}, err
@@ -82,8 +101,8 @@ func (c *Client) Login(ctx context.Context, email string, password string) (Sess
 	form.Set("email", strings.TrimSpace(email))
 	form.Set("pwd", encrypted)
 	form.Set("random", randomValue)
-	form.Set("userDomain", c.region.UserDomain)
-	form.Set("signature", BuildLoginSignature(strings.TrimSpace(email), encrypted, randomValue, c.region.UserDomainSecret))
+	form.Set("userDomain", domain.UserDomain)
+	form.Set("signature", BuildLoginSignature(strings.TrimSpace(email), encrypted, randomValue, domain.UserDomainSecret))
 
 	var data struct {
 		AccessToken struct {
@@ -143,8 +162,8 @@ func (c *Client) ListDevices(ctx context.Context, session Session) ([]Device, er
 	for _, item := range items {
 		record := asMap(item)
 		ref := DeviceRef{
-			ProductKey: strings.ToLower(strings.TrimSpace(asString(record["productKey"]))),
-			DeviceKey:  strings.ToLower(strings.TrimSpace(asString(record["deviceKey"]))),
+			ProductKey: strings.TrimSpace(asString(record["productKey"])),
+			DeviceKey:  strings.TrimSpace(asString(record["deviceKey"])),
 		}
 		if ref.ProductKey == "" || ref.DeviceKey == "" {
 			continue

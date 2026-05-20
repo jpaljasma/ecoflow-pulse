@@ -62,8 +62,8 @@ func TestPecronAdapterDiscoverDevicesMapsE1000LFP(t *testing.T) {
 
 	client := &fakePecronClient{
 		devices: []pecron.Device{{
-			ProductKey:  pecron.ProductKeyE1000LFP,
-			DeviceKey:   "aabbccddeeff",
+			ProductKey:  "p11u2Q",
+			DeviceKey:   "AABBCCDDEEFF",
 			DeviceName:  "Garage Pecron",
 			ProductName: "E1000LFP",
 			Online:      true,
@@ -88,10 +88,10 @@ func TestPecronAdapterDiscoverDevicesMapsE1000LFP(t *testing.T) {
 	if len(devices) != 1 {
 		t.Fatalf("devices = %d, want 1", len(devices))
 	}
-	if devices[0].ProviderDeviceID != "p11vxg:aabbccddeeff" {
+	if devices[0].ProviderDeviceID != "p11u2Q:AABBCCDDEEFF" {
 		t.Fatalf("provider device id = %q", devices[0].ProviderDeviceID)
 	}
-	if devices[0].CanonicalSN != "PECRON-P11VXG-AABBCCDDEEFF" {
+	if devices[0].CanonicalSN != "PECRON-P11U2Q-AABBCCDDEEFF" {
 		t.Fatalf("canonical sn = %q", devices[0].CanonicalSN)
 	}
 	if devices[0].Metadata["region"] != "us" {

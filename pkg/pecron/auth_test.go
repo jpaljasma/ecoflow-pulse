@@ -21,6 +21,13 @@ func TestResolveRegionNormalizesPecronRegions(t *testing.T) {
 	if cfg.MQTTPath != "/ws/v2" {
 		t.Fatalf("mqtt path = %q", cfg.MQTTPath)
 	}
+	domains := cfg.loginDomains()
+	if len(domains) != 2 {
+		t.Fatalf("login domains = %#v, want current plus fallback", domains)
+	}
+	if domains[0].UserDomain != "C.DM.10351.1" || domains[1].UserDomain != "U.DM.10351.1" {
+		t.Fatalf("login domains = %#v", domains)
+	}
 }
 
 func TestResolveRegionKeepsKnownMQTTBrokerAliases(t *testing.T) {
@@ -70,5 +77,34 @@ func TestEncryptPasswordMatchesPecronAPKDerivation(t *testing.T) {
 	want := "3sdplu/Bs129i+mVuBFlOg=="
 	if got != want {
 		t.Fatalf("encrypted password = %q, want %q", got, want)
+	}
+}
+
+func TestDeviceRefPreservesPecronIdentifierCase(t *testing.T) {
+	t.Parallel()
+
+	ref := DeviceRef{ProductKey: "p11u2Q", DeviceKey: "AABBCCDD944C"}
+	if got, want := ref.ProviderDeviceID(), "p11u2Q:AABBCCDD944C"; got != want {
+		t.Fatalf("provider device id = %q, want %q", got, want)
+	}
+	if got, want := MQTTChannel(ref), "qdp11u2QAABBCCDD944C"; got != want {
+		t.Fatalf("mqtt channel = %q, want %q", got, want)
+	}
+	parsed, err := ParseProviderDeviceID("p11u2Q:AABBCCDD944C")
+	if err != nil {
+		t.Fatalf("ParseProviderDeviceID() error = %v", err)
+	}
+	if parsed != ref {
+		t.Fatalf("parsed ref = %#v, want %#v", parsed, ref)
+	}
+}
+
+func TestTTLVReadPacketMatchesPecronMonitorProtocol(t *testing.T) {
+	t.Parallel()
+
+	got := TTLVReadPacket(1)
+	want := []byte{0xaa, 0xaa, 0x00, 0x05, 0x12, 0x00, 0x01, 0x00, 0x11}
+	if string(got) != string(want) {
+		t.Fatalf("TTLV read packet = %x, want %x", got, want)
 	}
 }

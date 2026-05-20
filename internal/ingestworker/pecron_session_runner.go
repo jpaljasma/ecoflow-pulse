@@ -22,6 +22,14 @@ type pecronTelemetryResolver interface {
 
 type pecronSubscriberFactory func(cfg pecron.MQTTConfig) (mqttSubscriber, error)
 
+type pecronMultiSubscriber interface {
+	SubscribeMultiple(ctx context.Context, topics []string, qos byte) error
+}
+
+type pecronPublisher interface {
+	Publish(ctx context.Context, topic string, payload []byte, qos byte) error
+}
+
 type PecronSessionConfig struct {
 	ShardCount uint32
 
@@ -87,7 +95,9 @@ func (c PecronSessionConfig) normalized() PecronSessionConfig {
 	if cfg.ReadTimeout <= 0 {
 		cfg.ReadTimeout = defaults.ReadTimeout
 	}
-	if cfg.SubscribeQoS > 1 {
+	if cfg.SubscribeQoS == 0 {
+		cfg.SubscribeQoS = defaults.SubscribeQoS
+	} else if cfg.SubscribeQoS > 1 {
 		cfg.SubscribeQoS = defaults.SubscribeQoS
 	}
 	if cfg.PublishQueueSize <= 0 {
@@ -367,6 +377,11 @@ func (r *PecronSessionRunner) connectSubscriber(
 			lastErr = fmt.Errorf("subscribe pecron mqtt topics on %s: %w", address, err)
 			continue
 		}
+		if err := requestPecronTelemetry(ctx, subscriber, session.Ref, cfg.SubscribeQoS); err != nil {
+			_ = subscriber.Close()
+			lastErr = fmt.Errorf("request pecron mqtt telemetry on %s: %w", address, err)
+			continue
+		}
 		return subscriber, address, nil
 	}
 	if lastErr == nil {
@@ -379,12 +394,30 @@ func subscribePecronTopics(ctx context.Context, subscriber mqttSubscriber, topic
 	if len(topics) == 0 {
 		return errors.New("pecron mqtt session has no subscribe topics")
 	}
+	if multi, ok := subscriber.(pecronMultiSubscriber); ok {
+		if err := multi.SubscribeMultiple(ctx, topics, qos); err != nil {
+			return err
+		}
+		return nil
+	}
 	for _, topic := range topics {
 		if err := subscriber.Subscribe(ctx, topic, qos); err != nil {
 			return fmt.Errorf("subscribe pecron mqtt topic %s: %w", mqttTopicLogRef(topic), err)
 		}
 	}
 	return nil
+}
+
+func requestPecronTelemetry(ctx context.Context, subscriber mqttSubscriber, ref pecron.DeviceRef, qos byte) error {
+	publisher, ok := subscriber.(pecronPublisher)
+	if !ok {
+		return nil
+	}
+	topic := pecron.MQTTPublishTopic(ref)
+	if topic == "" {
+		return nil
+	}
+	return publisher.Publish(ctx, topic, pecron.TTLVReadPacket(1), qos)
 }
 
 func (r *PecronSessionRunner) runSnapshotRefreshLoop(

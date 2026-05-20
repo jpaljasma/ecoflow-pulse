@@ -42,7 +42,7 @@ func TestClientLoginFallsBackToJWTClaimsForMQTTIdentity(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(RegionConfig{BaseURL: server.URL, UserDomainSecret: "secret"}, server.Client())
+	client := NewClient(RegionConfig{BaseURL: server.URL, UserDomain: "domain", UserDomainSecret: "secret"}, server.Client())
 	session, err := client.Login(context.Background(), "owner@example.test", "battery-staple")
 	if err != nil {
 		t.Fatalf("Login() error = %v", err)
@@ -52,6 +52,55 @@ func TestClientLoginFallsBackToJWTClaimsForMQTTIdentity(t *testing.T) {
 	}
 	if !session.ExpiresAt.Equal(expiresAt) {
 		t.Fatalf("expires at = %s, want %s", session.ExpiresAt, expiresAt)
+	}
+}
+
+func TestClientLoginFallsBackToLegacyNorthAmericaDomain(t *testing.T) {
+	t.Parallel()
+
+	requestDomains := make(chan string, 2)
+	token := testJWT(map[string]any{"uid": "user-from-fallback"})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		domain := r.Form.Get("userDomain")
+		requestDomains <- domain
+		if domain == "C.DM.10351.1" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 401,
+				"msg":  "domain rejected",
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 200,
+			"data": map[string]any{
+				"accessToken":  map[string]any{"token": token},
+				"refreshToken": map[string]any{"token": "refresh-token"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(RegionConfig{
+		BaseURL:                  server.URL,
+		UserDomain:               "C.DM.10351.1",
+		UserDomainSecret:         "current-secret",
+		UserDomainFallback:       "U.DM.10351.1",
+		UserDomainSecretFallback: "legacy-secret",
+	}, server.Client())
+	session, err := client.Login(context.Background(), "owner@example.test", "battery-staple")
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+	if session.UserID != "user-from-fallback" {
+		t.Fatalf("user id = %q, want fallback JWT uid", session.UserID)
+	}
+	first := <-requestDomains
+	second := <-requestDomains
+	if first != "C.DM.10351.1" || second != "U.DM.10351.1" {
+		t.Fatalf("login domains = [%q %q], want current then fallback", first, second)
 	}
 }
 
