@@ -70,6 +70,28 @@ func NewClient(region RegionConfig, httpClient *http.Client) *Client {
 }
 
 func (c *Client) Login(ctx context.Context, email string, password string) (Session, error) {
+	domains := c.region.loginDomains()
+	var lastErr error
+	for _, domain := range domains {
+		session, err := c.loginWithDomain(ctx, email, password, domain)
+		if err == nil {
+			return session, nil
+		}
+		if ctx.Err() != nil {
+			return Session{}, ctx.Err()
+		}
+		lastErr = err
+		if !pecronDomainRetryable(err) {
+			return Session{}, err
+		}
+	}
+	if lastErr != nil {
+		return Session{}, lastErr
+	}
+	return Session{}, errors.New("pecron login domain is not configured")
+}
+
+func (c *Client) loginWithDomain(ctx context.Context, email string, password string, domain loginDomain) (Session, error) {
 	randomValue, err := GenerateRandom()
 	if err != nil {
 		return Session{}, err
@@ -82,8 +104,8 @@ func (c *Client) Login(ctx context.Context, email string, password string) (Sess
 	form.Set("email", strings.TrimSpace(email))
 	form.Set("pwd", encrypted)
 	form.Set("random", randomValue)
-	form.Set("userDomain", c.region.UserDomain)
-	form.Set("signature", BuildLoginSignature(strings.TrimSpace(email), encrypted, randomValue, c.region.UserDomainSecret))
+	form.Set("userDomain", domain.UserDomain)
+	form.Set("signature", BuildLoginSignature(strings.TrimSpace(email), encrypted, randomValue, domain.UserDomainSecret))
 
 	var data struct {
 		AccessToken struct {
@@ -143,8 +165,8 @@ func (c *Client) ListDevices(ctx context.Context, session Session) ([]Device, er
 	for _, item := range items {
 		record := asMap(item)
 		ref := DeviceRef{
-			ProductKey: strings.ToLower(strings.TrimSpace(asString(record["productKey"]))),
-			DeviceKey:  strings.ToLower(strings.TrimSpace(asString(record["deviceKey"]))),
+			ProductKey: strings.TrimSpace(asString(record["productKey"])),
+			DeviceKey:  strings.TrimSpace(asString(record["deviceKey"])),
 		}
 		if ref.ProductKey == "" || ref.DeviceKey == "" {
 			continue
@@ -165,7 +187,7 @@ func (c *Client) ListDevices(ctx context.Context, session Session) ([]Device, er
 }
 
 func (c *Client) ProductTSL(ctx context.Context, session Session, productKey string) ([]TSLProperty, error) {
-	productKey = strings.ToLower(strings.TrimSpace(productKey))
+	productKey = strings.TrimSpace(productKey)
 	if productKey == "" {
 		return nil, errors.New("product key is required")
 	}
@@ -297,6 +319,19 @@ func (c *Client) request(
 		return fmt.Errorf("decode pecron data: %w", err)
 	}
 	return nil
+}
+
+func pecronDomainRetryable(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch strings.TrimSpace(apiErr.Code) {
+	case "5015", "5031", "5420":
+		return true
+	default:
+		return false
+	}
 }
 
 func rawList(raw any) []any {

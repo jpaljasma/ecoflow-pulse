@@ -228,7 +228,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up public-deployments-restart-local k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke pecron-smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up public-deployments-restart-local k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -658,6 +658,31 @@ public-images-local-up:
 smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
 	$(GO) run ./cmd/ecoflow-smoke
+
+pecron-smoke:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
+	@set -euo pipefail; \
+		incoming_email="$${PECRON_EMAIL:-}"; \
+		incoming_password="$${PECRON_PASSWORD:-}"; \
+		incoming_region="$${PECRON_REGION:-}"; \
+		incoming_config="$${PECRON_CONFIG:-}"; \
+		incoming_credential_id="$${PECRON_CREDENTIAL_ID:-}"; \
+		incoming_target_suffix="$${PECRON_TARGET_SUFFIX:-}"; \
+		incoming_db_dsn="$${CONTROL_PLANE_DB_DSN:-}"; \
+		if [ -f "$(CLOUD_DB_ENV_FILE)" ]; then \
+			set -a; source "$(CLOUD_DB_ENV_FILE)"; set +a; \
+		fi; \
+		if [ -f .env ]; then \
+			set -a; source ./.env; set +a; \
+		fi; \
+		if [ -n "$$incoming_email" ]; then export PECRON_EMAIL="$$incoming_email"; fi; \
+		if [ -n "$$incoming_password" ]; then export PECRON_PASSWORD="$$incoming_password"; fi; \
+		if [ -n "$$incoming_region" ]; then export PECRON_REGION="$$incoming_region"; fi; \
+		if [ -n "$$incoming_config" ]; then export PECRON_CONFIG="$$incoming_config"; fi; \
+		if [ -n "$$incoming_credential_id" ]; then export PECRON_CREDENTIAL_ID="$$incoming_credential_id"; fi; \
+		if [ -n "$$incoming_target_suffix" ]; then export PECRON_TARGET_SUFFIX="$$incoming_target_suffix"; fi; \
+		if [ -n "$$incoming_db_dsn" ]; then export CONTROL_PLANE_DB_DSN="$$incoming_db_dsn"; fi; \
+		$(GO) run ./cmd/pecron-smoke
 
 ingest-worker:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"

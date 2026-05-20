@@ -78,6 +78,7 @@ func (c *MQTTSessionCache) GetPecron(ctx context.Context, credential controlplan
 		Token:     payload.Token,
 		ClientID:  fmt.Sprintf("qu_%s_%d", clientIDSeed, c.now().UTC().UnixMilli()),
 		Topics:    append([]string(nil), payload.Topics...),
+		Ref:       payload.Ref,
 	}, true
 }
 
@@ -93,6 +94,7 @@ func (c *MQTTSessionCache) PutPecron(ctx context.Context, credential controlplan
 		Token:         session.Token,
 		ClientIDSeed:  strings.TrimSpace(clientIDSeed),
 		Topics:        append([]string(nil), session.Topics...),
+		Ref:           session.Ref,
 		HardExpiresAt: hardExpiresAt,
 	}, hardExpiresAt)
 }
@@ -213,13 +215,14 @@ type cacheSessionPayload interface {
 }
 
 type pecronMQTTSessionPayload struct {
-	Address       string    `json:"address"`
-	Addresses     []string  `json:"addresses,omitempty"`
-	Path          string    `json:"path,omitempty"`
-	Token         string    `json:"token"`
-	ClientIDSeed  string    `json:"client_id_seed"`
-	Topics        []string  `json:"topics,omitempty"`
-	HardExpiresAt time.Time `json:"hard_expires_at"`
+	Address       string           `json:"address"`
+	Addresses     []string         `json:"addresses,omitempty"`
+	Path          string           `json:"path,omitempty"`
+	Token         string           `json:"token"`
+	ClientIDSeed  string           `json:"client_id_seed"`
+	Topics        []string         `json:"topics,omitempty"`
+	Ref           pecron.DeviceRef `json:"ref"`
+	HardExpiresAt time.Time        `json:"hard_expires_at"`
 }
 
 func (p pecronMQTTSessionPayload) HardExpiresAtValue() time.Time { return p.HardExpiresAt }

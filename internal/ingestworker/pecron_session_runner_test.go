@@ -210,6 +210,63 @@ func TestPecronSessionRunnerConnectsUsingBrokerFallback(t *testing.T) {
 	}
 }
 
+func TestPecronSessionRunnerRequestsTelemetryAfterSubscribe(t *testing.T) {
+	t.Parallel()
+
+	runner, err := NewPecronSessionRunner(
+		testLogger(),
+		fakePecronSnapshotter{},
+		&fakeEnvelopePublisher{},
+		&fakeProviderDeviceUpdater{},
+		PecronSessionConfig{
+			PublishQueueSize:         4,
+			PublishWorkers:           1,
+			PublishEnqueueTimeout:    time.Second,
+			DisableSnapshotBootstrap: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewPecronSessionRunner() error = %v", err)
+	}
+	subscriber := &fakeMQTTSubscriber{}
+	factory := &fakePecronSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+	runner.newSubscriber = factory.new
+	session := pecron.MQTTSession{
+		Address: "iot-south.landecia.com:8443",
+		Path:    "/ws/v2",
+		Token:   "token",
+		Topics: []string{
+			"q/2/d/qdp11vxgAABBCCDDEEFF/bus_",
+			"q/2/d/qdp11vxgAABBCCDDEEFF/ack_",
+			"q/2/d/qdp11vxgAABBCCDDEEFF/onl_",
+		},
+		Ref: pecron.DeviceRef{ProductKey: pecron.ProductKeyE1000LFP, DeviceKey: "AABBCCDDEEFF"},
+	}
+
+	_, _, err = runner.connectSubscriber(context.Background(), session, "client-id", runner.cfg)
+	if err != nil {
+		t.Fatalf("connectSubscriber() error = %v", err)
+	}
+	if subscriber.subscribeMultipleCalls != 1 {
+		t.Fatalf("subscribe multiple calls = %d, want 1", subscriber.subscribeMultipleCalls)
+	}
+	if len(subscriber.subscribedTopics) != len(session.Topics) {
+		t.Fatalf("subscribed topics = %#v, want %#v", subscriber.subscribedTopics, session.Topics)
+	}
+	if len(subscriber.published) != 1 {
+		t.Fatalf("published requests = %d, want 1", len(subscriber.published))
+	}
+	if got, want := subscriber.published[0].topic, "q/1/d/qdp11vxgAABBCCDDEEFF/bus"; got != want {
+		t.Fatalf("publish topic = %q, want %q", got, want)
+	}
+	if got, want := subscriber.published[0].payload, pecron.TTLVReadPacket(1); string(got) != string(want) {
+		t.Fatalf("publish payload = %x, want %x", got, want)
+	}
+	if got, want := subscriber.published[0].qos, byte(1); got != want {
+		t.Fatalf("publish qos = %d, want %d", got, want)
+	}
+}
+
 type fakePecronSubscriberFactory struct {
 	subscribers []mqttSubscriber
 	configs     []pecron.MQTTConfig

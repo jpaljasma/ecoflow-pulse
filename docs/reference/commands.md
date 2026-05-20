@@ -8,6 +8,7 @@ make test-race
 make test-race-stress
 go run ./cmd/ecoflow-smoke
 go run ./cmd/ecoflow-smoke -mqtt=false
+make pecron-smoke
 go run ./cmd/ecoflow-server
 go run ./cmd/ecoflow-pv-fingerprint
 go run ./cmd/ecoflow-panel-db-import
@@ -45,6 +46,20 @@ Notes for `cmd/ecoflow-smoke`:
   it with `Ctrl-C`.
 - Use `go run ./cmd/ecoflow-smoke -mqtt=false` for the old API-only quick
   connectivity check.
+
+Notes for `cmd/pecron-smoke`:
+
+- `make pecron-smoke` loads `.tmp/cloud-postgres.env` and `.env` when present.
+- Prefer DB-backed validation; when `CONTROL_PLANE_DB_DSN` is set, the command
+  loads the active stored Pecron credential from `provider_credentials`. Set
+  `PECRON_CREDENTIAL_ID` to choose a specific active credential.
+- Direct `PECRON_EMAIL` / `PECRON_PASSWORD` env vars still work and take
+  effect when `CONTROL_PLANE_DB_DSN` is unset.
+- Optionally set `PECRON_REGION` (`us`, `eu`, or `cn`) and
+  `PECRON_TARGET_SUFFIX` to pick one discovered device.
+- The command runs Pecron discovery, a REST attribute snapshot, the same
+  provider MQTT probe used by available-device validation, and a direct redacted
+  MQTT subscribe/publish/read trace.
 
 Run the local Pulse MQTT emulator directly outside Kubernetes:
 

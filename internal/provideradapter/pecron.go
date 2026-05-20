@@ -55,6 +55,8 @@ func (f staticPecronClientFactory) NewClient(pecron.RegionConfig) (pecron.CloudC
 type pecronMQTTSubscriber interface {
 	Connect(ctx context.Context) error
 	Subscribe(ctx context.Context, topic string, qos byte) error
+	SubscribeMultiple(ctx context.Context, topics []string, qos byte) error
+	Publish(ctx context.Context, topic string, payload []byte, qos byte) error
 	ReadMessage(ctx context.Context) (ecoflowmqtt.Message, error)
 	Close() error
 }
@@ -186,6 +188,7 @@ func (a *PecronAdapter) MQTTSession(
 		Token:     session.AccessToken,
 		ClientID:  fmt.Sprintf("qu_%s_%d", clientIDSeed, a.now().UTC().UnixMilli()),
 		Topics:    pecron.MQTTSubscribeTopics(ref),
+		Ref:       ref,
 	}
 	a.sessionCache.PutPecron(ctx, credential, providerDeviceID, mqttSession, clientIDSeed, session.ExpiresAt)
 	return mqttSession, nil
@@ -241,25 +244,17 @@ func (a *PecronAdapter) ProbeMQTT(
 			lastStatus = mqttProbeStatus(err, "connect_failed")
 			continue
 		}
-		subscribed := false
-		for _, topic := range session.Topics {
-			if !strings.HasSuffix(topic, "/bus_") {
+		if err := subscriber.SubscribeMultiple(probeCtx, session.Topics, 1); err != nil {
+			closeSubscriber()
+			lastStatus = mqttProbeStatus(err, "subscribe_failed")
+			continue
+		}
+		if publishTopic := pecron.MQTTPublishTopic(session.Ref); publishTopic != "" {
+			if err := subscriber.Publish(probeCtx, publishTopic, pecron.TTLVReadPacket(1), 1); err != nil {
+				closeSubscriber()
+				lastStatus = mqttProbeStatus(err, "publish_failed")
 				continue
 			}
-			if err := subscriber.Subscribe(probeCtx, topic, 1); err != nil {
-				closeSubscriber()
-				lastStatus = mqttProbeStatus(err, "subscribe_failed")
-				break
-			}
-			subscribed = true
-			break
-		}
-		if !subscribed {
-			closeSubscriber()
-			if lastStatus == "" {
-				lastStatus = "subscribe_failed"
-			}
-			continue
 		}
 		msg, err := subscriber.ReadMessage(probeCtx)
 		closeSubscriber()

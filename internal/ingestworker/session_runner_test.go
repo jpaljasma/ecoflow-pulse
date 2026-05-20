@@ -874,11 +874,21 @@ type fakeReadResult struct {
 type fakeMQTTSubscriber struct {
 	connectErr   error
 	subscribeErr error
+	publishErr   error
 
 	mu    sync.Mutex
 	reads []fakeReadResult
 
-	closeCalls atomic.Int64
+	subscribeMultipleCalls int
+	subscribedTopics       []string
+	published              []fakePublish
+	closeCalls             atomic.Int64
+}
+
+type fakePublish struct {
+	topic   string
+	payload []byte
+	qos     byte
 }
 
 func testSessionSleep(ctx context.Context, duration time.Duration) error {
@@ -895,6 +905,25 @@ func (f *fakeMQTTSubscriber) Connect(context.Context) error {
 
 func (f *fakeMQTTSubscriber) Subscribe(context.Context, string, byte) error {
 	return f.subscribeErr
+}
+
+func (f *fakeMQTTSubscriber) SubscribeMultiple(_ context.Context, topics []string, _ byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.subscribeMultipleCalls++
+	f.subscribedTopics = append(f.subscribedTopics, topics...)
+	return f.subscribeErr
+}
+
+func (f *fakeMQTTSubscriber) Publish(_ context.Context, topic string, payload []byte, qos byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.published = append(f.published, fakePublish{
+		topic:   topic,
+		payload: append([]byte(nil), payload...),
+		qos:     qos,
+	})
+	return f.publishErr
 }
 
 func (f *fakeMQTTSubscriber) ReadMessage(ctx context.Context) (ecoflowmqtt.Message, error) {

@@ -124,7 +124,7 @@ func TestSanitizeAssignmentKeepsProviderSpecificDeviceIDSemantics(t *testing.T) 
 		want     string
 	}{
 		{name: "ecoflow uppercases serial", provider: controlplane.ProviderEcoFlow, raw: " demod2m00001057 ", want: "DEMOD2M00001057"},
-		{name: "pecron lowercases ref", provider: controlplane.ProviderPecron, raw: " P11VXG:AABBCCDDEEFF ", want: "p11vxg:aabbccddeeff"},
+		{name: "pecron preserves case-sensitive ref", provider: controlplane.ProviderPecron, raw: " P11VXG:AABBCCDDEEFF ", want: "P11VXG:AABBCCDDEEFF"},
 		{name: "anker preserves serial casing", provider: controlplane.ProviderAnkerSolix, raw: " A1783:SN-C2000 ", want: "a1783:SN-C2000"},
 	}
 	for _, tt := range tests {

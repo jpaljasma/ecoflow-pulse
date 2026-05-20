@@ -42,7 +42,7 @@ func TestClientLoginFallsBackToJWTClaimsForMQTTIdentity(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(RegionConfig{BaseURL: server.URL, UserDomainSecret: "secret"}, server.Client())
+	client := NewClient(RegionConfig{BaseURL: server.URL, UserDomain: "domain", UserDomainSecret: "secret"}, server.Client())
 	session, err := client.Login(context.Background(), "owner@example.test", "battery-staple")
 	if err != nil {
 		t.Fatalf("Login() error = %v", err)
@@ -55,6 +55,97 @@ func TestClientLoginFallsBackToJWTClaimsForMQTTIdentity(t *testing.T) {
 	}
 }
 
+func TestClientLoginFallsBackToLegacyNorthAmericaDomain(t *testing.T) {
+	t.Parallel()
+
+	requestDomains := make(chan string, 2)
+	token := testJWT(map[string]any{"uid": "user-from-fallback"})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		domain := r.Form.Get("userDomain")
+		requestDomains <- domain
+		if domain == "C.DM.10351.1" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 5015,
+				"msg":  "domain rejected",
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 200,
+			"data": map[string]any{
+				"accessToken":  map[string]any{"token": token},
+				"refreshToken": map[string]any{"token": "refresh-token"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(RegionConfig{
+		BaseURL:                  server.URL,
+		UserDomain:               "C.DM.10351.1",
+		UserDomainSecret:         "current-secret",
+		UserDomainFallback:       "U.DM.10351.1",
+		UserDomainSecretFallback: "legacy-secret",
+	}, server.Client())
+	session, err := client.Login(context.Background(), "owner@example.test", "battery-staple")
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+	if session.UserID != "user-from-fallback" {
+		t.Fatalf("user id = %q, want fallback JWT uid", session.UserID)
+	}
+	first := <-requestDomains
+	second := <-requestDomains
+	if first != "C.DM.10351.1" || second != "U.DM.10351.1" {
+		t.Fatalf("login domains = [%q %q], want current then fallback", first, second)
+	}
+}
+
+func TestClientLoginDoesNotFallBackOnWrongPassword(t *testing.T) {
+	t.Parallel()
+
+	requests := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		requests <- r.Form.Get("userDomain")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 5353,
+			"msg":  "wrong password",
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(RegionConfig{
+		BaseURL:                  server.URL,
+		UserDomain:               "C.DM.10351.1",
+		UserDomainSecret:         "current-secret",
+		UserDomainFallback:       "U.DM.10351.1",
+		UserDomainSecretFallback: "legacy-secret",
+	}, server.Client())
+	_, err := client.Login(context.Background(), "owner@example.test", "bad-password")
+	if err == nil {
+		t.Fatal("expected login error")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "5353" {
+		t.Fatalf("login error = %#v, want API code 5353", err)
+	}
+	first := <-requests
+	if first != "C.DM.10351.1" {
+		t.Fatalf("first login domain = %q", first)
+	}
+	select {
+	case fallback := <-requests:
+		t.Fatalf("unexpected fallback login to %q", fallback)
+	default:
+	}
+}
+
 func TestClientProductTSLParsesTSLJSON(t *testing.T) {
 	t.Parallel()
 
@@ -62,7 +153,7 @@ func TestClientProductTSLParsesTSLJSON(t *testing.T) {
 		if r.URL.Path != "/v2/binding/enduserapi/productTSL" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		if r.URL.Query().Get("pk") != ProductKeyE1000LFP {
+		if r.URL.Query().Get("pk") != "p11u2Q" {
 			t.Fatalf("pk query = %q", r.URL.Query().Get("pk"))
 		}
 		if r.Header.Get("Authorization") != "token" {
@@ -78,7 +169,7 @@ func TestClientProductTSLParsesTSLJSON(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(RegionConfig{BaseURL: server.URL}, server.Client())
-	properties, err := client.ProductTSL(context.Background(), Session{AccessToken: "token"}, ProductKeyE1000LFP)
+	properties, err := client.ProductTSL(context.Background(), Session{AccessToken: "token"}, "p11u2Q")
 	if err != nil {
 		t.Fatalf("ProductTSL() error = %v", err)
 	}
