@@ -265,10 +265,14 @@ const localOidcScopes =
 const resolvedLocalApiUrl = localApiUrlFromConfig ?? defaultApiBase;
 const resolvedLocalWsUrl =
   localWsUrlFromConfig ?? deriveWsUrlFromApiUrl(resolvedLocalApiUrl) ?? defaultWsUrl;
+const derivedLocalOidcIssuerUrl = deriveWebOidcIssuerUrlFromApiUrl(resolvedLocalApiUrl);
 const localOidcIssuerUrl =
-  localOidcIssuerUrlFromConfig ?? deriveWebOidcIssuerUrlFromApiUrl(resolvedLocalApiUrl);
+  localOidcIssuerUrlFromConfig ?? derivedLocalOidcIssuerUrl;
 const localOidcClientId =
-  localOidcClientIdFromConfig ?? (localOidcIssuerUrl ? 'pulse-universal-app' : '');
+  localOidcClientIdFromConfig ??
+  (localOidcIssuerUrlFromConfig === undefined && derivedLocalOidcIssuerUrl
+    ? 'pulse-universal-app'
+    : '');
 const localDataPlane =
   readConnectionDataPlane(
     readConfiguredString(process.env.EXPO_PUBLIC_LOCAL_DATA_PLANE) ??

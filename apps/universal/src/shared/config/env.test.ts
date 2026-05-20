@@ -161,6 +161,15 @@ describe('env config resolution', () => {
     expect(env.wsUrlExplicit).toBe(false);
   });
 
+  it('does not default the local OIDC client for an explicit custom issuer', async () => {
+    const { readConnectionProfile } = await loadEnvModule({
+      oidcIssuerUrlEnv: 'https://auth.example.com/realms/pulse'
+    });
+
+    expect(readConnectionProfile('local').oidcIssuerUrl).toBe('https://auth.example.com/realms/pulse');
+    expect(readConnectionProfile('local').oidcClientId).toBe('');
+  });
+
   it('exposes a cloud profile and honors it as the active default when configured', async () => {
     const { env, readConnectionProfile } = await loadEnvModule({
       cloudApiUrlEnv: 'https://pulse.example.com',
