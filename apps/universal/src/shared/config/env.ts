@@ -193,6 +193,32 @@ function deriveWsUrlFromApiUrl(apiUrl: string): string | undefined {
   return `${wsProtocol}//${host}${wsPath}`;
 }
 
+function deriveWebOidcIssuerUrlFromApiUrl(apiUrl: string): string {
+  if (Platform.OS !== 'web') {
+    return '';
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(apiUrl);
+  } catch {
+    return '';
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return '';
+  }
+
+  const normalizedPath = normalizeBasePath(parsed.pathname);
+  const basePath = normalizedPath.endsWith('/api')
+    ? normalizedPath.slice(0, normalizedPath.length - '/api'.length)
+    : normalizedPath;
+  const issuerPath = `${basePath}/realms/pulse`.replace(/\/{2,}/g, '/');
+  const host = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+
+  return `${parsed.protocol}//${host}${issuerPath}`;
+}
+
 function readConnectionProfileId(value: unknown): ConnectionProfileId | null {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
   switch (normalized) {
@@ -221,14 +247,12 @@ const localApiUrlFromConfig =
 const localWsUrlFromConfig =
   readConfiguredString(process.env.EXPO_PUBLIC_WS_URL) ??
   readConfiguredString((extra as { wsUrl?: unknown }).wsUrl);
-const localOidcIssuerUrl =
+const localOidcIssuerUrlFromConfig =
   readConfiguredString(process.env.EXPO_PUBLIC_OIDC_ISSUER_URL) ??
-  readConfiguredString((extra as { oidcIssuerUrl?: unknown }).oidcIssuerUrl) ??
-  '';
-const localOidcClientId =
+  readConfiguredString((extra as { oidcIssuerUrl?: unknown }).oidcIssuerUrl);
+const localOidcClientIdFromConfig =
   readConfiguredString(process.env.EXPO_PUBLIC_OIDC_CLIENT_ID) ??
-  readConfiguredString((extra as { oidcClientId?: unknown }).oidcClientId) ??
-  '';
+  readConfiguredString((extra as { oidcClientId?: unknown }).oidcClientId);
 const localOidcAudience =
   readConfiguredString(process.env.EXPO_PUBLIC_OIDC_AUDIENCE) ??
   readConfiguredString((extra as { oidcAudience?: unknown }).oidcAudience) ??
@@ -241,6 +265,10 @@ const localOidcScopes =
 const resolvedLocalApiUrl = localApiUrlFromConfig ?? defaultApiBase;
 const resolvedLocalWsUrl =
   localWsUrlFromConfig ?? deriveWsUrlFromApiUrl(resolvedLocalApiUrl) ?? defaultWsUrl;
+const localOidcIssuerUrl =
+  localOidcIssuerUrlFromConfig ?? deriveWebOidcIssuerUrlFromApiUrl(resolvedLocalApiUrl);
+const localOidcClientId =
+  localOidcClientIdFromConfig ?? (localOidcIssuerUrl ? 'pulse-universal-app' : '');
 const localDataPlane =
   readConnectionDataPlane(
     readConfiguredString(process.env.EXPO_PUBLIC_LOCAL_DATA_PLANE) ??

@@ -150,6 +150,8 @@ Defaults:
     with `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings labels the active
     source as Cloud even though the browser edge remains local, and the local
     build scrubs hosted `EXPO_PUBLIC_CLOUD_*` values so auth/HTTP stay local.
+    When local OIDC build args are omitted, the web app derives the local
+    Keycloak issuer from the local edge and uses `pulse-universal-app`.
     The generated overlays also mark the public app as `cloud` data-plane mode,
     point Go cache clients and realtime snapshot reads at the cloud Valkey
     forward, and move cache/projection prefixes onto `cloud-*` namespaces so

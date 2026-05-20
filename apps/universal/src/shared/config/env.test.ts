@@ -204,8 +204,8 @@ describe('env config resolution', () => {
     expect(readConnectionProfile('cloud').dataPlane).toBe('cloud');
     expect(readConnectionProfile('cloud').apiUrl).toBe('https://localhost');
     expect(readConnectionProfile('cloud').wsUrl).toBe('wss://localhost/ws');
-    expect(readConnectionProfile('cloud').oidcIssuerUrl).toBe('');
-    expect(readConnectionProfile('cloud').oidcClientId).toBe('');
+    expect(readConnectionProfile('cloud').oidcIssuerUrl).toBe('https://localhost/realms/pulse');
+    expect(readConnectionProfile('cloud').oidcClientId).toBe('pulse-universal-app');
     expect(env.activeConnectionProfile.dataPlane).toBe('cloud');
   });
 });
