@@ -35,6 +35,22 @@ func TestBuildEnvPecronCredentialRequiresCompleteMaterialOrDB(t *testing.T) {
 	}
 }
 
+func TestResolvePecronCredentialRejectsUnsupportedMQTTQoS(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolvePecronCredential(t.Context(), smokeConfig{
+		email:    "owner@example.test",
+		password: "password",
+		mqttQoS:  2,
+	})
+	if err == nil {
+		t.Fatal("expected unsupported MQTT QoS to fail")
+	}
+	if got := err.Error(); got != "mqtt-qos must be 0 or 1" {
+		t.Fatalf("error = %q", got)
+	}
+}
+
 func TestSelectTargetDeviceUsesProviderOrCanonicalSuffix(t *testing.T) {
 	t.Parallel()
 

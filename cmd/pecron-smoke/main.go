@@ -97,7 +97,7 @@ func parseFlags() smokeConfig {
 	flag.StringVar(&cfg.targetSuffix, "target-suffix", cfg.targetSuffix, "provider device ID or canonical SN suffix to probe")
 	flag.DurationVar(&cfg.timeout, "timeout", cfg.timeout, "overall smoke timeout")
 	flag.BoolVar(&cfg.mqttEnabled, "mqtt", cfg.mqttEnabled, "run the Pecron MQTT live-feed probe")
-	flag.UintVar(&cfg.mqttQoS, "mqtt-qos", cfg.mqttQoS, "MQTT subscribe QoS for the direct live-feed probe")
+	flag.UintVar(&cfg.mqttQoS, "mqtt-qos", cfg.mqttQoS, "MQTT QoS for the direct live-feed probe; must be 0 or 1")
 	flag.Parse()
 	return cfg
 }
@@ -105,8 +105,8 @@ func parseFlags() smokeConfig {
 func resolvePecronCredential(ctx context.Context, cfg smokeConfig) (controlplane.ProviderCredential, error) {
 	hasEmail := strings.TrimSpace(cfg.email) != ""
 	hasPassword := strings.TrimSpace(cfg.password) != ""
-	if cfg.mqttQoS > 2 {
-		return controlplane.ProviderCredential{}, fmt.Errorf("mqtt-qos must be 0, 1, or 2")
+	if cfg.mqttQoS > 1 {
+		return controlplane.ProviderCredential{}, fmt.Errorf("mqtt-qos must be 0 or 1")
 	}
 	if strings.TrimSpace(cfg.dbDSN) != "" {
 		return loadPecronCredentialFromDB(ctx, cfg)
