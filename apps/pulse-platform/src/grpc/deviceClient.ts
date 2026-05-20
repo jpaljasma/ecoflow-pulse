@@ -54,6 +54,8 @@ export type AvailableDevicesResult = {
   hasActiveCredentials: boolean;
 };
 
+const providerMQTTValidationDeadlinePaddingMs = 12_000;
+
 export interface DeviceClient {
   listDevices(request: FastifyRequest): Promise<DeviceSummary[]>;
   getDevice(request: FastifyRequest, routeDeviceId: string): Promise<DeviceSummary | null>;
@@ -120,7 +122,7 @@ export function createDeviceClient(
         providerDeviceId: input.providerDeviceId,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
-        deadlineMs: config.grpcDeadlineMs + 12_000
+        deadlineMs: providerMQTTValidationDeadline(config.grpcDeadlineMs)
       });
     },
     async enableAvailableDevice(request, input) {
@@ -132,7 +134,7 @@ export function createDeviceClient(
         providerDeviceId: input.providerDeviceId,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
-        deadlineMs: config.grpcDeadlineMs
+        deadlineMs: providerMQTTValidationDeadline(config.grpcDeadlineMs)
       });
       return { deviceId: response.userDevice.deviceId };
     },
@@ -147,7 +149,7 @@ export function createDeviceClient(
         ingestDesiredState: input.ingestDesiredState,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),
-        deadlineMs: config.grpcDeadlineMs
+        deadlineMs: input.isActive ? providerMQTTValidationDeadline(config.grpcDeadlineMs) : config.grpcDeadlineMs
       });
       return { deviceId: response.userDevice.deviceId };
     },
@@ -156,6 +158,10 @@ export function createDeviceClient(
       telemetryClient.close();
     }
   };
+}
+
+function providerMQTTValidationDeadline(baseDeadlineMs: number): number {
+  return baseDeadlineMs + providerMQTTValidationDeadlinePaddingMs;
 }
 
 async function hydrateDevice(

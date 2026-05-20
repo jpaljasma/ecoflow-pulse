@@ -5,7 +5,6 @@ import { Button, Spinner, Text, XStack, YStack } from 'tamagui';
 import type { AvailableDeviceSummary, DeviceMQTTTestResult } from '@/features/devices/api';
 import {
   useAvailableDevices,
-  useEnableAvailableDevice,
   useImportAvailableDevice,
   useTestAvailableDeviceMQTT
 } from '@/features/devices/hooks';
@@ -14,6 +13,7 @@ import {
   formatProviderLabel,
   type AvailableDeviceSupport
 } from '@/features/integrations/providerCatalog';
+import { formatAvailableDeviceActionError } from '@/features/devices/actionMessages';
 import { maskSerialNumber } from '@/features/telemetry/format';
 import { Card } from '@/shared/ui/Card';
 
@@ -21,12 +21,14 @@ type AvailableDevicesPanelProps = {
   token?: string;
   authKey?: string;
   enabled: boolean;
+  onDeviceEnabled?: (deviceId: string) => void;
 };
 
 export function AvailableDevicesPanel({
   token,
   authKey = 'anonymous',
-  enabled
+  enabled,
+  onDeviceEnabled
 }: AvailableDevicesPanelProps) {
   const [activated, setActivated] = useState(false);
   const availableQuery = useAvailableDevices({
@@ -46,7 +48,7 @@ export function AvailableDevicesPanel({
             </Text>
           </XStack>
           <Text color="$colorMuted">
-            Scan for devices linked to your provider credentials, test live MQTT, then enable them.
+            Scan for devices linked to your provider credentials, then enable and activate them with a live MQTT check.
           </Text>
         </YStack>
 
@@ -158,6 +160,7 @@ export function AvailableDevicesPanel({
               device={device}
               token={token}
               authKey={authKey}
+              onDeviceEnabled={onDeviceEnabled}
             />
           ))}
         </YStack>
@@ -169,36 +172,35 @@ export function AvailableDevicesPanel({
 function AvailableDeviceCard({
   device,
   token,
-  authKey
+  authKey,
+  onDeviceEnabled
 }: {
   device: AvailableDeviceSummary;
   token?: string;
   authKey: string;
+  onDeviceEnabled?: (deviceId: string) => void;
 }) {
   const [probeResult, setProbeResult] = useState<DeviceMQTTTestResult | null>(null);
-  const testMutation = useTestAvailableDeviceMQTT({ token });
-  const enableMutation = useEnableAvailableDevice({ token, authKey });
+  const testMutation = useTestAvailableDeviceMQTT({ token, authKey });
   const importMutation = useImportAvailableDevice({ token, authKey });
-  const busy = testMutation.isPending || enableMutation.isPending || importMutation.isPending;
-  const canEnable = probeResult?.success === true;
+  const busy = testMutation.isPending || importMutation.isPending;
   const support = describeAvailableDeviceSupport(device);
   const enableableByCatalog = device.provider === 'anker_solix' ? support?.enableable === true : true;
 
   async function runProbe() {
-    const result = await testMutation.mutateAsync({
-      provider: device.provider,
-      credentialId: device.credentialId,
-      providerDeviceId: device.providerDeviceId
-    });
-    setProbeResult(result);
-  }
-
-  async function enableDevice() {
-    await enableMutation.mutateAsync({
-      provider: device.provider,
-      credentialId: device.credentialId,
-      providerDeviceId: device.providerDeviceId
-    });
+    try {
+      const result = await testMutation.mutateAsync({
+        provider: device.provider,
+        credentialId: device.credentialId,
+        providerDeviceId: device.providerDeviceId
+      });
+      setProbeResult(result);
+      if (result.success && result.deviceId) {
+        onDeviceEnabled?.(result.deviceId);
+      }
+    } catch {
+      // React Query exposes the error state below.
+    }
   }
 
   async function importDeviceInactive() {
@@ -253,33 +255,16 @@ function AvailableDeviceCard({
             onPress={() => {
               void runProbe();
             }}
-            disabled={busy || !enableableByCatalog}
+            disabled={busy || !enableableByCatalog || probeResult?.success === true}
             icon={
               testMutation.isPending ? (
                 <Spinner size="small" color="white" />
               ) : (
-                <MaterialCommunityIcons name="access-point" size={16} color="white" />
+                <MaterialCommunityIcons name="check-circle-outline" size={16} color="white" />
               )
             }
           >
-            {probeResult ? 'Retest MQTT' : 'Test MQTT'}
-          </Button>
-          <Button
-            size="$3"
-            themeInverse
-            onPress={() => {
-              void enableDevice();
-            }}
-            disabled={!canEnable || busy || !enableableByCatalog}
-            icon={
-              enableMutation.isPending ? (
-                <Spinner size="small" color="rgba(10,132,255,0.9)" />
-              ) : (
-                <MaterialCommunityIcons name="check-circle-outline" size={16} color="rgba(10,132,255,0.9)" />
-              )
-            }
-          >
-            Enable device
+            Enable and Activate
           </Button>
           <Button
             size="$3"
@@ -308,12 +293,19 @@ function AvailableDeviceCard({
         ) : (
           <Text color="$colorMuted">
             {enableableByCatalog
-              ? 'Run a short MQTT probe first. Enable stays locked until live data is observed.'
+              ? 'Runs a live MQTT probe and activates this device only after telemetry is observed.'
               : 'This model is visible for tracking, but V1 does not enable standalone MQTT ingest for it yet.'}
           </Text>
         )}
-        {enableMutation.isSuccess ? (
-          <Text color="rgba(18,140,88,0.96)">Device enabled. It will move into the configured list after refresh.</Text>
+        {testMutation.isError ? (
+          <Text color="rgba(185,28,28,0.96)">
+            {formatAvailableDeviceActionError('Enable and Activate', testMutation.error)}
+          </Text>
+        ) : null}
+        {importMutation.isError ? (
+          <Text color="rgba(185,28,28,0.96)">
+            {formatAvailableDeviceActionError('Import device', importMutation.error)}
+          </Text>
         ) : null}
         {importMutation.isSuccess ? (
           <Text color="rgba(18,140,88,0.96)">Device imported in a paused state. You can activate it later from discovery.</Text>
@@ -381,6 +373,9 @@ function supportToneColors(tone: AvailableDeviceSupport['tone']): {
 
 function formatProbeStatus(result: DeviceMQTTTestResult): string {
   if (result.success) {
+    if (result.deviceId) {
+      return 'MQTT live. Device enabled and activated from the observed payload.';
+    }
     const bytes = result.payloadBytes ? Number(result.payloadBytes) : 0;
     const sizeText = Number.isFinite(bytes) && bytes > 0 ? `${bytes} bytes` : 'a live payload';
     return `MQTT live. Received ${sizeText}${result.sampleTopic ? ` on ${result.sampleTopic}` : ''}.`;

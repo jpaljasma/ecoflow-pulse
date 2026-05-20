@@ -354,6 +354,184 @@ WHERE pd.credential_id = pc.id
 	}
 }
 
+func TestPostgresStoreImportProviderDeviceCommitsAtomicDeviceAndProviderRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	now := time.Date(2026, time.May, 20, 18, 45, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+
+	userID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52"
+	deviceID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e222"
+	credentialID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111"
+	providerDeviceRowID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e333"
+	writeTime := normalizeWriteTime(now)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id::text FROM users WHERE keycloak_subject = $1`)).
+		WithArgs("subject-123").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
+	mock.ExpectQuery(regexp.QuoteMeta(`
+INSERT INTO devices (ecoflow_sn, product_name, model, metadata, created_at, updated_at)
+VALUES ($1, NULLIF(BTRIM($2), ''), NULLIF(BTRIM($3), ''), '{}'::jsonb, $4, $4)
+ON CONFLICT (ecoflow_sn)
+DO UPDATE
+SET product_name = COALESCE(EXCLUDED.product_name, devices.product_name),
+	model = COALESCE(EXCLUDED.model, devices.model),
+	updated_at = EXCLUDED.updated_at
+RETURNING id::text, ecoflow_sn, COALESCE(product_name, ''), COALESCE(model, ''), created_at, updated_at;
+`)).
+		WithArgs("PECRON-P11VXG-TESTDEVICE0001", "Pecron E1000LFP", "E1000LFP", writeTime).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"ecoflow_sn",
+			"product_name",
+			"model",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			deviceID,
+			"PECRON-P11VXG-TESTDEVICE0001",
+			"Pecron E1000LFP",
+			"E1000LFP",
+			writeTime,
+			writeTime,
+		))
+	mock.ExpectExec(regexp.QuoteMeta(`
+INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at)
+VALUES ($1::uuid, $2::uuid, 'admin', $3, $3)
+ON CONFLICT (user_id, device_id)
+DO UPDATE SET role = 'admin', updated_at = EXCLUDED.updated_at;
+`)).
+		WithArgs(userID, deviceID, writeTime).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(`
+INSERT INTO provider_devices (
+	device_id,
+	provider,
+	provider_device_id,
+	credential_id,
+	product_name,
+	model,
+	capabilities,
+	metadata,
+	is_active,
+	ingest_desired_state,
+	created_at,
+	updated_at
+)
+VALUES (
+	$1::uuid,
+	$2,
+	$3,
+	$4::uuid,
+	NULLIF(BTRIM($5), ''),
+	NULLIF(BTRIM($6), ''),
+	COALESCE($7::jsonb, '{}'::jsonb),
+	COALESCE($8::jsonb, '{}'::jsonb),
+	$9,
+	$10,
+	$11,
+	$11
+)
+ON CONFLICT (provider, provider_device_id)
+DO UPDATE
+SET device_id = EXCLUDED.device_id,
+	credential_id = EXCLUDED.credential_id,
+	product_name = COALESCE(EXCLUDED.product_name, provider_devices.product_name),
+	model = COALESCE(EXCLUDED.model, provider_devices.model),
+	capabilities = CASE
+		WHEN $7::jsonb IS NULL THEN provider_devices.capabilities
+		ELSE $7::jsonb
+	END,
+	metadata = CASE
+		WHEN $8::jsonb IS NULL THEN provider_devices.metadata
+		ELSE $8::jsonb
+	END,
+	is_active = EXCLUDED.is_active,
+	ingest_desired_state = EXCLUDED.ingest_desired_state,
+	updated_at = EXCLUDED.updated_at
+RETURNING id::text, device_id::text, provider, provider_device_id, credential_id::text, COALESCE(product_name, ''), COALESCE(model, ''), capabilities, metadata, is_active, ingest_desired_state;
+`)).
+		WithArgs(
+			deviceID,
+			ProviderPecron,
+			"p11vxg:testdevice0001",
+			credentialID,
+			"Pecron E1000LFP",
+			"E1000LFP",
+			[]byte(`{"mqtt":true}`),
+			[]byte(`{"source":"probe"}`),
+			true,
+			"active",
+			writeTime,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"device_id",
+			"provider",
+			"provider_device_id",
+			"credential_id",
+			"product_name",
+			"model",
+			"capabilities",
+			"metadata",
+			"is_active",
+			"ingest_desired_state",
+		}).AddRow(
+			providerDeviceRowID,
+			deviceID,
+			ProviderPecron,
+			"p11vxg:testdevice0001",
+			credentialID,
+			"Pecron E1000LFP",
+			"E1000LFP",
+			`{"mqtt":true}`,
+			`{"source":"probe"}`,
+			true,
+			"active",
+		))
+	mock.ExpectCommit()
+
+	got, err := store.ImportProviderDevice(context.Background(), ImportProviderDeviceInput{
+		UserSubject:        "subject-123",
+		Provider:           ProviderPecron,
+		ProviderDeviceID:   "p11vxg:testdevice0001",
+		CredentialID:       credentialID,
+		CanonicalSN:        "PECRON-P11VXG-TESTDEVICE0001",
+		ProductName:        "Pecron E1000LFP",
+		Model:              "E1000LFP",
+		Capabilities:       map[string]any{"mqtt": true},
+		Metadata:           map[string]any{"source": "probe"},
+		IsActive:           true,
+		IngestDesiredState: "active",
+	})
+	if err != nil {
+		t.Fatalf("ImportProviderDevice failed: %v", err)
+	}
+	if got.UserDevice.DeviceID != deviceID {
+		t.Fatalf("user device id mismatch: got=%s want=%s", got.UserDevice.DeviceID, deviceID)
+	}
+	if got.ProviderDevice.ID != providerDeviceRowID {
+		t.Fatalf("provider device id mismatch: got=%s want=%s", got.ProviderDevice.ID, providerDeviceRowID)
+	}
+	if !got.ProviderDevice.IsActive || got.ProviderDevice.IngestDesiredState != "active" {
+		t.Fatalf("expected active provider device, got active=%v state=%q", got.ProviderDevice.IsActive, got.ProviderDevice.IngestDesiredState)
+	}
+	if got.ProviderDevice.CanonicalSN != "PECRON-P11VXG-TESTDEVICE0001" {
+		t.Fatalf("canonical sn mismatch: got=%s", got.ProviderDevice.CanonicalSN)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestPostgresStoreReconcileUserSubjectByEmailRemapsVerifiedUser(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

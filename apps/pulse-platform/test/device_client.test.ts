@@ -531,4 +531,72 @@ describe('device client', () => {
     );
     expect(result).toEqual({ deviceId: '22222222-2222-7222-8222-222222222222' });
   });
+
+  it('uses the MQTT validation deadline budget for active provider-device enablement', async () => {
+    const testProviderDeviceMQTT = vi.fn(async () => ({
+      success: true,
+      status: 'ok',
+      sampleTopic: 'redacted',
+      payloadBytes: '128',
+      observedAtUnixMs: '1779318200000',
+      deviceId: '22222222-2222-7222-8222-222222222222'
+    }));
+    const enableProviderDevice = vi.fn(async () => ({
+      providerDevice: makeProviderDevice(),
+      userDevice: {
+        deviceId: '22222222-2222-7222-8222-222222222222',
+        ecoflowSn: 'PECRON-P11VXG-TESTDEVICE0001',
+        productName: 'Pecron E1000LFP',
+        model: 'E1000LFP',
+        role: 'admin',
+        createdAtUnixMs: '1779318200000',
+        updatedAtUnixMs: '1779318200000'
+      }
+    }));
+    const importProviderDevice = vi.fn(async () => ({
+      providerDevice: makeProviderDevice(),
+      userDevice: {
+        deviceId: '22222222-2222-7222-8222-222222222222',
+        ecoflowSn: 'PECRON-P11VXG-TESTDEVICE0001',
+        productName: 'Pecron E1000LFP',
+        model: 'E1000LFP',
+        role: 'admin',
+        createdAtUnixMs: '1779318200000',
+        updatedAtUnixMs: '1779318200000'
+      }
+    }));
+    const controlPlaneClient = makeControlPlaneClient({
+      testProviderDeviceMQTT,
+      enableProviderDevice,
+      importProviderDevice
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(),
+      close: vi.fn()
+    };
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const input = {
+      provider: 'pecron',
+      credentialId: 'cred-1',
+      providerDeviceId: 'p11vxg:testdevice0001'
+    };
+
+    await client.testAvailableDeviceMQTT(makeRequest(), input);
+    await client.enableAvailableDevice(makeRequest(), input);
+    await client.importAvailableDevice(makeRequest(), {
+      ...input,
+      isActive: true,
+      ingestDesiredState: 'active'
+    });
+    await client.importAvailableDevice(makeRequest(), {
+      ...input,
+      isActive: false,
+      ingestDesiredState: 'paused'
+    });
+
+    expect(testProviderDeviceMQTT).toHaveBeenCalledWith(expect.objectContaining({ deadlineMs: 14_500 }));
+    expect(enableProviderDevice).toHaveBeenCalledWith(expect.objectContaining({ deadlineMs: 14_500 }));
+    expect(importProviderDevice).toHaveBeenNthCalledWith(1, expect.objectContaining({ deadlineMs: 14_500 }));
+    expect(importProviderDevice).toHaveBeenNthCalledWith(2, expect.objectContaining({ deadlineMs: 2500 }));
+  });
 });

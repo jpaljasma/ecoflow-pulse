@@ -50,11 +50,13 @@ function getMaxSolarWatts(device: DeviceSummary): number | undefined {
 export function DeviceCard({
   device,
   imageContext = 'card',
-  connectionStatus
+  connectionStatus,
+  highlighted = false
 }: {
   device: DeviceSummary;
   imageContext?: 'list' | 'card' | 'detail';
   connectionStatus: TelemetryEngineStatus;
+  highlighted?: boolean;
 }) {
   const semantics = useThemeSemantics();
   const { contentWidth: width } = useNavigationShellMetrics();
@@ -202,6 +204,9 @@ export function DeviceCard({
     <Animated.View style={{ opacity: fadeOpacity }}>
       <Card
         testID={`device-card-${device.id}`}
+        borderColor={highlighted ? '$accentColor' : undefined}
+        borderWidth={highlighted ? 2 : undefined}
+        shadowOpacity={highlighted ? 0.18 : undefined}
         hoverStyle={
           isInactive
             ? undefined
@@ -215,7 +220,13 @@ export function DeviceCard({
         onPress={() => router.push(`/device/${device.id}`)}
         role="button"
         cursor="pointer"
-        style={isInactive ? { backgroundColor: semantics.mutedPanelBackground } : undefined}
+        style={
+          highlighted
+            ? { backgroundColor: semantics.actionBackground }
+            : isInactive
+              ? { backgroundColor: semantics.mutedPanelBackground }
+              : undefined
+        }
       >
         <DeviceHeroPanel
           leftWidth={railWidth}

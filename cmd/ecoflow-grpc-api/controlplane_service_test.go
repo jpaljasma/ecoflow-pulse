@@ -1151,7 +1151,7 @@ func TestListAvailableProviderDevicesSkipsUnsupportedAdapterCredential(t *testin
 func TestTestProviderDeviceMQTTSuccess(t *testing.T) {
 	t.Parallel()
 
-	svc, _ := newControlPlaneServiceForTest()
+	svc, store := newControlPlaneServiceForTest()
 	credResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
 		UserSubject: "dev-user",
 		Provider:    controlplane.ProviderEcoFlow,
@@ -1211,6 +1211,23 @@ func TestTestProviderDeviceMQTTSuccess(t *testing.T) {
 	}
 	if got := resp.GetSampleTopic(); got != "redacted" {
 		t.Fatalf("sample_topic=%q want redacted", got)
+	}
+	if strings.TrimSpace(resp.GetDeviceId()) == "" {
+		t.Fatalf("expected successful mqtt probe to return persisted device id")
+	}
+	listed, err := store.ListProviderDevices(context.Background(), controlplane.ListProviderDevicesInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		ActiveOnly:  false,
+	})
+	if err != nil {
+		t.Fatalf("list provider devices failed: %v", err)
+	}
+	if got := len(listed); got != 1 {
+		t.Fatalf("provider device count=%d want 1", got)
+	}
+	if !listed[0].IsActive || listed[0].IngestDesiredState != "active" {
+		t.Fatalf("expected active provider device after successful mqtt probe, got active=%v state=%q", listed[0].IsActive, listed[0].IngestDesiredState)
 	}
 }
 
@@ -1600,7 +1617,7 @@ func TestImportProviderDeviceRequiresSuccessfulMQTTProbeWhenActive(t *testing.T)
 func TestTestProviderDeviceMQTTReturnsTimeoutStatus(t *testing.T) {
 	t.Parallel()
 
-	svc, _ := newControlPlaneServiceForTest()
+	svc, store := newControlPlaneServiceForTest()
 	credResp, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
 		UserSubject: "dev-user",
 		Provider:    controlplane.ProviderEcoFlow,
@@ -1612,6 +1629,15 @@ func TestTestProviderDeviceMQTTReturnsTimeoutStatus(t *testing.T) {
 		t.Fatalf("create credential failed: %v", err)
 	}
 	svc.RegisterDiscoverer(controlplane.ProviderEcoFlow, staticDiscoverer{
+		devices: []controlplane.ProviderDevice{
+			{
+				Provider:         controlplane.ProviderEcoFlow,
+				ProviderDeviceID: "DEMODMQTT000002",
+				CanonicalSN:      "DEMODMQTT000002",
+				ProductName:      "Timed Out Device",
+				Model:            "DELTA 2",
+			},
+		},
 		cert: ecoflow.GeneralInfoMQTTCertification{
 			URL:                 "mqtt.ecoflow.com",
 			Port:                "8883",
@@ -1634,6 +1660,17 @@ func TestTestProviderDeviceMQTTReturnsTimeoutStatus(t *testing.T) {
 	}
 	if resp.GetStatus() != "timeout" {
 		t.Fatalf("status=%q want timeout", resp.GetStatus())
+	}
+	listed, listErr := store.ListProviderDevices(context.Background(), controlplane.ListProviderDevicesInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlow,
+		ActiveOnly:  false,
+	})
+	if listErr != nil {
+		t.Fatalf("list provider devices failed: %v", listErr)
+	}
+	if got := len(listed); got != 0 {
+		t.Fatalf("provider device count=%d want 0 after failed mqtt probe", got)
 	}
 }
 

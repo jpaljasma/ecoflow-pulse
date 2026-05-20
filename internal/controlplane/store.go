@@ -199,6 +199,25 @@ type UpsertProviderDeviceInput struct {
 	IngestDesiredState string
 }
 
+type ImportProviderDeviceInput struct {
+	UserSubject        string
+	Provider           string
+	ProviderDeviceID   string
+	CredentialID       string
+	CanonicalSN        string
+	ProductName        string
+	Model              string
+	Capabilities       map[string]any
+	Metadata           map[string]any
+	IsActive           bool
+	IngestDesiredState string
+}
+
+type ImportedProviderDevice struct {
+	ProviderDevice ProviderDevice
+	UserDevice     UserDevice
+}
+
 type ListIngestAssignmentsInput struct {
 	Provider   string
 	ActiveOnly bool
@@ -217,6 +236,7 @@ type Store interface {
 	UpdateCurrentUserProfile(ctx context.Context, in UpdateCurrentUserProfileInput) (CurrentUser, error)
 	ReconcileUserSubjectByEmail(ctx context.Context, in ReconcileUserSubjectByEmailInput) (CurrentUser, error)
 	UpsertProviderDevice(ctx context.Context, in UpsertProviderDeviceInput) (ProviderDevice, error)
+	ImportProviderDevice(ctx context.Context, in ImportProviderDeviceInput) (ImportedProviderDevice, error)
 	ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error)
 	GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (ProviderDevice, error)
 	ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error)

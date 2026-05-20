@@ -2122,6 +2122,10 @@ func (f *fakeControlPlaneStore) UpsertProviderDevice(context.Context, controlpla
 	return controlplane.ProviderDevice{}, errors.New("not implemented")
 }
 
+func (f *fakeControlPlaneStore) ImportProviderDevice(context.Context, controlplane.ImportProviderDeviceInput) (controlplane.ImportedProviderDevice, error) {
+	return controlplane.ImportedProviderDevice{}, errors.New("not implemented")
+}
+
 func (f *fakeControlPlaneStore) ListProviderDevices(context.Context, controlplane.ListProviderDevicesInput) ([]controlplane.ProviderDevice, error) {
 	return nil, errors.New("not implemented")
 }

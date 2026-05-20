@@ -2317,6 +2317,7 @@ type TestProviderDeviceMQTTResponse struct {
 	SampleTopic      string                 `protobuf:"bytes,3,opt,name=sample_topic,json=sampleTopic,proto3" json:"sample_topic,omitempty"`
 	PayloadBytes     int64                  `protobuf:"varint,4,opt,name=payload_bytes,json=payloadBytes,proto3" json:"payload_bytes,omitempty"`
 	ObservedAtUnixMs int64                  `protobuf:"varint,5,opt,name=observed_at_unix_ms,json=observedAtUnixMs,proto3" json:"observed_at_unix_ms,omitempty"`
+	DeviceId         string                 `protobuf:"bytes,6,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -2384,6 +2385,13 @@ func (x *TestProviderDeviceMQTTResponse) GetObservedAtUnixMs() int64 {
 		return x.ObservedAtUnixMs
 	}
 	return 0
+}
+
+func (x *TestProviderDeviceMQTTResponse) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
 }
 
 type EnableProviderDeviceRequest struct {
@@ -2837,13 +2845,14 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12#\n" +
 	"\rcredential_id\x18\x03 \x01(\tR\fcredentialId\x12,\n" +
-	"\x12provider_device_id\x18\x04 \x01(\tR\x10providerDeviceId\"\xc9\x01\n" +
+	"\x12provider_device_id\x18\x04 \x01(\tR\x10providerDeviceId\"\xe6\x01\n" +
 	"\x1eTestProviderDeviceMQTTResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12!\n" +
 	"\fsample_topic\x18\x03 \x01(\tR\vsampleTopic\x12#\n" +
 	"\rpayload_bytes\x18\x04 \x01(\x03R\fpayloadBytes\x12-\n" +
-	"\x13observed_at_unix_ms\x18\x05 \x01(\x03R\x10observedAtUnixMs\"\xaf\x01\n" +
+	"\x13observed_at_unix_ms\x18\x05 \x01(\x03R\x10observedAtUnixMs\x12\x1b\n" +
+	"\tdevice_id\x18\x06 \x01(\tR\bdeviceId\"\xaf\x01\n" +
 	"\x1bEnableProviderDeviceRequest\x12!\n" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12#\n" +

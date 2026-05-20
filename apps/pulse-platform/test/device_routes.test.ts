@@ -138,7 +138,8 @@ function makeDeviceClient(overrides: Partial<DeviceClient> = {}): DeviceClient {
       status: 'ok',
       sampleTopic: '/open/open-account/DEMOD2M00001057/quota',
       payloadBytes: '512',
-      observedAtUnixMs: '1772197190000'
+      observedAtUnixMs: '1772197190000',
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
     })),
     enableAvailableDevice: vi.fn(async () => ({
       deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
@@ -379,6 +380,14 @@ describe('pulse-platform device routes', () => {
         providerDeviceId: 'DEMOD2M00001057'
       })
     );
+    expect(response.json()).toEqual({
+      success: true,
+      status: 'ok',
+      sampleTopic: '/open/open-account/DEMOD2M00001057/quota',
+      payloadBytes: '512',
+      observedAtUnixMs: '1772197190000',
+      deviceId: '019c9f0e-4521-775d-873e-e80039f16d75'
+    });
 
     await app.close();
   });

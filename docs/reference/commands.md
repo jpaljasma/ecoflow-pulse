@@ -1465,13 +1465,21 @@ Notes:
   services overlay also points Go cache clients at the cloud Valkey forward and
   switches cache prefixes to `cloud-*` namespaces.
   `make dev-up` is the full local reset path.
+- `make dev-deploy-cloud-db` refreshes an existing local cluster into the same
+  local-edge/cloud-data shape: public web app and realtime gateway are rebuilt
+  with the Cloud data-plane flag, and local `go-grpc-api`/`go-energy-api`
+  redeploy against cloud Postgres. Use this target for Settings `Cloud` device
+  validation; `make dev-web-deploy-cloud-realtime` alone does not move REST
+  device reads off the local database.
 - `make dev-web-deploy-cloud-realtime` refreshes only the local public app and
   realtime gateway with the generated cloud-realtime overlay and the same
   cloud-data UI flag. Hosted `EXPO_PUBLIC_CLOUD_*` values from `.env` are
   scrubbed from this local-edge build so the Cloud choice keeps using local
   auth/HTTP while cloud remains the telemetry data plane. The generated overlay
   also sets the BFF data-plane fallback to `cloud` so edge cache keys and
-  runtime metadata cannot collide with local mode.
+  runtime metadata cannot collide with local mode. This target assumes the
+  services layer is already in cloud-DB mode when REST-backed screens need
+  hosted device/profile data.
 - `make cloud-status` prints hosted Argo applications when present,
   `pulse-platform` pods/stateful resources/endpoints, `pulse-services`
   deployments/PDBs/pods, and the node list after fetching the cloud kube
