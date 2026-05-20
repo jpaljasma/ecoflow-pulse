@@ -1397,8 +1397,10 @@ Notes:
   so the GKE auth plugin can refresh cached tokens. Override
   `CLOUD_DB_FORWARD_ADDRESS` only when your local container runtime cannot reach
   the default loopback-bound forward. If the managed container is still running
-  but the local DB port is not reachable, `cloud-db-forward-start` removes and
-  relaunches it instead of leaving a stale forward in place.
+  but the local DB port fails the Postgres protocol probe, `cloud-db-forward-start`
+  removes and relaunches it instead of leaving a stale forward in place. New
+  forward containers run a supervisor that keeps probing the Postgres protocol
+  and restarts the child `kubectl port-forward` when the tunnel goes stale.
 - `make cloud-realtime-forward-start`, `make cloud-realtime-forward-status`,
   and `make cloud-realtime-forward-stop` manage background forwards from
   `127.0.0.1:24222` to hosted NATS and `127.0.0.1:26380` to hosted Valkey in
@@ -1406,7 +1408,16 @@ Notes:
   `ecoflow-pulse-cloud-valkey-forward` by default.
   `dev-up-cloud-db` binds them on `0.0.0.0` so local k3d pods can reach them
   through `host.docker.internal`. The start target restarts a managed forward
-  container when its local port has gone unreachable.
+  container when its local port fails the expected protocol probe. Postgres must
+  answer an SSL negotiation probe, NATS must answer `INFO`/`PONG`, and Valkey
+  must answer `PING` with `PONG`; an open TCP port alone is not considered
+  healthy. The same supervisor watches NATS and Valkey forwards from inside
+  their containers. Tune the watch loop with
+  `CLOUD_FORWARD_SUPERVISOR_INTERVAL_SEC` and
+  `CLOUD_FORWARD_SUPERVISOR_RESTART_DELAY_SEC` when needed. The startup grace
+  and consecutive-failure threshold are configurable through
+  `CLOUD_FORWARD_SUPERVISOR_STARTUP_GRACE_SEC` and
+  `CLOUD_FORWARD_SUPERVISOR_FAILURE_THRESHOLD`.
 - `make public-deployments-restart-local` restarts the local public app and
   realtime gateway deployments after same-tag `:local` image imports. It is
   called by `dev-web-deploy` and `dev-up-cloud-db` so imported public images

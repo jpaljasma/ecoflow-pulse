@@ -92,6 +92,10 @@ CLOUD_FORWARD_DOCKER_PLATFORM ?= linux/amd64
 CLOUD_FORWARD_RESTART ?= unless-stopped
 CLOUD_FORWARD_KUBECONFIG_DIR ?= $(HOME)/.kube
 CLOUD_FORWARD_GCLOUD_CONFIG_DIR ?= $(HOME)/.config/gcloud
+CLOUD_FORWARD_SUPERVISOR_INTERVAL_SEC ?= 10
+CLOUD_FORWARD_SUPERVISOR_RESTART_DELAY_SEC ?= 2
+CLOUD_FORWARD_SUPERVISOR_STARTUP_GRACE_SEC ?= 10
+CLOUD_FORWARD_SUPERVISOR_FAILURE_THRESHOLD ?= 2
 CLOUD_REALTIME_FORWARD_ADDRESS ?= 127.0.0.1
 CLOUD_NATS_LOCAL_PORT ?= 24222
 CLOUD_VALKEY_LOCAL_PORT ?= 26380
@@ -2755,18 +2759,27 @@ cloud-db-forward: gke-cloud-context
 cloud-db-forward-start: gke-cloud-context
 	@set -euo pipefail; \
 	mkdir -p "$(dir $(CLOUD_DB_FORWARD_PID_FILE))"; \
+	if ! docker image inspect "$(CLOUD_FORWARD_IMAGE)" >/dev/null 2>&1 || \
+		! docker run --rm --platform "$(CLOUD_FORWARD_DOCKER_PLATFORM)" --entrypoint test "$(CLOUD_FORWARD_IMAGE)" -x /usr/local/bin/cloud-forward-supervisor.sh >/dev/null 2>&1; then \
+		$(MAKE) --no-print-directory cloud-forward-image-build; \
+	fi; \
 	container="$(CLOUD_DB_FORWARD_CONTAINER)"; \
 	if docker inspect "$$container" >/dev/null 2>&1; then \
 		if [ "$$(docker inspect -f '{{.State.Running}}' "$$container")" = "true" ]; then \
-			if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+			container_cmd="$$(docker inspect -f '{{json .Config.Cmd}}' "$$container")"; \
+			if ! printf '%s\n' "$$container_cmd" | grep -q 'cloud-forward-supervisor.sh'; then \
+				echo "cloud DB forward container is running without supervisor; restarting $$container"; \
+				docker rm -f "$$container" >/dev/null; \
+			elif scripts/cloud-forward-probe.sh postgres $(CLOUD_DB_LOCAL_PORT); then \
 				echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
 				echo "cloud DB forward container is running ($$container)"; \
 				exit 0; \
+			else \
+				echo "cloud DB forward container is running but 127.0.0.1:$(CLOUD_DB_LOCAL_PORT) failed Postgres protocol probe"; \
+				docker logs --tail 80 "$$container" || true; \
+				echo "restarting stale cloud DB forward container $$container"; \
+				docker rm -f "$$container" >/dev/null; \
 			fi; \
-			echo "cloud DB forward container is running but 127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is not reachable"; \
-			docker logs --tail 80 "$$container" || true; \
-			echo "restarting stale cloud DB forward container $$container"; \
-			docker rm -f "$$container" >/dev/null; \
 		else \
 			docker rm "$$container" >/dev/null; \
 		fi; \
@@ -2781,12 +2794,12 @@ cloud-db-forward-start: gke-cloud-context
 		echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
 	fi; \
 	rm -f "$(CLOUD_DB_FORWARD_PID_FILE)"; \
-	if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+	if scripts/cloud-forward-probe.sh postgres $(CLOUD_DB_LOCAL_PORT); then \
 		echo "cloud DB forward port $(CLOUD_DB_LOCAL_PORT) is already reachable but not managed by Docker"; \
 		exit 0; \
-	fi; \
-	if ! docker image inspect "$(CLOUD_FORWARD_IMAGE)" >/dev/null 2>&1; then \
-		$(MAKE) --no-print-directory cloud-forward-image-build; \
+	elif nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+		echo "cloud DB forward port $(CLOUD_DB_LOCAL_PORT) is reachable but failed Postgres protocol probe"; \
+		exit 1; \
 	fi; \
 	echo "starting cloud DB forward container $$container on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT)"; \
 	docker run -d \
@@ -2799,10 +2812,15 @@ cloud-db-forward-start: gke-cloud-context
 		-e KUBECONFIG=/root/.kube/config \
 		-e CLOUDSDK_CONFIG=/root/.config/gcloud \
 		-e USE_GKE_GCLOUD_AUTH_PLUGIN=True \
+		-e CLOUD_FORWARD_SUPERVISOR_INTERVAL_SEC="$(CLOUD_FORWARD_SUPERVISOR_INTERVAL_SEC)" \
+		-e CLOUD_FORWARD_SUPERVISOR_RESTART_DELAY_SEC="$(CLOUD_FORWARD_SUPERVISOR_RESTART_DELAY_SEC)" \
+		-e CLOUD_FORWARD_SUPERVISOR_STARTUP_GRACE_SEC="$(CLOUD_FORWARD_SUPERVISOR_STARTUP_GRACE_SEC)" \
+		-e CLOUD_FORWARD_SUPERVISOR_FAILURE_THRESHOLD="$(CLOUD_FORWARD_SUPERVISOR_FAILURE_THRESHOLD)" \
 		"$(CLOUD_FORWARD_IMAGE)" \
-		kubectl --context "$(CLOUD_KUBE_CONTEXT)" -n "$(PLATFORM_NAMESPACE)" port-forward --address 0.0.0.0 svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432 >/dev/null; \
+		cloud-forward-supervisor.sh "cloud DB" postgres "$(CLOUD_DB_LOCAL_PORT)" \
+		kubectl --context "$(CLOUD_KUBE_CONTEXT)" -n "$(PLATFORM_NAMESPACE)" port-forward --address 0.0.0.0 svc/$(DB_MIGRATION_CLUSTER)-rw $(CLOUD_DB_LOCAL_PORT):5432; \
 	for _ in $$(seq 1 30); do \
-		if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+		if scripts/cloud-forward-probe.sh postgres $(CLOUD_DB_LOCAL_PORT); then \
 			echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$(CLOUD_DB_FORWARD_PID_FILE)"; \
 			echo "cloud DB forward ready on $(CLOUD_DB_FORWARD_ADDRESS):$(CLOUD_DB_LOCAL_PORT) ($$container)"; \
 			exit 0; \
@@ -2843,10 +2861,14 @@ cloud-db-forward-status:
 	else \
 		echo "cloud DB forward container is not running"; \
 	fi; \
-	if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
-		echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is reachable"; \
+	if scripts/cloud-forward-probe.sh postgres $(CLOUD_DB_LOCAL_PORT); then \
+		echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) passed Postgres protocol probe"; \
 	else \
-		echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is not reachable"; \
+		if nc -z 127.0.0.1 $(CLOUD_DB_LOCAL_PORT) >/dev/null 2>&1; then \
+			echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is reachable but failed Postgres protocol probe"; \
+		else \
+			echo "127.0.0.1:$(CLOUD_DB_LOCAL_PORT) is not reachable"; \
+		fi; \
 		exit 1; \
 	fi
 
@@ -2861,7 +2883,8 @@ cloud-realtime-forward: gke-cloud-context
 cloud-realtime-forward-start: gke-cloud-context
 	@set -euo pipefail; \
 	mkdir -p "$(dir $(CLOUD_NATS_FORWARD_PID_FILE))" "$(dir $(CLOUD_VALKEY_FORWARD_PID_FILE))"; \
-	if ! docker image inspect "$(CLOUD_FORWARD_IMAGE)" >/dev/null 2>&1; then \
+	if ! docker image inspect "$(CLOUD_FORWARD_IMAGE)" >/dev/null 2>&1 || \
+		! docker run --rm --platform "$(CLOUD_FORWARD_DOCKER_PLATFORM)" --entrypoint test "$(CLOUD_FORWARD_IMAGE)" -x /usr/local/bin/cloud-forward-supervisor.sh >/dev/null 2>&1; then \
 		$(MAKE) --no-print-directory cloud-forward-image-build; \
 	fi; \
 	start_forward() { \
@@ -2872,17 +2895,23 @@ cloud-realtime-forward-start: gke-cloud-context
 		pid_file="$$5"; \
 		container="$$6"; \
 		launch_label="$$7"; \
+		probe="$$8"; \
 		if docker inspect "$$container" >/dev/null 2>&1; then \
 			if [ "$$(docker inspect -f '{{.State.Running}}' "$$container")" = "true" ]; then \
-				if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+				container_cmd="$$(docker inspect -f '{{json .Config.Cmd}}' "$$container")"; \
+				if ! printf '%s\n' "$$container_cmd" | grep -q 'cloud-forward-supervisor.sh'; then \
+					echo "$$label forward container is running without supervisor; restarting $$container"; \
+					docker rm -f "$$container" >/dev/null; \
+				elif scripts/cloud-forward-probe.sh "$$probe" "$$local_port"; then \
 					echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$$pid_file"; \
 					echo "$$label forward container is running ($$container)"; \
 					return 0; \
+				else \
+					echo "$$label forward container is running but 127.0.0.1:$$local_port failed protocol probe"; \
+					docker logs --tail 80 "$$container" || true; \
+					echo "restarting stale $$label forward container $$container"; \
+					docker rm -f "$$container" >/dev/null; \
 				fi; \
-				echo "$$label forward container is running but 127.0.0.1:$$local_port is not reachable"; \
-				docker logs --tail 80 "$$container" || true; \
-				echo "restarting stale $$label forward container $$container"; \
-				docker rm -f "$$container" >/dev/null; \
 			else \
 				docker rm "$$container" >/dev/null; \
 			fi; \
@@ -2897,9 +2926,12 @@ cloud-realtime-forward-start: gke-cloud-context
 		if [ -n "$$pids" ]; then \
 			echo "$$pids" | xargs kill >/dev/null 2>&1 || true; \
 		fi; \
-		if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+		if scripts/cloud-forward-probe.sh "$$probe" "$$local_port"; then \
 			echo "$$label forward port $$local_port is already reachable but not managed by Docker"; \
 			return 0; \
+		elif nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+			echo "$$label forward port $$local_port is reachable but failed protocol probe"; \
+			return 1; \
 		fi; \
 		echo "starting $$label forward container $$container on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port"; \
 		docker run -d \
@@ -2912,10 +2944,15 @@ cloud-realtime-forward-start: gke-cloud-context
 			-e KUBECONFIG=/root/.kube/config \
 			-e CLOUDSDK_CONFIG=/root/.config/gcloud \
 			-e USE_GKE_GCLOUD_AUTH_PLUGIN=True \
+			-e CLOUD_FORWARD_SUPERVISOR_INTERVAL_SEC="$(CLOUD_FORWARD_SUPERVISOR_INTERVAL_SEC)" \
+			-e CLOUD_FORWARD_SUPERVISOR_RESTART_DELAY_SEC="$(CLOUD_FORWARD_SUPERVISOR_RESTART_DELAY_SEC)" \
+			-e CLOUD_FORWARD_SUPERVISOR_STARTUP_GRACE_SEC="$(CLOUD_FORWARD_SUPERVISOR_STARTUP_GRACE_SEC)" \
+			-e CLOUD_FORWARD_SUPERVISOR_FAILURE_THRESHOLD="$(CLOUD_FORWARD_SUPERVISOR_FAILURE_THRESHOLD)" \
 			"$(CLOUD_FORWARD_IMAGE)" \
-			kubectl --context "$(CLOUD_KUBE_CONTEXT)" -n "$(PLATFORM_NAMESPACE)" port-forward --address 0.0.0.0 "svc/$$service" "$$local_port:$$remote_port" >/dev/null; \
+			cloud-forward-supervisor.sh "$$label" "$$probe" "$$local_port" \
+			kubectl --context "$(CLOUD_KUBE_CONTEXT)" -n "$(PLATFORM_NAMESPACE)" port-forward --address 0.0.0.0 "svc/$$service" "$$local_port:$$remote_port"; \
 		for _ in $$(seq 1 30); do \
-			if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
+			if scripts/cloud-forward-probe.sh "$$probe" "$$local_port"; then \
 				echo "$$(docker inspect -f '{{.State.Pid}}' "$$container")" > "$$pid_file"; \
 				echo "$$label forward ready on $(CLOUD_REALTIME_FORWARD_ADDRESS):$$local_port ($$container)"; \
 				return 0; \
@@ -2927,8 +2964,8 @@ cloud-realtime-forward-start: gke-cloud-context
 		rm -f "$$pid_file"; \
 		return 1; \
 	}; \
-	start_forward "cloud NATS" "$(CLOUD_NATS_SERVICE)" "$(CLOUD_NATS_LOCAL_PORT)" 4222 "$(CLOUD_NATS_FORWARD_PID_FILE)" "$(CLOUD_NATS_FORWARD_CONTAINER)" "$(CLOUD_NATS_FORWARD_LABEL)"; \
-	start_forward "cloud Valkey" "$(CLOUD_VALKEY_SERVICE)" "$(CLOUD_VALKEY_LOCAL_PORT)" 6379 "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "$(CLOUD_VALKEY_FORWARD_CONTAINER)" "$(CLOUD_VALKEY_FORWARD_LABEL)"
+	start_forward "cloud NATS" "$(CLOUD_NATS_SERVICE)" "$(CLOUD_NATS_LOCAL_PORT)" 4222 "$(CLOUD_NATS_FORWARD_PID_FILE)" "$(CLOUD_NATS_FORWARD_CONTAINER)" "$(CLOUD_NATS_FORWARD_LABEL)" nats; \
+	start_forward "cloud Valkey" "$(CLOUD_VALKEY_SERVICE)" "$(CLOUD_VALKEY_LOCAL_PORT)" 6379 "$(CLOUD_VALKEY_FORWARD_PID_FILE)" "$(CLOUD_VALKEY_FORWARD_CONTAINER)" "$(CLOUD_VALKEY_FORWARD_LABEL)" valkey
 
 cloud-realtime-forward-stop:
 	@set -euo pipefail; \
@@ -2965,20 +3002,21 @@ cloud-realtime-forward-status:
 		label="$$1"; \
 		container="$$2"; \
 		local_port="$$3"; \
+		probe="$$4"; \
 		if docker inspect "$$container" >/dev/null 2>&1 && [ "$$(docker inspect -f '{{.State.Running}}' "$$container")" = "true" ]; then \
 			echo "$$label forward container is running ($$container)"; \
 		else \
 			echo "$$label forward container is not running"; \
 		fi; \
-		if nc -z 127.0.0.1 "$$local_port" >/dev/null 2>&1; then \
-			echo "127.0.0.1:$$local_port is reachable"; \
+		if scripts/cloud-forward-probe.sh "$$probe" "$$local_port"; then \
+			echo "127.0.0.1:$$local_port passed $$probe protocol probe"; \
 		else \
-			echo "127.0.0.1:$$local_port is not reachable"; \
+			echo "127.0.0.1:$$local_port failed $$probe protocol probe"; \
 			return 1; \
 		fi; \
 	}; \
-	status_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_CONTAINER)" "$(CLOUD_NATS_LOCAL_PORT)"; \
-	status_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_CONTAINER)" "$(CLOUD_VALKEY_LOCAL_PORT)"
+	status_forward "cloud NATS" "$(CLOUD_NATS_FORWARD_CONTAINER)" "$(CLOUD_NATS_LOCAL_PORT)" nats; \
+	status_forward "cloud Valkey" "$(CLOUD_VALKEY_FORWARD_CONTAINER)" "$(CLOUD_VALKEY_LOCAL_PORT)" valkey
 
 cloud-db-env: gke-cloud-context
 	@set -euo pipefail; \
