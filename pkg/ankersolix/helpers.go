@@ -18,8 +18,12 @@ func asMap(value any) map[string]any {
 		}
 		return out
 	case string:
+		clean := strings.TrimSpace(v)
+		if len(clean) < 2 || clean[0] != '{' {
+			return nil
+		}
 		var out map[string]any
-		if err := json.Unmarshal([]byte(v), &out); err == nil {
+		if err := json.Unmarshal([]byte(clean), &out); err == nil {
 			return out
 		}
 	}

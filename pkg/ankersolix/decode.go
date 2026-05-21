@@ -47,17 +47,18 @@ func DecodeMQTTWrapper(topic string, payload []byte) (MQTTMessage, error) {
 	if err != nil {
 		return MQTTMessage{}, err
 	}
+	head := asMap(outer["head"])
 	productCode := strings.ToUpper(firstNonEmpty(
 		asString(rawPayload["pn"]),
 		asString(rawPayload["device_pn"]),
 		topicPart(topic, 2),
-		asString(asMap(outer["head"])["device_pn"]),
+		asString(head["device_pn"]),
 	))
 	deviceSN := firstNonEmpty(
 		asString(rawPayload["sn"]),
 		asString(rawPayload["device_sn"]),
 		topicPart(topic, 3),
-		asString(asMap(outer["head"])["device_sn"]),
+		asString(head["device_sn"]),
 	)
 	var data []byte
 	var isJSON bool
@@ -77,7 +78,7 @@ func DecodeMQTTWrapper(topic string, payload []byte) (MQTTMessage, error) {
 		ProductCode: productCode,
 		DeviceSN:    deviceSN,
 		Topic:       topic,
-		Data:        append([]byte(nil), data...),
+		Data:        data,
 		RawPayload:  rawPayload,
 	}
 	if len(data) == 0 {
@@ -139,7 +140,7 @@ func DecodeBinaryPayload(productCode string, data []byte) (DecodedPayload, error
 	rawFields := map[string]any{}
 	limit := len(data) - 1
 	for idx+2 <= limit {
-		fieldID := hex.EncodeToString(data[idx : idx+1])
+		fieldID := hexByteString(data[idx])
 		length := int(data[idx+1])
 		idx += 2
 		if length <= 0 || idx+length > limit {
@@ -208,9 +209,9 @@ func decodeTLVValue(typ byte, raw []byte) (any, bool) {
 		if len(raw) == 0 {
 			return nil, false
 		}
-		buf := make([]byte, 4)
-		copy(buf, raw)
-		return float64(int32(binary.LittleEndian.Uint32(buf))), true
+		var buf [4]byte
+		copy(buf[:], raw)
+		return float64(int32(binary.LittleEndian.Uint32(buf[:]))), true
 	case tlvTypeSFLE:
 		if len(raw) < 4 {
 			return nil, false
@@ -381,11 +382,36 @@ func jsonFieldName(key string) string {
 }
 
 func topicPart(topic string, idx int) string {
-	parts := strings.Split(topic, "/")
-	if idx < 0 || idx >= len(parts) {
+	if idx < 0 {
 		return ""
 	}
-	return strings.TrimSpace(parts[idx])
+	start := 0
+	part := 0
+	for i := 0; i <= len(topic); i++ {
+		if i != len(topic) && topic[i] != '/' {
+			continue
+		}
+		if part == idx {
+			return strings.TrimSpace(topic[start:i])
+		}
+		part++
+		start = i + 1
+	}
+	return ""
+}
+
+const lowerHexDigits = "0123456789abcdef"
+
+var lowerHexByteStrings = func() [256]string {
+	var out [256]string
+	for i := range out {
+		out[i] = string([]byte{lowerHexDigits[byte(i)>>4], lowerHexDigits[byte(i)&0x0f]})
+	}
+	return out
+}()
+
+func hexByteString(value byte) string {
+	return lowerHexByteStrings[value]
 }
 
 func mustHex(value string) []byte {
