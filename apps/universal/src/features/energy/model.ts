@@ -1,5 +1,6 @@
 import type { DeviceSummary } from '@/features/devices/api';
 import type { EnergyDashboard, EnergyPreset, EnergyRollupPoint } from '@/features/energy/api';
+import { repairPowerTrendDropouts } from '@/features/history/powerTrend';
 import { MIN_MEANINGFUL_SOLAR_COMPARISON_BASELINE_WH } from '@/shared/ui/solarLegend';
 
 export const ENERGY_PRESETS: EnergyPreset[] = [
@@ -22,6 +23,9 @@ export const ENERGY_CALENDAR_LIVE_GC_MS = 10 * 60_000;
 export const ENERGY_CALENDAR_LIVE_REFETCH_MS = 60_000;
 export const ENERGY_CALENDAR_HISTORICAL_STALE_MS = 12 * 60 * 60_000;
 export const ENERGY_CALENDAR_HISTORICAL_GC_MS = 24 * 60 * 60_000;
+export const ENERGY_DASHBOARD_LIVE_STALE_MS = 60_000;
+export const ENERGY_DASHBOARD_HISTORICAL_STALE_MS = 30 * 60_000;
+export const ENERGY_DASHBOARD_GC_MS = 60 * 60_000;
 
 export const ENERGY_PANELS = ['overview', 'solar', 'impact'] as const;
 
@@ -325,6 +329,31 @@ export function buildEnergyCalendarCachePolicy({
   };
 }
 
+export function buildEnergyDashboardCachePolicy({
+  preset,
+  date,
+  timezone,
+  now = new Date()
+}: {
+  preset: EnergyPreset;
+  date?: string;
+  timezone: string;
+  now?: Date;
+}): { staleTime: number; gcTime: number; refetchInterval: number | false } {
+  const todayIso = getTimezoneDateIso(now, timezone);
+  const isLiveWindow =
+    preset === 'past24h' ||
+    preset === 'thisWeek' ||
+    preset === 'thisMonth' ||
+    (preset === 'today' && (!date || date === todayIso));
+
+  return {
+    staleTime: isLiveWindow ? ENERGY_DASHBOARD_LIVE_STALE_MS : ENERGY_DASHBOARD_HISTORICAL_STALE_MS,
+    gcTime: ENERGY_DASHBOARD_GC_MS,
+    refetchInterval: isLiveWindow ? ENERGY_DASHBOARD_LIVE_STALE_MS : false
+  };
+}
+
 export function buildPowerTrendSeries(points: EnergyRollupPoint[]): {
   solar: number[];
   ac: number[];
@@ -332,11 +361,15 @@ export function buildPowerTrendSeries(points: EnergyRollupPoint[]): {
   load: number[];
   battery: number[];
 } {
-  return {
+  const repaired = repairPowerTrendDropouts({
     solar: points.map((point) => point.metrics.pvAvgW),
     ac: points.map((point) => point.metrics.acInAvgW),
     dc: points.map((point) => point.metrics.dcAvgW),
-    load: points.map((point) => point.metrics.loadAvgW),
+    load: points.map((point) => point.metrics.loadAvgW)
+  });
+
+  return {
+    ...repaired,
     battery: points.map((point) => point.metrics.batteryAvgW)
   };
 }

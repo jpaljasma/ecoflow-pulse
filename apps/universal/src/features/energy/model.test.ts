@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildEnergyCalendarCachePolicy,
+  buildEnergyDashboardCachePolicy,
   buildEnergyInsights,
   buildEnergyCalendarRouteParams,
   buildWindowLabel,
@@ -188,6 +189,24 @@ describe('energy route model', () => {
     expect(historical.refetchInterval).toBe(false);
   });
 
+  it('uses shorter energy dashboard cache windows for live periods', () => {
+    const live = buildEnergyDashboardCachePolicy({
+      preset: 'today',
+      timezone: 'America/New_York',
+      now: new Date('2026-05-09T17:30:00Z')
+    });
+    const historical = buildEnergyDashboardCachePolicy({
+      preset: 'today',
+      date: '2026-05-08',
+      timezone: 'America/New_York',
+      now: new Date('2026-05-09T17:30:00Z')
+    });
+
+    expect(live.staleTime).toBeLessThan(historical.staleTime);
+    expect(live.refetchInterval).toBe(live.staleTime);
+    expect(historical.refetchInterval).toBe(false);
+  });
+
   it('maps rollup points into power trend arrays', () => {
     const series = buildPowerTrendSeries([
       {
@@ -237,6 +256,65 @@ describe('energy route model', () => {
       load: [90],
       battery: [20]
     });
+  });
+
+  it('repairs short zero gaps in energy power trend arrays', () => {
+    const makePoint = (
+      pvAvgW: number,
+      acInAvgW: number,
+      dcAvgW: number,
+      loadAvgW: number,
+      batteryAvgW: number
+    ) => ({
+      bucketStartUnixMs: '1',
+      bucketEndUnixMs: '2',
+      sampleCount: 1,
+      firstTsUnixMs: '1',
+      lastTsUnixMs: '2',
+      metrics: {
+        socAvgPct: 50,
+        socMinPct: 40,
+        socMaxPct: 60,
+        acInAvgW,
+        acInMaxW: acInAvgW,
+        acOutputAvgW: 85,
+        acOutputMaxW: 93,
+        pvAvgW,
+        pvMaxW: pvAvgW,
+        dcAvgW,
+        dcMaxW: dcAvgW,
+        loadAvgW,
+        loadMaxW: loadAvgW,
+        netAvgW: 25,
+        netMinW: 0,
+        netMaxW: 50,
+        batteryAvgW,
+        batteryMinW: -10,
+        batteryMaxW: 40,
+        tempAvgC: 23,
+        tempMinC: 21,
+        tempMaxC: 25,
+        solarGeneratedWh: 30,
+        acInputEnergyWh: 10,
+        acOutputEnergyWh: 85,
+        dcOutputEnergyWh: 5,
+        loadEnergyWh: 90,
+        batteryChargeEnergyWh: 20,
+        batteryDischargeEnergyWh: 0
+      }
+    });
+
+    const series = buildPowerTrendSeries([
+      makePoint(120, 40, 10, 80, 20),
+      makePoint(0, 0, 0, 0, 0),
+      makePoint(160, 80, 30, 120, 40)
+    ]);
+
+    expect(series.solar).toEqual([120, 140, 160]);
+    expect(series.ac).toEqual([40, 60, 80]);
+    expect(series.dc).toEqual([10, 20, 30]);
+    expect(series.load).toEqual([80, 100, 120]);
+    expect(series.battery).toEqual([20, 0, 40]);
   });
 
   it('collapses single-day window labels to one date', () => {

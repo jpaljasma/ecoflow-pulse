@@ -138,6 +138,29 @@ test.describe('Universal web E2E', () => {
     await expect(page.getByText('Pulse Fleet', { exact: true })).toBeVisible();
   });
 
+  test('defers detail hardware insights until the hardware section approaches the viewport', async ({ page }) => {
+    const requestedInsightPaths: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (/^\/api\/v1\/devices\/[^/]+\/insights$/.test(path)) {
+        requestedInsightPaths.push(path);
+      }
+    });
+
+    await page.setViewportSize({ width: 390, height: 640 });
+    await page.goto(`/device/${DPU_DEVICE_ID}`);
+
+    await expect(page.getByText('Battery reserve', { exact: true })).toBeVisible();
+    await expect(page.getByText('Power profile', { exact: true })).toBeAttached();
+    await expect(page.getByTestId('device-hardware-section')).toBeAttached();
+    await page.waitForTimeout(350);
+    expect(requestedInsightPaths).toHaveLength(0);
+
+    await page.getByTestId('device-hardware-section').scrollIntoViewIfNeeded();
+    await expect(page.getByText('Battery Packs')).toBeVisible();
+    await expect.poll(() => requestedInsightPaths.length).toBeGreaterThan(0);
+  });
+
   test('does not resolve serial route aliases', async ({ page }) => {
     await page.goto(`/device/${D2M_SERIAL}`);
 

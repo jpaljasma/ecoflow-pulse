@@ -21,6 +21,12 @@ export const ENERGY_IMPACT_HISTORY_GC_MS = 24 * 60 * 60_000;
 
 export type EnergyImpactPeriod = 'today' | 'past12Months';
 
+export type EnergyImpactDisplayState = {
+  solarWh: number | undefined;
+  displayPeriod: EnergyImpactPeriod;
+  isLoading: boolean;
+};
+
 export const AVOIDED_EMISSIONS_FACTORS = {
   NYUP: {
     key: 'NYUP',
@@ -93,6 +99,36 @@ export function buildPastTwelveMonthsBounds(now = new Date()): { from: Date; to:
   const from = new Date(now);
   from.setFullYear(from.getFullYear() - 1);
   return { from, to };
+}
+
+export function sumSolarGeneratedWh(points: Array<{ metrics: { solarGeneratedWh: number } }>): number {
+  return points.reduce((total, point) => total + Math.max(0, point.metrics.solarGeneratedWh ?? 0), 0);
+}
+
+export function normalizeEnergyImpactSolarWh(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : undefined;
+}
+
+export function resolveEnergyImpactDisplayState({
+  period,
+  todaySolarWh,
+  pastTwelveMonthsSolarWh,
+  pastTwelveMonthsFetching
+}: {
+  period: EnergyImpactPeriod;
+  todaySolarWh?: number;
+  pastTwelveMonthsSolarWh?: number;
+  pastTwelveMonthsFetching: boolean;
+}): EnergyImpactDisplayState {
+  const normalizedTodayWh = normalizeEnergyImpactSolarWh(todaySolarWh);
+  const normalizedPastTwelveMonthsWh = normalizeEnergyImpactSolarWh(pastTwelveMonthsSolarWh);
+  const solarWh = period === 'today' ? normalizedTodayWh : (normalizedPastTwelveMonthsWh ?? normalizedTodayWh);
+
+  return {
+    solarWh,
+    displayPeriod: period === 'past12Months' && normalizedPastTwelveMonthsWh === undefined ? 'today' : period,
+    isLoading: solarWh === undefined || (period === 'past12Months' && pastTwelveMonthsFetching)
+  };
 }
 
 export function energyImpactPeriodLabel(period: EnergyImpactPeriod): string {

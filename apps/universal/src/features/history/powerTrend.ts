@@ -125,6 +125,19 @@ export function mergeTrendPrefill(prefill: number[], live: number[], liveCoverag
   ];
 }
 
+export function mergePowerTrendPrefill(
+  prefill: PowerTrendView,
+  live: PowerTrendView,
+  liveCoveragePoints: number
+): PowerTrendView {
+  return repairPowerTrendDropouts({
+    solar: mergeTrendPrefill(prefill.solar, live.solar, liveCoveragePoints),
+    ac: mergeTrendPrefill(prefill.ac, live.ac, liveCoveragePoints),
+    dc: mergeTrendPrefill(prefill.dc, live.dc, liveCoveragePoints),
+    load: mergeTrendPrefill(prefill.load, live.load, liveCoveragePoints)
+  });
+}
+
 export function mergeTrendPrefillWithLivePoints(
   prefill: number[],
   livePoints: TimePoint[] | undefined,
@@ -164,6 +177,24 @@ export function mergeTrendPrefillWithLivePoints(
   }
 
   return merged;
+}
+
+export function mergePowerTrendPrefillWithLivePoints(
+  prefill: PowerTrendView,
+  livePoints: {
+    solar?: TimePoint[];
+    ac?: TimePoint[];
+    dc?: TimePoint[];
+    load?: TimePoint[];
+  },
+  now = new Date()
+): PowerTrendView {
+  return repairPowerTrendDropouts({
+    solar: mergeTrendPrefillWithLivePoints(prefill.solar, livePoints.solar, now),
+    ac: mergeTrendPrefillWithLivePoints(prefill.ac, livePoints.ac, now),
+    dc: mergeTrendPrefillWithLivePoints(prefill.dc, livePoints.dc, now),
+    load: mergeTrendPrefillWithLivePoints(prefill.load, livePoints.load, now)
+  });
 }
 
 export function sparklineCoveragePoints(points: TimePoint[] | undefined): number {

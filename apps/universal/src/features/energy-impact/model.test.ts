@@ -7,7 +7,9 @@ import {
   formatImpactMassFromGrams,
   formatMiles,
   formatPollutantMass,
+  resolveEnergyImpactDisplayState,
   PREMIUM_EV_MILES_PER_KWH,
+  sumSolarGeneratedWh,
   formatTreeYears
 } from '@/features/energy-impact/model';
 
@@ -100,5 +102,40 @@ describe('energy impact model', () => {
   it('clamps negative or missing solar values to zero', () => {
     expect(computeEnergyImpactFromSolarWh(undefined).co2eGrams).toBe(0);
     expect(computeEnergyImpactFromSolarWh(-50).noxGrams).toBe(0);
+  });
+
+  it('keeps impact display loading instead of converting unavailable history to zero', () => {
+    expect(
+      resolveEnergyImpactDisplayState({
+        period: 'today',
+        pastTwelveMonthsFetching: false
+      })
+    ).toEqual({
+      solarWh: undefined,
+      displayPeriod: 'today',
+      isLoading: true
+    });
+
+    expect(
+      resolveEnergyImpactDisplayState({
+        period: 'past12Months',
+        todaySolarWh: 1250,
+        pastTwelveMonthsFetching: true
+      })
+    ).toEqual({
+      solarWh: 1250,
+      displayPeriod: 'today',
+      isLoading: true
+    });
+  });
+
+  it('sums positive solar generation history only', () => {
+    expect(
+      sumSolarGeneratedWh([
+        { metrics: { solarGeneratedWh: 120 } },
+        { metrics: { solarGeneratedWh: -50 } },
+        { metrics: { solarGeneratedWh: 80 } }
+      ])
+    ).toBe(200);
   });
 });

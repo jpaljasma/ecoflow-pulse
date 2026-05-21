@@ -29,15 +29,16 @@ import { Card } from '@/shared/ui/Card';
 import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { SecondaryPageShell } from '@/shared/ui/SecondaryPageShell';
+import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
 import { useDevicePowerTrendHistory, useDeviceSolarHistory } from '@/features/history/hooks';
 import {
-  mergeTrendPrefillWithLivePoints
+  emptyPowerTrendView,
+  mergePowerTrendPrefillWithLivePoints
 } from '@/features/history/powerTrend';
 import { resolveSolarHistoryWindow } from '@/features/history/solar';
 import { maskSerialNumber } from '@/features/telemetry/format';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 
-const DETAIL_TREND_POINTS = 60;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -96,6 +97,8 @@ export default function DeviceDetailScreen() {
   const { contentWidth: width, horizontalPadding, isSidebarMode } = usePageLayoutMetrics();
   const isTablet = width >= 768;
   const isDesktop = width >= 1200;
+  const { ref: hardwareSectionRef, shouldLoad: hardwareSectionShouldLoad } = useLazySectionLoad({ rootMargin: '240px' });
+  const { ref: secondarySectionRef, shouldLoad: secondarySectionShouldLoad } = useLazySectionLoad({ rootMargin: '360px' });
   const useRemoteImage = Boolean(env.assetBaseUrl);
   const { deviceId: routeDeviceParam } = useLocalSearchParams<{ deviceId: string | string[] }>();
   const routeDeviceId = Array.isArray(routeDeviceParam) ? routeDeviceParam[0] : routeDeviceParam;
@@ -155,7 +158,7 @@ export default function DeviceDetailScreen() {
     token,
     authKey,
     locationKey: resolvedWeatherState.locationKey,
-    enabled: queryEnabled && Boolean(resolvedDeviceId) && resolvedWeatherState.enabled,
+    enabled: queryEnabled && Boolean(resolvedDeviceId) && resolvedWeatherState.enabled && secondarySectionShouldLoad,
     scope: 'device',
     deviceId: resolvedDeviceId
   });
@@ -167,7 +170,7 @@ export default function DeviceDetailScreen() {
   const batteryInsightsQuery = useDeviceInsights(resolvedDeviceId, {
     token,
     authKey,
-    enabled: queryEnabled && Boolean(resolvedDeviceId)
+    enabled: queryEnabled && Boolean(resolvedDeviceId) && hardwareSectionShouldLoad
   });
   const device = mergeDeviceSources(deviceQuery.data, routeDevice);
   useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
@@ -189,24 +192,13 @@ export default function DeviceDetailScreen() {
     solarHistory.data?.yesterdaySeriesWh ?? Array.from({ length: solarHistoryWindow.points }, () => 0);
 
   const detailTrend = useMemo(
-    () => ({
-      load: mergeTrendPrefillWithLivePoints(
-        powerTrendHistory.data?.load ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.loadW
-      ),
-      pv: mergeTrendPrefillWithLivePoints(
-        powerTrendHistory.data?.solar ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.pvW
-      ),
-      ac: mergeTrendPrefillWithLivePoints(
-        powerTrendHistory.data?.ac ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.acW
-      ),
-      dc: mergeTrendPrefillWithLivePoints(
-        powerTrendHistory.data?.dc ?? Array.from({ length: DETAIL_TREND_POINTS }, () => 0),
-        snapshot?.sparkline.dcW
-      )
-    }),
+    () =>
+      mergePowerTrendPrefillWithLivePoints(powerTrendHistory.data ?? emptyPowerTrendView(), {
+        solar: snapshot?.sparkline.pvW,
+        ac: snapshot?.sparkline.acW,
+        dc: snapshot?.sparkline.dcW,
+        load: snapshot?.sparkline.loadW
+      }),
     [powerTrendHistory.data, snapshot]
   );
 
@@ -243,7 +235,7 @@ export default function DeviceDetailScreen() {
       mediaBoxHeight={mediaBoxHeight}
       mobileImageSize={mobileImageSize}
       sparklineLoad={detailTrend.load}
-      sparklinePV={detailTrend.pv}
+      sparklinePV={detailTrend.solar}
       sparklineAC={detailTrend.ac}
       sparklineDC={detailTrend.dc}
       solarGeneratedTrend={solarGeneratedTrend}
@@ -254,12 +246,14 @@ export default function DeviceDetailScreen() {
       solarGeneratedDeltaPct={solarHistory.data?.deltaPct}
       solarHistoryWindow={solarHistoryWindow}
       solarOutlook={deviceSolarOutlookQuery.data?.outlook}
-      solarOutlookLoading={deviceSolarOutlookQuery.isLoading}
+      solarOutlookLoading={secondarySectionShouldLoad && deviceSolarOutlookQuery.isLoading}
       solarOutlookErrorText={
         deviceSolarOutlookQuery.error ? describeQueryError(deviceSolarOutlookQuery.error) : undefined
       }
       batteryInsights={batteryInsightsQuery.data}
-      batteryInsightsLoading={batteryInsightsQuery.isLoading}
+      batteryInsightsLoading={hardwareSectionShouldLoad && batteryInsightsQuery.isLoading}
+      hardwareSectionRef={hardwareSectionRef}
+      secondarySectionRef={secondarySectionRef}
     />
   );
 

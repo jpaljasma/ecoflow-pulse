@@ -42,7 +42,7 @@ export function AppMenu({
   const currentUserQuery = useCurrentUser({
     token,
     authKey,
-    enabled: authReady && Boolean(token)
+    enabled: showHeaderWeather && authReady && Boolean(token)
   });
   const resolvedWeatherState = resolveProfileWeatherState(currentUserQuery.data?.user);
   const profileWeather = useProfileWeather({
@@ -50,6 +50,7 @@ export function AppMenu({
     authKey,
     locationKey: resolvedWeatherState.locationKey,
     enabled:
+      showHeaderWeather &&
       authReady &&
       Boolean(token) &&
       resolvedWeatherState.enabled &&

@@ -1,6 +1,7 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, Ref } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -151,7 +152,9 @@ export function DeviceDetailBody({
   solarOutlookLoading,
   solarOutlookErrorText,
   batteryInsights,
-  batteryInsightsLoading
+  batteryInsightsLoading,
+  hardwareSectionRef,
+  secondarySectionRef
 }: {
   device?: DeviceSummary;
   snapshot?: DeviceSnapshot;
@@ -177,6 +180,8 @@ export function DeviceDetailBody({
   solarOutlookErrorText?: string;
   batteryInsights?: DeviceInsights;
   batteryInsightsLoading?: boolean;
+  hardwareSectionRef?: Ref<View>;
+  secondarySectionRef?: Ref<View>;
 }) {
   const semantics = useThemeSemantics();
   const statCellByKey = new Map(
@@ -519,53 +524,57 @@ export function DeviceDetailBody({
         </YStack>
       )}
 
-      {hasBatteryPacks || hasSolarInputs ? (
-        <XStack gap="$3" flexWrap="wrap">
-          {hasBatteryPacks ? (
-            <BatteryPacksSection
-              packs={vm.batteryPacks}
-              bpCount={vm.details?.bpCount}
-              summaryText={vm.batterySummaryText}
-              model={device?.model}
-              batteryInsights={batteryInsights}
-              batteryInsightsLoading={batteryInsightsLoading}
-              minWidth={isDesktop ? 320 : 280}
-            />
-          ) : null}
-          {hasSolarInputs ? <SolarInputsSection ports={vm.solarPorts} minWidth={isDesktop ? 320 : 280} /> : null}
-        </XStack>
-      ) : null}
+      <View ref={hardwareSectionRef} testID="device-hardware-section">
+        {hasBatteryPacks || hasSolarInputs ? (
+          <XStack gap="$3" flexWrap="wrap">
+            {hasBatteryPacks ? (
+              <BatteryPacksSection
+                packs={vm.batteryPacks}
+                bpCount={vm.details?.bpCount}
+                summaryText={vm.batterySummaryText}
+                model={device?.model}
+                batteryInsights={batteryInsights}
+                batteryInsightsLoading={batteryInsightsLoading}
+                minWidth={isDesktop ? 320 : 280}
+              />
+            ) : null}
+            {hasSolarInputs ? <SolarInputsSection ports={vm.solarPorts} minWidth={isDesktop ? 320 : 280} /> : null}
+          </XStack>
+        ) : null}
+      </View>
 
-      {isTablet ? (
-        <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
-          <YStack testID="device-energy-impact-panel" flex={1} minWidth={0} alignSelf="stretch">
-            <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} fill />
-          </YStack>
-          <YStack testID="device-solar-forecast-panel" flex={1} minWidth={0} alignSelf="stretch">
+      <View ref={secondarySectionRef} testID="device-secondary-panels">
+        {isTablet ? (
+          <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+            <YStack testID="device-energy-impact-panel" flex={1} minWidth={0} alignSelf="stretch">
+              <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} fill />
+            </YStack>
+            <YStack testID="device-solar-forecast-panel" flex={1} minWidth={0} alignSelf="stretch">
+              <DeviceSolarForecastCard
+                deviceName={device?.name}
+                deviceId={device?.id}
+                solarOutlook={solarOutlook}
+                isLoading={solarOutlookLoading}
+                errorText={solarOutlookErrorText}
+                fill
+              />
+            </YStack>
+          </XStack>
+        ) : (
+          <YStack gap="$3">
+            <YStack testID="device-energy-impact-panel">
+              <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
+            </YStack>
             <DeviceSolarForecastCard
               deviceName={device?.name}
               deviceId={device?.id}
               solarOutlook={solarOutlook}
               isLoading={solarOutlookLoading}
               errorText={solarOutlookErrorText}
-              fill
             />
           </YStack>
-        </XStack>
-      ) : (
-        <YStack gap="$3">
-          <YStack testID="device-energy-impact-panel">
-            <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
-          </YStack>
-          <DeviceSolarForecastCard
-            deviceName={device?.name}
-            deviceId={device?.id}
-            solarOutlook={solarOutlook}
-            isLoading={solarOutlookLoading}
-            errorText={solarOutlookErrorText}
-          />
-        </YStack>
-      )}
+        )}
+      </View>
 
       {hasSignals ? (
         <XStack gap="$3" flexWrap="wrap">

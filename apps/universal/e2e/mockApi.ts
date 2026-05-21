@@ -1107,6 +1107,49 @@ export async function mockApiRoutes(page: Page): Promise<void> {
       return;
     }
 
+    if (pathname.startsWith('/api/v1/devices/') && pathname.endsWith('/insights')) {
+      const deviceId = decodeURIComponent(pathname.replace('/api/v1/devices/', '').replace('/insights', ''));
+      if (!DEVICE_BY_KEY.has(deviceId)) {
+        await fulfillJson(route, { error: 'not_found' }, 404);
+        return;
+      }
+      await fulfillJson(route, {
+        deviceId,
+        status: 'ready',
+        statusDetail: 'cached',
+        refreshedAtUnixMs: String(NOW_UNIX_MS),
+        insights: [
+          {
+            id: `${deviceId}-battery-expansion`,
+            deviceId,
+            kind: 'battery_expansion',
+            title: 'Add extra battery capacity',
+            summary: 'This system can support more stored reserve for longer outages.',
+            score: 0.82,
+            rank: 1,
+            modelKey: 'battery-expansion-rule',
+            modelVersion: 'v1',
+            generatedAtUnixMs: String(NOW_UNIX_MS),
+            expiresAtUnixMs: String(NOW_UNIX_MS + 60 * 60 * 1000),
+            tags: ['battery', 'reserve'],
+            evidence: [],
+            actions: [
+              {
+                kind: 'learn_more',
+                label: 'Review options',
+                target: '/energy'
+              }
+            ],
+            attributes: {
+              recommended_additional_packs: 1,
+              max_battery_packs: 5
+            }
+          }
+        ]
+      });
+      return;
+    }
+
     if (pathname.startsWith('/api/v1/devices/') && pathname.endsWith('/history/compare')) {
       const deviceId = decodeURIComponent(pathname.replace('/api/v1/devices/', '').replace('/history/compare', ''));
       if (!DEVICE_BY_KEY.has(deviceId)) {
@@ -1204,6 +1247,24 @@ export async function mockApiRoutes(page: Page): Promise<void> {
               summary: 'Solar generation changed by 0.92kWh.',
               recommendation: 'Keep high-draw tasks inside the strongest solar window when generation climbs.',
               score: 0.44,
+              confidence: 0.83,
+              evidence: []
+            },
+            {
+              category: 'grid',
+              title: 'Grid dependence',
+              summary: 'Estimated AC input cost changed by 0.18.',
+              recommendation: 'Reduce late-grid peaks when grid cost rises.',
+              score: -0.22,
+              confidence: 0.83,
+              evidence: []
+            },
+            {
+              category: 'value',
+              title: 'Solar value',
+              summary: 'Estimated solar value changed by 0.37.',
+              recommendation: 'Preserve the solar window for flexible consumption.',
+              score: 0.31,
               confidence: 0.83,
               evidence: []
             }
