@@ -186,6 +186,16 @@ describe('env config resolution', () => {
     expect(readConnectionProfile('cloud').oidcClientId).toBe('pulse-universal-cloud');
   });
 
+
+  it('derives a valid websocket URL from explicit IPv6 API base URLs', async () => {
+    const { env } = await loadEnvModule({
+      apiUrlEnv: 'http://[::1]:18081/api'
+    });
+
+    expect(env.apiUrl).toBe('http://[::1]:18081/api');
+    expect(env.wsUrl).toBe('ws://[::1]:18081/ws');
+  });
+
   it('falls back to the local profile when cloud is requested as default but not configured', async () => {
     const { env } = await loadEnvModule({
       defaultConnectionProfileEnv: 'cloud'
