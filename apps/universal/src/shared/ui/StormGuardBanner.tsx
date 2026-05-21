@@ -4,12 +4,14 @@ export type StormGuardBannerProps = {
   headline: string;
   detail?: string;
   affectedLabel?: string;
+  compact?: boolean;
 };
 
 export function StormGuardBanner({
   headline,
   detail,
-  affectedLabel
+  affectedLabel,
+  compact = false
 }: StormGuardBannerProps) {
   return (
     <StatusBanner
@@ -18,6 +20,7 @@ export function StormGuardBanner({
       detail={detail}
       footnote={affectedLabel}
       statusLabel="Active"
+      compact={compact}
     />
   );
 }

@@ -31,6 +31,7 @@ test.describe('Universal web E2E', () => {
     await expect(page.getByTestId(`fleet-device-preview-${DPU_DEVICE_ID}`).getByText('24.6%')).toBeVisible();
     await expect(page.getByTestId(`fleet-device-preview-${D2M_DEVICE_ID}`)).toBeVisible();
     await expect(page.getByText('Current telemetry', { exact: true })).toHaveCount(0);
+    await page.getByTestId('devices-analytics-panel').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('home-energy-impact').getByText('Energy Impact', { exact: true })).toBeVisible();
 
     await page.getByTestId(`fleet-device-preview-${DPU_DEVICE_ID}`).click();
@@ -41,6 +42,64 @@ test.describe('Universal web E2E', () => {
 
     await page.getByRole('button', { name: /All Devices/i }).click();
     await expect(page.getByTestId(`device-card-${DPU_DEVICE_ID}`)).toBeVisible();
+  });
+
+  test('loads partially visible analytics and defers offscreen card history', async ({ page }) => {
+    const requestedHistoryPaths: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path.includes('/history')) {
+        requestedHistoryPaths.push(path);
+      }
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/devices');
+
+    await expect(page.getByText('Pulse Fleet', { exact: true })).toBeVisible();
+    await expect(page.getByText('Battery', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Open Energy Dashboard', { exact: true })).toBeVisible();
+
+    const overflowX = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflowX).toBeLessThanOrEqual(1);
+
+    const analyticsTop = await page.getByTestId('devices-analytics-panel').evaluate((element) =>
+      element.getBoundingClientRect().top
+    );
+    expect(analyticsTop).toBeLessThan(900);
+    await expect.poll(() =>
+      requestedHistoryPaths.some((path) => /^\/api\/v1\/devices\/[^/]+\/history$/.test(path))
+    ).toBe(true);
+    expect(requestedHistoryPaths.filter((path) => /^\/api\/v1\/devices\/[^/]+\/history\/solar$/.test(path))).toHaveLength(0);
+    expect(requestedHistoryPaths).toContain('/api/v1/history/solar/fleet');
+
+    await page.getByTestId('devices-analytics-panel').scrollIntoViewIfNeeded();
+    await expect(page.getByTestId('home-energy-impact')).toBeVisible();
+
+    await page.getByTestId(`device-card-${DPU_DEVICE_ID}`).scrollIntoViewIfNeeded();
+    await expect.poll(() =>
+      requestedHistoryPaths.some((path) => /^\/api\/v1\/devices\/[^/]+\/history\/solar$/.test(path))
+    ).toBe(true);
+  });
+
+  test('keeps the devices first fold stable across desktop tablet and phone widths', async ({ page }) => {
+    const viewports = [
+      { width: 1440, height: 900 },
+      { width: 1024, height: 768 },
+      { width: 390, height: 844 }
+    ];
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto('/devices');
+
+      await expect(page.getByText('Pulse Fleet', { exact: true })).toBeVisible();
+      await expect(page.getByText('Solar generation today', { exact: true })).toBeVisible();
+      await expect(page.getByTestId(`fleet-device-preview-${DPU_DEVICE_ID}`)).toBeVisible();
+
+      const overflowX = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflowX).toBeLessThanOrEqual(1);
+    }
   });
 
   test('loads detail by UUID route', async ({ page }) => {

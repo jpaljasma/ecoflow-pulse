@@ -22,6 +22,11 @@ import {
   sumPowerTrendViews,
   type PowerTrendView
 } from '@/features/history/powerTrend';
+import { hasNonZeroSeriesValue, useStableChartData } from '@/features/history/stableChartData';
+
+export const TODAY_SOLAR_HISTORY_STALE_TIME_MS = 2 * 60_000;
+export const POWER_TREND_HISTORY_STALE_TIME_MS = 90_000;
+export const CHART_HISTORY_GC_TIME_MS = 45 * 60_000;
 
 type HistoryQueryOptions = {
   token?: string;
@@ -71,6 +76,34 @@ function buildPowerTrendKey(): string {
   return buildPowerTrendBounds().queryTo.toISOString().slice(0, 16);
 }
 
+function buildStableKey(parts: unknown[]): string {
+  return parts
+    .map((part) => {
+      if (Array.isArray(part)) return part.join(',');
+      return String(part ?? 'null');
+    })
+    .join('|');
+}
+
+function isUsableSolarHistoryView(view: SolarHistoryView): boolean {
+  return (
+    view.todayWh > 0 ||
+    view.yesterdayWh > 0 ||
+    view.yesterdayRunningWh > 0 ||
+    hasNonZeroSeriesValue(view.seriesWh) ||
+    hasNonZeroSeriesValue(view.yesterdaySeriesWh)
+  );
+}
+
+function isUsablePowerTrendView(view: PowerTrendView): boolean {
+  return (
+    hasNonZeroSeriesValue(view.load) ||
+    hasNonZeroSeriesValue(view.solar) ||
+    hasNonZeroSeriesValue(view.ac) ||
+    hasNonZeroSeriesValue(view.dc)
+  );
+}
+
 export function useDeviceSolarHistory(
   deviceId: string | undefined,
   options: HistoryQueryOptions = {}
@@ -79,8 +112,7 @@ export function useDeviceSolarHistory(
   const window = options.window ?? defaultSolarHistoryWindow();
   const dayKey = useSolarHistoryDayKey();
 
-  return useQuery<SolarHistoryView>({
-    queryKey: [
+  const queryKey = [
       'device-solar-history',
       deviceId,
       dayKey,
@@ -88,7 +120,9 @@ export function useDeviceSolarHistory(
       maxSolarWatts ?? null,
       window.startMinutes,
       window.endMinutes
-    ],
+    ] as const;
+  const query = useQuery<SolarHistoryView>({
+    queryKey,
     enabled: enabled && Boolean(deviceId),
     queryFn: async () => {
       const { from, to, compareFrom, compareTo } = buildSolarHistoryBounds();
@@ -110,11 +144,26 @@ export function useDeviceSolarHistory(
         throw error;
       }
     },
-    staleTime: 30_000,
-    gcTime: 10 * 60_000,
+    staleTime: TODAY_SOLAR_HISTORY_STALE_TIME_MS,
+    gcTime: CHART_HISTORY_GC_TIME_MS,
     refetchInterval: deviceId ? historyRefreshIntervalMs(deviceId) : false,
     placeholderData: (previous) => previous
   });
+
+  const stableData = useStableChartData({
+    data: query.data,
+    stableKey: buildStableKey([...queryKey]),
+    isFetching: query.isFetching,
+    isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
+    isSuccess: query.isSuccess,
+    isUsable: isUsableSolarHistoryView
+  });
+
+  return {
+    ...query,
+    data: stableData
+  };
 }
 
 export function useFleetSolarHistory(
@@ -134,8 +183,7 @@ export function useFleetSolarHistory(
     [maxSolarWattsByDeviceId, sortedIds]
   );
 
-  const query = useQuery<SolarHistoryView>({
-    queryKey: [
+  const queryKey = [
       'fleet-solar-history',
       sortedIds,
       dayKey,
@@ -143,7 +191,9 @@ export function useFleetSolarHistory(
       maxSolarKey,
       window.startMinutes,
       window.endMinutes
-    ],
+    ] as const;
+  const query = useQuery<SolarHistoryView>({
+    queryKey,
     enabled: enabled && sortedIds.length > 0,
     queryFn: async () => {
       const { from, to, compareFrom, compareTo } = buildSolarHistoryBounds();
@@ -165,13 +215,26 @@ export function useFleetSolarHistory(
         throw error;
       }
     },
-    staleTime: 30_000,
-    gcTime: 10 * 60_000,
+    staleTime: TODAY_SOLAR_HISTORY_STALE_TIME_MS,
+    gcTime: CHART_HISTORY_GC_TIME_MS,
     refetchInterval: sortedIds.length > 0 ? historyRefreshIntervalMs(sortedIds.join(',')) : false,
     placeholderData: (previous) => previous
   });
 
-  return query;
+  const stableData = useStableChartData({
+    data: query.data,
+    stableKey: buildStableKey([...queryKey]),
+    isFetching: query.isFetching,
+    isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
+    isSuccess: query.isSuccess,
+    isUsable: isUsableSolarHistoryView
+  });
+
+  return {
+    ...query,
+    data: stableData
+  };
 }
 
 export function useDevicePowerTrendHistory(
@@ -181,8 +244,9 @@ export function useDevicePowerTrendHistory(
   const { token, authKey = 'anonymous', enabled = true } = options;
   const windowKey = buildPowerTrendKey();
 
-  return useQuery<PowerTrendView>({
-    queryKey: ['device-power-trend-history', deviceId, windowKey, authKey],
+  const queryKey = ['device-power-trend-history', deviceId, windowKey, authKey] as const;
+  const query = useQuery<PowerTrendView>({
+    queryKey,
     enabled: enabled && Boolean(deviceId),
     queryFn: async () => {
       const { queryFrom, queryTo } = buildPowerTrendBounds();
@@ -202,10 +266,25 @@ export function useDevicePowerTrendHistory(
         throw error;
       }
     },
-    staleTime: 60_000,
-    gcTime: 10 * 60_000,
+    staleTime: POWER_TREND_HISTORY_STALE_TIME_MS,
+    gcTime: CHART_HISTORY_GC_TIME_MS,
     placeholderData: (previous) => previous
   });
+
+  const stableData = useStableChartData({
+    data: query.data,
+    stableKey: buildStableKey([...queryKey]),
+    isFetching: query.isFetching,
+    isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
+    isSuccess: query.isSuccess,
+    isUsable: isUsablePowerTrendView
+  });
+
+  return {
+    ...query,
+    data: stableData
+  };
 }
 
 export function useFleetPowerTrendHistory(
@@ -216,8 +295,9 @@ export function useFleetPowerTrendHistory(
   const sortedIds = useMemo(() => [...deviceIds].sort(), [deviceIds]);
   const windowKey = buildPowerTrendKey();
 
+  const queryKey = ['fleet-power-trend-history', sortedIds, windowKey, authKey] as const;
   const query = useQuery<PowerTrendView>({
-    queryKey: ['fleet-power-trend-history', sortedIds, windowKey, authKey],
+    queryKey,
     enabled: enabled && sortedIds.length > 0,
     queryFn: async () => {
       const { queryFrom, queryTo } = buildPowerTrendBounds();
@@ -252,13 +332,23 @@ export function useFleetPowerTrendHistory(
         throw error;
       }
     },
-    staleTime: 60_000,
-    gcTime: 10 * 60_000,
+    staleTime: POWER_TREND_HISTORY_STALE_TIME_MS,
+    gcTime: CHART_HISTORY_GC_TIME_MS,
     placeholderData: (previous) => previous
+  });
+
+  const stableData = useStableChartData({
+    data: query.data,
+    stableKey: buildStableKey([...queryKey]),
+    isFetching: query.isFetching,
+    isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
+    isSuccess: query.isSuccess,
+    isUsable: isUsablePowerTrendView
   });
 
   return {
     ...query,
-    data: query.data ?? emptyPowerTrendView()
+    data: stableData ?? query.data ?? emptyPowerTrendView()
   };
 }

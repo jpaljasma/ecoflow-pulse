@@ -957,6 +957,10 @@ async function fulfillJson(route: Route, payload: unknown, status = 200): Promis
 
 async function seedAuthenticatedSession(page: Page): Promise<void> {
   await page.addInitScript((configuredApiUrl) => {
+    const defaultApiUrl = (): string => {
+      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      return `${protocol}//${window.location.hostname || '127.0.0.1'}`;
+    };
     const deriveIssuerUrl = (apiUrl: string): string => {
       const parsed = new URL(apiUrl);
       const normalizedPath = parsed.pathname.replace(/\/+$/, '');
@@ -969,7 +973,7 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
       return `${parsed.protocol}//${host}${issuerPath}`;
     };
 
-    const issuerUrl = deriveIssuerUrl(configuredApiUrl || window.location.origin);
+    const issuerUrl = deriveIssuerUrl(configuredApiUrl || defaultApiUrl());
     localStorage.setItem(
       'pulse-oidc-session-v1',
       JSON.stringify({
