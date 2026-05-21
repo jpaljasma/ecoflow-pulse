@@ -24,6 +24,10 @@ This file adds deploy/runtime guidance for `deploy/` work on top of the reposito
 4. Docker-managed local-cloud forwards must recover gracefully:
    - start targets should restart stale managed containers when the local port is no longer reachable,
    - do not make manual container deletion the normal recovery step for dropped DB/NATS/Valkey forwards.
+5. Plain local deploy targets must not silently collapse Local Edge back to full local:
+   - `make dev-web-deploy` and `make dev-deploy` should auto-detect an already-running Local Edge/cloud-data deployment and preserve the cloud DB/NATS/Valkey overlays,
+   - use `DEV_DEPLOY_DATA_MODE=local` as the explicit full-local override,
+   - use `DEV_DEPLOY_DATA_MODE=local-edge` to force the local HTTPS/OIDC edge with cloud-backed database and realtime.
 
 ## Helm and Values
 1. Keep chart behavior aligned between templates and local/dev values.

@@ -149,19 +149,23 @@ Defaults:
     app/realtime gateway while keeping websocket telemetry on the cloud
     NATS/Valkey path; these cloud-data local workflows build the web bundle
     with `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings labels the active
-    source as Cloud even though the browser edge remains local, and the local
+    source as Local Edge even though the browser edge remains local, and the local
     build scrubs hosted `EXPO_PUBLIC_CLOUD_*` values so auth/HTTP stay local.
     When local OIDC build args are omitted, the web app derives the local
     Keycloak issuer from the local edge and uses `pulse-universal-app`.
     The generated overlays also mark the public app as `cloud` data-plane mode,
     point Go cache clients and realtime snapshot reads at the cloud Valkey
     forward, and move cache/projection prefixes onto `cloud-*` namespaces so
-    local cache entries cannot be reused for cloud-data reads. Use
-    `make dev-deploy-cloud-db` when Settings `Cloud` must read cloud devices,
-    because it refreshes both the public edge/realtime overlay and the local Go
-    API services against cloud Postgres. `dev-up-cloud-db` restarts same-tag
-    local public deployments after importing images so pods cannot keep stale
-    public app or realtime gateway code.
+    local cache entries cannot be reused for cloud-data reads. Plain
+    `make dev-web-deploy` and `make dev-deploy` auto-detect an already-running
+    Local Edge deployment and preserve these overlays; use
+    `DEV_DEPLOY_DATA_MODE=local` to force a full-local reset, or
+    `DEV_DEPLOY_DATA_MODE=local-edge` to force Local Edge from any starting
+    state. Use `make dev-deploy-cloud-db` when Settings `Local Edge` must read
+    cloud devices, because it refreshes both the public edge/realtime overlay
+    and the local Go API services against cloud Postgres. `dev-up-cloud-db`
+    restarts same-tag local public deployments after importing images so pods
+    cannot keep stale public app or realtime gateway code.
   - `make cloud-status` for a quick hosted health snapshot.
 - current local platform defaults enable core dependencies (`nats`,
   `cloudnativepg` + `timescaledb`, `valkey`, `keycloak`, `minio`).

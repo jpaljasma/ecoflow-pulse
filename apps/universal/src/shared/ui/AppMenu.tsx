@@ -216,7 +216,7 @@ export function AppMenu({
                     </Text>
                   </XStack>
                   <Text fontSize="$2" color="$colorMuted">
-                    Switch this frontend between local k3d and cloud without leaving the menu.
+                    Switch the data source without leaving the menu.
                   </Text>
                 </YStack>
                 <ConnectionProfileSwitcher variant="compact" />
