@@ -51,6 +51,9 @@ note documents why they need a different contract.
   invalidation.
 - Read-through cache helpers must use `singleflight` for loaders that can
   stampede under concurrent misses.
+- Process-local memoization may front a shared Valkey cache for hot repeated
+  reads when the memo is TTL-bound, stores cloned values, and remains
+  subordinate to the cross-replica cache contract.
 - Session/sliding-TTL helpers must enforce both idle extension and a hard cap
   when provider expiry is known or a conservative max age is configured.
 - Cache metrics must be low-cardinality and must never label by device ID,
