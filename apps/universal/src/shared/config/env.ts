@@ -348,7 +348,7 @@ const connectionProfiles: Record<ConnectionProfileId, ConnectionProfileConfig> =
   },
   cloud: {
     id: 'cloud',
-    label: 'Cloud',
+    label: useLocalEdgeForCloudProfile ? 'Local Edge' : 'Cloud',
     edge: useLocalEdgeForCloudProfile ? 'local' : 'hosted',
     dataPlane: 'cloud',
     apiUrl: resolvedCloudProfileApiUrl,

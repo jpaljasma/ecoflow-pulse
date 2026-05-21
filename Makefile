@@ -116,6 +116,7 @@ LOCAL_CLOUD_REALTIME_HOST ?= host.docker.internal
 LOCAL_CLOUD_NATS_PORT ?= $(CLOUD_NATS_LOCAL_PORT)
 LOCAL_CLOUD_VALKEY_PORT ?= $(CLOUD_VALKEY_LOCAL_PORT)
 LOCAL_CLOUD_REALTIME_PLATFORM_VALUES ?= .tmp/local-cloud-realtime.platform.values.yaml
+DEV_DEPLOY_DATA_MODE ?= auto
 CLOUD_KUBE_CONTEXT ?= gke_$(GKE_CLOUD_PROJECT_ID)_$(GKE_CLOUD_CLUSTER_REGION)_$(GKE_CLOUD_CLUSTER_NAME)
 CLOUD_HELM_TAKE_OWNERSHIP ?= 1
 CLOUD_HELM_SERVER_SIDE ?= true
@@ -1491,6 +1492,16 @@ dev-web-deploy:
 		if [ -f .env ]; then \
 			set -a; source ./.env; set +a; \
 		fi; \
+		data_mode="$$(DEV_DEPLOY_DATA_MODE="$(DEV_DEPLOY_DATA_MODE)" \
+			EXPO_PUBLIC_LOCAL_DATA_PLANE="$${EXPO_PUBLIC_LOCAL_DATA_PLANE:-}" \
+			KUBECTL="$(KUBECTL)" \
+			K3D_CONTEXT="$(K3D_CONTEXT)" \
+			PLATFORM_NAMESPACE="$(PLATFORM_NAMESPACE)" \
+			SERVICES_NAMESPACE="$(SERVICES_NAMESPACE)" \
+			PLATFORM_RELEASE="$(PLATFORM_RELEASE)" \
+			SERVICES_RELEASE="$(SERVICES_RELEASE)" \
+			sh scripts/local-dev-data-mode.sh)"; \
+		echo "dev-web-deploy data mode: $$data_mode"; \
 		helm_mode="$(DEV_DEPLOY_HELM)"; \
 		platform_apply=0; \
 		case "$$helm_mode" in \
@@ -1532,11 +1543,35 @@ dev-web-deploy:
 				exit 1; \
 				;; \
 		esac; \
+		if [ "$$data_mode" = "local" ] && [ "$$platform_apply" = "0" ]; then \
+			current_data_plane="$$( $(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) get deploy/pulse-platform-public-app -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="PULSE_PLATFORM_DATA_PLANE")].value}' 2>/dev/null || true )"; \
+			if [ "$$current_data_plane" = "cloud" ]; then \
+				echo "detected Local Edge platform release; applying full-local platform values"; \
+				platform_apply=1; \
+			fi; \
+		fi; \
+		if [ "$$data_mode" = "local-edge" ]; then \
+			platform_apply=1; \
+			$(MAKE) --no-print-directory cloud-realtime-forward-start \
+				CLOUD_REALTIME_FORWARD_ADDRESS="$(LOCAL_CLOUD_REALTIME_FORWARD_ADDRESS)"; \
+			$(MAKE) --no-print-directory local-cloud-realtime-env; \
+		fi; \
 		$(MAKE) --no-print-directory k3d-up; \
-		$(MAKE) --no-print-directory public-images-local-up; \
+		if [ "$$data_mode" = "local-edge" ]; then \
+			$(MAKE) --no-print-directory public-images-local-up \
+				EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud; \
+		else \
+			$(MAKE) --no-print-directory public-images-local-up \
+				EXPO_PUBLIC_LOCAL_DATA_PLANE=local; \
+		fi; \
 		if [ "$$platform_apply" = "1" ]; then \
 			echo "applying platform Helm release"; \
-			$(MAKE) --no-print-directory platform-up; \
+			if [ "$$data_mode" = "local-edge" ]; then \
+				$(MAKE) --no-print-directory platform-up \
+					LOCAL_PLATFORM_VALUES="$(LOCAL_PLATFORM_VALUES) $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"; \
+			else \
+				$(MAKE) --no-print-directory platform-up; \
+			fi; \
 		else \
 			echo "skipping platform Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
 		fi; \
@@ -1552,21 +1587,32 @@ dev-web-deploy:
 	$(LOCAL_KUBECTL) -n $(PLATFORM_NAMESPACE) logs deploy/pulse-platform-realtime-gateway --since=5m
 
 dev-web-deploy-cloud-realtime:
-	$(MAKE) --no-print-directory cloud-realtime-forward-start \
-		CLOUD_REALTIME_FORWARD_ADDRESS="$(LOCAL_CLOUD_REALTIME_FORWARD_ADDRESS)"
-	$(MAKE) --no-print-directory local-cloud-realtime-env
 	$(MAKE) --no-print-directory dev-web-deploy \
+		DEV_DEPLOY_DATA_MODE=local-edge \
 		DEV_DEPLOY_HELM=always \
-		EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud \
-		LOCAL_PLATFORM_VALUES="$(LOCAL_PLATFORM_VALUES) $(LOCAL_CLOUD_REALTIME_PLATFORM_VALUES)"
+		EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud
 
 dev-deploy-cloud-db:
-	$(MAKE) --no-print-directory dev-web-deploy-cloud-realtime
-	$(MAKE) --no-print-directory services-up-cloud-db
-	$(MAKE) --no-print-directory services-wait
+	$(MAKE) --no-print-directory dev-deploy \
+		DEV_DEPLOY_DATA_MODE=local-edge \
+		DEV_DEPLOY_HELM=always \
+		EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud
 
 dev-deploy:
 	@set -euo pipefail; \
+		if [ -f .env ]; then \
+			set -a; source ./.env; set +a; \
+		fi; \
+		data_mode="$$(DEV_DEPLOY_DATA_MODE="$(DEV_DEPLOY_DATA_MODE)" \
+			EXPO_PUBLIC_LOCAL_DATA_PLANE="$${EXPO_PUBLIC_LOCAL_DATA_PLANE:-}" \
+			KUBECTL="$(KUBECTL)" \
+			K3D_CONTEXT="$(K3D_CONTEXT)" \
+			PLATFORM_NAMESPACE="$(PLATFORM_NAMESPACE)" \
+			SERVICES_NAMESPACE="$(SERVICES_NAMESPACE)" \
+			PLATFORM_RELEASE="$(PLATFORM_RELEASE)" \
+			SERVICES_RELEASE="$(SERVICES_RELEASE)" \
+			sh scripts/local-dev-data-mode.sh)"; \
+		echo "dev-deploy data mode: $$data_mode"; \
 		helm_mode="$(DEV_DEPLOY_HELM)"; \
 		services_apply=0; \
 		case "$$helm_mode" in \
@@ -1599,18 +1645,38 @@ dev-deploy:
 				exit 1; \
 				;; \
 		esac; \
-		$(MAKE) --no-print-directory DEV_DEPLOY_HELM="$$helm_mode" DEV_DEPLOY_SKIP_PUBLIC_RESTART=1 dev-web-deploy; \
+		if [ "$$data_mode" = "local-edge" ]; then \
+			services_apply=1; \
+		fi; \
+		if [ "$$data_mode" = "local" ] && [ "$$services_apply" = "0" ]; then \
+			current_projection_prefix="$$( $(LOCAL_KUBECTL) -n $(SERVICES_NAMESPACE) get configmap/$(SERVICES_RELEASE)-runtime-env -o jsonpath='{.data.PROJECTION_KEY_PREFIX}' 2>/dev/null || true )"; \
+			case "$$current_projection_prefix" in \
+				*cloud*) \
+					echo "detected Local Edge services release; applying full-local services values"; \
+					services_apply=1; \
+					;; \
+			esac; \
+		fi; \
+		$(MAKE) --no-print-directory DEV_DEPLOY_HELM="$$helm_mode" DEV_DEPLOY_SKIP_PUBLIC_RESTART=1 DEV_DEPLOY_DATA_MODE="$$data_mode" dev-web-deploy; \
 		if [ "$(SERVICES_AUTO_BUILD_IMAGE)" = "1" ]; then \
 			$(MAKE) --no-print-directory services-image-local-up; \
 		fi; \
 		if [ "$$services_apply" = "1" ]; then \
 			echo "applying services Helm release"; \
-			$(MAKE) --no-print-directory SERVICES_AUTO_BUILD_IMAGE=0 services-up; \
+			if [ "$$data_mode" = "local-edge" ]; then \
+				$(MAKE) --no-print-directory SERVICES_AUTO_BUILD_IMAGE=0 services-up-cloud-db; \
+			else \
+				$(MAKE) --no-print-directory SERVICES_AUTO_BUILD_IMAGE=0 services-up; \
+			fi; \
 		else \
 			echo "skipping services Helm apply (set DEV_DEPLOY_HELM=always to force)"; \
 		fi; \
-		echo "applying local database migrations before service restarts"; \
-		$(MAKE) --no-print-directory db-migrate-up-local
+		if [ "$$data_mode" = "local-edge" ]; then \
+			echo "skipping local database migrations in local-edge mode; API pods use the cloud DB forward"; \
+		else \
+			echo "applying local database migrations before service restarts"; \
+			$(MAKE) --no-print-directory db-migrate-up-local; \
+		fi
 	@set -euo pipefail; \
 		restart_and_wait_if_exists() { \
 			ns="$$1"; \

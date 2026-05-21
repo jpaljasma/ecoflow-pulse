@@ -454,18 +454,18 @@ Runtime behavior:
 - the universal app now persists a single app-wide connection profile
   (`local` or `cloud`) and resolves API base URL, websocket URL, OIDC issuer,
   and OIDC client together from that selection.
-- when `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud`, the `cloud` profile uses the
+- when `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud`, the internal `cloud` profile uses the
   local HTTPS edge, local OIDC issuer, and cloud-backed database/realtime data
-  plane. In product UI this is Cloud, not Local, because the selected source of
-  user data is cloud.
+  plane. In product UI this is `Local Edge`, because auth and HTTP still stay on
+  `https://localhost` while device/profile/realtime data comes from cloud.
   If local OIDC values are not explicitly set, the web build still uses the
   local Keycloak defaults so the login button remains available.
 - users can switch that data source directly from the shared app menu or from
-  `Settings -> Data source`; the product-facing choices are `Local` and
-  `Cloud`.
+  `Settings -> Data source`; local cloud-data builds present the product-facing
+  choices as `Local` and `Local Edge`.
 - connection-profile persistence stores both the selected profile and the
   active build default; when the app switches between true Local and local-edge
-  Cloud builds, stale state from the other mode is normalized to the current
+  builds, stale state from the other mode is normalized to the current
   default so login does not keep using hosted `sslip.io` OIDC discovery.
 - browser REST requests include `X-Pulse-Connection-Profile` and
   `X-Pulse-Data-Plane` so optional BFF edge caches partition local and cloud

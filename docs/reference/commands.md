@@ -1461,25 +1461,30 @@ Notes:
   deploys backend services against cloud Postgres and realtime against cloud
   NATS/Valkey. It builds the local web bundle with
   `EXPO_PUBLIC_LOCAL_DATA_PLANE=cloud` so Settings shows the active source as
-  Cloud even though the browser edge is still `https://localhost`. The generated
-  services overlay also points Go cache clients at the cloud Valkey forward and
-  switches cache prefixes to `cloud-*` namespaces.
-  `make dev-up` is the full local reset path.
+  Local Edge even though the browser edge is still `https://localhost`. The
+  generated services overlay also points Go cache clients at the cloud Valkey
+  forward and switches cache prefixes to `cloud-*` namespaces. `make dev-up` is
+  the full local reset path.
 - `make dev-deploy-cloud-db` refreshes an existing local cluster into the same
   local-edge/cloud-data shape: public web app and realtime gateway are rebuilt
-  with the Cloud data-plane flag, and local `go-grpc-api`/`go-energy-api`
-  redeploy against cloud Postgres. Use this target for Settings `Cloud` device
-  validation; `make dev-web-deploy-cloud-realtime` alone does not move REST
-  device reads off the local database.
+  with the Local Edge data-plane flag, and local `go-grpc-api`/`go-energy-api`
+  redeploy against cloud Postgres. Use this target for Settings `Local Edge`
+  device validation; `make dev-web-deploy-cloud-realtime` alone does not move
+  REST device reads off the local database.
 - `make dev-web-deploy-cloud-realtime` refreshes only the local public app and
   realtime gateway with the generated cloud-realtime overlay and the same
   cloud-data UI flag. Hosted `EXPO_PUBLIC_CLOUD_*` values from `.env` are
-  scrubbed from this local-edge build so the Cloud choice keeps using local
+  scrubbed from this local-edge build so the Local Edge choice keeps using local
   auth/HTTP while cloud remains the telemetry data plane. The generated overlay
   also sets the BFF data-plane fallback to `cloud` so edge cache keys and
   runtime metadata cannot collide with local mode. This target assumes the
   services layer is already in cloud-DB mode when REST-backed screens need
   hosted device/profile data.
+- Plain `make dev-web-deploy` and `make dev-deploy` use
+  `DEV_DEPLOY_DATA_MODE=auto`: if the current local deployment is already Local
+  Edge, they preserve the cloud DB/NATS/Valkey overlays instead of falling back
+  to full local. Set `DEV_DEPLOY_DATA_MODE=local` to force full local, or
+  `DEV_DEPLOY_DATA_MODE=local-edge` to force Local Edge.
 - `make cloud-status` prints hosted Argo applications when present,
   `pulse-platform` pods/stateful resources/endpoints, `pulse-services`
   deployments/PDBs/pods, and the node list after fetching the cloud kube

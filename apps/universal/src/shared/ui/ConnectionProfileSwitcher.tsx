@@ -1,61 +1,18 @@
-import type { ComponentProps } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import {
-  type ConnectionProfileConfig,
   type ConnectionProfileId,
   readConnectionProfiles
 } from '@/shared/config/env';
 import { useConnectionProfileStore } from '@/shared/config/connectionProfileStore';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
+import { describeConnectionProfileForUi } from '@/shared/ui/connectionProfilePresentation';
 
 type ConnectionProfileSwitcherProps = {
   variant?: 'compact' | 'detailed';
   onSelectionChange?: (profileId: ConnectionProfileId) => void;
 };
-
-type ConnectionProfilePresentation = {
-  iconName: ComponentProps<typeof MaterialCommunityIcons>['name'];
-  title: string;
-  statusDescription: string;
-  activeStatusDescription: string;
-  detailedDescription: string;
-  compactDescription: string;
-};
-
-function describeConnectionProfile(profile: ConnectionProfileConfig): ConnectionProfilePresentation {
-  if (profile.id === 'cloud') {
-    if (profile.edge === 'local') {
-      return {
-        iconName: 'cloud-sync-outline',
-        title: 'Cloud',
-        statusDescription: 'Cloud data',
-        activeStatusDescription: 'Selected',
-        detailedDescription: 'Use the local HTTPS edge while database and realtime telemetry come from cloud.',
-        compactDescription: 'Local edge with cloud data.'
-      };
-    }
-
-    return {
-      iconName: 'cloud-outline',
-      title: 'Cloud',
-      statusDescription: 'Hosted stack',
-      activeStatusDescription: 'Selected',
-      detailedDescription: 'Use the hosted HTTPS API, websocket gateway, and cloud OIDC issuer.',
-      compactDescription: 'Hosted API, realtime, and auth.'
-    };
-  }
-
-  return {
-    iconName: 'laptop',
-    title: 'Local',
-    statusDescription: 'Local stack',
-    activeStatusDescription: 'Selected',
-    detailedDescription: 'Use your local k3d HTTPS edge and development services on this machine or LAN.',
-    compactDescription: 'Local k3d edge and development services.'
-  };
-}
 
 export function ConnectionProfileSwitcher({
   variant = 'detailed',
@@ -71,7 +28,7 @@ export function ConnectionProfileSwitcher({
     <XStack gap="$3" flexWrap="wrap" alignItems="stretch">
       {(Object.keys(connectionProfiles) as ConnectionProfileId[]).map((profileId) => {
         const profile = connectionProfiles[profileId];
-        const presentation = describeConnectionProfile(profile);
+        const presentation = describeConnectionProfileForUi(profile);
         const selected = profileId === connectionProfileId;
         const disabled = !profile.configured;
         const cardBackground = selected
@@ -166,6 +123,14 @@ export function ConnectionProfileSwitcher({
 export function ConnectionProfileHint() {
   const connectionProfiles = readConnectionProfiles();
   const semantics = useThemeSemantics();
+
+  if (connectionProfiles.cloud.configured && connectionProfiles.cloud.edge === 'local') {
+    return (
+      <Text fontSize="$2" color="$colorMuted">
+        Local Edge keeps browser auth and HTTPS on localhost while database and realtime reads use the cloud data plane.
+      </Text>
+    );
+  }
 
   if (connectionProfiles.cloud.configured) {
     return (

@@ -28,10 +28,7 @@ export default function SettingsScreen() {
   const setThemeFamily = useThemeStore((state) => state.setFamily);
   const connectionProfileId = useConnectionProfileStore((state) => state.profileId);
   const activeConnectionProfile = readConnectionProfile(connectionProfileId);
-  const activeDataSourceLabel =
-    activeConnectionProfile.dataPlane === 'cloud'
-      ? 'Cloud data'
-      : activeConnectionProfile.label;
+  const activeDataSourceLabel = activeConnectionProfile.label;
   const { mode, spec, isDark } = useAppTheme();
   const systemModeLabel = mode === 'dark' ? 'Dark' : 'Light';
 
@@ -99,7 +96,7 @@ export default function SettingsScreen() {
                     Data source
                   </Text>
                   <Text color="$colorMuted" opacity={0.94} fontSize="$3" lineHeight={24}>
-                    Choose whether this frontend uses Local or Cloud data.
+                    Choose the local data source this frontend uses.
                   </Text>
                 </YStack>
                 <XStack

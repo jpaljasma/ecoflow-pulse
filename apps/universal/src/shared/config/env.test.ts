@@ -209,6 +209,7 @@ describe('env config resolution', () => {
     expect(env.defaultConnectionProfileId).toBe('cloud');
     expect(env.connectionProfileId).toBe('cloud');
     expect(readConnectionProfile('local').dataPlane).toBe('local');
+    expect(readConnectionProfile('cloud').label).toBe('Local Edge');
     expect(readConnectionProfile('cloud').edge).toBe('local');
     expect(readConnectionProfile('cloud').dataPlane).toBe('cloud');
     expect(readConnectionProfile('cloud').apiUrl).toBe('https://localhost');
