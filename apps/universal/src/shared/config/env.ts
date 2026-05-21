@@ -165,6 +165,12 @@ const defaultWsUrl =
     ? `${defaultWebWsScheme}://${defaultWsHost}/ws`
     : `ws://${defaultWsHost}:8082/ws`;
 
+
+function formatHostForUrl(hostname: string): string {
+  if (hostname.startsWith('[') && hostname.endsWith(']')) return hostname;
+  return hostname.includes(':') ? `[${hostname}]` : hostname;
+}
+
 function normalizeBasePath(pathname: string): string {
   if (!pathname || pathname === '/') return '';
   return pathname.replace(/\/+$/, '');
@@ -188,7 +194,8 @@ function deriveWsUrlFromApiUrl(apiUrl: string): string | undefined {
     ? normalizedPath.slice(0, normalizedPath.length - '/api'.length)
     : normalizedPath;
   const wsPath = `${basePath}/ws`.replace(/\/{2,}/g, '/');
-  const host = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+  const hostName = formatHostForUrl(parsed.hostname);
+  const host = parsed.port ? `${hostName}:${parsed.port}` : hostName;
 
   return `${wsProtocol}//${host}${wsPath}`;
 }
@@ -214,7 +221,8 @@ function deriveWebOidcIssuerUrlFromApiUrl(apiUrl: string): string {
     ? normalizedPath.slice(0, normalizedPath.length - '/api'.length)
     : normalizedPath;
   const issuerPath = `${basePath}/realms/pulse`.replace(/\/{2,}/g, '/');
-  const host = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+  const hostName = formatHostForUrl(parsed.hostname);
+  const host = parsed.port ? `${hostName}:${parsed.port}` : hostName;
 
   return `${parsed.protocol}//${host}${issuerPath}`;
 }
