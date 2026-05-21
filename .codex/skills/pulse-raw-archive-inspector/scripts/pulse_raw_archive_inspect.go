@@ -189,6 +189,11 @@ func run(cfg config) error {
 			deviceIDs = append(deviceIDs, device.deviceID)
 		}
 	}
+	if !shouldScanArchive(familyTerms, deviceIDs) {
+		fmt.Fprintln(os.Stderr, "warning: no provider devices matched --family; skipping archive scan")
+		printReport(cfg, from, to, devices, nil, newReport())
+		return nil
+	}
 	objects, err := loadManifestObjects(ctx, pool, cfg.provider, deviceIDs, from, to, cfg.maxObjects)
 	if err != nil {
 		return err
@@ -357,14 +362,12 @@ ORDER BY partition_hour ASC, shard ASC, object_key ASC
 	return out, nil
 }
 
+func shouldScanArchive(familyTerms []string, deviceIDs []string) bool {
+	return len(familyTerms) == 0 || len(deviceIDs) > 0
+}
+
 func inspectArchive(ctx context.Context, reader replaycli.ObjectReader, objects []manifestObject, cfg config, from time.Time, to time.Time, deviceSet map[string]struct{}, searchTerms []string) report {
-	rep := report{
-		payloadTypes:    map[string]int{},
-		sources:         map[string]int{},
-		sourceKinds:     map[string]int{},
-		fields:          map[string]*fieldStats{},
-		fieldSearchHits: map[string]int{},
-	}
+	rep := newReport()
 	provider := strings.ToLower(strings.TrimSpace(cfg.provider))
 	payloadType := strings.TrimSpace(cfg.payloadType)
 	for _, object := range objects {
@@ -374,7 +377,7 @@ func inspectArchive(ctx context.Context, reader replaycli.ObjectReader, objects 
 		}
 		body, err := reader.ReadObject(ctx, object.bucket, object.key)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to read one archive object: %v\n", err)
+			fmt.Fprintln(os.Stderr, "warning: failed to read one archive object; object id hidden")
 			continue
 		}
 		rep.objectsProcessed++
@@ -428,6 +431,16 @@ func inspectArchive(ctx context.Context, reader replaycli.ObjectReader, objects 
 		}
 	}
 	return rep
+}
+
+func newReport() report {
+	return report{
+		payloadTypes:    map[string]int{},
+		sources:         map[string]int{},
+		sourceKinds:     map[string]int{},
+		fields:          map[string]*fieldStats{},
+		fieldSearchHits: map[string]int{},
+	}
 }
 
 func matchesEnvelope(env *envelopev1.TelemetryEnvelope, provider string, deviceSet map[string]struct{}) bool {

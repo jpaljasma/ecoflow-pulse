@@ -74,6 +74,9 @@ go run .codex/skills/pulse-raw-archive-inspector/scripts/pulse_raw_archive_inspe
   present in the inspected sequence.
 - `nonzero`: numeric nonzero observations, useful for active signals such as
   AC/DC state, PV charging, fan level, or heater state.
+- `matched_devices=0` with a `--family` filter means the family filter matched
+  no canonical provider devices, so the script intentionally skipped provider-wide
+  archive reads.
 
 If `payload_hits=0` and `field_hits=(none)` for `fan,cool`, the inspected window
 does not contain an explicit fan-like signal in the archived payloads. It may

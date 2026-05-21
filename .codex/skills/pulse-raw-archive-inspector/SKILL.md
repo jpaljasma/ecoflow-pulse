@@ -78,7 +78,9 @@ go run .codex/skills/pulse-raw-archive-inspector/scripts/pulse_raw_archive_inspe
 2. Choose a tight UTC or relative window. Prefer `--hours 12` for "past 12
    hours"; use `--from`/`--to` with RFC3339 UTC timestamps for incident windows.
 3. Filter by `--provider` and optional `--family`. Family matches model,
-   product name, capabilities, and non-sensitive metadata, not raw IDs.
+   product name, capabilities, and non-sensitive metadata, not raw IDs. If a
+   family filter matches no canonical device IDs, treat the output as an empty
+   result and do not infer from provider-wide telemetry.
 4. Add `--search` terms for suspected signals (`fan,cool`, `heat,ptc`,
    `ups,ac,dc`, etc.). The script also prints top changing/nonzero fields so
    unexpected fields are visible.
