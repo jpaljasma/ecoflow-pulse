@@ -71,6 +71,11 @@ Use MQTT for steady-state live telemetry. REST snapshots are for login,
 discovery, bootstrap, and periodic state refresh. Keep manual discovery
 operator-triggered and avoid tight REST polling loops.
 
+Pecron MQTT sessions must use the cloud-issued `qu_*` client ID unchanged. Do
+not apply the EcoFlow MQTT client-ID namespace transform to Pecron sessions; the
+Pecron broker rejects that mutated identity even when the same credential passes
+discovery and smoke-test MQTT.
+
 `attractify-logan/pecron-monitor` documents Pecron cloud `code 4026` as a
 per-account daily polling budget of roughly 1280 polls/day. Pulse therefore uses
 a 70s Pecron REST snapshot refresh default and rejects Pecron snapshot refresh

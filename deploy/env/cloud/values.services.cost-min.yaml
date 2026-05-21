@@ -26,9 +26,13 @@ runtime:
       pdb:
         enabled: true
         minAvailable: 1
-    inference:
-      enabled: false
     projection:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: true
+        maxUnavailable: 1
+    inference:
       enabled: false
     grpcApi:
       enabled: false

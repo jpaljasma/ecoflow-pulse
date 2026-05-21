@@ -17,6 +17,7 @@ import (
 type fakePecronSnapshotter struct {
 	device   controlplane.ProviderDevice
 	snapshot pecron.NormalizedTelemetry
+	session  pecron.MQTTSession
 }
 
 func (f fakePecronSnapshotter) GetDeviceTelemetrySnapshot(context.Context, controlplane.ProviderCredential, string) (controlplane.ProviderDevice, pecron.NormalizedTelemetry, error) {
@@ -24,11 +25,15 @@ func (f fakePecronSnapshotter) GetDeviceTelemetrySnapshot(context.Context, contr
 }
 
 func (f fakePecronSnapshotter) MQTTSession(context.Context, controlplane.ProviderCredential, string) (pecron.MQTTSession, error) {
+	if f.session.ClientID != "" || f.session.Address != "" || len(f.session.Addresses) > 0 {
+		return f.session, nil
+	}
 	return pecron.MQTTSession{
-		Address: "iot-south.landecia.com:8443",
-		Path:    "/ws/v2",
-		Token:   "token",
-		Topics:  []string{"q/2/d/qdp11vxgaabbccddeeff/bus_"},
+		Address:  "iot-south.landecia.com:8443",
+		Path:     "/ws/v2",
+		Token:    "token",
+		ClientID: "qu_user_1779327000000",
+		Topics:   []string{"q/2/d/qdp11vxgaabbccddeeff/bus_"},
 	}, nil
 }
 
@@ -264,6 +269,67 @@ func TestPecronSessionRunnerRequestsTelemetryAfterSubscribe(t *testing.T) {
 	}
 	if got, want := subscriber.published[0].qos, byte(1); got != want {
 		t.Fatalf("publish qos = %d, want %d", got, want)
+	}
+}
+
+func TestPecronSessionRunnerUsesProviderIssuedClientIDWithoutNamespacing(t *testing.T) {
+	t.Parallel()
+
+	issuedClientID := "qu_user_1779327000000"
+	runner, err := NewPecronSessionRunner(
+		testLogger(),
+		fakePecronSnapshotter{session: pecron.MQTTSession{
+			Address:  "iot-south.landecia.com:8443",
+			Path:     "/ws/v2",
+			Token:    "token",
+			ClientID: issuedClientID,
+			Topics:   []string{"q/2/d/qdp11vxgaabbccddeeff/bus_"},
+			Ref:      pecron.DeviceRef{ProductKey: pecron.ProductKeyE1000LFP, DeviceKey: "aabbccddeeff"},
+		}},
+		&fakeEnvelopePublisher{},
+		&fakeProviderDeviceUpdater{},
+		PecronSessionConfig{
+			MQTTClientIDNamespace:    "cloud",
+			PublishQueueSize:         4,
+			PublishWorkers:           1,
+			PublishEnqueueTimeout:    time.Second,
+			DisableSnapshotBootstrap: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewPecronSessionRunner() error = %v", err)
+	}
+	subscriber := &fakeMQTTSubscriber{
+		reads: []fakeReadResult{{err: context.Canceled}},
+	}
+	factory := &fakePecronSubscriberFactory{subscribers: []mqttSubscriber{subscriber}}
+	runner.newSubscriber = factory.new
+
+	err = runner.Run(context.Background(), controlplane.IngestAssignment{
+		Provider:           controlplane.ProviderPecron,
+		ProviderDeviceID:   "p11vxg:aabbccddeeff",
+		DeviceID:           "device-1",
+		CredentialID:       "cred-1",
+		ProductName:        "Garage Pecron",
+		Model:              "E1000LFP",
+		AccessKey:          "owner@example.test",
+		SecretKey:          "password",
+		CredentialConfig:   map[string]any{"region": "us"},
+		DeviceIsActive:     true,
+		CredentialIsActive: true,
+		IngestDesiredState: "active",
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if len(factory.configs) != 1 {
+		t.Fatalf("subscriber configs = %d, want 1", len(factory.configs))
+	}
+	if got := factory.configs[0].ClientID; got != issuedClientID {
+		t.Fatalf("client id = %q, want provider-issued %q", got, issuedClientID)
+	}
+	if got := factory.configs[0].ClientID; got == ecoflowmqtt.BuildClientIDWithNamespace("cloud", issuedClientID) {
+		t.Fatalf("pecron client id was namespaced like an EcoFlow client id: %q", got)
 	}
 }
 
