@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -181,6 +182,44 @@ func TestClientProductTSLParsesTSLJSON(t *testing.T) {
 	}
 	if properties[1].Code != "ac_switch_hm" || !properties[1].Writable || properties[1].DataType != "bool" {
 		t.Fatalf("second property = %+v", properties[1])
+	}
+}
+
+func TestClientProductTSLPreservesNestedSpecsMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/binding/enduserapi/productTSL" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 200,
+			"data": map[string]any{
+				"tslJson": `{"properties":[{"code":"ac_charging_power_ios","name":"AC charging power","dataType":"ENUM","subType":"RW","specs":[{"dataType":"ENUM","name":"0","value":"0"},{"dataType":"ENUM","name":"25","value":"1"},{"dataType":"ENUM","name":"50","value":"2"}]}]}`,
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(RegionConfig{BaseURL: server.URL}, server.Client())
+	properties, err := client.ProductTSL(context.Background(), Session{AccessToken: "token"}, "p11u2Q")
+	if err != nil {
+		t.Fatalf("ProductTSL() error = %v", err)
+	}
+	if len(properties) != 1 {
+		t.Fatalf("properties = %d, want 1", len(properties))
+	}
+	prop := properties[0]
+	if prop.Code != "ac_charging_power_ios" || !prop.Writable || prop.DataType != "ENUM" {
+		t.Fatalf("property = %+v", prop)
+	}
+	expectedSpecs := []any{
+		map[string]any{"dataType": "ENUM", "name": "0", "value": "0"},
+		map[string]any{"dataType": "ENUM", "name": "25", "value": "1"},
+		map[string]any{"dataType": "ENUM", "name": "50", "value": "2"},
+	}
+	if !reflect.DeepEqual(prop.Raw["specs"], expectedSpecs) {
+		t.Fatalf("Raw[specs] = %#v, want %#v", prop.Raw["specs"], expectedSpecs)
 	}
 }
 
