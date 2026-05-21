@@ -14,6 +14,25 @@ The product-facing brand is `Pulse`.
 - Product surfaces should read as a premium energy operating system rather than
   an OEM companion skin.
 
+## Design Skill Workflow
+
+Codex UI work should use the external design skills listed in root `AGENTS.md`
+as development helpers for consistent multi-page web/tablet experiences. Install
+them first in any fresh Codex environment, then use them as follows:
+
+- [`design-systems`](https://skills.sh/mindrally/skills/design-systems) for
+  shared tokens, component variants, interaction states, and cross-page UI
+  rules.
+- [`flex-grid-flow`](https://skills.sh/oerlellijk/design-system-skill/flex-grid-flow)
+  for responsive grids, split panels, fluid spacing, typography rhythm, and
+  desktop/tablet/phone layout transitions.
+- [`web-design-guidelines`](https://skills.sh/vercel-labs/agent-skills/web-design-guidelines)
+  as a final review pass for accessibility, spacing, affordances, and
+  consistency before opening a PR.
+
+These skills should reinforce the Pulse visual system and existing Tamagui
+implementation patterns, not introduce a parallel component framework.
+
 ## Product Modes
 
 Pulse uses two intentionally different presentation modes.
