@@ -25,7 +25,8 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
    `.codex/skills/pulse-universal-ui-workflow/SKILL.md` so tests, visual QA,
    docs, and PR packaging follow the same workflow.
 6. For multi-page web/tablet UI consistency, use the shared design skills in
-   the right phase of the work:
+   the right phase of the work; if they are not available, install them using
+   the root `AGENTS.md` commands before starting broad UI changes:
    - use `design-systems` before changing shared tokens, component defaults,
      variants, navigation chrome, or reusable interaction patterns,
    - use `flex-grid-flow` before changing page grids, responsive tablet/web

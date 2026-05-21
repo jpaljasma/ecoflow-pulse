@@ -15,19 +15,29 @@ When a nested `AGENTS.md` applies, follow both this root file and the nested fil
 Use repo and app-specific `AGENTS.md` files as the source of truth, then apply
 installed Codex skills as focused accelerators for the work in front of you.
 
-For multi-page web/tablet UI consistency, use these skills deliberately:
+For multi-page web/tablet UI consistency, these external Codex skills should be
+installed in the local Codex environment before implementation work starts. They
+are not vendored into this repository.
 
-1. `design-systems`
+```bash
+npx --yes skills add mindrally/skills@design-systems -g -a codex -y
+npx --yes skills add oerlellijk/design-system-skill@flex-grid-flow -g -a codex -y
+npx --yes skills add vercel-labs/agent-skills@web-design-guidelines -g -a codex -y
+```
+
+Once installed, use these skills deliberately:
+
+1. [`design-systems`](https://skills.sh/mindrally/skills/design-systems)
    - Use when creating or changing shared UI foundations, design tokens,
      component variants, interaction states, or reusable layout patterns.
    - Keep the output aligned with this repo's existing Tamagui theme catalog
      and semantic component primitives.
-2. `flex-grid-flow`
+2. [`flex-grid-flow`](https://skills.sh/oerlellijk/design-system-skill/flex-grid-flow)
    - Use when changing responsive layouts, grid systems, split panes, card
      composition, desktop/tablet/phone breakpoints, or fluid spacing/type.
    - Prefer stable layout math and reusable page structure over one-screen
      responsive tweaks.
-3. `web-design-guidelines`
+3. [`web-design-guidelines`](https://skills.sh/vercel-labs/agent-skills/web-design-guidelines)
    - Use as a review pass before finalizing web-facing UI changes, especially
      for accessibility, spacing, affordances, and cross-page consistency.
    - Treat findings as implementation feedback to reconcile with the local
