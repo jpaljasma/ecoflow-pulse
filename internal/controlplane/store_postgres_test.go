@@ -44,7 +44,25 @@ func TestProviderConfigColumnSchemaQueryUsesSearchPathResolution(t *testing.T) {
 	if !strings.Contains(providerConfigColumnSchemaQuery, "to_regclass('provider_credentials')") {
 		t.Fatal("schema gate should resolve provider_credentials through the active search_path")
 	}
+	if !strings.Contains(providerDeviceUniqueConstraintsSchemaQuery, "to_regclass('provider_devices')") {
+		t.Fatal("schema gate should resolve provider_devices through the active search_path")
+	}
+	if !strings.Contains(deviceEcoflowSNUniqueIndexSchemaQuery, "to_regclass('devices')") {
+		t.Fatal("schema gate should resolve devices through the active search_path")
+	}
+	if !strings.Contains(userDeviceUniqueIndexSchemaQuery, "to_regclass('user_devices')") {
+		t.Fatal("schema gate should resolve user_devices through the active search_path")
+	}
 	if strings.Contains(providerConfigColumnSchemaQuery, "current_schema()") {
+		t.Fatal("schema gate must not inspect only current_schema()")
+	}
+	if strings.Contains(providerDeviceUniqueConstraintsSchemaQuery, "current_schema()") {
+		t.Fatal("schema gate must not inspect only current_schema()")
+	}
+	if strings.Contains(deviceEcoflowSNUniqueIndexSchemaQuery, "current_schema()") {
+		t.Fatal("schema gate must not inspect only current_schema()")
+	}
+	if strings.Contains(userDeviceUniqueIndexSchemaQuery, "current_schema()") {
 		t.Fatal("schema gate must not inspect only current_schema()")
 	}
 }
@@ -61,12 +79,111 @@ func TestPostgresStoreRequireCurrentSchemaAcceptsProviderConfigColumn(t *testing
 	store := newPostgresStore(db)
 	mock.ExpectQuery(regexp.QuoteMeta(providerConfigColumnSchemaQuery)).
 		WillReturnRows(sqlmock.NewRows([]string{"data_type", "is_nullable"}).AddRow("jsonb", "NO"))
+	mock.ExpectQuery(regexp.QuoteMeta(providerDeviceUniqueConstraintsSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"conname"}).
+			AddRow("uq_provider_devices_device_provider").
+			AddRow("uq_provider_devices_provider_device_id"))
+	mock.ExpectQuery(regexp.QuoteMeta(deviceEcoflowSNUniqueIndexSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(regexp.QuoteMeta(userDeviceUniqueIndexSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	if err := store.RequireCurrentSchema(context.Background()); err != nil {
 		t.Fatalf("RequireCurrentSchema failed: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresStoreRequireCurrentSchemaFailsWhenProviderDeviceUniqueConstraintsMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	mock.ExpectQuery(regexp.QuoteMeta(providerConfigColumnSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"data_type", "is_nullable"}).AddRow("jsonb", "NO"))
+	mock.ExpectQuery(regexp.QuoteMeta(providerDeviceUniqueConstraintsSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"conname"}).AddRow("uq_provider_devices_device_provider"))
+
+	err = store.RequireCurrentSchema(context.Background())
+	if err == nil {
+		t.Fatal("expected missing provider_devices unique constraint error")
+	}
+	if !errors.Is(err, ErrSchemaNotReady) {
+		t.Fatalf("error=%v, want ErrSchemaNotReady", err)
+	}
+	if !strings.Contains(err.Error(), "uq_provider_devices_provider_device_id") {
+		t.Fatalf("error=%q, want missing provider device unique constraint context", err.Error())
+	}
+}
+
+func TestPostgresStoreRequireCurrentSchemaFailsWhenDeviceSerialUniqueConstraintMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	mock.ExpectQuery(regexp.QuoteMeta(providerConfigColumnSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"data_type", "is_nullable"}).AddRow("jsonb", "NO"))
+	mock.ExpectQuery(regexp.QuoteMeta(providerDeviceUniqueConstraintsSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"conname"}).
+			AddRow("uq_provider_devices_device_provider").
+			AddRow("uq_provider_devices_provider_device_id"))
+	mock.ExpectQuery(regexp.QuoteMeta(deviceEcoflowSNUniqueIndexSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	err = store.RequireCurrentSchema(context.Background())
+	if err == nil {
+		t.Fatal("expected missing devices.ecoflow_sn unique constraint error")
+	}
+	if !errors.Is(err, ErrSchemaNotReady) {
+		t.Fatalf("error=%v, want ErrSchemaNotReady", err)
+	}
+	if !strings.Contains(err.Error(), "devices.ecoflow_sn") {
+		t.Fatalf("error=%q, want missing device serial unique constraint context", err.Error())
+	}
+}
+
+func TestPostgresStoreRequireCurrentSchemaFailsWhenUserDeviceUniqueConstraintMissing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	mock.ExpectQuery(regexp.QuoteMeta(providerConfigColumnSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"data_type", "is_nullable"}).AddRow("jsonb", "NO"))
+	mock.ExpectQuery(regexp.QuoteMeta(providerDeviceUniqueConstraintsSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"conname"}).
+			AddRow("uq_provider_devices_device_provider").
+			AddRow("uq_provider_devices_provider_device_id"))
+	mock.ExpectQuery(regexp.QuoteMeta(deviceEcoflowSNUniqueIndexSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(regexp.QuoteMeta(userDeviceUniqueIndexSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	err = store.RequireCurrentSchema(context.Background())
+	if err == nil {
+		t.Fatal("expected missing user_devices unique constraint error")
+	}
+	if !errors.Is(err, ErrSchemaNotReady) {
+		t.Fatalf("error=%v, want ErrSchemaNotReady", err)
+	}
+	if !strings.Contains(err.Error(), "user_devices(user_id, device_id)") {
+		t.Fatalf("error=%q, want missing user device unique constraint context", err.Error())
 	}
 }
 
