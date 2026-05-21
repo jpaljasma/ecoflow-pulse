@@ -140,7 +140,10 @@ rollup extraction), the main projected watts metrics are derived as follows:
 - `batteryW`:
   prefer direct battery fields
   `params.bmsInputWatts/inputWatts - params.bmsOutputWatts/outputWatts`,
-  then `params.batAmp * params.batVol`, then fall back to `acW + pvW - loadW`.
+  then normalized `params.batAmp * params.batVol`, then fall back to
+  `acW + pvW - loadW`. The voltage/current fallback accepts both canonical
+  volts/amps and provider milli-unit values so live snapshots cannot inflate
+  pack power by multiplying millivolts or milliamps as canonical units.
 - `solarGeneratedWh`:
   backend-owned authoritative history energy metric.
   Query/read paths populate it from persisted rollup/query results and may
