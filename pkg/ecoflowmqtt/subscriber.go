@@ -354,10 +354,9 @@ func parsePublish(flags byte, body []byte) (Message, uint16, error) {
 	if offset > len(body) {
 		return Message{}, 0, errors.New("invalid publish payload offset")
 	}
-	payload := append([]byte(nil), body[offset:]...)
 	return Message{
 		Topic:     topic,
-		Payload:   payload,
+		Payload:   body[offset:],
 		QoS:       qos,
 		Retain:    flags&0x01 != 0,
 		Duplicate: flags&0x08 != 0,

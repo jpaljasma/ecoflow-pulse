@@ -322,8 +322,18 @@ func firstBool(root map[string]any, paths ...string) any {
 }
 
 func lookupPath(root map[string]any, path string) (any, bool) {
+	if len(root) == 0 || path == "" {
+		return nil, false
+	}
 	current := any(root)
-	for _, part := range strings.Split(path, ".") {
+	for {
+		part := path
+		if idx := strings.IndexByte(path, '.'); idx >= 0 {
+			part = path[:idx]
+			path = path[idx+1:]
+		} else {
+			path = ""
+		}
 		record := asMap(current)
 		if len(record) == 0 {
 			return nil, false
@@ -333,8 +343,10 @@ func lookupPath(root map[string]any, path string) (any, bool) {
 			return nil, false
 		}
 		current = value
+		if path == "" {
+			return current, true
+		}
 	}
-	return current, true
 }
 
 func toFloat(value any) (float64, bool) {
@@ -401,8 +413,12 @@ func asMap(value any) map[string]any {
 	case map[string]any:
 		return v
 	case string:
+		clean := strings.TrimSpace(v)
+		if len(clean) < 2 || clean[0] != '{' {
+			return nil
+		}
 		var parsed map[string]any
-		if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+		if err := json.Unmarshal([]byte(clean), &parsed); err == nil {
 			return parsed
 		}
 	}
