@@ -208,6 +208,7 @@ export function useEnergyPvPortHistory(
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
     staleTime: cachePolicy.staleTime,
     gcTime: cachePolicy.gcTime,
+    refetchInterval: cachePolicy.refetchInterval,
     placeholderData: (previous: EnergyPVPortHistory[] | undefined) => previous
   });
 }
