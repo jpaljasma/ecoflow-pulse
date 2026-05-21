@@ -11,6 +11,8 @@ export type DerivedTelemetryMetrics = {
 };
 
 const ANDERSON_POWER_NOISE_FLOOR_W = 0.5;
+const BATTERY_VOLTAGE_MAX_CANONICAL = 1000;
+const BATTERY_CURRENT_MAX_CANONICAL = 200;
 
 export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics {
   const soc = firstNumber(
@@ -61,7 +63,7 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
     firstNumber(raw, 'params.invOutWatts') ??
     0;
 
-  const battery = deriveBattery(raw) ?? (acIn + pv - load);
+  const battery = deriveBatteryPower(raw) ?? (acIn + pv - load);
   const temp = deriveTemperature(raw);
 
   return {
@@ -198,19 +200,29 @@ function deriveAcFromInputMinusPv(raw: RawMetrics, pv: number): number | undefin
   return Math.max(0, wattsIn - pv);
 }
 
-function deriveBattery(raw: RawMetrics): number | undefined {
+export function deriveBatteryPower(raw: RawMetrics): number | undefined {
   const batteryInput = firstNumber(raw, 'batteryW', 'params.bmsInputWatts', 'params.inputWatts');
   const batteryOutput = firstNumber(raw, 'params.bmsOutputWatts', 'params.outputWatts');
   if (batteryInput !== undefined || batteryOutput !== undefined) {
     return (batteryInput ?? 0) - (batteryOutput ?? 0);
   }
 
-  const batAmp = firstNumber(raw, 'params.batAmp');
-  const batVol = firstNumber(raw, 'params.batVol');
+  const batAmp = normalizePotentialMilliUnit(firstNumber(raw, 'params.batAmp'), BATTERY_CURRENT_MAX_CANONICAL);
+  const batVol = normalizePotentialMilliUnit(firstNumber(raw, 'params.batVol'), BATTERY_VOLTAGE_MAX_CANONICAL);
   if (batAmp !== undefined && batVol !== undefined) {
     return batAmp * batVol;
   }
   return undefined;
+}
+
+function normalizePotentialMilliUnit(value: number | undefined, maxAbsCanonical: number): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (Math.abs(value) > maxAbsCanonical && Math.abs(value / 1000) <= maxAbsCanonical) {
+    return value / 1000;
+  }
+  return value;
 }
 
 function deriveTemperature(raw: RawMetrics): number {

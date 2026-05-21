@@ -9,7 +9,12 @@ import type {
   ProviderDeviceMQTTTestResult
 } from './controlPlaneClient.js';
 import type { TelemetrySnapshotClient } from './telemetryClient.js';
-import { deriveTelemetryMetrics, deriveTelemetryState, deriveTelemetryEtaMinutes } from '../telemetry/deriveMetrics.js';
+import {
+  deriveBatteryPower,
+  deriveTelemetryEtaMinutes,
+  deriveTelemetryMetrics,
+  deriveTelemetryState
+} from '../telemetry/deriveMetrics.js';
 import {
   buildProviderDevicePresentation,
   deriveDeviceDetailsEtaMinutes,
@@ -297,9 +302,7 @@ function deriveLiveBatteryPack(
     metrics['params.f32ShowSoc'],
     metrics['params.soc']
   );
-  const batVol = firstDefinedNumber(metrics['params.batVol']);
-  const batAmp = firstDefinedNumber(metrics['params.batAmp']);
-  const powerW = batVol !== undefined && batAmp !== undefined ? batVol * batAmp : undefined;
+  const powerW = deriveBatteryPower(metrics);
   const tempC = firstDefinedNumber(metrics['params.temp']);
   const remainMinutes = firstDefinedNumber(metrics['params.remainTime']);
   if (socPct === undefined && powerW === undefined && tempC === undefined && remainMinutes === undefined) {

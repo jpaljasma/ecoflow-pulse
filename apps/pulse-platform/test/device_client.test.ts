@@ -437,6 +437,48 @@ describe('device client', () => {
     expect(device?.details?.overallSocPct).toBeCloseTo(25.49, 2);
   });
 
+  it('normalizes milli-unit battery voltage and current before hydrating pack watts', async () => {
+    const controlPlaneClient = makeControlPlaneClient({
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [makeProviderDevice()]
+        }
+      ])
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '22222222-2222-7222-8222-222222222222',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'params.f32LcdShowSoc': 69.5,
+            'params.batVol': 50288,
+            'params.batAmp': -316.8,
+            'params.temp': 32,
+            'params.wattsOutSum': 0
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [device] = await client.listDevices(makeRequest());
+
+    expect(device?.details?.packs?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'main',
+        socPct: 69.5,
+        powerW: expect.closeTo(-15.93, 2),
+        tempC: 32
+      })
+    );
+  });
+
   it('uses provider remain-time details when live snapshot ETA fields are absent', async () => {
     const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [

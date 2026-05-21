@@ -36,6 +36,8 @@ export type DerivedTelemetryDetail = {
 };
 
 const ANDERSON_POWER_NOISE_FLOOR_W = 0.5;
+const BATTERY_VOLTAGE_MAX_CANONICAL = 1000;
+const BATTERY_CURRENT_MAX_CANONICAL = 200;
 const APP_SHOW_FLAG_AC_ON_MASK = 0x4;
 const APP_SHOW_FLAG_DC_ON_MASK = 0x2;
 const D2M_SOLAR_HINT_KEYS = [
@@ -661,12 +663,22 @@ function deriveBattery(raw: RawTelemetryMetrics): number | undefined {
     return (batteryInput ?? 0) - (batteryOutput ?? 0);
   }
 
-  const batAmp = firstNumber(raw, 'params.batAmp');
-  const batVol = firstNumber(raw, 'params.batVol');
+  const batAmp = normalizePotentialMilliUnit(firstNumber(raw, 'params.batAmp'), BATTERY_CURRENT_MAX_CANONICAL);
+  const batVol = normalizePotentialMilliUnit(firstNumber(raw, 'params.batVol'), BATTERY_VOLTAGE_MAX_CANONICAL);
   if (batAmp !== undefined && batVol !== undefined) {
     return batAmp * batVol;
   }
   return undefined;
+}
+
+function normalizePotentialMilliUnit(value: number | undefined, maxAbsCanonical: number): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (Math.abs(value) > maxAbsCanonical && Math.abs(value / 1000) <= maxAbsCanonical) {
+    return value / 1000;
+  }
+  return value;
 }
 
 function deriveTemperature(raw: RawTelemetryMetrics): number {

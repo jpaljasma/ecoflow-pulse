@@ -43,6 +43,15 @@ describe('deriveTelemetryMetrics', () => {
     expect(metrics.dcW).toBeCloseTo(16.96, 2);
   });
 
+  it('normalizes milli-unit battery voltage and current before deriving watts', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.batVol': 50288,
+      'params.batAmp': -316.8
+    });
+
+    expect(metrics.batteryW).toBeCloseTo(-15.93, 2);
+  });
+
   it('does not double-count explicit pvW with provider-specific MPPT totals', () => {
     const metrics = deriveTelemetryMetrics({
       pvW: 167.1652,
