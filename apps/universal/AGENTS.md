@@ -24,6 +24,18 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 5. For iterative Pulse UI polish, use the project skill at
    `.codex/skills/pulse-universal-ui-workflow/SKILL.md` so tests, visual QA,
    docs, and PR packaging follow the same workflow.
+6. For multi-page web/tablet UI consistency, use the shared design skills in
+   the right phase of the work:
+   - use `design-systems` before changing shared tokens, component defaults,
+     variants, navigation chrome, or reusable interaction patterns,
+   - use `flex-grid-flow` before changing page grids, responsive tablet/web
+     layout, split panels, card rows, or fluid spacing/typography,
+   - use `web-design-guidelines` as a final review pass for accessibility,
+     spacing, affordance clarity, and cross-page consistency before PR.
+7. Keep Tamagui, Expo, and the existing Pulse primitives as the implementation
+   system; Bootstrap, Material, shadcn, or other framework vocabulary should
+   only inform consistency and should not replace app-owned primitives unless a
+   task explicitly adopts that framework.
 
 ## Home And Dashboard Layout
 1. Treat overview pages as operating consoles:

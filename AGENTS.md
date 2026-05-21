@@ -11,6 +11,32 @@ More specific instructions live closer to the code they govern:
 
 When a nested `AGENTS.md` applies, follow both this root file and the nested file.
 
+## Codex Skill Usage
+Use repo and app-specific `AGENTS.md` files as the source of truth, then apply
+installed Codex skills as focused accelerators for the work in front of you.
+
+For multi-page web/tablet UI consistency, use these skills deliberately:
+
+1. `design-systems`
+   - Use when creating or changing shared UI foundations, design tokens,
+     component variants, interaction states, or reusable layout patterns.
+   - Keep the output aligned with this repo's existing Tamagui theme catalog
+     and semantic component primitives.
+2. `flex-grid-flow`
+   - Use when changing responsive layouts, grid systems, split panes, card
+     composition, desktop/tablet/phone breakpoints, or fluid spacing/type.
+   - Prefer stable layout math and reusable page structure over one-screen
+     responsive tweaks.
+3. `web-design-guidelines`
+   - Use as a review pass before finalizing web-facing UI changes, especially
+     for accessibility, spacing, affordances, and cross-page consistency.
+   - Treat findings as implementation feedback to reconcile with the local
+     design system rather than as a request to import a new framework.
+
+These skills complement, but do not replace, project guidance, existing code
+patterns, product data contracts, accessibility requirements, or validation
+gates.
+
 ## Required Git Workflow
 Always use a branch -> pull request -> merge workflow.
 
