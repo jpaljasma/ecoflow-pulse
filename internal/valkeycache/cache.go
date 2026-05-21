@@ -117,7 +117,7 @@ func (c *Client) GetBytes(ctx context.Context, key string, opts ReadOptions) ([]
 		localTTL = c.opts.DefaultLocalTTL
 	}
 
-	var raw string
+	var raw []byte
 	var err error
 	if localTTL > 0 {
 		resp := c.client.DoCache(ctx, c.client.B().Get().Key(key).Cache(), localTTL)
@@ -126,9 +126,9 @@ func (c *Client) GetBytes(ctx context.Context, key string, opts ReadOptions) ([]
 		} else {
 			c.opts.Metrics.observeClientSideRead(c.namespace, "miss")
 		}
-		raw, err = resp.ToString()
+		raw, err = resp.AsBytes()
 	} else {
-		raw, err = c.client.Do(ctx, c.client.B().Get().Key(key).Build()).ToString()
+		raw, err = c.client.Do(ctx, c.client.B().Get().Key(key).Build()).AsBytes()
 	}
 	if err != nil {
 		if errors.Is(err, valkey.Nil) {
@@ -139,7 +139,7 @@ func (c *Client) GetBytes(ctx context.Context, key string, opts ReadOptions) ([]
 		return nil, false, err
 	}
 
-	decoded, meta, err := DecodePayload([]byte(raw), c.opts.Keyring)
+	decoded, meta, err := DecodePayload(raw, c.opts.Keyring)
 	if err != nil {
 		c.opts.Metrics.observeOperation(c.namespace, "get", "decode_error", started)
 		return nil, false, err

@@ -73,6 +73,7 @@ func (r *ControlPlaneResolver) ResolveDeviceContext(ctx context.Context, deviceI
 		var cached DeviceContext
 		ok, err := r.valkey.GetJSON(ctx, r.valkey.Key("device-context", "device_id="+deviceID), &cached, valkeycache.ReadOptions{})
 		if err == nil && ok {
+			r.memoizeDeviceContext(deviceID, cached, now)
 			return cloneDeviceContext(cached), nil
 		}
 	}
@@ -89,14 +90,18 @@ func (r *ControlPlaneResolver) ResolveDeviceContext(ctx context.Context, deviceI
 		Capabilities: cloneAnyMap(row.Capabilities),
 		Metadata:     cloneAnyMap(row.Metadata),
 	}
-	r.mu.Lock()
-	r.cache[deviceID] = resolverCacheEntry{
-		device:    cloneDeviceContext(device),
-		expiresAt: now.Add(r.cacheTTL),
-	}
-	r.mu.Unlock()
+	r.memoizeDeviceContext(deviceID, device, now)
 	if r.valkey != nil {
 		_ = r.valkey.SetJSON(ctx, r.valkey.Key("device-context", "device_id="+deviceID), device, valkeycache.SetOptions{TTL: r.cacheTTL})
 	}
 	return device, nil
+}
+
+func (r *ControlPlaneResolver) memoizeDeviceContext(deviceID string, device DeviceContext, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cache[deviceID] = resolverCacheEntry{
+		device:    cloneDeviceContext(device),
+		expiresAt: now.Add(r.cacheTTL),
+	}
 }

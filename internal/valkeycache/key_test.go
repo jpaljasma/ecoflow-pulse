@@ -26,6 +26,17 @@ func TestKeyBuilderStableAndHashTagged(t *testing.T) {
 	}
 }
 
+func TestKeyBuilderNormalizesSuppliedDigest(t *testing.T) {
+	t.Parallel()
+
+	builder := NewKeyBuilder("pulse", "unit")
+	got := builder.KeyWithDigest("partition", " ABCDEF1234567890ABCDEF1234567890 ")
+	want := "pulse:unit:{partition}:xxh3-128:abcdef1234567890abcdef1234567890"
+	if got != want {
+		t.Fatalf("KeyWithDigest() = %q, want %q", got, want)
+	}
+}
+
 func TestSplitKeyPrefixAppliesDefaults(t *testing.T) {
 	tests := []struct {
 		name          string

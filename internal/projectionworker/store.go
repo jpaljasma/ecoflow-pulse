@@ -1,6 +1,7 @@
 package projectionworker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -162,19 +163,19 @@ func (s *ValkeySnapshotStore) GetSnapshot(ctx context.Context, deviceID string, 
 }
 
 func (s *ValkeySnapshotStore) getBySnapshotKey(ctx context.Context, key string) (*LiveSnapshot, error) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(key).Build()).ToString()
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(key).Build()).AsBytes()
 	if err != nil {
 		if errors.Is(err, valkey.Nil) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("read snapshot key %q: %w", key, err)
 	}
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
 		return nil, nil
 	}
 	var snapshot LiveSnapshot
-	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
 		return nil, fmt.Errorf("decode live snapshot: %w", err)
 	}
 	if snapshot.Metrics == nil {

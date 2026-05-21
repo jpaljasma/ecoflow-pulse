@@ -16,9 +16,8 @@ const defaultHotCacheKeyPrefix = "pulse:weather"
 const defaultHotCacheLocalTTL = 5 * time.Second
 
 type ValkeyHotCache struct {
-	cache     *valkeycache.Client
-	keyPrefix string
-	nowFn     func() time.Time
+	cache *valkeycache.Client
+	nowFn func() time.Time
 }
 
 func NewValkeyHotCache(client valkey.Client, keyPrefix string, nowFn func() time.Time) (*ValkeyHotCache, error) {
@@ -43,9 +42,8 @@ func NewValkeyHotCache(client valkey.Client, keyPrefix string, nowFn func() time
 		return nil, err
 	}
 	return &ValkeyHotCache{
-		cache:     cache,
-		keyPrefix: strings.TrimSpace(keyPrefix),
-		nowFn:     nowFn,
+		cache: cache,
+		nowFn: nowFn,
 	}, nil
 }
 
@@ -75,13 +73,5 @@ func (c *ValkeyHotCache) PutForecast(ctx context.Context, key string, bundle wea
 }
 
 func (c *ValkeyHotCache) hotKey(key string) string {
-	return c.cache.Key(sanitizeKeySegment(key), "forecast")
-}
-
-func sanitizeKeySegment(in string) string {
-	clean := strings.TrimSpace(in)
-	clean = strings.ReplaceAll(clean, "{", "_")
-	clean = strings.ReplaceAll(clean, "}", "_")
-	clean = strings.ReplaceAll(clean, " ", "_")
-	return clean
+	return c.cache.Key(key, "forecast")
 }
