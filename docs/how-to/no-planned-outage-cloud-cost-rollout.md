@@ -152,6 +152,7 @@ The cost-min overlays keep:
 - NATS JetStream at `3` brokers,
 - Valkey/Sentinel at `3` nodes,
 - `go-ingest` at `2`,
+- `go-projection` at `1`,
 - `go-archive` at `1`,
 - `go-rollup` at `1`,
 - the migration job path,
@@ -159,10 +160,10 @@ The cost-min overlays keep:
 - External Secrets for runtime secret sync.
 
 The services overlay trims unused workers while keeping required data-plane
-workers on the base `app-pool` placement. Do not move `go-ingest`, `go-archive`,
-or `go-rollup` onto the shared-core stateful pools, and do not delete the app
-pool, until a fresh request-headroom gate proves those nodes can absorb the
-pods without pending workloads.
+workers on the base `app-pool` placement. Do not move `go-ingest`,
+`go-projection`, `go-archive`, or `go-rollup` onto the shared-core stateful
+pools, and do not delete the app pool, until a fresh request-headroom gate
+proves those nodes can absorb the pods without pending workloads.
 
 As of the 2026-05-14 live check, app-pool removal is blocked. The three
 `e2-medium` stateful nodes were already CPU-request constrained (`88%`, `88%`,

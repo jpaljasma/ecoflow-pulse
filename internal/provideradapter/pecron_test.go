@@ -97,6 +97,18 @@ func TestPecronAdapterDiscoverDevicesMapsE1000LFP(t *testing.T) {
 	if devices[0].Metadata["region"] != "us" {
 		t.Fatalf("region metadata = %#v", devices[0].Metadata["region"])
 	}
+	if got := devices[0].Capabilities["battery_capacity_wh"]; got != 1024 {
+		t.Fatalf("battery capacity capability = %#v, want 1024Wh", got)
+	}
+	if got := devices[0].Capabilities["pv_input_count"]; got != 1 {
+		t.Fatalf("pv input count capability = %#v, want 1", got)
+	}
+	if got := devices[0].Capabilities["pv_input_max_watts"]; got != 600 {
+		t.Fatalf("pv input max watts capability = %#v, want 600", got)
+	}
+	if got := devices[0].Capabilities["supports_battery_heating"]; got != true {
+		t.Fatalf("battery heating capability = %#v, want true", got)
+	}
 	if client.loginEmail != "owner@example.test" || client.loginPassword != "password" {
 		t.Fatalf("credential material not passed to client")
 	}

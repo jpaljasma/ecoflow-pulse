@@ -71,7 +71,9 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 - `INGEST_ANKER_SOLIX_REALTIME_TRIGGER_TIMEOUT` (default `300s`; Anker SOLIX MQTT realtime trigger lifetime)
 - `INGEST_ANKER_SOLIX_REALTIME_TRIGGER_REFRESH` (default `270s`; refresh cadence before the trigger expires)
 - `INGEST_QUOTA_METRICS_INTERVAL` (default `30s`; jittered aggregate quota refresh metrics log interval, set `0` to disable)
-- `INGEST_MQTT_CLIENT_ID_NAMESPACE` (optional; overrides the environment namespace used when deriving steady-state EcoFlow MQTT client IDs; defaults to `PULSE_ENV`)
+- `INGEST_MQTT_CLIENT_ID_NAMESPACE` (optional; overrides the environment
+  namespace used when deriving steady-state EcoFlow MQTT client IDs; defaults to
+  `PULSE_ENV`; Pecron uses the provider-issued MQTT client ID unchanged)
 - `PROVIDER_MQTT_SESSION_CACHE_KEY_PREFIX` (default `pulse:provider-mqtt-session`; shared Valkey cache key prefix for encrypted provider MQTT session/certification material)
 - `PROVIDER_MQTT_SESSION_CACHE_IDLE_TTL` (default `30m`; sliding idle TTL for encrypted provider MQTT session material)
 - `PROVIDER_MQTT_SESSION_CACHE_MAX_AGE` (default `6h`; conservative hard cap when the provider does not return an explicit expiry)

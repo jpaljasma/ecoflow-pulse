@@ -186,6 +186,75 @@ describe('provider device mapper', () => {
     );
   });
 
+  it('maps Pecron E1000LFP observed capabilities and spec-only limits into details', () => {
+    const presentation = buildProviderDevicePresentation(
+      baseProviderDevice({
+        provider: 'pecron',
+        providerDeviceId: 'p11vxg:redacted',
+        canonicalSn: 'PECRON-P11VXG-REDACTED',
+        productName: 'Pecron E1000LFP',
+        model: 'E1000LFP',
+        capabilities: {
+          battery_capacity_wh: 1024,
+          battery_pack_count: 1,
+          pv_input_count: 1,
+          pv_input_max_watts: 600,
+          pv_input_max_volts: 60,
+          pv_input_max_amps: 20,
+          ac_input_max_watts: 1000,
+          ac_output_rated_watts: 1800,
+          ac_output_peak_watts: 3000,
+          car_input_max_watts: 100,
+          supports_ac_output: true,
+          supports_dc_output: true,
+          supports_usb_output: true,
+          supports_ups_mode: true,
+          supports_battery_heating: true,
+          supports_extra_battery: true
+        },
+        metadata: {
+          provider: 'pecron',
+          field_names: [
+            'battery_percentage',
+            'dc_data_input_hm.dc_input_power',
+            'ac_switch_hm',
+            'dc_switch_hm',
+            'ups_status_hm'
+          ]
+        }
+      })
+    );
+
+    expect(presentation.capabilities).toEqual(
+      expect.objectContaining({
+        batteryCapacityKWh: 1.024,
+        batteryPacks: 1,
+        pvInputCount: 1,
+        acOutput: true,
+        dcOutput: true,
+        usbOutput: true,
+        extraBattery: true,
+        upsMode: true,
+        batteryHeating: true
+      })
+    );
+    expect(presentation.details).toEqual(
+      expect.objectContaining({
+        bpCount: 1,
+        packs: [expect.objectContaining({ id: 'main', energyWh: 1024 })],
+        solarPorts: [
+          expect.objectContaining({
+            id: 'pv-1',
+            name: 'PV 1',
+            maxWatts: 600,
+            maxVolts: 60,
+            maxAmps: 20
+          })
+        ]
+      })
+    );
+  });
+
   it('uses the Ultra X high-PV envelope for DELTA Pro Ultra X devices', () => {
     const presentation = buildProviderDevicePresentation(
       baseProviderDevice({

@@ -1,0 +1,110 @@
+{
+  "pecron_e1000lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e1000lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e1000lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e1000lfp_512.png",
+    "model": "E1000LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e1000lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e1000lfp-portable-power-station-2000w-1024wh",
+    "title": "PECRON E1000LFP Portable Power Station 1800W 1024Wh"
+  },
+  "pecron_e1500lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e1500lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e1500lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e1500lfp_512.png",
+    "model": "E1500LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e1500lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e1500lfp-expandable-power-station-2200w-1536wh",
+    "title": "PECRON E1500LFP Expandable Portable Power Station 2200W 1536Wh V3 Version"
+  },
+  "pecron_e2000lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e2000lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e2000lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e2000lfp_512.png",
+    "model": "E2000LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e2000lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e2000lfp-portable-power-station",
+    "title": "PECRON E2000LFP Expandable Portable Power Station 2000W 1920Wh"
+  },
+  "pecron_e2400lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e2400lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e2400lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e2400lfp_512.png",
+    "model": "E2400LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e2400lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e2400lfp-portable-power-station-2400w-2048wh",
+    "title": "PECRON E2400LFP Portable Power Station 2400W 2048Wh"
+  },
+  "pecron_e300lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e300lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e300lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e300lfp_512.png",
+    "model": "E300LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e300lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e300lfp-portable-power-station-600w-288wh",
+    "title": "PECRON E300LFP Portable Power Station 600W 288Wh"
+  },
+  "pecron_e3600lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e3600lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e3600lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e3600lfp_512.png",
+    "model": "E3600LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e3600lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e3600lfp-portable-power-station-3600w-3072wh",
+    "title": "PECRON E3600LFP Portable Power Station 3600W 3072Wh"
+  },
+  "pecron_e3800lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e3800lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e3800lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e3800lfp_512.png",
+    "model": "E3800LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e3800lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e3800lfp-portable-power-station-4200w-3840wh",
+    "title": "PECRON E3800LFP Portable Power Station 4200W 3840Wh"
+  },
+  "pecron_e500lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e500lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e500lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e500lfp_512.png",
+    "model": "E500LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e500lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e500lfp-portable-power-station-600w-576wh",
+    "title": "PECRON E500LFP Portable Power Station 600W 576Wh"
+  },
+  "pecron_e600lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_e600lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_e600lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_e600lfp_512.png",
+    "model": "E600LFP",
+    "original": "pecron_assets/processed/original_png/pecron_e600lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-e600lfp-1200w-portable-power-station-lifepo4",
+    "title": "PECRON E600LFP Portable Power Station 1200W 614Wh LiFePo4"
+  },
+  "pecron_f1000lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_f1000lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_f1000lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_f1000lfp_512.png",
+    "model": "F1000LFP",
+    "original": "pecron_assets/processed/original_png/pecron_f1000lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-f1000lfp-portable-power-station-1500w-1004wh",
+    "title": "PECRON F1000LFP Portable Power Station 1500W 960Wh"
+  },
+  "pecron_f3000lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_f3000lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_f3000lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_f3000lfp_512.png",
+    "model": "F3000LFP",
+    "original": "pecron_assets/processed/original_png/pecron_f3000lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-f3000lfp-portable-power-station-3600w-3072wh",
+    "title": "PECRON F3000LFP Portable Power Station 3600W 3072Wh"
+  },
+  "pecron_f5000lfp": {
+    "1024": "pecron_assets/processed/crop_1024/pecron_f5000lfp_1024.png",
+    "256": "pecron_assets/processed/crop_256/pecron_f5000lfp_256.png",
+    "512": "pecron_assets/processed/crop_512/pecron_f5000lfp_512.png",
+    "model": "F5000LFP",
+    "original": "pecron_assets/processed/original_png/pecron_f5000lfp.png",
+    "source_product_url": "https://www.pecron.com/products/pecron-f5000lfp-portable-power-station",
+    "title": "PECRON F5000LFP Portable Power Station 7200W 5120Wh 120V/240V"
+  }
+}

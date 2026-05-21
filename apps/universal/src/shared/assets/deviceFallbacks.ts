@@ -1,5 +1,6 @@
 import type { ImageSourcePropType } from 'react-native';
 import type { EcoFlowDeviceSlug } from '@/shared/assets/ecoflowAssets';
+import type { PecronDeviceSlug } from '@/shared/assets/pecronAssets';
 
 import d2m256 from '../../../public/ecoflow_delta_assets/processed/crop_256/delta_2_max_256.png';
 import d2mPlus256 from '../../../public/ecoflow_delta_assets/processed/crop_256/delta_2_max_plus_battery_256.png';
@@ -23,9 +24,36 @@ import dp3512 from '../../../public/ecoflow_delta_assets/processed/crop_512/delt
 import dpu512 from '../../../public/ecoflow_delta_assets/processed/crop_512/delta_pro_ultra_512.png';
 import dpuX512 from '../../../public/ecoflow_delta_assets/processed/crop_512/delta_pro_ultra_x_512.png';
 
-type FallbackSize = '256' | '512';
+import pecronE1000_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e1000lfp_256.png';
+import pecronE1500_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e1500lfp_256.png';
+import pecronE2000_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e2000lfp_256.png';
+import pecronE2400_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e2400lfp_256.png';
+import pecronE300_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e300lfp_256.png';
+import pecronE3600_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e3600lfp_256.png';
+import pecronE3800_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e3800lfp_256.png';
+import pecronE500_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e500lfp_256.png';
+import pecronE600_256 from '../../../public/pecron_assets/processed/crop_256/pecron_e600lfp_256.png';
+import pecronF1000_256 from '../../../public/pecron_assets/processed/crop_256/pecron_f1000lfp_256.png';
+import pecronF3000_256 from '../../../public/pecron_assets/processed/crop_256/pecron_f3000lfp_256.png';
+import pecronF5000_256 from '../../../public/pecron_assets/processed/crop_256/pecron_f5000lfp_256.png';
 
-const FALLBACKS_256: Record<EcoFlowDeviceSlug, ImageSourcePropType> = {
+import pecronE1000_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e1000lfp_512.png';
+import pecronE1500_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e1500lfp_512.png';
+import pecronE2000_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e2000lfp_512.png';
+import pecronE2400_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e2400lfp_512.png';
+import pecronE300_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e300lfp_512.png';
+import pecronE3600_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e3600lfp_512.png';
+import pecronE3800_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e3800lfp_512.png';
+import pecronE500_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e500lfp_512.png';
+import pecronE600_512 from '../../../public/pecron_assets/processed/crop_512/pecron_e600lfp_512.png';
+import pecronF1000_512 from '../../../public/pecron_assets/processed/crop_512/pecron_f1000lfp_512.png';
+import pecronF3000_512 from '../../../public/pecron_assets/processed/crop_512/pecron_f3000lfp_512.png';
+import pecronF5000_512 from '../../../public/pecron_assets/processed/crop_512/pecron_f5000lfp_512.png';
+
+type FallbackSize = '256' | '512';
+type DeviceFallbackSlug = EcoFlowDeviceSlug | PecronDeviceSlug;
+
+const FALLBACKS_256: Record<DeviceFallbackSlug, ImageSourcePropType> = {
   delta_2_max: d2m256,
   delta_2_max_plus_battery: d2mPlus256,
   delta_3: d3256,
@@ -35,10 +63,22 @@ const FALLBACKS_256: Record<EcoFlowDeviceSlug, ImageSourcePropType> = {
   delta_pro: dp256,
   delta_pro_3: dp3256,
   delta_pro_ultra: dpu256,
-  delta_pro_ultra_x: dpuX256
+  delta_pro_ultra_x: dpuX256,
+  pecron_e1000lfp: pecronE1000_256,
+  pecron_e1500lfp: pecronE1500_256,
+  pecron_e2000lfp: pecronE2000_256,
+  pecron_e2400lfp: pecronE2400_256,
+  pecron_e300lfp: pecronE300_256,
+  pecron_e3600lfp: pecronE3600_256,
+  pecron_e3800lfp: pecronE3800_256,
+  pecron_e500lfp: pecronE500_256,
+  pecron_e600lfp: pecronE600_256,
+  pecron_f1000lfp: pecronF1000_256,
+  pecron_f3000lfp: pecronF3000_256,
+  pecron_f5000lfp: pecronF5000_256
 };
 
-const FALLBACKS_512: Record<EcoFlowDeviceSlug, ImageSourcePropType> = {
+const FALLBACKS_512: Record<DeviceFallbackSlug, ImageSourcePropType> = {
   delta_2_max: d2m512,
   delta_2_max_plus_battery: d2mPlus512,
   delta_3: d3512,
@@ -48,11 +88,23 @@ const FALLBACKS_512: Record<EcoFlowDeviceSlug, ImageSourcePropType> = {
   delta_pro: dp512,
   delta_pro_3: dp3512,
   delta_pro_ultra: dpu512,
-  delta_pro_ultra_x: dpuX512
+  delta_pro_ultra_x: dpuX512,
+  pecron_e1000lfp: pecronE1000_512,
+  pecron_e1500lfp: pecronE1500_512,
+  pecron_e2000lfp: pecronE2000_512,
+  pecron_e2400lfp: pecronE2400_512,
+  pecron_e300lfp: pecronE300_512,
+  pecron_e3600lfp: pecronE3600_512,
+  pecron_e3800lfp: pecronE3800_512,
+  pecron_e500lfp: pecronE500_512,
+  pecron_e600lfp: pecronE600_512,
+  pecron_f1000lfp: pecronF1000_512,
+  pecron_f3000lfp: pecronF3000_512,
+  pecron_f5000lfp: pecronF5000_512
 };
 
 export function getBundledDeviceFallback(
-  slug: EcoFlowDeviceSlug,
+  slug: DeviceFallbackSlug,
   size: FallbackSize = '256'
 ): ImageSourcePropType {
   return size === '512' ? FALLBACKS_512[slug] : FALLBACKS_256[slug];

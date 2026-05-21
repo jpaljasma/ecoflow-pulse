@@ -60,10 +60,10 @@ stateful nodes and delete `app-pool` until a new design proves all of these:
 
 The 2026-05-14 live check blocked app-pool removal: stateful node CPU requests
 were already about `88%`, `88%`, and `67%` allocated, the required
-`go-ingest`/`go-archive`/`go-rollup` workers requested about `600m` CPU, and a
-server dry-run drain of the app node hit `go-archive` and `go-rollup` PDB
-protection. Keep `app-pool` at `e2-standard-2`, `min=1`, `max=2` until those
-conditions change.
+`go-ingest`/`go-projection`/`go-archive`/`go-rollup` workers add app-pool CPU
+pressure, and a server dry-run drain of the app node hit `go-archive` and
+`go-rollup` PDB protection. Keep `app-pool` at `e2-standard-2`, `min=1`,
+`max=2` until those conditions change.
 
 ## Apply the Overlay
 

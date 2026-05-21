@@ -128,8 +128,8 @@ Defaults:
   - `make cloud-refresh` for re-applying hosted Argo apps after branch changes,
   - `make cloud-deploy` for the direct Helm hosted apply path once Argo cutover
     is being validated,
-  - `make cloud-cost-min-deploy` for the explicit ingest/storage-only overlay
-    after local cloud-Postgres app mode is proven,
+  - `make cloud-cost-min-deploy` for the explicit live data-plane overlay after
+    local cloud-Postgres app mode is proven,
   - `make cloud-db-env`, `make cloud-db-forward`, and
     `make cloud-db-forward-start` for host-side Go tools reading cloud CNPG
     through a loopback port-forward,
@@ -329,8 +329,8 @@ Cloud defaults in this branch:
   not deadlock bootstrap retries.
 
 The explicit cost-min overlays in `deploy/env/cloud/*.cost-min.yaml` are the
-hosted ingest/storage-only cloud shape after the no-outage cutover. Keep the
-cloud Argo Applications and direct Helm target on these overlays until Argo is
+hosted live data-plane cloud shape after the no-outage cutover. Keep the cloud
+Argo Applications and direct Helm target on these overlays until Argo is
 removed; use `make cloud-cost-min-deploy` for manual direct applies. See
 [`docs/how-to/no-planned-outage-cloud-cost-rollout.md`](../docs/how-to/no-planned-outage-cloud-cost-rollout.md).
 

@@ -11,7 +11,6 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
-	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/pecron"
 )
 
@@ -240,9 +239,6 @@ func (r *PecronSessionRunner) runSessionOnce(
 		return false, fmt.Errorf("resolve pecron mqtt session: %w", err)
 	}
 	clientID := strings.TrimSpace(session.ClientID)
-	if cfg.MQTTClientIDNamespace != "" {
-		clientID = ecoflowmqtt.BuildClientIDWithNamespace(cfg.MQTTClientIDNamespace, clientID)
-	}
 	subscriber, connectedAddress, err := r.connectSubscriber(ctx, session, clientID, cfg)
 	if err != nil {
 		return false, err

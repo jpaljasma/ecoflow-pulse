@@ -54,13 +54,19 @@ belongs in the provider adapter, Pecron decoder, or ingest session runner.
 
 The E1000LFP mapping includes:
 
-- battery SOC, voltage, current, temperature, and capacity metadata,
-- total input/output watts,
+- battery SOC, voltage, current, temperature, and live pack power from MQTT or
+  REST `kv` fields,
+- capacity and pack-count metadata from the E1000LFP static product profile
+  when the cloud payload does not report those limits directly,
+- total input/output watts from observed provider fields,
 - AC input/output watts plus AC output voltage/frequency/power factor,
 - DC output watts,
 - remaining charge/discharge time fields,
 - UPS and AC/DC switch state as read-only params,
-- PV/DC input ports with canonical numbered IDs such as `pv-1`.
+- PV/DC input ports with canonical numbered IDs such as `pv-1`; E1000LFP
+  generic `dc_input_power` is normalized as `pv1ChargeWatts`, while
+  product-page-only limits fill `pv_input_max_watts`, `pv_input_max_volts`, and
+  `pv_input_max_amps`.
 
 Port handling must stay cardinality-safe. Do not assume every provider device has
 exactly two PV inputs.
@@ -70,6 +76,11 @@ exactly two PV inputs.
 Use MQTT for steady-state live telemetry. REST snapshots are for login,
 discovery, bootstrap, and periodic state refresh. Keep manual discovery
 operator-triggered and avoid tight REST polling loops.
+
+Pecron MQTT sessions must use the cloud-issued `qu_*` client ID unchanged. Do
+not apply the EcoFlow MQTT client-ID namespace transform to Pecron sessions; the
+Pecron broker rejects that mutated identity even when the same credential passes
+discovery and smoke-test MQTT.
 
 `attractify-logan/pecron-monitor` documents Pecron cloud `code 4026` as a
 per-account daily polling budget of roughly 1280 polls/day. Pulse therefore uses
