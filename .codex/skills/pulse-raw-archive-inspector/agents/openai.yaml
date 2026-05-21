@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pulse Raw Archive Inspector"
+  short_description: "Inspect archived MQTT telemetry patterns"
+  default_prompt: "Use $pulse-raw-archive-inspector to inspect archived MQTT telemetry fields for a provider family over the last 12 hours."
