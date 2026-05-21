@@ -14,6 +14,7 @@ export type PowerTrendView = {
 };
 
 type TrendMetricKey = keyof PowerTrendView;
+const TREND_METRIC_KEYS: TrendMetricKey[] = ['solar', 'ac', 'dc', 'load'];
 
 const METRIC_KEY_BY_SERIES: Record<TrendMetricKey, keyof RollupPoint['metrics']> = {
   solar: 'pvAvgW',
@@ -46,12 +47,12 @@ export function buildPowerTrendBounds(now = new Date()) {
 }
 
 export function buildPowerTrendView(series: RollupSeries, now = new Date()): PowerTrendView {
-  return {
+  return repairPowerTrendDropouts({
     solar: buildTrendValues(series, 'solar', now),
     ac: buildTrendValues(series, 'ac', now),
     dc: buildTrendValues(series, 'dc', now),
     load: buildTrendValues(series, 'load', now)
-  };
+  });
 }
 
 export function sumPowerTrendViews(views: PowerTrendView[]): PowerTrendView {
@@ -60,13 +61,51 @@ export function sumPowerTrendViews(views: PowerTrendView[]): PowerTrendView {
   }
   const out = emptyPowerTrendView();
   for (const view of views) {
-    for (let i = 0; i < POWER_TREND_POINTS; i += 1) {
-      out.solar[i] = (out.solar[i] ?? 0) + (view.solar[i] ?? 0);
-      out.ac[i] = (out.ac[i] ?? 0) + (view.ac[i] ?? 0);
-      out.dc[i] = (out.dc[i] ?? 0) + (view.dc[i] ?? 0);
-      out.load[i] = (out.load[i] ?? 0) + (view.load[i] ?? 0);
+    for (const key of TREND_METRIC_KEYS) {
+      for (let i = 0; i < POWER_TREND_POINTS; i += 1) {
+        out[key][i] = (out[key][i] ?? 0) + (view[key][i] ?? 0);
+      }
     }
   }
+  return repairPowerTrendDropouts(out);
+}
+
+export function repairPowerTrendDropouts(
+  view: PowerTrendView,
+  maxRunLength = 2
+): PowerTrendView {
+  const out: PowerTrendView = {
+    solar: [...view.solar],
+    ac: [...view.ac],
+    dc: [...view.dc],
+    load: [...view.load]
+  };
+  const length = Math.min(out.solar.length, out.ac.length, out.dc.length, out.load.length);
+
+  let idx = 1;
+  while (idx < length - 1) {
+    if (!isZeroPowerSlot(out, idx)) {
+      idx += 1;
+      continue;
+    }
+
+    const start = idx;
+    while (idx < length - 1 && isZeroPowerSlot(out, idx)) {
+      idx += 1;
+    }
+    const end = idx - 1;
+    const runLength = end - start + 1;
+    const before = start - 1;
+    const after = idx;
+    if (
+      runLength <= maxRunLength &&
+      hasPowerSignal(out, before) &&
+      hasPowerSignal(out, after)
+    ) {
+      fillDropoutRun(out, start, end, before, after);
+    }
+  }
+
   return out;
 }
 
@@ -182,6 +221,36 @@ function pointBucketEndMs(point: RollupPoint): number {
     return explicit;
   }
   return Number(point.bucketStartUnixMs) + 60_000;
+}
+
+function fillDropoutRun(
+  view: PowerTrendView,
+  start: number,
+  end: number,
+  before: number,
+  after: number
+) {
+  const runLength = end - start + 1;
+  TREND_METRIC_KEYS.forEach((key) => {
+    const from = view[key][before] ?? 0;
+    const to = view[key][after] ?? from;
+    for (let idx = start; idx <= end; idx += 1) {
+      const step = (idx - start + 1) / (runLength + 1);
+      view[key][idx] = from + (to - from) * step;
+    }
+  });
+}
+
+function hasPowerSignal(view: PowerTrendView, idx: number): boolean {
+  return TREND_METRIC_KEYS.some((key) => positiveFinite(view[key][idx]));
+}
+
+function isZeroPowerSlot(view: PowerTrendView, idx: number): boolean {
+  return TREND_METRIC_KEYS.every((key) => !positiveFinite(view[key][idx]));
+}
+
+function positiveFinite(value: number | undefined): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 function normalizeSeries(values: number[]): number[] {

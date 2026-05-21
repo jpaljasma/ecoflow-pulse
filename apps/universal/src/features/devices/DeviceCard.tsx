@@ -30,6 +30,8 @@ import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
 import { resolveDeviceSocPct } from '@/features/devices/soc';
 
+const INACTIVE_CARD_OPACITY = 0.82;
+
 function connectivityGlyph(
   snapshot: DeviceSnapshot | undefined,
   connectionStatus: TelemetryEngineStatus
@@ -51,12 +53,14 @@ export function DeviceCard({
   device,
   imageContext = 'card',
   connectionStatus,
-  highlighted = false
+  highlighted = false,
+  loadSolarHistory = true
 }: {
   device: DeviceSummary;
   imageContext?: 'list' | 'card' | 'detail';
   connectionStatus: TelemetryEngineStatus;
   highlighted?: boolean;
+  loadSolarHistory?: boolean;
 }) {
   const semantics = useThemeSemantics();
   const { contentWidth: width } = useNavigationShellMetrics();
@@ -67,7 +71,7 @@ export function DeviceCard({
   const solarHistory = useDeviceSolarHistory(device.id, {
     token,
     authKey,
-    enabled: historyEnabled,
+    enabled: historyEnabled && loadSolarHistory,
     maxSolarWatts
   });
   const isPhoneCompact = width < 460;
@@ -111,12 +115,12 @@ export function DeviceCard({
   const isInactive =
     snapshot?.inactive ??
     (lastSeenAt !== null ? Date.now() - lastSeenAt > 60_000 : false);
-  const fadeOpacity = useRef(new Animated.Value(isInactive ? 0.46 : 1)).current;
+  const fadeOpacity = useRef(new Animated.Value(isInactive ? INACTIVE_CARD_OPACITY : 1)).current;
 
   useEffect(() => {
     Animated.timing(fadeOpacity, {
-      toValue: isInactive ? 0.46 : 1,
-      duration: isInactive ? 900 : 220,
+      toValue: isInactive ? INACTIVE_CARD_OPACITY : 1,
+      duration: 220,
       useNativeDriver: Platform.OS !== 'web'
     }).start();
   }, [fadeOpacity, isInactive]);

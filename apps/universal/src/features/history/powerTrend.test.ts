@@ -6,6 +6,7 @@ import {
   mergeTrendPrefill,
   mergeTrendPrefillWithLivePoints,
   POWER_TREND_POINTS,
+  repairPowerTrendDropouts,
   sparklineCoveragePoints
 } from '@/features/history/powerTrend';
 
@@ -87,6 +88,34 @@ describe('power trend helpers', () => {
     expect(merged).toHaveLength(POWER_TREND_POINTS);
     expect(merged.slice(0, 40)).toEqual(prefill.slice(0, 40));
     expect(merged.slice(40)).toEqual(Array.from({ length: 20 }, () => 999));
+  });
+
+  it('repairs short all-zero gaps between non-zero power samples', () => {
+    const repaired = repairPowerTrendDropouts({
+      solar: [100, 120, 0, 160, 180],
+      ac: [40, 60, 0, 100, 120],
+      dc: [10, 20, 0, 40, 50],
+      load: [80, 100, 0, 140, 160]
+    });
+
+    expect(repaired.solar).toEqual([100, 120, 140, 160, 180]);
+    expect(repaired.ac).toEqual([40, 60, 80, 100, 120]);
+    expect(repaired.dc).toEqual([10, 20, 30, 40, 50]);
+    expect(repaired.load).toEqual([80, 100, 120, 140, 160]);
+  });
+
+  it('preserves real idle windows and edge zeros in power trends', () => {
+    const repaired = repairPowerTrendDropouts({
+      solar: [0, 120, 0, 0, 0, 160, 0],
+      ac: [0, 60, 0, 0, 0, 100, 0],
+      dc: [0, 20, 0, 0, 0, 40, 0],
+      load: [0, 100, 0, 0, 0, 140, 0]
+    });
+
+    expect(repaired.solar).toEqual([0, 120, 0, 0, 0, 160, 0]);
+    expect(repaired.ac).toEqual([0, 60, 0, 0, 0, 100, 0]);
+    expect(repaired.dc).toEqual([0, 20, 0, 0, 0, 40, 0]);
+    expect(repaired.load).toEqual([0, 100, 0, 0, 0, 140, 0]);
   });
 
   it('overlays realtime points by timestamp without creating a gap before live data starts', () => {

@@ -1,6 +1,17 @@
-import { FlatList, Platform, View } from 'react-native';
+import {
+  FlatList,
+  Platform,
+  View
+} from 'react-native';
 import { YStack } from 'tamagui';
-import { forwardRef, useImperativeHandle, useRef, type ReactElement } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactElement
+} from 'react';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
@@ -34,6 +45,45 @@ export const DeviceList = forwardRef<DeviceListHandle, {
   const { contentWidth } = useNavigationShellMetrics();
   const columns = Platform.OS === 'web' && contentWidth >= 900 ? 2 : 1;
   const listRef = useRef<FlatList<DeviceSummary>>(null);
+  const [solarHistoryDeviceIds, setSolarHistoryDeviceIds] = useState<Set<string>>(() => new Set());
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 12,
+    minimumViewTime: 100
+  }).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ item?: DeviceSummary; isViewable?: boolean }> }) => {
+      const nextVisibleIds = viewableItems
+        .filter((item) => item.isViewable && item.item?.id)
+        .map((item) => item.item?.id)
+        .filter((id): id is string => Boolean(id));
+      if (!nextVisibleIds.length) return;
+      setSolarHistoryDeviceIds((previous) => {
+        let changed = false;
+        const next = new Set(previous);
+        for (const id of nextVisibleIds) {
+          if (!next.has(id)) {
+            next.add(id);
+            changed = true;
+          }
+        }
+        return changed ? next : previous;
+      });
+    }
+  ).current;
+  const renderDeviceCard = useCallback(
+    ({ item }: { item: DeviceSummary }) => (
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <DeviceCard
+          device={item}
+          imageContext="list"
+          connectionStatus={connectionStatus}
+          highlighted={item.id === highlightedDeviceId}
+          loadSolarHistory={solarHistoryDeviceIds.has(item.id)}
+        />
+      </View>
+    ),
+    [connectionStatus, highlightedDeviceId, solarHistoryDeviceIds]
+  );
 
   useImperativeHandle(
     ref,
@@ -75,6 +125,8 @@ export const DeviceList = forwardRef<DeviceListHandle, {
       maxToRenderPerBatch={10}
       windowSize={7}
       updateCellsBatchingPeriod={50}
+      viewabilityConfig={viewabilityConfig}
+      onViewableItemsChanged={onViewableItemsChanged}
       onScrollToIndexFailed={({ index }) => {
         if (!devices.length) return;
         requestAnimationFrame(() => {
@@ -86,16 +138,7 @@ export const DeviceList = forwardRef<DeviceListHandle, {
         });
       }}
       ItemSeparatorComponent={() => <YStack height="$3" />}
-      renderItem={({ item }) => (
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <DeviceCard
-            device={item}
-            imageContext="list"
-            connectionStatus={connectionStatus}
-            highlighted={item.id === highlightedDeviceId}
-          />
-        </View>
-      )}
+      renderItem={renderDeviceCard}
     />
   );
 });

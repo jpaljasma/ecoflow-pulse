@@ -23,6 +23,7 @@ import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 export default function DevicesScreen() {
   const { contentWidth } = useNavigationShellMetrics();
   const compactHeader = contentWidth < 430;
+  const compactStormGuard = contentWidth < 640;
   const deviceListRef = useRef<DeviceListHandle>(null);
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedDeviceId, setHighlightedDeviceId] = useState<string | undefined>();
@@ -123,7 +124,7 @@ export default function DevicesScreen() {
             highlightedDeviceId={highlightedDeviceId}
             header={(
               <YStack marginTop={10} marginBottom="$3" gap="$3">
-                {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
+                {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} compact={compactStormGuard} /> : null}
                 <SummaryPanel
                   devices={devicesQuery.data.devices}
                   onAllDevicesPress={() => {

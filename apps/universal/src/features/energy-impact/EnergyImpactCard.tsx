@@ -44,7 +44,8 @@ export function EnergyImpactCard({
 }) {
   const router = useRouter();
   const semantics = useThemeSemantics();
-  const impact = computeEnergyImpactFromSolarWh(solarWh ?? 0, DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY);
+  const hasSolarWh = typeof solarWh === 'number' && Number.isFinite(solarWh);
+  const impact = computeEnergyImpactFromSolarWh(hasSolarWh ? solarWh : 0, DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY);
   const periodLabel = displayPeriodLabel || energyImpactPeriodLabel(displayPeriod);
   const periodButtons: Array<{ key: EnergyImpactPeriod; label: string }> = [
     { key: 'today', label: 'Today so far' },
@@ -112,11 +113,13 @@ export function EnergyImpactCard({
         </XStack>
 
         <YStack gap="$1">
-          <Text fontSize="$8" fontWeight="800" letterSpacing={-0.7}>
-            {energyRows[0]?.detail.split(' CO2e')[0] ?? '0 g'}
+          <Text fontSize="$8" fontWeight="800" letterSpacing={0}>
+            {hasSolarWh ? (energyRows[0]?.detail.split(' CO2e')[0] ?? '0 g') : '—'}
           </Text>
           <Text fontSize="$2" style={{ color: semantics.subtleStrongText }}>
-            Avoided grid CO2e from {formatWhAndKWh(impact.solarWh)} over {periodLabel}.
+            {hasSolarWh
+              ? `Avoided grid CO2e from ${formatWhAndKWh(impact.solarWh)} over ${periodLabel}.`
+              : `Waiting for ${periodLabel} solar history.`}
           </Text>
           <Text
             fontSize="$1"
@@ -225,7 +228,9 @@ export function EnergyImpactCard({
 
       <YStack gap="$1">
         <Text opacity={0.96}>
-          Estimated avoided grid emissions from {formatWhAndKWh(impact.solarWh)} of solar generated over {periodLabel}.
+          {hasSolarWh
+            ? `Estimated avoided grid emissions from ${formatWhAndKWh(impact.solarWh)} of solar generated over ${periodLabel}.`
+            : `Waiting for ${periodLabel} solar history before estimating avoided grid emissions.`}
         </Text>
         <Text fontSize="$1" style={{ color: semantics.subtleStrongText }}>
           Avoided pollutants use {impact.factor.label} default factors from {impact.factor.source} ({impact.factorKey}). Tree equivalent uses a separate conservative lifecycle benchmark.

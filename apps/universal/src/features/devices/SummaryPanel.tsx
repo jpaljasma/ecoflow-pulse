@@ -1,7 +1,8 @@
-import { useMemo, type ComponentProps } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
+import { Platform, View } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import { Card } from '@/shared/ui/Card';
@@ -35,9 +36,9 @@ import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
 import { buildEnergyRouteParams } from '@/features/energy/model';
 
 const SUMMARY_TREND_POINTS = 60;
-const FLEET_TILE_BASIS = 150;
-const FLEET_TILE_MIN_WIDTH = 140;
-const FLEET_TILE_MIN_HEIGHT = 132;
+const FLEET_TILE_BASIS = 142;
+const FLEET_TILE_MIN_WIDTH = 132;
+const FLEET_TILE_MIN_HEIGHT = 120;
 
 function getMaxSolarWatts(device: DeviceSummary): number | undefined {
   const total = device.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
@@ -144,7 +145,7 @@ function FleetOverviewTile({
           <MaterialCommunityIcons name={icon} size={16} color={accent} />
         </YStack>
       </XStack>
-      <Text fontSize="$6" fontWeight="800" letterSpacing={-0.3}>
+      <Text fontSize="$6" fontWeight="800" letterSpacing={0}>
         {value}
       </Text>
       <Text fontSize="$2" numberOfLines={2} style={{ color: semantics.subtleText }}>
@@ -310,6 +311,85 @@ function FleetTypeChip({
   );
 }
 
+function ChartSkeleton({ minHeight = 210 }: { minHeight?: number }) {
+  const semantics = useThemeSemantics();
+
+  return (
+    <YStack
+      minHeight={minHeight}
+      borderRadius="$4"
+      borderWidth={1}
+      style={{
+        backgroundColor: semantics.tileBackground,
+        borderColor: semantics.tileBorder
+      }}
+    />
+  );
+}
+
+function AnalyticsPlaceholder({ isTabletUp }: { isTabletUp: boolean }) {
+  return (
+    <YStack testID="devices-analytics-placeholder" gap="$3">
+      <ChartSection title="Solar Generation" subtitle="Today against yesterday">
+        <ChartSkeleton />
+      </ChartSection>
+      {isTabletUp ? (
+        <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+          <YStack flex={1} minWidth={0} alignSelf="stretch">
+            <ChartSection title="Live Power Profile" subtitle="Fleet load against supply" fill>
+              <ChartSkeleton />
+            </ChartSection>
+          </YStack>
+          <YStack flex={1} minWidth={0} alignSelf="stretch">
+            <ChartSkeleton minHeight={280} />
+          </YStack>
+        </XStack>
+      ) : (
+        <YStack gap="$3">
+          <ChartSection title="Live Power Profile" subtitle="Fleet load against supply">
+            <ChartSkeleton />
+          </ChartSection>
+          <ChartSkeleton minHeight={280} />
+        </YStack>
+      )}
+    </YStack>
+  );
+}
+
+function usePartiallyVisibleAnalyticsPanel() {
+  const panelRef = useRef<View | null>(null);
+  const [visible, setVisible] = useState(
+    () => Platform.OS !== 'web' || typeof IntersectionObserver === 'undefined'
+  );
+
+  useEffect(() => {
+    if (visible || Platform.OS !== 'web' || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+    const target = panelRef.current as unknown as Element | null;
+    if (!target) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.01 }
+    );
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [visible]);
+
+  return { panelRef, visible };
+}
+
 export function SummaryPanel({
   devices,
   onAllDevicesPress
@@ -320,6 +400,9 @@ export function SummaryPanel({
   const semantics = useThemeSemantics();
   const { contentWidth } = useNavigationShellMetrics();
   const isTabletUp = contentWidth >= 768;
+  const isPhone = contentWidth < 640;
+  const { panelRef: analyticsPanelRef, visible: analyticsPanelVisible } = usePartiallyVisibleAnalyticsPanel();
+  const analyticsShouldLoad = analyticsPanelVisible;
   const useRemoteImage = Boolean(env.assetBaseUrl);
   const deviceIds = devices.map((device) => device.id);
   const byId = useTelemetrySnapshotsByIds(deviceIds);
@@ -362,7 +445,7 @@ export function SummaryPanel({
   const fleetPowerTrendHistory = useFleetPowerTrendHistory(deviceIds, {
     token,
     authKey,
-    enabled: historyEnabled
+    enabled: historyEnabled && analyticsShouldLoad
   });
 
   const { summary, uniqueTypes } = useFleetSummaryViewModel({
@@ -415,6 +498,7 @@ export function SummaryPanel({
     fleetSolarHistory.error && !fleetSolarHistoryView
       ? describeSolarHistoryError(fleetSolarHistory.error)
       : undefined;
+  const fleetSolarHistoryLoading = fleetSolarHistory.isFetching && !fleetSolarHistoryView;
   const liveDeviceCount = useMemo(
     () => devices.filter((device) => !byId[device.id]?.inactive).length,
     [byId, devices]
@@ -489,9 +573,10 @@ export function SummaryPanel({
   const energyImpactSection = (
     <YStack testID="home-energy-impact" flex={1} height="100%">
       <EnergyImpactCard
-        solarWh={fleetSolarHistoryView?.todayWh ?? 0}
+        solarWh={fleetSolarHistoryView?.todayWh}
         period="today"
         displayPeriod="today"
+        isLoading={fleetSolarHistoryLoading}
         errorText={fleetSolarHistoryErrorText}
         variant="summary"
         fill
@@ -510,8 +595,8 @@ export function SummaryPanel({
   return (
     <YStack gap="$3">
       <Card
-        gap="$4"
-        padding={isTabletUp ? '$5' : '$4'}
+        gap={isPhone ? '$3' : '$4'}
+        padding={isTabletUp ? '$4' : '$3'}
         position="relative"
         overflow="hidden"
         style={{
@@ -523,11 +608,11 @@ export function SummaryPanel({
         <XStack
           alignItems="stretch"
           justifyContent="space-between"
-          gap="$4"
+          gap={isPhone ? '$3' : '$4'}
           flexWrap="wrap"
           style={{ position: 'relative', zIndex: 1 }}
         >
-          <YStack gap="$3" flex={1.1} minWidth={260} maxWidth={isTabletUp ? 520 : undefined}>
+          <YStack gap={isPhone ? '$2' : '$3'} flex={1.1} minWidth={250} maxWidth={isTabletUp ? 500 : undefined}>
             <Text fontSize="$2" fontWeight="700" textTransform="uppercase" letterSpacing={0.8} style={{ color: semantics.solarBadgeTitle }}>
               Pulse Fleet
             </Text>
@@ -537,8 +622,8 @@ export function SummaryPanel({
               </Text>
               <Text
                 fontWeight="800"
-                letterSpacing={-1.1}
-                style={{ fontSize: isTabletUp ? 62 : 48, lineHeight: isTabletUp ? 66 : 52 }}
+                letterSpacing={0}
+                style={{ fontSize: isTabletUp ? 56 : 42, lineHeight: isTabletUp ? 60 : 46 }}
               >
                 {formatWhAndKWh(fleetSolarHistoryView?.todayWh)}
               </Text>
@@ -562,7 +647,7 @@ export function SummaryPanel({
             </XStack>
           </YStack>
 
-          <YStack gap="$3" flex={1} minWidth={280} maxWidth={isTabletUp ? 440 : undefined} justifyContent="space-between">
+          <YStack gap="$3" flex={1} minWidth={250} maxWidth={isTabletUp ? 420 : undefined} justifyContent="space-between">
             <XStack gap="$3" flexWrap="wrap">
               {previewDevices.map((item) => (
                 <FleetDeviceTile key={item.id} item={item} useRemoteImage={useRemoteImage} />
@@ -590,7 +675,7 @@ export function SummaryPanel({
             </Button>
           </YStack>
 
-          <YStack gap="$3" flex={1} minWidth={280} maxWidth={isTabletUp ? 440 : undefined} justifyContent="space-between">
+          <YStack gap="$3" flex={1} minWidth={250} maxWidth={isTabletUp ? 420 : undefined} justifyContent="space-between">
             <XStack gap="$3" flexWrap="wrap">
               {overviewTiles.map((tile) => (
                 <FleetOverviewTile
@@ -637,25 +722,31 @@ export function SummaryPanel({
         </XStack>
       </Card>
 
-      {isTabletUp ? (
-        <YStack gap="$3">
-          {solarHistorySection}
-          <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
-            <YStack flex={1} minWidth={0} alignSelf="stretch">
-              {livePowerSection}
+      <View ref={analyticsPanelRef} testID="devices-analytics-panel">
+        {analyticsShouldLoad ? (
+          isTabletUp ? (
+            <YStack gap="$3">
+              {solarHistorySection}
+              <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+                <YStack flex={1} minWidth={0} alignSelf="stretch">
+                  {livePowerSection}
+                </YStack>
+                <YStack flex={1} minWidth={0} alignSelf="stretch">
+                  {energyImpactSection}
+                </YStack>
+              </XStack>
             </YStack>
-            <YStack flex={1} minWidth={0} alignSelf="stretch">
+          ) : (
+            <YStack gap="$3">
+              {solarHistorySection}
+              {livePowerSection}
               {energyImpactSection}
             </YStack>
-          </XStack>
-        </YStack>
-      ) : (
-        <YStack gap="$3">
-          {solarHistorySection}
-          {livePowerSection}
-          {energyImpactSection}
-        </YStack>
-      )}
+          )
+        ) : (
+          <AnalyticsPlaceholder isTabletUp={isTabletUp} />
+        )}
+      </View>
     </YStack>
   );
 }
