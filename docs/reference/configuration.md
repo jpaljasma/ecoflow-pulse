@@ -434,7 +434,9 @@ Behavior:
   - large product images can be remote URI-based and are cached via `expo-image` (`memory-disk`),
   - brand/logo assets are bundled local app assets for smooth top-bar and menu rendering.
 - `EXPO_PUBLIC_OIDC_ISSUER_URL` (Keycloak issuer URL for Authorization Code + PKCE)
+  - web default when unset: derive the local Keycloak issuer from the active local API base as `<local-edge>/realms/pulse`
 - `EXPO_PUBLIC_OIDC_CLIENT_ID` (public OIDC client ID for Expo app)
+  - web default when the local issuer is derived: `pulse-universal-app`
 - `EXPO_PUBLIC_OIDC_AUDIENCE` (optional audience for token exchange/validation alignment)
 - `EXPO_PUBLIC_OIDC_SCOPES` (optional, default `openid profile email offline_access`)
 - `EXPO_PUBLIC_CLOUD_API_URL` (cloud BFF base URL used by the `cloud` connection profile)
@@ -454,6 +456,8 @@ Runtime behavior:
   local HTTPS edge, local OIDC issuer, and cloud-backed database/realtime data
   plane. In product UI this is Cloud, not Local, because the selected source of
   user data is cloud.
+  If local OIDC values are not explicitly set, the web build still uses the
+  local Keycloak defaults so the login button remains available.
 - users can switch that data source directly from the shared app menu or from
   `Settings -> Data source`; the product-facing choices are `Local` and
   `Cloud`.

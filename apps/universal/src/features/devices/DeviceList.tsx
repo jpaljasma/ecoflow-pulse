@@ -4,25 +4,30 @@ import { forwardRef, useImperativeHandle, useRef, type ReactElement } from 'reac
 import type { DeviceSummary } from '@/features/devices/api';
 import type { TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
+import { findDeviceScrollIndex } from '@/features/devices/listScroll';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 
 export type DeviceListHandle = {
   scrollToDevices: () => void;
+  scrollToDevice: (deviceId: string) => void;
 };
 
 export const DeviceList = forwardRef<DeviceListHandle, {
   devices: DeviceSummary[];
   connectionStatus: TelemetryEngineStatus;
+  highlightedDeviceId?: string;
   header?: ReactElement;
   footer?: ReactElement;
 }>(function DeviceList({
   devices,
   connectionStatus,
+  highlightedDeviceId,
   header,
   footer
 }: {
   devices: DeviceSummary[];
   connectionStatus: TelemetryEngineStatus;
+  highlightedDeviceId?: string;
   header?: ReactElement;
   footer?: ReactElement;
 }, ref) {
@@ -40,9 +45,18 @@ export const DeviceList = forwardRef<DeviceListHandle, {
           animated: true,
           viewPosition: 0
         });
+      },
+      scrollToDevice: (deviceId: string) => {
+        const index = findDeviceScrollIndex(devices, deviceId);
+        if (index < 0) return;
+        listRef.current?.scrollToIndex({
+          index,
+          animated: true,
+          viewPosition: 0.08
+        });
       }
     }),
-    [devices.length]
+    [devices]
   );
 
   return (
@@ -61,13 +75,13 @@ export const DeviceList = forwardRef<DeviceListHandle, {
       maxToRenderPerBatch={10}
       windowSize={7}
       updateCellsBatchingPeriod={50}
-      onScrollToIndexFailed={() => {
+      onScrollToIndexFailed={({ index }) => {
         if (!devices.length) return;
         requestAnimationFrame(() => {
           listRef.current?.scrollToIndex({
-            index: 0,
+            index: Math.max(0, Math.min(index, devices.length - 1)),
             animated: true,
-            viewPosition: 0
+            viewPosition: 0.08
           });
         });
       }}
@@ -78,6 +92,7 @@ export const DeviceList = forwardRef<DeviceListHandle, {
             device={item}
             imageContext="list"
             connectionStatus={connectionStatus}
+            highlighted={item.id === highlightedDeviceId}
           />
         </View>
       )}

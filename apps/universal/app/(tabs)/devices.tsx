@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Text, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
@@ -24,6 +24,8 @@ export default function DevicesScreen() {
   const { contentWidth } = useNavigationShellMetrics();
   const compactHeader = contentWidth < 430;
   const deviceListRef = useRef<DeviceListHandle>(null);
+  const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [highlightedDeviceId, setHighlightedDeviceId] = useState<string | undefined>();
   const { authConfigured, authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const devicesQuery = useDevices({
@@ -41,6 +43,28 @@ export default function DevicesScreen() {
   );
   useTelemetrySubscription(deviceIds);
   const connectionStatus = useTelemetryConnectionStatus();
+
+  useEffect(() => {
+    if (!highlightedDeviceId) return;
+    const deviceVisible = devicesQuery.data?.devices.some((device) => device.id === highlightedDeviceId) ?? false;
+    if (!deviceVisible) return;
+    requestAnimationFrame(() => {
+      deviceListRef.current?.scrollToDevice(highlightedDeviceId);
+    });
+    if (highlightClearTimerRef.current) {
+      clearTimeout(highlightClearTimerRef.current);
+    }
+    highlightClearTimerRef.current = setTimeout(() => {
+      setHighlightedDeviceId(undefined);
+      highlightClearTimerRef.current = null;
+    }, 12_000);
+    return () => {
+      if (highlightClearTimerRef.current) {
+        clearTimeout(highlightClearTimerRef.current);
+        highlightClearTimerRef.current = null;
+      }
+    };
+  }, [devicesQuery.data?.devices, highlightedDeviceId]);
 
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
@@ -96,6 +120,7 @@ export default function DevicesScreen() {
             ref={deviceListRef}
             devices={devicesQuery.data.devices}
             connectionStatus={connectionStatus}
+            highlightedDeviceId={highlightedDeviceId}
             header={(
               <YStack marginTop={10} marginBottom="$3" gap="$3">
                 {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}
@@ -112,6 +137,10 @@ export default function DevicesScreen() {
                 token={token}
                 authKey={authKey}
                 enabled={authReady && allowed}
+                onDeviceEnabled={(deviceId) => {
+                  setHighlightedDeviceId(deviceId);
+                  void devicesQuery.refetch();
+                }}
               />
             )}
           />

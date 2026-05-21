@@ -117,7 +117,8 @@ export const DeviceMQTTTestResultSchema = z.object({
   status: z.string(),
   sampleTopic: z.string(),
   payloadBytes: z.string(),
-  observedAtUnixMs: z.string()
+  observedAtUnixMs: z.string(),
+  deviceId: z.string().optional()
 });
 
 export const EnableAvailableDeviceResponseSchema = z.object({

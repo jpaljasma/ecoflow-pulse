@@ -24,8 +24,9 @@ read-only and starts with the E1000LFP product key `p11vxg`.
 3. Select the same cloud region used by the Pecron mobile app.
 4. Enter the Pecron account email and password.
 5. Save with `Validate and activate`.
-6. Open the device onboarding panel, discover available devices, and enable the
-   E1000LFP.
+6. Open the device onboarding panel, discover available devices, then use
+   `Enable and Activate` for the E1000LFP. That action runs a live MQTT probe
+   and atomically adds the active device only after telemetry is observed.
 
 The email and password are stored as provider credential material. API clients
 receive only the masked email plus non-secret config, such as `{"region":"us"}`.
@@ -84,8 +85,8 @@ cloud polling budget.
 ## Troubleshooting
 
 - If discovery fails, verify the selected region first.
-- If discovery succeeds but MQTT validation fails, confirm the device is online
-  in the Pecron app and wait for the next live telemetry packet.
+- If discovery succeeds but `Enable and Activate` fails, confirm the device is
+  online in the Pecron app and wait for the next live telemetry packet.
 - If fields disappear or change shape, isolate fixes in `pkg/pecron` tests before
   touching projection, archive, rollups, realtime, or UI code.
 

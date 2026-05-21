@@ -658,7 +658,26 @@ func (s *ControlPlaneService) TestProviderDeviceMQTT(ctx context.Context, req *c
 	if err != nil {
 		return nil, err
 	}
-	return s.probeProviderDeviceMQTT(ctx, provider, cred, req.GetProviderDeviceId())
+	discovered, err := s.discoverProviderDeviceForCredential(ctx, provider, cred, req.GetProviderDeviceId())
+	if err != nil {
+		return nil, err
+	}
+	if err := validateProviderDeviceImportable(provider, discovered); err != nil {
+		return nil, err
+	}
+	probe, err := s.probeProviderDeviceMQTT(ctx, provider, cred, discovered.ProviderDeviceID)
+	if err != nil {
+		return nil, err
+	}
+	if !probe.GetSuccess() {
+		return probe, nil
+	}
+	persisted, err := s.persistImportedProviderDevice(ctx, userSubject, provider, cred, discovered, true, "active")
+	if err != nil {
+		return nil, err
+	}
+	probe.DeviceId = persisted.UserDevice.DeviceID
+	return probe, nil
 }
 
 func (s *ControlPlaneService) probeProviderDeviceMQTT(
@@ -869,23 +888,12 @@ func (s *ControlPlaneService) persistImportedProviderDevice(
 	isActive bool,
 	ingestDesiredState string,
 ) (persistedImportedProviderDevice, error) {
-	created, err := s.store.CreateDevice(ctx, controlplane.CreateDeviceInput{
-		UserSubject: userSubject,
-		EcoflowSN:   discovered.CanonicalSN,
-		ProductName: discovered.ProductName,
-		Model:       discovered.Model,
-	})
-	if err != nil {
-		if errors.Is(err, controlplane.ErrUserNotFound) {
-			return persistedImportedProviderDevice{}, status.Error(codes.NotFound, err.Error())
-		}
-		return persistedImportedProviderDevice{}, status.Errorf(codes.Internal, "create imported device: %v", err)
-	}
-	persisted, err := s.store.UpsertProviderDevice(ctx, controlplane.UpsertProviderDeviceInput{
-		DeviceID:           created.DeviceID,
+	persisted, err := s.store.ImportProviderDevice(ctx, controlplane.ImportProviderDeviceInput{
+		UserSubject:        userSubject,
 		Provider:           provider,
 		ProviderDeviceID:   discovered.ProviderDeviceID,
 		CredentialID:       cred.ID,
+		CanonicalSN:        discovered.CanonicalSN,
 		ProductName:        discovered.ProductName,
 		Model:              discovered.Model,
 		Capabilities:       discovered.Capabilities,
@@ -894,18 +902,14 @@ func (s *ControlPlaneService) persistImportedProviderDevice(
 		IngestDesiredState: ingestDesiredState,
 	})
 	if err != nil {
+		if errors.Is(err, controlplane.ErrUserNotFound) {
+			return persistedImportedProviderDevice{}, status.Error(codes.NotFound, err.Error())
+		}
 		return persistedImportedProviderDevice{}, status.Errorf(codes.Internal, "persist imported provider device: %v", err)
 	}
-	persisted.CanonicalSN = created.EcoflowSN
-	if persisted.ProductName == "" {
-		persisted.ProductName = created.ProductName
-	}
-	if persisted.Model == "" {
-		persisted.Model = created.Model
-	}
 	return persistedImportedProviderDevice{
-		ProviderDevice: persisted,
-		UserDevice:     created,
+		ProviderDevice: persisted.ProviderDevice,
+		UserDevice:     persisted.UserDevice,
 	}, nil
 }
 

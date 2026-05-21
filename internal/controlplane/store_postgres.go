@@ -1088,6 +1088,177 @@ RETURNING id::text, device_id::text, provider, provider_device_id, credential_id
 	return out, nil
 }
 
+func (s *PostgresStore) ImportProviderDevice(ctx context.Context, in ImportProviderDeviceInput) (ImportedProviderDevice, error) {
+	now := normalizeWriteTime(s.now())
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ImportedProviderDevice{}, fmt.Errorf("begin import provider device tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	userID, err := resolveUserIDTx(ctx, tx, in.UserSubject)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ImportedProviderDevice{}, ErrUserNotFound
+		}
+		return ImportedProviderDevice{}, fmt.Errorf("resolve user for provider device import: %w", err)
+	}
+
+	canonicalSN := strings.TrimSpace(in.CanonicalSN)
+	if canonicalSN == "" {
+		canonicalSN = strings.TrimSpace(in.ProviderDeviceID)
+	}
+	if canonicalSN == "" {
+		return ImportedProviderDevice{}, ErrDeviceNotFound
+	}
+
+	var userDevice UserDevice
+	if err := tx.QueryRowContext(
+		ctx,
+		`
+INSERT INTO devices (ecoflow_sn, product_name, model, metadata, created_at, updated_at)
+VALUES ($1, NULLIF(BTRIM($2), ''), NULLIF(BTRIM($3), ''), '{}'::jsonb, $4, $4)
+ON CONFLICT (ecoflow_sn)
+DO UPDATE
+SET product_name = COALESCE(EXCLUDED.product_name, devices.product_name),
+	model = COALESCE(EXCLUDED.model, devices.model),
+	updated_at = EXCLUDED.updated_at
+RETURNING id::text, ecoflow_sn, COALESCE(product_name, ''), COALESCE(model, ''), created_at, updated_at;
+`,
+		canonicalSN,
+		in.ProductName,
+		in.Model,
+		now,
+	).Scan(
+		&userDevice.DeviceID,
+		&userDevice.EcoflowSN,
+		&userDevice.ProductName,
+		&userDevice.Model,
+		&userDevice.CreatedAt,
+		&userDevice.UpdatedAt,
+	); err != nil {
+		return ImportedProviderDevice{}, fmt.Errorf("upsert imported device: %w", err)
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`
+INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at)
+VALUES ($1::uuid, $2::uuid, 'admin', $3, $3)
+ON CONFLICT (user_id, device_id)
+DO UPDATE SET role = 'admin', updated_at = EXCLUDED.updated_at;
+`,
+		userID,
+		userDevice.DeviceID,
+		now,
+	); err != nil {
+		return ImportedProviderDevice{}, fmt.Errorf("upsert imported user device admin link: %w", err)
+	}
+	userDevice.Role = "admin"
+
+	capabilitiesJSON, err := marshalJSONBMap(in.Capabilities)
+	if err != nil {
+		return ImportedProviderDevice{}, fmt.Errorf("marshal provider device capabilities: %w", err)
+	}
+	metadataJSON, err := marshalJSONBMap(in.Metadata)
+	if err != nil {
+		return ImportedProviderDevice{}, fmt.Errorf("marshal provider device metadata: %w", err)
+	}
+	query := `
+INSERT INTO provider_devices (
+	device_id,
+	provider,
+	provider_device_id,
+	credential_id,
+	product_name,
+	model,
+	capabilities,
+	metadata,
+	is_active,
+	ingest_desired_state,
+	created_at,
+	updated_at
+)
+VALUES (
+	$1::uuid,
+	$2,
+	$3,
+	$4::uuid,
+	NULLIF(BTRIM($5), ''),
+	NULLIF(BTRIM($6), ''),
+	COALESCE($7::jsonb, '{}'::jsonb),
+	COALESCE($8::jsonb, '{}'::jsonb),
+	$9,
+	$10,
+	$11,
+	$11
+)
+ON CONFLICT (provider, provider_device_id)
+DO UPDATE
+SET device_id = EXCLUDED.device_id,
+	credential_id = EXCLUDED.credential_id,
+	product_name = COALESCE(EXCLUDED.product_name, provider_devices.product_name),
+	model = COALESCE(EXCLUDED.model, provider_devices.model),
+	capabilities = CASE
+		WHEN $7::jsonb IS NULL THEN provider_devices.capabilities
+		ELSE $7::jsonb
+	END,
+	metadata = CASE
+		WHEN $8::jsonb IS NULL THEN provider_devices.metadata
+		ELSE $8::jsonb
+	END,
+	is_active = EXCLUDED.is_active,
+	ingest_desired_state = EXCLUDED.ingest_desired_state,
+	updated_at = EXCLUDED.updated_at
+RETURNING id::text, device_id::text, provider, provider_device_id, credential_id::text, COALESCE(product_name, ''), COALESCE(model, ''), capabilities, metadata, is_active, ingest_desired_state;
+`
+	var providerDevice ProviderDevice
+	if err := tx.QueryRowContext(
+		ctx,
+		query,
+		userDevice.DeviceID,
+		NormalizeProvider(in.Provider),
+		strings.TrimSpace(in.ProviderDeviceID),
+		in.CredentialID,
+		in.ProductName,
+		in.Model,
+		capabilitiesJSON,
+		metadataJSON,
+		in.IsActive,
+		strings.ToLower(strings.TrimSpace(in.IngestDesiredState)),
+		now,
+	).Scan(
+		&providerDevice.ID,
+		&providerDevice.DeviceID,
+		&providerDevice.Provider,
+		&providerDevice.ProviderDeviceID,
+		&providerDevice.CredentialID,
+		&providerDevice.ProductName,
+		&providerDevice.Model,
+		(*jsonbMap)(&providerDevice.Capabilities),
+		(*jsonbMap)(&providerDevice.Metadata),
+		&providerDevice.IsActive,
+		&providerDevice.IngestDesiredState,
+	); err != nil {
+		return ImportedProviderDevice{}, fmt.Errorf("upsert imported provider device: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return ImportedProviderDevice{}, fmt.Errorf("commit import provider device tx: %w", err)
+	}
+	providerDevice.CanonicalSN = userDevice.EcoflowSN
+	if providerDevice.ProductName == "" {
+		providerDevice.ProductName = userDevice.ProductName
+	}
+	if providerDevice.Model == "" {
+		providerDevice.Model = userDevice.Model
+	}
+	return ImportedProviderDevice{
+		ProviderDevice: providerDevice,
+		UserDevice:     userDevice,
+	}, nil
+}
+
 func (s *PostgresStore) ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error) {
 	provider := NormalizeProvider(in.Provider)
 	query := `

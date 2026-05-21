@@ -52,10 +52,18 @@ export function useAvailableDevices(options: DeviceQueryOptions = {}) {
 }
 
 export function useTestAvailableDeviceMQTT(options: DeviceQueryOptions = {}) {
-  const { token } = options;
+  const { token, authKey = 'anonymous' } = options;
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: { provider: string; credentialId: string; providerDeviceId: string }) =>
-      testAvailableDeviceMQTT(payload, token)
+      testAvailableDeviceMQTT(payload, token),
+    onSuccess: (result) => {
+      if (!result.success) {
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ['devices', authKey] });
+      void queryClient.invalidateQueries({ queryKey: ['available-devices', authKey] });
+    }
   });
 }
 

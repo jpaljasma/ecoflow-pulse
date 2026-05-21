@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AvailableDeviceSchema, DeviceSchema } from '@/features/devices/schema';
+import { AvailableDeviceSchema, DeviceMQTTTestResultSchema, DeviceSchema } from '@/features/devices/schema';
 
 describe('device api schema', () => {
   it('preserves extended system-signal and diagnostics detail fields', () => {
@@ -62,5 +62,18 @@ describe('device api schema', () => {
 
     expect(device.capabilities).toEqual({ mqttTelemetry: 'basic' });
     expect(device.metadata).toEqual({ support_status: 'partial' });
+  });
+
+  it('preserves the enabled device id returned by a successful MQTT probe', () => {
+    const result = DeviceMQTTTestResultSchema.parse({
+      success: true,
+      status: 'ok',
+      sampleTopic: 'redacted',
+      payloadBytes: '42',
+      observedAtUnixMs: '1779318200000',
+      deviceId: '22222222-2222-7222-8222-222222222222'
+    });
+
+    expect(result.deviceId).toBe('22222222-2222-7222-8222-222222222222');
   });
 });

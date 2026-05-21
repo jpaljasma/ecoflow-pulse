@@ -56,6 +56,7 @@ export type ProviderDeviceMQTTTestResult = {
   sampleTopic: string;
   payloadBytes: string;
   observedAtUnixMs: string;
+  deviceId: string;
 };
 
 export type ProviderCredential = {
@@ -664,7 +665,8 @@ function normalizeProviderDeviceMQTTTestResult(
     status: normalizeString(result.status),
     sampleTopic: normalizeString(result.sampleTopic),
     payloadBytes: normalizeString(result.payloadBytes),
-    observedAtUnixMs: normalizeString(result.observedAtUnixMs)
+    observedAtUnixMs: normalizeString(result.observedAtUnixMs),
+    deviceId: normalizeString(result.deviceId)
   };
 }
 

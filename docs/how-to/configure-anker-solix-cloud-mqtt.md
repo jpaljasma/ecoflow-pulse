@@ -39,8 +39,9 @@ unsupported or needing samples before enablement.
 4. Enter the two-letter account country.
 5. Enter the Anker account email and password.
 6. Save with `Validate and activate`.
-7. Open the available-device panel, discover devices, test MQTT, and enable only
-   supported SOLIX devices.
+7. Open the available-device panel, discover devices, then use
+   `Enable and Activate` on supported SOLIX devices. The action runs live MQTT
+   validation and saves the active device in one server-side import.
 
 The email and password are provider credential material. API clients receive
 only masked account metadata plus non-secret config, such as

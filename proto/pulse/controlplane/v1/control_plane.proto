@@ -247,6 +247,7 @@ message TestProviderDeviceMQTTResponse {
   string sample_topic = 3;
   int64 payload_bytes = 4;
   int64 observed_at_unix_ms = 5;
+  string device_id = 6;
 }
 
 message EnableProviderDeviceRequest {

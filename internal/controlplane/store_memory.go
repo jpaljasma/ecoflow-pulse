@@ -592,6 +592,90 @@ func (s *MemoryStore) UpsertProviderDevice(_ context.Context, in UpsertProviderD
 	return cloneProviderDevice(row), nil
 }
 
+func (s *MemoryStore) ImportProviderDevice(_ context.Context, in ImportProviderDeviceInput) (ImportedProviderDevice, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return ImportedProviderDevice{}, ErrUserNotFound
+	}
+	providerDeviceID := strings.TrimSpace(in.ProviderDeviceID)
+	canonicalSN := strings.TrimSpace(in.CanonicalSN)
+	if canonicalSN == "" {
+		canonicalSN = providerDeviceID
+	}
+	if canonicalSN == "" {
+		return ImportedProviderDevice{}, ErrDeviceNotFound
+	}
+
+	now := normalizeWriteTime(s.now())
+	dev, created := s.ensureDeviceLocked(canonicalSN, in.ProductName, in.Model, now)
+	if !created {
+		dev.UpdatedAt = now
+		s.devicesByID[dev.ID] = dev
+	}
+	s.ensureUserDeviceRoleLocked(userID, dev.ID, "admin")
+
+	provider := NormalizeProvider(in.Provider)
+	var existingID string
+	for id, row := range s.providerDevices {
+		if row.Provider == provider && row.ProviderDeviceID == providerDeviceID {
+			existingID = id
+			break
+		}
+	}
+	if existingID == "" {
+		existingID = s.nextID("pdev")
+	}
+	existing := s.providerDevices[existingID]
+	capabilities := cloneAnyMap(existing.Capabilities)
+	if in.Capabilities != nil {
+		capabilities = cloneAnyMap(in.Capabilities)
+	}
+	metadata := cloneAnyMap(existing.Metadata)
+	if in.Metadata != nil {
+		metadata = cloneAnyMap(in.Metadata)
+	}
+	productName := strings.TrimSpace(existing.ProductName)
+	if refreshed := strings.TrimSpace(in.ProductName); refreshed != "" {
+		productName = refreshed
+	}
+	model := strings.TrimSpace(existing.Model)
+	if refreshed := strings.TrimSpace(in.Model); refreshed != "" {
+		model = refreshed
+	}
+	providerDevice := ProviderDevice{
+		ID:                 existingID,
+		DeviceID:           dev.ID,
+		Provider:           provider,
+		ProviderDeviceID:   providerDeviceID,
+		CredentialID:       strings.TrimSpace(in.CredentialID),
+		CanonicalSN:        dev.EcoflowSN,
+		ProductName:        productName,
+		Model:              model,
+		Capabilities:       capabilities,
+		Metadata:           metadata,
+		IsActive:           in.IsActive,
+		IngestDesiredState: strings.ToLower(strings.TrimSpace(in.IngestDesiredState)),
+	}
+	s.providerDevices[providerDevice.ID] = providerDevice
+
+	userDevice := UserDevice{
+		DeviceID:    dev.ID,
+		EcoflowSN:   dev.EcoflowSN,
+		ProductName: dev.ProductName,
+		Model:       dev.Model,
+		Role:        "admin",
+		CreatedAt:   dev.CreatedAt,
+		UpdatedAt:   dev.UpdatedAt,
+	}
+	return ImportedProviderDevice{
+		ProviderDevice: cloneProviderDevice(providerDevice),
+		UserDevice:     userDevice,
+	}, nil
+}
+
 func (s *MemoryStore) ListProviderDevices(_ context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
