@@ -8,6 +8,10 @@ import { formatEtaMinutes, formatSoc, formatW, formatWhAndKWh } from '@/features
 import { getCapacityKWh } from '@/features/devices/capacity';
 import { getDeviceAssetMatch } from '@/features/devices/deviceIcon';
 import {
+  getDeviceVisualFallbackSource,
+  getDeviceVisualImageUri
+} from '@/features/devices/deviceVisuals';
+import {
   mergeDeviceDetailSolarPorts,
   resolveLiveBatteryHeatingOn,
   sumSolarPortWatts
@@ -18,8 +22,6 @@ import {
   type DetailSignalPillVM
 } from '@/features/device-detail/signalPills';
 import { solarPortView } from '@/features/device-detail/solarPort';
-import { getEcoFlowAsset, getEcoFlowDefaultSize } from '@/shared/assets/ecoflowAssets';
-import { getBundledDeviceFallback } from '@/shared/assets/deviceFallbacks';
 import { getStatusIconName } from '@/shared/ui/statusGlyph';
 import { isMutedMetric } from '@/shared/ui/uiMappings';
 import type { MetricTone, UiTone } from '@/shared/ui/uiMappings';
@@ -85,7 +87,7 @@ export type DeviceDetailViewModel = {
     uri?: string;
     icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   } | null;
-  detailFallback?: ReturnType<typeof getBundledDeviceFallback>;
+  detailFallback?: ReturnType<typeof getDeviceVisualFallbackSource>;
   capacityKWh: number | null;
   batterySummaryText?: string;
   isColdTemp: boolean;
@@ -188,14 +190,21 @@ export function useDeviceDetailViewModel({
     if (!match.slug) return null;
     return {
       slug: match.slug,
-      uri: useRemoteImage ? getEcoFlowAsset(match.slug, getEcoFlowDefaultSize('detail')) : undefined,
+      uri: useRemoteImage ? getDeviceVisualImageUri(match, 'detail') : undefined,
       icon: match.glyph.icon
     };
   }, [device?.model, device?.details?.bpCount, device?.capabilities, useRemoteImage]);
 
   const detailFallback = useMemo(
-    () => (deviceAsset?.slug ? getBundledDeviceFallback(deviceAsset.slug, '512') : undefined),
-    [deviceAsset?.slug]
+    () => {
+      const model = device?.model;
+      if (!model) return undefined;
+      const batteryCount =
+        device?.details?.bpCount ??
+        ((device?.capabilities as { batteryPacks?: number } | undefined)?.batteryPacks ?? 1);
+      return getDeviceVisualFallbackSource(getDeviceAssetMatch(model, { batteryCount }), '512');
+    },
+    [device?.model, device?.details?.bpCount, device?.capabilities]
   );
 
   const supportsEvCharging =

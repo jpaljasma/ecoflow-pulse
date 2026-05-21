@@ -91,6 +91,46 @@ function makeProviderDevice(): ProviderDevice {
   };
 }
 
+function makePecronProviderDevice(): ProviderDevice {
+  return {
+    id: 'pdev-pecron-1',
+    deviceId: '33333333-3333-7333-8333-333333333333',
+    provider: 'pecron',
+    providerDeviceId: 'p11vxg:redacted',
+    credentialId: 'cred-1',
+    canonicalSn: 'PECRON-P11VXG-REDACTED',
+    productName: 'Pecron E1000LFP',
+    model: 'E1000LFP',
+    isActive: true,
+    ingestDesiredState: 'active',
+    capabilities: {
+      battery_capacity_wh: 1024,
+      battery_pack_count: 1,
+      pv_input_count: 1,
+      pv_input_max_watts: 600,
+      pv_input_max_volts: 60,
+      pv_input_max_amps: 20,
+      supports_ac_output: true,
+      supports_dc_output: true,
+      supports_usb_output: true,
+      supports_ups_mode: true,
+      supports_battery_heating: true
+    },
+    metadata: {
+      provider: 'pecron',
+      field_names: [
+        'battery_percentage',
+        'host_packet_data_jdb.host_packet_voltage',
+        'host_packet_data_jdb.host_packet_current',
+        'dc_data_input_hm.dc_input_power',
+        'ac_switch_hm',
+        'dc_switch_hm',
+        'ups_status_hm'
+      ]
+    }
+  };
+}
+
 function makeControlPlaneClient(
   overrides: Partial<ControlPlaneClient> = {}
 ): ControlPlaneClient {
@@ -291,6 +331,76 @@ describe('device client', () => {
     expect(device?.details?.solarPorts?.[1]?.watts).toBe(0);
     expect(device?.pvW).toBe(0);
     expect(device?.netW).toBe(-101);
+  });
+
+  it('hydrates Pecron live MQTT readings into PV and battery-pack details', async () => {
+    const controlPlaneClient = makeControlPlaneClient({
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'pecron',
+          devices: [makePecronProviderDevice()]
+        }
+      ])
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '33333333-3333-7333-8333-333333333333',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'params.soc': 68,
+            'params.f32ShowSoc': 68,
+            'params.batVol': 52.5,
+            'params.batAmp': -0.8,
+            'params.temp': 22,
+            'params.wattsInSum': 184,
+            'params.pv1ChargeWatts': 184,
+            'params.outAcTtPwr': 50,
+            'params.wattsOutSum': 50,
+            'params.cfgAcEnabled': 1,
+            'params.dcOutState': 0,
+            'params.upsMode': 1
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [device] = await client.listDevices(makeRequest());
+
+    expect(device?.batteryPct).toBe(68);
+    expect(device?.pvW).toBe(184);
+    expect(device?.capabilities).toEqual(
+      expect.objectContaining({
+        batteryCapacityKWh: 1.024,
+        pvInputCount: 1
+      })
+    );
+    expect(device?.details?.packs?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'main',
+        socPct: 68,
+        powerW: -42,
+        tempC: 22,
+        energyWh: 1024
+      })
+    );
+    expect(device?.details?.solarPorts?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'pv-1',
+        watts: 184,
+        maxWatts: 600,
+        maxVolts: 60,
+        maxAmps: 20
+      })
+    );
+    expect(device?.details?.acOn).toBe(true);
+    expect(device?.details?.dcOn).toBe(false);
+    expect(device?.details?.solarChargingOn).toBe(true);
   });
 
   it('prefers aggregate device soc from quota-derived details over main-pack target soc', async () => {

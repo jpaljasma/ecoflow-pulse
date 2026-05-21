@@ -13,8 +13,10 @@ import { deriveTelemetryMetrics, deriveTelemetryState, deriveTelemetryEtaMinutes
 import {
   buildProviderDevicePresentation,
   deriveDeviceDetailsEtaMinutes,
+  type BatteryPackDetail,
   type DeviceCapabilities,
-  type DeviceTelemetryDetails
+  type DeviceTelemetryDetails,
+  type SolarPortDetail
 } from '../devices/providerDeviceMapper.js';
 import { deriveStormGuardState } from '../devices/stormGuardState.js';
 
@@ -55,6 +57,7 @@ export type AvailableDevicesResult = {
 };
 
 const providerMQTTValidationDeadlinePaddingMs = 12_000;
+const SNAPSHOT_PV_PORT_FIELD = /^params\.pv(\d+)(InVol|InAmp|ChargeWatts|InWatts|ChgState)$/;
 
 export interface DeviceClient {
   listDevices(request: FastifyRequest): Promise<DeviceSummary[]>;
@@ -225,13 +228,194 @@ function mergeSnapshotDetails(
   metrics: Record<string, number>
 ): DeviceTelemetryDetails | undefined {
   const snapshotStorm = deriveStormGuardFromSnapshotMetrics(metrics);
-  if (!snapshotStorm) {
+  const snapshotLive = deriveLiveDetailsFromSnapshotMetrics(metrics, details);
+  if (!snapshotStorm && !snapshotLive) {
     return details;
   }
   return {
     ...(details ?? {}),
+    ...(snapshotLive ?? {}),
     ...snapshotStorm
   };
+}
+
+function deriveLiveDetailsFromSnapshotMetrics(
+  metrics: Record<string, number>,
+  details: DeviceTelemetryDetails | undefined
+): DeviceTelemetryDetails | undefined {
+  const next: DeviceTelemetryDetails = {};
+  const overallSocPct = firstDefinedNumber(
+    metrics['params.f32LcdShowSoc'],
+    metrics['params.lcdShowSoc'],
+    metrics['params.f32ShowSoc'],
+    metrics['params.soc']
+  );
+  if (overallSocPct !== undefined && details?.overallSocPct === undefined) {
+    next.overallSocPct = overallSocPct;
+  }
+
+  const livePack = deriveLiveBatteryPack(metrics, details?.packs);
+  if (livePack) {
+    next.packs = mergeLiveBatteryPack(details?.packs, livePack);
+  }
+
+  const liveSolarPorts = deriveLiveSolarPorts(metrics, details?.solarPorts);
+  if (liveSolarPorts && liveSolarPorts.length > 0) {
+    next.solarPorts = liveSolarPorts;
+    next.solarChargingOn = liveSolarPorts.some((port) => port.state === 'charging' || (port.watts ?? 0) > 1);
+  }
+
+  assignDefinedBool(next, 'acOn', toBooleanMetric(firstDefinedNumber(metrics['params.cfgAcEnabled'])));
+  const dcOn = toBooleanMetric(firstDefinedNumber(metrics['params.dcOutState']));
+  assignDefinedBool(next, 'dcOn', dcOn);
+  assignDefinedBool(next, 'dc12vOn', dcOn);
+  assignDefinedBool(next, 'batteryHeatingOn', toBooleanMetric(firstDefinedNumber(metrics['params.batteryHeatingOn'])));
+
+  const remainGlobalMin = firstDefinedNumber(metrics['params.remainTime']);
+  const remainChargeMin = firstDefinedNumber(metrics['params.chgRemainTime']);
+  const remainDischargeMin = firstDefinedNumber(metrics['params.dsgRemainTime']);
+  if (remainGlobalMin !== undefined) {
+    next.remainGlobalMin = remainGlobalMin;
+  }
+  if (remainChargeMin !== undefined) {
+    next.remainChargeMin = remainChargeMin;
+  }
+  if (remainDischargeMin !== undefined) {
+    next.remainDischargeMin = remainDischargeMin;
+  }
+
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function deriveLiveBatteryPack(
+  metrics: Record<string, number>,
+  staticPacks: BatteryPackDetail[] | undefined
+): BatteryPackDetail | undefined {
+  const socPct = firstDefinedNumber(
+    metrics['params.f32LcdShowSoc'],
+    metrics['params.lcdShowSoc'],
+    metrics['params.f32ShowSoc'],
+    metrics['params.soc']
+  );
+  const batVol = firstDefinedNumber(metrics['params.batVol']);
+  const batAmp = firstDefinedNumber(metrics['params.batAmp']);
+  const powerW = batVol !== undefined && batAmp !== undefined ? batVol * batAmp : undefined;
+  const tempC = firstDefinedNumber(metrics['params.temp']);
+  const remainMinutes = firstDefinedNumber(metrics['params.remainTime']);
+  if (socPct === undefined && powerW === undefined && tempC === undefined && remainMinutes === undefined) {
+    return undefined;
+  }
+  const base = staticPacks?.find((pack) => pack.id === 'main') ?? staticPacks?.[0] ?? { id: 'main' };
+  return {
+    ...base,
+    ...(socPct !== undefined ? { socPct } : {}),
+    ...(powerW !== undefined ? { powerW } : {}),
+    ...(tempC !== undefined ? { tempC } : {}),
+    ...(remainMinutes !== undefined ? { remainMinutes } : {})
+  };
+}
+
+function mergeLiveBatteryPack(
+  staticPacks: BatteryPackDetail[] | undefined,
+  livePack: BatteryPackDetail
+): BatteryPackDetail[] {
+  if (!staticPacks || staticPacks.length === 0) {
+    return [livePack];
+  }
+  let merged = false;
+  const packs = staticPacks.map((pack, index) => {
+    if (pack.id === livePack.id || (!merged && index === 0)) {
+      merged = true;
+      return { ...pack, ...livePack };
+    }
+    return pack;
+  });
+  return merged ? packs : [livePack, ...packs];
+}
+
+function deriveLiveSolarPorts(
+  metrics: Record<string, number>,
+  staticPorts: SolarPortDetail[] | undefined
+): SolarPortDetail[] | undefined {
+  const indexes = collectSnapshotPVPortIndexes(metrics);
+  if (indexes.length === 0) {
+    return undefined;
+  }
+  const livePorts = indexes.map((index) => {
+    const prefix = `params.pv${index}`;
+    const volts = firstDefinedNumber(metrics[`${prefix}InVol`]);
+    const amps = firstDefinedNumber(metrics[`${prefix}InAmp`]);
+    const watts = firstDefinedNumber(metrics[`${prefix}ChargeWatts`], metrics[`${prefix}InWatts`]);
+    const rawState = firstDefinedNumber(metrics[`${prefix}ChgState`]);
+    return {
+      id: `pv-${index}`,
+      name: `PV ${index}`,
+      state: deriveSnapshotSolarPortState(rawState, volts, watts, amps),
+      ...(volts !== undefined ? { volts } : {}),
+      ...(amps !== undefined ? { amps } : {}),
+      ...(watts !== undefined ? { watts } : {})
+    };
+  });
+
+  if (!staticPorts || staticPorts.length === 0) {
+    return livePorts;
+  }
+  const liveByID = new Map(livePorts.map((port) => [port.id, port]));
+  const merged = staticPorts.map((port) => ({ ...port, ...(liveByID.get(port.id) ?? {}) }));
+  const staticIDs = new Set(staticPorts.map((port) => port.id));
+  for (const port of livePorts) {
+    if (!staticIDs.has(port.id)) {
+      merged.push(port);
+    }
+  }
+  return merged;
+}
+
+function collectSnapshotPVPortIndexes(metrics: Record<string, number>): number[] {
+  const indexes = new Set<number>();
+  for (const [key, value] of Object.entries(metrics)) {
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    const matches = SNAPSHOT_PV_PORT_FIELD.exec(key);
+    if (!matches) {
+      continue;
+    }
+    const index = Number(matches[1]);
+    if (Number.isInteger(index) && index > 0) {
+      indexes.add(index);
+    }
+  }
+  return [...indexes].sort((left, right) => left - right);
+}
+
+function deriveSnapshotSolarPortState(
+  rawState: number | undefined,
+  volts: number | undefined,
+  watts: number | undefined,
+  amps: number | undefined
+): string {
+  if ((watts ?? 0) > 1 || (amps ?? 0) > 0.03) {
+    return 'charging';
+  }
+  if (volts !== undefined && volts <= 0.1) {
+    return 'inactive';
+  }
+  if (rawState !== undefined) {
+    if (rawState >= 2) return 'charging';
+    if (rawState === 1) return 'locked';
+  }
+  return 'idle';
+}
+
+function assignDefinedBool(
+  details: DeviceTelemetryDetails,
+  key: 'acOn' | 'dcOn' | 'dc12vOn' | 'batteryHeatingOn',
+  value: boolean | undefined
+): void {
+  if (value !== undefined) {
+    details[key] = value;
+  }
 }
 
 function deriveStormGuardFromSnapshotMetrics(

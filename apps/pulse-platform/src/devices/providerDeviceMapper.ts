@@ -95,6 +95,7 @@ function buildCapabilities(device: ProviderDevice): DeviceCapabilities {
   const modelLower = device.model.toLowerCase();
   const batteryPacks = toPositiveNumber(raw.battery_pack_count) ?? deriveBatteryPacksFromMetadata(device.metadata);
   const pvInputCount = toPositiveNumber(raw.pv_input_count) ?? derivePVInputCountFromMetadata(device.metadata);
+  const batteryCapacityWh = toPositiveNumber(raw.battery_capacity_wh);
 
   const out: DeviceCapabilities = {
     ...raw
@@ -106,10 +107,18 @@ function buildCapabilities(device: ProviderDevice): DeviceCapabilities {
     out.pvInputCount = pvInputCount;
   }
 
-  const batteryCapacityKWh = deriveBatteryCapacityKWh(modelLower, batteryPacks);
+  const batteryCapacityKWh =
+    batteryCapacityWh !== undefined ? batteryCapacityWh / 1000 : deriveBatteryCapacityKWh(modelLower, batteryPacks);
   if (batteryCapacityKWh !== undefined) {
     out.batteryCapacityKWh = batteryCapacityKWh;
   }
+  assignPositiveCapability(out, 'pvInputMaxWatts', raw.pv_input_max_watts);
+  assignPositiveCapability(out, 'pvInputMaxVolts', raw.pv_input_max_volts);
+  assignPositiveCapability(out, 'pvInputMaxAmps', raw.pv_input_max_amps);
+  assignPositiveCapability(out, 'acInputMaxWatts', raw.ac_input_max_watts);
+  assignPositiveCapability(out, 'acOutputRatedWatts', raw.ac_output_rated_watts);
+  assignPositiveCapability(out, 'acOutputPeakWatts', raw.ac_output_peak_watts);
+  assignPositiveCapability(out, 'carInputMaxWatts', raw.car_input_max_watts);
 
   // UI aliases. Keep them conservative so a field match in quota metadata does not
   // overclaim support for a product that does not expose the feature to users.
@@ -133,6 +142,21 @@ function buildCapabilities(device: ProviderDevice): DeviceCapabilities {
   }
   if (toBoolean(raw.supports_extra_battery)) {
     out.extraBattery = true;
+  }
+  if (toBoolean(raw.supports_ups_mode)) {
+    out.upsMode = true;
+  }
+  if (toBoolean(raw.supports_battery_heating)) {
+    out.batteryHeating = true;
+  }
+  if (toBoolean(raw.supports_app_control)) {
+    out.appControl = true;
+  }
+  if (toBoolean(raw.supports_wifi)) {
+    out.wifiControl = true;
+  }
+  if (toBoolean(raw.supports_bluetooth)) {
+    out.bluetoothControl = true;
   }
 
   return out;
@@ -169,7 +193,51 @@ function buildDetails(device: ProviderDevice, capabilities: DeviceCapabilities):
     return { ...details, ...d2 };
   }
 
+  if (
+    modelLower.includes('e1000lfp') ||
+    modelLower.includes('e1000') ||
+    (device.provider === 'pecron' && toPositiveNumber(capabilities.battery_capacity_wh) === 1024)
+  ) {
+    const pecronDetails = buildPecronDetails(capabilities);
+    return { ...details, ...pecronDetails };
+  }
+
   return details;
+}
+
+function buildPecronDetails(capabilities: DeviceCapabilities): DeviceTelemetryDetails {
+  const capacityWh = toPositiveNumber(capabilities.battery_capacity_wh);
+  const bpCount = toPositiveNumber(capabilities.batteryPacks) ?? toPositiveNumber(capabilities.battery_pack_count) ?? 1;
+  const pvInputCount = toPositiveNumber(capabilities.pvInputCount) ?? toPositiveNumber(capabilities.pv_input_count) ?? 0;
+  const pvLimits = {
+    maxWatts: toPositiveNumber(capabilities.pvInputMaxWatts) ?? toPositiveNumber(capabilities.pv_input_max_watts) ?? 600,
+    maxVolts: toPositiveNumber(capabilities.pvInputMaxVolts) ?? toPositiveNumber(capabilities.pv_input_max_volts) ?? 60,
+    maxAmps: toPositiveNumber(capabilities.pvInputMaxAmps) ?? toPositiveNumber(capabilities.pv_input_max_amps) ?? 20
+  };
+  const packs =
+    capacityWh !== undefined
+      ? [
+          {
+            id: 'main',
+            energyWh: capacityWh
+          }
+        ]
+      : undefined;
+  const solarPorts = Array.from({ length: pvInputCount }, (_, index) =>
+    makeSolarPort({
+      id: `pv-${index + 1}`,
+      name: `PV ${index + 1}`,
+      maxWatts: pvLimits.maxWatts,
+      maxVolts: pvLimits.maxVolts,
+      maxAmps: pvLimits.maxAmps
+    })
+  );
+
+  return {
+    bpCount,
+    ...(packs ? { packs } : {}),
+    ...(solarPorts.length > 0 ? { solarPorts } : {})
+  };
 }
 
 function buildDpuDetails(
@@ -741,7 +809,7 @@ function deriveSolarState(
   watts: number | undefined,
   amps: number | undefined
 ): string {
-  if ((volts ?? 0) <= 0.1) {
+  if (volts !== undefined && volts <= 0.1 && (watts ?? 0) <= 1) {
     return 'inactive';
   }
   if ((amps ?? 0) <= 0.03 && (watts ?? 0) <= 1) {
@@ -1139,6 +1207,13 @@ function toNumber(value: unknown): number | undefined {
 function toPositiveNumber(value: unknown): number | undefined {
   const parsed = toNumber(value);
   return parsed !== undefined && parsed > 0 ? parsed : undefined;
+}
+
+function assignPositiveCapability(out: DeviceCapabilities, key: string, value: unknown): void {
+  const parsed = toPositiveNumber(value);
+  if (parsed !== undefined) {
+    out[key] = parsed;
+  }
 }
 
 function toBoolean(value: unknown): boolean {

@@ -362,15 +362,13 @@ func mapPecronDevice(device pecron.Device, credentialID string, region pecron.Re
 	if productName == "" {
 		productName = "Pecron " + strings.ToUpper(ref.ProductKey)
 	}
-	capabilities := map[string]any{
-		"read_only": true,
-	}
-	if strings.EqualFold(ref.ProductKey, pecron.ProductKeyE1000LFP) || strings.Contains(strings.ToUpper(model), "E1000") {
-		capabilities["battery_capacity_wh"] = 1024
-		capabilities["battery_pack_count"] = 1
-		capabilities["supports_ac_output"] = true
-		capabilities["supports_dc_output"] = true
-	}
+	capabilities := pecron.StaticCapabilities(pecron.Device{
+		ProductKey:  ref.ProductKey,
+		DeviceKey:   ref.DeviceKey,
+		ProductName: model,
+		DeviceName:  productName,
+	})
+	capabilities["read_only"] = true
 	return controlplane.ProviderDevice{
 		Provider:         controlplane.ProviderPecron,
 		ProviderDeviceID: providerDeviceID,

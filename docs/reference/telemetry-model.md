@@ -171,6 +171,10 @@ small live-detail envelope from the merged raw snapshot:
   Canonical port IDs must support both of the current EcoFlow field families:
   - numbered MPPT families as `pv-1`, `pv-2`, ..., `pv-N`,
   - dual-MPPT low/high families as `pv-low` and `pv-high`.
+  Pecron E1000LFP uses the same numbered shape; its generic cloud
+  `dc_input_power` field is decoded at the Pecron boundary as `pv-1` live watts,
+  with static product limits attached as device capability/detail metadata when
+  those limits are not reported in MQTT or REST snapshots.
   Do not assume a fixed count of two PV ports in the live detail, history, or
   Energy API paths; supported devices may expose one, two, or more numbered PV
   inputs.

@@ -21,7 +21,7 @@ func TestNormalizeE1000LFPTelemetryMapsCloudKVToCanonicalParams(t *testing.T) {
 		"host_packet_data_jdb":  map[string]any{"host_packet_voltage": 51.8, "host_packet_current": -1.7, "host_packet_temp": 28},
 		"ac_data_input_hm":      map[string]any{"ac_input_power": 0},
 		"ac_data_output_hm":     map[string]any{"ac_output_power": 88, "ac_output_voltage": 120.1},
-		"dc_data_input_hm":      map[string]any{"gx16mf1_input_voltage": 31.2, "gx16mf1_input_current": 5.9, "gx16mf1_input_power": 184},
+		"dc_data_input_hm":      map[string]any{"dc_input_power": 184, "gx16mf1_input_voltage": 31.2, "gx16mf1_input_current": 5.9},
 		"dc_data_output_hm":     map[string]any{"dc_output_power": 4},
 		"device_status_hm":      1,
 		"high_frequency_ignore": "left alone",
@@ -56,6 +56,18 @@ func TestNormalizeE1000LFPTelemetryMapsCloudKVToCanonicalParams(t *testing.T) {
 	}
 	if got := out.Capabilities["battery_capacity_wh"]; got != 1024 {
 		t.Fatalf("battery_capacity_wh = %#v, want 1024", got)
+	}
+	if got := out.Capabilities["pv_input_max_watts"]; got != 600 {
+		t.Fatalf("pv_input_max_watts = %#v, want 600", got)
+	}
+	if got := out.Capabilities["pv_input_max_volts"]; got != 60 {
+		t.Fatalf("pv_input_max_volts = %#v, want 60", got)
+	}
+	if got := out.Capabilities["pv_input_max_amps"]; got != 20 {
+		t.Fatalf("pv_input_max_amps = %#v, want 20", got)
+	}
+	if got := out.Capabilities["supports_battery_heating"]; got != true {
+		t.Fatalf("supports_battery_heating = %#v, want true", got)
 	}
 	if got := out.Metadata["product_key"]; got != ProductKeyE1000LFP {
 		t.Fatalf("product_key metadata = %#v", got)

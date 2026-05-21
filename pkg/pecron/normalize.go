@@ -67,23 +67,12 @@ func preserveExistingValue(path string, existing any, next any) bool {
 func NormalizeTelemetry(device Device, kv map[string]any) NormalizedTelemetry {
 	ref := DeviceRefFromDevice(device)
 	params := map[string]any{}
-	capabilities := map[string]any{}
+	capabilities := StaticCapabilities(device)
 	metadata := map[string]any{
 		"provider":          "pecron",
 		"product_key":       ref.ProductKey,
 		"device_key_suffix": suffix(ref.DeviceKey, 6),
 		"field_names":       sortedFieldPaths(kv),
-	}
-	model := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(device.ProductName), " ", ""))
-	if model == "" {
-		model = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(device.DeviceName), " ", ""))
-	}
-	if ref.ProductKey == ProductKeyE1000LFP || strings.Contains(model, "E1000") {
-		capabilities["battery_capacity_wh"] = 1024
-		capabilities["battery_pack_count"] = 1
-		capabilities["supports_ac_output"] = true
-		capabilities["supports_dc_output"] = true
-		capabilities["supports_ups_mode"] = true
 	}
 
 	copyNumber(params, "soc", firstNumber(kv, "host_packet_data_jdb.host_packet_electric_percentage", "battery_percentage"))
@@ -119,6 +108,47 @@ func NormalizeTelemetry(device Device, kv map[string]any) NormalizedTelemetry {
 	}
 }
 
+func StaticCapabilities(device Device) map[string]any {
+	if !isE1000LFP(device) {
+		return map[string]any{}
+	}
+	return map[string]any{
+		"battery_capacity_wh":       1024,
+		"battery_pack_count":        1,
+		"pv_input_count":            1,
+		"pv_input_connector":        "XT60",
+		"pv_input_max_watts":        600,
+		"pv_input_max_volts":        60,
+		"pv_input_max_amps":         20,
+		"car_input_max_watts":       100,
+		"ac_input_max_watts":        1000,
+		"ac_output_rated_watts":     1800,
+		"ac_output_peak_watts":      3000,
+		"dc_output_max_amps":        20,
+		"dc_output_nominal_volts":   12,
+		"usb_c_output_max_watts":    100,
+		"expandable_battery_max_wh": 4864,
+		"supports_ac_output":        true,
+		"supports_dc_output":        true,
+		"supports_usb_output":       true,
+		"supports_ups_mode":         true,
+		"supports_app_control":      true,
+		"supports_wifi":             true,
+		"supports_bluetooth":        true,
+		"supports_battery_heating":  true,
+		"supports_extra_battery":    true,
+	}
+}
+
+func isE1000LFP(device Device) bool {
+	ref := DeviceRefFromDevice(device)
+	model := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(device.ProductName), " ", ""))
+	if model == "" {
+		model = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(device.DeviceName), " ", ""))
+	}
+	return strings.EqualFold(ref.ProductKey, ProductKeyE1000LFP) || strings.Contains(model, "E1000")
+}
+
 func sortedFieldPaths(values map[string]any) []any {
 	if len(values) == 0 {
 		return nil
@@ -148,6 +178,21 @@ func collectFieldPaths(prefix string, values map[string]any, out *[]string) {
 }
 
 func addPecronPVPorts(params map[string]any, kv map[string]any) int {
+	if hasAnyPath(kv, "dc_data_input_hm.dc_input_power", "dc_data_input_hm.dc_input_voltage", "dc_data_input_hm.dc_input_current") {
+		watts := firstNumber(kv, "dc_data_input_hm.dc_input_power")
+		volts := firstNumber(kv, "dc_data_input_hm.dc_input_voltage", "dc_data_input_hm.gx16mf1_input_voltage", "dc_data_input_hm.dc5521_input_voltage")
+		amps := firstNumber(kv, "dc_data_input_hm.dc_input_current", "dc_data_input_hm.gx16mf1_input_current", "dc_data_input_hm.dc5521_input_current")
+		copyNumber(params, "pv1ChargeWatts", watts)
+		copyNumber(params, "pv1InWatts", watts)
+		copyNumber(params, "pv1InVol", volts)
+		copyNumber(params, "pv1InAmp", amps)
+		if asFloat(watts) > 1 {
+			params["pv1ChgState"] = float64(2)
+		} else {
+			params["pv1ChgState"] = float64(0)
+		}
+		return 1
+	}
 	candidates := []struct {
 		prefix string
 		vol    string
@@ -179,6 +224,15 @@ func addPecronPVPorts(params map[string]any, kv map[string]any) int {
 		}
 	}
 	return count
+}
+
+func hasAnyPath(root map[string]any, paths ...string) bool {
+	for _, path := range paths {
+		if _, ok := lookupPath(root, path); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func copyNumber(dst map[string]any, key string, value any) {
