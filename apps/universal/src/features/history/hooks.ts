@@ -76,13 +76,37 @@ function buildPowerTrendKey(): string {
   return buildPowerTrendBounds().queryTo.toISOString().slice(0, 16);
 }
 
-function buildStableKey(parts: unknown[]): string {
-  return parts
-    .map((part) => {
-      if (Array.isArray(part)) return part.join(',');
-      return String(part ?? 'null');
-    })
-    .join('|');
+type StableHistoryQuery<T> = {
+  data: T | undefined;
+  isFetching: boolean;
+  isError: boolean;
+  isPlaceholderData: boolean;
+  isSuccess: boolean;
+};
+
+function buildStableKey(parts: readonly unknown[]): string {
+  return JSON.stringify(parts);
+}
+
+function useStableHistoryQuery<T, Query extends StableHistoryQuery<T>>(
+  query: Query,
+  queryKey: readonly unknown[],
+  isUsable: (data: T) => boolean
+): Query & { data: T | undefined } {
+  const stableData = useStableChartData({
+    data: query.data,
+    stableKey: buildStableKey(queryKey),
+    isFetching: query.isFetching,
+    isError: query.isError,
+    isPlaceholderData: query.isPlaceholderData,
+    isSuccess: query.isSuccess,
+    isUsable
+  });
+
+  return {
+    ...query,
+    data: stableData
+  };
 }
 
 function isUsableSolarHistoryView(view: SolarHistoryView): boolean {
@@ -113,14 +137,14 @@ export function useDeviceSolarHistory(
   const dayKey = useSolarHistoryDayKey();
 
   const queryKey = [
-      'device-solar-history',
-      deviceId,
-      dayKey,
-      authKey,
-      maxSolarWatts ?? null,
-      window.startMinutes,
-      window.endMinutes
-    ] as const;
+    'device-solar-history',
+    deviceId,
+    dayKey,
+    authKey,
+    maxSolarWatts ?? null,
+    window.startMinutes,
+    window.endMinutes
+  ] as const;
   const query = useQuery<SolarHistoryView>({
     queryKey,
     enabled: enabled && Boolean(deviceId),
@@ -150,20 +174,7 @@ export function useDeviceSolarHistory(
     placeholderData: (previous) => previous
   });
 
-  const stableData = useStableChartData({
-    data: query.data,
-    stableKey: buildStableKey([...queryKey]),
-    isFetching: query.isFetching,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    isSuccess: query.isSuccess,
-    isUsable: isUsableSolarHistoryView
-  });
-
-  return {
-    ...query,
-    data: stableData
-  };
+  return useStableHistoryQuery(query, queryKey, isUsableSolarHistoryView);
 }
 
 export function useFleetSolarHistory(
@@ -184,14 +195,14 @@ export function useFleetSolarHistory(
   );
 
   const queryKey = [
-      'fleet-solar-history',
-      sortedIds,
-      dayKey,
-      authKey,
-      maxSolarKey,
-      window.startMinutes,
-      window.endMinutes
-    ] as const;
+    'fleet-solar-history',
+    sortedIds,
+    dayKey,
+    authKey,
+    maxSolarKey,
+    window.startMinutes,
+    window.endMinutes
+  ] as const;
   const query = useQuery<SolarHistoryView>({
     queryKey,
     enabled: enabled && sortedIds.length > 0,
@@ -221,20 +232,7 @@ export function useFleetSolarHistory(
     placeholderData: (previous) => previous
   });
 
-  const stableData = useStableChartData({
-    data: query.data,
-    stableKey: buildStableKey([...queryKey]),
-    isFetching: query.isFetching,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    isSuccess: query.isSuccess,
-    isUsable: isUsableSolarHistoryView
-  });
-
-  return {
-    ...query,
-    data: stableData
-  };
+  return useStableHistoryQuery(query, queryKey, isUsableSolarHistoryView);
 }
 
 export function useDevicePowerTrendHistory(
@@ -271,20 +269,7 @@ export function useDevicePowerTrendHistory(
     placeholderData: (previous) => previous
   });
 
-  const stableData = useStableChartData({
-    data: query.data,
-    stableKey: buildStableKey([...queryKey]),
-    isFetching: query.isFetching,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    isSuccess: query.isSuccess,
-    isUsable: isUsablePowerTrendView
-  });
-
-  return {
-    ...query,
-    data: stableData
-  };
+  return useStableHistoryQuery(query, queryKey, isUsablePowerTrendView);
 }
 
 export function useFleetPowerTrendHistory(
@@ -337,18 +322,10 @@ export function useFleetPowerTrendHistory(
     placeholderData: (previous) => previous
   });
 
-  const stableData = useStableChartData({
-    data: query.data,
-    stableKey: buildStableKey([...queryKey]),
-    isFetching: query.isFetching,
-    isError: query.isError,
-    isPlaceholderData: query.isPlaceholderData,
-    isSuccess: query.isSuccess,
-    isUsable: isUsablePowerTrendView
-  });
+  const stableQuery = useStableHistoryQuery(query, queryKey, isUsablePowerTrendView);
 
   return {
-    ...query,
-    data: stableData ?? query.data ?? emptyPowerTrendView()
+    ...stableQuery,
+    data: stableQuery.data ?? emptyPowerTrendView()
   };
 }

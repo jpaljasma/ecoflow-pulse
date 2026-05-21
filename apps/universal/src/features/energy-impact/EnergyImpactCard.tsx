@@ -113,7 +113,7 @@ export function EnergyImpactCard({
         </XStack>
 
         <YStack gap="$1">
-          <Text fontSize="$8" fontWeight="800" letterSpacing={-0.7}>
+          <Text fontSize="$8" fontWeight="800" letterSpacing={0}>
             {hasSolarWh ? (energyRows[0]?.detail.split(' CO2e')[0] ?? '0 g') : '—'}
           </Text>
           <Text fontSize="$2" style={{ color: semantics.subtleStrongText }}>

@@ -73,6 +73,9 @@ console, not a sparse landing page.
   space; load them as soon as they are even partially visible, lazy-load only
   truly offscreen panels, and preserve the last useful chart payload during
   refetches instead of clearing to an empty chart.
+- Rolling live-power charts should repair short all-zero holes between valid
+  non-zero samples as ingest gaps, while preserving leading, trailing, and
+  longer idle zero windows.
 - Complementary operational widgets can sit side by side at `50/50` on
   desktop/tablet with matched card height, and stack on phones. Remove redundant
   telemetry summaries when the same signal is already present in primary tiles.

@@ -1,9 +1,7 @@
 import {
   FlatList,
   Platform,
-  View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent
+  View
 } from 'react-native';
 import { YStack } from 'tamagui';
 import {
@@ -29,21 +27,18 @@ export const DeviceList = forwardRef<DeviceListHandle, {
   devices: DeviceSummary[];
   connectionStatus: TelemetryEngineStatus;
   highlightedDeviceId?: string;
-  onAnalyticsReady?: () => void;
   header?: ReactElement;
   footer?: ReactElement;
 }>(function DeviceList({
   devices,
   connectionStatus,
   highlightedDeviceId,
-  onAnalyticsReady,
   header,
   footer
 }: {
   devices: DeviceSummary[];
   connectionStatus: TelemetryEngineStatus;
   highlightedDeviceId?: string;
-  onAnalyticsReady?: () => void;
   header?: ReactElement;
   footer?: ReactElement;
 }, ref) {
@@ -89,14 +84,6 @@ export const DeviceList = forwardRef<DeviceListHandle, {
     ),
     [connectionStatus, highlightedDeviceId, solarHistoryDeviceIds]
   );
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (event.nativeEvent.contentOffset.y > 24) {
-        onAnalyticsReady?.();
-      }
-    },
-    [onAnalyticsReady]
-  );
 
   useImperativeHandle(
     ref,
@@ -138,8 +125,6 @@ export const DeviceList = forwardRef<DeviceListHandle, {
       maxToRenderPerBatch={10}
       windowSize={7}
       updateCellsBatchingPeriod={50}
-      scrollEventThrottle={120}
-      onScroll={handleScroll}
       viewabilityConfig={viewabilityConfig}
       onViewableItemsChanged={onViewableItemsChanged}
       onScrollToIndexFailed={({ index }) => {

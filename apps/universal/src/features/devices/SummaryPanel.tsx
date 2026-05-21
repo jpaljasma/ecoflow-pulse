@@ -145,7 +145,7 @@ function FleetOverviewTile({
           <MaterialCommunityIcons name={icon} size={16} color={accent} />
         </YStack>
       </XStack>
-      <Text fontSize="$6" fontWeight="800" letterSpacing={-0.3}>
+      <Text fontSize="$6" fontWeight="800" letterSpacing={0}>
         {value}
       </Text>
       <Text fontSize="$2" numberOfLines={2} style={{ color: semantics.subtleText }}>
@@ -311,38 +311,45 @@ function FleetTypeChip({
   );
 }
 
-function AnalyticsPlaceholder({ isTabletUp }: { isTabletUp: boolean }) {
+function ChartSkeleton({ minHeight = 210 }: { minHeight?: number }) {
   const semantics = useThemeSemantics();
-  const lineStyle = {
-    backgroundColor: semantics.tileBackground,
-    borderColor: semantics.tileBorder
-  };
-  const chartSkeleton = (
-    <YStack height={210} borderRadius="$4" borderWidth={1} style={lineStyle} />
-  );
 
+  return (
+    <YStack
+      minHeight={minHeight}
+      borderRadius="$4"
+      borderWidth={1}
+      style={{
+        backgroundColor: semantics.tileBackground,
+        borderColor: semantics.tileBorder
+      }}
+    />
+  );
+}
+
+function AnalyticsPlaceholder({ isTabletUp }: { isTabletUp: boolean }) {
   return (
     <YStack testID="devices-analytics-placeholder" gap="$3">
       <ChartSection title="Solar Generation" subtitle="Today against yesterday">
-        {chartSkeleton}
+        <ChartSkeleton />
       </ChartSection>
       {isTabletUp ? (
         <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
           <YStack flex={1} minWidth={0} alignSelf="stretch">
             <ChartSection title="Live Power Profile" subtitle="Fleet load against supply" fill>
-              <YStack height={210} borderRadius="$4" borderWidth={1} style={lineStyle} />
+              <ChartSkeleton />
             </ChartSection>
           </YStack>
           <YStack flex={1} minWidth={0} alignSelf="stretch">
-            <Card minHeight={280} style={lineStyle} />
+            <ChartSkeleton minHeight={280} />
           </YStack>
         </XStack>
       ) : (
         <YStack gap="$3">
           <ChartSection title="Live Power Profile" subtitle="Fleet load against supply">
-            <YStack height={210} borderRadius="$4" borderWidth={1} style={lineStyle} />
+            <ChartSkeleton />
           </ChartSection>
-          <Card minHeight={280} style={lineStyle} />
+          <ChartSkeleton minHeight={280} />
         </YStack>
       )}
     </YStack>
@@ -351,7 +358,9 @@ function AnalyticsPlaceholder({ isTabletUp }: { isTabletUp: boolean }) {
 
 function usePartiallyVisibleAnalyticsPanel() {
   const panelRef = useRef<View | null>(null);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(
+    () => Platform.OS !== 'web' || typeof IntersectionObserver === 'undefined'
+  );
 
   useEffect(() => {
     if (visible || Platform.OS !== 'web' || typeof IntersectionObserver === 'undefined') {
@@ -383,19 +392,17 @@ function usePartiallyVisibleAnalyticsPanel() {
 
 export function SummaryPanel({
   devices,
-  onAllDevicesPress,
-  analyticsEnabled = false
+  onAllDevicesPress
 }: {
   devices: DeviceSummary[];
   onAllDevicesPress?: () => void;
-  analyticsEnabled?: boolean;
 }) {
   const semantics = useThemeSemantics();
   const { contentWidth } = useNavigationShellMetrics();
   const isTabletUp = contentWidth >= 768;
   const isPhone = contentWidth < 640;
   const { panelRef: analyticsPanelRef, visible: analyticsPanelVisible } = usePartiallyVisibleAnalyticsPanel();
-  const analyticsShouldLoad = analyticsEnabled || analyticsPanelVisible;
+  const analyticsShouldLoad = analyticsPanelVisible;
   const useRemoteImage = Boolean(env.assetBaseUrl);
   const deviceIds = devices.map((device) => device.id);
   const byId = useTelemetrySnapshotsByIds(deviceIds);
@@ -615,7 +622,7 @@ export function SummaryPanel({
               </Text>
               <Text
                 fontWeight="800"
-                letterSpacing={-1.1}
+                letterSpacing={0}
                 style={{ fontSize: isTabletUp ? 56 : 42, lineHeight: isTabletUp ? 60 : 46 }}
               >
                 {formatWhAndKWh(fleetSolarHistoryView?.todayWh)}

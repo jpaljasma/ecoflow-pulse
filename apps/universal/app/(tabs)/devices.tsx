@@ -27,7 +27,6 @@ export default function DevicesScreen() {
   const deviceListRef = useRef<DeviceListHandle>(null);
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedDeviceId, setHighlightedDeviceId] = useState<string | undefined>();
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
   const { authConfigured, authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const devicesQuery = useDevices({
@@ -123,15 +122,11 @@ export default function DevicesScreen() {
             devices={devicesQuery.data.devices}
             connectionStatus={connectionStatus}
             highlightedDeviceId={highlightedDeviceId}
-            onAnalyticsReady={() => {
-              setAnalyticsEnabled(true);
-            }}
             header={(
               <YStack marginTop={10} marginBottom="$3" gap="$3">
                 {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} compact={compactStormGuard} /> : null}
                 <SummaryPanel
                   devices={devicesQuery.data.devices}
-                  analyticsEnabled={analyticsEnabled}
                   onAllDevicesPress={() => {
                     deviceListRef.current?.scrollToDevices();
                   }}
