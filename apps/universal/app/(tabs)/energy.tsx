@@ -1,5 +1,5 @@
 import { startTransition, useMemo, useState, type ComponentProps } from 'react';
-import { Animated, Platform, ScrollView, type DimensionValue } from 'react-native';
+import { Animated, Platform, ScrollView, View, type DimensionValue } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
@@ -53,6 +53,7 @@ import { Stat } from '@/shared/ui/Stat';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { TopBar } from '@/shared/ui/TopBar';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
 function formatPercent(value: number | null | undefined): string {
@@ -224,6 +225,7 @@ export default function EnergyScreen() {
   const params = useLocalSearchParams();
   const semantics = useThemeSemantics();
   const { contentWidth: width } = useNavigationShellMetrics();
+  const { ref: pvEnvelopeSectionRef, shouldLoad: pvEnvelopeShouldLoad } = useLazySectionLoad({ rootMargin: '360px' });
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const gridPricePerKwhInput = useEnergySettingsStore((state) => state.gridPricePerKwh);
@@ -304,7 +306,7 @@ export default function EnergyScreen() {
     },
     {
       authKey,
-      enabled: authReady && allowed && dashboardQuery.isSuccess
+      enabled: authReady && allowed && dashboardQuery.isSuccess && pvEnvelopeShouldLoad
     }
   );
   const comparisonInsightQuery = useEnergyComparisonInsight(
@@ -359,6 +361,7 @@ export default function EnergyScreen() {
     [devices, routeState.deviceId, routeState.scope]
   );
   const pvHistoryRows = pvHistoryQuery.data ?? dashboardQuery.data?.pvPortHistory ?? [];
+  const pvHistoryLoading = pvEnvelopeShouldLoad && pvHistoryQuery.isLoading;
   const insights = useMemo(
     () => buildEnergyInsights(dashboardQuery.data?.currentPowerPoints ?? [], routeState.timezone, routeState.preset, pvEnvelope.rows),
     [dashboardQuery.data?.currentPowerPoints, pvEnvelope.rows, routeState.preset, routeState.timezone]
@@ -851,7 +854,9 @@ export default function EnergyScreen() {
               ) : (
                 <DeviceEnergyImpactCard
                   deviceId={routeState.deviceId}
-                  todaySolarWh={(dashboardQuery.data?.summary.solarGeneratedKwh.current ?? 0) * 1000}
+                  todaySolarWh={
+                    dashboardQuery.data ? dashboardQuery.data.summary.solarGeneratedKwh.current * 1000 : undefined
+                  }
                   variant="detailed"
                 />
               )}
@@ -1124,17 +1129,18 @@ export default function EnergyScreen() {
                 ))}
               </XStack>
 
-              <SectionCard
-                title="PV operating envelope"
-                fullWidth
-                right={
-                  <Text color="$colorMuted">
-                    {pvEnvelope.utilizationPct === null
-                      ? 'No PV capability metadata'
-                      : `${pvEnvelope.utilizationPct.toFixed(1)}% of configured power`}
-                  </Text>
-                }
-              >
+              <View ref={pvEnvelopeSectionRef} testID="energy-pv-envelope-section">
+                <SectionCard
+                  title="PV operating envelope"
+                  fullWidth
+                  right={
+                    <Text color="$colorMuted">
+                      {pvEnvelope.utilizationPct === null
+                        ? 'No PV capability metadata'
+                        : `${pvEnvelope.utilizationPct.toFixed(1)}% of configured power`}
+                    </Text>
+                  }
+                >
                 <XStack gap="$3" flexWrap="wrap">
                   <Stat label="Observed power" value={`${Math.round(pvEnvelope.observedPower)} W`} />
                   <Stat label="Configured power" value={`${Math.round(pvEnvelope.configuredPower)} W`} />
@@ -1197,7 +1203,7 @@ export default function EnergyScreen() {
                               <Stat
                                 label="Last seen"
                                 value={
-                                  pvHistoryQuery.isLoading ? '…' : historyRow ? formatObservedAtLabel(historyRow.lastObservedUnixMs) : '—'
+                                  pvHistoryLoading ? '…' : historyRow ? formatObservedAtLabel(historyRow.lastObservedUnixMs) : '—'
                                 }
                                 compact
                               />
@@ -1206,14 +1212,14 @@ export default function EnergyScreen() {
                               <Stat
                                 label="Hist max"
                                 value={
-                                  pvHistoryQuery.isLoading ? '…' : historyRow ? `${Math.round(displayHistoricalPvWatts(historyRow))}W` : '—'
+                                  pvHistoryLoading ? '…' : historyRow ? `${Math.round(displayHistoricalPvWatts(historyRow))}W` : '—'
                                 }
                                 compact
                               />
                               <Stat
                                 label="Hist V/A"
                                 value={
-                                  pvHistoryQuery.isLoading
+                                  pvHistoryLoading
                                     ? 'Loading…'
                                     : historyRow
                                       ? `${historyRow.maxObservedVolts.toFixed(1)}V · ${historyRow.maxObservedAmps.toFixed(2)}A`
@@ -1265,7 +1271,7 @@ export default function EnergyScreen() {
                                 compact
                               />
                             </XStack>
-                            {pvHistoryQuery.isLoading ? (
+                            {pvHistoryLoading ? (
                               <Text color="$colorMuted">Loading historical PV observations…</Text>
                             ) : historyRow ? (
                               <XStack gap="$3" flexWrap="wrap">
@@ -1288,7 +1294,8 @@ export default function EnergyScreen() {
                 ) : (
                   <Text color="$colorMuted">No PV port capability data is available for the selected scope yet.</Text>
                 )}
-              </SectionCard>
+                </SectionCard>
+              </View>
             </>
           ) : null}
         </ScrollView>

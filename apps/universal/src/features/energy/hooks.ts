@@ -5,9 +5,16 @@ import {
   fetchEnergyComparisonInsight,
   fetchEnergyDashboard,
   fetchEnergyPvPortHistory,
+  type EnergyCalendar,
+  type EnergyComparisonInsightResponse,
+  type EnergyDashboard,
+  type EnergyPVPortHistory,
   type EnergyPreset
 } from '@/features/energy/api';
-import { buildEnergyCalendarCachePolicy } from '@/features/energy/model';
+import {
+  buildEnergyCalendarCachePolicy,
+  buildEnergyDashboardCachePolicy
+} from '@/features/energy/model';
 
 export function buildEnergyCalendarQueryKey({
   authKey = 'anonymous',
@@ -78,6 +85,26 @@ export function useEnergyCalendarCachePolicy({
   return policy;
 }
 
+function useEnergyWindowCachePolicy({
+  preset,
+  date,
+  timezone
+}: {
+  preset: EnergyPreset;
+  date?: string;
+  timezone: string;
+}) {
+  return useMemo(
+    () =>
+      buildEnergyDashboardCachePolicy({
+        preset,
+        date,
+        timezone
+      }),
+    [date, preset, timezone]
+  );
+}
+
 export function useEnergyDashboard(
   {
     scope,
@@ -108,7 +135,9 @@ export function useEnergyDashboard(
     enabled?: boolean;
   } = {}
 ) {
-  return useQuery({
+  const cachePolicy = useEnergyWindowCachePolicy({ preset, date, timezone });
+
+  return useQuery<EnergyDashboard>({
     queryKey: [
       'energy-dashboard',
       authKey,
@@ -133,9 +162,10 @@ export function useEnergyDashboard(
         token
     }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
-    staleTime: 30_000,
-    gcTime: 10 * 60_000,
-    placeholderData: (previous) => previous
+    staleTime: cachePolicy.staleTime,
+    gcTime: cachePolicy.gcTime,
+    refetchInterval: cachePolicy.refetchInterval,
+    placeholderData: (previous: EnergyDashboard | undefined) => previous
   });
 }
 
@@ -163,7 +193,9 @@ export function useEnergyPvPortHistory(
     enabled?: boolean;
   } = {}
 ) {
-  return useQuery({
+  const cachePolicy = useEnergyWindowCachePolicy({ preset, date, timezone });
+
+  return useQuery<EnergyPVPortHistory[]>({
     queryKey: ['energy-pv-history', authKey, scope, deviceId ?? null, preset, timezone, date ?? null],
     queryFn: () =>
       fetchEnergyPvPortHistory({
@@ -174,9 +206,10 @@ export function useEnergyPvPortHistory(
         token
     }),
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
-    staleTime: 30_000,
-    gcTime: 10 * 60_000,
-    placeholderData: (previous) => previous
+    staleTime: cachePolicy.staleTime,
+    gcTime: cachePolicy.gcTime,
+    refetchInterval: cachePolicy.refetchInterval,
+    placeholderData: (previous: EnergyPVPortHistory[] | undefined) => previous
   });
 }
 
@@ -208,7 +241,7 @@ export function useEnergyComparisonInsight(
     enabled?: boolean;
   } = {}
 ) {
-  return useQuery({
+  return useQuery<EnergyComparisonInsightResponse>({
     queryKey: [
       'energy-comparison-insight',
       authKey,
@@ -233,7 +266,7 @@ export function useEnergyComparisonInsight(
     enabled: enabled && (scope === 'all' || Boolean(deviceId)),
     staleTime: 60 * 60_000,
     gcTime: 2 * 60 * 60_000,
-    placeholderData: (previous) => previous
+    placeholderData: (previous: EnergyComparisonInsightResponse | undefined) => previous
   });
 }
 
@@ -271,7 +304,7 @@ export function useEnergyCalendar(
     timezone
   });
 
-  return useQuery({
+  return useQuery<EnergyCalendar>({
     queryKey: buildEnergyCalendarQueryKey({
       authKey,
       scope,
@@ -297,6 +330,6 @@ export function useEnergyCalendar(
     staleTime: cachePolicy.staleTime,
     gcTime: cachePolicy.gcTime,
     refetchInterval: cachePolicy.refetchInterval,
-    placeholderData: (previous) => previous
+    placeholderData: (previous: EnergyCalendar | undefined) => previous
   });
 }

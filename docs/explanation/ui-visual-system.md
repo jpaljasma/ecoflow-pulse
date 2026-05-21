@@ -97,6 +97,12 @@ Analysis pages use:
 - a small number of supporting cards
 - quieter motion and lower visual drama than overview pages
 
+Device Detail and Energy analysis surfaces should keep the current-window hero,
+primary history, and live power profile in the initial render path. Secondary
+PV-envelope, forecast, inference, and explainer panels should lazy-load as they
+approach the viewport while preserving their reserved card frames and any
+previous useful chart data during refreshes.
+
 ## Visual Language
 
 The target visual blend is:

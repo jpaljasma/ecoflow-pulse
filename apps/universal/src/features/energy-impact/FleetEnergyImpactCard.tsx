@@ -10,6 +10,8 @@ import {
   buildPastTwelveMonthsBounds,
   ENERGY_IMPACT_HISTORY_GC_MS,
   ENERGY_IMPACT_HISTORY_STALE_MS,
+  resolveEnergyImpactDisplayState,
+  sumSolarGeneratedWh,
   type EnergyImpactPeriod
 } from '@/features/energy-impact/model';
 import { ApiError } from '@/shared/api/restClient';
@@ -17,10 +19,6 @@ import { ApiError } from '@/shared/api/restClient';
 function getMaxSolarWatts(device: DeviceSummary): number | undefined {
   const total = device.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
   return total > 0 ? total : undefined;
-}
-
-function sumSolarWh(points: Array<{ metrics: { solarGeneratedWh: number } }>): number {
-  return points.reduce((total, point) => total + Math.max(0, point.metrics.solarGeneratedWh ?? 0), 0);
 }
 
 function isHistoryNotFound(error: unknown): boolean {
@@ -70,7 +68,7 @@ export function FleetEnergyImpactCard({
               toIso: to.toISOString(),
               token
             });
-            return sumSolarWh(series.points);
+            return sumSolarGeneratedWh(series.points);
           } catch (error) {
             if (isHistoryNotFound(error)) {
               return 0;
@@ -88,20 +86,20 @@ export function FleetEnergyImpactCard({
     refetchOnReconnect: false
   });
 
-  const displaySolarWh =
-    period === 'today'
-      ? (fleetSolarHistory.data?.todayWh ?? 0)
-      : pastTwelveMonthsQuery.data ?? fleetSolarHistory.data?.todayWh ?? 0;
-  const displayPeriod =
-    period === 'past12Months' && pastTwelveMonthsQuery.data === undefined ? 'today' : period;
+  const displayState = resolveEnergyImpactDisplayState({
+    period,
+    todaySolarWh: fleetSolarHistory.data?.todayWh,
+    pastTwelveMonthsSolarWh: pastTwelveMonthsQuery.data,
+    pastTwelveMonthsFetching: pastTwelveMonthsQuery.isFetching
+  });
 
   return (
     <EnergyImpactCard
-      solarWh={displaySolarWh}
+      solarWh={displayState.solarWh}
       period={period}
-      displayPeriod={displayPeriod}
+      displayPeriod={displayState.displayPeriod}
       onPeriodChange={setPeriod}
-      isLoading={period === 'past12Months' && pastTwelveMonthsQuery.isFetching}
+      isLoading={displayState.isLoading}
       errorText={period === 'past12Months' && pastTwelveMonthsQuery.error ? 'Past 12 months history unavailable.' : undefined}
       variant={variant}
       showPeriodControls={variant !== 'summary'}

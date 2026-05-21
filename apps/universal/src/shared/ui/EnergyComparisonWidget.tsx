@@ -1,9 +1,22 @@
 import { useMemo, useRef, useState } from 'react';
 import { ScrollView, useWindowDimensions } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import type { EnergyComparisonInsightResponse } from '@/features/energy/api';
 import { Card } from '@/shared/ui/Card';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+
+const COMPARISON_CARD_GAP = 12;
+const COMPARISON_SIDE_PADDING = 4;
+const COMPARISON_WIDE_BREAKPOINT = 1000;
+const COMPARISON_WIDE_CARD_MIN_WIDTH = 220;
+const COMPARISON_SCROLL_CARD_MIN_WIDTH = 260;
+const COMPARISON_SCROLL_CARD_MAX_WIDTH = 560;
+
+type SemanticColors = ReturnType<typeof useThemeSemantics>;
+type ComparisonInsight = NonNullable<EnergyComparisonInsightResponse['insight']>;
+type ComparisonCard = ComparisonInsight['cards'][number];
 
 function verdictColor(verdictClass: string, semantics: ReturnType<typeof useThemeSemantics>): string {
   switch (verdictClass) {
@@ -18,7 +31,7 @@ function verdictColor(verdictClass: string, semantics: ReturnType<typeof useThem
   }
 }
 
-function cardTrend(cardCategory: string, score: number, semantics: ReturnType<typeof useThemeSemantics>) {
+function cardTrend(cardCategory: string, score: number, semantics: SemanticColors) {
   const directionUp = score >= 0;
   const productionLike =
     cardCategory === 'self_sufficiency' ||
@@ -27,9 +40,70 @@ function cardTrend(cardCategory: string, score: number, semantics: ReturnType<ty
 
   const favorable = productionLike ? directionUp : !directionUp;
   return {
-    glyph: directionUp ? '▲' : '▼',
+    icon: (directionUp ? 'trending-up' : 'trending-down') as ComponentProps<typeof MaterialCommunityIcons>['name'],
+    label: directionUp ? 'Increasing' : 'Decreasing',
     color: favorable ? semantics.statusSuccess : semantics.statusDanger
   };
+}
+
+function getComparisonCardWidth({
+  availableWidth,
+  cardCount,
+  wideLayout
+}: {
+  availableWidth: number;
+  cardCount: number;
+  wideLayout: boolean;
+}) {
+  const safeWidth = Math.max(0, availableWidth);
+  if (wideLayout) {
+    const totalGap = COMPARISON_CARD_GAP * Math.max(cardCount - 1, 0);
+    const widthPerCard = Math.floor((safeWidth - totalGap) / Math.max(cardCount, 1));
+    return Math.max(COMPARISON_WIDE_CARD_MIN_WIDTH, widthPerCard);
+  }
+  const scrollWidth = safeWidth - COMPARISON_SIDE_PADDING * 2;
+  return Math.max(COMPARISON_SCROLL_CARD_MIN_WIDTH, Math.min(scrollWidth, COMPARISON_SCROLL_CARD_MAX_WIDTH));
+}
+
+function EnergyComparisonInsightCard({
+  card,
+  width,
+  semantics
+}: {
+  card: ComparisonCard;
+  width: number;
+  semantics: SemanticColors;
+}) {
+  const trend = cardTrend(card.category, card.score, semantics);
+
+  return (
+    <YStack
+      testID="energy-comparison-card"
+      width={width}
+      gap="$2"
+      padding="$3"
+      borderRadius="$4"
+      borderWidth={1}
+      style={{
+        borderColor: semantics.mutedPanelBorder,
+        backgroundColor: semantics.mutedPanelBackground
+      }}
+    >
+      <XStack justifyContent="space-between" alignItems="flex-start" gap="$2">
+        <YStack gap="$1" flex={1}>
+          <Text fontWeight="700">{card.title}</Text>
+        </YStack>
+        <MaterialCommunityIcons
+          name={trend.icon}
+          size={20}
+          color={trend.color}
+          accessibilityLabel={trend.label}
+        />
+      </XStack>
+      <Text>{card.summary}</Text>
+      <Text color="$colorMuted">{card.recommendation}</Text>
+    </YStack>
+  );
 }
 
 type Props = {
@@ -42,18 +116,19 @@ export function EnergyComparisonWidget({ data, loading = false }: Props) {
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [cardIndex, setCardIndex] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
   const insight = data?.insight;
   const cards = insight?.cards ?? [];
-  const wideLayout = width >= 1440 && cards.length <= 4;
-  const sidePadding = 4;
-  const cardGap = 12;
+  const availableWidth = containerWidth || width;
+  const wideLayout = containerWidth >= COMPARISON_WIDE_BREAKPOINT && cards.length <= 4;
   const cardWidth = useMemo(() => {
-    if (wideLayout) {
-      return Math.max(240, Math.floor((width - 80 - cardGap*3) / 4));
-    }
-    return Math.max(260, Math.min(width - 56, 560));
-  }, [cardGap, wideLayout, width]);
-  const snapInterval = cardWidth + cardGap;
+    return getComparisonCardWidth({
+      availableWidth,
+      cardCount: cards.length,
+      wideLayout
+    });
+  }, [availableWidth, cards.length, wideLayout]);
+  const snapInterval = cardWidth + COMPARISON_CARD_GAP;
 
   if (!insight && !loading) {
     return null;
@@ -61,13 +136,20 @@ export function EnergyComparisonWidget({ data, loading = false }: Props) {
 
   return (
     <Card
+      testID="energy-comparison-widget"
       gap="$3"
       style={{
         backgroundColor: semantics.chartFrameBackground,
         borderColor: semantics.chartFrameBorder
       }}
     >
-      <YStack gap="$2">
+      <YStack
+        gap="$2"
+        onLayout={(event) => {
+          const nextWidth = Math.round(event.nativeEvent.layout.width);
+          setContainerWidth((currentWidth) => (Math.abs(currentWidth - nextWidth) > 1 ? nextWidth : currentWidth));
+        }}
+      >
         <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
           <YStack gap="$1" flex={1}>
             <Text fontSize="$5" fontWeight="800">
@@ -104,37 +186,14 @@ export function EnergyComparisonWidget({ data, loading = false }: Props) {
             {cards.length ? (
               <YStack gap="$2">
                 {wideLayout ? (
-                  <XStack gap="$3">
+                  <XStack gap="$3" flexWrap="nowrap" width="100%">
                     {cards.map((card) => (
-                      <YStack
+                      <EnergyComparisonInsightCard
                         key={`${card.category}:${card.title}`}
+                        card={card}
                         width={cardWidth}
-                        gap="$2"
-                        padding="$3"
-                        borderRadius="$4"
-                        borderWidth={1}
-                        style={{
-                          borderColor: semantics.mutedPanelBorder,
-                          backgroundColor: semantics.mutedPanelBackground
-                        }}
-                      >
-                        <XStack justifyContent="space-between" alignItems="flex-start" gap="$2">
-                          <YStack gap="$1" flex={1}>
-                            <Text fontWeight="700">{card.title}</Text>
-                          </YStack>
-                          <Text
-                            fontSize="$4"
-                            fontWeight="800"
-                            style={{
-                              color: cardTrend(card.category, card.score, semantics).color
-                            }}
-                          >
-                            {cardTrend(card.category, card.score, semantics).glyph}
-                          </Text>
-                        </XStack>
-                        <Text>{card.summary}</Text>
-                        <Text color="$colorMuted">{card.recommendation}</Text>
-                      </YStack>
+                        semantics={semantics}
+                      />
                     ))}
                   </XStack>
                 ) : (
@@ -146,7 +205,10 @@ export function EnergyComparisonWidget({ data, loading = false }: Props) {
                       pagingEnabled={false}
                       snapToInterval={snapInterval}
                       decelerationRate="fast"
-                      contentContainerStyle={{ paddingLeft: sidePadding, paddingRight: sidePadding }}
+                      contentContainerStyle={{
+                        paddingLeft: COMPARISON_SIDE_PADDING,
+                        paddingRight: COMPARISON_SIDE_PADDING
+                      }}
                       onMomentumScrollEnd={(event) => {
                         const next = Math.round(event.nativeEvent.contentOffset.x / snapInterval);
                         setCardIndex(Math.max(0, Math.min(cards.length - 1, next)));
@@ -154,35 +216,12 @@ export function EnergyComparisonWidget({ data, loading = false }: Props) {
                     >
                       <XStack gap="$3">
                         {cards.map((card) => (
-                          <YStack
+                          <EnergyComparisonInsightCard
                             key={`${card.category}:${card.title}`}
+                            card={card}
                             width={cardWidth}
-                            gap="$2"
-                            padding="$3"
-                            borderRadius="$4"
-                            borderWidth={1}
-                            style={{
-                              borderColor: semantics.mutedPanelBorder,
-                              backgroundColor: semantics.mutedPanelBackground
-                            }}
-                          >
-                            <XStack justifyContent="space-between" alignItems="flex-start" gap="$2">
-                              <YStack gap="$1" flex={1}>
-                                <Text fontWeight="700">{card.title}</Text>
-                              </YStack>
-                              <Text
-                                fontSize="$4"
-                                fontWeight="800"
-                                style={{
-                                  color: cardTrend(card.category, card.score, semantics).color
-                                }}
-                              >
-                                {cardTrend(card.category, card.score, semantics).glyph}
-                              </Text>
-                            </XStack>
-                            <Text>{card.summary}</Text>
-                            <Text color="$colorMuted">{card.recommendation}</Text>
-                          </YStack>
+                            semantics={semantics}
+                          />
                         ))}
                       </XStack>
                     </ScrollView>

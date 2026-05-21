@@ -3,6 +3,8 @@ import type { RollupSeries } from '@/features/history/api';
 import {
   buildPowerTrendBounds,
   buildPowerTrendView,
+  mergePowerTrendPrefill,
+  mergePowerTrendPrefillWithLivePoints,
   mergeTrendPrefill,
   mergeTrendPrefillWithLivePoints,
   POWER_TREND_POINTS,
@@ -90,6 +92,28 @@ describe('power trend helpers', () => {
     expect(merged.slice(40)).toEqual(Array.from({ length: 20 }, () => 999));
   });
 
+  it('repairs final fleet trend payloads after live overlays introduce a short zero gap', () => {
+    const prefill = {
+      solar: Array.from({ length: POWER_TREND_POINTS }, () => 200),
+      ac: Array.from({ length: POWER_TREND_POINTS }, () => 80),
+      dc: Array.from({ length: POWER_TREND_POINTS }, () => 20),
+      load: Array.from({ length: POWER_TREND_POINTS }, () => 120)
+    };
+    const live = {
+      solar: [200, 0, 220],
+      ac: [80, 0, 100],
+      dc: [20, 0, 40],
+      load: [120, 0, 140]
+    };
+
+    const merged = mergePowerTrendPrefill(prefill, live, 3);
+
+    expect(merged.solar.slice(-3)).toEqual([200, 210, 220]);
+    expect(merged.ac.slice(-3)).toEqual([80, 90, 100]);
+    expect(merged.dc.slice(-3)).toEqual([20, 30, 40]);
+    expect(merged.load.slice(-3)).toEqual([120, 130, 140]);
+  });
+
   it('repairs short all-zero gaps between non-zero power samples', () => {
     const repaired = repairPowerTrendDropouts({
       solar: [100, 120, 0, 160, 180],
@@ -134,6 +158,48 @@ describe('power trend helpers', () => {
 
     expect(merged.slice(0, 57).every((value) => value === 262)).toBe(true);
     expect(merged.slice(57)).toEqual([262, 265, 262]);
+  });
+
+  it('repairs final detail trend payloads after timestamped live overlays introduce a short zero gap', () => {
+    const now = new Date('2026-03-07T13:04:55.000Z');
+    const prefill = {
+      solar: Array.from({ length: POWER_TREND_POINTS }, () => 220),
+      ac: Array.from({ length: POWER_TREND_POINTS }, () => 90),
+      dc: Array.from({ length: POWER_TREND_POINTS }, () => 30),
+      load: Array.from({ length: POWER_TREND_POINTS }, () => 130)
+    };
+
+    const merged = mergePowerTrendPrefillWithLivePoints(
+      prefill,
+      {
+        solar: [
+          { ts: Date.parse('2026-03-07T13:04:45.000Z'), value: 220 },
+          { ts: Date.parse('2026-03-07T13:04:50.000Z'), value: 0 },
+          { ts: Date.parse('2026-03-07T13:04:55.000Z'), value: 240 }
+        ],
+        ac: [
+          { ts: Date.parse('2026-03-07T13:04:45.000Z'), value: 90 },
+          { ts: Date.parse('2026-03-07T13:04:50.000Z'), value: 0 },
+          { ts: Date.parse('2026-03-07T13:04:55.000Z'), value: 110 }
+        ],
+        dc: [
+          { ts: Date.parse('2026-03-07T13:04:45.000Z'), value: 30 },
+          { ts: Date.parse('2026-03-07T13:04:50.000Z'), value: 0 },
+          { ts: Date.parse('2026-03-07T13:04:55.000Z'), value: 50 }
+        ],
+        load: [
+          { ts: Date.parse('2026-03-07T13:04:45.000Z'), value: 130 },
+          { ts: Date.parse('2026-03-07T13:04:50.000Z'), value: 0 },
+          { ts: Date.parse('2026-03-07T13:04:55.000Z'), value: 150 }
+        ]
+      },
+      now
+    );
+
+    expect(merged.solar.slice(-3)).toEqual([220, 230, 240]);
+    expect(merged.ac.slice(-3)).toEqual([90, 100, 110]);
+    expect(merged.dc.slice(-3)).toEqual([30, 40, 50]);
+    expect(merged.load.slice(-3)).toEqual([130, 140, 150]);
   });
 
   it('derives coverage buckets from sparkline timestamps instead of raw point count', () => {

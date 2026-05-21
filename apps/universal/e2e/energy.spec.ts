@@ -26,6 +26,7 @@ test.describe('Energy route web E2E', () => {
   });
 
   test('renders the energy dashboard from API responses', async ({ page }) => {
+    await page.setViewportSize({ width: 1728, height: 888 });
     await page.goto('/energy');
 
     await expect(page.getByText('Solar against load', { exact: true })).toBeVisible();
@@ -41,6 +42,25 @@ test.describe('Energy route web E2E', () => {
     await expect(page.getByText('Battery flow', { exact: true })).toBeVisible();
     await expect(page.getByText('Flow strip', { exact: true })).toBeVisible();
     await expect(page.getByText('SOC band', { exact: true })).toBeVisible();
+
+    await expect
+      .poll(async () => {
+        const comparisonBox = await page.getByTestId('energy-comparison-widget').boundingBox();
+        const comparisonCardBoxes = await page.getByTestId('energy-comparison-card').evaluateAll((cards) =>
+          cards.map((card) => {
+            const box = card.getBoundingClientRect();
+            return { left: box.left, right: box.right };
+          })
+        );
+        return Boolean(
+          comparisonBox &&
+            comparisonCardBoxes.length > 0 &&
+            comparisonCardBoxes.every(
+              (box) => box.left >= comparisonBox.x - 1 && box.right <= comparisonBox.x + comparisonBox.width + 1
+            )
+        );
+      })
+      .toBe(true);
 
     await expandSolarAgainstLoadControls(page);
     await expect(page.getByRole('button', { name: 'All devices' })).toBeVisible();
@@ -68,6 +88,29 @@ test.describe('Energy route web E2E', () => {
     await expect(page.getByText('Previous points:', { exact: false })).toHaveCount(0);
     await expect(page.getByText('No prior baseline', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Previous', { exact: true })).toHaveCount(0);
+  });
+
+  test('defers PV history until the operating envelope approaches the viewport', async ({ page }) => {
+    const requestedPvHistoryPaths: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path === '/api/v1/energy/pv-history') {
+        requestedPvHistoryPaths.push(path);
+      }
+    });
+
+    await page.setViewportSize({ width: 390, height: 640 });
+    await page.goto('/energy');
+
+    await expect(page.getByText('Solar first', { exact: true })).toBeVisible();
+    await expect(page.getByText('Power profile', { exact: true })).toBeAttached();
+    await expect(page.getByTestId('energy-pv-envelope-section')).toBeAttached();
+    await page.waitForTimeout(350);
+    expect(requestedPvHistoryPaths).toHaveLength(0);
+
+    await page.getByTestId('energy-pv-envelope-section').scrollIntoViewIfNeeded();
+    await expect(page.getByText('PV operating envelope', { exact: true })).toBeVisible();
+    await expect.poll(() => requestedPvHistoryPaths.length).toBeGreaterThan(0);
   });
 
   test('switches to single-device mode and renders scoped PV history', async ({ page }) => {

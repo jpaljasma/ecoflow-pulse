@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { useMemo, type ComponentProps } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import { Card } from '@/shared/ui/Card';
@@ -17,12 +17,13 @@ import { useTelemetryFleetTrend, useTelemetrySnapshotsByIds } from '@/features/t
 import { useAuthSession } from '@/features/auth/hooks';
 import { useCurrentUser } from '@/features/profile/hooks';
 import { useFleetPowerTrendHistory, useFleetSolarHistory } from '@/features/history/hooks';
-import { mergeTrendPrefill } from '@/features/history/powerTrend';
+import { mergePowerTrendPrefill } from '@/features/history/powerTrend';
 import { resolveSolarHistoryWindow } from '@/features/history/solar';
 import { useWeatherForecast } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
 import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 import { SocBar } from '@/shared/ui/SocBar';
 import {
@@ -356,40 +357,6 @@ function AnalyticsPlaceholder({ isTabletUp }: { isTabletUp: boolean }) {
   );
 }
 
-function usePartiallyVisibleAnalyticsPanel() {
-  const panelRef = useRef<View | null>(null);
-  const [visible, setVisible] = useState(
-    () => Platform.OS !== 'web' || typeof IntersectionObserver === 'undefined'
-  );
-
-  useEffect(() => {
-    if (visible || Platform.OS !== 'web' || typeof IntersectionObserver === 'undefined') {
-      return;
-    }
-    const target = panelRef.current as unknown as Element | null;
-    if (!target) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.01 }
-    );
-    observer.observe(target);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [visible]);
-
-  return { panelRef, visible };
-}
-
 export function SummaryPanel({
   devices,
   onAllDevicesPress
@@ -401,8 +368,7 @@ export function SummaryPanel({
   const { contentWidth } = useNavigationShellMetrics();
   const isTabletUp = contentWidth >= 768;
   const isPhone = contentWidth < 640;
-  const { panelRef: analyticsPanelRef, visible: analyticsPanelVisible } = usePartiallyVisibleAnalyticsPanel();
-  const analyticsShouldLoad = analyticsPanelVisible;
+  const { ref: analyticsPanelRef, shouldLoad: analyticsShouldLoad } = useLazySectionLoad();
   const useRemoteImage = Boolean(env.assetBaseUrl);
   const deviceIds = devices.map((device) => device.id);
   const byId = useTelemetrySnapshotsByIds(deviceIds);
@@ -465,33 +431,22 @@ export function SummaryPanel({
       ? summary.netW - summary.pvW
       : summary.netW;
   const displayFleetTrend = useMemo(
-    () => ({
-      load: mergeTrendPrefill(
-        fleetPowerTrendHistory.data.load,
-        fleetTrend.load,
+    () =>
+      mergePowerTrendPrefill(
+        fleetPowerTrendHistory.data,
+        {
+          solar: fleetTrend.pv,
+          ac: fleetTrend.ac,
+          dc: fleetTrend.dc,
+          load: fleetTrend.load
+        },
         fleetTrend.filledPoints
       ),
-      pv: mergeTrendPrefill(
-        fleetPowerTrendHistory.data.solar,
-        fleetTrend.pv,
-        fleetTrend.filledPoints
-      ),
-      ac: mergeTrendPrefill(
-        fleetPowerTrendHistory.data.ac,
-        fleetTrend.ac,
-        fleetTrend.filledPoints
-      ),
-      dc: mergeTrendPrefill(
-        fleetPowerTrendHistory.data.dc,
-        fleetTrend.dc,
-        fleetTrend.filledPoints
-      )
-    }),
     [fleetPowerTrendHistory.data, fleetTrend]
   );
   const displayFleetTrendPv = useMemo(
-    () => (suppressFleetSolar ? displayFleetTrend.pv.map(() => 0) : displayFleetTrend.pv),
-    [displayFleetTrend.pv, suppressFleetSolar]
+    () => (suppressFleetSolar ? displayFleetTrend.solar.map(() => 0) : displayFleetTrend.solar),
+    [displayFleetTrend.solar, suppressFleetSolar]
   );
   const fleetSolarHistoryView = fleetSolarHistory.data;
   const fleetSolarHistoryErrorText =
