@@ -51,4 +51,18 @@ test.describe('Universal admin logs', () => {
     await page.getByText(/quota .* frame/i).first().click();
     await expect(page.getByText('"payload"')).toBeVisible();
   });
+
+  test('keeps typeahead suggestions floating above the filter grid', async ({ page }) => {
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs');
+    await expect(page.getByTestId('screen-logs')).toBeVisible();
+
+    const tableTopBefore = await page.getByTestId('logs-table').evaluate((node) => node.getBoundingClientRect().top);
+    await page.getByLabel('User email').fill('operator');
+    await expect(page.getByTestId('logs-typeahead-menu-user')).toBeVisible();
+    const tableTopAfter = await page.getByTestId('logs-table').evaluate((node) => node.getBoundingClientRect().top);
+
+    expect(Math.abs(tableTopAfter - tableTopBefore)).toBeLessThanOrEqual(2);
+  });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -32,6 +32,7 @@ const statusOptions: Array<{ label: string; value: LogStatus }> = [
 ];
 const sourceOptions = ['', 'mqtt', 'mqtt-status', 'replay'];
 const typeOptions = ['', 'quota', 'status', 'telemetry'];
+type MaterialIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export default function LogsScreen() {
   const { spec } = useAppTheme();
@@ -131,45 +132,58 @@ export default function LogsScreen() {
           </XStack>
         </XStack>
 
-        <YStack gap="$2" padding="$3" borderWidth={1} borderRadius={8} style={{ borderColor: semantics.sectionBorder }}>
-          <XStack gap="$2" flexWrap="wrap" alignItems="flex-start">
+        <YStack
+          gap="$3"
+          padding="$3"
+          borderWidth={1}
+          borderRadius={8}
+          style={{
+            backgroundColor: semantics.sectionBackground,
+            borderColor: semantics.sectionBorder,
+            position: 'relative',
+            zIndex: 5
+          }}
+        >
+          <XStack gap="$3" flexWrap="wrap" alignItems="flex-start">
             <LogTypeahead kind="device" label="Device" token={token} authKey={authKey} onSelect={addOption} />
             <LogTypeahead kind="serial" label="Serial" token={token} authKey={authKey} onSelect={addOption} />
             {isAdmin ? (
               <LogTypeahead kind="user" label="User email" token={token} authKey={authKey} onSelect={addOption} />
             ) : null}
-            <YStack minWidth={190} flex={1}>
-              <Input
-                size="$3"
+            <LogFilterField label="Freetext" icon="text-search">
+              <LogFilterInput
                 value={freetext}
                 onChangeText={setFreetext}
-                placeholder="Freetext fuzzy search"
+                placeholder="Search all visible rows"
                 aria-label="Freetext fuzzy search"
               />
-            </YStack>
+            </LogFilterField>
           </XStack>
 
-          <XStack gap="$2" flexWrap="wrap" alignItems="center">
-            <SegmentLabel label="Status" />
-            {statusOptions.map((option) => {
-              const active = statuses.includes(option.value);
-              return (
-                <FilterButton
-                  key={option.value}
-                  active={active}
-                  label={option.label}
-                  onPress={() => setStatuses((current) => active ? current.filter((item) => item !== option.value) : [...current, option.value])}
-                />
-              );
-            })}
-            <SegmentLabel label="Source" />
-            {sourceOptions.map((option) => (
-              <FilterButton key={option || 'all-source'} active={source === option} label={option || 'All'} onPress={() => setSource(option)} />
-            ))}
-            <SegmentLabel label="Type" />
-            {typeOptions.map((option) => (
-              <FilterButton key={option || 'all-type'} active={typeCode === option} label={option || 'All'} onPress={() => setTypeCode(option)} />
-            ))}
+          <XStack gap="$3" flexWrap="wrap" alignItems="flex-start">
+            <FilterSegment label="Status">
+              {statusOptions.map((option) => {
+                const active = statuses.includes(option.value);
+                return (
+                  <FilterButton
+                    key={option.value}
+                    active={active}
+                    label={option.label}
+                    onPress={() => setStatuses((current) => active ? current.filter((item) => item !== option.value) : [...current, option.value])}
+                  />
+                );
+              })}
+            </FilterSegment>
+            <FilterSegment label="Source">
+              {sourceOptions.map((option) => (
+                <FilterButton key={option || 'all-source'} active={source === option} label={option || 'All'} onPress={() => setSource(option)} />
+              ))}
+            </FilterSegment>
+            <FilterSegment label="Type">
+              {typeOptions.map((option) => (
+                <FilterButton key={option || 'all-type'} active={typeCode === option} label={option || 'All'} onPress={() => setTypeCode(option)} />
+              ))}
+            </FilterSegment>
           </XStack>
 
           {selectedOptions.length > 0 ? (
@@ -191,7 +205,15 @@ export default function LogsScreen() {
           ) : null}
         </YStack>
 
-        <YStack flex={1} minHeight={0} borderWidth={1} borderRadius={8} overflow="hidden" style={{ borderColor: semantics.sectionBorder }}>
+        <YStack
+          flex={1}
+          minHeight={0}
+          borderWidth={1}
+          borderRadius={8}
+          overflow="hidden"
+          testID="logs-table"
+          style={{ borderColor: semantics.sectionBorder, position: 'relative', zIndex: 1 }}
+        >
           <LogTableHeader />
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
             {visibleEntries.length === 0 ? (
@@ -259,10 +281,31 @@ function LogTypeahead({
   });
 
   return (
-    <YStack minWidth={170} flex={1} gap={4}>
-      <Input size="$3" value={query} onChangeText={setQuery} placeholder={label} aria-label={label} />
+    <LogFilterField label={label} icon={filterIconForKind(kind)}>
+      <LogFilterInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder={`Search ${label.toLowerCase()}`}
+        aria-label={label}
+      />
       {trimmed.length >= 2 && optionsQuery.data && optionsQuery.data.length > 0 ? (
-        <YStack borderWidth={1} borderRadius={8} overflow="hidden" style={{ borderColor: semantics.sectionBorder }}>
+        <YStack
+          testID={`logs-typeahead-menu-${kind}`}
+          borderWidth={1}
+          borderRadius={8}
+          overflow="hidden"
+          style={{
+            backgroundColor: semantics.sectionBackgroundStrong,
+            borderColor: semantics.sectionBorder,
+            boxShadow: '0 18px 46px rgba(0, 0, 0, 0.32)',
+            left: 0,
+            maxHeight: 240,
+            position: 'absolute',
+            right: 0,
+            top: 66,
+            zIndex: 50
+          }}
+        >
           {optionsQuery.data.map((option) => (
             <Pressable
               key={`${option.kind}:${option.id}`}
@@ -273,7 +316,7 @@ function LogTypeahead({
               style={({ pressed }) => ({
                 paddingHorizontal: 10,
                 paddingVertical: 8,
-                backgroundColor: pressed ? semantics.navItemHoverBackground : semantics.sectionBackground
+                backgroundColor: pressed ? semantics.navItemHoverBackground : semantics.sectionBackgroundStrong
               })}
             >
               <Text fontSize="$2" fontWeight="700" numberOfLines={1}>{option.label}</Text>
@@ -282,8 +325,56 @@ function LogTypeahead({
           ))}
         </YStack>
       ) : null}
+    </LogFilterField>
+  );
+}
+
+function LogFilterField({ label, icon, children }: { label: string; icon: MaterialIconName; children: ReactNode }) {
+  const { spec } = useAppTheme();
+  return (
+    <YStack gap={6} style={{ minWidth: 220, flexBasis: 0, flexGrow: 1, overflow: 'visible', position: 'relative' }}>
+      <XStack alignItems="center" gap={6} paddingHorizontal={2} minHeight={18}>
+        <MaterialCommunityIcons name={icon} size={14} color={spec.colors.colorMuted} />
+        <Text fontSize="$1" fontWeight="800" color="$colorMuted" textTransform="uppercase">
+          {label}
+        </Text>
+      </XStack>
+      {children}
     </YStack>
   );
+}
+
+function LogFilterInput(props: ComponentProps<typeof Input>) {
+  const semantics = useThemeSemantics();
+  return (
+    <Input
+      size="$3"
+      minHeight={42}
+      borderWidth={1}
+      borderRadius={8}
+      paddingHorizontal={12}
+      fontSize="$3"
+      fontWeight="700"
+      placeholderTextColor={semantics.subtleText}
+      focusStyle={{ borderColor: '$accentColor', backgroundColor: '$backgroundHover' }}
+      style={{
+        backgroundColor: semantics.periodIdleBackground,
+        borderColor: semantics.periodIdleBorder
+      }}
+      {...props}
+    />
+  );
+}
+
+function filterIconForKind(kind: AdminLogFilterKind): MaterialIconName {
+  switch (kind) {
+    case 'serial':
+      return 'barcode-scan';
+    case 'user':
+      return 'account-search-outline';
+    default:
+      return 'devices';
+  }
 }
 
 function LogTableHeader() {
@@ -375,8 +466,17 @@ function FilterButton({ active, label, onPress }: { active: boolean; label: stri
   );
 }
 
-function SegmentLabel({ label }: { label: string }) {
-  return <Text fontSize="$2" fontWeight="800" color="$colorMuted" marginLeft="$1">{label}</Text>;
+function FilterSegment({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <YStack gap="$2" style={{ minWidth: 210, flexGrow: 1 }}>
+      <Text fontSize="$1" fontWeight="800" color="$colorMuted" textTransform="uppercase" marginLeft="$1">
+        {label}
+      </Text>
+      <XStack gap="$2" flexWrap="wrap">
+        {children}
+      </XStack>
+    </YStack>
+  );
 }
 
 function StatusBadge({ status }: { status: LogStatus }) {

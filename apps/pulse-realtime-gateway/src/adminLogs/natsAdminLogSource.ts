@@ -95,7 +95,7 @@ export class NatsAdminLogSource implements AdminLogSource {
     opts.bindStream(this.cfg.streamName);
     opts.filterSubject(subject);
     opts.startTime(new Date(input.replaySinceUnixMs));
-    opts.ackNone();
+    opts.ackExplicit();
     opts.replayInstantly();
     opts.inactiveEphemeralThreshold(30_000);
 
@@ -119,6 +119,7 @@ export class NatsAdminLogSource implements AdminLogSource {
         if (this.emitEnvelope(message.data, input)) {
           replayed += 1;
         }
+        message.ack();
         if (replayed >= input.replayLimit || Date.now() >= deadline) {
           break;
         }
