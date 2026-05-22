@@ -16,6 +16,7 @@ import {
   mergeAdminLogFilterOptions,
   redactEntryForCopy,
   resolveAdminLogsRouteState,
+  toggleExclusiveStatusFilter,
   type AdminLogTypeFilterValue,
   type BufferedAdminLogEntry,
   type AdminLogFilterOption,
@@ -262,7 +263,7 @@ export default function LogsScreen() {
                     key={option.value}
                     active={active}
                     label={option.label}
-                    onPress={() => setStatuses((current) => active ? current.filter((item) => item !== option.value) : [...current, option.value])}
+                    onPress={() => setStatuses((current) => toggleExclusiveStatusFilter(current, option.value))}
                   />
                 );
               })}
@@ -676,7 +677,7 @@ function LogRow({
 }) {
   const { spec } = useAppTheme();
   const semantics = useThemeSemantics();
-  const copied = JSON.stringify(redactEntryForCopy(entry), null, 2);
+  const copied = useMemo(() => (expanded ? JSON.stringify(redactEntryForCopy(entry), null, 2) : ''), [entry, expanded]);
   const deviceLabel = displayDeviceLabel(entry, deviceLabelByDeviceId);
   const userLabel = displayUserLabel(entry, userLabelByDeviceId, isAdmin);
   const providerLabel = displayProvider(entry);

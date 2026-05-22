@@ -512,6 +512,9 @@ Runtime behavior:
 - the Logs screen keeps `50` rows visible by default, lets the user choose a
   bounded visible-row cap, and keeps paused or expanded-row appends in a small
   pending buffer until the user resumes live movement.
+- the Logs `Status` and `Type` controls are single-select toggles: selecting a
+  different value replaces the previous filter, and selecting the active value
+  returns that filter group to `All`.
 - users can switch that data source directly from the shared app menu or from
   `Settings -> Data source`; local cloud-data builds present the product-facing
   choices as `Local` and `Local Edge`.

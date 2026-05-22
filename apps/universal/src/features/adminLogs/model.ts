@@ -110,6 +110,10 @@ export function buildSubscribeFilters(input: {
   };
 }
 
+export function toggleExclusiveStatusFilter(current: readonly LogStatus[], next: LogStatus): LogStatus[] {
+  return current.length === 1 && current[0] === next ? [] : [next];
+}
+
 export function resolveAdminLogsRouteState(params: Record<string, string | string[] | undefined>): {
   deviceId?: string;
 } {

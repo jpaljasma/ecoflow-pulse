@@ -13,6 +13,7 @@ import {
   resolveAdminLogsRouteState,
   resetLogState,
   resumePending,
+  toggleExclusiveStatusFilter,
   ADMIN_LOG_TYPE_FILTER_OPTIONS,
   type AdminLogEntry
 } from '@/features/adminLogs/model';
@@ -57,6 +58,13 @@ describe('admin log model', () => {
       'kitInfo',
       'bms_kitInfo'
     ]);
+  });
+
+  it('toggles status as an exclusive filter', () => {
+    expect(toggleExclusiveStatusFilter([], 'ok')).toEqual(['ok']);
+    expect(toggleExclusiveStatusFilter(['ok'], 'warning')).toEqual(['warning']);
+    expect(toggleExclusiveStatusFilter(['warning'], 'warning')).toEqual([]);
+    expect(toggleExclusiveStatusFilter(['ok', 'error'], 'warning')).toEqual(['warning']);
   });
 
   it('keeps Logs route state limited to canonical UUID device ids', () => {
