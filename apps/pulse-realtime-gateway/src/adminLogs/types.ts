@@ -3,6 +3,7 @@ export type AdminLogStatus = 'ok' | 'warning' | 'error';
 export type AdminLogFilters = {
   deviceIds: string[];
   statuses: AdminLogStatus[];
+  providers: string[];
   sources: string[];
   typeCodes: string[];
 };
@@ -45,6 +46,7 @@ export interface AdminLogSource {
 export const DEFAULT_ADMIN_LOG_FILTERS: AdminLogFilters = {
   deviceIds: [],
   statuses: [],
+  providers: [],
   sources: [],
   typeCodes: []
 };

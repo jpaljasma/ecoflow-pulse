@@ -1,3 +1,5 @@
+import { isPulseGlobalAdmin } from '@/shared/authz/pulseRoles';
+
 export type LogStatus = 'ok' | 'warning' | 'error';
 
 export type AdminLogEntry = {
@@ -14,6 +16,10 @@ export type AdminLogEntry = {
   detail: Record<string, unknown>;
 };
 
+export type BufferedAdminLogEntry = AdminLogEntry & {
+  rowKey: string;
+};
+
 export type AdminLogFilterOption = {
   kind: 'device' | 'serial' | 'user';
   id: string;
@@ -25,22 +31,42 @@ export type AdminLogFilterOption = {
 export type AdminLogSubscribeFilters = {
   deviceIds: string[];
   statuses: LogStatus[];
+  providers: string[];
   sources: string[];
   typeCodes: string[];
 };
 
 export type AppendLogState = {
-  entries: AdminLogEntry[];
-  pending: AdminLogEntry[];
+  entries: BufferedAdminLogEntry[];
+  pending: BufferedAdminLogEntry[];
   pendingCount: number;
+  generation: number;
+  nextRowOrdinal: number;
 };
 
-const DEFAULT_MAX_ENTRIES = 500;
+export const DEFAULT_LOG_KEEP_LIMIT = 50;
 const DEFAULT_MAX_PENDING = 200;
 const searchableTextCache = new WeakMap<AdminLogEntry, string>();
 
 export function createInitialLogState(): AppendLogState {
-  return { entries: [], pending: [], pendingCount: 0 };
+  return { entries: [], pending: [], pendingCount: 0, generation: 0, nextRowOrdinal: 0 };
+}
+
+export function resetLogState(state: AppendLogState): AppendLogState {
+  return {
+    entries: [],
+    pending: [],
+    pendingCount: 0,
+    generation: state.generation + 1,
+    nextRowOrdinal: 0
+  };
+}
+
+export function trimLogState(state: AppendLogState, maxEntries = DEFAULT_LOG_KEEP_LIMIT): AppendLogState {
+  return {
+    ...state,
+    entries: state.entries.slice(0, Math.max(0, maxEntries))
+  };
 }
 
 export function isGlobalAdmin(roles: readonly string[] | undefined): boolean {
@@ -50,12 +76,14 @@ export function isGlobalAdmin(roles: readonly string[] | undefined): boolean {
 export function buildSubscribeFilters(input: {
   selectedOptions: AdminLogFilterOption[];
   statuses: LogStatus[];
+  provider?: string;
   source?: string;
   typeCode?: string;
 }): AdminLogSubscribeFilters {
   return {
     deviceIds: unique(input.selectedOptions.flatMap((option) => option.deviceIds)),
     statuses: unique(input.statuses),
+    providers: input.provider ? [input.provider] : [],
     sources: input.source ? [input.source] : [],
     typeCodes: input.typeCode ? [input.typeCode] : []
   };
@@ -66,34 +94,38 @@ export function appendLogEntry(
   entry: AdminLogEntry,
   options: { paused: boolean; maxEntries?: number; maxPending?: number }
 ): AppendLogState {
-  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  const maxEntries = options.maxEntries ?? DEFAULT_LOG_KEEP_LIMIT;
   const maxPending = options.maxPending ?? DEFAULT_MAX_PENDING;
+  const bufferedEntry = bufferEntry(state, entry);
+  const baseState = { ...state, nextRowOrdinal: state.nextRowOrdinal + 1 };
   if (options.paused) {
     return {
-      ...state,
-      pending: prependBounded(entry, state.pending, maxPending),
+      ...baseState,
+      pending: prependBounded(bufferedEntry, state.pending, maxPending),
       pendingCount: Math.min(state.pendingCount + 1, maxPending)
     };
   }
   return {
-    entries: prependBounded(entry, state.entries, maxEntries),
+    ...baseState,
+    entries: prependBounded(bufferedEntry, state.entries, maxEntries),
     pending: [],
     pendingCount: 0
   };
 }
 
-export function resumePending(state: AppendLogState, maxEntries = DEFAULT_MAX_ENTRIES): AppendLogState {
+export function resumePending(state: AppendLogState, maxEntries = DEFAULT_LOG_KEEP_LIMIT): AppendLogState {
   if (state.pending.length === 0) {
     return { ...state, pendingCount: 0 };
   }
   return {
+    ...state,
     entries: [...state.pending, ...state.entries].slice(0, maxEntries),
     pending: [],
     pendingCount: 0
   };
 }
 
-export function fuzzyFilterLogEntries(entries: AdminLogEntry[], query: string): AdminLogEntry[] {
+export function fuzzyFilterLogEntries<T extends AdminLogEntry>(entries: T[], query: string): T[] {
   const tokens = normalizeText(query).split(/\s+/).filter(Boolean);
   if (tokens.length === 0) {
     return entries;
@@ -105,10 +137,12 @@ export function fuzzyFilterLogEntries(entries: AdminLogEntry[], query: string): 
 }
 
 export function redactEntryForCopy(entry: AdminLogEntry): AdminLogEntry {
+  const baseEntry = { ...entry } as AdminLogEntry & { rowKey?: string };
+  delete baseEntry.rowKey;
   return {
-    ...entry,
-    labels: redactRecord(entry.labels),
-    detail: redactUnknown(entry.detail) as Record<string, unknown>
+    ...baseEntry,
+    labels: redactRecord(baseEntry.labels),
+    detail: redactUnknown(baseEntry.detail) as Record<string, unknown>
   };
 }
 
@@ -133,6 +167,13 @@ function getSearchableLogText(entry: AdminLogEntry): string {
   const text = normalizeText(searchableLogText(entry));
   searchableTextCache.set(entry, text);
   return text;
+}
+
+function bufferEntry(state: AppendLogState, entry: AdminLogEntry): BufferedAdminLogEntry {
+  return {
+    ...entry,
+    rowKey: `${state.generation}:${state.nextRowOrdinal}:${entry.id}:${entry.receivedTs}`
+  };
 }
 
 function prependBounded<T>(item: T, items: readonly T[], maxItems: number): T[] {
@@ -187,4 +228,3 @@ function unique<T extends string>(values: T[]): T[] {
 function normalizeText(value: string): string {
   return value.trim().toLowerCase();
 }
-import { isPulseGlobalAdmin } from '@/shared/authz/pulseRoles';

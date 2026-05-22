@@ -21,7 +21,8 @@ test.describe('Universal admin logs', () => {
     await page.goto('/logs');
 
     await expect(page.getByTestId('screen-logs')).toBeVisible();
-    await expect(page.getByLabel('User email')).toHaveCount(0);
+    await expect(page.getByLabel('Email')).toHaveCount(0);
+    await expect(page.getByLabel('Provider')).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Device' })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Serial' })).toBeVisible();
 
@@ -40,8 +41,10 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByText('Realtime MQTT operations console')).toBeVisible();
     await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText(/quota .* frame/i).first()).toBeVisible();
+    await expect(page.getByText('Garage battery').first()).toBeVisible();
+    await expect(page.getByText('<redacted>').first()).toBeVisible();
 
-    await page.getByLabel('User email').fill('operator');
+    await page.getByLabel('Email').fill('operator');
     await expect(page.getByText('operator@example.invalid')).toBeVisible();
     await page.getByText('operator@example.invalid').click();
     expect(new URL(page.url()).search).toBe('');
@@ -50,6 +53,8 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByText(/quota .* frame/i).first()).toBeVisible();
     await page.getByText(/quota .* frame/i).first().click();
     await expect(page.getByText('"payload"')).toBeVisible();
+    await page.getByText(/quota .* frame/i).nth(1).click();
+    await expect(page.getByText('"payload"')).toHaveCount(1);
   });
 
   test('keeps typeahead suggestions floating above the filter grid', async ({ page }) => {
@@ -59,10 +64,24 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByTestId('screen-logs')).toBeVisible();
 
     const tableTopBefore = await page.getByTestId('logs-table').evaluate((node) => node.getBoundingClientRect().top);
-    await page.getByLabel('User email').fill('operator');
+    await page.getByLabel('Email').fill('operator');
     await expect(page.getByTestId('logs-typeahead-menu-user')).toBeVisible();
     const tableTopAfter = await page.getByTestId('logs-table').evaluate((node) => node.getBoundingClientRect().top);
 
     expect(Math.abs(tableTopAfter - tableTopBefore)).toBeLessThanOrEqual(2);
+  });
+
+  test('clears visible logs while paused and keeps the buffer empty', async ({ page }) => {
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs');
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/frame for/i).first()).toBeVisible();
+
+    await page.getByRole('button', { name: /pause/i }).click();
+    await page.getByRole('button', { name: /clear/i }).click();
+
+    await expect(page.getByText(/frame for/i)).toHaveCount(0);
+    await expect(page.getByText('Waiting for matching log entries')).toBeVisible();
   });
 });

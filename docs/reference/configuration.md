@@ -323,8 +323,8 @@ Admin log stream behavior:
 - replay loads at most `LOGS_REPLAY_LIMIT` entries from the last
   `LOGS_REPLAY_WINDOW_MS`, then switches to live NATS fanout,
 - server-side filters support canonical device UUIDs, typeahead-resolved
-  serial/user selections, status, and type/source. User-email filters are
-  admin-only; non-admin users can search only their own devices and serials,
+  serial/user selections, provider, status, and type/source. User-email filters
+  are admin-only; non-admin users can search only their own devices and serials,
 - emitted entries and expandable JSON details use the normalized redacted
   envelope; raw MQTT payload reveal is intentionally out of scope for v1.
 
@@ -497,6 +497,9 @@ Runtime behavior:
   `/api/v1/me.authorization.deviceCount` for navigation visibility and route
   guards, POSTs typeahead filter lookups to the BFF, and subscribes to the
   redacted realtime log stream through the configured websocket URL.
+- the Logs screen keeps `50` rows visible by default, lets the user choose a
+  bounded visible-row cap, and keeps paused or expanded-row appends in a small
+  pending buffer until the user resumes live movement.
 - users can switch that data source directly from the shared app menu or from
   `Settings -> Data source`; local cloud-data builds present the product-facing
   choices as `Local` and `Local Edge`.

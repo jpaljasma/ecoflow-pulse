@@ -52,7 +52,7 @@ function logEntry(index, deviceId = DEFAULT_DEVICE_IDS[index % DEFAULT_DEVICE_ID
     type: 'log_entry',
     subscriptionId: 'admin-logs',
     entry: {
-      id: `mock-log-${ts}-${index}`,
+      id: `mock-log-${index % 2}`,
       ts,
       receivedTs: ts + 8,
       deviceId,
@@ -62,7 +62,9 @@ function logEntry(index, deviceId = DEFAULT_DEVICE_IDS[index % DEFAULT_DEVICE_ID
       typeCode,
       summary: `${typeCode} ${status} frame for ${deviceId.slice(0, 8)}`,
       labels: {
-        provider: 'ecoflow'
+        provider: index % 5 === 0 ? 'pulsemqtt' : 'ecoflow',
+        deviceName: index % 2 === 0 ? 'Garage battery' : 'House battery',
+        userEmail: '<redacted>'
       },
       detail: {
         deviceId,

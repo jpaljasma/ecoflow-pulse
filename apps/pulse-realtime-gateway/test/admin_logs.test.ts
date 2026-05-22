@@ -41,13 +41,14 @@ describe('admin realtime log entries', () => {
     expect(entry.status).toBe('ok');
   });
 
-  it('applies device, status, source, and type filters server-side', () => {
+  it('applies device, status, provider, source, and type filters server-side', () => {
     const entry = adminLogEntryFromEnvelope(sampleEnvelope(), 1772197190100);
 
     expect(
       matchesAdminLogFilters(entry, {
         deviceIds: ['dev-1'],
         statuses: ['ok'],
+        providers: ['ecoflow'],
         sources: ['mqtt'],
         typeCodes: ['quota']
       })
@@ -56,6 +57,7 @@ describe('admin realtime log entries', () => {
       matchesAdminLogFilters(entry, {
         deviceIds: ['dev-2'],
         statuses: [],
+        providers: [],
         sources: [],
         typeCodes: []
       })
@@ -64,6 +66,16 @@ describe('admin realtime log entries', () => {
       matchesAdminLogFilters(entry, {
         deviceIds: [],
         statuses: ['error'],
+        providers: [],
+        sources: [],
+        typeCodes: []
+      })
+    ).toBe(false);
+    expect(
+      matchesAdminLogFilters(entry, {
+        deviceIds: [],
+        statuses: [],
+        providers: ['pecron'],
         sources: [],
         typeCodes: []
       })
@@ -94,7 +106,7 @@ describe('admin realtime log entries', () => {
     const terminal = new Promise<void>((resolve, reject) => {
       source.subscribe({
         subscriptionId: 'logs-1',
-        filters: { deviceIds: [], statuses: [], sources: [], typeCodes: [] },
+        filters: { deviceIds: [], statuses: [], providers: [], sources: [], typeCodes: [] },
         replayLimit: 10,
         replaySinceUnixMs: Date.now() - 60_000,
         requestId: 'test-request',

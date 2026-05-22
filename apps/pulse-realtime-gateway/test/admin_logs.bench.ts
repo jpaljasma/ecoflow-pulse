@@ -45,6 +45,7 @@ describe('admin log gateway performance', () => {
     matchesAdminLogFilters(entry, {
       deviceIds: ['device-1'],
       statuses: ['ok'],
+      providers: ['ecoflow'],
       sources: ['mqtt'],
       typeCodes: ['quota']
     });
