@@ -35,6 +35,14 @@ export type AppendLogState = {
   pendingCount: number;
 };
 
+const DEFAULT_MAX_ENTRIES = 500;
+const DEFAULT_MAX_PENDING = 200;
+const searchableTextCache = new WeakMap<AdminLogEntry, string>();
+
+export function createInitialLogState(): AppendLogState {
+  return { entries: [], pending: [], pendingCount: 0 };
+}
+
 export function isGlobalAdmin(roles: readonly string[] | undefined): boolean {
   return roles?.some((role) => role.trim().toLowerCase() === 'admin') ?? false;
 }
@@ -58,24 +66,23 @@ export function appendLogEntry(
   entry: AdminLogEntry,
   options: { paused: boolean; maxEntries?: number; maxPending?: number }
 ): AppendLogState {
-  const maxEntries = options.maxEntries ?? 500;
-  const maxPending = options.maxPending ?? 200;
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  const maxPending = options.maxPending ?? DEFAULT_MAX_PENDING;
   if (options.paused) {
-    const pending = [entry, ...state.pending].slice(0, maxPending);
     return {
       ...state,
-      pending,
+      pending: prependBounded(entry, state.pending, maxPending),
       pendingCount: Math.min(state.pendingCount + 1, maxPending)
     };
   }
   return {
-    entries: [entry, ...state.entries].slice(0, maxEntries),
+    entries: prependBounded(entry, state.entries, maxEntries),
     pending: [],
     pendingCount: 0
   };
 }
 
-export function resumePending(state: AppendLogState, maxEntries = 500): AppendLogState {
+export function resumePending(state: AppendLogState, maxEntries = DEFAULT_MAX_ENTRIES): AppendLogState {
   if (state.pending.length === 0) {
     return { ...state, pendingCount: 0 };
   }
@@ -87,11 +94,14 @@ export function resumePending(state: AppendLogState, maxEntries = 500): AppendLo
 }
 
 export function fuzzyFilterLogEntries(entries: AdminLogEntry[], query: string): AdminLogEntry[] {
-  const needle = normalizeText(query);
-  if (!needle) {
+  const tokens = normalizeText(query).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
     return entries;
   }
-  return entries.filter((entry) => normalizeText(searchableLogText(entry)).includes(needle));
+  return entries.filter((entry) => {
+    const haystack = getSearchableLogText(entry);
+    return tokens.every((token) => haystack.includes(token));
+  });
 }
 
 export function redactEntryForCopy(entry: AdminLogEntry): AdminLogEntry {
@@ -113,6 +123,26 @@ function searchableLogText(entry: AdminLogEntry): string {
     entry.summary,
     ...Object.entries(entry.labels).flat()
   ].join(' ');
+}
+
+function getSearchableLogText(entry: AdminLogEntry): string {
+  const cached = searchableTextCache.get(entry);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const text = normalizeText(searchableLogText(entry));
+  searchableTextCache.set(entry, text);
+  return text;
+}
+
+function prependBounded<T>(item: T, items: readonly T[], maxItems: number): T[] {
+  if (maxItems <= 0) {
+    return [];
+  }
+  if (items.length >= maxItems) {
+    return [item, ...items.slice(0, maxItems - 1)];
+  }
+  return [item, ...items];
 }
 
 function redactRecord(record: Record<string, string>): Record<string, string> {

@@ -130,9 +130,9 @@ export default function LogsScreen() {
 
         <YStack gap="$2" padding="$3" borderWidth={1} borderRadius={8} style={{ borderColor: semantics.sectionBorder }}>
           <XStack gap="$2" flexWrap="wrap" alignItems="flex-start">
-            <LogTypeahead kind="device" label="Device" token={token} onSelect={addOption} />
-            <LogTypeahead kind="serial" label="Serial" token={token} onSelect={addOption} />
-            <LogTypeahead kind="user" label="User email" token={token} onSelect={addOption} />
+            <LogTypeahead kind="device" label="Device" token={token} authKey={authKey} onSelect={addOption} />
+            <LogTypeahead kind="serial" label="Serial" token={token} authKey={authKey} onSelect={addOption} />
+            <LogTypeahead kind="user" label="User email" token={token} authKey={authKey} onSelect={addOption} />
             <YStack minWidth={190} flex={1}>
               <Input
                 size="$3"
@@ -234,18 +234,20 @@ function LogTypeahead({
   kind,
   label,
   token,
+  authKey,
   onSelect
 }: {
   kind: AdminLogFilterKind;
   label: string;
   token?: string;
+  authKey: string;
   onSelect: (option: AdminLogFilterOption) => void;
 }) {
   const semantics = useThemeSemantics();
   const [query, setQuery] = useState('');
   const trimmed = query.trim();
   const optionsQuery = useQuery({
-    queryKey: ['admin-log-filter-options', kind, trimmed, token],
+    queryKey: ['admin-log-filter-options', kind, trimmed, authKey],
     queryFn: () => fetchAdminLogFilterOptions({ token, kind, query: trimmed, limit: 5 }),
     enabled: trimmed.length >= 2,
     staleTime: 30_000

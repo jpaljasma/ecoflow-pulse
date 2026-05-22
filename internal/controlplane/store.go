@@ -282,6 +282,16 @@ func normalizeAdminLogFilterLimit(limit int) int {
 	}
 }
 
+func appendAdminLogOptions(out []AdminLogFilterOption, options []AdminLogFilterOption, limit int) []AdminLogFilterOption {
+	for _, option := range options {
+		if len(out) >= limit {
+			return out
+		}
+		out = append(out, option)
+	}
+	return out
+}
+
 func matchesAdminLogQuery(query string, values ...string) bool {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" {

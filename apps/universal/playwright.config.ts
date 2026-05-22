@@ -28,7 +28,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI
     },
     {
-      command: 'node e2e/mock_ws_server.js',
+      command: 'MAESTRO_MOCK_WS_CLOSE_LOGS_ONCE=1 node e2e/mock_ws_server.js',
       port: 8082,
       timeout: 30_000,
       reuseExistingServer: !process.env.CI

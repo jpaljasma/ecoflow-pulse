@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendLogEntry,
   buildSubscribeFilters,
+  createInitialLogState,
   fuzzyFilterLogEntries,
   isGlobalAdmin,
   redactEntryForCopy,
@@ -38,7 +39,7 @@ describe('admin log model', () => {
   it('keeps live rows stable while paused and flushes pending rows on resume', () => {
     const first = sampleEntry({ id: 'first' });
     const second = sampleEntry({ id: 'second' });
-    const paused = appendLogEntry({ entries: [first], pending: [], pendingCount: 0 }, second, {
+    const paused = appendLogEntry({ ...createInitialLogState(), entries: [first] }, second, {
       paused: true
     });
 
@@ -54,6 +55,15 @@ describe('admin log model', () => {
         sampleEntry({ id: 'b', summary: 'status heartbeat', source: 'mqtt-status' })
       ], 'heart')
     ).toEqual([expect.objectContaining({ id: 'b' })]);
+  });
+
+  it('matches freetext tokens across indexed log fields', () => {
+    expect(
+      fuzzyFilterLogEntries([
+        sampleEntry({ id: 'a', deviceId: 'device-alpha', summary: 'quota update' }),
+        sampleEntry({ id: 'b', deviceId: 'device-beta', summary: 'quota update' })
+      ], 'quota alpha')
+    ).toEqual([expect.objectContaining({ id: 'a' })]);
   });
 
   it('redacts sensitive fields before copy', () => {

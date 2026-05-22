@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-/* global clearInterval, process, require, setInterval */
+/* global clearInterval, process, require, setInterval, setTimeout */
 
 const WebSocket = require('ws');
 
 const host = process.env.MAESTRO_MOCK_WS_HOST || '127.0.0.1';
 const port = Number(process.env.MAESTRO_MOCK_WS_PORT || '8082');
+let closeLogsOnce = process.env.MAESTRO_MOCK_WS_CLOSE_LOGS_ONCE === '1';
 
 const DEFAULT_DEVICE_IDS = [
   '11111111-1111-7111-8111-111111111111',
@@ -132,6 +133,11 @@ wss.on('connection', (socket) => {
           ts: nowUnixMs(),
           replayed: 2
         });
+        if (closeLogsOnce) {
+          closeLogsOnce = false;
+          setTimeout(() => socket.close(1012, 'mock gateway restart'), 20);
+          return;
+        }
         sendFrame({
           type: 'logs_status',
           subscriptionId: 'admin-logs',

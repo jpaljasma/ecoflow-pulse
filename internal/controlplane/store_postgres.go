@@ -14,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/pgsearchpath"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1440,22 +1441,34 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 	kind := normalizeAdminLogFilterKind(in.Kind)
 	query := strings.ToLower(strings.TrimSpace(in.Query))
 	limit := normalizeAdminLogFilterLimit(in.Limit)
-	out := make([]AdminLogFilterOption, 0, limit)
 
-	if kind == "" || kind == "device" || kind == "serial" {
-		options, err := s.searchAdminLogDeviceFilters(ctx, kind, query, limit-len(out))
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, options...)
+	if kind == "device" || kind == "serial" {
+		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit)
 	}
-	if len(out) < limit && (kind == "" || kind == "user") {
-		options, err := s.searchAdminLogUserFilters(ctx, query, limit-len(out))
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, options...)
+	if kind == "user" {
+		return s.searchAdminLogUserFilters(ctx, query, limit)
 	}
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	var deviceOptions []AdminLogFilterOption
+	var userOptions []AdminLogFilterOption
+	group.Go(func() error {
+		var err error
+		deviceOptions, err = s.searchAdminLogDeviceFilters(groupCtx, kind, query, limit)
+		return err
+	})
+	group.Go(func() error {
+		var err error
+		userOptions, err = s.searchAdminLogUserFilters(groupCtx, query, limit)
+		return err
+	})
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+
+	out := make([]AdminLogFilterOption, 0, limit)
+	out = appendAdminLogOptions(out, deviceOptions, limit)
+	out = appendAdminLogOptions(out, userOptions, limit)
 	return out, nil
 }
 
@@ -1530,81 +1543,75 @@ func (s *PostgresStore) searchAdminLogUserFilters(ctx context.Context, query str
 		return nil, nil
 	}
 	const sqlQuery = `
+WITH matching_users AS (
+	SELECT
+		u.id,
+		COALESCE(u.email, '') AS email,
+		COALESCE(u.display_name, '') AS display_name
+	FROM users u
+	WHERE COALESCE(trim(u.email), '') <> ''
+	  AND (
+		$1 = ''
+		OR lower(u.email) LIKE $2
+		OR lower(COALESCE(u.display_name, '')) LIKE $2
+		OR lower(u.keycloak_subject) LIKE $2
+	  )
+	ORDER BY lower(u.email), u.id::text
+	LIMIT $3
+)
 SELECT
-	u.id::text,
-	COALESCE(u.email, ''),
-	COALESCE(u.display_name, ''),
-	COALESCE(ud.device_id::text, '')
-FROM users u
-LEFT JOIN user_devices ud ON ud.user_id = u.id
-WHERE COALESCE(trim(u.email), '') <> ''
-  AND (
-	$1 = ''
-	OR lower(u.email) LIKE $2
-	OR lower(COALESCE(u.display_name, '')) LIKE $2
-	OR lower(u.keycloak_subject) LIKE $2
-  )
-ORDER BY lower(u.email), u.id::text, ud.device_id::text
-LIMIT $3;
+	mu.id::text,
+	mu.email,
+	mu.display_name,
+	COALESCE(
+		json_agg(ud.device_id::text ORDER BY ud.device_id::text) FILTER (WHERE ud.device_id IS NOT NULL),
+		'[]'::json
+	)::text AS device_ids_json
+FROM matching_users mu
+LEFT JOIN user_devices ud ON ud.user_id = mu.id
+GROUP BY mu.id, mu.email, mu.display_name
+ORDER BY lower(mu.email), mu.id::text;
 `
-	type aggregate struct {
-		option AdminLogFilterOption
-		seen   map[string]struct{}
-	}
 	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]AdminLogFilterOption, error) {
-		rows, err := s.db.QueryContext(ctx, sqlQuery, query, "%"+query+"%", limit*32)
+		rows, err := s.db.QueryContext(ctx, sqlQuery, query, "%"+query+"%", limit)
 		if err != nil {
 			return nil, fmt.Errorf("query admin log user filters: %w", err)
 		}
 		defer func() { _ = rows.Close() }()
 
-		order := make([]string, 0, limit)
-		byUser := make(map[string]*aggregate, limit)
+		out := make([]AdminLogFilterOption, 0, limit)
 		for rows.Next() {
-			var userID, email, displayName, deviceID string
-			if err := rows.Scan(&userID, &email, &displayName, &deviceID); err != nil {
+			var userID, email, displayName, deviceIDsJSON string
+			if err := rows.Scan(&userID, &email, &displayName, &deviceIDsJSON); err != nil {
 				return nil, fmt.Errorf("scan admin log user filter row: %w", err)
 			}
-			item, ok := byUser[userID]
-			if !ok {
-				if len(order) >= limit {
-					continue
-				}
-				item = &aggregate{
-					option: AdminLogFilterOption{
-						Kind:           "user",
-						ID:             userID,
-						Label:          email,
-						SecondaryLabel: adminLogFirstNonEmpty(displayName, "0 devices"),
-						DeviceIDs:      []string{},
-					},
-					seen: map[string]struct{}{},
-				}
-				byUser[userID] = item
-				order = append(order, userID)
+			deviceIDs, err := parseAdminLogDeviceIDsJSON(deviceIDsJSON)
+			if err != nil {
+				return nil, fmt.Errorf("decode admin log user device ids: %w", err)
 			}
-			if strings.TrimSpace(deviceID) == "" {
-				continue
-			}
-			if _, ok := item.seen[deviceID]; ok {
-				continue
-			}
-			item.seen[deviceID] = struct{}{}
-			item.option.DeviceIDs = append(item.option.DeviceIDs, deviceID)
-			if strings.TrimSpace(displayName) == "" {
-				item.option.SecondaryLabel = fmt.Sprintf("%d devices", len(item.option.DeviceIDs))
-			}
+			secondaryLabel := adminLogFirstNonEmpty(displayName, fmt.Sprintf("%d devices", len(deviceIDs)))
+			out = append(out, AdminLogFilterOption{
+				Kind:           "user",
+				ID:             userID,
+				Label:          email,
+				SecondaryLabel: secondaryLabel,
+				DeviceIDs:      deviceIDs,
+			})
 		}
 		if err := rows.Err(); err != nil {
 			return nil, fmt.Errorf("iterate admin log user filters: %w", err)
 		}
-		out := make([]AdminLogFilterOption, 0, len(order))
-		for _, userID := range order {
-			sort.Strings(byUser[userID].option.DeviceIDs)
-			out = append(out, byUser[userID].option)
-		}
 		return out, nil
 	})
+}
+
+func parseAdminLogDeviceIDsJSON(raw string) ([]string, error) {
+	var deviceIDs []string
+	if err := json.Unmarshal([]byte(raw), &deviceIDs); err != nil {
+		return nil, err
+	}
+	sort.Strings(deviceIDs)
+	return deviceIDs, nil
 }
 
 type jsonbMap map[string]any

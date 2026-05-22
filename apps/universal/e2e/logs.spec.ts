@@ -14,7 +14,7 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByText('Admin access required')).toBeVisible();
   });
 
-  test('shows realtime logs for admins with POST typeahead filters and row drilldown', async ({ page }) => {
+  test('shows realtime logs for admins, reconnects, and supports POST typeahead filters', async ({ page }) => {
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
 
