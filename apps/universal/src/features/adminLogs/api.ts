@@ -7,7 +7,8 @@ const AdminLogFilterOptionSchema = z.object({
   id: z.string(),
   label: z.string(),
   secondaryLabel: z.string(),
-  deviceIds: z.array(z.string())
+  deviceIds: z.array(z.string()),
+  provider: z.string().optional()
 });
 
 const AdminLogFilterOptionsResponseSchema = z.object({
@@ -21,6 +22,7 @@ export async function fetchAdminLogFilterOptions(input: {
   kind: AdminLogFilterKind;
   query: string;
   limit?: number;
+  provider?: string;
 }): Promise<AdminLogFilterOption[]> {
   const data = await requestJson<unknown>('/api/v1/admin/log-filter-options', {
     method: 'POST',
@@ -28,7 +30,8 @@ export async function fetchAdminLogFilterOptions(input: {
     body: {
       kind: input.kind,
       query: input.query,
-      limit: input.limit ?? 8
+      limit: input.limit ?? 8,
+      provider: input.provider ?? ''
     }
   });
   return AdminLogFilterOptionsResponseSchema.parse(data).options;

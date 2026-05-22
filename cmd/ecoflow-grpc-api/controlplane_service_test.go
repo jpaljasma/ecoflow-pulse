@@ -846,6 +846,22 @@ func TestSearchAdminLogFiltersAllowsDeviceOwnerScopedDeviceAndSerial(t *testing.
 	if err != nil {
 		t.Fatalf("create owner device failed: %v", err)
 	}
+	store.PutProviderDevice(controlplane.ProviderDevice{
+		DeviceID:         ownerDevice.DeviceID,
+		Provider:         controlplane.ProviderPecron,
+		ProviderDeviceID: "pecron:owner-001",
+		CanonicalSN:      "OWNER-SN-001",
+		ProductName:      "Owner Delta",
+		Model:            "DELTA 2 Max",
+	})
+	store.PutProviderDevice(controlplane.ProviderDevice{
+		DeviceID:         ownerDevice.DeviceID,
+		Provider:         controlplane.ProviderEcoFlow,
+		ProviderDeviceID: "OWNER-SN-001",
+		CanonicalSN:      "OWNER-SN-001",
+		ProductName:      "Owner Delta",
+		Model:            "DELTA 2 Max",
+	})
 	if _, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{
 		UserSubject: "other-user",
 		Email:       "other@example.invalid",
@@ -884,12 +900,13 @@ func TestSearchAdminLogFiltersAllowsDeviceOwnerScopedDeviceAndSerial(t *testing.
 		UserSubject: "owner-user",
 		Query:       "Delta",
 		Kind:        "device",
+		Provider:    controlplane.ProviderPecron,
 		Limit:       10,
 	})
 	if err != nil {
 		t.Fatalf("search owner device filters failed: %v", err)
 	}
-	if got := deviceResp.GetOptions(); len(got) != 1 || got[0].GetKind() != "device" || got[0].GetDeviceIds()[0] != ownerDevice.DeviceID {
+	if got := deviceResp.GetOptions(); len(got) != 1 || got[0].GetKind() != "device" || got[0].GetDeviceIds()[0] != ownerDevice.DeviceID || got[0].GetProvider() != controlplane.ProviderPecron {
 		t.Fatalf("unexpected scoped device options: %+v", got)
 	}
 

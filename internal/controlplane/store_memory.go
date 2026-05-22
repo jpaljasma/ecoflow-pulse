@@ -795,6 +795,7 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 	kind := normalizeAdminLogFilterKind(in.Kind)
 	query := strings.ToLower(strings.TrimSpace(in.Query))
 	limit := normalizeAdminLogFilterLimit(in.Limit)
+	provider := NormalizeProvider(in.Provider)
 	out := make([]AdminLogFilterOption, 0, limit)
 	var scopedDeviceIDs map[string]struct{}
 	if !in.GlobalAdmin {
@@ -815,6 +816,9 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 				if _, ok := scopedDeviceIDs[device.ID]; !ok {
 					continue
 				}
+			}
+			if provider != "" && !s.memoryDeviceMatchesProviderLocked(device.ID, provider) {
+				continue
 			}
 			devices = append(devices, device)
 		}
@@ -837,6 +841,7 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 					Label:          adminLogFirstNonEmpty(device.ProductName, device.Model, "Device "+shortID(device.ID)),
 					SecondaryLabel: adminLogFirstNonEmpty(device.Model, "UUID "+shortID(device.ID)),
 					DeviceIDs:      []string{device.ID},
+					Provider:       provider,
 				})
 			}
 			if len(out) >= limit {
@@ -849,6 +854,7 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 					Label:          device.EcoflowSN,
 					SecondaryLabel: adminLogFirstNonEmpty(device.ProductName, device.Model, "Device "+shortID(device.ID)),
 					DeviceIDs:      []string{device.ID},
+					Provider:       provider,
 				})
 			}
 		}
@@ -888,6 +894,15 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 		}
 	}
 	return out, nil
+}
+
+func (s *MemoryStore) memoryDeviceMatchesProviderLocked(deviceID string, provider string) bool {
+	for _, row := range s.providerDevices {
+		if row.DeviceID == deviceID && row.Provider == provider {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *MemoryStore) ensureDeviceLocked(sn string, productName string, model string, now time.Time) (memoryDevice, bool) {

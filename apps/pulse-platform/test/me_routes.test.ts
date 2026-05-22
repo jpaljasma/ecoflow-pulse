@@ -206,7 +206,8 @@ describe('pulse-platform current user routes', () => {
         id: 'dev-1',
         label: 'DEMO-SN-1',
         secondaryLabel: 'Garage Delta',
-        deviceIds: ['dev-1']
+        deviceIds: ['dev-1'],
+        provider: 'pecron'
       }
     ]);
     const controlPlaneClient = makeControlPlaneClient({ searchAdminLogFilters });
@@ -220,7 +221,7 @@ describe('pulse-platform current user routes', () => {
       headers: {
         authorization: 'Bearer owner-token'
       },
-      payload: { kind: 'serial', query: 'demo', limit: 5 }
+      payload: { kind: 'serial', query: 'demo', limit: 5, provider: 'pecron' }
     });
 
     expect(response.statusCode).toBe(200);
@@ -228,6 +229,7 @@ describe('pulse-platform current user routes', () => {
       userSubject: 'dev-user-subject',
       query: 'demo',
       kind: 'serial',
+      provider: 'pecron',
       limit: 5,
       authHeader: 'Bearer owner-token',
       requestID: expect.any(String),
@@ -240,7 +242,8 @@ describe('pulse-platform current user routes', () => {
           id: 'dev-1',
           label: 'DEMO-SN-1',
           secondaryLabel: 'Garage Delta',
-          deviceIds: ['dev-1']
+          deviceIds: ['dev-1'],
+          provider: 'pecron'
         }
       ]
     });
@@ -284,6 +287,7 @@ describe('pulse-platform current user routes', () => {
       userSubject: 'dev-user-subject',
       query: 'owner',
       kind: 'user',
+      provider: '',
       limit: 5,
       authHeader: 'Bearer admin-token',
       requestID: expect.any(String),

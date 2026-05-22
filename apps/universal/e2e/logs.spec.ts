@@ -42,7 +42,8 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText(/quota .* frame/i).first()).toBeVisible();
     await expect(page.getByText('Garage battery').first()).toBeVisible();
-    await expect(page.getByText('<redacted>').first()).toBeVisible();
+    await expect(page.getByText('op***@ex***').first()).toBeVisible();
+    await expect(page.getByText('operator@example.invalid')).toHaveCount(0);
 
     await page.getByLabel('Email').fill('operator');
     await expect(page.getByText('operator@example.invalid')).toBeVisible();
@@ -71,6 +72,23 @@ test.describe('Universal admin logs', () => {
     expect(Math.abs(tableTopAfter - tableTopBefore)).toBeLessThanOrEqual(2);
   });
 
+  test('limits device and serial typeahead results to the selected provider', async ({ page }) => {
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs');
+    await expect(page.getByTestId('screen-logs')).toBeVisible();
+
+    await page.getByLabel('Provider').selectOption('pecron');
+    await page.getByRole('textbox', { name: 'Device' }).fill('pack');
+    await expect(page.getByTestId('logs-typeahead-menu-device').getByText('Pecron balcony pack')).toBeVisible();
+
+    await page.getByRole('textbox', { name: 'Device' }).fill('DPU');
+    await expect(page.getByTestId('logs-typeahead-menu-device')).toHaveCount(0);
+
+    await page.getByRole('textbox', { name: 'Serial' }).fill('DEMO');
+    await expect(page.getByTestId('logs-typeahead-menu-serial').getByText('P11VXG:DEMO-001')).toBeVisible();
+  });
+
   test('clears visible logs while paused and keeps the buffer empty', async ({ page }) => {
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -83,5 +101,43 @@ test.describe('Universal admin logs', () => {
 
     await expect(page.getByText(/frame for/i)).toHaveCount(0);
     await expect(page.getByText('Waiting for matching log entries')).toBeVisible();
+  });
+
+  test('does not receive log entries while another tab is active and resumes on return', async ({ page }) => {
+    await page.addInitScript(() => {
+      const NativeWebSocket = window.WebSocket;
+      const counters = { offTabLogEntries: 0 };
+      (window as unknown as { __pulseLogCounters: typeof counters }).__pulseLogCounters = counters;
+      window.WebSocket = class extends NativeWebSocket {
+        constructor(url: string | URL, protocols?: string | string[]) {
+          super(url, protocols);
+          this.addEventListener('message', (event) => {
+            try {
+              const message = JSON.parse(String(event.data)) as { type?: string };
+              if (message.type === 'log_entry' && window.location.pathname !== '/logs') {
+                counters.offTabLogEntries += 1;
+              }
+            } catch {
+              // Ignore non-log frames in the test transport counter.
+            }
+          });
+        }
+      };
+    });
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs');
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/frame for/i).first()).toBeVisible();
+
+    await page.goto('/devices');
+    await page.waitForTimeout(2200);
+
+    await expect.poll(() => page.evaluate(() => (
+      window as unknown as { __pulseLogCounters?: { offTabLogEntries: number } }
+    ).__pulseLogCounters?.offTabLogEntries ?? 0)).toBe(0);
+
+    await page.goto('/logs');
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
   });
 });

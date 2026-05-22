@@ -2657,6 +2657,7 @@ type AdminLogFilterOption struct {
 	Label          string                 `protobuf:"bytes,3,opt,name=label,proto3" json:"label,omitempty"`
 	SecondaryLabel string                 `protobuf:"bytes,4,opt,name=secondary_label,json=secondaryLabel,proto3" json:"secondary_label,omitempty"`
 	DeviceIds      []string               `protobuf:"bytes,5,rep,name=device_ids,json=deviceIds,proto3" json:"device_ids,omitempty"`
+	Provider       string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2726,12 +2727,20 @@ func (x *AdminLogFilterOption) GetDeviceIds() []string {
 	return nil
 }
 
+func (x *AdminLogFilterOption) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
 type SearchAdminLogFiltersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
 	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
 	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
 	Limit         uint32                 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	Provider      string                 `protobuf:"bytes,5,opt,name=provider,proto3" json:"provider,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2792,6 +2801,13 @@ func (x *SearchAdminLogFiltersRequest) GetLimit() uint32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *SearchAdminLogFiltersRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
 }
 
 type SearchAdminLogFiltersResponse struct {
@@ -3060,19 +3076,21 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\x1cImportProviderDeviceResponse\x12N\n" +
 	"\x0fprovider_device\x18\x01 \x01(\v2%.pulse.controlplane.v1.ProviderDeviceR\x0eproviderDevice\x12B\n" +
 	"\vuser_device\x18\x02 \x01(\v2!.pulse.controlplane.v1.UserDeviceR\n" +
-	"userDevice\"\x98\x01\n" +
+	"userDevice\"\xb4\x01\n" +
 	"\x14AdminLogFilterOption\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
 	"\x05label\x18\x03 \x01(\tR\x05label\x12'\n" +
 	"\x0fsecondary_label\x18\x04 \x01(\tR\x0esecondaryLabel\x12\x1d\n" +
 	"\n" +
-	"device_ids\x18\x05 \x03(\tR\tdeviceIds\"\x81\x01\n" +
+	"device_ids\x18\x05 \x03(\tR\tdeviceIds\x12\x1a\n" +
+	"\bprovider\x18\x06 \x01(\tR\bprovider\"\x9d\x01\n" +
 	"\x1cSearchAdminLogFiltersRequest\x12!\n" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x12\n" +
 	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\rR\x05limit\"f\n" +
+	"\x05limit\x18\x04 \x01(\rR\x05limit\x12\x1a\n" +
+	"\bprovider\x18\x05 \x01(\tR\bprovider\"f\n" +
 	"\x1dSearchAdminLogFiltersResponse\x12E\n" +
 	"\aoptions\x18\x01 \x03(\v2+.pulse.controlplane.v1.AdminLogFilterOptionR\aoptions2\x8d\x11\n" +
 	"\x13ControlPlaneService\x12m\n" +

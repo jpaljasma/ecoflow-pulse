@@ -316,7 +316,7 @@ func TestPostgresStoreSearchAdminLogFiltersScopesDeviceOptionsToUserSubject(t *t
 
 	store := newPostgresStore(db)
 	mock.ExpectQuery("FROM users u").
-		WithArgs("owner", "%owner%", 5, "owner-subject").
+		WithArgs("owner", "%owner%", 5, "pecron", "owner-subject").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "ecoflow_sn", "product_name", "model"}).
 			AddRow("dev-owned", "OWNER-SN-001", "Owner Delta", "DELTA 2 Max"))
 
@@ -324,6 +324,7 @@ func TestPostgresStoreSearchAdminLogFiltersScopesDeviceOptionsToUserSubject(t *t
 		Query:       "owner",
 		Kind:        "serial",
 		Limit:       5,
+		Provider:    "pecron",
 		UserSubject: "owner-subject",
 		GlobalAdmin: false,
 	})
@@ -335,6 +336,9 @@ func TestPostgresStoreSearchAdminLogFiltersScopesDeviceOptionsToUserSubject(t *t
 	}
 	if options[0].Kind != "serial" || options[0].DeviceIDs[0] != "dev-owned" {
 		t.Fatalf("unexpected scoped option: %+v", options[0])
+	}
+	if options[0].Provider != "pecron" {
+		t.Fatalf("Provider=%q, want pecron", options[0].Provider)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)
