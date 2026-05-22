@@ -35,6 +35,7 @@ const (
 	ControlPlaneService_TestProviderDeviceMQTT_FullMethodName       = "/pulse.controlplane.v1.ControlPlaneService/TestProviderDeviceMQTT"
 	ControlPlaneService_EnableProviderDevice_FullMethodName         = "/pulse.controlplane.v1.ControlPlaneService/EnableProviderDevice"
 	ControlPlaneService_ImportProviderDevice_FullMethodName         = "/pulse.controlplane.v1.ControlPlaneService/ImportProviderDevice"
+	ControlPlaneService_SearchAdminLogFilters_FullMethodName        = "/pulse.controlplane.v1.ControlPlaneService/SearchAdminLogFilters"
 )
 
 // ControlPlaneServiceClient is the client API for ControlPlaneService service.
@@ -57,6 +58,7 @@ type ControlPlaneServiceClient interface {
 	TestProviderDeviceMQTT(ctx context.Context, in *TestProviderDeviceMQTTRequest, opts ...grpc.CallOption) (*TestProviderDeviceMQTTResponse, error)
 	EnableProviderDevice(ctx context.Context, in *EnableProviderDeviceRequest, opts ...grpc.CallOption) (*EnableProviderDeviceResponse, error)
 	ImportProviderDevice(ctx context.Context, in *ImportProviderDeviceRequest, opts ...grpc.CallOption) (*ImportProviderDeviceResponse, error)
+	SearchAdminLogFilters(ctx context.Context, in *SearchAdminLogFiltersRequest, opts ...grpc.CallOption) (*SearchAdminLogFiltersResponse, error)
 }
 
 type controlPlaneServiceClient struct {
@@ -227,6 +229,16 @@ func (c *controlPlaneServiceClient) ImportProviderDevice(ctx context.Context, in
 	return out, nil
 }
 
+func (c *controlPlaneServiceClient) SearchAdminLogFilters(ctx context.Context, in *SearchAdminLogFiltersRequest, opts ...grpc.CallOption) (*SearchAdminLogFiltersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchAdminLogFiltersResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_SearchAdminLogFilters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ControlPlaneServiceServer is the server API for ControlPlaneService service.
 // All implementations must embed UnimplementedControlPlaneServiceServer
 // for forward compatibility.
@@ -247,6 +259,7 @@ type ControlPlaneServiceServer interface {
 	TestProviderDeviceMQTT(context.Context, *TestProviderDeviceMQTTRequest) (*TestProviderDeviceMQTTResponse, error)
 	EnableProviderDevice(context.Context, *EnableProviderDeviceRequest) (*EnableProviderDeviceResponse, error)
 	ImportProviderDevice(context.Context, *ImportProviderDeviceRequest) (*ImportProviderDeviceResponse, error)
+	SearchAdminLogFilters(context.Context, *SearchAdminLogFiltersRequest) (*SearchAdminLogFiltersResponse, error)
 	mustEmbedUnimplementedControlPlaneServiceServer()
 }
 
@@ -304,6 +317,9 @@ func (UnimplementedControlPlaneServiceServer) EnableProviderDevice(context.Conte
 }
 func (UnimplementedControlPlaneServiceServer) ImportProviderDevice(context.Context, *ImportProviderDeviceRequest) (*ImportProviderDeviceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ImportProviderDevice not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) SearchAdminLogFilters(context.Context, *SearchAdminLogFiltersRequest) (*SearchAdminLogFiltersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchAdminLogFilters not implemented")
 }
 func (UnimplementedControlPlaneServiceServer) mustEmbedUnimplementedControlPlaneServiceServer() {}
 func (UnimplementedControlPlaneServiceServer) testEmbeddedByValue()                             {}
@@ -614,6 +630,24 @@ func _ControlPlaneService_ImportProviderDevice_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ControlPlaneService_SearchAdminLogFilters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchAdminLogFiltersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).SearchAdminLogFilters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_SearchAdminLogFilters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).SearchAdminLogFilters(ctx, req.(*SearchAdminLogFiltersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ControlPlaneService_ServiceDesc is the grpc.ServiceDesc for ControlPlaneService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -684,6 +718,10 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ImportProviderDevice",
 			Handler:    _ControlPlaneService_ImportProviderDevice_Handler,
+		},
+		{
+			MethodName: "SearchAdminLogFilters",
+			Handler:    _ControlPlaneService_SearchAdminLogFilters_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

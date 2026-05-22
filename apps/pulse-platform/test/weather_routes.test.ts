@@ -125,6 +125,7 @@ function makeControlPlaneClient(
     testProviderDeviceMQTT: vi.fn(),
     enableProviderDevice: vi.fn(),
     importProviderDevice: vi.fn(),
+    searchAdminLogFilters: vi.fn(async () => []),
     close: vi.fn(),
     ...overrides
   };

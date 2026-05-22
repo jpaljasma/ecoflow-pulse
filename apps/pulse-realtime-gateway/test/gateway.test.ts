@@ -15,6 +15,12 @@ import type {
   LiveTelemetryClient,
   SubscribeInput
 } from '../src/live/liveTelemetryClient.js';
+import type {
+  AdminLogEntry,
+  AdminLogSource,
+  AdminLogSubscribeInput,
+  AdminLogSubscription
+} from '../src/adminLogs/types.js';
 import { realtimeMetrics } from '../src/metrics.js';
 
 type SubscriptionRecord = {
@@ -77,6 +83,43 @@ class FakeLiveClient implements LiveTelemetryClient {
   }
 }
 
+type LogSubscriptionRecord = {
+  input: AdminLogSubscribeInput;
+  closed: boolean;
+};
+
+class FakeAdminLogSource implements AdminLogSource {
+  readonly subscribeCalls: AdminLogSubscribeInput[] = [];
+  readonly subscriptions = new Map<string, LogSubscriptionRecord>();
+  replayEntries: AdminLogEntry[] = [];
+
+  subscribe(input: AdminLogSubscribeInput): AdminLogSubscription {
+    this.subscribeCalls.push(input);
+    const record: LogSubscriptionRecord = { input, closed: false };
+    this.subscriptions.set(input.subscriptionId, record);
+    input.onStatus({ state: 'replay' });
+    for (const entry of this.replayEntries) {
+      input.onEntry(entry);
+    }
+    input.onReplayDone({ replayed: this.replayEntries.length });
+    input.onStatus({ state: 'live' });
+    return {
+      close: () => {
+        record.closed = true;
+        this.subscriptions.delete(input.subscriptionId);
+      }
+    };
+  }
+
+  emit(subscriptionId: string, entry: AdminLogEntry): void {
+    this.subscriptions.get(subscriptionId)?.input.onEntry(entry);
+  }
+
+  close(): void {
+    this.subscriptions.clear();
+  }
+}
+
 function baseConfig(): AppConfig {
   return {
     host: '127.0.0.1',
@@ -93,6 +136,12 @@ function baseConfig(): AppConfig {
       keyPrefix: 'pulse:projection'
     },
     telemetrySubjectPrefix: 'pulse.telemetry',
+    logs: {
+      streamName: 'PULSE_TELEMETRY_INGEST',
+      replayLimit: 200,
+      replayWindowMs: 300000,
+      devAdminEnabled: false
+    },
     delivery: {
       fastIntervalMs: 250,
       steadyIntervalMs: 500,
@@ -281,6 +330,207 @@ describe('pulse-realtime-gateway', () => {
     await app.close();
   });
 
+  it('rejects admin log subscriptions for non-admin websocket users', async () => {
+    const client = new FakeLiveClient();
+    const logs = new FakeAdminLogSource();
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'viewer-user',
+          email: '',
+          roles: ['viewer'],
+          rawJwt: 'viewer-token'
+        };
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(JSON.stringify({ type: 'logs_subscribe', subscriptionId: 'logs-1' }));
+
+    expect(await nextMessage(ws)).toEqual({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      ts: expect.any(Number),
+      state: 'forbidden',
+      message: 'admin role required'
+    });
+    expect(logs.subscribeCalls).toHaveLength(0);
+
+    await closeWebSocket(ws);
+    await app.close();
+  });
+
+  it('limits the admin log dev override to noop auth mode', async () => {
+    const keycloakLogs = new FakeAdminLogSource();
+    const keycloakConfig = baseConfig();
+    keycloakConfig.auth = {
+      mode: 'keycloak',
+      issuerUrl: 'https://issuer.example/realms/pulse',
+      audience: 'pulse',
+      jwksUrl: '',
+      allowMissingJwt: false
+    };
+    keycloakConfig.logs.devAdminEnabled = true;
+    const keycloakApp = buildApp(keycloakConfig, new FakeLiveClient(), {
+      logSource: keycloakLogs,
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'viewer-user',
+          email: '',
+          roles: ['viewer'],
+          rawJwt: 'viewer-token'
+        };
+      }
+    });
+    const keycloakWs = await openWebSocket(keycloakApp, '/ws');
+
+    keycloakWs.send(JSON.stringify({ type: 'logs_subscribe', subscriptionId: 'logs-1' }));
+
+    expect(await nextMessage(keycloakWs)).toMatchObject({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      state: 'forbidden'
+    });
+    expect(keycloakLogs.subscribeCalls).toHaveLength(0);
+    await closeWebSocket(keycloakWs);
+    await keycloakApp.close();
+
+    const noopLogs = new FakeAdminLogSource();
+    const noopConfig = baseConfig();
+    noopConfig.logs.devAdminEnabled = true;
+    const noopApp = buildApp(noopConfig, new FakeLiveClient(), { logSource: noopLogs });
+    const noopWs = await openWebSocket(noopApp, '/ws');
+
+    noopWs.send(JSON.stringify({ type: 'logs_subscribe', subscriptionId: 'logs-1' }));
+
+    expect(await nextMessage(noopWs)).toMatchObject({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      state: 'replay'
+    });
+    expect(noopLogs.subscribeCalls).toHaveLength(1);
+    await closeWebSocket(noopWs);
+    await noopApp.close();
+  });
+
+  it('streams replayed admin logs before live entries and releases on unsubscribe', async () => {
+    const client = new FakeLiveClient();
+    const logs = new FakeAdminLogSource();
+    const replayEntry = sampleLogEntry({ id: 'replay-1', ts: 1000 });
+    const liveEntry = sampleLogEntry({ id: 'live-1', ts: 2000 });
+    logs.replayEntries = [replayEntry];
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'admin-user',
+          email: '',
+          roles: ['viewer', 'admin'],
+          rawJwt: 'admin-token'
+        };
+        request.wsAuthHeader = 'Bearer admin-token';
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(
+      JSON.stringify({
+        type: 'logs_subscribe',
+        subscriptionId: 'logs-1',
+        replayLimit: 50,
+        replaySinceUnixMs: 500,
+        filters: {
+          deviceIds: ['dev-1'],
+          statuses: ['ok'],
+          sources: ['mqtt'],
+          typeCodes: ['quota']
+        }
+      })
+    );
+
+    expect(await nextMessage(ws)).toEqual({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      ts: expect.any(Number),
+      state: 'replay'
+    });
+    expect(await nextMessage(ws)).toEqual({
+      type: 'log_entry',
+      subscriptionId: 'logs-1',
+      entry: replayEntry
+    });
+    expect(await nextMessage(ws)).toEqual({
+      type: 'logs_replay_done',
+      subscriptionId: 'logs-1',
+      ts: expect.any(Number),
+      replayed: 1
+    });
+    expect(await nextMessage(ws)).toEqual({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      ts: expect.any(Number),
+      state: 'live'
+    });
+    expect(logs.subscribeCalls[0]).toMatchObject({
+      subscriptionId: 'logs-1',
+      replayLimit: 50,
+      replaySinceUnixMs: 500,
+      authHeader: 'Bearer admin-token',
+      filters: {
+        deviceIds: ['dev-1'],
+        statuses: ['ok'],
+        sources: ['mqtt'],
+        typeCodes: ['quota']
+      }
+    });
+
+    logs.emit('logs-1', liveEntry);
+    expect(await nextMessage(ws)).toEqual({
+      type: 'log_entry',
+      subscriptionId: 'logs-1',
+      entry: liveEntry
+    });
+
+    ws.send(JSON.stringify({ type: 'logs_unsubscribe', subscriptionId: 'logs-1' }));
+    expect(await nextMessage(ws)).toEqual({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      ts: expect.any(Number),
+      state: 'closed'
+    });
+    expect(logs.subscriptions.has('logs-1')).toBe(false);
+
+    await closeWebSocket(ws);
+    await app.close();
+  });
+
+  it('releases admin log subscriptions when websocket sessions close', async () => {
+    const client = new FakeLiveClient();
+    const logs = new FakeAdminLogSource();
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'admin-user',
+          email: '',
+          roles: ['admin'],
+          rawJwt: 'admin-token'
+        };
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(JSON.stringify({ type: 'logs_subscribe', subscriptionId: 'logs-1' }));
+    await waitFor(() => logs.subscriptions.has('logs-1'));
+
+    await closeWebSocket(ws);
+    await waitFor(() => !logs.subscriptions.has('logs-1'));
+    expect(logs.subscriptions.has('logs-1')).toBe(false);
+
+    await app.close();
+  });
+
   it('reconnects device streams after retryable errors', async () => {
     const client = new FakeLiveClient();
     const app = buildApp(baseConfig(), client);
@@ -436,4 +686,25 @@ async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void>
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sampleLogEntry(overrides: Partial<AdminLogEntry> = {}): AdminLogEntry {
+  return {
+    id: 'entry-1',
+    ts: 1772197190000,
+    receivedTs: 1772197190100,
+    deviceId: 'dev-1',
+    status: 'ok',
+    source: 'mqtt',
+    sourceKind: 'SOURCE_KIND_MQTT_QUOTA',
+    typeCode: 'quota',
+    summary: 'MQTT quota update for dev-1',
+    labels: { provider: 'ecoflow' },
+    detail: {
+      deviceId: 'dev-1',
+      provider: 'ecoflow',
+      payload: { params: { soc: 54 } }
+    },
+    ...overrides
+  };
 }

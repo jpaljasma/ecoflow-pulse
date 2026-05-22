@@ -2161,6 +2161,10 @@ func (f *fakeControlPlaneStore) ListIngestAssignments(context.Context, controlpl
 	return nil, errors.New("not implemented")
 }
 
+func (f *fakeControlPlaneStore) SearchAdminLogFilters(context.Context, controlplane.SearchAdminLogFiltersInput) ([]controlplane.AdminLogFilterOption, error) {
+	return nil, errors.New("not implemented")
+}
+
 type fakeManifestStore struct {
 	objects []replaycli.ManifestObject
 }

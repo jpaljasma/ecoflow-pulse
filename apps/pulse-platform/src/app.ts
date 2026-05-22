@@ -27,6 +27,7 @@ import {
   renderPublicMetrics
 } from './metrics.js';
 import { registerDeviceRoutes } from './routes/devices.js';
+import { registerAdminLogRoutes } from './routes/adminLogs.js';
 import { registerAuthSessionEventRoutes } from './routes/authSessionEvents.js';
 import { registerClientMetricsRoutes } from './routes/clientMetrics.js';
 import { registerClientWsMetricsRoutes } from './routes/clientWsMetrics.js';
@@ -105,6 +106,7 @@ export function buildApp(
     if (options.controlPlaneClient) {
       registerCurrentUserRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
       registerIntegrationRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
+      registerAdminLogRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
     }
     if (options.controlPlaneClient && options.weatherClient) {
       registerWeatherRoutes(

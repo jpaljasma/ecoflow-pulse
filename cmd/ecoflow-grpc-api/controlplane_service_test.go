@@ -807,6 +807,81 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 	}
 }
 
+func TestSearchAdminLogFiltersRequiresGlobalAdmin(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{
+		Subject: "dev-user",
+		Roles:   []string{"viewer"},
+	})
+
+	_, err := svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
+		UserSubject: "dev-user",
+		Query:       "delta",
+		Kind:        "device",
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected PermissionDenied, got %v", err)
+	}
+}
+
+func TestSearchAdminLogFiltersResolvesSerialAndUserToDeviceIDs(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	owner, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{
+		UserSubject: "owner-user",
+		Email:       "owner@example.invalid",
+		DisplayName: "Owner User",
+	})
+	if err != nil {
+		t.Fatalf("provision owner failed: %v", err)
+	}
+	device, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "owner-user",
+		EcoflowSN:   "SEARCHSN001",
+		ProductName: "Garage Delta",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create owner device failed: %v", err)
+	}
+	if owner.ID == "" || device.DeviceID == "" {
+		t.Fatalf("expected owner and device IDs")
+	}
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{
+		Subject: "dev-user",
+		Roles:   []string{"viewer", "admin"},
+	})
+
+	serialResp, err := svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
+		UserSubject: "dev-user",
+		Query:       "SEARCHSN",
+		Kind:        "serial",
+		Limit:       5,
+	})
+	if err != nil {
+		t.Fatalf("search serial filters failed: %v", err)
+	}
+	if got := serialResp.GetOptions(); len(got) != 1 || got[0].GetKind() != "serial" || got[0].GetDeviceIds()[0] != device.DeviceID {
+		t.Fatalf("unexpected serial options: %+v", got)
+	}
+
+	userResp, err := svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
+		UserSubject: "dev-user",
+		Query:       "owner",
+		Kind:        "user",
+		Limit:       5,
+	})
+	if err != nil {
+		t.Fatalf("search user filters failed: %v", err)
+	}
+	if got := userResp.GetOptions(); len(got) != 1 || got[0].GetKind() != "user" || got[0].GetDeviceIds()[0] != device.DeviceID {
+		t.Fatalf("unexpected user options: %+v", got)
+	}
+}
+
 func TestDiscoverDevicesConfiguredAndUnconfigured(t *testing.T) {
 	t.Parallel()
 

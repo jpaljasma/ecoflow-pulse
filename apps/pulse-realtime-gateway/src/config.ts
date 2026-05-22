@@ -18,6 +18,12 @@ const envSchema = z.object({
   VALKEY_PASSWORD: z.string().trim().default(''),
   PROJECTION_KEY_PREFIX: z.string().trim().min(1).default('pulse:projection'),
   TELEMETRY_SUBJECT_PREFIX: z.string().trim().min(1).default('pulse.telemetry'),
+  LOGS_NATS_JS_STREAM_NAME: z.string().trim().min(1).default('PULSE_TELEMETRY_INGEST'),
+  LOGS_REPLAY_LIMIT: z.coerce.number().int().min(1).max(200).default(200),
+  LOGS_REPLAY_WINDOW_MS: z.coerce.number().int().min(1000).max(3600000).default(300000),
+  LOGS_DEV_ADMIN_ENABLED: z
+    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0'), z.literal('')])
+    .default(''),
   WS_DELIVERY_FAST_INTERVAL_MS: z.coerce.number().int().min(50).max(5000).default(250),
   WS_DELIVERY_STEADY_INTERVAL_MS: z.coerce.number().int().min(50).max(5000).default(500),
   WS_DELIVERY_SLOW_INTERVAL_MS: z.coerce.number().int().min(100).max(10000).default(1000),
@@ -53,6 +59,12 @@ export type AppConfig = {
     keyPrefix: string;
   };
   telemetrySubjectPrefix: string;
+  logs: {
+    streamName: string;
+    replayLimit: number;
+    replayWindowMs: number;
+    devAdminEnabled: boolean;
+  };
   delivery: {
     fastIntervalMs: number;
     steadyIntervalMs: number;
@@ -89,6 +101,13 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     bufferedAmountHighWaterBytes: parsed.WS_BUFFERED_AMOUNT_HIGH_WATER_BYTES,
     quietTicksToRecover: parsed.WS_QUIET_TICKS_TO_RECOVER
   };
+  const logs = {
+    streamName: parsed.LOGS_NATS_JS_STREAM_NAME,
+    replayLimit: parsed.LOGS_REPLAY_LIMIT,
+    replayWindowMs: parsed.LOGS_REPLAY_WINDOW_MS,
+    devAdminEnabled:
+      parsed.LOGS_DEV_ADMIN_ENABLED === 'true' || parsed.LOGS_DEV_ADMIN_ENABLED === '1'
+  };
 
   if (parsed.NODE_AUTH_MODE === 'noop') {
     return {
@@ -111,6 +130,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
         keyPrefix: parsed.PROJECTION_KEY_PREFIX
       },
       telemetrySubjectPrefix: parsed.TELEMETRY_SUBJECT_PREFIX,
+      logs,
       delivery,
       auth: { mode: 'noop', allowMissingJwt: true }
     };
@@ -143,6 +163,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       keyPrefix: parsed.PROJECTION_KEY_PREFIX
     },
     telemetrySubjectPrefix: parsed.TELEMETRY_SUBJECT_PREFIX,
+    logs,
     delivery,
     auth: {
       mode: 'keycloak',

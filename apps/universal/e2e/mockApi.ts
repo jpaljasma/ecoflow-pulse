@@ -995,8 +995,9 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
   }, process.env.EXPO_PUBLIC_API_URL?.trim() ?? '');
 }
 
-export async function mockApiRoutes(page: Page): Promise<void> {
+export async function mockApiRoutes(page: Page, options: { roles?: string[] } = {}): Promise<void> {
   currentUserBootstrap = JSON.parse(JSON.stringify(CURRENT_USER_BOOTSTRAP)) as CurrentUserPayload;
+  currentUserBootstrap.authorization.roles = options.roles ?? currentUserBootstrap.authorization.roles;
   await seedAuthenticatedSession(page);
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
@@ -1040,6 +1041,40 @@ export async function mockApiRoutes(page: Page): Promise<void> {
 
     if (pathname === '/api/v1/me/identity-refresh') {
       await fulfillJson(route, { user: currentUserBootstrap.user });
+      return;
+    }
+
+    if (pathname === '/api/v1/admin/log-filter-options') {
+      if (!currentUserBootstrap.authorization.roles.includes('admin')) {
+        await fulfillJson(route, { error: 'admin_role_required' }, 403);
+        return;
+      }
+      const body = (route.request().postDataJSON?.() ?? {}) as { kind?: string; query?: string };
+      const query = String(body.query ?? '').toLowerCase();
+      const allOptions = [
+        {
+          kind: 'device',
+          id: DPU_DEVICE_ID,
+          label: 'DPU A 12 kWh',
+          secondaryLabel: 'DELTA Pro Ultra',
+          deviceIds: [DPU_DEVICE_ID]
+        },
+        {
+          kind: 'serial',
+          id: DPU_DEVICE_ID,
+          label: DPU_SERIAL,
+          secondaryLabel: 'DPU A 12 kWh',
+          deviceIds: [DPU_DEVICE_ID]
+        },
+        {
+          kind: 'user',
+          id: 'user-1',
+          label: 'operator@example.invalid',
+          secondaryLabel: 'Pulse Operator',
+          deviceIds: [DPU_DEVICE_ID, D2M_DEVICE_ID]
+        }
+      ].filter((option) => (!body.kind || option.kind === body.kind) && (!query || `${option.label} ${option.secondaryLabel}`.toLowerCase().includes(query)));
+      await fulfillJson(route, { options: allOptions });
       return;
     }
 

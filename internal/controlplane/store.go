@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -223,6 +224,20 @@ type ListIngestAssignmentsInput struct {
 	ActiveOnly bool
 }
 
+type AdminLogFilterOption struct {
+	Kind           string
+	ID             string
+	Label          string
+	SecondaryLabel string
+	DeviceIDs      []string
+}
+
+type SearchAdminLogFiltersInput struct {
+	Query string
+	Kind  string
+	Limit int
+}
+
 type Store interface {
 	CreateProviderCredential(ctx context.Context, in CreateProviderCredentialInput) (ProviderCredential, error)
 	ListProviderCredentials(ctx context.Context, in ListProviderCredentialsInput) ([]ProviderCredential, error)
@@ -240,4 +255,59 @@ type Store interface {
 	ListProviderDevices(ctx context.Context, in ListProviderDevicesInput) ([]ProviderDevice, error)
 	GetProviderDeviceByDeviceID(ctx context.Context, deviceID string) (ProviderDevice, error)
 	ListIngestAssignments(ctx context.Context, in ListIngestAssignmentsInput) ([]IngestAssignment, error)
+	SearchAdminLogFilters(ctx context.Context, in SearchAdminLogFiltersInput) ([]AdminLogFilterOption, error)
+}
+
+func normalizeAdminLogFilterKind(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "device":
+		return "device"
+	case "serial":
+		return "serial"
+	case "user":
+		return "user"
+	default:
+		return ""
+	}
+}
+
+func normalizeAdminLogFilterLimit(limit int) int {
+	switch {
+	case limit <= 0:
+		return 12
+	case limit > 50:
+		return 50
+	default:
+		return limit
+	}
+}
+
+func matchesAdminLogQuery(query string, values ...string) bool {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return true
+	}
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), query) {
+			return true
+		}
+	}
+	return false
+}
+
+func adminLogFirstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func shortID(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) <= 8 {
+		return value
+	}
+	return value[:8]
 }

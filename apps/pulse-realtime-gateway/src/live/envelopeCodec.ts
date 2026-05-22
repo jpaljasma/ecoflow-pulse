@@ -18,7 +18,11 @@ type RawEnvelopeMessage = {
   payload?: Uint8Array | Buffer | string;
   payloadEncoding?: string | number;
   sourceKind?: string | number;
+  source?: string;
   typeCode?: string;
+  payloadType?: string;
+  payloadVersion?: number | string;
+  labels?: Record<string, string>;
 };
 
 export type DecodedEnvelope = {
@@ -30,7 +34,12 @@ export type DecodedEnvelope = {
   deviceTimeUnixMs: number;
   payload: Uint8Array;
   payloadEncoding: string;
+  sourceKind: string;
+  source: string;
   typeCode: string;
+  payloadType: string;
+  payloadVersion: number;
+  labels: Record<string, string>;
 };
 
 const root = protobuf.loadSync(envelopeProtoPath);
@@ -56,7 +65,12 @@ export function decodeEnvelope(data: Uint8Array): DecodedEnvelope | null {
       deviceTimeUnixMs: normalizeInt(object.deviceTimeUnixMs),
       payload,
       payloadEncoding: normalizeString(object.payloadEncoding),
-      typeCode: normalizeString(object.typeCode)
+      sourceKind: normalizeString(object.sourceKind),
+      source: normalizeString(object.source),
+      typeCode: normalizeString(object.typeCode),
+      payloadType: normalizeString(object.payloadType),
+      payloadVersion: normalizeInt(object.payloadVersion),
+      labels: normalizeLabels(object.labels)
     };
   } catch {
     return null;
@@ -78,4 +92,19 @@ function normalizeInt(value: unknown): number {
     }
   }
   return 0;
+}
+
+function normalizeLabels(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const cleanKey = key.trim();
+    if (!cleanKey || typeof raw !== 'string') {
+      continue;
+    }
+    out[cleanKey] = raw.trim();
+  }
+  return out;
 }

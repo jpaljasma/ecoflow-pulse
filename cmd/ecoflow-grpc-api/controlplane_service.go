@@ -544,6 +544,33 @@ func (s *ControlPlaneService) ListDevices(ctx context.Context, req *controlplane
 	return &controlplanev1.ListDevicesResponse{Groups: groups}, nil
 }
 
+func (s *ControlPlaneService) SearchAdminLogFilters(ctx context.Context, req *controlplanev1.SearchAdminLogFiltersRequest) (*controlplanev1.SearchAdminLogFiltersResponse, error) {
+	if _, err := resolveUserSubject(ctx, req.GetUserSubject()); err != nil {
+		return nil, err
+	}
+	claims, _ := grpcmw.ClaimsFromContext(ctx)
+	if !hasGlobalRole(claims.Roles, "admin") {
+		return nil, status.Error(codes.PermissionDenied, "admin role required")
+	}
+	kind := strings.ToLower(strings.TrimSpace(req.GetKind()))
+	if kind != "" && kind != "device" && kind != "serial" && kind != "user" {
+		return nil, status.Error(codes.InvalidArgument, "kind must be device, serial, or user")
+	}
+	rows, err := s.store.SearchAdminLogFilters(ctx, controlplane.SearchAdminLogFiltersInput{
+		Query: req.GetQuery(),
+		Kind:  kind,
+		Limit: int(req.GetLimit()),
+	})
+	if err != nil {
+		return nil, controlPlaneStoreError("search admin log filters", err)
+	}
+	out := make([]*controlplanev1.AdminLogFilterOption, 0, len(rows))
+	for i := range rows {
+		out = append(out, adminLogFilterOptionToProto(rows[i]))
+	}
+	return &controlplanev1.SearchAdminLogFiltersResponse{Options: out}, nil
+}
+
 func (s *ControlPlaneService) DiscoverDevices(ctx context.Context, req *controlplanev1.DiscoverDevicesRequest) (*controlplanev1.DiscoverDevicesResponse, error) {
 	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
 	if err != nil {
@@ -1151,6 +1178,16 @@ func userDeviceToProto(in controlplane.UserDevice) *controlplanev1.UserDevice {
 	}
 }
 
+func adminLogFilterOptionToProto(in controlplane.AdminLogFilterOption) *controlplanev1.AdminLogFilterOption {
+	return &controlplanev1.AdminLogFilterOption{
+		Kind:           in.Kind,
+		Id:             in.ID,
+		Label:          in.Label,
+		SecondaryLabel: in.SecondaryLabel,
+		DeviceIds:      append([]string(nil), in.DeviceIDs...),
+	}
+}
+
 func currentUserToProto(in controlplane.CurrentUser, authMethod string) *controlplanev1.CurrentUser {
 	out := &controlplanev1.CurrentUser{
 		Id:                     in.ID,
@@ -1202,6 +1239,16 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func hasGlobalRole(roles []string, want string) bool {
+	want = strings.ToLower(strings.TrimSpace(want))
+	for _, role := range roles {
+		if strings.ToLower(strings.TrimSpace(role)) == want {
+			return true
+		}
+	}
+	return false
 }
 
 func mapToStructProto(in map[string]any) *structpb.Struct {

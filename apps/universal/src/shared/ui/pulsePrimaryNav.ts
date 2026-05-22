@@ -1,13 +1,14 @@
 import type { ComponentProps } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-export type PulsePrimaryNavKey = 'devices' | 'energy' | 'energy-calendar' | 'settings' | 'search' | 'about';
+export type PulsePrimaryNavKey = 'devices' | 'energy' | 'energy-calendar' | 'logs' | 'settings' | 'search' | 'about';
 
 export type PulsePrimaryNavItem = {
   key: PulsePrimaryNavKey;
   label: string;
   href: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
+  adminOnly?: boolean;
 };
 
 export const pulsePrimaryNavItems: PulsePrimaryNavItem[] = [
@@ -28,6 +29,13 @@ export const pulsePrimaryNavItems: PulsePrimaryNavItem[] = [
     label: 'Calendar',
     href: '/(tabs)/energy-calendar',
     icon: 'calendar-month-outline'
+  },
+  {
+    key: 'logs',
+    label: 'Logs',
+    href: '/(tabs)/logs',
+    icon: 'text-box-search-outline',
+    adminOnly: true
   },
   {
     key: 'settings',
@@ -53,6 +61,7 @@ export function resolvePulsePrimaryNavKey(routeName: string): PulsePrimaryNavKey
   switch (routeName) {
     case 'energy':
     case 'energy-calendar':
+    case 'logs':
     case 'settings':
     case 'search':
     case 'about':
@@ -61,4 +70,13 @@ export function resolvePulsePrimaryNavKey(routeName: string): PulsePrimaryNavKey
     default:
       return 'devices';
   }
+}
+
+export function filterPulsePrimaryNavItems(roles: readonly string[] | undefined): PulsePrimaryNavItem[] {
+  const admin = isPulseGlobalAdmin(roles);
+  return pulsePrimaryNavItems.filter((item) => !item.adminOnly || admin);
+}
+
+export function isPulseGlobalAdmin(roles: readonly string[] | undefined): boolean {
+  return roles?.some((role) => role.trim().toLowerCase() === 'admin') ?? false;
 }

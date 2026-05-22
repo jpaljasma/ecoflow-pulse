@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -1433,6 +1434,177 @@ ORDER BY pd.provider ASC, pd.provider_device_id ASC;
 		return nil, fmt.Errorf("iterate ingest assignments rows: %w", err)
 	}
 	return out, nil
+}
+
+func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdminLogFiltersInput) ([]AdminLogFilterOption, error) {
+	kind := normalizeAdminLogFilterKind(in.Kind)
+	query := strings.ToLower(strings.TrimSpace(in.Query))
+	limit := normalizeAdminLogFilterLimit(in.Limit)
+	out := make([]AdminLogFilterOption, 0, limit)
+
+	if kind == "" || kind == "device" || kind == "serial" {
+		options, err := s.searchAdminLogDeviceFilters(ctx, kind, query, limit-len(out))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, options...)
+	}
+	if len(out) < limit && (kind == "" || kind == "user") {
+		options, err := s.searchAdminLogUserFilters(ctx, query, limit-len(out))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, options...)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) searchAdminLogDeviceFilters(ctx context.Context, kind string, query string, limit int) ([]AdminLogFilterOption, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	const sqlQuery = `
+SELECT
+	d.id::text,
+	d.ecoflow_sn,
+	COALESCE(d.product_name, ''),
+	COALESCE(d.model, '')
+FROM devices d
+WHERE (
+	$1 = ''
+	OR lower(d.id::text) LIKE $2
+	OR lower(d.ecoflow_sn) LIKE $2
+	OR lower(COALESCE(d.product_name, '')) LIKE $2
+	OR lower(COALESCE(d.model, '')) LIKE $2
+)
+ORDER BY lower(COALESCE(NULLIF(d.product_name, ''), NULLIF(d.model, ''), d.ecoflow_sn, d.id::text)), d.id::text
+LIMIT $3;
+`
+	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]AdminLogFilterOption, error) {
+		rows, err := s.db.QueryContext(ctx, sqlQuery, query, "%"+query+"%", limit)
+		if err != nil {
+			return nil, fmt.Errorf("query admin log device filters: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+
+		out := make([]AdminLogFilterOption, 0, limit)
+		for rows.Next() {
+			var deviceID, serial, productName, model string
+			if err := rows.Scan(&deviceID, &serial, &productName, &model); err != nil {
+				return nil, fmt.Errorf("scan admin log device filter row: %w", err)
+			}
+			if kind == "" || kind == "device" {
+				out = append(out, AdminLogFilterOption{
+					Kind:           "device",
+					ID:             deviceID,
+					Label:          adminLogFirstNonEmpty(productName, model, "Device "+shortID(deviceID)),
+					SecondaryLabel: adminLogFirstNonEmpty(model, "UUID "+shortID(deviceID)),
+					DeviceIDs:      []string{deviceID},
+				})
+			}
+			if len(out) >= limit {
+				break
+			}
+			if kind == "" || kind == "serial" {
+				out = append(out, AdminLogFilterOption{
+					Kind:           "serial",
+					ID:             deviceID,
+					Label:          serial,
+					SecondaryLabel: adminLogFirstNonEmpty(productName, model, "Device "+shortID(deviceID)),
+					DeviceIDs:      []string{deviceID},
+				})
+			}
+			if len(out) >= limit {
+				break
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate admin log device filters: %w", err)
+		}
+		return out, nil
+	})
+}
+
+func (s *PostgresStore) searchAdminLogUserFilters(ctx context.Context, query string, limit int) ([]AdminLogFilterOption, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	const sqlQuery = `
+SELECT
+	u.id::text,
+	COALESCE(u.email, ''),
+	COALESCE(u.display_name, ''),
+	COALESCE(ud.device_id::text, '')
+FROM users u
+LEFT JOIN user_devices ud ON ud.user_id = u.id
+WHERE COALESCE(trim(u.email), '') <> ''
+  AND (
+	$1 = ''
+	OR lower(u.email) LIKE $2
+	OR lower(COALESCE(u.display_name, '')) LIKE $2
+	OR lower(u.keycloak_subject) LIKE $2
+  )
+ORDER BY lower(u.email), u.id::text, ud.device_id::text
+LIMIT $3;
+`
+	type aggregate struct {
+		option AdminLogFilterOption
+		seen   map[string]struct{}
+	}
+	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]AdminLogFilterOption, error) {
+		rows, err := s.db.QueryContext(ctx, sqlQuery, query, "%"+query+"%", limit*32)
+		if err != nil {
+			return nil, fmt.Errorf("query admin log user filters: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+
+		order := make([]string, 0, limit)
+		byUser := make(map[string]*aggregate, limit)
+		for rows.Next() {
+			var userID, email, displayName, deviceID string
+			if err := rows.Scan(&userID, &email, &displayName, &deviceID); err != nil {
+				return nil, fmt.Errorf("scan admin log user filter row: %w", err)
+			}
+			item, ok := byUser[userID]
+			if !ok {
+				if len(order) >= limit {
+					continue
+				}
+				item = &aggregate{
+					option: AdminLogFilterOption{
+						Kind:           "user",
+						ID:             userID,
+						Label:          email,
+						SecondaryLabel: adminLogFirstNonEmpty(displayName, "0 devices"),
+						DeviceIDs:      []string{},
+					},
+					seen: map[string]struct{}{},
+				}
+				byUser[userID] = item
+				order = append(order, userID)
+			}
+			if strings.TrimSpace(deviceID) == "" {
+				continue
+			}
+			if _, ok := item.seen[deviceID]; ok {
+				continue
+			}
+			item.seen[deviceID] = struct{}{}
+			item.option.DeviceIDs = append(item.option.DeviceIDs, deviceID)
+			if strings.TrimSpace(displayName) == "" {
+				item.option.SecondaryLabel = fmt.Sprintf("%d devices", len(item.option.DeviceIDs))
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate admin log user filters: %w", err)
+		}
+		out := make([]AdminLogFilterOption, 0, len(order))
+		for _, userID := range order {
+			sort.Strings(byUser[userID].option.DeviceIDs)
+			out = append(out, byUser[userID].option)
+		}
+		return out, nil
+	})
 }
 
 type jsonbMap map[string]any

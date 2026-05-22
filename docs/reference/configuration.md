@@ -258,6 +258,12 @@ Cloud note:
 - `KEYCLOAK_JWKS_URL` (optional override)
 - `KEYCLOAK_USERINFO_URL` (optional override; lets the public app fetch Keycloak `userinfo` through an in-cluster URL for background social-profile/avatar refresh)
 - `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
+- Admin log filter lookup is exposed as `POST /api/v1/admin/log-filter-options`.
+  It requires the global `admin` role from `/api/v1/me.authorization.roles` and
+  resolves device, serial, and user-email typeahead selections to internal
+  device IDs before the universal app subscribes to the realtime log stream.
+  The lookup is request-body based; selected serials and emails must not be
+  serialized into browser URLs.
 
 ## Pulse Realtime WebSocket Gateway (`apps/pulse-realtime-gateway`)
 
@@ -276,6 +282,14 @@ Cloud note:
 - `VALKEY_PASSWORD` (optional)
 - `PROJECTION_KEY_PREFIX` (default `pulse:projection`; Valkey live snapshot key prefix)
 - `TELEMETRY_SUBJECT_PREFIX` (default `pulse.telemetry`; NATS subject prefix used for ingest delta fanout)
+- `LOGS_NATS_JS_STREAM_NAME` (default `PULSE_TELEMETRY_INGEST`; JetStream
+  stream used by the admin log tail)
+- `LOGS_REPLAY_LIMIT` (default `200`; maximum recent log entries replayed
+  before live delivery starts)
+- `LOGS_REPLAY_WINDOW_MS` (default `300000`; replay start-time lookback window)
+- `LOGS_DEV_ADMIN_ENABLED` (default `false`; local-only override that enables
+  admin log streaming in `NODE_AUTH_MODE=noop`. Leave disabled outside
+  controlled local development.)
 - `WS_DELIVERY_FAST_INTERVAL_MS` (default `250`)
 - `WS_DELIVERY_STEADY_INTERVAL_MS` (default `500`)
 - `WS_DELIVERY_SLOW_INTERVAL_MS` (default `1000`)
@@ -295,6 +309,22 @@ Runtime behavior:
 - the gateway authorizes device access through the internal Go gRPC API,
 - serves the initial snapshot from Valkey projection state,
 - then streams live deltas from NATS with staged backpressure degradation.
+
+Admin log stream behavior:
+- the browser still connects only through the existing `/ws` edge route; it
+  never connects to NATS or JetStream directly,
+- clients subscribe with `logs_subscribe` and release work with
+  `logs_unsubscribe`; the existing `ping` message is unchanged,
+- the gateway replies with `logs_status`, `log_entry`, and `logs_replay_done`,
+- `logs_subscribe` requires the global `admin` role from the verified websocket
+  JWT; in `NODE_AUTH_MODE=noop`, it remains disabled unless
+  `LOGS_DEV_ADMIN_ENABLED=true`,
+- replay loads at most `LOGS_REPLAY_LIMIT` entries from the last
+  `LOGS_REPLAY_WINDOW_MS`, then switches to live NATS fanout,
+- server-side filters support canonical device UUIDs, typeahead-resolved
+  serial/user selections, status, and type/source,
+- emitted entries and expandable JSON details use the normalized redacted
+  envelope; raw MQTT payload reveal is intentionally out of scope for v1.
 
 ## Local/dev Valkey durability baseline
 
@@ -460,6 +490,10 @@ Runtime behavior:
   `https://localhost` while device/profile/realtime data comes from cloud.
   If local OIDC values are not explicitly set, the web build still uses the
   local Keycloak defaults so the login button remains available.
+- the `Logs` tab is a global-admin-only operating console. It uses
+  `/api/v1/me.authorization.roles` for navigation visibility and route guards,
+  POSTs typeahead filter lookups to the BFF, and subscribes to the redacted
+  realtime log stream through the configured websocket URL.
 - users can switch that data source directly from the shared app menu or from
   `Settings -> Data source`; local cloud-data builds present the product-facing
   choices as `Local` and `Local Edge`.

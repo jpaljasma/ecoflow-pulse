@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* global clearInterval, process, require, setInterval */
 
-const { WebSocketServer } = require('ws');
+const WebSocket = require('ws');
 
 const host = process.env.MAESTRO_MOCK_WS_HOST || '127.0.0.1';
 const port = Number(process.env.MAESTRO_MOCK_WS_PORT || '8082');
@@ -43,7 +43,41 @@ function statusMessage(deviceId) {
   };
 }
 
-const wss = new WebSocketServer({
+function logEntry(index, deviceId = DEFAULT_DEVICE_IDS[index % DEFAULT_DEVICE_IDS.length]) {
+  const ts = nowUnixMs();
+  const typeCode = index % 3 === 0 ? 'status' : 'quota';
+  const status = index % 7 === 0 ? 'warning' : 'ok';
+  return {
+    type: 'log_entry',
+    subscriptionId: 'admin-logs',
+    entry: {
+      id: `mock-log-${ts}-${index}`,
+      ts,
+      receivedTs: ts + 8,
+      deviceId,
+      status,
+      source: typeCode === 'status' ? 'mqtt-status' : 'mqtt',
+      sourceKind: typeCode === 'status' ? 'SOURCE_KIND_MQTT_STATUS' : 'SOURCE_KIND_MQTT_QUOTA',
+      typeCode,
+      summary: `${typeCode} ${status} frame for ${deviceId.slice(0, 8)}`,
+      labels: {
+        provider: 'ecoflow'
+      },
+      detail: {
+        deviceId,
+        status,
+        payload: {
+          params: {
+            soc: 54 + (index % 4),
+            wattsInSum: 120 + index
+          }
+        }
+      }
+    }
+  };
+}
+
+const wss = new WebSocket.Server({
   host,
   port,
   path: '/ws'
@@ -51,6 +85,7 @@ const wss = new WebSocketServer({
 
 wss.on('connection', (socket) => {
   let subscribedIds = [...DEFAULT_DEVICE_IDS];
+  let logsSubscribed = false;
   let tick = 0;
 
   const sendFrame = (frame) => {
@@ -62,6 +97,9 @@ wss.on('connection', (socket) => {
     for (const deviceId of subscribedIds) {
       sendFrame(statusMessage(deviceId));
       sendFrame(telemetryMessage(deviceId, tick));
+    }
+    if (logsSubscribed) {
+      sendFrame(logEntry(tick));
     }
     tick += 1;
   };
@@ -77,6 +115,38 @@ wss.on('connection', (socket) => {
         if (validIds.length > 0) {
           subscribedIds = validIds;
         }
+      }
+      if (parsed?.type === 'logs_subscribe') {
+        logsSubscribed = true;
+        sendFrame({
+          type: 'logs_status',
+          subscriptionId: 'admin-logs',
+          ts: nowUnixMs(),
+          state: 'replay'
+        });
+        sendFrame(logEntry(0, DEFAULT_DEVICE_IDS[0]));
+        sendFrame(logEntry(1, DEFAULT_DEVICE_IDS[1]));
+        sendFrame({
+          type: 'logs_replay_done',
+          subscriptionId: 'admin-logs',
+          ts: nowUnixMs(),
+          replayed: 2
+        });
+        sendFrame({
+          type: 'logs_status',
+          subscriptionId: 'admin-logs',
+          ts: nowUnixMs(),
+          state: 'live'
+        });
+      }
+      if (parsed?.type === 'logs_unsubscribe') {
+        logsSubscribed = false;
+        sendFrame({
+          type: 'logs_status',
+          subscriptionId: 'admin-logs',
+          ts: nowUnixMs(),
+          state: 'closed'
+        });
       }
     } catch {
       // Ignore malformed client messages in mock server.

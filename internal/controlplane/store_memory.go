@@ -788,6 +788,92 @@ func (s *MemoryStore) ListIngestAssignments(_ context.Context, in ListIngestAssi
 	return out, nil
 }
 
+func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLogFiltersInput) ([]AdminLogFilterOption, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	kind := normalizeAdminLogFilterKind(in.Kind)
+	query := strings.ToLower(strings.TrimSpace(in.Query))
+	limit := normalizeAdminLogFilterLimit(in.Limit)
+	out := make([]AdminLogFilterOption, 0, limit)
+
+	if kind == "" || kind == "device" || kind == "serial" {
+		devices := make([]memoryDevice, 0, len(s.devicesByID))
+		for _, device := range s.devicesByID {
+			devices = append(devices, device)
+		}
+		sort.Slice(devices, func(i, j int) bool {
+			left := adminLogFirstNonEmpty(devices[i].ProductName, devices[i].Model, devices[i].EcoflowSN, devices[i].ID)
+			right := adminLogFirstNonEmpty(devices[j].ProductName, devices[j].Model, devices[j].EcoflowSN, devices[j].ID)
+			return strings.ToLower(left) < strings.ToLower(right)
+		})
+		for _, device := range devices {
+			if len(out) >= limit {
+				break
+			}
+			if query != "" && !matchesAdminLogQuery(query, device.ID, device.EcoflowSN, device.ProductName, device.Model) {
+				continue
+			}
+			if kind == "" || kind == "device" {
+				out = append(out, AdminLogFilterOption{
+					Kind:           "device",
+					ID:             device.ID,
+					Label:          adminLogFirstNonEmpty(device.ProductName, device.Model, "Device "+shortID(device.ID)),
+					SecondaryLabel: adminLogFirstNonEmpty(device.Model, "UUID "+shortID(device.ID)),
+					DeviceIDs:      []string{device.ID},
+				})
+			}
+			if len(out) >= limit {
+				break
+			}
+			if kind == "" || kind == "serial" {
+				out = append(out, AdminLogFilterOption{
+					Kind:           "serial",
+					ID:             device.ID,
+					Label:          device.EcoflowSN,
+					SecondaryLabel: adminLogFirstNonEmpty(device.ProductName, device.Model, "Device "+shortID(device.ID)),
+					DeviceIDs:      []string{device.ID},
+				})
+			}
+		}
+	}
+
+	if kind == "" || kind == "user" {
+		users := make([]memoryUser, 0, len(s.usersByID))
+		for _, user := range s.usersByID {
+			users = append(users, user)
+		}
+		sort.Slice(users, func(i, j int) bool {
+			return strings.ToLower(adminLogFirstNonEmpty(users[i].Email, users[i].DisplayName, users[i].ID)) <
+				strings.ToLower(adminLogFirstNonEmpty(users[j].Email, users[j].DisplayName, users[j].ID))
+		})
+		for _, user := range users {
+			if len(out) >= limit {
+				break
+			}
+			if strings.TrimSpace(user.Email) == "" {
+				continue
+			}
+			if query != "" && !matchesAdminLogQuery(query, user.Email, user.DisplayName, user.KeycloakSubject) {
+				continue
+			}
+			deviceIDs := make([]string, 0, len(s.userDevices[user.ID]))
+			for deviceID := range s.userDevices[user.ID] {
+				deviceIDs = append(deviceIDs, deviceID)
+			}
+			sort.Strings(deviceIDs)
+			out = append(out, AdminLogFilterOption{
+				Kind:           "user",
+				ID:             user.ID,
+				Label:          user.Email,
+				SecondaryLabel: adminLogFirstNonEmpty(user.DisplayName, fmt.Sprintf("%d devices", len(deviceIDs))),
+				DeviceIDs:      deviceIDs,
+			})
+		}
+	}
+	return out, nil
+}
+
 func (s *MemoryStore) ensureDeviceLocked(sn string, productName string, model string, now time.Time) (memoryDevice, bool) {
 	canonicalSN := strings.ToUpper(strings.TrimSpace(sn))
 	if canonicalSN == "" {
