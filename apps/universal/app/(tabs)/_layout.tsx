@@ -3,13 +3,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
-import { pulsePrimaryNavItems } from '@/shared/ui/pulsePrimaryNav';
+import { isPulseGlobalAdmin, pulsePrimaryNavItems } from '@/shared/ui/pulsePrimaryNav';
 import { PulseTabBar } from '@/shared/ui/PulseTabBar';
+import { useAuthSession } from '@/features/auth/hooks';
+import { useCurrentUser } from '@/features/profile/hooks';
 
 export default function TabsLayout() {
   const { spec, isDark } = useAppTheme();
   const semantics = useThemeSemantics();
   const { isSidebarMode, sidebarWidth } = useNavigationShellMetrics();
+  const { authReady, authKey, token } = useAuthSession();
+  const currentUserQuery = useCurrentUser({ token, authKey, enabled: authReady });
+  const isAdmin = isPulseGlobalAdmin(currentUserQuery.data?.authorization.roles);
   const activeTint = spec.semantic.solar;
   const inactiveTint = isDark ? spec.colors.colorMuted : spec.colors.borderColor;
 
@@ -51,6 +56,7 @@ export default function TabsLayout() {
           name={item.key}
           options={{
             title: item.label,
+            href: item.adminOnly && !isAdmin ? null : item.href,
             tabBarButtonTestID: `tab-${item.key}`,
             tabBarIcon: ({ color, size }) => (
               <MaterialCommunityIcons name={item.icon} size={size} color={color} />

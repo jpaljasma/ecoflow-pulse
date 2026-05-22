@@ -7,7 +7,9 @@ import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { useNavigationShellStore } from '@/shared/ui/navigationShellStore';
 import { PulseMark } from '@/shared/ui/PulseMark';
-import { pulsePrimaryNavItems, type PulsePrimaryNavKey } from '@/shared/ui/pulsePrimaryNav';
+import { filterPulsePrimaryNavItems, type PulsePrimaryNavKey } from '@/shared/ui/pulsePrimaryNav';
+import { useAuthSession } from '@/features/auth/hooks';
+import { useCurrentUser } from '@/features/profile/hooks';
 
 export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }) {
   const router = useRouter();
@@ -15,6 +17,9 @@ export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }
   const semantics = useThemeSemantics();
   const { isSidebarMode, sidebarExpanded, sidebarWidth } = useNavigationShellMetrics();
   const toggleSidebarExpanded = useNavigationShellStore((state) => state.toggleSidebarExpanded);
+  const { authReady, authKey, token } = useAuthSession();
+  const currentUserQuery = useCurrentUser({ token, authKey, enabled: authReady });
+  const navItems = filterPulsePrimaryNavItems(currentUserQuery.data?.authorization.roles);
 
   if (!isSidebarMode) {
     return null;
@@ -114,7 +119,7 @@ export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }
             </Text>
           ) : null}
 
-          {pulsePrimaryNavItems.map((item) => {
+          {navItems.map((item) => {
             const focused = item.key === activeKey;
 
             return (

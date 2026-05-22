@@ -236,6 +236,24 @@ export type RefreshCurrentUserIdentityInput = {
   deadlineMs: number;
 };
 
+export type AdminLogFilterOption = {
+  kind: 'device' | 'serial' | 'user';
+  id: string;
+  label: string;
+  secondaryLabel: string;
+  deviceIds: string[];
+};
+
+export type SearchAdminLogFiltersInput = {
+  userSubject: string;
+  query?: string;
+  kind?: 'device' | 'serial' | 'user';
+  limit?: number;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
 export interface ControlPlaneClient {
   getCurrentUser(input: GetCurrentUserInput): Promise<CurrentUserBootstrap>;
   updateCurrentUser(input: UpdateCurrentUserInput): Promise<CurrentUser>;
@@ -256,6 +274,7 @@ export interface ControlPlaneClient {
     providerDevice: ProviderDevice;
     userDevice: UserDevice;
   }>;
+  searchAdminLogFilters(input: SearchAdminLogFiltersInput): Promise<AdminLogFilterOption[]>;
   close(): void;
 }
 
@@ -280,6 +299,7 @@ type GrpcControlPlaneClient = {
   TestProviderDeviceMQTT: GrpcUnaryMethod;
   EnableProviderDevice: GrpcUnaryMethod;
   ImportProviderDevice: GrpcUnaryMethod;
+  SearchAdminLogFilters: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -330,6 +350,10 @@ type RawEnableProviderDeviceResponse = {
 type RawImportProviderDeviceResponse = {
   providerDevice?: unknown;
   userDevice?: unknown;
+};
+type RawAdminLogFilterOption = Partial<Record<keyof AdminLogFilterOption, unknown>>;
+type RawSearchAdminLogFiltersResponse = {
+  options?: unknown;
 };
 
 type RawCurrentUser = Partial<Record<keyof CurrentUser, unknown>>;
@@ -560,6 +584,21 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
         userDevice: normalizeUserDevice((response.userDevice ?? {}) as RawUserDevice)
       };
     },
+    async searchAdminLogFilters(input) {
+      const response = await unaryCall<RawSearchAdminLogFiltersResponse>(
+        client.SearchAdminLogFilters.bind(client),
+        {
+          userSubject: input.userSubject,
+          query: input.query ?? '',
+          kind: input.kind ?? '',
+          limit: input.limit ?? 12
+        },
+        input
+      );
+      return Array.isArray(response.options)
+        ? response.options.map((row) => normalizeAdminLogFilterOption(row as RawAdminLogFilterOption))
+        : [];
+    },
     close() {
       client.close();
     }
@@ -702,6 +741,19 @@ function normalizeAuthorizationSummary(summary: RawAuthorizationSummary): Author
       ? summary.tokenRoles.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       : [],
     deviceCount: normalizeInteger(summary.deviceCount)
+  };
+}
+
+function normalizeAdminLogFilterOption(option: RawAdminLogFilterOption): AdminLogFilterOption {
+  const kind = normalizeString(option.kind);
+  return {
+    kind: kind === 'serial' || kind === 'user' ? kind : 'device',
+    id: normalizeString(option.id),
+    label: normalizeString(option.label),
+    secondaryLabel: normalizeString(option.secondaryLabel),
+    deviceIds: Array.isArray(option.deviceIds)
+      ? option.deviceIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : []
   };
 }
 

@@ -6,6 +6,7 @@ import {
 } from './controlplane/deviceAuthorizer.js';
 import { createLiveTelemetryClient } from './live/liveTelemetryClient.js';
 import { NatsDeltaHub } from './live/natsDeltaHub.js';
+import { NatsAdminLogSource } from './adminLogs/natsAdminLogSource.js';
 import { ValkeySnapshotStore } from './snapshot/valkeySnapshotStore.js';
 
 const config = loadConfig(process.env);
@@ -20,7 +21,13 @@ const liveClient = createLiveTelemetryClient({
     subjectPrefix: config.telemetrySubjectPrefix
   })
 });
-const app = buildApp(config, liveClient);
+const app = buildApp(config, liveClient, {
+  logSource: new NatsAdminLogSource({
+    urls: config.natsUrls,
+    subjectPrefix: config.telemetrySubjectPrefix,
+    streamName: config.logs.streamName
+  })
+});
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down pulse-realtime-gateway');

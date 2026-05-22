@@ -127,6 +127,7 @@ function makeControlPlaneClient(overrides: Partial<ControlPlaneClient> = {}): Co
     testProviderDeviceMQTT: vi.fn(),
     enableProviderDevice: vi.fn(),
     importProviderDevice: vi.fn(),
+    searchAdminLogFilters: vi.fn(async () => []),
     close: vi.fn(),
     ...overrides
   };
@@ -174,6 +175,81 @@ describe('pulse-platform current user routes', () => {
         roles: ['viewer'],
         deviceCount: 3
       }
+    });
+
+    await app.close();
+  });
+
+  it('blocks admin log filter lookups for non-admin users', async () => {
+    const searchAdminLogFilters = vi.fn(async () => []);
+    const controlPlaneClient = makeControlPlaneClient({ searchAdminLogFilters });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/log-filter-options',
+      payload: { kind: 'user', query: 'owner', limit: 5 }
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(searchAdminLogFilters).not.toHaveBeenCalled();
+
+    await app.close();
+  });
+
+  it('returns admin log filter options through a POST lookup', async () => {
+    const getCurrentUser = vi.fn(async () => ({
+      ...sampleBootstrap(),
+      authorization: {
+        tokenRoles: ['admin'],
+        deviceCount: 3
+      }
+    }));
+    const searchAdminLogFilters = vi.fn(async () => [
+      {
+        kind: 'user' as const,
+        id: 'usr-1',
+        label: 'owner@example.invalid',
+        secondaryLabel: 'Owner User',
+        deviceIds: ['dev-1', 'dev-2']
+      }
+    ]);
+    const controlPlaneClient = makeControlPlaneClient({ getCurrentUser, searchAdminLogFilters });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/log-filter-options',
+      headers: {
+        authorization: 'Bearer admin-token'
+      },
+      payload: { kind: 'user', query: 'owner', limit: 5 }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(searchAdminLogFilters).toHaveBeenCalledWith({
+      userSubject: 'dev-user-subject',
+      query: 'owner',
+      kind: 'user',
+      limit: 5,
+      authHeader: 'Bearer admin-token',
+      requestID: expect.any(String),
+      deadlineMs: 2500
+    });
+    expect(response.json()).toEqual({
+      options: [
+        {
+          kind: 'user',
+          id: 'usr-1',
+          label: 'owner@example.invalid',
+          secondaryLabel: 'Owner User',
+          deviceIds: ['dev-1', 'dev-2']
+        }
+      ]
     });
 
     await app.close();

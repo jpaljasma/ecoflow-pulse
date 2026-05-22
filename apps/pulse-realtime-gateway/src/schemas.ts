@@ -12,6 +12,52 @@ const deviceIdsSchema = z.array(z.string().trim().min(1)).min(1).max(128).transf
   return out;
 });
 
+const optionalStringListSchema = z
+  .array(z.string().trim().min(1))
+  .max(128)
+  .optional()
+  .default([])
+  .transform((values) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const value of values) {
+      if (!seen.has(value)) {
+        seen.add(value);
+        out.push(value);
+      }
+    }
+    return out;
+  });
+
+const logStatusSchema = z.enum(['ok', 'warning', 'error']);
+
+export const LogsSubscribeMessageSchema = z.object({
+  type: z.literal('logs_subscribe'),
+  subscriptionId: z.string().trim().min(1).max(80).optional().default('default'),
+  filters: z
+    .object({
+      deviceIds: optionalStringListSchema,
+      statuses: z.array(logStatusSchema).max(8).optional().default([]),
+      sources: optionalStringListSchema,
+      typeCodes: optionalStringListSchema
+    })
+    .optional()
+    .default({})
+    .transform((filters) => ({
+      deviceIds: filters.deviceIds,
+      statuses: filters.statuses,
+      sources: filters.sources,
+      typeCodes: filters.typeCodes
+    })),
+  replayLimit: z.number().int().min(1).max(200).optional().default(200),
+  replaySinceUnixMs: z.number().int().min(0).optional().default(0)
+});
+
+export const LogsUnsubscribeMessageSchema = z.object({
+  type: z.literal('logs_unsubscribe'),
+  subscriptionId: z.string().trim().min(1).max(80).optional().default('default')
+});
+
 export const SubscribeMessageSchema = z.object({
   type: z.literal('subscribe'),
   deviceIds: deviceIdsSchema
@@ -30,6 +76,8 @@ export const PingMessageSchema = z.object({
 export const ClientMessageSchema = z.union([
   SubscribeMessageSchema,
   UnsubscribeMessageSchema,
+  LogsSubscribeMessageSchema,
+  LogsUnsubscribeMessageSchema,
   PingMessageSchema
 ]);
 
@@ -80,4 +128,37 @@ export type ServerDeviceStatusMessage = {
 export type ServerPongMessage = {
   type: 'pong';
   ts: number;
+};
+
+export type ServerLogEntryMessage = {
+  type: 'log_entry';
+  subscriptionId: string;
+  entry: {
+    id: string;
+    ts: number;
+    receivedTs: number;
+    deviceId: string;
+    status: 'ok' | 'warning' | 'error';
+    source: string;
+    sourceKind: string;
+    typeCode: string;
+    summary: string;
+    labels: Record<string, string>;
+    detail: Record<string, unknown>;
+  };
+};
+
+export type ServerLogsStatusMessage = {
+  type: 'logs_status';
+  subscriptionId: string;
+  ts: number;
+  state: 'replay' | 'live' | 'forbidden' | 'error' | 'closed';
+  message?: string;
+};
+
+export type ServerLogsReplayDoneMessage = {
+  type: 'logs_replay_done';
+  subscriptionId: string;
+  ts: number;
+  replayed: number;
 };

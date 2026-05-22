@@ -262,6 +262,48 @@ ORDER BY d.product_name ASC, d.ecoflow_sn ASC;
 	}
 }
 
+func TestPostgresStoreSearchAdminLogUserFiltersReturnsAllDeviceIDsForLimitedUsers(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	deviceIDs := make([]string, 40)
+	for i := range deviceIDs {
+		deviceIDs[i] = "00000000-0000-7000-8000-0000000000" + string(rune('a'+i%26))
+	}
+	deviceIDsJSON := `["` + strings.Join(deviceIDs, `","`) + `"]`
+	mock.ExpectQuery("WITH matching_users").
+		WithArgs("operator", "%operator%", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "display_name", "device_ids_json"}).
+			AddRow("user-1", "operator@example.invalid", "", deviceIDsJSON))
+
+	options, err := store.SearchAdminLogFilters(context.Background(), SearchAdminLogFiltersInput{
+		Query: "operator",
+		Kind:  "user",
+		Limit: 1,
+	})
+	if err != nil {
+		t.Fatalf("SearchAdminLogFilters failed: %v", err)
+	}
+	if len(options) != 1 {
+		t.Fatalf("len(options)=%d, want 1", len(options))
+	}
+	if got, want := len(options[0].DeviceIDs), len(deviceIDs); got != want {
+		t.Fatalf("len(DeviceIDs)=%d, want %d", got, want)
+	}
+	if options[0].SecondaryLabel != "40 devices" {
+		t.Fatalf("SecondaryLabel=%q, want 40 devices", options[0].SecondaryLabel)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestPostgresStoreListProviderDevicesRetriesConnectionDrop(t *testing.T) {
 	t.Setenv("DB_READ_RETRY_MAX_ATTEMPTS", "2")
 	t.Setenv("DB_READ_RETRY_INITIAL_BACKOFF", "1ms")

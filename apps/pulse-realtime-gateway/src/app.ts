@@ -13,14 +13,20 @@ import type {
 } from './live/liveTelemetryClient.js';
 import {
   ClientMessageSchema,
+  type ClientMessage,
   type ServerDeviceStatusMessage,
+  type ServerLogEntryMessage,
+  type ServerLogsReplayDoneMessage,
+  type ServerLogsStatusMessage,
   type ServerPongMessage,
   type ServerTelemetryMessage
 } from './schemas.js';
 import { realtimeMetrics } from './metrics.js';
+import type { AdminLogSource, AdminLogSubscription } from './adminLogs/types.js';
 
 type BuildAppOptions = {
   wsPreValidation?: preValidationHookHandler;
+  logSource?: AdminLogSource;
 };
 
 type DeviceStreamState = {
@@ -38,6 +44,8 @@ type GatewaySessionDeps = {
   authHeader?: string;
   config: AppConfig;
   liveClient: LiveTelemetryClient;
+  logSource?: AdminLogSource;
+  roles: string[];
 };
 
 export function buildApp(
@@ -65,7 +73,9 @@ export function buildApp(
           requestId: request.id,
           authHeader: request.wsAuthHeader,
           config,
-          liveClient
+          liveClient,
+          logSource: options.logSource,
+          roles: request.auth?.roles ?? []
         });
 
         socket.on('message', (raw: RawData) => {
@@ -83,6 +93,7 @@ export function buildApp(
 
   app.addHook('onClose', async () => {
     liveClient.close();
+    await options.logSource?.close();
   });
 
   return app;
@@ -94,7 +105,10 @@ class GatewaySession {
   private readonly authHeader?: string;
   private readonly config: AppConfig;
   private readonly liveClient: LiveTelemetryClient;
+  private readonly logSource?: AdminLogSource;
+  private readonly roles: string[];
   private readonly deviceStreams = new Map<string, DeviceStreamState>();
+  private readonly logStreams = new Map<string, AdminLogSubscription>();
   private closed = false;
 
   constructor(deps: GatewaySessionDeps) {
@@ -103,6 +117,8 @@ class GatewaySession {
     this.authHeader = deps.authHeader;
     this.config = deps.config;
     this.liveClient = deps.liveClient;
+    this.logSource = deps.logSource;
+    this.roles = deps.roles;
     realtimeMetrics.sessionOpened();
   }
 
@@ -133,6 +149,12 @@ class GatewaySession {
           this.unsubscribeDevice(deviceId);
         }
         break;
+      case 'logs_subscribe':
+        this.subscribeLogs(message.data);
+        break;
+      case 'logs_unsubscribe':
+        this.unsubscribeLogs(message.data.subscriptionId);
+        break;
       case 'ping':
         this.send({ type: 'pong', ts: Date.now() });
         break;
@@ -149,6 +171,68 @@ class GatewaySession {
       this.stopState(state);
     }
     this.deviceStreams.clear();
+    for (const subscription of this.logStreams.values()) {
+      subscription.close();
+    }
+    this.logStreams.clear();
+  }
+
+  private subscribeLogs(message: Extract<ClientMessage, { type: 'logs_subscribe' }>): void {
+    const subscriptionId = message.subscriptionId;
+    this.unsubscribeLogs(subscriptionId, { silent: true });
+
+    if (!this.canReadAdminLogs()) {
+      this.sendLogsStatus(subscriptionId, 'forbidden', 'admin role required');
+      return;
+    }
+    if (!this.logSource) {
+      this.sendLogsStatus(subscriptionId, 'error', 'admin log source unavailable');
+      return;
+    }
+
+    const replaySinceUnixMs =
+      message.replaySinceUnixMs > 0 ? message.replaySinceUnixMs : Date.now() - this.config.logs.replayWindowMs;
+    try {
+      const subscription = this.logSource.subscribe({
+        subscriptionId,
+        filters: message.filters,
+        replayLimit: Math.min(message.replayLimit, this.config.logs.replayLimit),
+        replaySinceUnixMs,
+        authHeader: this.authHeader,
+        requestId: this.requestId,
+        onEntry: (entry) => {
+          this.send({ type: 'log_entry', subscriptionId, entry });
+        },
+        onReplayDone: ({ replayed }) => {
+          this.send({ type: 'logs_replay_done', subscriptionId, ts: Date.now(), replayed });
+        },
+        onStatus: (status) => {
+          this.sendLogsStatus(subscriptionId, status.state, status.message);
+        }
+      });
+      this.logStreams.set(subscriptionId, subscription);
+    } catch {
+      this.sendLogsStatus(subscriptionId, 'error', 'admin log stream failed');
+    }
+  }
+
+  private unsubscribeLogs(subscriptionId: string, options: { silent?: boolean } = {}): void {
+    const subscription = this.logStreams.get(subscriptionId);
+    if (!subscription) {
+      return;
+    }
+    subscription.close();
+    this.logStreams.delete(subscriptionId);
+    if (!options.silent) {
+      this.sendLogsStatus(subscriptionId, 'closed');
+    }
+  }
+
+  private canReadAdminLogs(): boolean {
+    if (this.roles.some((role) => role.toLowerCase() === 'admin')) {
+      return true;
+    }
+    return this.config.auth.mode === 'noop' && this.config.logs.devAdminEnabled;
   }
 
   private subscribeDevice(deviceId: string): void {
@@ -274,7 +358,29 @@ class GatewaySession {
     } satisfies ServerDeviceStatusMessage);
   }
 
-  private send(message: ServerTelemetryMessage | ServerDeviceStatusMessage | ServerPongMessage): void {
+  private sendLogsStatus(
+    subscriptionId: string,
+    state: ServerLogsStatusMessage['state'],
+    message?: string
+  ): void {
+    this.send({
+      type: 'logs_status',
+      subscriptionId,
+      ts: Date.now(),
+      state,
+      ...(message ? { message } : {})
+    } satisfies ServerLogsStatusMessage);
+  }
+
+  private send(
+    message:
+      | ServerTelemetryMessage
+      | ServerDeviceStatusMessage
+      | ServerPongMessage
+      | ServerLogEntryMessage
+      | ServerLogsStatusMessage
+      | ServerLogsReplayDoneMessage
+  ): void {
     if (this.closed || this.socket.readyState !== 1) {
       return;
     }

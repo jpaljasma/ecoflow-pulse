@@ -20,12 +20,20 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },
-  webServer: {
-    command: `CI=1 npm run ${exportScript} && npx serve -s dist -l ${webPort}`,
-    port: webPort,
-    timeout: 240_000,
-    reuseExistingServer: !process.env.CI
-  },
+  webServer: [
+    {
+      command: `CI=1 EXPO_PUBLIC_WS_URL=ws://127.0.0.1:8082/ws npm run ${exportScript} && npx serve -s dist -l ${webPort}`,
+      port: webPort,
+      timeout: 240_000,
+      reuseExistingServer: !process.env.CI
+    },
+    {
+      command: 'MAESTRO_MOCK_WS_CLOSE_LOGS_ONCE=1 node e2e/mock_ws_server.js',
+      port: 8082,
+      timeout: 30_000,
+      reuseExistingServer: !process.env.CI
+    }
+  ],
   projects: [
     {
       name: 'chromium',
