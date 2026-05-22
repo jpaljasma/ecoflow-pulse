@@ -128,6 +128,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - do not hardcode assumptions that every device has exactly two PV inputs,
    - support current EcoFlow field families with canonical numbered IDs (`pv-1` ... `pv-N`) and dual-MPPT aliases (`pv-low` / `pv-high`) where those legacy fields exist,
    - keep history, realtime detail, REST detail, and UI matching logic aligned so one-port, two-port, and future multi-port devices all render correctly.
+8. Realtime log routes and links must stay ownership-safe:
+   - deep links use canonical UUID device IDs only,
+   - serial and email filters must resolve through authenticated BFF lookups before subscription,
+   - non-admin users may only subscribe to their authorized device IDs.
 
 ## Time Handling Rules
 1. Persisted/backend timestamps use UTC semantics; user-facing day/month/year periods use local calendar semantics unless a feature explicitly says otherwise.
@@ -246,42 +250,56 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - plain `make dev-web-deploy` and `make dev-deploy` must preserve an already-running Local Edge cloud-data mode unless `DEV_DEPLOY_DATA_MODE=local` is explicitly set,
    - persist the active build default with the selected profile so switching between true Local and Local Edge cannot reuse stale state from the other mode,
    - normal local builds must not let stale Cloud state send unauthenticated login to hosted `sslip.io` OIDC discovery.
+28. Dense realtime consoles must bound and defer work:
+   - keep visible row buffers small and user-configurable,
+   - pause appends while a row detail is expanded or the tab is inactive,
+   - lazily format large JSON/detail payloads only for the expanded row,
+   - prefer exact or suffix-family type filters over brittle enumerations that need code changes for every new provider status frame.
 
 ## Local Telemetry Pipeline Rules
 1. Prefer in-cluster containerized workers over long-running local `go run` loops.
 2. Use `make dev-up` + `make services-up` as the default local runtime path for ingest/projection/archive.
 3. Do not reintroduce the deleted terminal-based telemetry dashboard/runtime (`cmd/ecoflow-mqtt-sub` / `make mqtt`); local product validation should happen through the universal web/app surface backed by the k3d platform.
-3. Keep worker image flow reproducible:
+4. Keep worker image flow reproducible:
    - `make services-image-build-local`
    - `make services-image-import-local`
-4. Keep the local public/API path multi-replica by default for round-robin validation:
+5. Keep the local public/API path multi-replica by default for round-robin validation:
    - Node REST BFF/public app: `2` replicas,
    - WebSocket gateway: `2` replicas,
    - Go gRPC API: `3` replicas.
-5. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps, except for workers that currently rely on process-local integration state:
+6. Keep local `pulse-services` worker deployments multi-replica by default so rollout restarts do not create single-pod gaps, except for workers that currently rely on process-local integration state:
    - ingest, inference, projection, archive: `3` replicas each in local/dev defaults.
    - rollup must remain a singleton until per-device integration state is persisted or shard-affine consumption is implemented; queue-group fanout plus in-memory carry state is not accuracy-safe.
-6. Service rollouts must wait on the platform dependency endpoints they consume before applying/restarting workloads:
+7. Service rollouts must wait on the platform dependency endpoints they consume before applying/restarting workloads:
    - at minimum: CNPG rw service, NATS, Valkey, and MinIO.
-7. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
-8. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
-9. Valkey durability for the default 99.99% baseline must not rely on ephemeral memory-only pods:
+8. For local websocket HA validation, remember Kubernetes balances on connection establishment; use reconnects or multiple clients to exercise more than one gateway pod.
+9. For local Valkey replication+sentinel, lock/write paths must target a writable primary endpoint; avoid random replica fan-out endpoints for lease writes.
+10. Valkey durability for the default 99.99% baseline must not rely on ephemeral memory-only pods:
    - keep AOF enabled,
    - back Valkey data nodes with PVCs,
    - use Sentinel-managed failover/recovery settings that preserve service continuity across cold restarts,
    - treat PVC loss as a storage incident, not normal restart behavior.
-9. Historical rollup regeneration must be non-destructive by default:
+11. Historical rollup regeneration must be non-destructive by default:
    - do not delete a requested rollup window before rebuilding it,
    - prefer direct archive-to-rollup rebuilds with bounded transactional chunk replacement over replaying through NATS when the goal is to overwrite historical buckets safely.
-10. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
-11. Before trusting local historical rebuilds after archive/storage churn:
+12. Quota-derived normalized telemetry frames are replay-relevant and must remain archiveable for future rebuild accuracy; do not reintroduce archive skip behavior for `source=quota` without a new ADR.
+13. Before trusting local historical rebuilds after archive/storage churn:
    - audit direct MinIO raw-object coverage against `archive_object_manifest`,
    - fail closed on drift instead of trusting manifest-only counts,
    - keep rebuild-time envelope deduplication in place so retry duplicates cannot inflate regenerated rollups.
-11. Local raw archive durability is required for trustworthy replay:
+14. Local raw archive durability is required for trustworthy replay:
    - if MinIO is the authoritative local raw archive, it must use PVC-backed persistence,
    - do not leave local MinIO in ephemeral mode when replay, rebuild, or gap repair depend on it,
    - rebuild tooling must fail closed on archive/object mismatches rather than replacing DB windows with partial coverage.
+
+## Realtime Log Stream Rules
+1. Browsers subscribe to operational MQTT logs only through the authenticated `/ws` realtime gateway; never connect the universal app directly to NATS or JetStream.
+2. The gateway must enforce the same authorization contract for replay and live fanout:
+   - global admins can subscribe across devices,
+   - device owners are scoped to their authorized UUID device IDs,
+   - noop/dev unrestricted streaming stays behind an explicit local-only flag.
+3. Log entries exposed to clients must stay normalized and redacted; raw provider payload reveal requires a separate reviewed contract.
+4. Type filters should support exact codes and bounded suffix families such as `Status` or `Info`; avoid hardcoded provider status-code lists when the provider can introduce new `*Status` frames.
 
 ## Cache and Valkey Runtime Rules
 1. Treat shared cache behavior and Valkey runtime behavior as separate layers:
@@ -375,8 +393,8 @@ When starting any new milestone task from `docs/architecture/README.md`:
 4. Emit async logger SLO metrics (`queue_depth`, `dropped_total`, etc.) on a periodic ticker with jitter (`StartAsyncMetricsReporter`).
 5. Async logger shutdown must be graceful and race-safe; avoid send/close channel races in hot logging paths.
 
-## M1 Auth Implementation Rules
-1. Treat M1 auth as complete only when all four layers are wired and validated together:
+## Auth Implementation Rules
+1. Treat auth as complete only when all four layers are wired and validated together:
    - Expo PKCE client flow (Keycloak OIDC),
    - Node JWKS JWT middleware package,
    - Go gRPC JWT validation/interceptors,
@@ -398,10 +416,10 @@ When starting any new milestone task from `docs/architecture/README.md`:
    - `npm run -w apps/universal test`
    - `go test ./...`
 5. Keep frontend CI aligned with auth package coverage (do not allow `node-jwks-auth` tests/typecheck to be optional when auth files change).
-5. Authenticated product flows must use real authn/authz during validation:
+6. Authenticated product flows must use real authn/authz during validation:
    - do not rely on `noop` or dev-subject shortcuts for login, profile, onboarding, or device-ownership acceptance,
    - local acceptance should exercise real Keycloak-issued JWTs end to end through the public app, realtime gateway, and Go gRPC auth boundary.
-6. Deploys must be seamless for signed-in users:
+7. Deploys must be seamless for signed-in users:
    - rolling deploys must drain active connections safely instead of surfacing transient user-facing auth/bootstrap errors,
    - a valid browser session must survive routine pod rollouts and platform restarts,
    - treat deploy-induced logout, onboarding fallback, websocket interruption without recovery, or visible bootstrap failures as bugs, not acceptable rollout behavior.
@@ -410,8 +428,8 @@ When starting any new milestone task from `docs/architecture/README.md`:
 1. Do not mark milestone tasks `DONE` until all listed acceptance criteria are explicitly validated with real command output.
 2. Record acceptance evidence in `docs/architecture/README.md` in the same branch/commit series as the implementation.
 3. For local platform validation, ensure commands target `k3d-pulse-local` explicitly (context-pinned) so local checks cannot accidentally run against GKE.
-5. Whenever new developer-facing commands or Make targets are introduced/changed, update `docs/reference/commands.md` in the same commit with command meanings/default behavior.
-6. If implementation/validation fails due to missing local tooling (for example `k3d`, `kubectl`, `helm`), update developer docs in the same branch to record the requirement and where it is needed.
+4. Whenever new developer-facing commands or Make targets are introduced/changed, update `docs/reference/commands.md` in the same commit with command meanings/default behavior.
+5. If implementation/validation fails due to missing local tooling (for example `k3d`, `kubectl`, `helm`), update developer docs in the same branch to record the requirement and where it is needed.
 
 ## Merge Rules
 1. Merge only after CI and required checks are green.

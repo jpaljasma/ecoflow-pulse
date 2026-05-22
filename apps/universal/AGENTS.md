@@ -74,6 +74,7 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 2. User-facing day/month/year ranges must use local-calendar semantics, not elapsed-millisecond subtraction.
 3. Expensive long-range history views should stay on-demand and cached rather than always-on live refresh.
 4. Preserve stale content during refetch when possible; layout jumps and flash-empty transitions are bugs.
+5. Logs filters that originate from serial numbers or user emails must resolve to internal IDs through authenticated lookups; never put serial numbers or emails in route params or websocket URLs.
 
 ## Charts and Telemetry UI
 1. Shared chart semantics must stay consistent across screens:
@@ -83,6 +84,13 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 2. Reuse fetched payloads aggressively for related widgets instead of refetching parallel slices of the same period.
 3. Device detail and shared chrome must receive explicit scope from the current page; do not silently re-derive unrelated global scope.
 4. Shared chart primitives under `src/shared/ui` have additional nested guidance; read `src/shared/ui/AGENTS.md` before changing chart components, chart model helpers, hover/tap hit testing, axis labels, or bucket normalization.
+
+## Operational Logs UI
+1. Keep Logs as a dense operating console: compact filter grid, stable table rows, bounded visible row count, and one expanded row at a time.
+2. Status and Type controls are single-select toggles; clicking the active value returns that group to `All`.
+3. Pause live row movement while details are expanded, while the user pauses the stream, or while the Logs tab is inactive.
+4. Format and redact expanded JSON lazily so collapsed live rows stay cheap to render.
+5. Prefer suffix-family type filters for provider families such as `*Status` and `*Info`; do not add a new hardcoded entry for every newly observed status frame.
 
 ## Auth and Browser Runtime
 1. Browser web sign-in must use a same-tab Authorization Code + PKCE redirect when the current tab can be navigated; do not rely on popup/opener completion for web browsers because local, iOS, and embedded browser surfaces can block `window.open`.
