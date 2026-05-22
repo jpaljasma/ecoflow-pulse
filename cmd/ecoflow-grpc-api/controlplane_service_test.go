@@ -807,7 +807,7 @@ func TestListDevicesGroupedByProvider(t *testing.T) {
 	}
 }
 
-func TestSearchAdminLogFiltersRequiresGlobalAdmin(t *testing.T) {
+func TestSearchAdminLogFiltersRequiresGlobalAdminForUserLookup(t *testing.T) {
 	t.Parallel()
 
 	svc, _ := newControlPlaneServiceForTest()
@@ -819,10 +819,88 @@ func TestSearchAdminLogFiltersRequiresGlobalAdmin(t *testing.T) {
 	_, err := svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
 		UserSubject: "dev-user",
 		Query:       "delta",
-		Kind:        "device",
+		Kind:        "user",
 	})
 	if status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("expected PermissionDenied, got %v", err)
+	}
+}
+
+func TestSearchAdminLogFiltersAllowsDeviceOwnerScopedDeviceAndSerial(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	if _, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{
+		UserSubject: "owner-user",
+		Email:       "owner@example.invalid",
+		DisplayName: "Owner User",
+	}); err != nil {
+		t.Fatalf("provision owner failed: %v", err)
+	}
+	ownerDevice, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "owner-user",
+		EcoflowSN:   "OWNER-SN-001",
+		ProductName: "Owner Delta",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create owner device failed: %v", err)
+	}
+	if _, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{
+		UserSubject: "other-user",
+		Email:       "other@example.invalid",
+		DisplayName: "Other User",
+	}); err != nil {
+		t.Fatalf("provision other user failed: %v", err)
+	}
+	otherDevice, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "other-user",
+		EcoflowSN:   "OTHER-SN-001",
+		ProductName: "Other Delta",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create other device failed: %v", err)
+	}
+	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{
+		Subject: "owner-user",
+		Roles:   []string{"viewer"},
+	})
+
+	serialResp, err := svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
+		UserSubject: "owner-user",
+		Query:       "SN-001",
+		Kind:        "serial",
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("search owner serial filters failed: %v", err)
+	}
+	if got := serialResp.GetOptions(); len(got) != 1 || got[0].GetKind() != "serial" || got[0].GetDeviceIds()[0] != ownerDevice.DeviceID {
+		t.Fatalf("unexpected scoped serial options: %+v; owner=%s other=%s", got, ownerDevice.DeviceID, otherDevice.DeviceID)
+	}
+
+	deviceResp, err := svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
+		UserSubject: "owner-user",
+		Query:       "Delta",
+		Kind:        "device",
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("search owner device filters failed: %v", err)
+	}
+	if got := deviceResp.GetOptions(); len(got) != 1 || got[0].GetKind() != "device" || got[0].GetDeviceIds()[0] != ownerDevice.DeviceID {
+		t.Fatalf("unexpected scoped device options: %+v", got)
+	}
+
+	_, err = svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
+		UserSubject: "owner-user",
+		Query:       "owner",
+		Kind:        "user",
+		Limit:       10,
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("expected PermissionDenied for owner user filter lookup, got %v", err)
 	}
 }
 

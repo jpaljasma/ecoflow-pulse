@@ -283,9 +283,10 @@ func TestPostgresStoreSearchAdminLogUserFiltersReturnsAllDeviceIDsForLimitedUser
 			AddRow("user-1", "operator@example.invalid", "", deviceIDsJSON))
 
 	options, err := store.SearchAdminLogFilters(context.Background(), SearchAdminLogFiltersInput{
-		Query: "operator",
-		Kind:  "user",
-		Limit: 1,
+		Query:       "operator",
+		Kind:        "user",
+		Limit:       1,
+		GlobalAdmin: true,
 	})
 	if err != nil {
 		t.Fatalf("SearchAdminLogFilters failed: %v", err)
@@ -298,6 +299,42 @@ func TestPostgresStoreSearchAdminLogUserFiltersReturnsAllDeviceIDsForLimitedUser
 	}
 	if options[0].SecondaryLabel != "40 devices" {
 		t.Fatalf("SecondaryLabel=%q, want 40 devices", options[0].SecondaryLabel)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresStoreSearchAdminLogFiltersScopesDeviceOptionsToUserSubject(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	mock.ExpectQuery("FROM users u").
+		WithArgs("owner", "%owner%", 5, "owner-subject").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "ecoflow_sn", "product_name", "model"}).
+			AddRow("dev-owned", "OWNER-SN-001", "Owner Delta", "DELTA 2 Max"))
+
+	options, err := store.SearchAdminLogFilters(context.Background(), SearchAdminLogFiltersInput{
+		Query:       "owner",
+		Kind:        "serial",
+		Limit:       5,
+		UserSubject: "owner-subject",
+		GlobalAdmin: false,
+	})
+	if err != nil {
+		t.Fatalf("SearchAdminLogFilters failed: %v", err)
+	}
+	if len(options) != 1 {
+		t.Fatalf("len(options)=%d, want 1", len(options))
+	}
+	if options[0].Kind != "serial" || options[0].DeviceIDs[0] != "dev-owned" {
+		t.Fatalf("unexpected scoped option: %+v", options[0])
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)

@@ -23,10 +23,12 @@ import {
 } from './schemas.js';
 import { realtimeMetrics } from './metrics.js';
 import type { AdminLogSource, AdminLogSubscription } from './adminLogs/types.js';
+import type { DeviceAuthorizer } from './controlplane/deviceAuthorizer.js';
 
 type BuildAppOptions = {
   wsPreValidation?: preValidationHookHandler;
   logSource?: AdminLogSource;
+  deviceAuthorizer?: DeviceAuthorizer;
 };
 
 type DeviceStreamState = {
@@ -45,6 +47,7 @@ type GatewaySessionDeps = {
   config: AppConfig;
   liveClient: LiveTelemetryClient;
   logSource?: AdminLogSource;
+  deviceAuthorizer?: DeviceAuthorizer;
   roles: string[];
 };
 
@@ -75,6 +78,7 @@ export function buildApp(
           config,
           liveClient,
           logSource: options.logSource,
+          deviceAuthorizer: options.deviceAuthorizer,
           roles: request.auth?.roles ?? []
         });
 
@@ -106,9 +110,12 @@ class GatewaySession {
   private readonly config: AppConfig;
   private readonly liveClient: LiveTelemetryClient;
   private readonly logSource?: AdminLogSource;
+  private readonly deviceAuthorizer?: DeviceAuthorizer;
   private readonly roles: string[];
   private readonly deviceStreams = new Map<string, DeviceStreamState>();
   private readonly logStreams = new Map<string, AdminLogSubscription>();
+  private readonly logRequestSeq = new Map<string, number>();
+  private nextLogRequestSeq = 0;
   private closed = false;
 
   constructor(deps: GatewaySessionDeps) {
@@ -118,6 +125,7 @@ class GatewaySession {
     this.config = deps.config;
     this.liveClient = deps.liveClient;
     this.logSource = deps.logSource;
+    this.deviceAuthorizer = deps.deviceAuthorizer;
     this.roles = deps.roles;
     realtimeMetrics.sessionOpened();
   }
@@ -150,7 +158,7 @@ class GatewaySession {
         }
         break;
       case 'logs_subscribe':
-        this.subscribeLogs(message.data);
+        void this.subscribeLogs(message.data);
         break;
       case 'logs_unsubscribe':
         this.unsubscribeLogs(message.data.subscriptionId);
@@ -177,12 +185,19 @@ class GatewaySession {
     this.logStreams.clear();
   }
 
-  private subscribeLogs(message: Extract<ClientMessage, { type: 'logs_subscribe' }>): void {
+  private async subscribeLogs(message: Extract<ClientMessage, { type: 'logs_subscribe' }>): Promise<void> {
     const subscriptionId = message.subscriptionId;
     this.unsubscribeLogs(subscriptionId, { silent: true });
+    const requestSeq = this.nextLogRequestSeq + 1;
+    this.nextLogRequestSeq = requestSeq;
+    this.logRequestSeq.set(subscriptionId, requestSeq);
 
-    if (!this.canReadAdminLogs()) {
-      this.sendLogsStatus(subscriptionId, 'forbidden', 'admin role required');
+    const filters = await this.resolveLogFilters(message.filters);
+    if (this.closed || this.logRequestSeq.get(subscriptionId) !== requestSeq) {
+      return;
+    }
+    if (!filters) {
+      this.sendLogsStatus(subscriptionId, 'forbidden', 'device log access required');
       return;
     }
     if (!this.logSource) {
@@ -195,7 +210,7 @@ class GatewaySession {
     try {
       const subscription = this.logSource.subscribe({
         subscriptionId,
-        filters: message.filters,
+        filters,
         replayLimit: Math.min(message.replayLimit, this.config.logs.replayLimit),
         replaySinceUnixMs,
         authHeader: this.authHeader,
@@ -218,6 +233,7 @@ class GatewaySession {
 
   private unsubscribeLogs(subscriptionId: string, options: { silent?: boolean } = {}): void {
     const subscription = this.logStreams.get(subscriptionId);
+    this.logRequestSeq.delete(subscriptionId);
     if (!subscription) {
       return;
     }
@@ -228,11 +244,26 @@ class GatewaySession {
     }
   }
 
-  private canReadAdminLogs(): boolean {
+  private async resolveLogFilters(filters: Extract<ClientMessage, { type: 'logs_subscribe' }>['filters']) {
     if (this.roles.some((role) => role.toLowerCase() === 'admin')) {
-      return true;
+      return filters;
     }
-    return this.config.auth.mode === 'noop' && this.config.logs.devAdminEnabled;
+    if (this.config.auth.mode === 'noop' && this.config.logs.devAdminEnabled) {
+      return filters;
+    }
+    if (!this.deviceAuthorizer || !this.authHeader) {
+      return null;
+    }
+    try {
+      const authorized = await this.deviceAuthorizer.listAuthorizedDevices({
+        authHeader: this.authHeader,
+        requestID: this.requestId,
+        deadlineMs: this.config.grpcDeadlineMs
+      });
+      return scopeLogFiltersToDevices(filters, authorized.deviceIds);
+    } catch {
+      return null;
+    }
   }
 
   private subscribeDevice(deviceId: string): void {
@@ -411,6 +442,29 @@ function isPermissionDenied(error?: (Error & { code?: number }) | undefined): bo
 function computeBackoffWithJitter(baseMs: number, maxMs: number, attempt: number): number {
   const exponential = Math.min(maxMs, baseMs * 2 ** Math.max(0, attempt - 1));
   return Math.max(baseMs, Math.floor(exponential / 2 + Math.random() * (exponential / 2)));
+}
+
+function scopeLogFiltersToDevices(
+  filters: Extract<ClientMessage, { type: 'logs_subscribe' }>['filters'],
+  authorizedDeviceIds: readonly string[]
+): Extract<ClientMessage, { type: 'logs_subscribe' }>['filters'] | null {
+  const authorized = uniqueNonEmpty(authorizedDeviceIds);
+  if (authorized.length === 0) {
+    return null;
+  }
+  const authorizedSet = new Set(authorized);
+  const requested = uniqueNonEmpty(filters.deviceIds);
+  const deviceIds = requested.length > 0
+    ? requested.filter((deviceId) => authorizedSet.has(deviceId))
+    : authorized;
+  if (deviceIds.length === 0) {
+    return null;
+  }
+  return { ...filters, deviceIds };
+}
+
+function uniqueNonEmpty(values: readonly string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function timestamp(cursorTsUnixMs: number): number {

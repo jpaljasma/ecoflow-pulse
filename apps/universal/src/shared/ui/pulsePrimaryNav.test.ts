@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canAccessPulseLogs,
   filterPulsePrimaryNavItems,
   isPulseGlobalAdmin,
   pulsePrimaryNavItems,
@@ -15,9 +16,13 @@ describe('pulse primary nav', () => {
     expect(resolvePulsePrimaryNavKey('energy-calendar')).toBe('energy-calendar');
   });
 
-  it('shows Logs only for global admins', () => {
+  it('shows Logs for global admins or users with devices', () => {
     expect(isPulseGlobalAdmin(['viewer', 'Admin'])).toBe(true);
-    expect(filterPulsePrimaryNavItems(['viewer']).map((item) => item.key)).not.toContain('logs');
-    expect(filterPulsePrimaryNavItems(['admin']).map((item) => item.key)).toContain('logs');
+    expect(canAccessPulseLogs({ roles: ['viewer'], deviceCount: 0 })).toBe(false);
+    expect(canAccessPulseLogs({ roles: ['viewer'], deviceCount: 2 })).toBe(true);
+    expect(canAccessPulseLogs({ roles: ['admin'], deviceCount: 0 })).toBe(true);
+    expect(filterPulsePrimaryNavItems({ roles: ['viewer'], deviceCount: 0 }).map((item) => item.key)).not.toContain('logs');
+    expect(filterPulsePrimaryNavItems({ roles: ['viewer'], deviceCount: 2 }).map((item) => item.key)).toContain('logs');
+    expect(filterPulsePrimaryNavItems({ roles: ['admin'], deviceCount: 0 }).map((item) => item.key)).toContain('logs');
   });
 });

@@ -1,5 +1,12 @@
 import type { ComponentProps } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  canAccessPulseLogs,
+  isPulseGlobalAdmin,
+  type PulseLogAccessInput
+} from '@/shared/authz/pulseRoles';
+
+export { canAccessPulseLogs, isPulseGlobalAdmin };
 
 export type PulsePrimaryNavKey = 'devices' | 'energy' | 'energy-calendar' | 'logs' | 'settings' | 'search' | 'about';
 
@@ -72,11 +79,7 @@ export function resolvePulsePrimaryNavKey(routeName: string): PulsePrimaryNavKey
   }
 }
 
-export function filterPulsePrimaryNavItems(roles: readonly string[] | undefined): PulsePrimaryNavItem[] {
-  const admin = isPulseGlobalAdmin(roles);
-  return pulsePrimaryNavItems.filter((item) => !item.adminOnly || admin);
-}
-
-export function isPulseGlobalAdmin(roles: readonly string[] | undefined): boolean {
-  return roles?.some((role) => role.trim().toLowerCase() === 'admin') ?? false;
+export function filterPulsePrimaryNavItems(access: PulseLogAccessInput): PulsePrimaryNavItem[] {
+  const logsAccess = canAccessPulseLogs(access);
+  return pulsePrimaryNavItems.filter((item) => !item.adminOnly || logsAccess);
 }

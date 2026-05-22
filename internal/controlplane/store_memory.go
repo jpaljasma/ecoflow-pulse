@@ -796,10 +796,26 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 	query := strings.ToLower(strings.TrimSpace(in.Query))
 	limit := normalizeAdminLogFilterLimit(in.Limit)
 	out := make([]AdminLogFilterOption, 0, limit)
+	var scopedDeviceIDs map[string]struct{}
+	if !in.GlobalAdmin {
+		userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+		if !ok {
+			return out, nil
+		}
+		scopedDeviceIDs = make(map[string]struct{}, len(s.userDevices[userID]))
+		for deviceID := range s.userDevices[userID] {
+			scopedDeviceIDs[deviceID] = struct{}{}
+		}
+	}
 
 	if kind == "" || kind == "device" || kind == "serial" {
 		devices := make([]memoryDevice, 0, len(s.devicesByID))
 		for _, device := range s.devicesByID {
+			if scopedDeviceIDs != nil {
+				if _, ok := scopedDeviceIDs[device.ID]; !ok {
+					continue
+				}
+			}
 			devices = append(devices, device)
 		}
 		sort.Slice(devices, func(i, j int) bool {
@@ -838,7 +854,7 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 		}
 	}
 
-	if kind == "" || kind == "user" {
+	if in.GlobalAdmin && (kind == "" || kind == "user") {
 		users := make([]memoryUser, 0, len(s.usersByID))
 		for _, user := range s.usersByID {
 			users = append(users, user)

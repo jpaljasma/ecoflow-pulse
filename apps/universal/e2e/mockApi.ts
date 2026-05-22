@@ -995,9 +995,10 @@ async function seedAuthenticatedSession(page: Page): Promise<void> {
   }, process.env.EXPO_PUBLIC_API_URL?.trim() ?? '');
 }
 
-export async function mockApiRoutes(page: Page, options: { roles?: string[] } = {}): Promise<void> {
+export async function mockApiRoutes(page: Page, options: { roles?: string[]; deviceCount?: number } = {}): Promise<void> {
   currentUserBootstrap = JSON.parse(JSON.stringify(CURRENT_USER_BOOTSTRAP)) as CurrentUserPayload;
   currentUserBootstrap.authorization.roles = options.roles ?? currentUserBootstrap.authorization.roles;
+  currentUserBootstrap.authorization.deviceCount = options.deviceCount ?? currentUserBootstrap.authorization.deviceCount;
   await seedAuthenticatedSession(page);
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
@@ -1045,11 +1046,12 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[] } = 
     }
 
     if (pathname === '/api/v1/admin/log-filter-options') {
-      if (!currentUserBootstrap.authorization.roles.includes('admin')) {
+      const body = (route.request().postDataJSON?.() ?? {}) as { kind?: string; query?: string };
+      const isAdmin = currentUserBootstrap.authorization.roles.includes('admin');
+      if (!isAdmin && body.kind === 'user') {
         await fulfillJson(route, { error: 'admin_role_required' }, 403);
         return;
       }
-      const body = (route.request().postDataJSON?.() ?? {}) as { kind?: string; query?: string };
       const query = String(body.query ?? '').toLowerCase();
       const allOptions = [
         {
@@ -1073,7 +1075,7 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[] } = 
           secondaryLabel: 'Pulse Operator',
           deviceIds: [DPU_DEVICE_ID, D2M_DEVICE_ID]
         }
-      ].filter((option) => (!body.kind || option.kind === body.kind) && (!query || `${option.label} ${option.secondaryLabel}`.toLowerCase().includes(query)));
+      ].filter((option) => (isAdmin || option.kind !== 'user') && (!body.kind || option.kind === body.kind) && (!query || `${option.label} ${option.secondaryLabel}`.toLowerCase().includes(query)));
       await fulfillJson(route, { options: allOptions });
       return;
     }

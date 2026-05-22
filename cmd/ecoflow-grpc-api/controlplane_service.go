@@ -545,21 +545,25 @@ func (s *ControlPlaneService) ListDevices(ctx context.Context, req *controlplane
 }
 
 func (s *ControlPlaneService) SearchAdminLogFilters(ctx context.Context, req *controlplanev1.SearchAdminLogFiltersRequest) (*controlplanev1.SearchAdminLogFiltersResponse, error) {
-	if _, err := resolveUserSubject(ctx, req.GetUserSubject()); err != nil {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
 		return nil, err
 	}
 	claims, _ := grpcmw.ClaimsFromContext(ctx)
-	if !hasGlobalRole(claims.Roles, "admin") {
-		return nil, status.Error(codes.PermissionDenied, "admin role required")
-	}
+	isAdmin := hasGlobalRole(claims.Roles, "admin")
 	kind := strings.ToLower(strings.TrimSpace(req.GetKind()))
 	if kind != "" && kind != "device" && kind != "serial" && kind != "user" {
 		return nil, status.Error(codes.InvalidArgument, "kind must be device, serial, or user")
 	}
+	if !isAdmin && kind == "user" {
+		return nil, status.Error(codes.PermissionDenied, "admin role required")
+	}
 	rows, err := s.store.SearchAdminLogFilters(ctx, controlplane.SearchAdminLogFiltersInput{
-		Query: req.GetQuery(),
-		Kind:  kind,
-		Limit: int(req.GetLimit()),
+		Query:       req.GetQuery(),
+		Kind:        kind,
+		Limit:       int(req.GetLimit()),
+		UserSubject: userSubject,
+		GlobalAdmin: isAdmin,
 	})
 	if err != nil {
 		return nil, controlPlaneStoreError("search admin log filters", err)

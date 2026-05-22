@@ -9,7 +9,6 @@ import { fetchAdminLogFilterOptions, type AdminLogFilterKind } from '@/features/
 import {
   buildSubscribeFilters,
   fuzzyFilterLogEntries,
-  isGlobalAdmin,
   redactEntryForCopy,
   type AdminLogEntry,
   type AdminLogFilterOption,
@@ -24,6 +23,7 @@ import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { TopBar } from '@/shared/ui/TopBar';
+import { canAccessPulseLogs, isPulseGlobalAdmin } from '@/shared/authz/pulseRoles';
 
 const statusOptions: Array<{ label: string; value: LogStatus }> = [
   { label: 'OK', value: 'ok' },
@@ -39,7 +39,10 @@ export default function LogsScreen() {
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const currentUserQuery = useCurrentUser({ token, authKey, enabled: authReady && allowed });
-  const isAdmin = isGlobalAdmin(currentUserQuery.data?.authorization.roles);
+  const roles = currentUserQuery.data?.authorization.roles;
+  const deviceCount = currentUserQuery.data?.authorization.deviceCount;
+  const isAdmin = isPulseGlobalAdmin(roles);
+  const canReadLogs = canAccessPulseLogs({ roles, deviceCount });
   const [selectedOptions, setSelectedOptions] = useState<AdminLogFilterOption[]>([]);
   const [statuses, setStatuses] = useState<LogStatus[]>([]);
   const [source, setSource] = useState('');
@@ -52,7 +55,7 @@ export default function LogsScreen() {
   );
   const stream = useAdminLogStream({
     token,
-    enabled: authReady && allowed && isAdmin,
+    enabled: authReady && allowed && canReadLogs,
     filters
   });
   const visibleEntries = useMemo(
@@ -73,15 +76,15 @@ export default function LogsScreen() {
     return <BrandedLoadingState minHeight={260} message="Checking session..." />;
   }
 
-  if (!isAdmin) {
+  if (!canReadLogs) {
     return (
       <YStack flex={1} backgroundColor="$background" testID="screen-logs-forbidden">
         <LogsTopBar />
         <YStack flex={1} alignItems="center" justifyContent="center" padding="$5" gap="$3">
           <MaterialCommunityIcons name="shield-lock-outline" size={40} color={semantics.statusWarning} />
-          <Text fontSize="$7" fontWeight="800">Admin access required</Text>
+          <Text fontSize="$7" fontWeight="800">Logs unavailable</Text>
           <Text maxWidth={520} textAlign="center" color="$colorMuted">
-            Realtime MQTT logs are available only to users with the global admin role.
+            Realtime MQTT logs are available to device owners and global admins.
           </Text>
         </YStack>
       </YStack>
@@ -132,7 +135,9 @@ export default function LogsScreen() {
           <XStack gap="$2" flexWrap="wrap" alignItems="flex-start">
             <LogTypeahead kind="device" label="Device" token={token} authKey={authKey} onSelect={addOption} />
             <LogTypeahead kind="serial" label="Serial" token={token} authKey={authKey} onSelect={addOption} />
-            <LogTypeahead kind="user" label="User email" token={token} authKey={authKey} onSelect={addOption} />
+            {isAdmin ? (
+              <LogTypeahead kind="user" label="User email" token={token} authKey={authKey} onSelect={addOption} />
+            ) : null}
             <YStack minWidth={190} flex={1}>
               <Input
                 size="$3"

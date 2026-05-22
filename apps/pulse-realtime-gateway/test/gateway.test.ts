@@ -21,6 +21,7 @@ import type {
   AdminLogSubscribeInput,
   AdminLogSubscription
 } from '../src/adminLogs/types.js';
+import type { DeviceAuthorizer } from '../src/controlplane/deviceAuthorizer.js';
 import { realtimeMetrics } from '../src/metrics.js';
 
 type SubscriptionRecord = {
@@ -118,6 +119,23 @@ class FakeAdminLogSource implements AdminLogSource {
   close(): void {
     this.subscriptions.clear();
   }
+}
+
+class FakeDeviceAuthorizer implements DeviceAuthorizer {
+  constructor(private readonly deviceIds: string[]) {}
+
+  async authorize(input: { deviceId: string }): Promise<{ canonicalDeviceId: string }> {
+    if (this.deviceIds.includes(input.deviceId)) {
+      return { canonicalDeviceId: input.deviceId };
+    }
+    throw Object.assign(new Error('device access denied'), { code: 7 });
+  }
+
+  async listAuthorizedDevices(): Promise<{ deviceIds: string[] }> {
+    return { deviceIds: this.deviceIds };
+  }
+
+  close(): void {}
 }
 
 function baseConfig(): AppConfig {
@@ -330,7 +348,7 @@ describe('pulse-realtime-gateway', () => {
     await app.close();
   });
 
-  it('rejects admin log subscriptions for non-admin websocket users', async () => {
+  it('rejects log subscriptions for non-admin users without device access', async () => {
     const client = new FakeLiveClient();
     const logs = new FakeAdminLogSource();
     const app = buildApp(baseConfig(), client, {
@@ -353,9 +371,60 @@ describe('pulse-realtime-gateway', () => {
       subscriptionId: 'logs-1',
       ts: expect.any(Number),
       state: 'forbidden',
-      message: 'admin role required'
+      message: 'device log access required'
     });
     expect(logs.subscribeCalls).toHaveLength(0);
+
+    await closeWebSocket(ws);
+    await app.close();
+  });
+
+  it('scopes owner log subscriptions to authorized devices', async () => {
+    const client = new FakeLiveClient();
+    const logs = new FakeAdminLogSource();
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      deviceAuthorizer: new FakeDeviceAuthorizer(['dev-owned']),
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'owner-user',
+          email: '',
+          roles: ['viewer'],
+          rawJwt: 'owner-token'
+        };
+        request.wsAuthHeader = 'Bearer owner-token';
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(
+      JSON.stringify({
+        type: 'logs_subscribe',
+        subscriptionId: 'logs-1',
+        filters: {
+          deviceIds: ['dev-owned', 'dev-other'],
+          statuses: ['ok'],
+          sources: ['mqtt'],
+          typeCodes: ['quota']
+        }
+      })
+    );
+
+    expect(await nextMessage(ws)).toMatchObject({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      state: 'replay'
+    });
+    expect(logs.subscribeCalls[0]).toMatchObject({
+      subscriptionId: 'logs-1',
+      authHeader: 'Bearer owner-token',
+      filters: {
+        deviceIds: ['dev-owned'],
+        statuses: ['ok'],
+        sources: ['mqtt'],
+        typeCodes: ['quota']
+      }
+    });
 
     await closeWebSocket(ws);
     await app.close();

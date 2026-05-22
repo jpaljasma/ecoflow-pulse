@@ -19,7 +19,10 @@ export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }
   const toggleSidebarExpanded = useNavigationShellStore((state) => state.toggleSidebarExpanded);
   const { authReady, authKey, token } = useAuthSession();
   const currentUserQuery = useCurrentUser({ token, authKey, enabled: authReady });
-  const navItems = filterPulsePrimaryNavItems(currentUserQuery.data?.authorization.roles);
+  const navItems = filterPulsePrimaryNavItems({
+    roles: currentUserQuery.data?.authorization.roles,
+    deviceCount: currentUserQuery.data?.authorization.deviceCount
+  });
 
   if (!isSidebarMode) {
     return null;

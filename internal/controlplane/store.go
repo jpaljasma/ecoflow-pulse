@@ -233,9 +233,11 @@ type AdminLogFilterOption struct {
 }
 
 type SearchAdminLogFiltersInput struct {
-	Query string
-	Kind  string
-	Limit int
+	Query       string
+	Kind        string
+	Limit       int
+	UserSubject string
+	GlobalAdmin bool
 }
 
 type Store interface {
