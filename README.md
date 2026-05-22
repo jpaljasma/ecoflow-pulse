@@ -3,40 +3,40 @@
 <img src="apps/universal/assets/icon.png" alt="EcoFlow Pulse app icon" style="width:50%; height:auto;">
 
 EcoFlow Pulse is a realtime energy control room for portable power systems. It
-combines live provider telemetry, authenticated device access, historical
-rollups, weather context, and solar forecasting into one operator-grade app for
-web, iPhone, iPad, and Android.
+combines live provider telemetry, authenticated device access, operational MQTT
+logs, historical rollups, weather context, and solar forecasting into one
+operator-grade app for web, iPhone, iPad, and Android.
 
 > [!NOTE]
 > Pulse is built around provider adapters for EcoFlow, Pecron, and Anker SOLIX,
-> an Expo
-> universal client, a Node REST BFF, Go gRPC/data services, NATS JetStream,
-> Valkey, Postgres/Timescale, object archive storage, and Kubernetes-first
-> deployment. Pecron and Anker SOLIX cloud support are read-only and
-> unofficial/reverse-engineered.
+> an Expo universal client, a Node REST BFF, a Node websocket gateway, Go
+> gRPC/data services, NATS JetStream, Valkey, Postgres/Timescale, object archive
+> storage, and Kubernetes-first deployment. Pecron and Anker SOLIX cloud support
+> are read-only and unofficial/reverse-engineered.
 
 ## Current Product
 
 - Realtime fleet and device dashboards for solar, battery state, load flow,
   AC/DC output, pack health, Storm Guard, and detailed PV input behavior.
 - Auth-aware universal app with Keycloak OIDC, Expo Authorization Code + PKCE,
-  same-tab iOS web sign-in, persisted session hydration, and reconnect-safe
-  realtime subscriptions.
+  same-tab browser sign-in, persisted sessions, and reconnect-safe websocket
+  subscriptions.
 - `Energy` dashboard for fleet or single-device solar, load, battery, PV
   envelope, comparison windows, value estimates, and on-demand long-range
   history.
 - `Energy Calendar` heatmap for fleet or device solar generation by local day,
   with generated-value totals and drill-through into the Energy dashboard.
-- Weather and solar outlook widgets driven by saved profile location, Open-Meteo
-  forecasts, yesterday verification, energy truth, and calibrated site/device
-  forecast models.
-- Solar history charts with local-calendar bounds, weather-derived sunrise and
-  sunset windows, `Today so far` / `Yesterday so far` comparisons, and measured
-  energy totals from persisted rollups.
+- Realtime `Logs` console for redacted MQTT/JetStream operational logs, with
+  owner-scoped access, admin-wide access, provider/device/email/serial filters,
+  single-select status/type filters, freetext search, bounded row retention, and
+  expandable JSON detail.
+- Weather and solar outlook widgets driven by saved profile location,
+  Open-Meteo forecasts, yesterday verification, measured energy truth, and
+  calibrated site/device forecast models.
 - Energy-impact insights for measured solar generation using versioned avoided
   emissions, lifecycle/tree, and EV driving-energy factors.
 - Local and cloud connection profiles so the same client can switch API,
-  websocket, and OIDC endpoints together.
+  websocket, OIDC, and data-plane behavior together.
 
 ### App Overview
 
@@ -72,22 +72,24 @@ The forecast screen combines current weather, consent state, site/device scope,
 calibrated production estimates, and a seven-day outlook so expected solar
 generation is visible alongside weather context.
 
-## Recent Important Updates (Apr 2026)
+## Recent Shipped Work
 
-- Solar history charts now align `Today so far` values with matched
-  `Yesterday so far` comparison semantics.
-- Solar generation charts prefer weather-provided sunrise/sunset bounds and fall
-  back to the local `06:00` -> `20:00` daylight window.
-- Forecast retention moved into scheduler-managed weather/solar pruning and
-  refresh work, with request-serving APIs kept traffic-focused.
-- iOS Safari and Chrome sign-in now use a centralized same-tab PKCE redirect
-  path, and the cloud public app image has been updated with that fix.
-- Cloud/local switching, cloud ingress routing, live telemetry recovery, hosted
-  public HA, and zonal/stateful cloud profiles have been hardened.
-- Internal non-crypto hash usage has moved to `XXH3_128`, while security
-  boundaries continue to use cryptographic hashing where required.
-- Storm Guard and extended device system signals are surfaced from live device
-  telemetry instead of inferred from weak solar or stale state.
+- Added the authenticated realtime Logs console, then hardened it for admin and
+  device-owner access, provider scoping, tab lifecycle, replay/live stream
+  behavior, dropdown overlays, bounded row retention, and suffix-family
+  `Status` / `Info` type filters.
+- Stabilized detail and Energy chart loading with lazy secondary panels,
+  stale-while-refresh behavior, and on-demand long-range history.
+- Improved MQTT parsing and gateway/cache hot paths with focused benchmarks and
+  regression coverage.
+- Repaired Pecron activation, TSL preservation, cloud MQTT ingest, and provider
+  onboarding flows.
+- Hardened Local Edge/cloud-data switching, cloud forward health checks, direct
+  Helm/GKE deploy paths, and deploy-from-main service rollouts.
+- Added data-plane-aware weather caching and a shared Valkey cache layer with
+  partitioned keys, tag invalidation, and stampede protection.
+- Normalized additional battery voltage/current telemetry and preserved
+  consistent SOC across live views.
 
 ## Supported Devices
 
@@ -113,9 +115,10 @@ Actively validated:
   replay.
 - The public Node BFF validates JWTs and exposes browser/mobile REST routes over
   internal Go gRPC services for telemetry, history, profile, weather, solar
-  forecasts, inference, and device authorization.
+  forecasts, inference, logs metadata, and device authorization.
 - The dedicated websocket gateway serves initial snapshots from Valkey, streams
-  NATS deltas, validates JWTs, and applies staged backpressure behavior.
+  NATS deltas, validates JWTs, serves redacted realtime log replay/live fanout,
+  and applies staged backpressure behavior.
 - Local development runs on `k3d` with Helm-managed `pulse-platform` and
   `pulse-services`; cloud deployments target GKE with GCS archive storage,
   Keycloak, multi-replica public workloads, and cloud-specific overlays.
@@ -161,21 +164,21 @@ Useful deploy targets:
 Developer docs follow Diataxis under `/docs`:
 
 - [Developer Documentation Index](docs/README.md)
-- [Architecture (Locked Plan)](docs/architecture/README.md)
+- [Architecture](docs/explanation/architecture.md)
+- [Architecture Plan](docs/architecture/README.md)
 - [Architecture Decision Records](docs/architecture/adr/README.md)
 - [Configuration Reference](docs/reference/configuration.md)
 - [Commands Reference](docs/reference/commands.md)
 - [Telemetry Model](docs/reference/telemetry-model.md)
-- [Solar Avoided Emissions Reference](docs/reference/solar-avoided-emissions.md)
-- [Tree Equivalent Reference](docs/reference/tree-equivalent.md)
-- [EV Database Report Reference](docs/reference/ev-us-europe-database-report.md)
+- [UI Visual System](docs/explanation/ui-visual-system.md)
 - [Universal App README](apps/universal/README.md)
 
 ## Repository Layout
 
 - `apps/universal`: Expo universal dashboard for web, iOS, and Android.
 - `apps/pulse-platform`: public Node REST BFF over internal gRPC services.
-- `apps/pulse-realtime-gateway`: public websocket gateway for live telemetry.
+- `apps/pulse-realtime-gateway`: public websocket gateway for live telemetry
+  and redacted realtime logs.
 - `cmd/ecoflow-grpc-api`: internal gRPC API runtime.
 - `cmd/ecoflow-ingest-worker`, `cmd/ecoflow-projection-worker`,
   `cmd/ecoflow-rollup-worker`, `cmd/ecoflow-archive-worker`: core telemetry
