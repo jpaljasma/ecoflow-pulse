@@ -17,6 +17,7 @@ type LogsConnectionState = 'idle' | 'connecting' | 'replay' | 'live' | 'forbidde
 type UseAdminLogStreamInput = {
   token?: string;
   enabled: boolean;
+  active?: boolean;
   filters: AdminLogSubscribeFilters;
   maxEntries?: number;
   holdVisible?: boolean;
@@ -29,6 +30,7 @@ const RECONNECT_MAX_MS = 30_000;
 export function useAdminLogStream({
   token,
   enabled,
+  active = true,
   filters,
   maxEntries = DEFAULT_LOG_KEEP_LIMIT,
   holdVisible = false
@@ -41,6 +43,7 @@ export function useAdminLogStream({
   const holdVisibleRef = useRef(holdVisible);
   const maxEntriesRef = useRef(normalizeMaxEntries(maxEntries));
   const socketRef = useRef<WebSocket | null>(null);
+  const subscriptionKeyRef = useRef('');
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   useEffect(() => {
@@ -75,11 +78,21 @@ export function useAdminLogStream({
 
     if (!enabled) {
       resetBuffer();
+      subscriptionKeyRef.current = '';
       setConnectionState('idle');
       return;
     }
 
-    resetBuffer();
+    if (!active) {
+      setConnectionState('idle');
+      return;
+    }
+
+    const subscriptionKey = `${token ?? ''}:${filtersKey}`;
+    if (subscriptionKeyRef.current !== subscriptionKey) {
+      resetBuffer();
+      subscriptionKeyRef.current = subscriptionKey;
+    }
     const subscribeFilters = parseSubscribeFilters(filtersKey);
 
     const openSocket = (attempt: number) => {
@@ -165,7 +178,7 @@ export function useAdminLogStream({
         socketRef.current = null;
       }
     };
-  }, [enabled, filtersKey, token]);
+  }, [active, enabled, filtersKey, token]);
 
   const clear = useCallback(() => {
     setState((current) => resetLogState(current));

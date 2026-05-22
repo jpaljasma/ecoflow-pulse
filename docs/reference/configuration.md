@@ -263,7 +263,9 @@ Cloud note:
   to internal device IDs. Non-admin authenticated users can resolve only their
   own linked devices and serial numbers; user-email lookup remains admin-only.
   The lookup is request-body based; selected serials and emails must not be
-  serialized into browser URLs.
+  serialized into browser URLs. Device and serial lookups accept the selected
+  provider in the request body so provider-specific tabs only suggest devices
+  from that provider.
 
 ## Pulse Realtime WebSocket Gateway (`apps/pulse-realtime-gateway`)
 
@@ -327,6 +329,9 @@ Admin log stream behavior:
   are admin-only; non-admin users can search only their own devices and serials,
 - emitted entries and expandable JSON details use the normalized redacted
   envelope; raw MQTT payload reveal is intentionally out of scope for v1.
+- the universal Logs tab closes its websocket subscription while the tab is not
+  active and resubscribes when the user returns, preserving the visible buffer
+  locally instead of refreshing in the background.
 
 ## Local/dev Valkey durability baseline
 

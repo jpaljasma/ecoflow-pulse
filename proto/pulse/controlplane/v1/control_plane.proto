@@ -282,6 +282,7 @@ message AdminLogFilterOption {
   string label = 3;
   string secondary_label = 4;
   repeated string device_ids = 5;
+  string provider = 6;
 }
 
 message SearchAdminLogFiltersRequest {
@@ -289,6 +290,7 @@ message SearchAdminLogFiltersRequest {
   string query = 2;
   string kind = 3;
   uint32 limit = 4;
+  string provider = 5;
 }
 
 message SearchAdminLogFiltersResponse {

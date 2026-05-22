@@ -1,5 +1,6 @@
 import { createElement, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
@@ -52,6 +53,7 @@ export default function LogsScreen() {
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const currentUserQuery = useCurrentUser({ token, authKey, enabled: authReady && allowed });
+  const isFocused = useIsFocused();
   const roles = currentUserQuery.data?.authorization.roles;
   const deviceCount = currentUserQuery.data?.authorization.deviceCount;
   const isAdmin = isPulseGlobalAdmin(roles);
@@ -71,10 +73,21 @@ export default function LogsScreen() {
   const stream = useAdminLogStream({
     token,
     enabled: authReady && allowed && canReadLogs,
+    active: isFocused,
     filters,
     maxEntries,
     holdVisible: expandedKey !== null
   });
+  const userMetadataQuery = useQuery({
+    queryKey: ['admin-log-user-metadata', authKey],
+    queryFn: () => fetchAdminLogFilterOptions({ token, kind: 'user', query: '', limit: 50 }),
+    enabled: isFocused && isAdmin && authReady && allowed && canReadLogs,
+    staleTime: 60_000
+  });
+  const userLabelByDeviceId = useMemo(
+    () => buildUserLabelByDeviceId([...(userMetadataQuery.data ?? []), ...selectedOptions]),
+    [selectedOptions, userMetadataQuery.data]
+  );
   const visibleEntries = useMemo(
     () => fuzzyFilterLogEntries(stream.entries, freetext),
     [freetext, stream.entries]
@@ -91,6 +104,10 @@ export default function LogsScreen() {
       }
       return [...current, option];
     });
+  };
+  const updateProvider = (value: string) => {
+    setProvider(value);
+    setSelectedOptions((current) => current.filter((option) => option.kind === 'user'));
   };
 
   const clearLogs = () => {
@@ -182,16 +199,16 @@ export default function LogsScreen() {
               icon="cloud-outline"
               value={provider}
               options={providerOptions}
-              onValueChange={setProvider}
+              onValueChange={updateProvider}
               testID="logs-provider-select"
               minWidth={190}
               grow={0.75}
             />
-            <LogTypeahead kind="device" label="Device" token={token} authKey={authKey} onSelect={addOption} />
+            <LogTypeahead kind="device" label="Device" provider={provider} token={token} authKey={authKey} onSelect={addOption} />
             {isAdmin ? (
               <LogTypeahead kind="user" label="Email" token={token} authKey={authKey} onSelect={addOption} />
             ) : null}
-            <LogTypeahead kind="serial" label="Serial" token={token} authKey={authKey} onSelect={addOption} />
+            <LogTypeahead kind="serial" label="Serial" provider={provider} token={token} authKey={authKey} onSelect={addOption} />
             <LogFilterField label="Freetext" icon="text-search" minWidth={280} grow={1.45}>
               <LogFilterInput
                 value={freetext}
@@ -265,6 +282,8 @@ export default function LogsScreen() {
                   key={entry.rowKey}
                   entry={entry}
                   expanded={expandedKey === entry.rowKey}
+                  isAdmin={isAdmin}
+                  userLabelByDeviceId={userLabelByDeviceId}
                   onToggle={() => setExpandedKey((current) => current === entry.rowKey ? null : entry.rowKey)}
                 />
               ))
@@ -297,12 +316,14 @@ function LogsTopBar() {
 function LogTypeahead({
   kind,
   label,
+  provider,
   token,
   authKey,
   onSelect
 }: {
   kind: AdminLogFilterKind;
   label: string;
+  provider?: string;
   token?: string;
   authKey: string;
   onSelect: (option: AdminLogFilterOption) => void;
@@ -310,9 +331,10 @@ function LogTypeahead({
   const semantics = useThemeSemantics();
   const [query, setQuery] = useState('');
   const trimmed = query.trim();
+  const lookupProvider = kind === 'device' || kind === 'serial' ? provider : undefined;
   const optionsQuery = useQuery({
-    queryKey: ['admin-log-filter-options', kind, trimmed, authKey],
-    queryFn: () => fetchAdminLogFilterOptions({ token, kind, query: trimmed, limit: 5 }),
+    queryKey: ['admin-log-filter-options', kind, trimmed, lookupProvider ?? '', authKey],
+    queryFn: () => fetchAdminLogFilterOptions({ token, kind, query: trimmed, limit: 5, provider: lookupProvider }),
     enabled: trimmed.length >= 2,
     staleTime: 30_000
   });
@@ -591,12 +613,24 @@ function LogTableHeader() {
   );
 }
 
-function LogRow({ entry, expanded, onToggle }: { entry: BufferedAdminLogEntry; expanded: boolean; onToggle: () => void }) {
+function LogRow({
+  entry,
+  expanded,
+  isAdmin,
+  userLabelByDeviceId,
+  onToggle
+}: {
+  entry: BufferedAdminLogEntry;
+  expanded: boolean;
+  isAdmin: boolean;
+  userLabelByDeviceId: ReadonlyMap<string, string>;
+  onToggle: () => void;
+}) {
   const { spec } = useAppTheme();
   const semantics = useThemeSemantics();
   const copied = JSON.stringify(redactEntryForCopy(entry), null, 2);
   const deviceLabel = displayDeviceLabel(entry);
-  const userLabel = displayUserLabel(entry);
+  const userLabel = displayUserLabel(entry, userLabelByDeviceId, isAdmin);
   const providerLabel = displayProvider(entry);
   return (
     <YStack borderBottomWidth={1} style={{ borderBottomColor: semantics.sectionBorder }}>
@@ -768,8 +802,20 @@ function displayDeviceLabel(entry: BufferedAdminLogEntry): { primary: string; se
   return { primary: name, secondary: shortDeviceId };
 }
 
-function displayUserLabel(entry: BufferedAdminLogEntry): string {
-  return labelValue(entry, ['userEmail', 'user_email', 'ownerEmail', 'owner_email', 'email']) || '--';
+function displayUserLabel(
+  entry: BufferedAdminLogEntry,
+  userLabelByDeviceId: ReadonlyMap<string, string>,
+  isAdmin: boolean
+): string {
+  const metadataLabel = userLabelByDeviceId.get(entry.deviceId);
+  if (metadataLabel) {
+    return metadataLabel;
+  }
+  const streamLabel = labelValue(entry, ['userEmail', 'user_email', 'ownerEmail', 'owner_email', 'email']);
+  if (streamLabel) {
+    return maskEmailForLogs(streamLabel);
+  }
+  return isAdmin ? '--' : 'You';
 }
 
 function labelValue(entry: BufferedAdminLogEntry, keys: string[]): string {
@@ -795,6 +841,41 @@ function formatOptionKind(kind: AdminLogFilterKind): string {
 
 function shortId(value: string): string {
   return value.length <= 12 ? value : `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+function buildUserLabelByDeviceId(options: AdminLogFilterOption[]): ReadonlyMap<string, string> {
+  const labels = new Map<string, string>();
+  for (const option of options) {
+    if (option.kind !== 'user') {
+      continue;
+    }
+    const label = maskEmailForLogs(option.label);
+    for (const deviceId of option.deviceIds) {
+      if (!labels.has(deviceId)) {
+        labels.set(deviceId, label);
+      }
+    }
+  }
+  return labels;
+}
+
+function maskEmailForLogs(value: string): string {
+  const email = value.trim();
+  const atIndex = email.indexOf('@');
+  if (atIndex <= 0) {
+    return email === '<redacted>' ? email : '<redacted>';
+  }
+  const local = email.slice(0, atIndex);
+  const domain = email.slice(atIndex + 1).split('.')[0] ?? '';
+  return `${maskEmailPart(local)}***@${maskEmailPart(domain)}***`;
+}
+
+function maskEmailPart(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 2) {
+    return trimmed.slice(0, 1);
+  }
+  return trimmed.slice(0, 2);
 }
 
 async function copyText(value: string): Promise<void> {

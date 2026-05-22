@@ -2,8 +2,10 @@ import type { Page, Route } from '@playwright/test';
 
 export const DPU_DEVICE_ID = '11111111-1111-7111-8111-111111111111';
 export const D2M_DEVICE_ID = '22222222-2222-7222-8222-222222222222';
+export const PECRON_DEVICE_ID = '33333333-3333-7333-8333-333333333333';
 export const DPU_SERIAL = 'DEMODPU0000294';
 export const D2M_SERIAL = 'DEMOD2M00001057';
+export const PECRON_SERIAL = 'P11VXG:DEMO-001';
 const PROFILE_WEATHER_LOCATION = {
   label: 'Naples, NY',
   latitude: 42.6159,
@@ -1046,7 +1048,7 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[]; dev
     }
 
     if (pathname === '/api/v1/admin/log-filter-options') {
-      const body = (route.request().postDataJSON?.() ?? {}) as { kind?: string; query?: string };
+      const body = (route.request().postDataJSON?.() ?? {}) as { kind?: string; query?: string; provider?: string };
       const isAdmin = currentUserBootstrap.authorization.roles.includes('admin');
       if (!isAdmin && body.kind === 'user') {
         await fulfillJson(route, { error: 'admin_role_required' }, 403);
@@ -1059,14 +1061,32 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[]; dev
           id: DPU_DEVICE_ID,
           label: 'DPU A 12 kWh',
           secondaryLabel: 'DELTA Pro Ultra',
-          deviceIds: [DPU_DEVICE_ID]
+          deviceIds: [DPU_DEVICE_ID],
+          provider: 'ecoflow'
         },
         {
           kind: 'serial',
           id: DPU_DEVICE_ID,
           label: DPU_SERIAL,
           secondaryLabel: 'DPU A 12 kWh',
-          deviceIds: [DPU_DEVICE_ID]
+          deviceIds: [DPU_DEVICE_ID],
+          provider: 'ecoflow'
+        },
+        {
+          kind: 'device',
+          id: PECRON_DEVICE_ID,
+          label: 'Pecron balcony pack',
+          secondaryLabel: 'E1500LFP',
+          deviceIds: [PECRON_DEVICE_ID],
+          provider: 'pecron'
+        },
+        {
+          kind: 'serial',
+          id: PECRON_DEVICE_ID,
+          label: PECRON_SERIAL,
+          secondaryLabel: 'Pecron balcony pack',
+          deviceIds: [PECRON_DEVICE_ID],
+          provider: 'pecron'
         },
         {
           kind: 'user',
@@ -1075,7 +1095,12 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[]; dev
           secondaryLabel: 'Pulse Operator',
           deviceIds: [DPU_DEVICE_ID, D2M_DEVICE_ID]
         }
-      ].filter((option) => (isAdmin || option.kind !== 'user') && (!body.kind || option.kind === body.kind) && (!query || `${option.label} ${option.secondaryLabel}`.toLowerCase().includes(query)));
+      ].filter((option) =>
+        (isAdmin || option.kind !== 'user') &&
+        (!body.kind || option.kind === body.kind) &&
+        (!body.provider || option.kind === 'user' || option.provider === body.provider) &&
+        (!query || `${option.label} ${option.secondaryLabel}`.toLowerCase().includes(query))
+      );
       await fulfillJson(route, { options: allOptions });
       return;
     }

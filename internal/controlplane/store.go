@@ -230,12 +230,14 @@ type AdminLogFilterOption struct {
 	Label          string
 	SecondaryLabel string
 	DeviceIDs      []string
+	Provider       string
 }
 
 type SearchAdminLogFiltersInput struct {
 	Query       string
 	Kind        string
 	Limit       int
+	Provider    string
 	UserSubject string
 	GlobalAdmin bool
 }

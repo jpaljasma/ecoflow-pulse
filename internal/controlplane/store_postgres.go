@@ -1441,10 +1441,11 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 	kind := normalizeAdminLogFilterKind(in.Kind)
 	query := strings.ToLower(strings.TrimSpace(in.Query))
 	limit := normalizeAdminLogFilterLimit(in.Limit)
+	provider := NormalizeProvider(in.Provider)
 	userSubject := strings.TrimSpace(in.UserSubject)
 
 	if kind == "device" || kind == "serial" {
-		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, userSubject, in.GlobalAdmin)
+		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, provider, userSubject, in.GlobalAdmin)
 	}
 	if kind == "user" {
 		if !in.GlobalAdmin {
@@ -1453,7 +1454,7 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 		return s.searchAdminLogUserFilters(ctx, query, limit)
 	}
 	if !in.GlobalAdmin {
-		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, userSubject, false)
+		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, provider, userSubject, false)
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -1461,7 +1462,7 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 	var userOptions []AdminLogFilterOption
 	group.Go(func() error {
 		var err error
-		deviceOptions, err = s.searchAdminLogDeviceFilters(groupCtx, kind, query, limit, userSubject, true)
+		deviceOptions, err = s.searchAdminLogDeviceFilters(groupCtx, kind, query, limit, provider, userSubject, true)
 		return err
 	})
 	group.Go(func() error {
@@ -1479,7 +1480,7 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 	return out, nil
 }
 
-func (s *PostgresStore) searchAdminLogDeviceFilters(ctx context.Context, kind string, query string, limit int, userSubject string, globalAdmin bool) ([]AdminLogFilterOption, error) {
+func (s *PostgresStore) searchAdminLogDeviceFilters(ctx context.Context, kind string, query string, limit int, provider string, userSubject string, globalAdmin bool) ([]AdminLogFilterOption, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -1497,6 +1498,15 @@ WHERE (
 	OR lower(COALESCE(d.product_name, '')) LIKE $2
 	OR lower(COALESCE(d.model, '')) LIKE $2
 )
+AND (
+	$4 = ''
+	OR EXISTS (
+		SELECT 1
+		FROM provider_devices pd
+		WHERE pd.device_id = d.id
+		  AND pd.provider = $4
+	)
+)
 ORDER BY lower(COALESCE(NULLIF(d.product_name, ''), NULLIF(d.model, ''), d.ecoflow_sn, d.id::text)), d.id::text
 LIMIT $3;
 `
@@ -1509,7 +1519,7 @@ SELECT
 FROM users u
 JOIN user_devices ud ON ud.user_id = u.id
 JOIN devices d ON d.id = ud.device_id
-WHERE u.keycloak_subject = $4
+WHERE u.keycloak_subject = $5
   AND (
 	$1 = ''
 	OR lower(d.id::text) LIKE $2
@@ -1517,12 +1527,21 @@ WHERE u.keycloak_subject = $4
 	OR lower(COALESCE(d.product_name, '')) LIKE $2
 	OR lower(COALESCE(d.model, '')) LIKE $2
 )
+AND (
+	$4 = ''
+	OR EXISTS (
+		SELECT 1
+		FROM provider_devices pd
+		WHERE pd.device_id = d.id
+		  AND pd.provider = $4
+	)
+)
 ORDER BY lower(COALESCE(NULLIF(d.product_name, ''), NULLIF(d.model, ''), d.ecoflow_sn, d.id::text)), d.id::text
 LIMIT $3;
 `
 	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]AdminLogFilterOption, error) {
 		sqlQuery := adminSQLQuery
-		args := []any{query, "%" + query + "%", limit}
+		args := []any{query, "%" + query + "%", limit, provider}
 		if !globalAdmin {
 			sqlQuery = userSQLQuery
 			args = append(args, userSubject)
@@ -1546,6 +1565,7 @@ LIMIT $3;
 					Label:          adminLogFirstNonEmpty(productName, model, "Device "+shortID(deviceID)),
 					SecondaryLabel: adminLogFirstNonEmpty(model, "UUID "+shortID(deviceID)),
 					DeviceIDs:      []string{deviceID},
+					Provider:       provider,
 				})
 			}
 			if len(out) >= limit {
@@ -1558,6 +1578,7 @@ LIMIT $3;
 					Label:          serial,
 					SecondaryLabel: adminLogFirstNonEmpty(productName, model, "Device "+shortID(deviceID)),
 					DeviceIDs:      []string{deviceID},
+					Provider:       provider,
 				})
 			}
 			if len(out) >= limit {

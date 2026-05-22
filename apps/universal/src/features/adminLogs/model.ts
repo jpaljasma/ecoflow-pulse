@@ -26,6 +26,7 @@ export type AdminLogFilterOption = {
   label: string;
   secondaryLabel: string;
   deviceIds: string[];
+  provider?: string;
 };
 
 export type AdminLogSubscribeFilters = {
@@ -97,17 +98,21 @@ export function appendLogEntry(
   const maxEntries = options.maxEntries ?? DEFAULT_LOG_KEEP_LIMIT;
   const maxPending = options.maxPending ?? DEFAULT_MAX_PENDING;
   const bufferedEntry = bufferEntry(state, entry);
-  const baseState = { ...state, nextRowOrdinal: state.nextRowOrdinal + 1 };
+  const identity = logEntryIdentity(entry);
+  const entries = removeLogIdentity(state.entries, identity);
+  const pending = removeLogIdentity(state.pending, identity);
+  const baseState = { ...state, entries, pending, pendingCount: pending.length, nextRowOrdinal: state.nextRowOrdinal + 1 };
   if (options.paused) {
+    const nextPending = prependBounded(bufferedEntry, pending, maxPending);
     return {
       ...baseState,
-      pending: prependBounded(bufferedEntry, state.pending, maxPending),
-      pendingCount: Math.min(state.pendingCount + 1, maxPending)
+      pending: nextPending,
+      pendingCount: nextPending.length
     };
   }
   return {
     ...baseState,
-    entries: prependBounded(bufferedEntry, state.entries, maxEntries),
+    entries: prependBounded(bufferedEntry, entries, maxEntries),
     pending: [],
     pendingCount: 0
   };
@@ -174,6 +179,25 @@ function bufferEntry(state: AppendLogState, entry: AdminLogEntry): BufferedAdmin
     ...entry,
     rowKey: `${state.generation}:${state.nextRowOrdinal}:${entry.id}:${entry.receivedTs}`
   };
+}
+
+function logEntryIdentity(entry: AdminLogEntry): string {
+  const id = entry.id.trim();
+  if (id) {
+    return `id:${id}`;
+  }
+  return [
+    'fallback',
+    entry.deviceId,
+    String(entry.receivedTs),
+    entry.source,
+    entry.typeCode,
+    entry.summary
+  ].join(':');
+}
+
+function removeLogIdentity<T extends AdminLogEntry>(items: readonly T[], identity: string): T[] {
+  return items.filter((item) => logEntryIdentity(item) !== identity);
 }
 
 function prependBounded<T>(item: T, items: readonly T[], maxItems: number): T[] {

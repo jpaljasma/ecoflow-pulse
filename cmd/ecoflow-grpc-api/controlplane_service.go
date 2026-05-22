@@ -562,6 +562,7 @@ func (s *ControlPlaneService) SearchAdminLogFilters(ctx context.Context, req *co
 		Query:       req.GetQuery(),
 		Kind:        kind,
 		Limit:       int(req.GetLimit()),
+		Provider:    req.GetProvider(),
 		UserSubject: userSubject,
 		GlobalAdmin: isAdmin,
 	})
@@ -1189,6 +1190,7 @@ func adminLogFilterOptionToProto(in controlplane.AdminLogFilterOption) *controlp
 		Label:          in.Label,
 		SecondaryLabel: in.SecondaryLabel,
 		DeviceIds:      append([]string(nil), in.DeviceIDs...),
+		Provider:       in.Provider,
 	}
 }
 

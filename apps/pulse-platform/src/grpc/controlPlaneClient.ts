@@ -242,6 +242,7 @@ export type AdminLogFilterOption = {
   label: string;
   secondaryLabel: string;
   deviceIds: string[];
+  provider?: string;
 };
 
 export type SearchAdminLogFiltersInput = {
@@ -249,6 +250,7 @@ export type SearchAdminLogFiltersInput = {
   query?: string;
   kind?: 'device' | 'serial' | 'user';
   limit?: number;
+  provider?: string;
   authHeader?: string;
   requestID?: string;
   deadlineMs: number;
@@ -591,7 +593,8 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
           userSubject: input.userSubject,
           query: input.query ?? '',
           kind: input.kind ?? '',
-          limit: input.limit ?? 12
+          limit: input.limit ?? 12,
+          provider: input.provider ?? ''
         },
         input
       );
@@ -753,7 +756,8 @@ function normalizeAdminLogFilterOption(option: RawAdminLogFilterOption): AdminLo
     secondaryLabel: normalizeString(option.secondaryLabel),
     deviceIds: Array.isArray(option.deviceIds)
       ? option.deviceIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      : []
+      : [],
+    provider: normalizeString(option.provider) || undefined
   };
 }
 

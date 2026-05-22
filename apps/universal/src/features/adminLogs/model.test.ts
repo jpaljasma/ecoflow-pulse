@@ -65,14 +65,25 @@ describe('admin log model', () => {
     expect(state.entries.at(-1)?.id).toBe('entry-10');
   });
 
-  it('assigns unique display row keys even when provider message ids repeat', () => {
+  it('replaces stale duplicate rows when provider message ids repeat', () => {
     let state = createInitialLogState();
 
-    state = appendLogEntry(state, sampleEntry({ id: 'duplicate' }), { paused: false });
-    state = appendLogEntry(state, sampleEntry({ id: 'duplicate' }), { paused: false });
+    state = appendLogEntry(state, sampleEntry({ id: 'duplicate', summary: 'older frame' }), { paused: false });
+    state = appendLogEntry(state, sampleEntry({ id: 'duplicate', summary: 'newer frame' }), { paused: false });
 
-    expect(state.entries.map((entry) => entry.id)).toEqual(['duplicate', 'duplicate']);
-    expect(new Set(state.entries.map((entry) => entry.rowKey)).size).toBe(2);
+    expect(state.entries.map((entry) => entry.id)).toEqual(['duplicate']);
+    expect(state.entries[0]?.summary).toBe('newer frame');
+  });
+
+  it('replaces stale duplicates in the pending paused buffer', () => {
+    let state = appendLogEntry(createInitialLogState(), sampleEntry({ id: 'visible' }), { paused: false });
+
+    state = appendLogEntry(state, sampleEntry({ id: 'duplicate', summary: 'older pending' }), { paused: true });
+    state = appendLogEntry(state, sampleEntry({ id: 'duplicate', summary: 'newer pending' }), { paused: true });
+
+    expect(state.pending).toHaveLength(1);
+    expect(state.pendingCount).toBe(1);
+    expect(resumePending(state).entries.map((entry) => entry.summary)).toEqual(['newer pending', 'quota update']);
   });
 
   it('bumps display row identity after clearing the buffer', () => {
