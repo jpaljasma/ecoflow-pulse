@@ -8,6 +8,7 @@ import {
   DEFAULT_LOG_KEEP_LIMIT,
   fuzzyFilterLogEntries,
   isGlobalAdmin,
+  mergeAdminLogFilterOptions,
   redactEntryForCopy,
   resolveAdminLogsRouteState,
   resetLogState,
@@ -66,6 +67,49 @@ describe('admin log model', () => {
     expect(resolveAdminLogsRouteState({ deviceId: 'DEMO-SERIAL' })).toEqual({});
     expect(buildAdminLogsRouteParams({ deviceId })).toEqual({ deviceId });
     expect(buildAdminLogsRouteParams({ deviceId: 'DEMO-SERIAL' })).toEqual({});
+  });
+
+  it('merges duplicate filter options without losing device ids', () => {
+    expect(
+      mergeAdminLogFilterOptions([
+        {
+          kind: 'user',
+          id: 'user-1',
+          label: 'owner@example.invalid',
+          secondaryLabel: 'Owner',
+          deviceIds: ['dev-1']
+        },
+        {
+          kind: 'user',
+          id: 'user-1',
+          label: 'owner@example.invalid',
+          secondaryLabel: 'Owner',
+          deviceIds: ['dev-2', 'dev-1']
+        },
+        {
+          kind: 'device',
+          id: 'dev-1',
+          label: 'Garage',
+          secondaryLabel: 'UUID dev-1',
+          deviceIds: ['dev-1']
+        }
+      ])
+    ).toEqual([
+      {
+        kind: 'user',
+        id: 'user-1',
+        label: 'owner@example.invalid',
+        secondaryLabel: 'Owner',
+        deviceIds: ['dev-1', 'dev-2']
+      },
+      {
+        kind: 'device',
+        id: 'dev-1',
+        label: 'Garage',
+        secondaryLabel: 'UUID dev-1',
+        deviceIds: ['dev-1']
+      }
+    ]);
   });
 
   it('keeps live rows stable while paused and flushes pending rows on resume', () => {

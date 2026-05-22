@@ -13,6 +13,7 @@ import {
   buildSubscribeFilters,
   DEFAULT_LOG_KEEP_LIMIT,
   fuzzyFilterLogEntries,
+  mergeAdminLogFilterOptions,
   redactEntryForCopy,
   resolveAdminLogsRouteState,
   type AdminLogTypeFilterValue,
@@ -136,12 +137,7 @@ export default function LogsScreen() {
   }, [filtersKey, freetext, maxEntries]);
 
   const addOption = (option: AdminLogFilterOption) => {
-    setSelectedOptions((current) => {
-      if (current.some((item) => item.kind === option.kind && item.id === option.id)) {
-        return current;
-      }
-      return [...current, option];
-    });
+    setSelectedOptions((current) => mergeAdminLogFilterOptions([...current, option]));
   };
   const updateProvider = (value: string) => {
     setProvider(value);
@@ -962,7 +958,7 @@ async function fetchMetadataForDeviceIds(input: {
       })
     )
   );
-  return uniqueOptions(pages.flat());
+  return mergeAdminLogFilterOptions(pages.flat());
 }
 
 function uniqueVisibleDeviceIds(entries: BufferedAdminLogEntry[]): string[] {
@@ -986,20 +982,6 @@ function chunkValues<T>(values: T[], size: number): T[][] {
     chunks.push(values.slice(index, index + size));
   }
   return chunks;
-}
-
-function uniqueOptions(options: AdminLogFilterOption[]): AdminLogFilterOption[] {
-  const seen = new Set<string>();
-  const out: AdminLogFilterOption[] = [];
-  for (const option of options) {
-    const key = `${option.kind}:${option.id}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    out.push(option);
-  }
-  return out;
 }
 
 function maskEmailForLogs(value: string): string {

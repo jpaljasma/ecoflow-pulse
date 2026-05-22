@@ -121,6 +121,26 @@ export function buildAdminLogsRouteParams(input: { deviceId?: string }): Record<
   return isCanonicalDeviceId(input.deviceId) ? { deviceId: input.deviceId } : {};
 }
 
+export function mergeAdminLogFilterOptions(options: readonly AdminLogFilterOption[]): AdminLogFilterOption[] {
+  const merged = new Map<string, AdminLogFilterOption>();
+  for (const option of options) {
+    const key = `${option.kind}:${option.id}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...option, deviceIds: unique(option.deviceIds) });
+      continue;
+    }
+    merged.set(key, {
+      ...existing,
+      label: existing.label || option.label,
+      secondaryLabel: existing.secondaryLabel || option.secondaryLabel,
+      provider: existing.provider ?? option.provider,
+      deviceIds: unique([...existing.deviceIds, ...option.deviceIds])
+    });
+  }
+  return [...merged.values()];
+}
+
 export function appendLogEntry(
   state: AppendLogState,
   entry: AdminLogEntry,
