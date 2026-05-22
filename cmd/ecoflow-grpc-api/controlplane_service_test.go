@@ -912,7 +912,7 @@ func TestSearchAdminLogFiltersAllowsDeviceOwnerScopedDeviceAndSerial(t *testing.
 
 	_, err = svc.SearchAdminLogFilters(ctx, &controlplanev1.SearchAdminLogFiltersRequest{
 		UserSubject: "owner-user",
-		Query:       "owner",
+		Query:       "",
 		Kind:        "user",
 		Limit:       10,
 	})
@@ -945,6 +945,22 @@ func TestSearchAdminLogFiltersResolvesSerialAndUserToDeviceIDs(t *testing.T) {
 	if owner.ID == "" || device.DeviceID == "" {
 		t.Fatalf("expected owner and device IDs")
 	}
+	if _, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{
+		UserSubject: "other-user",
+		Email:       "other@example.invalid",
+		DisplayName: "Other User",
+	}); err != nil {
+		t.Fatalf("provision other failed: %v", err)
+	}
+	otherDevice, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "other-user",
+		EcoflowSN:   "OTHERSN001",
+		ProductName: "Other Delta",
+		Model:       "DELTA 2 Max",
+	})
+	if err != nil {
+		t.Fatalf("create other device failed: %v", err)
+	}
 	ctx := grpcmw.ContextWithClaims(context.Background(), grpcmw.Claims{
 		Subject: "dev-user",
 		Roles:   []string{"viewer", "admin"},
@@ -968,12 +984,13 @@ func TestSearchAdminLogFiltersResolvesSerialAndUserToDeviceIDs(t *testing.T) {
 		Query:       "owner",
 		Kind:        "user",
 		Limit:       5,
+		DeviceIds:   []string{device.DeviceID},
 	})
 	if err != nil {
 		t.Fatalf("search user filters failed: %v", err)
 	}
 	if got := userResp.GetOptions(); len(got) != 1 || got[0].GetKind() != "user" || got[0].GetDeviceIds()[0] != device.DeviceID {
-		t.Fatalf("unexpected user options: %+v", got)
+		t.Fatalf("unexpected user options: %+v; other=%s", got, otherDevice.DeviceID)
 	}
 }
 

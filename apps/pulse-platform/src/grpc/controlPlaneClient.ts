@@ -251,6 +251,7 @@ export type SearchAdminLogFiltersInput = {
   kind?: 'device' | 'serial' | 'user';
   limit?: number;
   provider?: string;
+  deviceIds?: string[];
   authHeader?: string;
   requestID?: string;
   deadlineMs: number;
@@ -594,7 +595,8 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
           query: input.query ?? '',
           kind: input.kind ?? '',
           limit: input.limit ?? 12,
-          provider: input.provider ?? ''
+          provider: input.provider ?? '',
+          deviceIds: input.deviceIds ?? []
         },
         input
       );

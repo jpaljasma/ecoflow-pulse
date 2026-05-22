@@ -23,6 +23,7 @@ export async function fetchAdminLogFilterOptions(input: {
   query: string;
   limit?: number;
   provider?: string;
+  deviceIds?: string[];
 }): Promise<AdminLogFilterOption[]> {
   const data = await requestJson<unknown>('/api/v1/admin/log-filter-options', {
     method: 'POST',
@@ -31,7 +32,8 @@ export async function fetchAdminLogFilterOptions(input: {
       kind: input.kind,
       query: input.query,
       limit: input.limit ?? 8,
-      provider: input.provider ?? ''
+      provider: input.provider ?? '',
+      deviceIds: input.deviceIds ?? []
     }
   });
   return AdminLogFilterOptionsResponseSchema.parse(data).options;

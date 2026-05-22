@@ -2741,6 +2741,7 @@ type SearchAdminLogFiltersRequest struct {
 	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
 	Limit         uint32                 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	Provider      string                 `protobuf:"bytes,5,opt,name=provider,proto3" json:"provider,omitempty"`
+	DeviceIds     []string               `protobuf:"bytes,6,rep,name=device_ids,json=deviceIds,proto3" json:"device_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2808,6 +2809,13 @@ func (x *SearchAdminLogFiltersRequest) GetProvider() string {
 		return x.Provider
 	}
 	return ""
+}
+
+func (x *SearchAdminLogFiltersRequest) GetDeviceIds() []string {
+	if x != nil {
+		return x.DeviceIds
+	}
+	return nil
 }
 
 type SearchAdminLogFiltersResponse struct {
@@ -3084,13 +3092,15 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\x0fsecondary_label\x18\x04 \x01(\tR\x0esecondaryLabel\x12\x1d\n" +
 	"\n" +
 	"device_ids\x18\x05 \x03(\tR\tdeviceIds\x12\x1a\n" +
-	"\bprovider\x18\x06 \x01(\tR\bprovider\"\x9d\x01\n" +
+	"\bprovider\x18\x06 \x01(\tR\bprovider\"\xbc\x01\n" +
 	"\x1cSearchAdminLogFiltersRequest\x12!\n" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x12\n" +
 	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\rR\x05limit\x12\x1a\n" +
-	"\bprovider\x18\x05 \x01(\tR\bprovider\"f\n" +
+	"\bprovider\x18\x05 \x01(\tR\bprovider\x12\x1d\n" +
+	"\n" +
+	"device_ids\x18\x06 \x03(\tR\tdeviceIds\"f\n" +
 	"\x1dSearchAdminLogFiltersResponse\x12E\n" +
 	"\aoptions\x18\x01 \x03(\v2+.pulse.controlplane.v1.AdminLogFilterOptionR\aoptions2\x8d\x11\n" +
 	"\x13ControlPlaneService\x12m\n" +

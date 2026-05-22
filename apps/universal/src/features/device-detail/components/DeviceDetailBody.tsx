@@ -6,6 +6,7 @@ import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 import { DeviceEnergyImpactCard } from '@/features/energy-impact/DeviceEnergyImpactCard';
+import { buildAdminLogsRouteParams } from '@/features/adminLogs/model';
 import { buildStormGuardLabel } from '@/features/devices/stormGuard';
 import { BatteryPacksSection } from '@/features/device-detail/components/BatteryPacksSection';
 import { DeviceSolarForecastCard } from '@/features/device-detail/components/DeviceSolarForecastCard';
@@ -384,6 +385,31 @@ export function DeviceDetailBody({
                           <MaterialCommunityIcons name="calendar-month-outline" size={18} color={semantics.actionText} />
                           <Text style={{ color: semantics.actionText }} fontWeight="700">
                             Calendar
+                          </Text>
+                        </XStack>
+                      </Button>
+                      <Button
+                        size="$3"
+                        borderRadius={999}
+                        borderWidth={1}
+                        paddingHorizontal="$4"
+                        minHeight={42}
+                        testID="device-open-logs"
+                        style={{
+                          backgroundColor: semantics.actionBackground,
+                          borderColor: semantics.actionBorder
+                        }}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(tabs)/logs',
+                            params: buildAdminLogsRouteParams({ deviceId: device.id })
+                          })
+                        }
+                      >
+                        <XStack alignItems="center" gap="$2">
+                          <MaterialCommunityIcons name="text-box-search-outline" size={18} color={semantics.actionText} />
+                          <Text style={{ color: semantics.actionText }} fontWeight="700">
+                            Logs
                           </Text>
                         </XStack>
                       </Button>

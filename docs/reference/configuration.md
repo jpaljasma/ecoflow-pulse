@@ -265,7 +265,9 @@ Cloud note:
   The lookup is request-body based; selected serials and emails must not be
   serialized into browser URLs. Device and serial lookups accept the selected
   provider in the request body so provider-specific tabs only suggest devices
-  from that provider.
+  from that provider. Admin user lookups also accept visible device UUIDs in
+  the request body so the Logs table can fill masked user labels for active
+  rows without relying on a tenant-wide first page of users.
 
 ## Pulse Realtime WebSocket Gateway (`apps/pulse-realtime-gateway`)
 
@@ -325,8 +327,13 @@ Admin log stream behavior:
 - replay loads at most `LOGS_REPLAY_LIMIT` entries from the last
   `LOGS_REPLAY_WINDOW_MS`, then switches to live NATS fanout,
 - server-side filters support canonical device UUIDs, typeahead-resolved
-  serial/user selections, provider, status, and type/source. User-email filters
-  are admin-only; non-admin users can search only their own devices and serials,
+  serial/user selections, provider, status, and type/source. Device-page deep
+  links use only canonical UUID query parameters and are still scoped by the
+  gateway before replay or live fanout. User-email filters are admin-only;
+  non-admin users can search only their own devices and serials,
+- the universal Logs type presets map `Status` to `pdStatus`, `invStatus`,
+  `emsStatus`, `bmsStatus`, and `mpptStatus`; `Info` maps to `kitInfo` and
+  `bms_kitInfo`,
 - emitted entries and expandable JSON details use the normalized redacted
   envelope; raw MQTT payload reveal is intentionally out of scope for v1.
 - the universal Logs tab closes its websocket subscription while the tab is not

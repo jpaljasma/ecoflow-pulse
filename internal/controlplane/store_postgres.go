@@ -1442,19 +1442,20 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 	query := strings.ToLower(strings.TrimSpace(in.Query))
 	limit := normalizeAdminLogFilterLimit(in.Limit)
 	provider := NormalizeProvider(in.Provider)
+	deviceIDs := normalizeAdminLogDeviceIDs(in.DeviceIDs)
 	userSubject := strings.TrimSpace(in.UserSubject)
 
 	if kind == "device" || kind == "serial" {
-		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, provider, userSubject, in.GlobalAdmin)
+		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, provider, userSubject, in.GlobalAdmin, deviceIDs)
 	}
 	if kind == "user" {
 		if !in.GlobalAdmin {
 			return nil, nil
 		}
-		return s.searchAdminLogUserFilters(ctx, query, limit)
+		return s.searchAdminLogUserFilters(ctx, query, limit, deviceIDs)
 	}
 	if !in.GlobalAdmin {
-		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, provider, userSubject, false)
+		return s.searchAdminLogDeviceFilters(ctx, kind, query, limit, provider, userSubject, false, deviceIDs)
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -1462,12 +1463,12 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 	var userOptions []AdminLogFilterOption
 	group.Go(func() error {
 		var err error
-		deviceOptions, err = s.searchAdminLogDeviceFilters(groupCtx, kind, query, limit, provider, userSubject, true)
+		deviceOptions, err = s.searchAdminLogDeviceFilters(groupCtx, kind, query, limit, provider, userSubject, true, deviceIDs)
 		return err
 	})
 	group.Go(func() error {
 		var err error
-		userOptions, err = s.searchAdminLogUserFilters(groupCtx, query, limit)
+		userOptions, err = s.searchAdminLogUserFilters(groupCtx, query, limit, deviceIDs)
 		return err
 	})
 	if err := group.Wait(); err != nil {
@@ -1480,9 +1481,13 @@ func (s *PostgresStore) SearchAdminLogFilters(ctx context.Context, in SearchAdmi
 	return out, nil
 }
 
-func (s *PostgresStore) searchAdminLogDeviceFilters(ctx context.Context, kind string, query string, limit int, provider string, userSubject string, globalAdmin bool) ([]AdminLogFilterOption, error) {
+func (s *PostgresStore) searchAdminLogDeviceFilters(ctx context.Context, kind string, query string, limit int, provider string, userSubject string, globalAdmin bool, deviceIDs []string) ([]AdminLogFilterOption, error) {
 	if limit <= 0 {
 		return nil, nil
+	}
+	deviceIDsJSON, err := json.Marshal(normalizeAdminLogDeviceIDs(deviceIDs))
+	if err != nil {
+		return nil, fmt.Errorf("encode admin log device ids filter: %w", err)
 	}
 	const adminSQLQuery = `
 SELECT
@@ -1507,6 +1512,14 @@ AND (
 		  AND pd.provider = $4
 	)
 )
+AND (
+	$5::jsonb = '[]'::jsonb
+	OR EXISTS (
+		SELECT 1
+		FROM jsonb_array_elements_text($5::jsonb) AS filter(device_id)
+		WHERE filter.device_id = d.id::text
+	)
+)
 ORDER BY lower(COALESCE(NULLIF(d.product_name, ''), NULLIF(d.model, ''), d.ecoflow_sn, d.id::text)), d.id::text
 LIMIT $3;
 `
@@ -1519,7 +1532,7 @@ SELECT
 FROM users u
 JOIN user_devices ud ON ud.user_id = u.id
 JOIN devices d ON d.id = ud.device_id
-WHERE u.keycloak_subject = $5
+WHERE u.keycloak_subject = $6
   AND (
 	$1 = ''
 	OR lower(d.id::text) LIKE $2
@@ -1536,12 +1549,20 @@ AND (
 		  AND pd.provider = $4
 	)
 )
+AND (
+	$5::jsonb = '[]'::jsonb
+	OR EXISTS (
+		SELECT 1
+		FROM jsonb_array_elements_text($5::jsonb) AS filter(device_id)
+		WHERE filter.device_id = d.id::text
+	)
+)
 ORDER BY lower(COALESCE(NULLIF(d.product_name, ''), NULLIF(d.model, ''), d.ecoflow_sn, d.id::text)), d.id::text
 LIMIT $3;
 `
 	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]AdminLogFilterOption, error) {
 		sqlQuery := adminSQLQuery
-		args := []any{query, "%" + query + "%", limit, provider}
+		args := []any{query, "%" + query + "%", limit, provider, string(deviceIDsJSON)}
 		if !globalAdmin {
 			sqlQuery = userSQLQuery
 			args = append(args, userSubject)
@@ -1592,9 +1613,13 @@ LIMIT $3;
 	})
 }
 
-func (s *PostgresStore) searchAdminLogUserFilters(ctx context.Context, query string, limit int) ([]AdminLogFilterOption, error) {
+func (s *PostgresStore) searchAdminLogUserFilters(ctx context.Context, query string, limit int, deviceIDs []string) ([]AdminLogFilterOption, error) {
 	if limit <= 0 {
 		return nil, nil
+	}
+	deviceIDsJSON, err := json.Marshal(normalizeAdminLogDeviceIDs(deviceIDs))
+	if err != nil {
+		return nil, fmt.Errorf("encode admin log user device ids filter: %w", err)
 	}
 	const sqlQuery = `
 WITH matching_users AS (
@@ -1603,6 +1628,7 @@ WITH matching_users AS (
 		COALESCE(u.email, '') AS email,
 		COALESCE(u.display_name, '') AS display_name
 	FROM users u
+	LEFT JOIN user_devices ud_filter ON ud_filter.user_id = u.id
 	WHERE COALESCE(trim(u.email), '') <> ''
 	  AND (
 		$1 = ''
@@ -1610,6 +1636,15 @@ WITH matching_users AS (
 		OR lower(COALESCE(u.display_name, '')) LIKE $2
 		OR lower(u.keycloak_subject) LIKE $2
 	  )
+	  AND (
+		$4::jsonb = '[]'::jsonb
+		OR EXISTS (
+			SELECT 1
+			FROM jsonb_array_elements_text($4::jsonb) AS filter(device_id)
+			WHERE filter.device_id = ud_filter.device_id::text
+		)
+	  )
+	GROUP BY u.id, u.email, u.display_name
 	ORDER BY lower(u.email), u.id::text
 	LIMIT $3
 )
@@ -1623,11 +1658,19 @@ SELECT
 	)::text AS device_ids_json
 FROM matching_users mu
 LEFT JOIN user_devices ud ON ud.user_id = mu.id
+  AND (
+	$4::jsonb = '[]'::jsonb
+	OR EXISTS (
+		SELECT 1
+		FROM jsonb_array_elements_text($4::jsonb) AS filter(device_id)
+		WHERE filter.device_id = ud.device_id::text
+	)
+  )
 GROUP BY mu.id, mu.email, mu.display_name
 ORDER BY lower(mu.email), mu.id::text;
 `
 	return dbpool.RetryRead(ctx, func(ctx context.Context) ([]AdminLogFilterOption, error) {
-		rows, err := s.db.QueryContext(ctx, sqlQuery, query, "%"+query+"%", limit)
+		rows, err := s.db.QueryContext(ctx, sqlQuery, query, "%"+query+"%", limit, string(deviceIDsJSON))
 		if err != nil {
 			return nil, fmt.Errorf("query admin log user filters: %w", err)
 		}

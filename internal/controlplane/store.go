@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 )
@@ -238,6 +239,7 @@ type SearchAdminLogFiltersInput struct {
 	Kind        string
 	Limit       int
 	Provider    string
+	DeviceIDs   []string
 	UserSubject string
 	GlobalAdmin bool
 }
@@ -292,6 +294,36 @@ func appendAdminLogOptions(out []AdminLogFilterOption, options []AdminLogFilterO
 			return out
 		}
 		out = append(out, option)
+	}
+	return out
+}
+
+func normalizeAdminLogDeviceIDs(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		deviceID := strings.TrimSpace(value)
+		if deviceID == "" {
+			continue
+		}
+		if _, ok := seen[deviceID]; ok {
+			continue
+		}
+		seen[deviceID] = struct{}{}
+		out = append(out, deviceID)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func adminLogDeviceIDSet(values []string) map[string]struct{} {
+	normalized := normalizeAdminLogDeviceIDs(values)
+	if len(normalized) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(normalized))
+	for _, value := range normalized {
+		out[value] = struct{}{}
 	}
 	return out
 }
