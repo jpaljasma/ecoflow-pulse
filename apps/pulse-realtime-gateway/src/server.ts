@@ -10,11 +10,12 @@ import { NatsAdminLogSource } from './adminLogs/natsAdminLogSource.js';
 import { ValkeySnapshotStore } from './snapshot/valkeySnapshotStore.js';
 
 const config = loadConfig(process.env);
+const authorizer =
+  config.auth.mode === 'noop'
+    ? createPermissiveDeviceAuthorizer()
+    : createControlPlaneDeviceAuthorizer(config.grpcApiAddr);
 const liveClient = createLiveTelemetryClient({
-  authorizer:
-    config.auth.mode === 'noop'
-      ? createPermissiveDeviceAuthorizer()
-      : createControlPlaneDeviceAuthorizer(config.grpcApiAddr),
+  authorizer,
   snapshots: new ValkeySnapshotStore(config.valkey),
   deltaHub: new NatsDeltaHub({
     urls: config.natsUrls,
@@ -22,6 +23,7 @@ const liveClient = createLiveTelemetryClient({
   })
 });
 const app = buildApp(config, liveClient, {
+  deviceAuthorizer: authorizer,
   logSource: new NatsAdminLogSource({
     urls: config.natsUrls,
     subjectPrefix: config.telemetrySubjectPrefix,

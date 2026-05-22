@@ -27,7 +27,8 @@ export function registerAdminLogRoutes(
     try {
       const body = adminLogFilterOptionsSchema.parse(request.body ?? {});
       const bootstrap = await loadCurrentUserBootstrap(app, config, controlPlaneClient, request);
-      if (!bootstrap.authorization.tokenRoles.some((role) => role.toLowerCase() === 'admin')) {
+      const isAdmin = bootstrap.authorization.tokenRoles.some((role) => role.toLowerCase() === 'admin');
+      if (!isAdmin && body.kind === 'user') {
         return reply.code(403).send({ error: 'admin_role_required' });
       }
       const options = await controlPlaneClient.searchAdminLogFilters({

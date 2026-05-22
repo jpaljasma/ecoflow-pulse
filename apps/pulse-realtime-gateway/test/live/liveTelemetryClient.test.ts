@@ -16,6 +16,10 @@ class FakeAuthorizer implements DeviceAuthorizer {
     return { canonicalDeviceId: this.canonicalize(input.deviceId) };
   }
 
+  async listAuthorizedDevices(): Promise<{ deviceIds: string[] }> {
+    return { deviceIds: [] };
+  }
+
   close(): void {}
 }
 

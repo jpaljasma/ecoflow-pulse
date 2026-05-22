@@ -52,6 +52,11 @@ export interface DeviceAuthorizer {
     requestID?: string;
     deadlineMs: number;
   }): Promise<{ canonicalDeviceId: string }>;
+  listAuthorizedDevices(input: {
+    authHeader?: string;
+    requestID?: string;
+    deadlineMs: number;
+  }): Promise<{ deviceIds: string[] }>;
   close(): void;
 }
 
@@ -59,6 +64,9 @@ export function createPermissiveDeviceAuthorizer(): DeviceAuthorizer {
   return {
     async authorize(input): Promise<{ canonicalDeviceId: string }> {
       return { canonicalDeviceId: input.deviceId };
+    },
+    async listAuthorizedDevices(): Promise<{ deviceIds: string[] }> {
+      return { deviceIds: [] };
     },
     close(): void {}
   };
@@ -71,44 +79,80 @@ export function createControlPlaneDeviceAuthorizer(address: string, defaultUserS
   );
 
   return {
-    authorize(input) {
-      return new Promise<{ canonicalDeviceId: string }>((resolve, reject) => {
-        const metadata = new grpc.Metadata();
-        if (input.authHeader) {
-          metadata.set('authorization', input.authHeader);
-        }
-        if (input.requestID) {
-          metadata.set('x-request-id', input.requestID);
-        }
-        const request = {
-          userSubject: input.authHeader ? undefined : defaultUserSubject
-        };
-        client.ListUserDevices(
-          request,
-          metadata,
-          { deadline: new Date(Date.now() + input.deadlineMs) },
-          (error, response) => {
-            if (error) {
-              reject(error as Error & { code?: number });
-              return;
-            }
-            const requested = String(input.deviceId ?? '').trim();
-            for (const device of response?.devices ?? []) {
-              const canonicalDeviceId = String(device.deviceId ?? '').trim();
-              const ecoflowSn = String(device.ecoflowSn ?? '').trim();
-              if (!canonicalDeviceId) continue;
-              if (requested === canonicalDeviceId || (ecoflowSn !== '' && requested === ecoflowSn)) {
-                resolve({ canonicalDeviceId });
-                return;
-              }
-            }
-            reject(Object.assign(new Error('device access denied'), { code: grpc.status.PERMISSION_DENIED }));
-          }
-        );
+    async authorize(input) {
+      const devices = await listUserDevices(client, {
+        authHeader: input.authHeader,
+        requestID: input.requestID,
+        deadlineMs: input.deadlineMs,
+        defaultUserSubject
       });
+      const requested = String(input.deviceId ?? '').trim();
+      for (const device of devices) {
+        const canonicalDeviceId = String(device.deviceId ?? '').trim();
+        const ecoflowSn = String(device.ecoflowSn ?? '').trim();
+        if (!canonicalDeviceId) continue;
+        if (requested === canonicalDeviceId || (ecoflowSn !== '' && requested === ecoflowSn)) {
+          return { canonicalDeviceId };
+        }
+      }
+      throw Object.assign(new Error('device access denied'), { code: grpc.status.PERMISSION_DENIED });
+    },
+    async listAuthorizedDevices(input) {
+      const devices = await listUserDevices(client, {
+        authHeader: input.authHeader,
+        requestID: input.requestID,
+        deadlineMs: input.deadlineMs,
+        defaultUserSubject
+      });
+      return {
+        deviceIds: unique(
+          devices
+            .map((device) => String(device.deviceId ?? '').trim())
+            .filter((deviceId) => deviceId.length > 0)
+        )
+      };
     },
     close() {
       client.close();
     }
   };
+}
+
+function listUserDevices(
+  client: ControlPlaneClient,
+  input: {
+    authHeader?: string;
+    requestID?: string;
+    deadlineMs: number;
+    defaultUserSubject?: string;
+  }
+): Promise<Array<{ deviceId?: string; ecoflowSn?: string }>> {
+  return new Promise((resolve, reject) => {
+    const metadata = new grpc.Metadata();
+    if (input.authHeader) {
+      metadata.set('authorization', input.authHeader);
+    }
+    if (input.requestID) {
+      metadata.set('x-request-id', input.requestID);
+    }
+    const request = {
+      userSubject: input.authHeader ? undefined : input.defaultUserSubject
+    };
+    client.ListUserDevices(
+      request,
+      metadata,
+      { deadline: new Date(Date.now() + input.deadlineMs) },
+      (error, response) => {
+        if (error) {
+          reject(error as Error & { code?: number });
+          return;
+        }
+        resolve(response?.devices ?? []);
+      }
+    );
+  });
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values));
 }

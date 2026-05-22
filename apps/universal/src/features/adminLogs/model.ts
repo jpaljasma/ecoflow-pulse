@@ -44,7 +44,7 @@ export function createInitialLogState(): AppendLogState {
 }
 
 export function isGlobalAdmin(roles: readonly string[] | undefined): boolean {
-  return roles?.some((role) => role.trim().toLowerCase() === 'admin') ?? false;
+  return isPulseGlobalAdmin(roles);
 }
 
 export function buildSubscribeFilters(input: {
@@ -187,3 +187,4 @@ function unique<T extends string>(values: T[]): T[] {
 function normalizeText(value: string): string {
   return value.trim().toLowerCase();
 }
+import { isPulseGlobalAdmin } from '@/shared/authz/pulseRoles';

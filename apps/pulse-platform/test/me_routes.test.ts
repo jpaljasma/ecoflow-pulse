@@ -180,7 +180,7 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
-  it('blocks admin log filter lookups for non-admin users', async () => {
+  it('blocks user log filter lookups for non-admin users', async () => {
     const searchAdminLogFilters = vi.fn(async () => []);
     const controlPlaneClient = makeControlPlaneClient({ searchAdminLogFilters });
     const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
@@ -195,6 +195,55 @@ describe('pulse-platform current user routes', () => {
 
     expect(response.statusCode).toBe(403);
     expect(searchAdminLogFilters).not.toHaveBeenCalled();
+
+    await app.close();
+  });
+
+  it('allows device-owner log filter lookups for device and serial filters', async () => {
+    const searchAdminLogFilters = vi.fn(async () => [
+      {
+        kind: 'serial' as const,
+        id: 'dev-1',
+        label: 'DEMO-SN-1',
+        secondaryLabel: 'Garage Delta',
+        deviceIds: ['dev-1']
+      }
+    ]);
+    const controlPlaneClient = makeControlPlaneClient({ searchAdminLogFilters });
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      controlPlaneClient
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/log-filter-options',
+      headers: {
+        authorization: 'Bearer owner-token'
+      },
+      payload: { kind: 'serial', query: 'demo', limit: 5 }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(searchAdminLogFilters).toHaveBeenCalledWith({
+      userSubject: 'dev-user-subject',
+      query: 'demo',
+      kind: 'serial',
+      limit: 5,
+      authHeader: 'Bearer owner-token',
+      requestID: expect.any(String),
+      deadlineMs: 2500
+    });
+    expect(response.json()).toEqual({
+      options: [
+        {
+          kind: 'serial',
+          id: 'dev-1',
+          label: 'DEMO-SN-1',
+          secondaryLabel: 'Garage Delta',
+          deviceIds: ['dev-1']
+        }
+      ]
+    });
 
     await app.close();
   });
