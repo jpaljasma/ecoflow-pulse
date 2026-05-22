@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { mockApiRoutes } from './mockApi';
 
 test.describe('Universal admin logs', () => {
@@ -60,23 +60,7 @@ test.describe('Universal admin logs', () => {
   });
 
   test('applies canonical device deep links to websocket log filters', async ({ page }) => {
-    await page.addInitScript(() => {
-      const NativeWebSocket = window.WebSocket;
-      const sentMessages: unknown[] = [];
-      (window as unknown as { __pulseWsSentMessages: unknown[] }).__pulseWsSentMessages = sentMessages;
-      window.WebSocket = class extends NativeWebSocket {
-        send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
-          if (typeof data === 'string') {
-            try {
-              sentMessages.push(JSON.parse(data) as unknown);
-            } catch {
-              // Ignore non-JSON websocket frames in the capture helper.
-            }
-          }
-          super.send(data);
-        }
-      };
-    });
+    await captureWebSocketMessages(page);
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/logs?deviceId=11111111-1111-7111-8111-111111111111');
@@ -88,6 +72,43 @@ test.describe('Universal admin logs', () => {
         return messages.find((message) => message.type === 'logs_subscribe')?.filters?.deviceIds ?? [];
       })
     ).toEqual(['11111111-1111-7111-8111-111111111111']);
+  });
+
+  test('treats status filters as an exclusive toggle', async ({ page }) => {
+    await captureWebSocketMessages(page);
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs');
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Enable OK filter' }).click();
+    await expect.poll(() => latestLogSubscribeStatuses(page)).toEqual(['ok']);
+
+    await page.getByRole('button', { name: 'Enable Warn filter' }).click();
+    await expect.poll(() => latestLogSubscribeStatuses(page)).toEqual(['warning']);
+
+    await page.getByRole('button', { name: 'Disable Warn filter' }).click();
+    await expect.poll(() => latestLogSubscribeStatuses(page)).toEqual([]);
+  });
+
+  test('subscribes Status and Info type filters as suffix families', async ({ page }) => {
+    await captureWebSocketMessages(page);
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs');
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Enable Status filter' }).click();
+    await expect.poll(() => latestLogSubscribeTypeFilter(page)).toEqual({
+      typeCodes: [],
+      typeCodeSuffixes: ['Status']
+    });
+
+    await page.getByRole('button', { name: 'Enable Info filter' }).click();
+    await expect.poll(() => latestLogSubscribeTypeFilter(page)).toEqual({
+      typeCodes: [],
+      typeCodeSuffixes: ['Info']
+    });
   });
 
   test('keeps typeahead suggestions floating above the filter grid', async ({ page }) => {
@@ -173,3 +194,50 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
   });
 });
+
+async function captureWebSocketMessages(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    const sentMessages: unknown[] = [];
+    (window as unknown as { __pulseWsSentMessages: unknown[] }).__pulseWsSentMessages = sentMessages;
+    window.WebSocket = class extends NativeWebSocket {
+      send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
+        if (typeof data === 'string') {
+          try {
+            sentMessages.push(JSON.parse(data) as unknown);
+          } catch {
+            // Ignore non-JSON websocket frames in the capture helper.
+          }
+        }
+        super.send(data);
+      }
+    };
+  });
+}
+
+async function latestLogSubscribeStatuses(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const messages = (
+      window as unknown as { __pulseWsSentMessages?: Array<{ type?: string; filters?: { statuses?: string[] } }> }
+    ).__pulseWsSentMessages ?? [];
+    return [...messages].reverse().find((message) => message.type === 'logs_subscribe')?.filters?.statuses ?? [];
+  });
+}
+
+async function latestLogSubscribeTypeFilter(page: Page): Promise<{ typeCodes: string[]; typeCodeSuffixes: string[] }> {
+  return page.evaluate(() => {
+    const messages = (
+      window as unknown as {
+        __pulseWsSentMessages?: Array<{
+          type?: string;
+          filters?: { typeCodes?: string[]; typeCodeSuffixes?: string[] };
+        }>;
+      }
+    ).__pulseWsSentMessages ?? [];
+    const filters = [...messages].reverse().find((message) => message.type === 'logs_subscribe')?.filters;
+    return {
+      typeCodes: filters?.typeCodes ?? [],
+      typeCodeSuffixes: filters?.typeCodeSuffixes ?? []
+    };
+  });
+}

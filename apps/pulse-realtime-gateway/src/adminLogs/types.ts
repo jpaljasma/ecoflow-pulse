@@ -6,6 +6,7 @@ export type AdminLogFilters = {
   providers: string[];
   sources: string[];
   typeCodes: string[];
+  typeCodeSuffixes: string[];
 };
 
 export type AdminLogEntry = {
@@ -48,5 +49,6 @@ export const DEFAULT_ADMIN_LOG_FILTERS: AdminLogFilters = {
   statuses: [],
   providers: [],
   sources: [],
-  typeCodes: []
+  typeCodes: [],
+  typeCodeSuffixes: []
 };

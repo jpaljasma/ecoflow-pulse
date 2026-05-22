@@ -50,7 +50,8 @@ describe('admin realtime log entries', () => {
         statuses: ['ok'],
         providers: ['ecoflow'],
         sources: ['mqtt'],
-        typeCodes: ['quota']
+        typeCodes: ['quota'],
+        typeCodeSuffixes: []
       })
     ).toBe(true);
     expect(
@@ -59,7 +60,8 @@ describe('admin realtime log entries', () => {
         statuses: [],
         providers: [],
         sources: [],
-        typeCodes: []
+        typeCodes: [],
+        typeCodeSuffixes: []
       })
     ).toBe(false);
     expect(
@@ -68,7 +70,8 @@ describe('admin realtime log entries', () => {
         statuses: ['error'],
         providers: [],
         sources: [],
-        typeCodes: []
+        typeCodes: [],
+        typeCodeSuffixes: []
       })
     ).toBe(false);
     expect(
@@ -77,7 +80,33 @@ describe('admin realtime log entries', () => {
         statuses: [],
         providers: ['pecron'],
         sources: [],
-        typeCodes: []
+        typeCodes: [],
+        typeCodeSuffixes: []
+      })
+    ).toBe(false);
+  });
+
+  it('matches type code suffix filters without enumerating every status payload', () => {
+    const entry = adminLogEntryFromEnvelope(sampleEnvelope({ typeCode: 'mpptStatus' }), 1772197190100);
+
+    expect(
+      matchesAdminLogFilters(entry, {
+        deviceIds: [],
+        statuses: [],
+        providers: [],
+        sources: [],
+        typeCodes: [],
+        typeCodeSuffixes: ['Status']
+      })
+    ).toBe(true);
+    expect(
+      matchesAdminLogFilters(entry, {
+        deviceIds: [],
+        statuses: [],
+        providers: [],
+        sources: [],
+        typeCodes: [],
+        typeCodeSuffixes: ['Info']
       })
     ).toBe(false);
   });
@@ -106,7 +135,7 @@ describe('admin realtime log entries', () => {
     const terminal = new Promise<void>((resolve, reject) => {
       source.subscribe({
         subscriptionId: 'logs-1',
-        filters: { deviceIds: [], statuses: [], providers: [], sources: [], typeCodes: [] },
+        filters: { deviceIds: [], statuses: [], providers: [], sources: [], typeCodes: [], typeCodeSuffixes: [] },
         replayLimit: 10,
         replaySinceUnixMs: Date.now() - 60_000,
         requestId: 'test-request',

@@ -35,6 +35,7 @@ export type AdminLogSubscribeFilters = {
   providers: string[];
   sources: string[];
   typeCodes: string[];
+  typeCodeSuffixes: string[];
 };
 
 export type AdminLogTypeFilterValue = '' | 'quota' | 'status' | 'telemetry' | 'info';
@@ -43,14 +44,15 @@ export type AdminLogTypeFilterOption = {
   value: AdminLogTypeFilterValue;
   label: string;
   typeCodes: readonly string[];
+  typeCodeSuffixes: readonly string[];
 };
 
 export const ADMIN_LOG_TYPE_FILTER_OPTIONS: readonly AdminLogTypeFilterOption[] = [
-  { value: '', label: 'All', typeCodes: [] },
-  { value: 'quota', label: 'Quota', typeCodes: ['quota'] },
-  { value: 'status', label: 'Status', typeCodes: ['pdStatus', 'invStatus', 'emsStatus', 'bmsStatus', 'mpptStatus'] },
-  { value: 'telemetry', label: 'Telemetry', typeCodes: ['telemetry'] },
-  { value: 'info', label: 'Info', typeCodes: ['kitInfo', 'bms_kitInfo'] }
+  { value: '', label: 'All', typeCodes: [], typeCodeSuffixes: [] },
+  { value: 'quota', label: 'Quota', typeCodes: ['quota'], typeCodeSuffixes: [] },
+  { value: 'status', label: 'Status', typeCodes: [], typeCodeSuffixes: ['Status'] },
+  { value: 'telemetry', label: 'Telemetry', typeCodes: ['telemetry'], typeCodeSuffixes: [] },
+  { value: 'info', label: 'Info', typeCodes: [], typeCodeSuffixes: ['Info'] }
 ];
 
 export type AppendLogState = {
@@ -100,14 +102,20 @@ export function buildSubscribeFilters(input: {
   source?: string;
   typeCode?: string;
   typeCodes?: readonly string[];
+  typeCodeSuffixes?: readonly string[];
 }): AdminLogSubscribeFilters {
   return {
     deviceIds: unique([...(input.deviceIds ?? []), ...input.selectedOptions.flatMap((option) => option.deviceIds)]),
     statuses: unique(input.statuses),
     providers: input.provider ? [input.provider] : [],
     sources: input.source ? [input.source] : [],
-    typeCodes: unique([...(input.typeCodes ?? []), ...(input.typeCode ? [input.typeCode] : [])])
+    typeCodes: unique([...(input.typeCodes ?? []), ...(input.typeCode ? [input.typeCode] : [])]),
+    typeCodeSuffixes: unique(input.typeCodeSuffixes ?? [])
   };
+}
+
+export function toggleExclusiveStatusFilter(current: readonly LogStatus[], next: LogStatus): LogStatus[] {
+  return current.length === 1 && current[0] === next ? [] : [next];
 }
 
 export function resolveAdminLogsRouteState(params: Record<string, string | string[] | undefined>): {

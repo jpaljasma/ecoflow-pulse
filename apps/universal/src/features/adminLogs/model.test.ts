@@ -13,6 +13,7 @@ import {
   resolveAdminLogsRouteState,
   resetLogState,
   resumePending,
+  toggleExclusiveStatusFilter,
   ADMIN_LOG_TYPE_FILTER_OPTIONS,
   type AdminLogEntry
 } from '@/features/adminLogs/model';
@@ -34,29 +35,39 @@ describe('admin log model', () => {
         provider: 'ecoflow',
         source: 'mqtt',
         deviceIds: ['dev-route'],
-        typeCodes: ['quota', 'quota']
+        typeCodes: ['quota', 'quota'],
+        typeCodeSuffixes: ['Status', 'Status']
       })
     ).toEqual({
       deviceIds: ['dev-route', 'dev-1', 'dev-2'],
       statuses: ['ok'],
       providers: ['ecoflow'],
       sources: ['mqtt'],
-      typeCodes: ['quota']
+      typeCodes: ['quota'],
+      typeCodeSuffixes: ['Status']
     });
   });
 
-  it('maps log type presets to concrete MQTT type codes', () => {
-    expect(ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === 'status')?.typeCodes).toEqual([
-      'pdStatus',
-      'invStatus',
-      'emsStatus',
-      'bmsStatus',
-      'mpptStatus'
-    ]);
-    expect(ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === 'info')?.typeCodes).toEqual([
-      'kitInfo',
-      'bms_kitInfo'
-    ]);
+  it('maps log type presets to exact MQTT codes and suffix families', () => {
+    expect(ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === 'status')).toMatchObject({
+      typeCodes: [],
+      typeCodeSuffixes: ['Status']
+    });
+    expect(ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === 'info')).toMatchObject({
+      typeCodes: [],
+      typeCodeSuffixes: ['Info']
+    });
+    expect(ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === 'quota')).toMatchObject({
+      typeCodes: ['quota'],
+      typeCodeSuffixes: []
+    });
+  });
+
+  it('toggles status as an exclusive filter', () => {
+    expect(toggleExclusiveStatusFilter([], 'ok')).toEqual(['ok']);
+    expect(toggleExclusiveStatusFilter(['ok'], 'warning')).toEqual(['warning']);
+    expect(toggleExclusiveStatusFilter(['warning'], 'warning')).toEqual([]);
+    expect(toggleExclusiveStatusFilter(['ok', 'error'], 'warning')).toEqual(['warning']);
   });
 
   it('keeps Logs route state limited to canonical UUID device ids', () => {
