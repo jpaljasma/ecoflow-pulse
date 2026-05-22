@@ -1,5 +1,5 @@
-import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { createElement, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
@@ -8,13 +8,15 @@ import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { fetchAdminLogFilterOptions, type AdminLogFilterKind } from '@/features/adminLogs/api';
 import {
   buildSubscribeFilters,
+  DEFAULT_LOG_KEEP_LIMIT,
   fuzzyFilterLogEntries,
   redactEntryForCopy,
-  type AdminLogEntry,
+  type BufferedAdminLogEntry,
   type AdminLogFilterOption,
   type LogStatus
 } from '@/features/adminLogs/model';
 import { useAdminLogStream } from '@/features/adminLogs/useAdminLogStream';
+import { CONNECTOR_CATALOG, formatProviderLabel } from '@/features/integrations/providerCatalog';
 import { useCurrentUser } from '@/features/profile/hooks';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeSemantics } from '@/shared/theme/semantic';
@@ -30,8 +32,18 @@ const statusOptions: Array<{ label: string; value: LogStatus }> = [
   { label: 'Warn', value: 'warning' },
   { label: 'Error', value: 'error' }
 ];
-const sourceOptions = ['', 'mqtt', 'mqtt-status', 'replay'];
+const providerOptions = [
+  { value: '', label: 'All providers' },
+  ...CONNECTOR_CATALOG.map((provider) => ({ value: provider.id, label: provider.title }))
+];
 const typeOptions = ['', 'quota', 'status', 'telemetry'];
+const keepOptions = [25, 50, 100, 200].map((value) => ({ value: String(value), label: `Keep ${value}` }));
+const logTableColumns = {
+  severity: 96,
+  time: 178,
+  device: 190,
+  user: 140
+};
 type MaterialIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export default function LogsScreen() {
@@ -46,23 +58,31 @@ export default function LogsScreen() {
   const canReadLogs = canAccessPulseLogs({ roles, deviceCount });
   const [selectedOptions, setSelectedOptions] = useState<AdminLogFilterOption[]>([]);
   const [statuses, setStatuses] = useState<LogStatus[]>([]);
-  const [source, setSource] = useState('');
+  const [provider, setProvider] = useState('');
   const [typeCode, setTypeCode] = useState('');
   const [freetext, setFreetext] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [maxEntries, setMaxEntries] = useState(DEFAULT_LOG_KEEP_LIMIT);
   const filters = useMemo(
-    () => buildSubscribeFilters({ selectedOptions, statuses, source, typeCode }),
-    [selectedOptions, source, statuses, typeCode]
+    () => buildSubscribeFilters({ selectedOptions, statuses, provider, typeCode }),
+    [selectedOptions, provider, statuses, typeCode]
   );
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
   const stream = useAdminLogStream({
     token,
     enabled: authReady && allowed && canReadLogs,
-    filters
+    filters,
+    maxEntries,
+    holdVisible: expandedKey !== null
   });
   const visibleEntries = useMemo(
     () => fuzzyFilterLogEntries(stream.entries, freetext),
     [freetext, stream.entries]
   );
+
+  useEffect(() => {
+    setExpandedKey(null);
+  }, [filtersKey, freetext, maxEntries]);
 
   const addOption = (option: AdminLogFilterOption) => {
     setSelectedOptions((current) => {
@@ -71,6 +91,11 @@ export default function LogsScreen() {
       }
       return [...current, option];
     });
+  };
+
+  const clearLogs = () => {
+    setExpandedKey(null);
+    stream.clear();
   };
 
   if (waiting || !allowed || currentUserQuery.isLoading) {
@@ -120,12 +145,19 @@ export default function LogsScreen() {
               </Text>
             ) : null}
           </XStack>
-          <XStack gap="$2">
+          <XStack gap="$2" alignItems="center">
+            <LogCompactSelect
+              label="Rows to keep"
+              value={String(maxEntries)}
+              options={keepOptions}
+              onValueChange={(value) => setMaxEntries(Number(value))}
+              testID="logs-keep-limit"
+            />
             <Button size="$3" chromeless onPress={() => stream.setPaused(!stream.paused)}>
               <MaterialCommunityIcons name={stream.paused ? 'play' : 'pause'} size={16} color={spec.colors.color} />
               <Text fontSize="$2" fontWeight="700">{stream.paused ? 'Resume' : 'Pause'}</Text>
             </Button>
-            <Button size="$3" chromeless onPress={stream.clear}>
+            <Button size="$3" chromeless onPress={clearLogs}>
               <MaterialCommunityIcons name="broom" size={16} color={spec.colors.color} />
               <Text fontSize="$2" fontWeight="700">Clear</Text>
             </Button>
@@ -145,16 +177,26 @@ export default function LogsScreen() {
           }}
         >
           <XStack gap="$3" flexWrap="wrap" alignItems="flex-start">
+            <LogSelectField
+              label="Provider"
+              icon="cloud-outline"
+              value={provider}
+              options={providerOptions}
+              onValueChange={setProvider}
+              testID="logs-provider-select"
+              minWidth={190}
+              grow={0.75}
+            />
             <LogTypeahead kind="device" label="Device" token={token} authKey={authKey} onSelect={addOption} />
-            <LogTypeahead kind="serial" label="Serial" token={token} authKey={authKey} onSelect={addOption} />
             {isAdmin ? (
-              <LogTypeahead kind="user" label="User email" token={token} authKey={authKey} onSelect={addOption} />
+              <LogTypeahead kind="user" label="Email" token={token} authKey={authKey} onSelect={addOption} />
             ) : null}
-            <LogFilterField label="Freetext" icon="text-search">
+            <LogTypeahead kind="serial" label="Serial" token={token} authKey={authKey} onSelect={addOption} />
+            <LogFilterField label="Freetext" icon="text-search" minWidth={280} grow={1.45}>
               <LogFilterInput
                 value={freetext}
                 onChangeText={setFreetext}
-                placeholder="Search all visible rows"
+                placeholder="Search all visible rows…"
                 aria-label="Freetext fuzzy search"
               />
             </LogFilterField>
@@ -174,11 +216,6 @@ export default function LogsScreen() {
                 );
               })}
             </FilterSegment>
-            <FilterSegment label="Source">
-              {sourceOptions.map((option) => (
-                <FilterButton key={option || 'all-source'} active={source === option} label={option || 'All'} onPress={() => setSource(option)} />
-              ))}
-            </FilterSegment>
             <FilterSegment label="Type">
               {typeOptions.map((option) => (
                 <FilterButton key={option || 'all-type'} active={typeCode === option} label={option || 'All'} onPress={() => setTypeCode(option)} />
@@ -197,7 +234,7 @@ export default function LogsScreen() {
                 >
                   <MaterialCommunityIcons name="close" size={14} color={spec.colors.colorMuted} />
                   <Text fontSize="$2" numberOfLines={1}>
-                    {option.kind}: {option.label}
+                    {formatOptionKind(option.kind)}: {option.label}
                   </Text>
                 </Button>
               ))}
@@ -225,10 +262,10 @@ export default function LogsScreen() {
             ) : (
               visibleEntries.map((entry) => (
                 <LogRow
-                  key={entry.id}
+                  key={entry.rowKey}
                   entry={entry}
-                  expanded={expandedId === entry.id}
-                  onToggle={() => setExpandedId((current) => current === entry.id ? null : entry.id)}
+                  expanded={expandedKey === entry.rowKey}
+                  onToggle={() => setExpandedKey((current) => current === entry.rowKey ? null : entry.rowKey)}
                 />
               ))
             )}
@@ -285,7 +322,7 @@ function LogTypeahead({
       <LogFilterInput
         value={query}
         onChangeText={setQuery}
-        placeholder={`Search ${label.toLowerCase()}`}
+        placeholder={`Search ${label.toLowerCase()}…`}
         aria-label={label}
       />
       {trimmed.length >= 2 && optionsQuery.data && optionsQuery.data.length > 0 ? (
@@ -308,6 +345,8 @@ function LogTypeahead({
         >
           {optionsQuery.data.map((option) => (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Use ${option.label}`}
               key={`${option.kind}:${option.id}`}
               onPress={() => {
                 onSelect(option);
@@ -329,10 +368,166 @@ function LogTypeahead({
   );
 }
 
-function LogFilterField({ label, icon, children }: { label: string; icon: MaterialIconName; children: ReactNode }) {
+type LogSelectOption = {
+  value: string;
+  label: string;
+};
+
+function LogSelectField({
+  label,
+  icon,
+  value,
+  options,
+  onValueChange,
+  testID,
+  minWidth,
+  grow
+}: {
+  label: string;
+  icon: MaterialIconName;
+  value: string;
+  options: LogSelectOption[];
+  onValueChange: (value: string) => void;
+  testID: string;
+  minWidth?: number;
+  grow?: number;
+}) {
+  return (
+    <LogFilterField label={label} icon={icon} minWidth={minWidth} grow={grow}>
+      <LogSelectControl
+        label={label}
+        value={value}
+        options={options}
+        onValueChange={onValueChange}
+        testID={testID}
+      />
+    </LogFilterField>
+  );
+}
+
+function LogCompactSelect({
+  label,
+  value,
+  options,
+  onValueChange,
+  testID
+}: {
+  label: string;
+  value: string;
+  options: LogSelectOption[];
+  onValueChange: (value: string) => void;
+  testID: string;
+}) {
+  return (
+    <LogSelectControl
+      compact
+      label={label}
+      value={value}
+      options={options}
+      onValueChange={onValueChange}
+      testID={testID}
+    />
+  );
+}
+
+function LogSelectControl({
+  compact = false,
+  label,
+  value,
+  options,
+  onValueChange,
+  testID
+}: {
+  compact?: boolean;
+  label: string;
+  value: string;
+  options: LogSelectOption[];
+  onValueChange: (value: string) => void;
+  testID: string;
+}) {
+  const semantics = useThemeSemantics();
+  const { spec } = useAppTheme();
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? value;
+
+  if (Platform.OS === 'web') {
+    return createElement(
+      'select',
+      {
+        value,
+        'aria-label': label,
+        'data-testid': testID,
+        onChange: (event: { target: { value: string } }) => onValueChange(event.target.value),
+        style: {
+          width: compact ? undefined : '100%',
+          minWidth: compact ? 104 : undefined,
+          minHeight: compact ? 34 : 42,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: semantics.periodIdleBorder,
+          backgroundColor: semantics.periodIdleBackground,
+          color: spec.colors.color,
+          padding: compact ? '0 28px 0 10px' : '0 34px 0 12px',
+          fontSize: compact ? 13 : 14,
+          fontWeight: 800
+        }
+      },
+      options.map((option) =>
+        createElement(
+          'option',
+          {
+            key: option.value,
+            value: option.value
+          },
+          option.label
+        )
+      )
+    );
+  }
+
+  return (
+    <Button
+      size={compact ? '$2' : '$3'}
+      minHeight={compact ? 34 : 42}
+      borderWidth={1}
+      borderRadius={8}
+      testID={testID}
+      style={{
+        backgroundColor: semantics.periodIdleBackground,
+        borderColor: semantics.periodIdleBorder
+      }}
+      onPress={() => {
+        const index = options.findIndex((option) => option.value === value);
+        const next = options[(index + 1) % options.length];
+        if (next) {
+          onValueChange(next.value);
+        }
+      }}
+    >
+      <Text fontSize={compact ? '$1' : '$2'} fontWeight="800" numberOfLines={1}>
+        {selectedLabel}
+      </Text>
+      <MaterialCommunityIcons name="chevron-down" size={14} color={semantics.subtleText} />
+    </Button>
+  );
+}
+
+function LogFilterField({
+  label,
+  icon,
+  children,
+  minWidth = 220,
+  grow = 1
+}: {
+  label: string;
+  icon: MaterialIconName;
+  children: ReactNode;
+  minWidth?: number;
+  grow?: number;
+}) {
   const { spec } = useAppTheme();
   return (
-    <YStack gap={6} style={{ minWidth: 220, flexBasis: 0, flexGrow: 1, overflow: 'visible', position: 'relative' }}>
+    <YStack gap={6} style={{ minWidth, flexBasis: 0, flexGrow: grow, overflow: 'visible', position: 'relative' }}>
       <XStack alignItems="center" gap={6} paddingHorizontal={2} minHeight={18}>
         <MaterialCommunityIcons name={icon} size={14} color={spec.colors.colorMuted} />
         <Text fontSize="$1" fontWeight="800" color="$colorMuted" textTransform="uppercase">
@@ -387,21 +582,27 @@ function LogTableHeader() {
       borderBottomWidth={1}
       style={{ backgroundColor: semantics.sectionBackgroundStrong, borderBottomColor: semantics.sectionBorder }}
     >
-      <Text width={96} fontSize="$1" fontWeight="800" color="$colorMuted">Severity</Text>
-      <Text width={178} fontSize="$1" fontWeight="800" color="$colorMuted">Time</Text>
-      <Text width={150} fontSize="$1" fontWeight="800" color="$colorMuted">Device</Text>
+      <Text width={logTableColumns.severity} fontSize="$1" fontWeight="800" color="$colorMuted">Severity</Text>
+      <Text width={logTableColumns.time} fontSize="$1" fontWeight="800" color="$colorMuted">Time</Text>
+      <Text width={logTableColumns.device} fontSize="$1" fontWeight="800" color="$colorMuted">Device</Text>
+      <Text width={logTableColumns.user} fontSize="$1" fontWeight="800" color="$colorMuted">User</Text>
       <Text flex={1} fontSize="$1" fontWeight="800" color="$colorMuted">Summary</Text>
     </XStack>
   );
 }
 
-function LogRow({ entry, expanded, onToggle }: { entry: AdminLogEntry; expanded: boolean; onToggle: () => void }) {
+function LogRow({ entry, expanded, onToggle }: { entry: BufferedAdminLogEntry; expanded: boolean; onToggle: () => void }) {
   const { spec } = useAppTheme();
   const semantics = useThemeSemantics();
   const copied = JSON.stringify(redactEntryForCopy(entry), null, 2);
+  const deviceLabel = displayDeviceLabel(entry);
+  const userLabel = displayUserLabel(entry);
+  const providerLabel = displayProvider(entry);
   return (
     <YStack borderBottomWidth={1} style={{ borderBottomColor: semantics.sectionBorder }}>
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} log entry ${entry.summary}`}
         onPress={onToggle}
         style={({ pressed }) => ({
           minHeight: 42,
@@ -410,13 +611,20 @@ function LogRow({ entry, expanded, onToggle }: { entry: AdminLogEntry; expanded:
         })}
       >
         <XStack alignItems="center" gap="$2" paddingHorizontal="$3" paddingVertical="$2">
-          <XStack width={96} alignItems="center" gap="$2">
+          <XStack width={logTableColumns.severity} alignItems="center" gap="$2">
             <MaterialCommunityIcons name={expanded ? 'chevron-down' : 'chevron-right'} size={18} color={spec.colors.colorMuted} />
             <StatusBadge status={entry.status} />
           </XStack>
-          <Text width={178} fontSize="$2" fontFamily="$body" numberOfLines={1}>{formatTime(entry.ts)}</Text>
-          <Text width={150} fontSize="$2" numberOfLines={1}>{shortId(entry.deviceId)}</Text>
+          <Text width={logTableColumns.time} fontSize="$2" fontFamily="$body" numberOfLines={1}>{formatTime(entry.ts)}</Text>
+          <YStack width={logTableColumns.device} gap={1}>
+            <Text fontSize="$2" fontWeight="700" numberOfLines={1}>{deviceLabel.primary}</Text>
+            {deviceLabel.secondary ? (
+              <Text fontSize="$1" color="$colorMuted" numberOfLines={1}>{deviceLabel.secondary}</Text>
+            ) : null}
+          </YStack>
+          <Text width={logTableColumns.user} fontSize="$2" color="$colorMuted" numberOfLines={1}>{userLabel}</Text>
           <XStack flex={1} alignItems="center" gap="$2">
+            <LogChip label={providerLabel} />
             <LogChip label={entry.source} />
             <LogChip label={entry.typeCode} />
             <Text flex={1} fontSize="$2" numberOfLines={1}>{entry.summary}</Text>
@@ -433,11 +641,18 @@ function LogRow({ entry, expanded, onToggle }: { entry: AdminLogEntry; expanded:
             <LogChip label={`sourceKind: ${entry.sourceKind}`} />
             <LogChip label={`received: ${formatTime(entry.receivedTs)}`} />
           </XStack>
-          <View style={{ maxHeight: 320 }}>
-            <ScrollView horizontal>
-              <Text fontSize={12} lineHeight={18} fontFamily="$body" selectable>
-                {copied}
-              </Text>
+          <View style={{ maxHeight: 360, overflow: 'hidden' }}>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              <ScrollView horizontal>
+                <Text
+                  fontSize={12}
+                  lineHeight={18}
+                  selectable
+                  style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}
+                >
+                  {copied}
+                </Text>
+              </ScrollView>
             </ScrollView>
           </View>
         </YStack>
@@ -450,6 +665,8 @@ function FilterButton({ active, label, onPress }: { active: boolean; label: stri
   const semantics = useThemeSemantics();
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${active ? 'Disable' : 'Enable'} ${label} filter`}
       onPress={onPress}
       style={({ pressed }) => ({
         minHeight: 34,
@@ -535,6 +752,45 @@ function formatTime(ts: number): string {
     minute: '2-digit',
     second: '2-digit'
   });
+}
+
+function displayProvider(entry: BufferedAdminLogEntry): string {
+  const provider = labelValue(entry, ['provider', 'Provider']);
+  return provider ? formatProviderLabel(provider) : 'unknown';
+}
+
+function displayDeviceLabel(entry: BufferedAdminLogEntry): { primary: string; secondary: string } {
+  const name = labelValue(entry, ['deviceName', 'device_name', 'productName', 'product_name']);
+  const shortDeviceId = shortId(entry.deviceId);
+  if (!name) {
+    return { primary: shortDeviceId, secondary: '' };
+  }
+  return { primary: name, secondary: shortDeviceId };
+}
+
+function displayUserLabel(entry: BufferedAdminLogEntry): string {
+  return labelValue(entry, ['userEmail', 'user_email', 'ownerEmail', 'owner_email', 'email']) || '--';
+}
+
+function labelValue(entry: BufferedAdminLogEntry, keys: string[]): string {
+  for (const key of keys) {
+    const value = entry.labels[key]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
+function formatOptionKind(kind: AdminLogFilterKind): string {
+  switch (kind) {
+    case 'user':
+      return 'email';
+    case 'serial':
+      return 'serial';
+    default:
+      return 'device';
+  }
 }
 
 function shortId(value: string): string {

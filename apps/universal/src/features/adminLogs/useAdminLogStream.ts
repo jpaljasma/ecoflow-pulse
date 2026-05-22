@@ -3,7 +3,10 @@ import { env } from '@/shared/config/env';
 import {
   appendLogEntry,
   createInitialLogState,
+  DEFAULT_LOG_KEEP_LIMIT,
+  resetLogState,
   resumePending,
+  trimLogState,
   type AdminLogEntry,
   type AdminLogSubscribeFilters,
   type AppendLogState
@@ -15,27 +18,50 @@ type UseAdminLogStreamInput = {
   token?: string;
   enabled: boolean;
   filters: AdminLogSubscribeFilters;
+  maxEntries?: number;
+  holdVisible?: boolean;
 };
 
 const SUBSCRIPTION_ID = 'admin-logs';
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 
-export function useAdminLogStream({ token, enabled, filters }: UseAdminLogStreamInput) {
+export function useAdminLogStream({
+  token,
+  enabled,
+  filters,
+  maxEntries = DEFAULT_LOG_KEEP_LIMIT,
+  holdVisible = false
+}: UseAdminLogStreamInput) {
   const [state, setState] = useState<AppendLogState>(createInitialLogState);
   const [connectionState, setConnectionState] = useState<LogsConnectionState>('idle');
   const [replayedCount, setReplayedCount] = useState(0);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
+  const holdVisibleRef = useRef(holdVisible);
+  const maxEntriesRef = useRef(normalizeMaxEntries(maxEntries));
   const socketRef = useRef<WebSocket | null>(null);
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   useEffect(() => {
+    const nextMaxEntries = normalizeMaxEntries(maxEntries);
+    maxEntriesRef.current = nextMaxEntries;
+    setState((current) => trimLogState(current, nextMaxEntries));
+  }, [maxEntries]);
+
+  useEffect(() => {
     pausedRef.current = paused;
-    if (!paused) {
-      setState((current) => resumePending(current));
+    if (!paused && !holdVisibleRef.current) {
+      setState((current) => resumePending(current, maxEntriesRef.current));
     }
   }, [paused]);
+
+  useEffect(() => {
+    holdVisibleRef.current = holdVisible;
+    if (!pausedRef.current && !holdVisible) {
+      setState((current) => resumePending(current, maxEntriesRef.current));
+    }
+  }, [holdVisible]);
 
   useEffect(() => {
     let disposed = false;
@@ -43,7 +69,7 @@ export function useAdminLogStream({ token, enabled, filters }: UseAdminLogStream
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const resetBuffer = () => {
-      setState(createInitialLogState());
+      setState((current) => resetLogState(current));
       setReplayedCount(0);
     };
 
@@ -65,17 +91,25 @@ export function useAdminLogStream({ token, enabled, filters }: UseAdminLogStream
       setConnectionState('connecting');
 
       ws.onopen = () => {
-        ws.send(JSON.stringify(buildSubscribeMessage(subscribeFilters)));
+        ws.send(JSON.stringify(buildSubscribeMessage(subscribeFilters, maxEntriesRef.current)));
       };
 
       ws.onmessage = (event) => {
+        if (disposed || socketRef.current !== ws) {
+          return;
+        }
         const message = parseJsonRecord(event.data);
         if (!message) {
           return;
         }
         const entry = message.entry;
         if (message.type === 'log_entry' && message.subscriptionId === SUBSCRIPTION_ID && isLogEntry(entry)) {
-          setState((current) => appendLogEntry(current, entry, { paused: pausedRef.current }));
+          setState((current) =>
+            appendLogEntry(current, entry, {
+              paused: pausedRef.current || holdVisibleRef.current,
+              maxEntries: maxEntriesRef.current
+            })
+          );
           return;
         }
         if (message.type === 'logs_replay_done' && typeof message.replayed === 'number') {
@@ -134,7 +168,8 @@ export function useAdminLogStream({ token, enabled, filters }: UseAdminLogStream
   }, [enabled, filtersKey, token]);
 
   const clear = useCallback(() => {
-    setState(createInitialLogState());
+    setState((current) => resetLogState(current));
+    setReplayedCount(0);
   }, []);
 
   return {
@@ -174,12 +209,12 @@ function buildWebSocketUrl(baseUrl: string, token?: string): string {
   return token ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` : baseUrl;
 }
 
-function buildSubscribeMessage(filters: AdminLogSubscribeFilters) {
+function buildSubscribeMessage(filters: AdminLogSubscribeFilters, maxEntries: number) {
   return {
     type: 'logs_subscribe',
     subscriptionId: SUBSCRIPTION_ID,
     filters,
-    replayLimit: 200
+    replayLimit: Math.min(200, Math.max(1, maxEntries))
   };
 }
 
@@ -201,4 +236,8 @@ function parseJsonRecord(data: unknown): Record<string, unknown> | null {
 
 function reconnectDelayMs(attempt: number): number {
   return Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** Math.min(attempt, 5));
+}
+
+function normalizeMaxEntries(value: number): number {
+  return Number.isFinite(value) ? Math.max(1, Math.min(200, Math.floor(value))) : DEFAULT_LOG_KEEP_LIMIT;
 }

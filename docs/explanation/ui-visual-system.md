@@ -193,6 +193,21 @@ Control rules:
 - visible hover and focus states on web
 - AA contrast minimum for text and control labels
 
+Operational filter bars use the Pulse logs pattern:
+
+- compact uppercase labels with a small `MaterialCommunityIcons` glyph
+- one dark, bordered input family for text search, typeahead, and dropdowns
+- native/select-style dropdowns for bounded option sets such as provider or
+  row-limit controls
+- typeahead menus float above grids and tables without moving the page layout
+- wide search fields may grow more than exact filters, but all controls stay on
+  the same baseline and share focus-ring treatment
+
+Logs-style dense tables should keep stable row identity, bounded visible rows,
+and only one expanded drill-down row at a time. Expanded JSON/detail panes use a
+monospace code treatment with their own scroll area so live updates do not
+resize the surrounding table.
+
 ## Navigation
 
 Large screens use a sidebar.

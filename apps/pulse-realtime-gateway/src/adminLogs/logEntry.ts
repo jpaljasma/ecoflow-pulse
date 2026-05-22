@@ -49,6 +49,9 @@ export function matchesAdminLogFilters(entry: AdminLogEntry, filters: AdminLogFi
   if (filters.statuses.length > 0 && !filters.statuses.includes(entry.status)) {
     return false;
   }
+  if (filters.providers.length > 0 && !matchesStringFilter(providerFromLabels(entry.labels), filters.providers)) {
+    return false;
+  }
   if (filters.sources.length > 0 && !filters.sources.includes(entry.source)) {
     return false;
   }
@@ -56,6 +59,18 @@ export function matchesAdminLogFilters(entry: AdminLogEntry, filters: AdminLogFi
     return false;
   }
   return true;
+}
+
+function providerFromLabels(labels: Record<string, string>): string {
+  return labels.provider ?? labels.Provider ?? '';
+}
+
+function matchesStringFilter(value: string, filters: readonly string[]): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return filters.some((filter) => filter.trim().toLowerCase() === normalized);
 }
 
 export function redactObject(value: unknown): Record<string, unknown> {

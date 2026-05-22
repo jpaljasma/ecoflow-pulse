@@ -4,9 +4,11 @@ import {
   appendLogEntry,
   buildSubscribeFilters,
   createInitialLogState,
+  DEFAULT_LOG_KEEP_LIMIT,
   fuzzyFilterLogEntries,
   isGlobalAdmin,
   redactEntryForCopy,
+  resetLogState,
   resumePending,
   type AdminLogEntry
 } from '@/features/adminLogs/model';
@@ -25,12 +27,14 @@ describe('admin log model', () => {
           { kind: 'user', id: 'usr-1', label: 'owner@example.invalid', secondaryLabel: 'Owner', deviceIds: ['dev-1', 'dev-2'] }
         ],
         statuses: ['ok'],
+        provider: 'ecoflow',
         source: 'mqtt',
         typeCode: 'quota'
       })
     ).toEqual({
       deviceIds: ['dev-1', 'dev-2'],
       statuses: ['ok'],
+      providers: ['ecoflow'],
       sources: ['mqtt'],
       typeCodes: ['quota']
     });
@@ -39,13 +43,45 @@ describe('admin log model', () => {
   it('keeps live rows stable while paused and flushes pending rows on resume', () => {
     const first = sampleEntry({ id: 'first' });
     const second = sampleEntry({ id: 'second' });
-    const paused = appendLogEntry({ ...createInitialLogState(), entries: [first] }, second, {
+    const state = appendLogEntry(createInitialLogState(), first, { paused: false });
+    const paused = appendLogEntry(state, second, {
       paused: true
     });
 
     expect(paused.entries.map((entry) => entry.id)).toEqual(['first']);
     expect(paused.pendingCount).toBe(1);
     expect(resumePending(paused).entries.map((entry) => entry.id)).toEqual(['second', 'first']);
+  });
+
+  it('keeps only the default visible row limit', () => {
+    let state = createInitialLogState();
+
+    for (let index = 0; index < DEFAULT_LOG_KEEP_LIMIT + 10; index += 1) {
+      state = appendLogEntry(state, sampleEntry({ id: `entry-${index}` }), { paused: false });
+    }
+
+    expect(state.entries).toHaveLength(DEFAULT_LOG_KEEP_LIMIT);
+    expect(state.entries[0]?.id).toBe(`entry-${DEFAULT_LOG_KEEP_LIMIT + 9}`);
+    expect(state.entries.at(-1)?.id).toBe('entry-10');
+  });
+
+  it('assigns unique display row keys even when provider message ids repeat', () => {
+    let state = createInitialLogState();
+
+    state = appendLogEntry(state, sampleEntry({ id: 'duplicate' }), { paused: false });
+    state = appendLogEntry(state, sampleEntry({ id: 'duplicate' }), { paused: false });
+
+    expect(state.entries.map((entry) => entry.id)).toEqual(['duplicate', 'duplicate']);
+    expect(new Set(state.entries.map((entry) => entry.rowKey)).size).toBe(2);
+  });
+
+  it('bumps display row identity after clearing the buffer', () => {
+    let state = appendLogEntry(createInitialLogState(), sampleEntry({ id: 'same' }), { paused: false });
+    const firstRowKey = state.entries[0]?.rowKey;
+
+    state = appendLogEntry(resetLogState(state), sampleEntry({ id: 'same' }), { paused: false });
+
+    expect(state.entries[0]?.rowKey).not.toBe(firstRowKey);
   });
 
   it('filters buffered rows with a local freetext match', () => {
@@ -67,22 +103,28 @@ describe('admin log model', () => {
   });
 
   it('redacts sensitive fields before copy', () => {
-    const copied = redactEntryForCopy(sampleEntry({
-      detail: {
-        email: 'owner@example.invalid',
-        nested: {
-          serialNumber: 'SERIAL-1',
-          soc: 54
+    const buffered = appendLogEntry(
+      createInitialLogState(),
+      sampleEntry({
+        detail: {
+          email: 'owner@example.invalid',
+          nested: {
+            serialNumber: 'SERIAL-1',
+            soc: 54
+          }
+        },
+        labels: {
+          provider: 'ecoflow',
+          providerDeviceId: 'SERIAL-1'
         }
-      },
-      labels: {
-        provider: 'ecoflow',
-        providerDeviceId: 'SERIAL-1'
-      }
-    }));
+      }),
+      { paused: false }
+    ).entries[0]!;
+    const copied = redactEntryForCopy(buffered);
 
     expect(JSON.stringify(copied)).not.toContain('owner@example.invalid');
     expect(JSON.stringify(copied)).not.toContain('SERIAL-1');
+    expect(JSON.stringify(copied)).not.toContain('rowKey');
     expect(copied.detail).toMatchObject({ nested: { soc: 54 } });
   });
 });

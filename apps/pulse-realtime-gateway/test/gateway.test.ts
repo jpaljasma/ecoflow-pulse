@@ -404,6 +404,7 @@ describe('pulse-realtime-gateway', () => {
         filters: {
           deviceIds: ['dev-owned', 'dev-other'],
           statuses: ['ok'],
+          providers: ['ecoflow'],
           sources: ['mqtt'],
           typeCodes: ['quota']
         }
@@ -421,6 +422,7 @@ describe('pulse-realtime-gateway', () => {
       filters: {
         deviceIds: ['dev-owned'],
         statuses: ['ok'],
+        providers: ['ecoflow'],
         sources: ['mqtt'],
         typeCodes: ['quota']
       }
@@ -512,6 +514,7 @@ describe('pulse-realtime-gateway', () => {
         filters: {
           deviceIds: ['dev-1'],
           statuses: ['ok'],
+          providers: ['ecoflow'],
           sources: ['mqtt'],
           typeCodes: ['quota']
         }
@@ -549,6 +552,7 @@ describe('pulse-realtime-gateway', () => {
       filters: {
         deviceIds: ['dev-1'],
         statuses: ['ok'],
+        providers: ['ecoflow'],
         sources: ['mqtt'],
         typeCodes: ['quota']
       }

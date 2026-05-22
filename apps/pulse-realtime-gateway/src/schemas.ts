@@ -38,6 +38,7 @@ export const LogsSubscribeMessageSchema = z.object({
     .object({
       deviceIds: optionalStringListSchema,
       statuses: z.array(logStatusSchema).max(8).optional().default([]),
+      providers: optionalStringListSchema,
       sources: optionalStringListSchema,
       typeCodes: optionalStringListSchema
     })
@@ -46,6 +47,7 @@ export const LogsSubscribeMessageSchema = z.object({
     .transform((filters) => ({
       deviceIds: filters.deviceIds,
       statuses: filters.statuses,
+      providers: filters.providers,
       sources: filters.sources,
       typeCodes: filters.typeCodes
     })),
