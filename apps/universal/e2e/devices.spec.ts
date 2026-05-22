@@ -131,6 +131,13 @@ test.describe('Universal web E2E', () => {
     expect(detailEnergyUrl.searchParams.get('panel')).toBe('solar');
 
     await page.goto(`/device/${DPU_DEVICE_ID}`);
+    await page.getByTestId('device-open-logs').click();
+    await expect(page).toHaveURL(/\/logs\?/);
+    const detailLogsUrl = new URL(page.url());
+    expect(detailLogsUrl.searchParams.get('deviceId')).toBe(DPU_DEVICE_ID);
+    expect(detailLogsUrl.searchParams.has('serial')).toBe(false);
+
+    await page.goto(`/device/${DPU_DEVICE_ID}`);
 
     await page.getByTestId('sidebar-devices').click();
 

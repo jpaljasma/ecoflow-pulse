@@ -3,13 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
   appendLogEntry,
   buildSubscribeFilters,
+  buildAdminLogsRouteParams,
   createInitialLogState,
   DEFAULT_LOG_KEEP_LIMIT,
   fuzzyFilterLogEntries,
   isGlobalAdmin,
   redactEntryForCopy,
+  resolveAdminLogsRouteState,
   resetLogState,
   resumePending,
+  ADMIN_LOG_TYPE_FILTER_OPTIONS,
   type AdminLogEntry
 } from '@/features/adminLogs/model';
 
@@ -29,15 +32,40 @@ describe('admin log model', () => {
         statuses: ['ok'],
         provider: 'ecoflow',
         source: 'mqtt',
-        typeCode: 'quota'
+        deviceIds: ['dev-route'],
+        typeCodes: ['quota', 'quota']
       })
     ).toEqual({
-      deviceIds: ['dev-1', 'dev-2'],
+      deviceIds: ['dev-route', 'dev-1', 'dev-2'],
       statuses: ['ok'],
       providers: ['ecoflow'],
       sources: ['mqtt'],
       typeCodes: ['quota']
     });
+  });
+
+  it('maps log type presets to concrete MQTT type codes', () => {
+    expect(ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === 'status')?.typeCodes).toEqual([
+      'pdStatus',
+      'invStatus',
+      'emsStatus',
+      'bmsStatus',
+      'mpptStatus'
+    ]);
+    expect(ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === 'info')?.typeCodes).toEqual([
+      'kitInfo',
+      'bms_kitInfo'
+    ]);
+  });
+
+  it('keeps Logs route state limited to canonical UUID device ids', () => {
+    const deviceId = '019cab9d-bcab-75c0-9c02-db3ae1105d61';
+
+    expect(resolveAdminLogsRouteState({ deviceId })).toEqual({ deviceId });
+    expect(resolveAdminLogsRouteState({ device: deviceId })).toEqual({ deviceId });
+    expect(resolveAdminLogsRouteState({ deviceId: 'DEMO-SERIAL' })).toEqual({});
+    expect(buildAdminLogsRouteParams({ deviceId })).toEqual({ deviceId });
+    expect(buildAdminLogsRouteParams({ deviceId: 'DEMO-SERIAL' })).toEqual({});
   });
 
   it('keeps live rows stable while paused and flushes pending rows on resume', () => {
@@ -76,14 +104,19 @@ describe('admin log model', () => {
   });
 
   it('replaces stale duplicates in the pending paused buffer', () => {
-    let state = appendLogEntry(createInitialLogState(), sampleEntry({ id: 'visible' }), { paused: false });
+    let state = appendLogEntry(
+      createInitialLogState(),
+      sampleEntry({ id: 'duplicate', summary: 'visible older frame' }),
+      { paused: false }
+    );
 
     state = appendLogEntry(state, sampleEntry({ id: 'duplicate', summary: 'older pending' }), { paused: true });
     state = appendLogEntry(state, sampleEntry({ id: 'duplicate', summary: 'newer pending' }), { paused: true });
 
+    expect(state.entries.map((entry) => entry.summary)).toEqual(['visible older frame']);
     expect(state.pending).toHaveLength(1);
     expect(state.pendingCount).toBe(1);
-    expect(resumePending(state).entries.map((entry) => entry.summary)).toEqual(['newer pending', 'quota update']);
+    expect(resumePending(state).entries.map((entry) => entry.summary)).toEqual(['newer pending']);
   });
 
   it('bumps display row identity after clearing the buffer', () => {

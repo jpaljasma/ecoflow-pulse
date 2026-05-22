@@ -432,6 +432,51 @@ describe('pulse-realtime-gateway', () => {
     await app.close();
   });
 
+  it('rejects owner log subscriptions scoped only to unauthorized devices', async () => {
+    const client = new FakeLiveClient();
+    const logs = new FakeAdminLogSource();
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      deviceAuthorizer: new FakeDeviceAuthorizer(['dev-owned']),
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'owner-user',
+          email: '',
+          roles: ['viewer'],
+          rawJwt: 'owner-token'
+        };
+        request.wsAuthHeader = 'Bearer owner-token';
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(
+      JSON.stringify({
+        type: 'logs_subscribe',
+        subscriptionId: 'logs-1',
+        filters: {
+          deviceIds: ['dev-other'],
+          statuses: [],
+          providers: [],
+          sources: [],
+          typeCodes: []
+        }
+      })
+    );
+
+    expect(await nextMessage(ws)).toEqual({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      ts: expect.any(Number),
+      state: 'forbidden',
+      message: 'device log access required'
+    });
+    expect(logs.subscribeCalls).toHaveLength(0);
+
+    await closeWebSocket(ws);
+    await app.close();
+  });
+
   it('limits the admin log dev override to noop auth mode', async () => {
     const keycloakLogs = new FakeAdminLogSource();
     const keycloakConfig = baseConfig();

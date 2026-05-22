@@ -291,6 +291,7 @@ message SearchAdminLogFiltersRequest {
   string kind = 3;
   uint32 limit = 4;
   string provider = 5;
+  repeated string device_ids = 6;
 }
 
 message SearchAdminLogFiltersResponse {

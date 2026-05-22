@@ -15,7 +15,8 @@ const adminLogFilterOptionsSchema = z.object({
   kind: z.enum(['device', 'serial', 'user']).optional(),
   query: z.string().trim().max(128).optional().default(''),
   limit: z.number().int().min(1).max(50).optional().default(12),
-  provider: z.string().trim().toLowerCase().max(64).optional().default('')
+  provider: z.string().trim().toLowerCase().max(64).optional().default(''),
+  deviceIds: z.array(z.string().trim().min(1).max(128)).max(200).optional().default([])
 });
 
 export function registerAdminLogRoutes(
@@ -37,6 +38,7 @@ export function registerAdminLogRoutes(
         query: body.query,
         kind: body.kind,
         provider: body.provider,
+        deviceIds: body.deviceIds,
         limit: body.limit,
         authHeader: getAuthHeader(request),
         requestID: getRequestID(request),

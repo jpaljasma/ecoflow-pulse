@@ -190,7 +190,7 @@ describe('pulse-platform current user routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/admin/log-filter-options',
-      payload: { kind: 'user', query: 'owner', limit: 5 }
+      payload: { kind: 'user', query: 'owner', limit: 5, deviceIds: ['dev-1', 'dev-2'] }
     });
 
     expect(response.statusCode).toBe(403);
@@ -230,6 +230,7 @@ describe('pulse-platform current user routes', () => {
       query: 'demo',
       kind: 'serial',
       provider: 'pecron',
+      deviceIds: [],
       limit: 5,
       authHeader: 'Bearer owner-token',
       requestID: expect.any(String),
@@ -279,7 +280,7 @@ describe('pulse-platform current user routes', () => {
       headers: {
         authorization: 'Bearer admin-token'
       },
-      payload: { kind: 'user', query: 'owner', limit: 5 }
+      payload: { kind: 'user', query: 'owner', limit: 5, deviceIds: ['dev-1', 'dev-2'] }
     });
 
     expect(response.statusCode).toBe(200);
@@ -288,6 +289,7 @@ describe('pulse-platform current user routes', () => {
       query: 'owner',
       kind: 'user',
       provider: '',
+      deviceIds: ['dev-1', 'dev-2'],
       limit: 5,
       authHeader: 'Bearer admin-token',
       requestID: expect.any(String),

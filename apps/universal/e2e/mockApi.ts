@@ -1048,13 +1048,14 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[]; dev
     }
 
     if (pathname === '/api/v1/admin/log-filter-options') {
-      const body = (route.request().postDataJSON?.() ?? {}) as { kind?: string; query?: string; provider?: string };
+      const body = (route.request().postDataJSON?.() ?? {}) as { kind?: string; query?: string; provider?: string; deviceIds?: string[] };
       const isAdmin = currentUserBootstrap.authorization.roles.includes('admin');
       if (!isAdmin && body.kind === 'user') {
         await fulfillJson(route, { error: 'admin_role_required' }, 403);
         return;
       }
       const query = String(body.query ?? '').toLowerCase();
+      const requestedDeviceIds = new Set(Array.isArray(body.deviceIds) ? body.deviceIds : []);
       const allOptions = [
         {
           kind: 'device',
@@ -1099,6 +1100,7 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[]; dev
         (isAdmin || option.kind !== 'user') &&
         (!body.kind || option.kind === body.kind) &&
         (!body.provider || option.kind === 'user' || option.provider === body.provider) &&
+        (requestedDeviceIds.size === 0 || option.deviceIds.some((deviceId) => requestedDeviceIds.has(deviceId))) &&
         (!query || `${option.label} ${option.secondaryLabel}`.toLowerCase().includes(query))
       );
       await fulfillJson(route, { options: allOptions });

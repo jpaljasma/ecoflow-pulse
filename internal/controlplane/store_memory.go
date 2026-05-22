@@ -796,6 +796,7 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 	query := strings.ToLower(strings.TrimSpace(in.Query))
 	limit := normalizeAdminLogFilterLimit(in.Limit)
 	provider := NormalizeProvider(in.Provider)
+	requestedDeviceIDs := adminLogDeviceIDSet(in.DeviceIDs)
 	out := make([]AdminLogFilterOption, 0, limit)
 	var scopedDeviceIDs map[string]struct{}
 	if !in.GlobalAdmin {
@@ -814,6 +815,11 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 		for _, device := range s.devicesByID {
 			if scopedDeviceIDs != nil {
 				if _, ok := scopedDeviceIDs[device.ID]; !ok {
+					continue
+				}
+			}
+			if requestedDeviceIDs != nil {
+				if _, ok := requestedDeviceIDs[device.ID]; !ok {
 					continue
 				}
 			}
@@ -881,7 +887,15 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 			}
 			deviceIDs := make([]string, 0, len(s.userDevices[user.ID]))
 			for deviceID := range s.userDevices[user.ID] {
+				if requestedDeviceIDs != nil {
+					if _, ok := requestedDeviceIDs[deviceID]; !ok {
+						continue
+					}
+				}
 				deviceIDs = append(deviceIDs, deviceID)
+			}
+			if requestedDeviceIDs != nil && len(deviceIDs) == 0 {
+				continue
 			}
 			sort.Strings(deviceIDs)
 			out = append(out, AdminLogFilterOption{

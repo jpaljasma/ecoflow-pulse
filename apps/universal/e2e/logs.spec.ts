@@ -27,7 +27,7 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByRole('textbox', { name: 'Serial' })).toBeVisible();
 
     await page.getByRole('textbox', { name: 'Serial' }).fill('DPU');
-    await expect(page.getByText('DPU A 12 kWh')).toBeVisible();
+    await expect(page.getByTestId('logs-typeahead-menu-serial').getByText('DPU A 12 kWh')).toBeVisible();
     await expect(page.getByText('operator@example.invalid')).toHaveCount(0);
   });
 
@@ -41,7 +41,7 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByText('Realtime MQTT operations console')).toBeVisible();
     await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText(/quota .* frame/i).first()).toBeVisible();
-    await expect(page.getByText('Garage battery').first()).toBeVisible();
+    await expect(page.getByText(/DPU A 12 kWh <11111111\.\.\.1111>/).first()).toBeVisible();
     await expect(page.getByText('op***@ex***').first()).toBeVisible();
     await expect(page.getByText('operator@example.invalid')).toHaveCount(0);
 
@@ -52,10 +52,42 @@ test.describe('Universal admin logs', () => {
 
     await page.getByLabel('Freetext fuzzy search').fill('quota');
     await expect(page.getByText(/quota .* frame/i).first()).toBeVisible();
+    await page.getByRole('button', { name: /pause/i }).click();
     await page.getByText(/quota .* frame/i).first().click();
     await expect(page.getByText('"payload"')).toBeVisible();
     await page.getByText(/quota .* frame/i).nth(1).click();
     await expect(page.getByText('"payload"')).toHaveCount(1);
+  });
+
+  test('applies canonical device deep links to websocket log filters', async ({ page }) => {
+    await page.addInitScript(() => {
+      const NativeWebSocket = window.WebSocket;
+      const sentMessages: unknown[] = [];
+      (window as unknown as { __pulseWsSentMessages: unknown[] }).__pulseWsSentMessages = sentMessages;
+      window.WebSocket = class extends NativeWebSocket {
+        send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
+          if (typeof data === 'string') {
+            try {
+              sentMessages.push(JSON.parse(data) as unknown);
+            } catch {
+              // Ignore non-JSON websocket frames in the capture helper.
+            }
+          }
+          super.send(data);
+        }
+      };
+    });
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs?deviceId=11111111-1111-7111-8111-111111111111');
+
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect.poll(() =>
+      page.evaluate(() => {
+        const messages = (window as unknown as { __pulseWsSentMessages?: Array<{ type?: string; filters?: { deviceIds?: string[] } }> }).__pulseWsSentMessages ?? [];
+        return messages.find((message) => message.type === 'logs_subscribe')?.filters?.deviceIds ?? [];
+      })
+    ).toEqual(['11111111-1111-7111-8111-111111111111']);
   });
 
   test('keeps typeahead suggestions floating above the filter grid', async ({ page }) => {

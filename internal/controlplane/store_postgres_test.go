@@ -278,7 +278,7 @@ func TestPostgresStoreSearchAdminLogUserFiltersReturnsAllDeviceIDsForLimitedUser
 	}
 	deviceIDsJSON := `["` + strings.Join(deviceIDs, `","`) + `"]`
 	mock.ExpectQuery("WITH matching_users").
-		WithArgs("operator", "%operator%", 1).
+		WithArgs("operator", "%operator%", 1, "[]").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "display_name", "device_ids_json"}).
 			AddRow("user-1", "operator@example.invalid", "", deviceIDsJSON))
 
@@ -305,6 +305,42 @@ func TestPostgresStoreSearchAdminLogUserFiltersReturnsAllDeviceIDsForLimitedUser
 	}
 }
 
+func TestPostgresStoreSearchAdminLogUserFiltersScopesToRequestedDeviceIDs(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	deviceIDsJSON := `["dev-visible"]`
+	mock.ExpectQuery("JOIN user_devices ud_filter").
+		WithArgs("", "%%", 5, deviceIDsJSON).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "display_name", "device_ids_json"}).
+			AddRow("user-1", "operator@example.invalid", "Operator", deviceIDsJSON))
+
+	options, err := store.SearchAdminLogFilters(context.Background(), SearchAdminLogFiltersInput{
+		Kind:        "user",
+		Limit:       5,
+		DeviceIDs:   []string{"dev-visible"},
+		GlobalAdmin: true,
+	})
+	if err != nil {
+		t.Fatalf("SearchAdminLogFilters failed: %v", err)
+	}
+	if len(options) != 1 {
+		t.Fatalf("len(options)=%d, want 1", len(options))
+	}
+	if options[0].DeviceIDs[0] != "dev-visible" {
+		t.Fatalf("DeviceIDs=%v, want dev-visible", options[0].DeviceIDs)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestPostgresStoreSearchAdminLogFiltersScopesDeviceOptionsToUserSubject(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -316,7 +352,7 @@ func TestPostgresStoreSearchAdminLogFiltersScopesDeviceOptionsToUserSubject(t *t
 
 	store := newPostgresStore(db)
 	mock.ExpectQuery("FROM users u").
-		WithArgs("owner", "%owner%", 5, "pecron", "owner-subject").
+		WithArgs("owner", "%owner%", 5, "pecron", "[]", "owner-subject").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "ecoflow_sn", "product_name", "model"}).
 			AddRow("dev-owned", "OWNER-SN-001", "Owner Delta", "DELTA 2 Max"))
 
