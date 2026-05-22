@@ -91,6 +91,26 @@ test.describe('Universal admin logs', () => {
     await expect.poll(() => latestLogSubscribeStatuses(page)).toEqual([]);
   });
 
+  test('subscribes Status and Info type filters as suffix families', async ({ page }) => {
+    await captureWebSocketMessages(page);
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/logs');
+    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Enable Status filter' }).click();
+    await expect.poll(() => latestLogSubscribeTypeFilter(page)).toEqual({
+      typeCodes: [],
+      typeCodeSuffixes: ['Status']
+    });
+
+    await page.getByRole('button', { name: 'Enable Info filter' }).click();
+    await expect.poll(() => latestLogSubscribeTypeFilter(page)).toEqual({
+      typeCodes: [],
+      typeCodeSuffixes: ['Info']
+    });
+  });
+
   test('keeps typeahead suggestions floating above the filter grid', async ({ page }) => {
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -201,5 +221,23 @@ async function latestLogSubscribeStatuses(page: Page): Promise<string[]> {
       window as unknown as { __pulseWsSentMessages?: Array<{ type?: string; filters?: { statuses?: string[] } }> }
     ).__pulseWsSentMessages ?? [];
     return [...messages].reverse().find((message) => message.type === 'logs_subscribe')?.filters?.statuses ?? [];
+  });
+}
+
+async function latestLogSubscribeTypeFilter(page: Page): Promise<{ typeCodes: string[]; typeCodeSuffixes: string[] }> {
+  return page.evaluate(() => {
+    const messages = (
+      window as unknown as {
+        __pulseWsSentMessages?: Array<{
+          type?: string;
+          filters?: { typeCodes?: string[]; typeCodeSuffixes?: string[] };
+        }>;
+      }
+    ).__pulseWsSentMessages ?? [];
+    const filters = [...messages].reverse().find((message) => message.type === 'logs_subscribe')?.filters;
+    return {
+      typeCodes: filters?.typeCodes ?? [],
+      typeCodeSuffixes: filters?.typeCodeSuffixes ?? []
+    };
   });
 }

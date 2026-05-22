@@ -55,10 +55,21 @@ export function matchesAdminLogFilters(entry: AdminLogEntry, filters: AdminLogFi
   if (filters.sources.length > 0 && !filters.sources.includes(entry.source)) {
     return false;
   }
-  if (filters.typeCodes.length > 0 && !filters.typeCodes.includes(entry.typeCode)) {
+  if (!matchesTypeCode(entry.typeCode, filters)) {
     return false;
   }
   return true;
+}
+
+function matchesTypeCode(typeCode: string, filters: AdminLogFilters): boolean {
+  if (filters.typeCodes.length === 0 && filters.typeCodeSuffixes.length === 0) {
+    return true;
+  }
+  if (filters.typeCodes.includes(typeCode)) {
+    return true;
+  }
+  const normalized = typeCode.trim().toLowerCase();
+  return filters.typeCodeSuffixes.some((suffix) => normalized.endsWith(suffix.trim().toLowerCase()));
 }
 
 function providerFromLabels(labels: Record<string, string>): string {

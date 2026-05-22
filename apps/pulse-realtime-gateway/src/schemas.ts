@@ -40,7 +40,8 @@ export const LogsSubscribeMessageSchema = z.object({
       statuses: z.array(logStatusSchema).max(8).optional().default([]),
       providers: optionalStringListSchema,
       sources: optionalStringListSchema,
-      typeCodes: optionalStringListSchema
+      typeCodes: optionalStringListSchema,
+      typeCodeSuffixes: optionalStringListSchema
     })
     .optional()
     .default({})
@@ -49,7 +50,8 @@ export const LogsSubscribeMessageSchema = z.object({
       statuses: filters.statuses,
       providers: filters.providers,
       sources: filters.sources,
-      typeCodes: filters.typeCodes
+      typeCodes: filters.typeCodes,
+      typeCodeSuffixes: filters.typeCodeSuffixes
     })),
   replayLimit: z.number().int().min(1).max(200).optional().default(200),
   replaySinceUnixMs: z.number().int().min(0).optional().default(0)

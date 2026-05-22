@@ -77,8 +77,8 @@ export default function LogsScreen() {
   const [freetext, setFreetext] = useState('');
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [maxEntries, setMaxEntries] = useState(DEFAULT_LOG_KEEP_LIMIT);
-  const selectedTypeCodes = useMemo(
-    () => ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === typeFilter)?.typeCodes ?? [],
+  const selectedTypeFilter = useMemo(
+    () => ADMIN_LOG_TYPE_FILTER_OPTIONS.find((option) => option.value === typeFilter),
     [typeFilter]
   );
   const filters = useMemo(
@@ -88,9 +88,10 @@ export default function LogsScreen() {
         deviceIds: routeDeviceId ? [routeDeviceId] : [],
         statuses,
         provider,
-        typeCodes: selectedTypeCodes
+        typeCodes: selectedTypeFilter?.typeCodes ?? [],
+        typeCodeSuffixes: selectedTypeFilter?.typeCodeSuffixes ?? []
       }),
-    [selectedOptions, provider, routeDeviceId, selectedTypeCodes, statuses]
+    [selectedOptions, provider, routeDeviceId, selectedTypeFilter, statuses]
   );
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
   const stream = useAdminLogStream({

@@ -406,7 +406,8 @@ describe('pulse-realtime-gateway', () => {
           statuses: ['ok'],
           providers: ['ecoflow'],
           sources: ['mqtt'],
-          typeCodes: ['quota']
+          typeCodes: [],
+          typeCodeSuffixes: ['Status']
         }
       })
     );
@@ -424,7 +425,8 @@ describe('pulse-realtime-gateway', () => {
         statuses: ['ok'],
         providers: ['ecoflow'],
         sources: ['mqtt'],
-        typeCodes: ['quota']
+        typeCodes: [],
+        typeCodeSuffixes: ['Status']
       }
     });
 

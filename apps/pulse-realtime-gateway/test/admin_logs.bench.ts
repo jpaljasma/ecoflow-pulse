@@ -47,7 +47,8 @@ describe('admin log gateway performance', () => {
       statuses: ['ok'],
       providers: ['ecoflow'],
       sources: ['mqtt'],
-      typeCodes: ['quota']
+      typeCodes: ['quota'],
+      typeCodeSuffixes: []
     });
   });
 });

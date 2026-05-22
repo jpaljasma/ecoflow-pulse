@@ -327,13 +327,14 @@ Admin log stream behavior:
 - replay loads at most `LOGS_REPLAY_LIMIT` entries from the last
   `LOGS_REPLAY_WINDOW_MS`, then switches to live NATS fanout,
 - server-side filters support canonical device UUIDs, typeahead-resolved
-  serial/user selections, provider, status, and type/source. Device-page deep
-  links use only canonical UUID query parameters and are still scoped by the
-  gateway before replay or live fanout. User-email filters are admin-only;
-  non-admin users can search only their own devices and serials,
-- the universal Logs type presets map `Status` to `pdStatus`, `invStatus`,
-  `emsStatus`, `bmsStatus`, and `mpptStatus`; `Info` maps to `kitInfo` and
-  `bms_kitInfo`,
+  serial/user selections, provider, status, exact type codes, and type-code
+  suffix families. Device-page deep links use only canonical UUID query
+  parameters and are still scoped by the gateway before replay or live fanout.
+  User-email filters are admin-only; non-admin users can search only their own
+  devices and serials,
+- the universal Logs type presets map `Quota` and `Telemetry` to exact type
+  codes, while `Status` matches any type code ending in `Status` and `Info`
+  matches any type code ending in `Info`,
 - emitted entries and expandable JSON details use the normalized redacted
   envelope; raw MQTT payload reveal is intentionally out of scope for v1.
 - the universal Logs tab closes its websocket subscription while the tab is not
