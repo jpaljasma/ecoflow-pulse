@@ -233,7 +233,7 @@ CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
-	$(GO) fmt ./...
+	@git ls-files -z '*.go' | xargs -0 gofmt -w
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		echo "running golangci-lint"; \
 		golangci-lint run ./...; \

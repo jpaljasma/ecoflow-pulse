@@ -1,8 +1,11 @@
 package solarforecastd
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 )
 
 func BenchmarkSummarizeVerificationRollups(b *testing.B) {
@@ -21,6 +24,17 @@ func BenchmarkBuildRecentSiteCalibration(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = BuildRecentSiteCalibration(records, "deterministic_baseline_v1")
+	}
+}
+
+func BenchmarkAggregateSeries(b *testing.B) {
+	fromUTC := time.Date(2026, 3, 18, 0, 0, 0, 0, time.UTC)
+	toUTC := fromUTC.Add(24 * time.Hour)
+	seriesList := benchmarkSolarSeries(128, fromUTC)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = aggregateSeries(seriesList, fromUTC, toUTC)
 	}
 }
 
@@ -71,4 +85,34 @@ func mustLocationForBenchmark(name string) *time.Location {
 		return time.UTC
 	}
 	return loc
+}
+
+func benchmarkSolarSeries(deviceCount int, fromUTC time.Time) []telemetryquery.Series {
+	seriesList := make([]telemetryquery.Series, 0, deviceCount)
+	for device := range deviceCount {
+		series := telemetryquery.Series{
+			DeviceID:   fmt.Sprintf("device-%03d", device),
+			Resolution: telemetryquery.ResolutionHour,
+			From:       fromUTC,
+			To:         fromUTC.Add(24 * time.Hour),
+			Points:     make([]telemetryquery.Point, 0, 24),
+		}
+		for hour := range 24 {
+			start := fromUTC.Add(time.Duration(hour) * time.Hour)
+			series.Points = append(series.Points, telemetryquery.Point{
+				BucketStart:   start,
+				BucketEnd:     start.Add(time.Hour),
+				SampleCount:   12,
+				FirstTsUnixMs: start.UnixMilli(),
+				LastTsUnixMs:  start.Add(59 * time.Minute).UnixMilli(),
+				Metrics: telemetryquery.Metrics{
+					PVAvgW:           float64Ptr(float64(180 + device%13 + hour)),
+					PVMaxW:           float64Ptr(float64(260 + device%17 + hour)),
+					SolarGeneratedWh: float64Ptr(float64(120 + device%19 + hour)),
+				},
+			})
+		}
+		seriesList = append(seriesList, series)
+	}
+	return seriesList
 }

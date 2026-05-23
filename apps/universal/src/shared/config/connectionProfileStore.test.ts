@@ -74,9 +74,9 @@ describe('connection profile store', () => {
 
   afterEach(() => {
     vi.resetModules();
-    vi.unmock('react-native');
-    vi.unmock('expo-linking');
-    vi.unmock('expo-constants');
+    vi.doUnmock('react-native');
+    vi.doUnmock('expo-linking');
+    vi.doUnmock('expo-constants');
     process.env = { ...ORIGINAL_ENV };
     Object.defineProperty(globalThis, 'window', {
       configurable: true,

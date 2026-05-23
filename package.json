@@ -17,6 +17,19 @@
     "lint": "npm run lint --workspace @ecoflow-pulse/pulse-platform && npm run lint --workspace @ecoflow-pulse/pulse-realtime-gateway && npm run lint --workspace @ecoflow-pulse/universal"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native-reanimated": "4.3.1",
+    "react-native-worklets": "0.8.3"
+  },
+  "devDependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-reanimated": "4.3.1",
+    "react-native-worklets": "0.8.3"
   }
 }

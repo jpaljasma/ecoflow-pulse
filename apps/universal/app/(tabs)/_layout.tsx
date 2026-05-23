@@ -23,7 +23,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      tabBar={(props) => <PulseTabBar {...props} />}
+      tabBar={isSidebarMode ? (props) => <PulseTabBar {...props} /> : undefined}
       screenOptions={{
         headerShown: false,
         sceneStyle: {

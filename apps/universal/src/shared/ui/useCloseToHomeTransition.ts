@@ -1,9 +1,13 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { Animated, Platform } from 'react-native';
-import type { Router } from 'expo-router';
 import { env } from '@/shared/config/env';
 
 type CloseTransitionMode = 'off' | 'subtle' | 'flip';
+type CloseToHomeRouter = {
+  back: () => void;
+  canGoBack?: () => boolean;
+  replace: (href: '/(tabs)/devices') => void;
+};
 
 function resolveMode(): CloseTransitionMode {
   const raw = (env.closePageTransition ?? 'subtle').toLowerCase();
@@ -12,7 +16,7 @@ function resolveMode(): CloseTransitionMode {
   return 'subtle';
 }
 
-export function useCloseToHomeTransition(router: Router) {
+export function useCloseToHomeTransition(router: CloseToHomeRouter) {
   const progress = useRef(new Animated.Value(0)).current;
   const mode = resolveMode();
   const duration = Math.max(120, Number(env.closePageTransitionMs) || 220);
@@ -67,8 +71,8 @@ export function useCloseToHomeTransition(router: Router) {
   const closeToHome = useCallback(() => {
     const navigateHome = () => {
       // On iOS, prefer stack back-navigation so the close gesture animates rightward.
-      if (Platform.OS === 'ios' && typeof (router as Router & { canGoBack?: () => boolean }).canGoBack === 'function') {
-        const canGoBack = (router as Router & { canGoBack: () => boolean }).canGoBack();
+      if (Platform.OS === 'ios' && typeof router.canGoBack === 'function') {
+        const canGoBack = router.canGoBack();
         if (canGoBack) {
           router.back();
           return;

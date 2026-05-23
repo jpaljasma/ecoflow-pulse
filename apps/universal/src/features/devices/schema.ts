@@ -86,7 +86,7 @@ export const DeviceSchema = z.object({
   netW: z.number().optional(),
   tempC: z.number().optional(),
   telemetryTsMs: z.number().optional(),
-  capabilities: z.record(z.unknown()).optional(),
+  capabilities: z.record(z.string(), z.unknown()).optional(),
   details: DeviceTelemetryDetailsSchema.optional()
 });
 
@@ -101,8 +101,8 @@ export const AvailableDeviceSchema = z.object({
   serialNumber: z.string(),
   name: z.string(),
   model: z.string(),
-  capabilities: z.record(z.unknown()).optional(),
-  metadata: z.record(z.unknown()).optional()
+  capabilities: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional()
 });
 
 export const AvailableDevicesResponseSchema = z.object({

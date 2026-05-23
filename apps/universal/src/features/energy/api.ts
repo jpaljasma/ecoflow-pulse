@@ -118,7 +118,7 @@ const EnergyPVPortHistoryResponseSchema = z.object({
 const InsightEvidenceSchema = z.object({
   source: z.string(),
   summary: z.string(),
-  metrics: z.record(z.unknown()).optional()
+  metrics: z.record(z.string(), z.unknown()).optional()
 });
 
 const EnergyComparisonCardSchema = z.object({
@@ -129,7 +129,7 @@ const EnergyComparisonCardSchema = z.object({
   score: z.number(),
   confidence: z.number(),
   evidence: z.array(InsightEvidenceSchema),
-  attributes: z.record(z.unknown()).optional()
+  attributes: z.record(z.string(), z.unknown()).optional()
 });
 
 const EnergyComparisonInsightSchema = z.object({
@@ -153,7 +153,7 @@ const EnergyComparisonInsightSchema = z.object({
   tags: z.array(z.string()),
   cards: z.array(EnergyComparisonCardSchema),
   evidence: z.array(InsightEvidenceSchema),
-  attributes: z.record(z.unknown()).optional()
+  attributes: z.record(z.string(), z.unknown()).optional()
 });
 
 const EnergyComparisonInsightResponseSchema = z.object({

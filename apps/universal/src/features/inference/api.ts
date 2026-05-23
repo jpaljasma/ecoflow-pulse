@@ -6,7 +6,7 @@ export const InsightActionSchema = z.object({
   kind: z.enum(['internal_route', 'external_url', 'learn_more', 'dismiss', 'unspecified']),
   label: z.string(),
   target: z.string(),
-  params: z.record(z.unknown()).optional()
+  params: z.record(z.string(), z.unknown()).optional()
 });
 
 export const InsightEvidenceSchema = z.object({
@@ -21,7 +21,7 @@ export const InsightEvidenceSchema = z.object({
     'unspecified'
   ]),
   summary: z.string(),
-  metrics: z.record(z.unknown()).optional()
+  metrics: z.record(z.string(), z.unknown()).optional()
 });
 
 export const DeviceInsightSchema = z.object({
@@ -46,7 +46,7 @@ export const DeviceInsightSchema = z.object({
   tags: z.array(z.string()),
   evidence: z.array(InsightEvidenceSchema),
   actions: z.array(InsightActionSchema),
-  attributes: z.record(z.unknown()).optional()
+  attributes: z.record(z.string(), z.unknown()).optional()
 });
 
 export const DeviceInsightsSchema = z.object({

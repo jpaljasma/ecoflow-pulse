@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:20-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
 RUN node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.workspaces=['apps/pulse-realtime-gateway','packages/node-jwks-auth','packages/tsconfig']; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2));"
 
-RUN --mount=type=cache,id=ecoflow-pulse-npm-node20-bookworm,target=/root/.npm,sharing=locked \
+RUN --mount=type=cache,id=ecoflow-pulse-npm-node24-bookworm,target=/root/.npm,sharing=locked \
     npm ci --prefer-offline
 COPY apps/pulse-realtime-gateway ./apps/pulse-realtime-gateway
 COPY packages/node-jwks-auth ./packages/node-jwks-auth
@@ -22,7 +22,7 @@ RUN npm run build --workspace @ecoflow-pulse/node-jwks-auth
 RUN npm run build --workspace @ecoflow-pulse/pulse-realtime-gateway
 RUN npm prune --omit=dev
 
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 
@@ -31,7 +31,7 @@ COPY apps/pulse-realtime-gateway/package.json ./apps/pulse-realtime-gateway/pack
 COPY packages/node-jwks-auth/package.json ./packages/node-jwks-auth/package.json
 
 RUN node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.workspaces=['apps/pulse-realtime-gateway','packages/node-jwks-auth']; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2));"
-RUN --mount=type=cache,id=ecoflow-pulse-npm-node20-bookworm,target=/root/.npm,sharing=locked \
+RUN --mount=type=cache,id=ecoflow-pulse-npm-node24-bookworm,target=/root/.npm,sharing=locked \
     npm ci --prefer-offline --omit=dev --workspace @ecoflow-pulse/pulse-realtime-gateway --workspace @ecoflow-pulse/node-jwks-auth
 
 COPY --from=build /app/apps/pulse-realtime-gateway/dist ./apps/pulse-realtime-gateway/dist
