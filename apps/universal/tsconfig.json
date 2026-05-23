@@ -1,7 +1,6 @@
 {
   "extends": "@ecoflow-pulse/tsconfig/expo.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"

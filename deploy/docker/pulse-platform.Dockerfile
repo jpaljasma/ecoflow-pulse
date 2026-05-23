@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:20-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
 RUN node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.workspaces=['apps/pulse-platform','apps/universal','packages/api-types','packages/node-jwks-auth','packages/tsconfig']; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2));"
 
-RUN --mount=type=cache,id=ecoflow-pulse-npm-node20-bookworm,target=/root/.npm,sharing=locked \
+RUN --mount=type=cache,id=ecoflow-pulse-npm-node24-bookworm,target=/root/.npm,sharing=locked \
     npm ci --prefer-offline
 COPY apps/pulse-platform ./apps/pulse-platform
 COPY apps/universal ./apps/universal
@@ -38,8 +38,8 @@ ARG EXPO_PUBLIC_CLOUD_OIDC_AUDIENCE
 ARG EXPO_PUBLIC_CLOUD_OIDC_SCOPES
 ARG EXPO_PUBLIC_DEFAULT_CONNECTION_PROFILE
 ARG EXPO_PUBLIC_LOCAL_DATA_PLANE
-RUN --mount=type=cache,id=ecoflow-pulse-expo-node20-bookworm,target=/root/.expo,sharing=locked \
-    --mount=type=cache,id=ecoflow-pulse-metro-node20-bookworm,target=/tmp/metro-cache,sharing=locked \
+RUN --mount=type=cache,id=ecoflow-pulse-expo-node24-bookworm,target=/root/.expo,sharing=locked \
+    --mount=type=cache,id=ecoflow-pulse-metro-node24-bookworm,target=/tmp/metro-cache,sharing=locked \
     EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL}" \
     EXPO_PUBLIC_WS_URL="${EXPO_PUBLIC_WS_URL}" \
     EXPO_PUBLIC_OIDC_ISSUER_URL="${EXPO_PUBLIC_OIDC_ISSUER_URL}" \
@@ -57,7 +57,7 @@ RUN --mount=type=cache,id=ecoflow-pulse-expo-node20-bookworm,target=/root/.expo,
     CI=1 EXPO_NO_TELEMETRY=1 npm run -w apps/universal export:web:ci -- --output-dir dist
 RUN npm prune --omit=dev
 
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 
@@ -67,7 +67,7 @@ COPY packages/api-types/package.json ./packages/api-types/package.json
 COPY packages/node-jwks-auth/package.json ./packages/node-jwks-auth/package.json
 
 RUN node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.workspaces=['apps/pulse-platform','packages/api-types','packages/node-jwks-auth']; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2));"
-RUN --mount=type=cache,id=ecoflow-pulse-npm-node20-bookworm,target=/root/.npm,sharing=locked \
+RUN --mount=type=cache,id=ecoflow-pulse-npm-node24-bookworm,target=/root/.npm,sharing=locked \
     npm ci --prefer-offline --omit=dev --workspace @ecoflow-pulse/pulse-platform --workspace @ecoflow-pulse/api-types --workspace @ecoflow-pulse/node-jwks-auth
 
 COPY --from=build /app/apps/pulse-platform/dist ./apps/pulse-platform/dist

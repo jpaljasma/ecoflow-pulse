@@ -1,4 +1,4 @@
-import { BottomTabBar, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { BottomTabBar, type BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { PulseSidebarNav } from '@/shared/ui/PulseSidebarNav';
 import { resolvePulsePrimaryNavKey } from '@/shared/ui/pulsePrimaryNav';

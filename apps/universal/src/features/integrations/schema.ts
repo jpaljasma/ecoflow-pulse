@@ -4,7 +4,7 @@ export const IntegrationSchema = z.object({
   id: z.string().uuid(),
   provider: z.string(),
   accessKeyMask: z.string(),
-  config: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
   isActive: z.boolean(),
   createdAtUnixMs: z.string(),
   updatedAtUnixMs: z.string()
@@ -22,14 +22,14 @@ export const CreateIntegrationPayloadSchema = z.object({
   provider: z.string().trim().min(1).max(64),
   accessKey: z.string().trim().min(1).max(512),
   accessSecret: z.string().trim().min(1).max(512),
-  config: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
   isActive: z.boolean().default(true)
 });
 
 export const UpdateIntegrationPayloadSchema = z.object({
   accessKey: z.string().trim().min(1).max(512),
   accessSecret: z.string().trim().min(1).max(512),
-  config: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
   isActive: z.boolean().default(true)
 });
 

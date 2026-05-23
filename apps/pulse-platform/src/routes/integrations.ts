@@ -14,7 +14,7 @@ const integrationListQuerySchema = z.object({
   provider: z.string().trim().min(1).max(64).optional()
 });
 
-const integrationConfigSchema = z.record(z.unknown());
+const integrationConfigSchema = z.record(z.string(), z.unknown());
 const integrationCredentialFields = {
   accessKey: z.string().trim().min(1).max(512),
   accessSecret: z.string().trim().min(1).max(512),

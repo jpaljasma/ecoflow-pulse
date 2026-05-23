@@ -1,6 +1,6 @@
 import { createElement, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';

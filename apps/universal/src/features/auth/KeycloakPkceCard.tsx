@@ -96,7 +96,8 @@ function ConfiguredPkceCard({ variant, cfg, session, actions }: ConfiguredPkceCa
       if (!response) return;
       if (response.type === 'dismiss') return;
       if (response.type === 'error') {
-        setErrorText(response.error?.message ?? 'Login failed');
+        const authError = response.error as { description?: string; code?: string } | undefined;
+        setErrorText(authError?.description ?? authError?.code ?? 'Login failed');
         return;
       }
       if (response.type !== 'success') return;

@@ -6,8 +6,8 @@ This page tracks required local tools for development workflows.
 
 | Tool | Why it is needed | Used by |
 |---|---|---|
-| Go | Build/test backend services and CLIs | `go test`, `make test`, worker CLIs |
-| Node.js + npm | Build/test universal app | `npm run -w apps/universal ...`, `make web` |
+| Go 1.26+ | Build/test backend services and CLIs | `go test`, `make test`, worker CLIs |
+| Node.js 24+ + npm | Build/test universal app and Node services | `npm run -w apps/universal ...`, `make web`, Node BFF/gateway checks |
 | Docker Desktop (daemon running) | Runtime backend for k3d clusters | `make k3d-up`, `make dev-up` |
 | Helm | Kubernetes chart lint/install and dependency resolution | `make platform-up`, `make services-up` |
 | k3d | Local Kubernetes cluster bringup | `make k3d-up`, `make dev-up` |
@@ -31,7 +31,7 @@ brew install markdownlint-cli
 It runs linters in parallel, uses caching, supports YAML configuration, integrates with all major IDEs, and includes over a hundred linters.
 
 ```bash
-brew install golangci-cli
+brew install golangci-lint
 ```
 
 ## Recently Observed Missing Requirements

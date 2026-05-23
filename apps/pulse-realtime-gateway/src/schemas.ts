@@ -30,6 +30,14 @@ const optionalStringListSchema = z
   });
 
 const logStatusSchema = z.enum(['ok', 'warning', 'error']);
+const emptyLogFilters = {
+  deviceIds: [],
+  statuses: [],
+  providers: [],
+  sources: [],
+  typeCodes: [],
+  typeCodeSuffixes: []
+};
 
 export const LogsSubscribeMessageSchema = z.object({
   type: z.literal('logs_subscribe'),
@@ -44,7 +52,7 @@ export const LogsSubscribeMessageSchema = z.object({
       typeCodeSuffixes: optionalStringListSchema
     })
     .optional()
-    .default({})
+    .default(emptyLogFilters)
     .transform((filters) => ({
       deviceIds: filters.deviceIds,
       statuses: filters.statuses,
