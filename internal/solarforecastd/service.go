@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -699,12 +700,14 @@ func aggregateSeries(seriesList []telemetryquery.Series, fromUTC, toUTC time.Tim
 			key := point.BucketStart.UTC().UnixMilli()
 			entry, ok := buckets[key]
 			if !ok {
-				entry = bucket{start: point.BucketStart.UTC(), end: point.BucketEnd.UTC(), point: point}
+				clonedPoint := point
+				clonedPoint.Metrics = cloneMetrics(point.Metrics)
+				entry = bucket{start: point.BucketStart.UTC(), end: point.BucketEnd.UTC(), point: clonedPoint}
 			} else {
 				entry.point.SampleCount += point.SampleCount
 				entry.point.FirstTsUnixMs = minInt64(entry.point.FirstTsUnixMs, point.FirstTsUnixMs)
 				entry.point.LastTsUnixMs = maxInt64(entry.point.LastTsUnixMs, point.LastTsUnixMs)
-				entry.point.Metrics = sumMetrics(entry.point.Metrics, point.Metrics)
+				addMetrics(&entry.point.Metrics, point.Metrics)
 			}
 			buckets[key] = entry
 		}
@@ -713,7 +716,7 @@ func aggregateSeries(seriesList []telemetryquery.Series, fromUTC, toUTC time.Tim
 	for key := range buckets {
 		keys = append(keys, key)
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	slices.Sort(keys)
 	out.Points = make([]telemetryquery.Point, 0, len(keys))
 	for _, key := range keys {
 		entry := buckets[key]
@@ -724,12 +727,36 @@ func aggregateSeries(seriesList []telemetryquery.Series, fromUTC, toUTC time.Tim
 	return out
 }
 
-func sumMetrics(left, right telemetryquery.Metrics) telemetryquery.Metrics {
+func cloneMetrics(metrics telemetryquery.Metrics) telemetryquery.Metrics {
 	return telemetryquery.Metrics{
-		PVAvgW:           sumFloatPtr(left.PVAvgW, right.PVAvgW),
-		PVMaxW:           sumFloatPtr(left.PVMaxW, right.PVMaxW),
-		SolarGeneratedWh: sumFloatPtr(left.SolarGeneratedWh, right.SolarGeneratedWh),
+		PVAvgW:           cloneFloatPtr(metrics.PVAvgW),
+		PVMaxW:           cloneFloatPtr(metrics.PVMaxW),
+		SolarGeneratedWh: cloneFloatPtr(metrics.SolarGeneratedWh),
 	}
+}
+
+func addMetrics(dst *telemetryquery.Metrics, src telemetryquery.Metrics) {
+	addFloatPtr(&dst.PVAvgW, src.PVAvgW)
+	addFloatPtr(&dst.PVMaxW, src.PVMaxW)
+	addFloatPtr(&dst.SolarGeneratedWh, src.SolarGeneratedWh)
+}
+
+func cloneFloatPtr(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
+}
+
+func addFloatPtr(dst **float64, src *float64) {
+	if src == nil {
+		return
+	}
+	if *dst == nil {
+		*dst = new(*src)
+		return
+	}
+	**dst += *src
 }
 
 func inferCapacityEstimate(points []telemetryquery.Point, current *weatherd.HourlyForecastPoint, loc *time.Location) CapacityEstimate {
@@ -2290,20 +2317,6 @@ func optionalPositiveFloat(value float64) *float64 {
 
 func clamp(value, min, max float64) float64 {
 	return math.Min(max, math.Max(min, value))
-}
-
-func sumFloatPtr(left, right *float64) *float64 {
-	if left == nil && right == nil {
-		return nil
-	}
-	var total float64
-	if left != nil {
-		total += *left
-	}
-	if right != nil {
-		total += *right
-	}
-	return floatPtr(total)
 }
 
 func roundWatts(value float64) float64 {

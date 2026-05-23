@@ -113,6 +113,80 @@ func TestGetSolarOutlookPersistsTrainingRunForAllScope(t *testing.T) {
 	}
 }
 
+func TestAggregateSeriesSumsMetricsWithoutMutatingInputs(t *testing.T) {
+	t.Parallel()
+
+	fromUTC := time.Date(2026, 3, 18, 10, 0, 0, 0, time.UTC)
+	firstPVAvg := float64Ptr(10)
+	firstPVMax := float64Ptr(20)
+	firstGenerated := float64Ptr(30)
+	seriesList := []telemetryquery.Series{
+		{
+			DeviceID: "dev-a",
+			Points: []telemetryquery.Point{
+				{
+					BucketStart:   fromUTC,
+					BucketEnd:     fromUTC.Add(time.Hour),
+					SampleCount:   2,
+					FirstTsUnixMs: fromUTC.Add(5 * time.Minute).UnixMilli(),
+					LastTsUnixMs:  fromUTC.Add(20 * time.Minute).UnixMilli(),
+					Metrics: telemetryquery.Metrics{
+						PVAvgW:           firstPVAvg,
+						PVMaxW:           firstPVMax,
+						SolarGeneratedWh: firstGenerated,
+					},
+				},
+			},
+		},
+		{
+			DeviceID: "dev-b",
+			Points: []telemetryquery.Point{
+				{
+					BucketStart:   fromUTC,
+					BucketEnd:     fromUTC.Add(time.Hour),
+					SampleCount:   3,
+					FirstTsUnixMs: fromUTC.UnixMilli(),
+					LastTsUnixMs:  fromUTC.Add(45 * time.Minute).UnixMilli(),
+					Metrics: telemetryquery.Metrics{
+						PVAvgW:           float64Ptr(5),
+						SolarGeneratedWh: float64Ptr(7),
+					},
+				},
+			},
+		},
+	}
+
+	got := aggregateSeries(seriesList, fromUTC, fromUTC.Add(time.Hour))
+	if len(got.Points) != 1 {
+		t.Fatalf("aggregateSeries() points = %d, want 1", len(got.Points))
+	}
+	point := got.Points[0]
+	if got, want := point.SampleCount, uint64(5); got != want {
+		t.Fatalf("SampleCount = %d, want %d", got, want)
+	}
+	if got, want := point.FirstTsUnixMs, fromUTC.UnixMilli(); got != want {
+		t.Fatalf("FirstTsUnixMs = %d, want %d", got, want)
+	}
+	if got, want := point.LastTsUnixMs, fromUTC.Add(45*time.Minute).UnixMilli(); got != want {
+		t.Fatalf("LastTsUnixMs = %d, want %d", got, want)
+	}
+	if got, want := valueOrZero(point.Metrics.PVAvgW), 15.0; got != want {
+		t.Fatalf("PVAvgW = %v, want %v", got, want)
+	}
+	if got, want := valueOrZero(point.Metrics.PVMaxW), 20.0; got != want {
+		t.Fatalf("PVMaxW = %v, want %v", got, want)
+	}
+	if got, want := valueOrZero(point.Metrics.SolarGeneratedWh), 37.0; got != want {
+		t.Fatalf("SolarGeneratedWh = %v, want %v", got, want)
+	}
+	if got := valueOrZero(firstPVAvg); got != 10 {
+		t.Fatalf("input PVAvgW = %v, want original 10", got)
+	}
+	if point.Metrics.PVAvgW == firstPVAvg || point.Metrics.PVMaxW == firstPVMax || point.Metrics.SolarGeneratedWh == firstGenerated {
+		t.Fatal("aggregateSeries() reused input metric pointers")
+	}
+}
+
 func TestGetSolarOutlookKeepsAggregateSummedPVMaxRecoveryBounded(t *testing.T) {
 	t.Parallel()
 
