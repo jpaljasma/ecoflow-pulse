@@ -39,6 +39,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../../..');
 const envelopeProtoPath = path.join(repoRoot, 'proto/pulse/envelope/v1/envelope.proto');
+const contractTestTimeoutMs = 15_000;
+let cachedFixture: ContractFixture | undefined;
 
 function runFixtureCommand(args: string[] = []): string {
   return execFileSync('go', ['run', './cmd/proto-contract-fixture', ...args], {
@@ -48,7 +50,8 @@ function runFixtureCommand(args: string[] = []): string {
 }
 
 function loadFixture(): ContractFixture {
-  return JSON.parse(runFixtureCommand()) as ContractFixture;
+  cachedFixture ??= JSON.parse(runFixtureCommand()) as ContractFixture;
+  return cachedFixture;
 }
 
 describe('node-go protobuf contract', () => {
@@ -71,7 +74,7 @@ describe('node-go protobuf contract', () => {
     expect(decoded.payloadEncoding).toBe(fixture.expected.payloadEncoding);
     expect(Buffer.from(decoded.payload).toString('base64')).toBe(fixture.expected.payloadBase64);
     expect(Buffer.from(decoded.payload).toString('utf8')).toBe(fixture.expected.payloadUtf8);
-  });
+  }, contractTestTimeoutMs);
 
   it('round-trips Node-generated envelope bytes through Go decoder', () => {
     const fixture = loadFixture();
@@ -88,5 +91,5 @@ describe('node-go protobuf contract', () => {
     ) as ContractEnvelope;
 
     expect(decodedByGo).toStrictEqual(fixture.expected);
-  });
+  }, contractTestTimeoutMs);
 });
