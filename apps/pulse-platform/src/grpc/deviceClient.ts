@@ -510,8 +510,9 @@ function deriveLiveSolarPorts(
   }
   const livePorts = indexes.map((index) => {
     const prefix = `params.pv${index}`;
-    const volts = firstDefinedNumber(metrics[`${prefix}InVol`]);
-    const amps = firstDefinedNumber(metrics[`${prefix}InAmp`]);
+    const staticPort = staticPorts?.find((port) => port.id === `pv-${index}`);
+    const volts = normalizeSnapshotMilliUnit(firstDefinedNumber(metrics[`${prefix}InVol`]), staticPort?.maxVolts ?? 60);
+    const amps = normalizeSnapshotMilliUnit(firstDefinedNumber(metrics[`${prefix}InAmp`]), staticPort?.maxAmps ?? 15);
     const watts = firstDefinedNumber(metrics[`${prefix}ChargeWatts`], metrics[`${prefix}InWatts`]);
     const rawState = firstDefinedNumber(metrics[`${prefix}ChgState`]);
     return {
@@ -554,6 +555,16 @@ function collectSnapshotPVPortIndexes(metrics: Record<string, number>): number[]
     }
   }
   return [...indexes].sort((left, right) => left - right);
+}
+
+function normalizeSnapshotMilliUnit(value: number | undefined, maxCanonical: number): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (Math.abs(value) > maxCanonical * 2 && Math.abs(value / 1000) <= maxCanonical * 2) {
+    return value / 1000;
+  }
+  return value;
 }
 
 function deriveSnapshotSolarPortState(

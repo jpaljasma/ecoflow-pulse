@@ -141,12 +141,21 @@ func currentInputWatts(metrics map[string]float64) (float64, bool) {
 }
 
 func currentBatterySinkWatts(metrics map[string]float64) (float64, bool) {
-	if input, hasInput := firstMetric(metrics, "params.bmsInputWatts", "params.inputWatts"); hasInput {
-		output, _ := firstMetric(metrics, "params.bmsOutputWatts", "params.outputWatts")
-		return math.Abs(input) + math.Abs(output), true
-	}
 	if batteryW, ok := firstMetric(metrics, "batteryW"); ok {
 		return math.Abs(batteryW), true
+	}
+	if extraBatteryCharge := currentExtraBatteryChargeTransfer(metrics); extraBatteryCharge > 0 {
+		return extraBatteryCharge, true
+	}
+	bmsInput, hasBMSInput := firstMetric(metrics, "params.bmsInputWatts")
+	bmsOutput, hasBMSOutput := firstMetric(metrics, "params.bmsOutputWatts")
+	if hasBMSInput || hasBMSOutput {
+		return math.Abs(bmsInput) + math.Abs(bmsOutput), true
+	}
+	input, hasInput := firstMetric(metrics, "params.inputWatts", "param.inputWatts")
+	output, hasOutput := firstMetric(metrics, "params.outputWatts", "param.outputWatts")
+	if hasInput || hasOutput {
+		return math.Abs(input) + math.Abs(output), true
 	}
 	volts, hasVolts := firstMetric(metrics, "params.batVol")
 	amps, hasAmps := firstMetric(metrics, "params.batAmp")
@@ -156,6 +165,42 @@ func currentBatterySinkWatts(metrics map[string]float64) (float64, bool) {
 	volts = normalizePotentialMilliUnit(volts, 1000)
 	amps = normalizePotentialMilliUnit(amps, 200)
 	return math.Abs(volts * amps), true
+}
+
+func currentExtraBatteryChargeTransfer(metrics map[string]float64) float64 {
+	xt150Charge, hasXT150Charge := sumPositiveIfPresent(metrics,
+		"params.XT150Watts1",
+		"params.XT150Watts2",
+		"param.XT150Watts1",
+		"param.XT150Watts2",
+	)
+	kitCharge := sumExtraBatteryPackCharge(metrics)
+	if !hasXT150Charge && kitCharge <= 0 {
+		return 0
+	}
+	input, hasInput := firstMetric(metrics, "params.inputWatts", "param.inputWatts")
+	output, hasOutput := firstMetric(metrics, "params.outputWatts", "param.outputWatts")
+	inputCharge := 0.0
+	if hasInput && input > 0 && (!hasOutput || output <= 0) {
+		inputCharge = input
+	}
+	return math.Max(math.Max(xt150Charge, kitCharge), inputCharge)
+}
+
+func sumExtraBatteryPackCharge(metrics map[string]float64) float64 {
+	var sum float64
+	for key, value := range metrics {
+		if !strings.HasPrefix(key, "params.watts.") || !strings.HasSuffix(key, ".curPower") || value <= 0 {
+			continue
+		}
+		index := strings.TrimSuffix(strings.TrimPrefix(key, "params.watts."), ".curPower")
+		available, hasAvailable := firstMetric(metrics, "params.watts."+index+".avaFlag")
+		if hasAvailable && available <= 0 {
+			continue
+		}
+		sum += value
+	}
+	return sum
 }
 
 func hasIdleOrPausedSignal(metrics map[string]float64) bool {
@@ -199,6 +244,20 @@ func sumIfPresent(metrics map[string]float64, keys ...string) (float64, bool) {
 	for _, key := range keys {
 		value, ok := firstMetric(metrics, key)
 		if !ok {
+			continue
+		}
+		total += value
+		found = true
+	}
+	return total, found
+}
+
+func sumPositiveIfPresent(metrics map[string]float64, keys ...string) (float64, bool) {
+	var total float64
+	var found bool
+	for _, key := range keys {
+		value, ok := firstMetric(metrics, key)
+		if !ok || value <= 0 {
 			continue
 		}
 		total += value

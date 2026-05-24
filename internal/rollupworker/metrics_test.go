@@ -32,6 +32,28 @@ func TestSampleFromEnvelopeD2MPDStatus(t *testing.T) {
 	}
 }
 
+func TestSampleFromEnvelopeD2MExtraBatteryTransferIsNotLoad(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"params":{"f32LcdShowSoc":21.5,"pv2ChargeWatts":435,"wattsInSum":435,"wattsOutSum":183,"XT150Watts1":183,"inputWatts":183,"outputWatts":0,"bmsInputWatts":0,"bmsOutputWatts":0,"invOutWatts":0,"carWatts":0,"wireWatts":0,"typec1Watts":0,"typec2Watts":0,"usb1Watts":0,"usb2Watts":0}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := sample.Metrics.PV.Value; got != 435 {
+		t.Fatalf("pv mismatch: got=%v want=435", got)
+	}
+	if got := sample.Metrics.Load.Value; got != 0 {
+		t.Fatalf("load mismatch: got=%v want=0", got)
+	}
+	if got := sample.Metrics.Net.Value; got != 435 {
+		t.Fatalf("net mismatch: got=%v want=435", got)
+	}
+	if got := sample.Metrics.Battery.Value; got != 183 {
+		t.Fatalf("battery mismatch: got=%v want=183", got)
+	}
+}
+
 func TestSampleFromEnvelopeDPUAppShowAndBackendFields(t *testing.T) {
 	t.Parallel()
 	env := testEnvelope(`{"params":{"inLvMpptPwr":53,"inHvMpptPwr":0,"wattsOutSum":140,"inAcC20Pwr":123,"outUsb1Pwr":10,"outTypec1Pwr":15,"bmsInputWatts":50,"bmsOutputWatts":10,"pdTemp":18,"mpptLvTemp":22,"pcsAcTemp":20,"cmsBattSoc":19.7}}`)
