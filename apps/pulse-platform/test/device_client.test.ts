@@ -201,7 +201,7 @@ describe('device client', () => {
     });
   });
 
-  it('falls back to normalized solar port watts when snapshot pv metrics are absent', async () => {
+  it('falls back to fresh normalized solar port watts when aggregate snapshot pv metrics are absent', async () => {
     const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [
         {
@@ -220,6 +220,8 @@ describe('device client', () => {
           },
           metrics: {
             'params.soc': 53.53,
+            'params.pv1ChargeWatts': 2.04789,
+            'params.pv2ChargeWatts': 0.9975,
             'params.wattsOutSum': 101,
             'params.typec1Watts': 62,
             'params.temp': 29
@@ -236,8 +238,6 @@ describe('device client', () => {
     expect(device?.netW).toBeCloseTo(-97.95461, 4);
     expect(device?.details?.solarPorts?.[0]).toEqual(
       expect.objectContaining({
-        volts: 10.502,
-        amps: 0.195,
         watts: 2.04789
       })
     );
@@ -404,6 +404,159 @@ describe('device client', () => {
     expect(device?.details?.solarChargingOn).toBe(true);
   });
 
+  it('zeros stale current power and ETA instead of leaking offline snapshot values', async () => {
+    const now = new Date('2026-05-24T12:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const controlPlaneClient = makeControlPlaneClient({
+        listDevices: vi.fn(async () => [
+          {
+            provider: 'ecoflow',
+            devices: [makeProviderDevice()]
+          }
+        ])
+      });
+      const telemetryClient: TelemetrySnapshotClient = {
+        getSnapshot: vi.fn(async () => ({
+          snapshot: {
+            deviceId: '22222222-2222-7222-8222-222222222222',
+            cursor: {
+              seq: '55',
+              tsUnixMs: String(now.getTime() - 5 * 60_000)
+            },
+            metrics: {
+              'params.f32ShowSoc': 77.5,
+              'params.wattsInSum': 46,
+              'params.pv1ChargeWatts': 46,
+              'params.wattsOutSum': 0,
+              'params.remainTime': 5999,
+              'params.dsgRemainTime': 5999
+            }
+          }
+        })),
+        close: vi.fn()
+      };
+
+      const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+      const [device] = await client.listDevices(makeRequest());
+
+      expect(device?.online).toBe(false);
+      expect(device?.state).toBe('idle');
+      expect(device?.etaMinutes).toBe(0);
+      expect(device?.pvW).toBe(0);
+      expect(device?.acInW).toBe(0);
+      expect(device?.dcW).toBe(0);
+      expect(device?.loadW).toBe(0);
+      expect(device?.netW).toBe(0);
+      expect(device?.details?.solarChargingOn).toBe(false);
+      expect(device?.details?.solarPorts?.[0]).toEqual(
+        expect.objectContaining({
+          state: 'inactive',
+          watts: 0,
+          volts: 0,
+          amps: 0
+        })
+      );
+      expect(device?.details?.remainGlobalMin).toBeUndefined();
+      expect(device?.details?.remainDischargeMin).toBeUndefined();
+      expect(device?.details?.estimateEtaMin).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('treats a fresh cursor without fresh current metrics as offline', async () => {
+    const now = new Date('2026-05-24T12:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const controlPlaneClient = makeControlPlaneClient({
+        listDevices: vi.fn(async () => [
+          {
+            provider: 'ecoflow',
+            devices: [makeProviderDevice()]
+          }
+        ])
+      });
+      const telemetryClient: TelemetrySnapshotClient = {
+        getSnapshot: vi.fn(async () => ({
+          snapshot: {
+            deviceId: '22222222-2222-7222-8222-222222222222',
+            cursor: {
+              seq: '56',
+              tsUnixMs: String(now.getTime() - 20_000)
+            },
+            metrics: {
+              'params.f32ShowSoc': 77.5
+            }
+          }
+        })),
+        close: vi.fn()
+      };
+
+      const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+      const [device] = await client.listDevices(makeRequest());
+
+      expect(device?.online).toBe(false);
+      expect(device?.state).toBe('idle');
+      expect(device?.batteryPct).toBe(77.5);
+      expect(device?.etaMinutes).toBe(0);
+      expect(device?.pvW).toBe(0);
+      expect(device?.loadW).toBe(0);
+      expect(device?.details?.solarChargingOn).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps fresh flatlined trickle readings online', async () => {
+    const now = new Date('2026-05-24T12:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const controlPlaneClient = makeControlPlaneClient({
+        listDevices: vi.fn(async () => [
+          {
+            provider: 'pecron',
+            devices: [makePecronProviderDevice()]
+          }
+        ])
+      });
+      const telemetryClient: TelemetrySnapshotClient = {
+        getSnapshot: vi.fn(async () => ({
+          snapshot: {
+            deviceId: '33333333-3333-7333-8333-333333333333',
+            cursor: {
+              seq: '12',
+              tsUnixMs: String(now.getTime() - 20_000)
+            },
+            metrics: {
+              'params.f32ShowSoc': 2,
+              'params.pv1ChargeWatts': 2,
+              'params.wattsInSum': 2,
+              'params.wattsOutSum': 0,
+              'params.batVol': 51.2,
+              'params.batAmp': -0.03
+            }
+          }
+        })),
+        close: vi.fn()
+      };
+
+      const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+      const [device] = await client.listDevices(makeRequest());
+
+      expect(device?.online).toBe(true);
+      expect(device?.pvW).toBe(2);
+      expect(device?.loadW).toBe(0);
+      expect(device?.netW).toBe(2);
+      expect(device?.details?.solarChargingOn).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('prefers aggregate device soc from quota-derived details over main-pack target soc', async () => {
     const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [
@@ -499,6 +652,7 @@ describe('device client', () => {
           },
           metrics: {
             'params.soc': 53.53,
+            'params.remainTime': 1331,
             'params.wattsOutSum': 101,
             'params.temp': 29
           }

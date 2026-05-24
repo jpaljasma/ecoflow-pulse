@@ -145,6 +145,56 @@ func TestSampleFromEnvelopeDoesNotTreatChgSunPowerAsPVWatts(t *testing.T) {
 	}
 }
 
+func TestSampleFromEnvelopeSuppressesD2MIdleStaleCurrentTelemetry(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"params":{"pv1ChargeWatts":46,"wattsInSum":46,"wattsOutSum":0,"bmsInputWatts":0,"bmsOutputWatts":0,"remainTime":5999,"dsgRemainTime":5999,"chgRemainTime":5999,"chgPauseFlag":1,"chgDsgState":2,"sysState":2,"f32ShowSoc":77.5}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if !sample.Metrics.SOC.Valid || sample.Metrics.SOC.Value != 77.5 {
+		t.Fatalf("soc mismatch: got valid=%v value=%v want=77.5", sample.Metrics.SOC.Valid, sample.Metrics.SOC.Value)
+	}
+	if !sample.Metrics.PV.Valid || sample.Metrics.PV.Value != 0 {
+		t.Fatalf("expected stale PV to be zeroed, got valid=%v value=%v", sample.Metrics.PV.Valid, sample.Metrics.PV.Value)
+	}
+	if !sample.Metrics.ACIn.Valid || sample.Metrics.ACIn.Value != 0 {
+		t.Fatalf("expected stale AC input to be zeroed, got valid=%v value=%v", sample.Metrics.ACIn.Valid, sample.Metrics.ACIn.Value)
+	}
+	if !sample.Metrics.Load.Valid || sample.Metrics.Load.Value != 0 {
+		t.Fatalf("expected stale load to be zeroed, got valid=%v value=%v", sample.Metrics.Load.Valid, sample.Metrics.Load.Value)
+	}
+	if !sample.Metrics.Battery.Valid || sample.Metrics.Battery.Value != 0 {
+		t.Fatalf("expected stale battery power to be zeroed, got valid=%v value=%v", sample.Metrics.Battery.Valid, sample.Metrics.Battery.Value)
+	}
+	if got := len(sample.PVPorts); got != 0 {
+		t.Fatalf("expected stale PV ports to be omitted, got=%d", got)
+	}
+}
+
+func TestSampleFromEnvelopeKeepsPecronLiveCurrentTelemetryWithSink(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"params":{"pv1ChargeWatts":42,"pv1InWatts":42,"wattsInSum":42,"wattsOutSum":9,"batVol":51.516,"batAmp":0.68,"remainTime":612,"dsgRemainTime":612,"chgRemainTime":2397,"f32ShowSoc":6}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if !sample.Metrics.PV.Valid || sample.Metrics.PV.Value != 42 {
+		t.Fatalf("pv mismatch: got valid=%v value=%v want=42", sample.Metrics.PV.Valid, sample.Metrics.PV.Value)
+	}
+	if !sample.Metrics.Load.Valid || sample.Metrics.Load.Value != 9 {
+		t.Fatalf("load mismatch: got valid=%v value=%v want=9", sample.Metrics.Load.Valid, sample.Metrics.Load.Value)
+	}
+	if !sample.Metrics.Battery.Valid || sample.Metrics.Battery.Value < 35.0 || sample.Metrics.Battery.Value > 35.1 {
+		t.Fatalf("battery mismatch: got valid=%v value=%v want~=35.03", sample.Metrics.Battery.Valid, sample.Metrics.Battery.Value)
+	}
+	if got := len(sample.PVPorts); got != 1 {
+		t.Fatalf("expected live PV port, got=%d", got)
+	}
+}
+
 func TestSampleFromEnvelopePrefersExplicitZeroCanonicalPVOverStaleTopLevelPV(t *testing.T) {
 	t.Parallel()
 	env := testEnvelope(`{"pvW":260,"params":{"pv1ChargeWatts":0,"pv2ChargeWatts":0,"inLvMpptPwr":0,"inHvMpptPwr":0,"wattsInSum":0,"wattsOutSum":0,"f32ShowSoc":58}}`)
