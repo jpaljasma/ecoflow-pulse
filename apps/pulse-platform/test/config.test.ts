@@ -82,16 +82,14 @@ describe('pulse-platform config', () => {
       PULSE_PLATFORM_DATA_PLANE: 'cloud',
       PULSE_PLATFORM_BFF_CACHE_ENABLED: 'true',
       PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES: '2500',
-      PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS: '45000',
-      PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS: '600000'
+      PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS: '45000'
     });
 
     expect(config.dataPlane).toBe('cloud');
     expect(config.bffCache).toEqual({
       enabled: true,
       maxEntries: 2500,
-      weatherForecastTtlMs: 45000,
-      weatherYesterdayTtlMs: 600000
+      weatherForecastTtlMs: 45000
     });
   });
 });

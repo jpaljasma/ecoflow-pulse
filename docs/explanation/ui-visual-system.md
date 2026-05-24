@@ -138,6 +138,27 @@ Suggested sizing rhythm:
 - `24` large panel values
 - `32+` hero values
 
+## Motion
+
+Realtime dashboard motion should be useful and restrained.
+
+- Use rolling digit animation only for key live counters where change direction
+  matters, such as solar, load, net, battery, and SOC hero values.
+- Keep units and punctuation static so values remain scannable while digits
+  move.
+- Roll digits upward when the displayed number increases and downward when it
+  decreases, using eased timing rather than linear movement.
+- Stagger and slow digit columns slightly from left to right so the last
+  changing digit settles last while overlapping the earlier columns.
+- Use SOC gauge sweeps only on active charge/discharge bars: a 45-degree
+  diagonal light-alpha band for charging and dark-alpha band for discharging,
+  moving across the full gauge track over about 2.2 seconds with an ease-out
+  cubic curve and a five-second pause between passes. Charging moves
+  left-to-right; discharging moves right-to-left.
+- Respect reduced-motion preferences and fall back to instant value updates.
+- Avoid applying metric motion to dense tables, long inventory lists, or every
+  small stat at once.
+
 ## Spacing And Shape
 
 The core spacing rhythm is:
@@ -202,6 +223,8 @@ Control rules:
 
 - minimum `44px` hit targets
 - visible hover and focus states on web
+- Pulse action buttons use a shared tonal fill, darken on hover, use the same
+  accent-color border as active device tiles, and compress slightly on press.
 - AA contrast minimum for text and control labels
 
 Operational filter bars use the Pulse logs pattern:

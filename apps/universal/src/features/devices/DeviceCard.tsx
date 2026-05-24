@@ -26,9 +26,11 @@ import { useAuthSession } from '@/features/auth/hooks';
 import { useDeviceSolarHistory } from '@/features/history/hooks';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { IconLabel } from '@/shared/ui/IconLabel';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
 import { resolveDeviceSocPct } from '@/features/devices/soc';
+import { usePrefersReducedMotion } from '@/shared/ui/usePrefersReducedMotion';
 
 const INACTIVE_CARD_OPACITY = 0.82;
 
@@ -55,15 +57,20 @@ export function DeviceCard({
   imageContext = 'card',
   connectionStatus,
   highlighted = false,
-  loadSolarHistory = true
+  loadSolarHistory = true,
+  inventoryCompact = false,
+  fillHeight = false
 }: {
   device: DeviceSummary;
   imageContext?: 'list' | 'card' | 'detail';
   connectionStatus: TelemetryEngineStatus;
   highlighted?: boolean;
   loadSolarHistory?: boolean;
+  inventoryCompact?: boolean;
+  fillHeight?: boolean;
 }) {
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const { contentWidth: width } = useNavigationShellMetrics();
   const snapshot = useTelemetryDeviceSnapshot(device.id);
   const { authConfigured, authReady, authKey, sessionValid, token } = useAuthSession();
@@ -96,8 +103,8 @@ export function DeviceCard({
     useRemoteImage,
     imageContext
   });
-  const imageBoxSize = isDesktopWide ? 106 : isTabletUp ? 98 : 82;
-  const railWidth = isDesktopWide ? 124 : isTabletUp ? 112 : 94;
+  const imageBoxSize = inventoryCompact ? 82 : isDesktopWide ? 106 : isTabletUp ? 98 : 82;
+  const railWidth = inventoryCompact ? 94 : isDesktopWide ? 124 : isTabletUp ? 112 : 94;
 
   const fallbackStatus =
     device.state === 'charging' || device.state === 'discharging' || device.state === 'idle'
@@ -119,14 +126,20 @@ export function DeviceCard({
   const cardStatusLabel = isOffline ? 'Offline' : isInactive ? 'Inactive' : null;
   const connGlyph = isOffline ? getStatusIconName('offline') : connectivityGlyph(snapshot, connectionStatus);
   const fadeOpacity = useRef(new Animated.Value(isInactive ? INACTIVE_CARD_OPACITY : 1)).current;
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      fadeOpacity.stopAnimation();
+      fadeOpacity.setValue(isInactive ? INACTIVE_CARD_OPACITY : 1);
+      return;
+    }
     Animated.timing(fadeOpacity, {
       toValue: isInactive ? INACTIVE_CARD_OPACITY : 1,
       duration: 220,
       useNativeDriver: Platform.OS !== 'web'
     }).start();
-  }, [fadeOpacity, isInactive]);
+  }, [fadeOpacity, isInactive, prefersReducedMotion]);
 
   const metricItems = useMemo<MetricsGridItem[]>(() => {
     return [
@@ -208,9 +221,10 @@ export function DeviceCard({
   ]);
 
   return (
-    <Animated.View style={{ opacity: fadeOpacity }}>
+    <Animated.View style={{ opacity: fadeOpacity, flex: fillHeight ? 1 : undefined }}>
       <Card
         testID={`device-card-${device.id}`}
+        flex={fillHeight ? 1 : undefined}
         borderColor={highlighted ? '$accentColor' : undefined}
         borderWidth={highlighted ? 2 : undefined}
         shadowOpacity={highlighted ? 0.18 : undefined}
@@ -277,9 +291,9 @@ export function DeviceCard({
               <XStack alignItems="flex-start" gap="$2">
                 <Text
                   fontFamily="$heading"
-                  fontSize={isPhoneCompact ? '$6' : '$7'}
+                  fontSize={inventoryCompact || isPhoneCompact ? '$6' : '$7'}
                   fontWeight="700"
-                  numberOfLines={1}
+                  numberOfLines={inventoryCompact ? 2 : 1}
                   flex={1}
                 >
                   {device.name}
@@ -290,10 +304,9 @@ export function DeviceCard({
                   borderWidth={1}
                   paddingHorizontal="$3"
                   minHeight={32}
-                  style={{
-                    backgroundColor: semantics.actionBackground,
-                    borderColor: semantics.actionBorder
-                  }}
+                  style={actionButtonStyles.style}
+                  hoverStyle={actionButtonStyles.hoverStyle}
+                  pressStyle={actionButtonStyles.pressStyle}
                   onPress={(event: any) => {
                     event?.stopPropagation?.();
                     router.push({
@@ -331,8 +344,8 @@ export function DeviceCard({
               {stormGuardLabel ? <StormGuardChip label={stormGuardLabel} /> : null}
 
               <YStack gap="$2">
-                <SocBar value={socPct} />
-                <MetricsGrid items={metricItems} columns={3} />
+                <SocBar value={socPct} sweepMode={snapshotState} fullWidth={inventoryCompact} />
+                <MetricsGrid items={metricItems} columns={inventoryCompact ? 2 : 3} />
               </YStack>
 
               <XStack justifyContent="space-between" alignItems="center">

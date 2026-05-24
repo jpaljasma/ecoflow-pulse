@@ -1,6 +1,5 @@
 import {
   FlatList,
-  Platform,
   View
 } from 'react-native';
 import { YStack } from 'tamagui';
@@ -15,6 +14,7 @@ import {
 import type { DeviceSummary } from '@/features/devices/api';
 import type { TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
+import { DEVICE_INVENTORY_GRID_GAP, resolveDeviceInventoryGrid } from '@/features/devices/inventoryGrid';
 import { findDeviceScrollIndex } from '@/features/devices/listScroll';
 import {
   PULSE_PAGE_CONTENT_BOTTOM_PADDING,
@@ -48,8 +48,8 @@ export const DeviceList = forwardRef<DeviceListHandle, {
   footer?: ReactElement;
 }, ref) {
   const { contentWidth } = useNavigationShellMetrics();
-  const columns = Platform.OS === 'web' && contentWidth >= 900 ? 2 : 1;
   const pagePadding = resolvePageHorizontalPaddingPx(contentWidth);
+  const { columns, cardWidth, compactCard } = resolveDeviceInventoryGrid(contentWidth, pagePadding);
   const listRef = useRef<FlatList<DeviceSummary>>(null);
   const [solarHistoryDeviceIds, setSolarHistoryDeviceIds] = useState<Set<string>>(() => new Set());
   const viewabilityConfig = useRef({
@@ -78,17 +78,19 @@ export const DeviceList = forwardRef<DeviceListHandle, {
   ).current;
   const renderDeviceCard = useCallback(
     ({ item }: { item: DeviceSummary }) => (
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ width: columns > 1 ? cardWidth : '100%', minWidth: 0, alignSelf: 'stretch' }}>
         <DeviceCard
           device={item}
           imageContext="list"
           connectionStatus={connectionStatus}
           highlighted={item.id === highlightedDeviceId}
           loadSolarHistory={solarHistoryDeviceIds.has(item.id)}
+          inventoryCompact={compactCard}
+          fillHeight={columns > 1}
         />
       </View>
     ),
-    [connectionStatus, highlightedDeviceId, solarHistoryDeviceIds]
+    [cardWidth, columns, compactCard, connectionStatus, highlightedDeviceId, solarHistoryDeviceIds]
   );
 
   useImperativeHandle(
@@ -129,7 +131,7 @@ export const DeviceList = forwardRef<DeviceListHandle, {
       }}
       ListHeaderComponent={header}
       ListFooterComponent={footer}
-      columnWrapperStyle={columns > 1 ? { gap: PULSE_PAGE_SECTION_GAP } : undefined}
+      columnWrapperStyle={columns > 1 ? { gap: DEVICE_INVENTORY_GRID_GAP, alignItems: 'stretch' } : undefined}
       removeClippedSubviews
       initialNumToRender={8}
       maxToRenderPerBatch={10}

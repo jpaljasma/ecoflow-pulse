@@ -1,7 +1,7 @@
 import type { ComponentProps, Ref } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -25,9 +25,11 @@ import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
+import { RollingMetricValue } from '@/shared/ui/RollingMetricValue';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { StormGuardChip } from '@/shared/ui/StormGuardChip';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 import {
   PULSE_PANEL_COMPACT_PADDING,
   PULSE_PANEL_RADIUS,
@@ -125,9 +127,7 @@ function DetailHeroTile({
           <MaterialCommunityIcons name={icon} size={16} color={accent} />
         </YStack>
       </XStack>
-      <Text fontSize="$6" fontWeight="800" letterSpacing={-0.4} numberOfLines={1}>
-        {value}
-      </Text>
+      <RollingMetricValue value={value} fontSize={30} lineHeight={34} fontWeight="800" />
       <Text fontSize="$2" numberOfLines={2} style={{ color: semantics.subtleText }}>
         {detail}
       </Text>
@@ -191,6 +191,7 @@ export function DeviceDetailBody({
   secondarySectionRef?: Ref<View>;
 }) {
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const statCellByKey = new Map(
     vm.metricCells
       .filter((cell): cell is Extract<DeviceDetailViewModel['metricCells'][number], { kind: 'stat' }> => cell.kind === 'stat')
@@ -348,10 +349,9 @@ export function DeviceDetailBody({
                         borderWidth={1}
                         paddingHorizontal="$4"
                         minHeight={42}
-                        style={{
-                          backgroundColor: semantics.actionBackground,
-                          borderColor: semantics.actionBorder
-                        }}
+                        style={actionButtonStyles.style}
+                        hoverStyle={actionButtonStyles.hoverStyle}
+                        pressStyle={actionButtonStyles.pressStyle}
                         onPress={() =>
                           router.push({
                             pathname: '/(tabs)/energy',
@@ -377,10 +377,9 @@ export function DeviceDetailBody({
                         paddingHorizontal="$4"
                         minHeight={42}
                         testID="device-open-energy-calendar"
-                        style={{
-                          backgroundColor: semantics.actionBackground,
-                          borderColor: semantics.actionBorder
-                        }}
+                        style={actionButtonStyles.style}
+                        hoverStyle={actionButtonStyles.hoverStyle}
+                        pressStyle={actionButtonStyles.pressStyle}
                         onPress={() =>
                           router.push({
                             pathname: '/(tabs)/energy-calendar',
@@ -405,10 +404,9 @@ export function DeviceDetailBody({
                         paddingHorizontal="$4"
                         minHeight={42}
                         testID="device-open-logs"
-                        style={{
-                          backgroundColor: semantics.actionBackground,
-                          borderColor: semantics.actionBorder
-                        }}
+                        style={actionButtonStyles.style}
+                        hoverStyle={actionButtonStyles.hoverStyle}
+                        pressStyle={actionButtonStyles.pressStyle}
                         onPress={() =>
                           router.push({
                             pathname: '/(tabs)/logs',
@@ -438,16 +436,12 @@ export function DeviceDetailBody({
                     Battery reserve
                   </Text>
                   <XStack alignItems="flex-end" gap="$3" flexWrap="wrap">
-                    <Text
+                    <RollingMetricValue
+                      value={heroSoc}
+                      fontSize={isTablet ? 60 : 46}
+                      lineHeight={isTablet ? 62 : 48}
                       fontWeight="800"
-                      letterSpacing={-1}
-                      style={{
-                        fontSize: isTablet ? 60 : 46,
-                        lineHeight: isTablet ? 62 : 48
-                      }}
-                    >
-                      {heroSoc}
-                    </Text>
+                    />
                     {heroEta && heroEta !== '—' ? (
                       <YStack
                         gap={2}
@@ -481,7 +475,7 @@ export function DeviceDetailBody({
                   </Text>
                 </YStack>
 
-                <SocBar value={resolvedSoc} fullWidth />
+                <SocBar value={resolvedSoc} fullWidth sweepMode={vm.detailState} />
 
                 <XStack gap="$3" flexWrap="wrap">
                   {heroTiles.map((tile) => (

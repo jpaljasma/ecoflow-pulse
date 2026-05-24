@@ -11,6 +11,7 @@ import type {
 import type { TelemetrySnapshotClient } from './telemetryClient.js';
 import {
   deriveBatteryPower,
+  type DerivedTelemetryMetrics,
   deriveTelemetryEtaMinutes,
   deriveTelemetryMetrics,
   deriveTelemetryState
@@ -195,7 +196,7 @@ async function hydrateDevice(
       : false;
     const derived = deriveTelemetryMetrics(rawMetrics);
     const details = finalizeSnapshotDetails(
-      mergeSnapshotDetails(prepareStaticDetailsForSnapshot(presentation.details, rawMetrics, online), rawMetrics),
+      mergeSnapshotDetails(prepareStaticDetailsForSnapshot(presentation.details, rawMetrics, online), rawMetrics, derived),
       online
     );
     const pvW = deriveSummaryPvWatts(derived.pvW, details);
@@ -391,10 +392,11 @@ function baseDeviceSummary(device: ProviderDevice, presentation: ReturnType<type
 
 function mergeSnapshotDetails(
   details: DeviceTelemetryDetails | undefined,
-  metrics: Record<string, number>
+  metrics: Record<string, number>,
+  derived?: DerivedTelemetryMetrics
 ): DeviceTelemetryDetails | undefined {
   const snapshotStorm = deriveStormGuardFromSnapshotMetrics(metrics);
-  const snapshotLive = deriveLiveDetailsFromSnapshotMetrics(metrics, details);
+  const snapshotLive = deriveLiveDetailsFromSnapshotMetrics(metrics, details, derived);
   if (!snapshotStorm && !snapshotLive) {
     return details;
   }
@@ -407,7 +409,8 @@ function mergeSnapshotDetails(
 
 function deriveLiveDetailsFromSnapshotMetrics(
   metrics: Record<string, number>,
-  details: DeviceTelemetryDetails | undefined
+  details: DeviceTelemetryDetails | undefined,
+  derived?: DerivedTelemetryMetrics
 ): DeviceTelemetryDetails | undefined {
   const next: DeviceTelemetryDetails = {};
   const aggregateSocPct = firstDefinedNumber(
@@ -423,7 +426,7 @@ function deriveLiveDetailsFromSnapshotMetrics(
     next.overallSocPct = overallSocPct;
   }
 
-  const livePack = deriveLiveBatteryPack(metrics, details?.packs);
+  const livePack = deriveLiveBatteryPack(metrics, details?.packs, derived?.batteryW);
   if (livePack) {
     next.packs = mergeLiveBatteryPack(details?.packs, livePack);
   }
@@ -458,7 +461,8 @@ function deriveLiveDetailsFromSnapshotMetrics(
 
 function deriveLiveBatteryPack(
   metrics: Record<string, number>,
-  staticPacks: BatteryPackDetail[] | undefined
+  staticPacks: BatteryPackDetail[] | undefined,
+  derivedPowerW?: number
 ): BatteryPackDetail | undefined {
   const socPct = firstDefinedNumber(
     metrics['params.f32LcdShowSoc'],
@@ -466,7 +470,7 @@ function deriveLiveBatteryPack(
     metrics['params.f32ShowSoc'],
     metrics['params.soc']
   );
-  const powerW = deriveBatteryPower(metrics);
+  const powerW = derivedPowerW ?? deriveBatteryPower(metrics);
   const tempC = firstDefinedNumber(metrics['params.temp']);
   const remainMinutes = firstDefinedNumber(metrics['params.remainTime']);
   if (socPct === undefined && powerW === undefined && tempC === undefined && remainMinutes === undefined) {

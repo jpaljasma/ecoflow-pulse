@@ -89,8 +89,6 @@ spec:
               value: {{ .Values.runtime.publicApp.env.bffCacheMaxEntries | quote }}
             - name: PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS
               value: {{ .Values.runtime.publicApp.env.weatherForecastCacheTtlMs | quote }}
-            - name: PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS
-              value: {{ .Values.runtime.publicApp.env.weatherYesterdayCacheTtlMs | quote }}
           resources:
             {{- toYaml .Values.runtime.publicApp.resources | nindent 12 }}
           lifecycle:

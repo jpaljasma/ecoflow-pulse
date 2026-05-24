@@ -86,55 +86,6 @@ message Get7DayForecastResponse {
   repeated DailyForecastPoint daily = 5;
 }
 
-message VerificationMetricError {
-  google.protobuf.DoubleValue mean_absolute_error = 1;
-  google.protobuf.DoubleValue bias = 2;
-}
-
-message YesterdayVerificationHour {
-  int64 time_unix_ms = 1;
-  WeatherCondition forecast_condition = 2;
-  WeatherCondition actual_condition = 3;
-  ForecastValueSet forecast_raw = 4;
-  ForecastValueSet forecast_corrected = 5;
-  ForecastValueSet actual = 6;
-}
-
-message YesterdayVerificationSummary {
-  VerificationMetricError temperature = 1;
-  VerificationMetricError wind_speed = 2;
-  VerificationMetricError cloud_cover = 3;
-  VerificationMetricError visibility = 4;
-  VerificationMetricError uv_index = 5;
-  VerificationMetricError shortwave_radiation = 6;
-  VerificationMetricError global_tilted_irradiance = 7;
-  VerificationMetricError precipitation = 8;
-  google.protobuf.DoubleValue circular_wind_direction_mean_absolute_error = 9;
-}
-
-message VerificationProvenance {
-  string source = 1;
-  string model_selection = 2;
-  string actual_source = 3;
-  string verification_source = 4;
-  string timezone = 5;
-  string canonical_location_key = 6;
-  int64 issued_at_unix_ms = 7;
-}
-
-message GetYesterdayVerificationRequest {
-  WeatherLocationRequest location = 1;
-}
-
-message GetYesterdayVerificationResponse {
-  VerificationProvenance provenance = 1;
-  UnitSystem unit_system = 2;
-  int64 verification_date_unix_ms = 3;
-  repeated YesterdayVerificationHour hourly = 4;
-  YesterdayVerificationSummary summary = 5;
-}
-
 service WeatherService {
   rpc Get7DayForecast(Get7DayForecastRequest) returns (Get7DayForecastResponse);
-  rpc GetYesterdayVerification(GetYesterdayVerificationRequest) returns (GetYesterdayVerificationResponse);
 }

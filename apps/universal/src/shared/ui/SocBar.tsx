@@ -1,5 +1,17 @@
-import { useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
+import {
+  getSocSweepTravelRange,
+  getSocSweepConfig,
+  getSocSweepEasingPoint,
+  SOC_SWEEP_DURATION_MS,
+  SOC_SWEEP_PAUSE_MS,
+  SOC_SWEEP_SKEW_DEG,
+  SOC_SWEEP_WIDTH_RATIO,
+  type SocSweepMode
+} from '@/shared/ui/SocBarMotion';
+import { usePrefersReducedMotion } from '@/shared/ui/usePrefersReducedMotion';
 
 function clamp(value: number): number {
   if (Number.isNaN(value)) return 0;
@@ -8,16 +20,48 @@ function clamp(value: number): number {
 
 export function SocBar({
   value,
-  fullWidth = false
+  fullWidth = false,
+  sweepMode = 'idle'
 }: {
   value: number | null | undefined;
   fullWidth?: boolean;
+  sweepMode?: SocSweepMode;
 }) {
   const { width } = useWindowDimensions();
   const isTabletUp = width >= 768;
   const pct = clamp(value ?? 0);
   const barWidth = fullWidth ? '100%' : isTabletUp ? '50%' : '100%';
   const minBarWidth = fullWidth ? 0 : isTabletUp ? 220 : 0;
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const sweepConfig = getSocSweepConfig(sweepMode);
+  const sweepProgress = useRef(new Animated.Value(0)).current;
+  const [trackWidth, setTrackWidth] = useState(0);
+  const sweepWidth = Math.max(28, trackWidth * SOC_SWEEP_WIDTH_RATIO);
+  const sweepEnabled = sweepConfig.enabled && pct > 0 && trackWidth > 0 && !prefersReducedMotion;
+  const [sweepStart, sweepEnd] = getSocSweepTravelRange(trackWidth, sweepWidth, sweepConfig.direction);
+
+  useEffect(() => {
+    if (!sweepEnabled) {
+      sweepProgress.stopAnimation();
+      sweepProgress.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sweepProgress, {
+          toValue: 1,
+          duration: SOC_SWEEP_DURATION_MS,
+          easing: getSocSweepEasingPoint,
+          useNativeDriver: Platform.OS !== 'web'
+        }),
+        Animated.delay(SOC_SWEEP_PAUSE_MS)
+      ]),
+      { resetBeforeIteration: true }
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [sweepEnabled, sweepProgress]);
 
   return (
     <YStack gap="$2" width={barWidth} minWidth={minBarWidth}>
@@ -30,16 +74,35 @@ export function SocBar({
         </Text>
       </XStack>
       <XStack
+        position="relative"
         height={10}
         borderRadius="$5"
         overflow="hidden"
         backgroundColor="rgba(120,120,128,0.20)"
+        onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
       >
         <XStack
           height="100%"
           width={`${pct}%` as `${number}%`}
           backgroundColor={pct >= 60 ? '#30d158' : pct >= 30 ? '#ff9f0a' : '#ff453a'}
         />
+        {sweepEnabled ? (
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: -8,
+              bottom: -8,
+              left: 0,
+              width: sweepWidth,
+              backgroundColor: sweepConfig.overlayColor,
+              transform: [
+                { translateX: sweepProgress.interpolate({ inputRange: [0, 1], outputRange: [sweepStart, sweepEnd] }) },
+                { skewX: `${SOC_SWEEP_SKEW_DEG}deg` }
+              ]
+            }}
+          />
+        ) : null}
       </XStack>
     </YStack>
   );

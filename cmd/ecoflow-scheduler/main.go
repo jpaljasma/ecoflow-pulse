@@ -35,7 +35,6 @@ const (
 	defaultSolarForecastRefreshInterval        = 24 * time.Hour
 	defaultSolarForecastRefreshActiveWindow    = 30 * 24 * time.Hour
 	defaultWeatherSnapshotLookbackRetention    = 48 * time.Hour
-	defaultWeatherVerificationRetention        = 30 * 24 * time.Hour
 	defaultWeatherRefreshCandidateRetention    = 14 * 24 * time.Hour
 	defaultSolarForecastRunRetention           = 14 * 24 * time.Hour
 	defaultSolarForecastDailyVerificationLimit = 60 * 24 * time.Hour
@@ -230,7 +229,6 @@ func newWeatherService(log *slog.Logger, registerer prometheus.Registerer, snaps
 			Timeout: runtimecfg.DurationNonNegative("WEATHER_UPSTREAM_TIMEOUT", 20*time.Second),
 		},
 		ForecastBaseURL:           strings.TrimSpace(os.Getenv("WEATHER_FORECAST_BASE_URL")),
-		PreviousRunsBaseURL:       strings.TrimSpace(os.Getenv("WEATHER_PREVIOUS_RUNS_BASE_URL")),
 		HistoricalForecastBaseURL: strings.TrimSpace(os.Getenv("WEATHER_HISTORICAL_FORECAST_BASE_URL")),
 	})
 	return weatherd.NewService(
@@ -357,25 +355,21 @@ func runJob(
 		stats, err := weatherSnapshots.PruneHotData(
 			ctx,
 			time.Now().UTC().Add(-defaultWeatherSnapshotLookbackRetention),
-			time.Now().UTC().Add(-runtimecfg.DurationNonNegative("WEATHER_VERIFICATION_RETENTION", defaultWeatherVerificationRetention)),
+			time.Now().UTC(),
 			time.Now().UTC().Add(-runtimecfg.DurationNonNegative("WEATHER_REFRESH_CANDIDATE_RETENTION", defaultWeatherRefreshCandidateRetention)),
 		)
 		if err != nil {
 			return err
 		}
 		metrics.observeCleanupRows(job.JobType, "weather_forecast_snapshots_compacted", stats.CompactedSnapshots)
-		metrics.observeCleanupRows(job.JobType, "weather_yesterday_verifications_pruned", stats.PrunedVerifications)
 		metrics.observeCleanupRows(job.JobType, "weather_refresh_candidates_pruned", stats.PrunedCandidates)
 		if counts, countErr := weatherSnapshots.CountHotData(ctx, time.Now().UTC()); countErr == nil {
 			metrics.setRetainedRows("weather_forecast_snapshots", counts.Snapshots)
-			metrics.setRetainedRows("weather_verification_forecast_anchors", counts.VerificationAnchors)
-			metrics.setRetainedRows("weather_yesterday_verifications", counts.Verifications)
 			metrics.setRetainedRows("weather_refresh_candidates", counts.RefreshCandidates)
 			metrics.setRetainedRows("weather_refresh_candidates_due", counts.DueRefreshCandidates)
 		}
 		log.Info("weather hot data pruned",
 			"compacted_snapshots", stats.CompactedSnapshots,
-			"pruned_verifications", stats.PrunedVerifications,
 			"pruned_candidates", stats.PrunedCandidates,
 		)
 		return nil

@@ -72,47 +72,8 @@ export type WeatherForecastResponse = {
   };
 };
 
-export type WeatherYesterdayVerificationResponse = {
-  verification: {
-    issuedAtUnixMs: string;
-    timezone: string;
-    verificationSource: 'snapshot' | 'previous_runs';
-    provenance: {
-      source: 'open_meteo';
-      modelSelection: 'best_match';
-      actualSource: 'past_days';
-      verificationSource: 'snapshot' | 'previous_runs';
-    };
-    summary: {
-      comparedHours: number;
-      matchedHours: number;
-      meanAbsoluteTemperatureError?: number | null;
-      meanAbsoluteWindSpeedError?: number | null;
-      meanAbsoluteCloudCoverError?: number | null;
-      meanAbsoluteVisibilityError?: number | null;
-      meanAbsoluteUvIndexError?: number | null;
-      meanAbsoluteRadiationError?: number | null;
-    };
-    hours: Array<{
-      timestampIso: string;
-      forecast: WeatherPoint;
-      actual: WeatherPoint;
-      error: {
-        temperature2m?: number | null;
-        windSpeed10m?: number | null;
-        cloudCover?: number | null;
-        visibility?: number | null;
-        uvIndex?: number | null;
-        shortwaveRadiation?: number | null;
-        windDirection?: number | null;
-      };
-    }>;
-  };
-};
-
 export interface WeatherClient {
   get7DayForecast(input: WeatherRequest): Promise<WeatherForecastResponse>;
-  getYesterdayVerification(input: WeatherRequest): Promise<WeatherYesterdayVerificationResponse>;
   close(): void;
 }
 
@@ -125,7 +86,6 @@ type GrpcUnaryMethod = (
 
 type GrpcWeatherClient = {
   Get7DayForecast: GrpcUnaryMethod;
-  GetYesterdayVerification: GrpcUnaryMethod;
   close: () => void;
 };
 
@@ -189,35 +149,6 @@ type RawForecastResponse = {
   hourly?: unknown;
   daily?: unknown;
 };
-type RawVerificationHour = {
-  timeUnixMs?: unknown;
-  forecastCondition?: RawCondition;
-  actualCondition?: RawCondition;
-  forecastRaw?: RawForecastValueSet;
-  forecastCorrected?: RawForecastValueSet;
-  actual?: RawForecastValueSet;
-};
-type RawVerificationSummary = {
-  temperature?: { meanAbsoluteError?: WrappedNumber };
-  windSpeed?: { meanAbsoluteError?: WrappedNumber };
-  cloudCover?: { meanAbsoluteError?: WrappedNumber };
-  visibility?: { meanAbsoluteError?: WrappedNumber };
-  uvIndex?: { meanAbsoluteError?: WrappedNumber };
-  shortwaveRadiation?: { meanAbsoluteError?: WrappedNumber };
-};
-type RawVerificationResponse = {
-  provenance?: {
-    source?: unknown;
-    modelSelection?: unknown;
-    actualSource?: unknown;
-    verificationSource?: unknown;
-    timezone?: unknown;
-    issuedAtUnixMs?: unknown;
-  };
-  hourly?: unknown;
-  summary?: RawVerificationSummary;
-};
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../../../../');
@@ -288,15 +219,6 @@ export function createWeatherClient(address: string): WeatherClient {
       );
       return normalizeForecastResponse(response, input);
     },
-    async getYesterdayVerification(input) {
-      const grpcClient = ensureClient();
-      const response = await unaryCall<RawVerificationResponse>(
-        grpcClient.GetYesterdayVerification.bind(grpcClient),
-        buildGrpcRequest(input),
-        input
-      );
-      return normalizeVerificationResponse(response, input);
-    },
     close() {
       client?.close();
       client = null;
@@ -351,69 +273,6 @@ function normalizeForecastResponse(
   };
 }
 
-function normalizeVerificationResponse(
-  response: RawVerificationResponse,
-  input: WeatherRequest
-): WeatherYesterdayVerificationResponse {
-  const timezone = stringOrFallback(response.provenance?.timezone, input.timezone);
-  const verificationSource = normalizeVerificationSource(response.provenance?.verificationSource);
-  const hours = asArray<RawVerificationHour>(response.hourly).map((point) =>
-    normalizeVerificationHour(point, input.unitSystem)
-  );
-  return {
-    verification: {
-      issuedAtUnixMs: longString(response.provenance?.issuedAtUnixMs),
-      timezone,
-      verificationSource,
-      provenance: {
-        source: 'open_meteo',
-        modelSelection: 'best_match',
-        actualSource: 'past_days',
-        verificationSource
-      },
-      summary: {
-        comparedHours: hours.length,
-        matchedHours: hours.length,
-        meanAbsoluteTemperatureError: unwrapNumber(response.summary?.temperature?.meanAbsoluteError),
-        meanAbsoluteWindSpeedError: unwrapNumber(response.summary?.windSpeed?.meanAbsoluteError),
-        meanAbsoluteCloudCoverError: unwrapNumber(response.summary?.cloudCover?.meanAbsoluteError),
-        meanAbsoluteVisibilityError: unwrapNumber(response.summary?.visibility?.meanAbsoluteError),
-        meanAbsoluteUvIndexError: unwrapNumber(response.summary?.uvIndex?.meanAbsoluteError),
-        meanAbsoluteRadiationError: unwrapNumber(response.summary?.shortwaveRadiation?.meanAbsoluteError)
-      },
-      hours
-    }
-  };
-}
-
-function normalizeVerificationHour(
-  point: RawVerificationHour,
-  unitSystem: WeatherUnitSystem
-): WeatherYesterdayVerificationResponse['verification']['hours'][number] {
-  const forecast = normalizeVerificationPoint(
-    point.timeUnixMs,
-    point.forecastCondition,
-    point.forecastRaw,
-    point.forecastCorrected,
-    unitSystem
-  );
-  const actual = normalizeActualPoint(point.timeUnixMs, point.actualCondition, point.actual, unitSystem);
-  return {
-    timestampIso: forecast.timestampIso,
-    forecast,
-    actual,
-    error: {
-      temperature2m: difference(actual.temperature2m?.raw, forecast.temperature2m?.raw),
-      windSpeed10m: difference(actual.windSpeed10m?.raw, forecast.windSpeed10m?.raw),
-      cloudCover: difference(actual.cloudCover?.raw, forecast.cloudCover?.raw),
-      visibility: difference(actual.visibility?.raw, forecast.visibility?.raw),
-      uvIndex: difference(actual.uvIndex?.raw, forecast.uvIndex?.raw),
-      shortwaveRadiation: difference(actual.shortwaveRadiation?.raw, forecast.shortwaveRadiation?.raw),
-      windDirection: circularDifference(actual.windDirection10mDegrees, forecast.windDirection10mDegrees)
-    }
-  };
-}
-
 function normalizeWeatherPoint(
   point: RawHourlyForecastPoint,
   unitSystem: WeatherUnitSystem
@@ -452,29 +311,6 @@ function normalizeVerificationPoint(
       corrected?.globalTiltedIrradiance,
       'W/m²'
     )
-  };
-}
-
-function normalizeActualPoint(
-  timeUnixMs: unknown,
-  condition: RawCondition,
-  actual: RawForecastValueSet,
-  unitSystem: WeatherUnitSystem
-): WeatherPoint {
-  return {
-    timestampIso: unixMsToISO(timeUnixMs),
-    weatherCode: numberOrNull(condition?.weatherCode),
-    weatherLabel: stringOrNull(condition?.weatherText),
-    temperature2m: metricValue(actual?.temperature, actual?.temperature, temperatureUnit(unitSystem)),
-    windSpeed10m: metricValue(actual?.windSpeed, actual?.windSpeed, windSpeedUnit(unitSystem)),
-    windDirection10mDegrees: unwrapNumber(actual?.windDirectionDegrees),
-    precipitation: metricValue(actual?.precipitation, actual?.precipitation, precipitationUnit(unitSystem)),
-    cloudCover: metricValue(actual?.cloudCover, actual?.cloudCover, '%'),
-    visibility: metricValue(actual?.visibility, actual?.visibility, visibilityUnit(unitSystem)),
-    sunshineDurationSeconds: unwrapNumber(actual?.sunshineDurationSeconds),
-    shortwaveRadiation: metricValue(actual?.shortwaveRadiation, actual?.shortwaveRadiation, 'W/m²'),
-    uvIndex: metricValue(actual?.uvIndex, actual?.uvIndex, 'UV'),
-    globalTiltedIrradiance: metricValue(actual?.globalTiltedIrradiance, actual?.globalTiltedIrradiance, 'W/m²')
   };
 }
 
@@ -522,10 +358,6 @@ function selectCurrentPoint(hourly: WeatherPoint[]): WeatherPoint {
 
 function normalizeUnitSystem(value: unknown): WeatherUnitSystem {
   return String(value) === 'UNIT_SYSTEM_IMPERIAL' ? 'imperial' : 'metric';
-}
-
-function normalizeVerificationSource(value: unknown): 'snapshot' | 'previous_runs' {
-  return String(value) === 'previous_runs' ? 'previous_runs' : 'snapshot';
 }
 
 function unwrapNumber(value: WrappedNumber): number | null {
@@ -582,27 +414,6 @@ function stringOrNull(value: unknown): string | null {
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function difference(actual?: number | null, forecast?: number | null): number | null {
-  if (typeof actual !== 'number' || typeof forecast !== 'number') {
-    return null;
-  }
-  return actual - forecast;
-}
-
-function circularDifference(actual?: number | null, forecast?: number | null): number | null {
-  if (typeof actual !== 'number' || typeof forecast !== 'number') {
-    return null;
-  }
-  let diff = actual - forecast;
-  while (diff <= -180) {
-    diff += 360;
-  }
-  while (diff > 180) {
-    diff -= 360;
-  }
-  return diff;
 }
 
 function asArray<T>(value: unknown): T[] {

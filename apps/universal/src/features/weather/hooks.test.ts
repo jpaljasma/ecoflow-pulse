@@ -6,8 +6,7 @@ const reactQueryMock = vi.hoisted(() => ({
 
 const weatherApiMock = vi.hoisted(() => ({
   fetchSolarOutlook: vi.fn(),
-  fetchWeatherForecast: vi.fn(),
-  fetchWeatherYesterdayVerification: vi.fn()
+  fetchWeatherForecast: vi.fn()
 }));
 
 vi.mock('@tanstack/react-query', () => reactQueryMock);
@@ -15,13 +14,11 @@ vi.mock('@/features/weather/api', () => weatherApiMock);
 
 import {
   useSolarOutlook,
-  useWeatherForecast,
-  useWeatherYesterdayVerification
+  useWeatherForecast
 } from '@/features/weather/hooks';
 import { buildWeatherQueryKey } from '@/features/weather/queryKeys';
 
 const FOUR_HOURS_MS = 4 * 60 * 60_000;
-const ONE_DAY_MS = 24 * 60 * 60_000;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -34,7 +31,6 @@ beforeEach(() => {
   });
   weatherApiMock.fetchSolarOutlook.mockReset();
   weatherApiMock.fetchWeatherForecast.mockReset();
-  weatherApiMock.fetchWeatherYesterdayVerification.mockReset();
 });
 
 afterEach(() => {
@@ -89,30 +85,6 @@ describe('weather hooks', () => {
 
     await config.queryFn();
     expect(weatherApiMock.fetchWeatherForecast).toHaveBeenCalledWith('token-123');
-  });
-
-  it('keeps yesterday verification lazy and fresh for a full day', async () => {
-    useWeatherYesterdayVerification({
-      token: 'token-123',
-      authKey: 'auth-1',
-      locationKey: '42.616:-77.401:America/New_York',
-      enabled: false
-    });
-
-    const config = reactQueryMock.useQuery.mock.calls[0]?.[0];
-    expect(config.queryKey).toEqual([
-      ...buildWeatherQueryKey('auth-1', '42.616:-77.401:America/New_York'),
-      'yesterday',
-      '2026-04-21'
-    ]);
-    expect(config.enabled).toBe(false);
-    expect(config.staleTime).toBe(ONE_DAY_MS);
-    expect(config.gcTime).toBe(ONE_DAY_MS);
-    expect(config.refetchInterval).toBeUndefined();
-    expect(config.placeholderData({ marker: 'previous' })).toEqual({ marker: 'previous' });
-
-    await config.queryFn();
-    expect(weatherApiMock.fetchWeatherYesterdayVerification).toHaveBeenCalledWith('token-123');
   });
 
   it('keeps solar outlook freshness aligned to four hours and preserves device query-key invalidation', async () => {

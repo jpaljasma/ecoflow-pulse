@@ -71,6 +71,23 @@ describe('deriveTelemetryMetrics', () => {
     expect(metrics.loadW).toBe(120);
   });
 
+  it('derives battery charging from positive power balance when BMS counters are flat zero', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.f32LcdShowSoc': 35.5,
+      'params.pv2ChargeWatts': 483,
+      'params.wattsInSum': 483,
+      'params.wattsOutSum': 207,
+      'params.bmsInputWatts': 0,
+      'params.bmsOutputWatts': 0,
+      'params.inputWatts': 0,
+      'params.outputWatts': 0
+    });
+
+    expect(metrics.pvW).toBe(483);
+    expect(metrics.loadW).toBe(207);
+    expect(metrics.batteryW).toBe(276);
+  });
+
   it('derives DPU Anderson watts from backend volts and amps when appshow power is zero', () => {
     const metrics = deriveTelemetryMetrics({
       'params.outAdsPwr': 0,

@@ -13,12 +13,10 @@ import (
 )
 
 type fakeUpstream struct {
-	forecast         *weatherd.Bundle
-	forecastBatch    []weatherd.Bundle
-	previousRuns     *weatherd.Bundle
-	forecastCalls    int
-	batchCalls       int
-	previousRunCalls int
+	forecast      *weatherd.Bundle
+	forecastBatch []weatherd.Bundle
+	forecastCalls int
+	batchCalls    int
 }
 
 func (f *fakeUpstream) FetchForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -33,24 +31,7 @@ func (f *fakeUpstream) FetchForecastBatch(_ context.Context, _ []weatherd.Reques
 	return out, nil
 }
 
-func (f *fakeUpstream) FetchPreviousRuns(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
-	f.previousRunCalls++
-	return cloneBundleForTest(f.previousRuns), nil
-}
-
 func (f *fakeUpstream) FetchHistoricalForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
-	return nil, nil
-}
-
-type anchorlessSnapshotStore struct {
-	*store.MemorySnapshotStore
-}
-
-func (s *anchorlessSnapshotStore) LoadVerificationForecastAnchor(
-	_ context.Context,
-	_ string,
-	_ time.Time,
-) (*weatherd.Bundle, error) {
 	return nil, nil
 }
 
@@ -70,48 +51,6 @@ func TestForecastValuesConvertsImperialLocally(t *testing.T) {
 	assertClose(t, value(got.WindSpeed), 10.0)
 	assertClose(t, value(got.Precipitation), 1.0)
 	assertClose(t, value(got.Visibility), 1.0)
-}
-
-func TestCircularWindDirectionHelpers(t *testing.T) {
-	diff := weatherd.CircularErrorDegrees(350, 10)
-	assertClose(t, diff, 20)
-
-	mae := weatherd.CircularWindDirectionMAE([]float64{20, -30})
-	if mae == nil {
-		t.Fatal("CircularWindDirectionMAE() = nil")
-		return
-	}
-	assertClose(t, *mae, 25)
-}
-
-func TestUpdateBiasStatesUsesAdditiveAndRatioEWMA(t *testing.T) {
-	now := time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC)
-	forecastTemp := 10.0
-	actualTemp := 13.0
-	forecastRadiation := 100.0
-	actualRadiation := 150.0
-
-	states := weatherd.UpdateBiasStates(
-		now,
-		"grid-key",
-		weatherd.ForecastValueSet{
-			Temperature:        &forecastTemp,
-			ShortwaveRadiation: &forecastRadiation,
-		},
-		weatherd.ForecastValueSet{
-			Temperature:        &actualTemp,
-			ShortwaveRadiation: &actualRadiation,
-		},
-		14,
-		nil,
-	)
-
-	index := weatherd.BuildBiasIndex(states)
-	tempState := index[weatherd.BiasMetricTemperature][14]
-	radiationState := index[weatherd.BiasMetricShortwaveRadiation][14]
-
-	assertClose(t, value(tempState.AdditiveBias), 3)
-	assertClose(t, value(radiationState.MultiplicativeRatio), 1.5)
 }
 
 func TestGet7DayForecastServesStaleCacheWhenBudgetIsExhausted(t *testing.T) {
@@ -286,193 +225,6 @@ func TestGet7DayForecastUsesSharedValkeyHotCacheAcrossServices(t *testing.T) {
 		t.Fatalf("cached canonical key = %q, want %q", second.Provenance.CanonicalLocationKey, first.Provenance.CanonicalLocationKey)
 	}
 	assertClose(t, value(second.Hourly[0].Raw.Temperature), 21)
-}
-
-func TestGetYesterdayVerificationFallsBackToPreviousRuns(t *testing.T) {
-	now := time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
-	cache := store.NewMemoryHotCache(func() time.Time { return now })
-	snapshots := store.NewMemorySnapshotStore(func() time.Time { return now })
-	req := weatherd.Request{
-		Latitude:   42.6,
-		Longitude:  -77.4,
-		UnitSystem: weatherd.UnitSystemMetric,
-		Timezone:   "UTC",
-	}
-	actualBundle := sampleBundle(now, "grid-key", []time.Time{
-		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-		time.Date(2026, 3, 17, 1, 0, 0, 0, time.UTC),
-	}, []float64{10, 12})
-	forecastBundle := sampleBundle(now, "grid-key", []time.Time{
-		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-		time.Date(2026, 3, 17, 1, 0, 0, 0, time.UTC),
-	}, []float64{8, 11})
-	upstream := &fakeUpstream{previousRuns: forecastBundle}
-	if err := snapshots.SaveForecastBundle(context.Background(), req, *actualBundle); err != nil {
-		t.Fatalf("SaveForecastBundle() error = %v", err)
-	}
-	svc, err := weatherd.NewService(
-		upstream,
-		cache,
-		snapshots,
-		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
-		weatherd.Config{HotTTL: 50 * time.Minute, NowFn: func() time.Time { return now }},
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-
-	result, err := svc.GetYesterdayVerification(context.Background(), req)
-	if err != nil {
-		t.Fatalf("GetYesterdayVerification() error = %v", err)
-	}
-	if got := result.Provenance.VerificationSource; got != "previous_runs" {
-		t.Fatalf("verification source = %q, want previous_runs", got)
-	}
-	if upstream.previousRunCalls != 1 {
-		t.Fatalf("previous run calls = %d, want 1", upstream.previousRunCalls)
-	}
-	if len(result.Hourly) != 2 {
-		t.Fatalf("hourly rows = %d, want 2", len(result.Hourly))
-	}
-
-	resultAgain, err := svc.GetYesterdayVerification(context.Background(), req)
-	if err != nil {
-		t.Fatalf("second GetYesterdayVerification() error = %v", err)
-	}
-	if got := resultAgain.Provenance.VerificationSource; got != "snapshot" {
-		t.Fatalf("second verification source = %q, want snapshot", got)
-	}
-	if upstream.previousRunCalls != 1 {
-		t.Fatalf("previous run calls after cache reuse = %d, want 1", upstream.previousRunCalls)
-	}
-}
-
-func TestGetYesterdayVerificationUsesSnapshotAndImperialConversion(t *testing.T) {
-	now := time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
-	cache := store.NewMemoryHotCache(func() time.Time { return now })
-	snapshots := store.NewMemorySnapshotStore(func() time.Time { return now })
-	req := weatherd.Request{
-		Latitude:   42.6,
-		Longitude:  -77.4,
-		UnitSystem: weatherd.UnitSystemMetric,
-		Timezone:   "UTC",
-	}
-	actualBundle := sampleBundle(now, "grid-key", []time.Time{
-		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-	}, []float64{10})
-	priorForecast := sampleBundle(time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC), "grid-key", []time.Time{
-		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-	}, []float64{8})
-	if err := snapshots.SaveForecastBundle(context.Background(), req, *actualBundle); err != nil {
-		t.Fatalf("SaveForecastBundle(actual) error = %v", err)
-	}
-	if err := snapshots.SaveForecastBundle(context.Background(), req, *priorForecast); err != nil {
-		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
-	}
-	svc, err := weatherd.NewService(
-		&fakeUpstream{previousRuns: priorForecast},
-		cache,
-		snapshots,
-		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
-		weatherd.Config{HotTTL: 50 * time.Minute, NowFn: func() time.Time { return now }},
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-
-	result, err := svc.GetYesterdayVerification(context.Background(), weatherd.Request{
-		Latitude:   42.6,
-		Longitude:  -77.4,
-		UnitSystem: weatherd.UnitSystemImperial,
-		Timezone:   "UTC",
-	})
-	if err != nil {
-		t.Fatalf("GetYesterdayVerification() error = %v", err)
-	}
-	if got := result.Provenance.VerificationSource; got != "snapshot" {
-		t.Fatalf("verification source = %q, want snapshot", got)
-	}
-	assertClose(t, value(result.Hourly[0].ForecastRaw.Temperature), 46.4)
-	assertClose(t, value(result.Hourly[0].Actual.Temperature), 50)
-}
-
-func TestGetYesterdayVerificationFallsBackToRecentSnapshotLookbackWhenAnchorMissing(t *testing.T) {
-	now := time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
-	cache := store.NewMemoryHotCache(func() time.Time { return now })
-	snapshots := &anchorlessSnapshotStore{MemorySnapshotStore: store.NewMemorySnapshotStore(func() time.Time { return now })}
-	req := weatherd.Request{
-		Latitude:   42.6,
-		Longitude:  -77.4,
-		UnitSystem: weatherd.UnitSystemMetric,
-		Timezone:   "UTC",
-	}
-	actualBundle := sampleBundle(now, "grid-key", []time.Time{
-		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-	}, []float64{10})
-	priorForecast := sampleBundle(time.Date(2026, 3, 16, 20, 0, 0, 0, time.UTC), "grid-key", []time.Time{
-		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-	}, []float64{8})
-	if err := snapshots.SaveForecastBundle(context.Background(), req, *actualBundle); err != nil {
-		t.Fatalf("SaveForecastBundle(actual) error = %v", err)
-	}
-	if err := snapshots.SaveForecastBundle(context.Background(), req, *priorForecast); err != nil {
-		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
-	}
-	upstream := &fakeUpstream{previousRuns: sampleBundle(now, "grid-key", []time.Time{
-		time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-	}, []float64{4})}
-	svc, err := weatherd.NewService(
-		upstream,
-		cache,
-		snapshots,
-		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
-		weatherd.Config{HotTTL: 50 * time.Minute, NowFn: func() time.Time { return now }},
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-
-	result, err := svc.GetYesterdayVerification(context.Background(), req)
-	if err != nil {
-		t.Fatalf("GetYesterdayVerification() error = %v", err)
-	}
-	if got := result.Provenance.VerificationSource; got != "snapshot" {
-		t.Fatalf("verification source = %q, want snapshot", got)
-	}
-	if upstream.previousRunCalls != 0 {
-		t.Fatalf("previous run calls = %d, want 0", upstream.previousRunCalls)
-	}
-	assertClose(t, value(result.Hourly[0].ForecastRaw.Temperature), 8)
-	assertClose(t, value(result.Hourly[0].Actual.Temperature), 10)
-}
-
-func TestGetYesterdayVerificationReturnsBudgetErrorWithoutStoredBundle(t *testing.T) {
-	now := time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
-	cache := store.NewMemoryHotCache(func() time.Time { return now })
-	snapshots := store.NewMemorySnapshotStore(func() time.Time { return now })
-	svc, err := weatherd.NewService(
-		&fakeUpstream{},
-		cache,
-		snapshots,
-		budget.New(budget.Config{DailyLimit: 1, PerMinuteLimit: 1, NowFn: func() time.Time { return now }}),
-		weatherd.Config{HotTTL: 50 * time.Minute, NowFn: func() time.Time { return now }},
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-
-	_, err = svc.GetYesterdayVerification(context.Background(), weatherd.Request{
-		Latitude:   42.6,
-		Longitude:  -77.4,
-		UnitSystem: weatherd.UnitSystemMetric,
-		Timezone:   "UTC",
-	})
-	if err == nil {
-		t.Fatal("expected budget error")
-	}
-	if err != weatherd.ErrUpstreamBudgetExceeded {
-		t.Fatalf("err = %v, want %v", err, weatherd.ErrUpstreamBudgetExceeded)
-	}
 }
 
 func TestRefreshRecentLocationsBatchesMatchingRequests(t *testing.T) {

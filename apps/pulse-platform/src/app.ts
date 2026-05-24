@@ -57,8 +57,7 @@ export function buildApp(
   const bffCacheConfig = config.bffCache ?? {
     enabled: false,
     maxEntries: 1000,
-    weatherForecastTtlMs: 0,
-    weatherYesterdayTtlMs: 0
+    weatherForecastTtlMs: 0
   };
   const bffCache = createBffCache({
     enabled: bffCacheConfig.enabled,

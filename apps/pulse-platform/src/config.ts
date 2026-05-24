@@ -19,7 +19,6 @@ const envSchema = z.object({
     .default(''),
   PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(100000).default(1000),
   PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS: z.coerce.number().int().min(0).max(3600000).default(30000),
-  PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS: z.coerce.number().int().min(0).max(3600000).default(300000),
   NODE_AUTH_MODE: z.enum(['noop', 'keycloak']).default('noop'),
   KEYCLOAK_ISSUER_URL: z.string().trim().default(''),
   KEYCLOAK_AUDIENCE: z.string().trim().default(''),
@@ -50,7 +49,6 @@ export type AppConfig = {
     enabled: boolean;
     maxEntries: number;
     weatherForecastTtlMs: number;
-    weatherYesterdayTtlMs: number;
   };
   auth:
     | { mode: 'noop'; allowMissingJwt: true }
@@ -129,8 +127,7 @@ function buildBffCacheConfig(parsed: z.infer<typeof envSchema>): AppConfig['bffC
       parsed.PULSE_PLATFORM_BFF_CACHE_ENABLED === 'true' ||
       parsed.PULSE_PLATFORM_BFF_CACHE_ENABLED === '1',
     maxEntries: parsed.PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES,
-    weatherForecastTtlMs: parsed.PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS,
-    weatherYesterdayTtlMs: parsed.PULSE_PLATFORM_WEATHER_YESTERDAY_CACHE_TTL_MS
+    weatherForecastTtlMs: parsed.PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS
   };
 }
 

@@ -33,7 +33,6 @@ func newWeatherDomainFromEnv(log *slog.Logger, registerer prometheus.Registerer)
 			Timeout: runtimecfg.DurationNonNegative("WEATHER_UPSTREAM_TIMEOUT", 20*time.Second),
 		},
 		ForecastBaseURL:           strings.TrimSpace(os.Getenv("WEATHER_FORECAST_BASE_URL")),
-		PreviousRunsBaseURL:       strings.TrimSpace(os.Getenv("WEATHER_PREVIOUS_RUNS_BASE_URL")),
 		HistoricalForecastBaseURL: strings.TrimSpace(os.Getenv("WEATHER_HISTORICAL_FORECAST_BASE_URL")),
 	})
 	svc, err := weatherd.NewService(

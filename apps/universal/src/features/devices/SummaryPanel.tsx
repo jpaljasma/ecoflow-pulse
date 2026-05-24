@@ -2,7 +2,7 @@ import { useMemo, type ComponentProps } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import { Card } from '@/shared/ui/Card';
@@ -22,6 +22,7 @@ import { resolveSolarHistoryWindow } from '@/features/history/solar';
 import { useWeatherForecast } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+import { RollingMetricValue } from '@/shared/ui/RollingMetricValue';
 import {
   PULSE_PANEL_COMPACT_PADDING,
   PULSE_PANEL_RADIUS,
@@ -31,6 +32,7 @@ import {
 import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
 import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 import { SocBar } from '@/shared/ui/SocBar';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 import {
   buildFleetDevicePreview,
   resolveFleetDevicePreviewLimit,
@@ -151,9 +153,7 @@ function FleetOverviewTile({
           <MaterialCommunityIcons name={icon} size={16} color={accent} />
         </YStack>
       </XStack>
-      <Text fontSize="$6" fontWeight="800" letterSpacing={0}>
-        {value}
-      </Text>
+      <RollingMetricValue value={value} fontSize={30} lineHeight={34} fontWeight="800" />
       <Text fontSize="$2" numberOfLines={2} style={{ color: semantics.subtleText }}>
         {detail}
       </Text>
@@ -264,7 +264,7 @@ function FleetDeviceTile({
           </Text>
           <FleetDeviceChargeIcon state={item.chargeState} />
         </XStack>
-        <SocBar value={item.batteryPct} fullWidth />
+        <SocBar value={item.batteryPct} fullWidth sweepMode={item.chargeState} />
       </YStack>
     </Card>
   );
@@ -370,6 +370,7 @@ export function SummaryPanel({
   onAllDevicesPress?: () => void;
 }) {
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const { contentWidth } = useNavigationShellMetrics();
   const isTabletUp = contentWidth >= 768;
   const isPhone = contentWidth < 640;
@@ -580,13 +581,12 @@ export function SummaryPanel({
               <Text fontSize="$4" fontWeight="700" style={{ color: semantics.subtleStrongText }}>
                 Solar generation today
               </Text>
-              <Text
+              <RollingMetricValue
+                value={formatWhAndKWh(fleetSolarHistoryView?.todayWh)}
+                fontSize={isTabletUp ? 56 : 42}
+                lineHeight={isTabletUp ? 60 : 46}
                 fontWeight="800"
-                letterSpacing={0}
-                style={{ fontSize: isTabletUp ? 56 : 42, lineHeight: isTabletUp ? 60 : 46 }}
-              >
-                {formatWhAndKWh(fleetSolarHistoryView?.todayWh)}
-              </Text>
+              />
               <Text fontSize="$3" style={{ color: semantics.subtleStrongText }}>
                 {fleetSolarHistoryErrorText
                   ? fleetSolarHistoryErrorText
@@ -628,10 +628,9 @@ export function SummaryPanel({
               paddingHorizontal="$4"
               minHeight={42}
               alignSelf="flex-start"
-              style={{
-                backgroundColor: semantics.actionBackground,
-                borderColor: semantics.actionBorder
-              }}
+              style={actionButtonStyles.style}
+              hoverStyle={actionButtonStyles.hoverStyle}
+              pressStyle={actionButtonStyles.pressStyle}
               onPress={onAllDevicesPress}
             >
               <XStack alignItems="center" gap="$2">
@@ -667,10 +666,9 @@ export function SummaryPanel({
               paddingHorizontal="$4"
               minHeight={42}
               alignSelf="flex-start"
-              style={{
-                backgroundColor: semantics.actionBackground,
-                borderColor: semantics.actionBorder
-              }}
+              style={actionButtonStyles.style}
+              hoverStyle={actionButtonStyles.hoverStyle}
+              pressStyle={actionButtonStyles.pressStyle}
               onPress={() =>
                 router.push({
                   pathname: '/(tabs)/energy',

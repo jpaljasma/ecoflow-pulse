@@ -64,6 +64,8 @@ export function useThemeSemantics() {
       energyLeafText: emphasize(spec.semantic.air, isDark),
       actionBackground: withAlpha(info, isDark ? 0.14 : 0.08),
       actionBorder: withAlpha(info, isDark ? 0.34 : 0.24),
+      actionHoverBackground: withAlpha(info, isDark ? 0.22 : 0.14),
+      actionPressBackground: withAlpha(info, isDark ? 0.28 : 0.18),
       actionText: emphasize(info, isDark),
       periodActiveBackground: isDark
         ? mix(spec.semantic.success, '#000000', 0.26)

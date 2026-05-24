@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { buildEnergyRouteParams } from '@/features/energy/model';
 import type { SolarOutlook } from '@/features/weather/model';
@@ -10,6 +11,8 @@ import {
   formatSolarProvenanceSummary
 } from '@/features/weather/model';
 import { Card } from '@/shared/ui/Card';
+import { useThemeSemantics } from '@/shared/theme/semantic';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 
 export function DeviceSolarForecastCard({
   deviceName,
@@ -26,6 +29,9 @@ export function DeviceSolarForecastCard({
   errorText?: string;
   fill?: boolean;
 }) {
+  const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
+
   if (!isLoading && !solarOutlook && !errorText) {
     return null;
   }
@@ -48,6 +54,9 @@ export function DeviceSolarForecastCard({
               size="$3"
               borderRadius="$5"
               borderWidth={1}
+              style={actionButtonStyles.style}
+              hoverStyle={actionButtonStyles.hoverStyle}
+              pressStyle={actionButtonStyles.pressStyle}
               onPress={() =>
                 router.push({
                   pathname: '/(tabs)/energy',
@@ -63,8 +72,8 @@ export function DeviceSolarForecastCard({
               }
             >
               <XStack alignItems="center" gap="$2">
-                <MaterialCommunityIcons name="weather-sunny" size={16} />
-                <Text fontWeight="700">Open Solar</Text>
+                <MaterialCommunityIcons name="weather-sunny" size={16} color={semantics.actionText} />
+                <Text fontWeight="700" style={{ color: semantics.actionText }}>Open Solar</Text>
               </XStack>
             </Button>
           ) : null}
