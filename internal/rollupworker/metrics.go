@@ -16,6 +16,40 @@ import (
 
 const andersonPowerNoiseFloorWatts = 0.5
 const solarPowerEstimateMinWatts = 0.5
+const batteryVoltageMaxCanonical = 1000
+const batteryCurrentMaxCanonical = 200
+
+var externalOutputLoadFields = []string{
+	"params.outAcL11Pwr",
+	"params.outAcL12Pwr",
+	"params.outAcL14Pwr",
+	"params.outAcL21Pwr",
+	"params.outAcL22Pwr",
+	"params.outAcTtPwr",
+	"params.outAc5p8Pwr",
+	"params.outUsb1Pwr",
+	"params.outUsb2Pwr",
+	"params.outTypec1Pwr",
+	"params.outTypec2Pwr",
+	"params.outPrPwr",
+	"params.outAdsPwr",
+	"params.invOutWatts",
+	"params.carWatts",
+	"params.wireWatts",
+	"params.usb1Watts",
+	"params.usb2Watts",
+	"params.qcUsb1Watts",
+	"params.qcUsb2Watts",
+	"params.typec1Watts",
+	"params.typec2Watts",
+}
+
+var extraBatteryTransferFields = []string{
+	"params.XT150Watts1",
+	"params.XT150Watts2",
+	"param.XT150Watts1",
+	"param.XT150Watts2",
+}
 
 func SampleFromEnvelope(env *envelopev1.TelemetryEnvelope) (*RollupSample, error) {
 	if env == nil {
@@ -106,26 +140,8 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 		metrics.DC = optionalFloat{Value: dc, Valid: true}
 	}
 
-	if load := firstNumber(root, "params.wattsOutSum", "param.wattsOutSum"); load.Valid {
+	if load := deriveLoad(root); load.Valid {
 		metrics.Load = load
-	} else if load, ok := sumIfPresent(root,
-		"params.outAcL11Pwr",
-		"params.outAcL12Pwr",
-		"params.outAcL14Pwr",
-		"params.outAcL21Pwr",
-		"params.outAcL22Pwr",
-		"params.outAcTtPwr",
-		"params.outAc5p8Pwr",
-		"params.outUsb1Pwr",
-		"params.outUsb2Pwr",
-		"params.outTypec1Pwr",
-		"params.outTypec2Pwr",
-		"params.outPrPwr",
-		"params.outAdsPwr",
-	); ok {
-		metrics.Load = optionalFloat{Value: load, Valid: true}
-	} else if invOut := firstNumber(root, "params.invOutWatts"); invOut.Valid {
-		metrics.Load = invOut
 	}
 
 	if acOutput, ok := deriveACOutput(metrics.Load, metrics.DC); ok {
@@ -479,6 +495,27 @@ func deriveDC(root gjson.Result) (float64, bool) {
 	return base, found
 }
 
+func deriveLoad(root gjson.Result) optionalFloat {
+	if explicit := firstNumber(root, "loadW"); explicit.Valid {
+		return explicit
+	}
+
+	aggregate := firstNumber(root, "params.wattsOutSum", "param.wattsOutSum")
+	explicitOutputs, hasExplicitOutputs := sumNonNegativeIfPresent(root, externalOutputLoadFields...)
+	extraBatteryCharge := extraBatteryChargeTransfer(root)
+	if aggregate.Valid {
+		if extraBatteryCharge <= 0 {
+			return aggregate
+		}
+		adjustedAggregate := math.Max(0, aggregate.Value-extraBatteryCharge)
+		return optionalFloat{Value: math.Max(explicitOutputs, adjustedAggregate), Valid: true}
+	}
+	if hasExplicitOutputs {
+		return optionalFloat{Value: explicitOutputs, Valid: true}
+	}
+	return optionalFloat{}
+}
+
 func deriveAndersonPower(root gjson.Result) (float64, bool) {
 	explicit := firstNumber(root, "params.outAdsPwr")
 	amp := firstNumber(root, "params.outAdsAmp")
@@ -553,6 +590,34 @@ func sumIfPresent(root gjson.Result, paths ...string) (float64, bool) {
 	return sum, found
 }
 
+func sumNonNegativeIfPresent(root gjson.Result, paths ...string) (float64, bool) {
+	var sum float64
+	var found bool
+	for _, path := range paths {
+		result := root.Get(path)
+		if !result.Exists() || !isNumericResult(result) {
+			continue
+		}
+		sum += math.Max(0, result.Float())
+		found = true
+	}
+	return sum, found
+}
+
+func sumPositiveIfPresent(root gjson.Result, paths ...string) (float64, bool) {
+	var sum float64
+	var found bool
+	for _, path := range paths {
+		value := firstNumber(root, path)
+		if !value.Valid || value.Value <= 0 {
+			continue
+		}
+		sum += value.Value
+		found = true
+	}
+	return sum, found
+}
+
 func deriveACOutput(load, dc optionalFloat) (float64, bool) {
 	if !load.Valid || load.Value <= 0 {
 		return 0, false
@@ -564,17 +629,86 @@ func deriveACOutput(load, dc optionalFloat) (float64, bool) {
 }
 
 func batteryMetric(root gjson.Result) (float64, bool) {
-	input := firstNumber(root, "params.bmsInputWatts", "params.inputWatts")
-	output := firstNumber(root, "params.bmsOutputWatts", "params.outputWatts")
+	if explicit := firstNumber(root, "batteryW"); explicit.Valid {
+		return explicit.Value, true
+	}
+	bmsInput := firstNumber(root, "params.bmsInputWatts")
+	bmsOutput := firstNumber(root, "params.bmsOutputWatts")
+	extraBatteryCharge := extraBatteryChargeTransfer(root)
+	if extraBatteryCharge > 0 && !hasNonZero(bmsInput) && !hasNonZero(bmsOutput) {
+		output := firstNumber(root, "params.outputWatts", "param.outputWatts")
+		outputValue := 0.0
+		if output.Valid && output.Value > 0 {
+			outputValue = output.Value
+		}
+		return extraBatteryCharge - outputValue, true
+	}
+	if bmsInput.Valid || bmsOutput.Valid {
+		return bmsInput.Value - bmsOutput.Value, true
+	}
+	input := firstNumber(root, "params.inputWatts", "param.inputWatts")
+	output := firstNumber(root, "params.outputWatts", "param.outputWatts")
 	if input.Valid || output.Valid {
 		return input.Value - output.Value, true
 	}
 	batAmp := firstNumber(root, "params.batAmp")
 	batVol := firstNumber(root, "params.batVol")
 	if batAmp.Valid && batVol.Valid {
-		return batAmp.Value * batVol.Value, true
+		return normalizePotentialMilliUnit(batAmp.Value, batteryCurrentMaxCanonical) *
+			normalizePotentialMilliUnit(batVol.Value, batteryVoltageMaxCanonical), true
 	}
 	return 0, false
+}
+
+func extraBatteryChargeTransfer(root gjson.Result) float64 {
+	xt150Charge, hasXT150Charge := sumPositiveIfPresent(root, extraBatteryTransferFields...)
+	kitCharge := sumExtraBatteryPackCharge(root)
+	if !hasXT150Charge && kitCharge <= 0 {
+		return 0
+	}
+
+	input := firstNumber(root, "params.inputWatts", "param.inputWatts")
+	output := firstNumber(root, "params.outputWatts", "param.outputWatts")
+	inputCharge := 0.0
+	if input.Valid && input.Value > 0 && (!output.Valid || output.Value <= 0) {
+		inputCharge = input.Value
+	}
+	return math.Max(math.Max(xt150Charge, kitCharge), inputCharge)
+}
+
+func sumExtraBatteryPackCharge(root gjson.Result) float64 {
+	var sum float64
+	addRows := func(rows gjson.Result) {
+		if !rows.Exists() {
+			return
+		}
+		rows.ForEach(func(_, row gjson.Result) bool {
+			power := row.Get("curPower")
+			if !isNumericResult(power) || power.Float() <= 0 {
+				return true
+			}
+			available := row.Get("avaFlag")
+			if isNumericResult(available) && available.Float() <= 0 {
+				return true
+			}
+			sum += power.Float()
+			return true
+		})
+	}
+	addRows(root.Get("params.watts"))
+	addRows(root.Get("params.watts.values"))
+	return sum
+}
+
+func hasNonZero(value optionalFloat) bool {
+	return value.Valid && math.Abs(value.Value) > 0.5
+}
+
+func normalizePotentialMilliUnit(value float64, maxAbsCanonical float64) float64 {
+	if math.Abs(value) > maxAbsCanonical && math.Abs(value/1000) <= maxAbsCanonical {
+		return value / 1000
+	}
+	return value
 }
 
 func collectTemperatures(root gjson.Result) []float64 {

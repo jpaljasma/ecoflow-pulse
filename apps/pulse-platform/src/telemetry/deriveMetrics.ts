@@ -13,6 +13,37 @@ export type DerivedTelemetryMetrics = {
 const ANDERSON_POWER_NOISE_FLOOR_W = 0.5;
 const BATTERY_VOLTAGE_MAX_CANONICAL = 1000;
 const BATTERY_CURRENT_MAX_CANONICAL = 200;
+const EXTERNAL_OUTPUT_LOAD_FIELDS = [
+  'params.outAcL11Pwr',
+  'params.outAcL12Pwr',
+  'params.outAcL14Pwr',
+  'params.outAcL21Pwr',
+  'params.outAcL22Pwr',
+  'params.outAcTtPwr',
+  'params.outAc5p8Pwr',
+  'params.outUsb1Pwr',
+  'params.outUsb2Pwr',
+  'params.outTypec1Pwr',
+  'params.outTypec2Pwr',
+  'params.outPrPwr',
+  'params.outAdsPwr',
+  'params.invOutWatts',
+  'params.carWatts',
+  'params.wireWatts',
+  'params.usb1Watts',
+  'params.usb2Watts',
+  'params.qcUsb1Watts',
+  'params.qcUsb2Watts',
+  'params.typec1Watts',
+  'params.typec2Watts'
+] as const;
+const EXTRA_BATTERY_TRANSFER_FIELDS = [
+  'params.XT150Watts1',
+  'params.XT150Watts2',
+  'param.XT150Watts1',
+  'param.XT150Watts2'
+] as const;
+const EXTRA_BATTERY_PACK_POWER_PATTERN = /^params\.watts\.(\d+)\.curPower$/;
 
 export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics {
   const soc = firstNumber(
@@ -42,26 +73,7 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
 
   const dc = deriveDc(raw);
 
-  const load =
-    firstNumber(raw, 'loadW', 'params.wattsOutSum', 'param.wattsOutSum') ??
-    sumIfPresent(
-      raw,
-      'params.outAcL11Pwr',
-      'params.outAcL12Pwr',
-      'params.outAcL14Pwr',
-      'params.outAcL21Pwr',
-      'params.outAcL22Pwr',
-      'params.outAcTtPwr',
-      'params.outAc5p8Pwr',
-      'params.outUsb1Pwr',
-      'params.outUsb2Pwr',
-      'params.outTypec1Pwr',
-      'params.outTypec2Pwr',
-      'params.outPrPwr',
-      'params.outAdsPwr'
-    ) ??
-    firstNumber(raw, 'params.invOutWatts') ??
-    0;
+  const load = deriveLoad(raw);
 
   const battery = deriveBatteryPower(raw) ?? (acIn + pv - load);
   const temp = deriveTemperature(raw);
@@ -175,6 +187,26 @@ export function deriveTelemetryState(batteryW: number): 'charging' | 'dischargin
   return 'idle';
 }
 
+function deriveLoad(raw: RawMetrics): number {
+  const explicit = firstNumber(raw, 'loadW');
+  if (explicit !== undefined) {
+    return explicit;
+  }
+
+  const aggregate = firstNumber(raw, 'params.wattsOutSum', 'param.wattsOutSum');
+  const explicitOutputs = sumNonNegativeIfPresent(raw, ...EXTERNAL_OUTPUT_LOAD_FIELDS);
+  const extraBatteryCharge = deriveExtraBatteryChargeTransfer(raw);
+  if (aggregate !== undefined) {
+    if (extraBatteryCharge <= 0) {
+      return aggregate;
+    }
+    const adjustedAggregate = Math.max(0, aggregate - extraBatteryCharge);
+    return Math.max(explicitOutputs ?? 0, adjustedAggregate);
+  }
+
+  return explicitOutputs ?? 0;
+}
+
 export function deriveTelemetryEtaMinutes(raw: RawMetrics, batteryW: number): number {
   const charge = firstNumber(raw, 'params.chgRemainTime', 'param.chgRemainTime');
   const discharge = firstNumber(raw, 'params.dsgRemainTime', 'param.dsgRemainTime');
@@ -201,8 +233,23 @@ function deriveAcFromInputMinusPv(raw: RawMetrics, pv: number): number | undefin
 }
 
 export function deriveBatteryPower(raw: RawMetrics): number | undefined {
-  const batteryInput = firstNumber(raw, 'batteryW', 'params.bmsInputWatts', 'params.inputWatts');
-  const batteryOutput = firstNumber(raw, 'params.bmsOutputWatts', 'params.outputWatts');
+  const explicitBattery = firstNumber(raw, 'batteryW');
+  if (explicitBattery !== undefined) {
+    return explicitBattery;
+  }
+
+  const bmsInput = firstNumber(raw, 'params.bmsInputWatts');
+  const bmsOutput = firstNumber(raw, 'params.bmsOutputWatts');
+  const extraBatteryCharge = deriveExtraBatteryChargeTransfer(raw);
+  if (extraBatteryCharge > 0 && !hasNonZero(bmsInput) && !hasNonZero(bmsOutput)) {
+    return extraBatteryCharge - Math.max(0, firstNumber(raw, 'params.outputWatts', 'param.outputWatts') ?? 0);
+  }
+  if (bmsInput !== undefined || bmsOutput !== undefined) {
+    return (bmsInput ?? 0) - (bmsOutput ?? 0);
+  }
+
+  const batteryInput = firstNumber(raw, 'params.inputWatts', 'param.inputWatts');
+  const batteryOutput = firstNumber(raw, 'params.outputWatts', 'param.outputWatts');
   if (batteryInput !== undefined || batteryOutput !== undefined) {
     return (batteryInput ?? 0) - (batteryOutput ?? 0);
   }
@@ -213,6 +260,36 @@ export function deriveBatteryPower(raw: RawMetrics): number | undefined {
     return batAmp * batVol;
   }
   return undefined;
+}
+
+function deriveExtraBatteryChargeTransfer(raw: RawMetrics): number {
+  const xt150Charge = sumPositiveIfPresent(raw, ...EXTRA_BATTERY_TRANSFER_FIELDS) ?? 0;
+  const kitCharge = sumExtraBatteryPackCharge(raw);
+  const input = positiveNumber(firstNumber(raw, 'params.inputWatts', 'param.inputWatts')) ?? 0;
+  const output = firstNumber(raw, 'params.outputWatts', 'param.outputWatts') ?? 0;
+  const inputCharge = output <= 0 ? input : 0;
+
+  if (xt150Charge <= 0 && kitCharge <= 0) {
+    return 0;
+  }
+  return Math.max(xt150Charge, kitCharge, inputCharge);
+}
+
+function sumExtraBatteryPackCharge(raw: RawMetrics): number {
+  let sum = 0;
+  for (const [key, value] of Object.entries(raw)) {
+    const matches = EXTRA_BATTERY_PACK_POWER_PATTERN.exec(key);
+    if (!matches || !Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+    const packIndex = matches[1];
+    const available = firstNumber(raw, `params.watts.${packIndex}.avaFlag`);
+    if (available !== undefined && available <= 0) {
+      continue;
+    }
+    sum += value;
+  }
+  return sum;
 }
 
 function normalizePotentialMilliUnit(value: number | undefined, maxAbsCanonical: number): number | undefined {
@@ -278,6 +355,40 @@ function sumIfPresent(raw: RawMetrics, ...paths: string[]): number | undefined {
     }
   }
   return found ? sum : undefined;
+}
+
+function sumNonNegativeIfPresent(raw: RawMetrics, ...paths: string[]): number | undefined {
+  let found = false;
+  let sum = 0;
+  for (const path of paths) {
+    const value = raw[path];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      sum += Math.max(0, value);
+      found = true;
+    }
+  }
+  return found ? sum : undefined;
+}
+
+function sumPositiveIfPresent(raw: RawMetrics, ...paths: string[]): number | undefined {
+  let found = false;
+  let sum = 0;
+  for (const path of paths) {
+    const value = positiveNumber(raw[path]);
+    if (value !== undefined) {
+      sum += value;
+      found = true;
+    }
+  }
+  return found ? sum : undefined;
+}
+
+function positiveNumber(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function hasNonZero(value: number | undefined): boolean {
+  return value !== undefined && Math.abs(value) > 0.5;
 }
 
 function sumIfPresentCapped(raw: RawMetrics, max: number, ...paths: string[]): number | undefined {

@@ -30,6 +30,24 @@ func TestIdleStaleKeepsLiveTrickleWithBatterySink(t *testing.T) {
 	}
 }
 
+func TestIdleStaleKeepsLiveExtraBatteryTransferSink(t *testing.T) {
+	metrics := map[string]float64{
+		"params.wattsInSum":     419,
+		"params.wattsOutSum":    0,
+		"params.XT150Watts1":    118,
+		"params.inputWatts":     118,
+		"params.outputWatts":    0,
+		"params.bmsInputWatts":  0,
+		"params.bmsOutputWatts": 0,
+		"params.chgDsgState":    2,
+		"params.remainTime":     5999,
+	}
+
+	if IdleStale(metrics) {
+		t.Fatal("expected live extra-battery charging telemetry to remain fresh")
+	}
+}
+
 func TestIdleStaleRequiresObservedSinkMetrics(t *testing.T) {
 	metrics := map[string]float64{
 		"params.wattsInSum":  46,

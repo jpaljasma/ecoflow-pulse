@@ -334,6 +334,65 @@ describe('device client', () => {
     expect(device?.netW).toBe(-101);
   });
 
+  it('normalizes D2M live PV units and excludes extra-battery transfer from load', async () => {
+    const controlPlaneClient = makeControlPlaneClient({
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [makeProviderDevice()]
+        }
+      ])
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '22222222-2222-7222-8222-222222222222',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'params.f32LcdShowSoc': 21.5,
+            'params.wattsInSum': 419,
+            'params.wattsOutSum': 118,
+            'params.XT150Watts1': 118,
+            'params.inputWatts': 118,
+            'params.outputWatts': 0,
+            'params.bmsInputWatts': 0,
+            'params.bmsOutputWatts': 0,
+            'params.pv2ChargeWatts': 419,
+            'params.pv2InVol': 42180,
+            'params.pv2InAmp': 9938,
+            'params.pv2ChgState': 2,
+            'params.invOutWatts': 0,
+            'params.typec1Watts': 0,
+            'params.typec2Watts': 0,
+            'params.usb1Watts': 0,
+            'params.usb2Watts': 0,
+            'params.carWatts': 0,
+            'params.wireWatts': 0
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [device] = await client.listDevices(makeRequest());
+
+    expect(device?.pvW).toBe(419);
+    expect(device?.loadW).toBe(0);
+    expect(device?.netW).toBe(419);
+    expect(device?.state).toBe('charging');
+    expect(device?.details?.solarPorts?.[1]).toEqual(
+      expect.objectContaining({
+        volts: 42.18,
+        amps: 9.938,
+        watts: 419
+      })
+    );
+  });
+
   it('hydrates Pecron live MQTT readings into PV and battery-pack details', async () => {
     const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [

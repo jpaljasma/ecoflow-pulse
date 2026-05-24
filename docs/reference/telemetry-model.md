@@ -84,6 +84,10 @@ rollup extraction), PV watts follow this precedence:
 
 This preserves explicit zero PV states from canonical fields and prevents stale
 top-level `pvW` values from showing false solar input in live trends/history.
+PV port voltage/current values are normalized at the data layer before they
+reach device details or PV operating-envelope views: Delta-class millivolt and
+milliamp fields such as `pv2InVol=42180` and `pv2InAmp=9938` are treated as
+`42.18 V` and `9.938 A`, not canonical volts/amps.
 
 History and Energy API reads now treat persisted energy buckets as
 authoritative. If `solar_generated_wh` or other explicit Wh columns are missing
@@ -134,12 +138,16 @@ rollup extraction), the main projected watts metrics are derived as follows:
   when `params.outAdsPwr` is absent or spuriously `0`; otherwise use
   `params.outAdsPwr`.
 - `loadW`:
-  prefer `params.wattsOutSum`, then sum explicit output channels
-  (`outAc*`, USB, USB-C, `outPrPwr`, `outAdsPwr`), then fall back to
-  `params.invOutWatts`.
+  prefer explicit `loadW`, then `params.wattsOutSum` with confirmed
+  XT150/extra-battery charging transfer subtracted, then sum explicit output
+  channels (`outAc*`, USB, USB-C, 12V/car/wire, `outPrPwr`, `outAdsPwr`,
+  `params.invOutWatts`). This keeps EcoFlow extra battery charging out of
+  site-demand/load while preserving real output load when both happen at once.
 - `batteryW`:
   prefer direct battery fields
   `params.bmsInputWatts/inputWatts - params.bmsOutputWatts/outputWatts`,
+  treating confirmed XT150/extra-battery charging transfer as battery charge
+  when BMS-level input/output fields are present only as zeros,
   then normalized `params.batAmp * params.batVol`, then fall back to
   `acW + pvW - loadW`. The voltage/current fallback accepts both canonical
   volts/amps and provider milli-unit values so live snapshots cannot inflate
