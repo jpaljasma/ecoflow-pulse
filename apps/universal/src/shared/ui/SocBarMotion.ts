@@ -1,5 +1,6 @@
 export type SocSweepMode = 'charging' | 'discharging' | 'idle' | 'neutral';
 export type SocSweepDirection = 'left-to-right' | 'right-to-left';
+export type SocSweepEasing = 'out-cubic';
 export type SocSweepConfig = {
   enabled: boolean;
   overlayColor: string;
@@ -7,8 +8,9 @@ export type SocSweepConfig = {
 };
 
 export const SOC_SWEEP_PAUSE_MS = 5000;
-export const SOC_SWEEP_DURATION_MS = 1660;
+export const SOC_SWEEP_DURATION_MS = 2200;
 export const SOC_SWEEP_PERIOD_MS = SOC_SWEEP_DURATION_MS + SOC_SWEEP_PAUSE_MS;
+export const SOC_SWEEP_EASING: SocSweepEasing = 'out-cubic';
 export const SOC_SWEEP_WIDTH_RATIO = 0.2;
 export const SOC_SWEEP_SKEW_DEG = -45;
 
@@ -31,4 +33,9 @@ export function getSocSweepTravelRange(
     return [trackWidth + sweepWidth, -sweepWidth];
   }
   return [-sweepWidth, trackWidth + sweepWidth];
+}
+
+export function getSocSweepEasingPoint(progress: number): number {
+  const t = Math.max(0, Math.min(1, progress));
+  return 1 - Math.pow(1 - t, 3);
 }

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, useWindowDimensions } from 'react-native';
+import { Animated, Platform, useWindowDimensions } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import {
   getSocSweepTravelRange,
   getSocSweepConfig,
+  getSocSweepEasingPoint,
   SOC_SWEEP_DURATION_MS,
   SOC_SWEEP_PAUSE_MS,
   SOC_SWEEP_SKEW_DEG,
@@ -51,7 +52,7 @@ export function SocBar({
         Animated.timing(sweepProgress, {
           toValue: 1,
           duration: SOC_SWEEP_DURATION_MS,
-          easing: Easing.inOut(Easing.cubic),
+          easing: getSocSweepEasingPoint,
           useNativeDriver: Platform.OS !== 'web'
         }),
         Animated.delay(SOC_SWEEP_PAUSE_MS)
