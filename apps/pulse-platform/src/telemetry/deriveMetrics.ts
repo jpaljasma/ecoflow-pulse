@@ -75,7 +75,8 @@ export function deriveTelemetryMetrics(raw: RawMetrics): DerivedTelemetryMetrics
 
   const load = deriveLoad(raw);
 
-  const battery = deriveBatteryPower(raw) ?? (acIn + pv - load);
+  const powerBalance = acIn + pv - load;
+  const battery = deriveBatteryPower(raw, powerBalance) ?? powerBalance;
   const temp = deriveTemperature(raw);
 
   return {
@@ -232,7 +233,7 @@ function deriveAcFromInputMinusPv(raw: RawMetrics, pv: number): number | undefin
   return Math.max(0, wattsIn - pv);
 }
 
-export function deriveBatteryPower(raw: RawMetrics): number | undefined {
+export function deriveBatteryPower(raw: RawMetrics, powerBalance?: number): number | undefined {
   const explicitBattery = firstNumber(raw, 'batteryW');
   if (explicitBattery !== undefined) {
     return explicitBattery;
@@ -243,6 +244,15 @@ export function deriveBatteryPower(raw: RawMetrics): number | undefined {
   const extraBatteryCharge = deriveExtraBatteryChargeTransfer(raw);
   if (extraBatteryCharge > 0 && !hasNonZero(bmsInput) && !hasNonZero(bmsOutput)) {
     return extraBatteryCharge - Math.max(0, firstNumber(raw, 'params.outputWatts', 'param.outputWatts') ?? 0);
+  }
+  if (
+    powerBalance !== undefined &&
+    Math.abs(powerBalance) > 20 &&
+    (bmsInput !== undefined || bmsOutput !== undefined) &&
+    !hasNonZero(bmsInput) &&
+    !hasNonZero(bmsOutput)
+  ) {
+    return powerBalance;
   }
   if (bmsInput !== undefined || bmsOutput !== undefined) {
     return (bmsInput ?? 0) - (bmsOutput ?? 0);

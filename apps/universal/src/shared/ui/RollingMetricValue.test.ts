@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   getRollingMetricDirection,
+  getRollingMetricDigitTiming,
   parseRollingMetricNumber,
+  ROLLING_METRIC_BASE_DURATION_MS,
   tokenizeRollingMetricValue
 } from '@/shared/ui/RollingMetricValueModel';
 
@@ -39,5 +41,12 @@ describe('RollingMetricValue model', () => {
     expect(getRollingMetricDirection('53.5%', '21.5%')).toBe('down');
     expect(getRollingMetricDirection('—', '0 W')).toBe('none');
     expect(getRollingMetricDirection('11.74 kWh', '11.74 kWh')).toBe('none');
+  });
+
+  it('slows rolling digits progressively from left to right with overlap', () => {
+    expect(ROLLING_METRIC_BASE_DURATION_MS).toBe(528);
+    expect(getRollingMetricDigitTiming(0)).toEqual({ delayMs: 0, durationMs: 528 });
+    expect(getRollingMetricDigitTiming(1)).toEqual({ delayMs: 42, durationMs: 621 });
+    expect(getRollingMetricDigitTiming(2)).toEqual({ delayMs: 84, durationMs: 731 });
   });
 });

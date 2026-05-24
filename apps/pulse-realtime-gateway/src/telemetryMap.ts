@@ -51,6 +51,37 @@ const D2M_SOLAR_HINT_KEYS = [
   'params.pv2ChgState'
 ] as const;
 const NUMBERED_SOLAR_PORT_FIELD = /^params\.pv(\d+)(InVol|InAmp|ChargeWatts|InWatts|ChgState)$/;
+const EXTERNAL_OUTPUT_LOAD_FIELDS = [
+  'params.outAcL11Pwr',
+  'params.outAcL12Pwr',
+  'params.outAcL14Pwr',
+  'params.outAcL21Pwr',
+  'params.outAcL22Pwr',
+  'params.outAcTtPwr',
+  'params.outAc5p8Pwr',
+  'params.outUsb1Pwr',
+  'params.outUsb2Pwr',
+  'params.outTypec1Pwr',
+  'params.outTypec2Pwr',
+  'params.outPrPwr',
+  'params.outAdsPwr',
+  'params.invOutWatts',
+  'params.carWatts',
+  'params.wireWatts',
+  'params.usb1Watts',
+  'params.usb2Watts',
+  'params.qcUsb1Watts',
+  'params.qcUsb2Watts',
+  'params.typec1Watts',
+  'params.typec2Watts'
+] as const;
+const EXTRA_BATTERY_TRANSFER_FIELDS = [
+  'params.XT150Watts1',
+  'params.XT150Watts2',
+  'param.XT150Watts1',
+  'param.XT150Watts2'
+] as const;
+const EXTRA_BATTERY_PACK_POWER_PATTERN = /^params\.watts\.(\d+)\.curPower$/;
 
 export function mergeRawMetrics(
   current: RawTelemetryMetrics,
@@ -95,30 +126,11 @@ export function deriveTelemetryMetrics(raw: RawTelemetryMetrics): DerivedTelemet
 
   const dc = deriveDc(raw);
 
-  const load =
-    firstNumber(raw, 'loadW', 'params.wattsOutSum', 'param.wattsOutSum') ??
-    sumIfPresent(
-      raw,
-      'params.outAcL11Pwr',
-      'params.outAcL12Pwr',
-      'params.outAcL14Pwr',
-      'params.outAcL21Pwr',
-      'params.outAcL22Pwr',
-      'params.outAcTtPwr',
-      'params.outAc5p8Pwr',
-      'params.outUsb1Pwr',
-      'params.outUsb2Pwr',
-      'params.outTypec1Pwr',
-      'params.outTypec2Pwr',
-      'params.outPrPwr',
-      'params.outAdsPwr'
-    ) ??
-    firstNumber(raw, 'params.invOutWatts') ??
-    0;
+  const load = deriveLoad(raw);
 
   const net = acIn + pv - load;
 
-  const battery = deriveBattery(raw) ?? net;
+  const battery = deriveBattery(raw, net) ?? net;
   const temp = deriveTemperature(raw);
 
   return {
@@ -656,9 +668,53 @@ function deriveAcFromInputMinusPv(raw: RawTelemetryMetrics, pv: number): number 
   return Math.max(0, wattsIn - pv);
 }
 
-function deriveBattery(raw: RawTelemetryMetrics): number | undefined {
-  const batteryInput = firstNumber(raw, 'batteryW', 'params.bmsInputWatts', 'params.inputWatts');
-  const batteryOutput = firstNumber(raw, 'params.bmsOutputWatts', 'params.outputWatts');
+function deriveLoad(raw: RawTelemetryMetrics): number {
+  const explicit = firstNumber(raw, 'loadW');
+  if (explicit !== undefined) {
+    return explicit;
+  }
+
+  const aggregate = firstNumber(raw, 'params.wattsOutSum', 'param.wattsOutSum');
+  const explicitOutputs = sumNonNegativeIfPresent(raw, ...EXTERNAL_OUTPUT_LOAD_FIELDS);
+  const extraBatteryCharge = deriveExtraBatteryChargeTransfer(raw);
+  if (aggregate !== undefined) {
+    if (extraBatteryCharge <= 0) {
+      return aggregate;
+    }
+    const adjustedAggregate = Math.max(0, aggregate - extraBatteryCharge);
+    return Math.max(explicitOutputs ?? 0, adjustedAggregate);
+  }
+
+  return explicitOutputs ?? 0;
+}
+
+function deriveBattery(raw: RawTelemetryMetrics, powerBalance?: number): number | undefined {
+  const explicitBattery = firstNumber(raw, 'batteryW');
+  if (explicitBattery !== undefined) {
+    return explicitBattery;
+  }
+
+  const bmsInput = firstNumber(raw, 'params.bmsInputWatts');
+  const bmsOutput = firstNumber(raw, 'params.bmsOutputWatts');
+  const extraBatteryCharge = deriveExtraBatteryChargeTransfer(raw);
+  if (extraBatteryCharge > 0 && !hasNonZero(bmsInput) && !hasNonZero(bmsOutput)) {
+    return extraBatteryCharge - Math.max(0, firstNumber(raw, 'params.outputWatts', 'param.outputWatts') ?? 0);
+  }
+  if (
+    powerBalance !== undefined &&
+    Math.abs(powerBalance) > 20 &&
+    (bmsInput !== undefined || bmsOutput !== undefined) &&
+    !hasNonZero(bmsInput) &&
+    !hasNonZero(bmsOutput)
+  ) {
+    return powerBalance;
+  }
+  if (bmsInput !== undefined || bmsOutput !== undefined) {
+    return (bmsInput ?? 0) - (bmsOutput ?? 0);
+  }
+
+  const batteryInput = firstNumber(raw, 'params.inputWatts', 'param.inputWatts');
+  const batteryOutput = firstNumber(raw, 'params.outputWatts', 'param.outputWatts');
   if (batteryInput !== undefined || batteryOutput !== undefined) {
     return (batteryInput ?? 0) - (batteryOutput ?? 0);
   }
@@ -669,6 +725,31 @@ function deriveBattery(raw: RawTelemetryMetrics): number | undefined {
     return batAmp * batVol;
   }
   return undefined;
+}
+
+function deriveExtraBatteryChargeTransfer(raw: RawTelemetryMetrics): number {
+  const xt150Charge = sumPositiveIfPresent(raw, ...EXTRA_BATTERY_TRANSFER_FIELDS) ?? 0;
+  const kitCharge = sumExtraBatteryPackCharge(raw);
+  const input = positiveNumber(firstNumber(raw, 'params.inputWatts', 'param.inputWatts')) ?? 0;
+  const output = firstNumber(raw, 'params.outputWatts', 'param.outputWatts') ?? 0;
+  const inputCharge = output <= 0 ? input : 0;
+
+  if (xt150Charge <= 0 && kitCharge <= 0) {
+    return 0;
+  }
+  return Math.max(xt150Charge, kitCharge, inputCharge);
+}
+
+function sumExtraBatteryPackCharge(raw: RawTelemetryMetrics): number {
+  let sum = 0;
+  for (const [key, value] of Object.entries(raw)) {
+    const match = key.match(EXTRA_BATTERY_PACK_POWER_PATTERN);
+    if (!match || match[1] === '0' || !Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+    sum += value;
+  }
+  return sum;
 }
 
 function normalizePotentialMilliUnit(value: number | undefined, maxAbsCanonical: number): number | undefined {
@@ -746,6 +827,40 @@ function sumIfPresent(raw: RawTelemetryMetrics, ...paths: string[]): number | un
     }
   }
   return found ? sum : undefined;
+}
+
+function sumNonNegativeIfPresent(raw: RawTelemetryMetrics, ...paths: string[]): number | undefined {
+  let found = false;
+  let sum = 0;
+  for (const path of paths) {
+    const value = raw[path];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      sum += Math.max(0, value);
+      found = true;
+    }
+  }
+  return found ? sum : undefined;
+}
+
+function sumPositiveIfPresent(raw: RawTelemetryMetrics, ...paths: string[]): number | undefined {
+  let found = false;
+  let sum = 0;
+  for (const path of paths) {
+    const value = positiveNumber(raw[path]);
+    if (value !== undefined) {
+      sum += value;
+      found = true;
+    }
+  }
+  return found ? sum : undefined;
+}
+
+function positiveNumber(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function hasNonZero(value: number | undefined): boolean {
+  return value !== undefined && Math.abs(value) > 0.5;
 }
 
 function sumIfPresentCapped(raw: RawTelemetryMetrics, max: number, ...paths: string[]): number | undefined {

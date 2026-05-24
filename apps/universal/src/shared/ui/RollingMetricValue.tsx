@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
-import { AccessibilityInfo, Animated, Easing, Platform } from 'react-native';
+import { useEffect, useMemo, useRef, type ComponentProps } from 'react';
+import { Animated, Easing, Platform } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import {
   getRollingMetricDirection,
+  getRollingMetricDigitTiming,
   tokenizeRollingMetricValue,
   type RollingMetricDirection
 } from '@/shared/ui/RollingMetricValueModel';
+import { usePrefersReducedMotion } from '@/shared/ui/usePrefersReducedMotion';
 
 export {
   getRollingMetricDirection,
@@ -24,36 +26,6 @@ function metricTextStyle(color?: string): ComponentProps<typeof Text>['style'] {
   } as ComponentProps<typeof Text>['style'];
 }
 
-function usePrefersReducedMotion(): boolean {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-      setPrefersReducedMotion(query.matches);
-      const onChange = (event: MediaQueryListEvent) => setPrefersReducedMotion(event.matches);
-      query.addEventListener?.('change', onChange);
-      return () => query.removeEventListener?.('change', onChange);
-    }
-
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => {
-        if (mounted) setPrefersReducedMotion(enabled);
-      })
-      .catch(() => {
-        if (mounted) setPrefersReducedMotion(false);
-      });
-    const subscription = AccessibilityInfo.addEventListener?.('reduceMotionChanged', setPrefersReducedMotion);
-    return () => {
-      mounted = false;
-      subscription?.remove?.();
-    };
-  }, []);
-
-  return prefersReducedMotion;
-}
-
 function RollingDigit({
   value,
   previousValue,
@@ -62,6 +34,7 @@ function RollingDigit({
   fontSize,
   fontWeight,
   lineHeight,
+  digitIndex,
   color
 }: {
   value: string;
@@ -71,12 +44,14 @@ function RollingDigit({
   fontSize: number;
   fontWeight: RollingMetricFontWeight;
   lineHeight: number;
+  digitIndex: number;
   color?: string;
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const shouldAnimate = !disabled && direction !== 'none' && Boolean(previousValue) && previousValue !== value;
   const width = Math.max(10, fontSize * 0.58);
   const textStyle = metricTextStyle(color);
+  const timing = getRollingMetricDigitTiming(digitIndex);
 
   useEffect(() => {
     if (!shouldAnimate) {
@@ -88,8 +63,9 @@ function RollingDigit({
       translateY.setValue(0);
       Animated.timing(translateY, {
         toValue: -lineHeight,
-        duration: 440,
-        easing: Easing.out(Easing.cubic),
+        delay: timing.delayMs,
+        duration: timing.durationMs,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: Platform.OS !== 'web'
       }).start();
       return;
@@ -98,11 +74,12 @@ function RollingDigit({
     translateY.setValue(-lineHeight);
     Animated.timing(translateY, {
       toValue: 0,
-      duration: 440,
-      easing: Easing.out(Easing.cubic),
+      delay: timing.delayMs,
+      duration: timing.durationMs,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: Platform.OS !== 'web'
     }).start();
-  }, [direction, lineHeight, shouldAnimate, translateY, value]);
+  }, [direction, lineHeight, shouldAnimate, timing.delayMs, timing.durationMs, translateY, value]);
 
   if (!shouldAnimate) {
     return (
@@ -216,6 +193,7 @@ export function RollingMetricValue({
             fontSize={fontSize}
             fontWeight={fontWeight}
             lineHeight={lineHeight}
+            digitIndex={digitIndex}
             color={color}
           />
         );

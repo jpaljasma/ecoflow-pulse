@@ -692,6 +692,54 @@ describe('device client', () => {
     );
   });
 
+  it('hydrates summary state and live pack watts from normalized power balance', async () => {
+    const controlPlaneClient = makeControlPlaneClient({
+      listDevices: vi.fn(async () => [
+        {
+          provider: 'ecoflow',
+          devices: [makeProviderDevice()]
+        }
+      ])
+    });
+    const telemetryClient: TelemetrySnapshotClient = {
+      getSnapshot: vi.fn(async () => ({
+        snapshot: {
+          deviceId: '22222222-2222-7222-8222-222222222222',
+          cursor: {
+            seq: '1',
+            tsUnixMs: String(Date.now())
+          },
+          metrics: {
+            'params.f32LcdShowSoc': 35.5,
+            'params.pv2ChargeWatts': 483,
+            'params.wattsInSum': 483,
+            'params.wattsOutSum': 207,
+            'params.bmsInputWatts': 0,
+            'params.bmsOutputWatts': 0,
+            'params.inputWatts': 0,
+            'params.outputWatts': 0
+          }
+        }
+      })),
+      close: vi.fn()
+    };
+
+    const client = createDeviceClient(baseConfig(), controlPlaneClient, telemetryClient);
+    const [device] = await client.listDevices(makeRequest());
+
+    expect(device?.state).toBe('charging');
+    expect(device?.pvW).toBe(483);
+    expect(device?.loadW).toBe(207);
+    expect(device?.netW).toBe(276);
+    expect(device?.details?.packs?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'main',
+        socPct: 35.5,
+        powerW: 276
+      })
+    );
+  });
+
   it('uses provider remain-time details when live snapshot ETA fields are absent', async () => {
     const controlPlaneClient = makeControlPlaneClient({
       listDevices: vi.fn(async () => [

@@ -263,7 +263,7 @@ function FleetDeviceTile({
           </Text>
           <FleetDeviceChargeIcon state={item.chargeState} />
         </XStack>
-        <SocBar value={item.batteryPct} fullWidth />
+        <SocBar value={item.batteryPct} fullWidth sweepMode={item.chargeState} />
       </YStack>
     </Card>
   );

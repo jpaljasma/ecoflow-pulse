@@ -476,7 +476,7 @@ export function DeviceDetailBody({
                   </Text>
                 </YStack>
 
-                <SocBar value={resolvedSoc} fullWidth />
+                <SocBar value={resolvedSoc} fullWidth sweepMode={vm.detailState} />
 
                 <XStack gap="$3" flexWrap="wrap">
                   {heroTiles.map((tile) => (

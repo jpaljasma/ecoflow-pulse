@@ -147,7 +147,10 @@ rollup extraction), the main projected watts metrics are derived as follows:
   prefer direct battery fields
   `params.bmsInputWatts/inputWatts - params.bmsOutputWatts/outputWatts`,
   treating confirmed XT150/extra-battery charging transfer as battery charge
-  when BMS-level input/output fields are present only as zeros,
+  when BMS-level input/output fields are present only as zeros. When those
+  BMS-level fields are flat zero but `acW + pvW - loadW` shows a non-trivial
+  charge/discharge balance, the data layer uses that power balance instead of
+  reporting idle,
   then normalized `params.batAmp * params.batVol`, then fall back to
   `acW + pvW - loadW`. The voltage/current fallback accepts both canonical
   volts/amps and provider milli-unit values so live snapshots cannot inflate

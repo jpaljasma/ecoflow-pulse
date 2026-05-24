@@ -5,6 +5,9 @@ export type RollingMetricToken =
   | { kind: 'static'; value: string };
 
 const NUMBER_PATTERN = /[-+]?\d[\d,]*(?:\.\d+)?/;
+export const ROLLING_METRIC_BASE_DURATION_MS = 528;
+const ROLLING_METRIC_RIGHTWARD_SPEED_RATIO = 0.85;
+const ROLLING_METRIC_STAGGER_RATIO = 0.08;
 
 export function tokenizeRollingMetricValue(value: string): RollingMetricToken[] {
   const tokens: RollingMetricToken[] = [];
@@ -42,4 +45,11 @@ export function getRollingMetricDirection(previousValue: string | undefined, nex
   const nextNumber = parseRollingMetricNumber(nextValue);
   if (previousNumber === null || nextNumber === null || previousNumber === nextNumber) return 'none';
   return nextNumber > previousNumber ? 'up' : 'down';
+}
+
+export function getRollingMetricDigitTiming(digitIndex: number): { delayMs: number; durationMs: number } {
+  const index = Math.max(0, digitIndex);
+  const durationMs = Math.round(ROLLING_METRIC_BASE_DURATION_MS / (ROLLING_METRIC_RIGHTWARD_SPEED_RATIO ** index));
+  const delayMs = Math.round(ROLLING_METRIC_BASE_DURATION_MS * ROLLING_METRIC_STAGGER_RATIO * index);
+  return { delayMs, durationMs };
 }

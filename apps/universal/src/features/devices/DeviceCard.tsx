@@ -29,6 +29,7 @@ import { IconLabel } from '@/shared/ui/IconLabel';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { resolveDeviceVisualAssets } from '@/features/devices/deviceVisuals';
 import { resolveDeviceSocPct } from '@/features/devices/soc';
+import { usePrefersReducedMotion } from '@/shared/ui/usePrefersReducedMotion';
 
 const INACTIVE_CARD_OPACITY = 0.82;
 
@@ -119,14 +120,20 @@ export function DeviceCard({
   const cardStatusLabel = isOffline ? 'Offline' : isInactive ? 'Inactive' : null;
   const connGlyph = isOffline ? getStatusIconName('offline') : connectivityGlyph(snapshot, connectionStatus);
   const fadeOpacity = useRef(new Animated.Value(isInactive ? INACTIVE_CARD_OPACITY : 1)).current;
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      fadeOpacity.stopAnimation();
+      fadeOpacity.setValue(isInactive ? INACTIVE_CARD_OPACITY : 1);
+      return;
+    }
     Animated.timing(fadeOpacity, {
       toValue: isInactive ? INACTIVE_CARD_OPACITY : 1,
       duration: 220,
       useNativeDriver: Platform.OS !== 'web'
     }).start();
-  }, [fadeOpacity, isInactive]);
+  }, [fadeOpacity, isInactive, prefersReducedMotion]);
 
   const metricItems = useMemo<MetricsGridItem[]>(() => {
     return [
@@ -331,7 +338,7 @@ export function DeviceCard({
               {stormGuardLabel ? <StormGuardChip label={stormGuardLabel} /> : null}
 
               <YStack gap="$2">
-                <SocBar value={socPct} />
+                <SocBar value={socPct} sweepMode={snapshotState} />
                 <MetricsGrid items={metricItems} columns={3} />
               </YStack>
 

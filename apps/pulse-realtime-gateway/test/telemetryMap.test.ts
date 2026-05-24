@@ -66,6 +66,63 @@ describe('telemetryMap', () => {
     expect(metrics.acW).toBe(0);
   });
 
+  it('does not count D2M extra-battery transfer as external load', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.f32LcdShowSoc': 21.5,
+      'params.pv2ChargeWatts': 435,
+      'params.wattsInSum': 435,
+      'params.wattsOutSum': 183,
+      'params.XT150Watts1': 183,
+      'params.inputWatts': 183,
+      'params.outputWatts': 0,
+      'params.bmsInputWatts': 0,
+      'params.bmsOutputWatts': 0,
+      'params.invOutWatts': 0,
+      'params.carWatts': 0,
+      'params.wireWatts': 0,
+      'params.typec1Watts': 0,
+      'params.typec2Watts': 0,
+      'params.usb1Watts': 0,
+      'params.usb2Watts': 0
+    });
+
+    expect(metrics.pvW).toBe(435);
+    expect(metrics.acW).toBe(0);
+    expect(metrics.loadW).toBe(0);
+    expect(metrics.batteryW).toBe(183);
+  });
+
+  it('keeps real output load while subtracting D2M extra-battery transfer', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.pv2ChargeWatts': 360,
+      'params.wattsInSum': 360,
+      'params.wattsOutSum': 300,
+      'params.XT150Watts1': 180,
+      'params.inputWatts': 180,
+      'params.outputWatts': 0,
+      'params.typec1Watts': 120
+    });
+
+    expect(metrics.loadW).toBe(120);
+  });
+
+  it('derives battery charging from positive power balance when BMS counters are flat zero', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.f32LcdShowSoc': 35.5,
+      'params.pv2ChargeWatts': 483,
+      'params.wattsInSum': 483,
+      'params.wattsOutSum': 207,
+      'params.bmsInputWatts': 0,
+      'params.bmsOutputWatts': 0,
+      'params.inputWatts': 0,
+      'params.outputWatts': 0
+    });
+
+    expect(metrics.pvW).toBe(483);
+    expect(metrics.loadW).toBe(207);
+    expect(metrics.batteryW).toBe(276);
+  });
+
   it('does not double-count explicit pvW with provider-specific MPPT totals', () => {
     const metrics = deriveTelemetryMetrics({
       pvW: 167.1652,
