@@ -150,9 +150,10 @@ Realtime dashboard motion should be useful and restrained.
   decreases, using eased timing rather than linear movement.
 - Stagger and slow digit columns slightly from left to right so the last
   changing digit settles last while overlapping the earlier columns.
-- Use SOC gauge sweeps only on active charge/discharge bars: a diagonal
-  light-alpha sweep for charging and a dark-alpha sweep for discharging, ticking
-  about every five seconds.
+- Use SOC gauge sweeps only on active charge/discharge bars: a 45-degree
+  diagonal light-alpha band for charging and dark-alpha band for discharging,
+  moving left-to-right over about 1.66 seconds with a five-second pause between
+  passes.
 - Respect reduced-motion preferences and fall back to instant value updates.
 - Avoid applying metric motion to dense tables, long inventory lists, or every
   small stat at once.

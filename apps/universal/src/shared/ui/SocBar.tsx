@@ -3,8 +3,9 @@ import { Animated, Easing, Platform, useWindowDimensions } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import {
   getSocSweepConfig,
-  SOC_SWEEP_DELAY_MS,
   SOC_SWEEP_DURATION_MS,
+  SOC_SWEEP_PAUSE_MS,
+  SOC_SWEEP_SKEW_DEG,
   SOC_SWEEP_WIDTH_RATIO,
   type SocSweepMode
 } from '@/shared/ui/SocBarMotion';
@@ -33,7 +34,7 @@ export function SocBar({
   const sweepConfig = getSocSweepConfig(sweepMode);
   const sweepProgress = useRef(new Animated.Value(0)).current;
   const [fillWidth, setFillWidth] = useState(0);
-  const sweepWidth = Math.max(12, fillWidth * SOC_SWEEP_WIDTH_RATIO);
+  const sweepWidth = Math.max(28, fillWidth * SOC_SWEEP_WIDTH_RATIO);
   const sweepEnabled = sweepConfig.enabled && pct > 0 && fillWidth > 0 && !prefersReducedMotion;
 
   useEffect(() => {
@@ -45,13 +46,13 @@ export function SocBar({
 
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.delay(SOC_SWEEP_DELAY_MS),
         Animated.timing(sweepProgress, {
           toValue: 1,
           duration: SOC_SWEEP_DURATION_MS,
           easing: Easing.inOut(Easing.cubic),
           useNativeDriver: Platform.OS !== 'web'
-        })
+        }),
+        Animated.delay(SOC_SWEEP_PAUSE_MS)
       ]),
       { resetBeforeIteration: true }
     );
@@ -95,7 +96,7 @@ export function SocBar({
                 backgroundColor: sweepConfig.overlayColor,
                 transform: [
                   { translateX: sweepProgress.interpolate({ inputRange: [0, 1], outputRange: [-sweepWidth, fillWidth + sweepWidth] }) },
-                  { rotate: '45deg' }
+                  { skewX: `${SOC_SWEEP_SKEW_DEG}deg` }
                 ]
               }}
             />
