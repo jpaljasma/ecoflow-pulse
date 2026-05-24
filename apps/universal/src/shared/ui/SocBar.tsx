@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, useWindowDimensions } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import {
+  getSocSweepTravelRange,
   getSocSweepConfig,
   SOC_SWEEP_DURATION_MS,
   SOC_SWEEP_PAUSE_MS,
@@ -33,9 +34,10 @@ export function SocBar({
   const prefersReducedMotion = usePrefersReducedMotion();
   const sweepConfig = getSocSweepConfig(sweepMode);
   const sweepProgress = useRef(new Animated.Value(0)).current;
-  const [fillWidth, setFillWidth] = useState(0);
-  const sweepWidth = Math.max(28, fillWidth * SOC_SWEEP_WIDTH_RATIO);
-  const sweepEnabled = sweepConfig.enabled && pct > 0 && fillWidth > 0 && !prefersReducedMotion;
+  const [trackWidth, setTrackWidth] = useState(0);
+  const sweepWidth = Math.max(28, trackWidth * SOC_SWEEP_WIDTH_RATIO);
+  const sweepEnabled = sweepConfig.enabled && pct > 0 && trackWidth > 0 && !prefersReducedMotion;
+  const [sweepStart, sweepEnd] = getSocSweepTravelRange(trackWidth, sweepWidth, sweepConfig.direction);
 
   useEffect(() => {
     if (!sweepEnabled) {
@@ -71,37 +73,35 @@ export function SocBar({
         </Text>
       </XStack>
       <XStack
+        position="relative"
         height={10}
         borderRadius="$5"
         overflow="hidden"
         backgroundColor="rgba(120,120,128,0.20)"
+        onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
       >
         <XStack
-          position="relative"
           height="100%"
           width={`${pct}%` as `${number}%`}
           backgroundColor={pct >= 60 ? '#30d158' : pct >= 30 ? '#ff9f0a' : '#ff453a'}
-          overflow="hidden"
-          onLayout={(event) => setFillWidth(event.nativeEvent.layout.width)}
-        >
-          {sweepEnabled ? (
-            <Animated.View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                top: -8,
-                bottom: -8,
-                left: 0,
-                width: sweepWidth,
-                backgroundColor: sweepConfig.overlayColor,
-                transform: [
-                  { translateX: sweepProgress.interpolate({ inputRange: [0, 1], outputRange: [-sweepWidth, fillWidth + sweepWidth] }) },
-                  { skewX: `${SOC_SWEEP_SKEW_DEG}deg` }
-                ]
-              }}
-            />
-          ) : null}
-        </XStack>
+        />
+        {sweepEnabled ? (
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: -8,
+              bottom: -8,
+              left: 0,
+              width: sweepWidth,
+              backgroundColor: sweepConfig.overlayColor,
+              transform: [
+                { translateX: sweepProgress.interpolate({ inputRange: [0, 1], outputRange: [sweepStart, sweepEnd] }) },
+                { skewX: `${SOC_SWEEP_SKEW_DEG}deg` }
+              ]
+            }}
+          />
+        ) : null}
       </XStack>
     </YStack>
   );

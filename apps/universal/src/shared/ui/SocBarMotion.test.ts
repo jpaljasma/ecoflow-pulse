@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getSocSweepConfig,
+  getSocSweepTravelRange,
   SOC_SWEEP_DURATION_MS,
   SOC_SWEEP_PAUSE_MS,
   SOC_SWEEP_PERIOD_MS,
@@ -20,15 +21,26 @@ describe('SocBarMotion', () => {
     expect(SOC_SWEEP_SKEW_DEG).toBe(-45);
   });
 
+  it('travels across the full gauge track and reverses for discharging', () => {
+    expect(getSocSweepTravelRange(400, 80, 'left-to-right')).toEqual([-80, 480]);
+    expect(getSocSweepTravelRange(400, 80, 'right-to-left')).toEqual([480, -80]);
+  });
+
   it('highlights charging gauges and darkens discharging gauges', () => {
     expect(getSocSweepConfig('charging')).toEqual({
       enabled: true,
-      overlayColor: 'rgba(255,255,255,0.42)'
+      overlayColor: 'rgba(255,255,255,0.42)',
+      direction: 'left-to-right'
     });
     expect(getSocSweepConfig('discharging')).toEqual({
       enabled: true,
-      overlayColor: 'rgba(0,0,0,0.24)'
+      overlayColor: 'rgba(0,0,0,0.24)',
+      direction: 'right-to-left'
     });
-    expect(getSocSweepConfig('idle')).toEqual({ enabled: false, overlayColor: 'transparent' });
+    expect(getSocSweepConfig('idle')).toEqual({
+      enabled: false,
+      overlayColor: 'transparent',
+      direction: 'left-to-right'
+    });
   });
 });
