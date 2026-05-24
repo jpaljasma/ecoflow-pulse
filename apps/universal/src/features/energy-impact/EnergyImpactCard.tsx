@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { Card } from '@/shared/ui/Card';
 import { formatWhAndKWh } from '@/features/telemetry/format';
@@ -11,6 +12,7 @@ import {
   type EnergyImpactPeriod
 } from '@/features/energy-impact/model';
 import { getEnergyImpactBadgeColors, useThemeSemantics } from '@/shared/theme/semantic';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 const PERIOD_BUTTON_WIDTH = 122;
 
 export function EnergyImpactCard({
@@ -44,6 +46,7 @@ export function EnergyImpactCard({
 }) {
   const router = useRouter();
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const hasSolarWh = typeof solarWh === 'number' && Number.isFinite(solarWh);
   const impact = computeEnergyImpactFromSolarWh(hasSolarWh ? solarWh : 0, DEFAULT_AVOIDED_EMISSIONS_FACTOR_KEY);
   const periodLabel = displayPeriodLabel || energyImpactPeriodLabel(displayPeriod);
@@ -94,7 +97,9 @@ export function EnergyImpactCard({
               borderRadius="$5"
               borderWidth={1}
               minHeight={36}
-              style={{ borderColor: semantics.actionBorder, backgroundColor: semantics.actionBackground }}
+              style={actionButtonStyles.style}
+              hoverStyle={actionButtonStyles.hoverStyle}
+              pressStyle={actionButtonStyles.pressStyle}
               onPress={() => {
                 router.push({
                   pathname: '/(tabs)/energy',
@@ -289,7 +294,9 @@ export function EnergyImpactCard({
                 minWidth={84}
                 borderRadius="$5"
                 borderWidth={1}
-                style={{ borderColor: semantics.actionBorder, backgroundColor: semantics.actionBackground }}
+                style={actionButtonStyles.style}
+                hoverStyle={actionButtonStyles.hoverStyle}
+                pressStyle={actionButtonStyles.pressStyle}
                 onPress={() => {
                   router.push({
                     pathname: '/energy-impact',

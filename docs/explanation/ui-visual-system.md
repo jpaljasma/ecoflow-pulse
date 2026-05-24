@@ -223,6 +223,8 @@ Control rules:
 
 - minimum `44px` hit targets
 - visible hover and focus states on web
+- Pulse action buttons use a shared tonal fill, darken on hover, use the same
+  accent-color border as active device tiles, and compress slightly on press.
 - AA contrast minimum for text and control labels
 
 Operational filter bars use the Pulse logs pattern:

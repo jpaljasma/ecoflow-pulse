@@ -18,21 +18,18 @@ import (
 
 const (
 	DefaultForecastBaseURL           = "https://api.open-meteo.com/v1/forecast"
-	DefaultPreviousRunsBaseURL       = "https://previous-runs-api.open-meteo.com/v1/forecast"
 	DefaultHistoricalForecastBaseURL = "https://historical-forecast-api.open-meteo.com/v1/forecast"
 )
 
 type Client struct {
 	httpClient                *http.Client
 	forecastBaseURL           string
-	previousRunsBaseURL       string
 	historicalForecastBaseURL string
 }
 
 type Config struct {
 	HTTPClient                *http.Client
 	ForecastBaseURL           string
-	PreviousRunsBaseURL       string
 	HistoricalForecastBaseURL string
 }
 
@@ -45,10 +42,6 @@ func NewClient(cfg Config) *Client {
 	if forecastBaseURL == "" {
 		forecastBaseURL = DefaultForecastBaseURL
 	}
-	previousRunsBaseURL := strings.TrimSpace(cfg.PreviousRunsBaseURL)
-	if previousRunsBaseURL == "" {
-		previousRunsBaseURL = DefaultPreviousRunsBaseURL
-	}
 	historicalForecastBaseURL := strings.TrimSpace(cfg.HistoricalForecastBaseURL)
 	if historicalForecastBaseURL == "" {
 		historicalForecastBaseURL = DefaultHistoricalForecastBaseURL
@@ -56,7 +49,6 @@ func NewClient(cfg Config) *Client {
 	return &Client{
 		httpClient:                httpClient,
 		forecastBaseURL:           forecastBaseURL,
-		previousRunsBaseURL:       previousRunsBaseURL,
 		historicalForecastBaseURL: historicalForecastBaseURL,
 	}
 }
@@ -74,17 +66,6 @@ func (c *Client) FetchForecast(ctx context.Context, req weatherd.Request) (*weat
 
 func (c *Client) FetchForecastBatch(ctx context.Context, reqs []weatherd.Request) ([]weatherd.Bundle, error) {
 	return c.fetch(ctx, c.forecastBaseURL, reqs)
-}
-
-func (c *Client) FetchPreviousRuns(ctx context.Context, req weatherd.Request) (*weatherd.Bundle, error) {
-	bundles, err := c.fetch(ctx, c.previousRunsBaseURL, []weatherd.Request{req})
-	if err != nil {
-		return nil, err
-	}
-	if len(bundles) == 0 {
-		return nil, fmt.Errorf("open-meteo previous-runs returned no bundles")
-	}
-	return &bundles[0], nil
 }
 
 func (c *Client) FetchHistoricalForecast(ctx context.Context, req weatherd.Request) (*weatherd.Bundle, error) {

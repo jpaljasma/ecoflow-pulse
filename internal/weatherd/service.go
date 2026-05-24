@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/weatherd/budget"
@@ -18,7 +16,6 @@ var ErrUpstreamBudgetExceeded = errors.New("weather upstream budget exhausted")
 type Upstream interface {
 	FetchForecast(ctx context.Context, req Request) (*Bundle, error)
 	FetchForecastBatch(ctx context.Context, reqs []Request) ([]Bundle, error)
-	FetchPreviousRuns(ctx context.Context, req Request) (*Bundle, error)
 	FetchHistoricalForecast(ctx context.Context, req Request) (*Bundle, error)
 }
 
@@ -186,173 +183,6 @@ func (s *Service) Get7DayForecast(ctx context.Context, req Request) (*Bundle, er
 	return s.convertBundleForResponse(ctx, bundle, req.UnitSystem), nil
 }
 
-func (s *Service) GetYesterdayVerification(ctx context.Context, req Request) (*VerificationResult, error) {
-	start := time.Now()
-	metricReq := metricRequest(req)
-	var source string
-	key, err := s.snapshots.FindCanonicalLocationKeyByRequest(ctx, metricReq)
-	if err != nil {
-		if s.metrics != nil {
-			s.metrics.ObserveRequest("get_yesterday_verification", "canonical_lookup", err, time.Since(start))
-		}
-		return nil, err
-	}
-	if key != "" {
-		loc := loadLocation(metricReq.Timezone)
-		yesterdayStart, _ := yesterdayBounds(s.nowFn, loc)
-		cachedVerification, err := s.snapshots.LoadVerification(ctx, key, yesterdayStart)
-		if err != nil {
-			if s.metrics != nil {
-				s.metrics.ObserveRequest("get_yesterday_verification", "verification_cache_lookup", err, time.Since(start))
-			}
-			return nil, err
-		}
-		if cachedVerification != nil {
-			if cachedVerification.Provenance.VerificationSource != "previous_runs" {
-				source = "stored_verification"
-				if req.UnitSystem == UnitSystemImperial {
-					converted := *cachedVerification
-					converted.UnitSystem = UnitSystemImperial
-					for idx := range converted.Hourly {
-						converted.Hourly[idx].ForecastRaw = ForecastValues(converted.Hourly[idx].ForecastRaw, UnitSystemImperial)
-						converted.Hourly[idx].ForecastCorrected = ForecastValues(converted.Hourly[idx].ForecastCorrected, UnitSystemImperial)
-						converted.Hourly[idx].Actual = ForecastValues(converted.Hourly[idx].Actual, UnitSystemImperial)
-					}
-					if s.metrics != nil {
-						s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
-					}
-					return &converted, nil
-				}
-				if s.metrics != nil {
-					s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
-				}
-				return cachedVerification, nil
-			}
-		}
-	}
-	latest, err := s.ensureLatestBundle(ctx, metricReq, key)
-	if err != nil {
-		if s.metrics != nil {
-			s.metrics.ObserveRequest("get_yesterday_verification", "ensure_latest_bundle", err, time.Since(start))
-		}
-		return nil, err
-	}
-	key = latest.Provenance.CanonicalLocationKey
-	loc := loadLocation(latest.Provenance.Timezone)
-	yesterdayStart, todayStart := yesterdayBounds(s.nowFn, loc)
-	actualByTime := hourlyByTime(filterHourly(latest.Hourly, yesterdayStart, todayStart))
-
-	var (
-		forecastBundle      *Bundle
-		verificationSource  string
-		biasStates          []BiasState
-		forecastLoadErr     error
-		biasLoadErr         error
-		refreshCandidateErr error
-	)
-	var wg sync.WaitGroup
-	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		forecastBundle, verificationSource, forecastLoadErr = s.loadVerificationForecast(ctx, metricReq, key, yesterdayStart)
-	}()
-	go func() {
-		defer wg.Done()
-		biasStates, biasLoadErr = s.snapshots.LoadBiasStates(ctx, key)
-	}()
-	go func() {
-		defer wg.Done()
-		refreshCandidateErr = s.snapshots.TouchRefreshCandidate(ctx, key, metricReq, s.nowFn().UTC())
-	}()
-	wg.Wait()
-	if refreshCandidateErr != nil {
-		return nil, refreshCandidateErr
-	}
-	if forecastLoadErr != nil {
-		if s.metrics != nil {
-			s.metrics.ObserveRequest("get_yesterday_verification", "verification_forecast_load", forecastLoadErr, time.Since(start))
-		}
-		return nil, forecastLoadErr
-	}
-	if biasLoadErr != nil {
-		return nil, biasLoadErr
-	}
-	source = verificationSource
-	forecastByTime := hourlyByTime(filterHourly(forecastBundle.Hourly, yesterdayStart, todayStart))
-	biasIndex := BuildBiasIndex(biasStates)
-	out := &VerificationResult{
-		Provenance: Provenance{
-			Source:               "open_meteo",
-			ModelSelection:       "best_match",
-			ActualSource:         "past_days",
-			VerificationSource:   verificationSource,
-			Timezone:             latest.Provenance.Timezone,
-			CanonicalLocationKey: key,
-			IssuedAt:             s.nowFn().UTC(),
-		},
-		UnitSystem:       UnitSystemMetric,
-		VerificationDate: yesterdayStart.UTC(),
-		Hourly:           make([]VerificationHour, 0, len(actualByTime)),
-	}
-	var windDirectionDiffs []float64
-	var updatedStates []BiasState
-	for ts, actualPoint := range actualByTime {
-		forecastPoint, ok := forecastByTime[ts]
-		if !ok {
-			continue
-		}
-		correctedPoint := ApplyForecastBias(forecastPoint, loc, biasIndex)
-		row := VerificationHour{
-			Time:              actualPoint.Time.UTC(),
-			ForecastCondition: forecastPoint.Condition,
-			ActualCondition:   actualPoint.Condition,
-			ForecastRaw:       forecastPoint.Raw,
-			ForecastCorrected: correctedPoint.Corrected,
-			Actual:            actualPoint.Raw,
-		}
-		out.Hourly = append(out.Hourly, row)
-		if forecastPoint.Raw.WindDirectionDegrees != nil && actualPoint.Raw.WindDirectionDegrees != nil {
-			windDirectionDiffs = append(windDirectionDiffs, CircularErrorDegrees(*forecastPoint.Raw.WindDirectionDegrees, *actualPoint.Raw.WindDirectionDegrees))
-		}
-		hourOfDay := actualPoint.Time.In(loc).Hour()
-		updatedStates = append(updatedStates, UpdateBiasStates(s.nowFn().UTC(), key, forecastPoint.Raw, actualPoint.Raw, hourOfDay, biasStates)...)
-	}
-	sort.Slice(out.Hourly, func(i, j int) bool { return out.Hourly[i].Time.Before(out.Hourly[j].Time) })
-	out.Summary = buildVerificationSummary(out.Hourly, windDirectionDiffs)
-	out.Summary.CircularWindDirectionMeanAbsoluteError = CircularWindDirectionMAE(windDirectionDiffs)
-	if len(updatedStates) > 0 {
-		if err := s.snapshots.UpsertBiasStates(ctx, dedupeBiasStates(updatedStates)); err != nil {
-			if s.metrics != nil {
-				s.metrics.ObserveRequest("get_yesterday_verification", "bias_state_upsert", err, time.Since(start))
-			}
-			return nil, err
-		}
-	}
-	if err := s.snapshots.SaveVerification(ctx, *out); err != nil {
-		if s.metrics != nil {
-			s.metrics.ObserveRequest("get_yesterday_verification", "verification_save", err, time.Since(start))
-		}
-		return nil, err
-	}
-	if req.UnitSystem == UnitSystemImperial {
-		converted := *out
-		converted.UnitSystem = UnitSystemImperial
-		for idx := range converted.Hourly {
-			converted.Hourly[idx].ForecastRaw = ForecastValues(converted.Hourly[idx].ForecastRaw, UnitSystemImperial)
-			converted.Hourly[idx].ForecastCorrected = ForecastValues(converted.Hourly[idx].ForecastCorrected, UnitSystemImperial)
-			converted.Hourly[idx].Actual = ForecastValues(converted.Hourly[idx].Actual, UnitSystemImperial)
-		}
-		if s.metrics != nil {
-			s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
-		}
-		return &converted, nil
-	}
-	if s.metrics != nil {
-		s.metrics.ObserveRequest("get_yesterday_verification", source, nil, time.Since(start))
-	}
-	return out, nil
-}
-
 func (s *Service) RefreshRecentLocations(ctx context.Context) error {
 	now := s.nowFn().UTC()
 	candidates, err := s.snapshots.ListDueRefreshCandidates(ctx, now.Add(-s.activeWindow), now)
@@ -404,113 +234,19 @@ func (s *Service) RefreshRecentLocations(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) ensureLatestBundle(ctx context.Context, req Request, key string) (*Bundle, error) {
-	if key != "" {
-		if cached, err := s.hotCache.GetForecast(ctx, key); err != nil {
-			return nil, err
-		} else if cached != nil {
-			out := cached.Bundle
-			return &out, nil
-		}
-		if latest, err := s.snapshots.LatestBundle(ctx, key); err != nil {
-			return nil, err
-		} else if latest != nil {
-			return latest, nil
-		}
-	}
-	if !s.budget.Allow(2) {
-		return nil, ErrUpstreamBudgetExceeded
-	}
-	if s.metrics != nil {
-		s.metrics.ObserveBudgetUnitsConsumed("forecast", 2)
-		s.metrics.ObserveBudgetSnapshot(s.budget.Snapshot())
-	}
-	upstreamStart := time.Now()
-	bundle, err := s.upstream.FetchForecast(ctx, req)
-	if s.metrics != nil {
-		s.metrics.ObserveUpstreamCall("forecast", err, time.Since(upstreamStart))
-	}
-	if err != nil {
-		return nil, err
-	}
-	bundle.Provenance.IssuedAt = s.nowFn().UTC()
-	bundle.Provenance.CanonicalLocationKey = canonicalKeyFromBundle(bundle, req)
-	if err := s.snapshots.SaveForecastBundle(ctx, req, *bundle); err != nil {
-		return nil, err
-	}
-	if err := s.hotCache.PutForecast(ctx, bundle.Provenance.CanonicalLocationKey, *bundle, s.hotTTL); err != nil {
-		return nil, err
-	}
-	return bundle, nil
-}
-
-func (s *Service) loadVerificationForecast(ctx context.Context, req Request, key string, yesterdayStart time.Time) (*Bundle, string, error) {
-	anchor, err := s.snapshots.LoadVerificationForecastAnchor(ctx, key, yesterdayStart)
-	if err != nil {
-		return nil, "", err
-	}
-	if anchor != nil {
-		return anchor, "snapshot", nil
-	}
-	prior, err := s.snapshots.LatestBundleBefore(ctx, key, yesterdayStart)
-	if err != nil {
-		return nil, "", err
-	}
-	if prior != nil {
-		return prior, "snapshot", nil
-	}
-	if !s.budget.Allow(2) {
-		if s.metrics != nil {
-			s.metrics.ObserveBudgetDenied(s.budgetDeniedWindow(2))
-			s.metrics.ObserveBudgetSnapshot(s.budget.Snapshot())
-		}
-		return nil, "", ErrUpstreamBudgetExceeded
-	}
-	if s.metrics != nil {
-		s.metrics.ObserveBudgetUnitsConsumed("previous_runs", 2)
-		s.metrics.ObserveBudgetSnapshot(s.budget.Snapshot())
-	}
-	upstreamStart := time.Now()
-	fallback, err := s.upstream.FetchPreviousRuns(ctx, req)
-	if s.metrics != nil {
-		s.metrics.ObserveUpstreamCall("previous_runs", err, time.Since(upstreamStart))
-	}
-	if err != nil {
-		return nil, "", err
-	}
-	if fallback == nil {
-		return nil, "", errors.New("weather previous runs unavailable")
-	}
-	fallback.Provenance.CanonicalLocationKey = key
-	fallback.Provenance.IssuedAt = s.nowFn().UTC()
-	if anchorErr := s.snapshots.UpsertVerificationForecastAnchor(ctx, key, yesterdayStart, *fallback); anchorErr != nil {
-		return nil, "", anchorErr
-	}
-	return fallback, "previous_runs", nil
-}
-
-func (s *Service) convertBundleForResponse(ctx context.Context, bundle *Bundle, unitSystem UnitSystem) *Bundle {
+func (s *Service) convertBundleForResponse(_ context.Context, bundle *Bundle, unitSystem UnitSystem) *Bundle {
 	out := *bundle
-	states, err := s.snapshots.LoadBiasStates(ctx, bundle.Provenance.CanonicalLocationKey)
-	if err == nil {
-		loc := loadLocation(bundle.Provenance.Timezone)
-		index := BuildBiasIndex(states)
-		out.Hourly = make([]HourlyForecastPoint, len(bundle.Hourly))
-		for idx, point := range bundle.Hourly {
-			out.Hourly[idx] = ApplyForecastBias(point, loc, index)
-			out.Hourly[idx].Raw = ForecastValues(out.Hourly[idx].Raw, unitSystem)
-			out.Hourly[idx].Corrected = ForecastValues(out.Hourly[idx].Corrected, unitSystem)
-		}
-	} else {
-		out.Hourly = make([]HourlyForecastPoint, len(bundle.Hourly))
-		copy(out.Hourly, bundle.Hourly)
-		for idx := range out.Hourly {
-			out.Hourly[idx].Raw = ForecastValues(out.Hourly[idx].Raw, unitSystem)
-			out.Hourly[idx].Corrected = ForecastValues(out.Hourly[idx].Corrected, unitSystem)
-		}
+	out.Hourly = make([]HourlyForecastPoint, len(bundle.Hourly))
+	copy(out.Hourly, bundle.Hourly)
+	for idx := range out.Hourly {
+		out.Hourly[idx].Raw = ForecastValues(out.Hourly[idx].Raw, unitSystem)
+		out.Hourly[idx].Corrected = out.Hourly[idx].Raw
 	}
 	out.Daily = make([]DailyForecastPoint, len(bundle.Daily))
 	copy(out.Daily, bundle.Daily)
+	for idx := range out.Daily {
+		out.Daily[idx].Corrected = out.Daily[idx].Raw
+	}
 	out.Provenance.VerificationSource = ""
 	return &out
 }
@@ -538,116 +274,6 @@ func canonicalKeyFromBundle(bundle *Bundle, req Request) string {
 		PanelTiltDegrees:    cachekey.TiltBucket(req.PanelTiltDegrees),
 		PanelAzimuthDegrees: cachekey.AzimuthBucket(req.PanelAzimuthDegrees),
 	})
-}
-
-func loadLocation(name string) *time.Location {
-	if strings.TrimSpace(name) == "" {
-		return time.UTC
-	}
-	loc, err := time.LoadLocation(name)
-	if err != nil {
-		return time.UTC
-	}
-	return loc
-}
-
-func yesterdayBounds(nowFn func() time.Time, loc *time.Location) (time.Time, time.Time) {
-	now := nowFn().In(loc)
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-	return todayStart.AddDate(0, 0, -1), todayStart
-}
-
-func filterHourly(points []HourlyForecastPoint, from, to time.Time) []HourlyForecastPoint {
-	out := make([]HourlyForecastPoint, 0, len(points))
-	for _, point := range points {
-		if !point.Time.Before(from.UTC()) && point.Time.Before(to.UTC()) {
-			out = append(out, point)
-		}
-	}
-	return out
-}
-
-func hourlyByTime(points []HourlyForecastPoint) map[int64]HourlyForecastPoint {
-	out := make(map[int64]HourlyForecastPoint, len(points))
-	for _, point := range points {
-		out[point.Time.UTC().UnixMilli()] = point
-	}
-	return out
-}
-
-func buildVerificationSummary(rows []VerificationHour, windDirectionDiffs []float64) VerificationSummary {
-	return VerificationSummary{
-		Temperature: metricError(rows, func(row VerificationHour) (*float64, *float64) {
-			return row.ForecastRaw.Temperature, row.Actual.Temperature
-		}),
-		WindSpeed: metricError(rows, func(row VerificationHour) (*float64, *float64) {
-			return row.ForecastRaw.WindSpeed, row.Actual.WindSpeed
-		}),
-		CloudCover: metricError(rows, func(row VerificationHour) (*float64, *float64) {
-			return row.ForecastRaw.CloudCover, row.Actual.CloudCover
-		}),
-		Visibility: metricError(rows, func(row VerificationHour) (*float64, *float64) {
-			return row.ForecastRaw.Visibility, row.Actual.Visibility
-		}),
-		UVIndex: metricError(rows, func(row VerificationHour) (*float64, *float64) { return row.ForecastRaw.UVIndex, row.Actual.UVIndex }),
-		ShortwaveRadiation: metricError(rows, func(row VerificationHour) (*float64, *float64) {
-			return row.ForecastRaw.ShortwaveRadiation, row.Actual.ShortwaveRadiation
-		}),
-		GlobalTiltedIrradiance: metricError(rows, func(row VerificationHour) (*float64, *float64) {
-			return row.ForecastRaw.GlobalTiltedIrradiance, row.Actual.GlobalTiltedIrradiance
-		}),
-		Precipitation: metricError(rows, func(row VerificationHour) (*float64, *float64) {
-			return row.ForecastRaw.Precipitation, row.Actual.Precipitation
-		}),
-	}
-}
-
-func metricError(rows []VerificationHour, accessor func(VerificationHour) (*float64, *float64)) MetricError {
-	sumAbs := 0.0
-	sumBias := 0.0
-	count := 0.0
-	for _, row := range rows {
-		forecast, actual := accessor(row)
-		if forecast == nil || actual == nil {
-			continue
-		}
-		diff := *actual - *forecast
-		if diff < 0 {
-			sumAbs -= diff
-		} else {
-			sumAbs += diff
-		}
-		sumBias += diff
-		count++
-	}
-	if count == 0 {
-		return MetricError{}
-	}
-	mae := sumAbs / count
-	bias := sumBias / count
-	return MetricError{
-		MeanAbsoluteError: &mae,
-		Bias:              &bias,
-	}
-}
-
-func dedupeBiasStates(states []BiasState) []BiasState {
-	latest := make(map[string]BiasState, len(states))
-	for _, state := range states {
-		key := fmt.Sprintf("%s|%s|%d", state.CanonicalLocationKey, state.Metric, state.HourOfDay)
-		latest[key] = state
-	}
-	out := make([]BiasState, 0, len(latest))
-	for _, state := range latest {
-		out = append(out, state)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Metric == out[j].Metric {
-			return out[i].HourOfDay < out[j].HourOfDay
-		}
-		return out[i].Metric < out[j].Metric
-	})
-	return out
 }
 
 func groupCandidates(candidates []RefreshCandidate) [][]RefreshCandidate {

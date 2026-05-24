@@ -9,7 +9,7 @@ import {
   getWeatherCodeIcon,
   getWeatherCodeLabel
 } from '@/features/weather/model';
-import { fetchSolarOutlook, fetchWeatherForecast, fetchWeatherYesterdayVerification } from '@/features/weather/api';
+import { fetchSolarOutlook, fetchWeatherForecast } from '@/features/weather/api';
 
 const restClientMock = vi.hoisted(() => ({
   requestJson: vi.fn()
@@ -108,32 +108,6 @@ describe('weather api parsing', () => {
 
     const result = await fetchWeatherForecast();
     expect(result.forecast.daily[0]?.dateIso).toBe('2026-03-17');
-  });
-
-  it('parses yesterday verification payloads', async () => {
-    restClientMock.requestJson.mockResolvedValueOnce({
-      verification: {
-        issuedAtUnixMs: '1770000000000',
-        timezone: 'America/New_York',
-        verificationSource: 'snapshot',
-        provenance: {
-          source: 'open_meteo',
-          modelSelection: 'best_match',
-          actualSource: 'past_days',
-          verificationSource: 'snapshot'
-        },
-        summary: {
-          comparedHours: 24,
-          matchedHours: 24,
-          meanAbsoluteTemperatureError: 0.7
-        },
-        hours: []
-      }
-    });
-
-    const result = await fetchWeatherYesterdayVerification();
-    expect(result.verification.summary.meanAbsoluteTemperatureError).toBe(0.7);
-    expect(result.verification.verificationSource).toBe('snapshot');
   });
 
   it('normalizes solar outlook payloads into the widget model shape', async () => {

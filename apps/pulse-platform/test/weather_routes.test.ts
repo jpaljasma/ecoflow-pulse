@@ -12,7 +12,7 @@ import type {
 import type { DeviceClient } from '../src/grpc/deviceClient.js';
 import type { InferenceClient } from '../src/grpc/inferenceClient.js';
 import type { SolarForecastClient, SolarOutlookResponse } from '../src/grpc/solarForecastClient.js';
-import type { WeatherClient, WeatherForecastResponse, WeatherYesterdayVerificationResponse } from '../src/grpc/weatherClient.js';
+import type { WeatherClient, WeatherForecastResponse } from '../src/grpc/weatherClient.js';
 import type { TelemetryHistoryClient } from '../src/grpc/telemetryClient.js';
 
 function baseConfig(): AppConfig {
@@ -32,8 +32,7 @@ function baseConfig(): AppConfig {
     bffCache: {
       enabled: false,
       maxEntries: 1000,
-      weatherForecastTtlMs: 30000,
-      weatherYesterdayTtlMs: 300000
+      weatherForecastTtlMs: 30000
     },
     auth: { mode: 'noop', allowMissingJwt: true }
   };
@@ -162,31 +161,9 @@ function sampleForecast(): WeatherForecastResponse {
   };
 }
 
-function sampleVerification(): WeatherYesterdayVerificationResponse {
-  return {
-    verification: {
-      issuedAtUnixMs: '1773344400000',
-      timezone: 'America/New_York',
-      verificationSource: 'snapshot',
-      provenance: {
-        source: 'open_meteo',
-        modelSelection: 'best_match',
-        actualSource: 'past_days',
-        verificationSource: 'snapshot'
-      },
-      summary: {
-        comparedHours: 0,
-        matchedHours: 0
-      },
-      hours: []
-    }
-  };
-}
-
 function makeWeatherClient(overrides: Partial<WeatherClient> = {}): WeatherClient {
   return {
     get7DayForecast: vi.fn(async () => sampleForecast()),
-    getYesterdayVerification: vi.fn(async () => sampleVerification()),
     close: vi.fn(),
     ...overrides
   };
@@ -289,8 +266,7 @@ describe('pulse-platform weather routes', () => {
       bffCache: {
         enabled: true,
         maxEntries: 100,
-        weatherForecastTtlMs: 60_000,
-        weatherYesterdayTtlMs: 0
+        weatherForecastTtlMs: 60_000
       }
     };
     const app = buildApp(config, makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
@@ -334,8 +310,7 @@ describe('pulse-platform weather routes', () => {
       bffCache: {
         enabled: true,
         maxEntries: 100,
-        weatherForecastTtlMs: 60_000,
-        weatherYesterdayTtlMs: 0
+        weatherForecastTtlMs: 60_000
       }
     };
     const app = buildApp(config, makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
@@ -439,80 +414,6 @@ describe('pulse-platform weather routes', () => {
       error: 'invalid_request',
       message: 'deviceId is required when scope=device'
     });
-
-    await app.close();
-  });
-
-  it('falls back to auto timezone when the saved profile timezone is blank', async () => {
-    const controlPlaneClient = makeControlPlaneClient({}, { timezone: '   ' });
-    const weatherClient = makeWeatherClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient,
-      weatherClient
-    });
-
-    const response = await app.inject({
-      method: 'GET',
-      url: '/api/v1/weather/yesterday'
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(weatherClient.getYesterdayVerification).toHaveBeenCalledWith(
-      expect.objectContaining({
-        timezone: 'auto'
-      })
-    );
-    expect(response.json()).toEqual(sampleVerification());
-
-    await app.close();
-  });
-
-  it('does not reuse yesterday verification across local-day boundaries', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-05-15T03:59:30.000Z'));
-    const controlPlaneClient = makeControlPlaneClient();
-    const weatherClient = makeWeatherClient({
-      getYesterdayVerification: vi.fn(async () => ({
-        verification: {
-          ...sampleVerification().verification,
-          issuedAtUnixMs: String(Date.now())
-        }
-      }))
-    });
-    const app = buildApp(
-      {
-        ...baseConfig(),
-        bffCache: {
-          enabled: true,
-          maxEntries: 100,
-          weatherForecastTtlMs: 0,
-          weatherYesterdayTtlMs: 300000
-        }
-      },
-      makeHistoryClient(),
-      makeDeviceClient(),
-      makeInferenceClient(),
-      {
-        controlPlaneClient,
-        weatherClient
-      }
-    );
-
-    const beforeMidnight = await app.inject({
-      method: 'GET',
-      url: '/api/v1/weather/yesterday'
-    });
-    vi.setSystemTime(new Date('2026-05-15T04:00:30.000Z'));
-    const afterMidnight = await app.inject({
-      method: 'GET',
-      url: '/api/v1/weather/yesterday'
-    });
-
-    expect(beforeMidnight.statusCode).toBe(200);
-    expect(afterMidnight.statusCode).toBe(200);
-    expect(beforeMidnight.json().verification.issuedAtUnixMs).toBe('1778817570000');
-    expect(afterMidnight.json().verification.issuedAtUnixMs).toBe('1778817630000');
-    expect(weatherClient.getYesterdayVerification).toHaveBeenCalledTimes(2);
 
     await app.close();
   });

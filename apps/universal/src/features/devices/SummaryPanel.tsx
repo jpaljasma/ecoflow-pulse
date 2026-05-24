@@ -2,7 +2,7 @@ import { useMemo, type ComponentProps } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import { Card } from '@/shared/ui/Card';
@@ -32,6 +32,7 @@ import {
 import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
 import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 import { SocBar } from '@/shared/ui/SocBar';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 import {
   buildFleetDevicePreview,
   resolveFleetDevicePreviewLimit,
@@ -369,6 +370,7 @@ export function SummaryPanel({
   onAllDevicesPress?: () => void;
 }) {
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const { contentWidth } = useNavigationShellMetrics();
   const isTabletUp = contentWidth >= 768;
   const isPhone = contentWidth < 640;
@@ -626,10 +628,9 @@ export function SummaryPanel({
               paddingHorizontal="$4"
               minHeight={42}
               alignSelf="flex-start"
-              style={{
-                backgroundColor: semantics.actionBackground,
-                borderColor: semantics.actionBorder
-              }}
+              style={actionButtonStyles.style}
+              hoverStyle={actionButtonStyles.hoverStyle}
+              pressStyle={actionButtonStyles.pressStyle}
               onPress={onAllDevicesPress}
             >
               <XStack alignItems="center" gap="$2">
@@ -665,10 +666,9 @@ export function SummaryPanel({
               paddingHorizontal="$4"
               minHeight={42}
               alignSelf="flex-start"
-              style={{
-                backgroundColor: semantics.actionBackground,
-                borderColor: semantics.actionBorder
-              }}
+              style={actionButtonStyles.style}
+              hoverStyle={actionButtonStyles.hoverStyle}
+              pressStyle={actionButtonStyles.pressStyle}
               onPress={() =>
                 router.push({
                   pathname: '/(tabs)/energy',

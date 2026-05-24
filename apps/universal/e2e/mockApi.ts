@@ -87,42 +87,6 @@ type WeatherForecastPayload = {
   daily: WeatherDailyPointPayload[];
 };
 
-type WeatherYesterdayVerificationPayload = {
-  issuedAtUnixMs: string;
-  timezone: string;
-  verificationSource: 'snapshot';
-  provenance: {
-    source: 'open_meteo';
-    modelSelection: 'best_match';
-    actualSource: 'past_days';
-    verificationSource: 'snapshot';
-  };
-  summary: {
-    comparedHours: number;
-    matchedHours: number;
-    meanAbsoluteTemperatureError: number;
-    meanAbsoluteWindSpeedError: number;
-    meanAbsoluteCloudCoverError: number;
-    meanAbsoluteVisibilityError: number;
-    meanAbsoluteUvIndexError: number;
-    meanAbsoluteRadiationError: number;
-  };
-  hours: Array<{
-    timestampIso: string;
-    forecast: WeatherPointPayload;
-    actual: WeatherPointPayload;
-    error: {
-      temperature2m: number;
-      windSpeed10m: number;
-      cloudCover: number;
-      visibility: number;
-      uvIndex: number;
-      shortwaveRadiation: number;
-      windDirection: number;
-    };
-  }>;
-};
-
 type CurrentUserPayload = {
   user: Record<string, unknown>;
   authorization: {
@@ -442,75 +406,6 @@ function buildWeatherForecast(): WeatherForecastPayload {
     },
     hourly,
     daily
-  };
-}
-
-function buildYesterdayVerification(): WeatherYesterdayVerificationPayload {
-  const hours = Array.from({ length: 24 }, (_unused, index) => {
-    const timestamp = new Date(Date.UTC(2026, 2, 3, index, 0, 0)).toISOString();
-    const forecast = buildWeatherPoint(
-      timestamp,
-      index < 9 ? 61 : index < 17 ? 63 : 2,
-      { raw: 10.4 + index * 0.28, corrected: 10.8 + index * 0.28 },
-      { raw: 4.2 + (index % 4) * 0.3, corrected: 4.0 + (index % 4) * 0.3 },
-      { raw: 42 + (index % 5) * 7, corrected: 45 + (index % 5) * 7 },
-      { raw: 10200 + index * 120, corrected: 10500 + index * 120 },
-      { raw: 1.9 + index * 0.04, corrected: 2.0 + index * 0.04 },
-      { raw: 110 + index * 8, corrected: 124 + index * 8 },
-      190 + index * 5,
-      800 + index * 10,
-      { raw: index % 7 === 0 ? 0.4 : 0, corrected: index % 7 === 0 ? 0.3 : 0 }
-    );
-    const actual = buildWeatherPoint(
-      timestamp,
-      index < 8 ? 61 : index < 17 ? 63 : 2,
-      { raw: 10.1 + index * 0.27, corrected: 10.1 + index * 0.27 },
-      { raw: 4.0 + (index % 4) * 0.35, corrected: 4.0 + (index % 4) * 0.35 },
-      { raw: 40 + (index % 5) * 7, corrected: 40 + (index % 5) * 7 },
-      { raw: 10100 + index * 110, corrected: 10100 + index * 110 },
-      { raw: 1.8 + index * 0.03, corrected: 1.8 + index * 0.03 },
-      { raw: 105 + index * 9, corrected: 105 + index * 9 },
-      188 + index * 5,
-      780 + index * 12,
-      { raw: index % 7 === 0 ? 0.3 : 0, corrected: index % 7 === 0 ? 0.3 : 0 }
-    );
-    return {
-      timestampIso: timestamp,
-      forecast,
-      actual,
-      error: {
-        temperature2m: 0.3,
-        windSpeed10m: 0.2,
-        cloudCover: 2,
-        visibility: 110,
-        uvIndex: 0.1,
-        shortwaveRadiation: 14,
-        windDirection: 2
-      }
-    };
-  });
-
-  return {
-    issuedAtUnixMs: String(WEATHER_ISSUED_AT_UNIX_MS),
-    timezone: PROFILE_TIMEZONE,
-    verificationSource: 'snapshot',
-    provenance: {
-      source: 'open_meteo',
-      modelSelection: 'best_match',
-      actualSource: 'past_days',
-      verificationSource: 'snapshot'
-    },
-    summary: {
-      comparedHours: 24,
-      matchedHours: 24,
-      meanAbsoluteTemperatureError: 0.4,
-      meanAbsoluteWindSpeedError: 0.2,
-      meanAbsoluteCloudCoverError: 2.1,
-      meanAbsoluteVisibilityError: 118,
-      meanAbsoluteUvIndexError: 0.1,
-      meanAbsoluteRadiationError: 13
-    },
-    hours
   };
 }
 
@@ -1114,11 +1009,6 @@ export async function mockApiRoutes(page: Page, options: { roles?: string[]; dev
 
     if (pathname === '/api/v1/weather/forecast') {
       await fulfillJson(route, { forecast: buildWeatherForecast() });
-      return;
-    }
-
-    if (pathname === '/api/v1/weather/yesterday') {
-      await fulfillJson(route, { verification: buildYesterdayVerification() });
       return;
     }
 

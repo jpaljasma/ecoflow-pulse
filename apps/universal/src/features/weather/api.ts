@@ -5,9 +5,7 @@ import type {
   SolarOutlook,
   WeatherDailyPoint,
   WeatherForecast,
-  WeatherPoint,
-  WeatherYesterdayHour,
-  WeatherYesterdayVerification
+  WeatherPoint
 } from '@/features/weather/model';
 
 const WeatherMetricValueSchema = z.object({
@@ -116,88 +114,8 @@ type WeatherForecastApiPayload = {
   daily: WeatherDailyPointApiPayload[];
 };
 
-const WeatherYesterdayHourSchema = z.object({
-  timestampIso: z.string(),
-  forecast: WeatherPointSchema,
-  actual: WeatherPointSchema,
-  error: z.object({
-    temperature2m: z.number().nullable().optional(),
-    windSpeed10m: z.number().nullable().optional(),
-    cloudCover: z.number().nullable().optional(),
-    visibility: z.number().nullable().optional(),
-    uvIndex: z.number().nullable().optional(),
-    shortwaveRadiation: z.number().nullable().optional(),
-    windDirection: z.number().nullable().optional()
-  }).passthrough()
-}).passthrough();
-
-type WeatherYesterdayHourApiPayload = {
-  timestampIso: string;
-  forecast: WeatherPointApiPayload;
-  actual: WeatherPointApiPayload;
-  error: {
-    temperature2m?: number | null;
-    windSpeed10m?: number | null;
-    cloudCover?: number | null;
-    visibility?: number | null;
-    uvIndex?: number | null;
-    shortwaveRadiation?: number | null;
-    windDirection?: number | null;
-  };
-};
-
-const WeatherYesterdayVerificationSchema = z.object({
-  issuedAtUnixMs: z.string(),
-  timezone: z.string(),
-  verificationSource: z.enum(['snapshot', 'previous_runs']),
-  provenance: z.object({
-    source: z.literal('open_meteo'),
-    modelSelection: z.literal('best_match'),
-    actualSource: z.literal('past_days'),
-    verificationSource: z.enum(['snapshot', 'previous_runs'])
-  }),
-  summary: z.object({
-    comparedHours: z.number().int().nonnegative(),
-    matchedHours: z.number().int().nonnegative(),
-    meanAbsoluteTemperatureError: z.number().nullable().optional(),
-    meanAbsoluteWindSpeedError: z.number().nullable().optional(),
-    meanAbsoluteCloudCoverError: z.number().nullable().optional(),
-    meanAbsoluteVisibilityError: z.number().nullable().optional(),
-    meanAbsoluteUvIndexError: z.number().nullable().optional(),
-    meanAbsoluteRadiationError: z.number().nullable().optional()
-  }),
-  hours: z.array(WeatherYesterdayHourSchema)
-}).passthrough();
-
-type WeatherYesterdayVerificationApiPayload = {
-  issuedAtUnixMs: string;
-  timezone: string;
-  verificationSource: 'snapshot' | 'previous_runs';
-  provenance: {
-    source: 'open_meteo';
-    modelSelection: 'best_match';
-    actualSource: 'past_days';
-    verificationSource: 'snapshot' | 'previous_runs';
-  };
-  summary: {
-    comparedHours: number;
-    matchedHours: number;
-    meanAbsoluteTemperatureError?: number | null;
-    meanAbsoluteWindSpeedError?: number | null;
-    meanAbsoluteCloudCoverError?: number | null;
-    meanAbsoluteVisibilityError?: number | null;
-    meanAbsoluteUvIndexError?: number | null;
-    meanAbsoluteRadiationError?: number | null;
-  };
-  hours: WeatherYesterdayHourApiPayload[];
-};
-
 export type WeatherForecastResponse = {
   forecast: WeatherForecast;
-};
-
-export type WeatherYesterdayVerificationResponse = {
-  verification: WeatherYesterdayVerification;
 };
 
 export type SolarOutlookResponse = {
@@ -228,16 +146,6 @@ export async function fetchWeatherForecast(token?: string): Promise<WeatherForec
   const parsed = z.object({ forecast: WeatherForecastSchema }).parse(data);
   return {
     forecast: normalizeForecast(parsed.forecast)
-  };
-}
-
-export async function fetchWeatherYesterdayVerification(
-  token?: string
-): Promise<WeatherYesterdayVerificationResponse> {
-  const data = await requestJson<unknown>('/api/v1/weather/yesterday', { token });
-  const parsed = z.object({ verification: WeatherYesterdayVerificationSchema }).parse(data);
-  return {
-    verification: normalizeYesterdayVerification(parsed.verification)
   };
 }
 
@@ -378,29 +286,12 @@ function normalizeForecast(forecast: WeatherForecastApiPayload): WeatherForecast
   };
 }
 
-function normalizeYesterdayVerification(
-  verification: WeatherYesterdayVerificationApiPayload
-): WeatherYesterdayVerification {
-  return {
-    ...verification,
-    hours: verification.hours.map(normalizeYesterdayHour)
-  };
-}
-
 function normalizeDailyPoint(day: WeatherDailyPointApiPayload): WeatherDailyPoint {
   return {
     ...day,
     dateIso: normalizeDateIso(day.dateIso),
     weatherLabel: day.weatherLabel ?? getWeatherCodeLabel(day.weatherCode),
     weatherIcon: (day.weatherIcon ?? getWeatherCodeIcon(day.weatherCode)) as WeatherDailyPoint['weatherIcon']
-  };
-}
-
-function normalizeYesterdayHour(hour: WeatherYesterdayHourApiPayload): WeatherYesterdayHour {
-  return {
-    ...hour,
-    forecast: normalizeWeatherPoint(hour.forecast),
-    actual: normalizeWeatherPoint(hour.actual)
   };
 }
 

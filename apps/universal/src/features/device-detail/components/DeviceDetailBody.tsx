@@ -1,7 +1,7 @@
 import type { ComponentProps, Ref } from 'react';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import type { DeviceSummary } from '@/features/devices/api';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
@@ -29,6 +29,7 @@ import { RollingMetricValue } from '@/shared/ui/RollingMetricValue';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { StormGuardChip } from '@/shared/ui/StormGuardChip';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 import {
   PULSE_PANEL_COMPACT_PADDING,
   PULSE_PANEL_RADIUS,
@@ -190,6 +191,7 @@ export function DeviceDetailBody({
   secondarySectionRef?: Ref<View>;
 }) {
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const statCellByKey = new Map(
     vm.metricCells
       .filter((cell): cell is Extract<DeviceDetailViewModel['metricCells'][number], { kind: 'stat' }> => cell.kind === 'stat')
@@ -347,10 +349,9 @@ export function DeviceDetailBody({
                         borderWidth={1}
                         paddingHorizontal="$4"
                         minHeight={42}
-                        style={{
-                          backgroundColor: semantics.actionBackground,
-                          borderColor: semantics.actionBorder
-                        }}
+                        style={actionButtonStyles.style}
+                        hoverStyle={actionButtonStyles.hoverStyle}
+                        pressStyle={actionButtonStyles.pressStyle}
                         onPress={() =>
                           router.push({
                             pathname: '/(tabs)/energy',
@@ -376,10 +377,9 @@ export function DeviceDetailBody({
                         paddingHorizontal="$4"
                         minHeight={42}
                         testID="device-open-energy-calendar"
-                        style={{
-                          backgroundColor: semantics.actionBackground,
-                          borderColor: semantics.actionBorder
-                        }}
+                        style={actionButtonStyles.style}
+                        hoverStyle={actionButtonStyles.hoverStyle}
+                        pressStyle={actionButtonStyles.pressStyle}
                         onPress={() =>
                           router.push({
                             pathname: '/(tabs)/energy-calendar',
@@ -404,10 +404,9 @@ export function DeviceDetailBody({
                         paddingHorizontal="$4"
                         minHeight={42}
                         testID="device-open-logs"
-                        style={{
-                          backgroundColor: semantics.actionBackground,
-                          borderColor: semantics.actionBorder
-                        }}
+                        style={actionButtonStyles.style}
+                        hoverStyle={actionButtonStyles.hoverStyle}
+                        pressStyle={actionButtonStyles.pressStyle}
                         onPress={() =>
                           router.push({
                             pathname: '/(tabs)/logs',

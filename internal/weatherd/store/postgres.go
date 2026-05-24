@@ -21,15 +21,12 @@ type PostgresStore struct {
 }
 
 type WeatherPruneStats struct {
-	CompactedSnapshots  int64
-	PrunedVerifications int64
-	PrunedCandidates    int64
+	CompactedSnapshots int64
+	PrunedCandidates   int64
 }
 
 type WeatherRetainedCounts struct {
 	Snapshots            int64
-	VerificationAnchors  int64
-	Verifications        int64
 	RefreshCandidates    int64
 	DueRefreshCandidates int64
 }
@@ -116,32 +113,6 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9);
 	if err != nil {
 		return fmt.Errorf("insert weather snapshot: %w", err)
 	}
-	verificationDate := nextLocalDayStartUTCForPostgres(bundle)
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO weather_verification_forecast_anchors (
-	canonical_location_key,
-	verification_date,
-	issued_at,
-	bundle_json,
-	created_at,
-	updated_at
-)
-VALUES ($1, $2, $3, $4, $5, $5)
-ON CONFLICT (canonical_location_key, verification_date)
-DO UPDATE SET
-	issued_at = EXCLUDED.issued_at,
-	bundle_json = EXCLUDED.bundle_json,
-	updated_at = EXCLUDED.updated_at
-WHERE EXCLUDED.issued_at >= weather_verification_forecast_anchors.issued_at;
-`,
-		bundle.Provenance.CanonicalLocationKey,
-		verificationDate.UTC(),
-		bundle.Provenance.IssuedAt.UTC(),
-		encodedBundle,
-		now,
-	); err != nil {
-		return fmt.Errorf("upsert weather verification forecast anchor: %w", err)
-	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit weather snapshot tx: %w", err)
 	}
@@ -167,51 +138,6 @@ WHERE canonical_location_key = $1
 ORDER BY issued_at DESC
 LIMIT 1;
 `, canonicalLocationKey, before.UTC())
-}
-
-func (s *PostgresStore) LoadVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*weatherd.Bundle, error) {
-	return s.loadBundle(ctx, `
-SELECT bundle_json
-FROM weather_verification_forecast_anchors
-WHERE canonical_location_key = $1
-  AND verification_date = $2
-LIMIT 1;
-`, canonicalLocationKey, verificationDate.UTC())
-}
-
-func (s *PostgresStore) UpsertVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time, bundle weatherd.Bundle) error {
-	raw, err := json.Marshal(bundle)
-	if err != nil {
-		return fmt.Errorf("marshal weather verification forecast anchor bundle: %w", err)
-	}
-	now := s.nowFn().UTC()
-	_, err = s.db.ExecContext(ctx, `
-INSERT INTO weather_verification_forecast_anchors (
-	canonical_location_key,
-	verification_date,
-	issued_at,
-	bundle_json,
-	created_at,
-	updated_at
-)
-VALUES ($1, $2, $3, $4, $5, $5)
-ON CONFLICT (canonical_location_key, verification_date)
-DO UPDATE SET
-	issued_at = EXCLUDED.issued_at,
-	bundle_json = EXCLUDED.bundle_json,
-	updated_at = EXCLUDED.updated_at
-WHERE EXCLUDED.issued_at >= weather_verification_forecast_anchors.issued_at;
-`,
-		canonicalLocationKey,
-		verificationDate.UTC(),
-		bundle.Provenance.IssuedAt.UTC(),
-		raw,
-		now,
-	)
-	if err != nil {
-		return fmt.Errorf("upsert weather verification forecast anchor: %w", err)
-	}
-	return nil
 }
 
 func (s *PostgresStore) FindCanonicalLocationKeyByRequest(ctx context.Context, req weatherd.Request) (string, error) {
@@ -249,143 +175,6 @@ func (s *PostgresStore) loadBundle(ctx context.Context, query string, args ...an
 		return nil, fmt.Errorf("decode weather snapshot bundle: %w", err)
 	}
 	return &out, nil
-}
-
-func (s *PostgresStore) SaveVerification(ctx context.Context, result weatherd.VerificationResult) error {
-	raw, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("marshal weather verification: %w", err)
-	}
-	now := s.nowFn().UTC()
-	_, err = s.db.ExecContext(ctx, `
-INSERT INTO weather_yesterday_verifications (
-	canonical_location_key,
-	verification_date,
-	verification_source,
-	result_json,
-	created_at,
-	updated_at
-)
-VALUES ($1, $2, $3, $4, $5, $5)
-ON CONFLICT (canonical_location_key, verification_date)
-DO UPDATE SET
-	verification_source = EXCLUDED.verification_source,
-	result_json = EXCLUDED.result_json,
-	updated_at = EXCLUDED.updated_at;
-`,
-		result.Provenance.CanonicalLocationKey,
-		result.VerificationDate.UTC(),
-		result.Provenance.VerificationSource,
-		raw,
-		now,
-	)
-	if err != nil {
-		return fmt.Errorf("upsert weather verification: %w", err)
-	}
-	return nil
-}
-
-func (s *PostgresStore) LoadVerification(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*weatherd.VerificationResult, error) {
-	var raw []byte
-	err := s.db.QueryRowContext(ctx, `
-SELECT result_json
-FROM weather_yesterday_verifications
-WHERE canonical_location_key = $1
-  AND verification_date = $2
-LIMIT 1;
-`, canonicalLocationKey, verificationDate.UTC()).Scan(&raw)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("query weather verification: %w", err)
-	}
-	var out weatherd.VerificationResult
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("decode weather verification: %w", err)
-	}
-	return &out, nil
-}
-
-func (s *PostgresStore) LoadBiasStates(ctx context.Context, canonicalLocationKey string) ([]weatherd.BiasState, error) {
-	rows, err := s.db.QueryContext(ctx, `
-SELECT canonical_location_key, metric_key, hour_of_day, sample_count, additive_bias, multiplicative_ratio, updated_at
-FROM weather_bias_state
-WHERE canonical_location_key = $1;
-`, canonicalLocationKey)
-	if err != nil {
-		return nil, fmt.Errorf("query weather bias state: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	out := make([]weatherd.BiasState, 0, 32)
-	for rows.Next() {
-		var row weatherd.BiasState
-		var metric string
-		var additive sql.NullFloat64
-		var ratio sql.NullFloat64
-		if err := rows.Scan(
-			&row.CanonicalLocationKey,
-			&metric,
-			&row.HourOfDay,
-			&row.SampleCount,
-			&additive,
-			&ratio,
-			&row.UpdatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan weather bias state: %w", err)
-		}
-		row.Metric = weatherd.BiasMetric(metric)
-		if additive.Valid {
-			v := additive.Float64
-			row.AdditiveBias = &v
-		}
-		if ratio.Valid {
-			v := ratio.Float64
-			row.MultiplicativeRatio = &v
-		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate weather bias state: %w", err)
-	}
-	return out, nil
-}
-
-func (s *PostgresStore) UpsertBiasStates(ctx context.Context, states []weatherd.BiasState) error {
-	now := s.nowFn().UTC()
-	for _, state := range states {
-		_, err := s.db.ExecContext(ctx, `
-INSERT INTO weather_bias_state (
-	canonical_location_key,
-	metric_key,
-	hour_of_day,
-	sample_count,
-	additive_bias,
-	multiplicative_ratio,
-	updated_at,
-	created_at
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-ON CONFLICT (canonical_location_key, metric_key, hour_of_day)
-DO UPDATE SET
-	sample_count = EXCLUDED.sample_count,
-	additive_bias = EXCLUDED.additive_bias,
-	multiplicative_ratio = EXCLUDED.multiplicative_ratio,
-	updated_at = EXCLUDED.updated_at;
-`,
-			state.CanonicalLocationKey,
-			string(state.Metric),
-			state.HourOfDay,
-			state.SampleCount,
-			state.AdditiveBias,
-			state.MultiplicativeRatio,
-			chooseTime(state.UpdatedAt, now),
-		)
-		if err != nil {
-			return fmt.Errorf("upsert weather bias state: %w", err)
-		}
-	}
-	return nil
 }
 
 func (s *PostgresStore) TouchRefreshCandidate(ctx context.Context, canonicalLocationKey string, req weatherd.Request, requestedAt time.Time) error {
@@ -509,7 +298,7 @@ WHERE canonical_location_key = $1;
 	return nil
 }
 
-func (s *PostgresStore) PruneHotData(ctx context.Context, snapshotCutoff, verificationCutoff, candidateCutoff time.Time) (WeatherPruneStats, error) {
+func (s *PostgresStore) PruneHotData(ctx context.Context, snapshotCutoff, _ time.Time, candidateCutoff time.Time) (WeatherPruneStats, error) {
 	var stats WeatherPruneStats
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -541,18 +330,6 @@ WHERE s.ctid = r.ctid
 		return stats, fmt.Errorf("read compacted weather snapshot count: %w", err)
 	}
 
-	prunedVerifications, err := tx.ExecContext(ctx, `
-DELETE FROM weather_yesterday_verifications
-WHERE verification_date < $1;
-`, verificationCutoff.UTC())
-	if err != nil {
-		return stats, fmt.Errorf("prune weather verifications: %w", err)
-	}
-	stats.PrunedVerifications, err = prunedVerifications.RowsAffected()
-	if err != nil {
-		return stats, fmt.Errorf("read pruned weather verification count: %w", err)
-	}
-
 	prunedCandidates, err := tx.ExecContext(ctx, `
 DELETE FROM weather_refresh_candidates
 WHERE GREATEST(
@@ -566,13 +343,6 @@ WHERE GREATEST(
 	stats.PrunedCandidates, err = prunedCandidates.RowsAffected()
 	if err != nil {
 		return stats, fmt.Errorf("read pruned weather refresh candidate count: %w", err)
-	}
-
-	if _, err := tx.ExecContext(ctx, `
-DELETE FROM weather_verification_forecast_anchors
-WHERE verification_date < $1;
-`, verificationCutoff.UTC()); err != nil {
-		return stats, fmt.Errorf("prune weather verification forecast anchors: %w", err)
 	}
 
 	if _, err := tx.ExecContext(ctx, `
@@ -599,14 +369,10 @@ func (s *PostgresStore) CountHotData(ctx context.Context, dueBefore time.Time) (
 	err := s.db.QueryRowContext(ctx, `
 SELECT
     (SELECT count(*) FROM weather_forecast_snapshots),
-    (SELECT count(*) FROM weather_verification_forecast_anchors),
-    (SELECT count(*) FROM weather_yesterday_verifications),
     (SELECT count(*) FROM weather_refresh_candidates),
     (SELECT count(*) FROM weather_refresh_candidates WHERE next_refresh_at IS NULL OR next_refresh_at <= $1);
 `, dueBefore.UTC()).Scan(
 		&counts.Snapshots,
-		&counts.VerificationAnchors,
-		&counts.Verifications,
 		&counts.RefreshCandidates,
 		&counts.DueRefreshCandidates,
 	)
@@ -614,23 +380,4 @@ SELECT
 		return counts, fmt.Errorf("count retained weather hot data: %w", err)
 	}
 	return counts, nil
-}
-
-func nextLocalDayStartUTCForPostgres(bundle weatherd.Bundle) time.Time {
-	loc := time.UTC
-	if bundle.Provenance.Timezone != "" {
-		if loaded, err := time.LoadLocation(bundle.Provenance.Timezone); err == nil {
-			loc = loaded
-		}
-	}
-	issuedLocal := bundle.Provenance.IssuedAt.In(loc)
-	nextDay := time.Date(issuedLocal.Year(), issuedLocal.Month(), issuedLocal.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
-	return nextDay.UTC()
-}
-
-func chooseTime(primary, fallback time.Time) time.Time {
-	if !primary.IsZero() {
-		return primary.UTC()
-	}
-	return fallback.UTC()
 }

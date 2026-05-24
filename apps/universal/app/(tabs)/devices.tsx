@@ -31,9 +31,6 @@ function DeviceInventoryHeader({ count }: { count: number }) {
           {count} device{count === 1 ? '' : 's'}
         </Text>
       </XStack>
-      <Text fontSize="$3" color="$colorMuted" opacity={0.92}>
-        Full fleet inventory starts here after the solar overview.
-      </Text>
     </YStack>
   );
 }

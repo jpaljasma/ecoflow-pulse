@@ -13,7 +13,7 @@ test.describe('Profile weather web E2E', () => {
     await expect(page.getByText('Solar moved to Energy', { exact: true })).toBeVisible();
     await expect(
       page.getByText(
-        'Solar forecast, weather verification, and the larger Energy Impact pane now live under Energy so site and device deep links share one consistent flow.',
+        'Solar forecast and the larger Energy Impact pane now live under Energy so site and device deep links share one consistent flow.',
         { exact: true }
       )
     ).toBeVisible();

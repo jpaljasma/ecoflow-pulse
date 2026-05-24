@@ -59,6 +59,7 @@ import {
   useNavigationShellMetrics
 } from '@/shared/ui/navigationShell';
 import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
 function formatPercent(value: number | null | undefined): string {
@@ -229,6 +230,7 @@ export default function EnergyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const { contentWidth: width } = useNavigationShellMetrics();
   const pagePadding = resolvePageHorizontalPaddingPx(width);
   const { ref: pvEnvelopeSectionRef, shouldLoad: pvEnvelopeShouldLoad } = useLazySectionLoad({ rootMargin: '360px' });
@@ -237,7 +239,6 @@ export default function EnergyScreen() {
   const gridPricePerKwhInput = useEnergySettingsStore((state) => state.gridPricePerKwh);
   const currency = useEnergySettingsStore((state) => state.currency);
   const [controlsExpanded, setControlsExpanded] = useState(false);
-  const [verificationRequested, setVerificationRequested] = useState(false);
   const devicesQuery = useDevices({
     token,
     authKey,
@@ -280,7 +281,6 @@ export default function EnergyScreen() {
       routeState.panel === 'solar' &&
       resolvedWeatherState.enabled &&
       (routeState.scope === 'all' || Boolean(routeState.deviceId)),
-    verificationEnabled: routeState.panel === 'solar' && verificationRequested,
     scope: routeState.scope,
     deviceId: routeState.scope === 'device' ? routeState.deviceId : undefined
   });
@@ -807,10 +807,9 @@ export default function EnergyScreen() {
                       paddingHorizontal="$4"
                       minHeight={42}
                       alignSelf="flex-start"
-                      style={{
-                        backgroundColor: semantics.actionBackground,
-                        borderColor: semantics.actionBorder
-                      }}
+                      style={actionButtonStyles.style}
+                      hoverStyle={actionButtonStyles.hoverStyle}
+                      pressStyle={actionButtonStyles.pressStyle}
                       onPress={() => router.push('/profile')}
                     >
                       <XStack alignItems="center" gap="$2">
@@ -827,15 +826,9 @@ export default function EnergyScreen() {
               <WeatherForecastCard
                 forecast={profileWeather.forecastQuery.data?.forecast}
                 solarOutlook={profileWeather.solarOutlook}
-                verification={profileWeather.verificationQuery.data?.verification}
                 isLoading={weatherIsLoading}
-                verificationIsLoading={profileWeather.verificationQuery.isLoading}
                 enabled={weatherEnabled}
                 errorText={weatherErrorText}
-                verificationErrorText={describeQueryError(profileWeather.verificationQuery.error)}
-                onVerificationExpand={() => {
-                  setVerificationRequested(true);
-                }}
               />
             </YStack>
           ) : routeState.panel === 'impact' ? (

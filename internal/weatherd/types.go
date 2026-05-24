@@ -93,62 +93,6 @@ type Bundle struct {
 	Daily      []DailyForecastPoint  `json:"daily"`
 }
 
-type MetricError struct {
-	MeanAbsoluteError *float64 `json:"mean_absolute_error,omitempty"`
-	Bias              *float64 `json:"bias,omitempty"`
-}
-
-type VerificationHour struct {
-	Time              time.Time        `json:"time"`
-	ForecastCondition WeatherCondition `json:"forecast_condition"`
-	ActualCondition   WeatherCondition `json:"actual_condition"`
-	ForecastRaw       ForecastValueSet `json:"forecast_raw"`
-	ForecastCorrected ForecastValueSet `json:"forecast_corrected"`
-	Actual            ForecastValueSet `json:"actual"`
-}
-
-type VerificationSummary struct {
-	Temperature                            MetricError `json:"temperature"`
-	WindSpeed                              MetricError `json:"wind_speed"`
-	CloudCover                             MetricError `json:"cloud_cover"`
-	Visibility                             MetricError `json:"visibility"`
-	UVIndex                                MetricError `json:"uv_index"`
-	ShortwaveRadiation                     MetricError `json:"shortwave_radiation"`
-	GlobalTiltedIrradiance                 MetricError `json:"global_tilted_irradiance"`
-	Precipitation                          MetricError `json:"precipitation"`
-	CircularWindDirectionMeanAbsoluteError *float64    `json:"circular_wind_direction_mean_absolute_error,omitempty"`
-}
-
-type VerificationResult struct {
-	Provenance       Provenance          `json:"provenance"`
-	UnitSystem       UnitSystem          `json:"unit_system"`
-	VerificationDate time.Time           `json:"verification_date"`
-	Hourly           []VerificationHour  `json:"hourly"`
-	Summary          VerificationSummary `json:"summary"`
-}
-
-type BiasMetric string
-
-const (
-	BiasMetricTemperature            BiasMetric = "temperature"
-	BiasMetricWindSpeed              BiasMetric = "wind_speed"
-	BiasMetricCloudCover             BiasMetric = "cloud_cover"
-	BiasMetricVisibility             BiasMetric = "visibility"
-	BiasMetricUVIndex                BiasMetric = "uv_index"
-	BiasMetricShortwaveRadiation     BiasMetric = "shortwave_radiation"
-	BiasMetricGlobalTiltedIrradiance BiasMetric = "global_tilted_irradiance"
-)
-
-type BiasState struct {
-	CanonicalLocationKey string     `json:"canonical_location_key"`
-	Metric               BiasMetric `json:"metric"`
-	HourOfDay            int        `json:"hour_of_day"`
-	SampleCount          int        `json:"sample_count"`
-	AdditiveBias         *float64   `json:"additive_bias,omitempty"`
-	MultiplicativeRatio  *float64   `json:"multiplicative_ratio,omitempty"`
-	UpdatedAt            time.Time  `json:"updated_at"`
-}
-
 type RefreshCandidate struct {
 	CanonicalLocationKey string     `json:"canonical_location_key"`
 	Request              Request    `json:"request"`
@@ -172,13 +116,7 @@ type SnapshotStore interface {
 	SaveForecastBundle(ctx context.Context, req Request, bundle Bundle) error
 	LatestBundle(ctx context.Context, canonicalLocationKey string) (*Bundle, error)
 	LatestBundleBefore(ctx context.Context, canonicalLocationKey string, before time.Time) (*Bundle, error)
-	LoadVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*Bundle, error)
-	UpsertVerificationForecastAnchor(ctx context.Context, canonicalLocationKey string, verificationDate time.Time, bundle Bundle) error
 	FindCanonicalLocationKeyByRequest(ctx context.Context, req Request) (string, error)
-	LoadVerification(ctx context.Context, canonicalLocationKey string, verificationDate time.Time) (*VerificationResult, error)
-	SaveVerification(ctx context.Context, result VerificationResult) error
-	LoadBiasStates(ctx context.Context, canonicalLocationKey string) ([]BiasState, error)
-	UpsertBiasStates(ctx context.Context, states []BiasState) error
 	TouchRefreshCandidate(ctx context.Context, canonicalLocationKey string, req Request, requestedAt time.Time) error
 	ListRecentRefreshCandidates(ctx context.Context, since time.Time) ([]RefreshCandidate, error)
 	ListDueRefreshCandidates(ctx context.Context, since, dueBefore time.Time) ([]RefreshCandidate, error)

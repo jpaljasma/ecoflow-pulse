@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -12,14 +11,11 @@ import (
 )
 
 type MemorySnapshotStore struct {
-	mu                  sync.RWMutex
-	nowFn               func() time.Time
-	bundlesByKey        map[string][]weatherd.Bundle
-	verificationAnchors map[string]weatherd.Bundle
-	requestToKey        map[string]string
-	verifications       map[string]weatherd.VerificationResult
-	biasByLocation      map[string]map[string]weatherd.BiasState
-	refreshCandidates   map[string]weatherd.RefreshCandidate
+	mu                sync.RWMutex
+	nowFn             func() time.Time
+	bundlesByKey      map[string][]weatherd.Bundle
+	requestToKey      map[string]string
+	refreshCandidates map[string]weatherd.RefreshCandidate
 }
 
 func NewMemorySnapshotStore(nowFn func() time.Time) *MemorySnapshotStore {
@@ -27,13 +23,10 @@ func NewMemorySnapshotStore(nowFn func() time.Time) *MemorySnapshotStore {
 		nowFn = time.Now
 	}
 	return &MemorySnapshotStore{
-		nowFn:               nowFn,
-		bundlesByKey:        map[string][]weatherd.Bundle{},
-		verificationAnchors: map[string]weatherd.Bundle{},
-		requestToKey:        map[string]string{},
-		verifications:       map[string]weatherd.VerificationResult{},
-		biasByLocation:      map[string]map[string]weatherd.BiasState{},
-		refreshCandidates:   map[string]weatherd.RefreshCandidate{},
+		nowFn:             nowFn,
+		bundlesByKey:      map[string][]weatherd.Bundle{},
+		requestToKey:      map[string]string{},
+		refreshCandidates: map[string]weatherd.RefreshCandidate{},
 	}
 }
 
@@ -42,10 +35,6 @@ func (s *MemorySnapshotStore) SaveForecastBundle(_ context.Context, req weatherd
 	defer s.mu.Unlock()
 	key := bundle.Provenance.CanonicalLocationKey
 	s.bundlesByKey[key] = upsertBundleByIssuedAt(s.bundlesByKey[key], bundle)
-	anchorKey := verificationAnchorKey(key, nextLocalDayStartUTC(bundle))
-	if existing, ok := s.verificationAnchors[anchorKey]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
-		s.verificationAnchors[anchorKey] = cloneBundle(bundle)
-	}
 	s.requestToKey[requestKey(req)] = key
 	return nil
 }
@@ -73,80 +62,10 @@ func (s *MemorySnapshotStore) LatestBundleBefore(_ context.Context, canonicalLoc
 	return nil, nil
 }
 
-func (s *MemorySnapshotStore) LoadVerificationForecastAnchor(_ context.Context, canonicalLocationKey string, verificationDate time.Time) (*weatherd.Bundle, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	row, ok := s.verificationAnchors[verificationAnchorKey(canonicalLocationKey, verificationDate)]
-	if !ok {
-		return nil, nil
-	}
-	out := cloneBundle(row)
-	return &out, nil
-}
-
-func (s *MemorySnapshotStore) UpsertVerificationForecastAnchor(_ context.Context, canonicalLocationKey string, verificationDate time.Time, bundle weatherd.Bundle) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	key := verificationAnchorKey(canonicalLocationKey, verificationDate)
-	if existing, ok := s.verificationAnchors[key]; !ok || !existing.Provenance.IssuedAt.After(bundle.Provenance.IssuedAt.UTC()) {
-		s.verificationAnchors[key] = cloneBundle(bundle)
-	}
-	return nil
-}
-
 func (s *MemorySnapshotStore) FindCanonicalLocationKeyByRequest(_ context.Context, req weatherd.Request) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.requestToKey[requestKey(req)], nil
-}
-
-func (s *MemorySnapshotStore) SaveVerification(_ context.Context, result weatherd.VerificationResult) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.verifications[verificationKey(result.Provenance.CanonicalLocationKey, result.VerificationDate)] = cloneVerification(result)
-	return nil
-}
-
-func (s *MemorySnapshotStore) LoadVerification(_ context.Context, canonicalLocationKey string, verificationDate time.Time) (*weatherd.VerificationResult, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	row, ok := s.verifications[verificationKey(canonicalLocationKey, verificationDate)]
-	if !ok {
-		return nil, nil
-	}
-	out := cloneVerification(row)
-	return &out, nil
-}
-
-func (s *MemorySnapshotStore) LoadBiasStates(_ context.Context, canonicalLocationKey string) ([]weatherd.BiasState, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	rows := s.biasByLocation[canonicalLocationKey]
-	out := make([]weatherd.BiasState, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, cloneBiasState(row))
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Metric == out[j].Metric {
-			return out[i].HourOfDay < out[j].HourOfDay
-		}
-		return out[i].Metric < out[j].Metric
-	})
-	return out, nil
-}
-
-func (s *MemorySnapshotStore) UpsertBiasStates(_ context.Context, states []weatherd.BiasState) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, state := range states {
-		byMetric := s.biasByLocation[state.CanonicalLocationKey]
-		if byMetric == nil {
-			byMetric = map[string]weatherd.BiasState{}
-			s.biasByLocation[state.CanonicalLocationKey] = byMetric
-		}
-		byMetric[biasKey(state)] = cloneBiasState(state)
-	}
-	return nil
 }
 
 func (s *MemorySnapshotStore) TouchRefreshCandidate(_ context.Context, canonicalLocationKey string, req weatherd.Request, requestedAt time.Time) error {
@@ -229,37 +148,10 @@ func requestKey(req weatherd.Request) string {
 	return string(raw)
 }
 
-func verificationKey(canonicalLocationKey string, verificationDate time.Time) string {
-	return canonicalLocationKey + "|" + verificationDate.UTC().Format(time.RFC3339)
-}
-
-func biasKey(state weatherd.BiasState) string {
-	return fmt.Sprintf("%s|%d", state.Metric, state.HourOfDay)
-}
-
 func cloneBundle(in weatherd.Bundle) weatherd.Bundle {
 	out := in
 	out.Hourly = append([]weatherd.HourlyForecastPoint(nil), in.Hourly...)
 	out.Daily = append([]weatherd.DailyForecastPoint(nil), in.Daily...)
-	return out
-}
-
-func cloneVerification(in weatherd.VerificationResult) weatherd.VerificationResult {
-	out := in
-	out.Hourly = append([]weatherd.VerificationHour(nil), in.Hourly...)
-	return out
-}
-
-func cloneBiasState(in weatherd.BiasState) weatherd.BiasState {
-	out := in
-	if in.AdditiveBias != nil {
-		v := *in.AdditiveBias
-		out.AdditiveBias = &v
-	}
-	if in.MultiplicativeRatio != nil {
-		v := *in.MultiplicativeRatio
-		out.MultiplicativeRatio = &v
-	}
 	return out
 }
 
@@ -299,20 +191,4 @@ func upsertBundleByIssuedAt(existing []weatherd.Bundle, bundle weatherd.Bundle) 
 		out = append(out, cloneBundle(bundle))
 	}
 	return out
-}
-
-func verificationAnchorKey(canonicalLocationKey string, verificationDate time.Time) string {
-	return canonicalLocationKey + "|" + verificationDate.UTC().Format(time.RFC3339)
-}
-
-func nextLocalDayStartUTC(bundle weatherd.Bundle) time.Time {
-	loc := time.UTC
-	if bundle.Provenance.Timezone != "" {
-		if loaded, err := time.LoadLocation(bundle.Provenance.Timezone); err == nil {
-			loc = loaded
-		}
-	}
-	issuedLocal := bundle.Provenance.IssuedAt.In(loc)
-	nextDay := time.Date(issuedLocal.Year(), issuedLocal.Month(), issuedLocal.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
-	return nextDay.UTC()
 }

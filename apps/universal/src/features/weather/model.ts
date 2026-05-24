@@ -82,44 +82,6 @@ export type WeatherDaypart = {
   point?: WeatherPoint;
 };
 
-export type WeatherYesterdayHour = {
-  timestampIso: string;
-  forecast: WeatherPoint;
-  actual: WeatherPoint;
-  error: {
-    temperature2m?: number | null;
-    windSpeed10m?: number | null;
-    cloudCover?: number | null;
-    visibility?: number | null;
-    uvIndex?: number | null;
-    shortwaveRadiation?: number | null;
-    windDirection?: number | null;
-  };
-};
-
-export type WeatherYesterdayVerification = {
-  issuedAtUnixMs: string;
-  timezone: string;
-  verificationSource: 'snapshot' | 'previous_runs';
-  provenance: {
-    source: 'open_meteo';
-    modelSelection: 'best_match';
-    actualSource: 'past_days';
-    verificationSource: 'snapshot' | 'previous_runs';
-  };
-  summary: {
-    comparedHours: number;
-    matchedHours: number;
-    meanAbsoluteTemperatureError?: number | null;
-    meanAbsoluteWindSpeedError?: number | null;
-    meanAbsoluteCloudCoverError?: number | null;
-    meanAbsoluteVisibilityError?: number | null;
-    meanAbsoluteUvIndexError?: number | null;
-    meanAbsoluteRadiationError?: number | null;
-  };
-  hours: WeatherYesterdayHour[];
-};
-
 export type SolarCapacityEstimate = {
   estimatedPeakWatts?: number;
   observedPvWatts?: number;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Image as ExpoImage } from 'expo-image';
-import { Animated, ScrollView } from 'react-native';
+import { Animated, Platform, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
@@ -21,6 +21,7 @@ import { CloseToHomeButton } from '@/shared/ui/CloseToHomeButton';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { TopBar } from '@/shared/ui/TopBar';
 import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
+import { buildPulseActionButtonStyles } from '@/shared/ui/buttonInteractions';
 import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
@@ -30,6 +31,7 @@ export default function ProfileScreen() {
   const { authReady, allowed, waiting } = useRequireAuth();
   const { token, authKey } = useAuthSession();
   const semantics = useThemeSemantics();
+  const actionButtonStyles = buildPulseActionButtonStyles(semantics, { web: Platform.OS === 'web' });
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const currentUserQuery = useCurrentUser({
     token,
@@ -351,7 +353,7 @@ export default function ProfileScreen() {
                 <YStack gap="$1" flex={1} minWidth={220}>
                   <Text fontSize="$7" fontWeight="800">Solar moved to Energy</Text>
                   <Text color="$colorMuted">
-                    Solar forecast, weather verification, and the larger Energy Impact pane now live under Energy so site and device deep links share one consistent flow.
+                    Solar forecast and the larger Energy Impact pane now live under Energy so site and device deep links share one consistent flow.
                   </Text>
                 </YStack>
                 <Button
@@ -360,10 +362,9 @@ export default function ProfileScreen() {
                   borderWidth={1}
                   paddingHorizontal="$4"
                   minHeight={42}
-                  style={{
-                    backgroundColor: semantics.actionBackground,
-                    borderColor: semantics.actionBorder
-                  }}
+                  style={actionButtonStyles.style}
+                  hoverStyle={actionButtonStyles.hoverStyle}
+                  pressStyle={actionButtonStyles.pressStyle}
                   onPress={() => {
                     router.push({
                       pathname: '/(tabs)/energy',

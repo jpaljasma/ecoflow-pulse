@@ -771,462 +771,6 @@ func (x *Get7DayForecastResponse) GetDaily() []*DailyForecastPoint {
 	return nil
 }
 
-type VerificationMetricError struct {
-	state             protoimpl.MessageState  `protogen:"open.v1"`
-	MeanAbsoluteError *wrapperspb.DoubleValue `protobuf:"bytes,1,opt,name=mean_absolute_error,json=meanAbsoluteError,proto3" json:"mean_absolute_error,omitempty"`
-	Bias              *wrapperspb.DoubleValue `protobuf:"bytes,2,opt,name=bias,proto3" json:"bias,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *VerificationMetricError) Reset() {
-	*x = VerificationMetricError{}
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *VerificationMetricError) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*VerificationMetricError) ProtoMessage() {}
-
-func (x *VerificationMetricError) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VerificationMetricError.ProtoReflect.Descriptor instead.
-func (*VerificationMetricError) Descriptor() ([]byte, []int) {
-	return file_pulse_weather_v1_weather_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *VerificationMetricError) GetMeanAbsoluteError() *wrapperspb.DoubleValue {
-	if x != nil {
-		return x.MeanAbsoluteError
-	}
-	return nil
-}
-
-func (x *VerificationMetricError) GetBias() *wrapperspb.DoubleValue {
-	if x != nil {
-		return x.Bias
-	}
-	return nil
-}
-
-type YesterdayVerificationHour struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	TimeUnixMs        int64                  `protobuf:"varint,1,opt,name=time_unix_ms,json=timeUnixMs,proto3" json:"time_unix_ms,omitempty"`
-	ForecastCondition *WeatherCondition      `protobuf:"bytes,2,opt,name=forecast_condition,json=forecastCondition,proto3" json:"forecast_condition,omitempty"`
-	ActualCondition   *WeatherCondition      `protobuf:"bytes,3,opt,name=actual_condition,json=actualCondition,proto3" json:"actual_condition,omitempty"`
-	ForecastRaw       *ForecastValueSet      `protobuf:"bytes,4,opt,name=forecast_raw,json=forecastRaw,proto3" json:"forecast_raw,omitempty"`
-	ForecastCorrected *ForecastValueSet      `protobuf:"bytes,5,opt,name=forecast_corrected,json=forecastCorrected,proto3" json:"forecast_corrected,omitempty"`
-	Actual            *ForecastValueSet      `protobuf:"bytes,6,opt,name=actual,proto3" json:"actual,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *YesterdayVerificationHour) Reset() {
-	*x = YesterdayVerificationHour{}
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *YesterdayVerificationHour) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*YesterdayVerificationHour) ProtoMessage() {}
-
-func (x *YesterdayVerificationHour) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use YesterdayVerificationHour.ProtoReflect.Descriptor instead.
-func (*YesterdayVerificationHour) Descriptor() ([]byte, []int) {
-	return file_pulse_weather_v1_weather_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *YesterdayVerificationHour) GetTimeUnixMs() int64 {
-	if x != nil {
-		return x.TimeUnixMs
-	}
-	return 0
-}
-
-func (x *YesterdayVerificationHour) GetForecastCondition() *WeatherCondition {
-	if x != nil {
-		return x.ForecastCondition
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationHour) GetActualCondition() *WeatherCondition {
-	if x != nil {
-		return x.ActualCondition
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationHour) GetForecastRaw() *ForecastValueSet {
-	if x != nil {
-		return x.ForecastRaw
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationHour) GetForecastCorrected() *ForecastValueSet {
-	if x != nil {
-		return x.ForecastCorrected
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationHour) GetActual() *ForecastValueSet {
-	if x != nil {
-		return x.Actual
-	}
-	return nil
-}
-
-type YesterdayVerificationSummary struct {
-	state                                  protoimpl.MessageState   `protogen:"open.v1"`
-	Temperature                            *VerificationMetricError `protobuf:"bytes,1,opt,name=temperature,proto3" json:"temperature,omitempty"`
-	WindSpeed                              *VerificationMetricError `protobuf:"bytes,2,opt,name=wind_speed,json=windSpeed,proto3" json:"wind_speed,omitempty"`
-	CloudCover                             *VerificationMetricError `protobuf:"bytes,3,opt,name=cloud_cover,json=cloudCover,proto3" json:"cloud_cover,omitempty"`
-	Visibility                             *VerificationMetricError `protobuf:"bytes,4,opt,name=visibility,proto3" json:"visibility,omitempty"`
-	UvIndex                                *VerificationMetricError `protobuf:"bytes,5,opt,name=uv_index,json=uvIndex,proto3" json:"uv_index,omitempty"`
-	ShortwaveRadiation                     *VerificationMetricError `protobuf:"bytes,6,opt,name=shortwave_radiation,json=shortwaveRadiation,proto3" json:"shortwave_radiation,omitempty"`
-	GlobalTiltedIrradiance                 *VerificationMetricError `protobuf:"bytes,7,opt,name=global_tilted_irradiance,json=globalTiltedIrradiance,proto3" json:"global_tilted_irradiance,omitempty"`
-	Precipitation                          *VerificationMetricError `protobuf:"bytes,8,opt,name=precipitation,proto3" json:"precipitation,omitempty"`
-	CircularWindDirectionMeanAbsoluteError *wrapperspb.DoubleValue  `protobuf:"bytes,9,opt,name=circular_wind_direction_mean_absolute_error,json=circularWindDirectionMeanAbsoluteError,proto3" json:"circular_wind_direction_mean_absolute_error,omitempty"`
-	unknownFields                          protoimpl.UnknownFields
-	sizeCache                              protoimpl.SizeCache
-}
-
-func (x *YesterdayVerificationSummary) Reset() {
-	*x = YesterdayVerificationSummary{}
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *YesterdayVerificationSummary) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*YesterdayVerificationSummary) ProtoMessage() {}
-
-func (x *YesterdayVerificationSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use YesterdayVerificationSummary.ProtoReflect.Descriptor instead.
-func (*YesterdayVerificationSummary) Descriptor() ([]byte, []int) {
-	return file_pulse_weather_v1_weather_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *YesterdayVerificationSummary) GetTemperature() *VerificationMetricError {
-	if x != nil {
-		return x.Temperature
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetWindSpeed() *VerificationMetricError {
-	if x != nil {
-		return x.WindSpeed
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetCloudCover() *VerificationMetricError {
-	if x != nil {
-		return x.CloudCover
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetVisibility() *VerificationMetricError {
-	if x != nil {
-		return x.Visibility
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetUvIndex() *VerificationMetricError {
-	if x != nil {
-		return x.UvIndex
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetShortwaveRadiation() *VerificationMetricError {
-	if x != nil {
-		return x.ShortwaveRadiation
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetGlobalTiltedIrradiance() *VerificationMetricError {
-	if x != nil {
-		return x.GlobalTiltedIrradiance
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetPrecipitation() *VerificationMetricError {
-	if x != nil {
-		return x.Precipitation
-	}
-	return nil
-}
-
-func (x *YesterdayVerificationSummary) GetCircularWindDirectionMeanAbsoluteError() *wrapperspb.DoubleValue {
-	if x != nil {
-		return x.CircularWindDirectionMeanAbsoluteError
-	}
-	return nil
-}
-
-type VerificationProvenance struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	Source               string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	ModelSelection       string                 `protobuf:"bytes,2,opt,name=model_selection,json=modelSelection,proto3" json:"model_selection,omitempty"`
-	ActualSource         string                 `protobuf:"bytes,3,opt,name=actual_source,json=actualSource,proto3" json:"actual_source,omitempty"`
-	VerificationSource   string                 `protobuf:"bytes,4,opt,name=verification_source,json=verificationSource,proto3" json:"verification_source,omitempty"`
-	Timezone             string                 `protobuf:"bytes,5,opt,name=timezone,proto3" json:"timezone,omitempty"`
-	CanonicalLocationKey string                 `protobuf:"bytes,6,opt,name=canonical_location_key,json=canonicalLocationKey,proto3" json:"canonical_location_key,omitempty"`
-	IssuedAtUnixMs       int64                  `protobuf:"varint,7,opt,name=issued_at_unix_ms,json=issuedAtUnixMs,proto3" json:"issued_at_unix_ms,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
-}
-
-func (x *VerificationProvenance) Reset() {
-	*x = VerificationProvenance{}
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *VerificationProvenance) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*VerificationProvenance) ProtoMessage() {}
-
-func (x *VerificationProvenance) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VerificationProvenance.ProtoReflect.Descriptor instead.
-func (*VerificationProvenance) Descriptor() ([]byte, []int) {
-	return file_pulse_weather_v1_weather_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *VerificationProvenance) GetSource() string {
-	if x != nil {
-		return x.Source
-	}
-	return ""
-}
-
-func (x *VerificationProvenance) GetModelSelection() string {
-	if x != nil {
-		return x.ModelSelection
-	}
-	return ""
-}
-
-func (x *VerificationProvenance) GetActualSource() string {
-	if x != nil {
-		return x.ActualSource
-	}
-	return ""
-}
-
-func (x *VerificationProvenance) GetVerificationSource() string {
-	if x != nil {
-		return x.VerificationSource
-	}
-	return ""
-}
-
-func (x *VerificationProvenance) GetTimezone() string {
-	if x != nil {
-		return x.Timezone
-	}
-	return ""
-}
-
-func (x *VerificationProvenance) GetCanonicalLocationKey() string {
-	if x != nil {
-		return x.CanonicalLocationKey
-	}
-	return ""
-}
-
-func (x *VerificationProvenance) GetIssuedAtUnixMs() int64 {
-	if x != nil {
-		return x.IssuedAtUnixMs
-	}
-	return 0
-}
-
-type GetYesterdayVerificationRequest struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
-	Location      *WeatherLocationRequest `protobuf:"bytes,1,opt,name=location,proto3" json:"location,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetYesterdayVerificationRequest) Reset() {
-	*x = GetYesterdayVerificationRequest{}
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetYesterdayVerificationRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetYesterdayVerificationRequest) ProtoMessage() {}
-
-func (x *GetYesterdayVerificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetYesterdayVerificationRequest.ProtoReflect.Descriptor instead.
-func (*GetYesterdayVerificationRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_weather_v1_weather_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *GetYesterdayVerificationRequest) GetLocation() *WeatherLocationRequest {
-	if x != nil {
-		return x.Location
-	}
-	return nil
-}
-
-type GetYesterdayVerificationResponse struct {
-	state                  protoimpl.MessageState        `protogen:"open.v1"`
-	Provenance             *VerificationProvenance       `protobuf:"bytes,1,opt,name=provenance,proto3" json:"provenance,omitempty"`
-	UnitSystem             UnitSystem                    `protobuf:"varint,2,opt,name=unit_system,json=unitSystem,proto3,enum=pulse.weather.v1.UnitSystem" json:"unit_system,omitempty"`
-	VerificationDateUnixMs int64                         `protobuf:"varint,3,opt,name=verification_date_unix_ms,json=verificationDateUnixMs,proto3" json:"verification_date_unix_ms,omitempty"`
-	Hourly                 []*YesterdayVerificationHour  `protobuf:"bytes,4,rep,name=hourly,proto3" json:"hourly,omitempty"`
-	Summary                *YesterdayVerificationSummary `protobuf:"bytes,5,opt,name=summary,proto3" json:"summary,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
-}
-
-func (x *GetYesterdayVerificationResponse) Reset() {
-	*x = GetYesterdayVerificationResponse{}
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[14]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetYesterdayVerificationResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetYesterdayVerificationResponse) ProtoMessage() {}
-
-func (x *GetYesterdayVerificationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_weather_v1_weather_proto_msgTypes[14]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetYesterdayVerificationResponse.ProtoReflect.Descriptor instead.
-func (*GetYesterdayVerificationResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_weather_v1_weather_proto_rawDescGZIP(), []int{14}
-}
-
-func (x *GetYesterdayVerificationResponse) GetProvenance() *VerificationProvenance {
-	if x != nil {
-		return x.Provenance
-	}
-	return nil
-}
-
-func (x *GetYesterdayVerificationResponse) GetUnitSystem() UnitSystem {
-	if x != nil {
-		return x.UnitSystem
-	}
-	return UnitSystem_UNIT_SYSTEM_UNSPECIFIED
-}
-
-func (x *GetYesterdayVerificationResponse) GetVerificationDateUnixMs() int64 {
-	if x != nil {
-		return x.VerificationDateUnixMs
-	}
-	return 0
-}
-
-func (x *GetYesterdayVerificationResponse) GetHourly() []*YesterdayVerificationHour {
-	if x != nil {
-		return x.Hourly
-	}
-	return nil
-}
-
-func (x *GetYesterdayVerificationResponse) GetSummary() *YesterdayVerificationSummary {
-	if x != nil {
-		return x.Summary
-	}
-	return nil
-}
-
 var File_pulse_weather_v1_weather_proto protoreflect.FileDescriptor
 
 const file_pulse_weather_v1_weather_proto_rawDesc = "" +
@@ -1299,59 +843,14 @@ const file_pulse_weather_v1_weather_proto_rawDesc = "" +
 	"\vunit_system\x18\x03 \x01(\x0e2\x1c.pulse.weather.v1.UnitSystemR\n" +
 	"unitSystem\x12=\n" +
 	"\x06hourly\x18\x04 \x03(\v2%.pulse.weather.v1.HourlyForecastPointR\x06hourly\x12:\n" +
-	"\x05daily\x18\x05 \x03(\v2$.pulse.weather.v1.DailyForecastPointR\x05daily\"\x99\x01\n" +
-	"\x17VerificationMetricError\x12L\n" +
-	"\x13mean_absolute_error\x18\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x11meanAbsoluteError\x120\n" +
-	"\x04bias\x18\x02 \x01(\v2\x1c.google.protobuf.DoubleValueR\x04bias\"\xb5\x03\n" +
-	"\x19YesterdayVerificationHour\x12 \n" +
-	"\ftime_unix_ms\x18\x01 \x01(\x03R\n" +
-	"timeUnixMs\x12Q\n" +
-	"\x12forecast_condition\x18\x02 \x01(\v2\".pulse.weather.v1.WeatherConditionR\x11forecastCondition\x12M\n" +
-	"\x10actual_condition\x18\x03 \x01(\v2\".pulse.weather.v1.WeatherConditionR\x0factualCondition\x12E\n" +
-	"\fforecast_raw\x18\x04 \x01(\v2\".pulse.weather.v1.ForecastValueSetR\vforecastRaw\x12Q\n" +
-	"\x12forecast_corrected\x18\x05 \x01(\v2\".pulse.weather.v1.ForecastValueSetR\x11forecastCorrected\x12:\n" +
-	"\x06actual\x18\x06 \x01(\v2\".pulse.weather.v1.ForecastValueSetR\x06actual\"\x9f\x06\n" +
-	"\x1cYesterdayVerificationSummary\x12K\n" +
-	"\vtemperature\x18\x01 \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\vtemperature\x12H\n" +
-	"\n" +
-	"wind_speed\x18\x02 \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\twindSpeed\x12J\n" +
-	"\vcloud_cover\x18\x03 \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\n" +
-	"cloudCover\x12I\n" +
-	"\n" +
-	"visibility\x18\x04 \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\n" +
-	"visibility\x12D\n" +
-	"\buv_index\x18\x05 \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\auvIndex\x12Z\n" +
-	"\x13shortwave_radiation\x18\x06 \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\x12shortwaveRadiation\x12c\n" +
-	"\x18global_tilted_irradiance\x18\a \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\x16globalTiltedIrradiance\x12O\n" +
-	"\rprecipitation\x18\b \x01(\v2).pulse.weather.v1.VerificationMetricErrorR\rprecipitation\x12y\n" +
-	"+circular_wind_direction_mean_absolute_error\x18\t \x01(\v2\x1c.google.protobuf.DoubleValueR&circularWindDirectionMeanAbsoluteError\"\xac\x02\n" +
-	"\x16VerificationProvenance\x12\x16\n" +
-	"\x06source\x18\x01 \x01(\tR\x06source\x12'\n" +
-	"\x0fmodel_selection\x18\x02 \x01(\tR\x0emodelSelection\x12#\n" +
-	"\ractual_source\x18\x03 \x01(\tR\factualSource\x12/\n" +
-	"\x13verification_source\x18\x04 \x01(\tR\x12verificationSource\x12\x1a\n" +
-	"\btimezone\x18\x05 \x01(\tR\btimezone\x124\n" +
-	"\x16canonical_location_key\x18\x06 \x01(\tR\x14canonicalLocationKey\x12)\n" +
-	"\x11issued_at_unix_ms\x18\a \x01(\x03R\x0eissuedAtUnixMs\"g\n" +
-	"\x1fGetYesterdayVerificationRequest\x12D\n" +
-	"\blocation\x18\x01 \x01(\v2(.pulse.weather.v1.WeatherLocationRequestR\blocation\"\xf5\x02\n" +
-	" GetYesterdayVerificationResponse\x12H\n" +
-	"\n" +
-	"provenance\x18\x01 \x01(\v2(.pulse.weather.v1.VerificationProvenanceR\n" +
-	"provenance\x12=\n" +
-	"\vunit_system\x18\x02 \x01(\x0e2\x1c.pulse.weather.v1.UnitSystemR\n" +
-	"unitSystem\x129\n" +
-	"\x19verification_date_unix_ms\x18\x03 \x01(\x03R\x16verificationDateUnixMs\x12C\n" +
-	"\x06hourly\x18\x04 \x03(\v2+.pulse.weather.v1.YesterdayVerificationHourR\x06hourly\x12H\n" +
-	"\asummary\x18\x05 \x01(\v2..pulse.weather.v1.YesterdayVerificationSummaryR\asummary*[\n" +
+	"\x05daily\x18\x05 \x03(\v2$.pulse.weather.v1.DailyForecastPointR\x05daily*[\n" +
 	"\n" +
 	"UnitSystem\x12\x1b\n" +
 	"\x17UNIT_SYSTEM_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12UNIT_SYSTEM_METRIC\x10\x01\x12\x18\n" +
-	"\x14UNIT_SYSTEM_IMPERIAL\x10\x022\xfc\x01\n" +
+	"\x14UNIT_SYSTEM_IMPERIAL\x10\x022x\n" +
 	"\x0eWeatherService\x12f\n" +
-	"\x0fGet7DayForecast\x12(.pulse.weather.v1.Get7DayForecastRequest\x1a).pulse.weather.v1.Get7DayForecastResponse\x12\x81\x01\n" +
-	"\x18GetYesterdayVerification\x121.pulse.weather.v1.GetYesterdayVerificationRequest\x1a2.pulse.weather.v1.GetYesterdayVerificationResponseBCZAgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/weather/v1;weatherv1b\x06proto3"
+	"\x0fGet7DayForecast\x12(.pulse.weather.v1.Get7DayForecastRequest\x1a).pulse.weather.v1.Get7DayForecastResponseBCZAgithub.com/jpaljasma/ecoflow-pulse/gen/pulse/weather/v1;weatherv1b\x06proto3"
 
 var (
 	file_pulse_weather_v1_weather_proto_rawDescOnce sync.Once
@@ -1366,48 +865,42 @@ func file_pulse_weather_v1_weather_proto_rawDescGZIP() []byte {
 }
 
 var file_pulse_weather_v1_weather_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_pulse_weather_v1_weather_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_pulse_weather_v1_weather_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_pulse_weather_v1_weather_proto_goTypes = []any{
-	(UnitSystem)(0),                          // 0: pulse.weather.v1.UnitSystem
-	(*WeatherLocationRequest)(nil),           // 1: pulse.weather.v1.WeatherLocationRequest
-	(*ForecastValueSet)(nil),                 // 2: pulse.weather.v1.ForecastValueSet
-	(*DailyValueSet)(nil),                    // 3: pulse.weather.v1.DailyValueSet
-	(*WeatherCondition)(nil),                 // 4: pulse.weather.v1.WeatherCondition
-	(*HourlyForecastPoint)(nil),              // 5: pulse.weather.v1.HourlyForecastPoint
-	(*DailyForecastPoint)(nil),               // 6: pulse.weather.v1.DailyForecastPoint
-	(*ForecastProvenance)(nil),               // 7: pulse.weather.v1.ForecastProvenance
-	(*Get7DayForecastRequest)(nil),           // 8: pulse.weather.v1.Get7DayForecastRequest
-	(*Get7DayForecastResponse)(nil),          // 9: pulse.weather.v1.Get7DayForecastResponse
-	(*VerificationMetricError)(nil),          // 10: pulse.weather.v1.VerificationMetricError
-	(*YesterdayVerificationHour)(nil),        // 11: pulse.weather.v1.YesterdayVerificationHour
-	(*YesterdayVerificationSummary)(nil),     // 12: pulse.weather.v1.YesterdayVerificationSummary
-	(*VerificationProvenance)(nil),           // 13: pulse.weather.v1.VerificationProvenance
-	(*GetYesterdayVerificationRequest)(nil),  // 14: pulse.weather.v1.GetYesterdayVerificationRequest
-	(*GetYesterdayVerificationResponse)(nil), // 15: pulse.weather.v1.GetYesterdayVerificationResponse
-	(*wrapperspb.DoubleValue)(nil),           // 16: google.protobuf.DoubleValue
+	(UnitSystem)(0),                 // 0: pulse.weather.v1.UnitSystem
+	(*WeatherLocationRequest)(nil),  // 1: pulse.weather.v1.WeatherLocationRequest
+	(*ForecastValueSet)(nil),        // 2: pulse.weather.v1.ForecastValueSet
+	(*DailyValueSet)(nil),           // 3: pulse.weather.v1.DailyValueSet
+	(*WeatherCondition)(nil),        // 4: pulse.weather.v1.WeatherCondition
+	(*HourlyForecastPoint)(nil),     // 5: pulse.weather.v1.HourlyForecastPoint
+	(*DailyForecastPoint)(nil),      // 6: pulse.weather.v1.DailyForecastPoint
+	(*ForecastProvenance)(nil),      // 7: pulse.weather.v1.ForecastProvenance
+	(*Get7DayForecastRequest)(nil),  // 8: pulse.weather.v1.Get7DayForecastRequest
+	(*Get7DayForecastResponse)(nil), // 9: pulse.weather.v1.Get7DayForecastResponse
+	(*wrapperspb.DoubleValue)(nil),  // 10: google.protobuf.DoubleValue
 }
 var file_pulse_weather_v1_weather_proto_depIdxs = []int32{
 	0,  // 0: pulse.weather.v1.WeatherLocationRequest.unit_system:type_name -> pulse.weather.v1.UnitSystem
-	16, // 1: pulse.weather.v1.WeatherLocationRequest.panel_tilt_degrees:type_name -> google.protobuf.DoubleValue
-	16, // 2: pulse.weather.v1.WeatherLocationRequest.panel_azimuth_degrees:type_name -> google.protobuf.DoubleValue
-	16, // 3: pulse.weather.v1.ForecastValueSet.temperature:type_name -> google.protobuf.DoubleValue
-	16, // 4: pulse.weather.v1.ForecastValueSet.wind_speed:type_name -> google.protobuf.DoubleValue
-	16, // 5: pulse.weather.v1.ForecastValueSet.wind_direction_degrees:type_name -> google.protobuf.DoubleValue
-	16, // 6: pulse.weather.v1.ForecastValueSet.precipitation:type_name -> google.protobuf.DoubleValue
-	16, // 7: pulse.weather.v1.ForecastValueSet.cloud_cover:type_name -> google.protobuf.DoubleValue
-	16, // 8: pulse.weather.v1.ForecastValueSet.visibility:type_name -> google.protobuf.DoubleValue
-	16, // 9: pulse.weather.v1.ForecastValueSet.sunshine_duration_seconds:type_name -> google.protobuf.DoubleValue
-	16, // 10: pulse.weather.v1.ForecastValueSet.shortwave_radiation:type_name -> google.protobuf.DoubleValue
-	16, // 11: pulse.weather.v1.ForecastValueSet.uv_index:type_name -> google.protobuf.DoubleValue
-	16, // 12: pulse.weather.v1.ForecastValueSet.global_tilted_irradiance:type_name -> google.protobuf.DoubleValue
-	16, // 13: pulse.weather.v1.DailyValueSet.sunshine_duration_seconds:type_name -> google.protobuf.DoubleValue
-	16, // 14: pulse.weather.v1.DailyValueSet.shortwave_radiation_sum:type_name -> google.protobuf.DoubleValue
-	16, // 15: pulse.weather.v1.DailyValueSet.uv_index_max:type_name -> google.protobuf.DoubleValue
+	10, // 1: pulse.weather.v1.WeatherLocationRequest.panel_tilt_degrees:type_name -> google.protobuf.DoubleValue
+	10, // 2: pulse.weather.v1.WeatherLocationRequest.panel_azimuth_degrees:type_name -> google.protobuf.DoubleValue
+	10, // 3: pulse.weather.v1.ForecastValueSet.temperature:type_name -> google.protobuf.DoubleValue
+	10, // 4: pulse.weather.v1.ForecastValueSet.wind_speed:type_name -> google.protobuf.DoubleValue
+	10, // 5: pulse.weather.v1.ForecastValueSet.wind_direction_degrees:type_name -> google.protobuf.DoubleValue
+	10, // 6: pulse.weather.v1.ForecastValueSet.precipitation:type_name -> google.protobuf.DoubleValue
+	10, // 7: pulse.weather.v1.ForecastValueSet.cloud_cover:type_name -> google.protobuf.DoubleValue
+	10, // 8: pulse.weather.v1.ForecastValueSet.visibility:type_name -> google.protobuf.DoubleValue
+	10, // 9: pulse.weather.v1.ForecastValueSet.sunshine_duration_seconds:type_name -> google.protobuf.DoubleValue
+	10, // 10: pulse.weather.v1.ForecastValueSet.shortwave_radiation:type_name -> google.protobuf.DoubleValue
+	10, // 11: pulse.weather.v1.ForecastValueSet.uv_index:type_name -> google.protobuf.DoubleValue
+	10, // 12: pulse.weather.v1.ForecastValueSet.global_tilted_irradiance:type_name -> google.protobuf.DoubleValue
+	10, // 13: pulse.weather.v1.DailyValueSet.sunshine_duration_seconds:type_name -> google.protobuf.DoubleValue
+	10, // 14: pulse.weather.v1.DailyValueSet.shortwave_radiation_sum:type_name -> google.protobuf.DoubleValue
+	10, // 15: pulse.weather.v1.DailyValueSet.uv_index_max:type_name -> google.protobuf.DoubleValue
 	4,  // 16: pulse.weather.v1.HourlyForecastPoint.condition:type_name -> pulse.weather.v1.WeatherCondition
 	2,  // 17: pulse.weather.v1.HourlyForecastPoint.raw:type_name -> pulse.weather.v1.ForecastValueSet
 	2,  // 18: pulse.weather.v1.HourlyForecastPoint.corrected:type_name -> pulse.weather.v1.ForecastValueSet
 	4,  // 19: pulse.weather.v1.DailyForecastPoint.condition:type_name -> pulse.weather.v1.WeatherCondition
-	16, // 20: pulse.weather.v1.DailyForecastPoint.daylight_duration_seconds:type_name -> google.protobuf.DoubleValue
+	10, // 20: pulse.weather.v1.DailyForecastPoint.daylight_duration_seconds:type_name -> google.protobuf.DoubleValue
 	3,  // 21: pulse.weather.v1.DailyForecastPoint.raw:type_name -> pulse.weather.v1.DailyValueSet
 	3,  // 22: pulse.weather.v1.DailyForecastPoint.corrected:type_name -> pulse.weather.v1.DailyValueSet
 	1,  // 23: pulse.weather.v1.Get7DayForecastRequest.location:type_name -> pulse.weather.v1.WeatherLocationRequest
@@ -1415,36 +908,13 @@ var file_pulse_weather_v1_weather_proto_depIdxs = []int32{
 	0,  // 25: pulse.weather.v1.Get7DayForecastResponse.unit_system:type_name -> pulse.weather.v1.UnitSystem
 	5,  // 26: pulse.weather.v1.Get7DayForecastResponse.hourly:type_name -> pulse.weather.v1.HourlyForecastPoint
 	6,  // 27: pulse.weather.v1.Get7DayForecastResponse.daily:type_name -> pulse.weather.v1.DailyForecastPoint
-	16, // 28: pulse.weather.v1.VerificationMetricError.mean_absolute_error:type_name -> google.protobuf.DoubleValue
-	16, // 29: pulse.weather.v1.VerificationMetricError.bias:type_name -> google.protobuf.DoubleValue
-	4,  // 30: pulse.weather.v1.YesterdayVerificationHour.forecast_condition:type_name -> pulse.weather.v1.WeatherCondition
-	4,  // 31: pulse.weather.v1.YesterdayVerificationHour.actual_condition:type_name -> pulse.weather.v1.WeatherCondition
-	2,  // 32: pulse.weather.v1.YesterdayVerificationHour.forecast_raw:type_name -> pulse.weather.v1.ForecastValueSet
-	2,  // 33: pulse.weather.v1.YesterdayVerificationHour.forecast_corrected:type_name -> pulse.weather.v1.ForecastValueSet
-	2,  // 34: pulse.weather.v1.YesterdayVerificationHour.actual:type_name -> pulse.weather.v1.ForecastValueSet
-	10, // 35: pulse.weather.v1.YesterdayVerificationSummary.temperature:type_name -> pulse.weather.v1.VerificationMetricError
-	10, // 36: pulse.weather.v1.YesterdayVerificationSummary.wind_speed:type_name -> pulse.weather.v1.VerificationMetricError
-	10, // 37: pulse.weather.v1.YesterdayVerificationSummary.cloud_cover:type_name -> pulse.weather.v1.VerificationMetricError
-	10, // 38: pulse.weather.v1.YesterdayVerificationSummary.visibility:type_name -> pulse.weather.v1.VerificationMetricError
-	10, // 39: pulse.weather.v1.YesterdayVerificationSummary.uv_index:type_name -> pulse.weather.v1.VerificationMetricError
-	10, // 40: pulse.weather.v1.YesterdayVerificationSummary.shortwave_radiation:type_name -> pulse.weather.v1.VerificationMetricError
-	10, // 41: pulse.weather.v1.YesterdayVerificationSummary.global_tilted_irradiance:type_name -> pulse.weather.v1.VerificationMetricError
-	10, // 42: pulse.weather.v1.YesterdayVerificationSummary.precipitation:type_name -> pulse.weather.v1.VerificationMetricError
-	16, // 43: pulse.weather.v1.YesterdayVerificationSummary.circular_wind_direction_mean_absolute_error:type_name -> google.protobuf.DoubleValue
-	1,  // 44: pulse.weather.v1.GetYesterdayVerificationRequest.location:type_name -> pulse.weather.v1.WeatherLocationRequest
-	13, // 45: pulse.weather.v1.GetYesterdayVerificationResponse.provenance:type_name -> pulse.weather.v1.VerificationProvenance
-	0,  // 46: pulse.weather.v1.GetYesterdayVerificationResponse.unit_system:type_name -> pulse.weather.v1.UnitSystem
-	11, // 47: pulse.weather.v1.GetYesterdayVerificationResponse.hourly:type_name -> pulse.weather.v1.YesterdayVerificationHour
-	12, // 48: pulse.weather.v1.GetYesterdayVerificationResponse.summary:type_name -> pulse.weather.v1.YesterdayVerificationSummary
-	8,  // 49: pulse.weather.v1.WeatherService.Get7DayForecast:input_type -> pulse.weather.v1.Get7DayForecastRequest
-	14, // 50: pulse.weather.v1.WeatherService.GetYesterdayVerification:input_type -> pulse.weather.v1.GetYesterdayVerificationRequest
-	9,  // 51: pulse.weather.v1.WeatherService.Get7DayForecast:output_type -> pulse.weather.v1.Get7DayForecastResponse
-	15, // 52: pulse.weather.v1.WeatherService.GetYesterdayVerification:output_type -> pulse.weather.v1.GetYesterdayVerificationResponse
-	51, // [51:53] is the sub-list for method output_type
-	49, // [49:51] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	8,  // 28: pulse.weather.v1.WeatherService.Get7DayForecast:input_type -> pulse.weather.v1.Get7DayForecastRequest
+	9,  // 29: pulse.weather.v1.WeatherService.Get7DayForecast:output_type -> pulse.weather.v1.Get7DayForecastResponse
+	29, // [29:30] is the sub-list for method output_type
+	28, // [28:29] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_pulse_weather_v1_weather_proto_init() }
@@ -1458,7 +928,7 @@ func file_pulse_weather_v1_weather_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_weather_v1_weather_proto_rawDesc), len(file_pulse_weather_v1_weather_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   15,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

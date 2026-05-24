@@ -17,8 +17,7 @@ import (
 )
 
 type fakeUpstream struct {
-	forecast     *weatherd.Bundle
-	previousRuns *weatherd.Bundle
+	forecast *weatherd.Bundle
 }
 
 func (f *fakeUpstream) FetchForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -30,10 +29,6 @@ func (f *fakeUpstream) FetchForecastBatch(_ context.Context, _ []weatherd.Reques
 		return nil, nil
 	}
 	return []weatherd.Bundle{*cloneBundle(f.forecast)}, nil
-}
-
-func (f *fakeUpstream) FetchPreviousRuns(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
-	return cloneBundle(f.previousRuns), nil
 }
 
 func (f *fakeUpstream) FetchHistoricalForecast(_ context.Context, _ weatherd.Request) (*weatherd.Bundle, error) {
@@ -93,57 +88,6 @@ func TestWeatherServiceMapsDomainBundleToProto(t *testing.T) {
 	}
 	if got := resp.GetHourly()[0].GetCondition().GetWeatherText(); got != "Partly cloudy" {
 		t.Fatalf("weather text = %q, want Partly cloudy", got)
-	}
-}
-
-func TestWeatherServiceMapsYesterdayVerificationToProto(t *testing.T) {
-	now := time.Date(2026, 3, 18, 15, 0, 0, 0, time.UTC)
-	cache := store.NewMemoryHotCache(func() time.Time { return now })
-	snapshots := store.NewMemorySnapshotStore(func() time.Time { return now })
-	req := weatherd.Request{
-		Latitude:   42.6,
-		Longitude:  -77.4,
-		UnitSystem: weatherd.UnitSystemMetric,
-		Timezone:   "UTC",
-	}
-	actual := sampleBundle(now)
-	actual.Hourly[0].Time = time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC)
-	prior := sampleBundle(time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC))
-	prior.Hourly[0].Time = actual.Hourly[0].Time
-	if err := snapshots.SaveForecastBundle(context.Background(), req, *actual); err != nil {
-		t.Fatalf("SaveForecastBundle(actual) error = %v", err)
-	}
-	if err := snapshots.SaveForecastBundle(context.Background(), req, *prior); err != nil {
-		t.Fatalf("SaveForecastBundle(prior) error = %v", err)
-	}
-	domain, err := weatherd.NewService(
-		&fakeUpstream{previousRuns: prior},
-		cache,
-		snapshots,
-		budget.New(budget.Config{DailyLimit: 10, PerMinuteLimit: 10, NowFn: func() time.Time { return now }}),
-		weatherd.Config{HotTTL: 50 * time.Minute, NowFn: func() time.Time { return now }},
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	svc := NewWeatherServiceWithDeps(WeatherServiceDeps{Service: domain})
-
-	resp, err := svc.GetYesterdayVerification(context.Background(), &weatherv1.GetYesterdayVerificationRequest{
-		Location: &weatherv1.WeatherLocationRequest{
-			Latitude:   42.6,
-			Longitude:  -77.4,
-			UnitSystem: weatherv1.UnitSystem_UNIT_SYSTEM_METRIC,
-			Timezone:   "UTC",
-		},
-	})
-	if err != nil {
-		t.Fatalf("GetYesterdayVerification() error = %v", err)
-	}
-	if got := resp.GetProvenance().GetVerificationSource(); got != "snapshot" {
-		t.Fatalf("verification source = %q, want snapshot", got)
-	}
-	if len(resp.GetHourly()) != 1 {
-		t.Fatalf("hourly len = %d, want 1", len(resp.GetHourly()))
 	}
 }
 

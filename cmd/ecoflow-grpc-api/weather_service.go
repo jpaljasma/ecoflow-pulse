@@ -14,8 +14,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// Open-Meteo "actuals" in this API are archived model-derived weather values.
-// They may later be replaced or augmented by station-truth verification sources.
 type WeatherService struct {
 	weatherv1.UnimplementedWeatherServiceServer
 
@@ -52,21 +50,6 @@ func (s *WeatherService) Get7DayForecast(ctx context.Context, req *weatherv1.Get
 		return nil, mapWeatherError(err)
 	}
 	return bundleToProto(bundle, domainReq.UnitSystem), nil
-}
-
-func (s *WeatherService) GetYesterdayVerification(ctx context.Context, req *weatherv1.GetYesterdayVerificationRequest) (*weatherv1.GetYesterdayVerificationResponse, error) {
-	domainReq, err := requestFromProto(req.GetLocation())
-	if err != nil {
-		return nil, err
-	}
-	if s.service == nil {
-		return nil, status.Error(codes.Unavailable, "weather service is not configured")
-	}
-	result, err := s.service.GetYesterdayVerification(ctx, domainReq)
-	if err != nil {
-		return nil, mapWeatherError(err)
-	}
-	return verificationToProto(result), nil
 }
 
 func requestFromProto(location *weatherv1.WeatherLocationRequest) (weatherd.Request, error) {
@@ -136,38 +119,6 @@ func bundleToProto(bundle *weatherd.Bundle, unitSystem weatherd.UnitSystem) *wea
 	return out
 }
 
-func verificationToProto(result *weatherd.VerificationResult) *weatherv1.GetYesterdayVerificationResponse {
-	if result == nil {
-		return &weatherv1.GetYesterdayVerificationResponse{}
-	}
-	out := &weatherv1.GetYesterdayVerificationResponse{
-		Provenance: &weatherv1.VerificationProvenance{
-			Source:               result.Provenance.Source,
-			ModelSelection:       result.Provenance.ModelSelection,
-			ActualSource:         result.Provenance.ActualSource,
-			VerificationSource:   result.Provenance.VerificationSource,
-			Timezone:             result.Provenance.Timezone,
-			CanonicalLocationKey: result.Provenance.CanonicalLocationKey,
-			IssuedAtUnixMs:       result.Provenance.IssuedAt.UTC().UnixMilli(),
-		},
-		UnitSystem:             unitSystemToProto(result.UnitSystem),
-		VerificationDateUnixMs: result.VerificationDate.UTC().UnixMilli(),
-		Hourly:                 make([]*weatherv1.YesterdayVerificationHour, 0, len(result.Hourly)),
-		Summary:                verificationSummaryToProto(result.Summary),
-	}
-	for _, point := range result.Hourly {
-		out.Hourly = append(out.Hourly, &weatherv1.YesterdayVerificationHour{
-			TimeUnixMs:        point.Time.UTC().UnixMilli(),
-			ForecastCondition: conditionToProto(point.ForecastCondition),
-			ActualCondition:   conditionToProto(point.ActualCondition),
-			ForecastRaw:       forecastValuesToProto(point.ForecastRaw),
-			ForecastCorrected: forecastValuesToProto(point.ForecastCorrected),
-			Actual:            forecastValuesToProto(point.Actual),
-		})
-	}
-	return out
-}
-
 func forecastValuesToProto(values weatherd.ForecastValueSet) *weatherv1.ForecastValueSet {
 	return &weatherv1.ForecastValueSet{
 		Temperature:             wrapFloat(values.Temperature),
@@ -188,27 +139,6 @@ func dailyValuesToProto(values weatherd.DailyValueSet) *weatherv1.DailyValueSet 
 		SunshineDurationSeconds: wrapFloat(values.SunshineDurationSeconds),
 		ShortwaveRadiationSum:   wrapFloat(values.ShortwaveRadiationSum),
 		UvIndexMax:              wrapFloat(values.UVIndexMax),
-	}
-}
-
-func verificationSummaryToProto(summary weatherd.VerificationSummary) *weatherv1.YesterdayVerificationSummary {
-	return &weatherv1.YesterdayVerificationSummary{
-		Temperature:                            metricErrorToProto(summary.Temperature),
-		WindSpeed:                              metricErrorToProto(summary.WindSpeed),
-		CloudCover:                             metricErrorToProto(summary.CloudCover),
-		Visibility:                             metricErrorToProto(summary.Visibility),
-		UvIndex:                                metricErrorToProto(summary.UVIndex),
-		ShortwaveRadiation:                     metricErrorToProto(summary.ShortwaveRadiation),
-		GlobalTiltedIrradiance:                 metricErrorToProto(summary.GlobalTiltedIrradiance),
-		Precipitation:                          metricErrorToProto(summary.Precipitation),
-		CircularWindDirectionMeanAbsoluteError: wrapFloat(summary.CircularWindDirectionMeanAbsoluteError),
-	}
-}
-
-func metricErrorToProto(metric weatherd.MetricError) *weatherv1.VerificationMetricError {
-	return &weatherv1.VerificationMetricError{
-		MeanAbsoluteError: wrapFloat(metric.MeanAbsoluteError),
-		Bias:              wrapFloat(metric.Bias),
 	}
 }
 

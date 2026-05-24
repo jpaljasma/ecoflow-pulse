@@ -112,7 +112,6 @@ export function classifyPublicPathname(pathname: string): string | null {
     case '/api/v1/integrations':
     case '/api/v1/solar/outlook':
     case '/api/v1/weather/forecast':
-    case '/api/v1/weather/yesterday':
       return pathname;
     case '/api/v1/energy/dashboard':
     case '/api/v1/energy/calendar':
