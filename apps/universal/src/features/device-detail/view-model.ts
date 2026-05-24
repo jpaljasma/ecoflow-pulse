@@ -173,12 +173,14 @@ export function useDeviceDetailViewModel({
 
   const connectionGlyph = useMemo(() => {
     if (snapshot?.stale) return getStatusIconName('stale');
+    if (snapshot?.inactive || snapshot?.online === false) return getStatusIconName('offline');
+    if (!snapshot && device?.online === false) return getStatusIconName('offline');
     if (connectionStatus === 'connected') return getStatusIconName('online');
     if (connectionStatus === 'connecting' || connectionStatus === 'reconnecting') {
       return getStatusIconName('processing');
     }
     return getStatusIconName('waiting');
-  }, [snapshot?.stale, connectionStatus]);
+  }, [device?.online, snapshot, connectionStatus]);
 
   const deviceAsset = useMemo(() => {
     const model = device?.model;

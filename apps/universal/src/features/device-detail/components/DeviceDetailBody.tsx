@@ -50,9 +50,10 @@ function detailStateLabel(state: DeviceDetailViewModel['detailState']): string {
   return 'Standing by';
 }
 
-function connectionSummary(snapshot?: DeviceSnapshot): string {
+function connectionSummary(snapshot: DeviceSnapshot | undefined, device: DeviceSummary | undefined): string {
+  if (snapshot?.inactive || snapshot?.online === false) return 'Offline';
+  if (!snapshot && device?.online === false) return 'Offline';
   if (!snapshot) return 'Waiting for telemetry';
-  if (snapshot.inactive || !snapshot.online) return 'Live data paused';
   if (snapshot.stale) return 'Awaiting next telemetry update';
   return 'Realtime active';
 }
@@ -207,8 +208,12 @@ export function DeviceDetailBody({
       : vm.detailState === 'discharging'
         ? semantics.chartLoad
         : semantics.chartAc;
-  const stateLabel = detailStateLabel(vm.detailState);
-  const liveSummary = connectionSummary(snapshot);
+  const isTelemetryOffline = snapshot ? snapshot.inactive || !snapshot.online : device?.online === false;
+  const stateLabel = isTelemetryOffline ? 'Offline' : detailStateLabel(vm.detailState);
+  const stateIcon: ComponentProps<typeof MaterialCommunityIcons>['name'] = isTelemetryOffline
+    ? 'cloud-off-outline'
+    : 'battery-heart-variant';
+  const liveSummary = connectionSummary(snapshot, device);
 
   const heroTiles = [
     {
@@ -305,7 +310,7 @@ export function DeviceDetailBody({
                         borderColor: stateAccent
                       }}
                     >
-                      <MaterialCommunityIcons name="battery-heart-variant" size={16} color={stateAccent} />
+                      <MaterialCommunityIcons name={stateIcon} size={16} color={stateAccent} />
                       <Text fontSize="$2" fontWeight="700" style={{ color: stateAccent }}>
                         {stateLabel}
                       </Text>

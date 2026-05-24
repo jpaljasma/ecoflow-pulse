@@ -37,6 +37,7 @@ function connectivityGlyph(
   connectionStatus: TelemetryEngineStatus
 ): ComponentProps<typeof MaterialCommunityIcons>['name'] {
   if (snapshot?.stale) return getStatusIconName('stale');
+  if (snapshot?.inactive || snapshot?.online === false) return getStatusIconName('offline');
   if (connectionStatus === 'connecting' || connectionStatus === 'reconnecting') {
     return getStatusIconName('processing');
   }
@@ -106,7 +107,6 @@ export function DeviceCard({
     snapshot && !snapshot.stale && snapshot.status !== 'stale'
       ? snapshot.status
       : fallbackStatus;
-  const connGlyph = connectivityGlyph(snapshot, connectionStatus);
   const stormGuardLabel = buildStormGuardLabel(device.details);
   const capacityKWh = getCapacityKWh(device);
   const lastSeenAtCandidates = [snapshot?.lastSeenAt ?? 0, device.telemetryTsMs ?? 0];
@@ -115,6 +115,9 @@ export function DeviceCard({
   const isInactive =
     snapshot?.inactive ??
     (lastSeenAt !== null ? Date.now() - lastSeenAt > 60_000 : false);
+  const isOffline = snapshot ? snapshot.inactive || !snapshot.online : device.online === false || isInactive;
+  const cardStatusLabel = isOffline ? 'Offline' : isInactive ? 'Inactive' : null;
+  const connGlyph = isOffline ? getStatusIconName('offline') : connectivityGlyph(snapshot, connectionStatus);
   const fadeOpacity = useRef(new Animated.Value(isInactive ? INACTIVE_CARD_OPACITY : 1)).current;
 
   useEffect(() => {
@@ -308,9 +311,9 @@ export function DeviceCard({
                     <Text style={{ color: semantics.actionText }} fontWeight="700">Energy</Text>
                   </XStack>
                 </Button>
-                {isInactive ? (
+                {cardStatusLabel ? (
                   <Text fontSize="$2" marginTop="$1" flexShrink={0} style={{ color: semantics.subtleText }}>
-                    (inactive)
+                    ({cardStatusLabel.toLowerCase()})
                   </Text>
                 ) : null}
               </XStack>
@@ -337,7 +340,7 @@ export function DeviceCard({
                   Last seen {formatAgo(lastSeenAt)}
                 </Text>
                 <XStack alignItems="center" gap="$1" opacity={0.9}>
-                  {isInactive ? <Text fontSize="$2" style={{ color: semantics.subtleText }}>Inactive</Text> : null}
+                  {cardStatusLabel ? <Text fontSize="$2" style={{ color: semantics.subtleText }}>{cardStatusLabel}</Text> : null}
                   <MaterialCommunityIcons name={connGlyph} size={16} color={semantics.subtleStrongText} />
                 </XStack>
               </XStack>
