@@ -1,0 +1,34 @@
+- generic [ref=e11]:
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - button "Go to Pulse home" [ref=e15] [cursor=pointer]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: Pulse
+          - generic [ref=e22]: Workspace
+      - button "Collapse sidebar" [ref=e23] [cursor=pointer]
+    - generic [ref=e24]:
+      - generic [ref=e25]: Navigate
+      - button "Devices" [ref=e26] [cursor=pointer]:
+        - generic [ref=e30]:
+          - generic [ref=e31]: Devices
+          - generic [ref=e32]: Current view
+      - button "Energy" [ref=e34] [cursor=pointer]:
+        - generic [ref=e38]:
+          - generic [ref=e39]: Energy
+          - generic [ref=e40]: Open view
+      - button "Calendar" [ref=e41] [cursor=pointer]:
+        - generic [ref=e45]:
+          - generic [ref=e46]: Calendar
+          - generic [ref=e47]: Open view
+      - button "Settings" [ref=e48] [cursor=pointer]:
+        - generic [ref=e52]:
+          - generic [ref=e53]: Settings
+          - generic [ref=e54]: Open view
+      - button "About" [ref=e55] [cursor=pointer]:
+        - generic [ref=e59]:
+          - generic [ref=e60]: About
+          - generic [ref=e61]: Open view
+  - generic [ref=e66]:
+    - progressbar [ref=e70]:
+      - img [ref=e72]
+    - generic [ref=e75]: Checking session…

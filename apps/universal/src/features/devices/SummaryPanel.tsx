@@ -22,6 +22,7 @@ import { resolveSolarHistoryWindow } from '@/features/history/solar';
 import { useWeatherForecast } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+import { RollingMetricValue } from '@/shared/ui/RollingMetricValue';
 import {
   PULSE_PANEL_COMPACT_PADDING,
   PULSE_PANEL_RADIUS,
@@ -151,9 +152,7 @@ function FleetOverviewTile({
           <MaterialCommunityIcons name={icon} size={16} color={accent} />
         </YStack>
       </XStack>
-      <Text fontSize="$6" fontWeight="800" letterSpacing={0}>
-        {value}
-      </Text>
+      <RollingMetricValue value={value} fontSize={30} lineHeight={34} fontWeight="800" />
       <Text fontSize="$2" numberOfLines={2} style={{ color: semantics.subtleText }}>
         {detail}
       </Text>
@@ -580,13 +579,12 @@ export function SummaryPanel({
               <Text fontSize="$4" fontWeight="700" style={{ color: semantics.subtleStrongText }}>
                 Solar generation today
               </Text>
-              <Text
+              <RollingMetricValue
+                value={formatWhAndKWh(fleetSolarHistoryView?.todayWh)}
+                fontSize={isTabletUp ? 56 : 42}
+                lineHeight={isTabletUp ? 60 : 46}
                 fontWeight="800"
-                letterSpacing={0}
-                style={{ fontSize: isTabletUp ? 56 : 42, lineHeight: isTabletUp ? 60 : 46 }}
-              >
-                {formatWhAndKWh(fleetSolarHistoryView?.todayWh)}
-              </Text>
+              />
               <Text fontSize="$3" style={{ color: semantics.subtleStrongText }}>
                 {fleetSolarHistoryErrorText
                   ? fleetSolarHistoryErrorText

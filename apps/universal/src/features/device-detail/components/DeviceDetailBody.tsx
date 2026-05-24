@@ -25,6 +25,7 @@ import { DeviceHeroPanel } from '@/shared/ui/DeviceHeroPanel';
 import { PowerFlowGlyph } from '@/shared/ui/PowerFlowGlyph';
 import { PowerTrendChart } from '@/shared/ui/PowerTrendChart';
 import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
+import { RollingMetricValue } from '@/shared/ui/RollingMetricValue';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { StormGuardChip } from '@/shared/ui/StormGuardChip';
@@ -125,9 +126,7 @@ function DetailHeroTile({
           <MaterialCommunityIcons name={icon} size={16} color={accent} />
         </YStack>
       </XStack>
-      <Text fontSize="$6" fontWeight="800" letterSpacing={-0.4} numberOfLines={1}>
-        {value}
-      </Text>
+      <RollingMetricValue value={value} fontSize={30} lineHeight={34} fontWeight="800" />
       <Text fontSize="$2" numberOfLines={2} style={{ color: semantics.subtleText }}>
         {detail}
       </Text>
@@ -438,16 +437,12 @@ export function DeviceDetailBody({
                     Battery reserve
                   </Text>
                   <XStack alignItems="flex-end" gap="$3" flexWrap="wrap">
-                    <Text
+                    <RollingMetricValue
+                      value={heroSoc}
+                      fontSize={isTablet ? 60 : 46}
+                      lineHeight={isTablet ? 62 : 48}
                       fontWeight="800"
-                      letterSpacing={-1}
-                      style={{
-                        fontSize: isTablet ? 60 : 46,
-                        lineHeight: isTablet ? 62 : 48
-                      }}
-                    >
-                      {heroSoc}
-                    </Text>
+                    />
                     {heroEta && heroEta !== '—' ? (
                       <YStack
                         gap={2}

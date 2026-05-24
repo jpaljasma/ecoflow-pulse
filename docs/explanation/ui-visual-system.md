@@ -138,6 +138,20 @@ Suggested sizing rhythm:
 - `24` large panel values
 - `32+` hero values
 
+## Motion
+
+Realtime dashboard motion should be useful and restrained.
+
+- Use rolling digit animation only for key live counters where change direction
+  matters, such as solar, load, net, battery, and SOC hero values.
+- Keep units and punctuation static so values remain scannable while digits
+  move.
+- Roll digits upward when the displayed number increases and downward when it
+  decreases, using eased timing rather than linear movement.
+- Respect reduced-motion preferences and fall back to instant value updates.
+- Avoid applying metric motion to dense tables, long inventory lists, or every
+  small stat at once.
+
 ## Spacing And Shape
 
 The core spacing rhythm is:
