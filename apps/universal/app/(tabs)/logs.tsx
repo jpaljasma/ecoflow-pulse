@@ -32,6 +32,11 @@ import { BrandLogo } from '@/shared/ui/BrandLogo';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
 import { TopBar } from '@/shared/ui/TopBar';
+import {
+  PULSE_PAGE_SECTION_GAP,
+  resolvePageHorizontalPaddingPx,
+  useNavigationShellMetrics
+} from '@/shared/ui/navigationShell';
 import { canAccessPulseLogs, isPulseGlobalAdmin } from '@/shared/authz/pulseRoles';
 
 const statusOptions: Array<{ label: string; value: LogStatus }> = [
@@ -55,6 +60,8 @@ type MaterialIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 export default function LogsScreen() {
   const { spec } = useAppTheme();
   const semantics = useThemeSemantics();
+  const { contentWidth } = useNavigationShellMetrics();
+  const pagePadding = resolvePageHorizontalPaddingPx(contentWidth);
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const currentUserQuery = useCurrentUser({ token, authKey, enabled: authReady && allowed });
@@ -173,7 +180,13 @@ export default function LogsScreen() {
   return (
     <YStack flex={1} minHeight={0} backgroundColor="$background" testID="screen-logs">
       <LogsTopBar />
-      <YStack flex={1} minHeight={0} padding="$3" gap="$3">
+      <YStack
+        flex={1}
+        minHeight={0}
+        paddingHorizontal={pagePadding}
+        paddingVertical={PULSE_PAGE_SECTION_GAP}
+        gap={PULSE_PAGE_SECTION_GAP}
+      >
         <XStack
           alignItems="center"
           justifyContent="space-between"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text, YStack } from 'tamagui';
+import { Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { BreadcrumbTrail } from '@/shared/ui/BreadcrumbTrail';
@@ -19,6 +19,24 @@ import { buildStormGuardBanner } from '@/features/devices/stormGuard';
 import { formatConnectionStatus } from '@/features/telemetry/status';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+
+function DeviceInventoryHeader({ count }: { count: number }) {
+  return (
+    <YStack gap="$1" paddingTop="$2">
+      <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
+        <Text fontSize="$5" fontWeight="800">
+          Device Inventory
+        </Text>
+        <Text fontSize="$2" fontWeight="700" color="$colorMuted" textTransform="uppercase" letterSpacing={0.6}>
+          {count} device{count === 1 ? '' : 's'}
+        </Text>
+      </XStack>
+      <Text fontSize="$3" color="$colorMuted" opacity={0.92}>
+        Full fleet inventory starts here after the solar overview.
+      </Text>
+    </YStack>
+  );
+}
 
 export default function DevicesScreen() {
   const { contentWidth } = useNavigationShellMetrics();
@@ -83,12 +101,16 @@ export default function DevicesScreen() {
           />
         )}
         title={
-          <BrandLogo
-            compact={compactHeader}
-            onPress={() => {
-              void devicesQuery.refetch();
-            }}
-          />
+          compactHeader ? (
+            <BrandLogo
+              compact
+              onPress={() => {
+                void devicesQuery.refetch();
+              }}
+            />
+          ) : (
+            'Devices'
+          )
         }
         subtitle={
           <Text fontSize={11} color="$colorMuted" opacity={0.92} numberOfLines={1}>
@@ -123,7 +145,7 @@ export default function DevicesScreen() {
             connectionStatus={connectionStatus}
             highlightedDeviceId={highlightedDeviceId}
             header={(
-              <YStack marginTop={10} marginBottom="$3" gap="$3">
+              <YStack gap="$4">
                 {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} compact={compactStormGuard} /> : null}
                 <SummaryPanel
                   devices={devicesQuery.data.devices}
@@ -131,6 +153,7 @@ export default function DevicesScreen() {
                     deviceListRef.current?.scrollToDevices();
                   }}
                 />
+                <DeviceInventoryHeader count={devicesQuery.data.devices.length} />
               </YStack>
             )}
             footer={(

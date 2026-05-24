@@ -1,5 +1,5 @@
 import { createElement, startTransition, useEffect, useMemo, type ComponentProps } from 'react';
-import { Animated, Platform, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, Platform, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
@@ -25,6 +25,10 @@ import type { ThemeSpec } from '@/shared/theme/catalog';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { BrandedLoadingState } from '@/shared/ui/BrandedLoadingState';
 import { Card } from '@/shared/ui/Card';
+import {
+  resolvePageHorizontalPaddingPx,
+  useNavigationShellMetrics
+} from '@/shared/ui/navigationShell';
 import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 
 const ENERGY_CALENDAR_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -408,8 +412,8 @@ export default function EnergyCalendarScreen() {
   const queryClient = useQueryClient();
   const semantics = useThemeSemantics();
   const { spec, isDark } = useAppTheme();
-  const { width: viewportWidth } = useWindowDimensions();
-  const compactCalendar = viewportWidth < 720;
+  const { contentWidth } = useNavigationShellMetrics();
+  const compactCalendar = contentWidth < 720;
   const calendarTheme = useMemo(() => buildCalendarSurfaceTheme(spec, isDark, semantics), [isDark, semantics, spec]);
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
@@ -722,8 +726,8 @@ export default function EnergyCalendarScreen() {
   const tileIconSize = compactCalendar ? 10 : 17;
   const tileFontSize = compactCalendar ? '$1' : '$3';
   const dayHeaderFontSize = compactCalendar ? '$3' : '$4';
-  const surfacePadding = compactCalendar ? 18 : 16;
-  const pagePadding = compactCalendar ? 10 : 8;
+  const surfacePadding = compactCalendar ? 18 : 24;
+  const pagePadding = resolvePageHorizontalPaddingPx(contentWidth);
 
   return (
     <Animated.View style={{ flex: 1 }} testID="screen-energy-calendar">
@@ -732,8 +736,8 @@ export default function EnergyCalendarScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={{
             paddingHorizontal: pagePadding,
-            paddingTop: compactCalendar ? 12 : 22,
-            paddingBottom: compactCalendar ? 92 : 22
+            paddingTop: compactCalendar ? 12 : 24,
+            paddingBottom: compactCalendar ? 92 : 24
           }}
           showsVerticalScrollIndicator
         >

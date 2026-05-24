@@ -52,7 +52,12 @@ import { SectionCard } from '@/shared/ui/SectionCard';
 import { Stat } from '@/shared/ui/Stat';
 import { StormGuardBanner } from '@/shared/ui/StormGuardBanner';
 import { TopBar } from '@/shared/ui/TopBar';
-import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import {
+  PULSE_PAGE_CONTENT_BOTTOM_PADDING,
+  PULSE_PAGE_SECTION_GAP,
+  resolvePageHorizontalPaddingPx,
+  useNavigationShellMetrics
+} from '@/shared/ui/navigationShell';
 import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 
@@ -225,6 +230,7 @@ export default function EnergyScreen() {
   const params = useLocalSearchParams();
   const semantics = useThemeSemantics();
   const { contentWidth: width } = useNavigationShellMetrics();
+  const pagePadding = resolvePageHorizontalPaddingPx(width);
   const { ref: pvEnvelopeSectionRef, shouldLoad: pvEnvelopeShouldLoad } = useLazySectionLoad({ rootMargin: '360px' });
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
@@ -497,9 +503,9 @@ export default function EnergyScreen() {
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingBottom: 28,
-            gap: 18
+            paddingHorizontal: pagePadding,
+            paddingBottom: PULSE_PAGE_CONTENT_BOTTOM_PADDING,
+            gap: PULSE_PAGE_SECTION_GAP
           }}
         >
           {stormGuardBanner ? <StormGuardBanner {...stormGuardBanner} /> : null}

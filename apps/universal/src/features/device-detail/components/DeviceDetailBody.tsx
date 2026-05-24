@@ -28,6 +28,11 @@ import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 import { SocBar } from '@/shared/ui/SocBar';
 import { SolarGeneratedChart } from '@/shared/ui/SolarGeneratedChart';
 import { StormGuardChip } from '@/shared/ui/StormGuardChip';
+import {
+  PULSE_PANEL_COMPACT_PADDING,
+  PULSE_PANEL_RADIUS,
+  PULSE_PAGE_SECTION_GAP
+} from '@/shared/ui/navigationShell';
 
 const DETAIL_TREND_POINTS = 60;
 
@@ -97,8 +102,8 @@ function DetailHeroTile({
       flexBasis={152}
       minWidth={148}
       gap="$2"
-      padding="$3"
-      borderRadius="$4"
+      padding={PULSE_PANEL_COMPACT_PADDING}
+      borderRadius={PULSE_PANEL_RADIUS}
       borderWidth={1}
       style={{
         backgroundColor: semantics.tileBackground,
@@ -255,10 +260,10 @@ export function DeviceDetailBody({
   const hasSignals = vm.signalPills.length > 0;
 
   return (
-    <YStack gap="$3">
+    <YStack gap={PULSE_PAGE_SECTION_GAP}>
       <Card
         gap="$4"
-        padding={isTablet ? '$5' : '$4'}
+        padding={isTablet ? '$6' : '$4'}
         position="relative"
         overflow="hidden"
         style={{
@@ -498,7 +503,7 @@ export function DeviceDetailBody({
       </Card>
 
       {isTablet ? (
-        <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+        <XStack gap={PULSE_PAGE_SECTION_GAP} alignItems="stretch" flexWrap="nowrap">
           <YStack flex={1.1} minWidth={0}>
             <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
               <SolarGeneratedChart
@@ -528,7 +533,7 @@ export function DeviceDetailBody({
           </YStack>
         </XStack>
       ) : (
-        <YStack gap="$3">
+        <YStack gap={PULSE_PAGE_SECTION_GAP}>
           <ChartSection title={solarHistoryWindow.title} subtitle="Today against yesterday">
             <SolarGeneratedChart
               valuesWh={solarGeneratedTrend}
@@ -557,7 +562,7 @@ export function DeviceDetailBody({
 
       <View ref={hardwareSectionRef} testID="device-hardware-section">
         {hasBatteryPacks || hasSolarInputs ? (
-          <XStack gap="$3" flexWrap="wrap">
+          <XStack gap={PULSE_PAGE_SECTION_GAP} flexWrap="wrap">
             {hasBatteryPacks ? (
               <BatteryPacksSection
                 packs={vm.batteryPacks}
@@ -576,7 +581,7 @@ export function DeviceDetailBody({
 
       <View ref={secondarySectionRef} testID="device-secondary-panels">
         {isTablet ? (
-          <XStack gap="$3" alignItems="stretch" flexWrap="nowrap">
+          <XStack gap={PULSE_PAGE_SECTION_GAP} alignItems="stretch" flexWrap="nowrap">
             <YStack testID="device-energy-impact-panel" flex={1} minWidth={0} alignSelf="stretch">
               <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} fill />
             </YStack>
@@ -592,7 +597,7 @@ export function DeviceDetailBody({
             </YStack>
           </XStack>
         ) : (
-          <YStack gap="$3">
+          <YStack gap={PULSE_PAGE_SECTION_GAP}>
             <YStack testID="device-energy-impact-panel">
               <DeviceEnergyImpactCard deviceId={device?.id} todaySolarWh={solarGeneratedTodayWh} />
             </YStack>
@@ -608,7 +613,7 @@ export function DeviceDetailBody({
       </View>
 
       {hasSignals ? (
-        <XStack gap="$3" flexWrap="wrap">
+        <XStack gap={PULSE_PAGE_SECTION_GAP} flexWrap="wrap">
           <SystemSignalsSection pills={vm.signalPills} minWidth={isDesktop ? 360 : 280} />
         </XStack>
       ) : null}

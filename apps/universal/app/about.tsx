@@ -11,7 +11,14 @@ import { useCloseToHomeTransition } from '@/shared/ui/useCloseToHomeTransition';
 import { appMetadata } from '@/shared/theme/catalog';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeSemantics } from '@/shared/theme/semantic';
-import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
+import {
+  PULSE_PAGE_CONTENT_BOTTOM_PADDING,
+  PULSE_PAGE_SECTION_GAP,
+  PULSE_PANEL_COMPACT_PADDING,
+  PULSE_PANEL_PADDING,
+  PULSE_PANEL_RADIUS,
+  usePageLayoutMetrics
+} from '@/shared/ui/navigationShell';
 
 const capabilityItems = [
   {
@@ -40,10 +47,11 @@ const trustItems = [
 
 export default function AboutScreen() {
   const router = useRouter();
-  const { compactHeader, horizontalPadding, isDesktop, isSidebarMode, isTablet, layoutMaxWidth } = usePageLayoutMetrics();
+  const { compactHeader, horizontalPadding, isDesktop, isSidebarMode, isTablet, layoutMaxWidth } = usePageLayoutMetrics('centered');
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const { spec } = useAppTheme();
   const semantics = useThemeSemantics();
+  const panelPadding = isTablet ? PULSE_PANEL_PADDING : PULSE_PANEL_COMPACT_PADDING;
 
   return (
     <Animated.View style={containerStyle} testID="screen-about">
@@ -52,7 +60,7 @@ export default function AboutScreen() {
         backgroundColor="$background"
         paddingHorizontal={horizontalPadding}
         paddingVertical="$4"
-        gap="$4"
+        gap={PULSE_PAGE_SECTION_GAP}
       >
         <TopBar
           left={isSidebarMode ? undefined : <CloseToHomeButton onClose={closeToHome} />}
@@ -85,13 +93,13 @@ export default function AboutScreen() {
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 16, alignItems: 'center' }}
+          contentContainerStyle={{ paddingBottom: PULSE_PAGE_CONTENT_BOTTOM_PADDING, alignItems: 'center' }}
           showsVerticalScrollIndicator
         >
-          <YStack gap="$4" width="100%" maxWidth={layoutMaxWidth}>
+          <YStack gap={PULSE_PAGE_SECTION_GAP} width="100%" maxWidth={layoutMaxWidth}>
             <Card
               gap={isTablet ? '$5' : '$4'}
-              padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}
+              padding={panelPadding}
               style={{
                 backgroundColor: semantics.energyCardBackground,
                 borderColor: semantics.energyCardBorder
@@ -191,7 +199,7 @@ export default function AboutScreen() {
                   flexBasis={isTablet ? 0 : '100%'}
                   minWidth={isTablet ? 250 : undefined}
                   gap="$3"
-                  padding={isTablet ? '$4' : '$3'}
+                  padding={isTablet ? PULSE_PANEL_COMPACT_PADDING : '$3'}
                   backgroundColor="$backgroundElevated"
                   style={{
                     borderColor: semantics.sectionBorder
@@ -200,7 +208,7 @@ export default function AboutScreen() {
                   <YStack
                     width={44}
                     height={44}
-                    borderRadius={14}
+                    borderRadius={PULSE_PANEL_RADIUS}
                     alignItems="center"
                     justifyContent="center"
                     borderWidth={1}
@@ -228,7 +236,7 @@ export default function AboutScreen() {
               ))}
             </XStack>
 
-            <Card gap="$4" padding={isDesktop ? '$5' : '$4'}>
+            <Card gap="$4" padding={panelPadding}>
               <YStack gap="$2">
                 <Text fontSize="$6" fontWeight="800" letterSpacing={-0.2}>
                   Why it exists

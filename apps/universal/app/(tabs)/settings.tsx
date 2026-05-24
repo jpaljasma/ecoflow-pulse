@@ -17,11 +17,17 @@ import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useThemeStore } from '@/shared/theme/store';
 import { useConnectionProfileStore } from '@/shared/config/connectionProfileStore';
 import { readConnectionProfile } from '@/shared/config/env';
-import { usePageLayoutMetrics } from '@/shared/ui/navigationShell';
+import {
+  PULSE_PAGE_CONTENT_BOTTOM_PADDING,
+  PULSE_PAGE_SECTION_GAP,
+  PULSE_PANEL_COMPACT_PADDING,
+  PULSE_PANEL_PADDING,
+  usePageLayoutMetrics
+} from '@/shared/ui/navigationShell';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { compactHeader, horizontalPadding, isDesktop, isSidebarMode, isTablet, layoutMaxWidth } = usePageLayoutMetrics();
+  const { compactHeader, horizontalPadding, isSidebarMode, isTablet, layoutMaxWidth } = usePageLayoutMetrics('centered');
   const { allowed, waiting } = useRequireAuth();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const themeFamily = useThemeStore((state) => state.family);
@@ -31,6 +37,7 @@ export default function SettingsScreen() {
   const activeDataSourceLabel = activeConnectionProfile.label;
   const { mode, spec, isDark } = useAppTheme();
   const systemModeLabel = mode === 'dark' ? 'Dark' : 'Light';
+  const panelPadding = isTablet ? PULSE_PANEL_PADDING : PULSE_PANEL_COMPACT_PADDING;
 
   if (waiting || !allowed) {
     return <BrandedLoadingState minHeight={260} message="Checking session…" />;
@@ -43,7 +50,7 @@ export default function SettingsScreen() {
         backgroundColor="$background"
         paddingHorizontal={horizontalPadding}
         paddingVertical="$4"
-        gap="$4"
+        gap={PULSE_PAGE_SECTION_GAP}
       >
         <TopBar
           left={isSidebarMode ? undefined : <CloseToHomeButton onClose={closeToHome} />}
@@ -75,14 +82,14 @@ export default function SettingsScreen() {
         />
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 16, alignItems: 'center' }}
+          contentContainerStyle={{ paddingBottom: PULSE_PAGE_CONTENT_BOTTOM_PADDING, alignItems: 'center' }}
           showsVerticalScrollIndicator
         >
-          <YStack gap="$4" width="100%" maxWidth={layoutMaxWidth}>
+          <YStack gap={PULSE_PAGE_SECTION_GAP} width="100%" maxWidth={layoutMaxWidth}>
             <KeycloakPkceCard />
             <Card
               gap="$4"
-              padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}
+              padding={panelPadding}
               backgroundColor="$backgroundElevated"
             >
               <XStack
@@ -120,7 +127,7 @@ export default function SettingsScreen() {
             </Card>
             <Card
               gap="$3"
-              padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}
+              padding={panelPadding}
               backgroundColor="$backgroundElevated"
             >
               <XStack justifyContent="space-between" alignItems="flex-start" gap="$4" flexWrap="wrap">
@@ -160,7 +167,7 @@ export default function SettingsScreen() {
             </Card>
             <Card
               gap="$4"
-              padding={isDesktop ? '$6' : isTablet ? '$5' : '$4'}
+              padding={panelPadding}
               backgroundColor="$backgroundElevated"
             >
               <XStack
@@ -222,8 +229,8 @@ export default function SettingsScreen() {
                       minWidth={isTablet ? 320 : undefined}
                       borderRadius="$3"
                       borderWidth={selected ? 1.5 : 1}
-                      padding={isDesktop ? '$4' : '$3'}
-                      minHeight={isDesktop ? 164 : 156}
+                      padding={isTablet ? '$4' : '$3'}
+                      minHeight={isTablet ? 164 : 156}
                       justifyContent="flex-start"
                       style={{
                         borderColor: cardBorderColor,
@@ -238,7 +245,9 @@ export default function SettingsScreen() {
                         scale: 0.995
                       }}
                       focusStyle={{
-                        outlineWidth: 0
+                        borderColor: '$accentColor',
+                        shadowOpacity: selected ? 0.18 : 0.1,
+                        shadowRadius: 18
                       }}
                       shadowColor="$shadowColor"
                       shadowOpacity={selected ? 0.12 : 0.03}
@@ -248,7 +257,7 @@ export default function SettingsScreen() {
                       <YStack flex={1} gap="$2">
                         <XStack justifyContent="space-between" alignItems="center" gap="$3">
                           <YStack gap="$1" flex={1}>
-                            <Text fontSize={isDesktop ? '$5' : '$4'} fontWeight="800" letterSpacing={-0.1}>
+                            <Text fontSize={isTablet ? '$5' : '$4'} fontWeight="800" letterSpacing={-0.1}>
                               {option.label}
                             </Text>
                             <Text
@@ -337,7 +346,7 @@ export default function SettingsScreen() {
                 </Text>
               </XStack>
             </Card>
-            <Card gap="$2" padding={isTablet ? '$5' : '$4'}>
+            <Card gap="$2" padding={panelPadding}>
               <Text fontSize="$5" fontWeight="700" testID="settings-api-endpoints">
                 API Endpoints
               </Text>

@@ -15,6 +15,7 @@ test.describe('Universal web E2E', () => {
     await page.goto('/devices');
 
     await expect(page.getByText('Pulse Fleet', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('sidebar-search')).toHaveCount(0);
     await expect(page.getByText('Solar generation today', { exact: true })).toBeVisible();
     await expect(page.getByText('Storm Guard active for ~2h more')).toBeVisible();
     await expect(page.getByTestId(`device-card-${DPU_DEVICE_ID}`).getByText('DPU A 12 kWh', { exact: true })).toBeVisible();
@@ -96,6 +97,7 @@ test.describe('Universal web E2E', () => {
       await expect(page.getByText('Pulse Fleet', { exact: true })).toBeVisible();
       await expect(page.getByText('Solar generation today', { exact: true })).toBeVisible();
       await expect(page.getByTestId(`fleet-device-preview-${DPU_DEVICE_ID}`)).toBeVisible();
+      await expect(page.getByTestId(viewport.width >= 1024 ? 'sidebar-search' : 'tab-search')).toHaveCount(0);
 
       const overflowX = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflowX).toBeLessThanOrEqual(1);

@@ -59,7 +59,7 @@ export default function TabsLayout() {
           name={item.key}
           options={{
             title: item.label,
-            href: item.adminOnly && !canReadLogs ? null : item.href,
+            href: item.hiddenFromNav || (item.adminOnly && !canReadLogs) ? null : item.href,
             tabBarButtonTestID: `tab-${item.key}`,
             tabBarIcon: ({ color, size }) => (
               <MaterialCommunityIcons name={item.icon} size={size} color={color} />

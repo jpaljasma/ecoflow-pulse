@@ -8,8 +8,18 @@ import {
 } from '@/shared/ui/pulsePrimaryNav';
 
 describe('pulse primary nav', () => {
-  it('places energy calendar directly after energy', () => {
+  it('keeps Search routable while hiding it from visible primary navigation', () => {
     expect(pulsePrimaryNavItems.map((item) => item.key)).toEqual(['devices', 'energy', 'energy-calendar', 'logs', 'settings', 'search', 'about']);
+    expect(pulsePrimaryNavItems.find((item) => item.key === 'search')?.hiddenFromNav).toBe(true);
+
+    expect(filterPulsePrimaryNavItems({ roles: ['admin'], deviceCount: 0 }).map((item) => item.key)).toEqual([
+      'devices',
+      'energy',
+      'energy-calendar',
+      'logs',
+      'settings',
+      'about'
+    ]);
   });
 
   it('resolves the energy calendar route as the calendar nav item', () => {
