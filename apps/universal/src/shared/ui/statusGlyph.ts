@@ -7,6 +7,7 @@ export type UiStatus =
   | 'processing'
   | 'loading'
   | 'online'
+  | 'offline'
   | 'stale'
   | 'charging'
   | 'discharging';
@@ -22,6 +23,8 @@ export function getStatusIconName(status: UiStatus): ComponentProps<typeof Mater
       return 'cog-outline';
     case 'online':
       return 'checkbox-blank-circle';
+    case 'offline':
+      return 'cloud-off-outline';
     case 'stale':
       return 'progress-clock';
     case 'charging':

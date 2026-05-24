@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/currenttelemetry"
 	"github.com/tidwall/gjson"
 )
 
@@ -47,6 +48,10 @@ func SampleFromEnvelope(env *envelopev1.TelemetryEnvelope) (*RollupSample, error
 	root := gjson.Parse(payload)
 	metrics := extractMetrics(root)
 	pvPorts := extractPVPortObservations(root)
+	if currenttelemetry.IdleStale(currenttelemetry.ExtractNumericMetrics(env.GetPayload())) {
+		suppressCurrentMetrics(&metrics)
+		pvPorts = nil
+	}
 	if !metrics.HasAny() {
 		return nil, ErrNoRollupMetrics
 	}
@@ -149,6 +154,21 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 	}
 
 	return metrics
+}
+
+func suppressCurrentMetrics(metrics *RollupMetrics) {
+	if metrics == nil {
+		return
+	}
+	zero := optionalFloat{Value: 0, Valid: true}
+	metrics.ACIn = zero
+	metrics.ACOutput = zero
+	metrics.PV = zero
+	metrics.DC = zero
+	metrics.Load = zero
+	metrics.Net = zero
+	metrics.Battery = zero
+	metrics.SolarGeneratedWh = optionalFloat{}
 }
 
 func derivePV(root gjson.Result) (float64, bool) {

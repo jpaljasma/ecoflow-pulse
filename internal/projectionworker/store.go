@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -14,34 +15,42 @@ import (
 )
 
 const (
-	defaultSnapshotKeyPrefix = "pulse:projection"
+	defaultSnapshotKeyPrefix     = "pulse:projection"
+	defaultMetricFreshnessWindow = 2 * time.Minute
+	defaultMetricFlatlineWindow  = 30 * time.Minute
 )
 
 type ValkeySnapshotStoreConfig struct {
-	KeyPrefix string
-	NowFn     func() time.Time
+	KeyPrefix             string
+	NowFn                 func() time.Time
+	MetricFreshnessWindow time.Duration
+	MetricFlatlineWindow  time.Duration
 }
 
 func DefaultValkeySnapshotStoreConfig() ValkeySnapshotStoreConfig {
 	return ValkeySnapshotStoreConfig{
-		KeyPrefix: defaultSnapshotKeyPrefix,
-		NowFn:     time.Now,
+		KeyPrefix:             defaultSnapshotKeyPrefix,
+		NowFn:                 time.Now,
+		MetricFreshnessWindow: defaultMetricFreshnessWindow,
+		MetricFlatlineWindow:  defaultMetricFlatlineWindow,
 	}
 }
 
 type LiveSnapshot struct {
-	DeviceID        string                `json:"device_id"`
-	EcoflowSN       string                `json:"ecoflow_sn"`
-	CursorSeq       uint64                `json:"cursor_seq"`
-	CursorTsUnixMs  int64                 `json:"cursor_ts_unix_ms"`
-	UpdatedAtUnixMs int64                 `json:"updated_at_unix_ms"`
-	EnvelopeID      string                `json:"envelope_id"`
-	MessageID       string                `json:"message_id"`
-	TypeCode        string                `json:"type_code"`
-	Shard           uint32                `json:"shard"`
-	ShardCount      uint32                `json:"shard_count"`
-	SourceKind      envelopev1.SourceKind `json:"source_kind"`
-	Metrics         map[string]float64    `json:"metrics"`
+	DeviceID               string                `json:"device_id"`
+	EcoflowSN              string                `json:"ecoflow_sn"`
+	CursorSeq              uint64                `json:"cursor_seq"`
+	CursorTsUnixMs         int64                 `json:"cursor_ts_unix_ms"`
+	UpdatedAtUnixMs        int64                 `json:"updated_at_unix_ms"`
+	EnvelopeID             string                `json:"envelope_id"`
+	MessageID              string                `json:"message_id"`
+	TypeCode               string                `json:"type_code"`
+	Shard                  uint32                `json:"shard"`
+	ShardCount             uint32                `json:"shard_count"`
+	SourceKind             envelopev1.SourceKind `json:"source_kind"`
+	Metrics                map[string]float64    `json:"metrics"`
+	MetricObservedAtUnixMs map[string]int64      `json:"metric_observed_at_unix_ms,omitempty"`
+	MetricChangedAtUnixMs  map[string]int64      `json:"metric_changed_at_unix_ms,omitempty"`
 }
 
 type SnapshotStore interface {
@@ -50,9 +59,11 @@ type SnapshotStore interface {
 }
 
 type ValkeySnapshotStore struct {
-	client    valkey.Client
-	keyPrefix string
-	nowFn     func() time.Time
+	client                valkey.Client
+	keyPrefix             string
+	nowFn                 func() time.Time
+	metricFreshnessWindow time.Duration
+	metricFlatlineWindow  time.Duration
 }
 
 func NewValkeySnapshotStore(client valkey.Client, cfg ValkeySnapshotStoreConfig) (*ValkeySnapshotStore, error) {
@@ -65,10 +76,18 @@ func NewValkeySnapshotStore(client valkey.Client, cfg ValkeySnapshotStoreConfig)
 	if cfg.NowFn == nil {
 		cfg.NowFn = time.Now
 	}
+	if cfg.MetricFreshnessWindow <= 0 {
+		cfg.MetricFreshnessWindow = defaultMetricFreshnessWindow
+	}
+	if cfg.MetricFlatlineWindow <= 0 {
+		cfg.MetricFlatlineWindow = defaultMetricFlatlineWindow
+	}
 	return &ValkeySnapshotStore{
-		client:    client,
-		keyPrefix: strings.TrimSpace(cfg.KeyPrefix),
-		nowFn:     cfg.NowFn,
+		client:                client,
+		keyPrefix:             strings.TrimSpace(cfg.KeyPrefix),
+		nowFn:                 cfg.NowFn,
+		metricFreshnessWindow: cfg.MetricFreshnessWindow,
+		metricFlatlineWindow:  cfg.MetricFlatlineWindow,
 	}, nil
 }
 
@@ -93,15 +112,54 @@ func (s *ValkeySnapshotStore) ApplyEnvelope(ctx context.Context, env *envelopev1
 		}
 	}
 
+	nowUnixMs := s.nowFn().UTC().UnixMilli()
+	cursorTs := env.GetIngestedTimeUnixMs()
+	if cursorTs <= 0 {
+		cursorTs = nowUnixMs
+	}
+
 	mergedMetrics := make(map[string]float64, 64)
+	mergedObservedAt := make(map[string]int64, 64)
+	mergedChangedAt := make(map[string]int64, 64)
 	if existing != nil && len(existing.Metrics) > 0 {
 		for k, v := range existing.Metrics {
 			mergedMetrics[k] = v
+			observedAt := existing.MetricObservedAtUnixMs[k]
+			if observedAt <= 0 {
+				observedAt = existing.CursorTsUnixMs
+			}
+			if observedAt > 0 {
+				mergedObservedAt[k] = observedAt
+			}
+			changedAt := existing.MetricChangedAtUnixMs[k]
+			if changedAt <= 0 {
+				changedAt = observedAt
+			}
+			if changedAt > 0 {
+				mergedChangedAt[k] = changedAt
+			}
 		}
 	}
 	incoming := extractNumericMetrics(env.GetPayload())
 	for k, v := range incoming {
+		previous, existed := mergedMetrics[k]
 		mergedMetrics[k] = v
+		mergedObservedAt[k] = cursorTs
+		if !existed || metricValueChanged(previous, v) {
+			mergedChangedAt[k] = cursorTs
+		} else if mergedChangedAt[k] <= 0 {
+			mergedChangedAt[k] = cursorTs
+		}
+	}
+	for k := range mergedObservedAt {
+		if _, exists := mergedMetrics[k]; !exists {
+			delete(mergedObservedAt, k)
+		}
+	}
+	for k := range mergedChangedAt {
+		if _, exists := mergedMetrics[k]; !exists {
+			delete(mergedChangedAt, k)
+		}
 	}
 
 	seq, err := s.client.Do(ctx, s.client.B().Incr().Key(keys.seq).Build()).ToInt64()
@@ -112,11 +170,6 @@ func (s *ValkeySnapshotStore) ApplyEnvelope(ctx context.Context, env *envelopev1
 		seq = 0
 	}
 
-	nowUnixMs := s.nowFn().UTC().UnixMilli()
-	cursorTs := env.GetIngestedTimeUnixMs()
-	if cursorTs <= 0 {
-		cursorTs = nowUnixMs
-	}
 	deviceID := strings.TrimSpace(env.GetDeviceId())
 	ecoflowSN := strings.ToUpper(strings.TrimSpace(env.GetEcoflowSn()))
 	if deviceID == "" && existing != nil {
@@ -127,18 +180,20 @@ func (s *ValkeySnapshotStore) ApplyEnvelope(ctx context.Context, env *envelopev1
 	}
 
 	snapshot := &LiveSnapshot{
-		DeviceID:        deviceID,
-		EcoflowSN:       ecoflowSN,
-		CursorSeq:       uint64(seq),
-		CursorTsUnixMs:  cursorTs,
-		UpdatedAtUnixMs: nowUnixMs,
-		EnvelopeID:      strings.TrimSpace(env.GetEnvelopeId()),
-		MessageID:       strings.TrimSpace(env.GetMessageId()),
-		TypeCode:        strings.TrimSpace(env.GetTypeCode()),
-		Shard:           env.GetShard(),
-		ShardCount:      env.GetShardCount(),
-		SourceKind:      env.GetSourceKind(),
-		Metrics:         mergedMetrics,
+		DeviceID:               deviceID,
+		EcoflowSN:              ecoflowSN,
+		CursorSeq:              uint64(seq),
+		CursorTsUnixMs:         cursorTs,
+		UpdatedAtUnixMs:        nowUnixMs,
+		EnvelopeID:             strings.TrimSpace(env.GetEnvelopeId()),
+		MessageID:              strings.TrimSpace(env.GetMessageId()),
+		TypeCode:               strings.TrimSpace(env.GetTypeCode()),
+		Shard:                  env.GetShard(),
+		ShardCount:             env.GetShardCount(),
+		SourceKind:             env.GetSourceKind(),
+		Metrics:                mergedMetrics,
+		MetricObservedAtUnixMs: mergedObservedAt,
+		MetricChangedAtUnixMs:  mergedChangedAt,
 	}
 
 	encoded, err := json.Marshal(snapshot)
@@ -180,6 +235,12 @@ func (s *ValkeySnapshotStore) getBySnapshotKey(ctx context.Context, key string) 
 	}
 	if snapshot.Metrics == nil {
 		snapshot.Metrics = map[string]float64{}
+	}
+	if snapshot.MetricObservedAtUnixMs == nil {
+		snapshot.MetricObservedAtUnixMs = map[string]int64{}
+	}
+	if snapshot.MetricChangedAtUnixMs == nil {
+		snapshot.MetricChangedAtUnixMs = map[string]int64{}
 	}
 	return &snapshot, nil
 }
@@ -225,4 +286,12 @@ func sanitizeKeySegment(in string) string {
 	clean = strings.ReplaceAll(clean, "}", "_")
 	clean = strings.ReplaceAll(clean, " ", "_")
 	return clean
+}
+
+func metricValueChanged(previous float64, next float64) bool {
+	const epsilon = 1e-9
+	if math.IsNaN(previous) || math.IsNaN(next) {
+		return true
+	}
+	return math.Abs(previous-next) > epsilon
 }

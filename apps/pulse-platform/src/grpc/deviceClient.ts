@@ -62,6 +62,7 @@ export type AvailableDevicesResult = {
 };
 
 const providerMQTTValidationDeadlinePaddingMs = 12_000;
+const DEVICE_SNAPSHOT_FRESH_MS = 2 * 60_000;
 const SNAPSHOT_PV_PORT_FIELD = /^params\.pv(\d+)(InVol|InAmp|ChargeWatts|InWatts|ChgState)$/;
 
 export interface DeviceClient {
@@ -188,14 +189,36 @@ async function hydrateDevice(
       deadlineMs: config.grpcDeadlineMs
     });
     const rawMetrics = response.snapshot?.metrics ?? {};
-    const derived = deriveTelemetryMetrics(rawMetrics);
-    const details = mergeSnapshotDetails(presentation.details, rawMetrics);
-    const pvW = deriveSummaryPvWatts(derived.pvW, details);
     const telemetryTsMs = parsePositiveInt(response.snapshot?.cursor?.tsUnixMs);
+    const online = telemetryTsMs !== null
+      ? Date.now() - telemetryTsMs <= DEVICE_SNAPSHOT_FRESH_MS && hasFreshCurrentTelemetryMetric(rawMetrics)
+      : false;
+    const derived = deriveTelemetryMetrics(rawMetrics);
+    const details = finalizeSnapshotDetails(
+      mergeSnapshotDetails(prepareStaticDetailsForSnapshot(presentation.details, rawMetrics, online), rawMetrics),
+      online
+    );
+    const pvW = deriveSummaryPvWatts(derived.pvW, details);
     const state = deriveTelemetryState(derived.batteryW);
+    if (!online) {
+      return {
+        ...base,
+        online: false,
+        batteryPct: clampPercent(details?.overallSocPct ?? derived.soc),
+        state: 'idle',
+        etaMinutes: 0,
+        pvW: 0,
+        acInW: 0,
+        dcW: 0,
+        loadW: 0,
+        netW: 0,
+        telemetryTsMs: telemetryTsMs ?? undefined,
+        details
+      };
+    }
     return {
       ...base,
-      online: telemetryTsMs !== null ? Date.now() - telemetryTsMs <= 30_000 : false,
+      online,
       batteryPct: clampPercent(details?.overallSocPct ?? derived.soc),
       state,
       etaMinutes: deriveSummaryEtaMinutes(deriveTelemetryEtaMinutes(rawMetrics, derived.batteryW), details),
@@ -211,6 +234,144 @@ async function hydrateDevice(
   } catch {
     return base;
   }
+}
+
+function prepareStaticDetailsForSnapshot(
+  details: DeviceTelemetryDetails | undefined,
+  metrics: Record<string, number>,
+  online: boolean
+): DeviceTelemetryDetails | undefined {
+  if (!details) {
+    return undefined;
+  }
+  let next = details;
+  if (!online || !hasFreshSolarMetric(metrics)) {
+    next = clearSolarLiveDetails(next, online ? 'idle' : 'inactive');
+  }
+  if (!online || !hasFreshEtaMetric(metrics)) {
+    next = clearEtaDetails(next);
+  }
+  return next;
+}
+
+function finalizeSnapshotDetails(
+  details: DeviceTelemetryDetails | undefined,
+  online: boolean
+): DeviceTelemetryDetails | undefined {
+  if (!details || online) {
+    return details;
+  }
+  return {
+    ...clearEtaDetails(details),
+    packs: details.packs?.map((pack) => ({
+      ...pack,
+      powerW: 0,
+      remainMinutes: undefined
+    })),
+    solarPorts: details.solarPorts?.map((port) => ({
+      ...port,
+      state: 'inactive',
+      volts: 0,
+      amps: 0,
+      watts: 0
+    })),
+    acOn: false,
+    dcOn: false,
+    usbOn: false,
+    dc12vOn: false,
+    evChargingOn: false,
+    fanOn: false,
+    solarChargingOn: false,
+    batteryHeatingOn: false
+  };
+}
+
+function clearEtaDetails(details: DeviceTelemetryDetails): DeviceTelemetryDetails {
+  return {
+    ...details,
+    packs: details.packs?.map((pack) => ({ ...pack, remainMinutes: undefined })),
+    estimateEtaMin: undefined,
+    estimateMode: undefined,
+    estimateSource: undefined,
+    remainChargeMin: undefined,
+    remainDischargeMin: undefined,
+    remainGlobalMin: undefined
+  };
+}
+
+function clearSolarLiveDetails(details: DeviceTelemetryDetails, state: string): DeviceTelemetryDetails {
+  return {
+    ...details,
+    solarPorts: details.solarPorts?.map((port) => ({
+      ...port,
+      state,
+      volts: undefined,
+      amps: undefined,
+      watts: undefined
+    })),
+    solarChargingOn: false
+  };
+}
+
+function hasFreshSolarMetric(metrics: Record<string, number>): boolean {
+  return Object.keys(metrics).some((key) => {
+    if (key === 'pvW') {
+      return true;
+    }
+    if (!key.startsWith('params.')) {
+      return false;
+    }
+    return (
+      key.includes('Mppt') ||
+      key === 'params.inVol' ||
+      key === 'params.inAmp' ||
+      key === 'params.chgState' ||
+      SNAPSHOT_PV_PORT_FIELD.test(key)
+    );
+  });
+}
+
+function hasFreshEtaMetric(metrics: Record<string, number>): boolean {
+  return Object.keys(metrics).some((key) => key.endsWith('remainTime') || key.endsWith('RemainTime'));
+}
+
+function hasFreshCurrentTelemetryMetric(metrics: Record<string, number>): boolean {
+  return Object.keys(metrics).some(isCurrentTelemetryMetricKey);
+}
+
+function isCurrentTelemetryMetricKey(key: string): boolean {
+  const clean = key.trim().toLowerCase();
+  if (!clean) {
+    return false;
+  }
+  if (['pvw', 'acw', 'dcw', 'loadw', 'batteryw'].includes(clean)) {
+    return true;
+  }
+  if (clean.includes('remaintime')) {
+    return true;
+  }
+  if (clean.includes('watt') || clean.includes('pwr') || clean.includes('mppt')) {
+    return true;
+  }
+  if (
+    clean.includes('.pv') &&
+    (clean.includes('invol') ||
+      clean.includes('inamp') ||
+      clean.includes('inwatt') ||
+      clean.includes('chargewatt') ||
+      clean.includes('chgstate'))
+  ) {
+    return true;
+  }
+  if (
+    clean.endsWith('.invol') ||
+    clean.endsWith('.inamp') ||
+    clean.endsWith('.batvol') ||
+    clean.endsWith('.batamp')
+  ) {
+    return true;
+  }
+  return clean.includes('.out') && (clean.includes('vol') || clean.includes('amp'));
 }
 
 function baseDeviceSummary(device: ProviderDevice, presentation: ReturnType<typeof buildProviderDevicePresentation>): DeviceSummary {
@@ -249,13 +410,16 @@ function deriveLiveDetailsFromSnapshotMetrics(
   details: DeviceTelemetryDetails | undefined
 ): DeviceTelemetryDetails | undefined {
   const next: DeviceTelemetryDetails = {};
-  const overallSocPct = firstDefinedNumber(
+  const aggregateSocPct = firstDefinedNumber(
     metrics['params.f32LcdShowSoc'],
     metrics['params.lcdShowSoc'],
-    metrics['params.f32ShowSoc'],
+    metrics['params.f32ShowSoc']
+  );
+  const fallbackSocPct = firstDefinedNumber(
     metrics['params.soc']
   );
-  if (overallSocPct !== undefined && details?.overallSocPct === undefined) {
+  const overallSocPct = aggregateSocPct ?? (details?.overallSocPct === undefined ? fallbackSocPct : undefined);
+  if (overallSocPct !== undefined) {
     next.overallSocPct = overallSocPct;
   }
 

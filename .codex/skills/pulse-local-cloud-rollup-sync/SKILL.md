@@ -1,6 +1,6 @@
 ---
 name: pulse-local-cloud-rollup-sync
-description: Use when Pulse cloud rollup/history data diverges from trusted local rollups after an ingest, MQTT, archive, or replay incident and you need to compare or repair a narrow closed time window without exposing provider IDs, credentials, or other sensitive data.
+description: Use when Pulse cloud rollup/history/current-device data drifts after an ingest, MQTT, archive, projection, rollup, or replay incident and you need to compare or repair a narrow window without exposing provider IDs, credentials, or other sensitive data.
 ---
 
 # Pulse Local-to-Cloud Rollup Sync
@@ -13,6 +13,10 @@ archive-to-rollup rebuilds.
 
 - Prefer root-cause fixes first: worker startup gates, durable migrations,
   consumer deliver policy, archive replay, and rollup rebuilds.
+- Inspect raw archives before repair when device state looks physically
+  impossible. Some providers may not expose an explicit offline bit; use
+  aggregate evidence such as idle/pause state, sentinel remaining-time values,
+  zero load/battery sink, and nonzero input that cannot be consumed.
 - Keep the repair window narrow and closed. Do not mirror the current live
   minute; choose an end timestamp at least a few minutes in the past.
 - Use canonical UUID device IDs only. Do not print or paste provider device IDs,
@@ -21,6 +25,45 @@ archive-to-rollup rebuilds.
   device, then repair only the divergent devices and bounded time window.
 - Do not delete cloud rows until local and cloud targets, primary pods, devices,
   and UTC window bounds have been verified.
+- After repairing history or projection state, wipe derived energy/inference
+  cache keys and restart the serving path when in-process caches may hold stale
+  data.
+
+## Fast Archive-Backed Drift Repair
+
+Use this path when the raw archive is authoritative and a device's current or
+historical chart is drifting from the physical state. Keep all device IDs and
+DSNs in local env files or command substitution; report only aggregate evidence.
+
+1. Inspect the raw archive first with `pulse-raw-archive-inspector`. Confirm the
+   affected provider/family, closed UTC window, object/frame counts, payload
+   types, and whether an explicit offline/status signal exists.
+2. Fix the model before repair. For stale current telemetry, prefer data-layer
+   suppression/zeroing that applies to projection, realtime snapshots, BFF
+   summaries, and rollups. If rollups flatline, check for aggregator carry
+   forward: omitting stale PV is not enough when the previous bucket value can
+   persist; write explicit zero current metrics for stale current frames.
+3. Rebuild only the affected device/window from archive objects with
+   `cmd/ecoflow-rollup-rebuild`. Avoid NATS replay for a closed historical
+   repair unless the incident specifically requires stream semantics.
+4. Repair current projection from a recent archive tail when only the live
+   snapshot is stale. Do not replay 24 hours through NATS just to refresh one
+   current snapshot; a short direct archive-to-projection rebuild is faster and
+   avoids consumer backlog.
+5. Verify with aggregate SQL before opening the app: bucket count, total Wh,
+   latest nonzero bucket, post-cutoff Wh, post-cutoff nonzero bucket count, and
+   post-cutoff max PV. The post-cutoff values should be zero for a repaired
+   offline/flatlined device.
+6. Wipe derived caches after repair:
+
+```bash
+VALKEY_ADDRS='<valkey-host:port>' go run .tmp/freshness_ops.go --mode wipe-caches
+```
+
+If the helper is not available, delete the same low-cardinality cache families:
+`pulse:energy-calendar:*`, `pulse:energy-pv-port-history:*`, and
+`pulse:inference-energy-comparison:*`. Then restart the BFF/realtime/API serving
+path or redeploy locally so in-process caches are cleared.
 
 ## Preflight
 
