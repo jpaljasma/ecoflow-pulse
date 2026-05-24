@@ -16,7 +16,12 @@ import type { DeviceSummary } from '@/features/devices/api';
 import type { TelemetryEngineStatus } from '@/features/telemetry/engine/types';
 import { DeviceCard } from '@/features/devices/DeviceCard';
 import { findDeviceScrollIndex } from '@/features/devices/listScroll';
-import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import {
+  PULSE_PAGE_CONTENT_BOTTOM_PADDING,
+  PULSE_PAGE_SECTION_GAP,
+  resolvePageHorizontalPaddingPx,
+  useNavigationShellMetrics
+} from '@/shared/ui/navigationShell';
 
 export type DeviceListHandle = {
   scrollToDevices: () => void;
@@ -44,6 +49,7 @@ export const DeviceList = forwardRef<DeviceListHandle, {
 }, ref) {
   const { contentWidth } = useNavigationShellMetrics();
   const columns = Platform.OS === 'web' && contentWidth >= 900 ? 2 : 1;
+  const pagePadding = resolvePageHorizontalPaddingPx(contentWidth);
   const listRef = useRef<FlatList<DeviceSummary>>(null);
   const [solarHistoryDeviceIds, setSolarHistoryDeviceIds] = useState<Set<string>>(() => new Set());
   const viewabilityConfig = useRef({
@@ -116,10 +122,14 @@ export const DeviceList = forwardRef<DeviceListHandle, {
       data={devices}
       keyExtractor={(item) => item.id}
       numColumns={columns}
-      contentContainerStyle={{ padding: 16, paddingBottom: 16 }}
+      contentContainerStyle={{
+        paddingHorizontal: pagePadding,
+        paddingTop: PULSE_PAGE_SECTION_GAP,
+        paddingBottom: PULSE_PAGE_CONTENT_BOTTOM_PADDING
+      }}
       ListHeaderComponent={header}
       ListFooterComponent={footer}
-      columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
+      columnWrapperStyle={columns > 1 ? { gap: PULSE_PAGE_SECTION_GAP } : undefined}
       removeClippedSubviews
       initialNumToRender={8}
       maxToRenderPerBatch={10}
@@ -137,7 +147,7 @@ export const DeviceList = forwardRef<DeviceListHandle, {
           });
         });
       }}
-      ItemSeparatorComponent={() => <YStack height="$3" />}
+      ItemSeparatorComponent={() => <YStack height={PULSE_PAGE_SECTION_GAP} />}
       renderItem={renderDeviceCard}
     />
   );

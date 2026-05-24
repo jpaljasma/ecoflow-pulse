@@ -1,22 +1,33 @@
 import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useNavigationShellStore } from './navigationShellStore';
+import {
+  NAVIGATION_SIDEBAR_BREAKPOINT,
+  resolveCenteredPageMaxWidth,
+  resolveCollapsedSidebarWidth,
+  resolveExpandedSidebarWidth,
+  resolvePageHorizontalPadding,
+  resolvePageMaxWidth
+} from './navigationShellMetrics';
 
-export const NAVIGATION_SIDEBAR_BREAKPOINT = 1024;
+export {
+  NAVIGATION_SIDEBAR_BREAKPOINT,
+  PULSE_PAGE_CONTENT_BOTTOM_PADDING,
+  PULSE_CENTERED_PAGE_MAX_WIDTH,
+  PULSE_OPERATING_PAGE_MAX_WIDTH,
+  PULSE_PAGE_SECTION_GAP,
+  PULSE_PANEL_COMPACT_PADDING,
+  PULSE_PANEL_PADDING,
+  PULSE_PANEL_RADIUS,
+  resolveCenteredPageMaxWidth,
+  resolveCollapsedSidebarWidth,
+  resolveExpandedSidebarWidth,
+  resolvePageHorizontalPadding,
+  resolvePageHorizontalPaddingPx,
+  resolvePageMaxWidth
+} from './navigationShellMetrics';
 
-export function resolveExpandedSidebarWidth(windowWidth: number): number {
-  if (windowWidth >= 1480) {
-    return 248;
-  }
-  if (windowWidth >= 1280) {
-    return 236;
-  }
-  return 224;
-}
-
-export function resolveCollapsedSidebarWidth(windowWidth: number): number {
-  return windowWidth >= 1480 ? 92 : 84;
-}
+type PulsePageLayoutVariant = 'operating' | 'centered';
 
 export function useNavigationShellMetrics() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -44,32 +55,22 @@ export function useNavigationShellMetrics() {
   }, [hydrated, sidebarExpanded, windowHeight, windowWidth]);
 }
 
-export function resolvePageHorizontalPadding(contentWidth: number) {
-  if (contentWidth >= 1120) {
-    return '$7' as const;
-  }
-  if (contentWidth >= 768) {
-    return '$5' as const;
-  }
-  return '$4' as const;
-}
-
-export function resolvePageMaxWidth(contentWidth: number) {
-  return contentWidth >= 1120 ? 1180 : 980;
-}
-
-export function usePageLayoutMetrics() {
+export function usePageLayoutMetrics(variant: PulsePageLayoutVariant = 'operating') {
   const navigationMetrics = useNavigationShellMetrics();
 
   return useMemo(() => {
     const { contentWidth } = navigationMetrics;
+    const resolveMaxWidth = variant === 'centered'
+      ? resolveCenteredPageMaxWidth
+      : resolvePageMaxWidth;
+
     return {
       ...navigationMetrics,
       compactHeader: contentWidth < 430,
       isTablet: contentWidth >= 768,
       isDesktop: contentWidth >= 1120,
       horizontalPadding: resolvePageHorizontalPadding(contentWidth),
-      layoutMaxWidth: resolvePageMaxWidth(contentWidth)
+      layoutMaxWidth: resolveMaxWidth(contentWidth)
     };
-  }, [navigationMetrics]);
+  }, [navigationMetrics, variant]);
 }

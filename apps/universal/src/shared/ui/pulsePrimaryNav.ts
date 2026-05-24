@@ -16,6 +16,7 @@ export type PulsePrimaryNavItem = {
   href: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   adminOnly?: boolean;
+  hiddenFromNav?: boolean;
 };
 
 export const pulsePrimaryNavItems: PulsePrimaryNavItem[] = [
@@ -54,7 +55,8 @@ export const pulsePrimaryNavItems: PulsePrimaryNavItem[] = [
     key: 'search',
     label: 'Search',
     href: '/(tabs)/search',
-    icon: 'magnify'
+    icon: 'magnify',
+    hiddenFromNav: true
   },
   {
     key: 'about',
@@ -81,5 +83,5 @@ export function resolvePulsePrimaryNavKey(routeName: string): PulsePrimaryNavKey
 
 export function filterPulsePrimaryNavItems(access: PulseLogAccessInput): PulsePrimaryNavItem[] {
   const logsAccess = canAccessPulseLogs(access);
-  return pulsePrimaryNavItems.filter((item) => !item.adminOnly || logsAccess);
+  return pulsePrimaryNavItems.filter((item) => !item.hiddenFromNav && (!item.adminOnly || logsAccess));
 }

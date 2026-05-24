@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
 import { Text, XStack, YStack } from 'tamagui';
 import { useThemeSemantics } from '@/shared/theme/semantic';
+import {
+  PULSE_PANEL_PADDING,
+  PULSE_PANEL_RADIUS
+} from '@/shared/ui/navigationShellMetrics';
 
 export function ChartSection({
   title,
@@ -21,8 +25,8 @@ export function ChartSection({
       flex={fill ? 1 : undefined}
       gap="$2"
       height={fill ? '100%' : undefined}
-      padding="$4"
-      borderRadius="$4"
+      padding={PULSE_PANEL_PADDING}
+      borderRadius={PULSE_PANEL_RADIUS}
       borderWidth={1}
       style={{
         borderColor: semantics.surfaceRaisedBorder,

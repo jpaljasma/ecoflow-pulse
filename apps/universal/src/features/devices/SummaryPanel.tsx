@@ -22,7 +22,12 @@ import { resolveSolarHistoryWindow } from '@/features/history/solar';
 import { useWeatherForecast } from '@/features/weather/hooks';
 import { resolveProfileWeatherState } from '@/features/weather/model';
 import { useThemeSemantics } from '@/shared/theme/semantic';
-import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
+import {
+  PULSE_PANEL_COMPACT_PADDING,
+  PULSE_PANEL_RADIUS,
+  PULSE_PAGE_SECTION_GAP,
+  useNavigationShellMetrics
+} from '@/shared/ui/navigationShell';
 import { useLazySectionLoad } from '@/shared/ui/useLazySectionLoad';
 import { PulseHeroBackground } from '@/shared/ui/PulseHeroBackground';
 import { SocBar } from '@/shared/ui/SocBar';
@@ -37,9 +42,9 @@ import { EnergyImpactCard } from '@/features/energy-impact/EnergyImpactCard';
 import { buildEnergyRouteParams } from '@/features/energy/model';
 
 const SUMMARY_TREND_POINTS = 60;
-const FLEET_TILE_BASIS = 142;
-const FLEET_TILE_MIN_WIDTH = 132;
-const FLEET_TILE_MIN_HEIGHT = 120;
+const FLEET_TILE_BASIS = 132;
+const FLEET_TILE_MIN_WIDTH = 126;
+const FLEET_TILE_MIN_HEIGHT = 112;
 
 function getMaxSolarWatts(device: DeviceSummary): number | undefined {
   const total = device.details?.solarPorts?.reduce((sum, port) => sum + (port.maxWatts ?? 0), 0) ?? 0;
@@ -123,8 +128,8 @@ function FleetOverviewTile({
       minWidth={FLEET_TILE_MIN_WIDTH}
       minHeight={FLEET_TILE_MIN_HEIGHT}
       gap="$2"
-      padding="$3"
-      borderRadius="$4"
+      padding={PULSE_PANEL_COMPACT_PADDING}
+      borderRadius={PULSE_PANEL_RADIUS}
       borderWidth={1}
       style={{
         backgroundColor: semantics.tileBackground,
@@ -233,12 +238,12 @@ function FleetDeviceTile({
         justifyContent="center"
         overflow="hidden"
         style={{ backgroundColor: semantics.mutedPanelBackground }}
-        borderRadius={12}
+        borderRadius={PULSE_PANEL_RADIUS}
       >
         <YStack
           width={imageSize}
           height={imageSize}
-          borderRadius={12}
+          borderRadius={PULSE_PANEL_RADIUS}
           overflow="hidden"
           alignItems="center"
           justifyContent="center"
@@ -318,7 +323,7 @@ function ChartSkeleton({ minHeight = 210 }: { minHeight?: number }) {
   return (
     <YStack
       minHeight={minHeight}
-      borderRadius="$4"
+      borderRadius={PULSE_PANEL_RADIUS}
       borderWidth={1}
       style={{
         backgroundColor: semantics.tileBackground,
@@ -548,10 +553,10 @@ export function SummaryPanel({
   );
 
   return (
-    <YStack gap="$3">
+    <YStack gap={PULSE_PAGE_SECTION_GAP}>
       <Card
         gap={isPhone ? '$3' : '$4'}
-        padding={isTabletUp ? '$4' : '$3'}
+        padding={isTabletUp ? '$6' : '$4'}
         position="relative"
         overflow="hidden"
         style={{
@@ -567,7 +572,7 @@ export function SummaryPanel({
           flexWrap="wrap"
           style={{ position: 'relative', zIndex: 1 }}
         >
-          <YStack gap={isPhone ? '$2' : '$3'} flex={1.1} minWidth={250} maxWidth={isTabletUp ? 500 : undefined}>
+          <YStack gap={isPhone ? '$2' : '$3'} flex={1.05} minWidth={250} maxWidth={isTabletUp ? 390 : undefined}>
             <Text fontSize="$2" fontWeight="700" textTransform="uppercase" letterSpacing={0.8} style={{ color: semantics.solarBadgeTitle }}>
               Pulse Fleet
             </Text>
@@ -602,7 +607,15 @@ export function SummaryPanel({
             </XStack>
           </YStack>
 
-          <YStack gap="$3" flex={1} minWidth={250} maxWidth={isTabletUp ? 420 : undefined} justifyContent="space-between">
+          <YStack gap="$3" flex={1.2} minWidth={260} maxWidth={isTabletUp ? 460 : undefined} justifyContent="space-between">
+            <XStack alignItems="center" justifyContent="space-between" gap="$3">
+              <Text fontSize="$2" fontWeight="700" textTransform="uppercase" letterSpacing={0.8} style={{ color: semantics.subtleStrongText }}>
+                Active Devices
+              </Text>
+              <Text fontSize="$2" fontWeight="700" style={{ color: semantics.subtleText }}>
+                {previewDevices.length} shown
+              </Text>
+            </XStack>
             <XStack gap="$3" flexWrap="wrap">
               {previewDevices.map((item) => (
                 <FleetDeviceTile key={item.id} item={item} useRemoteImage={useRemoteImage} />
@@ -630,7 +643,10 @@ export function SummaryPanel({
             </Button>
           </YStack>
 
-          <YStack gap="$3" flex={1} minWidth={250} maxWidth={isTabletUp ? 420 : undefined} justifyContent="space-between">
+          <YStack gap="$3" flex={0.95} minWidth={250} maxWidth={isTabletUp ? 360 : undefined} justifyContent="space-between">
+            <Text fontSize="$2" fontWeight="700" textTransform="uppercase" letterSpacing={0.8} style={{ color: semantics.subtleStrongText }}>
+              Fleet At A Glance
+            </Text>
             <XStack gap="$3" flexWrap="wrap">
               {overviewTiles.map((tile) => (
                 <FleetOverviewTile

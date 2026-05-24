@@ -55,6 +55,9 @@ Overview pages use:
 Home and fleet overview screens should use the first viewport as an operating
 console, not a sparse landing page.
 
+- `/devices` is the primary Pulse landing page and the fleet operating hub.
+  Its first viewport should lead with solar generation today, active device
+  shortcuts, fleet state, and the Energy dashboard action.
 - Fill wide hero panels with useful navigation and state, not empty center
   space.
 - Keep the fleet hero anchored by the primary daily solar metric, active device
@@ -154,10 +157,18 @@ Usage guidance:
 
 The shape language is consistent across the app:
 
-- medium corner radius
+- `8px` panel/card corner radius for repeated operational surfaces
 - tight, aligned internal spacing
 - minimal shadow
 - calm borders and tonal contrast
+
+The shared shell uses two layout variants:
+
+- operating surfaces (`Devices`, `Energy`, `Energy Calendar`, `Logs`, and
+  Device Detail) use the full console width with shared responsive gutters.
+- centered surfaces (`Settings` and `About`) use the same gutters and topbar
+  rhythm, but a narrower content max-width so forms and product copy stay easy
+  to scan.
 
 ## Surfaces
 
@@ -217,6 +228,10 @@ Large screens use a sidebar.
 - remembers last state
 
 Phones keep a compact mobile navigation pattern.
+
+Search remains routable for direct/internal use, but is hidden from the visible
+desktop sidebar and mobile tabs until it is ready to return as a primary
+destination.
 
 Within Energy, the experience is split into three deep-linkable panes:
 
