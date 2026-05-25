@@ -26,7 +26,7 @@ describe('telemetryMap', () => {
     expect(metrics.pvW).toBeCloseTo(22.63, 6);
     expect(metrics.acW).toBeCloseTo(6.76, 2);
     expect(metrics.dcW).toBeCloseTo(7, 6);
-    expect(metrics.batteryW).toBeCloseTo(-87.52, 2);
+    expect(metrics.batteryW).toBeCloseTo(29.39, 2);
     expect(metrics.tempC).toBe(20);
   });
 
@@ -121,6 +121,22 @@ describe('telemetryMap', () => {
     expect(metrics.pvW).toBe(483);
     expect(metrics.loadW).toBe(207);
     expect(metrics.batteryW).toBe(276);
+  });
+
+  it('uses positive power balance over conflicting pack-current sign', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.soc': 72,
+      'params.inLvMpptPwr': 612,
+      'params.inHvMpptPwr': 0,
+      'params.wattsInSum': 612,
+      'params.wattsOutSum': 535,
+      'params.batAmp': -10,
+      'params.batVol': 50
+    });
+
+    expect(metrics.pvW).toBe(612);
+    expect(metrics.loadW).toBe(535);
+    expect(metrics.batteryW).toBe(77);
   });
 
   it('does not double-count explicit pvW with provider-specific MPPT totals', () => {

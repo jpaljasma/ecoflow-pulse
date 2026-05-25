@@ -219,7 +219,7 @@ describe('pulse-realtime-gateway', () => {
         soc: 54.8,
         pvW: 22.63,
         loadW: 0,
-        batteryW: -87.52000000000001,
+        batteryW: 29.39,
         tempC: 20,
         acW: 6.760000000000002,
         dcW: 0

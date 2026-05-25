@@ -434,6 +434,9 @@ describe('device client', () => {
 
     expect(device?.batteryPct).toBe(68);
     expect(device?.pvW).toBe(184);
+    expect(device?.state).toBe('charging');
+    expect(device?.loadW).toBe(50);
+    expect(device?.netW).toBe(134);
     expect(device?.capabilities).toEqual(
       expect.objectContaining({
         batteryCapacityKWh: 1.024,
@@ -444,7 +447,7 @@ describe('device client', () => {
       expect.objectContaining({
         id: 'main',
         socPct: 68,
-        powerW: -42,
+        powerW: 134,
         tempC: 22,
         energyWh: 1024
       })

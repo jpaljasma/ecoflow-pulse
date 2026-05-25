@@ -150,8 +150,11 @@ rollup extraction), the main projected watts metrics are derived as follows:
   when BMS-level input/output fields are present only as zeros. When those
   BMS-level fields are flat zero but `acW + pvW - loadW` shows a non-trivial
   charge/discharge balance, the data layer uses that power balance instead of
-  reporting idle,
-  then normalized `params.batAmp * params.batVol`, then fall back to
+  reporting idle. The same power balance wins when provider battery-current
+  sign or a stale top-level `batteryW` contradicts a non-trivial surplus/deficit,
+  so current device state cannot say "serving load" while the same frame is in
+  net surplus. Otherwise, battery watts use
+  normalized `params.batAmp * params.batVol`, then fall back to
   `acW + pvW - loadW`. The voltage/current fallback accepts both canonical
   volts/amps and provider milli-unit values so live snapshots cannot inflate
   pack power by multiplying millivolts or milliamps as canonical units.

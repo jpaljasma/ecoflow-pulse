@@ -54,6 +54,28 @@ func TestSampleFromEnvelopeD2MExtraBatteryTransferIsNotLoad(t *testing.T) {
 	}
 }
 
+func TestSampleFromEnvelopeUsesPositivePowerBalanceOverConflictingPackCurrent(t *testing.T) {
+	t.Parallel()
+	env := testEnvelope(`{"params":{"soc":72,"inLvMpptPwr":612,"inHvMpptPwr":0,"wattsInSum":612,"wattsOutSum":535,"batAmp":-10,"batVol":50}}`)
+
+	sample, err := SampleFromEnvelope(env)
+	if err != nil {
+		t.Fatalf("SampleFromEnvelope failed: %v", err)
+	}
+	if got := sample.Metrics.PV.Value; got != 612 {
+		t.Fatalf("pv mismatch: got=%v want=612", got)
+	}
+	if got := sample.Metrics.Load.Value; got != 535 {
+		t.Fatalf("load mismatch: got=%v want=535", got)
+	}
+	if got := sample.Metrics.Net.Value; got != 77 {
+		t.Fatalf("net mismatch: got=%v want=77", got)
+	}
+	if got := sample.Metrics.Battery.Value; got != 77 {
+		t.Fatalf("battery mismatch: got=%v want=77", got)
+	}
+}
+
 func TestSampleFromEnvelopeDPUAppShowAndBackendFields(t *testing.T) {
 	t.Parallel()
 	env := testEnvelope(`{"params":{"inLvMpptPwr":53,"inHvMpptPwr":0,"wattsOutSum":140,"inAcC20Pwr":123,"outUsb1Pwr":10,"outTypec1Pwr":15,"bmsInputWatts":50,"bmsOutputWatts":10,"pdTemp":18,"mpptLvTemp":22,"pcsAcTemp":20,"cmsBattSoc":19.7}}`)
