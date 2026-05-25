@@ -29,7 +29,7 @@ export function TopBar({
         fontFamily="$heading"
         fontSize="$8"
         fontWeight="800"
-        letterSpacing={-0.25}
+        letterSpacing={0}
         numberOfLines={1}
         ellipsizeMode="tail"
       >

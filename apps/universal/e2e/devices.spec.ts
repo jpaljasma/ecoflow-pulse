@@ -43,6 +43,8 @@ test.describe('Universal web E2E', () => {
 
     await page.getByRole('button', { name: /All Devices/i }).click();
     await expect(page.getByTestId(`device-card-${DPU_DEVICE_ID}`)).toBeVisible();
+    await expect(page.getByTestId(`device-card-${DPU_DEVICE_ID}`).getByText(/Last seen/)).toHaveCount(0);
+    await expect(page.getByTestId(`device-card-status-${DPU_DEVICE_ID}`)).toHaveAttribute('title', /Last seen /);
   });
 
   test('loads partially visible analytics and defers offscreen card history', async ({ page }) => {

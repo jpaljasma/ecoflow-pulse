@@ -34,7 +34,7 @@ export function ChartSection({
       }}
     >
       <XStack alignItems="center" justifyContent="space-between" gap="$2">
-        <Text fontSize="$5" fontWeight="700" letterSpacing={-0.2}>
+        <Text fontSize="$5" fontWeight="700" letterSpacing={0}>
           {title}
         </Text>
         {right}
