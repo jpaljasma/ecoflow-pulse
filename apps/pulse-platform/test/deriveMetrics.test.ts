@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { deriveTelemetryMetrics } from '../src/telemetry/deriveMetrics.js';
+import { deriveTelemetryMetrics, deriveTelemetryState } from '../src/telemetry/deriveMetrics.js';
 
 describe('deriveTelemetryMetrics', () => {
   it('prefers canonical D2M quota PV fields over broken MPPT power fields', () => {
@@ -86,6 +86,23 @@ describe('deriveTelemetryMetrics', () => {
     expect(metrics.pvW).toBe(483);
     expect(metrics.loadW).toBe(207);
     expect(metrics.batteryW).toBe(276);
+  });
+
+  it('uses positive power balance over conflicting pack-current sign for device state', () => {
+    const metrics = deriveTelemetryMetrics({
+      'params.soc': 72,
+      'params.inLvMpptPwr': 612,
+      'params.inHvMpptPwr': 0,
+      'params.wattsInSum': 612,
+      'params.wattsOutSum': 535,
+      'params.batAmp': -10,
+      'params.batVol': 50
+    });
+
+    expect(metrics.pvW).toBe(612);
+    expect(metrics.loadW).toBe(535);
+    expect(metrics.batteryW).toBe(77);
+    expect(deriveTelemetryState(metrics.batteryW)).toBe('charging');
   });
 
   it('derives DPU Anderson watts from backend volts and amps when appshow power is zero', () => {

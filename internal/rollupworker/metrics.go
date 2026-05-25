@@ -16,6 +16,7 @@ import (
 
 const andersonPowerNoiseFloorWatts = 0.5
 const solarPowerEstimateMinWatts = 0.5
+const powerBalanceStateFloorWatts = 20
 const batteryVoltageMaxCanonical = 1000
 const batteryCurrentMaxCanonical = 200
 
@@ -159,7 +160,7 @@ func extractMetrics(root gjson.Result) RollupMetrics {
 		metrics.SolarGeneratedWh = generated
 	}
 
-	if battery, ok := batteryMetric(root); ok {
+	if battery, ok := batteryMetric(root, metrics.Net); ok {
 		metrics.Battery = optionalFloat{Value: battery, Valid: true}
 	} else if metrics.Net.Valid {
 		metrics.Battery = metrics.Net
@@ -628,9 +629,9 @@ func deriveACOutput(load, dc optionalFloat) (float64, bool) {
 	return load.Value, true
 }
 
-func batteryMetric(root gjson.Result) (float64, bool) {
+func batteryMetric(root gjson.Result, powerBalance optionalFloat) (float64, bool) {
 	if explicit := firstNumber(root, "batteryW"); explicit.Valid {
-		return explicit.Value, true
+		return reconcileBatteryPower(explicit.Value, powerBalance), true
 	}
 	bmsInput := firstNumber(root, "params.bmsInputWatts")
 	bmsOutput := firstNumber(root, "params.bmsOutputWatts")
@@ -644,20 +645,42 @@ func batteryMetric(root gjson.Result) (float64, bool) {
 		return extraBatteryCharge - outputValue, true
 	}
 	if bmsInput.Valid || bmsOutput.Valid {
-		return bmsInput.Value - bmsOutput.Value, true
+		return reconcileBatteryPower(bmsInput.Value-bmsOutput.Value, powerBalance), true
 	}
 	input := firstNumber(root, "params.inputWatts", "param.inputWatts")
 	output := firstNumber(root, "params.outputWatts", "param.outputWatts")
 	if input.Valid || output.Valid {
-		return input.Value - output.Value, true
+		return reconcileBatteryPower(input.Value-output.Value, powerBalance), true
 	}
 	batAmp := firstNumber(root, "params.batAmp")
 	batVol := firstNumber(root, "params.batVol")
 	if batAmp.Valid && batVol.Valid {
-		return normalizePotentialMilliUnit(batAmp.Value, batteryCurrentMaxCanonical) *
-			normalizePotentialMilliUnit(batVol.Value, batteryVoltageMaxCanonical), true
+		battery := normalizePotentialMilliUnit(batAmp.Value, batteryCurrentMaxCanonical) *
+			normalizePotentialMilliUnit(batVol.Value, batteryVoltageMaxCanonical)
+		return reconcileBatteryPower(battery, powerBalance), true
 	}
 	return 0, false
+}
+
+func reconcileBatteryPower(candidate float64, powerBalance optionalFloat) float64 {
+	if !powerBalance.Valid || math.Abs(powerBalance.Value) <= powerBalanceStateFloorWatts {
+		return candidate
+	}
+	if math.Abs(candidate) <= powerBalanceStateFloorWatts || sign(candidate) != sign(powerBalance.Value) {
+		return powerBalance.Value
+	}
+	return candidate
+}
+
+func sign(value float64) int {
+	switch {
+	case value > 0:
+		return 1
+	case value < 0:
+		return -1
+	default:
+		return 0
+	}
 }
 
 func extraBatteryChargeTransfer(root gjson.Result) float64 {

@@ -11,6 +11,7 @@ export type DerivedTelemetryMetrics = {
 };
 
 const ANDERSON_POWER_NOISE_FLOOR_W = 0.5;
+const POWER_BALANCE_STATE_FLOOR_W = 20;
 const BATTERY_VOLTAGE_MAX_CANONICAL = 1000;
 const BATTERY_CURRENT_MAX_CANONICAL = 200;
 const EXTERNAL_OUTPUT_LOAD_FIELDS = [
@@ -183,8 +184,8 @@ function capPvByTotalInput(raw: RawMetrics, pv: number, directAcIn?: number): nu
 }
 
 export function deriveTelemetryState(batteryW: number): 'charging' | 'discharging' | 'idle' {
-  if (batteryW > 20) return 'charging';
-  if (batteryW < -20) return 'discharging';
+  if (batteryW > POWER_BALANCE_STATE_FLOOR_W) return 'charging';
+  if (batteryW < -POWER_BALANCE_STATE_FLOOR_W) return 'discharging';
   return 'idle';
 }
 
@@ -236,7 +237,7 @@ function deriveAcFromInputMinusPv(raw: RawMetrics, pv: number): number | undefin
 export function deriveBatteryPower(raw: RawMetrics, powerBalance?: number): number | undefined {
   const explicitBattery = firstNumber(raw, 'batteryW');
   if (explicitBattery !== undefined) {
-    return explicitBattery;
+    return reconcileBatteryPower(explicitBattery, powerBalance);
   }
 
   const bmsInput = firstNumber(raw, 'params.bmsInputWatts');
@@ -255,21 +256,35 @@ export function deriveBatteryPower(raw: RawMetrics, powerBalance?: number): numb
     return powerBalance;
   }
   if (bmsInput !== undefined || bmsOutput !== undefined) {
-    return (bmsInput ?? 0) - (bmsOutput ?? 0);
+    return reconcileBatteryPower((bmsInput ?? 0) - (bmsOutput ?? 0), powerBalance);
   }
 
   const batteryInput = firstNumber(raw, 'params.inputWatts', 'param.inputWatts');
   const batteryOutput = firstNumber(raw, 'params.outputWatts', 'param.outputWatts');
   if (batteryInput !== undefined || batteryOutput !== undefined) {
-    return (batteryInput ?? 0) - (batteryOutput ?? 0);
+    return reconcileBatteryPower((batteryInput ?? 0) - (batteryOutput ?? 0), powerBalance);
   }
 
   const batAmp = normalizePotentialMilliUnit(firstNumber(raw, 'params.batAmp'), BATTERY_CURRENT_MAX_CANONICAL);
   const batVol = normalizePotentialMilliUnit(firstNumber(raw, 'params.batVol'), BATTERY_VOLTAGE_MAX_CANONICAL);
   if (batAmp !== undefined && batVol !== undefined) {
-    return batAmp * batVol;
+    return reconcileBatteryPower(batAmp * batVol, powerBalance);
   }
   return undefined;
+}
+
+function reconcileBatteryPower(candidate: number, powerBalance?: number): number {
+  if (
+    powerBalance === undefined ||
+    !Number.isFinite(powerBalance) ||
+    Math.abs(powerBalance) <= POWER_BALANCE_STATE_FLOOR_W
+  ) {
+    return candidate;
+  }
+  if (Math.abs(candidate) <= POWER_BALANCE_STATE_FLOOR_W || Math.sign(candidate) !== Math.sign(powerBalance)) {
+    return powerBalance;
+  }
+  return candidate;
 }
 
 function deriveExtraBatteryChargeTransfer(raw: RawMetrics): number {
