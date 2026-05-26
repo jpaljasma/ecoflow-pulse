@@ -19,6 +19,7 @@ import { getStatusIconName } from '@/shared/ui/statusGlyph';
 import { env } from '@/shared/config/env';
 import { SolarTodayBadge } from '@/shared/ui/SolarTodayBadge';
 import { MetricsGrid, type MetricsGridItem } from '@/shared/ui/MetricsGrid';
+import { buildInventoryMetricLayout, buildStatusDotHoverLabel } from '@/features/devices/deviceCardLayout';
 import { isMutedMetric } from '@/shared/ui/uiMappings';
 import { StormGuardChip } from '@/shared/ui/StormGuardChip';
 import { useTelemetryDeviceSnapshot } from '@/features/telemetry/hooks';
@@ -33,6 +34,7 @@ import { resolveDeviceSocPct } from '@/features/devices/soc';
 import { usePrefersReducedMotion } from '@/shared/ui/usePrefersReducedMotion';
 
 const INACTIVE_CARD_OPACITY = 0.82;
+const INVENTORY_METRIC_LAYOUT = buildInventoryMetricLayout();
 
 function connectivityGlyph(
   snapshot: DeviceSnapshot | undefined,
@@ -104,7 +106,7 @@ export function DeviceCard({
     imageContext
   });
   const imageBoxSize = inventoryCompact ? 82 : isDesktopWide ? 106 : isTabletUp ? 98 : 82;
-  const railWidth = inventoryCompact ? 94 : isDesktopWide ? 124 : isTabletUp ? 112 : 94;
+  const railWidth = inventoryCompact ? 112 : isDesktopWide ? 124 : isTabletUp ? 112 : 94;
 
   const fallbackStatus =
     device.state === 'charging' || device.state === 'discharging' || device.state === 'idle'
@@ -125,6 +127,8 @@ export function DeviceCard({
   const isOffline = snapshot ? snapshot.inactive || !snapshot.online : device.online === false || isInactive;
   const cardStatusLabel = isOffline ? 'Offline' : isInactive ? 'Inactive' : null;
   const connGlyph = isOffline ? getStatusIconName('offline') : connectivityGlyph(snapshot, connectionStatus);
+  const lastSeenLabel = `Last seen ${formatAgo(lastSeenAt)}`;
+  const statusDotHoverLabel = buildStatusDotHoverLabel(lastSeenLabel, cardStatusLabel);
   const fadeOpacity = useRef(new Animated.Value(isInactive ? INACTIVE_CARD_OPACITY : 1)).current;
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -142,82 +146,63 @@ export function DeviceCard({
   }, [fadeOpacity, isInactive, prefersReducedMotion]);
 
   const metricItems = useMemo<MetricsGridItem[]>(() => {
-    return [
-      {
-        key: 'ac',
-        content: (
-          <Stat
-            label={<IconLabel icon="power-plug-outline" label="AC" />}
-            value={formatW(acInW)}
-            tone={isMutedMetric(acInW) ? 'muted' : 'default'}
-            compact
-          />
-        )
-      },
-      {
-        key: 'dc',
-        content: (
-          <Stat
-            label={<IconLabel icon="current-dc" label="DC" />}
-            value={formatW(dcW)}
-            tone={isMutedMetric(dcW) ? 'muted' : 'default'}
-            compact
-          />
-        )
-      },
-      {
-        key: 'pv',
-        content: (
-          <Stat
-            label={<IconLabel icon="white-balance-sunny" label="PV" />}
-            value={formatW(pvW)}
-            tone={isMutedMetric(pvW) ? 'muted' : 'default'}
-            compact
-          />
-        )
-      },
-      {
-        key: 'today',
-        content: (
-          <SolarTodayBadge
-            valueWh={solarHistory.data?.todayWh}
-            previousWh={solarHistory.data?.yesterdayWh}
-            deltaPct={solarHistory.data?.deltaPct}
-            compact
-            fitCell
-          />
-        )
-      },
-      {
-        key: 'load',
-        content: (
-          <Stat
-            label={<IconLabel icon="home-outline" label="Load" />}
-            value={formatW(loadW)}
-            tone={isMutedMetric(loadW) ? 'muted' : 'default'}
-            compact
-          />
-        )
-      },
-      {
-        key: 'net',
-        content: <Stat label={<IconLabel icon="scale-balance" label="Net" />} value={formatW(netW)} compact />
-      },
-      {
-        key: 'eta',
-        content: <Stat label={<IconLabel icon="timer-sand" label="ETA" />} value={formatEtaMinutes(device.etaMinutes)} compact />
-      }
-    ];
+    const contentByKey = {
+      ac: (
+        <Stat
+          label={<IconLabel icon="power-plug-outline" label="AC" />}
+          value={formatW(acInW)}
+          tone={isMutedMetric(acInW) ? 'muted' : 'default'}
+          compact
+          minWidth={0}
+        />
+      ),
+      dc: (
+        <Stat
+          label={<IconLabel icon="current-dc" label="DC" />}
+          value={formatW(dcW)}
+          tone={isMutedMetric(dcW) ? 'muted' : 'default'}
+          compact
+          minWidth={0}
+        />
+      ),
+      pv: (
+        <Stat
+          label={<IconLabel icon="white-balance-sunny" label="PV" />}
+          value={formatW(pvW)}
+          tone={isMutedMetric(pvW) ? 'muted' : 'default'}
+          compact
+          minWidth={0}
+        />
+      ),
+      load: (
+        <Stat
+          label={<IconLabel icon="home-outline" label="Load" />}
+          value={formatW(loadW)}
+          tone={isMutedMetric(loadW) ? 'muted' : 'default'}
+          compact
+          minWidth={0}
+        />
+      ),
+      net: (
+        <Stat
+          label={<IconLabel icon="scale-balance" label="Net" />}
+          value={formatW(netW)}
+          compact
+          minWidth={0}
+        />
+      )
+    };
+    return INVENTORY_METRIC_LAYOUT.items.map(({ key, span }) => ({
+      key,
+      span,
+      content: contentByKey[key]
+    }));
   }, [
     acInW,
     dcW,
-    device.etaMinutes,
     loadW,
     netW,
-    pvW,
-    solarHistory.data?.deltaPct,
-    solarHistory.data?.todayWh,
-    solarHistory.data?.yesterdayWh
+    pvW
   ]);
 
   return (
@@ -225,6 +210,7 @@ export function DeviceCard({
       <Card
         testID={`device-card-${device.id}`}
         flex={fillHeight ? 1 : undefined}
+        padding={inventoryCompact ? '$3' : undefined}
         borderColor={highlighted ? '$accentColor' : undefined}
         borderWidth={highlighted ? 2 : undefined}
         shadowOpacity={highlighted ? 0.18 : undefined}
@@ -276,7 +262,7 @@ export function DeviceCard({
             </XStack>
           )}
           leftFooter={(
-            <YStack marginTop={isPhoneCompact ? '$3' : '$2'}>
+            <YStack marginTop={isPhoneCompact ? '$3' : '$2'} gap="$2" width="100%" alignItems="center">
               <PowerFlowGlyph
                 status={snapshotState}
                 pvW={snapshot?.metrics?.pvW ?? device.pvW}
@@ -284,10 +270,17 @@ export function DeviceCard({
                 fontSize={isPhoneCompact ? '$7' : '$8'}
                 lineHeight={isPhoneCompact ? 26 : 30}
               />
+              <SolarTodayBadge
+                valueWh={solarHistory.data?.todayWh}
+                previousWh={solarHistory.data?.yesterdayWh}
+                deltaPct={solarHistory.data?.deltaPct}
+                compact
+                railCompact
+              />
             </YStack>
           )}
           right={(
-            <YStack gap="$3" flex={1} justifyContent="space-between">
+            <YStack gap={inventoryCompact ? '$2' : '$3'} flex={1} justifyContent="space-between">
               <XStack alignItems="flex-start" gap="$2">
                 <Text
                   fontFamily="$heading"
@@ -343,17 +336,45 @@ export function DeviceCard({
 
               {stormGuardLabel ? <StormGuardChip label={stormGuardLabel} /> : null}
 
-              <YStack gap="$2">
-                <SocBar value={socPct} sweepMode={snapshotState} fullWidth={inventoryCompact} />
-                <MetricsGrid items={metricItems} columns={inventoryCompact ? 2 : 3} />
+              <YStack gap={inventoryCompact ? '$2' : '$3'}>
+                <XStack alignItems="flex-end" gap="$2">
+                  <YStack flex={1} minWidth={0}>
+                    <SocBar value={socPct} sweepMode={snapshotState} fullWidth={inventoryCompact} />
+                  </YStack>
+                  <YStack
+                    borderRadius="$4"
+                    paddingHorizontal="$2"
+                    paddingVertical="$1"
+                    minWidth={72}
+                    style={{
+                      backgroundColor: semantics.mutedPanelBackground,
+                      borderColor: semantics.mutedPanelBorder
+                    }}
+                    borderWidth={1}
+                  >
+                    <Text fontSize="$1" fontWeight="700" style={{ color: semantics.subtleStrongText }}>
+                      ETA
+                    </Text>
+                    <Text fontSize="$1" fontWeight="800" numberOfLines={1}>
+                      {formatEtaMinutes(device.etaMinutes)}
+                    </Text>
+                  </YStack>
+                </XStack>
+                <MetricsGrid items={metricItems} columns={INVENTORY_METRIC_LAYOUT.columns} padX={3} padY={3} />
               </YStack>
 
-              <XStack justifyContent="space-between" alignItems="center">
-                <Text fontSize={10} numberOfLines={1} style={{ color: semantics.subtleText }}>
-                  Last seen {formatAgo(lastSeenAt)}
-                </Text>
-                <XStack alignItems="center" gap="$1" opacity={0.9}>
-                  {cardStatusLabel ? <Text fontSize="$2" style={{ color: semantics.subtleText }}>{cardStatusLabel}</Text> : null}
+              <XStack justifyContent="flex-end" alignItems="center">
+                <XStack
+                  testID={`device-card-status-${device.id}`}
+                  alignItems="center"
+                  justifyContent="center"
+                  minWidth={28}
+                  minHeight={28}
+                  borderRadius="$5"
+                  opacity={0.9}
+                  accessibilityLabel={statusDotHoverLabel}
+                  {...(Platform.OS === 'web' ? { title: statusDotHoverLabel } : undefined)}
+                >
                   <MaterialCommunityIcons name={connGlyph} size={16} color={semantics.subtleStrongText} />
                 </XStack>
               </XStack>

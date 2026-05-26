@@ -58,7 +58,7 @@ function renderEyebrow(content: ReactNode) {
 function renderTitle(content: ReactNode) {
   if (typeof content === 'string') {
     return (
-      <Text fontSize="$5" fontWeight="700" letterSpacing={-0.2}>
+      <Text fontSize="$5" fontWeight="700" letterSpacing={0}>
         {content}
       </Text>
     );

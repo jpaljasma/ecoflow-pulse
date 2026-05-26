@@ -49,7 +49,7 @@ export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }
                   <PulseMark size={38} />
                 </YStack>
                 <YStack gap={2}>
-                  <Text fontSize="$6" fontWeight="800" letterSpacing={-0.3}>
+                  <Text fontSize="$6" fontWeight="800" letterSpacing={0}>
                     Pulse
                   </Text>
                   <Text fontSize="$2" textTransform="uppercase" letterSpacing={0.7} style={{ color: semantics.navSectionLabel }}>

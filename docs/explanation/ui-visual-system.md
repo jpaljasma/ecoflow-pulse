@@ -70,6 +70,11 @@ console, not a sparse landing page.
 - Device shortcuts navigate directly to the device; a separate `All Devices`
   control should sit below the shortcut grid and jump to the full inventory list
   on the same page.
+- Full inventory cards use a compact operating layout: the left rail carries
+  device image, capacity, flow glyph, and the Today Solar badge; the main column
+  keeps SOC and ETA together, then presents live AC/DC/PV over Load/Net in a
+  two-row matrix. Last-seen copy belongs on the status-dot hover/accessibility
+  label instead of consuming visible card space.
 - Solar generation history is the primary day context on the Devices overview
   and should own a full-width row before secondary widgets.
 - Devices overview chart/impact sections should render with stable reserved
