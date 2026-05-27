@@ -14,6 +14,15 @@ operator-grade app for web, iPhone, iPad, and Android.
 > storage, and Kubernetes-first deployment. Pecron and Anker SOLIX cloud support
 > are read-only and unofficial/reverse-engineered.
 
+## Architecture At A Glance
+
+Pulse is organized as clear layers: universal client and identity, public REST
+and websocket edges, internal Go gRPC services, streaming workers, durable
+state/replay storage, and Kubernetes-first operations. See
+[Architecture](docs/explanation/architecture.md) for the detailed explanation.
+
+![Pulse architecture graph](docs/assets/architecture/pulse-architecture.svg)
+
 ## Current Product
 
 - Realtime fleet and device dashboards for solar, battery state, load flow,
