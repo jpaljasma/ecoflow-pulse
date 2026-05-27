@@ -99,6 +99,10 @@ type deviceProber interface {
 	Probe(ctx context.Context, device discoveredBLEDevice) (deviceProbe, error)
 }
 
+type bluetoothAdapter interface {
+	Enable() error
+}
+
 type bluetoothScanner struct{}
 
 type bluetoothProber struct{}
@@ -587,7 +591,7 @@ func (v *outputFormatValue) Set(value string) error {
 
 func (bluetoothScanner) Scan(stop <-chan struct{}, emit func(discoveredBLEDevice)) error {
 	adapter := bluetooth.DefaultAdapter
-	if err := adapter.Enable(); err != nil {
+	if err := enableBluetoothAdapter(adapter); err != nil {
 		return fmt.Errorf("enable BLE adapter: %w", err)
 	}
 
@@ -626,7 +630,7 @@ func (bluetoothProber) Probe(ctx context.Context, device discoveredBLEDevice) (d
 	}
 
 	adapter := bluetooth.DefaultAdapter
-	if err := adapter.Enable(); err != nil {
+	if err := enableBluetoothAdapter(adapter); err != nil {
 		return deviceProbe{}, fmt.Errorf("enable BLE adapter: %w", err)
 	}
 
@@ -713,6 +717,16 @@ func (bluetoothProber) Probe(ctx context.Context, device discoveredBLEDevice) (d
 		return probe.Capabilities.MTUs[i] < probe.Capabilities.MTUs[j]
 	})
 	return probe, nil
+}
+
+func enableBluetoothAdapter(adapter bluetoothAdapter) error {
+	if err := adapter.Enable(); err != nil {
+		if strings.Contains(err.Error(), "already calling Enable function") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func discoveredFromScanResult(result bluetooth.ScanResult) discoveredBLEDevice {

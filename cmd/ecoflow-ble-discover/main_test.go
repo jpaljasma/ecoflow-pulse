@@ -248,6 +248,20 @@ func TestValidateDiscoveryConfigRejectsBadValues(t *testing.T) {
 	}
 }
 
+func TestEnableBluetoothAdapterTreatsDarwinSecondEnableAsReady(t *testing.T) {
+	t.Parallel()
+
+	adapter := fakeEnableAdapter{err: errors.New("already calling Enable function")}
+	if err := enableBluetoothAdapter(adapter); err != nil {
+		t.Fatalf("enableBluetoothAdapter() error = %v, want nil", err)
+	}
+
+	adapter.err = errors.New("adapter unavailable")
+	if err := enableBluetoothAdapter(adapter); err == nil {
+		t.Fatal("expected non-idempotent adapter error to fail")
+	}
+}
+
 func TestRunDiscoveryReturnsWriteErrors(t *testing.T) {
 	t.Parallel()
 
@@ -285,6 +299,14 @@ type failingWriter struct{}
 
 func (failingWriter) Write(_ []byte) (int, error) {
 	return 0, errors.New("write failed")
+}
+
+type fakeEnableAdapter struct {
+	err error
+}
+
+func (a fakeEnableAdapter) Enable() error {
+	return a.err
 }
 
 type fakeProber struct {
