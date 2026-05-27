@@ -3,6 +3,10 @@
 EcoFlow Pulse separates concerns between provider API access, distributed
 ingestion, snapshot/history serving, and universal client rendering.
 
+## System diagram
+
+![Pulse architecture graph](../assets/architecture/pulse-architecture.svg)
+
 ## Layers
 
 - Ingestion

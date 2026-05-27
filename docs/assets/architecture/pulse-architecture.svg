@@ -1,0 +1,293 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1220" viewBox="0 0 1600 1220" role="img" aria-labelledby="title desc">
+  <title id="title">Pulse architecture layered graph</title>
+  <desc id="desc">Layered architecture diagram for EcoFlow Pulse, showing external inputs, client and identity, public edge, internal Go services, streaming workers, storage, and platform observability.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="shadow" x="-8%" y="-18%" width="116%" height="136%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .page { fill: #ffffff; }
+      .title { fill: #0f172a; font-family: Arial, Helvetica, sans-serif; font-size: 34px; font-weight: 700; }
+      .subtitle { fill: #475569; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 400; }
+      .band-label { fill: #0f172a; font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 700; }
+      .band-note { fill: #475569; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 400; }
+      .node-title { fill: #0f172a; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 700; }
+      .node-copy { fill: #334155; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 400; }
+      .edge { fill: none; stroke: #475569; stroke-width: 2.1; stroke-opacity: 0.74; marker-end: url(#arrow); }
+      .edge-soft { fill: none; stroke: #94a3b8; stroke-width: 1.7; stroke-opacity: 0.62; marker-end: url(#arrow-soft); stroke-dasharray: 6 5; }
+      .edge-label { fill: #334155; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 600; }
+      .label-bg { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; rx: 5; }
+      .band-inputs { fill: #f8fafc; stroke: #cbd5e1; }
+      .band-experience { fill: #ecfeff; stroke: #a5f3fc; }
+      .band-edge { fill: #eef2ff; stroke: #c7d2fe; }
+      .band-services { fill: #f0fdf4; stroke: #bbf7d0; }
+      .band-workers { fill: #fff7ed; stroke: #fed7aa; }
+      .band-storage { fill: #fefce8; stroke: #fde68a; }
+      .band-platform { fill: #f5f3ff; stroke: #ddd6fe; }
+      .node-inputs { fill: #ffffff; stroke: #94a3b8; }
+      .node-experience { fill: #ffffff; stroke: #0891b2; }
+      .node-edge { fill: #ffffff; stroke: #4f46e5; }
+      .node-services { fill: #ffffff; stroke: #16a34a; }
+      .node-workers { fill: #ffffff; stroke: #f97316; }
+      .node-storage { fill: #ffffff; stroke: #ca8a04; }
+      .node-platform { fill: #ffffff; stroke: #7c3aed; }
+    </style>
+  </defs>
+
+  <rect class="page" width="1600" height="1220"/>
+  <text class="title" x="60" y="52">EcoFlow Pulse Architecture</text>
+  <text class="subtitle" x="60" y="78">Realtime product paths, streaming data plane, replay storage, and platform operations as distinct layers.</text>
+
+  <g id="layers">
+    <rect class="band-inputs" x="40" y="100" width="1520" height="120" rx="12"/>
+    <text class="band-label" x="64" y="136">Layer 0</text>
+    <text class="band-note" x="64" y="158">External inputs</text>
+
+    <rect class="band-experience" x="40" y="245" width="1520" height="120" rx="12"/>
+    <text class="band-label" x="64" y="281">Layer 1</text>
+    <text class="band-note" x="64" y="303">Client + identity</text>
+
+    <rect class="band-edge" x="40" y="390" width="1520" height="130" rx="12"/>
+    <text class="band-label" x="64" y="426">Layer 2</text>
+    <text class="band-note" x="64" y="448">Public edge</text>
+
+    <rect class="band-services" x="40" y="545" width="1520" height="150" rx="12"/>
+    <text class="band-label" x="64" y="581">Layer 3</text>
+    <text class="band-note" x="64" y="603">Go service layer</text>
+
+    <rect class="band-workers" x="40" y="720" width="1520" height="190" rx="12"/>
+    <text class="band-label" x="64" y="756">Layer 4</text>
+    <text class="band-note" x="64" y="778">Streaming workers</text>
+
+    <rect class="band-storage" x="40" y="935" width="1520" height="135" rx="12"/>
+    <text class="band-label" x="64" y="971">Layer 5</text>
+    <text class="band-note" x="64" y="993">State + replay</text>
+
+    <rect class="band-platform" x="40" y="1095" width="1520" height="105" rx="12"/>
+    <text class="band-label" x="64" y="1131">Layer 6</text>
+    <text class="band-note" x="64" y="1153">Platform + ops</text>
+  </g>
+
+  <g id="nodes" filter="url(#shadow)">
+    <g id="provider-clouds">
+      <rect class="node-inputs" x="270" y="126" width="260" height="64" rx="8"/>
+      <text class="node-title" x="292" y="152">Provider clouds</text>
+      <text class="node-copy" x="292" y="173">EcoFlow / Pecron / Anker</text>
+    </g>
+    <g id="open-meteo">
+      <rect class="node-inputs" x="650" y="126" width="260" height="64" rx="8"/>
+      <text class="node-title" x="672" y="152">Open-Meteo</text>
+      <text class="node-copy" x="672" y="173">weather + irradiance</text>
+    </g>
+    <g id="social-identity">
+      <rect class="node-inputs" x="1030" y="126" width="260" height="64" rx="8"/>
+      <text class="node-title" x="1052" y="152">Google / Facebook</text>
+      <text class="node-copy" x="1052" y="173">social identity providers</text>
+    </g>
+
+    <g id="client">
+      <rect class="node-experience" x="270" y="273" width="320" height="64" rx="8"/>
+      <text class="node-title" x="292" y="299">Expo universal app</text>
+      <text class="node-copy" x="292" y="320">web / iOS / Android dashboard</text>
+    </g>
+    <g id="keycloak">
+      <rect class="node-experience" x="1030" y="273" width="300" height="64" rx="8"/>
+      <text class="node-title" x="1052" y="299">Keycloak OIDC</text>
+      <text class="node-copy" x="1052" y="320">Authorization Code + PKCE</text>
+    </g>
+
+    <g id="ingress">
+      <rect class="node-edge" x="270" y="423" width="250" height="64" rx="8"/>
+      <text class="node-title" x="292" y="449">Ingress + TLS</text>
+      <text class="node-copy" x="292" y="470">HTTP/2, optional HTTP/3</text>
+    </g>
+    <g id="bff">
+      <rect class="node-edge" x="650" y="423" width="280" height="64" rx="8"/>
+      <text class="node-title" x="672" y="449">Node REST BFF</text>
+      <text class="node-copy" x="672" y="470">product API surface</text>
+    </g>
+    <g id="gateway">
+      <rect class="node-edge" x="1030" y="423" width="330" height="64" rx="8"/>
+      <text class="node-title" x="1052" y="449">WebSocket gateway</text>
+      <text class="node-copy" x="1052" y="470">snapshots, deltas, redacted logs</text>
+    </g>
+
+    <g id="grpc-runtime">
+      <rect class="node-services" x="270" y="585" width="260" height="64" rx="8"/>
+      <text class="node-title" x="292" y="611">gRPC API runtime</text>
+      <text class="node-copy" x="292" y="632">middleware, JWT, authz</text>
+    </g>
+    <g id="telemetry-energy">
+      <rect class="node-services" x="585" y="585" width="250" height="64" rx="8"/>
+      <text class="node-title" x="607" y="611">Telemetry + Energy</text>
+      <text class="node-copy" x="607" y="632">live state and history</text>
+    </g>
+    <g id="control-plane">
+      <rect class="node-services" x="900" y="585" width="240" height="64" rx="8"/>
+      <text class="node-title" x="922" y="611">Control plane</text>
+      <text class="node-copy" x="922" y="632">profiles, devices, authz</text>
+    </g>
+    <g id="forecast-services">
+      <rect class="node-services" x="1195" y="585" width="310" height="64" rx="8"/>
+      <text class="node-title" x="1217" y="611">Weather + Solar + Inference</text>
+      <text class="node-copy" x="1217" y="632">forecasts and insight domains</text>
+    </g>
+
+    <g id="ingest-workers">
+      <rect class="node-workers" x="270" y="758" width="250" height="64" rx="8"/>
+      <text class="node-title" x="292" y="784">Ingest workers</text>
+      <text class="node-copy" x="292" y="805">provider MQTT/API sessions</text>
+    </g>
+    <g id="nats">
+      <rect class="node-workers" x="570" y="758" width="250" height="64" rx="8"/>
+      <text class="node-title" x="592" y="784">NATS JetStream</text>
+      <text class="node-copy" x="592" y="805">sharded telemetry + replay</text>
+    </g>
+    <g id="projections">
+      <rect class="node-workers" x="870" y="758" width="250" height="64" rx="8"/>
+      <text class="node-title" x="892" y="784">Projection workers</text>
+      <text class="node-copy" x="892" y="805">live read models</text>
+    </g>
+    <g id="archive-workers">
+      <rect class="node-workers" x="1170" y="758" width="250" height="64" rx="8"/>
+      <text class="node-title" x="1192" y="784">Archive workers</text>
+      <text class="node-copy" x="1192" y="805">protobuf + zstd objects</text>
+    </g>
+    <g id="rollups">
+      <rect class="node-workers" x="570" y="834" width="250" height="64" rx="8"/>
+      <text class="node-title" x="592" y="860">Rollup workers</text>
+      <text class="node-copy" x="592" y="881">minute / hourly / daily</text>
+    </g>
+    <g id="repair">
+      <rect class="node-workers" x="870" y="834" width="250" height="64" rx="8"/>
+      <text class="node-title" x="892" y="860">Replay + gap repair</text>
+      <text class="node-copy" x="892" y="881">bounded rebuild jobs</text>
+    </g>
+    <g id="scheduler">
+      <rect class="node-workers" x="1170" y="834" width="250" height="64" rx="8"/>
+      <text class="node-title" x="1192" y="860">Scheduler + verifiers</text>
+      <text class="node-copy" x="1192" y="881">weather, solar, pruning</text>
+    </g>
+
+    <g id="valkey">
+      <rect class="node-storage" x="270" y="970" width="260" height="64" rx="8"/>
+      <text class="node-title" x="292" y="996">Valkey + Sentinel</text>
+      <text class="node-copy" x="292" y="1017">leases, snapshots, cache</text>
+    </g>
+    <g id="postgres">
+      <rect class="node-storage" x="600" y="970" width="260" height="64" rx="8"/>
+      <text class="node-title" x="622" y="996">Postgres / CNPG</text>
+      <text class="node-copy" x="622" y="1017">users, devices, manifests</text>
+    </g>
+    <g id="timescale">
+      <rect class="node-storage" x="930" y="970" width="260" height="64" rx="8"/>
+      <text class="node-title" x="952" y="996">TimescaleDB</text>
+      <text class="node-copy" x="952" y="1017">history and comparisons</text>
+    </g>
+    <g id="object-archive">
+      <rect class="node-storage" x="1260" y="970" width="250" height="64" rx="8"/>
+      <text class="node-title" x="1282" y="996">Object archive</text>
+      <text class="node-copy" x="1282" y="1017">MinIO local / GCS cloud</text>
+    </g>
+
+    <g id="kubernetes">
+      <rect class="node-platform" x="270" y="1116" width="280" height="56" rx="8"/>
+      <text class="node-title" x="292" y="1140">Kubernetes runtime</text>
+      <text class="node-copy" x="292" y="1160">k3d local / GKE cloud</text>
+    </g>
+    <g id="delivery">
+      <rect class="node-platform" x="650" y="1116" width="280" height="56" rx="8"/>
+      <text class="node-title" x="672" y="1140">Helm + Argo CD</text>
+      <text class="node-copy" x="672" y="1160">rollout control</text>
+    </g>
+    <g id="observability">
+      <rect class="node-platform" x="1030" y="1116" width="330" height="56" rx="8"/>
+      <text class="node-title" x="1052" y="1140">OpenTelemetry + Grafana</text>
+      <text class="node-copy" x="1052" y="1160">Prometheus, Loki, Tempo lite</text>
+    </g>
+  </g>
+
+  <g id="edges">
+    <path class="edge" d="M1160 190 C1160 222 1180 238 1180 273"/>
+    <path class="edge" d="M590 305 C720 305 900 305 1030 305"/>
+    <path class="edge" d="M430 337 C430 372 395 388 395 423"/>
+    <path class="edge" d="M1180 337 C1128 382 980 400 818 423"/>
+    <path class="edge" d="M1180 337 C1190 366 1195 394 1195 423"/>
+
+    <path class="edge" d="M520 455 C558 455 612 455 650 455"/>
+    <path class="edge" d="M520 470 C682 522 870 419 1030 455"/>
+    <path class="edge" d="M790 487 C738 542 552 560 400 585"/>
+    <path class="edge" d="M530 617 C552 617 564 617 585 617"/>
+    <path class="edge" d="M530 632 C655 670 780 652 900 617"/>
+    <path class="edge" d="M530 602 C760 540 975 552 1195 617"/>
+
+    <path class="edge" d="M400 190 C220 280 220 650 395 758"/>
+    <path class="edge" d="M780 190 C950 310 1230 426 1350 585"/>
+    <path class="edge" d="M520 790 C536 790 552 790 570 790"/>
+    <path class="edge" d="M820 790 C835 790 852 790 870 790"/>
+    <path class="edge" d="M820 806 C910 846 1066 768 1170 790"/>
+    <path class="edge" d="M695 822 L695 834"/>
+    <path class="edge" d="M820 790 C850 836 850 866 870 866"/>
+    <path class="edge" d="M1120 790 C1138 790 1154 790 1170 790"/>
+
+    <path class="edge" d="M395 822 C395 880 400 914 400 970"/>
+    <path class="edge" d="M995 822 C960 900 526 910 430 970"/>
+    <path class="edge" d="M710 649 C640 762 500 880 410 970"/>
+    <path class="edge" d="M710 649 C810 770 960 870 1060 970"/>
+    <path class="edge" d="M1020 649 C940 780 810 880 730 970"/>
+    <path class="edge" d="M1350 649 C1210 748 1100 865 1060 970"/>
+    <path class="edge" d="M1350 649 C1190 730 900 846 730 970"/>
+    <path class="edge" d="M1295 822 C1325 880 1360 920 1385 970"/>
+    <path class="edge" d="M695 898 C812 924 952 940 1060 970"/>
+    <path class="edge" d="M995 898 C1075 936 1220 944 1385 970"/>
+    <path class="edge" d="M1295 898 C1110 916 858 934 730 970"/>
+
+    <path class="edge-soft" d="M1195 487 C1040 676 612 790 415 970"/>
+    <path class="edge-soft" d="M1195 487 C1080 594 866 700 705 758"/>
+    <path class="edge-soft" d="M790 1144 C730 1144 610 1144 550 1144"/>
+    <path class="edge-soft" d="M790 487 C958 732 1130 940 1195 1116"/>
+    <path class="edge-soft" d="M1195 487 C1246 716 1228 934 1195 1116"/>
+    <path class="edge-soft" d="M400 649 C630 860 980 1000 1195 1116"/>
+    <path class="edge-soft" d="M695 822 C792 938 1030 1050 1195 1116"/>
+  </g>
+
+  <use href="#nodes"/>
+
+  <g id="edge-labels">
+    <rect class="label-bg" x="678" y="280" width="86" height="24"/>
+    <text class="edge-label" x="690" y="297">PKCE</text>
+
+    <rect class="label-bg" x="444" y="366" width="96" height="24"/>
+    <text class="edge-label" x="456" y="383">REST + WS</text>
+
+    <rect class="label-bg" x="826" y="390" width="54" height="24"/>
+    <text class="edge-label" x="838" y="407">JWT</text>
+
+    <rect class="label-bg" x="588" y="522" width="112" height="24"/>
+    <text class="edge-label" x="600" y="539">gRPC + JWT</text>
+
+    <rect class="label-bg" x="410" y="690" width="142" height="24"/>
+    <text class="edge-label" x="422" y="707">provider telemetry</text>
+
+    <rect class="label-bg" x="526" y="735" width="76" height="24"/>
+    <text class="edge-label" x="538" y="752">envelope</text>
+
+    <rect class="label-bg" x="455" y="916" width="86" height="24"/>
+    <text class="edge-label" x="467" y="933">snapshot</text>
+
+    <rect class="label-bg" x="862" y="923" width="72" height="24"/>
+    <text class="edge-label" x="874" y="940">rollups</text>
+
+    <rect class="label-bg" x="1302" y="918" width="70" height="24"/>
+    <text class="edge-label" x="1314" y="935">archive</text>
+
+    <rect class="label-bg" x="1090" y="1067" width="78" height="24"/>
+    <text class="edge-label" x="1102" y="1084">telemetry</text>
+  </g>
+</svg>
