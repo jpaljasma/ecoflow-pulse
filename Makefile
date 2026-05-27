@@ -17,6 +17,7 @@ CLOUD_ARTIFACT_REGISTRY_HOST ?= us-east1-docker.pkg.dev
 DOCKER_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-noauth
 DOCKER_BUILDX_CONFIG_LOCAL ?= $(CURDIR)/.tmp/docker-buildx
 GCLOUD ?= gcloud
+CODESIGN ?= codesign
 LOCAL_PLATFORM_AUTO_TRUST_TLS ?= 1
 K3D_CLUSTER_NAME ?= pulse-local
 K3D_CONTEXT ?= k3d-$(K3D_CLUSTER_NAME)
@@ -178,6 +179,10 @@ GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 GOFLAGS ?= -tags=moderncompress -mod=mod
 LDFLAGS ?=
+ECOFLOW_BLE_DISCOVER_BIN ?= bin/ecoflow-ble-discover
+ECOFLOW_BLE_DISCOVER_ARGS ?= -duration=20s
+ECOFLOW_BLE_DISCOVER_PLIST ?= cmd/ecoflow-ble-discover/Info.plist
+ECOFLOW_BLE_DISCOVER_RUN ?= 1
 RACE_CRITICAL_PKGS ?= ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./cmd/ecoflow-grpc-api
 RACE_STRESS_COUNT ?= 5
 LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
@@ -229,7 +234,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke pecron-smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up public-deployments-restart-local k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-deploy-cloud-db local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-deploy-cloud-db dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ecoflow-ble-discover pecron-smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up public-deployments-restart-local k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-deploy-cloud-db local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-deploy-cloud-db dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -659,6 +664,22 @@ public-images-local-up:
 smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
 	$(GO) run ./cmd/ecoflow-smoke
+
+ecoflow-ble-discover:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin
+	@set -euo pipefail; \
+		if [ "$$(uname -s)" = "Darwin" ]; then \
+			echo "building $(ECOFLOW_BLE_DISCOVER_BIN) with macOS Bluetooth usage metadata"; \
+			$(GO) build -ldflags "-linkmode=external -extldflags=-Wl,-sectcreate,__TEXT,__info_plist,$(ECOFLOW_BLE_DISCOVER_PLIST)" -o "$(ECOFLOW_BLE_DISCOVER_BIN)" ./cmd/ecoflow-ble-discover; \
+			$(CODESIGN) --force --sign - --identifier com.ecoflow-pulse.ecoflow-ble-discover "$(ECOFLOW_BLE_DISCOVER_BIN)" >/dev/null; \
+		else \
+			echo "building $(ECOFLOW_BLE_DISCOVER_BIN)"; \
+			$(GO) build -o "$(ECOFLOW_BLE_DISCOVER_BIN)" ./cmd/ecoflow-ble-discover; \
+		fi; \
+		if [ "$(ECOFLOW_BLE_DISCOVER_RUN)" = "0" ]; then \
+			exit 0; \
+		fi; \
+		"$(ECOFLOW_BLE_DISCOVER_BIN)" $(ECOFLOW_BLE_DISCOVER_ARGS)
 
 pecron-smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"

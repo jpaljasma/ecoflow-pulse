@@ -8,6 +8,7 @@ make test-race
 make test-race-stress
 go run ./cmd/ecoflow-smoke
 go run ./cmd/ecoflow-smoke -mqtt=false
+make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-duration=20s'
 make pecron-smoke
 go run ./cmd/ecoflow-server
 go run ./cmd/ecoflow-pv-fingerprint
@@ -46,6 +47,20 @@ Notes for `cmd/ecoflow-smoke`:
   it with `Ctrl-C`.
 - Use `go run ./cmd/ecoflow-smoke -mqtt=false` for the old API-only quick
   connectivity check.
+
+Notes for `cmd/ecoflow-ble-discover`:
+
+- Scans nearby Bluetooth Low Energy advertisements and prints likely EcoFlow
+  devices without connecting to them.
+- On macOS, use the make target so the binary is built with the required
+  Bluetooth usage metadata.
+- Output redacts BLE addresses and local names by default. Use
+  `-redact=false` only for local troubleshooting.
+- Use `-all` to include non-EcoFlow BLE advertisements and `-format=json` for
+  JSON Lines output.
+- See
+  [`docs/how-to/discover-ecoflow-ble-devices.md`](../how-to/discover-ecoflow-ble-devices.md)
+  for Bluetooth permission notes and examples.
 
 Notes for `cmd/pecron-smoke`:
 
