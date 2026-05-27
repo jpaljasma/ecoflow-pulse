@@ -37,7 +37,7 @@ type discoveryConfig struct {
 
 type ecoFlowDeviceInfo struct {
 	Matched      bool   `json:"matched"`
-	SerialPrefix string `json:"serial_prefix,omitempty"`
+	Prefix       string `json:"prefix,omitempty"`
 	Model        string `json:"model,omitempty"`
 	PacketFamily string `json:"packet_family,omitempty"`
 }
@@ -74,7 +74,9 @@ var ecoflowBLEPrefixHints = []blePrefixHint{
 	{Prefix: "D3U1", Model: "EcoFlow DELTA 3 Ultra", PacketFamily: "v3"},
 	{Prefix: "PR11", Model: "EcoFlow DELTA 3 1000 Air", PacketFamily: "v3"},
 	{Prefix: "PR12", Model: "EcoFlow DELTA 3 1000 Air (10ms UPS)", PacketFamily: "v3"},
+	{Prefix: "PR1W", Model: "EcoFlow DELTA 3 1000 Air", PacketFamily: "v3"},
 	{Prefix: "PR21", Model: "EcoFlow DELTA 3 2000 Air", PacketFamily: "v3"},
+	{Prefix: "PR", Model: "EcoFlow DELTA 3 Air", PacketFamily: "v3"},
 	{Prefix: "P231", Model: "EcoFlow DELTA 3", PacketFamily: "v3"},
 	{Prefix: "D361", Model: "EcoFlow DELTA 3 (1500)", PacketFamily: "v3"},
 	{Prefix: "P351", Model: "EcoFlow DELTA 3 Plus", PacketFamily: "v3"},
@@ -84,10 +86,14 @@ var ecoflowBLEPrefixHints = []blePrefixHint{
 	{Prefix: "R631", Model: "EcoFlow RIVER 3 Plus", PacketFamily: "v3"},
 	{Prefix: "R634", Model: "EcoFlow RIVER 3 Plus (270Wh)", PacketFamily: "v3"},
 	{Prefix: "R635", Model: "EcoFlow RIVER 3 Plus (Wireless)", PacketFamily: "v3"},
+	{Prefix: "R3PG", Model: "EcoFlow RIVER 3 Plus (270Wh)", PacketFamily: "v3"},
+	{Prefix: "R3P", Model: "EcoFlow RIVER 3 Plus", PacketFamily: "v3"},
 	{Prefix: "R651", Model: "EcoFlow RIVER 3 (245Wh)", PacketFamily: "v3"},
 	{Prefix: "R653", Model: "EcoFlow RIVER 3 (230Wh)", PacketFamily: "v3"},
 	{Prefix: "R654", Model: "EcoFlow RIVER 3 UPS (230Wh)", PacketFamily: "v3"},
 	{Prefix: "R655", Model: "EcoFlow RIVER 3 UPS (245Wh)", PacketFamily: "v3"},
+	{Prefix: "R3", Model: "EcoFlow RIVER 3", PacketFamily: "v3"},
+	{Prefix: "YJ", Model: "EcoFlow DELTA Pro Ultra", PacketFamily: "v3"},
 	{Prefix: "R331", Model: "EcoFlow DELTA 2", PacketFamily: "v2"},
 	{Prefix: "R335", Model: "EcoFlow DELTA 2", PacketFamily: "v2"},
 	{Prefix: "R351", Model: "EcoFlow DELTA 2 Max", PacketFamily: "v2"},
@@ -331,7 +337,7 @@ func inferEcoFlowDevice(localName string) ecoFlowDeviceInfo {
 		if strings.HasPrefix(normalized, hint.Prefix) {
 			return ecoFlowDeviceInfo{
 				Matched:      true,
-				SerialPrefix: hint.Prefix,
+				Prefix:       hint.Prefix,
 				Model:        hint.Model,
 				PacketFamily: hint.PacketFamily,
 			}
@@ -339,9 +345,9 @@ func inferEcoFlowDevice(localName string) ecoFlowDeviceInfo {
 	}
 	if strings.HasPrefix(strings.ToUpper(name), "EF-") || strings.Contains(strings.ToUpper(name), "ECOFLOW") {
 		return ecoFlowDeviceInfo{
-			Matched:      true,
-			SerialPrefix: bestEffortSerialPrefix(normalized),
-			Model:        "EcoFlow device",
+			Matched: true,
+			Prefix:  bestEffortPrefix(normalized),
+			Model:   "EcoFlow device",
 		}
 	}
 	return ecoFlowDeviceInfo{}
@@ -358,7 +364,7 @@ func sortedEcoFlowPrefixHints() []blePrefixHint {
 	return hints
 }
 
-func bestEffortSerialPrefix(value string) string {
+func bestEffortPrefix(value string) string {
 	value = strings.TrimSpace(value)
 	if len(value) <= 4 {
 		return value
@@ -398,8 +404,8 @@ func formatDiscoveryText(device discoveredBLEDevice, redact bool) string {
 	if display.Info.Model != "" {
 		parts = append(parts, fmt.Sprintf("model=%q", display.Info.Model))
 	}
-	if display.Info.SerialPrefix != "" {
-		parts = append(parts, "serial_prefix="+display.Info.SerialPrefix)
+	if display.Info.Prefix != "" {
+		parts = append(parts, "prefix="+display.Info.Prefix)
 	}
 	if display.Info.PacketFamily != "" {
 		parts = append(parts, "packets="+display.Info.PacketFamily)

@@ -15,14 +15,64 @@ func TestInferEcoFlowModelFromDelta3AirBLEName(t *testing.T) {
 	if !got.Matched {
 		t.Fatal("expected EcoFlow BLE name to match")
 	}
-	if got.SerialPrefix != "PR12" {
-		t.Fatalf("serial prefix = %q, want PR12", got.SerialPrefix)
+	if got.Prefix != "PR12" {
+		t.Fatalf("prefix = %q, want PR12", got.Prefix)
 	}
 	if got.Model != "EcoFlow DELTA 3 1000 Air (10ms UPS)" {
 		t.Fatalf("model = %q", got.Model)
 	}
 	if got.PacketFamily != "v3" {
 		t.Fatalf("packet family = %q, want v3", got.PacketFamily)
+	}
+}
+
+func TestInferEcoFlowModelFromObservedBLEPrefixes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		localName  string
+		wantPrefix string
+		wantModel  string
+	}{
+		{
+			name:       "delta pro ultra",
+			localName:  "EF-YJ0294",
+			wantPrefix: "YJ",
+			wantModel:  "EcoFlow DELTA Pro Ultra",
+		},
+		{
+			name:       "delta 3 air",
+			localName:  "EF-PR1W0498",
+			wantPrefix: "PR1W",
+			wantModel:  "EcoFlow DELTA 3 1000 Air",
+		},
+		{
+			name:       "river 3 plus",
+			localName:  "EF-R3PG1008",
+			wantPrefix: "R3PG",
+			wantModel:  "EcoFlow RIVER 3 Plus (270Wh)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := inferEcoFlowDevice(tt.localName)
+			if !got.Matched {
+				t.Fatalf("expected %q to match EcoFlow prefix", tt.localName)
+			}
+			if got.Prefix != tt.wantPrefix {
+				t.Fatalf("prefix = %q, want %q", got.Prefix, tt.wantPrefix)
+			}
+			if got.Model != tt.wantModel {
+				t.Fatalf("model = %q, want %q", got.Model, tt.wantModel)
+			}
+			if got.PacketFamily != "v3" {
+				t.Fatalf("packet family = %q, want v3", got.PacketFamily)
+			}
+		})
 	}
 }
 
@@ -54,7 +104,7 @@ func TestFormatDiscoveryTextRedactsIdentifiers(t *testing.T) {
 		LocalName: "EF-PR12ZA1CDHAW0498",
 		Info: ecoFlowDeviceInfo{
 			Matched:      true,
-			SerialPrefix: "PR12",
+			Prefix:       "PR12",
 			Model:        "EcoFlow DELTA 3 1000 Air (10ms UPS)",
 			PacketFamily: "v3",
 		},

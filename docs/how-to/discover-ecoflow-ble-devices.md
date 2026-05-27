@@ -17,7 +17,7 @@ make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-duration=20s'
 Example output:
 
 ```text
-device address=A1B2...4455 name="EF-PR...0498" rssi=-54 model="EcoFlow DELTA 3 1000 Air (10ms UPS)" serial_prefix=PR12 packets=v3
+device address=A1B2...4455 name="EF-PR...0498" rssi=-54 model="EcoFlow DELTA 3 1000 Air (10ms UPS)" prefix=PR12 packets=v3
 summary seen=1 ecoflow=1 elapsed=20s
 ```
 
