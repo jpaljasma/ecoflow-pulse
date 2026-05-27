@@ -4,22 +4,48 @@ Use `cmd/ecoflow-ble-discover` to scan nearby Bluetooth Low Energy
 advertisements and identify EcoFlow-looking devices before building a local BLE
 telemetry collector.
 
-The command does not connect to the device and does not read telemetry. It only
-listens for advertisements, infers known EcoFlow model prefixes when possible,
-and prints redacted identifiers by default.
+By default, the command scans for five seconds, shows a numbered list of
+candidate devices, lets you select one device, and then probes its BLE GATT
+services/characteristics. It prints redacted identifiers by default. The probe
+discovers capabilities and safe initial metrics such as RSSI, advertised service
+count, manufacturer data block count, and standard GATT Battery Service or
+Device Information values when the device exposes them. It does not yet decode
+EcoFlow proprietary telemetry frames.
 
-## Run A Redacted Scan
+## Run Discovery And Probe
 
 ```bash
-make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-duration=20s'
+make ecoflow-ble-discover
 ```
 
 Example output:
 
 ```text
-device address=A1B2...4455 name="EF-PR...0498" rssi=-54 model="EcoFlow DELTA 3 1000 Air (10ms UPS)" prefix=PR12 packets=v3
-summary seen=1 ecoflow=1 elapsed=20s
+summary seen=1 ecoflow=1 elapsed=5s
+discovered devices:
+1) address=A1B2...4455 name="EF-PR...0000" rssi=-54 model="EcoFlow DELTA 3 1000 Air" prefix=PR1W packets=v3 services=1 manufacturer=1
+select device [1-1, empty to skip]:
+probing address=A1B2...4455 name="EF-PR...0000" model="EcoFlow DELTA 3 1000 Air"
+capabilities services=3 characteristics=8 mtus=185
+service uuid=0000180a-0000-1000-8000-00805f9b34fb characteristics=3
+metric rssi_dbm=-54 unit="dBm" source=advertisement
+metric advertised_services=1 source=advertisement
+metric manufacturer_data_blocks=1 source=advertisement
+metric prefix=PR1W source=advertisement
 ```
+
+Press Enter at the selection prompt to skip the probe. Use `-select=1` to select
+the first listed device without an interactive prompt; the selector also accepts
+`first`, a raw BLE address, a local name, or an unambiguous model prefix.
+
+## Run A Scan Without Connecting
+
+```bash
+make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-scan-only -duration=20s'
+```
+
+Scan-only mode prints matching advertisements as they arrive and does not open a
+BLE connection.
 
 ## Reveal Raw Local Identifiers
 
@@ -28,7 +54,7 @@ fragments should not be pasted into PRs, issues, or logs that leave your
 machine.
 
 ```bash
-make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-duration=20s -redact=false'
+make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-redact=false'
 ```
 
 ## Include Nearby Non-EcoFlow Devices
@@ -47,16 +73,22 @@ make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-duration=20s -format=json'
 ```
 
 Each discovered device is emitted as a JSON object with `"type":"device"`,
-followed by a `"type":"summary"` object.
+followed by a `"type":"summary"` object. JSON mode does not prompt
+interactively; add `-select=1` or another selector to emit a `"type":"probe"`
+object after the summary.
 
 ## Useful Flags
 
-- `-duration=15s`: scan duration. Use `0` to scan until interrupted.
+- `-duration=5s`: scan duration. Use `0` to scan until interrupted.
 - `-redact=true`: redact BLE addresses and EcoFlow local names.
 - `-all=false`: include only likely EcoFlow devices.
 - `-min-rssi=-100`: filter weak advertisements. Use `0` to disable filtering.
 - `-format=text`: output `text` or `json`.
 - `-name-prefix=EF-`: extra local-name prefix treated as an EcoFlow candidate.
+- `-scan-only=false`: print advertisements without prompting or connecting.
+- `-select=`: select by menu number, `first`, BLE address, local name, or
+  unambiguous prefix without prompting.
+- `-probe-timeout=10s`: maximum time to spend probing the selected device.
 
 ## Bluetooth Notes
 
@@ -72,6 +104,6 @@ followed by a `"type":"summary"` object.
   terminal session that can be granted Bluetooth permission in System Settings.
 - On Linux, the scanner uses the host BlueZ stack through the Go Bluetooth
   adapter library. The user may need permissions for BLE scanning.
-- EcoFlow devices generally allow only one BLE connection at a time. This
-  discovery command only scans advertisements, but later telemetry collectors
-  that connect to the device can conflict with the EcoFlow mobile app.
+- EcoFlow devices generally allow only one BLE connection at a time. The default
+  probe connects to the selected device and can conflict with the EcoFlow mobile
+  app while it is running. Use `-scan-only` when you only need advertisements.

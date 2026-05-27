@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -11,10 +12,12 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"tinygo.org/x/bluetooth"
 )
@@ -27,12 +30,15 @@ const (
 )
 
 type discoveryConfig struct {
-	Duration   time.Duration
-	Format     outputFormat
-	IncludeAll bool
-	Redact     bool
-	MinRSSI    int
-	NamePrefix string
+	Duration     time.Duration
+	Format       outputFormat
+	IncludeAll   bool
+	Redact       bool
+	MinRSSI      int
+	NamePrefix   string
+	ScanOnly     bool
+	Selection    string
+	ProbeTimeout time.Duration
 }
 
 type ecoFlowDeviceInfo struct {
@@ -51,11 +57,51 @@ type discoveredBLEDevice struct {
 	Info             ecoFlowDeviceInfo `json:"ecoflow"`
 }
 
+type deviceProbe struct {
+	Capabilities probeCapabilities `json:"capabilities"`
+	Metrics      []probeMetric     `json:"metrics,omitempty"`
+	Readings     []probeReading    `json:"readings,omitempty"`
+}
+
+type probeCapabilities struct {
+	ServiceCount        int            `json:"service_count"`
+	CharacteristicCount int            `json:"characteristic_count"`
+	MTUs                []uint16       `json:"mtus,omitempty"`
+	Services            []probeService `json:"services,omitempty"`
+}
+
+type probeService struct {
+	UUID            string   `json:"uuid"`
+	Characteristics []string `json:"characteristics,omitempty"`
+}
+
+type probeMetric struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Unit   string `json:"unit,omitempty"`
+	Source string `json:"source"`
+}
+
+type probeReading struct {
+	ServiceUUID        string `json:"service_uuid"`
+	CharacteristicUUID string `json:"characteristic_uuid"`
+	Label              string `json:"label"`
+	Bytes              int    `json:"bytes"`
+	ValueHex           string `json:"value_hex,omitempty"`
+	Text               string `json:"text,omitempty"`
+}
+
 type discoveryScanner interface {
 	Scan(stop <-chan struct{}, emit func(discoveredBLEDevice)) error
 }
 
+type deviceProber interface {
+	Probe(ctx context.Context, device discoveredBLEDevice) (deviceProbe, error)
+}
+
 type bluetoothScanner struct{}
+
+type bluetoothProber struct{}
 
 type blePrefixHint struct {
 	Prefix       string
@@ -105,7 +151,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := runDiscovery(ctx, os.Args[1:], os.Stdout, os.Stderr, bluetoothScanner{}); err != nil {
+	if err := runDiscovery(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr, bluetoothScanner{}, bluetoothProber{}); err != nil {
 		fmt.Fprintf(os.Stderr, "ecoflow-ble-discover: %v\n", err)
 		os.Exit(1)
 	}
@@ -114,9 +160,11 @@ func main() {
 func runDiscovery(
 	parent context.Context,
 	args []string,
+	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
 	scanner discoveryScanner,
+	prober deviceProber,
 ) error {
 	cfg, err := parseDiscoveryConfig(args, stderr)
 	if err != nil {
@@ -147,6 +195,7 @@ func runDiscovery(
 
 	startedAt := time.Now()
 	seen := make(map[string]discoveredBLEDevice)
+	var order []string
 	var writeErrMu sync.Mutex
 	var writeErr error
 	recordWriteErr := func(err error) {
@@ -181,6 +230,10 @@ func runDiscovery(
 			return
 		}
 		seen[key] = device
+		order = append(order, key)
+		if !shouldPrintDiscoveryDevice(cfg) {
+			return
+		}
 		if cfg.Format == outputFormatJSON {
 			if _, err := fmt.Fprintln(stdout, formatDiscoveryJSON(device, cfg.Redact)); err != nil {
 				recordWriteErr(fmt.Errorf("write discovery device: %w", err))
@@ -200,26 +253,69 @@ func runDiscovery(
 	}
 
 	summary := discoverySummary(seen)
+	devices := orderedDiscoveredDevices(seen, order)
 	elapsed := time.Since(startedAt).Round(time.Millisecond)
 	if cfg.Format == outputFormatJSON {
 		if _, err := fmt.Fprintf(stdout, `{"type":"summary","seen":%d,"ecoflow":%d,"elapsed":%q}`+"\n", summary.Seen, summary.EcoFlow, elapsed.String()); err != nil {
 			return fmt.Errorf("write discovery summary: %w", err)
+		}
+		if !cfg.ScanOnly && cfg.Selection != "" {
+			selected, ok, err := selectDiscoveredDevice(devices, cfg.Selection)
+			if err != nil {
+				return err
+			}
+			if ok {
+				probe, err := probeSelectedDevice(parent, cfg, selected, prober)
+				if err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintln(stdout, formatProbeJSON(selected, probe, cfg.Redact)); err != nil {
+					return fmt.Errorf("write probe result: %w", err)
+				}
+			}
 		}
 		return nil
 	}
 	if _, err := fmt.Fprintf(stdout, "summary seen=%d ecoflow=%d elapsed=%s\n", summary.Seen, summary.EcoFlow, elapsed); err != nil {
 		return fmt.Errorf("write discovery summary: %w", err)
 	}
+	if cfg.ScanOnly {
+		return nil
+	}
+	if len(devices) == 0 {
+		return nil
+	}
+	if err := printDeviceSelection(stdout, devices, cfg.Redact); err != nil {
+		return err
+	}
+	selected, ok, err := promptForDeviceSelection(stdin, stdout, devices, cfg)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		if _, err := fmt.Fprintln(stdout, "probe skipped"); err != nil {
+			return fmt.Errorf("write probe skipped: %w", err)
+		}
+		return nil
+	}
+	probe, err := probeSelectedDevice(parent, cfg, selected, prober)
+	if err != nil {
+		return err
+	}
+	if err := printProbeText(stdout, selected, probe, cfg.Redact); err != nil {
+		return err
+	}
 	return nil
 }
 
 func parseDiscoveryConfig(args []string, stderr io.Writer) (discoveryConfig, error) {
 	cfg := discoveryConfig{
-		Duration:   15 * time.Second,
-		Format:     outputFormatText,
-		Redact:     true,
-		MinRSSI:    -100,
-		NamePrefix: "EF-",
+		Duration:     5 * time.Second,
+		Format:       outputFormatText,
+		Redact:       true,
+		MinRSSI:      -100,
+		NamePrefix:   "EF-",
+		ProbeTimeout: 10 * time.Second,
 	}
 	fs := flag.NewFlagSet("ecoflow-ble-discover", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -229,6 +325,9 @@ func parseDiscoveryConfig(args []string, stderr io.Writer) (discoveryConfig, err
 	fs.BoolVar(&cfg.Redact, "redact", cfg.Redact, "redact BLE addresses and local names in output")
 	fs.IntVar(&cfg.MinRSSI, "min-rssi", cfg.MinRSSI, "minimum RSSI to include; use 0 to disable RSSI filtering")
 	fs.StringVar(&cfg.NamePrefix, "name-prefix", cfg.NamePrefix, "extra local-name prefix treated as an EcoFlow candidate")
+	fs.BoolVar(&cfg.ScanOnly, "scan-only", cfg.ScanOnly, "scan and print advertisements without prompting for a BLE probe")
+	fs.StringVar(&cfg.Selection, "select", cfg.Selection, "select a discovered device by menu number, BLE address, local name, or prefix without prompting")
+	fs.DurationVar(&cfg.ProbeTimeout, "probe-timeout", cfg.ProbeTimeout, "maximum time to spend probing the selected device")
 	if err := fs.Parse(args); err != nil {
 		return discoveryConfig{}, err
 	}
@@ -239,12 +338,231 @@ func validateDiscoveryConfig(cfg discoveryConfig) error {
 	if cfg.Duration < 0 {
 		return errors.New("duration must be zero or positive")
 	}
+	if cfg.ProbeTimeout <= 0 {
+		return errors.New("probe-timeout must be positive")
+	}
 	switch cfg.Format {
 	case outputFormatText, outputFormatJSON:
 		return nil
 	default:
 		return fmt.Errorf("format must be %q or %q", outputFormatText, outputFormatJSON)
 	}
+}
+
+func shouldPrintDiscoveryDevice(cfg discoveryConfig) bool {
+	return cfg.ScanOnly || cfg.Format == outputFormatJSON
+}
+
+func orderedDiscoveredDevices(seen map[string]discoveredBLEDevice, order []string) []discoveredBLEDevice {
+	devices := make([]discoveredBLEDevice, 0, len(seen))
+	for _, key := range order {
+		device, ok := seen[key]
+		if !ok {
+			continue
+		}
+		devices = append(devices, device)
+	}
+	return devices
+}
+
+func printDeviceSelection(stdout io.Writer, devices []discoveredBLEDevice, redact bool) error {
+	if _, err := fmt.Fprintln(stdout, "discovered devices:"); err != nil {
+		return fmt.Errorf("write device selection header: %w", err)
+	}
+	for i, device := range devices {
+		line := strings.TrimPrefix(formatDiscoveryText(device, redact), "device ")
+		if _, err := fmt.Fprintf(stdout, "%d) %s\n", i+1, line); err != nil {
+			return fmt.Errorf("write device selection option: %w", err)
+		}
+	}
+	return nil
+}
+
+func promptForDeviceSelection(stdin io.Reader, stdout io.Writer, devices []discoveredBLEDevice, cfg discoveryConfig) (discoveredBLEDevice, bool, error) {
+	if cfg.Selection != "" {
+		return selectDiscoveredDevice(devices, cfg.Selection)
+	}
+	if stdin == nil {
+		return discoveredBLEDevice{}, false, nil
+	}
+	if _, err := fmt.Fprintf(stdout, "select device [1-%d, empty to skip]: ", len(devices)); err != nil {
+		return discoveredBLEDevice{}, false, fmt.Errorf("write device selection prompt: %w", err)
+	}
+	line, err := bufio.NewReader(stdin).ReadString('\n')
+	if _, writeErr := fmt.Fprintln(stdout); writeErr != nil {
+		return discoveredBLEDevice{}, false, fmt.Errorf("write device selection prompt newline: %w", writeErr)
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		return discoveredBLEDevice{}, false, fmt.Errorf("read device selection: %w", err)
+	}
+	return selectDiscoveredDevice(devices, line)
+}
+
+func selectDiscoveredDevice(devices []discoveredBLEDevice, selector string) (discoveredBLEDevice, bool, error) {
+	selector = strings.TrimSpace(selector)
+	if selector == "" {
+		return discoveredBLEDevice{}, false, nil
+	}
+	if strings.EqualFold(selector, "first") {
+		if len(devices) == 0 {
+			return discoveredBLEDevice{}, false, nil
+		}
+		return devices[0], true, nil
+	}
+	if index, err := strconv.Atoi(selector); err == nil {
+		if index < 1 || index > len(devices) {
+			return discoveredBLEDevice{}, false, fmt.Errorf("selection %q out of range 1-%d", selector, len(devices))
+		}
+		return devices[index-1], true, nil
+	}
+
+	var matches []discoveredBLEDevice
+	for _, device := range devices {
+		info := device.Info
+		if !info.Matched {
+			info = inferEcoFlowDevice(device.LocalName)
+		}
+		if strings.EqualFold(selector, device.Address) ||
+			strings.EqualFold(selector, device.LocalName) ||
+			(info.Prefix != "" && strings.EqualFold(selector, info.Prefix)) {
+			matches = append(matches, device)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return discoveredBLEDevice{}, false, fmt.Errorf("selection %q did not match a discovered device", selector)
+	case 1:
+		return matches[0], true, nil
+	default:
+		return discoveredBLEDevice{}, false, fmt.Errorf("selection %q matched %d devices; use the menu number or BLE address", selector, len(matches))
+	}
+}
+
+func probeSelectedDevice(parent context.Context, cfg discoveryConfig, device discoveredBLEDevice, prober deviceProber) (deviceProbe, error) {
+	if prober == nil {
+		return deviceProbe{}, errors.New("probe unavailable")
+	}
+	ctx, cancel := context.WithTimeout(parent, cfg.ProbeTimeout)
+	defer cancel()
+
+	probe, err := prober.Probe(ctx, device)
+	if err != nil {
+		return deviceProbe{}, fmt.Errorf("probe selected device: %w", err)
+	}
+	probe.Metrics = append(advertisementProbeMetrics(device), probe.Metrics...)
+	return probe, nil
+}
+
+func advertisementProbeMetrics(device discoveredBLEDevice) []probeMetric {
+	metrics := []probeMetric{
+		{Name: "rssi_dbm", Value: strconv.Itoa(int(device.RSSI)), Unit: "dBm", Source: "advertisement"},
+		{Name: "advertised_services", Value: strconv.Itoa(len(device.ServiceUUIDs)), Source: "advertisement"},
+		{Name: "manufacturer_data_blocks", Value: strconv.Itoa(len(device.ManufacturerData)), Source: "advertisement"},
+	}
+	if device.Info.Prefix != "" {
+		metrics = append(metrics, probeMetric{Name: "prefix", Value: device.Info.Prefix, Source: "advertisement"})
+	}
+	if device.Info.PacketFamily != "" {
+		metrics = append(metrics, probeMetric{Name: "packet_family", Value: device.Info.PacketFamily, Source: "inference"})
+	}
+	return metrics
+}
+
+func printProbeText(stdout io.Writer, device discoveredBLEDevice, probe deviceProbe, redact bool) error {
+	display := displayDevice(device, redact)
+	parts := []string{
+		"probing",
+		"address=" + display.Address,
+		fmt.Sprintf("name=%q", display.LocalName),
+	}
+	if display.Info.Model != "" {
+		parts = append(parts, fmt.Sprintf("model=%q", display.Info.Model))
+	}
+	if _, err := fmt.Fprintln(stdout, strings.Join(parts, " ")); err != nil {
+		return fmt.Errorf("write probe header: %w", err)
+	}
+
+	capabilityParts := []string{
+		"capabilities",
+		fmt.Sprintf("services=%d", probe.Capabilities.ServiceCount),
+		fmt.Sprintf("characteristics=%d", probe.Capabilities.CharacteristicCount),
+	}
+	if len(probe.Capabilities.MTUs) > 0 {
+		capabilityParts = append(capabilityParts, "mtus="+joinUint16s(probe.Capabilities.MTUs))
+	}
+	if _, err := fmt.Fprintln(stdout, strings.Join(capabilityParts, " ")); err != nil {
+		return fmt.Errorf("write probe capabilities: %w", err)
+	}
+	for _, service := range probe.Capabilities.Services {
+		if _, err := fmt.Fprintf(stdout, "service uuid=%s characteristics=%d\n", service.UUID, len(service.Characteristics)); err != nil {
+			return fmt.Errorf("write probe service: %w", err)
+		}
+	}
+	for _, metric := range probe.Metrics {
+		metricParts := []string{"metric", fmt.Sprintf("%s=%s", metric.Name, formatTokenValue(metric.Value))}
+		if metric.Unit != "" {
+			metricParts = append(metricParts, fmt.Sprintf("unit=%q", metric.Unit))
+		}
+		if metric.Source != "" {
+			metricParts = append(metricParts, "source="+formatTokenValue(metric.Source))
+		}
+		if _, err := fmt.Fprintln(stdout, strings.Join(metricParts, " ")); err != nil {
+			return fmt.Errorf("write probe metric: %w", err)
+		}
+	}
+	for _, reading := range probe.Readings {
+		readingParts := []string{
+			"reading",
+			"service=" + reading.ServiceUUID,
+			"characteristic=" + reading.CharacteristicUUID,
+			"label=" + reading.Label,
+			fmt.Sprintf("bytes=%d", reading.Bytes),
+		}
+		if reading.ValueHex != "" {
+			readingParts = append(readingParts, "value_hex="+reading.ValueHex)
+		}
+		if reading.Text != "" {
+			readingParts = append(readingParts, fmt.Sprintf("text=%q", reading.Text))
+		}
+		if _, err := fmt.Fprintln(stdout, strings.Join(readingParts, " ")); err != nil {
+			return fmt.Errorf("write probe reading: %w", err)
+		}
+	}
+	return nil
+}
+
+func joinUint16s(values []uint16) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, strconv.Itoa(int(value)))
+	}
+	return strings.Join(parts, ",")
+}
+
+func formatTokenValue(value string) string {
+	if value == "" {
+		return `""`
+	}
+	if strings.ContainsAny(value, " \t\n\"'") {
+		return strconv.Quote(value)
+	}
+	return value
+}
+
+func formatProbeJSON(device discoveredBLEDevice, probe deviceProbe, redact bool) string {
+	body, err := json.Marshal(struct {
+		Type   string              `json:"type"`
+		Device discoveredBLEDevice `json:"device"`
+		Probe  deviceProbe         `json:"probe"`
+	}{
+		Type:   "probe",
+		Device: displayDevice(device, redact),
+		Probe:  probe,
+	})
+	if err != nil {
+		return `{"type":"probe","error":"encode failed"}`
+	}
+	return string(body)
 }
 
 type outputFormatValue outputFormat
@@ -302,6 +620,101 @@ func (bluetoothScanner) Scan(stop <-chan struct{}, emit func(discoveredBLEDevice
 	}
 }
 
+func (bluetoothProber) Probe(ctx context.Context, device discoveredBLEDevice) (deviceProbe, error) {
+	if strings.TrimSpace(device.Address) == "" {
+		return deviceProbe{}, errors.New("selected device has no BLE address")
+	}
+
+	adapter := bluetooth.DefaultAdapter
+	if err := adapter.Enable(); err != nil {
+		return deviceProbe{}, fmt.Errorf("enable BLE adapter: %w", err)
+	}
+
+	var address bluetooth.Address
+	address.Set(device.Address)
+	connectionTimeout := 10 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(deadline); remaining > 0 {
+			connectionTimeout = remaining
+		}
+	}
+	remote, err := adapter.Connect(address, bluetooth.ConnectionParams{
+		ConnectionTimeout: bluetooth.NewDuration(connectionTimeout),
+	})
+	if err != nil {
+		return deviceProbe{}, fmt.Errorf("connect to %s: %w", device.Address, err)
+	}
+	defer func() {
+		_ = remote.Disconnect()
+	}()
+
+	select {
+	case <-ctx.Done():
+		return deviceProbe{}, ctx.Err()
+	default:
+	}
+
+	services, err := remote.DiscoverServices(nil)
+	if err != nil {
+		return deviceProbe{}, fmt.Errorf("discover services: %w", err)
+	}
+
+	probe := deviceProbe{
+		Capabilities: probeCapabilities{
+			ServiceCount: len(services),
+			Services:     make([]probeService, 0, len(services)),
+		},
+	}
+	mtus := make(map[uint16]struct{})
+	knownReads := knownReadableCharacteristics()
+
+	for _, service := range services {
+		select {
+		case <-ctx.Done():
+			return deviceProbe{}, ctx.Err()
+		default:
+		}
+
+		serviceUUID := service.UUID().String()
+		serviceProbe := probeService{UUID: serviceUUID}
+		characteristics, err := service.DiscoverCharacteristics(nil)
+		if err != nil {
+			return deviceProbe{}, fmt.Errorf("discover characteristics for service %s: %w", serviceUUID, err)
+		}
+		probe.Capabilities.CharacteristicCount += len(characteristics)
+		serviceProbe.Characteristics = make([]string, 0, len(characteristics))
+		for _, characteristic := range characteristics {
+			characteristicUUID := characteristic.UUID().String()
+			serviceProbe.Characteristics = append(serviceProbe.Characteristics, characteristicUUID)
+			if mtu, err := characteristic.GetMTU(); err == nil && mtu > 0 {
+				mtus[mtu] = struct{}{}
+			}
+			knownRead, ok := knownReads[strings.ToLower(characteristicUUID)]
+			if !ok {
+				continue
+			}
+			reading, metrics, ok := readKnownCharacteristic(serviceUUID, characteristicUUID, characteristic, knownRead)
+			if ok {
+				probe.Readings = append(probe.Readings, reading)
+				probe.Metrics = append(probe.Metrics, metrics...)
+			}
+		}
+		sort.Strings(serviceProbe.Characteristics)
+		probe.Capabilities.Services = append(probe.Capabilities.Services, serviceProbe)
+	}
+
+	sort.Slice(probe.Capabilities.Services, func(i, j int) bool {
+		return probe.Capabilities.Services[i].UUID < probe.Capabilities.Services[j].UUID
+	})
+	for mtu := range mtus {
+		probe.Capabilities.MTUs = append(probe.Capabilities.MTUs, mtu)
+	}
+	sort.Slice(probe.Capabilities.MTUs, func(i, j int) bool {
+		return probe.Capabilities.MTUs[i] < probe.Capabilities.MTUs[j]
+	})
+	return probe, nil
+}
+
 func discoveredFromScanResult(result bluetooth.ScanResult) discoveredBLEDevice {
 	device := discoveredBLEDevice{
 		Address: result.Address.String(),
@@ -323,6 +736,85 @@ func discoveredFromScanResult(result bluetooth.ScanResult) discoveredBLEDevice {
 		}
 	}
 	return device
+}
+
+type knownCharacteristicRead struct {
+	Label      string
+	MetricName string
+	Unit       string
+	Kind       string
+}
+
+func knownReadableCharacteristics() map[string]knownCharacteristicRead {
+	return map[string]knownCharacteristicRead{
+		strings.ToLower(bluetooth.CharacteristicUUIDBatteryLevel.String()): {
+			Label:      "battery_percent",
+			MetricName: "battery_percent",
+			Unit:       "%",
+			Kind:       "battery_percent",
+		},
+		strings.ToLower(bluetooth.CharacteristicUUIDModelNumberString.String()): {
+			Label: "model_number",
+			Kind:  "text",
+		},
+		strings.ToLower(bluetooth.CharacteristicUUIDFirmwareRevisionString.String()): {
+			Label: "firmware_revision",
+			Kind:  "text",
+		},
+		strings.ToLower(bluetooth.CharacteristicUUIDManufacturerNameString.String()): {
+			Label: "manufacturer_name",
+			Kind:  "text",
+		},
+	}
+}
+
+func readKnownCharacteristic(
+	serviceUUID string,
+	characteristicUUID string,
+	characteristic bluetooth.DeviceCharacteristic,
+	knownRead knownCharacteristicRead,
+) (probeReading, []probeMetric, bool) {
+	buf := make([]byte, 128)
+	n, err := characteristic.Read(buf)
+	if err != nil || n <= 0 {
+		return probeReading{}, nil, false
+	}
+	data := append([]byte(nil), buf[:n]...)
+	reading := probeReading{
+		ServiceUUID:        serviceUUID,
+		CharacteristicUUID: characteristicUUID,
+		Label:              knownRead.Label,
+		Bytes:              len(data),
+		ValueHex:           hex.EncodeToString(data),
+	}
+	var metrics []probeMetric
+	switch knownRead.Kind {
+	case "battery_percent":
+		value := strconv.Itoa(int(data[0]))
+		reading.Text = value + "%"
+		metrics = append(metrics, probeMetric{
+			Name:   knownRead.MetricName,
+			Value:  value,
+			Unit:   knownRead.Unit,
+			Source: "gatt",
+		})
+	case "text":
+		reading.Text = printableProbeText(data)
+	}
+	return reading, metrics, true
+}
+
+func printableProbeText(data []byte) string {
+	data = []byte(strings.TrimSpace(string(data)))
+	if len(data) == 0 || !utf8.Valid(data) {
+		return ""
+	}
+	for _, r := range string(data) {
+		if r < 32 || r == 127 {
+			return ""
+		}
+	}
+	return string(data)
 }
 
 func inferEcoFlowDevice(localName string) ecoFlowDeviceInfo {
