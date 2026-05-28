@@ -11,6 +11,7 @@ import { createBffCache } from './cache/bffCache.js';
 import type { AppConfig } from './config.js';
 import type { ControlPlaneClient } from './grpc/controlPlaneClient.js';
 import type { DeviceClient } from './grpc/deviceClient.js';
+import type { EdgeClient } from './grpc/edgeClient.js';
 import type { InferenceClient } from './grpc/inferenceClient.js';
 import type { SolarForecastClient } from './grpc/solarForecastClient.js';
 import type { TelemetryHistoryClient } from './grpc/telemetryClient.js';
@@ -33,6 +34,7 @@ import { registerClientMetricsRoutes } from './routes/clientMetrics.js';
 import { registerClientWsMetricsRoutes } from './routes/clientWsMetrics.js';
 import { registerHistoryRoutes } from './routes/history.js';
 import { registerIntegrationRoutes } from './routes/integrations.js';
+import { registerEdgeRoutes } from './routes/edge.js';
 import { registerCurrentUserRoutes } from './routes/me.js';
 import { registerSolarRoutes } from './routes/solar.js';
 import { registerWeatherRoutes } from './routes/weather.js';
@@ -40,6 +42,7 @@ import { registerWeatherRoutes } from './routes/weather.js';
 type BuildAppOptions = {
   authPreHandler?: preHandlerHookHandler;
   controlPlaneClient?: ControlPlaneClient;
+  edgeClient?: EdgeClient;
   weatherClient?: WeatherClient;
   solarForecastClient?: SolarForecastClient;
 };
@@ -107,6 +110,9 @@ export function buildApp(
       registerIntegrationRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
       registerAdminLogRoutes(scopedApp, config, options.controlPlaneClient, authPreHandler);
     }
+    if (options.edgeClient) {
+      registerEdgeRoutes(scopedApp, config, options.edgeClient, authPreHandler);
+    }
     if (options.controlPlaneClient && options.weatherClient) {
       registerWeatherRoutes(
         scopedApp,
@@ -172,6 +178,7 @@ export function buildApp(
   app.addHook('onClose', async () => {
     bffCache.clear();
     options.controlPlaneClient?.close();
+    options.edgeClient?.close();
     options.weatherClient?.close();
     options.solarForecastClient?.close();
     historyClient.close();

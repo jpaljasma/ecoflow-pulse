@@ -73,6 +73,14 @@ WHERE i.indisunique
   ) = ARRAY['user_id', 'device_id'];
 `
 
+const edgeCollectorsSchemaQuery = `
+SELECT COUNT(*)::int
+FROM (
+	VALUES ('edge_collectors'::text), ('edge_device_sources'::text)
+) AS required(table_name)
+WHERE to_regclass(required.table_name) IS NOT NULL;
+`
+
 // RequireCurrentSchema fails before workers start if the database is older than
 // the control-plane queries compiled into this binary.
 func (s *PostgresStore) RequireCurrentSchema(ctx context.Context) error {
@@ -130,6 +138,14 @@ func (s *PostgresStore) RequireCurrentSchema(ctx context.Context) error {
 	}
 	if userDeviceUniqueIndexCount < 1 {
 		return fmt.Errorf("%w: user_devices(user_id, device_id) unique constraint is missing", ErrSchemaNotReady)
+	}
+	var edgeTableCount int
+	err = s.db.QueryRowContext(ctx, edgeCollectorsSchemaQuery).Scan(&edgeTableCount)
+	if err != nil {
+		return fmt.Errorf("check edge collector schema: %w", err)
+	}
+	if edgeTableCount != 2 {
+		return fmt.Errorf("%w: edge collector tables are missing", ErrSchemaNotReady)
 	}
 	return nil
 }

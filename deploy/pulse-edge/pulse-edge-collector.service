@@ -1,0 +1,32 @@
+[Unit]
+Description=Pulse Edge Collector
+After=network-online.target bluetooth.target dbus.service
+Wants=network-online.target bluetooth.target
+
+[Service]
+EnvironmentFile=/etc/pulse-edge/secret.env
+Environment=GOMAXPROCS=4
+Environment=GOMEMLIMIT=512MiB
+Environment=GOGC=100
+ExecStart=/usr/local/bin/pulse-edge-collector -config /etc/pulse-edge/config.yaml
+Restart=on-failure
+RestartSec=5s
+RestartPreventExitStatus=10
+StartLimitIntervalSec=300
+StartLimitBurst=12
+RuntimeDirectory=pulse-edge
+RuntimeDirectoryMode=0750
+StateDirectory=pulse-edge
+StateDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/pulse-edge /var/lib/pulse-edge
+MemoryMax=768M
+LimitNOFILE=4096
+KillSignal=SIGTERM
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=multi-user.target

@@ -62,6 +62,30 @@ Ingest payload debug knobs (`cmd/ecoflow-ingest-worker`):
 
 - `INGEST_MQTT_LOG_PAYLOAD_DEBUG` (default `false`; sampled MQTT debug logs stay off the hot path and redact topics/raw payload bodies)
 - `INGEST_MQTT_LOG_PAYLOAD_SAMPLE_EVERY` (default `100`; sampled debug metadata logging interval)
+
+Edge ingest publisher knobs (`cmd/ecoflow-grpc-api`):
+
+- `NATS_URLS` enables edge telemetry publishing from the gRPC API to the shared
+  ingest JetStream subjects. If unset, edge management APIs remain available
+  but telemetry upload returns a failed-precondition response.
+- `EDGE_INGEST_NATS_USE_JETSTREAM` (default `true`)
+- `EDGE_INGEST_NATS_PUBLISH_TIMEOUT` (default `3s`)
+- `EDGE_INGEST_NATS_PUBLISH_MAX_RETRIES` (default `3`)
+- `EDGE_INGEST_NATS_JS_BOOTSTRAP_ENABLED` (default follows JetStream publish mode)
+
+Pi collector knobs (`cmd/pulse-edge-collector`):
+
+- `PULSE_EDGE_PROFILE` selects the `targets` entry from `/etc/pulse-edge/config.yaml`.
+- `PULSE_EDGE_COLLECTOR_SECRET` is the enrolled collector secret. Keep it in a
+  systemd `EnvironmentFile`; do not place it in Git or PR text.
+- `GOMAXPROCS` defaults to `4` when unset, matching Raspberry Pi 5's four CPU
+  cores while still allowing an explicit override.
+- `GOMEMLIMIT` defaults to `512MiB` when unset. The packaged Pi unit also sets
+  `MemoryMax=768M` so a collector bug cannot consume the full 8 GB host.
+- `GOGC` defaults to `100` when unset.
+
+Provider ingest worker knobs:
+
 - `INGEST_QUOTA_FETCH_TIMEOUT` (default `10s`; per-call timeout for `GetDeviceAllQuota()` bootstrap/refresh pulls)
 - `INGEST_QUOTA_REFRESH_INTERVAL` (default `30s`; periodic quota refresh cadence while an MQTT session is alive)
 - `INGEST_QUOTA_REFRESH_JITTER` (default `0.20`; proportional jitter applied to periodic quota refresh scheduling)

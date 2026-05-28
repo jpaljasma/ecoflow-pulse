@@ -53,6 +53,9 @@ func TestProviderConfigColumnSchemaQueryUsesSearchPathResolution(t *testing.T) {
 	if !strings.Contains(userDeviceUniqueIndexSchemaQuery, "to_regclass('user_devices')") {
 		t.Fatal("schema gate should resolve user_devices through the active search_path")
 	}
+	if !strings.Contains(edgeCollectorsSchemaQuery, "to_regclass(required.table_name)") {
+		t.Fatal("schema gate should resolve edge collector tables through the active search_path")
+	}
 	if strings.Contains(providerConfigColumnSchemaQuery, "current_schema()") {
 		t.Fatal("schema gate must not inspect only current_schema()")
 	}
@@ -63,6 +66,9 @@ func TestProviderConfigColumnSchemaQueryUsesSearchPathResolution(t *testing.T) {
 		t.Fatal("schema gate must not inspect only current_schema()")
 	}
 	if strings.Contains(userDeviceUniqueIndexSchemaQuery, "current_schema()") {
+		t.Fatal("schema gate must not inspect only current_schema()")
+	}
+	if strings.Contains(edgeCollectorsSchemaQuery, "current_schema()") {
 		t.Fatal("schema gate must not inspect only current_schema()")
 	}
 }
@@ -87,6 +93,8 @@ func TestPostgresStoreRequireCurrentSchemaAcceptsProviderConfigColumn(t *testing
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(regexp.QuoteMeta(userDeviceUniqueIndexSchemaQuery)).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(regexp.QuoteMeta(edgeCollectorsSchemaQuery)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
 	if err := store.RequireCurrentSchema(context.Background()); err != nil {
 		t.Fatalf("RequireCurrentSchema failed: %v", err)

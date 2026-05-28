@@ -192,3 +192,32 @@ func TestNoopAuthorizerCopiesUserSubjectFromMetadata(t *testing.T) {
 		t.Fatalf("unexpected subject: got=%q want=%q", claims.Subject, "dev-user-1")
 	}
 }
+
+func TestAllowUnauthenticatedMethodsBypassesConfiguredMethods(t *testing.T) {
+	t.Parallel()
+
+	base := &captureAuthorizer{err: errors.New("missing bearer token")}
+	a := AllowUnauthenticatedMethods(base, "/pulse.edge.v1.EdgeIngestService/Heartbeat")
+
+	if err := a.Authorize(context.Background(), "/pulse.edge.v1.EdgeIngestService/Heartbeat", &Claims{}); err != nil {
+		t.Fatalf("expected configured method to bypass auth: %v", err)
+	}
+	if base.method != "" {
+		t.Fatalf("base authorizer should not be called, got method=%q", base.method)
+	}
+}
+
+func TestAllowUnauthenticatedMethodsDelegatesOtherMethods(t *testing.T) {
+	t.Parallel()
+
+	base := &captureAuthorizer{err: errors.New("missing bearer token")}
+	a := AllowUnauthenticatedMethods(base, "/pulse.edge.v1.EdgeIngestService/Heartbeat")
+
+	err := a.Authorize(context.Background(), "/pulse.edge.v1.EdgeIngestService/ListCollectors", &Claims{})
+	if err == nil {
+		t.Fatalf("expected delegated method to require base auth")
+	}
+	if base.method != "/pulse.edge.v1.EdgeIngestService/ListCollectors" {
+		t.Fatalf("base authorizer method=%q", base.method)
+	}
+}

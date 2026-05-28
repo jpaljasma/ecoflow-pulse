@@ -10,6 +10,7 @@ import (
 	"time"
 
 	controlplanev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/controlplane/v1"
+	edgev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/edge/v1"
 	inferencev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/inference/v1"
 	solarforecastv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/solarforecast/v1"
 	weatherv1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/weather/v1"
@@ -27,6 +28,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcserver"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
+	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetryquery"
 	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 	"github.com/jpaljasma/ecoflow-pulse/internal/workermetrics"
@@ -84,6 +86,7 @@ func main() {
 		log.Error("grpc auth init failed", "error", err.Error())
 		os.Exit(1)
 	}
+	authorizer = grpcmw.AllowUnauthenticatedMethods(authorizer, edgeCollectorPublicGRPCMethods()...)
 	grpcMetrics := grpcmw.NewMetrics()
 
 	// Middleware chain (order matters):
@@ -195,6 +198,23 @@ func main() {
 		registerControlPlaneDiscoverers(adapterRegistry, ecoFlowAdapter, pecronAdapter, ankerSolixAdapter, pulseMQTTAdapter)
 		controlPlaneService := NewControlPlaneService(log, controlPlaneStore, adapterRegistry)
 		controlplanev1.RegisterControlPlaneServiceServer(s, controlPlaneService)
+		edgePublisher, cleanupEdgePublisher, edgeSubjectCfg, edgePublisherErr := newEdgeIngestPublisherFromEnv(log)
+		if edgePublisherErr != nil {
+			log.Error("edge ingest publisher init failed", "error", edgePublisherErr.Error())
+			os.Exit(1)
+		}
+		defer cleanupEdgePublisher()
+		edgeStore, ok := controlPlaneStore.(edgeControlStore)
+		if !ok {
+			log.Error("edge ingest store init failed", "error", "control-plane store does not implement edge collector state")
+			os.Exit(1)
+		}
+		edgev1.RegisterEdgeIngestServiceServer(s, NewEdgeIngestService(EdgeIngestServiceDeps{
+			Log:        log,
+			Store:      edgeStore,
+			Publisher:  edgePublisher,
+			SubjectCfg: edgeSubjectCfg,
+		}))
 		weatherv1.RegisterWeatherServiceServer(s, NewWeatherServiceWithDeps(WeatherServiceDeps{
 			Log:     log,
 			Service: weatherDomain,
@@ -362,6 +382,76 @@ func newAuthorizerFromEnv(ctx context.Context, log *slog.Logger) (grpcmw.Authori
 	default:
 		return nil, fmt.Errorf("unsupported GRPC_AUTH_MODE %q", mode)
 	}
+}
+
+func edgeCollectorPublicGRPCMethods() []string {
+	return []string{
+		"/pulse.edge.v1.EdgeIngestService/EnrollCollector",
+		"/pulse.edge.v1.EdgeIngestService/Heartbeat",
+		"/pulse.edge.v1.EdgeIngestService/UploadDiscovery",
+		"/pulse.edge.v1.EdgeIngestService/UploadTelemetryBatch",
+	}
+}
+
+func newEdgeIngestPublisherFromEnv(log *slog.Logger) (telemetrybus.EnvelopePublisher, func(), telemetrybus.SubjectConfig, error) {
+	subjectCfg := telemetrybus.SubjectConfig{
+		Prefix:     runtimecfg.EnvOrDefault("TELEMETRY_SUBJECT_PREFIX", telemetrybus.DefaultSubjectPrefix),
+		ShardCount: runtimecfg.Uint32("TELEMETRY_SHARD_COUNT", telemetrybus.DefaultShardCount),
+	}.Normalized()
+	natsURLs := runtimecfg.SplitNonEmpty(strings.TrimSpace(os.Getenv("NATS_URLS")))
+	if len(natsURLs) == 0 {
+		log.Info("edge ingest publisher disabled", "reason", "NATS_URLS not set")
+		return nil, func() {}, subjectCfg, nil
+	}
+	natsCfg := telemetrybus.DefaultNATSConnConfig(natsURLs)
+	natsCfg.Name = runtimecfg.EnvOrDefault("NATS_NAME", "ecoflow-grpc-api-edge-ingest")
+	natsCfg.ConnectTimeout = runtimecfg.DurationPositive("NATS_CONNECT_TIMEOUT", natsCfg.ConnectTimeout)
+	natsCfg.ReconnectWait = runtimecfg.DurationPositive("NATS_RECONNECT_WAIT", natsCfg.ReconnectWait)
+	natsCfg.ReconnectJitter = runtimecfg.DurationPositive("NATS_RECONNECT_JITTER", natsCfg.ReconnectJitter)
+	natsCfg.PingInterval = runtimecfg.DurationPositive("NATS_PING_INTERVAL", natsCfg.PingInterval)
+	natsCfg.MaxPingsOut = runtimecfg.IntMin("NATS_MAX_PINGS_OUT", natsCfg.MaxPingsOut, 1)
+	natsCfg.MaxReconnects = runtimecfg.IntMin("NATS_MAX_RECONNECTS", natsCfg.MaxReconnects, -1)
+
+	natsConn, err := telemetrybus.DialNATS(log, natsCfg)
+	if err != nil {
+		return nil, nil, subjectCfg, err
+	}
+	publishOpts := telemetrybus.NATSEnvelopePublisherOptions{
+		StripLabels:                runtimecfg.Bool("INGEST_DISABLE_ENVELOPE_LABELS", false),
+		UseJetStream:               runtimecfg.Bool("EDGE_INGEST_NATS_USE_JETSTREAM", true),
+		PublishTimeout:             runtimecfg.DurationPositive("EDGE_INGEST_NATS_PUBLISH_TIMEOUT", 3*time.Second),
+		PublishMaxRetries:          runtimecfg.IntMin("EDGE_INGEST_NATS_PUBLISH_MAX_RETRIES", 3, 0),
+		PublishRetryInitialBackoff: runtimecfg.DurationPositive("EDGE_INGEST_NATS_PUBLISH_RETRY_INITIAL_BACKOFF", 50*time.Millisecond),
+		PublishRetryMaxBackoff:     runtimecfg.DurationPositive("EDGE_INGEST_NATS_PUBLISH_RETRY_MAX_BACKOFF", 500*time.Millisecond),
+		PublishRetryJitter:         runtimecfg.Float64NonNegative("EDGE_INGEST_NATS_PUBLISH_RETRY_JITTER", 0.20),
+	}
+	jetstreamCfg := telemetrybus.DefaultJetStreamIngestBootstrapConfig()
+	jetstreamCfg.Enabled = runtimecfg.Bool("EDGE_INGEST_NATS_JS_BOOTSTRAP_ENABLED", publishOpts.UseJetStream)
+	jetstreamCfg.StreamName = runtimecfg.EnvOrDefault("INGEST_NATS_JS_STREAM_NAME", jetstreamCfg.StreamName)
+	jetstreamCfg.Replicas = runtimecfg.IntMin("INGEST_NATS_JS_REPLICAS", jetstreamCfg.Replicas, 1)
+	jetstreamCfg.MaxAge = runtimecfg.DurationPositive("INGEST_NATS_JS_MAX_AGE", jetstreamCfg.MaxAge)
+	jetstreamCfg.MaxBytes = runtimecfg.Int64Min("INGEST_NATS_JS_MAX_BYTES", jetstreamCfg.MaxBytes, 0)
+	if jetstreamCfg.Enabled {
+		bootstrapCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := telemetrybus.EnsureJetStreamIngestStream(bootstrapCtx, natsConn, subjectCfg, jetstreamCfg); err != nil {
+			cancel()
+			natsConn.Close()
+			return nil, nil, subjectCfg, err
+		}
+		cancel()
+	}
+	publisher, err := telemetrybus.NewNATSEnvelopePublisherWithOptions(natsConn, subjectCfg, publishOpts)
+	if err != nil {
+		natsConn.Close()
+		return nil, nil, subjectCfg, err
+	}
+	cleanup := func() {
+		if closeErr := publisher.Close(); closeErr != nil {
+			log.Warn("close edge ingest publisher failed", slog.String("error", closeErr.Error()))
+		}
+	}
+	log.Info("edge ingest publisher enabled", "shards", subjectCfg.ShardCount)
+	return publisher, cleanup, subjectCfg, nil
 }
 
 func newTelemetrySnapshotReaderFromEnv(log *slog.Logger) (projectionworker.SnapshotReader, func(), error) {

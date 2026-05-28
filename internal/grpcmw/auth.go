@@ -47,6 +47,34 @@ func (NoopAuthorizer) Authorize(ctx context.Context, fullMethod string, claims *
 	return nil
 }
 
+type unauthenticatedMethodsAuthorizer struct {
+	base    Authorizer
+	methods map[string]struct{}
+}
+
+// AllowUnauthenticatedMethods lets selected internal gRPC methods rely on
+// handler-level credentials such as setup tokens or collector secrets.
+func AllowUnauthenticatedMethods(base Authorizer, methods ...string) Authorizer {
+	if base == nil {
+		base = NoopAuthorizer{}
+	}
+	allowed := make(map[string]struct{}, len(methods))
+	for _, method := range methods {
+		method = strings.TrimSpace(method)
+		if method != "" {
+			allowed[method] = struct{}{}
+		}
+	}
+	return unauthenticatedMethodsAuthorizer{base: base, methods: allowed}
+}
+
+func (a unauthenticatedMethodsAuthorizer) Authorize(ctx context.Context, fullMethod string, claims *Claims) error {
+	if _, ok := a.methods[fullMethod]; ok {
+		return nil
+	}
+	return a.base.Authorize(ctx, fullMethod, claims)
+}
+
 type claimsContextKey struct{}
 
 func ContextWithClaims(ctx context.Context, claims Claims) context.Context {

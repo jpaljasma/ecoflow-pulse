@@ -51,6 +51,7 @@ enum SourceKind {
   SOURCE_KIND_MQTT_QUOTA = 1;
   SOURCE_KIND_MQTT_STATUS = 2;
   SOURCE_KIND_REPLAY = 3;
+  SOURCE_KIND_EDGE_LOCAL = 4;
 }
 
 enum PayloadEncoding {

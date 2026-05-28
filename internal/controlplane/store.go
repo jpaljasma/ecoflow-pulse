@@ -16,13 +16,15 @@ const (
 )
 
 var (
-	ErrUserNotFound            = errors.New("user not found")
-	ErrCredentialNotFound      = errors.New("provider credential not found")
-	ErrCredentialAlreadyExists = errors.New("provider credential access key already exists")
-	ErrDeviceNotFound          = errors.New("device not found")
-	ErrPermissionDenied        = errors.New("permission denied")
-	ErrVerifiedEmailNotFound   = errors.New("verified user email not found")
-	ErrUserSubjectConflict     = errors.New("target keycloak subject already belongs to another user")
+	ErrUserNotFound             = errors.New("user not found")
+	ErrCredentialNotFound       = errors.New("provider credential not found")
+	ErrCredentialAlreadyExists  = errors.New("provider credential access key already exists")
+	ErrDeviceNotFound           = errors.New("device not found")
+	ErrPermissionDenied         = errors.New("permission denied")
+	ErrVerifiedEmailNotFound    = errors.New("verified user email not found")
+	ErrUserSubjectConflict      = errors.New("target keycloak subject already belongs to another user")
+	ErrEdgeCollectorNotFound    = errors.New("edge collector not found")
+	ErrEdgeDeviceSourceNotFound = errors.New("edge device source not found")
 )
 
 type ProviderCredential struct {
@@ -64,6 +66,39 @@ type UserDevice struct {
 	Role        string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type EdgeCollector struct {
+	ID                  string
+	UserID              string
+	DisplayName         string
+	SetupTokenHash      string
+	CollectorSecretHash string
+	IsActive            bool
+	CollectorVersion    string
+	Hostname            string
+	LastHeartbeatAt     time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type EdgeDeviceSource struct {
+	ID               string
+	CollectorID      string
+	UserID           string
+	Provider         string
+	Transport        string
+	ProviderDeviceID string
+	DisplayName      string
+	Model            string
+	AddressHash      string
+	RSSIDBm          int32
+	Metadata         map[string]any
+	Status           string
+	LinkedDeviceID   string
+	LastSeenAt       time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type CurrentUser struct {
@@ -242,6 +277,72 @@ type SearchAdminLogFiltersInput struct {
 	DeviceIDs   []string
 	UserSubject string
 	GlobalAdmin bool
+}
+
+type CreateEdgeCollectorInput struct {
+	UserSubject    string
+	DisplayName    string
+	SetupTokenHash string
+}
+
+type EnrollEdgeCollectorInput struct {
+	SetupTokenHash      string
+	CollectorSecretHash string
+	CollectorVersion    string
+	Hostname            string
+}
+
+type AuthenticateEdgeCollectorInput struct {
+	CollectorSecretHash string
+}
+
+type UpdateEdgeCollectorHeartbeatInput struct {
+	CollectorID      string
+	CollectorVersion string
+	Hostname         string
+}
+
+type UpsertEdgeDeviceSourceInput struct {
+	CollectorID      string
+	Provider         string
+	Transport        string
+	ProviderDeviceID string
+	DisplayName      string
+	Model            string
+	AddressHash      string
+	RSSIDBm          int32
+	Metadata         map[string]any
+	ObservedAt       time.Time
+}
+
+type ListEdgeCollectorsInput struct {
+	UserSubject string
+}
+
+type ListEdgeDeviceSourcesInput struct {
+	UserSubject string
+	CollectorID string
+	Status      string
+}
+
+type ApproveEdgeDeviceSourceInput struct {
+	UserSubject string
+	SourceID    string
+	DeviceID    string
+	ProductName string
+	Model       string
+}
+
+type ApprovedEdgeDeviceSource struct {
+	Source EdgeDeviceSource
+	Device UserDevice
+}
+
+type GetLinkedEdgeDeviceSourceInput struct {
+	CollectorID      string
+	Provider         string
+	Transport        string
+	ProviderDeviceID string
 }
 
 type Store interface {
