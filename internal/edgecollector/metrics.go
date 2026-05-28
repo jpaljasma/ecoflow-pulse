@@ -4,6 +4,46 @@ import (
 	"strings"
 )
 
+var ecoFlowBLENumericTargets = map[string][]string{
+	"battery_soc_percent":             {"soc", "f32ShowSoc"},
+	"input_power_w":                   {"wattsInSum"},
+	"output_power_w":                  {"wattsOutSum"},
+	"pv_input_power_w":                {"pv1ChargeWatts", "pv1InWatts"},
+	"pv2_input_power_w":               {"pv2ChargeWatts", "pv2InWatts"},
+	"battery_charge_remaining_min":    {"chgRemainTime"},
+	"battery_discharge_remaining_min": {"dsgRemainTime"},
+}
+
+var ecoFlowBLEDirectTargets = map[string]string{
+	"ac_input_plugged":     "acInputPlugged",
+	"ac_charger_connected": "acChargerConnected",
+	"ac_output_enabled":    "acOutEnable",
+}
+
+var ecoFlowBLEAliasKeys = map[string]string{
+	"ac_charger_connected":            "bleAcChargerConnected",
+	"ac_input_plugged":                "bleAcInputPlugged",
+	"ac_input_power_w":                "bleAcInputPowerW",
+	"ac_output_enabled":               "bleAcOutputEnabled",
+	"ac_output_power_w":               "bleAcOutputPowerW",
+	"battery_charge_remaining_min":    "bleBatteryChargeRemainingMin",
+	"battery_discharge_remaining_min": "bleBatteryDischargeRemainingMin",
+	"battery_power_w":                 "bleBatteryPowerW",
+	"battery_soc_percent":             "bleBatterySocPercent",
+	"error_code":                      "bleErrorCode",
+	"input_power_w":                   "bleInputPowerW",
+	"main_battery_soc_percent":        "bleMainBatterySocPercent",
+	"output_power_w":                  "bleOutputPowerW",
+	"pv2_input_power_w":               "blePv2InputPowerW",
+	"pv2_input_state":                 "blePv2InputState",
+	"pv_input_power_w":                "blePvInputPowerW",
+	"pv_input_state":                  "blePvInputState",
+	"usb_a_1_output_power_w":          "bleUsbA1OutputPowerW",
+	"usb_a_2_output_power_w":          "bleUsbA2OutputPowerW",
+	"usb_c_1_output_power_w":          "bleUsbC1OutputPowerW",
+	"usb_c_2_output_power_w":          "bleUsbC2OutputPowerW",
+}
+
 // NormalizeEcoFlowBLEMetrics maps BLE display decoder fields into the same
 // normalized params keys used by cloud MQTT quota/status ingestion.
 func NormalizeEcoFlowBLEMetrics(metrics map[string]any) map[string]any {
@@ -13,30 +53,15 @@ func NormalizeEcoFlowBLEMetrics(metrics map[string]any) map[string]any {
 		if key == "" {
 			continue
 		}
-		switch key {
-		case "battery_soc_percent":
-			setIfNumeric(out, "soc", value)
-			setIfNumeric(out, "f32ShowSoc", value)
-		case "input_power_w":
-			setIfNumeric(out, "wattsInSum", value)
-		case "output_power_w":
-			setIfNumeric(out, "wattsOutSum", value)
-		case "pv_input_power_w":
-			setIfNumeric(out, "pv1ChargeWatts", value)
-			setIfNumeric(out, "pv1InWatts", value)
-		case "pv2_input_power_w":
-			setIfNumeric(out, "pv2ChargeWatts", value)
-			setIfNumeric(out, "pv2InWatts", value)
-		case "battery_charge_remaining_min":
-			setIfNumeric(out, "chgRemainTime", value)
-		case "battery_discharge_remaining_min":
-			setIfNumeric(out, "dsgRemainTime", value)
-		case "ac_input_plugged":
-			out["acInputPlugged"] = value
-		case "ac_charger_connected":
-			out["acChargerConnected"] = value
-		case "ac_output_enabled":
-			out["acOutEnable"] = value
+		for _, target := range ecoFlowBLENumericTargets[key] {
+			setIfNumeric(out, target, value)
+		}
+		if target := ecoFlowBLEDirectTargets[key]; target != "" {
+			out[target] = value
+		}
+		if alias := ecoFlowBLEAliasKeys[key]; alias != "" {
+			out[alias] = value
+			continue
 		}
 		out["ble"+exportedCamelFromSnake(key)] = value
 	}

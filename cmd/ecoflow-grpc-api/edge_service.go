@@ -253,6 +253,10 @@ func (s *EdgeIngestService) UploadTelemetryBatch(ctx context.Context, req *edgev
 			observedAt = time.Now().UTC()
 		}
 		params := edgecollector.NormalizeEcoFlowBLEMetrics(structToMap(sample.GetMetrics()))
+		if len(params) == 0 {
+			dropped++
+			continue
+		}
 		envelope, err := edgecollector.BuildTelemetryEnvelope(edgecollector.TelemetrySample{
 			CollectorID:      collector.ID,
 			DeviceID:         source.LinkedDeviceID,

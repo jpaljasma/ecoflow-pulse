@@ -117,3 +117,57 @@ func TestCollectorSecretHashValidationRejectsWrongSecret(t *testing.T) {
 		t.Fatalf("blank hash validated")
 	}
 }
+
+func BenchmarkNormalizeEcoFlowBLEMetrics(b *testing.B) {
+	metrics := map[string]any{
+		"battery_soc_percent":             float64(100),
+		"input_power_w":                   float64(149),
+		"output_power_w":                  float64(147),
+		"pv_input_power_w":                float64(42),
+		"pv2_input_power_w":               float64(17),
+		"battery_charge_remaining_min":    float64(5939),
+		"battery_discharge_remaining_min": float64(88),
+		"ac_input_plugged":                true,
+		"ac_charger_connected":            true,
+		"ac_output_enabled":               true,
+		"error_code":                      float64(0),
+	}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		params := NormalizeEcoFlowBLEMetrics(metrics)
+		if params["wattsOutSum"] != float64(147) {
+			b.Fatalf("wattsOutSum=%v", params["wattsOutSum"])
+		}
+	}
+}
+
+func BenchmarkBuildTelemetryEnvelope(b *testing.B) {
+	sample := TelemetrySample{
+		CollectorID:      "edge_collector_1",
+		DeviceID:         "device-uuid-1",
+		Provider:         "ecoflow",
+		ProviderDeviceID: "DEMOEDGE0001",
+		Transport:        "ble",
+		ObservedAt:       time.Date(2026, 5, 28, 12, 30, 0, 0, time.UTC),
+		Params: map[string]any{
+			"soc":            float64(100),
+			"wattsInSum":     float64(149),
+			"wattsOutSum":    float64(147),
+			"pv1ChargeWatts": float64(42),
+			"pv2ChargeWatts": float64(17),
+		},
+	}
+	subjectCfg := telemetrybus.SubjectConfig{Prefix: "pulse", ShardCount: 8}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		envelope, err := BuildTelemetryEnvelope(sample, subjectCfg)
+		if err != nil {
+			b.Fatalf("BuildTelemetryEnvelope failed: %v", err)
+		}
+		if envelope.GetShardCount() != 8 {
+			b.Fatalf("shard count=%d", envelope.GetShardCount())
+		}
+	}
+}

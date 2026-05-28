@@ -154,6 +154,70 @@ func TestEdgeIngestServiceRejectsBadCollectorSecret(t *testing.T) {
 	}
 }
 
+func TestEdgeIngestServiceDropsEmptyTelemetrySamples(t *testing.T) {
+	t.Parallel()
+
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("user-1")
+	publisher := &testEnvelopePublisher{}
+	svc := NewEdgeIngestService(EdgeIngestServiceDeps{
+		Store:      store,
+		Publisher:  publisher,
+		SubjectCfg: telemetrybus.SubjectConfig{Prefix: "pulse", ShardCount: 8},
+	})
+	created, err := svc.CreateCollector(context.Background(), &edgev1.CreateCollectorRequest{UserSubject: "user-1"})
+	if err != nil {
+		t.Fatalf("CreateCollector failed: %v", err)
+	}
+	enrolled, err := svc.EnrollCollector(context.Background(), &edgev1.EnrollCollectorRequest{SetupToken: created.GetSetupToken()})
+	if err != nil {
+		t.Fatalf("EnrollCollector failed: %v", err)
+	}
+	if _, err := svc.UploadDiscovery(context.Background(), &edgev1.UploadDiscoveryRequest{
+		CollectorSecret: enrolled.GetCollectorSecret(),
+		Discoveries: []*edgev1.EdgeDiscovery{{
+			Provider:         controlplane.ProviderEcoFlow,
+			Transport:        "ble",
+			ProviderDeviceId: "DEMOEDGE0002",
+		}},
+	}); err != nil {
+		t.Fatalf("UploadDiscovery failed: %v", err)
+	}
+	sources, err := svc.ListDeviceSources(context.Background(), &edgev1.ListDeviceSourcesRequest{UserSubject: "user-1"})
+	if err != nil {
+		t.Fatalf("ListDeviceSources failed: %v", err)
+	}
+	if _, err := svc.ApproveDeviceSource(context.Background(), &edgev1.ApproveDeviceSourceRequest{
+		UserSubject: "user-1",
+		SourceId:    sources.GetSources()[0].GetId(),
+	}); err != nil {
+		t.Fatalf("ApproveDeviceSource failed: %v", err)
+	}
+	emptyMetrics, err := structpb.NewStruct(map[string]any{})
+	if err != nil {
+		t.Fatalf("new empty metrics: %v", err)
+	}
+
+	resp, err := svc.UploadTelemetryBatch(context.Background(), &edgev1.UploadTelemetryBatchRequest{
+		CollectorSecret: enrolled.GetCollectorSecret(),
+		Samples: []*edgev1.EdgeTelemetrySample{{
+			Provider:         controlplane.ProviderEcoFlow,
+			Transport:        "ble",
+			ProviderDeviceId: "DEMOEDGE0002",
+			Metrics:          emptyMetrics,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("UploadTelemetryBatch failed: %v", err)
+	}
+	if resp.GetAcceptedCount() != 0 || resp.GetDroppedCount() != 1 {
+		t.Fatalf("unexpected telemetry response: %+v", resp)
+	}
+	if len(publisher.envelopes) != 0 {
+		t.Fatalf("published envelopes=%d want 0", len(publisher.envelopes))
+	}
+}
+
 type testEnvelopePublisher struct {
 	envelopes []*envelopev1.TelemetryEnvelope
 }

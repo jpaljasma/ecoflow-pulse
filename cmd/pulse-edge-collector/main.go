@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,6 +28,12 @@ const (
 	defaultConfigPath    = "/etc/pulse-edge/config.yaml"
 	defaultRawOutputPath = "/tmp/pulse-edge/ecoflow-ble-raw.jsonl"
 	defaultHTTPTimeout   = 10 * time.Second
+	rawScannerMaxBytes   = 4 * 1024 * 1024
+	bleRestartBackoffMin = 1 * time.Second
+	bleRestartBackoffMax = 30 * time.Second
+	bleAuthExitCode      = 10
+	edgePostAttempts     = 3
+	edgePostRetryDelay   = 200 * time.Millisecond
 )
 
 type config struct {
@@ -113,11 +120,24 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := runCollector(ctx, log, cfg, client); err != nil && !errors.Is(err, context.Canceled) {
+	if err := runCollector(ctx, log, cfg, client); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return 0
+		}
 		_, _ = fmt.Fprintf(stderr, "collector stopped: %v\n", err)
-		return 1
+		return exitCodeForCollectorError(err)
 	}
 	return 0
+}
+
+func exitCodeForCollectorError(err error) int {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return 0
+	}
+	if isBLEAuthError(err) {
+		return bleAuthExitCode
+	}
+	return 1
 }
 
 func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edgeClient) error {
@@ -152,25 +172,63 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	if err := os.MkdirAll(filepath.Dir(rawPath), 0o755); err != nil {
 		return fmt.Errorf("create raw output dir: %w", err)
 	}
+	log.Info("pulse edge collector started", "profile", cfg.Profile, "target", cfg.targetBaseURL(), "raw_output", rawPath)
+	err := runBLEProbeLoop(ctx, log, func(runCtx context.Context) error {
+		return runBLEProbeOnce(runCtx, log, cfg.BLE, rawPath, client)
+	}, exponentialBackoff(bleRestartBackoffMin, bleRestartBackoffMax))
+	cancel()
+	<-heartbeatDone
+	return err
+}
+
+type probeRunner func(context.Context) error
+
+type backoffForAttempt func(int) time.Duration
+
+func runBLEProbeLoop(ctx context.Context, log *slog.Logger, run probeRunner, backoff backoffForAttempt) error {
+	if backoff == nil {
+		backoff = exponentialBackoff(bleRestartBackoffMin, bleRestartBackoffMax)
+	}
+	for attempt := 1; ; attempt++ {
+		err := run(ctx)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if isBLEAuthError(err) {
+			log.Error("BLE authentication failed; stopping collector", slog.String("error", err.Error()))
+			return err
+		}
+		delay := backoff(attempt)
+		log.Warn("BLE probe stopped; restarting", slog.String("error", errString(err)), slog.Duration("restart_in", delay))
+		if sleepErr := sleepContext(ctx, delay); sleepErr != nil {
+			return sleepErr
+		}
+	}
+}
+
+func runBLEProbeOnce(ctx context.Context, log *slog.Logger, cfg bleConfig, rawPath string, client edgeClient) error {
 	if err := resetRawProbeOutput(rawPath); err != nil {
 		return err
 	}
-	cmd, err := startBLEDiscover(cfg.BLE, rawPath, log)
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cmd, err := startBLEDiscover(cfg, rawPath, log)
 	if err != nil {
 		return err
 	}
 	waitCh := waitBLEDiscover(cmd)
 	tailCh := make(chan error, 1)
 	go func() {
-		tailCh <- tailRawProbeEvents(ctx, rawPath, func(record rawProbeRecord) error {
+		tailCh <- tailRawProbeEvents(runCtx, rawPath, func(record rawProbeRecord) error {
 			if err := record.authError(); err != nil {
 				return err
 			}
-			if err := client.uploadDiscovery(ctx, record); err != nil {
+			if err := client.uploadDiscovery(runCtx, record); err != nil {
 				log.Warn("edge discovery upload failed; dropping refresh", slog.String("error", err.Error()))
 			}
 			if metrics := record.metricMap(); len(metrics) > 0 {
-				if err := client.uploadTelemetry(ctx, record, metrics); err != nil {
+				if err := client.uploadTelemetry(runCtx, record, metrics); err != nil {
 					log.Warn("edge telemetry upload failed; dropping refresh", slog.String("error", err.Error()))
 				}
 			}
@@ -187,22 +245,81 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	case waitErr = <-waitCh:
 		cancel()
 		tailErr = <-tailCh
-	case <-parentCtx.Done():
+	case <-ctx.Done():
 		cancel()
 		waitErr = stopBLEDiscover(cmd, waitCh)
 		tailErr = <-tailCh
 	}
-	<-heartbeatDone
 	if tailErr != nil && !errors.Is(tailErr, context.Canceled) {
 		return tailErr
 	}
-	if parentCtx.Err() != nil {
-		return parentCtx.Err()
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	if waitErr != nil {
 		return fmt.Errorf("ble discover exited: %w", waitErr)
 	}
 	return errors.New("ble discover exited")
+}
+
+func exponentialBackoff(minDelay time.Duration, maxDelay time.Duration) backoffForAttempt {
+	return func(attempt int) time.Duration {
+		if attempt <= 1 {
+			return nextBackoff(0, minDelay, maxDelay)
+		}
+		var previous time.Duration
+		for i := 0; i < attempt; i++ {
+			previous = nextBackoff(previous, minDelay, maxDelay)
+			if previous >= maxDelay {
+				return previous
+			}
+		}
+		return previous
+	}
+}
+
+func fixedBackoff(delay time.Duration) backoffForAttempt {
+	return func(int) time.Duration {
+		return delay
+	}
+}
+
+func nextBackoff(previous time.Duration, minDelay time.Duration, maxDelay time.Duration) time.Duration {
+	if minDelay <= 0 {
+		minDelay = bleRestartBackoffMin
+	}
+	if maxDelay < minDelay {
+		maxDelay = minDelay
+	}
+	if previous <= 0 {
+		return minDelay
+	}
+	next := previous * 2
+	if next < previous || next > maxDelay {
+		return maxDelay
+	}
+	return next
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func errString(err error) string {
+	if err == nil {
+		return "clean exit"
+	}
+	return err.Error()
 }
 
 func startBLEDiscover(cfg bleConfig, rawPath string, log *slog.Logger) (*exec.Cmd, error) {
@@ -281,6 +398,7 @@ func readNewRawProbeEvents(path string, offset *int64, handle func(rawProbeRecor
 		return fmt.Errorf("seek raw probe output: %w", err)
 	}
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 64*1024), rawScannerMaxBytes)
 	for scanner.Scan() {
 		line := bytes.TrimSpace(scanner.Bytes())
 		if len(line) == 0 {
@@ -413,7 +531,7 @@ func (c edgeClient) postJSON(ctx context.Context, endpoint string, payload any, 
 		return err
 	}
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := 0; attempt < edgePostAttempts; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+endpoint, bytes.NewReader(body))
 		if err != nil {
 			return err
@@ -427,12 +545,16 @@ func (c edgeClient) postJSON(ctx context.Context, endpoint string, payload any, 
 			if err == nil {
 				return nil
 			}
+			if !isRetryablePostError(err) {
+				return err
+			}
 			lastErr = err
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Duration(attempt+1) * 200 * time.Millisecond):
+		if attempt == edgePostAttempts-1 {
+			break
+		}
+		if err := sleepContext(ctx, time.Duration(attempt+1)*edgePostRetryDelay); err != nil {
+			return err
 		}
 	}
 	return lastErr
@@ -442,13 +564,35 @@ func decodeHTTPResponse(endpoint string, resp *http.Response, response any) erro
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		limited, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%s returned HTTP %d: %s", endpoint, resp.StatusCode, strings.TrimSpace(string(limited)))
+		return httpStatusError{
+			endpoint:   endpoint,
+			statusCode: resp.StatusCode,
+			body:       strings.TrimSpace(string(limited)),
+		}
 	}
 	if response == nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 	return json.NewDecoder(resp.Body).Decode(response)
+}
+
+type httpStatusError struct {
+	endpoint   string
+	statusCode int
+	body       string
+}
+
+func (e httpStatusError) Error() string {
+	return fmt.Sprintf("%s returned HTTP %d: %s", e.endpoint, e.statusCode, e.body)
+}
+
+func isRetryablePostError(err error) bool {
+	var statusErr httpStatusError
+	if !errors.As(err, &statusErr) {
+		return true
+	}
+	return statusErr.statusCode == http.StatusTooManyRequests || statusErr.statusCode >= http.StatusInternalServerError
 }
 
 func (r rawProbeRecord) providerDeviceID() string {
@@ -478,7 +622,9 @@ func (r rawProbeRecord) metricMap() map[string]any {
 			continue
 		}
 		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
-			out[name] = parsed
+			if !math.IsInf(parsed, 0) && !math.IsNaN(parsed) {
+				out[name] = parsed
+			}
 			continue
 		}
 		if parsed, err := strconv.ParseBool(value); err == nil {
@@ -502,9 +648,30 @@ func (r rawProbeRecord) authError() error {
 		if result == "" {
 			result = "empty"
 		}
-		return fmt.Errorf("BLE authentication failed: %s", result)
+		return fmtBLEAuthError(result)
 	}
 	return nil
+}
+
+type bleAuthError struct {
+	result string
+}
+
+func (e bleAuthError) Error() string {
+	return "BLE authentication failed: " + e.result
+}
+
+func fmtBLEAuthError(result string) error {
+	result = strings.TrimSpace(result)
+	if result == "" {
+		result = "empty"
+	}
+	return bleAuthError{result: result}
+}
+
+func isBLEAuthError(err error) bool {
+	var authErr bleAuthError
+	return errors.As(err, &authErr)
 }
 
 func collectorVersion() string {

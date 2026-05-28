@@ -66,6 +66,7 @@ EnvironmentFile=/etc/pulse-edge/secret.env
 ExecStart=/usr/local/bin/pulse-edge-collector -config /etc/pulse-edge/config.yaml
 Restart=on-failure
 RestartSec=5s
+RestartPreventExitStatus=10
 
 [Install]
 WantedBy=multi-user.target
@@ -75,4 +76,7 @@ The collector exits cleanly on `SIGTERM`/`Ctrl+C`, signals the BLE probe, and
 stops posting telemetry. The raw JSONL file is truncated on collector startup,
 so restarts do not replay stale probe events. It keeps only live retry state in
 memory; if Pulse is unavailable, samples that fail to post are dropped and the
-next probe refresh continues from live BLE data.
+next probe refresh continues from live BLE data. If the BLE probe exits
+unexpectedly, the collector restarts it with capped exponential backoff. If BLE
+authentication fails, the collector exits with status `10`; the sample `systemd`
+unit treats that as a non-restartable configuration failure.
