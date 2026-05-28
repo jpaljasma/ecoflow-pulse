@@ -72,6 +72,7 @@ WantedBy=multi-user.target
 ```
 
 The collector exits cleanly on `SIGTERM`/`Ctrl+C`, signals the BLE probe, and
-stops posting telemetry. It keeps only live retry state in memory; if Pulse is
-unavailable, samples that fail to post are dropped and the next probe refresh
-continues from live BLE data.
+stops posting telemetry. The raw JSONL file is truncated on collector startup,
+so restarts do not replay stale probe events. It keeps only live retry state in
+memory; if Pulse is unavailable, samples that fail to post are dropped and the
+next probe refresh continues from live BLE data.

@@ -84,3 +84,22 @@ func TestRawProbeRecordAuthError(t *testing.T) {
 		t.Fatalf("expected auth error")
 	}
 }
+
+func TestResetRawProbeOutputTruncatesExistingFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "raw.jsonl")
+	if err := os.WriteFile(path, []byte(`{"type":"probe_event"}`+"\n"), 0o644); err != nil {
+		t.Fatalf("write raw file: %v", err)
+	}
+	if err := resetRawProbeOutput(path); err != nil {
+		t.Fatalf("resetRawProbeOutput failed: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read raw file: %v", err)
+	}
+	if len(body) != 0 {
+		t.Fatalf("raw file len=%d want 0", len(body))
+	}
+}

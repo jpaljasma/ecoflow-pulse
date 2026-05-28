@@ -152,6 +152,9 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	if err := os.MkdirAll(filepath.Dir(rawPath), 0o755); err != nil {
 		return fmt.Errorf("create raw output dir: %w", err)
 	}
+	if err := resetRawProbeOutput(rawPath); err != nil {
+		return err
+	}
 	cmd, err := startBLEDiscover(cfg.BLE, rawPath, log)
 	if err != nil {
 		return err
@@ -301,6 +304,13 @@ func readNewRawProbeEvents(path string, offset *int64, handle func(rawProbeRecor
 		return fmt.Errorf("track raw probe offset: %w", err)
 	}
 	*offset = pos
+	return nil
+}
+
+func resetRawProbeOutput(path string) error {
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		return fmt.Errorf("reset raw probe output: %w", err)
+	}
 	return nil
 }
 

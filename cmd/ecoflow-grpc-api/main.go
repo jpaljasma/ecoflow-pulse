@@ -86,6 +86,7 @@ func main() {
 		log.Error("grpc auth init failed", "error", err.Error())
 		os.Exit(1)
 	}
+	authorizer = grpcmw.AllowUnauthenticatedMethods(authorizer, edgeCollectorPublicGRPCMethods()...)
 	grpcMetrics := grpcmw.NewMetrics()
 
 	// Middleware chain (order matters):
@@ -380,6 +381,15 @@ func newAuthorizerFromEnv(ctx context.Context, log *slog.Logger) (grpcmw.Authori
 		return authorizer, nil
 	default:
 		return nil, fmt.Errorf("unsupported GRPC_AUTH_MODE %q", mode)
+	}
+}
+
+func edgeCollectorPublicGRPCMethods() []string {
+	return []string{
+		"/pulse.edge.v1.EdgeIngestService/EnrollCollector",
+		"/pulse.edge.v1.EdgeIngestService/Heartbeat",
+		"/pulse.edge.v1.EdgeIngestService/UploadDiscovery",
+		"/pulse.edge.v1.EdgeIngestService/UploadTelemetryBatch",
 	}
 }
 
