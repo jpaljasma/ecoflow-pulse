@@ -141,10 +141,11 @@ jobs:
         if: needs.changes.outputs.go_changed == 'true'
         run: |
           set -euo pipefail
-          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | sort
-          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | grep -q '^pulse-edge-pi5-linux-arm64/bin/pulse-edge-collector$'
-          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | grep -q '^pulse-edge-pi5-linux-arm64/bin/ecoflow-ble-discover$'
-          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | grep -q '^pulse-edge-pi5-linux-arm64/systemd/pulse-edge-collector.service$'
+          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | sort > bundle-files.txt
+          cat bundle-files.txt
+          grep -q '^pulse-edge-pi5-linux-arm64/bin/pulse-edge-collector$' bundle-files.txt
+          grep -q '^pulse-edge-pi5-linux-arm64/bin/ecoflow-ble-discover$' bundle-files.txt
+          grep -q '^pulse-edge-pi5-linux-arm64/systemd/pulse-edge-collector.service$' bundle-files.txt
 
       - name: Upload Raspberry Pi 5 bundle
         if: needs.changes.outputs.go_changed == 'true'
