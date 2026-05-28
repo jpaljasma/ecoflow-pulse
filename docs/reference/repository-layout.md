@@ -22,6 +22,7 @@ Top-level structure:
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.
   - `ecoflow-panel-select-train`: panel selection model training + replay.
   - `ecoflow-smoke`: smoke checks against EcoFlow API.
+  - `ecoflow-ble-discover`: local BLE advertisement discovery for EcoFlow-looking devices.
   - `pecron-smoke`: smoke checks against Pecron discovery, REST snapshots, and
     live MQTT subscription.
   - `ecoflow-server`: API server entrypoint.
