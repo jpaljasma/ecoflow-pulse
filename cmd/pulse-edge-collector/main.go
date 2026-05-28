@@ -11,11 +11,14 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -34,6 +37,9 @@ const (
 	bleAuthExitCode      = 10
 	edgePostAttempts     = 3
 	edgePostRetryDelay   = 200 * time.Millisecond
+	defaultPi5GOMAXPROCS = 4
+	defaultPi5Memory     = 512 * 1024 * 1024
+	defaultPi5GCPercent  = 100
 )
 
 type config struct {
@@ -80,6 +86,12 @@ type edgeClient struct {
 	httpClient *http.Client
 }
 
+type runtimeDefaults struct {
+	GOMAXPROCS  int
+	MemoryLimit int64
+	GCPercent   int
+}
+
 func main() {
 	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -94,6 +106,12 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	log := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	appliedRuntime := applyRuntimeDefaults(os.Getenv)
+	log.Info("pulse edge runtime configured",
+		slog.Int("gomaxprocs", runtime.GOMAXPROCS(0)),
+		slog.Int64("memory_limit_bytes", debug.SetMemoryLimit(-1)),
+		slog.Int("default_gc_percent", appliedRuntime.GCPercent),
+	)
 	cfg, err := loadConfig(*configPath, os.Getenv)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
@@ -102,7 +120,7 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 	client := edgeClient{
 		baseURL:    cfg.targetBaseURL(),
 		secret:     strings.TrimSpace(os.Getenv("PULSE_EDGE_COLLECTOR_SECRET")),
-		httpClient: &http.Client{Timeout: defaultHTTPTimeout},
+		httpClient: newEdgeHTTPClient(),
 	}
 	if strings.TrimSpace(*enrollToken) != "" {
 		secret, err := client.enroll(context.Background(), *enrollToken, collectorVersion(), hostname())
@@ -128,6 +146,56 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 		return exitCodeForCollectorError(err)
 	}
 	return 0
+}
+
+func applyRuntimeDefaults(getenv func(string) string) runtimeDefaults {
+	defaults := runtimeDefaultsFor(getenv, runtime.NumCPU())
+	if defaults.GOMAXPROCS > 0 {
+		runtime.GOMAXPROCS(defaults.GOMAXPROCS)
+	}
+	if defaults.MemoryLimit > 0 {
+		debug.SetMemoryLimit(defaults.MemoryLimit)
+	}
+	if defaults.GCPercent >= 0 {
+		debug.SetGCPercent(defaults.GCPercent)
+	}
+	return defaults
+}
+
+func runtimeDefaultsFor(getenv func(string) string, cpuCount int) runtimeDefaults {
+	defaults := runtimeDefaults{MemoryLimit: -1, GCPercent: -1}
+	if strings.TrimSpace(getenv("GOMAXPROCS")) == "" {
+		if cpuCount <= 0 {
+			cpuCount = 1
+		}
+		defaults.GOMAXPROCS = minInt(cpuCount, defaultPi5GOMAXPROCS)
+	}
+	if strings.TrimSpace(getenv("GOMEMLIMIT")) == "" {
+		defaults.MemoryLimit = defaultPi5Memory
+	}
+	if strings.TrimSpace(getenv("GOGC")) == "" {
+		defaults.GCPercent = defaultPi5GCPercent
+	}
+	return defaults
+}
+
+func newEdgeHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: defaultHTTPTimeout,
+		Transport: &http.Transport{
+			Proxy:             http.ProxyFromEnvironment,
+			ForceAttemptHTTP2: true,
+			DialContext: (&net.Dialer{
+				Timeout:   5 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			MaxIdleConns:          8,
+			MaxIdleConnsPerHost:   4,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
 }
 
 func exitCodeForCollectorError(err error) int {
@@ -320,6 +388,13 @@ func errString(err error) string {
 		return "clean exit"
 	}
 	return err.Error()
+}
+
+func minInt(a int, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func startBLEDiscover(cfg bleConfig, rawPath string, log *slog.Logger) (*exec.Cmd, error) {

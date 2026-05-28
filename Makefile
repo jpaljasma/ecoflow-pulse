@@ -184,7 +184,10 @@ ECOFLOW_BLE_DISCOVER_ARGS ?= -duration=20s
 ECOFLOW_BLE_DISCOVER_PLIST ?= cmd/ecoflow-ble-discover/Info.plist
 ECOFLOW_BLE_DISCOVER_RUN ?= 1
 PULSE_EDGE_COLLECTOR_BIN ?= bin/pulse-edge-collector
-RACE_CRITICAL_PKGS ?= ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./cmd/ecoflow-grpc-api
+PULSE_EDGE_PI5_BIN_DIR ?= bin/linux-arm64
+PULSE_EDGE_PI5_BUNDLE_DIR ?= .tmp/pulse-edge-pi5-linux-arm64
+PULSE_EDGE_PI5_BUNDLE ?= .tmp/pulse-edge-pi5-linux-arm64.tar.gz
+RACE_CRITICAL_PKGS ?= ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./internal/edgecollector ./cmd/ecoflow-grpc-api ./cmd/pulse-edge-collector
 RACE_STRESS_COUNT ?= 5
 LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
 LOCAL_HELM = $(HELM) --kube-context $(K3D_CONTEXT)
@@ -235,7 +238,7 @@ export GOFLAGS
 
 CMDS := $(patsubst cmd/%,%,$(wildcard cmd/*))
 
-.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ecoflow-ble-discover pulse-edge-collector pecron-smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up public-deployments-restart-local k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-deploy-cloud-db local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-deploy-cloud-db dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
+.PHONY: lint test test-race test-race-stress bench bench-ingestlease-integration test-archive-integration test-pipeline-integration test-proto-contract test-db-migrations-ci test-grpc-load-harness test-grpc-soak-10k test-web-e2e test-mobile-e2e test-load-k6 build smoke ecoflow-ble-discover pulse-edge-collector pulse-edge-collector-linux-arm64 pulse-edge-pi5-bundle pecron-smoke ingest-worker inference-worker rollup-worker projection-worker archive-worker replay-cli gap-detector gap-repair-worker docker-local-ready k3d-local-ready helm-local-ready chart-deps-local services-image-build-local services-image-import-local services-image-local-up services-image-build-cloud services-image-push-cloud platform-app-image-build-local platform-app-image-build-cloud platform-app-image-push-cloud realtime-gateway-image-build-local realtime-gateway-image-build-cloud realtime-gateway-image-push-cloud public-images-build-local public-images-build-cloud public-images-push-cloud public-images-import-local public-images-local-up public-deployments-restart-local k3d-up platform-up platform-wait platform-recover-local dev-grafana edge-verify-http3-local local-trust-platform-tls local-trust-platform-tls-system local-cloud-db-env local-cloud-realtime-env services-up services-up-cloud-db services-wait dev-up dev-up-cloud-db local-up local-up-cloud-db local-deploy local-deploy-cloud-db local-down local-status dev-web-deploy dev-web-deploy-cloud-realtime dev-deploy dev-deploy-cloud-db dev-archive-audit dev-archive-reconcile dev-regen-data dev-down db-migrate-up-local db-migrate-down-local db-migrate-verify-local db-migrate-cycle-local db-migrate-e2e-local db-seed-dev-local pgroll-init-local pgroll-status-local pgroll-start-local pgroll-complete-local pgroll-rollback-local dr-backup-local dr-restore-local dr-drill-local auth-keycloak-verify-local gke-context gke-cloud-context cloud-context gke-dev-guardrails gke-park gke-wake scale-down scale-up argocd-bootstrap-dev argocd-apps-dev argocd-wait-apps argocd-dev-up argocd-bootstrap-cloud argocd-apps-cloud argocd-wait-apps-cloud argocd-cloud-up cloud-up cloud-refresh cloud-health-gate cloud-platform-apply cloud-services-apply cloud-deploy cloud-cost-min-deploy cloud-forward-image-build cloud-db-forward cloud-db-forward-start cloud-db-forward-stop cloud-db-forward-status cloud-db-env cloud-realtime-forward cloud-realtime-forward-start cloud-realtime-forward-stop cloud-realtime-forward-status cloud-status web web-stop clean
 
 lint:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
@@ -686,6 +689,23 @@ pulse-edge-collector:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" bin
 	@echo "building $(PULSE_EDGE_COLLECTOR_BIN)"
 	$(GO) build -o "$(PULSE_EDGE_COLLECTOR_BIN)" ./cmd/pulse-edge-collector
+
+pulse-edge-collector-linux-arm64:
+	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" "$(PULSE_EDGE_PI5_BIN_DIR)"
+	@echo "building Raspberry Pi 5 linux/arm64 edge collector bundle binaries"
+	GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "-s -w" -o "$(PULSE_EDGE_PI5_BIN_DIR)/pulse-edge-collector" ./cmd/pulse-edge-collector
+	GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "-s -w" -o "$(PULSE_EDGE_PI5_BIN_DIR)/ecoflow-ble-discover" ./cmd/ecoflow-ble-discover
+
+pulse-edge-pi5-bundle: pulse-edge-collector-linux-arm64
+	@rm -rf "$(PULSE_EDGE_PI5_BUNDLE_DIR)" "$(PULSE_EDGE_PI5_BUNDLE)"
+	@mkdir -p "$(PULSE_EDGE_PI5_BUNDLE_DIR)/bin" "$(PULSE_EDGE_PI5_BUNDLE_DIR)/config" "$(PULSE_EDGE_PI5_BUNDLE_DIR)/systemd" "$(PULSE_EDGE_PI5_BUNDLE_DIR)/docs"
+	@cp "$(PULSE_EDGE_PI5_BIN_DIR)/pulse-edge-collector" "$(PULSE_EDGE_PI5_BUNDLE_DIR)/bin/pulse-edge-collector"
+	@cp "$(PULSE_EDGE_PI5_BIN_DIR)/ecoflow-ble-discover" "$(PULSE_EDGE_PI5_BUNDLE_DIR)/bin/ecoflow-ble-discover"
+	@cp deploy/pulse-edge/config.pi5.yaml "$(PULSE_EDGE_PI5_BUNDLE_DIR)/config/config.yaml"
+	@cp deploy/pulse-edge/pulse-edge-collector.service "$(PULSE_EDGE_PI5_BUNDLE_DIR)/systemd/pulse-edge-collector.service"
+	@cp docs/how-to/run-pulse-edge-collector.md "$(PULSE_EDGE_PI5_BUNDLE_DIR)/docs/run-pulse-edge-collector.md"
+	@tar -C "$(dir $(PULSE_EDGE_PI5_BUNDLE_DIR))" -czf "$(PULSE_EDGE_PI5_BUNDLE)" "$(notdir $(PULSE_EDGE_PI5_BUNDLE_DIR))"
+	@echo "wrote $(PULSE_EDGE_PI5_BUNDLE)"
 
 pecron-smoke:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"

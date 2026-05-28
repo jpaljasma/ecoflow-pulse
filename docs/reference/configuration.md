@@ -78,6 +78,14 @@ Pi collector knobs (`cmd/pulse-edge-collector`):
 - `PULSE_EDGE_PROFILE` selects the `targets` entry from `/etc/pulse-edge/config.yaml`.
 - `PULSE_EDGE_COLLECTOR_SECRET` is the enrolled collector secret. Keep it in a
   systemd `EnvironmentFile`; do not place it in Git or PR text.
+- `GOMAXPROCS` defaults to `4` when unset, matching Raspberry Pi 5's four CPU
+  cores while still allowing an explicit override.
+- `GOMEMLIMIT` defaults to `512MiB` when unset. The packaged Pi unit also sets
+  `MemoryMax=768M` so a collector bug cannot consume the full 8 GB host.
+- `GOGC` defaults to `100` when unset.
+
+Provider ingest worker knobs:
+
 - `INGEST_QUOTA_FETCH_TIMEOUT` (default `10s`; per-call timeout for `GetDeviceAllQuota()` bootstrap/refresh pulls)
 - `INGEST_QUOTA_REFRESH_INTERVAL` (default `30s`; periodic quota refresh cadence while an MQTT session is alive)
 - `INGEST_QUOTA_REFRESH_JITTER` (default `0.20`; proportional jitter applied to periodic quota refresh scheduling)

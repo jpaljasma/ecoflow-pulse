@@ -1,0 +1,15 @@
+profile: local
+targets:
+  local:
+    base_url: https://localhost
+  hosted:
+    base_url: https://pulse.example.com
+ble:
+  discover_binary: /usr/local/bin/ecoflow-ble-discover
+  raw_output_path: /run/pulse-edge/ecoflow-ble-raw.jsonl
+  args:
+    - -duration=20s
+    - -probe-timeout=11m
+    - -listen-duration=0
+    - -active-probe=auto
+    - -ble-transport=rfcomm

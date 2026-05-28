@@ -9,6 +9,8 @@ make test-race-stress
 go run ./cmd/ecoflow-smoke
 go run ./cmd/ecoflow-smoke -mqtt=false
 make ecoflow-ble-discover ECOFLOW_BLE_DISCOVER_ARGS='-duration=20s'
+make pulse-edge-collector
+make pulse-edge-pi5-bundle
 make pecron-smoke
 go run ./cmd/ecoflow-server
 go run ./cmd/ecoflow-pv-fingerprint
@@ -90,6 +92,16 @@ Notes for `cmd/ecoflow-ble-discover`:
 - See
   [`docs/how-to/discover-ecoflow-ble-devices.md`](../how-to/discover-ecoflow-ble-devices.md)
   for Bluetooth permission notes and examples.
+
+Notes for `cmd/pulse-edge-collector`:
+
+- `make pulse-edge-collector` builds the local host binary.
+- `make pulse-edge-pi5-bundle` cross-builds the collector and EcoFlow BLE
+  probe for Raspberry Pi OS `linux/arm64`, then packages both binaries with the
+  Pi 5 `systemd` unit, config template, and install docs.
+- Pull requests run the same Pi 5 bundle build in the `pulse-edge-pi5` GitHub
+  check and upload `pulse-edge-pi5-linux-arm64.tar.gz` as a short-lived
+  workflow artifact.
 
 Notes for `cmd/pecron-smoke`:
 

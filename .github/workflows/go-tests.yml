@@ -52,7 +52,7 @@ jobs:
 
           git diff --name-only "${base_sha}" "${GITHUB_SHA}" > changed_files.txt
 
-          if grep -Eq '(^|/).*\.go$|^go\.mod$|^go\.sum$|^Makefile$|^buf\.yaml$|^buf\.gen\.yaml$|^proto/|^gen/|^\.github/workflows/go-tests\.yml$' changed_files.txt; then
+          if grep -Eq '(^|/).*\.go$|^go\.mod$|^go\.sum$|^Makefile$|^buf\.yaml$|^buf\.gen\.yaml$|^proto/|^gen/|^deploy/pulse-edge/|^docs/how-to/run-pulse-edge-collector\.md$|^docs/reference/(commands|configuration)\.md$|^\.github/workflows/go-tests\.yml$' changed_files.txt; then
             echo "go_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "go_changed=false" >> "$GITHUB_OUTPUT"
@@ -106,4 +106,51 @@ jobs:
 
       - name: Run Go race tests (critical paths)
         if: needs.changes.outputs.go_changed == 'true'
-        run: go test -race ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./cmd/ecoflow-grpc-api
+        run: go test -race ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./internal/edgecollector ./cmd/ecoflow-grpc-api ./cmd/pulse-edge-collector
+
+  pulse-edge-pi5:
+    name: pulse-edge-pi5
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+    steps:
+      - name: Skip when Go inputs are unchanged
+        if: needs.changes.outputs.go_changed != 'true'
+        run: echo "No edge-collector-relevant changes detected; skipping Raspberry Pi 5 artifact"
+
+      - name: Checkout
+        if: needs.changes.outputs.go_changed == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        if: needs.changes.outputs.go_changed == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run edge collector tests
+        if: needs.changes.outputs.go_changed == 'true'
+        run: go test -count=1 ./cmd/pulse-edge-collector ./cmd/ecoflow-ble-discover ./internal/edgecollector
+
+      - name: Build Raspberry Pi 5 bundle
+        if: needs.changes.outputs.go_changed == 'true'
+        run: make pulse-edge-pi5-bundle
+
+      - name: Verify bundle contents
+        if: needs.changes.outputs.go_changed == 'true'
+        run: |
+          set -euo pipefail
+          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | sort
+          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | grep -q '^pulse-edge-pi5-linux-arm64/bin/pulse-edge-collector$'
+          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | grep -q '^pulse-edge-pi5-linux-arm64/bin/ecoflow-ble-discover$'
+          tar -tzf .tmp/pulse-edge-pi5-linux-arm64.tar.gz | grep -q '^pulse-edge-pi5-linux-arm64/systemd/pulse-edge-collector.service$'
+
+      - name: Upload Raspberry Pi 5 bundle
+        if: needs.changes.outputs.go_changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-edge-pi5-linux-arm64
+          path: .tmp/pulse-edge-pi5-linux-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 14

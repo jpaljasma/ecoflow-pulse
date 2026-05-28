@@ -47,6 +47,63 @@ ble:
 	}
 }
 
+func TestRuntimeDefaultsForPi5CapsCPUAndMemory(t *testing.T) {
+	t.Parallel()
+
+	defaults := runtimeDefaultsFor(func(string) string { return "" }, 8)
+	if defaults.GOMAXPROCS != defaultPi5GOMAXPROCS {
+		t.Fatalf("GOMAXPROCS=%d want %d", defaults.GOMAXPROCS, defaultPi5GOMAXPROCS)
+	}
+	if defaults.MemoryLimit != defaultPi5Memory {
+		t.Fatalf("MemoryLimit=%d want %d", defaults.MemoryLimit, defaultPi5Memory)
+	}
+	if defaults.GCPercent != defaultPi5GCPercent {
+		t.Fatalf("GCPercent=%d want %d", defaults.GCPercent, defaultPi5GCPercent)
+	}
+}
+
+func TestRuntimeDefaultsRespectExplicitGoEnv(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"GOMAXPROCS": "2",
+		"GOMEMLIMIT": "256MiB",
+		"GOGC":       "80",
+	}
+	defaults := runtimeDefaultsFor(func(key string) string { return env[key] }, 4)
+	if defaults.GOMAXPROCS != 0 {
+		t.Fatalf("GOMAXPROCS default=%d want unset", defaults.GOMAXPROCS)
+	}
+	if defaults.MemoryLimit != -1 {
+		t.Fatalf("MemoryLimit default=%d want unset", defaults.MemoryLimit)
+	}
+	if defaults.GCPercent != -1 {
+		t.Fatalf("GCPercent default=%d want unset", defaults.GCPercent)
+	}
+}
+
+func TestNewEdgeHTTPClientUsesPiFriendlyTransportBounds(t *testing.T) {
+	t.Parallel()
+
+	client := newEdgeHTTPClient()
+	if client.Timeout != defaultHTTPTimeout {
+		t.Fatalf("timeout=%v want %v", client.Timeout, defaultHTTPTimeout)
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport=%T want *http.Transport", client.Transport)
+	}
+	if transport.MaxIdleConns != 8 || transport.MaxIdleConnsPerHost != 4 {
+		t.Fatalf("idle connection bounds=%d/%d want 8/4", transport.MaxIdleConns, transport.MaxIdleConnsPerHost)
+	}
+	if !transport.ForceAttemptHTTP2 {
+		t.Fatalf("ForceAttemptHTTP2=false want true")
+	}
+	if transport.TLSHandshakeTimeout != 5*time.Second {
+		t.Fatalf("TLSHandshakeTimeout=%v want 5s", transport.TLSHandshakeTimeout)
+	}
+}
+
 func TestRawProbeRecordMetricMapConvertsNumbersAndBooleans(t *testing.T) {
 	t.Parallel()
 
