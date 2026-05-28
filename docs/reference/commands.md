@@ -51,11 +51,40 @@ Notes for `cmd/ecoflow-smoke`:
 Notes for `cmd/ecoflow-ble-discover`:
 
 - Scans nearby Bluetooth Low Energy advertisements and prints likely EcoFlow
-  devices without connecting to them.
+  devices. Text mode then automatically probes supported DELTA 3 and RIVER
+  3-family devices in parallel.
+- Auto-probes print compact fixed-width ASCII refresh tables to stdout, with
+  supported devices shown side by side as columns. The headline rows show
+  current load, solar input, battery charge, and ETA. Detailed raw probe events
+  still go to `.tmp/ecoflow-ble-discover-raw.jsonl`, overwriting that file on
+  every run. Use `-raw-output=` to disable the raw file.
+- Auto-probes use `-active-probe=auto` and listen until `Ctrl-C` by default,
+  then cancel probe contexts so notification subscriptions and BLE connections
+  close through the normal cleanup path. Pass explicit `-active-probe`,
+  `-listen-duration`, or `-probe-timeout` values to override that default.
+- If a BLE authentication response reports anything other than
+  `auth_result=ok`, the command prints the latest probe output, cancels
+  parallel probes, and exits with an error.
+- Use `-select=1`, `first`, a BLE address, a local name, or an unambiguous
+  prefix to force one verbose local GATT probe instead of the default parallel
+  supported-device probe.
+- Selected verbose text-mode probes stream capabilities, writes,
+  notifications, and decoded metrics as they happen. They label known EcoFlow
+  write/notify characteristics and listen briefly for notification frames.
+  Shared v3 display-property uploads are decoded into initial input, output,
+  load, PV, USB, battery, and DC charge metrics when plaintext telemetry is
+  available.
+- For quiet devices, use `-active-probe=auto` with `-ble-transport=both` to send
+  a low-level protocol probe after notifications are enabled. Type-7 encrypted
+  devices attempt the ECDH public-key exchange, session-key-info request,
+  encrypted auth-status request, optional auth request when
+  `-auth-user-id`/`ECOFLOW_BLE_USER_ID` is set, and decrypted packet
+  inspection. Derived AES keys and auth payloads are not printed.
 - On macOS, use the make target so the binary is built with the required
   Bluetooth usage metadata.
 - Output redacts BLE addresses and local names by default. Use
-  `-redact=false` only for local troubleshooting.
+  `-redact=false`, `-raw-notifications`, and raw JSONL captures only for local
+  troubleshooting.
 - Use `-all` to include non-EcoFlow BLE advertisements and `-format=json` for
   JSON Lines output.
 - See
