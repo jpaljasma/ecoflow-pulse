@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package pulse.edge.v1;
+
+option go_package = "github.com/jpaljasma/ecoflow-pulse/gen/pulse/edge/v1;edgev1";
+
+import "google/protobuf/struct.proto";
+
+message EdgeCollector {
+  string id = 1;
+  string display_name = 2;
+  bool is_active = 3;
+  int64 last_heartbeat_at_unix_ms = 4;
+  int64 created_at_unix_ms = 5;
+  int64 updated_at_unix_ms = 6;
+  string collector_version = 7;
+  string hostname = 8;
+}
+
+message EdgeDeviceSource {
+  string id = 1;
+  string collector_id = 2;
+  string provider = 3;
+  string transport = 4;
+  string provider_device_id = 5;
+  string display_name = 6;
+  string model = 7;
+  string status = 8;
+  string linked_device_id = 9;
+  int32 rssi_dbm = 10;
+  int64 last_seen_at_unix_ms = 11;
+  int64 created_at_unix_ms = 12;
+  int64 updated_at_unix_ms = 13;
+  google.protobuf.Struct metadata = 14;
+}
+
+message CreateCollectorRequest {
+  string user_subject = 1;
+  string display_name = 2;
+}
+
+message CreateCollectorResponse {
+  EdgeCollector collector = 1;
+  string setup_token = 2;
+}
+
+message ListCollectorsRequest {
+  string user_subject = 1;
+}
+
+message ListCollectorsResponse {
+  repeated EdgeCollector collectors = 1;
+}
+
+message EnrollCollectorRequest {
+  string setup_token = 1;
+  string collector_version = 2;
+  string hostname = 3;
+}
+
+message EnrollCollectorResponse {
+  EdgeCollector collector = 1;
+  string collector_secret = 2;
+}
+
+message HeartbeatRequest {
+  string collector_secret = 1;
+  string collector_version = 2;
+  string hostname = 3;
+}
+
+message HeartbeatResponse {
+  EdgeCollector collector = 1;
+}
+
+message EdgeDiscovery {
+  string provider = 1;
+  string transport = 2;
+  string provider_device_id = 3;
+  string display_name = 4;
+  string model = 5;
+  string address = 6;
+  int32 rssi_dbm = 7;
+  int64 observed_at_unix_ms = 8;
+  google.protobuf.Struct metadata = 9;
+}
+
+message UploadDiscoveryRequest {
+  string collector_secret = 1;
+  repeated EdgeDiscovery discoveries = 2;
+}
+
+message UploadDiscoveryResponse {
+  uint32 accepted_count = 1;
+}
+
+message ListDeviceSourcesRequest {
+  string user_subject = 1;
+  string collector_id = 2;
+  string status = 3;
+}
+
+message ListDeviceSourcesResponse {
+  repeated EdgeDeviceSource sources = 1;
+}
+
+message ApproveDeviceSourceRequest {
+  string user_subject = 1;
+  string source_id = 2;
+  string device_id = 3;
+  string product_name = 4;
+  string model = 5;
+}
+
+message ApproveDeviceSourceResponse {
+  EdgeDeviceSource source = 1;
+  string device_id = 2;
+}
+
+message EdgeTelemetrySample {
+  string provider = 1;
+  string transport = 2;
+  string provider_device_id = 3;
+  int64 observed_at_unix_ms = 4;
+  google.protobuf.Struct metrics = 5;
+}
+
+message UploadTelemetryBatchRequest {
+  string collector_secret = 1;
+  repeated EdgeTelemetrySample samples = 2;
+}
+
+message UploadTelemetryBatchResponse {
+  uint32 accepted_count = 1;
+  uint32 dropped_count = 2;
+}
+
+service EdgeIngestService {
+  rpc CreateCollector(CreateCollectorRequest) returns (CreateCollectorResponse);
+  rpc ListCollectors(ListCollectorsRequest) returns (ListCollectorsResponse);
+  rpc EnrollCollector(EnrollCollectorRequest) returns (EnrollCollectorResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc UploadDiscovery(UploadDiscoveryRequest) returns (UploadDiscoveryResponse);
+  rpc ListDeviceSources(ListDeviceSourcesRequest) returns (ListDeviceSourcesResponse);
+  rpc ApproveDeviceSource(ApproveDeviceSourceRequest) returns (ApproveDeviceSourceResponse);
+  rpc UploadTelemetryBatch(UploadTelemetryBatchRequest) returns (UploadTelemetryBatchResponse);
+}

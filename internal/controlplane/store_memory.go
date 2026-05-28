@@ -31,6 +31,8 @@ type MemoryStore struct {
 	usersByID       map[string]memoryUser
 	credentials     map[string]ProviderCredential
 	providerDevices map[string]ProviderDevice
+	edgeCollectors  map[string]EdgeCollector
+	edgeSources     map[string]EdgeDeviceSource
 
 	devicesByID map[string]memoryDevice
 	deviceBySN  map[string]string
@@ -59,6 +61,8 @@ func NewMemoryStore() *MemoryStore {
 		},
 		credentials:     map[string]ProviderCredential{},
 		providerDevices: map[string]ProviderDevice{},
+		edgeCollectors:  map[string]EdgeCollector{},
+		edgeSources:     map[string]EdgeDeviceSource{},
 		devicesByID:     map[string]memoryDevice{},
 		deviceBySN:      map[string]string{},
 		userDevices:     map[string]map[string]string{},
@@ -910,6 +914,290 @@ func (s *MemoryStore) SearchAdminLogFilters(_ context.Context, in SearchAdminLog
 	return out, nil
 }
 
+func (s *MemoryStore) CreateEdgeCollector(_ context.Context, in CreateEdgeCollectorInput) (EdgeCollector, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return EdgeCollector{}, ErrUserNotFound
+	}
+	setupTokenHash := strings.TrimSpace(in.SetupTokenHash)
+	if setupTokenHash == "" {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	now := normalizeWriteTime(s.now())
+	displayName := strings.TrimSpace(in.DisplayName)
+	if displayName == "" {
+		displayName = "Pulse Edge Collector"
+	}
+	row := EdgeCollector{
+		ID:             s.nextID("edgecol"),
+		UserID:         userID,
+		DisplayName:    displayName,
+		SetupTokenHash: setupTokenHash,
+		IsActive:       false,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	s.edgeCollectors[row.ID] = row
+	return cloneEdgeCollector(row), nil
+}
+
+func (s *MemoryStore) ListEdgeCollectors(_ context.Context, in ListEdgeCollectorsInput) ([]EdgeCollector, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return []EdgeCollector{}, nil
+	}
+	out := make([]EdgeCollector, 0, len(s.edgeCollectors))
+	for _, row := range s.edgeCollectors {
+		if row.UserID == userID {
+			out = append(out, cloneEdgeCollector(row))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID > out[j].ID
+		}
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) EnrollEdgeCollector(_ context.Context, in EnrollEdgeCollectorInput) (EdgeCollector, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	setupTokenHash := strings.TrimSpace(in.SetupTokenHash)
+	collectorSecretHash := strings.TrimSpace(in.CollectorSecretHash)
+	if setupTokenHash == "" || collectorSecretHash == "" {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	now := normalizeWriteTime(s.now())
+	for id, row := range s.edgeCollectors {
+		if row.SetupTokenHash != setupTokenHash {
+			continue
+		}
+		row.SetupTokenHash = ""
+		row.CollectorSecretHash = collectorSecretHash
+		row.CollectorVersion = strings.TrimSpace(in.CollectorVersion)
+		row.Hostname = strings.TrimSpace(in.Hostname)
+		row.IsActive = true
+		row.LastHeartbeatAt = now
+		row.UpdatedAt = now
+		s.edgeCollectors[id] = row
+		return cloneEdgeCollector(row), nil
+	}
+	return EdgeCollector{}, ErrEdgeCollectorNotFound
+}
+
+func (s *MemoryStore) AuthenticateEdgeCollector(_ context.Context, in AuthenticateEdgeCollectorInput) (EdgeCollector, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	collectorSecretHash := strings.TrimSpace(in.CollectorSecretHash)
+	if collectorSecretHash == "" {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	for _, row := range s.edgeCollectors {
+		if row.CollectorSecretHash == collectorSecretHash && row.IsActive {
+			return cloneEdgeCollector(row), nil
+		}
+	}
+	return EdgeCollector{}, ErrEdgeCollectorNotFound
+}
+
+func (s *MemoryStore) UpdateEdgeCollectorHeartbeat(_ context.Context, in UpdateEdgeCollectorHeartbeatInput) (EdgeCollector, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	row, ok := s.edgeCollectors[strings.TrimSpace(in.CollectorID)]
+	if !ok || !row.IsActive {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	now := normalizeWriteTime(s.now())
+	row.LastHeartbeatAt = now
+	row.UpdatedAt = now
+	if version := strings.TrimSpace(in.CollectorVersion); version != "" {
+		row.CollectorVersion = version
+	}
+	if hostname := strings.TrimSpace(in.Hostname); hostname != "" {
+		row.Hostname = hostname
+	}
+	s.edgeCollectors[row.ID] = row
+	return cloneEdgeCollector(row), nil
+}
+
+func (s *MemoryStore) UpsertEdgeDeviceSource(_ context.Context, in UpsertEdgeDeviceSourceInput) (EdgeDeviceSource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	collector, ok := s.edgeCollectors[strings.TrimSpace(in.CollectorID)]
+	if !ok || !collector.IsActive {
+		return EdgeDeviceSource{}, ErrEdgeCollectorNotFound
+	}
+	provider := NormalizeProvider(in.Provider)
+	transport := normalizeEdgeTransport(in.Transport)
+	providerDeviceID := strings.ToUpper(strings.TrimSpace(in.ProviderDeviceID))
+	if provider == "" || transport == "" || providerDeviceID == "" {
+		return EdgeDeviceSource{}, ErrEdgeDeviceSourceNotFound
+	}
+	var existingID string
+	for id, row := range s.edgeSources {
+		if row.CollectorID == collector.ID &&
+			row.Provider == provider &&
+			row.Transport == transport &&
+			row.ProviderDeviceID == providerDeviceID {
+			existingID = id
+			break
+		}
+	}
+	now := normalizeWriteTime(s.now())
+	observedAt := normalizeWriteTime(in.ObservedAt)
+	if observedAt.IsZero() {
+		observedAt = now
+	}
+	if existingID == "" {
+		existingID = s.nextID("edgesrc")
+	}
+	row := s.edgeSources[existingID]
+	if row.ID == "" {
+		row.ID = existingID
+		row.CollectorID = collector.ID
+		row.UserID = collector.UserID
+		row.Provider = provider
+		row.Transport = transport
+		row.ProviderDeviceID = providerDeviceID
+		row.Status = "pending"
+		row.CreatedAt = now
+	}
+	row.DisplayName = strings.TrimSpace(in.DisplayName)
+	row.Model = strings.TrimSpace(in.Model)
+	row.AddressHash = strings.TrimSpace(in.AddressHash)
+	row.RSSIDBm = in.RSSIDBm
+	row.Metadata = cloneAnyMap(in.Metadata)
+	row.LastSeenAt = observedAt
+	row.UpdatedAt = now
+	s.edgeSources[row.ID] = row
+	return cloneEdgeDeviceSource(row), nil
+}
+
+func (s *MemoryStore) ListEdgeDeviceSources(_ context.Context, in ListEdgeDeviceSourcesInput) ([]EdgeDeviceSource, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return []EdgeDeviceSource{}, nil
+	}
+	collectorID := strings.TrimSpace(in.CollectorID)
+	status := strings.ToLower(strings.TrimSpace(in.Status))
+	out := make([]EdgeDeviceSource, 0, len(s.edgeSources))
+	for _, row := range s.edgeSources {
+		if row.UserID != userID {
+			continue
+		}
+		if collectorID != "" && row.CollectorID != collectorID {
+			continue
+		}
+		if status != "" && row.Status != status {
+			continue
+		}
+		out = append(out, cloneEdgeDeviceSource(row))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].LastSeenAt.Equal(out[j].LastSeenAt) {
+			return out[i].ProviderDeviceID < out[j].ProviderDeviceID
+		}
+		return out[i].LastSeenAt.After(out[j].LastSeenAt)
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) ApproveEdgeDeviceSource(_ context.Context, in ApproveEdgeDeviceSourceInput) (ApprovedEdgeDeviceSource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return ApprovedEdgeDeviceSource{}, ErrUserNotFound
+	}
+	source, ok := s.edgeSources[strings.TrimSpace(in.SourceID)]
+	if !ok || source.UserID != userID {
+		return ApprovedEdgeDeviceSource{}, ErrEdgeDeviceSourceNotFound
+	}
+	now := normalizeWriteTime(s.now())
+	var dev memoryDevice
+	deviceID := strings.TrimSpace(in.DeviceID)
+	if deviceID != "" {
+		existing, ok := s.devicesByID[deviceID]
+		if !ok {
+			return ApprovedEdgeDeviceSource{}, ErrDeviceNotFound
+		}
+		role := s.userDevices[userID][deviceID]
+		if role != "admin" {
+			return ApprovedEdgeDeviceSource{}, ErrPermissionDenied
+		}
+		dev = existing
+	} else {
+		productName := strings.TrimSpace(in.ProductName)
+		if productName == "" {
+			productName = source.DisplayName
+		}
+		model := strings.TrimSpace(in.Model)
+		if model == "" {
+			model = source.Model
+		}
+		var created bool
+		dev, created = s.ensureDeviceLocked(source.ProviderDeviceID, productName, model, now)
+		if !created {
+			dev.UpdatedAt = now
+			s.devicesByID[dev.ID] = dev
+		}
+	}
+	s.ensureUserDeviceRoleLocked(userID, dev.ID, "admin")
+	source.Status = "linked"
+	source.LinkedDeviceID = dev.ID
+	source.UpdatedAt = now
+	s.edgeSources[source.ID] = source
+
+	return ApprovedEdgeDeviceSource{
+		Source: cloneEdgeDeviceSource(source),
+		Device: UserDevice{
+			DeviceID:    dev.ID,
+			EcoflowSN:   dev.EcoflowSN,
+			ProductName: dev.ProductName,
+			Model:       dev.Model,
+			Role:        "admin",
+			CreatedAt:   dev.CreatedAt,
+			UpdatedAt:   dev.UpdatedAt,
+		},
+	}, nil
+}
+
+func (s *MemoryStore) GetLinkedEdgeDeviceSource(_ context.Context, in GetLinkedEdgeDeviceSourceInput) (EdgeDeviceSource, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	provider := NormalizeProvider(in.Provider)
+	transport := normalizeEdgeTransport(in.Transport)
+	providerDeviceID := strings.ToUpper(strings.TrimSpace(in.ProviderDeviceID))
+	for _, row := range s.edgeSources {
+		if row.CollectorID == strings.TrimSpace(in.CollectorID) &&
+			row.Provider == provider &&
+			row.Transport == transport &&
+			row.ProviderDeviceID == providerDeviceID &&
+			row.Status == "linked" &&
+			strings.TrimSpace(row.LinkedDeviceID) != "" {
+			return cloneEdgeDeviceSource(row), nil
+		}
+	}
+	return EdgeDeviceSource{}, ErrEdgeDeviceSourceNotFound
+}
+
 func (s *MemoryStore) memoryDeviceMatchesProviderLocked(deviceID string, provider string) bool {
 	for _, row := range s.providerDevices {
 		if row.DeviceID == deviceID && row.Provider == provider {
@@ -1002,6 +1290,16 @@ func cloneCurrentUser(in CurrentUser) CurrentUser {
 	return in
 }
 
+func cloneEdgeCollector(in EdgeCollector) EdgeCollector {
+	return in
+}
+
+func cloneEdgeDeviceSource(in EdgeDeviceSource) EdgeDeviceSource {
+	out := in
+	out.Metadata = cloneAnyMap(in.Metadata)
+	return out
+}
+
 func cloneAnyMap(in map[string]any) map[string]any {
 	if in == nil {
 		return nil
@@ -1011,4 +1309,12 @@ func cloneAnyMap(in map[string]any) map[string]any {
 		out[key] = value
 	}
 	return out
+}
+
+func normalizeEdgeTransport(value string) string {
+	transport := strings.ToLower(strings.TrimSpace(value))
+	if transport == "" {
+		return "ble"
+	}
+	return transport
 }

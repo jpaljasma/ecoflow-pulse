@@ -4,6 +4,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createControlPlaneClient } from './grpc/controlPlaneClient.js';
 import { createDeviceClient } from './grpc/deviceClient.js';
+import { createEdgeClient } from './grpc/edgeClient.js';
 import { createInferenceClient } from './grpc/inferenceClient.js';
 import { createSolarForecastClient } from './grpc/solarForecastClient.js';
 import { createWeatherClient } from './grpc/weatherClient.js';
@@ -13,6 +14,7 @@ const config = loadConfig(process.env);
 const historyClient = createTelemetryHistoryClient(config.energyGrpcApiAddr);
 const controlPlaneClient = createControlPlaneClient(config.grpcApiAddr);
 const currentUserClient = createControlPlaneClient(config.grpcApiAddr);
+const edgeClient = createEdgeClient(config.grpcApiAddr);
 const snapshotClient = createTelemetrySnapshotClient(config.grpcApiAddr);
 const weatherClient = createWeatherClient(config.grpcApiAddr);
 const solarForecastClient = createSolarForecastClient(config.grpcApiAddr);
@@ -20,6 +22,7 @@ const deviceClient = createDeviceClient(config, controlPlaneClient, snapshotClie
 const inferenceClient = createInferenceClient(config.grpcApiAddr);
 const app = buildApp(config, historyClient, deviceClient, inferenceClient, {
   controlPlaneClient: currentUserClient,
+  edgeClient,
   weatherClient,
   solarForecastClient
 });

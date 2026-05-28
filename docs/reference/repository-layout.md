@@ -17,6 +17,7 @@ Top-level structure:
   - `ecoflow-archive-worker`: distributed raw archive writer (JetStream ingest -> protobuf+zstd objects in provider-aware object storage).
   - `ecoflow-replay-cli`: archive replay CLI (device listing + per-device/fleet shard-time replay modes over provider-aware object storage).
   - `ecoflow-loadtest-ingest-bridge`: local load-test helper that accepts HTTP ingest payloads and publishes canonical telemetry envelopes to NATS.
+  - `pulse-edge-collector`: Raspberry Pi edge collector that forwards local BLE telemetry through the Pulse edge ingest API.
   - `ecoflow-gap-detector`: projection lag detector that enqueues targeted replay jobs.
   - `ecoflow-gap-repair-worker`: gap-repair queue consumer that replays missing windows back into ingest subjects.
   - `ecoflow-pv-fingerprint`: PV feature extraction from training telemetry CSV.

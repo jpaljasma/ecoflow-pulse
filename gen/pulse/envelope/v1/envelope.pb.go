@@ -28,6 +28,7 @@ const (
 	SourceKind_SOURCE_KIND_MQTT_QUOTA  SourceKind = 1
 	SourceKind_SOURCE_KIND_MQTT_STATUS SourceKind = 2
 	SourceKind_SOURCE_KIND_REPLAY      SourceKind = 3
+	SourceKind_SOURCE_KIND_EDGE_LOCAL  SourceKind = 4
 )
 
 // Enum value maps for SourceKind.
@@ -37,12 +38,14 @@ var (
 		1: "SOURCE_KIND_MQTT_QUOTA",
 		2: "SOURCE_KIND_MQTT_STATUS",
 		3: "SOURCE_KIND_REPLAY",
+		4: "SOURCE_KIND_EDGE_LOCAL",
 	}
 	SourceKind_value = map[string]int32{
 		"SOURCE_KIND_UNSPECIFIED": 0,
 		"SOURCE_KIND_MQTT_QUOTA":  1,
 		"SOURCE_KIND_MQTT_STATUS": 2,
 		"SOURCE_KIND_REPLAY":      3,
+		"SOURCE_KIND_EDGE_LOCAL":  4,
 	}
 )
 
@@ -346,13 +349,14 @@ const file_pulse_envelope_v1_envelope_proto_rawDesc = "" +
 	"\x06labels\x18\x12 \x03(\v20.pulse.envelope.v1.TelemetryEnvelope.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01*z\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01*\x96\x01\n" +
 	"\n" +
 	"SourceKind\x12\x1b\n" +
 	"\x17SOURCE_KIND_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16SOURCE_KIND_MQTT_QUOTA\x10\x01\x12\x1b\n" +
 	"\x17SOURCE_KIND_MQTT_STATUS\x10\x02\x12\x16\n" +
-	"\x12SOURCE_KIND_REPLAY\x10\x03*r\n" +
+	"\x12SOURCE_KIND_REPLAY\x10\x03\x12\x1a\n" +
+	"\x16SOURCE_KIND_EDGE_LOCAL\x10\x04*r\n" +
 	"\x0fPayloadEncoding\x12 \n" +
 	"\x1cPAYLOAD_ENCODING_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aPAYLOAD_ENCODING_JSON_UTF8\x10\x01\x12\x1d\n" +
