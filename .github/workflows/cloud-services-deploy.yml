@@ -163,10 +163,48 @@ jobs:
         run: make gke-cloud-context
 
       - name: Direct Helm cloud services deploy
+        shell: bash
         env:
           CLOUD_SERVICES_HELM_SET_ARGS: >-
             --set runtime.image.repository=${{ env.SERVICES_CLOUD_IMAGE_REPO }}
             --set runtime.image.tag=${{ steps.image.outputs.tag }}
-        run: >-
-          make cloud-services-apply
-          CLOUD_SERVICES_VALUES="deploy/env/cloud/values.services.yaml deploy/env/cloud/values.services.cost-min.yaml"
+        run: |
+          set -euo pipefail
+
+          dump_hook_diagnostics() {
+            echo "::group::pulse-services-cloud hook diagnostics"
+            for ns in pulse-platform pulse-services; do
+              echo "namespace=${ns} jobs"
+              kubectl -n "${ns}" get jobs \
+                -l app.kubernetes.io/instance=pulse-services-cloud \
+                -o wide || true
+              echo "namespace=${ns} pods"
+              kubectl -n "${ns}" get pods \
+                -l app.kubernetes.io/instance=pulse-services-cloud \
+                -o wide || true
+            done
+            for ns in pulse-platform pulse-services; do
+              echo "namespace=${ns} recent events"
+              kubectl -n "${ns}" get events --sort-by=.lastTimestamp | tail -80 || true
+            done
+            for ns in pulse-platform pulse-services; do
+              while IFS= read -r resource; do
+                [[ -n "${resource}" ]] || continue
+                echo "describe ${ns}/${resource}"
+                kubectl -n "${ns}" describe "${resource}" || true
+                echo "logs ${ns}/${resource}"
+                kubectl -n "${ns}" logs "${resource}" --all-containers=true --tail=300 || true
+              done < <(
+                kubectl -n "${ns}" get jobs,pods \
+                  -l app.kubernetes.io/instance=pulse-services-cloud,app.kubernetes.io/component=db-migrate \
+                  -o name 2>/dev/null || true
+              )
+            done
+            echo "::endgroup::"
+          }
+
+          if ! make cloud-services-apply \
+            CLOUD_SERVICES_VALUES="deploy/env/cloud/values.services.yaml deploy/env/cloud/values.services.cost-min.yaml"; then
+            dump_hook_diagnostics
+            exit 1
+          fi

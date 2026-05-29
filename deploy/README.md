@@ -123,7 +123,8 @@ Defaults:
     Registry auth refreshed from the current `gcloud` session,
   - `.github/workflows/cloud-services-deploy.yml` for automatic hosted
     `pulse-services-cloud` deployment after a successful `Go Tests` workflow on
-    `main`,
+    `main`; failed Helm hook deploys print recent hook jobs, pods, events, and
+    migration logs before the job is cleaned up,
   - `make cloud-up` for the hosted Argo bootstrap/apply/wait path,
   - `make cloud-refresh` for re-applying hosted Argo apps after branch changes,
   - `make cloud-deploy` for the direct Helm hosted apply path once Argo cutover

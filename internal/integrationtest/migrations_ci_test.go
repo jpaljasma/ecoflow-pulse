@@ -136,11 +136,11 @@ INSERT INTO provider_devices (id, device_id, provider, provider_device_id, is_ac
 	if err != nil {
 		t.Fatalf("resolve repo root: %v", err)
 	}
-	migrationSQL, err := os.ReadFile(filepath.Join(root, opts.MigrationsDir, "000032_m1_restore_device_import_upsert_constraints.up.sql"))
+	migrationSQL, err := readMigrationSQL(root, opts.MigrationsDir, "000032_m1_restore_device_import_upsert_constraints.up.sql")
 	if err != nil {
 		t.Fatalf("read repair migration: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, string(migrationSQL)); err != nil {
+	if _, err := db.ExecContext(ctx, migrationSQL); err != nil {
 		t.Fatalf("apply repair migration: %v", err)
 	}
 
@@ -157,6 +157,207 @@ INSERT INTO provider_devices (id, device_id, provider, provider_device_id, is_ac
 	}
 	if _, err := db.ExecContext(ctx, "INSERT INTO provider_devices (id, device_id, provider, provider_device_id, is_active, ingest_desired_state, created_at, updated_at) SELECT '019d4a0d-0000-7000-8000-000000000203', d.id, 'pecron', 'provider-device-2', true, 'active', NOW(), NOW() FROM devices d WHERE d.ecoflow_sn = 'DRIFT-SN-1' ON CONFLICT (provider, provider_device_id) DO UPDATE SET device_id = EXCLUDED.device_id, updated_at = EXCLUDED.updated_at;"); err != nil {
 		t.Fatalf("provider_devices upsert after repair: %v", err)
+	}
+}
+
+func TestRestoreControlPlaneKeysAllowsEdgeCollectorMigrationOnDriftedSchema(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skip migration CI integration test in short mode")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	opts := DefaultStackOptions()
+	stack := &Stack{}
+	var startErr error
+	stack.PostgresDSN, startErr = startTimescale(ctx, stack, opts)
+	if startErr != nil {
+		t.Fatalf("start postgres integration stack: %v", startErr)
+	}
+	t.Cleanup(func() {
+		_ = stack.Terminate(context.Background())
+	})
+	if err := waitForPostgres(ctx, stack.PostgresDSN); err != nil {
+		t.Fatalf("wait for postgres: %v", err)
+	}
+
+	db, err := OpenPostgres(ctx, stack.PostgresDSN)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	t.Cleanup(func() {
+		closeErr := db.Close()
+		if closeErr != nil {
+			t.Errorf("close postgres: %v", closeErr)
+		}
+	})
+
+	if _, err := db.ExecContext(ctx, `
+CREATE TABLE users (
+    id UUID NOT NULL DEFAULT uuidv7(),
+    keycloak_subject TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE devices (
+    id UUID NOT NULL DEFAULT uuidv7(),
+    ecoflow_sn TEXT NOT NULL UNIQUE,
+    product_name TEXT,
+    model TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE user_devices (
+    user_id UUID NOT NULL,
+    device_id UUID NOT NULL,
+    role TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT uq_user_devices_user_device UNIQUE (user_id, device_id)
+);
+CREATE TABLE provider_credentials (
+    id UUID NOT NULL DEFAULT uuidv7(),
+    user_id UUID NOT NULL,
+    provider TEXT NOT NULL,
+    access_key_ciphertext BYTEA NOT NULL,
+    secret_key_ciphertext BYTEA NOT NULL,
+    access_key_hash BYTEA NOT NULL,
+    access_key_mask TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE provider_devices (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    device_id UUID NOT NULL,
+    provider TEXT NOT NULL,
+    provider_device_id TEXT NOT NULL,
+    credential_id UUID NOT NULL,
+    capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    is_active BOOLEAN NOT NULL,
+    ingest_desired_state TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+INSERT INTO users (id, keycloak_subject, created_at, updated_at) VALUES
+    ('019d51bc-0000-7000-8000-000000000001', 'subject-edge-1', '2026-05-28 18:00:00+00', '2026-05-28 18:00:00+00');
+INSERT INTO devices (id, ecoflow_sn, product_name, model, metadata, created_at, updated_at) VALUES
+    ('019d51bc-0000-7000-8000-000000000101', 'EDGE-SN-1', 'DELTA 3 1000 Air', 'delta3-air', '{}'::jsonb, '2026-05-28 18:00:00+00', '2026-05-28 18:00:00+00');
+INSERT INTO user_devices (user_id, device_id, role, created_at, updated_at) VALUES
+    ('019d51bc-0000-7000-8000-000000000001', '019d51bc-0000-7000-8000-000000000101', 'admin', '2026-05-28 18:00:00+00', '2026-05-28 18:00:00+00');
+INSERT INTO provider_credentials (id, user_id, provider, access_key_ciphertext, secret_key_ciphertext, access_key_hash, access_key_mask, is_active, created_at, updated_at) VALUES
+    ('019d51bc-0000-7000-8000-000000000201', '019d51bc-0000-7000-8000-000000000001', 'ecoflow', '\x01'::bytea, '\x02'::bytea, '\x03'::bytea, 'ak...', true, '2026-05-28 18:00:00+00', '2026-05-28 18:00:00+00');
+INSERT INTO provider_devices (id, device_id, provider, provider_device_id, credential_id, is_active, ingest_desired_state, created_at, updated_at) VALUES
+    ('019d51bc-0000-7000-8000-000000000301', '019d51bc-0000-7000-8000-000000000101', 'ecoflow', 'edge-provider-device-1', '019d51bc-0000-7000-8000-000000000201', true, 'active', '2026-05-28 18:00:00+00', '2026-05-28 18:00:00+00');
+`); err != nil {
+		t.Fatalf("seed drifted control-plane schema: %v", err)
+	}
+
+	root, err := resolveRepoRoot()
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+	for _, fileName := range []string{
+		"000033_m2_restore_control_plane_keys.up.sql",
+		"000034_m1_edge_collectors.up.sql",
+	} {
+		migrationSQL, err := readMigrationSQL(root, opts.MigrationsDir, fileName)
+		if err != nil {
+			t.Fatalf("read %s: %v", fileName, err)
+		}
+		if _, err := db.ExecContext(ctx, migrationSQL); err != nil {
+			t.Fatalf("apply %s: %v", fileName, err)
+		}
+	}
+
+	gotConstraints := queryStrings(t, ctx, db, `
+SELECT conname
+FROM pg_constraint
+WHERE conname IN (
+  'users_pkey',
+  'devices_pkey',
+  'user_devices_pkey',
+  'provider_credentials_pkey',
+  'fk_user_devices_user',
+  'fk_user_devices_device',
+  'fk_provider_credentials_user',
+  'fk_provider_devices_device',
+  'fk_provider_devices_credential',
+  'fk_edge_collectors_user',
+  'fk_edge_device_sources_user',
+  'fk_edge_device_sources_linked_device'
+)
+ORDER BY conname`)
+	assertStringsEqual(t, gotConstraints, []string{
+		"devices_pkey",
+		"fk_edge_collectors_user",
+		"fk_edge_device_sources_linked_device",
+		"fk_edge_device_sources_user",
+		"fk_provider_credentials_user",
+		"fk_provider_devices_credential",
+		"fk_provider_devices_device",
+		"fk_user_devices_device",
+		"fk_user_devices_user",
+		"provider_credentials_pkey",
+		"user_devices_pkey",
+		"users_pkey",
+	}, "restored drift constraints")
+
+	if _, err := db.ExecContext(ctx, `
+WITH collector AS (
+    INSERT INTO edge_collectors (
+        user_id,
+        display_name,
+        setup_token_hash,
+        collector_secret_hash,
+        is_active,
+        created_at,
+        updated_at
+    )
+    VALUES (
+        '019d51bc-0000-7000-8000-000000000001',
+        'Pi edge collector',
+        'setup-hash-1',
+        'secret-hash-1',
+        true,
+        NOW(),
+        NOW()
+    )
+    RETURNING id
+)
+INSERT INTO edge_device_sources (
+    collector_id,
+    user_id,
+    provider,
+    transport,
+    provider_device_id,
+    display_name,
+    model,
+    status,
+    linked_device_id,
+    last_seen_at,
+    created_at,
+    updated_at
+)
+SELECT
+    collector.id,
+    '019d51bc-0000-7000-8000-000000000001',
+    'ecoflow',
+    'ble',
+    'edge-provider-device-1',
+    'DELTA 3 1000 Air',
+    'delta3-air',
+    'linked',
+    '019d51bc-0000-7000-8000-000000000101',
+    NOW(),
+    NOW(),
+    NOW()
+FROM collector;
+`); err != nil {
+		t.Fatalf("insert edge collector/source after drift repair: %v", err)
 	}
 }
 
@@ -310,17 +511,26 @@ ORDER BY indexname`)
 		"chk_solar_forecast_verification_version_nonempty",
 		"chk_user_devices_role",
 		"chk_users_keycloak_subject_nonempty",
+		"devices_pkey",
+		"fk_provider_credentials_user",
+		"fk_provider_devices_credential",
+		"fk_provider_devices_device",
+		"fk_user_devices_device",
+		"fk_user_devices_user",
 		"pk_rollup_day",
 		"pk_rollup_hour",
 		"pk_rollup_minute",
 		"pk_rollup_pv_port_day",
 		"pk_rollup_pv_port_hour",
 		"pk_rollup_pv_port_minute",
+		"provider_credentials_pkey",
 		"uq_archive_manifest_bucket_key",
 		"uq_provider_devices_device_provider",
 		"uq_provider_devices_provider_device_id",
+		"user_devices_pkey",
+		"users_pkey",
 	}
-	gotConstraints := queryStrings(t, ctx, db, "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order','pk_rollup_minute','pk_rollup_hour','pk_rollup_day','chk_rollup_minute_sample_count_nonnegative','chk_rollup_hour_sample_count_nonnegative','chk_rollup_day_sample_count_nonnegative','pk_rollup_pv_port_minute','pk_rollup_pv_port_hour','pk_rollup_pv_port_day','chk_rollup_pv_port_minute_provider_nonempty','chk_rollup_pv_port_minute_provider_device_id_nonempty','chk_rollup_pv_port_minute_port_id_nonempty','chk_rollup_pv_port_minute_port_label_nonempty','chk_rollup_pv_port_minute_sample_count_positive','chk_rollup_pv_port_minute_ts_order','chk_rollup_pv_port_hour_provider_nonempty','chk_rollup_pv_port_hour_provider_device_id_nonempty','chk_rollup_pv_port_hour_port_id_nonempty','chk_rollup_pv_port_hour_port_label_nonempty','chk_rollup_pv_port_hour_sample_count_positive','chk_rollup_pv_port_hour_ts_order','chk_rollup_pv_port_day_provider_nonempty','chk_rollup_pv_port_day_provider_device_id_nonempty','chk_rollup_pv_port_day_port_id_nonempty','chk_rollup_pv_port_day_port_label_nonempty','chk_rollup_pv_port_day_sample_count_positive','chk_rollup_pv_port_day_ts_order','chk_solar_forecast_runs_scope_kind','chk_solar_forecast_runs_timezone_nonempty','chk_solar_forecast_runs_site_key_nonempty','chk_solar_forecast_runs_forecast_version_nonempty','chk_solar_forecast_runs_feature_version_nonempty','chk_solar_forecast_runs_issue_local_hour','chk_solar_forecast_runs_served_variant','chk_solar_forecast_hourly_site_key_nonempty','chk_solar_forecast_hourly_target_hour','chk_solar_forecast_hourly_horizon_nonnegative','chk_solar_forecast_hourly_horizon_bucket','chk_solar_forecast_hourly_irradiance_source','chk_solar_forecast_hourly_verification_status','chk_solar_forecast_verification_site_key_nonempty','chk_solar_forecast_verification_timezone_nonempty','chk_solar_forecast_verification_version_nonempty','chk_solar_forecast_verification_horizon_bucket','chk_solar_forecast_verification_counts_nonnegative','chk_solar_forecast_verification_served_variant','chk_solar_forecast_calibration_site_key_nonempty','chk_solar_forecast_calibration_version_nonempty','chk_solar_forecast_calibration_horizon_bucket','chk_solar_forecast_calibration_hour','chk_solar_forecast_calibration_sample_count_nonnegative','chk_solar_forecast_calibration_ratio_positive','uq_provider_devices_provider_device_id','uq_provider_devices_device_provider') ORDER BY conname")
+	gotConstraints := queryStrings(t, ctx, db, "SELECT conname FROM pg_constraint WHERE conname IN ('chk_user_devices_role','chk_devices_ecoflow_sn_nonempty','chk_users_keycloak_subject_nonempty','uq_archive_manifest_bucket_key','chk_archive_manifest_ts_order','pk_rollup_minute','pk_rollup_hour','pk_rollup_day','chk_rollup_minute_sample_count_nonnegative','chk_rollup_hour_sample_count_nonnegative','chk_rollup_day_sample_count_nonnegative','pk_rollup_pv_port_minute','pk_rollup_pv_port_hour','pk_rollup_pv_port_day','chk_rollup_pv_port_minute_provider_nonempty','chk_rollup_pv_port_minute_provider_device_id_nonempty','chk_rollup_pv_port_minute_port_id_nonempty','chk_rollup_pv_port_minute_port_label_nonempty','chk_rollup_pv_port_minute_sample_count_positive','chk_rollup_pv_port_minute_ts_order','chk_rollup_pv_port_hour_provider_nonempty','chk_rollup_pv_port_hour_provider_device_id_nonempty','chk_rollup_pv_port_hour_port_id_nonempty','chk_rollup_pv_port_hour_port_label_nonempty','chk_rollup_pv_port_hour_sample_count_positive','chk_rollup_pv_port_hour_ts_order','chk_rollup_pv_port_day_provider_nonempty','chk_rollup_pv_port_day_provider_device_id_nonempty','chk_rollup_pv_port_day_port_id_nonempty','chk_rollup_pv_port_day_port_label_nonempty','chk_rollup_pv_port_day_sample_count_positive','chk_rollup_pv_port_day_ts_order','chk_solar_forecast_runs_scope_kind','chk_solar_forecast_runs_timezone_nonempty','chk_solar_forecast_runs_site_key_nonempty','chk_solar_forecast_runs_forecast_version_nonempty','chk_solar_forecast_runs_feature_version_nonempty','chk_solar_forecast_runs_issue_local_hour','chk_solar_forecast_runs_served_variant','chk_solar_forecast_hourly_site_key_nonempty','chk_solar_forecast_hourly_target_hour','chk_solar_forecast_hourly_horizon_nonnegative','chk_solar_forecast_hourly_horizon_bucket','chk_solar_forecast_hourly_irradiance_source','chk_solar_forecast_hourly_verification_status','chk_solar_forecast_verification_site_key_nonempty','chk_solar_forecast_verification_timezone_nonempty','chk_solar_forecast_verification_version_nonempty','chk_solar_forecast_verification_horizon_bucket','chk_solar_forecast_verification_counts_nonnegative','chk_solar_forecast_verification_served_variant','chk_solar_forecast_calibration_site_key_nonempty','chk_solar_forecast_calibration_version_nonempty','chk_solar_forecast_calibration_horizon_bucket','chk_solar_forecast_calibration_hour','chk_solar_forecast_calibration_sample_count_nonnegative','chk_solar_forecast_calibration_ratio_positive','devices_pkey','fk_user_devices_user','fk_user_devices_device','provider_credentials_pkey','fk_provider_credentials_user','fk_provider_devices_device','fk_provider_devices_credential','user_devices_pkey','users_pkey','uq_provider_devices_provider_device_id','uq_provider_devices_device_provider') ORDER BY conname")
 	assertStringsEqual(t, gotConstraints, wantConstraints, "schema constraints")
 
 	gotDeviceUniqueIndexes := queryStrings(t, ctx, db, `
@@ -497,6 +707,14 @@ func expectExecError(t *testing.T, ctx context.Context, db *sql.DB, query string
 	if _, err := db.ExecContext(ctx, query); err == nil {
 		t.Fatalf("expected query to fail: %s", query)
 	}
+}
+
+func readMigrationSQL(root string, migrationsDir string, fileName string) (string, error) {
+	body, err := os.ReadFile(filepath.Join(root, migrationsDir, fileName))
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
 }
 
 func queryStrings(t *testing.T, ctx context.Context, db *sql.DB, query string) []string {
