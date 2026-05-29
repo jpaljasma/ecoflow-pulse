@@ -341,7 +341,7 @@ test-db-migrations-ci:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
 	@echo "running migration cycle + pgroll + e2e validation suite with Testcontainers"
 	PGROLL_REQUIRED="$(PGROLL_REQUIRED)" PGROLL_BIN="$(PGROLL)" \
-	$(GO) test ./internal/integrationtest -run 'Test(MigrationsCycleAndE2E|PgrollPlansCycleAndRollback)' -count=1 -v
+	$(GO) test ./internal/integrationtest -run 'Test(MigrationsCycleAndE2E|PgrollPlansCycleAndRollback|RestoreDeviceImportUpsertConstraintsRepairsDriftedImportSchema|RestoreControlPlaneKeysAllowsEdgeCollectorMigrationOnDriftedSchema)' -count=1 -v
 
 test-grpc-load-harness:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)"
