@@ -450,12 +450,21 @@ Use `ARCHIVE_OBJECT_PROVIDER=gcs` and an appliance-specific
 `ARCHIVE_WRITER_ID`, with service-account credentials mounted as a Kubernetes
 secret.
 
+The planned backup and hosted-cloud shutdown sequence is documented in
+[`run-pi5-appliance-backup-cutover.md`](../how-to/run-pi5-appliance-backup-cutover.md).
+That runbook treats the shared `pulse-platform-core` CNPG database as the local
+app and Keycloak backup source, requires the archive upload outbox to be empty
+before cutover or rebuild work, and keeps GCS online while hosted compute,
+databases, and caches are parked.
+
 ## Acceptance
 
 - Fresh NVMe install boots without microSD and survives 10 reboot cycles.
 - `pulse-appliance status` checks throttling, NVMe SMART, free disk, K3s,
   Helm releases, Keycloak login, GCS write, gRPC loopback, BLE heartbeat, BLE
   outbox, and NATS stream limits.
+- Planned cutover has a fresh CNPG dump, secret backup, GCS sanity marker, and
+  empty archive upload outbox before hosted runtime is shut down.
 - Restart `pulse-core`, K3s, and BLE without duplicate telemetry.
 - Block GCS for 24h without local ingest loss.
 - Capacity burn-in with 10 devices stays under 4.8GiB steady RSS, preserves

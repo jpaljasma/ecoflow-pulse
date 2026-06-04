@@ -4,7 +4,7 @@
 
 - Keep the appliance implementation moving in small Ralph-loop PRs after the
   Phase 1 foundation merged.
-- Current branch: `codex/pi5-appliance-phase2`.
+- Current branch: `codex/pi5-backup-cutover-runbook`.
 - Maintain one canonical task board at `.codex/tasks/pulse-pi5-appliance.md`.
 
 ## Files to inspect first
@@ -21,6 +21,9 @@
 - Progress updates use the standard Ralph-loop `Progress` format.
 - 2026-06-04: Phase 1 is complete after adding installer/upgrade/wait/status
   orchestration and dry-run coverage.
+- 2026-06-04: Phase 3 runbook slice is docs-only and should define the planned
+  backup/restore plus hosted-cloud shutdown gates before workload
+  consolidation starts.
 
 ## Open risks
 
@@ -30,5 +33,4 @@
 
 ## Next step
 
-- Open the Phase 1 completion PR, then start the BLE direct-ingest slice after
-  merge.
+- Validate and open the Phase 3 backup/cutover runbook PR.

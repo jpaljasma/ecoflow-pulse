@@ -16,15 +16,21 @@
 - Hosted Google Cloud runtime is turned off after migration, except GCS object
   storage.
 - BLE support is part of day-one appliance value, not a later add-on.
+- Backup/cutover guidance should say what to do without making the appliance
+  feel like a cloud platform that needs constant operator attention.
+- Local username/password Keycloak login remains mandatory; social login is
+  optional per install.
 
 ## Open risks
 
-- Over-clustering or exposing Kubernetes details would make the appliance feel
-  harder than necessary.
+- Over-clustering or exposing Kubernetes details in normal user flows would make
+  the appliance feel harder than necessary.
 - Appliance-for-others constraints require local auth to work without shared
   social OAuth clients.
+- The current cutover runbook is operator-facing; future appliance-for-others
+  packaging should turn the same checks into simple status and backup commands.
 
 ## Next step
 
-- Review the plan-only PR for simplicity and missing acceptance criteria before
-  implementation begins.
+- Review the backup/cutover runbook for simplicity, local-only posture, and
+  clear hosted-cost shutdown boundaries.
