@@ -52,6 +52,7 @@ Pecron E1000LFP cloud, and Anker SOLIX Cloud MQTT onboarding.
 ### Explanation
 
 - [`explanation/architecture.md`](explanation/architecture.md)
+- [`architecture/config-06-pi5-appliance.md`](architecture/config-06-pi5-appliance.md)
 - [`explanation/telemetry-and-estimation.md`](explanation/telemetry-and-estimation.md)
 - [`explanation/ui-visual-system.md`](explanation/ui-visual-system.md)
 
