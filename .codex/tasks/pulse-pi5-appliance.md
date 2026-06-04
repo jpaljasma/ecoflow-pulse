@@ -1,9 +1,9 @@
 # Pulse Pi 5 Appliance Task Board
 
-Status: `PLAN-ONLY PR`
+Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance`
-Base commit: `fb41daa1`
+Branch: `codex/pi5-appliance-phase1`
+Base commit: `8aabf0bc`
 
 ## Assumptions
 
@@ -20,7 +20,7 @@ Base commit: `fb41daa1`
 | Status | Owner | Workstream | Dependency | Latest validation |
 |---|---|---|---|---|
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
-| TODO | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status | plan PR merged | pending |
+| PROGRESS | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status | plan PR merged | `make appliance-pi-validate` |
 | TODO | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API | pending |
 | TODO | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | pending |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
@@ -38,14 +38,19 @@ Base commit: `fb41daa1`
 - 2026-06-04: BLE must ship from day one and should use direct local gRPC
   instead of the REST bridge when running on the appliance.
 - 2026-06-04: Appliance capacity is sized for 1-2 users and about 10 devices.
+- 2026-06-04: Phase 1 starts on `codex/pi5-appliance-phase1` after the
+  plan-only PR merged to `main`.
+- 2026-06-04: The first implementation slice adds Pi host scripts, K3s config,
+  Pi Helm overlays, loopback gRPC hostPort chart support, and appliance
+  validation targets.
 
 ## Blockers
 
-- Product/runtime implementation is intentionally blocked until this plan PR
-  merges.
+- None for the Phase 1 scaffold slice.
 
 ## Next Actions
 
-1. Push the plan-only PR and verify the rendered PR body.
-2. After merge, start Phase 1 on a fresh implementation branch.
-3. Keep this task board current during every Ralph-loop slice.
+1. Run full repo lint after the Phase 1 scaffold update.
+2. Review rendered Pi manifests for singleton/resource-budget regressions.
+3. Decide whether this Phase 1 branch should stop at scaffolding or continue
+   into installer/upgrade commands before PR.

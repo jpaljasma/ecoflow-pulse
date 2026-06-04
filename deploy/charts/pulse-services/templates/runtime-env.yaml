@@ -36,6 +36,12 @@ data:
   ENERGY_PV_PORT_HISTORY_CACHE_LOCAL_TTL: {{ .Values.runtime.env.energyPvPortHistoryCacheLocalTTL | quote }}
   INFERENCE_ENERGY_COMPARISON_CACHE_LOCAL_TTL: {{ .Values.runtime.env.inferenceEnergyComparisonCacheLocalTTL | quote }}
   INFERENCE_CONTEXT_CACHE_LOCAL_TTL: {{ .Values.runtime.env.inferenceContextCacheLocalTTL | quote }}
+  {{- with .Values.runtime.env.goMaxProcs }}
+  GOMAXPROCS: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.runtime.env.goMemLimit }}
+  GOMEMLIMIT: {{ . | quote }}
+  {{- end }}
   GRPC_AUTH_MODE: {{ .Values.runtime.env.grpcAuthMode | quote }}
   KEYCLOAK_ISSUER_URL: {{ .Values.runtime.env.keycloakIssuerUrl | quote }}
   KEYCLOAK_AUDIENCE: {{ .Values.runtime.env.keycloakAudience | quote }}

@@ -148,6 +148,20 @@ kubelet-arg:
 The appliance bundle includes pinned GHCR image digests, `deploy/env/pi/`
 values, host tuning scripts, BLE binaries, and status/upgrade commands.
 
+Phase 1 implementation files:
+
+- `deploy/appliance/pi5/pulse-appliance-host-prepare.sh`
+- `deploy/appliance/pi5/pulse-appliance-status.sh`
+- `deploy/appliance/pi5/k3s-config.yaml`
+- `deploy/env/pi/values.platform.yaml`
+- `deploy/env/pi/values.services.yaml`
+
+Validation command:
+
+```bash
+make appliance-pi-validate
+```
+
 ## Appliance Workload Defaults
 
 - Postgres/CNPG: singleton, Timescale enabled, `max_connections=40`,

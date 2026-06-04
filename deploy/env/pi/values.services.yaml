@@ -1,0 +1,197 @@
+global:
+  environment: pi
+  platformReleaseName: pulse-platform
+
+scaffold:
+  enabled: true
+  message: "pulse-services pi appliance"
+
+runtime:
+  image:
+    repository: ghcr.io/ecoflow-pulse/services
+    tag: pi-placeholder
+    pullPolicy: IfNotPresent
+  serviceAccount:
+    create: false
+    name: ""
+    automountServiceAccountToken: true
+  secret:
+    existingSecretName: pulse-services-runtime-secret
+  migrations:
+    enabled: true
+    namespace: pulse-platform
+    db:
+      host: pulse-platform-core-rw
+      port: 5432
+      name: pulse
+      sslmode: disable
+      credentialsSecretName: pulse-platform-core-app
+      usernameKey: username
+      passwordKey: password
+    policy:
+      rolloutEnv: appliance
+      requireBackup: false
+      backupRef: ""
+      forwardOnly: true
+  env:
+    controlPlaneDBDSN: ""
+    archiveManifestDBDSN: ""
+    ecoflowEnv: "prod"
+    ecoflowBaseUrl: "https://api-a.ecoflow.com"
+    dbSchemaSearchPath: ""
+    natsURLs: "nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222"
+    valkeyAddrs: "pulse-platform-valkey-primary.pulse-platform.svc.cluster.local:6379"
+    valkeySentinelMasterSet: ""
+    valkeyCacheClientSideCacheEnabled: "true"
+    projectionKeyPrefix: "pulse:pi-projection"
+    weatherKeyPrefix: "pulse:pi-weather"
+    inferenceKeyPrefix: "pulse:pi-inference"
+    providerMqttSessionCacheKeyPrefix: "pulse:pi-provider-mqtt-session"
+    energyCacheKeyPrefix: "pulse:pi-energy"
+    grpcAuthMode: "keycloak"
+    keycloakIssuerUrl: "https://pulse.home.arpa/realms/pulse"
+    keycloakAudience: "pulse-universal-app"
+    keycloakJwksUrl: "http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs"
+    grpcAuthAllowMissingJwt: "false"
+    archiveObjectProvider: "gcs"
+    archiveObjectEndpoint: ""
+    archiveObjectAccessKey: ""
+    archiveObjectSecretKey: ""
+    archiveObjectBucket: "pulse-telemetry-raw"
+    archiveObjectPrefix: "raw"
+    archiveObjectRegion: "us-east1"
+    archiveObjectGCSProjectID: ""
+    archiveObjectSecure: "true"
+    archiveObjectAutoCreateBucket: "false"
+    ingestNatsJSReplicas: "1"
+    ingestNatsJSMaxAge: "24h"
+    gapRepairNatsJSReplicas: "1"
+    pulseMqttEmulatorEnabled: "false"
+  workers:
+    ingest:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      metrics:
+        enabled: false
+      resources:
+        requests:
+          cpu: 150m
+          memory: 256Mi
+        limits:
+          cpu: 800m
+          memory: 512Mi
+    inference:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      metrics:
+        enabled: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 300m
+          memory: 256Mi
+    projection:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      metrics:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 192Mi
+        limits:
+          cpu: 500m
+          memory: 384Mi
+    rollup:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      metrics:
+        enabled: false
+      resources:
+        requests:
+          cpu: 75m
+          memory: 160Mi
+        limits:
+          cpu: 400m
+          memory: 384Mi
+    archive:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      metrics:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 192Mi
+        limits:
+          cpu: 500m
+          memory: 384Mi
+    grpcApi:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      service:
+        port: 9090
+      hostPort:
+        enabled: true
+        hostIP: "127.0.0.1"
+        port: 19090
+      solarForecastVerificationInterval: "0s"
+      weatherRefreshInterval: "0s"
+      metrics:
+        enabled: false
+      resources:
+        requests:
+          cpu: 200m
+          memory: 384Mi
+        limits:
+          cpu: 1000m
+          memory: 768Mi
+    energyApi:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      metrics:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 600m
+          memory: 512Mi
+    solarVerification:
+      enabled: false
+    scheduler:
+      enabled: true
+      replicaCount: 1
+      pdb:
+        enabled: false
+      metrics:
+        enabled: false
+      solarRefreshInterval: "24h"
+      solarRefreshActiveWindow: "720h"
+      solarRefreshBatchLimit: "32"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+    pulseMqttEmulator:
+      enabled: false
