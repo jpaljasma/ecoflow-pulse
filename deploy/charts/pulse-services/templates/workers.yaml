@@ -710,6 +710,10 @@ spec:
           ports:
             - name: grpc
               containerPort: {{ .Values.runtime.workers.grpcApi.service.port }}
+              {{- if .Values.runtime.workers.grpcApi.hostPort.enabled }}
+              hostIP: {{ .Values.runtime.workers.grpcApi.hostPort.hostIP | quote }}
+              hostPort: {{ .Values.runtime.workers.grpcApi.hostPort.port }}
+              {{- end }}
             {{- if .Values.runtime.workers.grpcApi.metrics.enabled }}
             - name: metrics
               containerPort: {{ .Values.runtime.workers.grpcApi.metrics.service.port }}

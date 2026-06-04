@@ -225,6 +225,8 @@ cloudnativepgCluster:
     tolerations: []
     affinity: {}
   topologySpreadConstraints: []
+  postgresql:
+    parameters: {}
   bootstrap:
     database: pulse
     owner: pulse

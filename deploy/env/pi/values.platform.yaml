@@ -1,0 +1,286 @@
+global:
+  environment: pi
+
+scaffold:
+  enabled: true
+  message: "pulse-platform pi appliance"
+
+components:
+  nats:
+    enabled: true
+  cloudnativepg:
+    enabled: true
+  timescaledb:
+    enabled: true
+  valkey:
+    enabled: true
+  keycloak:
+    enabled: true
+  minio:
+    enabled: false
+  ingressNginx:
+    enabled: true
+  certManager:
+    enabled: true
+  externalSecrets:
+    enabled: false
+  observabilityLite:
+    enabled: false
+
+runtime:
+  publicApp:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: ghcr.io/ecoflow-pulse/pulse-platform
+      tag: pi-placeholder
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8080
+    metrics:
+      serviceMonitor:
+        enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 600m
+        memory: 384Mi
+    env:
+      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
+      energyGrpcApiAddr: pulse-services-go-energy-api.pulse-services.svc.cluster.local:9090
+      grpcDeadlineMs: "10000"
+      nodeAuthMode: keycloak
+      keycloakIssuerUrl: https://pulse.home.arpa/realms/pulse
+      keycloakAudience: pulse-universal-app
+      keycloakJwksUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
+      keycloakUserInfoUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
+      keycloakAllowMissingJwt: "false"
+      publicDir: /app/apps/universal/dist
+      realtimeGatewayUpstreamUrl: http://pulse-platform-realtime-gateway.pulse-platform.svc.cluster.local:8082
+      devUserSubject: ""
+      publicPreconnectOrigins: ""
+      corsAllowedOrigins: "https://pulse.home.arpa,https://localhost,https://127.0.0.1"
+      dataPlane: pi
+      bffCacheEnabled: "true"
+    ingress:
+      enabled: true
+      host: pulse.home.arpa
+      tls:
+        enabled: true
+        secretName: pulse-platform-pi-tls
+        clusterIssuer: pulse-platform-local-selfsigned
+        localSelfSigned: true
+      http3:
+        enabled: false
+  realtimeGateway:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: ghcr.io/ecoflow-pulse/pulse-realtime-gateway
+      tag: pi-placeholder
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8082
+      targetPort: 8082
+    metrics:
+      serviceMonitor:
+        enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 600m
+        memory: 384Mi
+    env:
+      grpcApiAddr: pulse-services-go-grpc-api.pulse-services.svc.cluster.local:9090
+      grpcDeadlineMs: "10000"
+      natsURLs: nats://pulse-platform-nats.pulse-platform.svc.cluster.local:4222
+      valkeyAddrs: pulse-platform-valkey-primary.pulse-platform.svc.cluster.local:6379
+      valkeySentinelMasterSet: ""
+      projectionKeyPrefix: pulse:pi-projection
+      telemetrySubjectPrefix: pulse.telemetry
+      nodeAuthMode: keycloak
+      keycloakIssuerUrl: https://pulse.home.arpa/realms/pulse
+      keycloakAudience: pulse-universal-app
+      keycloakJwksUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/certs
+      keycloakUserInfoUrl: http://pulse-platform-keycloak.pulse-platform.svc.cluster.local/realms/pulse/protocol/openid-connect/userinfo
+      keycloakAllowMissingJwt: "false"
+
+nats:
+  config:
+    cluster:
+      enabled: false
+      replicas: 1
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        pvc:
+          enabled: true
+          size: 16Gi
+  promExporter:
+    enabled: false
+
+cloudnative-pg: {}
+cloudnativepgCluster:
+  enabled: true
+  name: pulse-platform-core
+  instances: 1
+  enablePDB: false
+  postgresUID: 26
+  postgresGID: 26
+  storage:
+    size: 64Gi
+  resources:
+    requests:
+      cpu: 300m
+      memory: 1Gi
+    limits:
+      cpu: 1200m
+      memory: 1536Mi
+  postgresql:
+    parameters:
+      max_connections: "40"
+      shared_buffers: 256MB
+      work_mem: 4MB
+      wal_compression: "on"
+  bootstrap:
+    database: pulse
+    owner: pulse
+    appSecretName: pulse-platform-core-app
+    appUser: pulse
+    appPassword: pulse-local-dev-password
+  timescaledb:
+    enabled: true
+    imageCatalog:
+      name: pulse-platform-timescaledb
+      major: 18
+      image: timescale/timescaledb:latest-pg18@sha256:42ffa71e12b69a7d8ff4fd04c177e4519f66d3c9d1a026e5c4adf296a8168240
+    postgresUID: 70
+    postgresGID: 70
+    postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+cloudnativepgContract:
+  enabled: true
+  configMapName: pulse-platform-core-contract
+  connectionSecretName: pulse-platform-core-connection
+  service:
+    rw: pulse-platform-core-rw
+    ro: pulse-platform-core-ro
+    r: pulse-platform-core-r
+  port: 5432
+  database: pulse
+
+valkey:
+  architecture: standalone
+  auth:
+    enabled: false
+  metrics:
+    enabled: false
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+  sentinel:
+    enabled: false
+
+keycloak:
+  replicaCount: 1
+  proxyHeaders: xforwarded
+  extraEnvVars:
+    - name: KC_HOSTNAME
+      value: https://pulse.home.arpa
+  resources:
+    requests:
+      cpu: 100m
+      memory: 384Mi
+    limits:
+      cpu: 700m
+      memory: 768Mi
+  auth:
+    adminUser: admin
+    adminPassword: admin
+  postgresql:
+    enabled: false
+  externalDatabase:
+    host: pulse-platform-core-rw
+    port: 5432
+    database: pulse
+    existingSecret: pulse-platform-core-app
+    existingSecretUserKey: username
+    existingSecretPasswordKey: password
+  keycloakConfigCli:
+    enabled: true
+    existingConfigmap: pulse-platform-keycloak-realm-import
+    extraEnvVarsSecret: pulse-platform-keycloak-social-providers
+    extraEnvVars:
+      - name: IMPORT_VARSUBSTITUTION_ENABLED
+        value: "true"
+    cleanupAfterFinished:
+      enabled: true
+      seconds: 600
+
+keycloakRealm:
+  enabled: true
+  configMapName: pulse-platform-keycloak-realm-import
+  socialSecretName: pulse-platform-keycloak-social-providers
+  realmName: pulse
+  universalClient:
+    enabled: true
+    clientId: pulse-universal-app
+    redirectUris:
+      - ecoflowpulse://*
+      - https://pulse.home.arpa/*
+      - https://localhost/*
+      - https://127.0.0.1/*
+    webOrigins:
+      - https://pulse.home.arpa
+      - https://localhost
+      - https://127.0.0.1
+  google:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+  facebook:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+
+ingress-nginx:
+  controller:
+    allowSnippetAnnotations: false
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    replicaCount: 1
+    service:
+      type: ClusterIP
+    config:
+      http3: "false"
+
+cert-manager:
+  crds:
+    enabled: true
+  replicaCount: 1
+  webhook:
+    replicaCount: 1
+  cainjector:
+    replicaCount: 1
+
+kube-prometheus-stack:
+  enabled: false
+
+opentelemetry-collector:
+  enabled: false

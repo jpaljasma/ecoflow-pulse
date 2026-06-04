@@ -27,6 +27,8 @@ PLATFORM_CHART ?= deploy/charts/pulse-platform
 SERVICES_CHART ?= deploy/charts/pulse-services
 LOCAL_PLATFORM_VALUES ?= deploy/env/local/values.platform.yaml
 LOCAL_SERVICES_VALUES ?= deploy/env/local/values.services.yaml
+PI_PLATFORM_VALUES ?= deploy/env/pi/values.platform.yaml
+PI_SERVICES_VALUES ?= deploy/env/pi/values.services.yaml
 CLOUD_PLATFORM_VALUES ?= deploy/env/cloud/values.platform.yaml
 CLOUD_SERVICES_VALUES ?= deploy/env/cloud/values.services.yaml
 CLOUD_COST_MIN_PLATFORM_VALUES ?= deploy/env/cloud/values.platform.cost-min.yaml
@@ -515,6 +517,24 @@ chart-deps-local: helm-local-ready
 			exit 0; \
 		fi; \
 		echo "chart dependencies already vendored for $$chart; skipping helm dependency build"
+
+.PHONY: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate
+
+appliance-pi-shellcheck:
+	@if ! command -v shellcheck >/dev/null 2>&1; then \
+		echo "shellcheck not found. Install shellcheck first."; \
+		exit 1; \
+	fi
+	shellcheck deploy/appliance/pi5/*.sh
+
+appliance-pi-test:
+	bash deploy/appliance/pi5/test-host-prepare.sh
+
+appliance-pi-helm-lint: helm-local-ready
+	$(HELM) lint $(PLATFORM_CHART) -f $(PI_PLATFORM_VALUES)
+	$(HELM) lint $(SERVICES_CHART) -f $(PI_SERVICES_VALUES)
+
+appliance-pi-validate: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint
 
 services-image-build-local: docker-local-ready
 	@echo "building services image $(SERVICES_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(SERVICES_IMAGE_DOCKERFILE)"

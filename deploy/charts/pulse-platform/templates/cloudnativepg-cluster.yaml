@@ -39,6 +39,14 @@ spec:
   postgresql:
     shared_preload_libraries:
       - timescaledb
+    {{- with .Values.cloudnativepgCluster.postgresql.parameters }}
+    parameters:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- else if .Values.cloudnativepgCluster.postgresql.parameters }}
+  postgresql:
+    parameters:
+      {{- toYaml .Values.cloudnativepgCluster.postgresql.parameters | nindent 6 }}
   {{- end }}
   resources:
     requests:

@@ -1,0 +1,16 @@
+write-kubeconfig-mode: "0644"
+disable:
+  - traefik
+  - servicelb
+node-name: pulse-pi5
+node-label:
+  - pulse.appliance/local=true
+kubelet-arg:
+  - "system-reserved=cpu=500m,memory=1Gi,ephemeral-storage=12Gi"
+  - "kube-reserved=cpu=300m,memory=512Mi,ephemeral-storage=8Gi"
+  - "eviction-hard=memory.available<500Mi,nodefs.available<10%,imagefs.available<10%"
+  - "eviction-minimum-reclaim=memory.available=256Mi,nodefs.available=2Gi,imagefs.available=2Gi"
+  - "image-gc-high-threshold=70"
+  - "image-gc-low-threshold=55"
+  - "container-log-max-size=10Mi"
+  - "container-log-max-files=3"

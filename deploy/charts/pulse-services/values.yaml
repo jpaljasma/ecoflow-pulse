@@ -98,6 +98,8 @@ runtime:
     energyPvPortHistoryCacheLocalTTL: "5s"
     inferenceEnergyComparisonCacheLocalTTL: "30s"
     inferenceContextCacheLocalTTL: "10s"
+    goMaxProcs: ""
+    goMemLimit: ""
     grpcAuthMode: "noop"
     keycloakIssuerUrl: ""
     keycloakAudience: ""
@@ -332,6 +334,10 @@ runtime:
         minAvailable: 1
       service:
         port: 9090
+      hostPort:
+        enabled: false
+        hostIP: "127.0.0.1"
+        port: 19090
       solarForecastVerificationInterval: "15m"
       weatherRefreshInterval: "4h"
       startupProbe:
