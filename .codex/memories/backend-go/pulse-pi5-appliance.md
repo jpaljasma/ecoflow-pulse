@@ -2,16 +2,15 @@
 
 ## Current focus
 
-- Implement the Phase 3 pending archive upload outbox status/rebuild guard.
+- Document Phase 3 backup/restore and planned cloud-shutdown cutover gates.
 
 ## Files to inspect first
 
-- `cmd/ecoflow-grpc-api/main.go`
-- `cmd/ecoflow-archive-worker/main.go`
-- `cmd/ecoflow-ingest-worker/main.go`
-- `internal/archiveworker`
-- `internal/telemetrybus`
-- `internal/pipelineintegration`
+- `docs/how-to/run-pi5-appliance-backup-cutover.md`
+- `docs/architecture/config-06-pi5-appliance.md`
+- `docs/reference/commands.md`
+- `deploy/env/pi/values.platform.yaml`
+- `deploy/env/pi/values.services.yaml`
 
 ## Decisions made
 
@@ -27,14 +26,18 @@
 - Archive-backed rebuilds must fail closed while local archive upload outbox
   entries are pending; raw-log rebuilds can bypass this because they do not
   depend on authoritative object-storage coverage.
+- The Pi backup runbook should dump the shared `pulse-platform-core` CNPG
+  database because Keycloak uses that database through `externalDatabase`.
+- The Pi runbook should not reuse local `make dr-*` targets because appliance
+  archive objects live in GCS, not MinIO.
 
 ## Open risks
 
-- Backup/restore and planned cloud-shutdown cutover docs still need to land
-  before appliance cutover.
 - Merged workers can accidentally reduce deploy safety if drain and cancellation
   are not tested carefully.
+- The current backup procedure is manual documentation; follow-up automation
+  can turn the same gates into a `pulse-appliance backup` command.
 
 ## Next step
 
-- Validate the pending-outbox guard and then move to the backup/cutover runbook.
+- Validate docs and open the backup/cutover runbook PR.

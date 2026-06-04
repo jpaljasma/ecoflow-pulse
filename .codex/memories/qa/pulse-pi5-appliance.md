@@ -2,7 +2,7 @@
 
 ## Current focus
 
-- Validate the first Phase 3 archive upload outbox slice.
+- Validate the Phase 3 backup/restore and planned cutover runbook slice.
 
 ## Files to inspect first
 
@@ -20,6 +20,8 @@
 - `deploy/appliance/pi5/test-install-dry-run.sh`
 - `deploy/env/pi/values.platform.yaml`
 - `deploy/env/pi/values.services.yaml`
+- `docs/how-to/run-pi5-appliance-backup-cutover.md`
+- `docs/reference/commands.md`
 
 ## Decisions made
 
@@ -52,6 +54,8 @@
 - Archive upload outbox must prove local ACK after SSD fsync, deferred manifest
   writes until remote upload, replay after restart, and fail-closed behavior
   when a manifest-backed entry has no manifest store.
+- The cutover runbook must fail closed when the archive upload outbox has
+  pending entries and must keep GCS object storage outside hosted shutdown.
 
 ## Next step
 
@@ -66,4 +70,6 @@
   Go tests for the archive outbox counter, status helper, and rollup rebuild
   guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
   `make lint`; and `git diff --check`.
-- Next QA focus is the planned backup/restore cutover runbook.
+- Current QA focus is docs validation for the planned backup/restore cutover
+  runbook. Real restore and cloud-shutdown drills still require appliance
+  hardware plus install-specific secrets.

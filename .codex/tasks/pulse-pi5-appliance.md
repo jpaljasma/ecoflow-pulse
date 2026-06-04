@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-archive-outbox-status-guard`
-Base commit: `cfb60575`
+Branch: `codex/pi5-backup-cutover-runbook`
+Base commit: `eb49efc6`
 
 ## Assumptions
 
@@ -22,7 +22,7 @@ Base commit: `cfb60575`
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
 | DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
 | PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC merged; durable outbox tests passed |
-| PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | archive outbox status/rebuild guard validation passed |
+| PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | Phase 3 backup/cutover runbook in progress |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
 | TODO | `qa` | Capacity burn-in, reboot/restart/GCS/BLE failure drills | implementation slices | pending |
@@ -72,16 +72,21 @@ Base commit: `cfb60575`
 - 2026-06-04: Rebuilds that use archive objects must refuse to run while
   `ARCHIVE_UPLOAD_OUTBOX_DIR` has pending local entries unless an operator uses
   an explicit manual override.
+- 2026-06-04: The planned cutover runbook treats the shared
+  `pulse-platform-core` CNPG database as the appliance backup source for Pulse
+  app data and Keycloak state, keeps GCS online, and requires an empty archive
+  upload outbox before hosted runtime shutdown or archive-backed rebuilds.
 
 ## Blockers
 
-- None for direct gRPC transport.
+- None for the backup/cutover runbook.
 
 ## Next Actions
 
-1. Add backup/restore and planned cloud-shutdown cutover runbook.
-2. Continue conservative workload consolidation only after the archive outbox
-   status guard lands.
+1. Validate and open the backup/restore and planned cloud-shutdown cutover
+   runbook PR.
+2. Start conservative workload consolidation and capacity burn-in planning after
+   the runbook lands.
 
 ## Validation Evidence
 
@@ -141,3 +146,5 @@ Base commit: `cfb60575`
   `go test -race ./internal/archiveworker ./cmd/ecoflow-rollup-rebuild
   ./cmd/ecoflow-archive-outbox-status -count=1`, `make test-race`,
   `make lint`, and `git diff --check`.
+- 2026-06-04: Phase 3 backup/cutover runbook validation passed with
+  `make lint`, `git diff --check`, and the duplicate editor-backup file scan.

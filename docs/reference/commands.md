@@ -1356,6 +1356,12 @@ Notes:
   - schema verification (`make db-migrate-verify-local`),
   - floor-based validation against `report.env` (`actual >= expected`) so
     concurrent live ingest growth is noted but non-fatal.
+- Pi appliance backup and hosted-cloud shutdown use
+  `docs/how-to/run-pi5-appliance-backup-cutover.md` instead of the local
+  `make dr-*` targets. The appliance runbook backs up the shared
+  `pulse-platform-core` CNPG database, keeps GCS as the raw archive object
+  store, records a GCS sanity marker, and requires an empty archive upload
+  outbox before planned cutover, restore, or archive-backed rebuild work.
 - `make auth-keycloak-verify-local` validates Keycloak realm bootstrap on local k3d:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),
