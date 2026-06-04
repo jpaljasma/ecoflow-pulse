@@ -61,11 +61,16 @@ Use a temporary microSD bootstrap once, then boot from NVMe.
 Use ext4 with default journaling and no continuous discard. Enable weekly
 `fstrim.timer` instead.
 
-Root filesystem entry:
+Root filesystem options should be merged into the existing root entry while
+preserving the install-specific device or UUID. Example root entry:
 
 ```fstab
-defaults,noatime,errors=remount-ro
+UUID=<root-filesystem-uuid> / ext4 defaults,noatime,errors=remount-ro 0 1
 ```
+
+Phase 1 host scripts must edit only the options column for the existing `/`
+mount and must not replace the device identifier, filesystem type, dump field,
+or fsck order with placeholder values.
 
 Disable disk swap and use zram:
 
