@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -246,5 +247,28 @@ func TestArchiveUploadOutboxRequiresManifestStoreBeforeUpload(t *testing.T) {
 	}
 	if len(store.requests) != 0 {
 		t.Fatalf("remote object writes without manifest store=%d want 0", len(store.requests))
+	}
+}
+
+func TestCountFileArchiveUploadOutboxPending(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "one.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write first pending entry: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "two.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write second pending entry: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ignore.tmp"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write ignored entry: %v", err)
+	}
+
+	got, err := CountFileArchiveUploadOutboxPending(dir)
+	if err != nil {
+		t.Fatalf("CountFileArchiveUploadOutboxPending failed: %v", err)
+	}
+	if got != 2 {
+		t.Fatalf("pending count=%d want 2", got)
 	}
 }

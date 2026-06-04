@@ -1269,6 +1269,12 @@ Notes:
   coverage. For authoritative recovery when manifest coverage is stale, use the
   direct MinIO raw archive listing mode in `cmd/ecoflow-rollup-rebuild`
   (`-direct-archive`).
+  Appliance safety rule: when `ARCHIVE_UPLOAD_OUTBOX_DIR` is set, archive-backed
+  rebuilds also fail closed while local archive upload outbox entries are
+  pending. Wait for the outbox to flush to object storage before rebuilding, or
+  use `-allow-pending-archive-outbox` only for a deliberate manual recovery
+  procedure. Raw-log rebuilds skip this guard because they do not depend on
+  object-storage archive completeness.
   Local MinIO must already have the `pulse-telemetry-raw` bucket; local
   platform values now bootstrap that bucket automatically on fresh PVCs.
 - `make dev-down` uninstalls `pulse-services` and `pulse-platform`; preserves cluster by default.

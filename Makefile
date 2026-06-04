@@ -534,6 +534,7 @@ appliance-pi-shellcheck:
 appliance-pi-test:
 	bash deploy/appliance/pi5/test-host-prepare.sh
 	bash deploy/appliance/pi5/test-install-dry-run.sh
+	bash deploy/appliance/pi5/test-status-outbox.sh
 
 appliance-pi-helm-lint: helm-local-ready
 	$(HELM) lint $(PLATFORM_CHART) -f $(PI_PLATFORM_VALUES)

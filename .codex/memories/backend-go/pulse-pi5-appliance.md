@@ -2,8 +2,7 @@
 
 ## Current focus
 
-- Implement the first Phase 3 archive upload outbox slice for appliance GCS
-  durability.
+- Implement the Phase 3 pending archive upload outbox status/rebuild guard.
 
 ## Files to inspect first
 
@@ -25,15 +24,17 @@
   manifest record are fsynced into the local outbox.
 - Outbox flush records the remote object in the manifest only after successful
   upload, and fails closed when a manifest-backed entry has no manifest store.
+- Archive-backed rebuilds must fail closed while local archive upload outbox
+  entries are pending; raw-log rebuilds can bypass this because they do not
+  depend on authoritative object-storage coverage.
 
 ## Open risks
 
-- Rebuild/status tooling still needs an explicit pending-outbox guard before
-  appliance cutover.
+- Backup/restore and planned cloud-shutdown cutover docs still need to land
+  before appliance cutover.
 - Merged workers can accidentally reduce deploy safety if drain and cancellation
   are not tested carefully.
 
 ## Next step
 
-- Follow up with the pending-outbox status/rebuild guard and backup/cutover
-  runbook before broader workload consolidation.
+- Validate the pending-outbox guard and then move to the backup/cutover runbook.

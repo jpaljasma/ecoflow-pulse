@@ -434,6 +434,18 @@ both the compressed object body and the manifest record. Flushes fail closed if
 the manifest store is unavailable, so a remote object cannot become
 authoritative for rebuilds before the manifest row is recorded.
 
+`pulse-appliance status` checks that outbox from the archive worker pod with
+`/app/ecoflow-archive-outbox-status`. Any pending local entries are a status
+failure because GCS is behind the local SSD and archive-backed rebuilds are not
+safe yet. `cmd/ecoflow-rollup-rebuild` also fails closed when
+`ARCHIVE_UPLOAD_OUTBOX_DIR` contains pending entries and the rebuild uses
+archive objects. The only bypass is the explicit
+`-allow-pending-archive-outbox` manual recovery flag; raw-log rebuild inputs do
+not depend on object-storage archive completeness and skip this guard.
+By default the status command lets the helper read the archive pod's configured
+`ARCHIVE_UPLOAD_OUTBOX_DIR`; `--archive-outbox-dir` is only for an explicit
+operator override.
+
 Use `ARCHIVE_OBJECT_PROVIDER=gcs` and an appliance-specific
 `ARCHIVE_WRITER_ID`, with service-account credentials mounted as a Kubernetes
 secret.

@@ -136,6 +136,28 @@ func (o *FileArchiveUploadOutbox) PendingCount(ctx context.Context) (int, error)
 	return len(paths), nil
 }
 
+func CountFileArchiveUploadOutboxPending(dir string) (int, error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return 0, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read archive upload outbox dir: %w", err)
+	}
+	var count int
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		count++
+	}
+	return count, nil
+}
+
 func (o *FileArchiveUploadOutbox) pendingPaths() ([]string, error) {
 	entries, err := os.ReadDir(o.dir)
 	if err != nil {

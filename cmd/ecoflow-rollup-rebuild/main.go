@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jpaljasma/ecoflow-pulse/internal/archiveworker"
 	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/replaycli"
 	"github.com/jpaljasma/ecoflow-pulse/internal/rolluprebuild"
@@ -43,6 +44,8 @@ func main() {
 		objectRegion       string
 		objectSecure       bool
 		objectGCSProjectID string
+		archiveOutboxDir   string
+		allowPendingOutbox bool
 	)
 
 	flag.StringVar(&fromRaw, "from", "", "Range start (RFC3339 or unix-ms). Default: now-24h")
@@ -66,6 +69,8 @@ func main() {
 	flag.StringVar(&objectRegion, "object-region", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_REGION", objectDefaults.Region), "Object store region")
 	flag.BoolVar(&objectSecure, "object-secure", runtimecfg.Bool("ARCHIVE_OBJECT_SECURE", objectDefaults.Secure), "Object store tls")
 	flag.StringVar(&objectGCSProjectID, "object-gcs-project-id", runtimecfg.EnvOrDefault("ARCHIVE_OBJECT_GCS_PROJECT_ID", objectDefaults.GCSProjectID), "Optional GCS project id for logging or bucket auto-create")
+	flag.StringVar(&archiveOutboxDir, "archive-upload-outbox-dir", strings.TrimSpace(os.Getenv("ARCHIVE_UPLOAD_OUTBOX_DIR")), "Archive upload outbox directory; non-empty pending entries block archive-backed rebuilds")
+	flag.BoolVar(&allowPendingOutbox, "allow-pending-archive-outbox", runtimecfg.Bool("ROLLUP_REBUILD_ALLOW_PENDING_ARCHIVE_OUTBOX", false), "Allow archive-backed rebuild while local archive upload outbox entries are pending")
 	flag.Parse()
 
 	logCfg := pulselog.DefaultServiceConfig("rollup-rebuild")
@@ -97,6 +102,10 @@ func main() {
 		os.Exit(1)
 	}
 	rawLogInputs := runtimecfg.SplitNonEmpty(rawLogsRaw)
+	if err := checkArchiveUploadOutboxGuard(archiveOutboxDir, allowPendingOutbox, len(rawLogInputs) == 0); err != nil {
+		log.Error("archive upload outbox guard failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 	deviceIDs := runtimecfg.SplitNonEmpty(deviceIDsRaw)
 	providerDeviceIDs := runtimecfg.SplitNonEmpty(providerIDsRaw)
 	reportFilter := rolluprebuild.ReportFilter{
@@ -342,6 +351,20 @@ func expandRebuildContextWindow(fromUnixMS, toUnixMS int64) (int64, int64) {
 		return fromUnixMS, toUnixMS
 	}
 	return fromUnixMS - gapMillis, toUnixMS + gapMillis
+}
+
+func checkArchiveUploadOutboxGuard(dir string, allowPending bool, archiveBacked bool) error {
+	if !archiveBacked || allowPending || strings.TrimSpace(dir) == "" {
+		return nil
+	}
+	pending, err := archiveworker.CountFileArchiveUploadOutboxPending(dir)
+	if err != nil {
+		return err
+	}
+	if pending > 0 {
+		return fmt.Errorf("pending archive upload outbox entries=%d in %s; wait for GCS upload or set -allow-pending-archive-outbox for a manual recovery override", pending, dir)
+	}
+	return nil
 }
 
 func isDigits(raw string) bool {

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,5 +37,42 @@ func TestDiffMinuteSummariesSortsKeys(t *testing.T) {
 	}
 	if got[0].ProviderDeviceID != "A" || got[1].ProviderDeviceID != "B" {
 		t.Fatalf("expected sorted provider ids, got=%q then %q", got[0].ProviderDeviceID, got[1].ProviderDeviceID)
+	}
+}
+
+func TestArchiveUploadOutboxGuardFailsClosedWhenPending(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pending.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write pending outbox file: %v", err)
+	}
+
+	err := checkArchiveUploadOutboxGuard(dir, false, true)
+	if err == nil {
+		t.Fatalf("expected pending archive outbox guard error")
+	}
+	if !strings.Contains(err.Error(), "pending archive upload outbox entries") {
+		t.Fatalf("unexpected guard error: %v", err)
+	}
+}
+
+func TestArchiveUploadOutboxGuardAllowsExplicitOverride(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pending.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write pending outbox file: %v", err)
+	}
+
+	if err := checkArchiveUploadOutboxGuard(dir, true, true); err != nil {
+		t.Fatalf("override should allow pending outbox: %v", err)
+	}
+}
+
+func TestArchiveUploadOutboxGuardSkipsNonArchiveInputs(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pending.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write pending outbox file: %v", err)
+	}
+
+	if err := checkArchiveUploadOutboxGuard(dir, false, false); err != nil {
+		t.Fatalf("raw-log rebuild should skip archive outbox guard: %v", err)
 	}
 }
