@@ -3,7 +3,7 @@
 ## Current focus
 
 - Prepare the direct local gRPC and durable outbox slice for the existing Pi BLE
-  collector.
+  collector after Phase 1 installer orchestration merges.
 
 ## Files to inspect first
 
@@ -31,5 +31,5 @@
 
 ## Next step
 
-- Add direct gRPC transport and failing tests for retry/idempotency behavior
-  before changing collector upload logic.
+- After the Phase 1 completion PR merges, add direct gRPC transport and failing
+  tests for retry/idempotency behavior before changing collector upload logic.

@@ -1,6 +1,6 @@
 # Pulse Pi 5 Appliance Ralph-Loop Plan
 
-Status: Plan-only PR
+Status: Implementation in progress
 Last updated: 2026-06-04
 
 ## Goal

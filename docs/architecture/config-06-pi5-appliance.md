@@ -151,10 +151,29 @@ values, host tuning scripts, BLE binaries, and status/upgrade commands.
 Phase 1 implementation files:
 
 - `deploy/appliance/pi5/pulse-appliance-host-prepare.sh`
+- `deploy/appliance/pi5/pulse-appliance-install.sh`
 - `deploy/appliance/pi5/pulse-appliance-status.sh`
 - `deploy/appliance/pi5/k3s-config.yaml`
 - `deploy/env/pi/values.platform.yaml`
 - `deploy/env/pi/values.services.yaml`
+
+Installer commands:
+
+```bash
+make appliance-pi-install
+make appliance-pi-upgrade
+make appliance-pi-wait
+make appliance-pi-status
+```
+
+Pass install-specific flags with `APPLIANCE_PI_INSTALL_ARGS`, for example
+`APPLIANCE_PI_INSTALL_ARGS="--skip-k3s-install"`. The installer runs host
+preparation, installs or upgrades K3s, builds Helm chart dependencies, applies
+the platform chart with a Keycloak bootstrap pass, checks the install-specific
+services runtime secret, applies the services chart, and waits for the
+appliance workloads. Services fail closed when
+`pulse-services/pulse-services-runtime-secret` is absent so GCS credentials and
+provider material stay install-specific.
 
 Validation command:
 

@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-phase1`
-Base commit: `8aabf0bc`
+Branch: `codex/pi5-appliance-phase2`
+Base commit: `324cb08a`
 
 ## Assumptions
 
@@ -20,8 +20,8 @@ Base commit: `8aabf0bc`
 | Status | Owner | Workstream | Dependency | Latest validation |
 |---|---|---|---|---|
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
-| PROGRESS | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status | plan PR merged | `make appliance-pi-validate` |
-| TODO | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API | pending |
+| DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
+| TODO | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | pending |
 | TODO | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | pending |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
@@ -43,14 +43,19 @@ Base commit: `8aabf0bc`
 - 2026-06-04: The first implementation slice adds Pi host scripts, K3s config,
   Pi Helm overlays, loopback gRPC hostPort chart support, and appliance
   validation targets.
+- 2026-06-04: The second implementation slice completes Phase 1 with
+  `pulse-appliance-install.sh`, dry-run installer coverage, and Make entry
+  points for install, upgrade, wait, and status.
 
 ## Blockers
 
-- None for the Phase 1 scaffold slice.
+- None for the next BLE direct-ingest slice.
 
 ## Next Actions
 
-1. Run full repo lint after the Phase 1 scaffold update.
-2. Review rendered Pi manifests for singleton/resource-budget regressions.
-3. Decide whether this Phase 1 branch should stop at scaffolding or continue
-   into installer/upgrade commands before PR.
+1. Inspect `cmd/pulse-edge-collector` and `internal/edgecollector` transport
+   boundaries.
+2. Add direct gRPC transport behind `PULSE_EDGE_TRANSPORT=grpc` while keeping
+   REST supported.
+3. Add durable BLE retry/idempotency coverage before enabling the host systemd
+   unit path.

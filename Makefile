@@ -29,6 +29,7 @@ LOCAL_PLATFORM_VALUES ?= deploy/env/local/values.platform.yaml
 LOCAL_SERVICES_VALUES ?= deploy/env/local/values.services.yaml
 PI_PLATFORM_VALUES ?= deploy/env/pi/values.platform.yaml
 PI_SERVICES_VALUES ?= deploy/env/pi/values.services.yaml
+APPLIANCE_PI_INSTALL_ARGS ?=
 CLOUD_PLATFORM_VALUES ?= deploy/env/cloud/values.platform.yaml
 CLOUD_SERVICES_VALUES ?= deploy/env/cloud/values.services.yaml
 CLOUD_COST_MIN_PLATFORM_VALUES ?= deploy/env/cloud/values.platform.cost-min.yaml
@@ -518,7 +519,7 @@ chart-deps-local: helm-local-ready
 		fi; \
 		echo "chart dependencies already vendored for $$chart; skipping helm dependency build"
 
-.PHONY: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate
+.PHONY: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate appliance-pi-install appliance-pi-upgrade appliance-pi-wait appliance-pi-status
 
 appliance-pi-shellcheck:
 	@if ! command -v shellcheck >/dev/null 2>&1; then \
@@ -529,12 +530,25 @@ appliance-pi-shellcheck:
 
 appliance-pi-test:
 	bash deploy/appliance/pi5/test-host-prepare.sh
+	bash deploy/appliance/pi5/test-install-dry-run.sh
 
 appliance-pi-helm-lint: helm-local-ready
 	$(HELM) lint $(PLATFORM_CHART) -f $(PI_PLATFORM_VALUES)
 	$(HELM) lint $(SERVICES_CHART) -f $(PI_SERVICES_VALUES)
 
 appliance-pi-validate: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint
+
+appliance-pi-install:
+	bash deploy/appliance/pi5/pulse-appliance-install.sh install $(APPLIANCE_PI_INSTALL_ARGS)
+
+appliance-pi-upgrade:
+	bash deploy/appliance/pi5/pulse-appliance-install.sh upgrade $(APPLIANCE_PI_INSTALL_ARGS)
+
+appliance-pi-wait:
+	bash deploy/appliance/pi5/pulse-appliance-install.sh wait $(APPLIANCE_PI_INSTALL_ARGS)
+
+appliance-pi-status:
+	bash deploy/appliance/pi5/pulse-appliance-install.sh status $(APPLIANCE_PI_INSTALL_ARGS)
 
 services-image-build-local: docker-local-ready
 	@echo "building services image $(SERVICES_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(SERVICES_IMAGE_DOCKERFILE)"
