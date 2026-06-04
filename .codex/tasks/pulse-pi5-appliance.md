@@ -91,3 +91,11 @@ Base commit: `5669a1d6`
   -count=1`.
 - 2026-06-04: Final branch validation passed with `make pulse-edge-pi5-bundle`,
   `make test-proto-contract`, `make appliance-pi-validate`, and `make lint`.
+- 2026-06-04: Review follow-up preserved `clientSampleId` through the REST edge
+  collector path so REST outbox retries keep the same downstream dedupe identity
+  as gRPC retries.
+- 2026-06-04: REST sample-id follow-up validation passed with `go test
+  ./cmd/pulse-edge-collector -count=1`, `go test ./cmd/ecoflow-grpc-api
+  ./internal/edgecollector -count=1`, `npm run -w apps/pulse-platform test --
+  edge_routes.test.ts`, `npm run -w apps/pulse-platform typecheck`,
+  `make pulse-edge-pi5-bundle`, `make appliance-pi-validate`, and `make lint`.

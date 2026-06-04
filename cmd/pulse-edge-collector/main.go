@@ -1261,6 +1261,7 @@ func (c edgeClient) sendTelemetry(ctx context.Context, telemetry edgeOutboxTelem
 			"transport":        telemetry.Transport,
 			"providerDeviceId": telemetry.ProviderDeviceID,
 			"observedAtUnixMs": telemetry.ObservedAtUnixMS,
+			"clientSampleId":   telemetry.ClientSampleID,
 			"metrics":          telemetry.Metrics,
 		}},
 	}, nil)

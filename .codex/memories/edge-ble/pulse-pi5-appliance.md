@@ -41,4 +41,6 @@
 - Durable outbox is implemented with secret-free JSON entries, fsync before
   send, replay on startup/successful heartbeat, ACK removal, stable
   `client_sample_id`, and deterministic edge envelope ids.
+- REST transport must preserve `clientSampleId` end to end too; otherwise REST
+  outbox replay creates fresh envelope ids and bypasses downstream dedupe.
 - Next slice can move to archive/GCS outbox or Pi hardware validation.

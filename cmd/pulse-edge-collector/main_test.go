@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -220,6 +221,66 @@ func TestEdgeClientGRPCMethodsMapRequests(t *testing.T) {
 	}
 	if sample.GetMetrics().GetFields()["battery_soc_percent"].GetNumberValue() != 91 {
 		t.Fatalf("metrics=%v", sample.GetMetrics())
+	}
+}
+
+func TestEdgeClientRESTTelemetryPreservesClientSampleID(t *testing.T) {
+	t.Parallel()
+
+	type telemetryRequest struct {
+		CollectorSecret string `json:"collectorSecret"`
+		Samples         []struct {
+			Provider         string         `json:"provider"`
+			Transport        string         `json:"transport"`
+			ProviderDeviceID string         `json:"providerDeviceId"`
+			ObservedAtUnixMS int64          `json:"observedAtUnixMs"`
+			ClientSampleID   string         `json:"clientSampleId"`
+			Metrics          map[string]any `json:"metrics"`
+		} `json:"samples"`
+	}
+	requests := make(chan telemetryRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/api/v1/edge/telemetry" {
+			http.NotFound(w, req)
+			return
+		}
+		var payload telemetryRequest
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		requests <- payload
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client := edgeClient{
+		transport:  edgeTransportREST,
+		baseURL:    server.URL,
+		secret:     "collector-secret",
+		httpClient: server.Client(),
+	}
+	telemetry := edgeOutboxTelemetry{
+		Provider:         "ecoflow",
+		Transport:        "ble",
+		ProviderDeviceID: "DEMOEDGE0001",
+		ObservedAtUnixMS: 1772197190000,
+		ClientSampleID:   "edge-sample-1",
+		Metrics:          map[string]any{"output_power_w": float64(118)},
+	}
+
+	if err := client.sendTelemetry(context.Background(), telemetry); err != nil {
+		t.Fatalf("sendTelemetry failed: %v", err)
+	}
+	payload := <-requests
+	if payload.CollectorSecret != "collector-secret" {
+		t.Fatalf("collectorSecret=%q", payload.CollectorSecret)
+	}
+	if len(payload.Samples) != 1 {
+		t.Fatalf("samples len=%d want 1", len(payload.Samples))
+	}
+	if payload.Samples[0].ClientSampleID != "edge-sample-1" {
+		t.Fatalf("clientSampleId=%q want edge-sample-1", payload.Samples[0].ClientSampleID)
 	}
 }
 
