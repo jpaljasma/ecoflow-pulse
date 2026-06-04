@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-ble-outbox`
-Base commit: `5669a1d6`
+Branch: `codex/pi5-gcs-archive-outbox`
+Base commit: `a8b4ddde`
 
 ## Assumptions
 
@@ -22,7 +22,7 @@ Base commit: `5669a1d6`
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
 | DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
 | PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC merged; durable outbox tests passed |
-| TODO | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | pending |
+| PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | archive outbox foundation tests and race validation passed |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
 | TODO | `qa` | Capacity burn-in, reboot/restart/GCS/BLE failure drills | implementation slices | pending |
@@ -58,6 +58,15 @@ Base commit: `5669a1d6`
 - 2026-06-04: Real hardware stress testing settled on `arm_freq=2500` with
   `over_voltage_delta=10000` as the conservative observed overclock candidate
   with no throttling; `2800/25000` remains a more aggressive lab experiment.
+- 2026-06-04: Phase 3 starts on `codex/pi5-gcs-archive-outbox` and keeps the
+  first archive slice focused on SSD-backed GCS upload outbox durability.
+- 2026-06-04: A Pi 5 Gen3 PCIe lab test with the Argon NEO 5 and SanDisk
+  Optimus GX 7100 improved `hdparm -t /dev/nvme0n1` from about `449 MB/sec`
+  to about `882 MB/sec`; Gen2 remains the appliance shipping default until
+  reboot, thermal, SMART, and unsafe-shutdown checks pass on the target unit.
+- 2026-06-04: Archive outbox entries carry both object bytes and manifest
+  records, ACK local delivery only after fsync, and flush fail-closed if the
+  manifest store is unavailable.
 
 ## Blockers
 
@@ -65,11 +74,11 @@ Base commit: `5669a1d6`
 
 ## Next Actions
 
-1. Add failing tests for `PULSE_EDGE_TRANSPORT=grpc` request mapping.
-2. Implement gRPC enroll, heartbeat, discovery, and telemetry calls while
-   preserving REST as the default.
-3. Update appliance systemd/docs defaults for loopback gRPC.
-4. Leave durable outbox and `client_sample_id` for the next Phase 2 slice.
+1. Add `pulse-appliance status` and rebuild fail-closed checks for pending
+   archive upload outbox entries.
+2. Add backup/restore and planned cloud-shutdown cutover runbook.
+3. Continue conservative workload consolidation only after the archive outbox
+   status guard lands.
 
 ## Validation Evidence
 
@@ -109,3 +118,11 @@ Base commit: `5669a1d6`
   ./internal/edgecollector -count=1`, `npm run -w apps/pulse-platform test --
   edge_routes.test.ts`, `npm run -w apps/pulse-platform typecheck`,
   `make pulse-edge-pi5-bundle`, `make appliance-pi-validate`, and `make lint`.
+- 2026-06-04: Phase 3 archive outbox foundation validation passed with
+  `go test ./internal/archiveworker ./cmd/ecoflow-archive-worker -count=1`,
+  `helm lint deploy/charts/pulse-services -f deploy/env/pi/values.services.yaml`,
+  `helm lint deploy/charts/pulse-services -f deploy/env/local/values.services.yaml`,
+  Pi Helm render inspection for `ARCHIVE_UPLOAD_OUTBOX_*` and the
+  `go-archive-outbox` PVC, `make appliance-pi-validate`,
+  `go test -race ./internal/archiveworker ./cmd/ecoflow-archive-worker
+  -count=1`, `make test-race`, `make lint`, and `git diff --check`.

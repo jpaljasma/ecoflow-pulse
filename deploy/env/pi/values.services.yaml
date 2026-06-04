@@ -63,6 +63,8 @@ runtime:
     archiveObjectGCSProjectID: ""
     archiveObjectSecure: "true"
     archiveObjectAutoCreateBucket: "false"
+    archiveUploadOutboxDir: "/var/lib/pulse-archive/outbox"
+    archiveUploadOutboxMaxBytes: "17179869184"
     ingestNatsJSReplicas: "1"
     ingestNatsJSMaxAge: "24h"
     gapRepairNatsJSReplicas: "1"
@@ -129,6 +131,14 @@ runtime:
       replicaCount: 1
       pdb:
         enabled: false
+      uploadOutbox:
+        persistence:
+          enabled: true
+          mountPath: /var/lib/pulse-archive/outbox
+          size: 16Gi
+          storageClass: ""
+          accessModes:
+            - ReadWriteOnce
       metrics:
         enabled: false
       resources:

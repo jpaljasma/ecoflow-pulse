@@ -2,7 +2,7 @@
 
 ## Current focus
 
-- Validate the second Phase 2 BLE durable-outbox slice.
+- Validate the first Phase 3 archive upload outbox slice.
 
 ## Files to inspect first
 
@@ -49,11 +49,15 @@
   after the loopback hostPort service is installed.
 - Durable retry must prove process restart does not drop pending telemetry and
   must avoid writing collector secrets to disk.
+- Archive upload outbox must prove local ACK after SSD fsync, deferred manifest
+  writes until remote upload, replay after restart, and fail-closed behavior
+  when a manifest-backed entry has no manifest store.
 
 ## Next step
 
-- Red/green tests now cover outbox replay/removal and edge `client_sample_id`
-  envelope mapping. Targeted Go validation passed across collector, grpc-api,
-  edgecollector, dedupe, rollup, and archive packages.
-- Final validation passed with Pi 5 bundle build, proto contract test, appliance
-  validation, and repo lint.
+- Phase 3 archive outbox foundation validation passed with targeted archive
+  Go tests, Pi/local services Helm lint, Pi render inspection,
+  `make appliance-pi-validate`, targeted archive `go test -race`,
+  `make test-race`, `make lint`, and `git diff --check`.
+- Next QA focus is a pending-outbox status/rebuild guard plus the planned
+  backup/restore cutover runbook.

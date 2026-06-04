@@ -45,3 +45,31 @@ func TestLoadArchiveWorkerConfigFromEnvAndManifestFallback(t *testing.T) {
 		t.Fatalf("manifest DSN fallback mismatch: %q", got)
 	}
 }
+
+func TestLoadArchiveUploadOutboxConfigFromEnv(t *testing.T) {
+	t.Setenv("ARCHIVE_UPLOAD_OUTBOX_DIR", "/var/lib/pulse-archive/outbox")
+	t.Setenv("ARCHIVE_UPLOAD_OUTBOX_MAX_BYTES", "17179869184")
+
+	cfg, enabled := loadArchiveUploadOutboxConfigFromEnv()
+	if !enabled {
+		t.Fatalf("archive upload outbox should be enabled")
+	}
+	if cfg.Dir != "/var/lib/pulse-archive/outbox" {
+		t.Fatalf("outbox dir=%q", cfg.Dir)
+	}
+	if cfg.MaxBytes != 17179869184 {
+		t.Fatalf("outbox max bytes=%d", cfg.MaxBytes)
+	}
+}
+
+func TestLoadArchiveUploadOutboxConfigDisabledWithoutDir(t *testing.T) {
+	t.Setenv("ARCHIVE_UPLOAD_OUTBOX_MAX_BYTES", "17179869184")
+
+	cfg, enabled := loadArchiveUploadOutboxConfigFromEnv()
+	if enabled {
+		t.Fatalf("archive upload outbox should be disabled without dir")
+	}
+	if cfg.Dir != "" || cfg.MaxBytes != 17179869184 {
+		t.Fatalf("unexpected disabled outbox cfg: %+v", cfg)
+	}
+}
