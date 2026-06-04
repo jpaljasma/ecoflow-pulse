@@ -2,6 +2,7 @@
 set -euo pipefail
 
 free_warn_gib=80
+kubeconfig="${PULSE_APPLIANCE_KUBECONFIG:-${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}}"
 kube_context="${KUBECONFIG_CONTEXT:-}"
 platform_ns="${PULSE_PLATFORM_NAMESPACE:-pulse-platform}"
 services_ns="${PULSE_SERVICES_NAMESPACE:-pulse-services}"
@@ -10,7 +11,7 @@ warnings=0
 
 usage() {
   cat <<'USAGE'
-Usage: pulse-appliance-status.sh [--kube-context CONTEXT] [--free-warn-gib N]
+Usage: pulse-appliance-status.sh [--kubeconfig PATH] [--kube-context CONTEXT] [--free-warn-gib N]
 
 Runs conservative host and K3s health checks for a Pulse Raspberry Pi appliance.
 USAGE
@@ -18,6 +19,10 @@ USAGE
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --kubeconfig)
+      kubeconfig="${2:?--kubeconfig requires a path}"
+      shift
+      ;;
     --kube-context)
       kube_context="${2:?--kube-context requires a value}"
       shift
@@ -58,11 +63,14 @@ have() {
 }
 
 kubectl_cmd() {
-  if [ -n "$kube_context" ]; then
-    kubectl --context "$kube_context" "$@"
-  else
-    kubectl "$@"
+  local args=(kubectl)
+  if [ -n "$kubeconfig" ]; then
+    args+=(--kubeconfig "$kubeconfig")
   fi
+  if [ -n "$kube_context" ]; then
+    args+=(--context "$kube_context")
+  fi
+  "${args[@]}" "$@"
 }
 
 check_throttling() {
@@ -147,6 +155,9 @@ check_helm_release() {
     return
   fi
   local args=(status "$release" --namespace "$namespace")
+  if [ -n "$kubeconfig" ]; then
+    args=(--kubeconfig "$kubeconfig" "${args[@]}")
+  fi
   if [ -n "$kube_context" ]; then
     args=(--kube-context "$kube_context" "${args[@]}")
   fi

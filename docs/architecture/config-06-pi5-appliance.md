@@ -56,6 +56,40 @@ Use a temporary microSD bootstrap once, then boot from NVMe.
    sudo rfkill unblock bluetooth
    ```
 
+### First Hardware Bring-Up Learnings
+
+The first real Pi 5 appliance install proved these checks save time:
+
+- Prefer wired Ethernet for first boot. WiFi or stale local DNS can make SSH
+  failures look like boot failures.
+- If SSH resets or closes before authentication, confirm whether the Pi has
+  reached the local login prompt before re-imaging. A micro-HDMI display is the
+  fastest way to distinguish boot success from SSH/customisation failure.
+- `Permission denied (publickey)` means the network and SSH daemon are alive;
+  fix the authorised key or re-image with the exact public key. It is different
+  from `kex_exchange_identification` resets, which happen before
+  authentication.
+- Give a fresh image 5-10 minutes on first boot before power-cycling. First
+  boot may resize the filesystem, generate SSH host keys, apply Imager
+  customisation, and settle time sync.
+- When using an Argon/non-HAT NVMe carrier, keep `/boot/firmware/config.txt`
+  explicit with `dtparam=pciex1` and keep PCIe Gen 2 as the appliance default.
+- `PCIE_PROBE=1` should be present in EEPROM config. A boot order that already
+  boots NVMe is acceptable if NVMe root is mounted and EEPROM is current.
+- Treat `dphys-swapfile.service does not exist` as harmless on current
+  Raspberry Pi OS images when `swapon --show` confirms zram-only swap.
+- K3s needs memory cgroups enabled on Raspberry Pi OS. If install logs report
+  `Failed to find memory cgroup`, append `cgroup_memory=1
+  cgroup_enable=memory` to `/boot/firmware/cmdline.txt`, keeping the file as a
+  single line, then reboot.
+- Install host iptables tools before or immediately after K3s if the installer
+  reports missing `iptables-save` or `iptables-restore`.
+- A fresh Pi clone needs Helm repository definitions before vendoring platform
+  chart dependencies. Add the NATS, CNPG, Bitnami, MinIO, ingress-nginx,
+  jetstack, external-secrets, prometheus-community, and OpenTelemetry Helm
+  repos, then run `helm repo update` before `make chart-deps-local
+  CHART=deploy/charts/pulse-platform`.
+
 ## Host Tuning
 
 Use ext4 with default journaling and no continuous discard. Enable weekly
@@ -151,10 +185,31 @@ values, host tuning scripts, BLE binaries, and status/upgrade commands.
 Phase 1 implementation files:
 
 - `deploy/appliance/pi5/pulse-appliance-host-prepare.sh`
+- `deploy/appliance/pi5/pulse-appliance-install.sh`
 - `deploy/appliance/pi5/pulse-appliance-status.sh`
 - `deploy/appliance/pi5/k3s-config.yaml`
 - `deploy/env/pi/values.platform.yaml`
 - `deploy/env/pi/values.services.yaml`
+
+Installer commands:
+
+```bash
+make appliance-pi-install
+make appliance-pi-upgrade
+make appliance-pi-wait
+make appliance-pi-status
+```
+
+Pass install-specific flags with `APPLIANCE_PI_INSTALL_ARGS`, for example
+`APPLIANCE_PI_INSTALL_ARGS="--skip-k3s-install"`. The installer defaults
+`kubectl`, Helm, and status checks to `/etc/rancher/k3s/k3s.yaml`; override
+with `--kubeconfig` or `PULSE_APPLIANCE_KUBECONFIG` only when using a different
+client config. The installer runs host preparation, installs or upgrades K3s,
+builds Helm chart dependencies, applies the platform chart with a Keycloak
+bootstrap pass, checks the install-specific services runtime secret, applies
+the services chart, and waits for the appliance workloads. Services fail closed
+when `pulse-services/pulse-services-runtime-secret` is absent so GCS
+credentials and provider material stay install-specific.
 
 Validation command:
 

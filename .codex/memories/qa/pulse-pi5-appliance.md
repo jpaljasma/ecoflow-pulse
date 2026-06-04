@@ -2,7 +2,7 @@
 
 ## Current focus
 
-- Validate the Phase 1 appliance scaffold slice.
+- Validate the Phase 1 appliance installer/orchestration completion slice.
 
 ## Files to inspect first
 
@@ -11,6 +11,7 @@
 - `Makefile`
 - Existing edge collector, archive worker, and deploy tests for touched slices.
 - `deploy/appliance/pi5/test-host-prepare.sh`
+- `deploy/appliance/pi5/test-install-dry-run.sh`
 - `deploy/env/pi/values.platform.yaml`
 - `deploy/env/pi/values.services.yaml`
 
@@ -23,6 +24,10 @@
   or failure-mode coverage.
 - 2026-06-04: `make appliance-pi-validate` passed for shellcheck, host fstab
   fixture coverage, and Pi Helm lint.
+- 2026-06-04: Installer dry-run coverage proves the appliance command path
+  reaches host/K3s skips, Helm dependency builds, the Keycloak bootstrap pass,
+  runtime-secret preflight, and services Helm apply without needing Pi
+  hardware.
 
 ## Open risks
 
@@ -32,8 +37,10 @@
   desktop k3d.
 - Host script tests cover fstab option merging but not real EEPROM, PCIe, or
   systemd behavior.
+- Installer tests are dry-run only; real K3s install, CNPG readiness, Keycloak
+  login, and hostPort reachability need appliance hardware.
 
 ## Next step
 
-- Run `make lint` and inspect staged changes for duplicate backup files and
-  sensitive text before PR closeout.
+- Run `make appliance-pi-validate`, `make lint`, and inspect staged changes for
+  duplicate backup files and sensitive text before PR closeout.
