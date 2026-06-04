@@ -74,6 +74,12 @@ The first real Pi 5 appliance install proved these checks save time:
   customisation, and settle time sync.
 - When using an Argon/non-HAT NVMe carrier, keep `/boot/firmware/config.txt`
   explicit with `dtparam=pciex1` and keep PCIe Gen 2 as the appliance default.
+- PCIe Gen 3 can be a useful lab experiment on the Argon NEO 5 and SanDisk
+  Optimus GX 7100 path. On the first appliance hardware, adding
+  `dtparam=pciex1_gen=3` changed `sudo hdparm -t /dev/nvme0n1` from about
+  `449 MB/sec` to about `882 MB/sec`. Keep Gen 2 as the shipped default until
+  Gen 3 also passes reboot, thermal, SMART, and unsafe-shutdown checks on the
+  target appliance.
 - `PCIE_PROBE=1` should be present in EEPROM config. A boot order that already
   boots NVMe is acceptable if NVMe root is mounted and EEPROM is current.
 - Treat `dphys-swapfile.service does not exist` as harmless on current
@@ -420,6 +426,13 @@ Appliance archive behavior:
 - upload to GCS asynchronously;
 - record GCS manifest rows for remote uploaded objects only;
 - block archive-backed rebuilds while local-only outbox entries are pending.
+
+The Pi services overlay enables the archive upload outbox at
+`/var/lib/pulse-archive/outbox`, backs it with a `16Gi` ReadWriteOnce PVC, and
+sets `ARCHIVE_UPLOAD_OUTBOX_MAX_BYTES=17179869184`. The outbox entry stores
+both the compressed object body and the manifest record. Flushes fail closed if
+the manifest store is unavailable, so a remote object cannot become
+authoritative for rebuilds before the manifest row is recorded.
 
 Use `ARCHIVE_OBJECT_PROVIDER=gcs` and an appliance-specific
 `ARCHIVE_WRITER_ID`, with service-account credentials mounted as a Kubernetes

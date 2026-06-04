@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Prepare later backend slices for archive outbox, ingest restart safety, and
-  optional workload consolidation.
+- Implement the first Phase 3 archive upload outbox slice for appliance GCS
+  durability.
 
 ## Files to inspect first
 
@@ -21,15 +21,19 @@
 - Workload merging is allowed only when graceful shutdown and idempotency remain
   clear.
 - GCS upload must not be on the critical local ingestion path during outages.
+- Archive delivery ACKs in appliance mode only after the compressed object and
+  manifest record are fsynced into the local outbox.
+- Outbox flush records the remote object in the manifest only after successful
+  upload, and fails closed when a manifest-backed entry has no manifest store.
 
 ## Open risks
 
-- Archive upload outbox changes affect replay correctness and must fail closed
-  when pending local-only objects exist.
+- Rebuild/status tooling still needs an explicit pending-outbox guard before
+  appliance cutover.
 - Merged workers can accidentally reduce deploy safety if drain and cancellation
   are not tested carefully.
 
 ## Next step
 
-- After Phase 1 overlays exist, design the smallest archive-outbox schema and
-  worker slice with targeted tests before any broader runtime merge.
+- Follow up with the pending-outbox status/rebuild guard and backup/cutover
+  runbook before broader workload consolidation.

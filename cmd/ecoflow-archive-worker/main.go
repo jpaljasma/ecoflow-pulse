@@ -71,6 +71,15 @@ func main() {
 	}
 
 	cfg := loadArchiveWorkerConfigFromEnv()
+	outboxCfg, outboxEnabled := loadArchiveUploadOutboxConfigFromEnv()
+	var archiveOutbox archiveworker.ArchiveUploadOutbox
+	if outboxEnabled {
+		archiveOutbox, err = archiveworker.NewFileArchiveUploadOutbox(outboxCfg)
+		if err != nil {
+			log.Error("init archive upload outbox failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}
 
 	manifestDSN := resolveArchiveManifestDSN()
 	var manifestStore archiveworker.ManifestStore
@@ -91,7 +100,14 @@ func main() {
 
 	metrics := workermetrics.New("archive")
 	metrics.RequireConsumerSubscription()
-	worker, err := archiveworker.New(log, natsConn, objectStore, cfg, archiveworker.WithManifestStore(manifestStore), archiveworker.WithMetrics(metrics))
+	workerOptions := []archiveworker.WorkerOption{
+		archiveworker.WithManifestStore(manifestStore),
+		archiveworker.WithMetrics(metrics),
+	}
+	if archiveOutbox != nil {
+		workerOptions = append(workerOptions, archiveworker.WithArchiveUploadOutbox(archiveOutbox))
+	}
+	worker, err := archiveworker.New(log, natsConn, objectStore, cfg, workerOptions...)
 	if err != nil {
 		log.Error("init archive worker failed", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -135,6 +151,9 @@ func main() {
 		slog.Bool("object_secure", storeCfg.Secure),
 		slog.String("object_gcs_project_id", storeCfg.GCSProjectID),
 		slog.Bool("manifest_enabled", manifestStore != nil),
+		slog.Bool("archive_upload_outbox_enabled", archiveOutbox != nil),
+		slog.String("archive_upload_outbox_dir", outboxCfg.Dir),
+		slog.Int64("archive_upload_outbox_max_bytes", outboxCfg.MaxBytes),
 	)
 	if err := worker.Run(ctx); err != nil {
 		log.Error("archive worker stopped with error", slog.String("error", err.Error()))
@@ -168,6 +187,14 @@ func loadArchiveWorkerConfigFromEnv() archiveworker.Config {
 	cfg.WriterID = runtimecfg.EnvOrDefault("ARCHIVE_WRITER_ID", cfg.WriterID)
 	cfg.ZstdEncoderLevel = runtimecfg.IntAny("ARCHIVE_ZSTD_LEVEL", cfg.ZstdEncoderLevel)
 	return cfg
+}
+
+func loadArchiveUploadOutboxConfigFromEnv() (archiveworker.FileArchiveUploadOutboxConfig, bool) {
+	cfg := archiveworker.FileArchiveUploadOutboxConfig{
+		Dir:      strings.TrimSpace(os.Getenv("ARCHIVE_UPLOAD_OUTBOX_DIR")),
+		MaxBytes: runtimecfg.Int64Min("ARCHIVE_UPLOAD_OUTBOX_MAX_BYTES", 0, 0),
+	}
+	return cfg, cfg.Dir != ""
 }
 
 func resolveArchiveManifestDSN() string {

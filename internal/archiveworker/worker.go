@@ -219,6 +219,7 @@ type Worker struct {
 	conn          *nats.Conn
 	store         ObjectStore
 	manifestStore ManifestStore
+	archiveOutbox ArchiveUploadOutbox
 	cfg           Config
 
 	nowFn         func() time.Time
@@ -291,11 +292,27 @@ func WithMetrics(metrics *workermetrics.Metrics) WorkerOption {
 	}
 }
 
+func WithArchiveUploadOutbox(outbox ArchiveUploadOutbox) WorkerOption {
+	return func(w *Worker) error {
+		if w == nil {
+			return errors.New("archive worker is not initialized")
+		}
+		w.archiveOutbox = outbox
+		return nil
+	}
+}
+
 func (w *Worker) Run(ctx context.Context) error {
 	js, err := w.conn.JetStream()
 	if err != nil {
 		return fmt.Errorf("init jetstream context: %w", err)
 	}
+	startupFlushCtx, startupCancel := context.WithTimeout(context.Background(), w.cfg.FlushTimeout)
+	if err := w.flushArchiveOutbox(startupFlushCtx); err != nil {
+		w.log.Warn("archive upload outbox startup flush failed", slog.String("error", err.Error()))
+	}
+	startupCancel()
+
 	stopTicker := make(chan struct{})
 	var tickerWG sync.WaitGroup
 	tickerWG.Add(1)
@@ -309,6 +326,9 @@ func (w *Worker) Run(ctx context.Context) error {
 				flushCtx, cancel := context.WithTimeout(context.Background(), w.cfg.FlushTimeout)
 				if flushErr := w.flushDue(flushCtx); flushErr != nil {
 					w.log.Warn("archive periodic flush failed", slog.String("error", flushErr.Error()))
+				}
+				if outboxErr := w.flushArchiveOutbox(flushCtx); outboxErr != nil {
+					w.log.Warn("archive upload outbox flush failed", slog.String("error", outboxErr.Error()))
 				}
 				cancel()
 			case <-stopTicker:
@@ -359,6 +379,9 @@ func (w *Worker) Run(ctx context.Context) error {
 	defer cancel()
 	if err := w.flushAll(flushCtx); err != nil {
 		return fmt.Errorf("flush archive segments on shutdown: %w", err)
+	}
+	if err := w.flushArchiveOutbox(flushCtx); err != nil {
+		w.log.Warn("archive upload outbox shutdown flush failed", slog.String("error", err.Error()))
 	}
 	return nil
 }
@@ -584,6 +607,38 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 			"checksum_crc32": fmt.Sprintf("%08x", checksum),
 		},
 	}
+	record := ManifestRecord{
+		Provider:          segmentProvider(segment.providers),
+		Shard:             segment.key.shard,
+		ShardCount:        w.cfg.SubjectConfig.ShardCount,
+		PartitionHour:     segment.key.partitionHour,
+		TSMinUnixMS:       segment.tsMin,
+		TSMaxUnixMS:       segment.tsMax,
+		RecordCount:       segment.records,
+		ObjectBucket:      req.Bucket,
+		ObjectKey:         req.Key,
+		ObjectSizeBytes:   int64(len(body)),
+		ContentType:       req.ContentType,
+		Compression:       defaultManifestCompression,
+		ChecksumCRC32:     fmt.Sprintf("%08x", checksum),
+		WriterID:          w.cfg.WriterID,
+		DeviceIDs:         normalizeStringSet(mapSetValues(segment.deviceIDs), false),
+		ProviderDeviceIDs: normalizeStringSet(mapSetValues(segment.providerDeviceIDs), true),
+	}
+	if w.archiveOutbox != nil {
+		if err := w.archiveOutbox.Enqueue(ctx, ArchiveUploadOutboxEntry{Object: req, Manifest: &record}); err != nil {
+			_ = w.nakPending(segment.pending)
+			if w.metrics != nil {
+				w.metrics.ObserveFlush("nack_outbox_failed", time.Since(startedAt), segment.records, len(body))
+			}
+			return fmt.Errorf("persist archive upload outbox %q: %w", objectKey, err)
+		}
+		_ = w.ackPending(segment.pending)
+		if w.metrics != nil {
+			w.metrics.ObserveFlush("queued_outbox", time.Since(startedAt), segment.records, len(body))
+		}
+		return nil
+	}
 	if err := w.store.PutObject(ctx, req); err != nil {
 		_ = w.nakPending(segment.pending)
 		if w.metrics != nil {
@@ -592,24 +647,6 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 		return fmt.Errorf("write archive object %q: %w", objectKey, err)
 	}
 	if w.manifestStore != nil {
-		record := ManifestRecord{
-			Provider:          segmentProvider(segment.providers),
-			Shard:             segment.key.shard,
-			ShardCount:        w.cfg.SubjectConfig.ShardCount,
-			PartitionHour:     segment.key.partitionHour,
-			TSMinUnixMS:       segment.tsMin,
-			TSMaxUnixMS:       segment.tsMax,
-			RecordCount:       segment.records,
-			ObjectBucket:      req.Bucket,
-			ObjectKey:         req.Key,
-			ObjectSizeBytes:   int64(len(body)),
-			ContentType:       req.ContentType,
-			Compression:       defaultManifestCompression,
-			ChecksumCRC32:     fmt.Sprintf("%08x", checksum),
-			WriterID:          w.cfg.WriterID,
-			DeviceIDs:         normalizeStringSet(mapSetValues(segment.deviceIDs), false),
-			ProviderDeviceIDs: normalizeStringSet(mapSetValues(segment.providerDeviceIDs), true),
-		}
 		if err := w.manifestStore.UpsertObjectManifest(ctx, record); err != nil {
 			_ = w.nakPending(segment.pending)
 			if w.metrics != nil {
@@ -623,6 +660,13 @@ func (w *Worker) flushSegmentLocked(ctx context.Context, segment *archiveSegment
 		w.metrics.ObserveFlush("success", time.Since(startedAt), segment.records, len(body))
 	}
 	return nil
+}
+
+func (w *Worker) flushArchiveOutbox(ctx context.Context) error {
+	if w == nil || w.archiveOutbox == nil {
+		return nil
+	}
+	return w.archiveOutbox.Flush(ctx, w.store, w.manifestStore)
 }
 
 func (w *Worker) dropSegmentLocked(segment *archiveSegment) error {

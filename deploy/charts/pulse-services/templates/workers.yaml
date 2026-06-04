@@ -568,6 +568,12 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.archive) | nindent 6 }}
+      {{- if .Values.runtime.workers.archive.uploadOutbox.persistence.enabled }}
+      volumes:
+        - name: archive-upload-outbox
+          persistentVolumeClaim:
+            claimName: {{ include "pulse-services.fullname" . }}-go-archive-outbox
+      {{- end }}
       containers:
         - name: go-archive
           image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
@@ -583,6 +589,11 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
+          {{- if .Values.runtime.workers.archive.uploadOutbox.persistence.enabled }}
+          volumeMounts:
+            - name: archive-upload-outbox
+              mountPath: {{ .Values.runtime.workers.archive.uploadOutbox.persistence.mountPath | quote }}
+          {{- end }}
           resources:
             {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
           {{- if .Values.runtime.workers.archive.metrics.enabled }}
@@ -610,6 +621,25 @@ spec:
             periodSeconds: 20
           {{- end }}
 ---
+{{- if .Values.runtime.workers.archive.uploadOutbox.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pulse-services.fullname" . }}-go-archive-outbox
+  labels:
+    {{- include "pulse-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: go-archive
+spec:
+  accessModes:
+    {{- toYaml .Values.runtime.workers.archive.uploadOutbox.persistence.accessModes | nindent 4 }}
+  {{- with .Values.runtime.workers.archive.uploadOutbox.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.runtime.workers.archive.uploadOutbox.persistence.size | quote }}
+---
+{{- end }}
 {{- if .Values.runtime.workers.archive.metrics.enabled }}
 apiVersion: v1
 kind: Service
