@@ -42,6 +42,7 @@ const (
 	edgePostAttempts     = 3
 	edgePostRetryDelay   = 200 * time.Millisecond
 	defaultEdgeGRPCAddr  = "127.0.0.1:19090"
+	defaultStartupRetry  = 5 * time.Second
 	defaultPi5GOMAXPROCS = 4
 	defaultPi5Memory     = 512 * 1024 * 1024
 	defaultPi5GCPercent  = 100
@@ -93,11 +94,13 @@ type rawProbeRecord struct {
 }
 
 type edgeClient struct {
-	transport  edgeTransport
-	baseURL    string
-	secret     string
-	httpClient *http.Client
-	grpcClient edgev1.EdgeIngestServiceClient
+	transport         edgeTransport
+	baseURL           string
+	secret            string
+	httpClient        *http.Client
+	grpcClient        edgev1.EdgeIngestServiceClient
+	startupWait       time.Duration
+	startupRetryDelay time.Duration
 }
 
 type runtimeDefaults struct {
@@ -107,8 +110,10 @@ type runtimeDefaults struct {
 }
 
 type edgeTransportConfig struct {
-	transport edgeTransport
-	grpcAddr  string
+	transport         edgeTransport
+	grpcAddr          string
+	startupWait       time.Duration
+	startupRetryDelay time.Duration
 }
 
 func main() {
@@ -142,10 +147,12 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 	client := edgeClient{
-		transport:  transportCfg.transport,
-		baseURL:    cfg.targetBaseURL(),
-		secret:     strings.TrimSpace(os.Getenv("PULSE_EDGE_COLLECTOR_SECRET")),
-		httpClient: newEdgeHTTPClient(),
+		transport:         transportCfg.transport,
+		baseURL:           cfg.targetBaseURL(),
+		secret:            strings.TrimSpace(os.Getenv("PULSE_EDGE_COLLECTOR_SECRET")),
+		httpClient:        newEdgeHTTPClient(),
+		startupWait:       transportCfg.startupWait,
+		startupRetryDelay: transportCfg.startupRetryDelay,
 	}
 	var grpcConn *grpc.ClientConn
 	if transportCfg.transport == edgeTransportGRPC {
@@ -225,12 +232,52 @@ func edgeTransportConfigFromEnv(getenv func(string) string) (edgeTransportConfig
 	}
 	switch edgeTransport(transportValue) {
 	case edgeTransportREST:
-		return edgeTransportConfig{transport: edgeTransportREST, grpcAddr: grpcAddr}, nil
+		cfg := edgeTransportConfig{transport: edgeTransportREST, grpcAddr: grpcAddr}
+		if err := edgeStartupWaitConfigFromEnv(getenv, &cfg); err != nil {
+			return edgeTransportConfig{}, err
+		}
+		return cfg, nil
 	case edgeTransportGRPC:
-		return edgeTransportConfig{transport: edgeTransportGRPC, grpcAddr: grpcAddr}, nil
+		cfg := edgeTransportConfig{transport: edgeTransportGRPC, grpcAddr: grpcAddr}
+		if err := edgeStartupWaitConfigFromEnv(getenv, &cfg); err != nil {
+			return edgeTransportConfig{}, err
+		}
+		return cfg, nil
 	default:
 		return edgeTransportConfig{}, fmt.Errorf("unsupported PULSE_EDGE_TRANSPORT %q", transportValue)
 	}
+}
+
+func edgeStartupWaitConfigFromEnv(getenv func(string) string, cfg *edgeTransportConfig) error {
+	startupWait, err := optionalDurationFromEnv(getenv, "PULSE_EDGE_STARTUP_WAIT")
+	if err != nil {
+		return err
+	}
+	startupRetry, err := optionalDurationFromEnv(getenv, "PULSE_EDGE_STARTUP_RETRY_DELAY")
+	if err != nil {
+		return err
+	}
+	if startupRetry == 0 {
+		startupRetry = defaultStartupRetry
+	}
+	cfg.startupWait = startupWait
+	cfg.startupRetryDelay = startupRetry
+	return nil
+}
+
+func optionalDurationFromEnv(getenv func(string) string, key string) (time.Duration, error) {
+	value := strings.TrimSpace(getenv(key))
+	if value == "" {
+		return 0, nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	if duration < 0 {
+		return 0, fmt.Errorf("%s must be non-negative", key)
+	}
+	return duration, nil
 }
 
 func newEdgeGRPCConn(addr string) (*grpc.ClientConn, error) {
@@ -275,8 +322,8 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 
-	if err := client.heartbeat(ctx, collectorVersion(), hostname()); err != nil {
-		return fmt.Errorf("initial heartbeat: %w", err)
+	if err := client.waitForInitialHeartbeat(ctx, log, collectorVersion(), hostname()); err != nil {
+		return err
 	}
 	heartbeatDone := make(chan struct{})
 	go func() {
@@ -309,6 +356,40 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	cancel()
 	<-heartbeatDone
 	return err
+}
+
+func (c edgeClient) waitForInitialHeartbeat(ctx context.Context, log *slog.Logger, version string, hostname string) error {
+	if c.startupWait <= 0 {
+		if err := c.heartbeat(ctx, version, hostname); err != nil {
+			return fmt.Errorf("initial heartbeat: %w", err)
+		}
+		return nil
+	}
+	retryDelay := c.startupRetryDelay
+	if retryDelay <= 0 {
+		retryDelay = defaultStartupRetry
+	}
+	deadlineCtx, cancel := context.WithTimeout(ctx, c.startupWait)
+	defer cancel()
+	var lastErr error
+	for {
+		if err := c.heartbeat(deadlineCtx, version, hostname); err != nil {
+			lastErr = err
+			log.Warn("edge initial heartbeat failed; waiting for edge API", slog.String("error", err.Error()))
+		} else {
+			return nil
+		}
+		timer := time.NewTimer(retryDelay)
+		select {
+		case <-deadlineCtx.Done():
+			timer.Stop()
+			if lastErr != nil {
+				return fmt.Errorf("initial heartbeat after %s: %w", c.startupWait, lastErr)
+			}
+			return deadlineCtx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 type probeRunner func(context.Context) error

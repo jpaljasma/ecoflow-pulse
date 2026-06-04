@@ -53,4 +53,8 @@
   `make appliance-pi-validate`.
 - The latest bundle rebuild showed the expected Pi 5 compile environment:
   `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOARM64=v8.2`.
+- PR feedback follow-up added startup heartbeat retry coverage so the appliance
+  collector waits for loopback gRPC during cold K3s boot.
+- Review follow-up validation passed with the collector test, adjacent
+  edge/gRPC tests, Pi 5 bundle build, repo lint, and appliance validation.
 - Next: run duplicate backup scan and sensitive-text scan before PR closeout.

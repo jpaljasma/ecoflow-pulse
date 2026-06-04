@@ -11,6 +11,8 @@ Environment=GOMEMLIMIT=192MiB
 Environment=GOGC=100
 Environment=PULSE_EDGE_TRANSPORT=grpc
 Environment=PULSE_EDGE_GRPC_ADDR=127.0.0.1:19090
+Environment=PULSE_EDGE_STARTUP_WAIT=10m
+Environment=PULSE_EDGE_STARTUP_RETRY_DELAY=5s
 ExecStart=/usr/local/bin/pulse-edge-collector -config /etc/pulse-edge/config.yaml
 Restart=on-failure
 RestartSec=5s

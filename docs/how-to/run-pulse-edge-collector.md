@@ -42,6 +42,8 @@ appliance profile and sends edge traffic to the K3s loopback gRPC service:
 - `GOGC=100`
 - `PULSE_EDGE_TRANSPORT=grpc`
 - `PULSE_EDGE_GRPC_ADDR=127.0.0.1:19090`
+- `PULSE_EDGE_STARTUP_WAIT=10m`
+- `PULSE_EDGE_STARTUP_RETRY_DELAY=5s`
 - `MemoryMax=256M`
 
 ## Install
@@ -122,6 +124,12 @@ stops uploading telemetry. The raw JSONL file is truncated on collector
 startup, so restarts do not replay stale probe events. The Pi package keeps
 that file in `/run/pulse-edge`, a tmpfs-backed runtime directory, to avoid
 unnecessary SD card writes.
+
+On appliance boot, `k3s.service` can become active before the in-cluster edge
+gRPC API is reachable through the loopback hostPort. The packaged unit sets
+`PULSE_EDGE_STARTUP_WAIT=10m`, so the collector retries the initial heartbeat
+in-process before starting BLE instead of exiting repeatedly and hitting the
+systemd start-limit window.
 
 It keeps only live retry state in memory. If Pulse is unavailable, samples that
 fail to upload are dropped and the next probe refresh continues from live BLE

@@ -71,5 +71,12 @@ Base commit: `42de0371`
   linux/arm64 collector bundle with the updated systemd unit.
 - 2026-06-04: The Pi 5 bundle target now builds with `GOARM64=v8.2`,
   `CGO_ENABLED=0`, `-trimpath`, and stripped symbols by default.
+- 2026-06-04: PR feedback follow-up added in-process startup heartbeat retry
+  for loopback gRPC so cold K3s startup does not exhaust systemd start limits.
+- 2026-06-04: Review follow-up validation passed with
+  `go test ./cmd/pulse-edge-collector -count=1`,
+  `go test ./cmd/ecoflow-grpc-api ./internal/edgecollector -count=1`,
+  `make pulse-edge-pi5-bundle`, `make lint`, and
+  `make appliance-pi-validate`.
 - 2026-06-04: `make lint` and `make appliance-pi-validate` passed before PR
   closeout.

@@ -223,14 +223,47 @@ func TestEdgeClientGRPCMethodsMapRequests(t *testing.T) {
 	}
 }
 
+func TestEdgeClientWaitForInitialHeartbeatRetriesDuringStartup(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeEdgeIngestClient{
+		heartbeatErrs: []error{
+			errors.New("connection refused"),
+			errors.New("edge api not ready"),
+		},
+	}
+	client := edgeClient{
+		transport:         edgeTransportGRPC,
+		secret:            "collector-secret",
+		grpcClient:        fake,
+		startupWait:       time.Second,
+		startupRetryDelay: time.Millisecond,
+	}
+
+	err := client.waitForInitialHeartbeat(
+		context.Background(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		"v-test",
+		"pulse",
+	)
+	if err != nil {
+		t.Fatalf("waitForInitialHeartbeat failed: %v", err)
+	}
+	if fake.heartbeatCalls != 3 {
+		t.Fatalf("heartbeatCalls=%d want 3", fake.heartbeatCalls)
+	}
+}
+
 type fakeEdgeIngestClient struct {
 	edgev1.EdgeIngestServiceClient
 
-	enrollReq    *edgev1.EnrollCollectorRequest
-	enrollResp   *edgev1.EnrollCollectorResponse
-	heartbeatReq *edgev1.HeartbeatRequest
-	discoveryReq *edgev1.UploadDiscoveryRequest
-	telemetryReq *edgev1.UploadTelemetryBatchRequest
+	enrollReq      *edgev1.EnrollCollectorRequest
+	enrollResp     *edgev1.EnrollCollectorResponse
+	heartbeatReq   *edgev1.HeartbeatRequest
+	heartbeatErrs  []error
+	heartbeatCalls int
+	discoveryReq   *edgev1.UploadDiscoveryRequest
+	telemetryReq   *edgev1.UploadTelemetryBatchRequest
 }
 
 func (f *fakeEdgeIngestClient) EnrollCollector(_ context.Context, req *edgev1.EnrollCollectorRequest, _ ...grpc.CallOption) (*edgev1.EnrollCollectorResponse, error) {
@@ -240,6 +273,12 @@ func (f *fakeEdgeIngestClient) EnrollCollector(_ context.Context, req *edgev1.En
 
 func (f *fakeEdgeIngestClient) Heartbeat(_ context.Context, req *edgev1.HeartbeatRequest, _ ...grpc.CallOption) (*edgev1.HeartbeatResponse, error) {
 	f.heartbeatReq = req
+	f.heartbeatCalls++
+	if len(f.heartbeatErrs) > 0 {
+		err := f.heartbeatErrs[0]
+		f.heartbeatErrs = f.heartbeatErrs[1:]
+		return nil, err
+	}
 	return &edgev1.HeartbeatResponse{}, nil
 }
 
