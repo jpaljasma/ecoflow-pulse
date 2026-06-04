@@ -190,6 +190,9 @@ PULSE_EDGE_COLLECTOR_BIN ?= bin/pulse-edge-collector
 PULSE_EDGE_PI5_BIN_DIR ?= bin/linux-arm64
 PULSE_EDGE_PI5_BUNDLE_DIR ?= .tmp/pulse-edge-pi5-linux-arm64
 PULSE_EDGE_PI5_BUNDLE ?= .tmp/pulse-edge-pi5-linux-arm64.tar.gz
+PULSE_EDGE_PI5_GOARM64 ?= v8.2
+PULSE_EDGE_PI5_CGO_ENABLED ?= 0
+PULSE_EDGE_PI5_LDFLAGS ?= -s -w
 RACE_CRITICAL_PKGS ?= ./internal/ingestworker ./internal/ingestlease ./internal/projectionworker ./internal/archiveworker ./internal/telemetrybus ./internal/edgecollector ./cmd/ecoflow-grpc-api ./cmd/pulse-edge-collector
 RACE_STRESS_COUNT ?= 5
 LOCAL_KUBECTL = $(KUBECTL) --context $(K3D_CONTEXT)
@@ -727,8 +730,8 @@ pulse-edge-collector:
 pulse-edge-collector-linux-arm64:
 	@mkdir -p "$(GOCACHE)" "$(GOMODCACHE)" "$(PULSE_EDGE_PI5_BIN_DIR)"
 	@echo "building Raspberry Pi 5 linux/arm64 edge collector bundle binaries"
-	GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "-s -w" -o "$(PULSE_EDGE_PI5_BIN_DIR)/pulse-edge-collector" ./cmd/pulse-edge-collector
-	GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "-s -w" -o "$(PULSE_EDGE_PI5_BIN_DIR)/ecoflow-ble-discover" ./cmd/ecoflow-ble-discover
+	CGO_ENABLED=$(PULSE_EDGE_PI5_CGO_ENABLED) GOOS=linux GOARCH=arm64 GOARM64=$(PULSE_EDGE_PI5_GOARM64) $(GO) build -trimpath -ldflags "$(PULSE_EDGE_PI5_LDFLAGS)" -o "$(PULSE_EDGE_PI5_BIN_DIR)/pulse-edge-collector" ./cmd/pulse-edge-collector
+	CGO_ENABLED=$(PULSE_EDGE_PI5_CGO_ENABLED) GOOS=linux GOARCH=arm64 GOARM64=$(PULSE_EDGE_PI5_GOARM64) $(GO) build -trimpath -ldflags "$(PULSE_EDGE_PI5_LDFLAGS)" -o "$(PULSE_EDGE_PI5_BIN_DIR)/ecoflow-ble-discover" ./cmd/ecoflow-ble-discover
 
 pulse-edge-pi5-bundle: pulse-edge-collector-linux-arm64
 	@rm -rf "$(PULSE_EDGE_PI5_BUNDLE_DIR)" "$(PULSE_EDGE_PI5_BUNDLE)"

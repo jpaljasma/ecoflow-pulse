@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-phase2`
-Base commit: `324cb08a`
+Branch: `codex/pi5-appliance-ble-direct`
+Base commit: `42de0371`
 
 ## Assumptions
 
@@ -21,7 +21,7 @@ Base commit: `324cb08a`
 |---|---|---|---|---|
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
 | DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
-| TODO | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | pending |
+| PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC tests passed; outbox pending |
 | TODO | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | pending |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
@@ -46,16 +46,37 @@ Base commit: `324cb08a`
 - 2026-06-04: The second implementation slice completes Phase 1 with
   `pulse-appliance-install.sh`, dry-run installer coverage, and Make entry
   points for install, upgrade, wait, and status.
+- 2026-06-04: Phase 2 starts on `codex/pi5-appliance-ble-direct` and keeps the
+  first BLE slice focused on direct gRPC transport plus appliance service/docs.
 
 ## Blockers
 
-- None for the next BLE direct-ingest slice.
+- None for direct gRPC transport.
 
 ## Next Actions
 
-1. Inspect `cmd/pulse-edge-collector` and `internal/edgecollector` transport
-   boundaries.
-2. Add direct gRPC transport behind `PULSE_EDGE_TRANSPORT=grpc` while keeping
-   REST supported.
-3. Add durable BLE retry/idempotency coverage before enabling the host systemd
-   unit path.
+1. Add failing tests for `PULSE_EDGE_TRANSPORT=grpc` request mapping.
+2. Implement gRPC enroll, heartbeat, discovery, and telemetry calls while
+   preserving REST as the default.
+3. Update appliance systemd/docs defaults for loopback gRPC.
+4. Leave durable outbox and `client_sample_id` for the next Phase 2 slice.
+
+## Validation Evidence
+
+- 2026-06-04: `go test ./cmd/pulse-edge-collector -count=1` passed after
+  adding direct gRPC transport tests.
+- 2026-06-04: `go test ./cmd/ecoflow-grpc-api ./internal/edgecollector
+  -count=1` passed for adjacent edge ingest/gRPC packages.
+- 2026-06-04: `make pulse-edge-pi5-bundle` passed and rebuilt the Pi 5
+  linux/arm64 collector bundle with the updated systemd unit.
+- 2026-06-04: The Pi 5 bundle target now builds with `GOARM64=v8.2`,
+  `CGO_ENABLED=0`, `-trimpath`, and stripped symbols by default.
+- 2026-06-04: PR feedback follow-up added in-process startup heartbeat retry
+  for loopback gRPC so cold K3s startup does not exhaust systemd start limits.
+- 2026-06-04: Review follow-up validation passed with
+  `go test ./cmd/pulse-edge-collector -count=1`,
+  `go test ./cmd/ecoflow-grpc-api ./internal/edgecollector -count=1`,
+  `make pulse-edge-pi5-bundle`, `make lint`, and
+  `make appliance-pi-validate`.
+- 2026-06-04: `make lint` and `make appliance-pi-validate` passed before PR
+  closeout.

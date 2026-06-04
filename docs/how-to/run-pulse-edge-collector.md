@@ -1,8 +1,9 @@
 # Run Pulse Edge Collector on Raspberry Pi
 
 Pulse Edge Collector is the local bridge for BLE telemetry. In v1 it supervises
-the EcoFlow BLE probe, reads its structured JSONL output, and posts discovery
-and telemetry batches to Pulse through `/api/v1/edge/*`.
+the EcoFlow BLE probe and reads its structured JSONL output. Appliance installs
+upload discovery and telemetry over direct loopback gRPC. Non-appliance edge
+installs can keep using the REST `/api/v1/edge/*` transport.
 
 ## CI Artifact
 
@@ -22,16 +23,28 @@ make pulse-edge-pi5-bundle
 ```
 
 The binaries are built for `linux/arm64` with stripped symbols. The collector
-also applies Raspberry Pi 5 friendly runtime defaults when the equivalent Go
-runtime environment variables are not set:
+bundle target also sets `GOARM64=v8.2` for the Raspberry Pi 5 Cortex-A76 CPU
+profile and `CGO_ENABLED=0` for reproducible cross-builds. Override
+`PULSE_EDGE_PI5_GOARM64`, `PULSE_EDGE_PI5_CGO_ENABLED`, or
+`PULSE_EDGE_PI5_LDFLAGS` only when building for a different ARM64 target or
+debugging symbols. At runtime, the collector applies Raspberry Pi 5 friendly
+defaults when the equivalent Go runtime environment variables are not set:
 
 - `GOMAXPROCS=4`
 - `GOMEMLIMIT=512MiB`
 - `GOGC=100`
 
-The packaged `systemd` unit sets those values explicitly and also caps the
-service at `MemoryMax=768M`, which is intentionally conservative for a
-Raspberry Pi 5 with 8 GB RAM.
+The packaged appliance `systemd` unit tightens those values for the Pi 5
+appliance profile and sends edge traffic to the K3s loopback gRPC service:
+
+- `GOMAXPROCS=1`
+- `GOMEMLIMIT=192MiB`
+- `GOGC=100`
+- `PULSE_EDGE_TRANSPORT=grpc`
+- `PULSE_EDGE_GRPC_ADDR=127.0.0.1:19090`
+- `PULSE_EDGE_STARTUP_WAIT=10m`
+- `PULSE_EDGE_STARTUP_RETRY_DELAY=5s`
+- `MemoryMax=256M`
 
 ## Install
 
@@ -48,7 +61,9 @@ sudo install -m 0640 config/config.yaml /etc/pulse-edge/config.yaml
 sudo install -m 0644 systemd/pulse-edge-collector.service /etc/systemd/system/pulse-edge-collector.service
 ```
 
-Edit `/etc/pulse-edge/config.yaml` for the target Pulse endpoint:
+Edit `/etc/pulse-edge/config.yaml` for the target Pulse endpoint. The
+`base_url` value is used by the REST transport. Appliance gRPC mode ignores the
+URL and uploads to `PULSE_EDGE_GRPC_ADDR`.
 
 ```yaml
 profile: local
@@ -68,7 +83,9 @@ ble:
     - -ble-transport=rfcomm
 ```
 
-Use `PULSE_EDGE_PROFILE=hosted` to switch targets.
+Use `PULSE_EDGE_PROFILE=hosted` to switch REST targets. Set
+`PULSE_EDGE_TRANSPORT=rest` in `/etc/pulse-edge/secret.env` for hosted or other
+non-appliance installs that do not expose the loopback gRPC service.
 
 ## Enroll
 
@@ -103,14 +120,21 @@ sudo systemctl status pulse-edge-collector
 ```
 
 The collector exits cleanly on `SIGTERM`/`Ctrl+C`, signals the BLE probe, and
-stops posting telemetry. The raw JSONL file is truncated on collector startup,
-so restarts do not replay stale probe events. The Pi package keeps that file in
-`/run/pulse-edge`, a tmpfs-backed runtime directory, to avoid unnecessary SD
-card writes.
+stops uploading telemetry. The raw JSONL file is truncated on collector
+startup, so restarts do not replay stale probe events. The Pi package keeps
+that file in `/run/pulse-edge`, a tmpfs-backed runtime directory, to avoid
+unnecessary SD card writes.
+
+On appliance boot, `k3s.service` can become active before the in-cluster edge
+gRPC API is reachable through the loopback hostPort. The packaged unit sets
+`PULSE_EDGE_STARTUP_WAIT=10m`, so the collector retries the initial heartbeat
+in-process before starting BLE instead of exiting repeatedly and hitting the
+systemd start-limit window.
 
 It keeps only live retry state in memory. If Pulse is unavailable, samples that
-fail to post are dropped and the next probe refresh continues from live BLE
-data. If the BLE probe exits unexpectedly, the collector restarts it with capped
+fail to upload are dropped and the next probe refresh continues from live BLE
+data. Durable local outbox replay is tracked as the next appliance slice. If
+the BLE probe exits unexpectedly, the collector restarts it with capped
 exponential backoff. If BLE authentication fails, the collector exits with
 status `10`; the packaged `systemd` unit treats that as a non-restartable
 configuration failure.

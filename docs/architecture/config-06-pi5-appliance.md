@@ -181,6 +181,8 @@ kubelet-arg:
 
 The appliance bundle includes pinned GHCR image digests, `deploy/env/pi/`
 values, host tuning scripts, BLE binaries, and status/upgrade commands.
+The BLE host binaries are built with the Pi 5 bundle target for `linux/arm64`,
+`GOARM64=v8.2`, `CGO_ENABLED=0`, `-trimpath`, and stripped symbols by default.
 
 Phase 1 implementation files:
 
@@ -268,6 +270,8 @@ Environment=GOMAXPROCS=1
 Environment=GOMEMLIMIT=192MiB
 Environment=PULSE_EDGE_TRANSPORT=grpc
 Environment=PULSE_EDGE_GRPC_ADDR=127.0.0.1:19090
+Environment=PULSE_EDGE_STARTUP_WAIT=10m
+Environment=PULSE_EDGE_STARTUP_RETRY_DELAY=5s
 Environment=PULSE_EDGE_OUTBOX_DIR=/var/lib/pulse-edge/outbox
 Environment=PULSE_EDGE_OUTBOX_MAX_AGE=168h
 Environment=PULSE_EDGE_OUTBOX_MAX_BYTES=2GiB
@@ -278,6 +282,19 @@ RestartSec=5s
 
 BLE retries must be idempotent. Add a stable client sample identity to edge
 telemetry before enabling durable retry.
+
+Phase 2 direct-transport implementation starts with the transport boundary:
+
+- `PULSE_EDGE_TRANSPORT=grpc` switches the host collector from REST to direct
+  `EdgeIngestService` gRPC for enrollment, heartbeat, discovery, and telemetry.
+- `PULSE_EDGE_GRPC_ADDR` defaults to `127.0.0.1:19090`, matching the appliance
+  services overlay loopback hostPort.
+- REST remains the default for non-appliance edge deployments.
+- The packaged appliance unit waits up to `10m` for the initial loopback gRPC
+  heartbeat so cold K3s/pod startup does not exhaust systemd start limits
+  before BLE ingest can recover.
+- Durable outbox replay and stable client sample identity remain required
+  before persisted BLE retry is enabled.
 
 ## Archive And Cloud Shutdown
 

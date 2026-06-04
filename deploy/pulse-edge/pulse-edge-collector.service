@@ -1,13 +1,18 @@
 [Unit]
 Description=Pulse Edge Collector
-After=network-online.target bluetooth.target dbus.service
-Wants=network-online.target bluetooth.target
+After=network-online.target bluetooth.target dbus.service k3s.service
+Wants=network-online.target bluetooth.target k3s.service
+Requires=bluetooth.service
 
 [Service]
 EnvironmentFile=/etc/pulse-edge/secret.env
-Environment=GOMAXPROCS=4
-Environment=GOMEMLIMIT=512MiB
+Environment=GOMAXPROCS=1
+Environment=GOMEMLIMIT=192MiB
 Environment=GOGC=100
+Environment=PULSE_EDGE_TRANSPORT=grpc
+Environment=PULSE_EDGE_GRPC_ADDR=127.0.0.1:19090
+Environment=PULSE_EDGE_STARTUP_WAIT=10m
+Environment=PULSE_EDGE_STARTUP_RETRY_DELAY=5s
 ExecStart=/usr/local/bin/pulse-edge-collector -config /etc/pulse-edge/config.yaml
 Restart=on-failure
 RestartSec=5s
@@ -23,7 +28,7 @@ PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
 ReadWritePaths=/run/pulse-edge /var/lib/pulse-edge
-MemoryMax=768M
+MemoryMax=256M
 LimitNOFILE=4096
 KillSignal=SIGTERM
 TimeoutStopSec=20s
