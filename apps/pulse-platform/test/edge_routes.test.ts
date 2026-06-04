@@ -145,6 +145,7 @@ describe('pulse-platform edge routes', () => {
           provider: 'ecoflow',
           transport: 'ble',
           providerDeviceId: 'DEMOEDGE0001',
+          clientSampleId: 'edge-sample-1',
           metrics: { output_power_w: 118 }
         }]
       }
@@ -154,7 +155,10 @@ describe('pulse-platform edge routes', () => {
     expect(response.json()).toEqual({ acceptedCount: 1, droppedCount: 0 });
     expect(edgeClient.uploadTelemetry).toHaveBeenCalledWith(expect.objectContaining({
       collectorSecret: 'collector-secret',
-      samples: [expect.objectContaining({ providerDeviceId: 'DEMOEDGE0001' })]
+      samples: [expect.objectContaining({
+        providerDeviceId: 'DEMOEDGE0001',
+        clientSampleId: 'edge-sample-1'
+      })]
     }));
     await app.close();
   });

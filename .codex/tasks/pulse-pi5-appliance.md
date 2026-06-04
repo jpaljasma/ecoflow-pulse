@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-ble-direct`
-Base commit: `42de0371`
+Branch: `codex/pi5-appliance-ble-outbox`
+Base commit: `5669a1d6`
 
 ## Assumptions
 
@@ -21,7 +21,7 @@ Base commit: `42de0371`
 |---|---|---|---|---|
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
 | DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
-| PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC tests passed; outbox pending |
+| PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC merged; durable outbox tests passed |
 | TODO | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | pending |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
@@ -87,3 +87,22 @@ Base commit: `42de0371`
   `make appliance-pi-validate`.
 - 2026-06-04: `make lint` and `make appliance-pi-validate` passed before PR
   closeout.
+- 2026-06-04: Phase 2 durable outbox slice starts on
+  `codex/pi5-appliance-ble-outbox` from merged main `5669a1d6`.
+- 2026-06-04: Durable outbox slice adds secret-free disk entries, startup and
+  heartbeat replay, stable `client_sample_id`, and deterministic edge envelope
+  ids for downstream dedupe.
+- 2026-06-04: Durable outbox validation passed with `go test
+  ./cmd/pulse-edge-collector ./cmd/ecoflow-grpc-api ./internal/edgecollector
+  ./internal/envelopededup ./internal/rollupworker ./internal/archiveworker
+  -count=1`.
+- 2026-06-04: Final branch validation passed with `make pulse-edge-pi5-bundle`,
+  `make test-proto-contract`, `make appliance-pi-validate`, and `make lint`.
+- 2026-06-04: Review follow-up preserved `clientSampleId` through the REST edge
+  collector path so REST outbox retries keep the same downstream dedupe identity
+  as gRPC retries.
+- 2026-06-04: REST sample-id follow-up validation passed with `go test
+  ./cmd/pulse-edge-collector -count=1`, `go test ./cmd/ecoflow-grpc-api
+  ./internal/edgecollector -count=1`, `npm run -w apps/pulse-platform test --
+  edge_routes.test.ts`, `npm run -w apps/pulse-platform typecheck`,
+  `make pulse-edge-pi5-bundle`, `make appliance-pi-validate`, and `make lint`.

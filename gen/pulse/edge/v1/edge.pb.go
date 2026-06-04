@@ -1121,6 +1121,7 @@ type EdgeTelemetrySample struct {
 	ProviderDeviceId string                 `protobuf:"bytes,3,opt,name=provider_device_id,json=providerDeviceId,proto3" json:"provider_device_id,omitempty"`
 	ObservedAtUnixMs int64                  `protobuf:"varint,4,opt,name=observed_at_unix_ms,json=observedAtUnixMs,proto3" json:"observed_at_unix_ms,omitempty"`
 	Metrics          *structpb.Struct       `protobuf:"bytes,5,opt,name=metrics,proto3" json:"metrics,omitempty"`
+	ClientSampleId   string                 `protobuf:"bytes,6,opt,name=client_sample_id,json=clientSampleId,proto3" json:"client_sample_id,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -1188,6 +1189,13 @@ func (x *EdgeTelemetrySample) GetMetrics() *structpb.Struct {
 		return x.Metrics
 	}
 	return nil
+}
+
+func (x *EdgeTelemetrySample) GetClientSampleId() string {
+	if x != nil {
+		return x.ClientSampleId
+	}
+	return ""
 }
 
 type UploadTelemetryBatchRequest struct {
@@ -1380,13 +1388,14 @@ const file_pulse_edge_v1_edge_proto_rawDesc = "" +
 	"\x05model\x18\x05 \x01(\tR\x05model\"s\n" +
 	"\x1bApproveDeviceSourceResponse\x127\n" +
 	"\x06source\x18\x01 \x01(\v2\x1f.pulse.edge.v1.EdgeDeviceSourceR\x06source\x12\x1b\n" +
-	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\"\xdf\x01\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\"\x89\x02\n" +
 	"\x13EdgeTelemetrySample\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x1c\n" +
 	"\ttransport\x18\x02 \x01(\tR\ttransport\x12,\n" +
 	"\x12provider_device_id\x18\x03 \x01(\tR\x10providerDeviceId\x12-\n" +
 	"\x13observed_at_unix_ms\x18\x04 \x01(\x03R\x10observedAtUnixMs\x121\n" +
-	"\ametrics\x18\x05 \x01(\v2\x17.google.protobuf.StructR\ametrics\"\x86\x01\n" +
+	"\ametrics\x18\x05 \x01(\v2\x17.google.protobuf.StructR\ametrics\x12(\n" +
+	"\x10client_sample_id\x18\x06 \x01(\tR\x0eclientSampleId\"\x86\x01\n" +
 	"\x1bUploadTelemetryBatchRequest\x12)\n" +
 	"\x10collector_secret\x18\x01 \x01(\tR\x0fcollectorSecret\x12<\n" +
 	"\asamples\x18\x02 \x03(\v2\".pulse.edge.v1.EdgeTelemetrySampleR\asamples\"j\n" +

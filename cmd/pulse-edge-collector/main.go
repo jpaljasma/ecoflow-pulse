@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -32,20 +34,22 @@ import (
 )
 
 const (
-	defaultConfigPath    = "/etc/pulse-edge/config.yaml"
-	defaultRawOutputPath = "/tmp/pulse-edge/ecoflow-ble-raw.jsonl"
-	defaultHTTPTimeout   = 10 * time.Second
-	rawScannerMaxBytes   = 4 * 1024 * 1024
-	bleRestartBackoffMin = 1 * time.Second
-	bleRestartBackoffMax = 30 * time.Second
-	bleAuthExitCode      = 10
-	edgePostAttempts     = 3
-	edgePostRetryDelay   = 200 * time.Millisecond
-	defaultEdgeGRPCAddr  = "127.0.0.1:19090"
-	defaultStartupRetry  = 5 * time.Second
-	defaultPi5GOMAXPROCS = 4
-	defaultPi5Memory     = 512 * 1024 * 1024
-	defaultPi5GCPercent  = 100
+	defaultConfigPath     = "/etc/pulse-edge/config.yaml"
+	defaultRawOutputPath  = "/tmp/pulse-edge/ecoflow-ble-raw.jsonl"
+	defaultHTTPTimeout    = 10 * time.Second
+	rawScannerMaxBytes    = 4 * 1024 * 1024
+	bleRestartBackoffMin  = 1 * time.Second
+	bleRestartBackoffMax  = 30 * time.Second
+	bleAuthExitCode       = 10
+	edgePostAttempts      = 3
+	edgePostRetryDelay    = 200 * time.Millisecond
+	defaultEdgeGRPCAddr   = "127.0.0.1:19090"
+	defaultStartupRetry   = 5 * time.Second
+	defaultOutboxMaxAge   = 168 * time.Hour
+	defaultOutboxMaxBytes = 2 * 1024 * 1024 * 1024
+	defaultPi5GOMAXPROCS  = 4
+	defaultPi5Memory      = 512 * 1024 * 1024
+	defaultPi5GCPercent   = 100
 )
 
 type edgeTransport string
@@ -101,6 +105,7 @@ type edgeClient struct {
 	grpcClient        edgev1.EdgeIngestServiceClient
 	startupWait       time.Duration
 	startupRetryDelay time.Duration
+	outbox            *edgeOutbox
 }
 
 type runtimeDefaults struct {
@@ -114,6 +119,48 @@ type edgeTransportConfig struct {
 	grpcAddr          string
 	startupWait       time.Duration
 	startupRetryDelay time.Duration
+}
+
+type edgeOutboxConfig struct {
+	Dir      string
+	MaxAge   time.Duration
+	MaxBytes int64
+}
+
+type edgeOutbox struct {
+	dir      string
+	maxAge   time.Duration
+	maxBytes int64
+	now      func() time.Time
+}
+
+type edgeOutboxEntry struct {
+	ID              string               `json:"id"`
+	Kind            string               `json:"kind"`
+	CreatedAtUnixMS int64                `json:"created_at_unix_ms"`
+	Discovery       *edgeOutboxDiscovery `json:"discovery,omitempty"`
+	Telemetry       *edgeOutboxTelemetry `json:"telemetry,omitempty"`
+}
+
+type edgeOutboxDiscovery struct {
+	Provider         string         `json:"provider"`
+	Transport        string         `json:"transport"`
+	ProviderDeviceID string         `json:"provider_device_id"`
+	DisplayName      string         `json:"display_name,omitempty"`
+	Model            string         `json:"model,omitempty"`
+	Address          string         `json:"address,omitempty"`
+	RSSIDbm          int32          `json:"rssi_dbm,omitempty"`
+	ObservedAtUnixMS int64          `json:"observed_at_unix_ms,omitempty"`
+	Metadata         map[string]any `json:"metadata,omitempty"`
+}
+
+type edgeOutboxTelemetry struct {
+	Provider         string         `json:"provider"`
+	Transport        string         `json:"transport"`
+	ProviderDeviceID string         `json:"provider_device_id"`
+	ObservedAtUnixMS int64          `json:"observed_at_unix_ms,omitempty"`
+	Metrics          map[string]any `json:"metrics"`
+	ClientSampleID   string         `json:"client_sample_id"`
 }
 
 func main() {
@@ -146,6 +193,11 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "load transport config: %v\n", err)
 		return 1
 	}
+	outboxCfg, err := edgeOutboxConfigFromEnv(os.Getenv)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load outbox config: %v\n", err)
+		return 1
+	}
 	client := edgeClient{
 		transport:         transportCfg.transport,
 		baseURL:           cfg.targetBaseURL(),
@@ -153,6 +205,14 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 		httpClient:        newEdgeHTTPClient(),
 		startupWait:       transportCfg.startupWait,
 		startupRetryDelay: transportCfg.startupRetryDelay,
+	}
+	if strings.TrimSpace(outboxCfg.Dir) != "" {
+		outbox, err := newEdgeOutbox(outboxCfg)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "create edge outbox: %v\n", err)
+			return 1
+		}
+		client.outbox = outbox
 	}
 	var grpcConn *grpc.ClientConn
 	if transportCfg.transport == edgeTransportGRPC {
@@ -280,6 +340,77 @@ func optionalDurationFromEnv(getenv func(string) string, key string) (time.Durat
 	return duration, nil
 }
 
+func edgeOutboxConfigFromEnv(getenv func(string) string) (edgeOutboxConfig, error) {
+	dir := strings.TrimSpace(getenv("PULSE_EDGE_OUTBOX_DIR"))
+	if dir == "" {
+		return edgeOutboxConfig{}, nil
+	}
+	maxAge, err := optionalDurationFromEnv(getenv, "PULSE_EDGE_OUTBOX_MAX_AGE")
+	if err != nil {
+		return edgeOutboxConfig{}, err
+	}
+	if maxAge == 0 {
+		maxAge = defaultOutboxMaxAge
+	}
+	maxBytes, err := optionalByteSizeFromEnv(getenv, "PULSE_EDGE_OUTBOX_MAX_BYTES")
+	if err != nil {
+		return edgeOutboxConfig{}, err
+	}
+	if maxBytes == 0 {
+		maxBytes = defaultOutboxMaxBytes
+	}
+	return edgeOutboxConfig{Dir: dir, MaxAge: maxAge, MaxBytes: maxBytes}, nil
+}
+
+func optionalByteSizeFromEnv(getenv func(string) string, key string) (int64, error) {
+	value := strings.TrimSpace(getenv(key))
+	if value == "" {
+		return 0, nil
+	}
+	size, err := parseByteSize(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	if size < 0 {
+		return 0, fmt.Errorf("%s must be non-negative", key)
+	}
+	return size, nil
+}
+
+func parseByteSize(value string) (int64, error) {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return 0, nil
+	}
+	multiplier := int64(1)
+	for _, suffix := range []struct {
+		text       string
+		multiplier int64
+	}{
+		{"GiB", 1024 * 1024 * 1024},
+		{"MiB", 1024 * 1024},
+		{"KiB", 1024},
+		{"GB", 1000 * 1000 * 1000},
+		{"MB", 1000 * 1000},
+		{"KB", 1000},
+		{"B", 1},
+	} {
+		if strings.HasSuffix(normalized, suffix.text) {
+			multiplier = suffix.multiplier
+			normalized = strings.TrimSpace(strings.TrimSuffix(normalized, suffix.text))
+			break
+		}
+	}
+	base, err := strconv.ParseInt(normalized, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if base > math.MaxInt64/multiplier {
+		return 0, errors.New("byte size overflows int64")
+	}
+	return base * multiplier, nil
+}
+
 func newEdgeGRPCConn(addr string) (*grpc.ClientConn, error) {
 	addr = strings.TrimSpace(addr)
 	if addr == "" {
@@ -307,6 +438,215 @@ func newEdgeHTTPClient() *http.Client {
 	}
 }
 
+func newEdgeOutbox(cfg edgeOutboxConfig) (*edgeOutbox, error) {
+	dir := strings.TrimSpace(cfg.Dir)
+	if dir == "" {
+		return nil, errors.New("outbox dir is required")
+	}
+	if cfg.MaxAge <= 0 {
+		cfg.MaxAge = defaultOutboxMaxAge
+	}
+	if cfg.MaxBytes <= 0 {
+		cfg.MaxBytes = defaultOutboxMaxBytes
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return nil, fmt.Errorf("create edge outbox dir: %w", err)
+	}
+	return &edgeOutbox{
+		dir:      dir,
+		maxAge:   cfg.MaxAge,
+		maxBytes: cfg.MaxBytes,
+		now:      time.Now,
+	}, nil
+}
+
+func (o *edgeOutbox) enqueueAndFlush(ctx context.Context, entry edgeOutboxEntry, send func(context.Context, edgeOutboxEntry) error) error {
+	if o == nil {
+		return errors.New("edge outbox is not configured")
+	}
+	if err := o.enqueue(entry); err != nil {
+		return err
+	}
+	_ = o.flush(ctx, send)
+	return nil
+}
+
+func (o *edgeOutbox) enqueue(entry edgeOutboxEntry) error {
+	if strings.TrimSpace(entry.ID) == "" {
+		return errors.New("outbox entry id is required")
+	}
+	if strings.TrimSpace(entry.Kind) == "" {
+		return errors.New("outbox entry kind is required")
+	}
+	if entry.CreatedAtUnixMS <= 0 {
+		entry.CreatedAtUnixMS = o.now().UTC().UnixMilli()
+	}
+	if err := o.pruneExpired(); err != nil {
+		return err
+	}
+	body, err := json.MarshalIndent(entry, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal outbox entry: %w", err)
+	}
+	if err := o.ensureCapacity(int64(len(body))); err != nil {
+		return err
+	}
+	path := o.pathForID(entry.ID)
+	tmp, err := os.CreateTemp(o.dir, ".tmp-"+sanitizeOutboxID(entry.ID)+"-")
+	if err != nil {
+		return fmt.Errorf("create outbox temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if _, err := tmp.Write(body); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write outbox temp file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("fsync outbox temp file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close outbox temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("commit outbox entry: %w", err)
+	}
+	cleanup = false
+	return fsyncDir(o.dir)
+}
+
+func (o *edgeOutbox) flush(ctx context.Context, send func(context.Context, edgeOutboxEntry) error) error {
+	if o == nil {
+		return nil
+	}
+	if err := o.pruneExpired(); err != nil {
+		return err
+	}
+	paths := o.pendingPaths()
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read outbox entry: %w", err)
+		}
+		var entry edgeOutboxEntry
+		if err := json.Unmarshal(body, &entry); err != nil {
+			return fmt.Errorf("decode outbox entry %s: %w", filepath.Base(path), err)
+		}
+		if err := send(ctx, entry); err != nil {
+			return err
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove sent outbox entry: %w", err)
+		}
+		if err := fsyncDir(o.dir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o *edgeOutbox) pendingPaths() []string {
+	entries, err := os.ReadDir(o.dir)
+	if err != nil {
+		return nil
+	}
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		paths = append(paths, filepath.Join(o.dir, entry.Name()))
+	}
+	sortStrings(paths)
+	return paths
+}
+
+func (o *edgeOutbox) pruneExpired() error {
+	if o.maxAge <= 0 {
+		return nil
+	}
+	cutoff := o.now().UTC().Add(-o.maxAge).UnixMilli()
+	for _, path := range o.pendingPaths() {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read outbox entry for prune: %w", err)
+		}
+		var entry edgeOutboxEntry
+		if err := json.Unmarshal(body, &entry); err != nil {
+			return fmt.Errorf("decode outbox entry for prune: %w", err)
+		}
+		if entry.CreatedAtUnixMS > 0 && entry.CreatedAtUnixMS < cutoff {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("remove expired outbox entry: %w", err)
+			}
+		}
+	}
+	return fsyncDir(o.dir)
+}
+
+func (o *edgeOutbox) ensureCapacity(newEntryBytes int64) error {
+	if o.maxBytes <= 0 {
+		return nil
+	}
+	var used int64
+	for _, path := range o.pendingPaths() {
+		info, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("stat outbox entry: %w", err)
+		}
+		used += info.Size()
+	}
+	if used+newEntryBytes > o.maxBytes {
+		return fmt.Errorf("edge outbox size %d plus new entry %d exceeds max %d", used, newEntryBytes, o.maxBytes)
+	}
+	return nil
+}
+
+func (o *edgeOutbox) pathForID(id string) string {
+	return filepath.Join(o.dir, sanitizeOutboxID(id)+".json")
+}
+
+func sanitizeOutboxID(id string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(id) {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	if b.Len() == 0 {
+		return "entry"
+	}
+	return b.String()
+}
+
+func fsyncDir(dir string) error {
+	f, err := os.Open(dir)
+	if err != nil {
+		return fmt.Errorf("open outbox dir for fsync: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("fsync outbox dir: %w", err)
+	}
+	return nil
+}
+
+func sortStrings(values []string) {
+	for i := 1; i < len(values); i++ {
+		for j := i; j > 0 && values[j] < values[j-1]; j-- {
+			values[j], values[j-1] = values[j-1], values[j]
+		}
+	}
+}
+
 func exitCodeForCollectorError(err error) int {
 	if err == nil || errors.Is(err, context.Canceled) {
 		return 0
@@ -325,6 +665,9 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	if err := client.waitForInitialHeartbeat(ctx, log, collectorVersion(), hostname()); err != nil {
 		return err
 	}
+	if err := client.flushOutbox(ctx); err != nil {
+		log.Warn("edge outbox replay failed", slog.String("error", err.Error()))
+	}
 	heartbeatDone := make(chan struct{})
 	go func() {
 		defer close(heartbeatDone)
@@ -337,6 +680,10 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 			case <-ticker.C:
 				if err := client.heartbeat(ctx, collectorVersion(), hostname()); err != nil {
 					log.Warn("edge heartbeat failed", slog.String("error", err.Error()))
+					continue
+				}
+				if err := client.flushOutbox(ctx); err != nil {
+					log.Warn("edge outbox replay failed", slog.String("error", err.Error()))
 				}
 			}
 		}
@@ -356,6 +703,13 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	cancel()
 	<-heartbeatDone
 	return err
+}
+
+func (c edgeClient) flushOutbox(ctx context.Context) error {
+	if c.outbox == nil {
+		return nil
+	}
+	return c.outbox.flush(ctx, c.sendOutboxEntry)
 }
 
 func (c edgeClient) waitForInitialHeartbeat(ctx context.Context, log *slog.Logger, version string, hostname string) error {
@@ -736,28 +1090,127 @@ func (c edgeClient) heartbeat(ctx context.Context, version string, hostname stri
 }
 
 func (c edgeClient) uploadDiscovery(ctx context.Context, record rawProbeRecord) error {
+	entry := discoveryOutboxEntry(record)
+	if c.outbox != nil {
+		return c.outbox.enqueueAndFlush(ctx, entry, c.sendOutboxEntry)
+	}
+	return c.sendOutboxEntry(ctx, entry)
+}
+
+func (c edgeClient) uploadTelemetry(ctx context.Context, record rawProbeRecord, metrics map[string]any) error {
+	entry := telemetryOutboxEntry(record, metrics)
+	if c.outbox != nil {
+		return c.outbox.enqueueAndFlush(ctx, entry, c.sendOutboxEntry)
+	}
+	return c.sendOutboxEntry(ctx, entry)
+}
+
+func discoveryOutboxEntry(record rawProbeRecord) edgeOutboxEntry {
+	discovery := &edgeOutboxDiscovery{
+		Provider:         "ecoflow",
+		Transport:        "ble",
+		ProviderDeviceID: record.providerDeviceID(),
+		DisplayName:      record.Device.LocalName,
+		Model:            record.Device.Info.Model,
+		Address:          record.Device.Address,
+		RSSIDbm:          int32(record.Device.RSSI),
+		ObservedAtUnixMS: record.observedAtUnixMS(),
+		Metadata: map[string]any{
+			"prefix":        record.Device.Info.Prefix,
+			"packet_family": record.Device.Info.PacketFamily,
+		},
+	}
+	return edgeOutboxEntry{
+		ID:              stableDiscoveryID(discovery),
+		Kind:            "discovery",
+		CreatedAtUnixMS: time.Now().UTC().UnixMilli(),
+		Discovery:       discovery,
+	}
+}
+
+func telemetryOutboxEntry(record rawProbeRecord, metrics map[string]any) edgeOutboxEntry {
+	telemetry := &edgeOutboxTelemetry{
+		Provider:         "ecoflow",
+		Transport:        "ble",
+		ProviderDeviceID: record.providerDeviceID(),
+		ObservedAtUnixMS: record.observedAtUnixMS(),
+		Metrics:          cloneAnyMap(metrics),
+		ClientSampleID:   stableTelemetrySampleID(record, metrics),
+	}
+	return edgeOutboxEntry{
+		ID:              telemetry.ClientSampleID,
+		Kind:            "telemetry",
+		CreatedAtUnixMS: time.Now().UTC().UnixMilli(),
+		Telemetry:       telemetry,
+	}
+}
+
+func stableTelemetrySampleID(record rawProbeRecord, metrics map[string]any) string {
+	payload, _ := json.Marshal(map[string]any{
+		"provider":            "ecoflow",
+		"transport":           "ble",
+		"provider_device_id":  record.providerDeviceID(),
+		"observed_at_unix_ms": record.observedAtUnixMS(),
+		"metrics":             metrics,
+	})
+	sum := sha256.Sum256(payload)
+	return "edge-telemetry-" + hex.EncodeToString(sum[:])
+}
+
+func stableDiscoveryID(discovery *edgeOutboxDiscovery) string {
+	payload, _ := json.Marshal(discovery)
+	sum := sha256.Sum256(payload)
+	return "edge-discovery-" + hex.EncodeToString(sum[:])
+}
+
+func cloneAnyMap(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func (c edgeClient) sendOutboxEntry(ctx context.Context, entry edgeOutboxEntry) error {
+	switch entry.Kind {
+	case "discovery":
+		if entry.Discovery == nil {
+			return errors.New("outbox discovery payload is missing")
+		}
+		return c.sendDiscovery(ctx, *entry.Discovery)
+	case "telemetry":
+		if entry.Telemetry == nil {
+			return errors.New("outbox telemetry payload is missing")
+		}
+		return c.sendTelemetry(ctx, *entry.Telemetry)
+	default:
+		return fmt.Errorf("unsupported outbox entry kind %q", entry.Kind)
+	}
+}
+
+func (c edgeClient) sendDiscovery(ctx context.Context, discovery edgeOutboxDiscovery) error {
 	if c.transport == edgeTransportGRPC {
 		if c.grpcClient == nil {
 			return errors.New("edge gRPC client is not configured")
 		}
-		metadata, err := structpb.NewStruct(map[string]any{
-			"prefix":        record.Device.Info.Prefix,
-			"packet_family": record.Device.Info.PacketFamily,
-		})
+		metadata, err := structpb.NewStruct(discovery.Metadata)
 		if err != nil {
 			return err
 		}
 		_, err = c.grpcClient.UploadDiscovery(ctx, &edgev1.UploadDiscoveryRequest{
 			CollectorSecret: c.secret,
 			Discoveries: []*edgev1.EdgeDiscovery{{
-				Provider:         "ecoflow",
-				Transport:        "ble",
-				ProviderDeviceId: record.providerDeviceID(),
-				DisplayName:      record.Device.LocalName,
-				Model:            record.Device.Info.Model,
-				Address:          record.Device.Address,
-				RssiDbm:          int32(record.Device.RSSI),
-				ObservedAtUnixMs: record.observedAtUnixMS(),
+				Provider:         discovery.Provider,
+				Transport:        discovery.Transport,
+				ProviderDeviceId: discovery.ProviderDeviceID,
+				DisplayName:      discovery.DisplayName,
+				Model:            discovery.Model,
+				Address:          discovery.Address,
+				RssiDbm:          discovery.RSSIDbm,
+				ObservedAtUnixMs: discovery.ObservedAtUnixMS,
 				Metadata:         metadata,
 			}},
 		})
@@ -766,39 +1219,37 @@ func (c edgeClient) uploadDiscovery(ctx context.Context, record rawProbeRecord) 
 	return c.postJSON(ctx, "/api/v1/edge/discoveries", map[string]any{
 		"collectorSecret": c.secret,
 		"discoveries": []map[string]any{{
-			"provider":         "ecoflow",
-			"transport":        "ble",
-			"providerDeviceId": record.providerDeviceID(),
-			"displayName":      record.Device.LocalName,
-			"model":            record.Device.Info.Model,
-			"address":          record.Device.Address,
-			"rssiDbm":          int(record.Device.RSSI),
-			"observedAtUnixMs": record.observedAtUnixMS(),
-			"metadata": map[string]any{
-				"prefix":        record.Device.Info.Prefix,
-				"packet_family": record.Device.Info.PacketFamily,
-			},
+			"provider":         discovery.Provider,
+			"transport":        discovery.Transport,
+			"providerDeviceId": discovery.ProviderDeviceID,
+			"displayName":      discovery.DisplayName,
+			"model":            discovery.Model,
+			"address":          discovery.Address,
+			"rssiDbm":          int(discovery.RSSIDbm),
+			"observedAtUnixMs": discovery.ObservedAtUnixMS,
+			"metadata":         discovery.Metadata,
 		}},
 	}, nil)
 }
 
-func (c edgeClient) uploadTelemetry(ctx context.Context, record rawProbeRecord, metrics map[string]any) error {
+func (c edgeClient) sendTelemetry(ctx context.Context, telemetry edgeOutboxTelemetry) error {
 	if c.transport == edgeTransportGRPC {
 		if c.grpcClient == nil {
 			return errors.New("edge gRPC client is not configured")
 		}
-		metricsStruct, err := structpb.NewStruct(metrics)
+		metricsStruct, err := structpb.NewStruct(telemetry.Metrics)
 		if err != nil {
 			return err
 		}
 		_, err = c.grpcClient.UploadTelemetryBatch(ctx, &edgev1.UploadTelemetryBatchRequest{
 			CollectorSecret: c.secret,
 			Samples: []*edgev1.EdgeTelemetrySample{{
-				Provider:         "ecoflow",
-				Transport:        "ble",
-				ProviderDeviceId: record.providerDeviceID(),
-				ObservedAtUnixMs: record.observedAtUnixMS(),
+				Provider:         telemetry.Provider,
+				Transport:        telemetry.Transport,
+				ProviderDeviceId: telemetry.ProviderDeviceID,
+				ObservedAtUnixMs: telemetry.ObservedAtUnixMS,
 				Metrics:          metricsStruct,
+				ClientSampleId:   telemetry.ClientSampleID,
 			}},
 		})
 		return err
@@ -806,11 +1257,12 @@ func (c edgeClient) uploadTelemetry(ctx context.Context, record rawProbeRecord, 
 	return c.postJSON(ctx, "/api/v1/edge/telemetry", map[string]any{
 		"collectorSecret": c.secret,
 		"samples": []map[string]any{{
-			"provider":         "ecoflow",
-			"transport":        "ble",
-			"providerDeviceId": record.providerDeviceID(),
-			"observedAtUnixMs": record.observedAtUnixMS(),
-			"metrics":          metrics,
+			"provider":         telemetry.Provider,
+			"transport":        telemetry.Transport,
+			"providerDeviceId": telemetry.ProviderDeviceID,
+			"observedAtUnixMs": telemetry.ObservedAtUnixMS,
+			"clientSampleId":   telemetry.ClientSampleID,
+			"metrics":          telemetry.Metrics,
 		}},
 	}, nil)
 }

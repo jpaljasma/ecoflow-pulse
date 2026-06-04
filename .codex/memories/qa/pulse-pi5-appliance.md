@@ -2,7 +2,7 @@
 
 ## Current focus
 
-- Validate the first Phase 2 BLE direct-gRPC transport slice.
+- Validate the second Phase 2 BLE durable-outbox slice.
 
 ## Files to inspect first
 
@@ -13,6 +13,9 @@
 - `cmd/pulse-edge-collector/main_test.go`
 - `deploy/pulse-edge/pulse-edge-collector.service`
 - `docs/how-to/run-pulse-edge-collector.md`
+- `proto/pulse/edge/v1/edge.proto`
+- `internal/edgecollector/envelope.go`
+- `cmd/ecoflow-grpc-api/edge_service_test.go`
 - `deploy/appliance/pi5/test-host-prepare.sh`
 - `deploy/appliance/pi5/test-install-dry-run.sh`
 - `deploy/env/pi/values.platform.yaml`
@@ -44,17 +47,13 @@
   login, and hostPort reachability need appliance hardware.
 - Direct gRPC transport needs targeted collector tests and a Pi hardware check
   after the loopback hostPort service is installed.
+- Durable retry must prove process restart does not drop pending telemetry and
+  must avoid writing collector secrets to disk.
 
 ## Next step
 
-- Targeted checks passed for `go test ./cmd/pulse-edge-collector -count=1`,
-  `go test ./cmd/ecoflow-grpc-api ./internal/edgecollector -count=1`,
-  `make pulse-edge-pi5-bundle`, `make lint`, and
-  `make appliance-pi-validate`.
-- The latest bundle rebuild showed the expected Pi 5 compile environment:
-  `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOARM64=v8.2`.
-- PR feedback follow-up added startup heartbeat retry coverage so the appliance
-  collector waits for loopback gRPC during cold K3s boot.
-- Review follow-up validation passed with the collector test, adjacent
-  edge/gRPC tests, Pi 5 bundle build, repo lint, and appliance validation.
-- Next: run duplicate backup scan and sensitive-text scan before PR closeout.
+- Red/green tests now cover outbox replay/removal and edge `client_sample_id`
+  envelope mapping. Targeted Go validation passed across collector, grpc-api,
+  edgecollector, dedupe, rollup, and archive packages.
+- Final validation passed with Pi 5 bundle build, proto contract test, appliance
+  validation, and repo lint.

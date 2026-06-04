@@ -44,6 +44,9 @@ appliance profile and sends edge traffic to the K3s loopback gRPC service:
 - `PULSE_EDGE_GRPC_ADDR=127.0.0.1:19090`
 - `PULSE_EDGE_STARTUP_WAIT=10m`
 - `PULSE_EDGE_STARTUP_RETRY_DELAY=5s`
+- `PULSE_EDGE_OUTBOX_DIR=/var/lib/pulse-edge/outbox`
+- `PULSE_EDGE_OUTBOX_MAX_AGE=168h`
+- `PULSE_EDGE_OUTBOX_MAX_BYTES=2GiB`
 - `MemoryMax=256M`
 
 ## Install
@@ -131,10 +134,15 @@ gRPC API is reachable through the loopback hostPort. The packaged unit sets
 in-process before starting BLE instead of exiting repeatedly and hitting the
 systemd start-limit window.
 
-It keeps only live retry state in memory. If Pulse is unavailable, samples that
-fail to upload are dropped and the next probe refresh continues from live BLE
-data. Durable local outbox replay is tracked as the next appliance slice. If
-the BLE probe exits unexpectedly, the collector restarts it with capped
+When `PULSE_EDGE_OUTBOX_DIR` is set, discovery and telemetry uploads are written
+to a local JSON outbox and fsynced before send. Successful sends remove the
+outbox entry; failed sends stay on disk and replay after collector restart and
+after later successful heartbeats. Outbox files do not persist the collector
+secret; the current secret is added only when sending. Telemetry samples carry a
+stable `client_sample_id`, which the in-cluster edge ingest service records as
+the envelope `message_id` for retry dedupe downstream.
+
+If the BLE probe exits unexpectedly, the collector restarts it with capped
 exponential backoff. If BLE authentication fails, the collector exits with
 status `10`; the packaged `systemd` unit treats that as a non-restartable
 configuration failure.

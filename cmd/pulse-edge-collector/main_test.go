@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -223,6 +224,66 @@ func TestEdgeClientGRPCMethodsMapRequests(t *testing.T) {
 	}
 }
 
+func TestEdgeClientRESTTelemetryPreservesClientSampleID(t *testing.T) {
+	t.Parallel()
+
+	type telemetryRequest struct {
+		CollectorSecret string `json:"collectorSecret"`
+		Samples         []struct {
+			Provider         string         `json:"provider"`
+			Transport        string         `json:"transport"`
+			ProviderDeviceID string         `json:"providerDeviceId"`
+			ObservedAtUnixMS int64          `json:"observedAtUnixMs"`
+			ClientSampleID   string         `json:"clientSampleId"`
+			Metrics          map[string]any `json:"metrics"`
+		} `json:"samples"`
+	}
+	requests := make(chan telemetryRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/api/v1/edge/telemetry" {
+			http.NotFound(w, req)
+			return
+		}
+		var payload telemetryRequest
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		requests <- payload
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client := edgeClient{
+		transport:  edgeTransportREST,
+		baseURL:    server.URL,
+		secret:     "collector-secret",
+		httpClient: server.Client(),
+	}
+	telemetry := edgeOutboxTelemetry{
+		Provider:         "ecoflow",
+		Transport:        "ble",
+		ProviderDeviceID: "DEMOEDGE0001",
+		ObservedAtUnixMS: 1772197190000,
+		ClientSampleID:   "edge-sample-1",
+		Metrics:          map[string]any{"output_power_w": float64(118)},
+	}
+
+	if err := client.sendTelemetry(context.Background(), telemetry); err != nil {
+		t.Fatalf("sendTelemetry failed: %v", err)
+	}
+	payload := <-requests
+	if payload.CollectorSecret != "collector-secret" {
+		t.Fatalf("collectorSecret=%q", payload.CollectorSecret)
+	}
+	if len(payload.Samples) != 1 {
+		t.Fatalf("samples len=%d want 1", len(payload.Samples))
+	}
+	if payload.Samples[0].ClientSampleID != "edge-sample-1" {
+		t.Fatalf("clientSampleId=%q want edge-sample-1", payload.Samples[0].ClientSampleID)
+	}
+}
+
 func TestEdgeClientWaitForInitialHeartbeatRetriesDuringStartup(t *testing.T) {
 	t.Parallel()
 
@@ -254,6 +315,73 @@ func TestEdgeClientWaitForInitialHeartbeatRetriesDuringStartup(t *testing.T) {
 	}
 }
 
+func TestEdgeClientOutboxReplaysTelemetryAfterRestart(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	record := rawProbeRecord{}
+	record.Time = time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	record.Device.LocalName = "DEMOEDGE0001"
+	metrics := map[string]any{"battery_soc_percent": float64(91)}
+
+	firstOutbox, err := newEdgeOutbox(edgeOutboxConfig{
+		Dir:      dir,
+		MaxAge:   time.Hour,
+		MaxBytes: 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatalf("newEdgeOutbox failed: %v", err)
+	}
+	firstClient := edgeClient{
+		transport:  edgeTransportGRPC,
+		secret:     "collector-secret",
+		grpcClient: &fakeEdgeIngestClient{telemetryErrs: []error{errors.New("offline")}},
+		outbox:     firstOutbox,
+	}
+	if err := firstClient.uploadTelemetry(context.Background(), record, metrics); err != nil {
+		t.Fatalf("uploadTelemetry should durably enqueue on send failure: %v", err)
+	}
+	if got := countOutboxFiles(t, dir); got != 1 {
+		t.Fatalf("outbox files after failed send=%d want 1", got)
+	}
+	body, err := os.ReadFile(firstOutbox.pendingPaths()[0])
+	if err != nil {
+		t.Fatalf("read outbox file: %v", err)
+	}
+	if strings.Contains(string(body), "collector-secret") {
+		t.Fatalf("outbox file persisted collector secret")
+	}
+
+	secondFake := &fakeEdgeIngestClient{}
+	secondOutbox, err := newEdgeOutbox(edgeOutboxConfig{
+		Dir:      dir,
+		MaxAge:   time.Hour,
+		MaxBytes: 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatalf("newEdgeOutbox restart failed: %v", err)
+	}
+	secondClient := edgeClient{
+		transport:  edgeTransportGRPC,
+		secret:     "collector-secret",
+		grpcClient: secondFake,
+		outbox:     secondOutbox,
+	}
+	if err := secondClient.flushOutbox(context.Background()); err != nil {
+		t.Fatalf("flushOutbox failed: %v", err)
+	}
+	if got := countOutboxFiles(t, dir); got != 0 {
+		t.Fatalf("outbox files after replay=%d want 0", got)
+	}
+	sample := secondFake.telemetryReq.GetSamples()[0]
+	if sample.GetClientSampleId() == "" {
+		t.Fatalf("client_sample_id was not replayed")
+	}
+	if sample.GetClientSampleId() != stableTelemetrySampleID(record, metrics) {
+		t.Fatalf("client_sample_id=%q want stable id", sample.GetClientSampleId())
+	}
+}
+
 type fakeEdgeIngestClient struct {
 	edgev1.EdgeIngestServiceClient
 
@@ -264,6 +392,7 @@ type fakeEdgeIngestClient struct {
 	heartbeatCalls int
 	discoveryReq   *edgev1.UploadDiscoveryRequest
 	telemetryReq   *edgev1.UploadTelemetryBatchRequest
+	telemetryErrs  []error
 }
 
 func (f *fakeEdgeIngestClient) EnrollCollector(_ context.Context, req *edgev1.EnrollCollectorRequest, _ ...grpc.CallOption) (*edgev1.EnrollCollectorResponse, error) {
@@ -289,7 +418,27 @@ func (f *fakeEdgeIngestClient) UploadDiscovery(_ context.Context, req *edgev1.Up
 
 func (f *fakeEdgeIngestClient) UploadTelemetryBatch(_ context.Context, req *edgev1.UploadTelemetryBatchRequest, _ ...grpc.CallOption) (*edgev1.UploadTelemetryBatchResponse, error) {
 	f.telemetryReq = req
+	if len(f.telemetryErrs) > 0 {
+		err := f.telemetryErrs[0]
+		f.telemetryErrs = f.telemetryErrs[1:]
+		return nil, err
+	}
 	return &edgev1.UploadTelemetryBatchResponse{AcceptedCount: uint32(len(req.GetSamples()))}, nil
+}
+
+func countOutboxFiles(t *testing.T, dir string) int {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read outbox dir: %v", err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			count++
+		}
+	}
+	return count
 }
 
 func TestRawProbeRecordMetricMapConvertsNumbersAndBooleans(t *testing.T) {

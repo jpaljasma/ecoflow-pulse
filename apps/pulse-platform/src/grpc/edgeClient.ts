@@ -95,6 +95,7 @@ export type EdgeTelemetrySampleInput = {
   transport: string;
   providerDeviceId: string;
   observedAtUnixMs?: number;
+  clientSampleId?: string;
   metrics: Record<string, unknown>;
 };
 

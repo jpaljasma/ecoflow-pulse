@@ -27,6 +27,7 @@ type TelemetrySample struct {
 	Transport        string
 	ObservedAt       time.Time
 	Params           map[string]any
+	ClientSampleID   string
 }
 
 func BuildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.SubjectConfig) (*envelopev1.TelemetryEnvelope, error) {
@@ -54,9 +55,14 @@ func BuildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.Subj
 	if err != nil {
 		return nil, fmt.Errorf("marshal edge telemetry payload: %w", err)
 	}
-	envelopeID, err := uuid.NewV7()
-	if err != nil {
-		return nil, fmt.Errorf("generate envelope uuidv7: %w", err)
+	clientSampleID := strings.TrimSpace(sample.ClientSampleID)
+	envelopeID := uuid.NewSHA1(uuid.NameSpaceOID, []byte("pulse-edge-telemetry:"+deviceID+":"+clientSampleID))
+	if clientSampleID == "" {
+		generated, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("generate envelope uuidv7: %w", err)
+		}
+		envelopeID = generated
 	}
 	normalizedCfg := subjectCfg.Normalized()
 	transport := strings.ToLower(strings.TrimSpace(sample.Transport))
@@ -83,6 +89,7 @@ func BuildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.Subj
 		EnvelopeVersion:    edgeEnvelopeVersion,
 		DeviceId:           deviceID,
 		EcoflowSn:          providerDeviceID,
+		MessageId:          clientSampleID,
 		Shard:              telemetrybus.ShardForDevice(deviceID, normalizedCfg.ShardCount),
 		ShardCount:         normalizedCfg.ShardCount,
 		ObservedTimeUnixMs: observedAt.UnixMilli(),

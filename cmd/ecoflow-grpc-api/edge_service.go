@@ -265,6 +265,7 @@ func (s *EdgeIngestService) UploadTelemetryBatch(ctx context.Context, req *edgev
 			Transport:        source.Transport,
 			ObservedAt:       observedAt,
 			Params:           params,
+			ClientSampleID:   sample.GetClientSampleId(),
 		}, s.subjectCfg)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "build edge telemetry envelope: %v", err)

@@ -2,9 +2,9 @@
 
 ## Current focus
 
-- Implement the first Phase 2 edge slice on
-  `codex/pi5-appliance-ble-direct`: direct local gRPC transport for the
-  existing Pi BLE collector.
+- Implement the second Phase 2 edge slice on
+  `codex/pi5-appliance-ble-outbox`: durable local outbox and stable sample
+  identity for the existing Pi BLE collector.
 
 ## Files to inspect first
 
@@ -23,20 +23,24 @@
 - REST transport remains supported for non-appliance edge deployments.
 - Retry idempotency needs a `client_sample_id` or equivalent stable client
   sample identity.
-- 2026-06-04: Keep direct gRPC transport separate from durable outbox so the
-  transport path can merge with focused tests first.
+- 2026-06-04: Direct gRPC transport merged in PR #248; durable outbox now owns
+  restart-safe retry and sample idempotency.
 
 ## Open risks
 
 - Current collector behavior drops failed telemetry posts after bounded REST
   retries; appliance mode needs a durable local outbox.
-- Direct gRPC does not by itself make retries durable; the next slice still
-  needs `client_sample_id` and local outbox work.
+- Outbox files must not persist collector secrets; add the secret only when
+  sending.
+- `client_sample_id` needs to reach the server envelope `message_id` path so
+  retry duplicates dedupe downstream.
 - BlueZ/dbus host dependencies must stay simple and diagnosable.
 
 ## Next step
 
-- Direct gRPC transport is implemented and covered for config parsing plus
-  enrollment, heartbeat, discovery, and telemetry request mapping.
-- Next slice: add durable outbox storage and stable client sample identity for
-  idempotent replay.
+- Durable outbox is implemented with secret-free JSON entries, fsync before
+  send, replay on startup/successful heartbeat, ACK removal, stable
+  `client_sample_id`, and deterministic edge envelope ids.
+- REST transport must preserve `clientSampleId` end to end too; otherwise REST
+  outbox replay creates fresh envelope ids and bypasses downstream dedupe.
+- Next slice can move to archive/GCS outbox or Pi hardware validation.

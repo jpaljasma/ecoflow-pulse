@@ -111,6 +111,7 @@ func TestEdgeIngestServiceDiscoveryApprovalAndTelemetryPublish(t *testing.T) {
 			ProviderDeviceId: "DEMOEDGE0001",
 			ObservedAtUnixMs: time.Date(2026, 5, 28, 12, 5, 0, 0, time.UTC).UnixMilli(),
 			Metrics:          metrics,
+			ClientSampleId:   "edge-sample-1",
 		}},
 	})
 	if err != nil {
@@ -128,6 +129,9 @@ func TestEdgeIngestServiceDiscoveryApprovalAndTelemetryPublish(t *testing.T) {
 	}
 	if envelope.GetDeviceId() != approved.GetDeviceId() || envelope.GetSource() != "ble" {
 		t.Fatalf("envelope identity/source mismatch: %+v", envelope)
+	}
+	if envelope.GetMessageId() != "edge-sample-1" {
+		t.Fatalf("message_id=%q want edge-sample-1", envelope.GetMessageId())
 	}
 	var payload struct {
 		Params map[string]any `json:"params"`

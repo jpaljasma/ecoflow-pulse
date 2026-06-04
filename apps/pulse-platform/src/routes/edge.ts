@@ -63,6 +63,7 @@ const edgeTelemetrySampleSchema = z.object({
   transport: z.string().trim().min(1).max(32).default('ble'),
   providerDeviceId: z.string().trim().min(1).max(128),
   observedAtUnixMs: z.number().int().positive().optional(),
+  clientSampleId: z.string().trim().min(1).max(256).optional(),
   metrics: z.record(z.string(), z.unknown())
 });
 
