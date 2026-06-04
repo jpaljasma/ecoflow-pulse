@@ -280,8 +280,13 @@ Restart=always
 RestartSec=5s
 ```
 
-BLE retries must be idempotent. Add a stable client sample identity to edge
-telemetry before enabling durable retry.
+BLE retries are file-backed on the host. The collector writes discovery and
+telemetry uploads to `PULSE_EDGE_OUTBOX_DIR`, fsyncs before send, replays
+pending entries after restart or a later successful heartbeat, and removes each
+entry after ACK. Outbox files omit the collector secret; the current secret is
+injected at send time. Telemetry samples include a stable `client_sample_id`
+that the edge ingest service maps to envelope `message_id` for downstream
+dedupe.
 
 Phase 2 direct-transport implementation starts with the transport boundary:
 
@@ -293,8 +298,8 @@ Phase 2 direct-transport implementation starts with the transport boundary:
 - The packaged appliance unit waits up to `10m` for the initial loopback gRPC
   heartbeat so cold K3s/pod startup does not exhaust systemd start limits
   before BLE ingest can recover.
-- Durable outbox replay and stable client sample identity remain required
-  before persisted BLE retry is enabled.
+- Durable outbox replay and stable client sample identity are enabled for the
+  appliance collector; hardware validation still needs a Pi boot/restart test.
 
 ## Archive And Cloud Shutdown
 

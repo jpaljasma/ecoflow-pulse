@@ -123,6 +123,7 @@ message EdgeTelemetrySample {
   string provider_device_id = 3;
   int64 observed_at_unix_ms = 4;
   google.protobuf.Struct metrics = 5;
+  string client_sample_id = 6;
 }
 
 message UploadTelemetryBatchRequest {

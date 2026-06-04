@@ -13,6 +13,9 @@ Environment=PULSE_EDGE_TRANSPORT=grpc
 Environment=PULSE_EDGE_GRPC_ADDR=127.0.0.1:19090
 Environment=PULSE_EDGE_STARTUP_WAIT=10m
 Environment=PULSE_EDGE_STARTUP_RETRY_DELAY=5s
+Environment=PULSE_EDGE_OUTBOX_DIR=/var/lib/pulse-edge/outbox
+Environment=PULSE_EDGE_OUTBOX_MAX_AGE=168h
+Environment=PULSE_EDGE_OUTBOX_MAX_BYTES=2GiB
 ExecStart=/usr/local/bin/pulse-edge-collector -config /etc/pulse-edge/config.yaml
 Restart=on-failure
 RestartSec=5s

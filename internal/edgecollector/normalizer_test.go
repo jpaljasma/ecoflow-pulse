@@ -118,6 +118,38 @@ func TestCollectorSecretHashValidationRejectsWrongSecret(t *testing.T) {
 	}
 }
 
+func TestBuildTelemetryEnvelopeUsesClientSampleIDForIdempotency(t *testing.T) {
+	t.Parallel()
+
+	sample := TelemetrySample{
+		CollectorID:      "edge_collector_1",
+		DeviceID:         "device-uuid-1",
+		Provider:         "ecoflow",
+		ProviderDeviceID: "DEMOEDGE0001",
+		Transport:        "ble",
+		ObservedAt:       time.Date(2026, 5, 28, 12, 30, 0, 0, time.UTC),
+		ClientSampleID:   "edge-telemetry-sample-1",
+		Params: map[string]any{
+			"wattsOutSum": float64(120),
+		},
+	}
+	subjectCfg := telemetrybus.SubjectConfig{Prefix: "pulse", ShardCount: 8}
+	first, err := BuildTelemetryEnvelope(sample, subjectCfg)
+	if err != nil {
+		t.Fatalf("BuildTelemetryEnvelope first failed: %v", err)
+	}
+	second, err := BuildTelemetryEnvelope(sample, subjectCfg)
+	if err != nil {
+		t.Fatalf("BuildTelemetryEnvelope second failed: %v", err)
+	}
+	if first.GetMessageId() != sample.ClientSampleID {
+		t.Fatalf("message_id=%q want %q", first.GetMessageId(), sample.ClientSampleID)
+	}
+	if first.GetEnvelopeId() != second.GetEnvelopeId() {
+		t.Fatalf("envelope_id should be stable for client sample retry: first=%q second=%q", first.GetEnvelopeId(), second.GetEnvelopeId())
+	}
+}
+
 func BenchmarkNormalizeEcoFlowBLEMetrics(b *testing.B) {
 	metrics := map[string]any{
 		"battery_soc_percent":             float64(100),
