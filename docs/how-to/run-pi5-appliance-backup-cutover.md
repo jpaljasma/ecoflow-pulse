@@ -210,7 +210,21 @@ kubectl --kubeconfig "$KUBECONFIG" -n pulse-services logs \
 
 Use this path for a controlled restore from a known-good appliance backup.
 
-1. Stop app traffic while keeping the platform database reachable:
+1. Confirm the archive upload outbox is empty before stopping services:
+
+```bash
+kubectl --kubeconfig "$KUBECONFIG" -n pulse-services \
+  exec deploy/pulse-services-go-archive -- \
+  /app/ecoflow-archive-outbox-status --fail-on-pending
+```
+
+If this reports pending entries, do not stop the archive worker or restore the
+database. Restore GCS connectivity, let the archive worker flush the outbox,
+and rerun the check. If the outbox cannot be flushed, quarantine/delete it only
+as part of a separate manual recovery plan that also reconciles GCS object and
+manifest coverage.
+
+2. Stop app traffic while keeping the platform database reachable:
 
 ```bash
 kubectl --kubeconfig "$KUBECONFIG" -n pulse-services \
@@ -223,7 +237,7 @@ kubectl --kubeconfig "$KUBECONFIG" -n pulse-platform \
   scale statefulset pulse-platform-keycloak --replicas=0
 ```
 
-2. Restore the database dump:
+3. Restore the database dump:
 
 ```bash
 restore_dir="$HOME/pulse-appliance-backups/<backup-name>"
@@ -257,14 +271,14 @@ trap - EXIT
 unset db_password
 ```
 
-3. Re-apply the appliance release bundle so migrations, ConfigMaps, Secrets,
+4. Re-apply the appliance release bundle so migrations, ConfigMaps, Secrets,
    and workload definitions match the restore target:
 
 ```bash
 make appliance-pi-upgrade
 ```
 
-4. Wait for convergence and validate:
+5. Wait for convergence and validate:
 
 ```bash
 kubectl --kubeconfig "$KUBECONFIG" get pods -A
@@ -274,7 +288,7 @@ kubectl --kubeconfig "$KUBECONFIG" -n pulse-services \
   /app/ecoflow-archive-outbox-status --fail-on-pending
 ```
 
-5. Verify local Keycloak login, BLE heartbeat, provider MQTT ingest, GCS write,
+6. Verify local Keycloak login, BLE heartbeat, provider MQTT ingest, GCS write,
    and a recent device dashboard update before declaring the restore complete.
 
 ## Restore To Replacement Hardware

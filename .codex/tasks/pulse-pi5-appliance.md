@@ -148,3 +148,6 @@ Base commit: `eb49efc6`
   `make lint`, and `git diff --check`.
 - 2026-06-04: Phase 3 backup/cutover runbook validation passed with
   `make lint`, `git diff --check`, and the duplicate editor-backup file scan.
+- 2026-06-04: Review follow-up added an empty archive upload outbox gate before
+  same-Pi restore scales services down; validation passed with `make lint`,
+  `git diff --check`, and the duplicate editor-backup file scan.
