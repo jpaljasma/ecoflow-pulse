@@ -142,6 +142,104 @@ MaxRetentionSec=14day
 Compress=yes
 ```
 
+### Optional SDRAM Tuning
+
+The appliance default stays on stable Raspberry Pi OS firmware delivered by
+APT and `rpi-eeprom-update`. Do not require `sudo rpi-update` in shipped
+appliance setup: Raspberry Pi documents it as a pre-release firmware/kernel
+path intended for testing, development, or specific bug fixes.
+
+For one-off lab benchmarking on a locally recoverable Pi 5, the current SDRAM
+timing experiment can be tested manually:
+
+```bash
+sudo apt update
+sudo apt full-upgrade -y
+sudo rpi-update
+sudo rpi-eeprom-config --edit
+```
+
+Add this EEPROM setting:
+
+```ini
+SDRAM_BANKLOW=1
+```
+
+Then reboot and re-run the acceptance checks below. If boot, thermal, memory,
+or K3s stability regresses, roll back to supported firmware:
+
+```bash
+sudo apt update
+sudo apt install --reinstall raspi-firmware
+sudo reboot
+```
+
+Do not combine this with appliance defaults that are already intentionally
+conservative, such as PCIe Gen 2. PCIe Gen 3, CPU overclocking, and SDRAM
+experiments are lab-only unless they survive the full reboot and burn-in suite
+on the target hardware.
+
+### Optional CPU Overclocking
+
+The appliance default CPU clock remains the Raspberry Pi 5 stock `2.4GHz`.
+Overclocking can improve bursty compile or local maintenance work, but it is
+not a shipped appliance default because each board, case, PSU, ambient
+temperature, and workload mix has different stability margins.
+
+For a conservative Pi 5 lab test, edit `/boot/firmware/config.txt`:
+
+```bash
+sudo nano /boot/firmware/config.txt
+```
+
+Add:
+
+```ini
+# Optional Pi 5 lab overclock; not an appliance default.
+arm_freq=2800
+over_voltage_delta=25000
+```
+
+Then reboot and verify:
+
+```bash
+sudo reboot
+vcgencmd measure_clock arm
+vcgencmd measure_temp
+vcgencmd get_throttled
+```
+
+Acceptance for an appliance candidate:
+
+- `vcgencmd get_throttled` remains `throttled=0x0` after boot, K3s startup,
+  and sustained load.
+- CPU temperature stays below throttling range with the Argon case assembled,
+  NVMe thermal pad installed, and the appliance located where it will actually
+  run.
+- 10 reboot cycles, BLE startup, K3s convergence, and the capacity burn-in pass
+  without crashes, filesystem errors, data loss, or clock/thermal throttling.
+
+If the Pi fails to boot or shows instability, remove the two overclock lines
+from `/boot/firmware/config.txt` using the microSD/NVMe boot partition from
+another machine, or from a working recovery shell, then reboot. Do not set
+`force_turbo=1` for appliance mode; keep DVFS enabled so idle power and heat
+stay low.
+
+References:
+
+- [Raspberry Pi OS update docs](https://www.raspberrypi.com/documentation/computers/os.html):
+  use APT for routine stable firmware/kernel updates; reserve `rpi-update` for
+  pre-release testing or when Raspberry Pi engineers instruct it.
+- [Raspberry Pi config.txt docs](https://www.raspberrypi.com/documentation/computers/config_txt.html):
+  define `arm_freq`, `over_voltage_delta`, `force_turbo`, throttling/clock
+  inspection, and overclock recovery guidance.
+- [Jeff Geerling's Pi 5 SDRAM tuning note](https://www.jeffgeerling.com/blog/2024/raspberry-pi-boosts-pi-5-performance-sdram-tuning/):
+  reports the `SDRAM_BANKLOW=1` test path and observed benchmark gains, while
+  noting the tweak may become default in future firmware.
+- [Raspberry.tips Pi 5 overclocking guide](https://raspberry.tips/en/raspberrypi-tutorials/overclock-raspberry-pi-5):
+  recommends starting around `arm_freq=2800` with `over_voltage_delta=25000`
+  and validating with clock, temperature, and throttling checks.
+
 Pre-install validation:
 
 ```bash
