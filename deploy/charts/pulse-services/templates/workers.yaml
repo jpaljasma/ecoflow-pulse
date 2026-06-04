@@ -42,6 +42,9 @@ spec:
             - name: metrics
               containerPort: {{ .Values.runtime.workers.ingest.metrics.service.port }}
           {{- end }}
+          {{- with (include "pulse-services.goRuntimeEnv" .Values.runtime.workers.ingest | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -175,6 +178,9 @@ spec:
           ports:
             - name: metrics
               containerPort: {{ .Values.runtime.workers.inference.metrics.service.port }}
+          {{- end }}
+          {{- with (include "pulse-services.goRuntimeEnv" .Values.runtime.workers.inference | trim) }}
+          {{ . | nindent 10 }}
           {{- end }}
           envFrom:
             - configMapRef:
@@ -310,6 +316,9 @@ spec:
             - name: metrics
               containerPort: {{ .Values.runtime.workers.rollup.metrics.service.port }}
           {{- end }}
+          {{- with (include "pulse-services.goRuntimeEnv" .Values.runtime.workers.rollup | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -443,6 +452,9 @@ spec:
           ports:
             - name: metrics
               containerPort: {{ .Values.runtime.workers.projection.metrics.service.port }}
+          {{- end }}
+          {{- with (include "pulse-services.goRuntimeEnv" .Values.runtime.workers.projection | trim) }}
+          {{ . | nindent 10 }}
           {{- end }}
           envFrom:
             - configMapRef:
@@ -583,6 +595,9 @@ spec:
           ports:
             - name: metrics
               containerPort: {{ .Values.runtime.workers.archive.metrics.service.port }}
+          {{- end }}
+          {{- with (include "pulse-services.goRuntimeEnv" .Values.runtime.workers.archive | trim) }}
+          {{ . | nindent 10 }}
           {{- end }}
           envFrom:
             - configMapRef:
@@ -757,6 +772,9 @@ spec:
               value: {{ .Values.runtime.workers.grpcApi.solarForecastVerificationInterval | quote }}
             - name: WEATHER_REFRESH_INTERVAL
               value: {{ .Values.runtime.workers.grpcApi.weatherRefreshInterval | quote }}
+            {{- with (include "pulse-services.goRuntimeEnvItems" .Values.runtime.workers.grpcApi | trim) }}
+            {{ . | nindent 12 }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -896,6 +914,9 @@ spec:
               value: {{ .Values.runtime.workers.solarVerification.solarForecastVerificationInterval | quote }}
             - name: SOLAR_FORECAST_VERIFICATION_BATCH_LIMIT
               value: {{ .Values.runtime.workers.solarVerification.solarForecastVerificationBatchLimit | quote }}
+            {{- with (include "pulse-services.goRuntimeEnvItems" .Values.runtime.workers.solarVerification | trim) }}
+            {{ . | nindent 12 }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -994,6 +1015,9 @@ spec:
               value: {{ .Values.runtime.workers.scheduler.solarRefreshActiveWindow | quote }}
             - name: SCHEDULER_SOLAR_REFRESH_BATCH_LIMIT
               value: {{ .Values.runtime.workers.scheduler.solarRefreshBatchLimit | quote }}
+            {{- with (include "pulse-services.goRuntimeEnvItems" .Values.runtime.workers.scheduler | trim) }}
+            {{ . | nindent 12 }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
@@ -1133,6 +1157,9 @@ spec:
               value: {{ printf ":%v" .Values.runtime.workers.energyApi.service.port | quote }}
             - name: GRPC_SERVICE_MODE
               value: "energy"
+            {{- with (include "pulse-services.goRuntimeEnvItems" .Values.runtime.workers.energyApi | trim) }}
+            {{ . | nindent 12 }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env

@@ -348,6 +348,25 @@ make appliance-pi-validate
 - Observability lite: optional, 24h retention, no OpenTelemetry collector by
   default.
 
+Before a merged `pulse-core` binary lands, the Pi services overlay keeps the
+singleton deployments separate and applies conservative per-workload Go runtime
+caps:
+
+| Workload | `GOMAXPROCS` | `GOMEMLIMIT` |
+|---|---:|---:|
+| `go-ingest` | `1` | `384MiB` |
+| `go-inference` | `1` | `160MiB` |
+| `go-projection` | `1` | `256MiB` |
+| `go-rollup` | `1` | `256MiB` |
+| `go-archive` | `1` | `256MiB` |
+| `go-grpc-api` | `2` | `512MiB` |
+| `go-energy-api` | `1` | `384MiB` |
+| `go-scheduler` | `1` | `160MiB` |
+
+Run
+[`run-pi5-appliance-capacity-burn-in.md`](../how-to/run-pi5-appliance-capacity-burn-in.md)
+on the real appliance before merging more roles into one process.
+
 Target steady RSS is under 4.8GiB, leaving at least 1GiB for the host.
 
 ## Network And Auth

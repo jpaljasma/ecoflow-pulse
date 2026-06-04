@@ -1366,6 +1366,9 @@ Notes:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),
   - verifies social providers `google` and `facebook` are present in that realm.
+- `make appliance-pi-validate` includes Pi host/script tests, Pi Helm lint, and
+  a services chart render check that verifies the Pi `GOMAXPROCS` /
+  `GOMEMLIMIT` caps for each enabled Go workload.
 - `go run ./cmd/pulse-mqtt-history-backfill` safely repairs a bounded
   `pulsemqtt` history window through the standard emulator/ingest/archive path:
   - defaults `-from` to local midnight and `-to` to the next local minute

@@ -118,6 +118,16 @@ Shared Go Valkey cache knobs:
 - `ECOFLOW_SERVER_COMPRESSION_MIN_BYTES` (default `1024`)
 - `ECOFLOW_SERVER_GZIP_LEVEL` (default `5`)
 - `ECOFLOW_SERVER_DEFLATE_LEVEL` (default `5`)
+
+Pulse services Helm workers can set per-workload Go runtime caps with:
+
+- `runtime.workers.<name>.goRuntime.maxProcs` -> container `GOMAXPROCS`
+- `runtime.workers.<name>.goRuntime.memLimit` -> container `GOMEMLIMIT`
+
+The global `runtime.env.goMaxProcs` and `runtime.env.goMemLimit` remain
+available for environments that want one value across all services. Pi appliance
+values use per-workload caps so small singleton workers stay below their
+container memory limits while the gRPC API keeps more CPU headroom.
 - `ECOFLOW_SERVER_BROTLI_LEVEL` (default `5`, `moderncompress` builds)
 - `ECOFLOW_SERVER_ZSTD_LEVEL` (default `3`, `moderncompress` builds)
 

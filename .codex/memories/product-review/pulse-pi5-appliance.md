@@ -20,6 +20,9 @@
   feel like a cloud platform that needs constant operator attention.
 - Local username/password Keycloak login remains mandatory; social login is
   optional per install.
+- Phase 4 should keep the appliance boring and robust: cap the current
+  singleton services first, then merge only after burn-in evidence shows the
+  current layout is comfortably within the 8 GB Pi budget.
 
 ## Open risks
 
@@ -29,8 +32,11 @@
   social OAuth clients.
 - The current cutover runbook is operator-facing; future appliance-for-others
   packaging should turn the same checks into simple status and backup commands.
+- Merging too early could make support harder because one process restart would
+  take out unrelated roles; the product bar is lower operator burden, not fewer
+  Kubernetes objects at any cost.
 
 ## Next step
 
-- Review the backup/cutover runbook for simplicity, local-only posture, and
-  clear hosted-cost shutdown boundaries.
+- Review the runtime-cap and burn-in slice for simplicity, conservative
+  hardware assumptions, and clear next evidence before workload merging.

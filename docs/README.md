@@ -33,6 +33,7 @@ Pecron E1000LFP cloud, and Anker SOLIX Cloud MQTT onboarding.
 - [`how-to/configure-anker-solix-cloud-mqtt.md`](how-to/configure-anker-solix-cloud-mqtt.md)
 - [`how-to/dr-backup-restore-local.md`](how-to/dr-backup-restore-local.md)
 - [`how-to/run-pi5-appliance-backup-cutover.md`](how-to/run-pi5-appliance-backup-cutover.md)
+- [`how-to/run-pi5-appliance-capacity-burn-in.md`](how-to/run-pi5-appliance-capacity-burn-in.md)
 - [`how-to/rollout-schema-migrations-dev-staging-prod.md`](how-to/rollout-schema-migrations-dev-staging-prod.md)
 - [`how-to/prepare-pgroll-transition-local.md`](how-to/prepare-pgroll-transition-local.md)
 - [`how-to/migrate-local-data-plane-to-gke-cloud.md`](how-to/migrate-local-data-plane-to-gke-cloud.md)

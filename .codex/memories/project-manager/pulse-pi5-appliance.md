@@ -4,7 +4,7 @@
 
 - Keep the appliance implementation moving in small Ralph-loop PRs after the
   Phase 1 foundation merged.
-- Current branch: `codex/pi5-backup-cutover-runbook`.
+- Current branch: `codex/pi5-workload-consolidation`.
 - Maintain one canonical task board at `.codex/tasks/pulse-pi5-appliance.md`.
 
 ## Files to inspect first
@@ -24,6 +24,9 @@
 - 2026-06-04: Phase 3 runbook slice is docs-only and should define the planned
   backup/restore plus hosted-cloud shutdown gates before workload
   consolidation starts.
+- 2026-06-04: Phase 4 starts with conservative runtime caps and a hardware
+  burn-in runbook; do not merge processes until the target Pi produces capacity
+  evidence.
 
 ## Open risks
 
@@ -33,4 +36,4 @@
 
 ## Next step
 
-- Validate and open the Phase 3 backup/cutover runbook PR.
+- Validate and open the Phase 4 runtime-cap and capacity burn-in PR.
