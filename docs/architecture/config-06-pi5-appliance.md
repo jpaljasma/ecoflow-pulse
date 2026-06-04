@@ -186,7 +186,11 @@ Overclocking can improve bursty compile or local maintenance work, but it is
 not a shipped appliance default because each board, case, PSU, ambient
 temperature, and workload mix has different stability margins.
 
-For a conservative Pi 5 lab test, edit `/boot/firmware/config.txt`:
+The first tested conservative candidate for this appliance hardware is
+`arm_freq=2500` with `over_voltage_delta=10000`; it survived stress testing
+with no throttling on the target Pi 5, Argon NEO 5, and NVMe assembly.
+
+To test it, edit `/boot/firmware/config.txt`:
 
 ```bash
 sudo nano /boot/firmware/config.txt
@@ -196,8 +200,8 @@ Add:
 
 ```ini
 # Optional Pi 5 lab overclock; not an appliance default.
-arm_freq=2800
-over_voltage_delta=25000
+arm_freq=2500
+over_voltage_delta=10000
 ```
 
 Then reboot and verify:
@@ -218,6 +222,11 @@ Acceptance for an appliance candidate:
   run.
 - 10 reboot cycles, BLE startup, K3s convergence, and the capacity burn-in pass
   without crashes, filesystem errors, data loss, or clock/thermal throttling.
+
+More aggressive lab experiments, such as `arm_freq=2800` with
+`over_voltage_delta=25000`, should stay behind the same acceptance checks and
+should not replace the conservative candidate unless they survive sustained
+stress on the target appliance hardware.
 
 If the Pi fails to boot or shows instability, remove the two overclock lines
 from `/boot/firmware/config.txt` using the microSD/NVMe boot partition from
