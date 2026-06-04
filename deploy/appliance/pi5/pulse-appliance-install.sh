@@ -11,6 +11,7 @@ skip_k3s_install=0
 skip_platform=0
 skip_services=0
 skip_wait=0
+kubeconfig="${PULSE_APPLIANCE_KUBECONFIG:-${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}}"
 kube_context="${KUBECONFIG_CONTEXT:-}"
 k3s_version="${PULSE_APPLIANCE_K3S_VERSION:-}"
 k3s_channel="${PULSE_APPLIANCE_K3S_CHANNEL:-stable}"
@@ -39,6 +40,7 @@ Installs or upgrades the Pulse Raspberry Pi 5 appliance stack on local K3s.
 Options:
   --dry-run             Print the commands that would run.
   --repo-root DIR       Repository root containing deploy/charts and deploy/env.
+  --kubeconfig PATH     Kubeconfig path for kubectl and Helm.
   --kube-context NAME   Use an explicit Kubernetes context.
   --k3s-version VER     Install a pinned K3s version instead of a channel.
   --k3s-channel NAME    Install from a K3s channel when no version is set.
@@ -52,8 +54,8 @@ Options:
 Environment overrides:
   HELM, KUBECTL, CURL, WAIT_TIMEOUT, PLATFORM_RELEASE, SERVICES_RELEASE,
   PLATFORM_NAMESPACE, SERVICES_NAMESPACE, PI_PLATFORM_VALUES, PI_SERVICES_VALUES,
-  PULSE_SERVICES_RUNTIME_SECRET, PULSE_APPLIANCE_K3S_VERSION,
-  PULSE_APPLIANCE_K3S_CHANNEL
+  PULSE_SERVICES_RUNTIME_SECRET, PULSE_APPLIANCE_KUBECONFIG,
+  PULSE_APPLIANCE_K3S_VERSION, PULSE_APPLIANCE_K3S_CHANNEL
 USAGE
 }
 
@@ -73,6 +75,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --repo-root)
       repo_root="${2:?--repo-root requires a directory}"
+      shift
+      ;;
+    --kubeconfig)
+      kubeconfig="${2:?--kubeconfig requires a path}"
       shift
       ;;
     --kube-context)
@@ -155,19 +161,25 @@ require_command() {
 }
 
 kubectl_base() {
-  if [ -n "$kube_context" ]; then
-    printf '%s\0%s\0%s\0' "$kubectl_bin" --context "$kube_context"
-  else
-    printf '%s\0' "$kubectl_bin"
+  local args=("$kubectl_bin")
+  if [ -n "$kubeconfig" ]; then
+    args+=(--kubeconfig "$kubeconfig")
   fi
+  if [ -n "$kube_context" ]; then
+    args+=(--context "$kube_context")
+  fi
+  printf '%s\0' "${args[@]}"
 }
 
 helm_base() {
-  if [ -n "$kube_context" ]; then
-    printf '%s\0%s\0%s\0' "$helm_bin" --kube-context "$kube_context"
-  else
-    printf '%s\0' "$helm_bin"
+  local args=("$helm_bin")
+  if [ -n "$kubeconfig" ]; then
+    args+=(--kubeconfig "$kubeconfig")
   fi
+  if [ -n "$kube_context" ]; then
+    args+=(--kube-context "$kube_context")
+  fi
+  printf '%s\0' "${args[@]}"
 }
 
 run_kubectl() {
@@ -444,19 +456,18 @@ wait_services() {
 }
 
 run_status() {
-  if [ "$dry_run" -eq 1 ]; then
-    if [ -n "$kube_context" ]; then
-      run_cmd "$script_dir/pulse-appliance-status.sh" --kube-context "$kube_context"
-    else
-      run_cmd "$script_dir/pulse-appliance-status.sh"
-    fi
-    return
+  local args=()
+  if [ -n "$kubeconfig" ]; then
+    args+=(--kubeconfig "$kubeconfig")
   fi
   if [ -n "$kube_context" ]; then
-    "$script_dir/pulse-appliance-status.sh" --kube-context "$kube_context"
-  else
-    "$script_dir/pulse-appliance-status.sh"
+    args+=(--kube-context "$kube_context")
   fi
+  if [ "$dry_run" -eq 1 ]; then
+    run_cmd "$script_dir/pulse-appliance-status.sh" "${args[@]}"
+    return
+  fi
+  "$script_dir/pulse-appliance-status.sh" "${args[@]}"
 }
 
 run_install_or_upgrade() {

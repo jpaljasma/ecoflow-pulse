@@ -201,13 +201,15 @@ make appliance-pi-status
 ```
 
 Pass install-specific flags with `APPLIANCE_PI_INSTALL_ARGS`, for example
-`APPLIANCE_PI_INSTALL_ARGS="--skip-k3s-install"`. The installer runs host
-preparation, installs or upgrades K3s, builds Helm chart dependencies, applies
-the platform chart with a Keycloak bootstrap pass, checks the install-specific
-services runtime secret, applies the services chart, and waits for the
-appliance workloads. Services fail closed when
-`pulse-services/pulse-services-runtime-secret` is absent so GCS credentials and
-provider material stay install-specific.
+`APPLIANCE_PI_INSTALL_ARGS="--skip-k3s-install"`. The installer defaults
+`kubectl`, Helm, and status checks to `/etc/rancher/k3s/k3s.yaml`; override
+with `--kubeconfig` or `PULSE_APPLIANCE_KUBECONFIG` only when using a different
+client config. The installer runs host preparation, installs or upgrades K3s,
+builds Helm chart dependencies, applies the platform chart with a Keycloak
+bootstrap pass, checks the install-specific services runtime secret, applies
+the services chart, and waits for the appliance workloads. Services fail closed
+when `pulse-services/pulse-services-runtime-secret` is absent so GCS
+credentials and provider material stay install-specific.
 
 Validation command:
 
