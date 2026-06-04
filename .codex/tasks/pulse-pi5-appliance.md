@@ -48,6 +48,9 @@ Base commit: `42de0371`
   points for install, upgrade, wait, and status.
 - 2026-06-04: Phase 2 starts on `codex/pi5-appliance-ble-direct` and keeps the
   first BLE slice focused on direct gRPC transport plus appliance service/docs.
+- 2026-06-04: Pi 5 `SDRAM_BANKLOW=1` tuning is documented as an optional
+  lab-only experiment because it currently depends on `rpi-update` pre-release
+  firmware; appliance defaults stay on stable APT/EEPROM updates.
 
 ## Blockers
 
