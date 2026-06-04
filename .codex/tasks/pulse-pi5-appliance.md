@@ -55,6 +55,9 @@ Base commit: `5669a1d6`
   documented as an optional lab overclock candidate, not an appliance default;
   it requires no throttling across reboot, K3s, BLE, and capacity burn-in
   checks before use.
+- 2026-06-04: Real hardware stress testing settled on `arm_freq=2500` with
+  `over_voltage_delta=10000` as the conservative observed overclock candidate
+  with no throttling; `2800/25000` remains a more aggressive lab experiment.
 
 ## Blockers
 
