@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-gcs-archive-outbox`
-Base commit: `a8b4ddde`
+Branch: `codex/pi5-archive-outbox-status-guard`
+Base commit: `cfb60575`
 
 ## Assumptions
 
@@ -22,7 +22,7 @@ Base commit: `a8b4ddde`
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
 | DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
 | PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC merged; durable outbox tests passed |
-| PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | archive outbox foundation tests and race validation passed |
+| PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | archive outbox status/rebuild guard validation passed |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
 | TODO | `qa` | Capacity burn-in, reboot/restart/GCS/BLE failure drills | implementation slices | pending |
@@ -67,6 +67,11 @@ Base commit: `a8b4ddde`
 - 2026-06-04: Archive outbox entries carry both object bytes and manifest
   records, ACK local delivery only after fsync, and flush fail-closed if the
   manifest store is unavailable.
+- 2026-06-04: Phase 3 status guard starts on
+  `codex/pi5-archive-outbox-status-guard` from merged main `cfb60575`.
+- 2026-06-04: Rebuilds that use archive objects must refuse to run while
+  `ARCHIVE_UPLOAD_OUTBOX_DIR` has pending local entries unless an operator uses
+  an explicit manual override.
 
 ## Blockers
 
@@ -74,10 +79,8 @@ Base commit: `a8b4ddde`
 
 ## Next Actions
 
-1. Add `pulse-appliance status` and rebuild fail-closed checks for pending
-   archive upload outbox entries.
-2. Add backup/restore and planned cloud-shutdown cutover runbook.
-3. Continue conservative workload consolidation only after the archive outbox
+1. Add backup/restore and planned cloud-shutdown cutover runbook.
+2. Continue conservative workload consolidation only after the archive outbox
    status guard lands.
 
 ## Validation Evidence
@@ -132,3 +135,9 @@ Base commit: `a8b4ddde`
   ./cmd/ecoflow-archive-worker -count=1`, `go test -race
   ./internal/archiveworker ./cmd/ecoflow-archive-worker -count=1`,
   `make test-race`, `make lint`, and `git diff --check`.
+- 2026-06-04: Phase 3 status/rebuild guard validation passed with
+  `go test ./internal/archiveworker ./cmd/ecoflow-archive-outbox-status
+  ./cmd/ecoflow-rollup-rebuild -count=1`, `make appliance-pi-validate`,
+  `go test -race ./internal/archiveworker ./cmd/ecoflow-rollup-rebuild
+  ./cmd/ecoflow-archive-outbox-status -count=1`, `make test-race`,
+  `make lint`, and `git diff --check`.

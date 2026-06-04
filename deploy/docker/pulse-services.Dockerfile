@@ -25,6 +25,7 @@ RUN --mount=type=cache,id=ecoflow-pulse-go-mod-1.26.3,target=/go/pkg/mod,sharing
         ecoflow-rollup-worker \
         ecoflow-projection-worker \
         ecoflow-archive-worker \
+        ecoflow-archive-outbox-status \
         ecoflow-gap-detector \
         ecoflow-gap-repair-worker \
         ecoflow-scheduler \

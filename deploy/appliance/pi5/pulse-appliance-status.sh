@@ -6,12 +6,14 @@ kubeconfig="${PULSE_APPLIANCE_KUBECONFIG:-${KUBECONFIG:-/etc/rancher/k3s/k3s.yam
 kube_context="${KUBECONFIG_CONTEXT:-}"
 platform_ns="${PULSE_PLATFORM_NAMESPACE:-pulse-platform}"
 services_ns="${PULSE_SERVICES_NAMESPACE:-pulse-services}"
+archive_outbox_dir="${ARCHIVE_UPLOAD_OUTBOX_DIR:-/var/lib/pulse-archive/outbox}"
+archive_outbox_status_bin="${ARCHIVE_OUTBOX_STATUS_BIN:-/app/ecoflow-archive-outbox-status}"
 failures=0
 warnings=0
 
 usage() {
   cat <<'USAGE'
-Usage: pulse-appliance-status.sh [--kubeconfig PATH] [--kube-context CONTEXT] [--free-warn-gib N]
+Usage: pulse-appliance-status.sh [--kubeconfig PATH] [--kube-context CONTEXT] [--free-warn-gib N] [--archive-outbox-dir DIR]
 
 Runs conservative host and K3s health checks for a Pulse Raspberry Pi appliance.
 USAGE
@@ -29,6 +31,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --free-warn-gib)
       free_warn_gib="${2:?--free-warn-gib requires a value}"
+      shift
+      ;;
+    --archive-outbox-dir)
+      archive_outbox_dir="${2:?--archive-outbox-dir requires a value}"
       shift
       ;;
     -h|--help)
@@ -180,6 +186,38 @@ check_loopback_grpc() {
   fi
 }
 
+check_archive_upload_outbox() {
+  if ! have kubectl; then
+    warn "kubectl not found; skipping archive upload outbox check"
+    return
+  fi
+  local pod
+  pod="$(kubectl_cmd -n "$services_ns" get pod \
+    -l "app.kubernetes.io/instance=pulse-services,app.kubernetes.io/component=go-archive" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [ -z "$pod" ]; then
+    warn "archive worker pod not found; skipping archive upload outbox check"
+    return
+  fi
+  local output status
+  set +e
+  output="$(kubectl_cmd -n "$services_ns" exec "$pod" -- \
+    "$archive_outbox_status_bin" --dir "$archive_outbox_dir" --fail-on-pending 2>&1)"
+  status=$?
+  set -e
+  case "$status" in
+    0)
+      ok "archive upload outbox clear ($output)"
+      ;;
+    2)
+      fail "archive upload outbox has pending local entries ($output)"
+      ;;
+    *)
+      warn "unable to check archive upload outbox in pod $pod ($output)"
+      ;;
+  esac
+}
+
 check_throttling
 check_root_disk
 check_nvme
@@ -187,6 +225,7 @@ check_k3s
 check_helm_release pulse-platform "$platform_ns"
 check_helm_release pulse-services "$services_ns"
 check_loopback_grpc
+check_archive_upload_outbox
 
 printf 'summary: %d failure(s), %d warning(s)\n' "$failures" "$warnings"
 [ "$failures" -eq 0 ]

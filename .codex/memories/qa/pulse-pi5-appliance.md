@@ -62,5 +62,8 @@
 - Review follow-up validation added a restart/offline overwrite regression and
   passed targeted archive Go tests, targeted archive race tests,
   `make test-race`, `make lint`, and `git diff --check`.
-- Next QA focus is a pending-outbox status/rebuild guard plus the planned
-  backup/restore cutover runbook.
+- Phase 3 pending-outbox status/rebuild guard validation passed with targeted
+  Go tests for the archive outbox counter, status helper, and rollup rebuild
+  guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
+  `make lint`; and `git diff --check`.
+- Next QA focus is the planned backup/restore cutover runbook.
