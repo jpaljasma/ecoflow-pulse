@@ -24,6 +24,10 @@ import (
 	"syscall"
 	"time"
 
+	edgev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/edge/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -37,9 +41,17 @@ const (
 	bleAuthExitCode      = 10
 	edgePostAttempts     = 3
 	edgePostRetryDelay   = 200 * time.Millisecond
+	defaultEdgeGRPCAddr  = "127.0.0.1:19090"
 	defaultPi5GOMAXPROCS = 4
 	defaultPi5Memory     = 512 * 1024 * 1024
 	defaultPi5GCPercent  = 100
+)
+
+type edgeTransport string
+
+const (
+	edgeTransportREST edgeTransport = "rest"
+	edgeTransportGRPC edgeTransport = "grpc"
 )
 
 type config struct {
@@ -81,15 +93,22 @@ type rawProbeRecord struct {
 }
 
 type edgeClient struct {
+	transport  edgeTransport
 	baseURL    string
 	secret     string
 	httpClient *http.Client
+	grpcClient edgev1.EdgeIngestServiceClient
 }
 
 type runtimeDefaults struct {
 	GOMAXPROCS  int
 	MemoryLimit int64
 	GCPercent   int
+}
+
+type edgeTransportConfig struct {
+	transport edgeTransport
+	grpcAddr  string
 }
 
 func main() {
@@ -117,10 +136,26 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
 	}
+	transportCfg, err := edgeTransportConfigFromEnv(os.Getenv)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "load transport config: %v\n", err)
+		return 1
+	}
 	client := edgeClient{
+		transport:  transportCfg.transport,
 		baseURL:    cfg.targetBaseURL(),
 		secret:     strings.TrimSpace(os.Getenv("PULSE_EDGE_COLLECTOR_SECRET")),
 		httpClient: newEdgeHTTPClient(),
+	}
+	var grpcConn *grpc.ClientConn
+	if transportCfg.transport == edgeTransportGRPC {
+		grpcConn, err = newEdgeGRPCConn(transportCfg.grpcAddr)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "create edge gRPC client: %v\n", err)
+			return 1
+		}
+		defer func() { _ = grpcConn.Close() }()
+		client.grpcClient = edgev1.NewEdgeIngestServiceClient(grpcConn)
 	}
 	if strings.TrimSpace(*enrollToken) != "" {
 		secret, err := client.enroll(context.Background(), *enrollToken, collectorVersion(), hostname())
@@ -177,6 +212,33 @@ func runtimeDefaultsFor(getenv func(string) string, cpuCount int) runtimeDefault
 		defaults.GCPercent = defaultPi5GCPercent
 	}
 	return defaults
+}
+
+func edgeTransportConfigFromEnv(getenv func(string) string) (edgeTransportConfig, error) {
+	transportValue := strings.ToLower(strings.TrimSpace(getenv("PULSE_EDGE_TRANSPORT")))
+	if transportValue == "" {
+		transportValue = string(edgeTransportREST)
+	}
+	grpcAddr := strings.TrimSpace(getenv("PULSE_EDGE_GRPC_ADDR"))
+	if grpcAddr == "" {
+		grpcAddr = defaultEdgeGRPCAddr
+	}
+	switch edgeTransport(transportValue) {
+	case edgeTransportREST:
+		return edgeTransportConfig{transport: edgeTransportREST, grpcAddr: grpcAddr}, nil
+	case edgeTransportGRPC:
+		return edgeTransportConfig{transport: edgeTransportGRPC, grpcAddr: grpcAddr}, nil
+	default:
+		return edgeTransportConfig{}, fmt.Errorf("unsupported PULSE_EDGE_TRANSPORT %q", transportValue)
+	}
+}
+
+func newEdgeGRPCConn(addr string) (*grpc.ClientConn, error) {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		addr = defaultEdgeGRPCAddr
+	}
+	return grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 func newEdgeHTTPClient() *http.Client {
@@ -548,6 +610,20 @@ func (c config) targetBaseURL() string {
 }
 
 func (c edgeClient) enroll(ctx context.Context, setupToken string, version string, hostname string) (string, error) {
+	if c.transport == edgeTransportGRPC {
+		if c.grpcClient == nil {
+			return "", errors.New("edge gRPC client is not configured")
+		}
+		resp, err := c.grpcClient.EnrollCollector(ctx, &edgev1.EnrollCollectorRequest{
+			SetupToken:       setupToken,
+			CollectorVersion: version,
+			Hostname:         hostname,
+		})
+		if err != nil {
+			return "", err
+		}
+		return resp.GetCollectorSecret(), nil
+	}
 	var response struct {
 		CollectorSecret string `json:"collectorSecret"`
 	}
@@ -560,6 +636,17 @@ func (c edgeClient) enroll(ctx context.Context, setupToken string, version strin
 }
 
 func (c edgeClient) heartbeat(ctx context.Context, version string, hostname string) error {
+	if c.transport == edgeTransportGRPC {
+		if c.grpcClient == nil {
+			return errors.New("edge gRPC client is not configured")
+		}
+		_, err := c.grpcClient.Heartbeat(ctx, &edgev1.HeartbeatRequest{
+			CollectorSecret:  c.secret,
+			CollectorVersion: version,
+			Hostname:         hostname,
+		})
+		return err
+	}
 	return c.postJSON(ctx, "/api/v1/edge/heartbeat", map[string]any{
 		"collectorSecret":  c.secret,
 		"collectorVersion": version,
@@ -568,6 +655,33 @@ func (c edgeClient) heartbeat(ctx context.Context, version string, hostname stri
 }
 
 func (c edgeClient) uploadDiscovery(ctx context.Context, record rawProbeRecord) error {
+	if c.transport == edgeTransportGRPC {
+		if c.grpcClient == nil {
+			return errors.New("edge gRPC client is not configured")
+		}
+		metadata, err := structpb.NewStruct(map[string]any{
+			"prefix":        record.Device.Info.Prefix,
+			"packet_family": record.Device.Info.PacketFamily,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = c.grpcClient.UploadDiscovery(ctx, &edgev1.UploadDiscoveryRequest{
+			CollectorSecret: c.secret,
+			Discoveries: []*edgev1.EdgeDiscovery{{
+				Provider:         "ecoflow",
+				Transport:        "ble",
+				ProviderDeviceId: record.providerDeviceID(),
+				DisplayName:      record.Device.LocalName,
+				Model:            record.Device.Info.Model,
+				Address:          record.Device.Address,
+				RssiDbm:          int32(record.Device.RSSI),
+				ObservedAtUnixMs: record.observedAtUnixMS(),
+				Metadata:         metadata,
+			}},
+		})
+		return err
+	}
 	return c.postJSON(ctx, "/api/v1/edge/discoveries", map[string]any{
 		"collectorSecret": c.secret,
 		"discoveries": []map[string]any{{
@@ -588,6 +702,26 @@ func (c edgeClient) uploadDiscovery(ctx context.Context, record rawProbeRecord) 
 }
 
 func (c edgeClient) uploadTelemetry(ctx context.Context, record rawProbeRecord, metrics map[string]any) error {
+	if c.transport == edgeTransportGRPC {
+		if c.grpcClient == nil {
+			return errors.New("edge gRPC client is not configured")
+		}
+		metricsStruct, err := structpb.NewStruct(metrics)
+		if err != nil {
+			return err
+		}
+		_, err = c.grpcClient.UploadTelemetryBatch(ctx, &edgev1.UploadTelemetryBatchRequest{
+			CollectorSecret: c.secret,
+			Samples: []*edgev1.EdgeTelemetrySample{{
+				Provider:         "ecoflow",
+				Transport:        "ble",
+				ProviderDeviceId: record.providerDeviceID(),
+				ObservedAtUnixMs: record.observedAtUnixMS(),
+				Metrics:          metricsStruct,
+			}},
+		})
+		return err
+	}
 	return c.postJSON(ctx, "/api/v1/edge/telemetry", map[string]any{
 		"collectorSecret": c.secret,
 		"samples": []map[string]any{{

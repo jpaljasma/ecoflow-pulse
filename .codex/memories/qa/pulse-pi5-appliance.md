@@ -2,7 +2,7 @@
 
 ## Current focus
 
-- Validate the Phase 1 appliance installer/orchestration completion slice.
+- Validate the first Phase 2 BLE direct-gRPC transport slice.
 
 ## Files to inspect first
 
@@ -10,6 +10,9 @@
 - `docs/architecture/config-06-pi5-appliance.md`
 - `Makefile`
 - Existing edge collector, archive worker, and deploy tests for touched slices.
+- `cmd/pulse-edge-collector/main_test.go`
+- `deploy/pulse-edge/pulse-edge-collector.service`
+- `docs/how-to/run-pulse-edge-collector.md`
 - `deploy/appliance/pi5/test-host-prepare.sh`
 - `deploy/appliance/pi5/test-install-dry-run.sh`
 - `deploy/env/pi/values.platform.yaml`
@@ -39,8 +42,15 @@
   systemd behavior.
 - Installer tests are dry-run only; real K3s install, CNPG readiness, Keycloak
   login, and hostPort reachability need appliance hardware.
+- Direct gRPC transport needs targeted collector tests and a Pi hardware check
+  after the loopback hostPort service is installed.
 
 ## Next step
 
-- Run `make appliance-pi-validate`, `make lint`, and inspect staged changes for
-  duplicate backup files and sensitive text before PR closeout.
+- Targeted checks passed for `go test ./cmd/pulse-edge-collector -count=1`,
+  `go test ./cmd/ecoflow-grpc-api ./internal/edgecollector -count=1`,
+  `make pulse-edge-pi5-bundle`, `make lint`, and
+  `make appliance-pi-validate`.
+- The latest bundle rebuild showed the expected Pi 5 compile environment:
+  `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOARM64=v8.2`.
+- Next: run duplicate backup scan and sensitive-text scan before PR closeout.

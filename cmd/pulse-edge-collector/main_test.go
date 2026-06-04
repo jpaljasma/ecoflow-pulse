@@ -14,6 +14,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	edgev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/edge/v1"
+	"google.golang.org/grpc"
 )
 
 func TestLoadConfigSelectsProfileFromEnv(t *testing.T) {
@@ -102,6 +105,152 @@ func TestNewEdgeHTTPClientUsesPiFriendlyTransportBounds(t *testing.T) {
 	if transport.TLSHandshakeTimeout != 5*time.Second {
 		t.Fatalf("TLSHandshakeTimeout=%v want 5s", transport.TLSHandshakeTimeout)
 	}
+}
+
+func TestEdgeTransportConfigFromEnvDefaultsToREST(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := edgeTransportConfigFromEnv(func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("edgeTransportConfigFromEnv failed: %v", err)
+	}
+	if cfg.transport != edgeTransportREST {
+		t.Fatalf("transport=%v want REST", cfg.transport)
+	}
+	if cfg.grpcAddr != defaultEdgeGRPCAddr {
+		t.Fatalf("grpcAddr=%q want %q", cfg.grpcAddr, defaultEdgeGRPCAddr)
+	}
+}
+
+func TestEdgeTransportConfigFromEnvSelectsGRPC(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"PULSE_EDGE_TRANSPORT": " grpc ",
+		"PULSE_EDGE_GRPC_ADDR": "127.0.0.1:19090",
+	}
+	cfg, err := edgeTransportConfigFromEnv(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("edgeTransportConfigFromEnv failed: %v", err)
+	}
+	if cfg.transport != edgeTransportGRPC {
+		t.Fatalf("transport=%v want gRPC", cfg.transport)
+	}
+	if cfg.grpcAddr != "127.0.0.1:19090" {
+		t.Fatalf("grpcAddr=%q", cfg.grpcAddr)
+	}
+}
+
+func TestEdgeTransportConfigFromEnvRejectsUnknownTransport(t *testing.T) {
+	t.Parallel()
+
+	_, err := edgeTransportConfigFromEnv(func(key string) string {
+		if key == "PULSE_EDGE_TRANSPORT" {
+			return "mqtt"
+		}
+		return ""
+	})
+	if err == nil {
+		t.Fatalf("expected unknown transport error")
+	}
+}
+
+func TestEdgeClientGRPCMethodsMapRequests(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeEdgeIngestClient{
+		enrollResp: &edgev1.EnrollCollectorResponse{CollectorSecret: "issued-secret"},
+	}
+	client := edgeClient{
+		transport:  edgeTransportGRPC,
+		secret:     "collector-secret",
+		grpcClient: fake,
+	}
+	record := rawProbeRecord{}
+	record.Time = time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	record.Device.Address = "AA:BB:CC:DD:EE:FF"
+	record.Device.RSSI = -42
+	record.Device.LocalName = "DEMOEDGE0001"
+	record.Device.Info.Model = "delta-pro"
+	record.Device.Info.Prefix = "dp"
+	record.Device.Info.PacketFamily = "display"
+
+	secret, err := client.enroll(context.Background(), "setup-token", "v-test", "pulse")
+	if err != nil {
+		t.Fatalf("enroll failed: %v", err)
+	}
+	if secret != "issued-secret" {
+		t.Fatalf("secret=%q", secret)
+	}
+	if fake.enrollReq.GetSetupToken() != "setup-token" || fake.enrollReq.GetCollectorVersion() != "v-test" || fake.enrollReq.GetHostname() != "pulse" {
+		t.Fatalf("unexpected enroll request: %#v", fake.enrollReq)
+	}
+
+	if err := client.heartbeat(context.Background(), "v-test", "pulse"); err != nil {
+		t.Fatalf("heartbeat failed: %v", err)
+	}
+	if fake.heartbeatReq.GetCollectorSecret() != "collector-secret" || fake.heartbeatReq.GetCollectorVersion() != "v-test" || fake.heartbeatReq.GetHostname() != "pulse" {
+		t.Fatalf("unexpected heartbeat request: %#v", fake.heartbeatReq)
+	}
+
+	if err := client.uploadDiscovery(context.Background(), record); err != nil {
+		t.Fatalf("uploadDiscovery failed: %v", err)
+	}
+	if got := fake.discoveryReq.GetCollectorSecret(); got != "collector-secret" {
+		t.Fatalf("discovery collector secret=%q", got)
+	}
+	discovery := fake.discoveryReq.GetDiscoveries()[0]
+	if discovery.GetProvider() != "ecoflow" || discovery.GetTransport() != "ble" || discovery.GetProviderDeviceId() != "DEMOEDGE0001" {
+		t.Fatalf("unexpected discovery: %#v", discovery)
+	}
+	if discovery.GetMetadata().GetFields()["packet_family"].GetStringValue() != "display" {
+		t.Fatalf("metadata=%v", discovery.GetMetadata())
+	}
+
+	metrics := map[string]any{"battery_soc_percent": float64(91), "ac_input_plugged": true}
+	if err := client.uploadTelemetry(context.Background(), record, metrics); err != nil {
+		t.Fatalf("uploadTelemetry failed: %v", err)
+	}
+	if got := fake.telemetryReq.GetCollectorSecret(); got != "collector-secret" {
+		t.Fatalf("telemetry collector secret=%q", got)
+	}
+	sample := fake.telemetryReq.GetSamples()[0]
+	if sample.GetProvider() != "ecoflow" || sample.GetTransport() != "ble" || sample.GetProviderDeviceId() != "DEMOEDGE0001" {
+		t.Fatalf("unexpected telemetry sample: %#v", sample)
+	}
+	if sample.GetMetrics().GetFields()["battery_soc_percent"].GetNumberValue() != 91 {
+		t.Fatalf("metrics=%v", sample.GetMetrics())
+	}
+}
+
+type fakeEdgeIngestClient struct {
+	edgev1.EdgeIngestServiceClient
+
+	enrollReq    *edgev1.EnrollCollectorRequest
+	enrollResp   *edgev1.EnrollCollectorResponse
+	heartbeatReq *edgev1.HeartbeatRequest
+	discoveryReq *edgev1.UploadDiscoveryRequest
+	telemetryReq *edgev1.UploadTelemetryBatchRequest
+}
+
+func (f *fakeEdgeIngestClient) EnrollCollector(_ context.Context, req *edgev1.EnrollCollectorRequest, _ ...grpc.CallOption) (*edgev1.EnrollCollectorResponse, error) {
+	f.enrollReq = req
+	return f.enrollResp, nil
+}
+
+func (f *fakeEdgeIngestClient) Heartbeat(_ context.Context, req *edgev1.HeartbeatRequest, _ ...grpc.CallOption) (*edgev1.HeartbeatResponse, error) {
+	f.heartbeatReq = req
+	return &edgev1.HeartbeatResponse{}, nil
+}
+
+func (f *fakeEdgeIngestClient) UploadDiscovery(_ context.Context, req *edgev1.UploadDiscoveryRequest, _ ...grpc.CallOption) (*edgev1.UploadDiscoveryResponse, error) {
+	f.discoveryReq = req
+	return &edgev1.UploadDiscoveryResponse{AcceptedCount: uint32(len(req.GetDiscoveries()))}, nil
+}
+
+func (f *fakeEdgeIngestClient) UploadTelemetryBatch(_ context.Context, req *edgev1.UploadTelemetryBatchRequest, _ ...grpc.CallOption) (*edgev1.UploadTelemetryBatchResponse, error) {
+	f.telemetryReq = req
+	return &edgev1.UploadTelemetryBatchResponse{AcceptedCount: uint32(len(req.GetSamples()))}, nil
 }
 
 func TestRawProbeRecordMetricMapConvertsNumbersAndBooleans(t *testing.T) {
