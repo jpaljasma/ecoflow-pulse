@@ -442,6 +442,9 @@ safe yet. `cmd/ecoflow-rollup-rebuild` also fails closed when
 archive objects. The only bypass is the explicit
 `-allow-pending-archive-outbox` manual recovery flag; raw-log rebuild inputs do
 not depend on object-storage archive completeness and skip this guard.
+By default the status command lets the helper read the archive pod's configured
+`ARCHIVE_UPLOAD_OUTBOX_DIR`; `--archive-outbox-dir` is only for an explicit
+operator override.
 
 Use `ARCHIVE_OBJECT_PROVIDER=gcs` and an appliance-specific
 `ARCHIVE_WRITER_ID`, with service-account credentials mounted as a Kubernetes

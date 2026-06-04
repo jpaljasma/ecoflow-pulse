@@ -6,7 +6,7 @@ kubeconfig="${PULSE_APPLIANCE_KUBECONFIG:-${KUBECONFIG:-/etc/rancher/k3s/k3s.yam
 kube_context="${KUBECONFIG_CONTEXT:-}"
 platform_ns="${PULSE_PLATFORM_NAMESPACE:-pulse-platform}"
 services_ns="${PULSE_SERVICES_NAMESPACE:-pulse-services}"
-archive_outbox_dir="${ARCHIVE_UPLOAD_OUTBOX_DIR:-/var/lib/pulse-archive/outbox}"
+archive_outbox_dir=""
 archive_outbox_status_bin="${ARCHIVE_OUTBOX_STATUS_BIN:-/app/ecoflow-archive-outbox-status}"
 failures=0
 warnings=0
@@ -199,10 +199,13 @@ check_archive_upload_outbox() {
     warn "archive worker pod not found; skipping archive upload outbox check"
     return
   fi
-  local output status
+  local output status outbox_args
+  outbox_args=("$archive_outbox_status_bin" --fail-on-pending)
+  if [ -n "$archive_outbox_dir" ]; then
+    outbox_args+=(--dir "$archive_outbox_dir")
+  fi
   set +e
-  output="$(kubectl_cmd -n "$services_ns" exec "$pod" -- \
-    "$archive_outbox_status_bin" --dir "$archive_outbox_dir" --fail-on-pending 2>&1)"
+  output="$(kubectl_cmd -n "$services_ns" exec "$pod" -- "${outbox_args[@]}" 2>&1)"
   status=$?
   set -e
   case "$status" in

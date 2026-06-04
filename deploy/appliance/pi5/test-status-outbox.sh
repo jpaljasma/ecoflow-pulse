@@ -64,6 +64,12 @@ if [ "$1" = "-n" ] && [ "$2" = "pulse-services" ] && [ "$3" = "get" ] && [ "$4" 
   exit 0
 fi
 if [ "$1" = "-n" ] && [ "$2" = "pulse-services" ] && [ "$3" = "exec" ]; then
+  for arg in "$@"; do
+    if [ "$arg" = "--dir" ]; then
+      echo "status should not override the pod archive outbox dir by default" >&2
+      exit 1
+    fi
+  done
   printf 'pending=2 dir=/var/lib/pulse-archive/outbox\n'
   exit 2
 fi
