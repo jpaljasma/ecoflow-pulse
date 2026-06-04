@@ -126,3 +126,9 @@ Base commit: `a8b4ddde`
   `go-archive-outbox` PVC, `make appliance-pi-validate`,
   `go test -race ./internal/archiveworker ./cmd/ecoflow-archive-worker
   -count=1`, `make test-race`, `make lint`, and `git diff --check`.
+- 2026-06-04: Review follow-up prevents restart/offline archive outbox
+  overwrite by rejecting an enqueue when the pending object key already exists;
+  validation passed with `go test ./internal/archiveworker
+  ./cmd/ecoflow-archive-worker -count=1`, `go test -race
+  ./internal/archiveworker ./cmd/ecoflow-archive-worker -count=1`,
+  `make test-race`, `make lint`, and `git diff --check`.

@@ -133,6 +133,68 @@ func TestArchiveUploadOutboxReplaysAfterRestart(t *testing.T) {
 	}
 }
 
+func TestArchiveUploadOutboxDoesNotOverwritePendingEntryAfterRestart(t *testing.T) {
+	t.Parallel()
+
+	dir := filepath.Join(t.TempDir(), "archive-outbox")
+	firstOutbox, err := NewFileArchiveUploadOutbox(FileArchiveUploadOutboxConfig{
+		Dir:      dir,
+		MaxBytes: 64 * 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatalf("NewFileArchiveUploadOutbox first failed: %v", err)
+	}
+	firstWorker := newTestWorker(&fakeObjectStore{err: errors.New("gcs offline")}, time.Unix(10, 0).UTC())
+	firstWorker.manifestStore = &fakeManifestStore{}
+	firstWorker.archiveOutbox = firstOutbox
+	firstWorker.cfg.MaxRecordsPerPart = 1
+	firstDelivery := newFakeDelivery(t, envelope(2, "env-before-restart", 1500))
+
+	if err := firstWorker.processDelivery(context.Background(), firstDelivery); err != nil {
+		t.Fatalf("process delivery before restart failed: %v", err)
+	}
+	if firstDelivery.acked != 1 {
+		t.Fatalf("first delivery ack count=%d want 1", firstDelivery.acked)
+	}
+
+	secondOutbox, err := NewFileArchiveUploadOutbox(FileArchiveUploadOutboxConfig{
+		Dir:      dir,
+		MaxBytes: 64 * 1024 * 1024,
+	})
+	if err != nil {
+		t.Fatalf("NewFileArchiveUploadOutbox second failed: %v", err)
+	}
+	secondWorker := newTestWorker(&fakeObjectStore{err: errors.New("gcs still offline")}, time.Unix(11, 0).UTC())
+	secondWorker.manifestStore = &fakeManifestStore{}
+	secondWorker.archiveOutbox = secondOutbox
+	secondWorker.cfg.MaxRecordsPerPart = 1
+	secondDelivery := newFakeDelivery(t, envelope(2, "env-after-restart", 1600))
+
+	if err := secondWorker.processDelivery(context.Background(), secondDelivery); err == nil {
+		t.Fatalf("process delivery after restart should fail instead of overwriting pending outbox entry")
+	}
+	if secondDelivery.acked != 0 {
+		t.Fatalf("second delivery ack count=%d want 0", secondDelivery.acked)
+	}
+	if secondDelivery.nacked != 1 {
+		t.Fatalf("second delivery nack count=%d want 1", secondDelivery.nacked)
+	}
+	paths, err := secondOutbox.pendingPaths()
+	if err != nil {
+		t.Fatalf("pendingPaths failed: %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("pending outbox files=%d want 1", len(paths))
+	}
+	entry, err := readArchiveOutboxEntry(paths[0])
+	if err != nil {
+		t.Fatalf("readArchiveOutboxEntry failed: %v", err)
+	}
+	if ids := decodeEnvelopeIDs(t, entry.Object.Body); len(ids) != 1 || ids[0] != "env-before-restart" {
+		t.Fatalf("pending outbox entry was overwritten, ids=%v", ids)
+	}
+}
+
 func TestArchiveUploadOutboxRequiresManifestStoreBeforeUpload(t *testing.T) {
 	t.Parallel()
 

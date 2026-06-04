@@ -59,5 +59,8 @@
   Go tests, Pi/local services Helm lint, Pi render inspection,
   `make appliance-pi-validate`, targeted archive `go test -race`,
   `make test-race`, `make lint`, and `git diff --check`.
+- Review follow-up validation added a restart/offline overwrite regression and
+  passed targeted archive Go tests, targeted archive race tests,
+  `make test-race`, `make lint`, and `git diff --check`.
 - Next QA focus is a pending-outbox status/rebuild guard plus the planned
   backup/restore cutover runbook.

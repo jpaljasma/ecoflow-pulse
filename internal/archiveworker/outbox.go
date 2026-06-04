@@ -73,7 +73,7 @@ func (o *FileArchiveUploadOutbox) Enqueue(ctx context.Context, entry ArchiveUplo
 	if err := o.checkCapacity(path, int64(len(body))); err != nil {
 		return err
 	}
-	if err := writeFileAtomicSync(path, body, archiveOutboxFileMode); err != nil {
+	if err := writeFileAtomicSyncNoReplace(path, body, archiveOutboxFileMode); err != nil {
 		return fmt.Errorf("persist archive upload outbox entry: %w", err)
 	}
 	return nil
@@ -228,7 +228,7 @@ func normalizeArchiveOutboxEntry(entry ArchiveUploadOutboxEntry, now time.Time) 
 	return out, nil
 }
 
-func writeFileAtomicSync(path string, body []byte, mode os.FileMode) error {
+func writeFileAtomicSyncNoReplace(path string, body []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -254,7 +254,13 @@ func writeFileAtomicSync(path string, body []byte, mode os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := os.Link(tmpName, path); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("archive upload outbox entry already exists: %w", err)
+		}
+		return err
+	}
+	if err := os.Remove(tmpName); err != nil {
 		return err
 	}
 	return syncDir(dir)
