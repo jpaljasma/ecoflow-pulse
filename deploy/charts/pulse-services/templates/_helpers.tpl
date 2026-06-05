@@ -35,6 +35,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "pulse-services.imagePullSecrets" -}}
+{{- with .Values.runtime.imagePullSecrets }}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "pulse-services.drainLifecycle" -}}
 lifecycle:
   preStop:

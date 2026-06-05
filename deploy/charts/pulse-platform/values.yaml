@@ -55,6 +55,7 @@ secretManager:
       facebookClientSecret: ""
 
 runtime:
+  imagePullSecrets: []
   publicApp:
     enabled: false
     replicaCount: 1

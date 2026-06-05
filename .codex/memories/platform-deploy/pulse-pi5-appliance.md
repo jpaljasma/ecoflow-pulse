@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Complete the release-input plumbing needed before the first live Pi services
-  deploy on `codex/pi5-appliance-release-inputs`.
+- Complete the GHCR image publishing and digest release artifact slice on
+  `codex/pi5-appliance-images`.
 
 ## Files to inspect first
 
@@ -19,6 +19,8 @@
 - `deploy/appliance/pi5/test-install-dry-run.sh`
 - `deploy/env/pi/values.platform.yaml`
 - `deploy/env/pi/values.services.yaml`
+- `.github/workflows/pi-appliance-images.yml`
+- `deploy/appliance/pi5/pulse-appliance-render-release-values.sh`
 
 ## Decisions made
 
@@ -45,15 +47,21 @@
 - 2026-06-05: Pi GCS archive auth uses a local `pulse-services-gcs-credentials`
   secret mounted at `/var/run/pulse-gcs`, with
   `GOOGLE_APPLICATION_CREDENTIALS` supplied by `pulse-services-runtime-secret`.
+- 2026-06-05: Appliance images are published manually through the
+  `Pi Appliance Images` workflow as `linux/arm64` GHCR images; the workflow
+  uploads a digest-pinned release values artifact for the Pi installer.
+- 2026-06-05: Private GHCR pulls use optional `runtime.imagePullSecrets`, but
+  the actual registry token remains a local Kubernetes secret in each appliance
+  namespace.
 
 ## Open risks
 
 - Singleton chart overlays are linted, but real Pi scheduling and memory use
   still need hardware validation after release inputs exist.
 - Real K3s install behavior is partially validated on the target Pi; full Pulse
-  release rollout still needs real images and local secrets.
+  release rollout still needs the published image artifact and local secrets.
 
 ## Next step
 
-- Validate release-values rendering, installer preflight, and the runtime secret
-  helper locally and on the target Pi.
+- After this PR merges, run the manual image workflow, install the release
+  artifact on the Pi, create local secrets, and start live burn-in.

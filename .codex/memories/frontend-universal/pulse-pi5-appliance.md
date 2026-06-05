@@ -17,6 +17,9 @@
 - Appliance UX should stay simple and avoid exposing cluster internals.
 - Local Keycloak username/password must be a complete day-one path.
 - Social login is a convenience, not a dependency.
+- 2026-06-05: The Pi appliance public web image is built by the manual image
+  workflow with `pulse.home.arpa` API/WS/OIDC defaults and the local connection
+  profile; do not change those build args without revalidating browser auth.
 
 ## Open risks
 

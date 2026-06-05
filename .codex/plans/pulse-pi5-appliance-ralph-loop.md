@@ -1,7 +1,7 @@
 # Pulse Pi 5 Appliance Ralph-Loop Plan
 
 Status: Implementation in progress
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 ## Goal
 
@@ -120,6 +120,8 @@ Progress
 
 ### Phase 4: Workload Consolidation
 
+- Publish digest-pinned `linux/arm64` appliance images and local release values
+  before live burn-in.
 - Merge appliance workloads only where it reduces memory/process overhead
   without weakening shutdown correctness.
 - Prefer a `pulse-core` style Go runtime that can run ingest, projection,

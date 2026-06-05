@@ -40,20 +40,58 @@ budget; they are a safe first clamp for the separate singleton process layout.
 
 ## Preconditions
 
-1. Create an install-local release values file outside Git. Start from
-   `deploy/env/pi/release.example.yaml` and replace every image repository and
-   digest placeholder with published `linux/arm64` appliance images:
+1. Publish the appliance images from GitHub Actions. The workflow builds the
+   services, public app, and realtime gateway images for `linux/arm64`, pushes
+   them to GHCR, and uploads a digest-pinned release values artifact.
+
+For public GHCR packages, omit `image_pull_secret`:
+
+```bash
+gh workflow run pi-appliance-images.yml \
+  -f image_tag=pi-$(git rev-parse --short=12 HEAD)
+```
+
+For private GHCR packages, choose the Kubernetes pull secret name up front so
+the generated release artifact references it:
+
+```bash
+gh workflow run pi-appliance-images.yml \
+  -f image_tag=pi-$(git rev-parse --short=12 HEAD) \
+  -f image_pull_secret=ghcr-pull-secret
+```
+
+After the workflow finishes, download the `pulse-pi-release-values` artifact
+and copy the generated `pulse-pi-release.yaml` to the Pi.
+
+2. Create the install-local release values file outside Git:
 
 ```bash
 sudo mkdir -p /etc/pulse-appliance
-sudo install -m 0600 deploy/env/pi/release.example.yaml \
+sudo install -m 0600 pulse-pi-release.yaml \
   /etc/pulse-appliance/release.yaml
-sudo nano /etc/pulse-appliance/release.yaml
 ```
 
 The installer refuses to apply a chart that still renders `pi-placeholder`.
 
-2. Apply or upgrade the platform first, then create the runtime and GCS
+3. If GHCR packages are private, create the same pull secret in both appliance
+   namespaces before applying workloads. Use a token that can read GHCR
+   packages, and keep it out of Git:
+
+```bash
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+for namespace in pulse-platform pulse-services; do
+  kubectl --kubeconfig "$KUBECONFIG" create namespace "$namespace" \
+    --dry-run=client -o yaml | kubectl --kubeconfig "$KUBECONFIG" apply -f -
+  kubectl --kubeconfig "$KUBECONFIG" -n "$namespace" \
+    create secret docker-registry ghcr-pull-secret \
+    --docker-server=ghcr.io \
+    --docker-username=<github-user-or-org> \
+    --docker-password=<ghcr-read-packages-token> \
+    --dry-run=client -o yaml | kubectl --kubeconfig "$KUBECONFIG" apply -f -
+done
+```
+
+4. Apply or upgrade the platform first, then create the runtime and GCS
    credentials secrets. The credentials file must stay local to the appliance:
 
 ```bash
@@ -69,7 +107,7 @@ If `/etc/pulse-appliance/release.yaml` customizes
 matching `--gcs-secret-key`, `--gcs-file-name`, and `--gcs-mount-path` flags in
 `APPLIANCE_PI_RUNTIME_SECRET_ARGS`.
 
-3. Apply the services release and run status:
+5. Apply the services release and run status:
 
 ```bash
 APPLIANCE_PI_INSTALL_ARGS="--release-values /etc/pulse-appliance/release.yaml --skip-host-prepare --skip-k3s-install" \
@@ -77,7 +115,7 @@ APPLIANCE_PI_INSTALL_ARGS="--release-values /etc/pulse-appliance/release.yaml --
 make appliance-pi-status
 ```
 
-4. Confirm the Pi sees the expected Kubernetes limits and node allocatable:
+6. Confirm the Pi sees the expected Kubernetes limits and node allocatable:
 
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
@@ -87,7 +125,7 @@ kubectl --kubeconfig "$KUBECONFIG" -n pulse-services get deploy
 kubectl --kubeconfig "$KUBECONFIG" -n pulse-platform get statefulset
 ```
 
-5. Confirm metrics are available:
+7. Confirm metrics are available:
 
 ```bash
 kubectl --kubeconfig "$KUBECONFIG" top node

@@ -6,29 +6,14 @@ helm_bin="${HELM:-helm}"
 tmp_values="$(mktemp "${TMPDIR:-/tmp}/pulse-pi-release-values.XXXXXX.yaml")"
 trap 'rm -f "$tmp_values"' EXIT
 
-cat >"$tmp_values" <<'YAML'
-runtime:
-  publicApp:
-    image:
-      repository: registry.example.test/pulse-platform
-      tag: ""
-      digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
-  realtimeGateway:
-    image:
-      repository: registry.example.test/pulse-realtime-gateway
-      tag: ""
-      digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
-  image:
-    repository: registry.example.test/services
-    tag: ""
-    digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
-  gcsCredentials:
-    enabled: true
-    secretName: pulse-services-gcs-credentials
-    secretKey: key.json
-    fileName: key.json
-    mountPath: /var/run/pulse-gcs
-YAML
+PULSE_PI_IMAGE_REGISTRY=registry.example.test \
+PULSE_PI_IMAGE_NAMESPACE=pulse \
+PULSE_PI_IMAGE_PULL_SECRET=ghcr-pull-secret \
+PULSE_PI_PUBLIC_APP_IMAGE_DIGEST=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+PULSE_PI_REALTIME_GATEWAY_IMAGE_DIGEST=sha256:2222222222222222222222222222222222222222222222222222222222222222 \
+PULSE_PI_SERVICES_IMAGE_DIGEST=sha256:3333333333333333333333333333333333333333333333333333333333333333 \
+  bash "$repo_root/deploy/appliance/pi5/pulse-appliance-render-release-values.sh" \
+    --output "$tmp_values"
 
 platform_render="$("$helm_bin" template pulse-platform "$repo_root/deploy/charts/pulse-platform" \
   -f "$repo_root/deploy/env/pi/values.platform.yaml" \
@@ -52,9 +37,11 @@ require_rendered() {
   fi
 }
 
-require_rendered "$platform_render" 'image: "registry.example.test/pulse-platform@sha256:1111111111111111111111111111111111111111111111111111111111111111"'
-require_rendered "$platform_render" 'image: "registry.example.test/pulse-realtime-gateway@sha256:2222222222222222222222222222222222222222222222222222222222222222"'
-require_rendered "$services_render" 'image: "registry.example.test/services@sha256:3333333333333333333333333333333333333333333333333333333333333333"'
+require_rendered "$platform_render" 'image: "registry.example.test/pulse/pulse-platform@sha256:1111111111111111111111111111111111111111111111111111111111111111"'
+require_rendered "$platform_render" 'image: "registry.example.test/pulse/pulse-realtime-gateway@sha256:2222222222222222222222222222222222222222222222222222222222222222"'
+require_rendered "$platform_render" 'name: ghcr-pull-secret'
+require_rendered "$services_render" 'image: "registry.example.test/pulse/services@sha256:3333333333333333333333333333333333333333333333333333333333333333"'
+require_rendered "$services_render" 'name: ghcr-pull-secret'
 require_rendered "$services_render" 'secretName: "pulse-services-gcs-credentials"'
 require_rendered "$services_render" 'mountPath: "/var/run/pulse-gcs"'
 
