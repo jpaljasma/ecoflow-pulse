@@ -146,6 +146,9 @@ runtime:
     ingest:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       nodeSelector: {}
       tolerations: []
       affinity: {}
@@ -181,6 +184,9 @@ runtime:
     inference:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       nodeSelector: {}
       tolerations: []
       affinity: {}
@@ -216,6 +222,9 @@ runtime:
     projection:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       nodeSelector: {}
       tolerations: []
       affinity: {}
@@ -251,6 +260,9 @@ runtime:
     rollup:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       nodeSelector: {}
       tolerations: []
       affinity: {}
@@ -286,6 +298,9 @@ runtime:
     archive:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       uploadOutbox:
         persistence:
           enabled: false
@@ -329,6 +344,9 @@ runtime:
     grpcApi:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       nodeSelector: {}
       tolerations: []
       affinity: {}
@@ -372,6 +390,9 @@ runtime:
     solarVerification:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       nodeSelector: {}
       tolerations: []
       affinity: {}
@@ -404,6 +425,9 @@ runtime:
     scheduler:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       solarRefreshInterval: "24h"
       solarRefreshActiveWindow: "720h"
       solarRefreshBatchLimit: "64"
@@ -442,6 +466,9 @@ runtime:
     energyApi:
       enabled: false
       replicaCount: 1
+      goRuntime:
+        maxProcs: ""
+        memLimit: ""
       nodeSelector: {}
       tolerations: []
       affinity: {}

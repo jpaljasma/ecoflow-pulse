@@ -539,6 +539,7 @@ appliance-pi-test:
 appliance-pi-helm-lint: helm-local-ready
 	$(HELM) lint $(PLATFORM_CHART) -f $(PI_PLATFORM_VALUES)
 	$(HELM) lint $(SERVICES_CHART) -f $(PI_SERVICES_VALUES)
+	HELM="$(HELM)" bash deploy/appliance/pi5/test-go-runtime-render.sh
 
 appliance-pi-validate: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint
 

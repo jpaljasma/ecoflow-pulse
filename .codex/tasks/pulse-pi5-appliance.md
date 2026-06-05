@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-backup-cutover-runbook`
-Base commit: `eb49efc6`
+Branch: `codex/pi5-workload-consolidation`
+Base commit: `5da6afac`
 
 ## Assumptions
 
@@ -22,11 +22,11 @@ Base commit: `eb49efc6`
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
 | DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
 | PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC merged; durable outbox tests passed |
-| PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | Phase 3 backup/cutover runbook in progress |
+| PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | Phase 3 backup/cutover runbook merged |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
-| TODO | `qa` | Capacity burn-in, reboot/restart/GCS/BLE failure drills | implementation slices | pending |
-| TODO | `product-review` | Simplicity, local-only posture, appliance acceptance walkthrough | QA evidence | pending |
+| PROGRESS | `qa` | Capacity burn-in, reboot/restart/GCS/BLE failure drills | implementation slices | Pi runtime-cap render validation in progress |
+| PROGRESS | `product-review` | Simplicity, local-only posture, appliance acceptance walkthrough | QA evidence | Phase 4 keeps singleton layout until hardware evidence exists |
 
 ## Decisions
 
@@ -76,17 +76,21 @@ Base commit: `eb49efc6`
   `pulse-platform-core` CNPG database as the appliance backup source for Pulse
   app data and Keycloak state, keeps GCS online, and requires an empty archive
   upload outbox before hosted runtime shutdown or archive-backed rebuilds.
+- 2026-06-04: Phase 4 starts on `codex/pi5-workload-consolidation` from merged
+  main `5da6afac`; the first slice applies conservative per-workload Go runtime
+  caps to the current singleton services layout instead of merging processes
+  before hardware burn-in evidence.
 
 ## Blockers
 
-- None for the backup/cutover runbook.
+- None for the Pi runtime-cap slice.
 
 ## Next Actions
 
-1. Validate and open the backup/restore and planned cloud-shutdown cutover
-   runbook PR.
-2. Start conservative workload consolidation and capacity burn-in planning after
-   the runbook lands.
+1. Validate Pi services render/lint with the runtime caps.
+2. Run real Pi 24h capacity burn-in with target 10-device load after this lands.
+3. Decide which workloads can safely merge only after burn-in, restart, and GCS
+   outage evidence.
 
 ## Validation Evidence
 
@@ -151,3 +155,7 @@ Base commit: `eb49efc6`
 - 2026-06-04: Review follow-up added an empty archive upload outbox gate before
   same-Pi restore scales services down; validation passed with `make lint`,
   `git diff --check`, and the duplicate editor-backup file scan.
+- 2026-06-04: Phase 4 runtime-cap slice validation passed with
+  `make appliance-pi-validate`, `make lint`, `git diff --check`, the duplicate
+  editor-backup file scan, and Helm render inspection for Pi `GOMAXPROCS` /
+  `GOMEMLIMIT` values.

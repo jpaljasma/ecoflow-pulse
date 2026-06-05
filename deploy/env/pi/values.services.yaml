@@ -73,6 +73,9 @@ runtime:
     ingest:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "1"
+        memLimit: 384MiB
       pdb:
         enabled: false
       metrics:
@@ -87,6 +90,9 @@ runtime:
     inference:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "1"
+        memLimit: 160MiB
       pdb:
         enabled: false
       metrics:
@@ -101,6 +107,9 @@ runtime:
     projection:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "1"
+        memLimit: 256MiB
       pdb:
         enabled: false
       metrics:
@@ -115,6 +124,9 @@ runtime:
     rollup:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "1"
+        memLimit: 256MiB
       pdb:
         enabled: false
       metrics:
@@ -129,6 +141,9 @@ runtime:
     archive:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "1"
+        memLimit: 256MiB
       pdb:
         enabled: false
       uploadOutbox:
@@ -151,6 +166,9 @@ runtime:
     grpcApi:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "2"
+        memLimit: 512MiB
       pdb:
         enabled: false
       service:
@@ -173,6 +191,9 @@ runtime:
     energyApi:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "1"
+        memLimit: 384MiB
       pdb:
         enabled: false
       metrics:
@@ -189,6 +210,9 @@ runtime:
     scheduler:
       enabled: true
       replicaCount: 1
+      goRuntime:
+        maxProcs: "1"
+        memLimit: 160MiB
       pdb:
         enabled: false
       metrics:

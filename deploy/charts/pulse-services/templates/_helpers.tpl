@@ -36,6 +36,25 @@ lifecycle:
       scheme: HTTP
 {{- end -}}
 
+{{- define "pulse-services.goRuntimeEnvItems" -}}
+{{- $goRuntime := default dict .goRuntime -}}
+{{- with get $goRuntime "maxProcs" }}
+- name: GOMAXPROCS
+  value: {{ . | quote }}
+{{- end }}
+{{- with get $goRuntime "memLimit" }}
+- name: GOMEMLIMIT
+  value: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{- define "pulse-services.goRuntimeEnv" -}}
+{{- with (include "pulse-services.goRuntimeEnvItems" . | trim) }}
+env:
+{{ . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "pulse-services.runtimeSecretName" -}}
 {{- if .Values.runtime.secret.existingSecretName -}}
 {{- .Values.runtime.secret.existingSecretName | trunc 63 | trimSuffix "-" -}}

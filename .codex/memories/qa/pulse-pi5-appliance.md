@@ -2,7 +2,7 @@
 
 ## Current focus
 
-- Validate the Phase 3 backup/restore and planned cutover runbook slice.
+- Validate the Phase 4 Pi runtime-cap and capacity burn-in slice.
 
 ## Files to inspect first
 
@@ -20,7 +20,10 @@
 - `deploy/appliance/pi5/test-install-dry-run.sh`
 - `deploy/env/pi/values.platform.yaml`
 - `deploy/env/pi/values.services.yaml`
+- `deploy/appliance/pi5/test-go-runtime-render.sh`
+- `deploy/charts/pulse-services/templates/workers.yaml`
 - `docs/how-to/run-pi5-appliance-backup-cutover.md`
+- `docs/how-to/run-pi5-appliance-capacity-burn-in.md`
 - `docs/reference/commands.md`
 
 ## Decisions made
@@ -56,6 +59,9 @@
   when a manifest-backed entry has no manifest store.
 - The cutover runbook must fail closed when the archive upload outbox has
   pending entries and must keep GCS object storage outside hosted shutdown.
+- Runtime-cap changes need Helm render validation in addition to lint because
+  a syntactically valid chart can still omit the Pi `GOMAXPROCS` /
+  `GOMEMLIMIT` entries.
 
 ## Next step
 
@@ -70,6 +76,6 @@
   Go tests for the archive outbox counter, status helper, and rollup rebuild
   guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
   `make lint`; and `git diff --check`.
-- Current QA focus is docs validation for the planned backup/restore cutover
-  runbook. Real restore and cloud-shutdown drills still require appliance
-  hardware plus install-specific secrets.
+- Current QA focus is `make appliance-pi-validate`, Pi services Helm render
+  inspection, `make lint`, and `git diff --check`. Real 24h burn-in still
+  requires the target Pi hardware and live devices.
