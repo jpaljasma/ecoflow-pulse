@@ -10,6 +10,7 @@ scaffold:
   message: "pulse-services scaffold chart"
 
 runtime:
+  imagePullSecrets: []
   image:
     repository: ecoflow-pulse/services
     tag: local

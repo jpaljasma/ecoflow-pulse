@@ -1369,7 +1369,14 @@ Notes:
 - `make appliance-pi-validate` includes Pi host/script tests, Pi Helm lint, a
   services chart render check that verifies the Pi `GOMAXPROCS` /
   `GOMEMLIMIT` caps for each enabled Go workload, and a release-values render
-  check for digest image references plus the GCS credentials mount.
+  check for digest image references, optional GHCR pull secrets, and the GCS
+  credentials mount.
+- `deploy/appliance/pi5/pulse-appliance-render-release-values.sh --output <file>`
+  renders an install-local Pi release values file from published
+  `linux/arm64` image digests. The manual `Pi Appliance Images` GitHub Actions
+  workflow calls this script after pushing the services, public app, and
+  realtime gateway images to GHCR, then uploads `pulse-pi-release-values` for
+  use with `--release-values /etc/pulse-appliance/release.yaml`.
 - `make appliance-pi-create-runtime-secret` creates or updates the
   install-local `pulse-services-runtime-secret` and
   `pulse-services-gcs-credentials` secrets after the platform database secret

@@ -332,6 +332,15 @@ appliance workloads. Services fail closed when
 `pulse-services/pulse-services-runtime-secret` is absent so GCS credentials and
 provider material stay install-specific.
 
+Published appliance container images are produced by the manual
+`Pi Appliance Images` GitHub Actions workflow. It pushes `linux/arm64`
+services, public app, and realtime gateway images to GHCR and uploads a
+`pulse-pi-release-values` artifact containing immutable image digests for
+`--release-values /etc/pulse-appliance/release.yaml`. If GHCR packages are
+private, run the workflow with an `image_pull_secret` input and create the same
+docker-registry secret in both the `pulse-platform` and `pulse-services`
+namespaces before applying the release.
+
 Create those local secrets after the platform database is ready:
 
 ```bash

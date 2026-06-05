@@ -35,6 +35,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 
+{{- define "pulse-platform.imagePullSecrets" -}}
+{{- with .Values.runtime.imagePullSecrets }}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "pulse-platform.secretManagerServiceAccountName" -}}
 {{- if .Values.secretManager.serviceAccount.create -}}
 {{- default (printf "%s-gcp-secrets" (include "pulse-platform.fullname" .)) .Values.secretManager.serviceAccount.name | trunc 63 | trimSuffix "-" -}}

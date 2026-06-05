@@ -31,6 +31,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.ingest) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
@@ -172,6 +173,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.inference) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
@@ -313,6 +315,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.rollup) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
@@ -454,6 +457,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.projection) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
@@ -595,6 +599,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.archive) | nindent 6 }}
       {{- if or .Values.runtime.workers.archive.uploadOutbox.persistence.enabled .Values.runtime.gcsCredentials.enabled }}
       volumes:
@@ -772,6 +777,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.grpcApi) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
@@ -928,6 +934,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.solarVerification) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
@@ -1031,6 +1038,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.scheduler) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
@@ -1177,6 +1185,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.energyApi) | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:

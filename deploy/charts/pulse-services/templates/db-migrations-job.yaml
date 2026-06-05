@@ -25,6 +25,7 @@ spec:
         app.kubernetes.io/component: db-migrate
     spec:
       restartPolicy: Never
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- with .Values.runtime.migrations.serviceAccountName }}
       serviceAccountName: {{ . | quote }}
       {{- end }}

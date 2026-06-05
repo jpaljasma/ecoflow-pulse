@@ -3,6 +3,9 @@
 # the filled-in file.
 
 runtime:
+  # Leave empty for public GHCR packages. If packages are private, create the
+  # same docker-registry secret name in both pulse-platform and pulse-services.
+  imagePullSecrets: []
   publicApp:
     image:
       repository: ghcr.io/<owner-or-org>/pulse-platform

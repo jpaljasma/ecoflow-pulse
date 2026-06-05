@@ -44,8 +44,11 @@
 - Image publishing and secret setup are now the main pre-burn-in product risks:
   the target path should be one local values file, one secret helper command,
   one upgrade command, then status.
+- Manual image publishing keeps appliance setup explicit: one GitHub workflow
+  artifact supplies digest-pinned images, while private registry tokens stay in
+  local Kubernetes secrets.
 
 ## Next step
 
-- Review the release-inputs slice for fail-fast setup, clear local-only secret
-  handling, and a direct path back to burn-in.
+- Review the image-publishing slice for a direct path back to burn-in without
+  making appliance setup feel like a cloud deploy.

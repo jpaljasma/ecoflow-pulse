@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Validate the Pi release-inputs slice that unblocks a real appliance deploy
-  before capacity burn-in.
+- Validate the Pi image-publishing slice that produces the digest release
+  artifact needed before capacity burn-in.
 
 ## Files to inspect first
 
@@ -72,6 +72,9 @@
 - Release-input validation must prove digest image refs render without
   `pi-placeholder`, the services chart renders the GCS credentials mount, and
   the helper scripts pass ShellCheck.
+- Image-publishing validation must prove the GitHub workflow is actionlint
+  clean and the renderer can produce chart-consumable release values with
+  optional pull secrets.
 
 ## Next step
 
@@ -86,7 +89,7 @@
   Go tests for the archive outbox counter, status helper, and rollup rebuild
   guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
   `make lint`; and `git diff --check`.
-- Current QA focus is `make appliance-pi-validate`, `make lint`,
-  `git diff --check`, Pi-side validation, and a live installer preflight that
-  refuses placeholder images. Real 24h burn-in still requires real arm64 images,
-  local secrets, target Pi hardware, and live devices.
+- Current QA focus is complete for this slice: `make appliance-pi-validate` and
+  `make lint` passed. Real 24h burn-in still requires the workflow-published
+  arm64 images, the release artifact, local secrets, target Pi hardware, and
+  live devices.

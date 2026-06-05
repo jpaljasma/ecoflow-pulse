@@ -4,7 +4,7 @@
 
 - Keep the appliance implementation moving in small Ralph-loop PRs after the
   Phase 1 foundation merged.
-- Current branch: `codex/pi5-appliance-release-inputs`.
+- Current branch: `codex/pi5-appliance-images`.
 - Maintain one canonical task board at `.codex/tasks/pulse-pi5-appliance.md`.
 
 ## Files to inspect first
@@ -33,6 +33,8 @@
 - 2026-06-05: The release-inputs slice adds install-local release values,
   image placeholder preflight, digest rendering, runtime/GCS secret creation,
   and docs before attempting the 24h burn-in again.
+- 2026-06-05: The image-publishing slice adds a manual GHCR workflow and
+  digest-pinned release artifact before attempting the 24h burn-in.
 
 ## Open risks
 
@@ -42,5 +44,5 @@
 
 ## Next step
 
-- Validate and open the Pi release-inputs PR, then return to live Pi install
-  and burn-in once real arm64 image digests and local secrets are available.
+- Validate and open the Pi image-publishing PR, then return to live Pi install
+  and burn-in once the artifact and local secrets are ready.

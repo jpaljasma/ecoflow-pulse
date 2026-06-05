@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-release-inputs`
-Base commit: `7a6abed1`
+Branch: `codex/pi5-appliance-images`
+Base commit: `05eb7b00`
 
 ## Assumptions
 
@@ -20,12 +20,12 @@ Base commit: `7a6abed1`
 | Status | Owner | Workstream | Dependency | Latest validation |
 |---|---|---|---|---|
 | DONE | `project-manager` | Plan-only PR, architecture tracker, Ralph-loop scaffold | user-approved plan | `make lint` |
-| DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration | plan PR merged | `make appliance-pi-validate` |
+| DONE | `platform-deploy` | Host install scripts, K3s config, `deploy/env/pi/`, appliance status, installer orchestration, image release artifact | plan PR merged | `make appliance-pi-validate` |
 | PROGRESS | `edge-ble` | Direct gRPC transport, BLE outbox, systemd defaults, enrollment path | Phase 1 loopback API and installer | direct gRPC merged; durable outbox tests passed |
 | PROGRESS | `backend-go` | Archive upload outbox, merged runtime, ingest restart safety | Phase 1 overlays | Phase 3 backup/cutover runbook merged |
 | TODO | `bff-node` | Appliance setup/auth/API adaptations if needed | backend/setup scope | pending |
 | TODO | `frontend-universal` | First-user/setup UX and local-auth product states if needed | BFF/setup scope | pending |
-| PROGRESS | `qa` | Capacity burn-in, reboot/restart/GCS/BLE failure drills | implementation slices | Pi runtime-cap render validation in progress |
+| PROGRESS | `qa` | Capacity burn-in, reboot/restart/GCS/BLE failure drills | implementation slices | Pi image artifact render and lint passed |
 | PROGRESS | `product-review` | Simplicity, local-only posture, appliance acceptance walkthrough | QA evidence | Phase 4 keeps singleton layout until hardware evidence exists |
 
 ## Decisions
@@ -90,21 +90,29 @@ Base commit: `7a6abed1`
 - 2026-06-05: Pi services use a local Kubernetes secret for
   `GOOGLE_APPLICATION_CREDENTIALS` plus a mounted service-account JSON secret;
   the helper script creates both after the platform CNPG app secret exists.
+- 2026-06-05: Pi appliance image publishing starts on
+  `codex/pi5-appliance-images` from merged main `05eb7b00`.
+- 2026-06-05: The manual `Pi Appliance Images` workflow builds the three
+  appliance runtime images for `linux/arm64`, pushes them to GHCR, and uploads
+  a digest-pinned release values artifact.
+- 2026-06-05: Private GHCR packages are supported by rendering a shared
+  `runtime.imagePullSecrets` entry into both platform and services charts; the
+  operator still creates the actual pull secret locally in both namespaces.
 
 ## Blockers
 
-- Real 24h burn-in cannot start until install-specific `linux/arm64` images are
-  published or otherwise available to K3s and the local runtime/GCS secrets are
-  created on the Pi.
+- Real 24h burn-in cannot start until the Pi image workflow publishes
+  `linux/arm64` images, the release artifact is installed on the Pi, and local
+  runtime/GCS/pull secrets are created as needed.
 
 ## Next Actions
 
-1. Validate release-values rendering and installer preflight locally and on the
-   Pi.
-2. Provide install-specific Pi image digests and create runtime/GCS secrets on
-   the Pi.
-3. Run real Pi 24h capacity burn-in with target 10-device load after this lands.
-4. Decide which workloads can safely merge only after burn-in, restart, and GCS
+1. Open the Pi image publishing PR.
+2. After merge, run the manual Pi image workflow and install the
+   `pulse-pi-release-values` artifact on the Pi.
+3. Create runtime/GCS/pull secrets on the Pi as needed.
+4. Run real Pi 24h capacity burn-in with target 10-device load.
+5. Decide which workloads can safely merge only after burn-in, restart, and GCS
    outage evidence.
 
 ## Validation Evidence
@@ -174,3 +182,7 @@ Base commit: `7a6abed1`
   `make appliance-pi-validate`, `make lint`, `git diff --check`, the duplicate
   editor-backup file scan, and Helm render inspection for Pi `GOMAXPROCS` /
   `GOMEMLIMIT` values.
+- 2026-06-05: Pi image publishing slice validation passed with
+  `make appliance-pi-validate` and `make lint`; the release render test now
+  exercises the workflow-compatible renderer, digest image refs, optional GHCR
+  pull secrets, and the GCS credentials mount.

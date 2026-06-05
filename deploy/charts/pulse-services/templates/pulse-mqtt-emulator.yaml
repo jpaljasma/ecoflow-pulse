@@ -31,6 +31,7 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.imagePullSecrets" . | nindent 6 }}
       {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: pulse-mqtt-emulator
