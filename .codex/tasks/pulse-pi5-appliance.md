@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-workload-consolidation`
-Base commit: `5da6afac`
+Branch: `codex/pi5-appliance-release-inputs`
+Base commit: `7a6abed1`
 
 ## Assumptions
 
@@ -80,16 +80,31 @@ Base commit: `5da6afac`
   main `5da6afac`; the first slice applies conservative per-workload Go runtime
   caps to the current singleton services layout instead of merging processes
   before hardware burn-in evidence.
+- 2026-06-05: Live Pi burn-in preparation found the merged scaffold still used
+  `pi-placeholder` images and lacked a services GCS credentials mount, so the
+  next slice starts on `codex/pi5-appliance-release-inputs` from merged main
+  `7a6abed1`.
+- 2026-06-05: The appliance installer must fail before Helm apply when rendered
+  images still use `pi-placeholder`; install-specific image digests belong in a
+  local release values file outside Git.
+- 2026-06-05: Pi services use a local Kubernetes secret for
+  `GOOGLE_APPLICATION_CREDENTIALS` plus a mounted service-account JSON secret;
+  the helper script creates both after the platform CNPG app secret exists.
 
 ## Blockers
 
-- None for the Pi runtime-cap slice.
+- Real 24h burn-in cannot start until install-specific `linux/arm64` images are
+  published or otherwise available to K3s and the local runtime/GCS secrets are
+  created on the Pi.
 
 ## Next Actions
 
-1. Validate Pi services render/lint with the runtime caps.
-2. Run real Pi 24h capacity burn-in with target 10-device load after this lands.
-3. Decide which workloads can safely merge only after burn-in, restart, and GCS
+1. Validate release-values rendering and installer preflight locally and on the
+   Pi.
+2. Provide install-specific Pi image digests and create runtime/GCS secrets on
+   the Pi.
+3. Run real Pi 24h capacity burn-in with target 10-device load after this lands.
+4. Decide which workloads can safely merge only after burn-in, restart, and GCS
    outage evidence.
 
 ## Validation Evidence

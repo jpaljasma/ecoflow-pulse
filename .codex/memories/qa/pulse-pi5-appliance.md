@@ -2,7 +2,8 @@
 
 ## Current focus
 
-- Validate the Phase 4 Pi runtime-cap and capacity burn-in slice.
+- Validate the Pi release-inputs slice that unblocks a real appliance deploy
+  before capacity burn-in.
 
 ## Files to inspect first
 
@@ -21,6 +22,9 @@
 - `deploy/env/pi/values.platform.yaml`
 - `deploy/env/pi/values.services.yaml`
 - `deploy/appliance/pi5/test-go-runtime-render.sh`
+- `deploy/appliance/pi5/test-release-values-render.sh`
+- `deploy/appliance/pi5/pulse-appliance-create-runtime-secret.sh`
+- `deploy/env/pi/release.example.yaml`
 - `deploy/charts/pulse-services/templates/workers.yaml`
 - `docs/how-to/run-pi5-appliance-backup-cutover.md`
 - `docs/how-to/run-pi5-appliance-capacity-burn-in.md`
@@ -62,6 +66,12 @@
 - Runtime-cap changes need Helm render validation in addition to lint because
   a syntactically valid chart can still omit the Pi `GOMAXPROCS` /
   `GOMEMLIMIT` entries.
+- Live Pi prep found a deploy-blocking scaffold gap: default Pi values still
+  render placeholder images, and GCS archive auth needs a mountable local
+  credential secret.
+- Release-input validation must prove digest image refs render without
+  `pi-placeholder`, the services chart renders the GCS credentials mount, and
+  the helper scripts pass ShellCheck.
 
 ## Next step
 
@@ -76,6 +86,7 @@
   Go tests for the archive outbox counter, status helper, and rollup rebuild
   guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
   `make lint`; and `git diff --check`.
-- Current QA focus is `make appliance-pi-validate`, Pi services Helm render
-  inspection, `make lint`, and `git diff --check`. Real 24h burn-in still
-  requires the target Pi hardware and live devices.
+- Current QA focus is `make appliance-pi-validate`, `make lint`,
+  `git diff --check`, Pi-side validation, and a live installer preflight that
+  refuses placeholder images. Real 24h burn-in still requires real arm64 images,
+  local secrets, target Pi hardware, and live devices.

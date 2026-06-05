@@ -43,7 +43,7 @@ spec:
       {{- end }}
       containers:
         - name: realtime-gateway
-          image: "{{ .Values.runtime.realtimeGateway.image.repository }}:{{ .Values.runtime.realtimeGateway.image.tag }}"
+          image: {{ include "pulse-platform.imageRef" .Values.runtime.realtimeGateway.image | quote }}
           imagePullPolicy: {{ .Values.runtime.realtimeGateway.image.pullPolicy }}
           ports:
             - name: http

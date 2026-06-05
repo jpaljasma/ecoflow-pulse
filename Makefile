@@ -522,7 +522,7 @@ chart-deps-local: helm-local-ready
 		fi; \
 		echo "chart dependencies already vendored for $$chart; skipping helm dependency build"
 
-.PHONY: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate appliance-pi-install appliance-pi-upgrade appliance-pi-wait appliance-pi-status
+.PHONY: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate appliance-pi-install appliance-pi-upgrade appliance-pi-wait appliance-pi-status appliance-pi-create-runtime-secret
 
 appliance-pi-shellcheck:
 	@if ! command -v shellcheck >/dev/null 2>&1; then \
@@ -534,12 +534,14 @@ appliance-pi-shellcheck:
 appliance-pi-test:
 	bash deploy/appliance/pi5/test-host-prepare.sh
 	bash deploy/appliance/pi5/test-install-dry-run.sh
+	bash deploy/appliance/pi5/test-create-runtime-secret.sh
 	bash deploy/appliance/pi5/test-status-outbox.sh
 
 appliance-pi-helm-lint: helm-local-ready
 	$(HELM) lint $(PLATFORM_CHART) -f $(PI_PLATFORM_VALUES)
 	$(HELM) lint $(SERVICES_CHART) -f $(PI_SERVICES_VALUES)
 	HELM="$(HELM)" bash deploy/appliance/pi5/test-go-runtime-render.sh
+	HELM="$(HELM)" bash deploy/appliance/pi5/test-release-values-render.sh
 
 appliance-pi-validate: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint
 
@@ -554,6 +556,9 @@ appliance-pi-wait:
 
 appliance-pi-status:
 	bash deploy/appliance/pi5/pulse-appliance-install.sh status $(APPLIANCE_PI_INSTALL_ARGS)
+
+appliance-pi-create-runtime-secret:
+	bash deploy/appliance/pi5/pulse-appliance-create-runtime-secret.sh $(APPLIANCE_PI_RUNTIME_SECRET_ARGS)
 
 services-image-build-local: docker-local-ready
 	@echo "building services image $(SERVICES_IMAGE) for $(LOCAL_IMAGE_PLATFORM) from $(SERVICES_IMAGE_DOCKERFILE)"

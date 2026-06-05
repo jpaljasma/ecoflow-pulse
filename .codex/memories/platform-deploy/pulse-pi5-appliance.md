@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Complete the Phase 1 host/K3s/appliance deploy foundation on
-  `codex/pi5-appliance-phase2`.
+- Complete the release-input plumbing needed before the first live Pi services
+  deploy on `codex/pi5-appliance-release-inputs`.
 
 ## Files to inspect first
 
@@ -37,13 +37,23 @@
 - 2026-06-04: The installer fails before services rollout if
   `pulse-services/pulse-services-runtime-secret` is missing, keeping GCS and
   provider credentials install-specific.
+- 2026-06-05: The installer should also fail before Helm apply when rendered
+  platform or services images still use `pi-placeholder`.
+- 2026-06-05: Install-specific image repositories/digests belong in a local
+  release values file supplied with `--release-values`, not in committed Pi
+  defaults.
+- 2026-06-05: Pi GCS archive auth uses a local `pulse-services-gcs-credentials`
+  secret mounted at `/var/run/pulse-gcs`, with
+  `GOOGLE_APPLICATION_CREDENTIALS` supplied by `pulse-services-runtime-secret`.
 
 ## Open risks
 
 - Singleton chart overlays are linted, but real Pi scheduling and memory use
-  still need hardware validation.
-- Real K3s install behavior still needs hardware validation.
+  still need hardware validation after release inputs exist.
+- Real K3s install behavior is partially validated on the target Pi; full Pulse
+  release rollout still needs real images and local secrets.
 
 ## Next step
 
-- Hand off to `edge-ble` for direct gRPC and durable retry work.
+- Validate release-values rendering, installer preflight, and the runtime secret
+  helper locally and on the target Pi.

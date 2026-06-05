@@ -71,6 +71,7 @@ runtime:
     image:
       repository: ecoflow-pulse/pulse-platform
       tag: local
+      digest: ""
       pullPolicy: IfNotPresent
     service:
       type: LoadBalancer
@@ -151,6 +152,7 @@ runtime:
     image:
       repository: ecoflow-pulse/pulse-realtime-gateway
       tag: local
+      digest: ""
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP

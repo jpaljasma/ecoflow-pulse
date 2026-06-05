@@ -4,7 +4,7 @@
 
 - Keep the appliance implementation moving in small Ralph-loop PRs after the
   Phase 1 foundation merged.
-- Current branch: `codex/pi5-workload-consolidation`.
+- Current branch: `codex/pi5-appliance-release-inputs`.
 - Maintain one canonical task board at `.codex/tasks/pulse-pi5-appliance.md`.
 
 ## Files to inspect first
@@ -27,6 +27,12 @@
 - 2026-06-04: Phase 4 starts with conservative runtime caps and a hardware
   burn-in runbook; do not merge processes until the target Pi produces capacity
   evidence.
+- 2026-06-05: Live Pi preparation showed K3s is healthy but the appliance stack
+  cannot honestly burn in while Pi values still render `pi-placeholder` images
+  and services have no mounted GCS credential path.
+- 2026-06-05: The release-inputs slice adds install-local release values,
+  image placeholder preflight, digest rendering, runtime/GCS secret creation,
+  and docs before attempting the 24h burn-in again.
 
 ## Open risks
 
@@ -36,4 +42,5 @@
 
 ## Next step
 
-- Validate and open the Phase 4 runtime-cap and capacity burn-in PR.
+- Validate and open the Pi release-inputs PR, then return to live Pi install
+  and burn-in once real arm64 image digests and local secrets are available.

@@ -1366,9 +1366,17 @@ Notes:
   - authenticates with `kcadm` against running Keycloak pod,
   - verifies realm `$(KEYCLOAK_REALM_NAME)` exists (default `pulse`),
   - verifies social providers `google` and `facebook` are present in that realm.
-- `make appliance-pi-validate` includes Pi host/script tests, Pi Helm lint, and
-  a services chart render check that verifies the Pi `GOMAXPROCS` /
-  `GOMEMLIMIT` caps for each enabled Go workload.
+- `make appliance-pi-validate` includes Pi host/script tests, Pi Helm lint, a
+  services chart render check that verifies the Pi `GOMAXPROCS` /
+  `GOMEMLIMIT` caps for each enabled Go workload, and a release-values render
+  check for digest image references plus the GCS credentials mount.
+- `make appliance-pi-create-runtime-secret` creates or updates the
+  install-local `pulse-services-runtime-secret` and
+  `pulse-services-gcs-credentials` secrets after the platform database secret
+  exists. Pass script flags through `APPLIANCE_PI_RUNTIME_SECRET_ARGS`; when
+  the release values customize `runtime.gcsCredentials.fileName`, pass the same
+  value with `--gcs-file-name` so `GOOGLE_APPLICATION_CREDENTIALS` points at the
+  mounted file path.
 - `go run ./cmd/pulse-mqtt-history-backfill` safely repairs a bounded
   `pulsemqtt` history window through the standard emulator/ingest/archive path:
   - defaults `-from` to local midnight and `-to` to the next local minute

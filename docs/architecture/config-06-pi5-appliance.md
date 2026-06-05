@@ -316,15 +316,36 @@ make appliance-pi-status
 ```
 
 Pass install-specific flags with `APPLIANCE_PI_INSTALL_ARGS`, for example
-`APPLIANCE_PI_INSTALL_ARGS="--skip-k3s-install"`. The installer defaults
-`kubectl`, Helm, and status checks to `/etc/rancher/k3s/k3s.yaml`; override
-with `--kubeconfig` or `PULSE_APPLIANCE_KUBECONFIG` only when using a different
-client config. The installer runs host preparation, installs or upgrades K3s,
-builds Helm chart dependencies, applies the platform chart with a Keycloak
-bootstrap pass, checks the install-specific services runtime secret, applies
-the services chart, and waits for the appliance workloads. Services fail closed
-when `pulse-services/pulse-services-runtime-secret` is absent so GCS
-credentials and provider material stay install-specific.
+`APPLIANCE_PI_INSTALL_ARGS="--skip-k3s-install"`. Use
+`--release-values /etc/pulse-appliance/release.yaml` or
+`PULSE_APPLIANCE_RELEASE_VALUES` for install-local image digests and any other
+release inputs that must not be committed. The installer defaults `kubectl`,
+Helm, and status checks to `/etc/rancher/k3s/k3s.yaml`; override with
+`--kubeconfig` or `PULSE_APPLIANCE_KUBECONFIG` only when using a different
+client config.
+
+The installer runs host preparation, installs or upgrades K3s, builds Helm
+chart dependencies, rejects rendered `pi-placeholder` images, applies the
+platform chart with a Keycloak bootstrap pass, checks the install-specific
+services runtime secret, applies the services chart, and waits for the
+appliance workloads. Services fail closed when
+`pulse-services/pulse-services-runtime-secret` is absent so GCS credentials and
+provider material stay install-specific.
+
+Create those local secrets after the platform database is ready:
+
+```bash
+APPLIANCE_PI_RUNTIME_SECRET_ARGS="--gcs-credentials /path/to/gcs-service-account.json --gcs-project-id <gcs-project-id> --archive-writer-id pulse-pi5" \
+  make appliance-pi-create-runtime-secret
+```
+
+When `runtime.gcsCredentials.enabled=true` in the install-local release values,
+the services chart mounts `pulse-services-gcs-credentials` at
+`/var/run/pulse-gcs` and the runtime secret points
+`GOOGLE_APPLICATION_CREDENTIALS` at the mounted JSON file. If the local release
+values change `runtime.gcsCredentials.secretKey`, `fileName`, or `mountPath`,
+pass the matching `--gcs-secret-key`, `--gcs-file-name`, and
+`--gcs-mount-path` flags to `make appliance-pi-create-runtime-secret`.
 
 Validation command:
 

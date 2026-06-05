@@ -32,9 +32,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.ingest) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-ingest
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-ingest-worker"]
           {{- if .Values.runtime.workers.ingest.metrics.enabled }}
@@ -52,6 +53,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.ingest.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.ingest.metrics.enabled }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.ingest.startupProbe.enabled }}
@@ -169,9 +173,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.inference) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-inference
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-inference-worker"]
           {{- if .Values.runtime.workers.inference.metrics.enabled }}
@@ -189,6 +194,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.inference.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.inference.metrics.enabled }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.inference.startupProbe.enabled }}
@@ -306,9 +314,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.rollup) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-rollup
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-rollup-worker"]
           {{- if .Values.runtime.workers.rollup.metrics.enabled }}
@@ -326,6 +335,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.rollup.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.rollup.metrics.enabled }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.rollup.startupProbe.enabled }}
@@ -443,9 +455,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.projection) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-projection
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-projection-worker"]
           {{- if .Values.runtime.workers.projection.metrics.enabled }}
@@ -463,6 +476,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.projection.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.projection.metrics.enabled }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.projection.startupProbe.enabled }}
@@ -580,15 +596,20 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.archive) | nindent 6 }}
-      {{- if .Values.runtime.workers.archive.uploadOutbox.persistence.enabled }}
+      {{- if or .Values.runtime.workers.archive.uploadOutbox.persistence.enabled .Values.runtime.gcsCredentials.enabled }}
       volumes:
+        {{- if .Values.runtime.workers.archive.uploadOutbox.persistence.enabled }}
         - name: archive-upload-outbox
           persistentVolumeClaim:
             claimName: {{ include "pulse-services.fullname" . }}-go-archive-outbox
+        {{- end }}
+        {{- with (include "pulse-services.gcsCredentialsVolumeItems" . | trim) }}
+        {{ . | nindent 8 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: go-archive
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-archive-worker"]
           {{- if .Values.runtime.workers.archive.metrics.enabled }}
@@ -604,10 +625,15 @@ spec:
                 name: {{ include "pulse-services.fullname" . }}-runtime-env
             - secretRef:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
-          {{- if .Values.runtime.workers.archive.uploadOutbox.persistence.enabled }}
+          {{- if or .Values.runtime.workers.archive.uploadOutbox.persistence.enabled .Values.runtime.gcsCredentials.enabled }}
           volumeMounts:
+            {{- if .Values.runtime.workers.archive.uploadOutbox.persistence.enabled }}
             - name: archive-upload-outbox
               mountPath: {{ .Values.runtime.workers.archive.uploadOutbox.persistence.mountPath | quote }}
+            {{- end }}
+            {{- with (include "pulse-services.gcsCredentialsVolumeMountItems" . | trim) }}
+            {{ . | nindent 12 }}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.runtime.workers.archive.resources | nindent 12 }}
@@ -747,9 +773,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.grpcApi) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-grpc-api
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-grpc-api"]
           ports:
@@ -782,6 +809,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.grpcApi.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.grpcApi.metrics.enabled }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- end }}
@@ -899,9 +929,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.solarVerification) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-solar-verification
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-solar-verifier"]
           ports:
@@ -924,6 +955,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.solarVerification.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.solarVerification.startupProbe.enabled }}
           startupProbe:
@@ -998,9 +1032,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.scheduler) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-scheduler
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-scheduler"]
           ports:
@@ -1025,6 +1060,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.scheduler.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- if .Values.runtime.workers.scheduler.startupProbe.enabled }}
           startupProbe:
@@ -1140,9 +1178,10 @@ spec:
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
       {{- include "pulse-services.podScheduling" (dict "default" .Values.runtime.workers.defaultPodScheduling "workload" .Values.runtime.workers.energyApi) | nindent 6 }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: go-energy-api
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-grpc-api"]
           ports:
@@ -1167,6 +1206,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.energyApi.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.energyApi.metrics.enabled }}
           {{- include "pulse-services.drainLifecycle" (dict "portName" "metrics") | nindent 10 }}
           {{- end }}

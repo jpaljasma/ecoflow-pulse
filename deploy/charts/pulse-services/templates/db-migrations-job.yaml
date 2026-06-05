@@ -30,7 +30,7 @@ spec:
       {{- end }}
       containers:
         - name: db-migrate
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/ecoflow-db-migrate-job"]
           env:

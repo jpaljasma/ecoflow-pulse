@@ -40,14 +40,44 @@ budget; they are a safe first clamp for the separate singleton process layout.
 
 ## Preconditions
 
-1. Upgrade the appliance release:
+1. Create an install-local release values file outside Git. Start from
+   `deploy/env/pi/release.example.yaml` and replace every image repository and
+   digest placeholder with published `linux/arm64` appliance images:
 
 ```bash
-make appliance-pi-upgrade
+sudo mkdir -p /etc/pulse-appliance
+sudo install -m 0600 deploy/env/pi/release.example.yaml \
+  /etc/pulse-appliance/release.yaml
+sudo nano /etc/pulse-appliance/release.yaml
+```
+
+The installer refuses to apply a chart that still renders `pi-placeholder`.
+
+2. Apply or upgrade the platform first, then create the runtime and GCS
+   credentials secrets. The credentials file must stay local to the appliance:
+
+```bash
+APPLIANCE_PI_INSTALL_ARGS="--release-values /etc/pulse-appliance/release.yaml --skip-services" \
+  make appliance-pi-upgrade
+
+APPLIANCE_PI_RUNTIME_SECRET_ARGS="--gcs-credentials /path/to/gcs-service-account.json --gcs-project-id <gcs-project-id> --archive-writer-id pulse-pi5" \
+  make appliance-pi-create-runtime-secret
+```
+
+If `/etc/pulse-appliance/release.yaml` customizes
+`runtime.gcsCredentials.secretKey`, `fileName`, or `mountPath`, include the
+matching `--gcs-secret-key`, `--gcs-file-name`, and `--gcs-mount-path` flags in
+`APPLIANCE_PI_RUNTIME_SECRET_ARGS`.
+
+3. Apply the services release and run status:
+
+```bash
+APPLIANCE_PI_INSTALL_ARGS="--release-values /etc/pulse-appliance/release.yaml --skip-host-prepare --skip-k3s-install" \
+  make appliance-pi-upgrade
 make appliance-pi-status
 ```
 
-2. Confirm the Pi sees the expected Kubernetes limits and node allocatable:
+4. Confirm the Pi sees the expected Kubernetes limits and node allocatable:
 
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
@@ -57,7 +87,7 @@ kubectl --kubeconfig "$KUBECONFIG" -n pulse-services get deploy
 kubectl --kubeconfig "$KUBECONFIG" -n pulse-platform get statefulset
 ```
 
-3. Confirm metrics are available:
+5. Confirm metrics are available:
 
 ```bash
 kubectl --kubeconfig "$KUBECONFIG" top node

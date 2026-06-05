@@ -128,6 +128,25 @@ The global `runtime.env.goMaxProcs` and `runtime.env.goMemLimit` remain
 available for environments that want one value across all services. Pi appliance
 values use per-workload caps so small singleton workers stay below their
 container memory limits while the gRPC API keeps more CPU headroom.
+
+Pi appliance release inputs are supplied outside Git with
+`--release-values <file>` / `PULSE_APPLIANCE_RELEASE_VALUES`. The example file
+`deploy/env/pi/release.example.yaml` shows:
+
+- digest-capable image fields:
+  - `runtime.publicApp.image.digest`
+  - `runtime.realtimeGateway.image.digest`
+  - `runtime.image.digest`
+- `runtime.gcsCredentials.enabled`
+- `runtime.gcsCredentials.secretName`
+- `runtime.gcsCredentials.secretKey`
+- `runtime.gcsCredentials.fileName`
+- `runtime.gcsCredentials.mountPath`
+
+When `runtime.gcsCredentials.enabled=true`, the services chart mounts the named
+secret and `make appliance-pi-create-runtime-secret` can create the matching
+runtime secret with `GOOGLE_APPLICATION_CREDENTIALS` set to that mounted file.
+The appliance installer refuses rendered images that still use `pi-placeholder`.
 - `ECOFLOW_SERVER_BROTLI_LEVEL` (default `5`, `moderncompress` builds)
 - `ECOFLOW_SERVER_ZSTD_LEVEL` (default `3`, `moderncompress` builds)
 
