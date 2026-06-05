@@ -64,6 +64,11 @@ APPLIANCE_PI_RUNTIME_SECRET_ARGS="--gcs-credentials /path/to/gcs-service-account
   make appliance-pi-create-runtime-secret
 ```
 
+If `/etc/pulse-appliance/release.yaml` customizes
+`runtime.gcsCredentials.secretKey`, `fileName`, or `mountPath`, include the
+matching `--gcs-secret-key`, `--gcs-file-name`, and `--gcs-mount-path` flags in
+`APPLIANCE_PI_RUNTIME_SECRET_ARGS`.
+
 3. Apply the services release and run status:
 
 ```bash

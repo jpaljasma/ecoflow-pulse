@@ -1373,7 +1373,10 @@ Notes:
 - `make appliance-pi-create-runtime-secret` creates or updates the
   install-local `pulse-services-runtime-secret` and
   `pulse-services-gcs-credentials` secrets after the platform database secret
-  exists. Pass script flags through `APPLIANCE_PI_RUNTIME_SECRET_ARGS`.
+  exists. Pass script flags through `APPLIANCE_PI_RUNTIME_SECRET_ARGS`; when
+  the release values customize `runtime.gcsCredentials.fileName`, pass the same
+  value with `--gcs-file-name` so `GOOGLE_APPLICATION_CREDENTIALS` points at the
+  mounted file path.
 - `go run ./cmd/pulse-mqtt-history-backfill` safely repairs a bounded
   `pulsemqtt` history window through the standard emulator/ingest/archive path:
   - defaults `-from` to local midnight and `-to` to the next local minute

@@ -9,6 +9,7 @@ platform_namespace="${PLATFORM_NAMESPACE:-pulse-platform}"
 runtime_secret="${PULSE_SERVICES_RUNTIME_SECRET:-pulse-services-runtime-secret}"
 gcs_secret="${PULSE_SERVICES_GCS_SECRET:-pulse-services-gcs-credentials}"
 gcs_secret_key="${PULSE_SERVICES_GCS_SECRET_KEY:-key.json}"
+gcs_file_name="${PULSE_SERVICES_GCS_FILE_NAME:-key.json}"
 gcs_mount_path="${PULSE_SERVICES_GCS_MOUNT_PATH:-/var/run/pulse-gcs}"
 db_secret="${PULSE_PLATFORM_DB_SECRET:-pulse-platform-core-app}"
 db_service="${PULSE_PLATFORM_DB_SERVICE:-pulse-platform-core-rw}"
@@ -42,6 +43,9 @@ Options:
                           Platform namespace, default pulse-platform.
   --runtime-secret NAME   Runtime secret name, default pulse-services-runtime-secret.
   --gcs-secret NAME       GCS credentials secret name, default pulse-services-gcs-credentials.
+  --gcs-secret-key KEY    Secret data key for the JSON file, default key.json.
+  --gcs-file-name NAME    Mounted credential filename, default key.json.
+  --gcs-mount-path PATH   Mounted credential directory, default /var/run/pulse-gcs.
   --kubeconfig PATH       Kubeconfig path, default /etc/rancher/k3s/k3s.yaml.
   --kube-context NAME     Explicit kube context.
   -h, --help              Show this help.
@@ -88,6 +92,18 @@ while [ "$#" -gt 0 ]; do
       ;;
     --gcs-secret)
       gcs_secret="${2:?--gcs-secret requires a value}"
+      shift
+      ;;
+    --gcs-secret-key)
+      gcs_secret_key="${2:?--gcs-secret-key requires a value}"
+      shift
+      ;;
+    --gcs-file-name)
+      gcs_file_name="${2:?--gcs-file-name requires a value}"
+      shift
+      ;;
+    --gcs-mount-path)
+      gcs_mount_path="${2:?--gcs-mount-path requires a value}"
       shift
       ;;
     --kubeconfig)
@@ -158,7 +174,7 @@ db_password="$(jsonpath_b64 "$platform_namespace" "$db_secret" password)"
 db_user_encoded="$(urlencode "$db_user")"
 db_password_encoded="$(urlencode "$db_password")"
 db_dsn="postgres://${db_user_encoded}:${db_password_encoded}@${db_service}.${platform_namespace}.svc.cluster.local:${db_port}/${db_name}?sslmode=disable"
-gcs_credentials_path="${gcs_mount_path%/}/$gcs_secret_key"
+gcs_credentials_path="${gcs_mount_path%/}/$gcs_file_name"
 
 "${kubectl_base[@]}" -n "$services_namespace" create secret generic "$gcs_secret" \
   --from-file="$gcs_secret_key=$gcs_credentials_file" \

@@ -342,7 +342,10 @@ APPLIANCE_PI_RUNTIME_SECRET_ARGS="--gcs-credentials /path/to/gcs-service-account
 When `runtime.gcsCredentials.enabled=true` in the install-local release values,
 the services chart mounts `pulse-services-gcs-credentials` at
 `/var/run/pulse-gcs` and the runtime secret points
-`GOOGLE_APPLICATION_CREDENTIALS` at the mounted JSON file.
+`GOOGLE_APPLICATION_CREDENTIALS` at the mounted JSON file. If the local release
+values change `runtime.gcsCredentials.secretKey`, `fileName`, or `mountPath`,
+pass the matching `--gcs-secret-key`, `--gcs-file-name`, and
+`--gcs-mount-path` flags to `make appliance-pi-create-runtime-secret`.
 
 Validation command:
 
