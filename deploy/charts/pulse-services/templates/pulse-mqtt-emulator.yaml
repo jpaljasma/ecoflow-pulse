@@ -31,9 +31,10 @@ spec:
       {{- if include "pulse-services.serviceAccountName" . }}
       serviceAccountName: {{ include "pulse-services.serviceAccountName" . }}
       {{- end }}
+      {{- include "pulse-services.gcsCredentialsVolumes" . | nindent 6 }}
       containers:
         - name: pulse-mqtt-emulator
-          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          image: {{ include "pulse-services.imageRef" .Values.runtime.image | quote }}
           imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
           command: ["/app/pulse-mqtt-emulator"]
           ports:
@@ -48,6 +49,9 @@ spec:
                 name: {{ include "pulse-services.runtimeSecretName" . }}
           resources:
             {{- toYaml .Values.runtime.workers.pulseMqttEmulator.resources | nindent 12 }}
+          {{- with (include "pulse-services.gcsCredentialsVolumeMounts" . | trim) }}
+          {{ . | nindent 10 }}
+          {{- end }}
           {{- if .Values.runtime.workers.pulseMqttEmulator.startupProbe.enabled }}
           startupProbe:
             httpGet:

@@ -10,6 +10,7 @@ runtime:
   image:
     repository: ghcr.io/ecoflow-pulse/services
     tag: pi-placeholder
+    digest: ""
     pullPolicy: IfNotPresent
   serviceAccount:
     create: false
@@ -17,6 +18,12 @@ runtime:
     automountServiceAccountToken: true
   secret:
     existingSecretName: pulse-services-runtime-secret
+  gcsCredentials:
+    enabled: false
+    secretName: pulse-services-gcs-credentials
+    secretKey: key.json
+    fileName: key.json
+    mountPath: /var/run/pulse-gcs
   migrations:
     enabled: true
     namespace: pulse-platform

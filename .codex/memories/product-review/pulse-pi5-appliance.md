@@ -23,6 +23,12 @@
 - Phase 4 should keep the appliance boring and robust: cap the current
   singleton services first, then merge only after burn-in evidence shows the
   current layout is comfortably within the 8 GB Pi budget.
+- 2026-06-05: First deploy must fail early with clear operator guidance when
+  release images or local secrets are missing; crash-looping placeholder pods
+  would make appliance setup feel unreliable.
+- 2026-06-05: Local release values and runtime secret helpers keep appliance
+  setup simple while avoiding committed image pins, provider material, or GCS
+  service-account JSON.
 
 ## Open risks
 
@@ -35,8 +41,11 @@
 - Merging too early could make support harder because one process restart would
   take out unrelated roles; the product bar is lower operator burden, not fewer
   Kubernetes objects at any cost.
+- Image publishing and secret setup are now the main pre-burn-in product risks:
+  the target path should be one local values file, one secret helper command,
+  one upgrade command, then status.
 
 ## Next step
 
-- Review the runtime-cap and burn-in slice for simplicity, conservative
-  hardware assumptions, and clear next evidence before workload merging.
+- Review the release-inputs slice for fail-fast setup, clear local-only secret
+  handling, and a direct path back to burn-in.

@@ -27,6 +27,14 @@ app.kubernetes.io/name: {{ include "pulse-services.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "pulse-services.imageRef" -}}
+{{- if .digest -}}
+{{- printf "%s@%s" .repository .digest -}}
+{{- else -}}
+{{- printf "%s:%s" .repository .tag -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "pulse-services.drainLifecycle" -}}
 lifecycle:
   preStop:
@@ -61,6 +69,39 @@ env:
 {{- else -}}
 {{- printf "%s-runtime-secret" (include "pulse-services.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "pulse-services.gcsCredentialsVolumeItems" -}}
+{{- if .Values.runtime.gcsCredentials.enabled }}
+- name: gcs-credentials
+  secret:
+    secretName: {{ required "runtime.gcsCredentials.secretName is required when runtime.gcsCredentials.enabled=true" .Values.runtime.gcsCredentials.secretName | quote }}
+    items:
+      - key: {{ .Values.runtime.gcsCredentials.secretKey | quote }}
+        path: {{ .Values.runtime.gcsCredentials.fileName | quote }}
+{{- end }}
+{{- end -}}
+
+{{- define "pulse-services.gcsCredentialsVolumeMountItems" -}}
+{{- if .Values.runtime.gcsCredentials.enabled }}
+- name: gcs-credentials
+  mountPath: {{ .Values.runtime.gcsCredentials.mountPath | quote }}
+  readOnly: true
+{{- end }}
+{{- end -}}
+
+{{- define "pulse-services.gcsCredentialsVolumes" -}}
+{{- with (include "pulse-services.gcsCredentialsVolumeItems" . | trim) }}
+volumes:
+{{ . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{- define "pulse-services.gcsCredentialsVolumeMounts" -}}
+{{- with (include "pulse-services.gcsCredentialsVolumeMountItems" . | trim) }}
+volumeMounts:
+{{ . | nindent 2 }}
+{{- end }}
 {{- end -}}
 
 {{- define "pulse-services.serviceAccountName" -}}

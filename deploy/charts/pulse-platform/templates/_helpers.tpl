@@ -27,6 +27,14 @@ app.kubernetes.io/name: {{ include "pulse-platform.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "pulse-platform.imageRef" -}}
+{{- if .digest -}}
+{{- printf "%s@%s" .repository .digest -}}
+{{- else -}}
+{{- printf "%s:%s" .repository .tag -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "pulse-platform.secretManagerServiceAccountName" -}}
 {{- if .Values.secretManager.serviceAccount.create -}}
 {{- default (printf "%s-gcp-secrets" (include "pulse-platform.fullname" .)) .Values.secretManager.serviceAccount.name | trunc 63 | trimSuffix "-" -}}

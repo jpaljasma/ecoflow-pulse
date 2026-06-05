@@ -30,6 +30,19 @@ services_chart="${SERVICES_CHART:-deploy/charts/pulse-services}"
 platform_values="${PI_PLATFORM_VALUES:-deploy/env/pi/values.platform.yaml}"
 services_values="${PI_SERVICES_VALUES:-deploy/env/pi/values.services.yaml}"
 runtime_secret="${PULSE_SERVICES_RUNTIME_SECRET:-pulse-services-runtime-secret}"
+platform_extra_values=()
+services_extra_values=()
+
+if [ -n "${PULSE_APPLIANCE_RELEASE_VALUES:-}" ]; then
+  platform_extra_values+=("$PULSE_APPLIANCE_RELEASE_VALUES")
+  services_extra_values+=("$PULSE_APPLIANCE_RELEASE_VALUES")
+fi
+if [ -n "${PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES:-}" ]; then
+  platform_extra_values+=("$PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES")
+fi
+if [ -n "${PULSE_APPLIANCE_SERVICES_EXTRA_VALUES:-}" ]; then
+  services_extra_values+=("$PULSE_APPLIANCE_SERVICES_EXTRA_VALUES")
+fi
 
 usage() {
   cat <<'USAGE'
@@ -44,6 +57,11 @@ Options:
   --kube-context NAME   Use an explicit Kubernetes context.
   --k3s-version VER     Install a pinned K3s version instead of a channel.
   --k3s-channel NAME    Install from a K3s channel when no version is set.
+  --release-values FILE Apply an install-specific values file to both charts.
+  --platform-extra-values FILE
+                         Apply an additional install-specific platform values file.
+  --services-extra-values FILE
+                         Apply an additional install-specific services values file.
   --skip-host-prepare   Do not run Pi host tuning before install.
   --skip-k3s-install    Do not install or upgrade K3s.
   --skip-platform       Do not apply the platform Helm release.
@@ -55,7 +73,9 @@ Environment overrides:
   HELM, KUBECTL, CURL, WAIT_TIMEOUT, PLATFORM_RELEASE, SERVICES_RELEASE,
   PLATFORM_NAMESPACE, SERVICES_NAMESPACE, PI_PLATFORM_VALUES, PI_SERVICES_VALUES,
   PULSE_SERVICES_RUNTIME_SECRET, PULSE_APPLIANCE_KUBECONFIG,
-  PULSE_APPLIANCE_K3S_VERSION, PULSE_APPLIANCE_K3S_CHANNEL
+  PULSE_APPLIANCE_K3S_VERSION, PULSE_APPLIANCE_K3S_CHANNEL,
+  PULSE_APPLIANCE_RELEASE_VALUES, PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES,
+  PULSE_APPLIANCE_SERVICES_EXTRA_VALUES
 USAGE
 }
 
@@ -93,6 +113,19 @@ while [ "$#" -gt 0 ]; do
       k3s_channel="${2:?--k3s-channel requires a value}"
       shift
       ;;
+    --release-values)
+      platform_extra_values+=("${2:?--release-values requires a file}")
+      services_extra_values+=("${2:?--release-values requires a file}")
+      shift
+      ;;
+    --platform-extra-values)
+      platform_extra_values+=("${2:?--platform-extra-values requires a file}")
+      shift
+      ;;
+    --services-extra-values)
+      services_extra_values+=("${2:?--services-extra-values requires a file}")
+      shift
+      ;;
     --skip-host-prepare)
       skip_host_prepare=1
       ;;
@@ -126,6 +159,35 @@ platform_chart="$repo_root/$platform_chart"
 services_chart="$repo_root/$services_chart"
 platform_values="$repo_root/$platform_values"
 services_values="$repo_root/$services_values"
+
+normalize_values_file() {
+  local value_file
+  value_file="$1"
+  if [[ "$value_file" != /* ]]; then
+    value_file="$repo_root/$value_file"
+  fi
+  printf '%s\n' "$value_file"
+}
+
+normalized_values=()
+if [ "${#platform_extra_values[@]}" -gt 0 ]; then
+  for values_file in "${platform_extra_values[@]}"; do
+    normalized_values+=("$(normalize_values_file "$values_file")")
+  done
+  platform_extra_values=("${normalized_values[@]}")
+else
+  platform_extra_values=()
+fi
+normalized_values=()
+if [ "${#services_extra_values[@]}" -gt 0 ]; then
+  for values_file in "${services_extra_values[@]}"; do
+    normalized_values+=("$(normalize_values_file "$values_file")")
+  done
+  services_extra_values=("${normalized_values[@]}")
+else
+  services_extra_values=()
+fi
+unset normalized_values
 
 log() {
   printf '%s\n' "$*"
@@ -231,6 +293,22 @@ ensure_files() {
       exit 1
     fi
   done
+  if [ "${#platform_extra_values[@]}" -gt 0 ]; then
+    for file in "${platform_extra_values[@]}"; do
+      if [ ! -f "$file" ]; then
+        echo "missing appliance extra values file: $file" >&2
+        exit 1
+      fi
+    done
+  fi
+  if [ "${#services_extra_values[@]}" -gt 0 ]; then
+    for file in "${services_extra_values[@]}"; do
+      if [ ! -f "$file" ]; then
+        echo "missing appliance extra values file: $file" >&2
+        exit 1
+      fi
+    done
+  fi
 }
 
 prepare_host() {
@@ -271,8 +349,8 @@ ensure_namespace() {
 }
 
 build_chart_dependencies() {
-  run_helm dependency build --skip-refresh "$platform_chart"
-  run_helm dependency build --skip-refresh "$services_chart"
+  run_cmd "$helm_bin" dependency build --skip-refresh "$platform_chart"
+  run_cmd "$helm_bin" dependency build --skip-refresh "$services_chart"
 }
 
 platform_keycloak_first_pass_needed() {
@@ -292,10 +370,48 @@ apply_platform_once() {
     -f "$platform_values"
   )
   local values_file
+  if [ "${#platform_extra_values[@]}" -gt 0 ]; then
+    for values_file in "${platform_extra_values[@]}"; do
+      args+=(-f "$values_file")
+    done
+  fi
   for values_file in "$@"; do
     args+=(-f "$values_file")
   done
   run_helm "${args[@]}"
+}
+
+render_helm_template() {
+  local release="$1"
+  local chart="$2"
+  local namespace="$3"
+  shift 3
+
+  "$helm_bin" template "$release" "$chart" --namespace "$namespace" "$@"
+}
+
+fail_on_placeholder_images() {
+  local release="$1"
+  local chart="$2"
+  local namespace="$3"
+  shift 3
+  if [ "$dry_run" -eq 1 ]; then
+    return 0
+  fi
+
+  local rendered
+  rendered="$(render_helm_template "$release" "$chart" "$namespace" "$@")"
+  if grep -Eq 'image:[[:space:]]*"?[^"]*pi-placeholder' <<<"$rendered"; then
+    cat >&2 <<EOF
+refusing to apply $namespace/$release because one or more rendered images still
+use the appliance placeholder tag "pi-placeholder".
+
+Provide install-specific image tags or digests with --release-values,
+--platform-extra-values, --services-extra-values, or their environment
+equivalents before running the appliance install or upgrade.
+EOF
+    exit 1
+  fi
 }
 
 wait_endpoint_required() {
@@ -369,6 +485,14 @@ apply_platform() {
     log "skipping platform Helm release"
     return
   fi
+  local platform_template_args=(-f "$platform_values")
+  local values_file
+  if [ "${#platform_extra_values[@]}" -gt 0 ]; then
+    for values_file in "${platform_extra_values[@]}"; do
+      platform_template_args+=(-f "$values_file")
+    done
+  fi
+  fail_on_placeholder_images "$platform_release" "$platform_chart" "$platform_namespace" "${platform_template_args[@]}"
   ensure_namespace "$platform_namespace"
   if platform_keycloak_first_pass_needed; then
     local bootstrap_values
@@ -417,6 +541,16 @@ apply_services() {
     log "skipping services Helm release"
     return
   fi
+  local services_template_args=(-f "$services_values")
+  local services_helm_args=()
+  local values_file
+  if [ "${#services_extra_values[@]}" -gt 0 ]; then
+    for values_file in "${services_extra_values[@]}"; do
+      services_template_args+=(-f "$values_file")
+      services_helm_args+=(-f "$values_file")
+    done
+  fi
+  fail_on_placeholder_images "$services_release" "$services_chart" "$services_namespace" "${services_template_args[@]}"
   ensure_namespace "$services_namespace"
   wait_endpoint_required "$platform_namespace" "$platform_release-core-rw" "CNPG rw service"
   wait_endpoint_required "$platform_namespace" "$platform_release-nats" "NATS service"
@@ -424,12 +558,18 @@ apply_services() {
   wait_endpoint_required "$platform_namespace" "$platform_release-keycloak-headless" "Keycloak service"
   require_runtime_secret
   log "applying services Helm release"
-  run_helm upgrade --install "$services_release" "$services_chart" \
-    --namespace "$services_namespace" \
-    --create-namespace \
-    --wait \
-    --timeout "$wait_timeout" \
+  local helm_apply_args=(
+    upgrade --install "$services_release" "$services_chart"
+    --namespace "$services_namespace"
+    --create-namespace
+    --wait
+    --timeout "$wait_timeout"
     -f "$services_values"
+  )
+  if [ "${#services_helm_args[@]}" -gt 0 ]; then
+    helm_apply_args+=("${services_helm_args[@]}")
+  fi
+  run_helm "${helm_apply_args[@]}"
 }
 
 wait_services() {

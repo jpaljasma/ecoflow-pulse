@@ -13,6 +13,7 @@ runtime:
   image:
     repository: ecoflow-pulse/services
     tag: local
+    digest: ""
     pullPolicy: IfNotPresent
   serviceAccount:
     create: false
@@ -21,6 +22,12 @@ runtime:
     automountServiceAccountToken: true
   secret:
     existingSecretName: ""
+  gcsCredentials:
+    enabled: false
+    secretName: ""
+    secretKey: key.json
+    fileName: key.json
+    mountPath: /var/run/pulse-gcs
   secretManager:
     enabled: false
     secretStore:

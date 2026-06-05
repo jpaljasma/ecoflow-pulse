@@ -43,7 +43,7 @@ spec:
       {{- end }}
       containers:
         - name: public-app
-          image: "{{ .Values.runtime.publicApp.image.repository }}:{{ .Values.runtime.publicApp.image.tag }}"
+          image: {{ include "pulse-platform.imageRef" .Values.runtime.publicApp.image | quote }}
           imagePullPolicy: {{ .Values.runtime.publicApp.image.pullPolicy }}
           ports:
             - name: http

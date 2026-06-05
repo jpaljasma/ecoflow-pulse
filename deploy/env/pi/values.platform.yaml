@@ -34,6 +34,7 @@ runtime:
     image:
       repository: ghcr.io/ecoflow-pulse/pulse-platform
       tag: pi-placeholder
+      digest: ""
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
@@ -82,6 +83,7 @@ runtime:
     image:
       repository: ghcr.io/ecoflow-pulse/pulse-realtime-gateway
       tag: pi-placeholder
+      digest: ""
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
