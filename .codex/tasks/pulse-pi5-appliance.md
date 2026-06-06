@@ -205,3 +205,7 @@ Base commit: `8a6dbf5d`
   `go test ./internal/dbmigrate -count=1`, `make appliance-pi-validate`,
   `make lint`, and `git diff --check`; duplicate editor-backup scan returned
   no files.
+- 2026-06-06: Review follow-up tightened NVMe SMART status handling so only
+  actual permission-denied failures are downgraded for non-root operators;
+  validation passed with the targeted NVMe fixtures, `make appliance-pi-validate`,
+  `make lint`, and `git diff --check`.

@@ -114,21 +114,36 @@ check_nvme() {
     fail "$nvme_device not found"
     return
   fi
-  local smart smart_status
+  local smart smart_status smart_stderr smart_stderr_file
+  smart_stderr_file="$(mktemp)"
   set +e
-  smart="$(nvme smart-log "$nvme_device" 2>/dev/null)"
+  smart="$(nvme smart-log "$nvme_device" 2>"$smart_stderr_file")"
   smart_status=$?
+  smart_stderr="$(cat "$smart_stderr_file")"
   set -e
-  if [ -z "$smart" ]; then
-    if [ "$(id -u)" != "0" ]; then
-      warn "NVMe SMART log requires root privileges; rerun with sudo for full SMART check"
-      return
+  rm -f "$smart_stderr_file"
+  if [ "$smart_status" -ne 0 ]; then
+    if [ -z "$smart" ] && [ "$(id -u)" != "0" ]; then
+      case "$smart_stderr" in
+        *[Pp]ermission\ denied*|*[Oo]peration\ not\ permitted*)
+          warn "NVMe SMART log requires root privileges; rerun with sudo for full SMART check"
+          return
+          ;;
+      esac
     fi
-    fail "unable to read NVMe SMART log"
+    if [ -n "$smart_stderr" ]; then
+      fail "unable to read NVMe SMART log ($smart_stderr)"
+    else
+      fail "unable to read NVMe SMART log"
+    fi
     return
   fi
-  if [ "$smart_status" -ne 0 ]; then
-    fail "unable to read NVMe SMART log"
+  if [ -z "$smart" ]; then
+    if [ -n "$smart_stderr" ]; then
+      fail "unable to read NVMe SMART log ($smart_stderr)"
+    else
+      fail "unable to read NVMe SMART log"
+    fi
     return
   fi
   printf '%s\n' "$smart" | awk '
