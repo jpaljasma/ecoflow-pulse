@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-images`
-Base commit: `05eb7b00`
+Branch: `codex/pi5-appliance-live-hardening`
+Base commit: `8a6dbf5d`
 
 ## Assumptions
 
@@ -98,19 +98,30 @@ Base commit: `05eb7b00`
 - 2026-06-05: Private GHCR packages are supported by rendering a shared
   `runtime.imagePullSecrets` entry into both platform and services charts; the
   operator still creates the actual pull secret locally in both namespaces.
+- 2026-06-06: Live Pi rollout hardening starts on
+  `codex/pi5-appliance-live-hardening` from merged main `8a6dbf5d`.
+- 2026-06-06: First full Pi platform/services rollout reached deployed Helm
+  releases with all singleton services running. The live run found four
+  defaults to harden: public-app data plane must render `local`, Pi Keycloak
+  must use the working legacy Bitnami image repositories, migration rollout env
+  must accept `appliance`, and operator-run status should warn instead of fail
+  when NVMe SMART requires root.
+- 2026-06-06: Pi steady-state disables the upstream `nats-box` toolbox
+  Deployment; `pulse-platform-nats-0` still reports `2/2` because the single
+  NATS pod has the `nats` container plus the chart's config reloader sidecar.
 
 ## Blockers
 
-- Real 24h burn-in cannot start until the Pi image workflow publishes
-  `linux/arm64` images, the release artifact is installed on the Pi, and local
-  runtime/GCS/pull secrets are created as needed.
+- Real 24h burn-in can start after the live-hardening fix lands, refreshed
+  `linux/arm64` image artifacts are installed on the Pi, and the appliance is
+  upgraded without temporary local override files.
 
 ## Next Actions
 
-1. Open the Pi image publishing PR.
-2. After merge, run the manual Pi image workflow and install the
+1. Open the Pi live-hardening PR.
+2. After merge, rerun the manual Pi image workflow and install the refreshed
    `pulse-pi-release-values` artifact on the Pi.
-3. Create runtime/GCS/pull secrets on the Pi as needed.
+3. Re-run appliance upgrade without temporary platform/services override files.
 4. Run real Pi 24h capacity burn-in with target 10-device load.
 5. Decide which workloads can safely merge only after burn-in, restart, and GCS
    outage evidence.
@@ -184,5 +195,13 @@ Base commit: `05eb7b00`
   `GOMEMLIMIT` values.
 - 2026-06-05: Pi image publishing slice validation passed with
   `make appliance-pi-validate` and `make lint`; the release render test now
-  exercises the workflow-compatible renderer, digest image refs, optional GHCR
-  pull secrets, and the GCS credentials mount.
+  verifies digest image references, optional pull secrets, and the GCS mount.
+- 2026-06-06: Live Pi rollout reached deployed `pulse-platform` and
+  `pulse-services` Helm releases with all services pods `1/1 Running`,
+  loopback gRPC reachable, archive outbox clear, about 5.4GiB memory available,
+  and no throttling. `make appliance-pi-status` only failed because NVMe SMART
+  needed root privileges.
+- 2026-06-06: Live-hardening validation passed with
+  `go test ./internal/dbmigrate -count=1`, `make appliance-pi-validate`,
+  `make lint`, and `git diff --check`; duplicate editor-backup scan returned
+  no files.

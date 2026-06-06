@@ -8,6 +8,7 @@ platform_ns="${PULSE_PLATFORM_NAMESPACE:-pulse-platform}"
 services_ns="${PULSE_SERVICES_NAMESPACE:-pulse-services}"
 archive_outbox_dir=""
 archive_outbox_status_bin="${ARCHIVE_OUTBOX_STATUS_BIN:-/app/ecoflow-archive-outbox-status}"
+nvme_device="${PULSE_APPLIANCE_NVME_DEVICE:-/dev/nvme0n1}"
 failures=0
 warnings=0
 
@@ -109,13 +110,24 @@ check_nvme() {
     warn "nvme CLI not found; skipping NVMe SMART checks"
     return
   fi
-  if [ ! -e /dev/nvme0n1 ]; then
-    fail "/dev/nvme0n1 not found"
+  if [ ! -e "$nvme_device" ]; then
+    fail "$nvme_device not found"
     return
   fi
-  local smart
-  smart="$(nvme smart-log /dev/nvme0n1 2>/dev/null || true)"
+  local smart smart_status
+  set +e
+  smart="$(nvme smart-log "$nvme_device" 2>/dev/null)"
+  smart_status=$?
+  set -e
   if [ -z "$smart" ]; then
+    if [ "$(id -u)" != "0" ]; then
+      warn "NVMe SMART log requires root privileges; rerun with sudo for full SMART check"
+      return
+    fi
+    fail "unable to read NVMe SMART log"
+    return
+  fi
+  if [ "$smart_status" -ne 0 ]; then
     fail "unable to read NVMe SMART log"
     return
   fi

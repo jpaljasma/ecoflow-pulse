@@ -535,6 +535,7 @@ appliance-pi-test:
 	bash deploy/appliance/pi5/test-host-prepare.sh
 	bash deploy/appliance/pi5/test-install-dry-run.sh
 	bash deploy/appliance/pi5/test-create-runtime-secret.sh
+	bash deploy/appliance/pi5/test-status-nvme-permission.sh
 	bash deploy/appliance/pi5/test-status-outbox.sh
 
 appliance-pi-helm-lint: helm-local-ready

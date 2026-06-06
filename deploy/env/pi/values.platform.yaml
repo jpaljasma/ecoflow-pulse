@@ -65,7 +65,7 @@ runtime:
       devUserSubject: ""
       publicPreconnectOrigins: ""
       corsAllowedOrigins: "https://pulse.home.arpa,https://localhost,https://127.0.0.1"
-      dataPlane: pi
+      dataPlane: local
       bffCacheEnabled: "true"
     ingress:
       enabled: true
@@ -127,6 +127,8 @@ nats:
           enabled: true
           size: 16Gi
   promExporter:
+    enabled: false
+  natsBox:
     enabled: false
 
 cloudnative-pg: {}
@@ -202,6 +204,8 @@ valkey:
 keycloak:
   replicaCount: 1
   proxyHeaders: xforwarded
+  image:
+    repository: bitnamilegacy/keycloak
   extraEnvVars:
     - name: KC_HOSTNAME
       value: https://pulse.home.arpa
@@ -231,6 +235,8 @@ keycloak:
     extraEnvVars:
       - name: IMPORT_VARSUBSTITUTION_ENABLED
         value: "true"
+    image:
+      repository: bitnamilegacy/keycloak-config-cli
     cleanupAfterFinished:
       enabled: true
       seconds: 600

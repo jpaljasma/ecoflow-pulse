@@ -341,6 +341,11 @@ private, run the workflow with an `image_pull_secret` input and create the same
 docker-registry secret in both the `pulse-platform` and `pulse-services`
 namespaces before applying the release.
 
+Keep `/etc/pulse-appliance/release.yaml` readable by the appliance operator and
+not world-readable. A practical default is `0640 root:<operator-group>` with
+`/etc/pulse-appliance` mode `0755`; a root-only `0600` file blocks the
+non-root Make/Helm wrapper from reading install-local release values.
+
 Create those local secrets after the platform database is ready:
 
 ```bash
@@ -362,12 +367,19 @@ Validation command:
 make appliance-pi-validate
 ```
 
+For full NVMe SMART validation, run the status check with privileges:
+`sudo env KUBECONFIG="$KUBECONFIG" make appliance-pi-status`. Non-root status
+still checks K3s, Helm, loopback gRPC, and archive outbox health, but reports a
+warning when the kernel requires root for `nvme smart-log`.
+
 ## Appliance Workload Defaults
 
 - Postgres/CNPG: singleton, Timescale enabled, `max_connections=40`,
   `shared_buffers=256MB`, `work_mem=4MB`, WAL compression on, 64Gi PVC cap.
 - NATS: singleton JetStream, file storage, stream replicas `1`, max age `24h`,
-  max bytes `8Gi`, 16Gi PVC cap.
+  max bytes `8Gi`, 16Gi PVC cap. The Pi overlay disables the upstream
+  `nats-box` toolbox Deployment; the NATS StatefulSet still keeps its small
+  config reloader sidecar.
 - Valkey: singleton with AOF, memory cap 256-384Mi, 2Gi PVC cap.
 - Keycloak: singleton, memory limit 768Mi, local username/password auth
   required, social identity providers optional.

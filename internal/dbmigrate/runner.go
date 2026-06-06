@@ -90,7 +90,7 @@ func (c Config) Validate() error {
 		return errors.New("migration rollout path is forward-only")
 	}
 	switch strings.TrimSpace(strings.ToLower(cfg.RolloutEnv)) {
-	case "dev", "staging", "prod", "local":
+	case "dev", "staging", "prod", "local", "appliance":
 	default:
 		return fmt.Errorf("unsupported DB_MIGRATION_ENVIRONMENT %q", cfg.RolloutEnv)
 	}
@@ -338,7 +338,9 @@ func tryRepairOrAdoptPreexistingLocalMigration(ctx context.Context, conn *sql.Co
 }
 
 func canAttemptLocalLegacyAdoption(cfg Config, migration Migration) bool {
-	if !strings.EqualFold(strings.TrimSpace(cfg.RolloutEnv), "local") {
+	switch strings.TrimSpace(strings.ToLower(cfg.RolloutEnv)) {
+	case "local", "appliance":
+	default:
 		return false
 	}
 	switch migration.Version {

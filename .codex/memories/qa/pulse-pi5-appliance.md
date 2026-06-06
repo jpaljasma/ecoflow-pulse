@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Validate the Pi image-publishing slice that produces the digest release
-  artifact needed before capacity burn-in.
+- Validate the live Pi rollout hardening slice before rerunning appliance image
+  publication and starting capacity burn-in.
 
 ## Files to inspect first
 
@@ -75,6 +75,10 @@
 - Image-publishing validation must prove the GitHub workflow is actionlint
   clean and the renderer can produce chart-consumable release values with
   optional pull secrets.
+- Live Pi rollout hardening must prove the render no longer needs temporary
+  data-plane/Keycloak overrides, migration validation accepts `appliance`, the
+  Pi overlay disables `nats-box`, and operator-run status handles NVMe SMART
+  permission limits as a warning.
 
 ## Next step
 
@@ -89,7 +93,6 @@
   Go tests for the archive outbox counter, status helper, and rollup rebuild
   guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
   `make lint`; and `git diff --check`.
-- Current QA focus is complete for this slice: `make appliance-pi-validate` and
-  `make lint` passed. Real 24h burn-in still requires the workflow-published
-  arm64 images, the release artifact, local secrets, target Pi hardware, and
-  live devices.
+- Current QA focus is this live-hardening PR. After it lands, rerun the manual
+  image workflow and upgrade the Pi without temporary override files before the
+  24h burn-in.
