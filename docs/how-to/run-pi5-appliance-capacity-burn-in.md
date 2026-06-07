@@ -44,11 +44,21 @@ budget; they are a safe first clamp for the separate singleton process layout.
    services, public app, and realtime gateway images for `linux/arm64`, pushes
    them to GHCR, and uploads a digest-pinned release values artifact.
 
+If your local checkout cannot switch to `main` because another worktree already
+uses it, trigger the workflow from the current branch while explicitly using
+`origin/main` as the source of truth:
+
+```bash
+git fetch origin main --prune
+TAG="pi-$(git rev-parse --short=12 origin/main)"
+```
+
 For public GHCR packages, omit `image_pull_secret`:
 
 ```bash
 gh workflow run pi-appliance-images.yml \
-  -f image_tag=pi-$(git rev-parse --short=12 HEAD)
+  --ref main \
+  -f image_tag="$TAG"
 ```
 
 For private GHCR packages, choose the Kubernetes pull secret name up front so
@@ -56,23 +66,74 @@ the generated release artifact references it:
 
 ```bash
 gh workflow run pi-appliance-images.yml \
-  -f image_tag=pi-$(git rev-parse --short=12 HEAD) \
+  --ref main \
+  -f image_tag="$TAG" \
   -f image_pull_secret=ghcr-pull-secret
 ```
 
-After the workflow finishes, download the `pulse-pi-release-values` artifact
-and copy the generated `pulse-pi-release.yaml` to the Pi.
+After the workflow finishes, download the `pulse-pi-release-values` artifact.
+This can happen on the workstation and be copied to the Pi, or directly on the
+Pi after installing GitHub CLI.
+
+To install `gh` on Raspberry Pi OS / Debian with the
+[official GitHub CLI APT repository](https://github.com/cli/cli/blob/trunk/docs/install_linux.md),
+use the maintained signed-keyring flow:
+
+```bash
+sudo apt update
+sudo apt install -y wget ca-certificates
+sudo mkdir -p -m 755 /etc/apt/keyrings
+wget -nv -O /tmp/githubcli-archive-keyring.gpg \
+  https://cli.github.com/packages/githubcli-archive-keyring.gpg
+sudo install -m 0644 /tmp/githubcli-archive-keyring.gpg \
+  /etc/apt/keyrings/githubcli-archive-keyring.gpg
+sudo mkdir -p -m 755 /etc/apt/sources.list.d
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+sudo apt update
+sudo apt install -y gh
+gh --version
+```
+
+Then authenticate from the headless Pi. The web flow prints a device code and
+URL that can be completed from another browser:
+
+```bash
+gh auth login --hostname github.com --web
+gh auth status
+gh auth setup-git
+```
+
+Download the successful workflow artifact from the cloned repo on the Pi:
+
+```bash
+gh run list --workflow pi-appliance-images.yml --branch main --limit 5
+RUN_ID=<successful-workflow-run-id>
+rm -rf /tmp/pulse-pi-release-values
+gh run download "$RUN_ID" \
+  -n pulse-pi-release-values \
+  -D /tmp/pulse-pi-release-values
+```
 
 2. Create the install-local release values file outside Git:
 
 ```bash
 sudo mkdir -p /etc/pulse-appliance
-sudo install -m 0640 -o root -g "$(id -gn)" pulse-pi-release.yaml \
+sudo install -m 0640 -o root -g "$(id -gn)" \
+  /tmp/pulse-pi-release-values/pulse-pi-release.yaml \
   /etc/pulse-appliance/release.yaml
 sudo chmod 0755 /etc/pulse-appliance
 ```
 
 The installer refuses to apply a chart that still renders `pi-placeholder`.
+Current releases should not need operator-local platform or services override
+files. Clear any temporary live-debug overrides before applying a refreshed
+artifact:
+
+```bash
+unset PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES
+unset PULSE_APPLIANCE_SERVICES_EXTRA_VALUES
+```
 
 3. If GHCR packages are private, create the same pull secret in both appliance
    namespaces before applying workloads. Use a token that can read GHCR
@@ -120,6 +181,12 @@ Run `sudo env KUBECONFIG="$KUBECONFIG" make appliance-pi-status` when a full
 NVMe SMART read is required. Non-root status checks can still validate the
 cluster and archive outbox but report a warning when SMART access needs root.
 
+The installer runs `helm dependency build --skip-refresh` for the platform and
+services charts. To avoid downloading the large dependency set on every Pi
+upgrade, keep the generated untracked chart archives under
+`deploy/charts/*/charts/` on the appliance checkout. They are a local cache for
+the Pi and should not be committed.
+
 6. Confirm the Pi sees the expected Kubernetes limits and node allocatable:
 
 ```bash
@@ -129,6 +196,11 @@ kubectl --kubeconfig "$KUBECONFIG" describe node pulse-pi5 \
 kubectl --kubeconfig "$KUBECONFIG" -n pulse-services get deploy
 kubectl --kubeconfig "$KUBECONFIG" -n pulse-platform get statefulset
 ```
+
+`pulse-platform-nats-0` normally reports `2/2` containers. That is one NATS
+server container plus the chart's config reloader sidecar, not two NATS
+servers. The separate `nats-box` toolbox deployment is disabled in the Pi
+overlay.
 
 7. Confirm metrics are available:
 
@@ -143,6 +215,15 @@ If `kubectl top` is unavailable, wait for the K3s metrics server to settle:
 kubectl --kubeconfig "$KUBECONFIG" -n kube-system rollout status \
   deploy/metrics-server --timeout=120s
 ```
+
+If the first platform apply fails with missing CNPG resource mappings, check
+that Helm chart dependencies are present and rerun the appliance upgrade. Do
+not hand-apply empty or partial CRD manifests as a normal recovery path. On a
+fresh failed install where you know CNPG CRDs were hand-applied and
+`kubectl get clusters.postgresql.cnpg.io -A` reports no resources, remove only
+those orphaned hand-applied CNPG CRDs before rerunning. After any CNPG database
+resource exists, do not delete CNPG CRDs because that can remove the custom
+resources that describe the live database.
 
 ## Run A 24-Hour Burn-In
 

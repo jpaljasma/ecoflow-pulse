@@ -2,8 +2,10 @@
 
 ## Current focus
 
-- Harden the live Pi rollout defaults on `codex/pi5-appliance-live-hardening`
-  after the first full platform/services install reached Running workloads.
+- Capture the post-live-rollout operator edge cases on
+  `codex/pi5-gh-install-docs`: GitHub CLI install/auth on the Pi, direct
+  release artifact download, chart dependency cache behavior, and first-install
+  recovery guardrails.
 
 ## Files to inspect first
 
@@ -66,15 +68,22 @@
 - 2026-06-06: Disable upstream `natsBox` in the Pi overlay. The NATS StatefulSet
   still has two containers because `nats` plus the config reloader sidecar is
   expected.
+- 2026-06-07: The preferred appliance artifact path can run entirely from the
+  Pi after installing GitHub CLI from the official Debian/Raspberry Pi APT repo
+  and authenticating with the headless web/device-code flow.
+- 2026-06-07: Chart dependency archives under `deploy/charts/*/charts/` are a
+  useful local Pi cache for repeated upgrades, but remain untracked local files
+  that must not be committed.
 
 ## Open risks
 
 - The first full Pi rollout converged, but 24h burn-in and restart/GCS outage
   drills are still pending.
-- Temporary live override files on the Pi should be removed from the normal
-  command path after this hardening PR lands and refreshed images are installed.
+- Temporary live override files on the Pi should stay out of the normal command
+  path now that the hardening defaults have merged and refreshed images are
+  being installed.
 
 ## Next step
 
-- Validate the hardening branch, open the PR, then rerun the manual image
-  workflow and upgrade the Pi without temporary override files before burn-in.
+- Validate the docs branch, open the PR, then use the Pi's upgraded state and
+  status output to start the 24h capacity burn-in runbook.

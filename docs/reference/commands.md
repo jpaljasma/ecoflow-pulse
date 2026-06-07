@@ -1382,6 +1382,17 @@ Notes:
   workflow calls this script after pushing the services, public app, and
   realtime gateway images to GHCR, then uploads `pulse-pi-release-values` for
   use with `--release-values /etc/pulse-appliance/release.yaml`.
+- On the appliance, `gh run download <run-id> -n pulse-pi-release-values` can
+  download the release artifact directly after GitHub CLI is installed and
+  authenticated with `gh auth login --hostname github.com --web`. Use the
+  signed official GitHub CLI APT repository on Raspberry Pi OS rather than
+  older `apt-key` examples.
+- Pi Helm dependency archives under `deploy/charts/*/charts/` act as a local
+  cache for `helm dependency build --skip-refresh`. Keep them on the Pi
+  checkout when avoiding repeated chart downloads, but do not commit them.
+- A running Pi NATS pod reporting `2/2` containers is expected: it is the NATS
+  server plus the chart config-reloader sidecar. The separate upstream
+  `nats-box` toolbox is disabled by the Pi overlay.
 - `make appliance-pi-create-runtime-secret` creates or updates the
   install-local `pulse-services-runtime-secret` and
   `pulse-services-gcs-credentials` secrets after the platform database secret

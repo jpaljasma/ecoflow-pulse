@@ -95,6 +95,11 @@ The first real Pi 5 appliance install proved these checks save time:
   jetstack, external-secrets, prometheus-community, and OpenTelemetry Helm
   repos, then run `helm repo update` before `make chart-deps-local
   CHART=deploy/charts/pulse-platform`.
+- The Pi can download its own GitHub Actions release artifact after installing
+  GitHub CLI from the official Debian/Raspberry Pi APT repository. Use
+  `gh auth login --hostname github.com --web` on the headless Pi, complete the
+  printed device-code flow in another browser, then use `gh run download` for
+  the `pulse-pi-release-values` artifact.
 
 ## Host Tuning
 
@@ -340,6 +345,11 @@ services, public app, and realtime gateway images to GHCR and uploads a
 private, run the workflow with an `image_pull_secret` input and create the same
 docker-registry secret in both the `pulse-platform` and `pulse-services`
 namespaces before applying the release.
+
+Use `docs/how-to/run-pi5-appliance-capacity-burn-in.md` for the current
+operator sequence to install `gh` on Raspberry Pi OS, authenticate a headless
+Pi, download the artifact by workflow run ID, and install
+`/etc/pulse-appliance/release.yaml`.
 
 Keep `/etc/pulse-appliance/release.yaml` readable by the appliance operator and
 not world-readable. A practical default is `0640 root:<operator-group>` with

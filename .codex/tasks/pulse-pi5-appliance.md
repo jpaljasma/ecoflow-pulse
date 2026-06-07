@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-live-hardening`
-Base commit: `8a6dbf5d`
+Branch: `codex/pi5-gh-install-docs`
+Base commit: `7057d1c8`
 
 ## Assumptions
 
@@ -109,21 +109,24 @@ Base commit: `8a6dbf5d`
 - 2026-06-06: Pi steady-state disables the upstream `nats-box` toolbox
   Deployment; `pulse-platform-nats-0` still reports `2/2` because the single
   NATS pod has the `nats` container plus the chart's config reloader sidecar.
+- 2026-06-07: Post-live-rollout docs slice records the Pi-side GitHub CLI
+  install/authentication path, direct release artifact download, chart
+  dependency cache expectations, and CNPG CRD recovery guardrails before the
+  real capacity burn-in starts.
 
 ## Blockers
 
-- Real 24h burn-in can start after the live-hardening fix lands, refreshed
-  `linux/arm64` image artifacts are installed on the Pi, and the appliance is
-  upgraded without temporary local override files.
+- Real 24h burn-in can start after the refreshed `linux/arm64` artifact is
+  installed on the Pi and the appliance upgrade completes without temporary
+  local override files.
 
 ## Next Actions
 
-1. Open the Pi live-hardening PR.
-2. After merge, rerun the manual Pi image workflow and install the refreshed
-   `pulse-pi-release-values` artifact on the Pi.
-3. Re-run appliance upgrade without temporary platform/services override files.
-4. Run real Pi 24h capacity burn-in with target 10-device load.
-5. Decide which workloads can safely merge only after burn-in, restart, and GCS
+1. Finish and merge the Pi GitHub CLI/artifact edge-case docs PR.
+2. Let the in-progress appliance upgrade finish on the Pi and capture status
+   output.
+3. Run real Pi 24h capacity burn-in with target 10-device load.
+4. Decide which workloads can safely merge only after burn-in, restart, and GCS
    outage evidence.
 
 ## Validation Evidence
@@ -209,3 +212,5 @@ Base commit: `8a6dbf5d`
   actual permission-denied failures are downgraded for non-root operators;
   validation passed with the targeted NVMe fixtures, `make appliance-pi-validate`,
   `make lint`, and `git diff --check`.
+- 2026-06-07: Pi GitHub CLI/artifact docs slice validation passed with
+  `make lint`, `git diff --check`, and the duplicate editor-backup file scan.
