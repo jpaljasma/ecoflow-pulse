@@ -2,10 +2,10 @@
 
 ## Current focus
 
-- Capture the post-live-rollout operator edge cases on
-  `codex/pi5-gh-install-docs`: GitHub CLI install/auth on the Pi, direct
-  release artifact download, chart dependency cache behavior, and first-install
-  recovery guardrails.
+- Fix the live Pi singleton `go-grpc-api` hostPort rollout on
+  `codex/pi5-hostport-rollout` after the refreshed services upgrade hit a
+  scheduler port conflict, while preserving the just-merged GitHub CLI/artifact
+  operator docs from `codex/pi5-gh-install-docs`.
 
 ## Files to inspect first
 
@@ -68,6 +68,13 @@
 - 2026-06-06: Disable upstream `natsBox` in the Pi overlay. The NATS StatefulSet
   still has two containers because `nats` plus the config reloader sidecar is
   expected.
+- 2026-06-07: A one-node Pi cannot surge a replacement `go-grpc-api` pod while
+  the old pod owns loopback hostPort `19090`; Kubernetes reports
+  `didn't have free ports for the requested pod ports`. Pi must use
+  `maxSurge: 0` / `maxUnavailable: 1` for that deployment.
+- 2026-06-07: Appliance installer waits should default to `1800s`; shorter
+  defaults create false failures during first Pi reconciles and slow singleton
+  rollouts.
 - 2026-06-07: The preferred appliance artifact path can run entirely from the
   Pi after installing GitHub CLI from the official Debian/Raspberry Pi APT repo
   and authenticating with the headless web/device-code flow.
@@ -79,11 +86,13 @@
 
 - The first full Pi rollout converged, but 24h burn-in and restart/GCS outage
   drills are still pending.
-- Temporary live override files on the Pi should stay out of the normal command
-  path now that the hardening defaults have merged and refreshed images are
-  being installed.
+- The manual live deployment patch unblocked the current Pi and the rerun
+  reached Helm deployed revision 5, but the next clean appliance upgrade should
+  use a refreshed release artifact that contains the no-surge overlay.
+- Temporary live override files should stay out of the normal command path now
+  that the hardening defaults have merged.
 
 ## Next step
 
-- Validate the docs branch, open the PR, then use the Pi's upgraded state and
-  status output to start the 24h capacity burn-in runbook.
+- Open the hostPort rollout PR, then rerun the manual image workflow after
+  merge and upgrade the Pi without temporary deployment patches before burn-in.

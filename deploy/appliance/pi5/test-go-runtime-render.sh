@@ -47,6 +47,35 @@ require_runtime() {
   require_env "$deployment" GOMEMLIMIT "$mem_limit"
 }
 
+require_deployment_strategy() {
+  local deployment="$1"
+  local max_unavailable="$2"
+  local max_surge="$3"
+
+  if ! awk \
+    -v deployment="name: $deployment" \
+    -v max_unavailable="maxUnavailable: $max_unavailable" \
+    -v max_surge="maxSurge: $max_surge" '
+      /^---$/ {
+        if (block ~ /kind: Deployment/ && block ~ deployment && block ~ max_unavailable && block ~ max_surge) {
+          found = 1
+        }
+        block = ""
+        next
+      }
+      { block = block $0 "\n" }
+      END {
+        if (block ~ /kind: Deployment/ && block ~ deployment && block ~ max_unavailable && block ~ max_surge) {
+          found = 1
+        }
+        exit(found ? 0 : 1)
+      }
+    ' <<<"$render"; then
+    echo "expected $deployment to render strategy $max_unavailable/$max_surge" >&2
+    exit 1
+  fi
+}
+
 require_runtime pulse-services-go-ingest 1 384MiB
 require_runtime pulse-services-go-inference 1 160MiB
 require_runtime pulse-services-go-projection 1 256MiB
@@ -55,5 +84,6 @@ require_runtime pulse-services-go-archive 1 256MiB
 require_runtime pulse-services-go-grpc-api 2 512MiB
 require_runtime pulse-services-go-energy-api 1 384MiB
 require_runtime pulse-services-go-scheduler 1 160MiB
+require_deployment_strategy pulse-services-go-grpc-api 1 0
 
 echo "pulse appliance Go runtime render test passed"

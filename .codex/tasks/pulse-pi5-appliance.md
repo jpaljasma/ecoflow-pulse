@@ -2,7 +2,7 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-gh-install-docs`
+Branch: `codex/pi5-hostport-rollout`
 Base commit: `7057d1c8`
 
 ## Assumptions
@@ -113,20 +113,26 @@ Base commit: `7057d1c8`
   install/authentication path, direct release artifact download, chart
   dependency cache expectations, and CNPG CRD recovery guardrails before the
   real capacity burn-in starts.
+- 2026-06-07: Live Pi upgrade proved the singleton loopback gRPC hostPort
+  deployment cannot use the default surge strategy on a one-node appliance.
+  `go-grpc-api` must roll with `maxSurge: 0` and `maxUnavailable: 1`; BLE
+  safety comes from startup wait plus durable outbox replay, not from running
+  two hostPort pods at once.
 
 ## Blockers
 
-- Real 24h burn-in can start after the refreshed `linux/arm64` artifact is
-  installed on the Pi and the appliance upgrade completes without temporary
-  local override files.
+- Real 24h burn-in can start after the hostPort rollout fix lands, refreshed
+  `linux/arm64` image artifacts are installed on the Pi, and the appliance is
+  upgraded without temporary local patches.
 
 ## Next Actions
 
-1. Finish and merge the Pi GitHub CLI/artifact edge-case docs PR.
-2. Let the in-progress appliance upgrade finish on the Pi and capture status
-   output.
-3. Run real Pi 24h capacity burn-in with target 10-device load.
-4. Decide which workloads can safely merge only after burn-in, restart, and GCS
+1. Open the Pi hostPort rollout PR.
+2. After merge, rerun the manual Pi image workflow and install the refreshed
+   `pulse-pi-release-values` artifact on the Pi.
+3. Re-run appliance upgrade without temporary deployment patches.
+4. Run real Pi 24h capacity burn-in with target 10-device load.
+5. Decide which workloads can safely merge only after burn-in, restart, and GCS
    outage evidence.
 
 ## Validation Evidence
@@ -214,3 +220,13 @@ Base commit: `7057d1c8`
   `make lint`, and `git diff --check`.
 - 2026-06-07: Pi GitHub CLI/artifact docs slice validation passed with
   `make lint`, `git diff --check`, and the duplicate editor-backup file scan.
+- 2026-06-07: HostPort rollout red test failed as expected with
+  `bash deploy/appliance/pi5/test-go-runtime-render.sh` before the Pi overlay
+  set `go-grpc-api` to no-surge rollout.
+- 2026-06-07: Live Pi upgrade succeeded after patching `go-grpc-api` to
+  no-surge rollout; Helm `pulse-services` reached deployed revision 5 and all
+  services deployments rolled out.
+- 2026-06-07: HostPort rollout validation passed with the red/green
+  `bash deploy/appliance/pi5/test-go-runtime-render.sh` path,
+  `make appliance-pi-validate`, `make lint`, `git diff --check`, and the
+  duplicate editor-backup file scan.

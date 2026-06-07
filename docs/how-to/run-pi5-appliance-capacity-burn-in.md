@@ -278,8 +278,15 @@ Use short stress windows after the first steady burn-in passes:
 kubectl --kubeconfig "$KUBECONFIG" -n pulse-services rollout restart \
   deploy/pulse-services-go-grpc-api
 kubectl --kubeconfig "$KUBECONFIG" -n pulse-services rollout status \
-  deploy/pulse-services-go-grpc-api --timeout=180s
+  deploy/pulse-services-go-grpc-api --timeout=600s
 ```
+
+The Pi overlay intentionally rolls this singleton with `maxSurge: 0` and
+`maxUnavailable: 1` because the deployment owns loopback hostPort `19090`. If
+an older release leaves a replacement gRPC pod `Pending` with an event like
+`didn't have free ports for the requested pod ports`, upgrade to a release that
+contains the Pi hostPort rollout strategy before treating it as capacity
+pressure.
 
 2. Temporarily block GCS egress for a bounded test, then unblock and confirm
    the archive upload outbox returns to zero pending entries.

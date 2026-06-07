@@ -415,6 +415,13 @@ caps:
 | `go-energy-api` | `1` | `384MiB` |
 | `go-scheduler` | `1` | `160MiB` |
 
+The Pi `go-grpc-api` deployment binds `127.0.0.1:19090` with a Kubernetes
+`hostPort` so the host BLE collector can write directly to the in-cluster API.
+Because a single node cannot schedule two pods that both claim the same
+hostPort, the Pi overlay sets that deployment to `maxSurge: 0` and
+`maxUnavailable: 1`. Upgrades may briefly interrupt the loopback gRPC endpoint;
+the host collector waits for startup and uses its durable outbox to retry.
+
 Run
 [`run-pi5-appliance-capacity-burn-in.md`](../how-to/run-pi5-appliance-capacity-burn-in.md)
 on the real appliance before merging more roles into one process.

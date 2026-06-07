@@ -313,7 +313,11 @@ Live Pi validation note (2026-06-06): the first full appliance rollout reached
 deployed `pulse-platform` and `pulse-services` Helm releases with all singleton
 services running. The follow-up hardening slice validates with
 `go test ./internal/dbmigrate -count=1`, `make appliance-pi-validate`,
-`make lint`, `git diff --check`, and duplicate editor-backup scan.
+`make lint`, `git diff --check`, and duplicate editor-backup scan. Live upgrade
+evidence on 2026-06-07 showed the singleton loopback gRPC `hostPort` deployment
+stuck `Pending` with `didn't have free ports for the requested pod ports` until
+patched to no-surge rollout; the Pi overlay now renders `maxSurge: 0` /
+`maxUnavailable: 1` for `go-grpc-api`.
 
 **Acceptance criteria**
 - [x] Local: `make dev-up` yields a working platform + services (`k3d-pulse-local`; local Make targets pinned to k3d context to avoid accidental GKE applies)
