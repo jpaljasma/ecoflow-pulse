@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Validate the live Pi rollout hardening slice before rerunning appliance image
-  publication and starting capacity burn-in.
+- Validate the post-live-rollout Pi docs slice before starting capacity
+  burn-in from the refreshed appliance artifact.
 
 ## Files to inspect first
 
@@ -79,20 +79,13 @@
   data-plane/Keycloak overrides, migration validation accepts `appliance`, the
   Pi overlay disables `nats-box`, and operator-run status handles NVMe SMART
   permission limits as a warning.
+- The docs slice must keep the GitHub CLI install/auth commands current for
+  Raspberry Pi OS, document direct artifact download by workflow run ID, and
+  make chart dependency caching and CNPG CRD recovery behavior clear enough for
+  operator use.
 
 ## Next step
 
-- Phase 3 archive outbox foundation validation passed with targeted archive
-  Go tests, Pi/local services Helm lint, Pi render inspection,
-  `make appliance-pi-validate`, targeted archive `go test -race`,
-  `make test-race`, `make lint`, and `git diff --check`.
-- Review follow-up validation added a restart/offline overwrite regression and
-  passed targeted archive Go tests, targeted archive race tests,
-  `make test-race`, `make lint`, and `git diff --check`.
-- Phase 3 pending-outbox status/rebuild guard validation passed with targeted
-  Go tests for the archive outbox counter, status helper, and rollup rebuild
-  guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
-  `make lint`; and `git diff --check`.
-- Current QA focus is this live-hardening PR. After it lands, rerun the manual
-  image workflow and upgrade the Pi without temporary override files before the
-  24h burn-in.
+- This docs branch passed `make lint`, `git diff --check`, and the duplicate
+  editor-backup file scan. After it lands, use the Pi's upgraded status output
+  to begin the 24h burn-in.
