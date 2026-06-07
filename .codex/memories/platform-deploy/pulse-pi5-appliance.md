@@ -4,7 +4,8 @@
 
 - Fix the live Pi singleton `go-grpc-api` hostPort rollout on
   `codex/pi5-hostport-rollout` after the refreshed services upgrade hit a
-  scheduler port conflict.
+  scheduler port conflict, while preserving the just-merged GitHub CLI/artifact
+  operator docs from `codex/pi5-gh-install-docs`.
 
 ## Files to inspect first
 
@@ -74,6 +75,12 @@
 - 2026-06-07: Appliance installer waits should default to `1800s`; shorter
   defaults create false failures during first Pi reconciles and slow singleton
   rollouts.
+- 2026-06-07: The preferred appliance artifact path can run entirely from the
+  Pi after installing GitHub CLI from the official Debian/Raspberry Pi APT repo
+  and authenticating with the headless web/device-code flow.
+- 2026-06-07: Chart dependency archives under `deploy/charts/*/charts/` are a
+  useful local Pi cache for repeated upgrades, but remain untracked local files
+  that must not be committed.
 
 ## Open risks
 
@@ -82,6 +89,8 @@
 - The manual live deployment patch unblocked the current Pi and the rerun
   reached Helm deployed revision 5, but the next clean appliance upgrade should
   use a refreshed release artifact that contains the no-surge overlay.
+- Temporary live override files should stay out of the normal command path now
+  that the hardening defaults have merged.
 
 ## Next step
 

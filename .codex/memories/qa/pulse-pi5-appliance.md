@@ -4,7 +4,8 @@
 
 - Validate the Pi hostPort rollout fix after live upgrade evidence showed the
   singleton gRPC API replacement pod could not schedule while the old pod owned
-  loopback hostPort `19090`.
+  loopback hostPort `19090`; keep the merged Pi GitHub CLI/artifact docs slice
+  intact while resolving the PR conflict.
 
 ## Files to inspect first
 
@@ -83,11 +84,15 @@
 - HostPort rollout hardening must prove the Pi overlay renders
   `go-grpc-api` with `maxSurge: 0` and `maxUnavailable: 1`; otherwise
   upgrades can fail with `didn't have free ports for the requested pod ports`.
+- The docs slice must keep the GitHub CLI install/auth commands current for
+  Raspberry Pi OS, document direct artifact download by workflow run ID, and
+  make chart dependency caching and CNPG CRD recovery behavior clear enough for
+  operator use.
 
 ## Next step
 
-- Validate this hostPort rollout branch with the red/green Pi render test,
-  `make appliance-pi-validate`, `make lint`, `git diff --check`, and the
-  duplicate editor-backup file scan. After it lands, rerun the manual image
-  workflow and upgrade the Pi without temporary deployment patches before the
-  24h burn-in.
+- Revalidate this conflict-resolved hostPort rollout branch with the red/green
+  Pi render test evidence, `make appliance-pi-validate`, `make lint`,
+  `git diff --check`, and the duplicate editor-backup file scan. After it
+  lands, rerun the manual image workflow and upgrade the Pi without temporary
+  deployment patches before the 24h burn-in.

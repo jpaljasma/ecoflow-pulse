@@ -109,6 +109,10 @@ Base commit: `7057d1c8`
 - 2026-06-06: Pi steady-state disables the upstream `nats-box` toolbox
   Deployment; `pulse-platform-nats-0` still reports `2/2` because the single
   NATS pod has the `nats` container plus the chart's config reloader sidecar.
+- 2026-06-07: Post-live-rollout docs slice records the Pi-side GitHub CLI
+  install/authentication path, direct release artifact download, chart
+  dependency cache expectations, and CNPG CRD recovery guardrails before the
+  real capacity burn-in starts.
 - 2026-06-07: Live Pi upgrade proved the singleton loopback gRPC hostPort
   deployment cannot use the default surge strategy on a one-node appliance.
   `go-grpc-api` must roll with `maxSurge: 0` and `maxUnavailable: 1`; BLE
@@ -214,6 +218,8 @@ Base commit: `7057d1c8`
   actual permission-denied failures are downgraded for non-root operators;
   validation passed with the targeted NVMe fixtures, `make appliance-pi-validate`,
   `make lint`, and `git diff --check`.
+- 2026-06-07: Pi GitHub CLI/artifact docs slice validation passed with
+  `make lint`, `git diff --check`, and the duplicate editor-backup file scan.
 - 2026-06-07: HostPort rollout red test failed as expected with
   `bash deploy/appliance/pi5/test-go-runtime-render.sh` before the Pi overlay
   set `go-grpc-api` to no-surge rollout.
