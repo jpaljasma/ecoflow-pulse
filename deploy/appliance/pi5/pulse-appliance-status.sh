@@ -8,6 +8,7 @@ platform_ns="${PULSE_PLATFORM_NAMESPACE:-pulse-platform}"
 services_ns="${PULSE_SERVICES_NAMESPACE:-pulse-services}"
 archive_outbox_dir=""
 archive_outbox_status_bin="${ARCHIVE_OUTBOX_STATUS_BIN:-/app/ecoflow-archive-outbox-status}"
+nvme_device="${PULSE_APPLIANCE_NVME_DEVICE:-/dev/nvme0n1}"
 failures=0
 warnings=0
 
@@ -109,14 +110,40 @@ check_nvme() {
     warn "nvme CLI not found; skipping NVMe SMART checks"
     return
   fi
-  if [ ! -e /dev/nvme0n1 ]; then
-    fail "/dev/nvme0n1 not found"
+  if [ ! -e "$nvme_device" ]; then
+    fail "$nvme_device not found"
     return
   fi
-  local smart
-  smart="$(nvme smart-log /dev/nvme0n1 2>/dev/null || true)"
+  local smart smart_status smart_stderr smart_stderr_file
+  smart_stderr_file="$(mktemp)"
+  set +e
+  smart="$(nvme smart-log "$nvme_device" 2>"$smart_stderr_file")"
+  smart_status=$?
+  smart_stderr="$(cat "$smart_stderr_file")"
+  set -e
+  rm -f "$smart_stderr_file"
+  if [ "$smart_status" -ne 0 ]; then
+    if [ -z "$smart" ] && [ "$(id -u)" != "0" ]; then
+      case "$smart_stderr" in
+        *[Pp]ermission\ denied*|*[Oo]peration\ not\ permitted*)
+          warn "NVMe SMART log requires root privileges; rerun with sudo for full SMART check"
+          return
+          ;;
+      esac
+    fi
+    if [ -n "$smart_stderr" ]; then
+      fail "unable to read NVMe SMART log ($smart_stderr)"
+    else
+      fail "unable to read NVMe SMART log"
+    fi
+    return
+  fi
   if [ -z "$smart" ]; then
-    fail "unable to read NVMe SMART log"
+    if [ -n "$smart_stderr" ]; then
+      fail "unable to read NVMe SMART log ($smart_stderr)"
+    else
+      fail "unable to read NVMe SMART log"
+    fi
     return
   fi
   printf '%s\n' "$smart" | awk '

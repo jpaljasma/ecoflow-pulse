@@ -1369,8 +1369,13 @@ Notes:
 - `make appliance-pi-validate` includes Pi host/script tests, Pi Helm lint, a
   services chart render check that verifies the Pi `GOMAXPROCS` /
   `GOMEMLIMIT` caps for each enabled Go workload, and a release-values render
-  check for digest image references, optional GHCR pull secrets, and the GCS
-  credentials mount.
+  check for digest image references, optional GHCR pull secrets, Keycloak image
+  compatibility, local public-app data-plane config, disabled Pi `nats-box`,
+  and the GCS credentials mount.
+- `make appliance-pi-status` is safe for the appliance operator to run without
+  sudo, but a full NVMe SMART read can require root on Raspberry Pi OS. Use
+  `sudo env KUBECONFIG="$KUBECONFIG" make appliance-pi-status` when the SMART
+  check itself must be authoritative.
 - `deploy/appliance/pi5/pulse-appliance-render-release-values.sh --output <file>`
   renders an install-local Pi release values file from published
   `linux/arm64` image digests. The manual `Pi Appliance Images` GitHub Actions

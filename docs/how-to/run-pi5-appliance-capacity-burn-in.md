@@ -67,8 +67,9 @@ and copy the generated `pulse-pi-release.yaml` to the Pi.
 
 ```bash
 sudo mkdir -p /etc/pulse-appliance
-sudo install -m 0600 pulse-pi-release.yaml \
+sudo install -m 0640 -o root -g "$(id -gn)" pulse-pi-release.yaml \
   /etc/pulse-appliance/release.yaml
+sudo chmod 0755 /etc/pulse-appliance
 ```
 
 The installer refuses to apply a chart that still renders `pi-placeholder`.
@@ -114,6 +115,10 @@ APPLIANCE_PI_INSTALL_ARGS="--release-values /etc/pulse-appliance/release.yaml --
   make appliance-pi-upgrade
 make appliance-pi-status
 ```
+
+Run `sudo env KUBECONFIG="$KUBECONFIG" make appliance-pi-status` when a full
+NVMe SMART read is required. Non-root status checks can still validate the
+cluster and archive outbox but report a warning when SMART access needs root.
 
 6. Confirm the Pi sees the expected Kubernetes limits and node allocatable:
 

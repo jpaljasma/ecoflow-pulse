@@ -21,6 +21,18 @@ func TestConfigValidateRequiresBackupRefWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestConfigValidateAllowsApplianceRolloutEnvironment(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultConfig()
+	cfg.DSN = "postgres://pulse:pulse@localhost:5432/pulse?sslmode=disable"
+	cfg.RolloutEnv = "appliance"
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected appliance rollout env to validate: %v", err)
+	}
+}
+
 func TestConfigConnectionStringBuildsFromParts(t *testing.T) {
 	t.Parallel()
 

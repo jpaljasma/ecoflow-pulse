@@ -37,9 +37,42 @@ require_rendered() {
   fi
 }
 
+require_rendered_block() {
+  local rendered="$1"
+  local first_pattern="$2"
+  local second_pattern="$3"
+
+  if ! awk \
+    -v first_pattern="$first_pattern" \
+    -v second_pattern="$second_pattern" '
+      $0 ~ first_pattern {
+        in_block = 1
+      }
+      in_block && $0 ~ second_pattern {
+        found = 1
+      }
+      in_block && /^            - name:/ && $0 !~ first_pattern {
+        in_block = 0
+      }
+      END {
+        exit(found ? 0 : 1)
+      }
+    ' <<<"$rendered"; then
+    echo "missing rendered block patterns: $first_pattern / $second_pattern" >&2
+    exit 1
+  fi
+}
+
 require_rendered "$platform_render" 'image: "registry.example.test/pulse/pulse-platform@sha256:1111111111111111111111111111111111111111111111111111111111111111"'
 require_rendered "$platform_render" 'image: "registry.example.test/pulse/pulse-realtime-gateway@sha256:2222222222222222222222222222222222222222222222222222222222222222"'
 require_rendered "$platform_render" 'name: ghcr-pull-secret'
+require_rendered "$platform_render" 'image: docker.io/bitnamilegacy/keycloak:'
+require_rendered "$platform_render" 'image: docker.io/bitnamilegacy/keycloak-config-cli:'
+require_rendered_block "$platform_render" 'name: PULSE_PLATFORM_DATA_PLANE' 'value: "local"'
+if grep -Fq 'name: pulse-platform-nats-box' <<<"$platform_render"; then
+  echo "Pi appliance render should disable the NATS toolbox pod" >&2
+  exit 1
+fi
 require_rendered "$services_render" 'image: "registry.example.test/pulse/services@sha256:3333333333333333333333333333333333333333333333333333333333333333"'
 require_rendered "$services_render" 'name: ghcr-pull-secret'
 require_rendered "$services_render" 'secretName: "pulse-services-gcs-credentials"'

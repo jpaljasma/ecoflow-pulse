@@ -2,8 +2,8 @@
 
 ## Current focus
 
-- Complete the GHCR image publishing and digest release artifact slice on
-  `codex/pi5-appliance-images`.
+- Harden the live Pi rollout defaults on `codex/pi5-appliance-live-hardening`
+  after the first full platform/services install reached Running workloads.
 
 ## Files to inspect first
 
@@ -53,15 +53,28 @@
 - 2026-06-05: Private GHCR pulls use optional `runtime.imagePullSecrets`, but
   the actual registry token remains a local Kubernetes secret in each appliance
   namespace.
+- 2026-06-06: Live Pi install required temporary overrides for
+  `runtime.publicApp.env.dataPlane=local` and legacy Bitnami Keycloak image
+  repositories. These should be Pi overlay defaults, not operator-local
+  overrides.
+- 2026-06-06: `runtime.migrations.policy.rolloutEnv=appliance` is the right
+  semantic value for Pi services, so the migration runner should accept
+  `appliance` rather than forcing the Pi overlay to pretend it is `local`.
+- 2026-06-06: Operator-run `make appliance-pi-status` should not fail the whole
+  appliance when `nvme smart-log` needs root; it should warn and document the
+  sudo path for a full SMART read.
+- 2026-06-06: Disable upstream `natsBox` in the Pi overlay. The NATS StatefulSet
+  still has two containers because `nats` plus the config reloader sidecar is
+  expected.
 
 ## Open risks
 
-- Singleton chart overlays are linted, but real Pi scheduling and memory use
-  still need hardware validation after release inputs exist.
-- Real K3s install behavior is partially validated on the target Pi; full Pulse
-  release rollout still needs the published image artifact and local secrets.
+- The first full Pi rollout converged, but 24h burn-in and restart/GCS outage
+  drills are still pending.
+- Temporary live override files on the Pi should be removed from the normal
+  command path after this hardening PR lands and refreshed images are installed.
 
 ## Next step
 
-- After this PR merges, run the manual image workflow, install the release
-  artifact on the Pi, create local secrets, and start live burn-in.
+- Validate the hardening branch, open the PR, then rerun the manual image
+  workflow and upgrade the Pi without temporary override files before burn-in.
