@@ -15,7 +15,7 @@ kubeconfig="${PULSE_APPLIANCE_KUBECONFIG:-${KUBECONFIG:-/etc/rancher/k3s/k3s.yam
 kube_context="${KUBECONFIG_CONTEXT:-}"
 k3s_version="${PULSE_APPLIANCE_K3S_VERSION:-}"
 k3s_channel="${PULSE_APPLIANCE_K3S_CHANNEL:-stable}"
-wait_timeout="${WAIT_TIMEOUT:-600s}"
+wait_timeout="${WAIT_TIMEOUT:-1800s}"
 
 helm_bin="${HELM:-helm}"
 kubectl_bin="${KUBECTL:-kubectl}"

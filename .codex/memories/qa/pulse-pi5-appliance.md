@@ -2,8 +2,9 @@
 
 ## Current focus
 
-- Validate the live Pi rollout hardening slice before rerunning appliance image
-  publication and starting capacity burn-in.
+- Validate the Pi hostPort rollout fix after live upgrade evidence showed the
+  singleton gRPC API replacement pod could not schedule while the old pod owned
+  loopback hostPort `19090`.
 
 ## Files to inspect first
 
@@ -79,20 +80,14 @@
   data-plane/Keycloak overrides, migration validation accepts `appliance`, the
   Pi overlay disables `nats-box`, and operator-run status handles NVMe SMART
   permission limits as a warning.
+- HostPort rollout hardening must prove the Pi overlay renders
+  `go-grpc-api` with `maxSurge: 0` and `maxUnavailable: 1`; otherwise
+  upgrades can fail with `didn't have free ports for the requested pod ports`.
 
 ## Next step
 
-- Phase 3 archive outbox foundation validation passed with targeted archive
-  Go tests, Pi/local services Helm lint, Pi render inspection,
-  `make appliance-pi-validate`, targeted archive `go test -race`,
-  `make test-race`, `make lint`, and `git diff --check`.
-- Review follow-up validation added a restart/offline overwrite regression and
-  passed targeted archive Go tests, targeted archive race tests,
-  `make test-race`, `make lint`, and `git diff --check`.
-- Phase 3 pending-outbox status/rebuild guard validation passed with targeted
-  Go tests for the archive outbox counter, status helper, and rollup rebuild
-  guard; `make appliance-pi-validate`; targeted race tests; `make test-race`;
-  `make lint`; and `git diff --check`.
-- Current QA focus is this live-hardening PR. After it lands, rerun the manual
-  image workflow and upgrade the Pi without temporary override files before the
+- Validate this hostPort rollout branch with the red/green Pi render test,
+  `make appliance-pi-validate`, `make lint`, `git diff --check`, and the
+  duplicate editor-backup file scan. After it lands, rerun the manual image
+  workflow and upgrade the Pi without temporary deployment patches before the
   24h burn-in.

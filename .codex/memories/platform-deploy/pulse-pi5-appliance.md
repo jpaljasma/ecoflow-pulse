@@ -2,8 +2,9 @@
 
 ## Current focus
 
-- Harden the live Pi rollout defaults on `codex/pi5-appliance-live-hardening`
-  after the first full platform/services install reached Running workloads.
+- Fix the live Pi singleton `go-grpc-api` hostPort rollout on
+  `codex/pi5-hostport-rollout` after the refreshed services upgrade hit a
+  scheduler port conflict.
 
 ## Files to inspect first
 
@@ -66,15 +67,23 @@
 - 2026-06-06: Disable upstream `natsBox` in the Pi overlay. The NATS StatefulSet
   still has two containers because `nats` plus the config reloader sidecar is
   expected.
+- 2026-06-07: A one-node Pi cannot surge a replacement `go-grpc-api` pod while
+  the old pod owns loopback hostPort `19090`; Kubernetes reports
+  `didn't have free ports for the requested pod ports`. Pi must use
+  `maxSurge: 0` / `maxUnavailable: 1` for that deployment.
+- 2026-06-07: Appliance installer waits should default to `1800s`; shorter
+  defaults create false failures during first Pi reconciles and slow singleton
+  rollouts.
 
 ## Open risks
 
 - The first full Pi rollout converged, but 24h burn-in and restart/GCS outage
   drills are still pending.
-- Temporary live override files on the Pi should be removed from the normal
-  command path after this hardening PR lands and refreshed images are installed.
+- The manual live deployment patch unblocked the current Pi and the rerun
+  reached Helm deployed revision 5, but the next clean appliance upgrade should
+  use a refreshed release artifact that contains the no-surge overlay.
 
 ## Next step
 
-- Validate the hardening branch, open the PR, then rerun the manual image
-  workflow and upgrade the Pi without temporary override files before burn-in.
+- Open the hostPort rollout PR, then rerun the manual image workflow after
+  merge and upgrade the Pi without temporary deployment patches before burn-in.

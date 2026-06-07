@@ -2,8 +2,8 @@
 
 Status: `PROGRESS`
 Plan: `.codex/plans/pulse-pi5-appliance-ralph-loop.md`
-Branch: `codex/pi5-appliance-live-hardening`
-Base commit: `8a6dbf5d`
+Branch: `codex/pi5-hostport-rollout`
+Base commit: `7057d1c8`
 
 ## Assumptions
 
@@ -109,19 +109,24 @@ Base commit: `8a6dbf5d`
 - 2026-06-06: Pi steady-state disables the upstream `nats-box` toolbox
   Deployment; `pulse-platform-nats-0` still reports `2/2` because the single
   NATS pod has the `nats` container plus the chart's config reloader sidecar.
+- 2026-06-07: Live Pi upgrade proved the singleton loopback gRPC hostPort
+  deployment cannot use the default surge strategy on a one-node appliance.
+  `go-grpc-api` must roll with `maxSurge: 0` and `maxUnavailable: 1`; BLE
+  safety comes from startup wait plus durable outbox replay, not from running
+  two hostPort pods at once.
 
 ## Blockers
 
-- Real 24h burn-in can start after the live-hardening fix lands, refreshed
+- Real 24h burn-in can start after the hostPort rollout fix lands, refreshed
   `linux/arm64` image artifacts are installed on the Pi, and the appliance is
-  upgraded without temporary local override files.
+  upgraded without temporary local patches.
 
 ## Next Actions
 
-1. Open the Pi live-hardening PR.
+1. Open the Pi hostPort rollout PR.
 2. After merge, rerun the manual Pi image workflow and install the refreshed
    `pulse-pi-release-values` artifact on the Pi.
-3. Re-run appliance upgrade without temporary platform/services override files.
+3. Re-run appliance upgrade without temporary deployment patches.
 4. Run real Pi 24h capacity burn-in with target 10-device load.
 5. Decide which workloads can safely merge only after burn-in, restart, and GCS
    outage evidence.
@@ -209,3 +214,13 @@ Base commit: `8a6dbf5d`
   actual permission-denied failures are downgraded for non-root operators;
   validation passed with the targeted NVMe fixtures, `make appliance-pi-validate`,
   `make lint`, and `git diff --check`.
+- 2026-06-07: HostPort rollout red test failed as expected with
+  `bash deploy/appliance/pi5/test-go-runtime-render.sh` before the Pi overlay
+  set `go-grpc-api` to no-surge rollout.
+- 2026-06-07: Live Pi upgrade succeeded after patching `go-grpc-api` to
+  no-surge rollout; Helm `pulse-services` reached deployed revision 5 and all
+  services deployments rolled out.
+- 2026-06-07: HostPort rollout validation passed with the red/green
+  `bash deploy/appliance/pi5/test-go-runtime-render.sh` path,
+  `make appliance-pi-validate`, `make lint`, `git diff --check`, and the
+  duplicate editor-backup file scan.

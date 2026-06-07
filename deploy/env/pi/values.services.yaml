@@ -178,6 +178,10 @@ runtime:
         memLimit: 512MiB
       pdb:
         enabled: false
+      deployment:
+        strategy:
+          maxUnavailable: 1
+          maxSurge: 0
       service:
         port: 9090
       hostPort:

@@ -1368,10 +1368,16 @@ Notes:
   - verifies social providers `google` and `facebook` are present in that realm.
 - `make appliance-pi-validate` includes Pi host/script tests, Pi Helm lint, a
   services chart render check that verifies the Pi `GOMAXPROCS` /
-  `GOMEMLIMIT` caps for each enabled Go workload, and a release-values render
-  check for digest image references, optional GHCR pull secrets, Keycloak image
+  `GOMEMLIMIT` caps for each enabled Go workload and the singleton
+  `go-grpc-api` hostPort rollout strategy, plus a release-values render check
+  for digest image references, optional GHCR pull secrets, Keycloak image
   compatibility, local public-app data-plane config, disabled Pi `nats-box`,
   and the GCS credentials mount.
+- `make appliance-pi-install`, `make appliance-pi-upgrade`, and
+  `make appliance-pi-wait` default `WAIT_TIMEOUT` to `1800s` because first Pi
+  reconciles can legitimately spend several minutes waiting on CNPG, Keycloak,
+  image pulls, and singleton service rollouts. Override `WAIT_TIMEOUT` only
+  when a shorter or longer operator window is intentional.
 - `make appliance-pi-status` is safe for the appliance operator to run without
   sudo, but a full NVMe SMART read can require root on Raspberry Pi OS. Use
   `sudo env KUBECONFIG="$KUBECONFIG" make appliance-pi-status` when the SMART
