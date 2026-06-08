@@ -117,6 +117,22 @@ describe('requestJson', () => {
     );
   });
 
+  it('does not duplicate /api when an explicit API URL includes the edge API path', async () => {
+    env.apiUrlExplicit = true;
+    env.apiUrl = 'https://pulse.home.arpa/api';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ profile: { email: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+
+    await requestJson('/api/v1/me');
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe('https://pulse.home.arpa/api/v1/me');
+  });
+
   it('falls back to public-edge host when standalone port is unavailable', async () => {
     env.apiUrl = 'http://127.0.0.1:18081';
     const fetchSpy = vi

@@ -1,4 +1,5 @@
 import { env } from '@/shared/config/env';
+import { buildApiRequestUrl } from '@/shared/api/url';
 
 export type ClientWsPhase = 'initial' | 'reconnect';
 export type ClientWsConnectionOutcome =
@@ -43,7 +44,7 @@ export type ClientWsMetricEvent =
   | ClientWsStaleRecoveryMetricEvent;
 
 export async function reportClientWsMetric(event: ClientWsMetricEvent): Promise<void> {
-  const url = `${env.apiUrl}/api/v1/client-metrics/ws`;
+  const url = buildApiRequestUrl(env.apiUrl, '/api/v1/client-metrics/ws');
   const payload = JSON.stringify(event);
   try {
     if (
