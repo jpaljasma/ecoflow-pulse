@@ -1,4 +1,5 @@
 import { env } from '@/shared/config/env';
+import { buildApiRequestUrl } from '@/shared/api/url';
 
 export type AuthSessionRecoveryOutcome =
   | 'recovered_in_memory'
@@ -6,7 +7,7 @@ export type AuthSessionRecoveryOutcome =
   | 'reauth_redirect';
 
 export async function reportAuthSessionRecovery(outcome: AuthSessionRecoveryOutcome): Promise<void> {
-  const url = `${env.apiUrl}/api/v1/auth/session-events`;
+  const url = buildApiRequestUrl(env.apiUrl, '/api/v1/auth/session-events');
   try {
     await fetch(url, {
       method: 'POST',

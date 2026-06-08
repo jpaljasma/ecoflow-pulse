@@ -5,6 +5,7 @@ import {
   toErrorKind,
   toStatusClass
 } from '@/shared/api/clientRestMetrics';
+import { buildApiRequestUrl } from '@/shared/api/url';
 
 type ClientRestOutcome = import('@/shared/api/clientRestMetrics').ClientRestOutcome;
 
@@ -85,7 +86,7 @@ async function requestJsonInternal<T>(
 ): Promise<T> {
   const urlCandidates = path.startsWith('http')
     ? [path]
-    : buildApiBaseCandidates(env.apiUrl).map((base) => `${base}${path}`);
+    : buildApiBaseCandidates(env.apiUrl).map((base) => buildApiRequestUrl(base, path));
   const attemptedUrls: string[] = [];
   const headers: Record<string, string> = {
     Accept: 'application/json',

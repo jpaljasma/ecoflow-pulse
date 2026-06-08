@@ -1,4 +1,5 @@
 import { env } from '@/shared/config/env';
+import { buildApiRequestUrl } from '@/shared/api/url';
 
 export type ClientRestOutcome = 'success' | 'http_error' | 'network_error' | 'client_error';
 export type ClientRestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -113,7 +114,7 @@ export function toErrorKind(input: {
 }
 
 export async function reportClientRestMetric(event: ClientRestMetricEvent): Promise<void> {
-  const url = `${env.apiUrl}/api/v1/client-metrics/rest`;
+  const url = buildApiRequestUrl(env.apiUrl, '/api/v1/client-metrics/rest');
   const payload = JSON.stringify(event);
   try {
     if (
