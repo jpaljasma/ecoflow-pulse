@@ -379,6 +379,55 @@ describe('pulse-realtime-gateway', () => {
     await app.close();
   });
 
+  it('acknowledges owner log subscriptions before device authorization finishes', async () => {
+    const client = new FakeLiveClient();
+    const logs = new FakeAdminLogSource();
+    let resolveAuthorizedDevices: ((value: { deviceIds: string[] }) => void) | undefined;
+    const deviceAuthorizer: DeviceAuthorizer = {
+      async authorize(input: { deviceId: string }) {
+        return { canonicalDeviceId: input.deviceId };
+      },
+      async listAuthorizedDevices() {
+        return await new Promise<{ deviceIds: string[] }>((resolve) => {
+          resolveAuthorizedDevices = resolve;
+        });
+      },
+      close() {}
+    };
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      deviceAuthorizer,
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'owner-user',
+          email: '',
+          roles: ['viewer'],
+          rawJwt: 'owner-token'
+        };
+        request.wsAuthHeader = 'Bearer owner-token';
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    try {
+      ws.send(JSON.stringify({ type: 'logs_subscribe', subscriptionId: 'logs-1' }));
+
+      expect(await nextMessageWithin(ws, 100)).toMatchObject({
+        type: 'logs_status',
+        subscriptionId: 'logs-1',
+        state: 'replay'
+      });
+      expect(logs.subscribeCalls).toHaveLength(0);
+
+      resolveAuthorizedDevices?.({ deviceIds: ['dev-owned'] });
+      await waitFor(() => logs.subscribeCalls.length === 1);
+    } finally {
+      resolveAuthorizedDevices?.({ deviceIds: ['dev-owned'] });
+      await closeWebSocket(ws);
+      await app.close();
+    }
+  });
+
   it('scopes owner log subscriptions to authorized devices', async () => {
     const client = new FakeLiveClient();
     const logs = new FakeAdminLogSource();
@@ -466,6 +515,11 @@ describe('pulse-realtime-gateway', () => {
       })
     );
 
+    expect(await nextMessage(ws)).toMatchObject({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      state: 'replay'
+    });
     expect(await nextMessage(ws)).toEqual({
       type: 'logs_status',
       subscriptionId: 'logs-1',
@@ -785,6 +839,15 @@ async function nextMessage(ws: WebSocket): Promise<unknown> {
     collector.waiters.push(resolve);
     ws.once('error', reject);
   });
+}
+
+async function nextMessageWithin(ws: WebSocket, timeoutMs: number): Promise<unknown> {
+  return await Promise.race([
+    nextMessage(ws),
+    sleep(timeoutMs).then(() => {
+      throw new Error('timed out waiting for next websocket message');
+    })
+  ]);
 }
 
 async function closeWebSocket(ws: WebSocket): Promise<void> {
