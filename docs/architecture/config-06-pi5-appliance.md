@@ -346,6 +346,16 @@ private, run the workflow with an `image_pull_secret` input and create the same
 docker-registry secret in both the `pulse-platform` and `pulse-services`
 namespaces before applying the release.
 
+Pi image builds should keep CPU-heavy compile/export work on the native GitHub
+runner architecture and reserve arm64 execution for target-runtime install
+steps that truly need target binaries. A June 2026 Docker build record for
+`pulse-platform` showed only 1 of 38 steps cached and a 5,228 second build, with
+4,860 seconds spent in the Expo web export step while building the arm64 image.
+The Pi workflow therefore uses best-effort persistent BuildKit `type=gha` cache
+scopes for each image, and Node image build stages use `$BUILDPLATFORM` while
+final stages still emit `linux/arm64` runtime images. Cache export failures must
+not block release artifact upload after images have built and pushed.
+
 Use `docs/how-to/run-pi5-appliance-capacity-burn-in.md` for the current
 operator sequence to install `gh` on Raspberry Pi OS, authenticate a headless
 Pi, download the artifact by workflow run ID, and install
