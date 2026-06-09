@@ -77,7 +77,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.services_image }}:${{ steps.meta.outputs.tag }}
           cache-from: type=gha,scope=pi-appliance-services
-          cache-to: type=gha,scope=pi-appliance-services,mode=max
+          cache-to: type=gha,scope=pi-appliance-services,mode=max,ignore-error=true
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -92,7 +92,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.platform_image }}:${{ steps.meta.outputs.tag }}
           cache-from: type=gha,scope=pi-appliance-platform
-          cache-to: type=gha,scope=pi-appliance-platform,mode=max
+          cache-to: type=gha,scope=pi-appliance-platform,mode=max,ignore-error=true
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -116,7 +116,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.realtime_image }}:${{ steps.meta.outputs.tag }}
           cache-from: type=gha,scope=pi-appliance-realtime
-          cache-to: type=gha,scope=pi-appliance-realtime,mode=max
+          cache-to: type=gha,scope=pi-appliance-realtime,mode=max,ignore-error=true
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
