@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { Animated, Platform, ScrollView } from 'react-native';
 import { Text, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
@@ -103,6 +104,7 @@ export default function DeviceDetailScreen() {
   const { deviceId: routeDeviceParam } = useLocalSearchParams<{ deviceId: string | string[] }>();
   const routeDeviceId = Array.isArray(routeDeviceParam) ? routeDeviceParam[0] : routeDeviceParam;
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { containerStyle, closeToHome } = useCloseToHomeTransition(router);
   const { authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
@@ -173,7 +175,7 @@ export default function DeviceDetailScreen() {
     enabled: queryEnabled && Boolean(resolvedDeviceId) && hardwareSectionShouldLoad
   });
   const device = mergeDeviceSources(deviceQuery.data, routeDevice);
-  useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : []);
+  useTelemetrySubscription(resolvedDeviceId ? [resolvedDeviceId] : [], { active: isFocused && queryEnabled });
   const telemetryConnectionStatus = useTelemetryConnectionStatus();
   const snapshot = useTelemetryDeviceSnapshot(resolvedDeviceId);
   const firstError = devicesQuery.error ?? deviceQuery.error ?? solarHistory.error;

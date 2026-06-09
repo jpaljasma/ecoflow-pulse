@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { Text, XStack, YStack } from 'tamagui';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
@@ -42,6 +43,7 @@ export default function DevicesScreen() {
   const deviceListRef = useRef<DeviceListHandle>(null);
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedDeviceId, setHighlightedDeviceId] = useState<string | undefined>();
+  const isFocused = useIsFocused();
   const { authConfigured, authReady, authKey, token } = useAuthSession();
   const { allowed, waiting } = useRequireAuth();
   const devicesQuery = useDevices({
@@ -57,7 +59,7 @@ export default function DevicesScreen() {
     () => buildStormGuardBanner(devicesQuery.data?.devices),
     [devicesQuery.data?.devices]
   );
-  useTelemetrySubscription(deviceIds);
+  useTelemetrySubscription(deviceIds, { active: isFocused && authReady && allowed });
   const connectionStatus = useTelemetryConnectionStatus();
 
   useEffect(() => {
