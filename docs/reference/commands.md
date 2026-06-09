@@ -1384,10 +1384,11 @@ Notes:
   check itself must be authoritative.
 - `deploy/appliance/pi5/pulse-appliance-render-release-values.sh --output <file>`
   renders an install-local Pi release values file from published
-  `linux/arm64` image digests. The manual `Pi Appliance Images` GitHub Actions
-  workflow calls this script after pushing the services, public app, and
-  realtime gateway images to GHCR, then uploads `pulse-pi-release-values` for
-  use with `--release-values /etc/pulse-appliance/release.yaml`.
+  `linux/arm64` image digests. The `Pi Appliance Images` GitHub Actions
+  workflow runs automatically on pushes to `main`, can also be started
+  manually, and calls this script after pushing the services, public app, and
+  realtime gateway images to GHCR. It then uploads `pulse-pi-release-values`
+  for use with `--release-values /etc/pulse-appliance/release.yaml`.
 - On the appliance, `gh run download <run-id> -n pulse-pi-release-values` can
   download the release artifact directly after GitHub CLI is installed and
   authenticated with `gh auth login --hostname github.com --web`. Use the
