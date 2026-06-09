@@ -372,6 +372,9 @@ Admin log stream behavior:
 - clients subscribe with `logs_subscribe` and release work with
   `logs_unsubscribe`; the existing `ping` message is unchanged,
 - the gateway replies with `logs_status`, `log_entry`, and `logs_replay_done`,
+- valid subscriptions receive an immediate `logs_status` acknowledgement before
+  slower authorization, replay, or live-source work can hold the UI in
+  `Connecting`,
 - `logs_subscribe` allows global admins to subscribe across all devices. Other
   authenticated users are scoped to their linked device UUIDs by the gateway
   before replay or live fanout starts. In `NODE_AUTH_MODE=noop`, unrestricted

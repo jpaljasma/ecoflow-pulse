@@ -196,8 +196,10 @@ class GatewaySession {
       this.sendLogsStatus(subscriptionId, 'error', 'admin log source unavailable');
       return;
     }
-    if (this.willAuthorizeLogFilters()) {
+    let replayStatusSent = false;
+    if (this.canAttemptLogFilters()) {
       this.sendLogsStatus(subscriptionId, 'replay');
+      replayStatusSent = true;
     }
 
     const filters = await this.resolveLogFilters(message.filters);
@@ -226,6 +228,10 @@ class GatewaySession {
           this.send({ type: 'logs_replay_done', subscriptionId, ts: Date.now(), replayed });
         },
         onStatus: (status) => {
+          if (status.state === 'replay' && replayStatusSent) {
+            return;
+          }
+          replayStatusSent = replayStatusSent || status.state === 'replay';
           this.sendLogsStatus(subscriptionId, status.state, status.message);
         }
       });
@@ -235,12 +241,12 @@ class GatewaySession {
     }
   }
 
-  private willAuthorizeLogFilters(): boolean {
+  private canAttemptLogFilters(): boolean {
     if (this.roles.some((role) => role.toLowerCase() === 'admin')) {
-      return false;
+      return true;
     }
     if (this.config.auth.mode === 'noop' && this.config.logs.devAdminEnabled) {
-      return false;
+      return true;
     }
     return Boolean(this.deviceAuthorizer && this.authHeader);
   }

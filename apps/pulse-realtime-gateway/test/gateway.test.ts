@@ -121,6 +121,19 @@ class FakeAdminLogSource implements AdminLogSource {
   }
 }
 
+class StallingAdminLogSource implements AdminLogSource {
+  readonly subscribeCalls: AdminLogSubscribeInput[] = [];
+
+  subscribe(input: AdminLogSubscribeInput): AdminLogSubscription {
+    this.subscribeCalls.push(input);
+    return {
+      close: () => {}
+    };
+  }
+
+  close(): void {}
+}
+
 class FakeDeviceAuthorizer implements DeviceAuthorizer {
   constructor(private readonly deviceIds: string[]) {}
 
@@ -423,6 +436,38 @@ describe('pulse-realtime-gateway', () => {
       await waitFor(() => logs.subscribeCalls.length === 1);
     } finally {
       resolveAuthorizedDevices?.({ deviceIds: ['dev-owned'] });
+      await closeWebSocket(ws);
+      await app.close();
+    }
+  });
+
+  it('acknowledges admin log subscriptions before the log source emits status', async () => {
+    const client = new FakeLiveClient();
+    const logs = new StallingAdminLogSource();
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'admin-user',
+          email: '',
+          roles: ['viewer', 'admin'],
+          rawJwt: 'admin-token'
+        };
+        request.wsAuthHeader = 'Bearer admin-token';
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    try {
+      ws.send(JSON.stringify({ type: 'logs_subscribe', subscriptionId: 'logs-1' }));
+
+      expect(await nextMessageWithin(ws, 100)).toMatchObject({
+        type: 'logs_status',
+        subscriptionId: 'logs-1',
+        state: 'replay'
+      });
+      expect(logs.subscribeCalls).toHaveLength(1);
+    } finally {
       await closeWebSocket(ws);
       await app.close();
     }
