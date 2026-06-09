@@ -1,6 +1,9 @@
 name: Pi Appliance Images
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       image_tag:
@@ -32,7 +35,7 @@ jobs:
         id: meta
         shell: bash
         env:
-          REQUESTED_IMAGE_TAG: ${{ inputs.image_tag }}
+          REQUESTED_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || '' }}
         run: |
           set -euo pipefail
 
@@ -124,7 +127,7 @@ jobs:
       - name: Render release values artifact
         env:
           PULSE_PI_IMAGE_NAMESPACE: ${{ steps.meta.outputs.owner }}
-          PULSE_PI_IMAGE_PULL_SECRET: ${{ inputs.image_pull_secret }}
+          PULSE_PI_IMAGE_PULL_SECRET: ${{ github.event_name == 'workflow_dispatch' && inputs.image_pull_secret || '' }}
           PULSE_PI_PUBLIC_APP_IMAGE_DIGEST: ${{ steps.build_platform.outputs.digest }}
           PULSE_PI_REALTIME_GATEWAY_IMAGE_DIGEST: ${{ steps.build_realtime.outputs.digest }}
           PULSE_PI_SERVICES_IMAGE_DIGEST: ${{ steps.build_services.outputs.digest }}

@@ -44,6 +44,11 @@ budget; they are a safe first clamp for the separate singleton process layout.
    services, public app, and realtime gateway images for `linux/arm64`, pushes
    them to GHCR, and uploads a digest-pinned release values artifact.
 
+The `Pi Appliance Images` workflow runs automatically after pushes to `main`,
+including normal pull-request merges. Use that automatic run for the standard
+post-merge appliance update. Manual dispatch remains useful for reruns, custom
+image tags, or release artifacts that must include a private GHCR pull secret.
+
 If your local checkout cannot switch to `main` because another worktree already
 uses it, trigger the workflow from the current branch while explicitly using
 `origin/main` as the source of truth:
@@ -53,7 +58,7 @@ git fetch origin main --prune
 TAG="pi-$(git rev-parse --short=12 origin/main)"
 ```
 
-For public GHCR packages, omit `image_pull_secret`:
+For a manual public GHCR rerun, omit `image_pull_secret`:
 
 ```bash
 gh workflow run pi-appliance-images.yml \
@@ -61,8 +66,8 @@ gh workflow run pi-appliance-images.yml \
   -f image_tag="$TAG"
 ```
 
-For private GHCR packages, choose the Kubernetes pull secret name up front so
-the generated release artifact references it:
+For a manual private GHCR run, choose the Kubernetes pull secret name up front
+so the generated release artifact references it:
 
 ```bash
 gh workflow run pi-appliance-images.yml \
@@ -71,9 +76,9 @@ gh workflow run pi-appliance-images.yml \
   -f image_pull_secret=ghcr-pull-secret
 ```
 
-After the workflow finishes, download the `pulse-pi-release-values` artifact.
-This can happen on the workstation and be copied to the Pi, or directly on the
-Pi after installing GitHub CLI.
+After the automatic or manual workflow finishes, download the
+`pulse-pi-release-values` artifact. This can happen on the workstation and be
+copied to the Pi, or directly on the Pi after installing GitHub CLI.
 
 To install `gh` on Raspberry Pi OS / Debian with the
 [official GitHub CLI APT repository](https://github.com/cli/cli/blob/trunk/docs/install_linux.md),
