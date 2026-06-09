@@ -5,17 +5,37 @@ import { useTelemetryEngine } from '@/features/telemetry/TelemetryEngineContext'
 import { useTelemetryStore } from '@/features/telemetry/store';
 import type { DeviceSnapshot } from '@/features/telemetry/engine/types';
 
+export type TelemetrySubscriptionOptions = {
+  active?: boolean;
+};
+
+export function normalizeTelemetryDeviceIds(deviceIds: readonly string[]): string[] {
+  return [...new Set(deviceIds)].sort();
+}
+
+export function resolveTelemetrySubscriptionDeviceIds(
+  deviceIds: readonly string[],
+  options: TelemetrySubscriptionOptions = {}
+): string[] {
+  return options.active === false ? [] : normalizeTelemetryDeviceIds(deviceIds);
+}
+
 function useStableDeviceIds(deviceIds: string[]): string[] {
-  const idsKey = useMemo(() => [...new Set(deviceIds)].sort().join(','), [deviceIds]);
+  const idsKey = useMemo(() => normalizeTelemetryDeviceIds(deviceIds).join(','), [deviceIds]);
   return useMemo(() => (idsKey ? idsKey.split(',') : []), [idsKey]);
 }
 
-export function useTelemetrySubscription(deviceIds: string[]) {
+export function useTelemetrySubscription(deviceIds: string[], options: TelemetrySubscriptionOptions = {}) {
   const engine = useTelemetryEngine();
   const setVisibleDeviceIds = useTelemetryStore((s) => s.setVisibleDeviceIds);
   const setConnectionStatus = useTelemetryStore((s) => s.setConnectionStatus);
   const updateSnapshots = useTelemetryStore((s) => s.updateSnapshots);
   const stableIds = useStableDeviceIds(deviceIds);
+  const active = options.active ?? true;
+  const subscriptionIds = useMemo(
+    () => resolveTelemetrySubscriptionDeviceIds(stableIds, { active }),
+    [active, stableIds]
+  );
 
   useEffect(() => {
     setConnectionStatus(engine.getStatus());
@@ -28,13 +48,13 @@ export function useTelemetrySubscription(deviceIds: string[]) {
   }, [engine, setConnectionStatus, updateSnapshots]);
 
   useEffect(() => {
-    setVisibleDeviceIds(stableIds);
-    engine.subscribe(stableIds);
+    setVisibleDeviceIds(subscriptionIds);
+    engine.subscribe(subscriptionIds);
 
     return () => {
-      engine.unsubscribe(stableIds);
+      engine.unsubscribe(subscriptionIds);
     };
-  }, [stableIds, engine, setVisibleDeviceIds]);
+  }, [subscriptionIds, engine, setVisibleDeviceIds]);
 }
 
 export function useTelemetryConnectionStatus() {
@@ -79,8 +99,8 @@ export function useTelemetrySnapshotsByIds(deviceIds: string[]): Record<string, 
   );
 }
 
-export function useTelemetrySnapshot(deviceIds: string[]) {
-  useTelemetrySubscription(deviceIds);
+export function useTelemetrySnapshot(deviceIds: string[], options: TelemetrySubscriptionOptions = {}) {
+  useTelemetrySubscription(deviceIds, options);
   const byId = useTelemetrySnapshotsByIds(deviceIds);
   const stableIds = useStableDeviceIds(deviceIds);
   const connectionStatus = useTelemetryConnectionStatus();
