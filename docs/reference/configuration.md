@@ -391,7 +391,10 @@ Admin log stream behavior:
   codes, while `Status` matches any type code ending in `Status` and `Info`
   matches any type code ending in `Info`,
 - emitted entries and expandable JSON details use the normalized redacted
-  envelope; raw MQTT payload reveal is intentionally out of scope for v1.
+  envelope; raw MQTT payload reveal is intentionally out of scope for v1,
+- the universal Logs client treats `log_entry` and `logs_replay_done` frames as
+  stream lifecycle progress, so replayed rows cannot remain stuck behind a
+  stale `Connecting` banner if the final live status frame is delayed,
 - the universal Logs tab closes its websocket subscription while the tab is not
   active and resubscribes when the user returns, preserving the visible buffer
   locally instead of refreshing in the background.

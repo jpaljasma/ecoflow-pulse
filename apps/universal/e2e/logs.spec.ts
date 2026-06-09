@@ -39,7 +39,7 @@ test.describe('Universal admin logs', () => {
 
     await expect(page.getByTestId('screen-logs')).toBeVisible();
     await expect(page.getByText('Realtime MQTT operations console')).toBeVisible();
-    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
     await expect(page.getByText(/quota .* frame/i).first()).toBeVisible();
     await expect(page.getByText(/DPU A 12 kWh <11111111\.\.\.1111>/).first()).toBeVisible();
     await expect(page.getByText('op***@ex***').first()).toBeVisible();
@@ -59,13 +59,29 @@ test.describe('Universal admin logs', () => {
     await expect(page.getByText('"payload"')).toHaveCount(1);
   });
 
+  test('connects realtime logs after sidebar navigation from another tab', async ({ page }) => {
+    await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await page.goto('/devices');
+    await expect(page.getByTestId('screen-devices')).toBeVisible();
+
+    await page.getByTestId('sidebar-logs').click();
+
+    await expect(page.getByTestId('screen-logs')).toBeVisible();
+    await expect(page.getByText(/frame for/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
+    await page.waitForTimeout(1500);
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
+  });
+
   test('applies canonical device deep links to websocket log filters', async ({ page }) => {
     await captureWebSocketMessages(page);
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/logs?deviceId=11111111-1111-7111-8111-111111111111');
 
-    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
     await expect.poll(() =>
       page.evaluate(() => {
         const messages = (window as unknown as { __pulseWsSentMessages?: Array<{ type?: string; filters?: { deviceIds?: string[] } }> }).__pulseWsSentMessages ?? [];
@@ -79,7 +95,7 @@ test.describe('Universal admin logs', () => {
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/logs');
-    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
 
     await page.getByRole('button', { name: 'Enable OK filter' }).click();
     await expect.poll(() => latestLogSubscribeStatuses(page)).toEqual(['ok']);
@@ -96,7 +112,7 @@ test.describe('Universal admin logs', () => {
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/logs');
-    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
 
     await page.getByRole('button', { name: 'Enable Status filter' }).click();
     await expect.poll(() => latestLogSubscribeTypeFilter(page)).toEqual({
@@ -146,7 +162,7 @@ test.describe('Universal admin logs', () => {
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/logs');
-    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
     await expect(page.getByText(/frame for/i).first()).toBeVisible();
 
     await page.getByRole('button', { name: /pause/i }).click();
@@ -180,7 +196,7 @@ test.describe('Universal admin logs', () => {
     await mockApiRoutes(page, { roles: ['viewer', 'admin'] });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/logs');
-    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
     await expect(page.getByText(/frame for/i).first()).toBeVisible();
 
     await page.goto('/devices');
@@ -191,9 +207,13 @@ test.describe('Universal admin logs', () => {
     ).__pulseLogCounters?.offTabLogEntries ?? 0)).toBe(0);
 
     await page.goto('/logs');
-    await expect(page.getByText('Live')).toBeVisible({ timeout: 5000 });
+    await expect(logsConnectionState(page)).toHaveText('Live', { timeout: 5000 });
   });
 });
+
+function logsConnectionState(page: Page) {
+  return page.getByTestId('screen-logs').getByTestId('logs-connection-state');
+}
 
 async function captureWebSocketMessages(page: Page): Promise<void> {
   await page.addInitScript(() => {
