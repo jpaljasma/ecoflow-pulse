@@ -192,16 +192,20 @@ class GatewaySession {
     this.nextLogRequestSeq = requestSeq;
     this.logRequestSeq.set(subscriptionId, requestSeq);
 
+    if (!this.logSource) {
+      this.sendLogsStatus(subscriptionId, 'error', 'admin log source unavailable');
+      return;
+    }
+    if (this.willAuthorizeLogFilters()) {
+      this.sendLogsStatus(subscriptionId, 'replay');
+    }
+
     const filters = await this.resolveLogFilters(message.filters);
     if (this.closed || this.logRequestSeq.get(subscriptionId) !== requestSeq) {
       return;
     }
     if (!filters) {
       this.sendLogsStatus(subscriptionId, 'forbidden', 'device log access required');
-      return;
-    }
-    if (!this.logSource) {
-      this.sendLogsStatus(subscriptionId, 'error', 'admin log source unavailable');
       return;
     }
 
@@ -229,6 +233,16 @@ class GatewaySession {
     } catch {
       this.sendLogsStatus(subscriptionId, 'error', 'admin log stream failed');
     }
+  }
+
+  private willAuthorizeLogFilters(): boolean {
+    if (this.roles.some((role) => role.toLowerCase() === 'admin')) {
+      return false;
+    }
+    if (this.config.auth.mode === 'noop' && this.config.logs.devAdminEnabled) {
+      return false;
+    }
+    return Boolean(this.deviceAuthorizer && this.authHeader);
   }
 
   private unsubscribeLogs(subscriptionId: string, options: { silent?: boolean } = {}): void {
