@@ -199,10 +199,10 @@ export default function LogsScreen() {
         >
           <XStack alignItems="center" gap="$2" flexWrap="wrap" flex={1}>
             <StatusDot state={stream.connectionState} />
-            <Text fontSize="$3" fontWeight="800">
+            <Text fontSize="$3" fontWeight="800" testID="logs-connection-state">
               {formatConnectionState(stream.connectionState)}
             </Text>
-            <Text fontSize="$2" color="$colorMuted">
+            <Text fontSize="$2" color="$colorMuted" testID="logs-stream-counts">
               replayed {stream.replayedCount} · visible {visibleEntries.length} · buffered {stream.entries.length}
             </Text>
             {stream.paused ? (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { env } from '@/shared/config/env';
 import {
   appendLogEntry,
@@ -123,10 +123,12 @@ export function useAdminLogStream({
               maxEntries: maxEntriesRef.current
             })
           );
+          settleConnectionState(setConnectionState, 'replay');
           return;
         }
         if (message.type === 'logs_replay_done' && typeof message.replayed === 'number') {
           setReplayedCount(message.replayed);
+          settleConnectionState(setConnectionState, 'live');
           return;
         }
         if (message.type === 'logs_status' && typeof message.state === 'string') {
@@ -138,6 +140,7 @@ export function useAdminLogStream({
 
       ws.onerror = () => {
         setConnectionState('error');
+        ws.close();
       };
       ws.onclose = () => {
         if (socketRef.current === ws) {
@@ -207,6 +210,18 @@ function normalizeConnectionState(value: string): LogsConnectionState {
     default:
       return 'idle';
   }
+}
+
+function settleConnectionState(
+  setConnectionState: Dispatch<SetStateAction<LogsConnectionState>>,
+  nextState: LogsConnectionState
+) {
+  setConnectionState((current) => {
+    if (current === 'connecting' || current === 'replay' || current === 'closed' || current === 'error') {
+      return nextState;
+    }
+    return current;
+  });
 }
 
 function isLogEntry(value: unknown): value is AdminLogEntry {
