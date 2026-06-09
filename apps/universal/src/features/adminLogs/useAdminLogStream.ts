@@ -26,6 +26,7 @@ type UseAdminLogStreamInput = {
 const SUBSCRIPTION_ID = 'admin-logs';
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
+const STARTUP_TIMEOUT_MS = 8_000;
 
 export function useAdminLogStream({
   token,
@@ -70,6 +71,7 @@ export function useAdminLogStream({
     let disposed = false;
     let terminal = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelStartupTimeout: (() => void) | null = null;
 
     const resetBuffer = () => {
       setState((current) => resetLogState(current));
@@ -94,14 +96,20 @@ export function useAdminLogStream({
       subscriptionKeyRef.current = subscriptionKey;
     }
     const subscribeFilters = parseSubscribeFilters(filtersKey);
+    const clearStartupTimeout = () => {
+      cancelStartupTimeout?.();
+      cancelStartupTimeout = null;
+    };
 
     const openSocket = (attempt: number) => {
       if (disposed || terminal) {
         return;
       }
+      clearStartupTimeout();
       const ws = new WebSocket(buildWebSocketUrl(env.wsUrl, token));
       socketRef.current = ws;
       setConnectionState('connecting');
+      cancelStartupTimeout = armAdminLogStartupTimeout(ws);
 
       ws.onopen = () => {
         ws.send(JSON.stringify(buildSubscribeMessage(subscribeFilters, maxEntriesRef.current)));
@@ -111,6 +119,7 @@ export function useAdminLogStream({
         if (disposed || socketRef.current !== ws) {
           return;
         }
+        clearStartupTimeout();
         const message = parseJsonRecord(event.data);
         if (!message) {
           return;
@@ -139,10 +148,12 @@ export function useAdminLogStream({
       };
 
       ws.onerror = () => {
+        clearStartupTimeout();
         setConnectionState('error');
         ws.close();
       };
       ws.onclose = () => {
+        clearStartupTimeout();
         if (socketRef.current === ws) {
           socketRef.current = null;
         }
@@ -165,6 +176,7 @@ export function useAdminLogStream({
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
+      clearStartupTimeout();
       const ws = socketRef.current;
       if (!ws) {
         return;
@@ -197,6 +209,18 @@ export function useAdminLogStream({
     setPaused,
     clear
   };
+}
+
+export function armAdminLogStartupTimeout(
+  ws: WebSocket,
+  options: { timeoutMs?: number } = {}
+): () => void {
+  const timeout = setTimeout(() => {
+    if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+  }, options.timeoutMs ?? STARTUP_TIMEOUT_MS);
+  return () => clearTimeout(timeout);
 }
 
 function normalizeConnectionState(value: string): LogsConnectionState {
