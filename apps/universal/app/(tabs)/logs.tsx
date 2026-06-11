@@ -1,7 +1,7 @@
 import { createElement, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { useIsFocused } from 'expo-router/react-navigation';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, usePathname } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Input, Text, XStack, YStack } from 'tamagui';
@@ -13,6 +13,7 @@ import {
   buildSubscribeFilters,
   DEFAULT_LOG_KEEP_LIMIT,
   fuzzyFilterLogEntries,
+  isAdminLogsRouteActive,
   mergeAdminLogFilterOptions,
   redactEntryForCopy,
   resolveAdminLogsRouteState,
@@ -66,6 +67,12 @@ export default function LogsScreen() {
   const { allowed, waiting } = useRequireAuth();
   const currentUserQuery = useCurrentUser({ token, authKey, enabled: authReady && allowed });
   const isFocused = useIsFocused();
+  const pathname = usePathname();
+  const logsRouteActive = isAdminLogsRouteActive({
+    isFocused,
+    pathname,
+    platformOS: Platform.OS
+  });
   const routeParams = useLocalSearchParams<{ device?: string | string[]; deviceId?: string | string[] }>();
   const routeDeviceParam = routeParams.device;
   const routeDeviceIdParam = routeParams.deviceId;
@@ -104,7 +111,7 @@ export default function LogsScreen() {
   const stream = useAdminLogStream({
     token,
     enabled: authReady && allowed && canReadLogs,
-    active: isFocused,
+    active: logsRouteActive,
     filters,
     maxEntries,
     holdVisible: expandedKey !== null
@@ -123,13 +130,13 @@ export default function LogsScreen() {
   const deviceMetadataQuery = useQuery({
     queryKey: ['admin-log-device-metadata', metadataDeviceIdsKey, authKey],
     queryFn: () => fetchMetadataForDeviceIds({ token, kind: 'device', deviceIds: metadataDeviceIds }),
-    enabled: isFocused && authReady && allowed && canReadLogs && metadataDeviceIds.length > 0,
+    enabled: logsRouteActive && authReady && allowed && canReadLogs && metadataDeviceIds.length > 0,
     staleTime: 60_000
   });
   const userMetadataQuery = useQuery({
     queryKey: ['admin-log-user-metadata', visibleDeviceIdsKey, authKey],
     queryFn: () => fetchMetadataForDeviceIds({ token, kind: 'user', deviceIds: visibleDeviceIds }),
-    enabled: isFocused && isAdmin && authReady && allowed && canReadLogs && visibleDeviceIds.length > 0,
+    enabled: logsRouteActive && isAdmin && authReady && allowed && canReadLogs && visibleDeviceIds.length > 0,
     staleTime: 60_000
   });
   const userLabelByDeviceId = useMemo(
