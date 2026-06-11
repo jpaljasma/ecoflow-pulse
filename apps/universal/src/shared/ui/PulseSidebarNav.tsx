@@ -1,13 +1,18 @@
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { Text, XStack, YStack } from 'tamagui';
 import { useThemeSemantics } from '@/shared/theme/semantic';
 import { useAppTheme } from '@/shared/theme/useAppTheme';
 import { useNavigationShellMetrics } from '@/shared/ui/navigationShell';
 import { useNavigationShellStore } from '@/shared/ui/navigationShellStore';
 import { PulseMark } from '@/shared/ui/PulseMark';
-import { filterPulsePrimaryNavItems, type PulsePrimaryNavKey } from '@/shared/ui/pulsePrimaryNav';
+import {
+  filterPulsePrimaryNavItems,
+  resolvePulsePrimaryNavPressTarget,
+  type PulsePrimaryNavItem,
+  type PulsePrimaryNavKey
+} from '@/shared/ui/pulsePrimaryNav';
 import { useAuthSession } from '@/features/auth/hooks';
 import { useCurrentUser } from '@/features/profile/hooks';
 
@@ -27,6 +32,15 @@ export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }
   if (!isSidebarMode) {
     return null;
   }
+
+  const openNavItem = (item: PulsePrimaryNavItem) => {
+    const target = resolvePulsePrimaryNavPressTarget(item, Platform.OS);
+    if (target.mode === 'document' && typeof window !== 'undefined') {
+      window.location.assign(target.href);
+      return;
+    }
+    router.replace(target.href);
+  };
 
   return (
     <View
@@ -132,7 +146,7 @@ export function PulseSidebarNav({ activeKey }: { activeKey: PulsePrimaryNavKey }
                 accessibilityState={focused ? { selected: true } : {}}
                 accessibilityLabel={item.label}
                 testID={`sidebar-${item.key}`}
-                onPress={() => router.replace(item.href)}
+                onPress={() => openNavItem(item)}
                 style={({ pressed }) => ({
                   minHeight: sidebarExpanded ? 58 : 54,
                   borderRadius: 18,

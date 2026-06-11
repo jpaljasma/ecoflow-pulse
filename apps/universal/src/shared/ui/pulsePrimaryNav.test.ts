@@ -4,6 +4,7 @@ import {
   filterPulsePrimaryNavItems,
   isPulseGlobalAdmin,
   pulsePrimaryNavItems,
+  resolvePulsePrimaryNavPressTarget,
   resolvePulsePrimaryNavKey
 } from '@/shared/ui/pulsePrimaryNav';
 
@@ -34,5 +35,16 @@ describe('pulse primary nav', () => {
     expect(filterPulsePrimaryNavItems({ roles: ['viewer'], deviceCount: 0 }).map((item) => item.key)).not.toContain('logs');
     expect(filterPulsePrimaryNavItems({ roles: ['viewer'], deviceCount: 2 }).map((item) => item.key)).toContain('logs');
     expect(filterPulsePrimaryNavItems({ roles: ['admin'], deviceCount: 0 }).map((item) => item.key)).toContain('logs');
+  });
+
+  it('uses a web document navigation for Logs while keeping native router navigation', () => {
+    const logsItem = pulsePrimaryNavItems.find((item) => item.key === 'logs');
+    const devicesItem = pulsePrimaryNavItems.find((item) => item.key === 'devices');
+
+    expect(logsItem).toBeDefined();
+    expect(devicesItem).toBeDefined();
+    expect(resolvePulsePrimaryNavPressTarget(logsItem!, 'web')).toEqual({ mode: 'document', href: '/logs' });
+    expect(resolvePulsePrimaryNavPressTarget(logsItem!, 'ios')).toEqual({ mode: 'router', href: '/(tabs)/logs' });
+    expect(resolvePulsePrimaryNavPressTarget(devicesItem!, 'web')).toEqual({ mode: 'router', href: '/(tabs)/devices' });
   });
 });
