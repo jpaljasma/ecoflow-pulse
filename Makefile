@@ -573,6 +573,7 @@ appliance-pi-shellcheck:
 appliance-pi-test:
 	bash deploy/appliance/pi5/test-host-prepare.sh
 	bash deploy/appliance/pi5/test-install-dry-run.sh
+	bash deploy/appliance/pi5/test-install-chart-cache.sh
 	bash deploy/appliance/pi5/test-create-runtime-secret.sh
 	bash deploy/appliance/pi5/test-deploy-pi-target.sh
 	bash deploy/appliance/pi5/test-status-nvme-failure.sh
