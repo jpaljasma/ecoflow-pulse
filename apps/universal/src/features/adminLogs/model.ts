@@ -129,6 +129,21 @@ export function buildAdminLogsRouteParams(input: { deviceId?: string }): Record<
   return isCanonicalDeviceId(input.deviceId) ? { deviceId: input.deviceId } : {};
 }
 
+export function isAdminLogsRouteActive(input: {
+  isFocused: boolean;
+  pathname?: string | null;
+  platformOS: string;
+}): boolean {
+  if (input.isFocused) {
+    return true;
+  }
+  if (input.platformOS !== 'web') {
+    return false;
+  }
+  const pathname = normalizePathname(input.pathname);
+  return pathname === '/logs' || pathname === '/(tabs)/logs';
+}
+
 export function mergeAdminLogFilterOptions(options: readonly AdminLogFilterOption[]): AdminLogFilterOption[] {
   const merged = new Map<string, AdminLogFilterOption>();
   for (const option of options) {
@@ -321,6 +336,14 @@ function unique<T extends string>(values: readonly T[]): T[] {
 
 function normalizeText(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function normalizePathname(value: string | null | undefined): string {
+  if (!value) {
+    return '';
+  }
+  const trimmed = value.trim().replace(/\/+$/, '');
+  return trimmed || '/';
 }
 
 function normalizeScalar(value: string | string[] | undefined): string | undefined {

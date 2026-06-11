@@ -7,6 +7,7 @@ import {
   createInitialLogState,
   DEFAULT_LOG_KEEP_LIMIT,
   fuzzyFilterLogEntries,
+  isAdminLogsRouteActive,
   isGlobalAdmin,
   mergeAdminLogFilterOptions,
   redactEntryForCopy,
@@ -78,6 +79,14 @@ describe('admin log model', () => {
     expect(resolveAdminLogsRouteState({ deviceId: 'DEMO-SERIAL' })).toEqual({});
     expect(buildAdminLogsRouteParams({ deviceId })).toEqual({ deviceId });
     expect(buildAdminLogsRouteParams({ deviceId: 'DEMO-SERIAL' })).toEqual({});
+  });
+
+  it('keeps the web Logs route active when navigation focus lags behind the URL', () => {
+    expect(isAdminLogsRouteActive({ isFocused: true, pathname: '/devices', platformOS: 'web' })).toBe(true);
+    expect(isAdminLogsRouteActive({ isFocused: false, pathname: '/logs', platformOS: 'web' })).toBe(true);
+    expect(isAdminLogsRouteActive({ isFocused: false, pathname: '/(tabs)/logs', platformOS: 'web' })).toBe(true);
+    expect(isAdminLogsRouteActive({ isFocused: false, pathname: '/devices', platformOS: 'web' })).toBe(false);
+    expect(isAdminLogsRouteActive({ isFocused: false, pathname: '/logs', platformOS: 'ios' })).toBe(false);
   });
 
   it('merges duplicate filter options without losing device ids', () => {
