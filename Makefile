@@ -522,7 +522,46 @@ chart-deps-local: helm-local-ready
 		fi; \
 		echo "chart dependencies already vendored for $$chart; skipping helm dependency build"
 
-.PHONY: appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate appliance-pi-install appliance-pi-upgrade appliance-pi-wait appliance-pi-status appliance-pi-create-runtime-secret
+PI_APPLIANCE_IMAGES_WORKFLOW ?= pi-appliance-images.yml
+PI_APPLIANCE_RELEASE_ARTIFACT ?= pulse-pi-release-values
+PI_APPLIANCE_RELEASE_VALUES ?= /etc/pulse-appliance/release.yaml
+PI_APPLIANCE_WAIT_TIMEOUT ?= 30m
+
+.PHONY: deploy-pi appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate appliance-pi-install appliance-pi-upgrade appliance-pi-wait appliance-pi-status appliance-pi-create-runtime-secret
+
+deploy-pi:
+	@if ! command -v gh >/dev/null 2>&1; then \
+		echo "gh not found. Install and authenticate GitHub CLI first."; \
+		exit 1; \
+	fi
+	@if ! gh auth status >/dev/null 2>&1; then \
+		echo "gh is not authenticated. Run: gh auth login --hostname github.com --web"; \
+		exit 1; \
+	fi
+	@set -eu; \
+		echo "updating repository from origin/main"; \
+		git fetch --prune origin; \
+		current_branch="$$(git branch --show-current)"; \
+		if [ "$$current_branch" = "main" ]; then \
+			git pull --ff-only origin main; \
+		else \
+			git merge --ff-only origin/main; \
+		fi; \
+		release_dir="$$(mktemp -d)"; \
+		trap 'rm -rf "$$release_dir"' EXIT; \
+		run_id="$$(gh run list --workflow "$(PI_APPLIANCE_IMAGES_WORKFLOW)" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')"; \
+		if [ -z "$$run_id" ] || [ "$$run_id" = "null" ]; then \
+			echo "no successful Pi Appliance Images workflow run found on main"; \
+			exit 1; \
+		fi; \
+		echo "using Pi image run $$run_id"; \
+		gh run download "$$run_id" --name "$(PI_APPLIANCE_RELEASE_ARTIFACT)" --dir "$$release_dir"; \
+		sudo install -D -m 0644 "$$release_dir/pulse-pi-release.yaml" "$(PI_APPLIANCE_RELEASE_VALUES)"; \
+		WAIT_TIMEOUT="$(PI_APPLIANCE_WAIT_TIMEOUT)" APPLIANCE_PI_INSTALL_ARGS="--release-values $(PI_APPLIANCE_RELEASE_VALUES) --skip-host-prepare --skip-k3s-install" $(MAKE) appliance-pi-upgrade; \
+		sudo env KUBECONFIG="$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}" $(MAKE) appliance-pi-status; \
+		$(KUBECTL) --kubeconfig "$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}" -n pulse-platform get deploy \
+			pulse-platform-public-app pulse-platform-realtime-gateway \
+			-o jsonpath='{range .items[*]}{.metadata.name}{" image="}{.spec.template.spec.containers[0].image}{"\n"}{end}'
 
 appliance-pi-shellcheck:
 	@if ! command -v shellcheck >/dev/null 2>&1; then \
@@ -535,6 +574,7 @@ appliance-pi-test:
 	bash deploy/appliance/pi5/test-host-prepare.sh
 	bash deploy/appliance/pi5/test-install-dry-run.sh
 	bash deploy/appliance/pi5/test-create-runtime-secret.sh
+	bash deploy/appliance/pi5/test-deploy-pi-target.sh
 	bash deploy/appliance/pi5/test-status-nvme-failure.sh
 	bash deploy/appliance/pi5/test-status-nvme-permission.sh
 	bash deploy/appliance/pi5/test-status-outbox.sh
