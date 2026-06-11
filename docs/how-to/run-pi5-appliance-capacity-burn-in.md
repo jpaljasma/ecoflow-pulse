@@ -109,7 +109,16 @@ gh auth status
 gh auth setup-git
 ```
 
-Download the successful workflow artifact from the cloned repo on the Pi:
+For routine post-merge updates after the first appliance setup is complete, run
+the one-command deploy target from the cloned repo on the Pi:
+
+```bash
+make deploy-pi
+```
+
+For manual inspection, custom workflow runs, private GHCR pull-secret changes,
+or recovery from a partial artifact download, download the successful workflow
+artifact directly:
 
 ```bash
 gh run list --workflow pi-appliance-images.yml --branch main --limit 5

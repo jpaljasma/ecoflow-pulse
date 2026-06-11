@@ -1394,6 +1394,15 @@ Notes:
   authenticated with `gh auth login --hostname github.com --web`. Use the
   signed official GitHub CLI APT repository on Raspberry Pi OS rather than
   older `apt-key` examples.
+- `make deploy-pi` is the standard one-command appliance update once the Pi has
+  `gh`, `kubectl`, Helm, K3s, and repo access configured. It fast-forwards the
+  local checkout to `origin/main`, downloads the latest successful
+  `pulse-pi-release-values` artifact, installs it at
+  `/etc/pulse-appliance/release.yaml`, runs `make appliance-pi-upgrade` with
+  host/K3s setup skipped, runs sudo status for NVMe SMART coverage, and prints
+  the live public app and realtime gateway image digests. Override
+  `PI_APPLIANCE_WAIT_TIMEOUT` when the default `30m` operator window is too
+  short or too long.
 - Pi Helm dependency archives under `deploy/charts/*/charts/` act as a local
   cache for `helm dependency build --skip-refresh`. Keep them on the Pi
   checkout when avoiding repeated chart downloads, but do not commit them.
