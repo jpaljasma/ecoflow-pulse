@@ -17,6 +17,12 @@ export type PulsePrimaryNavItem = {
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   adminOnly?: boolean;
   hiddenFromNav?: boolean;
+  webDocumentHref?: string;
+};
+
+export type PulsePrimaryNavPressTarget = {
+  mode: 'router' | 'document';
+  href: string;
 };
 
 export const pulsePrimaryNavItems: PulsePrimaryNavItem[] = [
@@ -42,6 +48,7 @@ export const pulsePrimaryNavItems: PulsePrimaryNavItem[] = [
     key: 'logs',
     label: 'Logs',
     href: '/(tabs)/logs',
+    webDocumentHref: '/logs',
     icon: 'text-box-search-outline',
     adminOnly: true
   },
@@ -84,4 +91,11 @@ export function resolvePulsePrimaryNavKey(routeName: string): PulsePrimaryNavKey
 export function filterPulsePrimaryNavItems(access: PulseLogAccessInput): PulsePrimaryNavItem[] {
   const logsAccess = canAccessPulseLogs(access);
   return pulsePrimaryNavItems.filter((item) => !item.hiddenFromNav && (!item.adminOnly || logsAccess));
+}
+
+export function resolvePulsePrimaryNavPressTarget(item: PulsePrimaryNavItem, platformOS: string): PulsePrimaryNavPressTarget {
+  if (platformOS === 'web' && item.webDocumentHref) {
+    return { mode: 'document', href: item.webDocumentHref };
+  }
+  return { mode: 'router', href: item.href };
 }

@@ -91,6 +91,9 @@ This file adds universal-app-specific rules on top of the repository root `AGENT
 3. Pause live row movement while details are expanded, while the user pauses the stream, or while the Logs tab is inactive.
 4. Format and redact expanded JSON lazily so collapsed live rows stay cheap to render.
 5. Prefer suffix-family type filters for provider families such as `*Status` and `*Info`; do not add a new hardcoded entry for every newly observed status frame.
+6. On web, primary navigation to Logs intentionally uses a document navigation
+   to `/logs` so the realtime console starts from the same clean lifecycle as a
+   direct browser load; keep native navigation on the normal Expo router path.
 
 ## Auth and Browser Runtime
 1. Browser web sign-in must use a same-tab Authorization Code + PKCE redirect when the current tab can be navigated; do not rely on popup/opener completion for web browsers because local, iOS, and embedded browser surfaces can block `window.open`.
