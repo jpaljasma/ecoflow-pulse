@@ -187,12 +187,14 @@ class GatewaySession {
 
   private async subscribeLogs(message: Extract<ClientMessage, { type: 'logs_subscribe' }>): Promise<void> {
     const subscriptionId = message.subscriptionId;
+    realtimeMetrics.recordLogSubscriptionOutcome('requested');
     this.unsubscribeLogs(subscriptionId, { silent: true });
     const requestSeq = this.nextLogRequestSeq + 1;
     this.nextLogRequestSeq = requestSeq;
     this.logRequestSeq.set(subscriptionId, requestSeq);
 
     if (!this.logSource) {
+      realtimeMetrics.recordLogSubscriptionOutcome('source_unavailable');
       this.sendLogsStatus(subscriptionId, 'error', 'admin log source unavailable');
       return;
     }
@@ -210,6 +212,7 @@ class GatewaySession {
       this.sendLogsStatus(subscriptionId, 'forbidden', 'device log access required');
       return;
     }
+    realtimeMetrics.recordLogSubscriptionOutcome('authorized');
 
     const replaySinceUnixMs =
       message.replaySinceUnixMs > 0 ? message.replaySinceUnixMs : Date.now() - this.config.logs.replayWindowMs;
@@ -225,6 +228,7 @@ class GatewaySession {
           this.send({ type: 'log_entry', subscriptionId, entry });
         },
         onReplayDone: ({ replayed }) => {
+          realtimeMetrics.recordLogSubscriptionOutcome('replay_done');
           this.send({ type: 'logs_replay_done', subscriptionId, ts: Date.now(), replayed });
         },
         onStatus: (status) => {
@@ -236,7 +240,9 @@ class GatewaySession {
         }
       });
       this.logStreams.set(subscriptionId, subscription);
+      realtimeMetrics.recordLogSubscriptionOutcome('subscribed');
     } catch {
+      realtimeMetrics.recordLogSubscriptionOutcome('source_error');
       this.sendLogsStatus(subscriptionId, 'error', 'admin log stream failed');
     }
   }
@@ -414,6 +420,7 @@ class GatewaySession {
     state: ServerLogsStatusMessage['state'],
     message?: string
   ): void {
+    realtimeMetrics.recordLogSubscriptionOutcome(logStatusMetricOutcome(state));
     this.send({
       type: 'logs_status',
       subscriptionId,
@@ -440,6 +447,23 @@ class GatewaySession {
     } catch {
       this.close();
     }
+  }
+}
+
+function logStatusMetricOutcome(
+  state: ServerLogsStatusMessage['state']
+): Parameters<typeof realtimeMetrics.recordLogSubscriptionOutcome>[0] {
+  switch (state) {
+    case 'replay':
+      return 'status_replay';
+    case 'live':
+      return 'status_live';
+    case 'forbidden':
+      return 'status_forbidden';
+    case 'error':
+      return 'status_error';
+    case 'closed':
+      return 'status_closed';
   }
 }
 

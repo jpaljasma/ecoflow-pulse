@@ -345,6 +345,64 @@ describe('pulse-realtime-gateway', () => {
     await app.close();
   });
 
+  it('exposes admin log subscription lifecycle metrics for scraping', async () => {
+    const client = new FakeLiveClient();
+    const logs = new FakeAdminLogSource();
+    logs.replayEntries = [sampleLogEntry({ id: 'replay-1', ts: 1000 })];
+    const app = buildApp(baseConfig(), client, {
+      logSource: logs,
+      wsPreValidation: async (request) => {
+        request.auth = {
+          subject: 'admin-user',
+          email: '',
+          roles: ['viewer', 'admin'],
+          rawJwt: 'admin-token'
+        };
+        request.wsAuthHeader = 'Bearer admin-token';
+      }
+    });
+    const ws = await openWebSocket(app, '/ws');
+
+    ws.send(JSON.stringify({ type: 'logs_subscribe', subscriptionId: 'logs-1' }));
+
+    expect(await nextMessage(ws)).toMatchObject({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      state: 'replay'
+    });
+    expect(await nextMessage(ws)).toMatchObject({
+      type: 'log_entry',
+      subscriptionId: 'logs-1'
+    });
+    expect(await nextMessage(ws)).toMatchObject({
+      type: 'logs_replay_done',
+      subscriptionId: 'logs-1',
+      replayed: 1
+    });
+    expect(await nextMessage(ws)).toMatchObject({
+      type: 'logs_status',
+      subscriptionId: 'logs-1',
+      state: 'live'
+    });
+
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/metrics'
+    });
+
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.body).toContain('pulse_realtime_ws_log_subscriptions_total');
+    expect(metrics.body).toContain('outcome="requested"');
+    expect(metrics.body).toContain('outcome="status_replay"');
+    expect(metrics.body).toContain('outcome="authorized"');
+    expect(metrics.body).toContain('outcome="subscribed"');
+    expect(metrics.body).toContain('outcome="replay_done"');
+    expect(metrics.body).toContain('outcome="status_live"');
+
+    await closeWebSocket(ws);
+    await app.close();
+  });
+
   it('responds to client heartbeat pings so idle connections stay fresh', async () => {
     const client = new FakeLiveClient();
     const app = buildApp(baseConfig(), client);

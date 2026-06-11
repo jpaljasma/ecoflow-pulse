@@ -359,7 +359,13 @@ Cloud note:
 - `KEYCLOAK_AUDIENCE` (required when `NODE_AUTH_MODE=keycloak`)
 - `KEYCLOAK_JWKS_URL` (optional override)
 - `KEYCLOAK_ALLOW_MISSING_JWT` (default `false`; only for controlled local bootstrap)
-- `GET /metrics` is exposed on the same realtime-gateway HTTP service for Prometheus/OTEL scrape collection. In Helm, enable `runtime.realtimeGateway.metrics.serviceMonitor.enabled=true` to have observability-lite discover the endpoint automatically.
+- `GET /metrics` is exposed on the same realtime-gateway HTTP service for
+  Prometheus/OTEL scrape collection. In Helm, enable
+  `runtime.realtimeGateway.metrics.serviceMonitor.enabled=true` to have
+  observability-lite discover the endpoint automatically. Use
+  `pulse_realtime_ws_log_subscriptions_total` to distinguish Logs page lifecycle
+  outcomes such as `requested`, `status_replay`, `authorized`, `subscribed`,
+  `replay_done`, `status_live`, `status_forbidden`, and `source_error`.
 
 Runtime behavior:
 - the gateway authorizes device access through the internal Go gRPC API,
