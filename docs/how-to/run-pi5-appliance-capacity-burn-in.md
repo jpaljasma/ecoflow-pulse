@@ -196,10 +196,13 @@ NVMe SMART read is required. Non-root status checks can still validate the
 cluster and archive outbox but report a warning when SMART access needs root.
 
 The installer runs `helm dependency build --skip-refresh` for the platform and
-services charts. To avoid downloading the large dependency set on every Pi
+services charts only when the local chart archive cache is missing entries from
+`Chart.lock`. To avoid downloading the large dependency set on every Pi
 upgrade, keep the generated untracked chart archives under
-`deploy/charts/*/charts/` on the appliance checkout. They are a local cache for
-the Pi and should not be committed.
+`deploy/charts/*/charts/` on the appliance checkout. They are a local SSD cache
+for the Pi and should not be committed. Set
+`PULSE_APPLIANCE_FORCE_CHART_DEPENDENCY_BUILD=1` only when intentionally
+refreshing that cache.
 
 6. Confirm the Pi sees the expected Kubernetes limits and node allocatable:
 

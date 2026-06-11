@@ -10,7 +10,7 @@ cat >"$release_values" <<'YAML'
 runtime: {}
 YAML
 
-output="$("$script_dir/pulse-appliance-install.sh" install \
+output="$(PULSE_APPLIANCE_FORCE_CHART_DEPENDENCY_BUILD=1 "$script_dir/pulse-appliance-install.sh" install \
   --repo-root "$repo_root" \
   --release-values "$release_values" \
   --dry-run \

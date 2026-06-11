@@ -1403,9 +1403,13 @@ Notes:
   the live public app and realtime gateway image digests. Override
   `PI_APPLIANCE_WAIT_TIMEOUT` when the default `30m` operator window is too
   short or too long.
-- Pi Helm dependency archives under `deploy/charts/*/charts/` act as a local
-  cache for `helm dependency build --skip-refresh`. Keep them on the Pi
-  checkout when avoiding repeated chart downloads, but do not commit them.
+- Pi Helm dependency archives under `deploy/charts/*/charts/` are the local
+  SSD cache for `helm dependency build --skip-refresh`. The appliance installer
+  skips dependency builds when every `Chart.lock` entry already has a matching
+  `charts/<name>-<version>.tgz` file. Keep those untracked archives on the Pi
+  checkout to avoid repeated chart downloads, but do not commit them. Set
+  `PULSE_APPLIANCE_FORCE_CHART_DEPENDENCY_BUILD=1` only when deliberately
+  refreshing the local chart cache.
 - A running Pi NATS pod reporting `2/2` containers is expected: it is the NATS
   server plus the chart config-reloader sidecar. The separate upstream
   `nats-box` toolbox is disabled by the Pi overlay.

@@ -16,6 +16,7 @@ kube_context="${KUBECONFIG_CONTEXT:-}"
 k3s_version="${PULSE_APPLIANCE_K3S_VERSION:-}"
 k3s_channel="${PULSE_APPLIANCE_K3S_CHANNEL:-stable}"
 wait_timeout="${WAIT_TIMEOUT:-1800s}"
+force_chart_dependency_build="${PULSE_APPLIANCE_FORCE_CHART_DEPENDENCY_BUILD:-0}"
 
 helm_bin="${HELM:-helm}"
 kubectl_bin="${KUBECTL:-kubectl}"
@@ -75,7 +76,8 @@ Environment overrides:
   PULSE_SERVICES_RUNTIME_SECRET, PULSE_APPLIANCE_KUBECONFIG,
   PULSE_APPLIANCE_K3S_VERSION, PULSE_APPLIANCE_K3S_CHANNEL,
   PULSE_APPLIANCE_RELEASE_VALUES, PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES,
-  PULSE_APPLIANCE_SERVICES_EXTRA_VALUES
+  PULSE_APPLIANCE_SERVICES_EXTRA_VALUES,
+  PULSE_APPLIANCE_FORCE_CHART_DEPENDENCY_BUILD
 USAGE
 }
 
@@ -349,8 +351,50 @@ ensure_namespace() {
 }
 
 build_chart_dependencies() {
-  run_cmd "$helm_bin" dependency build --skip-refresh "$platform_chart"
-  run_cmd "$helm_bin" dependency build --skip-refresh "$services_chart"
+  build_chart_dependency "$platform_chart"
+  build_chart_dependency "$services_chart"
+}
+
+build_chart_dependency() {
+  local chart="$1"
+  local lock="$chart/Chart.lock"
+  local charts_dir="$chart/charts"
+  local missing=0
+  local archive
+
+  if [ "$force_chart_dependency_build" = "1" ]; then
+    log "forced chart dependency build for $chart"
+    run_cmd "$helm_bin" dependency build --skip-refresh "$chart"
+    return
+  fi
+
+  if [ ! -f "$lock" ]; then
+    if grep -Eq '^[[:space:]]*repository:' "$chart/Chart.yaml"; then
+      log "Chart.lock missing for $chart; running helm dependency build --skip-refresh"
+      run_cmd "$helm_bin" dependency build --skip-refresh "$chart"
+    else
+      log "chart $chart has no external dependencies; skipping helm dependency build"
+    fi
+    return
+  fi
+
+  while IFS= read -r archive; do
+    if [ ! -f "$charts_dir/$archive" ]; then
+      missing=1
+      break
+    fi
+  done < <(awk '
+    /^[[:space:]]*-[[:space:]]name:/ { name=$3; next }
+    /^[[:space:]]*version:/ && name != "" { print name "-" $2 ".tgz"; name="" }
+  ' "$lock")
+
+  if [ "$missing" -eq 0 ]; then
+    log "chart dependencies already cached for $chart; skipping helm dependency build"
+    return
+  fi
+
+  log "chart dependency archives missing for $chart; running helm dependency build --skip-refresh"
+  run_cmd "$helm_bin" dependency build --skip-refresh "$chart"
 }
 
 platform_keycloak_first_pass_needed() {
