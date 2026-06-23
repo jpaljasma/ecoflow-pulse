@@ -1403,6 +1403,12 @@ Notes:
   the live public app and realtime gateway image digests. Override
   `PI_APPLIANCE_WAIT_TIMEOUT` when the default `30m` operator window is too
   short or too long.
+- `make deploy-pi` also includes
+  `/etc/pulse-appliance/platform-extra.yaml` automatically when it exists. Keep
+  optional Pi-local platform settings there, including
+  `keycloakRealm.google.enabled=true` and Google broker client credentials, so a
+  later appliance upgrade cannot disable social login by falling back to the
+  committed Pi defaults.
 - Pi Helm dependency archives under `deploy/charts/*/charts/` are the local
   SSD cache for `helm dependency build --skip-refresh`. The appliance installer
   skips dependency builds when every `Chart.lock` entry already has a matching
