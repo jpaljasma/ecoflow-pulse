@@ -525,6 +525,7 @@ chart-deps-local: helm-local-ready
 PI_APPLIANCE_IMAGES_WORKFLOW ?= pi-appliance-images.yml
 PI_APPLIANCE_RELEASE_ARTIFACT ?= pulse-pi-release-values
 PI_APPLIANCE_RELEASE_VALUES ?= /etc/pulse-appliance/release.yaml
+PI_APPLIANCE_PLATFORM_EXTRA_VALUES ?= /etc/pulse-appliance/platform-extra.yaml
 PI_APPLIANCE_WAIT_TIMEOUT ?= 30m
 
 .PHONY: deploy-pi appliance-pi-shellcheck appliance-pi-test appliance-pi-helm-lint appliance-pi-validate appliance-pi-install appliance-pi-upgrade appliance-pi-wait appliance-pi-status appliance-pi-create-runtime-secret
@@ -554,13 +555,20 @@ deploy-pi:
 			echo "no successful Pi Appliance Images workflow run found on main"; \
 			exit 1; \
 		fi; \
-		echo "using Pi image run $$run_id"; \
-		gh run download "$$run_id" --name "$(PI_APPLIANCE_RELEASE_ARTIFACT)" --dir "$$release_dir"; \
-		sudo install -D -m 0644 "$$release_dir/pulse-pi-release.yaml" "$(PI_APPLIANCE_RELEASE_VALUES)"; \
-		WAIT_TIMEOUT="$(PI_APPLIANCE_WAIT_TIMEOUT)" APPLIANCE_PI_INSTALL_ARGS="--release-values $(PI_APPLIANCE_RELEASE_VALUES) --skip-host-prepare --skip-k3s-install" $(MAKE) appliance-pi-upgrade; \
-		sudo env KUBECONFIG="$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}" $(MAKE) appliance-pi-status; \
-		$(KUBECTL) --kubeconfig "$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}" -n pulse-platform get deploy \
-			pulse-platform-public-app pulse-platform-realtime-gateway \
+			echo "using Pi image run $$run_id"; \
+			gh run download "$$run_id" --name "$(PI_APPLIANCE_RELEASE_ARTIFACT)" --dir "$$release_dir"; \
+			sudo install -D -m 0644 "$$release_dir/pulse-pi-release.yaml" "$(PI_APPLIANCE_RELEASE_VALUES)"; \
+			export PULSE_APPLIANCE_RELEASE_VALUES="$(PI_APPLIANCE_RELEASE_VALUES)"; \
+			if [ -n "$(PI_APPLIANCE_PLATFORM_EXTRA_VALUES)" ] && [ -f "$(PI_APPLIANCE_PLATFORM_EXTRA_VALUES)" ]; then \
+				echo "using Pi platform extra values $(PI_APPLIANCE_PLATFORM_EXTRA_VALUES)"; \
+				export PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES="$(PI_APPLIANCE_PLATFORM_EXTRA_VALUES)"; \
+			elif [ -n "$(PI_APPLIANCE_PLATFORM_EXTRA_VALUES)" ]; then \
+				echo "Pi platform extra values not found at $(PI_APPLIANCE_PLATFORM_EXTRA_VALUES); continuing without platform extras"; \
+			fi; \
+			WAIT_TIMEOUT="$(PI_APPLIANCE_WAIT_TIMEOUT)" APPLIANCE_PI_INSTALL_ARGS="--skip-host-prepare --skip-k3s-install" $(MAKE) appliance-pi-upgrade; \
+			sudo env KUBECONFIG="$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}" $(MAKE) appliance-pi-status; \
+			$(KUBECTL) --kubeconfig "$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}" -n pulse-platform get deploy \
+				pulse-platform-public-app pulse-platform-realtime-gateway \
 			-o jsonpath='{range .items[*]}{.metadata.name}{" image="}{.spec.template.spec.containers[0].image}{"\n"}{end}'
 
 appliance-pi-shellcheck:

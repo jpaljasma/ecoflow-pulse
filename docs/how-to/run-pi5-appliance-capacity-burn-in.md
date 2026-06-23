@@ -116,6 +116,33 @@ the one-command deploy target from the cloned repo on the Pi:
 make deploy-pi
 ```
 
+`make deploy-pi` automatically includes
+`/etc/pulse-appliance/platform-extra.yaml` when that file exists. Use that
+Pi-local file for install-specific platform settings that must persist across
+future appliance upgrades but must not be committed, such as Google broker
+credentials:
+
+```bash
+sudo install -d -m 0755 /etc/pulse-appliance
+tmp_values="$(mktemp)"
+cat > "$tmp_values" <<'YAML'
+keycloakRealm:
+  google:
+    enabled: true
+    clientId: "<google-client-id>"
+    clientSecret: "<google-client-secret>"
+YAML
+sudo install -m 0640 -o root -g "$(id -gn)" \
+  "$tmp_values" /etc/pulse-appliance/platform-extra.yaml
+rm -f "$tmp_values"
+```
+
+Also configure the Google OAuth web client with this authorized redirect URI:
+
+```text
+https://pulse.home.arpa/realms/pulse/broker/google/endpoint
+```
+
 For manual inspection, custom workflow runs, private GHCR pull-secret changes,
 or recovery from a partial artifact download, download the successful workflow
 artifact directly:
@@ -140,12 +167,11 @@ sudo chmod 0755 /etc/pulse-appliance
 ```
 
 The installer refuses to apply a chart that still renders `pi-placeholder`.
-Current releases should not need operator-local platform or services override
-files. Clear any temporary live-debug overrides before applying a refreshed
-artifact:
+Operator-local platform overrides are expected for optional social providers
+and other install-specific settings. Clear only temporary live-debug overrides
+before applying a refreshed artifact:
 
 ```bash
-unset PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES
 unset PULSE_APPLIANCE_SERVICES_EXTRA_VALUES
 ```
 
@@ -171,7 +197,9 @@ done
    credentials secrets. The credentials file must stay local to the appliance:
 
 ```bash
-APPLIANCE_PI_INSTALL_ARGS="--release-values /etc/pulse-appliance/release.yaml --skip-services" \
+PULSE_APPLIANCE_RELEASE_VALUES=/etc/pulse-appliance/release.yaml \
+PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES=/etc/pulse-appliance/platform-extra.yaml \
+APPLIANCE_PI_INSTALL_ARGS="--skip-services" \
   make appliance-pi-upgrade
 
 APPLIANCE_PI_RUNTIME_SECRET_ARGS="--gcs-credentials /path/to/gcs-service-account.json --gcs-project-id <gcs-project-id> --archive-writer-id pulse-pi5" \
@@ -186,7 +214,9 @@ matching `--gcs-secret-key`, `--gcs-file-name`, and `--gcs-mount-path` flags in
 5. Apply the services release and run status:
 
 ```bash
-APPLIANCE_PI_INSTALL_ARGS="--release-values /etc/pulse-appliance/release.yaml --skip-host-prepare --skip-k3s-install" \
+PULSE_APPLIANCE_RELEASE_VALUES=/etc/pulse-appliance/release.yaml \
+PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES=/etc/pulse-appliance/platform-extra.yaml \
+APPLIANCE_PI_INSTALL_ARGS="--skip-host-prepare --skip-k3s-install" \
   make appliance-pi-upgrade
 make appliance-pi-status
 ```

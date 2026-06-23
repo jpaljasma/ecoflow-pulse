@@ -324,10 +324,12 @@ Pass install-specific flags with `APPLIANCE_PI_INSTALL_ARGS`, for example
 `APPLIANCE_PI_INSTALL_ARGS="--skip-k3s-install"`. Use
 `--release-values /etc/pulse-appliance/release.yaml` or
 `PULSE_APPLIANCE_RELEASE_VALUES` for install-local image digests and any other
-release inputs that must not be committed. The installer defaults `kubectl`,
-Helm, and status checks to `/etc/rancher/k3s/k3s.yaml`; override with
-`--kubeconfig` or `PULSE_APPLIANCE_KUBECONFIG` only when using a different
-client config.
+release inputs that must not be committed. Use
+`PULSE_APPLIANCE_PLATFORM_EXTRA_VALUES` or `--platform-extra-values` for
+install-local platform overrides such as social-login credentials. The
+installer defaults `kubectl`, Helm, and status checks to
+`/etc/rancher/k3s/k3s.yaml`; override with `--kubeconfig` or
+`PULSE_APPLIANCE_KUBECONFIG` only when using a different client config.
 
 The installer runs host preparation, installs or upgrades K3s, builds Helm
 chart dependencies, rejects rendered `pi-placeholder` images, applies the
@@ -366,6 +368,26 @@ Keep `/etc/pulse-appliance/release.yaml` readable by the appliance operator and
 not world-readable. A practical default is `0640 root:<operator-group>` with
 `/etc/pulse-appliance` mode `0755`; a root-only `0600` file blocks the
 non-root Make/Helm wrapper from reading install-local release values.
+
+Keep optional install-specific platform settings in
+`/etc/pulse-appliance/platform-extra.yaml`. The standard `make deploy-pi` target
+includes that file automatically when it exists, which lets the appliance keep
+Google social-login settings across future upgrades without committing OAuth
+client credentials. The Google broker requires:
+
+```yaml
+keycloakRealm:
+  google:
+    enabled: true
+    clientId: "<google-client-id>"
+    clientSecret: "<google-client-secret>"
+```
+
+The matching Google OAuth web client must allow:
+
+```text
+https://pulse.home.arpa/realms/pulse/broker/google/endpoint
+```
 
 Create those local secrets after the platform database is ready:
 
