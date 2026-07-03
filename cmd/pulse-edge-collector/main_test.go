@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -142,6 +144,19 @@ func TestEdgeTransportConfigFromEnvSelectsGRPC(t *testing.T) {
 	}
 }
 
+func TestEdgeTransportConfigFromEnvRejectsRemoteInsecureGRPC(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"PULSE_EDGE_TRANSPORT": "grpc",
+		"PULSE_EDGE_GRPC_ADDR": "pulse.example.test:19090",
+	}
+	_, err := edgeTransportConfigFromEnv(func(key string) string { return env[key] })
+	if err == nil {
+		t.Fatalf("expected remote insecure gRPC address to be rejected")
+	}
+}
+
 func TestEdgeTransportConfigFromEnvRejectsUnknownTransport(t *testing.T) {
 	t.Parallel()
 
@@ -156,11 +171,40 @@ func TestEdgeTransportConfigFromEnvRejectsUnknownTransport(t *testing.T) {
 	}
 }
 
+func TestWriteEnrollmentEnvFiltersCollectorEnv(t *testing.T) {
+	t.Parallel()
+
+	var out strings.Builder
+	writeEnrollmentEnv(&out, edgeEnrollment{
+		CollectorSecret: "issued-secret",
+		CollectorEnv: map[string]string{
+			"ECOFLOW_BLE_USER_ID": " ble-user-123 ",
+			"PATH":                "/tmp/injected",
+			"BAD":                 "line\nbreak",
+		},
+	})
+	got := out.String()
+	if !strings.Contains(got, "PULSE_EDGE_COLLECTOR_SECRET=issued-secret\n") {
+		t.Fatalf("missing collector secret in output: %q", got)
+	}
+	if !strings.Contains(got, "ECOFLOW_BLE_USER_ID=ble-user-123\n") {
+		t.Fatalf("missing BLE user id in output: %q", got)
+	}
+	if strings.Contains(got, "PATH=") || strings.Contains(got, "BAD=") {
+		t.Fatalf("unexpected env key in output: %q", got)
+	}
+}
+
 func TestEdgeClientGRPCMethodsMapRequests(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeEdgeIngestClient{
-		enrollResp: &edgev1.EnrollCollectorResponse{CollectorSecret: "issued-secret"},
+		enrollResp: &edgev1.EnrollCollectorResponse{
+			CollectorSecret: "issued-secret",
+			CollectorEnv: map[string]string{
+				"ECOFLOW_BLE_USER_ID": "ble-user-123",
+			},
+		},
 	}
 	client := edgeClient{
 		transport:  edgeTransportGRPC,
@@ -176,12 +220,15 @@ func TestEdgeClientGRPCMethodsMapRequests(t *testing.T) {
 	record.Device.Info.Prefix = "dp"
 	record.Device.Info.PacketFamily = "display"
 
-	secret, err := client.enroll(context.Background(), "setup-token", "v-test", "pulse")
+	enrollment, err := client.enroll(context.Background(), "setup-token", "v-test", "pulse")
 	if err != nil {
 		t.Fatalf("enroll failed: %v", err)
 	}
-	if secret != "issued-secret" {
-		t.Fatalf("secret=%q", secret)
+	if enrollment.CollectorSecret != "issued-secret" {
+		t.Fatalf("secret=%q", enrollment.CollectorSecret)
+	}
+	if enrollment.CollectorEnv["ECOFLOW_BLE_USER_ID"] != "ble-user-123" {
+		t.Fatalf("collector env=%v", enrollment.CollectorEnv)
 	}
 	if fake.enrollReq.GetSetupToken() != "setup-token" || fake.enrollReq.GetCollectorVersion() != "v-test" || fake.enrollReq.GetHostname() != "pulse" {
 		t.Fatalf("unexpected enroll request: %#v", fake.enrollReq)
@@ -284,6 +331,28 @@ func TestEdgeClientRESTTelemetryPreservesClientSampleID(t *testing.T) {
 	}
 }
 
+func TestStableTelemetrySampleIDMatchesLegacyFingerprint(t *testing.T) {
+	t.Parallel()
+
+	metrics := map[string]any{"battery_soc_percent": float64(91), "ac_input_plugged": true}
+	legacyPayload, err := json.Marshal(map[string]any{
+		"provider":            "ecoflow",
+		"transport":           "ble",
+		"provider_device_id":  "DEMOEDGE0001",
+		"observed_at_unix_ms": int64(1772197190000),
+		"metrics":             metrics,
+	})
+	if err != nil {
+		t.Fatalf("marshal legacy payload: %v", err)
+	}
+	sum := sha256.Sum256(legacyPayload)
+	want := "edge-telemetry-" + hex.EncodeToString(sum[:])
+
+	if got := stableTelemetrySampleID("DEMOEDGE0001", 1772197190000, metrics); got != want {
+		t.Fatalf("stable telemetry sample id=%q want %q", got, want)
+	}
+}
+
 func TestEdgeClientWaitForInitialHeartbeatRetriesDuringStartup(t *testing.T) {
 	t.Parallel()
 
@@ -377,7 +446,7 @@ func TestEdgeClientOutboxReplaysTelemetryAfterRestart(t *testing.T) {
 	if sample.GetClientSampleId() == "" {
 		t.Fatalf("client_sample_id was not replayed")
 	}
-	if sample.GetClientSampleId() != stableTelemetrySampleID(record, metrics) {
+	if sample.GetClientSampleId() != stableTelemetrySampleID(record.providerDeviceID(), record.observedAtUnixMS(), metrics) {
 		t.Fatalf("client_sample_id=%q want stable id", sample.GetClientSampleId())
 	}
 }
@@ -530,6 +599,13 @@ func TestResetRawProbeOutputTruncatesExistingFile(t *testing.T) {
 	}
 	if len(body) != 0 {
 		t.Fatalf("raw file len=%d want 0", len(body))
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat raw file: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("raw file mode=%#o want 0600", got)
 	}
 }
 

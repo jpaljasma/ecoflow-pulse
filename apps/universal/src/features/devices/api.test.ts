@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { AvailableDeviceSchema, DeviceMQTTTestResultSchema, DeviceSchema } from '@/features/devices/schema';
+import {
+  AvailableDeviceSchema,
+  DeviceMQTTTestResultSchema,
+  DeviceSchema,
+  EdgeDeviceSourceSchema
+} from '@/features/devices/schema';
 
 describe('device api schema', () => {
   it('preserves extended system-signal and diagnostics detail fields', () => {
@@ -75,5 +80,47 @@ describe('device api schema', () => {
     });
 
     expect(result.deviceId).toBe('22222222-2222-7222-8222-222222222222');
+  });
+
+  it('preserves edge BLE source metadata for owner approval', () => {
+    const source = EdgeDeviceSourceSchema.parse({
+      id: 'edgesrc-1',
+      collectorId: 'edgecol-1',
+      provider: 'ecoflow',
+      transport: 'ble',
+      providerDeviceId: 'DEMOEDGE0001',
+      displayName: 'Demo edge device',
+      model: 'EcoFlow RIVER 3 Plus',
+      status: 'pending',
+      linkedDeviceId: '',
+      rssiDbm: -59,
+      lastSeenAtUnixMs: '1772197190000',
+      createdAtUnixMs: '1772190000000',
+      updatedAtUnixMs: '1772197190000',
+      metadata: { packet_family: 'display' }
+    });
+
+    expect(source.transport).toBe('ble');
+    expect(source.metadata).toEqual({ packet_family: 'display' });
+  });
+
+  it('rejects unknown edge BLE source status values', () => {
+    expect(() =>
+      EdgeDeviceSourceSchema.parse({
+        id: 'edgesrc-1',
+        collectorId: 'edgecol-1',
+        provider: 'ecoflow',
+        transport: 'ble',
+        providerDeviceId: 'DEMOEDGE0001',
+        displayName: 'Demo edge device',
+        model: 'EcoFlow RIVER 3 Plus',
+        status: 'surprise',
+        linkedDeviceId: '',
+        rssiDbm: -59,
+        lastSeenAtUnixMs: '1772197190000',
+        createdAtUnixMs: '1772190000000',
+        updatedAtUnixMs: '1772197190000'
+      })
+    ).toThrow();
   });
 });

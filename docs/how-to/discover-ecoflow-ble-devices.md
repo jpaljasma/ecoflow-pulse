@@ -126,6 +126,11 @@ device serial from EcoFlow manufacturer data when present; override it with
 advertisement does not include a usable serial. The auth payload is redacted
 from decoded output even when `-raw-notifications` is enabled.
 
+For the Raspberry Pi appliance path, owners normally obtain
+`ECOFLOW_BLE_USER_ID` by connecting EcoFlow BLE auth in Pulse and then enrolling
+the collector with a setup token. The enrollment output includes the collector
+secret and the BLE user ID env value when the owner has connected BLE auth.
+
 ## Run A Scan Without Connecting
 
 ```bash

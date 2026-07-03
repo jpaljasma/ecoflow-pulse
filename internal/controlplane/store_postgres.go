@@ -23,8 +23,9 @@ const (
 )
 
 type PostgresStore struct {
-	db  *sql.DB
-	now func() time.Time
+	db                       *sql.DB
+	now                      func() time.Time
+	providerCredentialCipher *providerCredentialCipher
 }
 
 func NewPostgresStore(dsn string) (*PostgresStore, error) {
@@ -42,7 +43,13 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return newPostgresStore(db), nil
+	store := newPostgresStore(db)
+	store.providerCredentialCipher, err = newProviderCredentialCipherFromEnv()
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return store, nil
 }
 
 func newPostgresStore(db *sql.DB) *PostgresStore {
@@ -57,6 +64,10 @@ func (s *PostgresStore) Close() error {
 		return nil
 	}
 	return s.db.Close()
+}
+
+func (s *PostgresStore) ProviderCredentialSecretsEncrypted() bool {
+	return s != nil && s.providerCredentialCipher.enabled()
 }
 
 func (s *PostgresStore) CreateProviderCredential(ctx context.Context, in CreateProviderCredentialInput) (ProviderCredential, error) {
@@ -102,13 +113,17 @@ RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, i
 	if err != nil {
 		return ProviderCredential{}, fmt.Errorf("marshal provider credential config: %w", err)
 	}
+	accessKeyCiphertext, secretKeyCiphertext, err := s.sealProviderCredentialMaterial(in.AccessKey, in.SecretKey)
+	if err != nil {
+		return ProviderCredential{}, fmt.Errorf("encrypt provider credential material: %w", err)
+	}
 	row := tx.QueryRowContext(
 		ctx,
 		query,
 		userID,
 		provider,
-		[]byte(in.AccessKey),
-		[]byte(in.SecretKey),
+		accessKeyCiphertext,
+		secretKeyCiphertext,
 		HashAccessKey(in.AccessKey),
 		MaskAccessKey(in.AccessKey),
 		configJSON,
@@ -196,7 +211,7 @@ func (s *PostgresStore) SetProviderCredentialActive(ctx context.Context, in SetP
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	target, err := getProviderCredentialTx(ctx, tx, in.UserSubject, in.CredentialID)
+	target, err := s.getProviderCredentialTx(ctx, tx, in.UserSubject, in.CredentialID)
 	if err != nil {
 		if errors.Is(err, ErrCredentialNotFound) {
 			return ProviderCredential{}, ErrCredentialNotFound
@@ -251,7 +266,7 @@ func (s *PostgresStore) UpdateProviderCredential(ctx context.Context, in UpdateP
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	target, err := getProviderCredentialTx(ctx, tx, in.UserSubject, in.CredentialID)
+	target, err := s.getProviderCredentialTx(ctx, tx, in.UserSubject, in.CredentialID)
 	if err != nil {
 		if errors.Is(err, ErrCredentialNotFound) {
 			return ProviderCredential{}, ErrCredentialNotFound
@@ -281,12 +296,16 @@ RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, i
 	if err != nil {
 		return ProviderCredential{}, fmt.Errorf("marshal provider credential config: %w", err)
 	}
+	accessKeyCiphertext, secretKeyCiphertext, err := s.sealProviderCredentialMaterial(in.AccessKey, in.SecretKey)
+	if err != nil {
+		return ProviderCredential{}, fmt.Errorf("encrypt provider credential material: %w", err)
+	}
 	row := tx.QueryRowContext(
 		ctx,
 		query,
 		target.ID,
-		[]byte(in.AccessKey),
-		[]byte(in.SecretKey),
+		accessKeyCiphertext,
+		secretKeyCiphertext,
 		HashAccessKey(in.AccessKey),
 		MaskAccessKey(in.AccessKey),
 		configJSON,
@@ -323,9 +342,56 @@ RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, i
 }
 
 func (s *PostgresStore) GetProviderCredential(ctx context.Context, userSubject string, credentialID string) (ProviderCredential, error) {
-	out, err := getProviderCredentialQuery(ctx, s.db, userSubject, credentialID)
+	out, err := s.getProviderCredentialQuery(ctx, s.db, userSubject, credentialID)
 	if err != nil {
 		return ProviderCredential{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) GetActiveProviderCredentialByUserID(ctx context.Context, userID string, provider string) (ProviderCredential, error) {
+	query := `
+SELECT
+	id::text,
+	user_id::text,
+	provider,
+	access_key_mask,
+	access_key_ciphertext,
+	secret_key_ciphertext,
+	provider_config,
+	is_active,
+	created_at,
+	updated_at
+FROM provider_credentials
+WHERE user_id = $1::uuid
+  AND provider = $2
+  AND is_active = TRUE
+ORDER BY updated_at DESC, created_at DESC, id DESC
+LIMIT 1;
+`
+	var out ProviderCredential
+	var accessKeyBytes []byte
+	var secretKeyBytes []byte
+	row := s.db.QueryRowContext(ctx, query, strings.TrimSpace(userID), NormalizeProvider(provider))
+	if err := row.Scan(
+		&out.ID,
+		&out.UserID,
+		&out.Provider,
+		&out.AccessKeyMask,
+		&accessKeyBytes,
+		&secretKeyBytes,
+		(*jsonbMap)(&out.Config),
+		&out.IsActive,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProviderCredential{}, ErrCredentialNotFound
+		}
+		return ProviderCredential{}, fmt.Errorf("get active provider credential by user id: %w", err)
+	}
+	if err := s.openProviderCredentialMaterial(&out, accessKeyBytes, secretKeyBytes); err != nil {
+		return ProviderCredential{}, fmt.Errorf("decrypt active provider credential material: %w", err)
 	}
 	return out, nil
 }
@@ -409,7 +475,7 @@ type queryRowScanner interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-func getProviderCredentialQuery(ctx context.Context, db queryRowScanner, userSubject string, credentialID string) (ProviderCredential, error) {
+func (s *PostgresStore) getProviderCredentialQuery(ctx context.Context, db queryRowScanner, userSubject string, credentialID string) (ProviderCredential, error) {
 	query := `
 SELECT
 	pc.id::text,
@@ -448,13 +514,58 @@ WHERE pc.id = $1::uuid
 		}
 		return ProviderCredential{}, fmt.Errorf("get provider credential: %w", err)
 	}
-	out.AccessKey = string(accessKeyBytes)
-	out.SecretKey = string(secretKeyBytes)
+	if err := s.openProviderCredentialMaterial(&out, accessKeyBytes, secretKeyBytes); err != nil {
+		return ProviderCredential{}, fmt.Errorf("decrypt provider credential material: %w", err)
+	}
 	return out, nil
 }
 
-func getProviderCredentialTx(ctx context.Context, tx *sql.Tx, userSubject string, credentialID string) (ProviderCredential, error) {
-	return getProviderCredentialQuery(ctx, tx, userSubject, credentialID)
+func (s *PostgresStore) getProviderCredentialTx(ctx context.Context, tx *sql.Tx, userSubject string, credentialID string) (ProviderCredential, error) {
+	return s.getProviderCredentialQuery(ctx, tx, userSubject, credentialID)
+}
+
+func (s *PostgresStore) sealProviderCredentialMaterial(accessKey string, secretKey string) ([]byte, []byte, error) {
+	accessKeyCiphertext, err := s.providerCredentialCipher.sealString(accessKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	secretKeyCiphertext, err := s.providerCredentialCipher.sealString(secretKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	return accessKeyCiphertext, secretKeyCiphertext, nil
+}
+
+func (s *PostgresStore) openProviderCredentialMaterial(out *ProviderCredential, accessKeyBytes []byte, secretKeyBytes []byte) error {
+	accessKey, secretKey, err := s.openProviderCredentialStrings(accessKeyBytes, secretKeyBytes)
+	if err != nil {
+		return err
+	}
+	out.AccessKey = accessKey
+	out.SecretKey = secretKey
+	return nil
+}
+
+func (s *PostgresStore) openProviderCredentialAssignmentMaterial(out *IngestAssignment, accessKeyBytes []byte, secretKeyBytes []byte) error {
+	accessKey, secretKey, err := s.openProviderCredentialStrings(accessKeyBytes, secretKeyBytes)
+	if err != nil {
+		return err
+	}
+	out.AccessKey = accessKey
+	out.SecretKey = secretKey
+	return nil
+}
+
+func (s *PostgresStore) openProviderCredentialStrings(accessKeyBytes []byte, secretKeyBytes []byte) (string, string, error) {
+	accessKey, err := s.providerCredentialCipher.openString(accessKeyBytes)
+	if err != nil {
+		return "", "", err
+	}
+	secretKey, err := s.providerCredentialCipher.openString(secretKeyBytes)
+	if err != nil {
+		return "", "", err
+	}
+	return accessKey, secretKey, nil
 }
 
 func isProviderCredentialAccessKeyConflict(err error) bool {
@@ -1426,8 +1537,9 @@ ORDER BY pd.provider ASC, pd.provider_device_id ASC;
 		); err != nil {
 			return nil, fmt.Errorf("scan ingest assignments row: %w", err)
 		}
-		row.AccessKey = string(accessKeyBytes)
-		row.SecretKey = string(secretKeyBytes)
+		if err := s.openProviderCredentialAssignmentMaterial(&row, accessKeyBytes, secretKeyBytes); err != nil {
+			return nil, fmt.Errorf("decrypt ingest assignment credential material: %w", err)
+		}
 		row.CredentialConfig = cloneAnyMap(map[string]any(credentialConfig))
 		out = append(out, row)
 	}

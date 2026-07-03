@@ -21,6 +21,12 @@ Runtime note:
 
 - request-serving EcoFlow, Pecron, and Anker SOLIX integrations use per-user
   credential material from `provider_credentials` in Postgres,
+- provider credential access/secret material is AES-GCM envelope-encrypted when
+  `PROVIDER_CREDENTIAL_ENCRYPTION_KEY_ID` and
+  `PROVIDER_CREDENTIAL_ENCRYPTION_KEYS` are set. If those are unset, the
+  control-plane falls back to `VALKEY_CACHE_ENCRYPTION_KEY_ID` and
+  `VALKEY_CACHE_ENCRYPTION_KEYS`. EcoFlow BLE auth fails closed on Postgres
+  unless provider credential encryption is active.
 - provider credential config is non-secret JSON. Pecron stores `region` as
   `us`, `eu`, or `cn`; Anker SOLIX stores `server` as `com` or `eu` plus
   two-letter `country`. Clients receive this config with masked credential
@@ -79,9 +85,11 @@ Pi collector knobs (`cmd/pulse-edge-collector`):
 - `PULSE_EDGE_COLLECTOR_SECRET` is the enrolled collector secret. Keep it in a
   systemd `EnvironmentFile`; do not place it in Git or PR text.
 - `GOMAXPROCS` defaults to `4` when unset, matching Raspberry Pi 5's four CPU
-  cores while still allowing an explicit override.
-- `GOMEMLIMIT` defaults to `512MiB` when unset. The packaged Pi unit also sets
-  `MemoryMax=768M` so a collector bug cannot consume the full 8 GB host.
+  cores while still allowing an explicit override. The packaged Pi unit pins it
+  to `1` because BLE scan/probe work is mostly I/O-bound.
+- `GOMEMLIMIT` defaults to `512MiB` when unset. The packaged Pi unit sets
+  `GOMEMLIMIT=192MiB` and `MemoryMax=256M` so collector buffering cannot
+  consume the host during BLE or edge-ingest outages.
 - `GOGC` defaults to `100` when unset.
 
 Provider ingest worker knobs:
@@ -168,6 +176,9 @@ The appliance installer refuses rendered images that still use `pi-placeholder`.
 - `GRPC_AUTH_MODE` (`noop|keycloak`, default `noop`)
   - `noop`: development-only pass-through auth mode.
   - `keycloak`: validates bearer JWTs via Keycloak OIDC/JWKS and injects claims into gRPC context.
+- `ECOFLOW_BLE_MANUAL_AUTH_ENABLED` (default `false`)
+  - allows the manual EcoFlow BLE user ID fallback outside `GRPC_AUTH_MODE=noop`.
+  - keep disabled for hosted/cloud-authenticated deployments; it is intended only for controlled local setup or recovery windows.
 - `KEYCLOAK_ISSUER_URL` (required when `GRPC_AUTH_MODE=keycloak`)
 - `KEYCLOAK_AUDIENCE` (optional; when set, JWT audience must match)
 - `KEYCLOAK_JWKS_URL` (optional override; lets internal gRPC services fetch JWKS from an in-cluster Keycloak URL while still validating the public issuer)

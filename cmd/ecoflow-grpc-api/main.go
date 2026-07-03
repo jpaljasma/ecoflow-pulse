@@ -210,10 +210,11 @@ func main() {
 			os.Exit(1)
 		}
 		edgev1.RegisterEdgeIngestServiceServer(s, NewEdgeIngestService(EdgeIngestServiceDeps{
-			Log:        log,
-			Store:      edgeStore,
-			Publisher:  edgePublisher,
-			SubjectCfg: edgeSubjectCfg,
+			Log:         log,
+			Store:       edgeStore,
+			Publisher:   edgePublisher,
+			SubjectCfg:  edgeSubjectCfg,
+			EnvResolver: newEdgeCollectorEnvResolver(controlPlaneStore),
 		}))
 		weatherv1.RegisterWeatherServiceServer(s, NewWeatherServiceWithDeps(WeatherServiceDeps{
 			Log:     log,

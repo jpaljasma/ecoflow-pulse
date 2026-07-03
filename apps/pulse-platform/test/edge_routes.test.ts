@@ -89,7 +89,11 @@ function makeEdgeClient(overrides: Partial<EdgeClient> = {}): EdgeClient {
   return {
     createCollector: vi.fn(async () => ({ collector: sampleCollector({ isActive: false }), setupToken: 'setup-token' })),
     listCollectors: vi.fn(async () => [sampleCollector()]),
-    enrollCollector: vi.fn(async () => ({ collector: sampleCollector(), collectorSecret: 'collector-secret' })),
+    enrollCollector: vi.fn(async () => ({
+      collector: sampleCollector(),
+      collectorSecret: 'collector-secret',
+      collectorEnv: { ECOFLOW_BLE_USER_ID: 'ecoflow-user-1' }
+    })),
     heartbeat: vi.fn(async () => sampleCollector()),
     uploadDiscovery: vi.fn(async () => ({ acceptedCount: 1 })),
     listDeviceSources: vi.fn(async () => [sampleSource()]),
@@ -127,6 +131,35 @@ describe('pulse-platform edge routes', () => {
     expect(edgeClient.createCollector).toHaveBeenCalledWith(expect.objectContaining({
       userSubject: 'dev-user',
       displayName: 'Garage Pi'
+    }));
+    await app.close();
+  });
+
+  it('returns collector env only from the enrollment route', async () => {
+    const edgeClient = makeEdgeClient();
+    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
+      edgeClient
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/edge/enroll',
+      payload: {
+        setupToken: 'setup-token',
+        collectorVersion: 'test',
+        hostname: 'pi'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      collector: { id: 'edgecol-1' },
+      collectorSecret: 'collector-secret',
+      collectorEnv: { ECOFLOW_BLE_USER_ID: 'ecoflow-user-1' }
+    });
+    expect(edgeClient.enrollCollector).toHaveBeenCalledWith(expect.objectContaining({
+      setupToken: 'setup-token',
+      collectorVersion: 'test',
+      hostname: 'pi'
     }));
     await app.close();
   });

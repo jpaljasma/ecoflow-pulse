@@ -1,13 +1,27 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { Button, Spinner, Text, XStack, YStack } from 'tamagui';
-import type { AvailableDeviceSummary, DeviceMQTTTestResult } from '@/features/devices/api';
+import type {
+  AvailableDeviceSummary,
+  DeviceMQTTTestResult,
+  EdgeCollector,
+  EdgeDeviceSource
+} from '@/features/devices/api';
 import {
   useAvailableDevices,
+  useApproveEdgeDeviceSource,
+  useCreateEdgeCollector,
+  useEdgeCollectors,
+  useEdgeDeviceSources,
   useImportAvailableDevice,
   useTestAvailableDeviceMQTT
 } from '@/features/devices/hooks';
+import {
+  useConnectEcoFlowBLEAuth,
+  useEcoFlowBLEAuthStatus,
+  useSetEcoFlowBLEAuthUserID
+} from '@/features/integrations/hooks';
 import {
   describeAvailableDeviceSupport,
   formatProviderLabel,
@@ -15,6 +29,7 @@ import {
 } from '@/features/integrations/providerCatalog';
 import { formatAvailableDeviceActionError } from '@/features/devices/actionMessages';
 import { maskSerialNumber } from '@/features/telemetry/format';
+import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Card } from '@/shared/ui/Card';
 
 type AvailableDevicesPanelProps = {
@@ -101,6 +116,15 @@ export function AvailableDevicesPanel({
         </YStack>
       ) : null}
 
+      {activated ? (
+        <EcoFlowBLEEdgeSection
+          token={token}
+          authKey={authKey}
+          enabled={enabled}
+          onDeviceEnabled={onDeviceEnabled}
+        />
+      ) : null}
+
       {activated &&
       availableQuery.data &&
       availableQuery.data.warningMessage ? (
@@ -167,6 +191,306 @@ export function AvailableDevicesPanel({
       ) : null}
     </Card>
   );
+}
+
+function EcoFlowBLEEdgeSection({
+  token,
+  authKey,
+  enabled,
+  onDeviceEnabled
+}: {
+  token?: string;
+  authKey: string;
+  enabled: boolean;
+  onDeviceEnabled?: (deviceId: string) => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [manualUserId, setManualUserId] = useState('');
+  const [collectorName, setCollectorName] = useState('Raspberry Pi');
+  const [setupToken, setSetupToken] = useState('');
+  const authStatusQuery = useEcoFlowBLEAuthStatus({ token, authKey, enabled });
+  const collectorsQuery = useEdgeCollectors({ token, authKey, enabled });
+  const sourcesQuery = useEdgeDeviceSources({ token, authKey, enabled, status: 'pending' });
+  const connectAuth = useConnectEcoFlowBLEAuth({ token, authKey });
+  const setManualAuth = useSetEcoFlowBLEAuthUserID({ token, authKey });
+  const createCollector = useCreateEdgeCollector({ token, authKey });
+  const approveSource = useApproveEdgeDeviceSource({ token, authKey });
+  const connected = authStatusQuery.data?.connected === true;
+  const collectors = collectorsQuery.data ?? [];
+  const sources = sourcesQuery.data ?? [];
+  const authBusy = connectAuth.isPending || setManualAuth.isPending;
+
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setManualUserId('');
+    setSetupToken('');
+  }, [authKey, token]);
+
+  function handleConnectAuth() {
+    connectAuth.mutate(
+      { email, password },
+      { onSettled: () => setPassword('') }
+    );
+  }
+
+  function handleManualAuth() {
+    setManualAuth.mutate(
+      {
+        userId: manualUserId,
+        accountLabel: 'Manual EcoFlow BLE ID'
+      },
+      { onSettled: () => setManualUserId('') }
+    );
+  }
+
+  function handleCreateCollector() {
+    createCollector.mutate(
+      {
+        displayName: collectorName.trim() || undefined
+      },
+      { onSuccess: (created) => setSetupToken(created.setupToken) }
+    );
+  }
+
+  function handleApproveSource(source: EdgeDeviceSource) {
+    approveSource.mutate(
+      {
+        sourceId: source.id,
+        productName: source.displayName || source.providerDeviceId,
+        model: source.model
+      },
+      { onSuccess: (approved) => onDeviceEnabled?.(approved.deviceId) }
+    );
+  }
+
+  return (
+    <YStack
+      gap="$3"
+      padding="$3"
+      borderRadius="$4"
+      borderWidth={1}
+      borderColor="rgba(18,140,88,0.18)"
+      backgroundColor="rgba(18,140,88,0.05)"
+    >
+      <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
+        <YStack gap="$1" flex={1} minWidth={220}>
+          <XStack alignItems="center" gap="$2">
+            <MaterialCommunityIcons name="bluetooth" size={18} color="rgba(18,140,88,0.96)" />
+            <Text fontSize="$5" fontWeight="700">
+              EcoFlow BLE edge
+            </Text>
+          </XStack>
+          <Text color="$colorMuted">
+            {connected
+              ? `BLE auth connected${authStatusQuery.data?.accountMask ? ` for ${authStatusQuery.data.accountMask}` : ''}.`
+              : 'Connect EcoFlow app auth before authenticated BLE devices are enrolled.'}
+          </Text>
+        </YStack>
+        <Button
+          size="$3"
+          chromeless
+          onPress={() => {
+            void authStatusQuery.refetch();
+            void collectorsQuery.refetch();
+            void sourcesQuery.refetch();
+          }}
+          disabled={authStatusQuery.isFetching || collectorsQuery.isFetching || sourcesQuery.isFetching}
+          icon={
+            authStatusQuery.isFetching || collectorsQuery.isFetching || sourcesQuery.isFetching ? (
+              <Spinner size="small" color="rgba(18,140,88,0.96)" />
+            ) : (
+              <MaterialCommunityIcons name="refresh" size={16} color="rgba(18,140,88,0.96)" />
+            )
+          }
+        >
+          Refresh BLE
+        </Button>
+      </XStack>
+
+      {!connected ? (
+        <YStack gap="$3">
+          <XStack gap="$2" flexWrap="wrap">
+            <AppTextInput
+              compact
+              flex={1}
+              minWidth={210}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="EcoFlow email"
+            />
+            <AppTextInput
+              compact
+              flex={1}
+              minWidth={210}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="EcoFlow password"
+            />
+            <Button
+              size="$3"
+              disabled={authBusy || email.trim().length === 0 || password.length === 0}
+              onPress={handleConnectAuth}
+              icon={connectAuth.isPending ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="login" size={16} color="white" />}
+            >
+              Connect
+            </Button>
+          </XStack>
+          <XStack gap="$2" flexWrap="wrap">
+            <AppTextInput
+              compact
+              flex={1}
+              minWidth={240}
+              value={manualUserId}
+              onChangeText={setManualUserId}
+              autoCapitalize="none"
+              placeholder="Manual BLE user ID"
+            />
+            <Button
+              size="$3"
+              disabled={authBusy || manualUserId.trim().length === 0}
+              onPress={handleManualAuth}
+              icon={setManualAuth.isPending ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="key-outline" size={16} color="white" />}
+            >
+              Save manual ID
+            </Button>
+          </XStack>
+          {connectAuth.isError || setManualAuth.isError ? (
+            <Text color="rgba(185,28,28,0.96)">
+              {String(connectAuth.error ?? setManualAuth.error)}
+            </Text>
+          ) : null}
+        </YStack>
+      ) : null}
+
+      <YStack gap="$2">
+        <XStack gap="$2" flexWrap="wrap" alignItems="center">
+          <AppTextInput
+            compact
+            flex={1}
+            minWidth={220}
+            value={collectorName}
+            onChangeText={setCollectorName}
+            placeholder="Collector name"
+          />
+          <Button
+            size="$3"
+            disabled={!connected || createCollector.isPending}
+            onPress={handleCreateCollector}
+            icon={createCollector.isPending ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="raspberry-pi" size={16} color="white" />}
+          >
+            Create setup token
+          </Button>
+        </XStack>
+        {setupToken ? (
+          <AppTextInput compact value={setupToken} editable={false} selectTextOnFocus />
+        ) : null}
+        {createCollector.isError ? (
+          <Text color="rgba(185,28,28,0.96)">{String(createCollector.error)}</Text>
+        ) : null}
+        <Text color="$colorMuted">{formatCollectorSummary(collectors)}</Text>
+      </YStack>
+
+      <YStack gap="$2">
+        <XStack alignItems="center" justifyContent="space-between" gap="$2" flexWrap="wrap">
+          <Text fontWeight="700">BLE discoveries</Text>
+          <Text color="$colorMuted">{sources.length === 1 ? '1 pending source' : `${sources.length} pending sources`}</Text>
+        </XStack>
+        {sourcesQuery.isLoading && !sourcesQuery.data ? (
+          <XStack alignItems="center" gap="$2">
+            <Spinner size="small" />
+            <Text color="$colorMuted">Loading BLE discoveries…</Text>
+          </XStack>
+        ) : null}
+        {sourcesQuery.isError ? (
+          <Text color="rgba(185,28,28,0.96)">{String(sourcesQuery.error)}</Text>
+        ) : null}
+        {!sourcesQuery.isLoading && sources.length === 0 ? (
+          <Text color="$colorMuted">No pending BLE sources have checked in yet.</Text>
+        ) : null}
+        {sources.map((source) => (
+          <EdgeDeviceSourceRow
+            key={source.id}
+            source={source}
+            busy={approveSource.isPending}
+            onApprove={() => {
+              handleApproveSource(source);
+            }}
+          />
+        ))}
+        {approveSource.isError ? (
+          <Text color="rgba(185,28,28,0.96)">{String(approveSource.error)}</Text>
+        ) : null}
+      </YStack>
+    </YStack>
+  );
+}
+
+function EdgeDeviceSourceRow({
+  source,
+  busy,
+  onApprove
+}: {
+  source: EdgeDeviceSource;
+  busy: boolean;
+  onApprove: () => void;
+}) {
+  return (
+    <XStack
+      alignItems="center"
+      justifyContent="space-between"
+      gap="$3"
+      flexWrap="wrap"
+      padding="$3"
+      borderRadius="$3"
+      borderWidth={1}
+      borderColor="rgba(18,140,88,0.16)"
+      backgroundColor="rgba(255,255,255,0.42)"
+    >
+      <YStack gap="$1" flex={1} minWidth={220}>
+        <Text fontWeight="700">{source.displayName || source.providerDeviceId}</Text>
+        <Text color="$colorMuted">
+          {source.model || 'EcoFlow BLE'} · RSSI {source.rssiDbm} dBm · {formatEdgeSourceSeen(source.lastSeenAtUnixMs)}
+        </Text>
+      </YStack>
+      <Button
+        size="$3"
+        disabled={busy}
+        onPress={onApprove}
+        icon={busy ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="link-variant-plus" size={16} color="white" />}
+      >
+        Approve
+      </Button>
+    </XStack>
+  );
+}
+
+function formatCollectorSummary(collectors: EdgeCollector[]): string {
+  if (collectors.length === 0) {
+    return 'No edge collectors are registered yet.';
+  }
+  const active = collectors.filter((collector) => collector.isActive).length;
+  return `${collectors.length} registered collector${collectors.length === 1 ? '' : 's'} · ${active} active`;
+}
+
+function formatEdgeSourceSeen(value: string): string {
+  const ms = Number(value);
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return 'last seen unknown';
+  }
+  const minutes = Math.max(0, Math.round((Date.now() - ms) / 60_000));
+  if (minutes < 1) {
+    return 'seen just now';
+  }
+  if (minutes < 60) {
+    return `seen ${minutes}m ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  return `seen ${hours}h ago`;
 }
 
 function AvailableDeviceCard({

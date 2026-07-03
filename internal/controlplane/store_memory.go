@@ -70,6 +70,10 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
+func (s *MemoryStore) ProviderCredentialSecretsEncrypted() bool {
+	return true
+}
+
 func (s *MemoryStore) EnsureUser(userSubject string) string {
 	subject := strings.TrimSpace(userSubject)
 	if subject == "" {
@@ -246,6 +250,20 @@ func (s *MemoryStore) GetProviderCredential(_ context.Context, userSubject strin
 		return ProviderCredential{}, ErrCredentialNotFound
 	}
 	return cloneProviderCredential(row), nil
+}
+
+func (s *MemoryStore) GetActiveProviderCredentialByUserID(_ context.Context, userID string, provider string) (ProviderCredential, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	userID = strings.TrimSpace(userID)
+	provider = NormalizeProvider(provider)
+	for _, row := range s.credentials {
+		if row.UserID == userID && row.Provider == provider && row.IsActive {
+			return cloneProviderCredential(row), nil
+		}
+	}
+	return ProviderCredential{}, ErrCredentialNotFound
 }
 
 func (s *MemoryStore) setExclusiveCredentialActiveLocked(userID, provider, credentialID string, now time.Time) {
@@ -990,6 +1008,22 @@ func (s *MemoryStore) EnrollEdgeCollector(_ context.Context, in EnrollEdgeCollec
 		row.UpdatedAt = now
 		s.edgeCollectors[id] = row
 		return cloneEdgeCollector(row), nil
+	}
+	return EdgeCollector{}, ErrEdgeCollectorNotFound
+}
+
+func (s *MemoryStore) GetEdgeCollectorBySetupTokenHash(_ context.Context, setupTokenHash string) (EdgeCollector, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	setupTokenHash = strings.TrimSpace(setupTokenHash)
+	if setupTokenHash == "" {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	for _, row := range s.edgeCollectors {
+		if row.SetupTokenHash == setupTokenHash && !row.IsActive {
+			return cloneEdgeCollector(row), nil
+		}
 	}
 	return EdgeCollector{}, ErrEdgeCollectorNotFound
 }

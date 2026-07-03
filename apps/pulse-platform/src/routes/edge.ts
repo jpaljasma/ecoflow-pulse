@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import type { AppConfig } from '../config.js';
 import type { EdgeClient, EdgeCollector, EdgeDeviceSource } from '../grpc/edgeClient.js';
+import { edgeDeviceSourceStatuses } from '../grpc/edgeClient.js';
 import {
   getAuthHeader,
   getRequestID,
@@ -45,7 +46,7 @@ const uploadDiscoverySchema = z.object({
 
 const listSourcesQuerySchema = z.object({
   collectorId: z.string().trim().optional(),
-  status: z.enum(['pending', 'linked', 'ignored']).optional()
+  status: z.enum(edgeDeviceSourceStatuses).optional()
 });
 
 const approveSourceParamsSchema = z.object({
@@ -121,7 +122,8 @@ export function registerEdgeRoutes(
       });
       return {
         collector: toCollectorResponse(enrolled.collector),
-        collectorSecret: enrolled.collectorSecret
+        collectorSecret: enrolled.collectorSecret,
+        collectorEnv: enrolled.collectorEnv
       };
     } catch (error) {
       return handleEdgeRouteError(config, reply, error);

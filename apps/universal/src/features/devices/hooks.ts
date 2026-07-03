@@ -1,13 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  approveEdgeDeviceSource,
+  createEdgeCollector,
   enableAvailableDevice,
   fetchAvailableDevices,
   fetchDevice,
   fetchDevices,
+  fetchEdgeCollectors,
+  fetchEdgeDeviceSources,
   importAvailableDevice,
   testAvailableDeviceMQTT
 } from '@/features/devices/api';
-import type { ImportAvailableDevicePayload } from '@/features/devices/schema';
+import type {
+  ApproveEdgeDeviceSourcePayload,
+  CreateEdgeCollectorPayload,
+  EdgeDeviceSourceStatus,
+  ImportAvailableDevicePayload
+} from '@/features/devices/schema';
 
 type DeviceQueryOptions = {
   token?: string;
@@ -88,6 +97,53 @@ export function useImportAvailableDevice(options: DeviceQueryOptions = {}) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['devices', authKey] });
       void queryClient.invalidateQueries({ queryKey: ['available-devices', authKey] });
+    }
+  });
+}
+
+export function useEdgeCollectors(options: DeviceQueryOptions = {}) {
+  const { token, authKey = 'anonymous', enabled = true } = options;
+  return useQuery({
+    queryKey: ['edge-collectors', authKey],
+    queryFn: () => fetchEdgeCollectors(token),
+    enabled,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000
+  });
+}
+
+export function useCreateEdgeCollector(options: DeviceQueryOptions = {}) {
+  const { token, authKey = 'anonymous' } = options;
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateEdgeCollectorPayload) => createEdgeCollector(payload, token),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['edge-collectors', authKey] });
+    }
+  });
+}
+
+export function useEdgeDeviceSources(options: DeviceQueryOptions & { status?: EdgeDeviceSourceStatus } = {}) {
+  const { token, authKey = 'anonymous', enabled = true, status = 'pending' } = options;
+  return useQuery({
+    queryKey: ['edge-device-sources', authKey, status],
+    queryFn: () => fetchEdgeDeviceSources(token, status),
+    enabled,
+    staleTime: 10_000,
+    gcTime: 60_000,
+    refetchOnMount: 'always'
+  });
+}
+
+export function useApproveEdgeDeviceSource(options: DeviceQueryOptions = {}) {
+  const { token, authKey = 'anonymous' } = options;
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ApproveEdgeDeviceSourcePayload) => approveEdgeDeviceSource(payload, token),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['devices', authKey] });
+      void queryClient.invalidateQueries({ queryKey: ['available-devices', authKey] });
+      void queryClient.invalidateQueries({ queryKey: ['edge-device-sources', authKey] });
     }
   });
 }

@@ -1,9 +1,12 @@
 package edgecollector
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,10 +30,24 @@ type TelemetrySample struct {
 	Transport        string
 	ObservedAt       time.Time
 	Params           map[string]any
-	ClientSampleID   string
+}
+
+type edgeTelemetryPayload struct {
+	TypeCode string         `json:"typeCode"`
+	Params   map[string]any `json:"params"`
 }
 
 func BuildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.SubjectConfig) (*envelopev1.TelemetryEnvelope, error) {
+	return buildTelemetryEnvelope(sample, subjectCfg, false)
+}
+
+// BuildTelemetryEnvelopeWithOwnedParams skips the defensive params clone when
+// the caller created the params map only for this envelope.
+func BuildTelemetryEnvelopeWithOwnedParams(sample TelemetrySample, subjectCfg telemetrybus.SubjectConfig) (*envelopev1.TelemetryEnvelope, error) {
+	return buildTelemetryEnvelope(sample, subjectCfg, true)
+}
+
+func buildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.SubjectConfig, ownsParams bool) (*envelopev1.TelemetryEnvelope, error) {
 	deviceID := strings.TrimSpace(sample.DeviceID)
 	providerDeviceID := strings.ToUpper(strings.TrimSpace(sample.ProviderDeviceID))
 	if deviceID == "" {
@@ -39,32 +56,13 @@ func BuildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.Subj
 	if providerDeviceID == "" {
 		return nil, errors.New("provider device id is required")
 	}
-	params := cloneMap(sample.Params)
+	params := sample.Params
+	if !ownsParams {
+		params = cloneMap(sample.Params)
+	}
 	if len(params) == 0 {
 		return nil, errors.New("params are required")
 	}
-	observedAt := sample.ObservedAt
-	if observedAt.IsZero() {
-		observedAt = time.Now()
-	}
-	observedAt = observedAt.UTC()
-	payload, err := json.Marshal(map[string]any{
-		"typeCode": edgeTelemetryType,
-		"params":   params,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("marshal edge telemetry payload: %w", err)
-	}
-	clientSampleID := strings.TrimSpace(sample.ClientSampleID)
-	envelopeID := uuid.NewSHA1(uuid.NameSpaceOID, []byte("pulse-edge-telemetry:"+deviceID+":"+clientSampleID))
-	if clientSampleID == "" {
-		generated, err := uuid.NewV7()
-		if err != nil {
-			return nil, fmt.Errorf("generate envelope uuidv7: %w", err)
-		}
-		envelopeID = generated
-	}
-	normalizedCfg := subjectCfg.Normalized()
 	transport := strings.ToLower(strings.TrimSpace(sample.Transport))
 	if transport == "" {
 		transport = "ble"
@@ -73,23 +71,33 @@ func BuildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.Subj
 	if provider == "" {
 		provider = "ecoflow"
 	}
-	labels := map[string]string{
-		"collector_id": strings.TrimSpace(sample.CollectorID),
-		"provider":     provider,
-		"transport":    transport,
+	observedAt := sample.ObservedAt
+	if observedAt.IsZero() {
+		observedAt = time.Now()
 	}
-	for key, value := range labels {
-		if value == "" {
-			delete(labels, key)
-		}
+	observedAt = observedAt.UTC()
+	payload, err := json.Marshal(edgeTelemetryPayload{
+		TypeCode: edgeTelemetryType,
+		Params:   params,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal edge telemetry payload: %w", err)
 	}
+	messageID, envelopeID := stableTelemetryIDs(deviceID, providerDeviceID, provider, transport, observedAt.UnixMilli(), payload)
+	normalizedCfg := subjectCfg.Normalized()
+	labels := make(map[string]string, 3)
+	if collectorID := strings.TrimSpace(sample.CollectorID); collectorID != "" {
+		labels["collector_id"] = collectorID
+	}
+	labels["provider"] = provider
+	labels["transport"] = transport
 
 	return &envelopev1.TelemetryEnvelope{
-		EnvelopeId:         envelopeID.String(),
+		EnvelopeId:         envelopeID,
 		EnvelopeVersion:    edgeEnvelopeVersion,
 		DeviceId:           deviceID,
 		EcoflowSn:          providerDeviceID,
-		MessageId:          clientSampleID,
+		MessageId:          messageID,
 		Shard:              telemetrybus.ShardForDevice(deviceID, normalizedCfg.ShardCount),
 		ShardCount:         normalizedCfg.ShardCount,
 		ObservedTimeUnixMs: observedAt.UnixMilli(),
@@ -103,6 +111,29 @@ func BuildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.Subj
 		Payload:            payload,
 		Labels:             labels,
 	}, nil
+}
+
+func stableTelemetryIDs(deviceID string, providerDeviceID string, provider string, transport string, observedAtUnixMS int64, payload []byte) (string, string) {
+	var buf []byte
+	buf = append(buf, edgeTelemetryType...)
+	buf = append(buf, 0)
+	buf = append(buf, deviceID...)
+	buf = append(buf, 0)
+	buf = append(buf, providerDeviceID...)
+	buf = append(buf, 0)
+	buf = append(buf, provider...)
+	buf = append(buf, 0)
+	buf = append(buf, transport...)
+	buf = append(buf, 0)
+	buf = strconv.AppendInt(buf, observedAtUnixMS, 10)
+	buf = append(buf, 0)
+	buf = append(buf, payload...)
+	sum := sha256.Sum256(buf)
+	var envelopeID [16]byte
+	copy(envelopeID[:], sum[:16])
+	envelopeID[6] = (envelopeID[6] & 0x0f) | 0x80
+	envelopeID[8] = (envelopeID[8] & 0x3f) | 0x80
+	return "edge-telemetry-" + hex.EncodeToString(sum[:]), uuid.UUID(envelopeID).String()
 }
 
 func cloneMap(in map[string]any) map[string]any {

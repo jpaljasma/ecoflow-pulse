@@ -1,8 +1,10 @@
 package controlplane
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"regexp"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 )
 
 func TestPostgresStoreRequireCurrentSchemaFailsWhenProviderConfigColumnMissing(t *testing.T) {
@@ -598,6 +601,92 @@ WHERE pd.credential_id = pc.id
 	}
 }
 
+func TestPostgresStoreCreateProviderCredentialEncryptsMaterialWhenConfigured(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	store.providerCredentialCipher = testProviderCredentialCipher(t)
+	now := time.Date(2026, time.June, 28, 9, 30, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+
+	userID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52"
+	credentialID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111"
+	writeTime := normalizeWriteTime(now)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id::text FROM users WHERE keycloak_subject = $1`)).
+		WithArgs("subject-123").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+INSERT INTO provider_credentials (
+	user_id,
+	provider,
+	access_key_ciphertext,
+	secret_key_ciphertext,
+	access_key_hash,
+	access_key_mask,
+	provider_config,
+	is_active,
+	created_at,
+	updated_at
+)
+VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, is_active, created_at, updated_at;
+`)).
+		WithArgs(
+			userID,
+			ProviderEcoFlowBLE,
+			encryptedProviderCredentialArg{forbidden: "owner@example.test"},
+			encryptedProviderCredentialArg{forbidden: "ble-user-123"},
+			HashAccessKey("owner@example.test"),
+			MaskAccessKey("owner@example.test"),
+			[]byte("{}"),
+			false,
+			writeTime,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"user_id",
+			"provider",
+			"access_key_mask",
+			"provider_config",
+			"is_active",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			credentialID,
+			userID,
+			ProviderEcoFlowBLE,
+			MaskAccessKey("owner@example.test"),
+			[]byte("{}"),
+			false,
+			writeTime,
+			writeTime,
+		))
+
+	mock.ExpectCommit()
+
+	if _, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "subject-123",
+		Provider:    ProviderEcoFlowBLE,
+		AccessKey:   "owner@example.test",
+		SecretKey:   "ble-user-123",
+		IsActive:    false,
+	}); err != nil {
+		t.Fatalf("CreateProviderCredential failed: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestPostgresStoreImportProviderDeviceCommitsAtomicDeviceAndProviderRows(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -998,4 +1087,28 @@ WHERE keycloak_subject = $1;
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)
 	}
+}
+
+type encryptedProviderCredentialArg struct {
+	forbidden string
+}
+
+func (a encryptedProviderCredentialArg) Match(value driver.Value) bool {
+	data, ok := value.([]byte)
+	if !ok {
+		return false
+	}
+	return bytes.HasPrefix(data, []byte(providerCredentialEnvelopePrefix)) &&
+		!bytes.Contains(data, []byte(a.forbidden))
+}
+
+func testProviderCredentialCipher(t *testing.T) *providerCredentialCipher {
+	t.Helper()
+	keyring, err := valkeycache.NewKeyring("test", map[string][]byte{
+		"test": bytes.Repeat([]byte{0x42}, 32),
+	})
+	if err != nil {
+		t.Fatalf("NewKeyring failed: %v", err)
+	}
+	return &providerCredentialCipher{keyring: keyring}
 }

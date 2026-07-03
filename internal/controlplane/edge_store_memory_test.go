@@ -24,6 +24,13 @@ func TestMemoryStoreEdgeCollectorEnrollmentAndHeartbeat(t *testing.T) {
 	if collector.IsActive {
 		t.Fatalf("collector should start inactive")
 	}
+	pending, err := store.GetEdgeCollectorBySetupTokenHash(context.Background(), "setup-hash")
+	if err != nil {
+		t.Fatalf("get pending edge collector: %v", err)
+	}
+	if pending.ID != collector.ID || pending.UserID == "" {
+		t.Fatalf("unexpected pending collector: %+v", pending)
+	}
 
 	if _, err := store.AuthenticateEdgeCollector(context.Background(), AuthenticateEdgeCollectorInput{CollectorSecretHash: "secret-hash"}); !errors.Is(err, ErrEdgeCollectorNotFound) {
 		t.Fatalf("auth before enrollment error=%v want not found", err)
@@ -40,6 +47,9 @@ func TestMemoryStoreEdgeCollectorEnrollmentAndHeartbeat(t *testing.T) {
 	}
 	if !enrolled.IsActive || enrolled.SetupTokenHash != "" || enrolled.CollectorSecretHash == "" {
 		t.Fatalf("unexpected enrolled collector: %+v", enrolled)
+	}
+	if _, err := store.GetEdgeCollectorBySetupTokenHash(context.Background(), "setup-hash"); !errors.Is(err, ErrEdgeCollectorNotFound) {
+		t.Fatalf("get pending after enrollment error=%v want not found", err)
 	}
 
 	authed, err := store.AuthenticateEdgeCollector(context.Background(), AuthenticateEdgeCollectorInput{CollectorSecretHash: "secret-hash"})

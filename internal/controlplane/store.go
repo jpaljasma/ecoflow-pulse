@@ -10,6 +10,7 @@ import (
 
 const (
 	ProviderEcoFlow    = "ecoflow"
+	ProviderEcoFlowBLE = "ecoflow_ble"
 	ProviderPulseMQTT  = "pulsemqtt"
 	ProviderPecron     = "pecron"
 	ProviderAnkerSolix = "anker_solix"

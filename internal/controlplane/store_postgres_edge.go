@@ -102,6 +102,24 @@ RETURNING id::text, user_id::text, display_name, setup_token_hash, COALESCE(coll
 	return row, nil
 }
 
+func (s *PostgresStore) GetEdgeCollectorBySetupTokenHash(ctx context.Context, setupTokenHash string) (EdgeCollector, error) {
+	query := `
+SELECT id::text, user_id::text, display_name, setup_token_hash, COALESCE(collector_secret_hash, ''),
+	is_active, COALESCE(collector_version, ''), COALESCE(hostname, ''), last_heartbeat_at, created_at, updated_at
+FROM edge_collectors
+WHERE setup_token_hash = $1
+  AND is_active = false;
+`
+	row, err := scanEdgeCollector(s.db.QueryRowContext(ctx, query, strings.TrimSpace(setupTokenHash)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	if err != nil {
+		return EdgeCollector{}, fmt.Errorf("get edge collector by setup token: %w", err)
+	}
+	return row, nil
+}
+
 func (s *PostgresStore) AuthenticateEdgeCollector(ctx context.Context, in AuthenticateEdgeCollectorInput) (EdgeCollector, error) {
 	query := `
 SELECT id::text, user_id::text, display_name, setup_token_hash, COALESCE(collector_secret_hash, ''),

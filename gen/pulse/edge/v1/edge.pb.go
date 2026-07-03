@@ -526,6 +526,7 @@ type EnrollCollectorResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Collector       *EdgeCollector         `protobuf:"bytes,1,opt,name=collector,proto3" json:"collector,omitempty"`
 	CollectorSecret string                 `protobuf:"bytes,2,opt,name=collector_secret,json=collectorSecret,proto3" json:"collector_secret,omitempty"`
+	CollectorEnv    map[string]string      `protobuf:"bytes,3,rep,name=collector_env,json=collectorEnv,proto3" json:"collector_env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -572,6 +573,13 @@ func (x *EnrollCollectorResponse) GetCollectorSecret() string {
 		return x.CollectorSecret
 	}
 	return ""
+}
+
+func (x *EnrollCollectorResponse) GetCollectorEnv() map[string]string {
+	if x != nil {
+		return x.CollectorEnv
+	}
+	return nil
 }
 
 type HeartbeatRequest struct {
@@ -1349,10 +1357,14 @@ const file_pulse_edge_v1_edge_proto_rawDesc = "" +
 	"\vsetup_token\x18\x01 \x01(\tR\n" +
 	"setupToken\x12+\n" +
 	"\x11collector_version\x18\x02 \x01(\tR\x10collectorVersion\x12\x1a\n" +
-	"\bhostname\x18\x03 \x01(\tR\bhostname\"\x80\x01\n" +
+	"\bhostname\x18\x03 \x01(\tR\bhostname\"\xa0\x02\n" +
 	"\x17EnrollCollectorResponse\x12:\n" +
 	"\tcollector\x18\x01 \x01(\v2\x1c.pulse.edge.v1.EdgeCollectorR\tcollector\x12)\n" +
-	"\x10collector_secret\x18\x02 \x01(\tR\x0fcollectorSecret\"\x86\x01\n" +
+	"\x10collector_secret\x18\x02 \x01(\tR\x0fcollectorSecret\x12]\n" +
+	"\rcollector_env\x18\x03 \x03(\v28.pulse.edge.v1.EnrollCollectorResponse.CollectorEnvEntryR\fcollectorEnv\x1a?\n" +
+	"\x11CollectorEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x01\n" +
 	"\x10HeartbeatRequest\x12)\n" +
 	"\x10collector_secret\x18\x01 \x01(\tR\x0fcollectorSecret\x12+\n" +
 	"\x11collector_version\x18\x02 \x01(\tR\x10collectorVersion\x12\x1a\n" +
@@ -1424,7 +1436,7 @@ func file_pulse_edge_v1_edge_proto_rawDescGZIP() []byte {
 	return file_pulse_edge_v1_edge_proto_rawDescData
 }
 
-var file_pulse_edge_v1_edge_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_pulse_edge_v1_edge_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_pulse_edge_v1_edge_proto_goTypes = []any{
 	(*EdgeCollector)(nil),                // 0: pulse.edge.v1.EdgeCollector
 	(*EdgeDeviceSource)(nil),             // 1: pulse.edge.v1.EdgeDeviceSource
@@ -1446,41 +1458,43 @@ var file_pulse_edge_v1_edge_proto_goTypes = []any{
 	(*EdgeTelemetrySample)(nil),          // 17: pulse.edge.v1.EdgeTelemetrySample
 	(*UploadTelemetryBatchRequest)(nil),  // 18: pulse.edge.v1.UploadTelemetryBatchRequest
 	(*UploadTelemetryBatchResponse)(nil), // 19: pulse.edge.v1.UploadTelemetryBatchResponse
-	(*structpb.Struct)(nil),              // 20: google.protobuf.Struct
+	nil,                                  // 20: pulse.edge.v1.EnrollCollectorResponse.CollectorEnvEntry
+	(*structpb.Struct)(nil),              // 21: google.protobuf.Struct
 }
 var file_pulse_edge_v1_edge_proto_depIdxs = []int32{
-	20, // 0: pulse.edge.v1.EdgeDeviceSource.metadata:type_name -> google.protobuf.Struct
+	21, // 0: pulse.edge.v1.EdgeDeviceSource.metadata:type_name -> google.protobuf.Struct
 	0,  // 1: pulse.edge.v1.CreateCollectorResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
 	0,  // 2: pulse.edge.v1.ListCollectorsResponse.collectors:type_name -> pulse.edge.v1.EdgeCollector
 	0,  // 3: pulse.edge.v1.EnrollCollectorResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
-	0,  // 4: pulse.edge.v1.HeartbeatResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
-	20, // 5: pulse.edge.v1.EdgeDiscovery.metadata:type_name -> google.protobuf.Struct
-	10, // 6: pulse.edge.v1.UploadDiscoveryRequest.discoveries:type_name -> pulse.edge.v1.EdgeDiscovery
-	1,  // 7: pulse.edge.v1.ListDeviceSourcesResponse.sources:type_name -> pulse.edge.v1.EdgeDeviceSource
-	1,  // 8: pulse.edge.v1.ApproveDeviceSourceResponse.source:type_name -> pulse.edge.v1.EdgeDeviceSource
-	20, // 9: pulse.edge.v1.EdgeTelemetrySample.metrics:type_name -> google.protobuf.Struct
-	17, // 10: pulse.edge.v1.UploadTelemetryBatchRequest.samples:type_name -> pulse.edge.v1.EdgeTelemetrySample
-	2,  // 11: pulse.edge.v1.EdgeIngestService.CreateCollector:input_type -> pulse.edge.v1.CreateCollectorRequest
-	4,  // 12: pulse.edge.v1.EdgeIngestService.ListCollectors:input_type -> pulse.edge.v1.ListCollectorsRequest
-	6,  // 13: pulse.edge.v1.EdgeIngestService.EnrollCollector:input_type -> pulse.edge.v1.EnrollCollectorRequest
-	8,  // 14: pulse.edge.v1.EdgeIngestService.Heartbeat:input_type -> pulse.edge.v1.HeartbeatRequest
-	11, // 15: pulse.edge.v1.EdgeIngestService.UploadDiscovery:input_type -> pulse.edge.v1.UploadDiscoveryRequest
-	13, // 16: pulse.edge.v1.EdgeIngestService.ListDeviceSources:input_type -> pulse.edge.v1.ListDeviceSourcesRequest
-	15, // 17: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:input_type -> pulse.edge.v1.ApproveDeviceSourceRequest
-	18, // 18: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:input_type -> pulse.edge.v1.UploadTelemetryBatchRequest
-	3,  // 19: pulse.edge.v1.EdgeIngestService.CreateCollector:output_type -> pulse.edge.v1.CreateCollectorResponse
-	5,  // 20: pulse.edge.v1.EdgeIngestService.ListCollectors:output_type -> pulse.edge.v1.ListCollectorsResponse
-	7,  // 21: pulse.edge.v1.EdgeIngestService.EnrollCollector:output_type -> pulse.edge.v1.EnrollCollectorResponse
-	9,  // 22: pulse.edge.v1.EdgeIngestService.Heartbeat:output_type -> pulse.edge.v1.HeartbeatResponse
-	12, // 23: pulse.edge.v1.EdgeIngestService.UploadDiscovery:output_type -> pulse.edge.v1.UploadDiscoveryResponse
-	14, // 24: pulse.edge.v1.EdgeIngestService.ListDeviceSources:output_type -> pulse.edge.v1.ListDeviceSourcesResponse
-	16, // 25: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:output_type -> pulse.edge.v1.ApproveDeviceSourceResponse
-	19, // 26: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:output_type -> pulse.edge.v1.UploadTelemetryBatchResponse
-	19, // [19:27] is the sub-list for method output_type
-	11, // [11:19] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	20, // 4: pulse.edge.v1.EnrollCollectorResponse.collector_env:type_name -> pulse.edge.v1.EnrollCollectorResponse.CollectorEnvEntry
+	0,  // 5: pulse.edge.v1.HeartbeatResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
+	21, // 6: pulse.edge.v1.EdgeDiscovery.metadata:type_name -> google.protobuf.Struct
+	10, // 7: pulse.edge.v1.UploadDiscoveryRequest.discoveries:type_name -> pulse.edge.v1.EdgeDiscovery
+	1,  // 8: pulse.edge.v1.ListDeviceSourcesResponse.sources:type_name -> pulse.edge.v1.EdgeDeviceSource
+	1,  // 9: pulse.edge.v1.ApproveDeviceSourceResponse.source:type_name -> pulse.edge.v1.EdgeDeviceSource
+	21, // 10: pulse.edge.v1.EdgeTelemetrySample.metrics:type_name -> google.protobuf.Struct
+	17, // 11: pulse.edge.v1.UploadTelemetryBatchRequest.samples:type_name -> pulse.edge.v1.EdgeTelemetrySample
+	2,  // 12: pulse.edge.v1.EdgeIngestService.CreateCollector:input_type -> pulse.edge.v1.CreateCollectorRequest
+	4,  // 13: pulse.edge.v1.EdgeIngestService.ListCollectors:input_type -> pulse.edge.v1.ListCollectorsRequest
+	6,  // 14: pulse.edge.v1.EdgeIngestService.EnrollCollector:input_type -> pulse.edge.v1.EnrollCollectorRequest
+	8,  // 15: pulse.edge.v1.EdgeIngestService.Heartbeat:input_type -> pulse.edge.v1.HeartbeatRequest
+	11, // 16: pulse.edge.v1.EdgeIngestService.UploadDiscovery:input_type -> pulse.edge.v1.UploadDiscoveryRequest
+	13, // 17: pulse.edge.v1.EdgeIngestService.ListDeviceSources:input_type -> pulse.edge.v1.ListDeviceSourcesRequest
+	15, // 18: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:input_type -> pulse.edge.v1.ApproveDeviceSourceRequest
+	18, // 19: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:input_type -> pulse.edge.v1.UploadTelemetryBatchRequest
+	3,  // 20: pulse.edge.v1.EdgeIngestService.CreateCollector:output_type -> pulse.edge.v1.CreateCollectorResponse
+	5,  // 21: pulse.edge.v1.EdgeIngestService.ListCollectors:output_type -> pulse.edge.v1.ListCollectorsResponse
+	7,  // 22: pulse.edge.v1.EdgeIngestService.EnrollCollector:output_type -> pulse.edge.v1.EnrollCollectorResponse
+	9,  // 23: pulse.edge.v1.EdgeIngestService.Heartbeat:output_type -> pulse.edge.v1.HeartbeatResponse
+	12, // 24: pulse.edge.v1.EdgeIngestService.UploadDiscovery:output_type -> pulse.edge.v1.UploadDiscoveryResponse
+	14, // 25: pulse.edge.v1.EdgeIngestService.ListDeviceSources:output_type -> pulse.edge.v1.ListDeviceSourcesResponse
+	16, // 26: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:output_type -> pulse.edge.v1.ApproveDeviceSourceResponse
+	19, // 27: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:output_type -> pulse.edge.v1.UploadTelemetryBatchResponse
+	20, // [20:28] is the sub-list for method output_type
+	12, // [12:20] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_pulse_edge_v1_edge_proto_init() }
@@ -1494,7 +1508,7 @@ func file_pulse_edge_v1_edge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_edge_v1_edge_proto_rawDesc), len(file_pulse_edge_v1_edge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

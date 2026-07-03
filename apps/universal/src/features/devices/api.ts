@@ -1,17 +1,31 @@
 import { requestJson } from '@/shared/api/restClient';
 import {
   AvailableDevicesResponseSchema,
+  ApproveEdgeDeviceSourcePayloadSchema,
+  ApproveEdgeDeviceSourceResponseSchema,
+  CreateEdgeCollectorPayloadSchema,
+  CreateEdgeCollectorResponseSchema,
   DeviceMQTTTestResultSchema,
   DevicesResponseSchema,
   DeviceSchema,
+  EdgeCollectorsResponseSchema,
+  EdgeDeviceSourcesResponseSchema,
+  EdgeDeviceSourceStatusSchema,
   EnableAvailableDeviceResponseSchema,
   ImportAvailableDevicePayloadSchema
 } from '@/features/devices/schema';
 import type {
+  ApproveEdgeDeviceSourcePayload,
+  ApproveEdgeDeviceSourceResponse,
   AvailableDevicesResponse,
   DeviceMQTTTestResult,
   DevicesResponse,
   DeviceSummary,
+  CreateEdgeCollectorPayload,
+  CreateEdgeCollectorResponse,
+  EdgeCollector,
+  EdgeDeviceSourceStatus,
+  EdgeDeviceSource,
   EnableAvailableDeviceResponse,
   ImportAvailableDevicePayload
 } from '@/features/devices/schema';
@@ -19,6 +33,9 @@ import type {
 export {
   AvailableDeviceSchema,
   AvailableDevicesResponseSchema,
+  EdgeCollectorSchema,
+  EdgeDeviceSourceStatusSchema,
+  EdgeDeviceSourceSchema,
   DeviceMQTTTestResultSchema,
   DevicesResponseSchema,
   DeviceSchema,
@@ -28,6 +45,9 @@ export {
 export type {
   AvailableDeviceSummary,
   AvailableDevicesResponse,
+  EdgeCollector,
+  EdgeDeviceSourceStatus,
+  EdgeDeviceSource,
   DeviceMQTTTestResult,
   DevicesResponse,
   DeviceSummary,
@@ -87,4 +107,49 @@ export async function importAvailableDevice(
     token
   });
   return EnableAvailableDeviceResponseSchema.parse(data);
+}
+
+export async function fetchEdgeCollectors(token?: string): Promise<EdgeCollector[]> {
+  const data = await requestJson<unknown>('/api/v1/edge/collectors', { token });
+  return EdgeCollectorsResponseSchema.parse(data).collectors;
+}
+
+export async function createEdgeCollector(
+  payload: CreateEdgeCollectorPayload,
+  token?: string
+): Promise<CreateEdgeCollectorResponse> {
+  const validated = CreateEdgeCollectorPayloadSchema.parse(payload);
+  const data = await requestJson<unknown>('/api/v1/edge/collectors', {
+    method: 'POST',
+    body: validated,
+    token
+  });
+  return CreateEdgeCollectorResponseSchema.parse(data);
+}
+
+export async function fetchEdgeDeviceSources(
+  token?: string,
+  status: EdgeDeviceSourceStatus = 'pending'
+): Promise<EdgeDeviceSource[]> {
+  const validatedStatus = EdgeDeviceSourceStatusSchema.parse(status);
+  const suffix = `?status=${encodeURIComponent(validatedStatus)}`;
+  const data = await requestJson<unknown>(`/api/v1/edge/device-sources${suffix}`, { token });
+  return EdgeDeviceSourcesResponseSchema.parse(data).sources;
+}
+
+export async function approveEdgeDeviceSource(
+  payload: ApproveEdgeDeviceSourcePayload,
+  token?: string
+): Promise<ApproveEdgeDeviceSourceResponse> {
+  const validated = ApproveEdgeDeviceSourcePayloadSchema.parse(payload);
+  const data = await requestJson<unknown>(`/api/v1/edge/device-sources/${encodeURIComponent(validated.sourceId)}/approve`, {
+    method: 'POST',
+    body: {
+      deviceId: validated.deviceId,
+      productName: validated.productName,
+      model: validated.model
+    },
+    token
+  });
+  return ApproveEdgeDeviceSourceResponseSchema.parse(data);
 }

@@ -61,6 +61,7 @@ message EnrollCollectorRequest {
 message EnrollCollectorResponse {
   EdgeCollector collector = 1;
   string collector_secret = 2;
+  map<string, string> collector_env = 3;
 }
 
 message HeartbeatRequest {

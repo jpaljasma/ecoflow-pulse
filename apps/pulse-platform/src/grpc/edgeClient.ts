@@ -15,6 +15,9 @@ export type EdgeCollector = {
   hostname: string;
 };
 
+export const edgeDeviceSourceStatuses = ['pending', 'linked', 'ignored'] as const;
+export type EdgeDeviceSourceStatus = (typeof edgeDeviceSourceStatuses)[number];
+
 export type EdgeDeviceSource = {
   id: string;
   collectorId: string;
@@ -23,7 +26,7 @@ export type EdgeDeviceSource = {
   providerDeviceId: string;
   displayName: string;
   model: string;
-  status: string;
+  status: EdgeDeviceSourceStatus;
   linkedDeviceId: string;
   rssiDbm: number;
   lastSeenAtUnixMs: string;
@@ -79,7 +82,7 @@ export type UploadDiscoveryInput = RequestContext & {
 export type ListDeviceSourcesInput = RequestContext & {
   userSubject: string;
   collectorId?: string;
-  status?: string;
+  status?: EdgeDeviceSourceStatus;
 };
 
 export type ApproveDeviceSourceInput = RequestContext & {
@@ -107,7 +110,11 @@ export type UploadTelemetryInput = RequestContext & {
 export interface EdgeClient {
   createCollector(input: CreateCollectorInput): Promise<{ collector: EdgeCollector; setupToken: string }>;
   listCollectors(input: ListCollectorsInput): Promise<EdgeCollector[]>;
-  enrollCollector(input: EnrollCollectorInput): Promise<{ collector: EdgeCollector; collectorSecret: string }>;
+  enrollCollector(input: EnrollCollectorInput): Promise<{
+    collector: EdgeCollector;
+    collectorSecret: string;
+    collectorEnv: Record<string, string>;
+  }>;
   heartbeat(input: CollectorSecretInput): Promise<EdgeCollector>;
   uploadDiscovery(input: UploadDiscoveryInput): Promise<{ acceptedCount: number }>;
   listDeviceSources(input: ListDeviceSourcesInput): Promise<EdgeDeviceSource[]>;
@@ -196,7 +203,7 @@ export function createEdgeClient(address: string): EdgeClient {
         : [];
     },
     async enrollCollector(input) {
-      const response = await unaryCall<{ collector?: unknown; collectorSecret?: unknown }>(
+      const response = await unaryCall<{ collector?: unknown; collectorSecret?: unknown; collectorEnv?: unknown }>(
         client.EnrollCollector.bind(client),
         {
           setupToken: input.setupToken,
@@ -207,7 +214,8 @@ export function createEdgeClient(address: string): EdgeClient {
       );
       return {
         collector: normalizeCollector((response.collector ?? {}) as RawCollector),
-        collectorSecret: normalizeString(response.collectorSecret)
+        collectorSecret: normalizeString(response.collectorSecret),
+        collectorEnv: normalizeStringRecord(response.collectorEnv)
       };
     },
     async heartbeat(input) {
@@ -334,7 +342,7 @@ function normalizeDeviceSource(row: RawDeviceSource): EdgeDeviceSource {
     providerDeviceId: normalizeString(row.providerDeviceId),
     displayName: normalizeString(row.displayName),
     model: normalizeString(row.model),
-    status: normalizeString(row.status),
+    status: normalizeDeviceSourceStatus(row.status),
     linkedDeviceId: normalizeString(row.linkedDeviceId),
     rssiDbm: normalizeInteger(row.rssiDbm),
     lastSeenAtUnixMs: normalizeString(row.lastSeenAtUnixMs),
@@ -346,6 +354,14 @@ function normalizeDeviceSource(row: RawDeviceSource): EdgeDeviceSource {
 
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeDeviceSourceStatus(value: unknown): EdgeDeviceSourceStatus {
+  const status = normalizeString(value);
+  if (status === 'linked' || status === 'ignored') {
+    return status;
+  }
+  return 'pending';
 }
 
 function normalizeInteger(value: unknown): number {
@@ -367,6 +383,22 @@ function normalizeRecord(value: unknown): Record<string, unknown> | undefined {
     return undefined;
   }
   return normalized as Record<string, unknown>;
+}
+
+function normalizeStringRecord(value: unknown): Record<string, string> {
+  const record = normalizeRecord(value);
+  if (!record) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(record)) {
+    const normalizedKey = key.trim();
+    const normalizedValue = normalizeString(raw).trim();
+    if (normalizedKey && normalizedValue) {
+      out[normalizedKey] = normalizedValue;
+    }
+  }
+  return out;
 }
 
 function normalizeProtoValue(value: unknown): unknown {
