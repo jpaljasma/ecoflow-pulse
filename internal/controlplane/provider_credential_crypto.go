@@ -4,10 +4,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 )
 
 const providerCredentialEnvelopePrefix = "pulse-provider-credential:v1:"
@@ -17,8 +17,14 @@ type providerCredentialCipher struct {
 }
 
 func newProviderCredentialCipherFromEnv() (*providerCredentialCipher, error) {
-	keyID := firstNonEmptyEnv("PROVIDER_CREDENTIAL_ENCRYPTION_KEY_ID", "VALKEY_CACHE_ENCRYPTION_KEY_ID")
-	keySpec := firstNonEmptyEnv("PROVIDER_CREDENTIAL_ENCRYPTION_KEYS", "VALKEY_CACHE_ENCRYPTION_KEYS")
+	keyID := runtimecfg.EnvOrDefault(
+		"PROVIDER_CREDENTIAL_ENCRYPTION_KEY_ID",
+		runtimecfg.EnvOrDefault("VALKEY_CACHE_ENCRYPTION_KEY_ID", ""),
+	)
+	keySpec := runtimecfg.EnvOrDefault(
+		"PROVIDER_CREDENTIAL_ENCRYPTION_KEYS",
+		runtimecfg.EnvOrDefault("VALKEY_CACHE_ENCRYPTION_KEYS", ""),
+	)
 	if strings.TrimSpace(keyID) == "" && strings.TrimSpace(keySpec) == "" {
 		return nil, nil
 	}
@@ -67,13 +73,4 @@ func (c *providerCredentialCipher) openString(data []byte) (string, error) {
 		return "", err
 	}
 	return string(plaintext), nil
-}
-
-func firstNonEmptyEnv(names ...string) string {
-	for _, name := range names {
-		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-			return value
-		}
-	}
-	return ""
 }

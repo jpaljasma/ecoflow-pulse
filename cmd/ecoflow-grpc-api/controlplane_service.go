@@ -14,6 +14,7 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ankersolix"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
@@ -56,6 +57,13 @@ type ecoFlowAppLoginClient interface {
 type providerCredentialEncryptionReporter interface {
 	ProviderCredentialSecretsEncrypted() bool
 }
+
+const (
+	ecoFlowBLEAuthConfigModeKey        = "auth_mode"
+	ecoFlowBLEAuthConfigAccountMaskKey = "account_mask"
+	ecoFlowBLEAuthModeLogin            = "login"
+	ecoFlowBLEAuthModeManual           = "manual"
+)
 
 type mqttResolverTLSConfigProvider interface {
 	MQTTTLSConfig() *tls.Config
@@ -734,17 +742,21 @@ func (s *ControlPlaneService) ConnectEcoFlowBLEAuth(ctx context.Context, req *co
 	}
 	session, err := s.ecoflowAppLogin.LoginApp(ctx, email, password)
 	if err != nil {
-		return nil, status.Errorf(codes.FailedPrecondition, "ecoflow app login failed: %v", err)
+		if s.log != nil {
+			s.log.Warn(
+				"ecoflow ble app login failed",
+				slog.String("account_ref", logredact.Email(email)),
+				slog.String("error_ref", logredact.Identifier(err.Error())),
+			)
+		}
+		return nil, status.Error(codes.FailedPrecondition, "ecoflow app login failed")
 	}
 	userID, err := normalizeEcoFlowBLEUserID(session.UserID)
 	if err != nil {
 		return nil, status.Error(codes.FailedPrecondition, "ecoflow app login response did not include a usable user id")
 	}
 	accountMask := controlplane.MaskAccessKey(email)
-	cred, err := s.upsertEcoFlowBLEAuthCredential(ctx, userSubject, email, userID, map[string]any{
-		"auth_mode":    "login",
-		"account_mask": accountMask,
-	})
+	cred, err := s.upsertEcoFlowBLEAuthCredential(ctx, userSubject, email, userID, ecoFlowBLEAuthConfig(ecoFlowBLEAuthModeLogin, accountMask))
 	if err != nil {
 		return nil, err
 	}
@@ -773,10 +785,7 @@ func (s *ControlPlaneService) SetEcoFlowBLEAuthUserID(ctx context.Context, req *
 		accountLabel = "Manual EcoFlow BLE ID"
 	}
 	accountMask := controlplane.MaskAccessKey(accountLabel)
-	cred, err := s.upsertEcoFlowBLEAuthCredential(ctx, userSubject, syntheticEcoFlowBLEManualAccessKey(userSubject), userID, map[string]any{
-		"auth_mode":    "manual",
-		"account_mask": accountMask,
-	})
+	cred, err := s.upsertEcoFlowBLEAuthCredential(ctx, userSubject, syntheticEcoFlowBLEManualAccessKey(userSubject), userID, ecoFlowBLEAuthConfig(ecoFlowBLEAuthModeManual, accountMask))
 	if err != nil {
 		return nil, err
 	}
@@ -1072,6 +1081,15 @@ func (s *ControlPlaneService) listAvailableProviderDevices(ctx context.Context, 
 	if len(activeCreds) == 0 {
 		return nil, false, nil
 	}
+	discoverableCreds := make([]controlplane.ProviderCredential, 0, len(activeCreds))
+	for i := range activeCreds {
+		if _, ok := s.adapters.Discoverer(activeCreds[i].Provider); ok {
+			discoverableCreds = append(discoverableCreds, activeCreds[i])
+		}
+	}
+	if len(discoverableCreds) == 0 {
+		return nil, true, nil
+	}
 	existing, err := s.store.ListProviderDevices(ctx, controlplane.ListProviderDevicesInput{
 		UserSubject: userSubject,
 		Provider:    provider,
@@ -1085,19 +1103,16 @@ func (s *ControlPlaneService) listAvailableProviderDevices(ctx context.Context, 
 		existingKeys[availableProviderDeviceKey(existing[i].Provider, existing[i].ProviderDeviceID)] = struct{}{}
 	}
 	seen := make(map[string]struct{})
-	out := make([]controlplane.ProviderDevice, 0, len(activeCreds)*2)
-	for i := range activeCreds {
-		cred, err := s.store.GetProviderCredential(ctx, userSubject, activeCreds[i].ID)
+	out := make([]controlplane.ProviderDevice, 0, len(discoverableCreds)*2)
+	for i := range discoverableCreds {
+		cred, err := s.store.GetProviderCredential(ctx, userSubject, discoverableCreds[i].ID)
 		if err != nil {
 			if errors.Is(err, controlplane.ErrCredentialNotFound) {
 				continue
 			}
 			return nil, true, err
 		}
-		discoverer, ok := s.adapters.Discoverer(cred.Provider)
-		if !ok {
-			continue
-		}
+		discoverer, _ := s.adapters.Discoverer(cred.Provider)
 		discovered, err := discoverer.DiscoverDevices(ctx, cred)
 		if err != nil {
 			switch {
@@ -1232,7 +1247,7 @@ func ecoFlowBLECredentialStatus(credential controlplane.ProviderCredential, stat
 	if statusText == "" {
 		statusText = "connected"
 	}
-	accountMask, _ := credential.Config["account_mask"].(string)
+	accountMask, _ := credential.Config[ecoFlowBLEAuthConfigAccountMaskKey].(string)
 	accountMask = strings.TrimSpace(accountMask)
 	if accountMask == "" {
 		accountMask = credential.AccessKeyMask
@@ -1247,17 +1262,24 @@ func ecoFlowBLECredentialStatus(credential controlplane.ProviderCredential, stat
 
 func normalizeEcoFlowBLEAuthConfig(config map[string]any) map[string]any {
 	out := map[string]any{}
-	mode, _ := config["auth_mode"].(string)
+	mode, _ := config[ecoFlowBLEAuthConfigModeKey].(string)
 	mode = strings.TrimSpace(mode)
-	if mode != "manual" {
-		mode = "login"
+	if mode != ecoFlowBLEAuthModeManual {
+		mode = ecoFlowBLEAuthModeLogin
 	}
-	out["auth_mode"] = mode
-	accountMask, _ := config["account_mask"].(string)
+	out[ecoFlowBLEAuthConfigModeKey] = mode
+	accountMask, _ := config[ecoFlowBLEAuthConfigAccountMaskKey].(string)
 	if accountMask = strings.TrimSpace(accountMask); accountMask != "" {
-		out["account_mask"] = accountMask
+		out[ecoFlowBLEAuthConfigAccountMaskKey] = accountMask
 	}
 	return out
+}
+
+func ecoFlowBLEAuthConfig(mode string, accountMask string) map[string]any {
+	return normalizeEcoFlowBLEAuthConfig(map[string]any{
+		ecoFlowBLEAuthConfigModeKey:        mode,
+		ecoFlowBLEAuthConfigAccountMaskKey: accountMask,
+	})
 }
 
 func syntheticEcoFlowBLEManualAccessKey(userSubject string) string {

@@ -14,18 +14,22 @@ const (
 	ProviderPulseMQTT  = "pulsemqtt"
 	ProviderPecron     = "pecron"
 	ProviderAnkerSolix = "anker_solix"
+
+	edgeCollectorSetupTokenTTL = 30 * time.Minute
 )
 
 var (
-	ErrUserNotFound             = errors.New("user not found")
-	ErrCredentialNotFound       = errors.New("provider credential not found")
-	ErrCredentialAlreadyExists  = errors.New("provider credential access key already exists")
-	ErrDeviceNotFound           = errors.New("device not found")
-	ErrPermissionDenied         = errors.New("permission denied")
-	ErrVerifiedEmailNotFound    = errors.New("verified user email not found")
-	ErrUserSubjectConflict      = errors.New("target keycloak subject already belongs to another user")
-	ErrEdgeCollectorNotFound    = errors.New("edge collector not found")
-	ErrEdgeDeviceSourceNotFound = errors.New("edge device source not found")
+	ErrUserNotFound                   = errors.New("user not found")
+	ErrCredentialNotFound             = errors.New("provider credential not found")
+	ErrCredentialAlreadyExists        = errors.New("provider credential access key already exists")
+	ErrDeviceNotFound                 = errors.New("device not found")
+	ErrPermissionDenied               = errors.New("permission denied")
+	ErrVerifiedEmailNotFound          = errors.New("verified user email not found")
+	ErrUserSubjectConflict            = errors.New("target keycloak subject already belongs to another user")
+	ErrEdgeCollectorNotFound          = errors.New("edge collector not found")
+	ErrEdgeDeviceSourceNotFound       = errors.New("edge device source not found")
+	ErrEdgeDeviceSourceNotPending     = errors.New("edge device source is not pending")
+	ErrEdgeDeviceSourceTargetMismatch = errors.New("edge device source target device mismatch")
 )
 
 type ProviderCredential struct {
@@ -83,6 +87,10 @@ type EdgeCollector struct {
 	UpdatedAt           time.Time
 }
 
+func edgeCollectorSetupTokenCutoff(now time.Time) time.Time {
+	return normalizeWriteTime(now).Add(-edgeCollectorSetupTokenTTL)
+}
+
 type EdgeDeviceSource struct {
 	ID               string
 	CollectorID      string
@@ -101,6 +109,12 @@ type EdgeDeviceSource struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
+
+const (
+	EdgeDeviceSourceStatusPending = "pending"
+	EdgeDeviceSourceStatusLinked  = "linked"
+	EdgeDeviceSourceStatusIgnored = "ignored"
+)
 
 type CurrentUser struct {
 	ID                     string
@@ -293,6 +307,11 @@ type EnrollEdgeCollectorInput struct {
 	Hostname            string
 }
 
+type RevokeEdgeCollectorSetupTokenInput struct {
+	UserSubject string
+	CollectorID string
+}
+
 type AuthenticateEdgeCollectorInput struct {
 	CollectorSecretHash string
 }
@@ -337,6 +356,22 @@ type ApproveEdgeDeviceSourceInput struct {
 type ApprovedEdgeDeviceSource struct {
 	Source EdgeDeviceSource
 	Device UserDevice
+}
+
+func validateEdgeDeviceSourceApproval(source EdgeDeviceSource) error {
+	if source.Status != EdgeDeviceSourceStatusPending {
+		return ErrEdgeDeviceSourceNotPending
+	}
+	return nil
+}
+
+func validateEdgeDeviceSourceTarget(source EdgeDeviceSource, deviceSN string) error {
+	sourceID := strings.ToUpper(strings.TrimSpace(source.ProviderDeviceID))
+	targetID := strings.ToUpper(strings.TrimSpace(deviceSN))
+	if sourceID == "" || targetID == "" || sourceID != targetID {
+		return ErrEdgeDeviceSourceTargetMismatch
+	}
+	return nil
 }
 
 type GetLinkedEdgeDeviceSourceInput struct {

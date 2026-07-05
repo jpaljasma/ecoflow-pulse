@@ -144,11 +144,13 @@ systemd start-limit window.
 When `PULSE_EDGE_OUTBOX_DIR` is set, discovery and telemetry uploads are written
 to a local JSON outbox and fsynced before send. Successful sends remove the
 outbox entry; failed sends stay on disk and replay after collector restart and
-after later successful heartbeats. Outbox files do not persist the collector
-secret; the current secret is added only when sending. Telemetry samples carry a
-stable `client_sample_id` for collector outbox identity, while the in-cluster
-edge ingest service derives its own stable envelope `message_id` from normalized
-sample content for downstream retry dedupe.
+after later successful heartbeats. The collector secures the outbox directory as
+private service storage; keep it root/service-owned and treat it as sensitive
+because it contains device identity and telemetry. Outbox files do not persist
+the collector secret; the current secret is added only when sending. Telemetry
+samples carry a stable `client_sample_id` for collector outbox identity, while
+the in-cluster edge ingest service derives its own stable envelope `message_id`
+from normalized sample content for downstream retry dedupe.
 
 If the BLE probe exits unexpectedly, the collector restarts it with capped
 exponential backoff. If BLE authentication fails, the collector exits with

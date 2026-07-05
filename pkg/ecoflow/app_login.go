@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	defaultAppLoginBaseURL = "https://api.ecoflow.com"
-	defaultAppLoginPath    = "/auth/login"
+	defaultAppLoginPath = "/auth/login"
 )
 
 // AppLoginSession contains the temporary result of an EcoFlow app login.
@@ -39,11 +38,10 @@ type AppLoginClient struct {
 // LoginApp exchanges a one-time EcoFlow email/password for the app user ID.
 func (c AppLoginClient) LoginApp(ctx context.Context, email string, password string) (AppLoginSession, error) {
 	email = strings.TrimSpace(email)
-	password = strings.TrimSpace(password)
 	if email == "" {
 		return AppLoginSession{}, errors.New("email required")
 	}
-	if password == "" {
+	if strings.TrimSpace(password) == "" {
 		return AppLoginSession{}, errors.New("password required")
 	}
 
@@ -90,8 +88,8 @@ func (c AppLoginClient) LoginApp(ctx context.Context, email string, password str
 	if err := json.Unmarshal(respBody, &decoded); err != nil {
 		return AppLoginSession{}, fmt.Errorf("decode ecoflow app login response: %w", err)
 	}
-	if code := normalizedBusinessCode(decoded.Code); code != "" && code != "0" {
-		return AppLoginSession{}, &BusinessError{Code: code, Message: decoded.Message}
+	if err := validateBusinessCode(normalizedBusinessCode(decoded.Code), decoded.Message); err != nil {
+		return AppLoginSession{}, err
 	}
 	userID := strings.TrimSpace(decoded.Data.User.UserID)
 	if userID == "" {
@@ -107,7 +105,7 @@ func (c AppLoginClient) LoginApp(ctx context.Context, email string, password str
 func (c AppLoginClient) loginURL() (*url.URL, error) {
 	base := strings.TrimSpace(c.BaseURL)
 	if base == "" {
-		base = defaultAppLoginBaseURL
+		base = defaultBaseURL
 	}
 	u, err := url.Parse(base)
 	if err != nil {

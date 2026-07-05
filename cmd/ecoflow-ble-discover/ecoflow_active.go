@@ -772,6 +772,7 @@ func manufacturerScanRecordMetrics(device discoveredBLEDevice) []probeMetric {
 		return nil
 	}
 	return []probeMetric{
+		{Name: "manufacturer_serial", Value: record.Serial, Source: "advertisement"},
 		{Name: "manufacturer_proto_version", Value: strconv.Itoa(record.ProtoVersion), Source: "advertisement"},
 		{Name: "manufacturer_encrypt_type", Value: strconv.Itoa(record.EncryptType), Source: "advertisement"},
 		{Name: "manufacturer_active", Value: strconv.FormatBool(record.Active), Source: "advertisement"},

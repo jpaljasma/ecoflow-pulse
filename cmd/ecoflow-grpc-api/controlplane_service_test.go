@@ -438,11 +438,68 @@ func TestConnectEcoFlowBLEAuthStoresDerivedUserIDWithoutExposingIt(t *testing.T)
 	if text := fmt.Sprint(publicCredential); strings.Contains(text, "ble-user-123") || strings.Contains(text, "temporary-token") {
 		t.Fatalf("public credential leaked private EcoFlow material: %s", text)
 	}
-	if got := publicCredential.GetConfig().AsMap()["auth_mode"]; got != "login" {
-		t.Fatalf("auth_mode=%v want login", got)
+	if got := publicCredential.GetConfig().AsMap()[ecoFlowBLEAuthConfigModeKey]; got != ecoFlowBLEAuthModeLogin {
+		t.Fatalf("%s=%v want %s", ecoFlowBLEAuthConfigModeKey, got, ecoFlowBLEAuthModeLogin)
 	}
 	if _, ok := publicCredential.GetConfig().AsMap()["account_name"]; ok {
 		t.Fatalf("account_name should not be exposed in credential config: %#v", publicCredential.GetConfig().AsMap())
+	}
+}
+
+func TestConnectEcoFlowBLEAuthRotatesExistingCredential(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	login := &fakeEcoFlowAppLogin{session: ecoflow.AppLoginSession{UserID: "ble-user-old"}}
+	svc.ecoflowAppLogin = login
+
+	if _, err := svc.ConnectEcoFlowBLEAuth(context.Background(), &controlplanev1.ConnectEcoFlowBLEAuthRequest{
+		UserSubject: "dev-user",
+		Email:       "old@example.test",
+		Password:    "old-password",
+	}); err != nil {
+		t.Fatalf("initial ConnectEcoFlowBLEAuth failed: %v", err)
+	}
+
+	login.session = ecoflow.AppLoginSession{UserID: "ble-user-new"}
+	resp, err := svc.ConnectEcoFlowBLEAuth(context.Background(), &controlplanev1.ConnectEcoFlowBLEAuthRequest{
+		UserSubject: "dev-user",
+		Email:       "new@example.test",
+		Password:    "new-password",
+	})
+	if err != nil {
+		t.Fatalf("second ConnectEcoFlowBLEAuth failed: %v", err)
+	}
+	if !resp.GetStatus().GetConnected() {
+		t.Fatalf("expected connected status after rotation")
+	}
+
+	credentials, err := store.ListProviderCredentials(context.Background(), controlplane.ListProviderCredentialsInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlowBLE,
+	})
+	if err != nil {
+		t.Fatalf("ListProviderCredentials failed: %v", err)
+	}
+	if got := len(credentials); got != 1 {
+		t.Fatalf("credential count=%d want 1", got)
+	}
+	owner, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{UserSubject: "dev-user"})
+	if err != nil {
+		t.Fatalf("GetOrProvisionCurrentUser failed: %v", err)
+	}
+	stored, err := store.GetActiveProviderCredentialByUserID(context.Background(), owner.ID, controlplane.ProviderEcoFlowBLE)
+	if err != nil {
+		t.Fatalf("GetActiveProviderCredentialByUserID failed: %v", err)
+	}
+	if stored.SecretKey != "ble-user-new" {
+		t.Fatalf("stored secret=%q want rotated BLE user id", stored.SecretKey)
+	}
+	if stored.AccessKey != "new@example.test" {
+		t.Fatalf("stored access key=%q want rotated account email", stored.AccessKey)
+	}
+	if got := stored.Config[ecoFlowBLEAuthConfigModeKey]; got != ecoFlowBLEAuthModeLogin {
+		t.Fatalf("%s=%v want %s", ecoFlowBLEAuthConfigModeKey, got, ecoFlowBLEAuthModeLogin)
 	}
 }
 
@@ -530,8 +587,8 @@ func TestSetEcoFlowBLEAuthUserIDStoresManualFallback(t *testing.T) {
 	if stored.SecretKey != "manual-ble-user" {
 		t.Fatalf("stored secret=%q", stored.SecretKey)
 	}
-	if got := stored.Config["auth_mode"]; got != "manual" {
-		t.Fatalf("auth_mode=%v want manual", got)
+	if got := stored.Config[ecoFlowBLEAuthConfigModeKey]; got != ecoFlowBLEAuthModeManual {
+		t.Fatalf("%s=%v want %s", ecoFlowBLEAuthConfigModeKey, got, ecoFlowBLEAuthModeManual)
 	}
 	if strings.Contains(stored.AccessKey, "Manual EcoFlow BLE ID") || strings.Contains(stored.AccessKey, "Cabin EcoFlow account") {
 		t.Fatalf("manual access key should be synthetic, got %q", stored.AccessKey)

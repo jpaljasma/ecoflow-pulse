@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { status as grpcStatus } from '@grpc/grpc-js';
 import type { preHandlerHookHandler } from 'fastify';
 
 import { buildApp } from '../src/app.js';
@@ -40,7 +41,10 @@ function makeDeviceClient(): DeviceClient {
   return {
     listDevices: vi.fn(async () => []),
     getDevice: vi.fn(async () => null),
-    listAvailableDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    listAvailableDevices: vi.fn(async () => ({
+      devices: [],
+      hasActiveCredentials: false
+    })),
     testAvailableDeviceMQTT: vi.fn(),
     enableAvailableDevice: vi.fn(),
     importAvailableDevice: vi.fn(),
@@ -56,7 +60,9 @@ function makeInferenceClient(): InferenceClient {
   } as unknown as InferenceClient;
 }
 
-function sampleBLEStatus(overrides: Partial<EcoFlowBLEAuthStatus> = {}): EcoFlowBLEAuthStatus {
+function sampleBLEStatus(
+  overrides: Partial<EcoFlowBLEAuthStatus> = {}
+): EcoFlowBLEAuthStatus {
   return {
     connected: true,
     status: 'connected',
@@ -66,7 +72,9 @@ function sampleBLEStatus(overrides: Partial<EcoFlowBLEAuthStatus> = {}): EcoFlow
   };
 }
 
-function sampleIntegration(overrides: Partial<ProviderCredential> = {}): ProviderCredential {
+function sampleIntegration(
+  overrides: Partial<ProviderCredential> = {}
+): ProviderCredential {
   return {
     id: '11111111-1111-7111-8111-111111111111',
     provider: 'ecoflow',
@@ -79,7 +87,9 @@ function sampleIntegration(overrides: Partial<ProviderCredential> = {}): Provide
   };
 }
 
-function makeControlPlaneClient(overrides: Partial<ControlPlaneClient> = {}): ControlPlaneClient {
+function makeControlPlaneClient(
+  overrides: Partial<ControlPlaneClient> = {}
+): ControlPlaneClient {
   return {
     getCurrentUser: vi.fn(),
     updateCurrentUser: vi.fn(),
@@ -90,10 +100,17 @@ function makeControlPlaneClient(overrides: Partial<ControlPlaneClient> = {}): Co
     setProviderCredentialActive: vi.fn(),
     listUserDevices: vi.fn(async () => []),
     listDevices: vi.fn(async () => []),
-    listAvailableProviderDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
-    getEcoFlowBLEAuthStatus: vi.fn(async () => sampleBLEStatus({ connected: false, status: 'not_connected' })),
+    listAvailableProviderDevices: vi.fn(async () => ({
+      devices: [],
+      hasActiveCredentials: false
+    })),
+    getEcoFlowBLEAuthStatus: vi.fn(async () =>
+      sampleBLEStatus({ connected: false, status: 'not_connected' })
+    ),
     connectEcoFlowBLEAuth: vi.fn(async () => sampleBLEStatus()),
-    setEcoFlowBLEAuthUserID: vi.fn(async () => sampleBLEStatus({ accountMask: 'Manu...e ID' })),
+    setEcoFlowBLEAuthUserID: vi.fn(async () =>
+      sampleBLEStatus({ accountMask: 'Manu...e ID' })
+    ),
     testProviderDeviceMQTT: vi.fn(),
     enableProviderDevice: vi.fn(),
     importProviderDevice: vi.fn(),
@@ -123,9 +140,15 @@ describe('pulse-platform integration routes', () => {
         })
       ])
     });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'GET',
@@ -147,9 +170,15 @@ describe('pulse-platform integration routes', () => {
 
   it('returns EcoFlow BLE auth readiness without secret material', async () => {
     const controlPlaneClient = makeControlPlaneClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'GET',
@@ -165,17 +194,25 @@ describe('pulse-platform integration routes', () => {
         updatedAtUnixMs: '1772197190000'
       }
     });
-    expect(controlPlaneClient.getEcoFlowBLEAuthStatus).toHaveBeenCalledWith(expect.objectContaining({
-      userSubject: 'dev-user'
-    }));
+    expect(controlPlaneClient.getEcoFlowBLEAuthStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userSubject: 'dev-user'
+      })
+    );
     await app.close();
   });
 
   it('connects EcoFlow BLE auth with one-time credentials', async () => {
     const controlPlaneClient = makeControlPlaneClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -188,20 +225,78 @@ describe('pulse-platform integration routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.stringify(response.json())).not.toContain('owner-password');
-    expect(controlPlaneClient.connectEcoFlowBLEAuth).toHaveBeenCalledWith(expect.objectContaining({
-      userSubject: 'dev-user',
-      email: 'owner@example.test',
-      password: ' owner-password '
-    }));
+    expect(controlPlaneClient.connectEcoFlowBLEAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userSubject: 'dev-user',
+        email: 'owner@example.test',
+        password: ' owner-password '
+      })
+    );
+    await app.close();
+  });
+
+  it('sanitizes EcoFlow BLE auth login failures before returning them', async () => {
+    const upstreamError = Object.assign(
+      new Error(
+        'ecoflow app login failed for owner@example.test password=owner-password token=secret'
+      ),
+      {
+        code: grpcStatus.FAILED_PRECONDITION,
+        details:
+          'provider rejected owner@example.test with password owner-password and user id 12345'
+      }
+    );
+    const controlPlaneClient = makeControlPlaneClient({
+      connectEcoFlowBLEAuth: vi.fn(async () => {
+        throw upstreamError;
+      })
+    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/integrations/ecoflow-ble-auth/connect',
+      payload: {
+        email: 'owner@example.test',
+        password: 'owner-password'
+      }
+    });
+
+    expect(response.statusCode).toBe(412);
+    expect(response.json()).toEqual({
+      error: 'upstream_grpc_error',
+      message: 'EcoFlow app login failed. Check the credentials and try again.',
+      grpcCode: grpcStatus.FAILED_PRECONDITION
+    });
+    const body = JSON.stringify(response.json());
+    expect(body).not.toContain('owner@example.test');
+    expect(body).not.toContain('owner-password');
+    expect(body).not.toContain('12345');
     await app.close();
   });
 
   it('rejects generic EcoFlow BLE credential creation', async () => {
     const createProviderCredential = vi.fn();
-    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      createProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -220,9 +315,15 @@ describe('pulse-platform integration routes', () => {
 
   it('sets manual EcoFlow BLE user ID without echoing the raw ID', async () => {
     const controlPlaneClient = makeControlPlaneClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -235,16 +336,28 @@ describe('pulse-platform integration routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.stringify(response.json())).not.toContain('manual-ble-user');
-    expect(controlPlaneClient.setEcoFlowBLEAuthUserID).toHaveBeenCalledWith(expect.objectContaining({
-      userSubject: 'dev-user',
-      userId: 'manual-ble-user',
-      accountLabel: 'Manual EcoFlow BLE ID'
-    }));
+    expect(controlPlaneClient.setEcoFlowBLEAuthUserID).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userSubject: 'dev-user',
+        userId: 'manual-ble-user',
+        accountLabel: 'Manual EcoFlow BLE ID'
+      })
+    );
     await app.close();
   });
 
   it('rejects manual EcoFlow BLE user ID in non-local auth mode', async () => {
     const controlPlaneClient = makeControlPlaneClient();
+    vi.mocked(controlPlaneClient.setEcoFlowBLEAuthUserID).mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          'manual ecoflow ble auth is only available in local setup mode'
+        ),
+        {
+          code: grpcStatus.PERMISSION_DENIED
+        }
+      )
+    );
     const app = buildApp(
       {
         ...baseConfig(),
@@ -270,16 +383,26 @@ describe('pulse-platform integration routes', () => {
     });
 
     expect(response.statusCode).toBe(403);
-    expect(controlPlaneClient.setEcoFlowBLEAuthUserID).not.toHaveBeenCalled();
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        error: 'upstream_grpc_error',
+        grpcCode: grpcStatus.PERMISSION_DENIED
+      })
+    );
+    expect(controlPlaneClient.setEcoFlowBLEAuthUserID).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userSubject: 'dev-user',
+        userId: 'manual-ble-user'
+      })
+    );
     await app.close();
   });
 
-  it('allows manual EcoFlow BLE user ID in non-local auth mode with explicit override', async () => {
+  it('forwards manual EcoFlow BLE user ID in non-local auth mode when control plane allows it', async () => {
     const controlPlaneClient = makeControlPlaneClient();
     const app = buildApp(
       {
         ...baseConfig(),
-        ecoFlowBLEManualAuthEnabled: true,
         auth: {
           mode: 'keycloak',
           issuerUrl: 'https://keycloak.example.test/realms/pulse',
@@ -302,10 +425,12 @@ describe('pulse-platform integration routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(controlPlaneClient.setEcoFlowBLEAuthUserID).toHaveBeenCalledWith(expect.objectContaining({
-      userSubject: 'dev-user',
-      userId: 'manual-ble-user'
-    }));
+    expect(controlPlaneClient.setEcoFlowBLEAuthUserID).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userSubject: 'dev-user',
+        userId: 'manual-ble-user'
+      })
+    );
     await app.close();
   });
 });

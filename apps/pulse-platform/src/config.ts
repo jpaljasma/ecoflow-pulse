@@ -19,9 +19,6 @@ const envSchema = z.object({
     .default(''),
   PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(100000).default(1000),
   PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS: z.coerce.number().int().min(0).max(3600000).default(30000),
-  ECOFLOW_BLE_MANUAL_AUTH_ENABLED: z
-    .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0'), z.literal('')])
-    .default(''),
   NODE_AUTH_MODE: z.enum(['noop', 'keycloak']).default('noop'),
   KEYCLOAK_ISSUER_URL: z.string().trim().default(''),
   KEYCLOAK_AUDIENCE: z.string().trim().default(''),
@@ -53,7 +50,6 @@ export type AppConfig = {
     maxEntries: number;
     weatherForecastTtlMs: number;
   };
-  ecoFlowBLEManualAuthEnabled?: boolean;
   auth:
     | { mode: 'noop'; allowMissingJwt: true }
     | {
@@ -88,7 +84,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
         timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
       },
       bffCache: buildBffCacheConfig(parsed),
-      ecoFlowBLEManualAuthEnabled: buildBooleanFlag(parsed.ECOFLOW_BLE_MANUAL_AUTH_ENABLED),
       auth: { mode: 'noop', allowMissingJwt: true }
     };
   }
@@ -115,7 +110,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       timeWindowMs: parsed.PULSE_PLATFORM_HISTORY_RATE_LIMIT_WINDOW_MS
     },
     bffCache: buildBffCacheConfig(parsed),
-    ecoFlowBLEManualAuthEnabled: buildBooleanFlag(parsed.ECOFLOW_BLE_MANUAL_AUTH_ENABLED),
     auth: {
       mode: 'keycloak',
       issuerUrl: parsed.KEYCLOAK_ISSUER_URL,

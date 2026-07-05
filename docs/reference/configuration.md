@@ -84,6 +84,28 @@ Pi collector knobs (`cmd/pulse-edge-collector`):
 - `PULSE_EDGE_PROFILE` selects the `targets` entry from `/etc/pulse-edge/config.yaml`.
 - `PULSE_EDGE_COLLECTOR_SECRET` is the enrolled collector secret. Keep it in a
   systemd `EnvironmentFile`; do not place it in Git or PR text.
+- `PULSE_EDGE_TRANSPORT` selects `rest` (default) or `grpc`. Appliance installs
+  use `grpc` for loopback uploads into the local Go API; hosted installs can
+  keep `rest`.
+- `PULSE_EDGE_GRPC_ADDR` defaults to `127.0.0.1:19090` and must stay loopback
+  for the collector's insecure gRPC transport.
+- `PULSE_EDGE_STARTUP_WAIT` optionally keeps the collector retrying the initial
+  heartbeat before BLE starts, which lets cold Pi boots wait for k3s and the Go
+  API instead of tripping systemd start limits. Packaged appliance installs use
+  `10m`.
+- `PULSE_EDGE_STARTUP_RETRY_DELAY` controls that heartbeat retry cadence
+  (default `5s`).
+- `PULSE_EDGE_OUTBOX_DIR` enables the durable local JSON outbox for discovery
+  and telemetry uploads. The collector forces the directory to private service
+  storage and replays entries after restart or later successful heartbeats.
+- `PULSE_EDGE_OUTBOX_MAX_AGE` defaults to `168h`.
+- `PULSE_EDGE_OUTBOX_MAX_BYTES` defaults to `2GiB`.
+- `ECOFLOW_BLE_USER_ID` is the EcoFlow app user ID used by the BLE active-auth
+  probe. Enrollment prints it when the owner has connected EcoFlow BLE auth in
+  Pulse; do not commit or include it in PR text.
+- `ECOFLOW_BLE_DEVICE_SERIAL` optionally overrides the BLE auth device serial
+  for `cmd/ecoflow-ble-discover`; the collector normally derives the serial
+  from the selected advertisement.
 - `GOMAXPROCS` defaults to `4` when unset, matching Raspberry Pi 5's four CPU
   cores while still allowing an explicit override. The packaged Pi unit pins it
   to `1` because BLE scan/probe work is mostly I/O-bound.
@@ -155,6 +177,7 @@ When `runtime.gcsCredentials.enabled=true`, the services chart mounts the named
 secret and `make appliance-pi-create-runtime-secret` can create the matching
 runtime secret with `GOOGLE_APPLICATION_CREDENTIALS` set to that mounted file.
 The appliance installer refuses rendered images that still use `pi-placeholder`.
+
 - `ECOFLOW_SERVER_BROTLI_LEVEL` (default `5`, `moderncompress` builds)
 - `ECOFLOW_SERVER_ZSTD_LEVEL` (default `3`, `moderncompress` builds)
 
@@ -379,11 +402,13 @@ Cloud note:
   `replay_done`, `status_live`, `status_forbidden`, and `source_error`.
 
 Runtime behavior:
+
 - the gateway authorizes device access through the internal Go gRPC API,
 - serves the initial snapshot from Valkey projection state,
 - then streams live deltas from NATS with staged backpressure degradation.
 
 Admin log stream behavior:
+
 - the browser still connects only through the existing `/ws` edge route; it
   never connects to NATS or JetStream directly,
 - clients subscribe with `logs_subscribe` and release work with
@@ -571,6 +596,7 @@ Behavior:
 - `EXPO_PUBLIC_LOCAL_DATA_PLANE` (`local|cloud`; defaults to `local`)
 
 Runtime behavior:
+
 - the universal app now persists a single app-wide connection profile
   (`local` or `cloud`) and resolves API base URL, websocket URL, OIDC issuer,
   and OIDC client together from that selection.

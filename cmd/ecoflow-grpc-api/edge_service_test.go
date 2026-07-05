@@ -13,6 +13,7 @@ import (
 	edgev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/edge/v1"
 	envelopev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/envelope/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
+	"github.com/jpaljasma/ecoflow-pulse/internal/edgecollector"
 	"github.com/jpaljasma/ecoflow-pulse/internal/telemetrybus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -97,6 +98,13 @@ func TestEdgeIngestServiceDiscoveryApprovalAndTelemetryPublish(t *testing.T) {
 	if approved.GetDeviceId() == "" || approved.GetSource().GetStatus() != "linked" {
 		t.Fatalf("unexpected approval: %+v", approved)
 	}
+	if _, err := svc.ApproveDeviceSource(context.Background(), &edgev1.ApproveDeviceSourceRequest{
+		UserSubject: "user-1",
+		SourceId:    sources.GetSources()[0].GetId(),
+		DeviceId:    approved.GetDeviceId(),
+	}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("re-approve linked source code=%v want FailedPrecondition", status.Code(err))
+	}
 
 	metrics, err := structpb.NewStruct(map[string]any{
 		"battery_soc_percent":             99,
@@ -148,6 +156,209 @@ func TestEdgeIngestServiceDiscoveryApprovalAndTelemetryPublish(t *testing.T) {
 	}
 	if got := payload.Params["pv1ChargeWatts"]; got != float64(12) {
 		t.Fatalf("pv1ChargeWatts=%v want 12", got)
+	}
+}
+
+func TestEdgeIngestServiceRejectsMismatchedApprovalTarget(t *testing.T) {
+	t.Parallel()
+
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("user-1")
+	target, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "user-1",
+		EcoflowSN:   "OTHEREDGE0002",
+		ProductName: "Other device",
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	svc := NewEdgeIngestService(EdgeIngestServiceDeps{Store: store})
+	created, err := svc.CreateCollector(context.Background(), &edgev1.CreateCollectorRequest{
+		UserSubject: "user-1",
+		DisplayName: "Pi 5",
+	})
+	if err != nil {
+		t.Fatalf("CreateCollector failed: %v", err)
+	}
+	enrolled, err := svc.EnrollCollector(context.Background(), &edgev1.EnrollCollectorRequest{
+		SetupToken: created.GetSetupToken(),
+	})
+	if err != nil {
+		t.Fatalf("EnrollCollector failed: %v", err)
+	}
+	_, err = svc.UploadDiscovery(context.Background(), &edgev1.UploadDiscoveryRequest{
+		CollectorSecret: enrolled.GetCollectorSecret(),
+		Discoveries: []*edgev1.EdgeDiscovery{{
+			Provider:         controlplane.ProviderEcoFlow,
+			Transport:        "ble",
+			ProviderDeviceId: "DEMOEDGE0001",
+			DisplayName:      "Demo edge device",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("UploadDiscovery failed: %v", err)
+	}
+	sources, err := svc.ListDeviceSources(context.Background(), &edgev1.ListDeviceSourcesRequest{
+		UserSubject: "user-1",
+		Status:      "pending",
+	})
+	if err != nil {
+		t.Fatalf("ListDeviceSources failed: %v", err)
+	}
+	if _, err := svc.ApproveDeviceSource(context.Background(), &edgev1.ApproveDeviceSourceRequest{
+		UserSubject: "user-1",
+		SourceId:    sources.GetSources()[0].GetId(),
+		DeviceId:    target.DeviceID,
+	}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("ApproveDeviceSource code=%v want FailedPrecondition", status.Code(err))
+	}
+}
+
+func TestEdgeIngestServiceRejectsAutoClaimingExistingDeviceSN(t *testing.T) {
+	t.Parallel()
+
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("user-1")
+	store.EnsureUser("user-2")
+	if _, err := store.CreateDevice(context.Background(), controlplane.CreateDeviceInput{
+		UserSubject: "user-1",
+		EcoflowSN:   "DEMOEDGE0001",
+		ProductName: "Existing owner device",
+	}); err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	svc := NewEdgeIngestService(EdgeIngestServiceDeps{Store: store})
+	created, err := svc.CreateCollector(context.Background(), &edgev1.CreateCollectorRequest{
+		UserSubject: "user-2",
+		DisplayName: "Pi 5",
+	})
+	if err != nil {
+		t.Fatalf("CreateCollector failed: %v", err)
+	}
+	enrolled, err := svc.EnrollCollector(context.Background(), &edgev1.EnrollCollectorRequest{
+		SetupToken: created.GetSetupToken(),
+	})
+	if err != nil {
+		t.Fatalf("EnrollCollector failed: %v", err)
+	}
+	_, err = svc.UploadDiscovery(context.Background(), &edgev1.UploadDiscoveryRequest{
+		CollectorSecret: enrolled.GetCollectorSecret(),
+		Discoveries: []*edgev1.EdgeDiscovery{{
+			Provider:         controlplane.ProviderEcoFlow,
+			Transport:        "ble",
+			ProviderDeviceId: "DEMOEDGE0001",
+			DisplayName:      "Demo edge device",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("UploadDiscovery failed: %v", err)
+	}
+	sources, err := svc.ListDeviceSources(context.Background(), &edgev1.ListDeviceSourcesRequest{
+		UserSubject: "user-2",
+		Status:      "pending",
+	})
+	if err != nil {
+		t.Fatalf("ListDeviceSources failed: %v", err)
+	}
+	if _, err := svc.ApproveDeviceSource(context.Background(), &edgev1.ApproveDeviceSourceRequest{
+		UserSubject: "user-2",
+		SourceId:    sources.GetSources()[0].GetId(),
+	}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("ApproveDeviceSource code=%v want PermissionDenied", status.Code(err))
+	}
+}
+
+func TestEdgeIngestServiceRevokesSetupToken(t *testing.T) {
+	t.Parallel()
+
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("user-1")
+	svc := NewEdgeIngestService(EdgeIngestServiceDeps{Store: store})
+	created, err := svc.CreateCollector(context.Background(), &edgev1.CreateCollectorRequest{
+		UserSubject: "user-1",
+		DisplayName: "Pi 5",
+	})
+	if err != nil {
+		t.Fatalf("CreateCollector failed: %v", err)
+	}
+
+	revoked, err := svc.RevokeCollectorSetupToken(context.Background(), &edgev1.RevokeCollectorSetupTokenRequest{
+		UserSubject: "user-1",
+		CollectorId: created.GetCollector().GetId(),
+	})
+	if err != nil {
+		t.Fatalf("RevokeCollectorSetupToken failed: %v", err)
+	}
+	if revoked.GetCollector().GetId() != created.GetCollector().GetId() || revoked.GetCollector().GetIsActive() {
+		t.Fatalf("unexpected revoked collector: %+v", revoked)
+	}
+	if _, err := svc.EnrollCollector(context.Background(), &edgev1.EnrollCollectorRequest{
+		SetupToken: created.GetSetupToken(),
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("EnrollCollector revoked token code=%v want NotFound", status.Code(err))
+	}
+}
+
+func TestEdgeIngestServiceRejectsMalformedOwnerIDs(t *testing.T) {
+	t.Parallel()
+
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("user-1")
+	svc := NewEdgeIngestService(EdgeIngestServiceDeps{Store: store})
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "revoke collector",
+			run: func() error {
+				_, err := svc.RevokeCollectorSetupToken(context.Background(), &edgev1.RevokeCollectorSetupTokenRequest{
+					UserSubject: "user-1",
+					CollectorId: "not-a-uuid",
+				})
+				return err
+			},
+		},
+		{
+			name: "list sources collector filter",
+			run: func() error {
+				_, err := svc.ListDeviceSources(context.Background(), &edgev1.ListDeviceSourcesRequest{
+					UserSubject: "user-1",
+					CollectorId: "not-a-uuid",
+				})
+				return err
+			},
+		},
+		{
+			name: "approve source",
+			run: func() error {
+				_, err := svc.ApproveDeviceSource(context.Background(), &edgev1.ApproveDeviceSourceRequest{
+					UserSubject: "user-1",
+					SourceId:    "not-a-uuid",
+				})
+				return err
+			},
+		},
+		{
+			name: "approve target device",
+			run: func() error {
+				_, err := svc.ApproveDeviceSource(context.Background(), &edgev1.ApproveDeviceSourceRequest{
+					UserSubject: "user-1",
+					SourceId:    "00000000-0000-4000-8000-000000000001",
+					DeviceId:    "not-a-uuid",
+				})
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if err := tt.run(); status.Code(err) != codes.InvalidArgument {
+				t.Fatalf("code=%v err=%v want InvalidArgument", status.Code(err), err)
+			}
+		})
 	}
 }
 
@@ -209,9 +420,9 @@ func TestEdgeIngestServiceEnrollReturnsCollectorEnv(t *testing.T) {
 				t.Fatal("collector passed to env resolver did not include user id")
 			}
 			return map[string]string{
-				"ECOFLOW_BLE_USER_ID": "  ecoflow-user-1  ",
-				"EMPTY":               "",
-				"":                    "ignored",
+				edgecollector.EcoFlowBLEUserIDEnvKey: "  ecoflow-user-1  ",
+				"EMPTY":                              "",
+				"":                                   "ignored",
 			}, nil
 		}),
 	})
@@ -229,8 +440,8 @@ func TestEdgeIngestServiceEnrollReturnsCollectorEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnrollCollector failed: %v", err)
 	}
-	if got := enrolled.GetCollectorEnv()["ECOFLOW_BLE_USER_ID"]; got != "ecoflow-user-1" {
-		t.Fatalf("collector env ECOFLOW_BLE_USER_ID=%q", got)
+	if got := enrolled.GetCollectorEnv()[edgecollector.EcoFlowBLEUserIDEnvKey]; got != "ecoflow-user-1" {
+		t.Fatalf("collector env %s=%q", edgecollector.EcoFlowBLEUserIDEnvKey, got)
 	}
 	if _, ok := enrolled.GetCollectorEnv()["EMPTY"]; ok {
 		t.Fatalf("collector env should omit empty values: %#v", enrolled.GetCollectorEnv())
@@ -257,7 +468,7 @@ func TestEdgeIngestServiceEnrollDoesNotConsumeSetupTokenWhenEnvFails(t *testing.
 			if calls.Add(1) == 1 {
 				return nil, errors.New("temporary auth lookup failure")
 			}
-			return map[string]string{"ECOFLOW_BLE_USER_ID": "ble-user-123"}, nil
+			return map[string]string{edgecollector.EcoFlowBLEUserIDEnvKey: "ble-user-123"}, nil
 		}),
 	})
 	created, err := svc.CreateCollector(context.Background(), &edgev1.CreateCollectorRequest{
@@ -283,8 +494,8 @@ func TestEdgeIngestServiceEnrollDoesNotConsumeSetupTokenWhenEnvFails(t *testing.
 	if enrolled.GetCollectorSecret() == "" {
 		t.Fatalf("expected collector secret")
 	}
-	if got := enrolled.GetCollectorEnv()["ECOFLOW_BLE_USER_ID"]; got != "ble-user-123" {
-		t.Fatalf("collector env ECOFLOW_BLE_USER_ID=%q", got)
+	if got := enrolled.GetCollectorEnv()[edgecollector.EcoFlowBLEUserIDEnvKey]; got != "ble-user-123" {
+		t.Fatalf("collector env %s=%q", edgecollector.EcoFlowBLEUserIDEnvKey, got)
 	}
 	if _, err := svc.Heartbeat(context.Background(), &edgev1.HeartbeatRequest{
 		CollectorSecret: enrolled.GetCollectorSecret(),
@@ -315,8 +526,8 @@ func TestEdgeCollectorEnvResolverUsesActiveEcoFlowBLECredential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CollectorEnv failed: %v", err)
 	}
-	if got := env["ECOFLOW_BLE_USER_ID"]; got != "ble-user-123" {
-		t.Fatalf("ECOFLOW_BLE_USER_ID=%q", got)
+	if got := env[edgecollector.EcoFlowBLEUserIDEnvKey]; got != "ble-user-123" {
+		t.Fatalf("%s=%q", edgecollector.EcoFlowBLEUserIDEnvKey, got)
 	}
 }
 
@@ -371,6 +582,74 @@ func TestEdgeIngestServiceDropsEmptyTelemetrySamples(t *testing.T) {
 			Transport:        "ble",
 			ProviderDeviceId: "DEMOEDGE0002",
 			Metrics:          emptyMetrics,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("UploadTelemetryBatch failed: %v", err)
+	}
+	if resp.GetAcceptedCount() != 0 || resp.GetDroppedCount() != 1 {
+		t.Fatalf("unexpected telemetry response: %+v", resp)
+	}
+	if len(publisher.envelopes) != 0 {
+		t.Fatalf("published envelopes=%d want 0", len(publisher.envelopes))
+	}
+}
+
+func TestEdgeIngestServiceDropsOversizedTelemetryMetrics(t *testing.T) {
+	t.Parallel()
+
+	store := controlplane.NewMemoryStore()
+	store.EnsureUser("user-1")
+	publisher := &testEnvelopePublisher{}
+	svc := NewEdgeIngestService(EdgeIngestServiceDeps{
+		Store:      store,
+		Publisher:  publisher,
+		SubjectCfg: telemetrybus.SubjectConfig{Prefix: "pulse", ShardCount: 8},
+	})
+	created, err := svc.CreateCollector(context.Background(), &edgev1.CreateCollectorRequest{UserSubject: "user-1"})
+	if err != nil {
+		t.Fatalf("CreateCollector failed: %v", err)
+	}
+	enrolled, err := svc.EnrollCollector(context.Background(), &edgev1.EnrollCollectorRequest{SetupToken: created.GetSetupToken()})
+	if err != nil {
+		t.Fatalf("EnrollCollector failed: %v", err)
+	}
+	if _, err := svc.UploadDiscovery(context.Background(), &edgev1.UploadDiscoveryRequest{
+		CollectorSecret: enrolled.GetCollectorSecret(),
+		Discoveries: []*edgev1.EdgeDiscovery{{
+			Provider:         controlplane.ProviderEcoFlow,
+			Transport:        "ble",
+			ProviderDeviceId: "DEMOEDGE0002",
+		}},
+	}); err != nil {
+		t.Fatalf("UploadDiscovery failed: %v", err)
+	}
+	sources, err := svc.ListDeviceSources(context.Background(), &edgev1.ListDeviceSourcesRequest{UserSubject: "user-1"})
+	if err != nil {
+		t.Fatalf("ListDeviceSources failed: %v", err)
+	}
+	if _, err := svc.ApproveDeviceSource(context.Background(), &edgev1.ApproveDeviceSourceRequest{
+		UserSubject: "user-1",
+		SourceId:    sources.GetSources()[0].GetId(),
+	}); err != nil {
+		t.Fatalf("ApproveDeviceSource failed: %v", err)
+	}
+	fields := make(map[string]any, maxEdgeTelemetryMetricFields+1)
+	for i := 0; i <= maxEdgeTelemetryMetricFields; i++ {
+		fields["metric_"+strconv.Itoa(i)] = i
+	}
+	oversizedMetrics, err := structpb.NewStruct(fields)
+	if err != nil {
+		t.Fatalf("new oversized metrics: %v", err)
+	}
+
+	resp, err := svc.UploadTelemetryBatch(context.Background(), &edgev1.UploadTelemetryBatchRequest{
+		CollectorSecret: enrolled.GetCollectorSecret(),
+		Samples: []*edgev1.EdgeTelemetrySample{{
+			Provider:         controlplane.ProviderEcoFlow,
+			Transport:        "ble",
+			ProviderDeviceId: "DEMOEDGE0002",
+			Metrics:          oversizedMetrics,
 		}},
 	})
 	if err != nil {

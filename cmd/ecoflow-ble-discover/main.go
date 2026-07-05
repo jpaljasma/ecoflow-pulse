@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/jpaljasma/ecoflow-pulse/internal/edgefiles"
 	"tinygo.org/x/bluetooth"
 )
 
@@ -199,12 +200,7 @@ func newProbeRawEventLogger(path string) (*probeRawEventLogger, error) {
 	if cleanPath == "." || cleanPath == "" {
 		return nil, errors.New("raw-output path must not be empty")
 	}
-	if dir := filepath.Dir(cleanPath); dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, fmt.Errorf("create raw output directory: %w", err)
-		}
-	}
-	file, err := os.Create(cleanPath)
+	file, err := edgefiles.OpenPrivateOutputFile(cleanPath)
 	if err != nil {
 		return nil, fmt.Errorf("create raw output file: %w", err)
 	}

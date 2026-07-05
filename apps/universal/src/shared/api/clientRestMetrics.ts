@@ -1,7 +1,8 @@
 import { env } from '@/shared/config/env';
 import { buildApiRequestUrl } from '@/shared/api/url';
 
-export type ClientRestOutcome = 'success' | 'http_error' | 'network_error' | 'client_error';
+export type ClientRestOutcome =
+  'success' | 'http_error' | 'network_error' | 'client_error';
 export type ClientRestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type ClientRestStatusClass = 'none' | '2xx' | '3xx' | '4xx' | '5xx';
 
@@ -53,6 +54,11 @@ export function classifyClientRestPath(path: string): string | null {
   if (/^\/api\/v1\/edge\/device-sources\/[^/]+\/approve$/.test(pathname)) {
     return '/api/v1/edge/device-sources/:sourceId/approve';
   }
+  if (
+    /^\/api\/v1\/edge\/collectors\/[^/]+\/revoke-setup-token$/.test(pathname)
+  ) {
+    return '/api/v1/edge/collectors/:collectorId/revoke-setup-token';
+  }
   if (/^\/api\/v1\/integrations\/[^/]+\/active$/.test(pathname)) {
     return '/api/v1/integrations/:credentialId/active';
   }
@@ -86,7 +92,9 @@ export function classifyClientRestPath(path: string): string | null {
   return null;
 }
 
-export function toStatusClass(status: number | null | undefined): ClientRestStatusClass {
+export function toStatusClass(
+  status: number | null | undefined
+): ClientRestStatusClass {
   if (!status || status <= 0) {
     return 'none';
   }
@@ -121,7 +129,9 @@ export function toErrorKind(input: {
   return 'unknown';
 }
 
-export async function reportClientRestMetric(event: ClientRestMetricEvent): Promise<void> {
+export async function reportClientRestMetric(
+  event: ClientRestMetricEvent
+): Promise<void> {
   const url = buildApiRequestUrl(env.apiUrl, '/api/v1/client-metrics/rest');
   const payload = JSON.stringify(event);
   try {
@@ -131,7 +141,10 @@ export async function reportClientRestMetric(event: ClientRestMetricEvent): Prom
       typeof navigator.sendBeacon === 'function' &&
       typeof Blob !== 'undefined'
     ) {
-      navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      navigator.sendBeacon(
+        url,
+        new Blob([payload], { type: 'application/json' })
+      );
       return;
     }
     await fetch(url, {

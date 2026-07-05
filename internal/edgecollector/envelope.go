@@ -114,7 +114,7 @@ func buildTelemetryEnvelope(sample TelemetrySample, subjectCfg telemetrybus.Subj
 }
 
 func stableTelemetryIDs(deviceID string, providerDeviceID string, provider string, transport string, observedAtUnixMS int64, payload []byte) (string, string) {
-	var buf []byte
+	buf := make([]byte, 0, stableTelemetryIDCapacity(deviceID, providerDeviceID, provider, transport, payload))
 	buf = append(buf, edgeTelemetryType...)
 	buf = append(buf, 0)
 	buf = append(buf, deviceID...)
@@ -134,6 +134,28 @@ func stableTelemetryIDs(deviceID string, providerDeviceID string, provider strin
 	envelopeID[6] = (envelopeID[6] & 0x0f) | 0x80
 	envelopeID[8] = (envelopeID[8] & 0x3f) | 0x80
 	return "edge-telemetry-" + hex.EncodeToString(sum[:]), uuid.UUID(envelopeID).String()
+}
+
+func stableTelemetryIDCapacity(deviceID string, providerDeviceID string, provider string, transport string, payload []byte) int {
+	const maxInt = int(^uint(0) >> 1)
+
+	capacity := 0
+	for _, size := range [...]int{
+		len(edgeTelemetryType),
+		len(deviceID),
+		len(providerDeviceID),
+		len(provider),
+		len(transport),
+		len(payload),
+		6,
+		20,
+	} {
+		if size > maxInt-capacity {
+			return 0
+		}
+		capacity += size
+	}
+	return capacity
 }
 
 func cloneMap(in map[string]any) map[string]any {

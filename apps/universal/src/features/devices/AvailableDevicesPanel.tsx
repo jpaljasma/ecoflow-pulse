@@ -1,22 +1,28 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { Button, Spinner, Text, XStack, YStack } from 'tamagui';
-import type {
-  AvailableDeviceSummary,
-  DeviceMQTTTestResult,
-  EdgeCollector,
-  EdgeDeviceSource
+import {
+  EDGE_DEVICE_SOURCE_STATUS_LINKED,
+  EDGE_DEVICE_SOURCE_STATUS_PENDING,
+  type AvailableDeviceSummary,
+  type DeviceSummary,
+  type DeviceMQTTTestResult,
+  type EdgeCollector,
+  type EdgeDeviceSource
 } from '@/features/devices/api';
 import {
   useAvailableDevices,
   useApproveEdgeDeviceSource,
   useCreateEdgeCollector,
+  useDevices,
   useEdgeCollectors,
   useEdgeDeviceSources,
   useImportAvailableDevice,
+  useRevokeEdgeCollectorSetupToken,
   useTestAvailableDeviceMQTT
 } from '@/features/devices/hooks';
+import { formatAvailableDeviceActionError } from '@/features/devices/actionMessages';
 import {
   useConnectEcoFlowBLEAuth,
   useEcoFlowBLEAuthStatus,
@@ -27,10 +33,15 @@ import {
   formatProviderLabel,
   type AvailableDeviceSupport
 } from '@/features/integrations/providerCatalog';
-import { formatAvailableDeviceActionError } from '@/features/devices/actionMessages';
 import { maskSerialNumber } from '@/features/telemetry/format';
+import { useThemeSemantics } from '@/shared/theme/semantic';
 import { AppTextInput } from '@/shared/ui/AppTextInput';
 import { Card } from '@/shared/ui/Card';
+
+type SemanticColors = ReturnType<typeof useThemeSemantics>;
+type ReadinessTone = 'neutral' | 'success' | 'warning' | 'danger';
+
+const COLLECTOR_STALE_WARNING_MS = 5 * 60_000;
 
 type AvailableDevicesPanelProps = {
   token?: string;
@@ -46,6 +57,7 @@ export function AvailableDevicesPanel({
   onDeviceEnabled
 }: AvailableDevicesPanelProps) {
   const [activated, setActivated] = useState(false);
+  const semantics = useThemeSemantics();
   const availableQuery = useAvailableDevices({
     token,
     authKey,
@@ -54,16 +66,26 @@ export function AvailableDevicesPanel({
 
   return (
     <Card gap="$3" marginTop="$3">
-      <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
+      <XStack
+        alignItems="center"
+        justifyContent="space-between"
+        gap="$3"
+        flexWrap="wrap"
+      >
         <YStack gap="$1" flex={1} minWidth={240}>
           <XStack alignItems="center" gap="$2">
-            <MaterialCommunityIcons name="plus-box-multiple-outline" size={20} color="rgba(10,132,255,0.9)" />
+            <MaterialCommunityIcons
+              name="plus-box-multiple-outline"
+              size={20}
+              color={semantics.actionText}
+            />
             <Text fontSize="$6" fontWeight="700">
               Available devices
             </Text>
           </XStack>
           <Text color="$colorMuted">
-            Scan for devices linked to your provider credentials, then enable and activate them with a live MQTT check.
+            Scan for devices linked to your provider credentials, then enable
+            and activate them with a live MQTT check.
           </Text>
         </YStack>
 
@@ -71,7 +93,9 @@ export function AvailableDevicesPanel({
           <Button
             size="$3"
             onPress={() => setActivated(true)}
-            icon={<MaterialCommunityIcons name="radar" size={16} color="white" />}
+            icon={
+              <MaterialCommunityIcons name="radar" size={16} color="white" />
+            }
           >
             Find available devices
           </Button>
@@ -85,9 +109,13 @@ export function AvailableDevicesPanel({
             disabled={availableQuery.isFetching}
             icon={
               availableQuery.isFetching ? (
-                <Spinner size="small" color="rgba(10,132,255,0.9)" />
+                <Spinner size="small" color={semantics.actionText} />
               ) : (
-                <MaterialCommunityIcons name="refresh" size={16} color="rgba(10,132,255,0.9)" />
+                <MaterialCommunityIcons
+                  name="refresh"
+                  size={16}
+                  color={semantics.actionText}
+                />
               )
             }
           >
@@ -98,14 +126,17 @@ export function AvailableDevicesPanel({
 
       {!activated ? (
         <Text color="$colorMuted">
-          This keeps provider discovery explicit and only runs when you ask for it.
+          This keeps provider discovery explicit and only runs when you ask for
+          it.
         </Text>
       ) : null}
 
       {activated && availableQuery.isLoading && !availableQuery.data ? (
         <XStack alignItems="center" gap="$2" minHeight={72}>
           <Spinner size="small" />
-          <Text color="$colorMuted">Checking your provider account for new devices…</Text>
+          <Text color="$colorMuted">
+            Checking your provider account for new devices…
+          </Text>
         </XStack>
       ) : null}
 
@@ -134,20 +165,34 @@ export function AvailableDevicesPanel({
             padding="$3"
             borderRadius="$4"
             borderWidth={1}
-            backgroundColor="rgba(245, 158, 11, 0.10)"
-            borderColor="rgba(245, 158, 11, 0.32)"
+            style={{
+              backgroundColor: semantics.statusWarningBackground,
+              borderColor: semantics.statusWarningBorder
+            }}
           >
             <XStack alignItems="center" gap="$2">
-              <MaterialCommunityIcons name="alert-outline" size={18} color="rgba(245, 158, 11, 0.96)" />
+              <MaterialCommunityIcons
+                name="alert-outline"
+                size={18}
+                color={semantics.statusWarning}
+              />
               <Text fontWeight="700">Connector attention needed</Text>
             </XStack>
-            <Text color="$colorMuted">{availableQuery.data.warningMessage}</Text>
+            <Text color="$colorMuted">
+              {availableQuery.data.warningMessage}
+            </Text>
           </YStack>
           <XStack justifyContent="flex-end">
             <Button
               size="$3"
               onPress={() => router.push('/settings/integrations')}
-              icon={<MaterialCommunityIcons name="cog-outline" size={16} color="white" />}
+              icon={
+                <MaterialCommunityIcons
+                  name="cog-outline"
+                  size={16}
+                  color="white"
+                />
+              }
             >
               Open Integrations
             </Button>
@@ -161,7 +206,8 @@ export function AvailableDevicesPanel({
       !availableQuery.data.warningMessage &&
       !availableQuery.data.hasActiveCredentials ? (
         <Text color="$colorMuted">
-          No active provider credentials are available yet, so there’s nothing to scan.
+          No active provider credentials are available yet, so there’s nothing
+          to scan.
         </Text>
       ) : null}
 
@@ -171,7 +217,9 @@ export function AvailableDevicesPanel({
       !availableQuery.data.warningMessage &&
       availableQuery.data.hasActiveCredentials &&
       availableQuery.data.devices.length === 0 ? (
-        <Text color="$colorMuted">No unconfigured devices were found on the latest scan.</Text>
+        <Text color="$colorMuted">
+          No unconfigured devices were found on the latest scan.
+        </Text>
       ) : null}
 
       {activated &&
@@ -207,25 +255,64 @@ function EcoFlowBLEEdgeSection({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [manualUserId, setManualUserId] = useState('');
+  const [showManualAuth, setShowManualAuth] = useState(false);
   const [collectorName, setCollectorName] = useState('Raspberry Pi');
   const [setupToken, setSetupToken] = useState('');
+  const [setupTokenCollectorId, setSetupTokenCollectorId] = useState('');
+  const semantics = useThemeSemantics();
   const authStatusQuery = useEcoFlowBLEAuthStatus({ token, authKey, enabled });
   const collectorsQuery = useEdgeCollectors({ token, authKey, enabled });
-  const sourcesQuery = useEdgeDeviceSources({ token, authKey, enabled, status: 'pending' });
+  const devicesQuery = useDevices({ token, authKey, enabled });
+  const sourcesQuery = useEdgeDeviceSources({
+    token,
+    authKey,
+    enabled,
+    includeAllStatuses: true
+  });
   const connectAuth = useConnectEcoFlowBLEAuth({ token, authKey });
   const setManualAuth = useSetEcoFlowBLEAuthUserID({ token, authKey });
   const createCollector = useCreateEdgeCollector({ token, authKey });
+  const revokeSetupToken = useRevokeEdgeCollectorSetupToken({ token, authKey });
   const approveSource = useApproveEdgeDeviceSource({ token, authKey });
   const connected = authStatusQuery.data?.connected === true;
   const collectors = collectorsQuery.data ?? [];
-  const sources = sourcesQuery.data ?? [];
+  const devices = devicesQuery.data?.devices ?? [];
+  const sources = useMemo(() => sourcesQuery.data ?? [], [sourcesQuery.data]);
+  const pendingSources = useMemo(
+    () =>
+      sources.filter(
+        (source) => source.status === EDGE_DEVICE_SOURCE_STATUS_PENDING
+      ),
+    [sources]
+  );
+  const linkedSources = useMemo(
+    () => sources.filter(isLinkedSource),
+    [sources]
+  );
+  const readinessSources = useMemo(
+    () => [...pendingSources, ...linkedSources],
+    [linkedSources, pendingSources]
+  );
+  const collectorReadiness = classifyCollectorReadiness(
+    collectors,
+    readinessSources
+  );
+  const edgeQueries = [
+    authStatusQuery,
+    collectorsQuery,
+    devicesQuery,
+    sourcesQuery
+  ] as const;
+  const edgeRefreshing = edgeQueries.some((query) => query.isFetching);
   const authBusy = connectAuth.isPending || setManualAuth.isPending;
 
   useEffect(() => {
     setEmail('');
     setPassword('');
     setManualUserId('');
+    setShowManualAuth(false);
     setSetupToken('');
+    setSetupTokenCollectorId('');
   }, [authKey, token]);
 
   function handleConnectAuth() {
@@ -238,8 +325,7 @@ function EcoFlowBLEEdgeSection({
   function handleManualAuth() {
     setManualAuth.mutate(
       {
-        userId: manualUserId,
-        accountLabel: 'Manual EcoFlow BLE ID'
+        userId: manualUserId
       },
       { onSettled: () => setManualUserId('') }
     );
@@ -250,15 +336,40 @@ function EcoFlowBLEEdgeSection({
       {
         displayName: collectorName.trim() || undefined
       },
-      { onSuccess: (created) => setSetupToken(created.setupToken) }
+      {
+        onSuccess: (created) => {
+          setSetupToken(created.setupToken);
+          setSetupTokenCollectorId(created.collector.id);
+        }
+      }
     );
   }
 
-  function handleApproveSource(source: EdgeDeviceSource) {
+  function handleRevokeSetupToken() {
+    if (!setupTokenCollectorId) {
+      return;
+    }
+    revokeSetupToken.mutate(setupTokenCollectorId, {
+      onSuccess: () => {
+        setSetupToken('');
+        setSetupTokenCollectorId('');
+      }
+    });
+  }
+
+  function refreshEdgeQueries() {
+    for (const query of edgeQueries) {
+      void query.refetch();
+    }
+  }
+
+  function handleApproveSource(source: EdgeDeviceSource, deviceId?: string) {
+    const selectedDeviceID = deviceId?.trim();
     approveSource.mutate(
       {
         sourceId: source.id,
-        productName: source.displayName || source.providerDeviceId,
+        deviceId: selectedDeviceID || undefined,
+        productName: source.displayName || source.model || 'EcoFlow BLE device',
         model: source.model
       },
       { onSuccess: (approved) => onDeviceEnabled?.(approved.deviceId) }
@@ -271,13 +382,24 @@ function EcoFlowBLEEdgeSection({
       padding="$3"
       borderRadius="$4"
       borderWidth={1}
-      borderColor="rgba(18,140,88,0.18)"
-      backgroundColor="rgba(18,140,88,0.05)"
+      style={{
+        borderColor: semantics.statusSuccessBorder,
+        backgroundColor: semantics.statusSuccessBackground
+      }}
     >
-      <XStack alignItems="center" justifyContent="space-between" gap="$3" flexWrap="wrap">
+      <XStack
+        alignItems="center"
+        justifyContent="space-between"
+        gap="$3"
+        flexWrap="wrap"
+      >
         <YStack gap="$1" flex={1} minWidth={220}>
           <XStack alignItems="center" gap="$2">
-            <MaterialCommunityIcons name="bluetooth" size={18} color="rgba(18,140,88,0.96)" />
+            <MaterialCommunityIcons
+              name="bluetooth"
+              size={18}
+              color={semantics.statusSuccess}
+            />
             <Text fontSize="$5" fontWeight="700">
               EcoFlow BLE edge
             </Text>
@@ -292,16 +414,18 @@ function EcoFlowBLEEdgeSection({
           size="$3"
           chromeless
           onPress={() => {
-            void authStatusQuery.refetch();
-            void collectorsQuery.refetch();
-            void sourcesQuery.refetch();
+            refreshEdgeQueries();
           }}
-          disabled={authStatusQuery.isFetching || collectorsQuery.isFetching || sourcesQuery.isFetching}
+          disabled={edgeRefreshing}
           icon={
-            authStatusQuery.isFetching || collectorsQuery.isFetching || sourcesQuery.isFetching ? (
-              <Spinner size="small" color="rgba(18,140,88,0.96)" />
+            edgeRefreshing ? (
+              <Spinner size="small" color={semantics.statusSuccess} />
             ) : (
-              <MaterialCommunityIcons name="refresh" size={16} color="rgba(18,140,88,0.96)" />
+              <MaterialCommunityIcons
+                name="refresh"
+                size={16}
+                color={semantics.statusSuccess}
+              />
             )
           }
         >
@@ -312,55 +436,115 @@ function EcoFlowBLEEdgeSection({
       {!connected ? (
         <YStack gap="$3">
           <XStack gap="$2" flexWrap="wrap">
-            <AppTextInput
-              compact
-              flex={1}
-              minWidth={210}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholder="EcoFlow email"
-            />
-            <AppTextInput
-              compact
-              flex={1}
-              minWidth={210}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="EcoFlow password"
-            />
+            <YStack gap="$1" flex={1} minWidth={210}>
+              <Text fontSize="$2" fontWeight="700">
+                EcoFlow email
+              </Text>
+              <AppTextInput
+                compact
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect={false}
+                keyboardType="email-address"
+                spellCheck={false}
+                textContentType="emailAddress"
+                accessibilityLabel="EcoFlow email"
+              />
+            </YStack>
+            <YStack gap="$1" flex={1} minWidth={210}>
+              <Text fontSize="$2" fontWeight="700">
+                EcoFlow password
+              </Text>
+              <AppTextInput
+                compact
+                value={password}
+                onChangeText={setPassword}
+                autoComplete="current-password"
+                secureTextEntry
+                textContentType="password"
+                accessibilityLabel="EcoFlow password"
+              />
+            </YStack>
             <Button
               size="$3"
-              disabled={authBusy || email.trim().length === 0 || password.length === 0}
+              disabled={
+                authBusy || email.trim().length === 0 || password.length === 0
+              }
               onPress={handleConnectAuth}
-              icon={connectAuth.isPending ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="login" size={16} color="white" />}
+              icon={
+                connectAuth.isPending ? (
+                  <Spinner size="small" color="white" />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="login"
+                    size={16}
+                    color="white"
+                  />
+                )
+              }
             >
               Connect
             </Button>
           </XStack>
-          <XStack gap="$2" flexWrap="wrap">
-            <AppTextInput
-              compact
-              flex={1}
-              minWidth={240}
-              value={manualUserId}
-              onChangeText={setManualUserId}
-              autoCapitalize="none"
-              placeholder="Manual BLE user ID"
-            />
+          <YStack gap="$2">
             <Button
               size="$3"
-              disabled={authBusy || manualUserId.trim().length === 0}
-              onPress={handleManualAuth}
-              icon={setManualAuth.isPending ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="key-outline" size={16} color="white" />}
+              chromeless
+              alignSelf="flex-start"
+              onPress={() => setShowManualAuth((value) => !value)}
+              icon={
+                <MaterialCommunityIcons
+                  name={showManualAuth ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={semantics.statusSuccess}
+                />
+              }
             >
-              Save manual ID
+              Advanced manual ID
             </Button>
-          </XStack>
+            {showManualAuth ? (
+              <XStack gap="$2" flexWrap="wrap">
+                <YStack gap="$1" flex={1} minWidth={240}>
+                  <Text fontSize="$2" fontWeight="700">
+                    BLE user ID
+                  </Text>
+                  <AppTextInput
+                    compact
+                    value={manualUserId}
+                    onChangeText={setManualUserId}
+                    autoCapitalize="none"
+                    autoComplete="username"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    textContentType="username"
+                    accessibilityLabel="EcoFlow BLE user ID"
+                  />
+                </YStack>
+                <Button
+                  size="$3"
+                  disabled={authBusy || manualUserId.trim().length === 0}
+                  onPress={handleManualAuth}
+                  icon={
+                    setManualAuth.isPending ? (
+                      <Spinner size="small" color="white" />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name="key-outline"
+                        size={16}
+                        color="white"
+                      />
+                    )
+                  }
+                >
+                  Save manual ID
+                </Button>
+              </XStack>
+            ) : null}
+          </YStack>
           {connectAuth.isError || setManualAuth.isError ? (
-            <Text color="rgba(185,28,28,0.96)">
+            <Text style={{ color: semantics.statusDanger }}>
               {String(connectAuth.error ?? setManualAuth.error)}
             </Text>
           ) : null}
@@ -369,36 +553,112 @@ function EcoFlowBLEEdgeSection({
 
       <YStack gap="$2">
         <XStack gap="$2" flexWrap="wrap" alignItems="center">
-          <AppTextInput
-            compact
-            flex={1}
-            minWidth={220}
-            value={collectorName}
-            onChangeText={setCollectorName}
-            placeholder="Collector name"
-          />
+          <YStack gap="$1" flex={1} minWidth={220}>
+            <Text fontSize="$2" fontWeight="700">
+              Collector name
+            </Text>
+            <AppTextInput
+              compact
+              value={collectorName}
+              onChangeText={setCollectorName}
+              accessibilityLabel="Collector name"
+            />
+          </YStack>
           <Button
             size="$3"
             disabled={!connected || createCollector.isPending}
             onPress={handleCreateCollector}
-            icon={createCollector.isPending ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="raspberry-pi" size={16} color="white" />}
+            icon={
+              createCollector.isPending ? (
+                <Spinner size="small" color="white" />
+              ) : (
+                <MaterialCommunityIcons
+                  name="raspberry-pi"
+                  size={16}
+                  color="white"
+                />
+              )
+            }
           >
             Create setup token
           </Button>
         </XStack>
         {setupToken ? (
-          <AppTextInput compact value={setupToken} editable={false} selectTextOnFocus />
+          <XStack gap="$2" flexWrap="wrap" alignItems="flex-end">
+            <YStack gap="$1" flex={1} minWidth={240}>
+              <Text fontSize="$2" fontWeight="700">
+                Setup token
+              </Text>
+              <AppTextInput
+                compact
+                value={setupToken}
+                editable={false}
+                selectTextOnFocus
+                accessibilityLabel="Setup token"
+              />
+            </YStack>
+            <Button
+              size="$3"
+              chromeless
+              disabled={revokeSetupToken.isPending || !setupTokenCollectorId}
+              onPress={handleRevokeSetupToken}
+              icon={
+                revokeSetupToken.isPending ? (
+                  <Spinner size="small" />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="close-octagon-outline"
+                    size={16}
+                    color={semantics.statusDanger}
+                  />
+                )
+              }
+            >
+              Revoke
+            </Button>
+          </XStack>
         ) : null}
         {createCollector.isError ? (
-          <Text color="rgba(185,28,28,0.96)">{String(createCollector.error)}</Text>
+          <Text style={{ color: semantics.statusDanger }}>
+            {String(createCollector.error)}
+          </Text>
         ) : null}
-        <Text color="$colorMuted">{formatCollectorSummary(collectors)}</Text>
+        {revokeSetupToken.isError ? (
+          <Text style={{ color: semantics.statusDanger }}>
+            {String(revokeSetupToken.error)}
+          </Text>
+        ) : null}
+        <YStack gap="$1">
+          <XStack alignItems="center" gap="$2" flexWrap="wrap">
+            <MaterialCommunityIcons
+              name={collectorReadiness.icon}
+              size={16}
+              color={readinessToneColor(collectorReadiness.tone, semantics)}
+            />
+            <Text
+              fontWeight="700"
+              style={{
+                color: readinessToneColor(collectorReadiness.tone, semantics)
+              }}
+            >
+              {collectorReadiness.label}
+            </Text>
+          </XStack>
+          <Text color="$colorMuted">{collectorReadiness.detail}</Text>
+        </YStack>
       </YStack>
 
       <YStack gap="$2">
-        <XStack alignItems="center" justifyContent="space-between" gap="$2" flexWrap="wrap">
+        <XStack
+          alignItems="center"
+          justifyContent="space-between"
+          gap="$2"
+          flexWrap="wrap"
+        >
           <Text fontWeight="700">BLE discoveries</Text>
-          <Text color="$colorMuted">{sources.length === 1 ? '1 pending source' : `${sources.length} pending sources`}</Text>
+          <Text color="$colorMuted">
+            {formatEdgeSourceSummary(readinessSources)}
+          </Text>
         </XStack>
         {sourcesQuery.isLoading && !sourcesQuery.data ? (
           <XStack alignItems="center" gap="$2">
@@ -407,23 +667,30 @@ function EcoFlowBLEEdgeSection({
           </XStack>
         ) : null}
         {sourcesQuery.isError ? (
-          <Text color="rgba(185,28,28,0.96)">{String(sourcesQuery.error)}</Text>
+          <Text style={{ color: semantics.statusDanger }}>
+            {String(sourcesQuery.error)}
+          </Text>
         ) : null}
-        {!sourcesQuery.isLoading && sources.length === 0 ? (
-          <Text color="$colorMuted">No pending BLE sources have checked in yet.</Text>
+        {!sourcesQuery.isLoading && pendingSources.length === 0 ? (
+          <Text color="$colorMuted">
+            No pending BLE sources have checked in yet.
+          </Text>
         ) : null}
-        {sources.map((source) => (
+        {pendingSources.map((source) => (
           <EdgeDeviceSourceRow
-            key={source.id}
+            key={`${authKey}:${source.id}`}
             source={source}
+            devices={devices}
             busy={approveSource.isPending}
-            onApprove={() => {
-              handleApproveSource(source);
+            onApprove={(deviceId) => {
+              handleApproveSource(source, deviceId);
             }}
           />
         ))}
         {approveSource.isError ? (
-          <Text color="rgba(185,28,28,0.96)">{String(approveSource.error)}</Text>
+          <Text style={{ color: semantics.statusDanger }}>
+            {String(approveSource.error)}
+          </Text>
         ) : null}
       </YStack>
     </YStack>
@@ -432,13 +699,23 @@ function EcoFlowBLEEdgeSection({
 
 function EdgeDeviceSourceRow({
   source,
+  devices,
   busy,
   onApprove
 }: {
   source: EdgeDeviceSource;
+  devices: DeviceSummary[];
   busy: boolean;
-  onApprove: () => void;
+  onApprove: (deviceId?: string) => void;
 }) {
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const semantics = useThemeSemantics();
+  const createNewSelected = selectedDeviceId === '';
+
+  useEffect(() => {
+    setSelectedDeviceId('');
+  }, [source.id]);
+
   return (
     <XStack
       alignItems="center"
@@ -448,20 +725,62 @@ function EdgeDeviceSourceRow({
       padding="$3"
       borderRadius="$3"
       borderWidth={1}
-      borderColor="rgba(18,140,88,0.16)"
-      backgroundColor="rgba(255,255,255,0.42)"
+      style={{
+        borderColor: semantics.statusSuccessBorder,
+        backgroundColor: semantics.tileBackground
+      }}
     >
-      <YStack gap="$1" flex={1} minWidth={220}>
-        <Text fontWeight="700">{source.displayName || source.providerDeviceId}</Text>
-        <Text color="$colorMuted">
-          {source.model || 'EcoFlow BLE'} · RSSI {source.rssiDbm} dBm · {formatEdgeSourceSeen(source.lastSeenAtUnixMs)}
+      <YStack gap="$2" flex={1} minWidth={220}>
+        <Text fontWeight="700">
+          {source.displayName || source.model || 'EcoFlow BLE device'}
         </Text>
+        <Text color="$colorMuted">
+          {source.model || 'EcoFlow BLE'} · RSSI {source.rssiDbm} dBm ·{' '}
+          {formatEdgeSourceSeen(source.lastSeenAtUnixMs)}
+        </Text>
+        <XStack gap="$2" flexWrap="wrap" alignItems="center">
+          <Text fontSize="$2" color="$colorMuted">
+            Link target
+          </Text>
+          <Button
+            size="$2"
+            chromeless={!createNewSelected}
+            accessibilityState={{ selected: createNewSelected }}
+            onPress={() => setSelectedDeviceId('')}
+          >
+            Create New Device
+          </Button>
+          {devices.map((device) => {
+            const selected = selectedDeviceId === device.id;
+            return (
+              <Button
+                key={device.id}
+                size="$2"
+                chromeless={!selected}
+                accessibilityState={{ selected }}
+                onPress={() => setSelectedDeviceId(device.id)}
+              >
+                {device.name || device.model || 'Device'}
+              </Button>
+            );
+          })}
+        </XStack>
       </YStack>
       <Button
         size="$3"
         disabled={busy}
-        onPress={onApprove}
-        icon={busy ? <Spinner size="small" color="white" /> : <MaterialCommunityIcons name="link-variant-plus" size={16} color="white" />}
+        onPress={() => onApprove(selectedDeviceId)}
+        icon={
+          busy ? (
+            <Spinner size="small" color="white" />
+          ) : (
+            <MaterialCommunityIcons
+              name="link-variant-plus"
+              size={16}
+              color="white"
+            />
+          )
+        }
       >
         Approve
       </Button>
@@ -469,12 +788,115 @@ function EdgeDeviceSourceRow({
   );
 }
 
-function formatCollectorSummary(collectors: EdgeCollector[]): string {
+function classifyCollectorReadiness(
+  collectors: EdgeCollector[],
+  sources: EdgeDeviceSource[],
+  now = Date.now()
+): {
+  label: string;
+  detail: string;
+  tone: ReadinessTone;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+} {
+  const sourceSummary = formatEdgeSourceSummary(sources);
   if (collectors.length === 0) {
-    return 'No edge collectors are registered yet.';
+    return {
+      label: 'No collector registered',
+      detail: `Create a setup token to link a collector. ${sourceSummary}.`,
+      tone: 'neutral',
+      icon: 'server-network-outline'
+    };
   }
+  const heartbeatAges = collectors
+    .map((collector) => collectorHeartbeatAgeMs(collector, now))
+    .filter((age): age is number => age !== null);
   const active = collectors.filter((collector) => collector.isActive).length;
-  return `${collectors.length} registered collector${collectors.length === 1 ? '' : 's'} · ${active} active`;
+  const freshActive = collectors.filter((collector) => {
+    const age = collectorHeartbeatAgeMs(collector, now);
+    return (
+      collector.isActive && age !== null && age <= COLLECTOR_STALE_WARNING_MS
+    );
+  }).length;
+  const collectorCount = `${collectors.length} registered collector${collectors.length === 1 ? '' : 's'}`;
+
+  if (freshActive > 0) {
+    return {
+      label: 'Collector active',
+      detail: `${collectorCount} · ${freshActive} active · ${sourceSummary}.`,
+      tone: 'success',
+      icon: 'check-circle-outline'
+    };
+  }
+  if (heartbeatAges.length === 0) {
+    return {
+      label: 'Waiting for collector heartbeat',
+      detail: `${collectorCount} · no heartbeat yet · ${sourceSummary}.`,
+      tone: 'warning',
+      icon: 'timer-sand'
+    };
+  }
+
+  return {
+    label: 'Collector stale or offline',
+    detail: `${collectorCount} · ${active} active · latest heartbeat ${formatRelativeAge(Math.min(...heartbeatAges))} · ${sourceSummary}.`,
+    tone: 'danger',
+    icon: 'alert-circle-outline'
+  };
+}
+
+function collectorHeartbeatAgeMs(
+  collector: EdgeCollector,
+  now: number
+): number | null {
+  const heartbeatMs = Number(collector.lastHeartbeatAtUnixMs);
+  if (!Number.isFinite(heartbeatMs) || heartbeatMs <= 0) {
+    return null;
+  }
+  return Math.max(0, now - heartbeatMs);
+}
+
+function readinessToneColor(
+  tone: ReadinessTone,
+  semantics: SemanticColors
+): string {
+  switch (tone) {
+    case 'success':
+      return semantics.statusSuccess;
+    case 'warning':
+      return semantics.statusWarning;
+    case 'danger':
+      return semantics.statusDanger;
+    default:
+      return semantics.subtleStrongText;
+  }
+}
+
+function formatEdgeSourceSummary(sources: EdgeDeviceSource[]): string {
+  const linked = sources.filter(isLinkedSource).length;
+  const pending = sources.filter((source) => !isLinkedSource(source)).length;
+  if (linked === 0 && pending === 0) {
+    return 'No linked or pending sources';
+  }
+  return [
+    formatCount(pending, 'pending source'),
+    formatCount(linked, 'linked source')
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function isLinkedSource(source: EdgeDeviceSource): boolean {
+  return (
+    source.status === EDGE_DEVICE_SOURCE_STATUS_LINKED ||
+    source.linkedDeviceId.trim().length > 0
+  );
+}
+
+function formatCount(count: number, label: string): string {
+  if (count === 0) {
+    return '';
+  }
+  return `${count} ${label}${count === 1 ? '' : 's'}`;
 }
 
 function formatEdgeSourceSeen(value: string): string {
@@ -493,6 +915,18 @@ function formatEdgeSourceSeen(value: string): string {
   return `seen ${hours}h ago`;
 }
 
+function formatRelativeAge(ageMs: number): string {
+  const minutes = Math.max(0, Math.round(ageMs / 60_000));
+  if (minutes < 1) {
+    return 'just now';
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  return `${hours}h ago`;
+}
+
 function AvailableDeviceCard({
   device,
   token,
@@ -504,12 +938,16 @@ function AvailableDeviceCard({
   authKey: string;
   onDeviceEnabled?: (deviceId: string) => void;
 }) {
-  const [probeResult, setProbeResult] = useState<DeviceMQTTTestResult | null>(null);
+  const [probeResult, setProbeResult] = useState<DeviceMQTTTestResult | null>(
+    null
+  );
+  const semantics = useThemeSemantics();
   const testMutation = useTestAvailableDeviceMQTT({ token, authKey });
   const importMutation = useImportAvailableDevice({ token, authKey });
   const busy = testMutation.isPending || importMutation.isPending;
   const support = describeAvailableDeviceSupport(device);
-  const enableableByCatalog = device.provider === 'anker_solix' ? support?.enableable === true : true;
+  const enableableByCatalog =
+    device.provider === 'anker_solix' ? support?.enableable === true : true;
 
   async function runProbe() {
     try {
@@ -538,8 +976,19 @@ function AvailableDeviceCard({
   }
 
   return (
-    <Card gap="$3" backgroundColor="rgba(10,132,255,0.04)" borderColor="rgba(10,132,255,0.16)">
-      <XStack justifyContent="space-between" alignItems="flex-start" gap="$3" flexWrap="wrap">
+    <Card
+      gap="$3"
+      style={{
+        backgroundColor: semantics.actionBackground,
+        borderColor: semantics.actionBorder
+      }}
+    >
+      <XStack
+        justifyContent="space-between"
+        alignItems="flex-start"
+        gap="$3"
+        flexWrap="wrap"
+      >
         <YStack gap="$1" flex={1} minWidth={220}>
           <XStack alignItems="center" gap="$2" flexWrap="wrap">
             <Text fontSize="$5" fontWeight="700">
@@ -551,17 +1000,26 @@ function AvailableDeviceCard({
               paddingHorizontal="$2"
               paddingVertical="$1"
               borderRadius={999}
-              backgroundColor="rgba(10,132,255,0.12)"
+              style={{ backgroundColor: semantics.actionBackground }}
             >
-              <MaterialCommunityIcons name="new-box" size={14} color="rgba(10,132,255,0.92)" />
-              <Text fontSize="$2" fontWeight="700" color="rgba(10,132,255,0.92)">
+              <MaterialCommunityIcons
+                name="new-box"
+                size={14}
+                color={semantics.actionText}
+              />
+              <Text
+                fontSize="$2"
+                fontWeight="700"
+                style={{ color: semantics.actionText }}
+              >
                 New
               </Text>
             </XStack>
           </XStack>
           <Text color="$colorMuted">{device.model}</Text>
           <Text color="$colorMuted">
-            {formatProviderLabel(device.provider)} · {maskSerialNumber(device.serialNumber)}
+            {formatProviderLabel(device.provider)} ·{' '}
+            {maskSerialNumber(device.serialNumber)}
           </Text>
           {support ? (
             <YStack gap="$1" marginTop="$1">
@@ -579,12 +1037,18 @@ function AvailableDeviceCard({
             onPress={() => {
               void runProbe();
             }}
-            disabled={busy || !enableableByCatalog || probeResult?.success === true}
+            disabled={
+              busy || !enableableByCatalog || probeResult?.success === true
+            }
             icon={
               testMutation.isPending ? (
                 <Spinner size="small" color="white" />
               ) : (
-                <MaterialCommunityIcons name="check-circle-outline" size={16} color="white" />
+                <MaterialCommunityIcons
+                  name="check-circle-outline"
+                  size={16}
+                  color="white"
+                />
               )
             }
           >
@@ -600,7 +1064,11 @@ function AvailableDeviceCard({
               importMutation.isPending ? (
                 <Spinner size="small" color="white" />
               ) : (
-                <MaterialCommunityIcons name="pause-circle-outline" size={16} color="white" />
+                <MaterialCommunityIcons
+                  name="pause-circle-outline"
+                  size={16}
+                  color="white"
+                />
               )
             }
           >
@@ -610,10 +1078,12 @@ function AvailableDeviceCard({
       </XStack>
 
       <YStack gap="$1" minHeight={46}>
-        {probeResult ? (
-          <Text color={probeResult.success ? 'rgba(18,140,88,0.96)' : '$colorMuted'}>
+        {probeResult?.success ? (
+          <Text style={{ color: semantics.statusSuccess }}>
             {formatProbeStatus(probeResult)}
           </Text>
+        ) : probeResult ? (
+          <Text color="$colorMuted">{formatProbeStatus(probeResult)}</Text>
         ) : (
           <Text color="$colorMuted">
             {enableableByCatalog
@@ -622,17 +1092,26 @@ function AvailableDeviceCard({
           </Text>
         )}
         {testMutation.isError ? (
-          <Text color="rgba(185,28,28,0.96)">
-            {formatAvailableDeviceActionError('Enable and Activate', testMutation.error)}
+          <Text style={{ color: semantics.statusDanger }}>
+            {formatAvailableDeviceActionError(
+              'Enable and Activate',
+              testMutation.error
+            )}
           </Text>
         ) : null}
         {importMutation.isError ? (
-          <Text color="rgba(185,28,28,0.96)">
-            {formatAvailableDeviceActionError('Import device', importMutation.error)}
+          <Text style={{ color: semantics.statusDanger }}>
+            {formatAvailableDeviceActionError(
+              'Import device',
+              importMutation.error
+            )}
           </Text>
         ) : null}
         {importMutation.isSuccess ? (
-          <Text color="rgba(18,140,88,0.96)">Device imported in a paused state. You can activate it later from discovery.</Text>
+          <Text style={{ color: semantics.statusSuccess }}>
+            Device imported in a paused state. You can activate it later from
+            discovery.
+          </Text>
         ) : null}
       </YStack>
     </Card>
@@ -640,7 +1119,8 @@ function AvailableDeviceCard({
 }
 
 function SupportBadge({ support }: { support: AvailableDeviceSupport }) {
-  const colors = supportToneColors(support.tone);
+  const semantics = useThemeSemantics();
+  const colors = supportToneColors(support.tone, semantics);
 
   return (
     <XStack
@@ -656,7 +1136,11 @@ function SupportBadge({ support }: { support: AvailableDeviceSupport }) {
         borderColor: colors.borderColor
       }}
     >
-      <MaterialCommunityIcons name={colors.icon} size={14} color={colors.textColor} />
+      <MaterialCommunityIcons
+        name={colors.icon}
+        size={14}
+        color={colors.textColor}
+      />
       <Text fontSize="$2" fontWeight="700" style={{ color: colors.textColor }}>
         {support.label}
       </Text>
@@ -664,7 +1148,10 @@ function SupportBadge({ support }: { support: AvailableDeviceSupport }) {
   );
 }
 
-function supportToneColors(tone: AvailableDeviceSupport['tone']): {
+function supportToneColors(
+  tone: AvailableDeviceSupport['tone'],
+  semantics: SemanticColors
+): {
   backgroundColor: string;
   borderColor: string;
   textColor: string;
@@ -673,23 +1160,23 @@ function supportToneColors(tone: AvailableDeviceSupport['tone']): {
   switch (tone) {
     case 'success':
       return {
-        backgroundColor: 'rgba(18,140,88,0.12)',
-        borderColor: 'rgba(18,140,88,0.26)',
-        textColor: 'rgba(18,140,88,0.96)',
+        backgroundColor: semantics.statusSuccessBackground,
+        borderColor: semantics.statusSuccessBorder,
+        textColor: semantics.statusSuccess,
         icon: 'check-circle-outline'
       };
     case 'warning':
       return {
-        backgroundColor: 'rgba(245,158,11,0.12)',
-        borderColor: 'rgba(245,158,11,0.30)',
-        textColor: 'rgba(180,83,9,0.96)',
+        backgroundColor: semantics.statusWarningBackground,
+        borderColor: semantics.statusWarningBorder,
+        textColor: semantics.statusWarning,
         icon: 'alert-circle-outline'
       };
     default:
       return {
-        backgroundColor: 'rgba(107,114,128,0.10)',
-        borderColor: 'rgba(107,114,128,0.24)',
-        textColor: 'rgba(75,85,99,0.96)',
+        backgroundColor: semantics.mutedPanelBackground,
+        borderColor: semantics.mutedPanelBorder,
+        textColor: semantics.subtleStrongText,
         icon: 'flask-outline'
       };
   }
@@ -701,7 +1188,8 @@ function formatProbeStatus(result: DeviceMQTTTestResult): string {
       return 'MQTT live. Device enabled and activated from the observed payload.';
     }
     const bytes = result.payloadBytes ? Number(result.payloadBytes) : 0;
-    const sizeText = Number.isFinite(bytes) && bytes > 0 ? `${bytes} bytes` : 'a live payload';
+    const sizeText =
+      Number.isFinite(bytes) && bytes > 0 ? `${bytes} bytes` : 'a live payload';
     return `MQTT live. Received ${sizeText}${result.sampleTopic ? ` on ${result.sampleTopic}` : ''}.`;
   }
   switch (result.status) {

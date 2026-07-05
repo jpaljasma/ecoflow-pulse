@@ -3,7 +3,8 @@ import {
   AvailableDeviceSchema,
   DeviceMQTTTestResultSchema,
   DeviceSchema,
-  EdgeDeviceSourceSchema
+  EdgeDeviceSourceSchema,
+  RevokeEdgeCollectorSetupTokenResponseSchema
 } from '@/features/devices/schema';
 
 describe('device api schema', () => {
@@ -82,13 +83,12 @@ describe('device api schema', () => {
     expect(result.deviceId).toBe('22222222-2222-7222-8222-222222222222');
   });
 
-  it('preserves edge BLE source metadata for owner approval', () => {
+  it('parses safe edge BLE source identity for owner approval', () => {
     const source = EdgeDeviceSourceSchema.parse({
       id: 'edgesrc-1',
       collectorId: 'edgecol-1',
       provider: 'ecoflow',
       transport: 'ble',
-      providerDeviceId: 'DEMOEDGE0001',
       displayName: 'Demo edge device',
       model: 'EcoFlow RIVER 3 Plus',
       status: 'pending',
@@ -96,31 +96,48 @@ describe('device api schema', () => {
       rssiDbm: -59,
       lastSeenAtUnixMs: '1772197190000',
       createdAtUnixMs: '1772190000000',
-      updatedAtUnixMs: '1772197190000',
-      metadata: { packet_family: 'display' }
+      updatedAtUnixMs: '1772197190000'
     });
 
     expect(source.transport).toBe('ble');
-    expect(source.metadata).toEqual({ packet_family: 'display' });
+    expect('providerDeviceId' in source).toBe(false);
   });
 
-  it('rejects unknown edge BLE source status values', () => {
-    expect(() =>
-      EdgeDeviceSourceSchema.parse({
-        id: 'edgesrc-1',
-        collectorId: 'edgecol-1',
-        provider: 'ecoflow',
-        transport: 'ble',
-        providerDeviceId: 'DEMOEDGE0001',
-        displayName: 'Demo edge device',
-        model: 'EcoFlow RIVER 3 Plus',
-        status: 'surprise',
-        linkedDeviceId: '',
-        rssiDbm: -59,
-        lastSeenAtUnixMs: '1772197190000',
+  it('preserves unknown edge BLE source status values explicitly', () => {
+    const source = EdgeDeviceSourceSchema.parse({
+      id: 'edgesrc-1',
+      collectorId: 'edgecol-1',
+      provider: 'ecoflow',
+      transport: 'ble',
+      displayName: 'Demo edge device',
+      model: 'EcoFlow RIVER 3 Plus',
+      status: 'unknown',
+      rawStatus: 'quarantined',
+      linkedDeviceId: '',
+      rssiDbm: -59,
+      lastSeenAtUnixMs: '1772197190000',
+      createdAtUnixMs: '1772190000000',
+      updatedAtUnixMs: '1772197190000'
+    });
+
+    expect(source.status).toBe('unknown');
+    expect(source.rawStatus).toBe('quarantined');
+  });
+
+  it('parses revoked edge setup-token responses without setup-token material', () => {
+    const response = RevokeEdgeCollectorSetupTokenResponseSchema.parse({
+      collector: {
+        id: 'edgecol-1',
+        displayName: 'Pi 5',
+        isActive: false,
+        lastHeartbeatAtUnixMs: '0',
         createdAtUnixMs: '1772190000000',
-        updatedAtUnixMs: '1772197190000'
-      })
-    ).toThrow();
+        updatedAtUnixMs: '1772197190000',
+        collectorVersion: '',
+        hostname: ''
+      }
+    });
+
+    expect(response.collector.id).toBe('edgecol-1');
   });
 });

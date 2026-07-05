@@ -40,8 +40,8 @@ func TestAppLoginClientDerivesUserID(t *testing.T) {
 	if payload["email"] != "owner@example.test" {
 		t.Fatalf("email=%q", payload["email"])
 	}
-	if payload["password"] != base64.StdEncoding.EncodeToString([]byte("owner-password")) {
-		t.Fatalf("password was not base64 encoded")
+	if payload["password"] != base64.StdEncoding.EncodeToString([]byte(" owner-password ")) {
+		t.Fatalf("password was not preserved and base64 encoded")
 	}
 	if payload["scene"] != "IOT_APP" || payload["userType"] != "ECOFLOW" {
 		t.Fatalf("unexpected login scope payload: %#v", payload)

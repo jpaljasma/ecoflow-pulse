@@ -111,7 +111,7 @@ func (s *GeneralInfoService) ListDevices(ctx context.Context) ([]GeneralInfoDevi
 	if err != nil {
 		return nil, response, err
 	}
-	if err := validateGeneralInfoCode(payload.Code, payload.Message); err != nil {
+	if err := validateBusinessCode(payload.Code, payload.Message); err != nil {
 		return nil, response, err
 	}
 	return payload.Data, response, nil
@@ -130,7 +130,7 @@ func (s *GeneralInfoService) GetMQTTCertification(
 	if err != nil {
 		return GeneralInfoMQTTCertification{}, response, err
 	}
-	if err := validateGeneralInfoCode(payload.Code, payload.Message); err != nil {
+	if err := validateBusinessCode(payload.Code, payload.Message); err != nil {
 		return GeneralInfoMQTTCertification{}, response, err
 	}
 	return payload.Data, response, nil
@@ -158,7 +158,7 @@ func (s *GeneralInfoService) GetDeviceAllQuota(
 	if err != nil {
 		return nil, response, err
 	}
-	if err := validateGeneralInfoCode(payload.Code, payload.Message); err != nil {
+	if err := validateBusinessCode(payload.Code, payload.Message); err != nil {
 		return nil, response, err
 	}
 	normalized, err := normalizeQuotaValues(payload.Data)
@@ -168,7 +168,7 @@ func (s *GeneralInfoService) GetDeviceAllQuota(
 	return normalized, response, nil
 }
 
-func validateGeneralInfoCode(code, message string) error {
+func validateBusinessCode(code, message string) error {
 	if code == "" || code == "0" {
 		return nil
 	}
