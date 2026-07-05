@@ -15,6 +15,23 @@ export type EdgeCollector = {
   hostname: string;
 };
 
+export const edgeDeviceSourceFilterStatuses = [
+  'pending',
+  'linked',
+  'ignored'
+] as const;
+export const edgeDeviceSourceStatuses = [
+  ...edgeDeviceSourceFilterStatuses,
+  'unknown'
+] as const;
+export type EdgeDeviceSourceFilterStatus =
+  (typeof edgeDeviceSourceFilterStatuses)[number];
+export type EdgeDeviceSourceStatus = (typeof edgeDeviceSourceStatuses)[number];
+
+const edgeDeviceSourceFilterStatusSet = new Set<string>(
+  edgeDeviceSourceFilterStatuses
+);
+
 export type EdgeDeviceSource = {
   id: string;
   collectorId: string;
@@ -23,7 +40,8 @@ export type EdgeDeviceSource = {
   providerDeviceId: string;
   displayName: string;
   model: string;
-  status: string;
+  status: EdgeDeviceSourceStatus;
+  rawStatus?: string;
   linkedDeviceId: string;
   rssiDbm: number;
   lastSeenAtUnixMs: string;
@@ -45,6 +63,11 @@ export type CreateCollectorInput = RequestContext & {
 
 export type ListCollectorsInput = RequestContext & {
   userSubject: string;
+};
+
+export type RevokeCollectorSetupTokenInput = RequestContext & {
+  userSubject: string;
+  collectorId: string;
 };
 
 export type EnrollCollectorInput = RequestContext & {
@@ -79,7 +102,7 @@ export type UploadDiscoveryInput = RequestContext & {
 export type ListDeviceSourcesInput = RequestContext & {
   userSubject: string;
   collectorId?: string;
-  status?: string;
+  status?: EdgeDeviceSourceFilterStatus;
 };
 
 export type ApproveDeviceSourceInput = RequestContext & {
@@ -105,14 +128,29 @@ export type UploadTelemetryInput = RequestContext & {
 };
 
 export interface EdgeClient {
-  createCollector(input: CreateCollectorInput): Promise<{ collector: EdgeCollector; setupToken: string }>;
+  createCollector(
+    input: CreateCollectorInput
+  ): Promise<{ collector: EdgeCollector; setupToken: string }>;
   listCollectors(input: ListCollectorsInput): Promise<EdgeCollector[]>;
-  enrollCollector(input: EnrollCollectorInput): Promise<{ collector: EdgeCollector; collectorSecret: string }>;
+  revokeCollectorSetupToken(
+    input: RevokeCollectorSetupTokenInput
+  ): Promise<EdgeCollector>;
+  enrollCollector(input: EnrollCollectorInput): Promise<{
+    collector: EdgeCollector;
+    collectorSecret: string;
+    collectorEnv: Record<string, string>;
+  }>;
   heartbeat(input: CollectorSecretInput): Promise<EdgeCollector>;
-  uploadDiscovery(input: UploadDiscoveryInput): Promise<{ acceptedCount: number }>;
+  uploadDiscovery(
+    input: UploadDiscoveryInput
+  ): Promise<{ acceptedCount: number }>;
   listDeviceSources(input: ListDeviceSourcesInput): Promise<EdgeDeviceSource[]>;
-  approveDeviceSource(input: ApproveDeviceSourceInput): Promise<{ source: EdgeDeviceSource; deviceId: string }>;
-  uploadTelemetry(input: UploadTelemetryInput): Promise<{ acceptedCount: number; droppedCount: number }>;
+  approveDeviceSource(
+    input: ApproveDeviceSourceInput
+  ): Promise<{ source: EdgeDeviceSource; deviceId: string }>;
+  uploadTelemetry(
+    input: UploadTelemetryInput
+  ): Promise<{ acceptedCount: number; droppedCount: number }>;
   close(): void;
 }
 
@@ -126,6 +164,7 @@ type GrpcUnaryMethod = (
 type GrpcEdgeClient = {
   CreateCollector: GrpcUnaryMethod;
   ListCollectors: GrpcUnaryMethod;
+  RevokeCollectorSetupToken: GrpcUnaryMethod;
   EnrollCollector: GrpcUnaryMethod;
   Heartbeat: GrpcUnaryMethod;
   UploadDiscovery: GrpcUnaryMethod;
@@ -166,7 +205,9 @@ const packageDefinition = protoLoader.loadSync(edgeProtoPath, {
   oneofs: true,
   includeDirs: [protoRoot]
 });
-const edgeProto = grpc.loadPackageDefinition(packageDefinition) as unknown as EdgeProto;
+const edgeProto = grpc.loadPackageDefinition(
+  packageDefinition
+) as unknown as EdgeProto;
 
 export function createEdgeClient(address: string): EdgeClient {
   const client = new edgeProto.pulse.edge.v1.EdgeIngestService(
@@ -175,13 +216,21 @@ export function createEdgeClient(address: string): EdgeClient {
   );
   return {
     async createCollector(input) {
-      const response = await unaryCall<{ collector?: unknown; setupToken?: unknown }>(
+      const response = await unaryCall<{
+        collector?: unknown;
+        setupToken?: unknown;
+      }>(
         client.CreateCollector.bind(client),
-        { userSubject: input.userSubject, displayName: input.displayName ?? '' },
+        {
+          userSubject: input.userSubject,
+          displayName: input.displayName ?? ''
+        },
         input
       );
       return {
-        collector: normalizeCollector((response.collector ?? {}) as RawCollector),
+        collector: normalizeCollector(
+          (response.collector ?? {}) as RawCollector
+        ),
         setupToken: normalizeString(response.setupToken)
       };
     },
@@ -192,11 +241,25 @@ export function createEdgeClient(address: string): EdgeClient {
         input
       );
       return Array.isArray(response.collectors)
-        ? response.collectors.map((row) => normalizeCollector(row as RawCollector))
+        ? response.collectors.map((row) =>
+            normalizeCollector(row as RawCollector)
+          )
         : [];
     },
+    async revokeCollectorSetupToken(input) {
+      const response = await unaryCall<{ collector?: unknown }>(
+        client.RevokeCollectorSetupToken.bind(client),
+        { userSubject: input.userSubject, collectorId: input.collectorId },
+        input
+      );
+      return normalizeCollector((response.collector ?? {}) as RawCollector);
+    },
     async enrollCollector(input) {
-      const response = await unaryCall<{ collector?: unknown; collectorSecret?: unknown }>(
+      const response = await unaryCall<{
+        collector?: unknown;
+        collectorSecret?: unknown;
+        collectorEnv?: unknown;
+      }>(
         client.EnrollCollector.bind(client),
         {
           setupToken: input.setupToken,
@@ -206,8 +269,11 @@ export function createEdgeClient(address: string): EdgeClient {
         input
       );
       return {
-        collector: normalizeCollector((response.collector ?? {}) as RawCollector),
-        collectorSecret: normalizeString(response.collectorSecret)
+        collector: normalizeCollector(
+          (response.collector ?? {}) as RawCollector
+        ),
+        collectorSecret: normalizeString(response.collectorSecret),
+        collectorEnv: normalizeStringRecord(response.collectorEnv)
       };
     },
     async heartbeat(input) {
@@ -244,11 +310,16 @@ export function createEdgeClient(address: string): EdgeClient {
         input
       );
       return Array.isArray(response.sources)
-        ? response.sources.map((row) => normalizeDeviceSource(row as RawDeviceSource))
+        ? response.sources.map((row) =>
+            normalizeDeviceSource(row as RawDeviceSource)
+          )
         : [];
     },
     async approveDeviceSource(input) {
-      const response = await unaryCall<{ source?: unknown; deviceId?: unknown }>(
+      const response = await unaryCall<{
+        source?: unknown;
+        deviceId?: unknown;
+      }>(
         client.ApproveDeviceSource.bind(client),
         {
           userSubject: input.userSubject,
@@ -260,12 +331,17 @@ export function createEdgeClient(address: string): EdgeClient {
         input
       );
       return {
-        source: normalizeDeviceSource((response.source ?? {}) as RawDeviceSource),
+        source: normalizeDeviceSource(
+          (response.source ?? {}) as RawDeviceSource
+        ),
         deviceId: normalizeString(response.deviceId)
       };
     },
     async uploadTelemetry(input) {
-      const response = await unaryCall<{ acceptedCount?: unknown; droppedCount?: unknown }>(
+      const response = await unaryCall<{
+        acceptedCount?: unknown;
+        droppedCount?: unknown;
+      }>(
         client.UploadTelemetryBatch.bind(client),
         {
           collectorSecret: input.collectorSecret,
@@ -326,6 +402,7 @@ function normalizeCollector(row: RawCollector): EdgeCollector {
 }
 
 function normalizeDeviceSource(row: RawDeviceSource): EdgeDeviceSource {
+  const status = normalizeEdgeDeviceSourceStatus(row.status);
   return {
     id: normalizeString(row.id),
     collectorId: normalizeString(row.collectorId),
@@ -334,7 +411,8 @@ function normalizeDeviceSource(row: RawDeviceSource): EdgeDeviceSource {
     providerDeviceId: normalizeString(row.providerDeviceId),
     displayName: normalizeString(row.displayName),
     model: normalizeString(row.model),
-    status: normalizeString(row.status),
+    status: status.status,
+    rawStatus: status.rawStatus,
     linkedDeviceId: normalizeString(row.linkedDeviceId),
     rssiDbm: normalizeInteger(row.rssiDbm),
     lastSeenAtUnixMs: normalizeString(row.lastSeenAtUnixMs),
@@ -346,6 +424,20 @@ function normalizeDeviceSource(row: RawDeviceSource): EdgeDeviceSource {
 
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+export function normalizeEdgeDeviceSourceStatus(value: unknown): {
+  status: EdgeDeviceSourceStatus;
+  rawStatus?: string;
+} {
+  const status = normalizeString(value);
+  if (edgeDeviceSourceFilterStatusSet.has(status)) {
+    return { status: status as EdgeDeviceSourceFilterStatus };
+  }
+  if (!status) {
+    return { status: 'unknown' };
+  }
+  return { status: 'unknown', rawStatus: status };
 }
 
 function normalizeInteger(value: unknown): number {
@@ -363,10 +455,30 @@ function normalizeInteger(value: unknown): number {
 
 function normalizeRecord(value: unknown): Record<string, unknown> | undefined {
   const normalized = normalizeProtoValue(value);
-  if (!normalized || typeof normalized !== 'object' || Array.isArray(normalized)) {
+  if (
+    !normalized ||
+    typeof normalized !== 'object' ||
+    Array.isArray(normalized)
+  ) {
     return undefined;
   }
   return normalized as Record<string, unknown>;
+}
+
+function normalizeStringRecord(value: unknown): Record<string, string> {
+  const record = normalizeRecord(value);
+  if (!record) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(record)) {
+    const normalizedKey = key.trim();
+    const normalizedValue = normalizeString(raw).trim();
+    if (normalizedKey && normalizedValue) {
+      out[normalizedKey] = normalizedValue;
+    }
+  }
+  return out;
 }
 
 function normalizeProtoValue(value: unknown): unknown {
@@ -381,9 +493,16 @@ function normalizeProtoValue(value: unknown): unknown {
   }
 
   const record = value as Record<string, unknown>;
-  if ('fields' in record && typeof record.fields === 'object' && record.fields !== null && !Array.isArray(record.fields)) {
+  if (
+    'fields' in record &&
+    typeof record.fields === 'object' &&
+    record.fields !== null &&
+    !Array.isArray(record.fields)
+  ) {
     const out: Record<string, unknown> = {};
-    for (const [key, fieldValue] of Object.entries(record.fields as Record<string, unknown>)) {
+    for (const [key, fieldValue] of Object.entries(
+      record.fields as Record<string, unknown>
+    )) {
       out[key] = normalizeProtoValue(fieldValue);
     }
     return out;

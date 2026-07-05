@@ -1,8 +1,10 @@
 package controlplane
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"regexp"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jpaljasma/ecoflow-pulse/internal/valkeycache"
 )
 
 func TestPostgresStoreRequireCurrentSchemaFailsWhenProviderConfigColumnMissing(t *testing.T) {
@@ -98,6 +101,126 @@ func TestPostgresStoreRequireCurrentSchemaAcceptsProviderConfigColumn(t *testing
 
 	if err := store.RequireCurrentSchema(context.Background()); err != nil {
 		t.Fatalf("RequireCurrentSchema failed: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresStoreRejectsAutoClaimingExistingEdgeDeviceSourceSN(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	now := time.Date(2026, time.July, 5, 18, 30, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+
+	userID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e222"
+	sourceID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e333"
+	collectorID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e444"
+	writeTime := normalizeWriteTime(now)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id::text FROM users WHERE keycloak_subject = $1`)).
+		WithArgs("user-2").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
+	mock.ExpectQuery(regexp.QuoteMeta(`
+SELECT id::text, collector_id::text, user_id::text, provider, transport, provider_device_id,
+	COALESCE(display_name, ''), COALESCE(model, ''), COALESCE(address_hash, ''), rssi_dbm,
+	metadata, status, COALESCE(linked_device_id::text, ''), last_seen_at, created_at, updated_at
+FROM edge_device_sources
+WHERE id = $1::uuid
+  AND user_id = $2::uuid
+FOR UPDATE;
+`)).
+		WithArgs(sourceID, userID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"collector_id",
+			"user_id",
+			"provider",
+			"transport",
+			"provider_device_id",
+			"display_name",
+			"model",
+			"address_hash",
+			"rssi_dbm",
+			"metadata",
+			"status",
+			"linked_device_id",
+			"last_seen_at",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			sourceID,
+			collectorID,
+			userID,
+			ProviderEcoFlow,
+			"ble",
+			"DEMOEDGE0001",
+			"Demo edge device",
+			"EcoFlow RIVER 3 Plus",
+			"",
+			-59,
+			[]byte(`{}`),
+			EdgeDeviceSourceStatusPending,
+			"",
+			writeTime,
+			writeTime,
+			writeTime,
+		))
+	mock.ExpectQuery(regexp.QuoteMeta(`
+INSERT INTO devices (ecoflow_sn, product_name, model, metadata, created_at, updated_at)
+VALUES ($1, $2, $3, '{}'::jsonb, $4, $4)
+ON CONFLICT (ecoflow_sn)
+DO NOTHING
+RETURNING id::text, ecoflow_sn, COALESCE(product_name, ''), COALESCE(model, ''), created_at, updated_at;
+`)).
+		WithArgs("DEMOEDGE0001", "Demo edge device", "EcoFlow RIVER 3 Plus", writeTime).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"ecoflow_sn",
+			"product_name",
+			"model",
+			"created_at",
+			"updated_at",
+		}))
+	mock.ExpectQuery(regexp.QuoteMeta(`
+UPDATE devices d
+SET
+	product_name = COALESCE(NULLIF($2, ''), d.product_name),
+	model = COALESCE(NULLIF($3, ''), d.model),
+	updated_at = $4
+FROM user_devices ud
+WHERE d.ecoflow_sn = $1
+  AND ud.device_id = d.id
+  AND ud.user_id = $5::uuid
+  AND ud.role = 'admin'
+RETURNING d.id::text, d.ecoflow_sn, COALESCE(d.product_name, ''), COALESCE(d.model, ''), 'admin', d.created_at, d.updated_at;
+`)).
+		WithArgs("DEMOEDGE0001", "Demo edge device", "EcoFlow RIVER 3 Plus", writeTime, userID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"ecoflow_sn",
+			"product_name",
+			"model",
+			"role",
+			"created_at",
+			"updated_at",
+		}))
+	mock.ExpectRollback()
+
+	_, err = store.ApproveEdgeDeviceSource(context.Background(), ApproveEdgeDeviceSourceInput{
+		UserSubject: "user-2",
+		SourceID:    sourceID,
+	})
+	if !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("ApproveEdgeDeviceSource error=%v want ErrPermissionDenied", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)
@@ -598,6 +721,153 @@ WHERE pd.credential_id = pc.id
 	}
 }
 
+func TestPostgresStoreCreateProviderCredentialEncryptsMaterialWhenConfigured(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	store.providerCredentialCipher = testProviderCredentialCipher(t)
+	now := time.Date(2026, time.June, 28, 9, 30, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+
+	userID := "018f23f1-3b3d-7f27-b2fd-6f6f68ef5f52"
+	credentialID := "019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111"
+	writeTime := normalizeWriteTime(now)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id::text FROM users WHERE keycloak_subject = $1`)).
+		WithArgs("subject-123").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(userID))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+INSERT INTO provider_credentials (
+	user_id,
+	provider,
+	access_key_ciphertext,
+	secret_key_ciphertext,
+	access_key_hash,
+	access_key_mask,
+	provider_config,
+	is_active,
+	created_at,
+	updated_at
+)
+VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+RETURNING id::text, user_id::text, provider, access_key_mask, provider_config, is_active, created_at, updated_at;
+`)).
+		WithArgs(
+			userID,
+			ProviderEcoFlowBLE,
+			encryptedProviderCredentialArg{forbidden: "owner@example.test"},
+			encryptedProviderCredentialArg{forbidden: "ble-user-123"},
+			HashAccessKey("owner@example.test"),
+			MaskAccessKey("owner@example.test"),
+			[]byte("{}"),
+			false,
+			writeTime,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"user_id",
+			"provider",
+			"access_key_mask",
+			"provider_config",
+			"is_active",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			credentialID,
+			userID,
+			ProviderEcoFlowBLE,
+			MaskAccessKey("owner@example.test"),
+			[]byte("{}"),
+			false,
+			writeTime,
+			writeTime,
+		))
+
+	mock.ExpectCommit()
+
+	if _, err := store.CreateProviderCredential(context.Background(), CreateProviderCredentialInput{
+		UserSubject: "subject-123",
+		Provider:    ProviderEcoFlowBLE,
+		AccessKey:   "owner@example.test",
+		SecretKey:   "ble-user-123",
+		IsActive:    false,
+	}); err != nil {
+		t.Fatalf("CreateProviderCredential failed: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
+func TestPostgresStoreEdgeSetupTokenPathsUseTTL(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New failed: %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	store := newPostgresStore(db)
+	now := time.Date(2026, time.July, 4, 12, 0, 0, 0, time.UTC)
+	store.now = func() time.Time { return now }
+	cutoff := edgeCollectorSetupTokenCutoff(now)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+	SELECT id::text, user_id::text, display_name, setup_token_hash, COALESCE(collector_secret_hash, ''),
+		is_active, COALESCE(collector_version, ''), COALESCE(hostname, ''), last_heartbeat_at, created_at, updated_at
+	FROM edge_collectors
+	WHERE setup_token_hash = $1
+	  AND is_active = false
+	  AND created_at >= $2;
+	`)).
+		WithArgs("setup-hash", cutoff).
+		WillReturnError(sql.ErrNoRows)
+
+	if _, err := store.GetEdgeCollectorBySetupTokenHash(context.Background(), "setup-hash"); !errors.Is(err, ErrEdgeCollectorNotFound) {
+		t.Fatalf("GetEdgeCollectorBySetupTokenHash error=%v want not found", err)
+	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+	UPDATE edge_collectors
+	SET setup_token_hash = '',
+	    collector_secret_hash = $2,
+	    collector_version = $3,
+	    hostname = $4,
+	    is_active = true,
+	    last_heartbeat_at = $5,
+	    updated_at = $5
+	WHERE setup_token_hash = $1
+	  AND is_active = false
+	  AND created_at >= $6
+	RETURNING id::text, user_id::text, display_name, setup_token_hash, COALESCE(collector_secret_hash, ''),
+		is_active, COALESCE(collector_version, ''), COALESCE(hostname, ''), last_heartbeat_at, created_at, updated_at;
+	`)).
+		WithArgs("setup-hash", "secret-hash", "v-test", "pi", normalizeWriteTime(now), cutoff).
+		WillReturnError(sql.ErrNoRows)
+
+	if _, err := store.EnrollEdgeCollector(context.Background(), EnrollEdgeCollectorInput{
+		SetupTokenHash:      " setup-hash ",
+		CollectorSecretHash: " secret-hash ",
+		CollectorVersion:    " v-test ",
+		Hostname:            " pi ",
+	}); !errors.Is(err, ErrEdgeCollectorNotFound) {
+		t.Fatalf("EnrollEdgeCollector error=%v want not found", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sql expectations: %v", err)
+	}
+}
+
 func TestPostgresStoreImportProviderDeviceCommitsAtomicDeviceAndProviderRows(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -998,4 +1268,28 @@ WHERE keycloak_subject = $1;
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sql expectations: %v", err)
 	}
+}
+
+type encryptedProviderCredentialArg struct {
+	forbidden string
+}
+
+func (a encryptedProviderCredentialArg) Match(value driver.Value) bool {
+	data, ok := value.([]byte)
+	if !ok {
+		return false
+	}
+	return bytes.HasPrefix(data, []byte(providerCredentialEnvelopePrefix)) &&
+		!bytes.Contains(data, []byte(a.forbidden))
+}
+
+func testProviderCredentialCipher(t *testing.T) *providerCredentialCipher {
+	t.Helper()
+	keyring, err := valkeycache.NewKeyring("test", map[string][]byte{
+		"test": bytes.Repeat([]byte{0x42}, 32),
+	})
+	if err != nil {
+		t.Fatalf("NewKeyring failed: %v", err)
+	}
+	return &providerCredentialCipher{keyring: keyring}
 }

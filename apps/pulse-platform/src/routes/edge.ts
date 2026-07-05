@@ -2,7 +2,12 @@ import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
 import { z } from 'zod';
 
 import type { AppConfig } from '../config.js';
-import type { EdgeClient, EdgeCollector, EdgeDeviceSource } from '../grpc/edgeClient.js';
+import type {
+  EdgeClient,
+  EdgeCollector,
+  EdgeDeviceSource
+} from '../grpc/edgeClient.js';
+import { edgeDeviceSourceFilterStatuses } from '../grpc/edgeClient.js';
 import {
   getAuthHeader,
   getRequestID,
@@ -10,8 +15,14 @@ import {
   resolveUserSubject
 } from './currentUserContext.js';
 
+const edgeUuidSchema = z.string().trim().uuid();
+
 const createCollectorSchema = z.object({
   displayName: z.string().trim().min(1).max(128).optional()
+});
+
+const collectorParamsSchema = z.object({
+  collectorId: edgeUuidSchema
 });
 
 const collectorSecretSchema = z.object({
@@ -44,19 +55,54 @@ const uploadDiscoverySchema = z.object({
 });
 
 const listSourcesQuerySchema = z.object({
-  collectorId: z.string().trim().optional(),
-  status: z.enum(['pending', 'linked', 'ignored']).optional()
+  collectorId: edgeUuidSchema.optional(),
+  status: z.enum(edgeDeviceSourceFilterStatuses).optional()
 });
 
 const approveSourceParamsSchema = z.object({
-  sourceId: z.string().trim().min(1)
+  sourceId: edgeUuidSchema
 });
 
 const approveSourceBodySchema = z.object({
-  deviceId: z.string().trim().optional(),
+  deviceId: edgeUuidSchema.optional(),
   productName: z.string().trim().max(128).optional(),
   model: z.string().trim().max(128).optional()
 });
+
+const edgeTelemetryMaxMetricFields = 128;
+const edgeTelemetryMaxMetricKeyBytes = 128;
+const edgeTelemetryMaxMetricStringBytes = 4096;
+
+const edgeTelemetryMetricValueSchema = z.union([
+  z.number().finite(),
+  z
+    .string()
+    .refine(
+      (value) =>
+        Buffer.byteLength(value, 'utf8') <= edgeTelemetryMaxMetricStringBytes,
+      { message: 'metric string value is too large' }
+    ),
+  z.boolean(),
+  z.null()
+]);
+
+const edgeTelemetryMetricKeySchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      Buffer.byteLength(value, 'utf8') <= edgeTelemetryMaxMetricKeyBytes,
+    { message: 'metric key is too large' }
+  );
+
+const edgeTelemetryMetricsSchema = z
+  .record(edgeTelemetryMetricKeySchema, edgeTelemetryMetricValueSchema)
+  .refine(
+    (metrics) => Object.keys(metrics).length <= edgeTelemetryMaxMetricFields,
+    {
+      message: 'too many metric keys'
+    }
+  );
 
 const edgeTelemetrySampleSchema = z.object({
   provider: z.string().trim().min(1).max(64).default('ecoflow'),
@@ -64,7 +110,7 @@ const edgeTelemetrySampleSchema = z.object({
   providerDeviceId: z.string().trim().min(1).max(128),
   observedAtUnixMs: z.number().int().positive().optional(),
   clientSampleId: z.string().trim().min(1).max(256).optional(),
-  metrics: z.record(z.string(), z.unknown())
+  metrics: edgeTelemetryMetricsSchema
 });
 
 const uploadTelemetrySchema = z.object({
@@ -78,38 +124,66 @@ export function registerEdgeRoutes(
   edgeClient: EdgeClient,
   authPreHandler: preHandlerHookHandler
 ): void {
-  app.post('/api/v1/edge/collectors', { preHandler: authPreHandler }, async (request, reply) => {
-    try {
-      const body = createCollectorSchema.parse(request.body ?? {});
-      const created = await edgeClient.createCollector({
-        userSubject: resolveUserSubject(config, request),
-        displayName: body.displayName,
-        authHeader: getAuthHeader(request),
-        requestID: getRequestID(request),
-        deadlineMs: app.telemetryDeadlineMs
-      });
-      return reply.code(201).send({
-        collector: toCollectorResponse(created.collector),
-        setupToken: created.setupToken
-      });
-    } catch (error) {
-      return handleEdgeRouteError(config, reply, error);
+  app.post(
+    '/api/v1/edge/collectors',
+    { preHandler: authPreHandler },
+    async (request, reply) => {
+      try {
+        const body = createCollectorSchema.parse(request.body ?? {});
+        const created = await edgeClient.createCollector({
+          userSubject: resolveUserSubject(config, request),
+          displayName: body.displayName,
+          authHeader: getAuthHeader(request),
+          requestID: getRequestID(request),
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return reply.code(201).send({
+          collector: toCollectorResponse(created.collector),
+          setupToken: created.setupToken
+        });
+      } catch (error) {
+        return handleEdgeRouteError(config, reply, error);
+      }
     }
-  });
+  );
 
-  app.get('/api/v1/edge/collectors', { preHandler: authPreHandler }, async (request, reply) => {
-    try {
-      const collectors = await edgeClient.listCollectors({
-        userSubject: resolveUserSubject(config, request),
-        authHeader: getAuthHeader(request),
-        requestID: getRequestID(request),
-        deadlineMs: app.telemetryDeadlineMs
-      });
-      return { collectors: collectors.map(toCollectorResponse) };
-    } catch (error) {
-      return handleEdgeRouteError(config, reply, error);
+  app.get(
+    '/api/v1/edge/collectors',
+    { preHandler: authPreHandler },
+    async (request, reply) => {
+      try {
+        const collectors = await edgeClient.listCollectors({
+          userSubject: resolveUserSubject(config, request),
+          authHeader: getAuthHeader(request),
+          requestID: getRequestID(request),
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return { collectors: collectors.map(toCollectorResponse) };
+      } catch (error) {
+        return handleEdgeRouteError(config, reply, error);
+      }
     }
-  });
+  );
+
+  app.post(
+    '/api/v1/edge/collectors/:collectorId/revoke-setup-token',
+    { preHandler: authPreHandler },
+    async (request, reply) => {
+      try {
+        const params = collectorParamsSchema.parse(request.params ?? {});
+        const collector = await edgeClient.revokeCollectorSetupToken({
+          userSubject: resolveUserSubject(config, request),
+          collectorId: params.collectorId,
+          authHeader: getAuthHeader(request),
+          requestID: getRequestID(request),
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return { collector: toCollectorResponse(collector) };
+      } catch (error) {
+        return handleEdgeRouteError(config, reply, error);
+      }
+    }
+  );
 
   app.post('/api/v1/edge/enroll', async (request, reply) => {
     try {
@@ -121,7 +195,8 @@ export function registerEdgeRoutes(
       });
       return {
         collector: toCollectorResponse(enrolled.collector),
-        collectorSecret: enrolled.collectorSecret
+        collectorSecret: enrolled.collectorSecret,
+        collectorEnv: enrolled.collectorEnv
       };
     } catch (error) {
       return handleEdgeRouteError(config, reply, error);
@@ -156,45 +231,53 @@ export function registerEdgeRoutes(
     }
   });
 
-  app.get('/api/v1/edge/device-sources', { preHandler: authPreHandler }, async (request, reply) => {
-    try {
-      const query = listSourcesQuerySchema.parse(request.query ?? {});
-      const sources = await edgeClient.listDeviceSources({
-        userSubject: resolveUserSubject(config, request),
-        collectorId: query.collectorId,
-        status: query.status,
-        authHeader: getAuthHeader(request),
-        requestID: getRequestID(request),
-        deadlineMs: app.telemetryDeadlineMs
-      });
-      return { sources: sources.map(toSourceResponse) };
-    } catch (error) {
-      return handleEdgeRouteError(config, reply, error);
+  app.get(
+    '/api/v1/edge/device-sources',
+    { preHandler: authPreHandler },
+    async (request, reply) => {
+      try {
+        const query = listSourcesQuerySchema.parse(request.query ?? {});
+        const sources = await edgeClient.listDeviceSources({
+          userSubject: resolveUserSubject(config, request),
+          collectorId: query.collectorId,
+          status: query.status,
+          authHeader: getAuthHeader(request),
+          requestID: getRequestID(request),
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return { sources: sources.map(toSourceResponse) };
+      } catch (error) {
+        return handleEdgeRouteError(config, reply, error);
+      }
     }
-  });
+  );
 
-  app.post('/api/v1/edge/device-sources/:sourceId/approve', { preHandler: authPreHandler }, async (request, reply) => {
-    try {
-      const params = approveSourceParamsSchema.parse(request.params ?? {});
-      const body = approveSourceBodySchema.parse(request.body ?? {});
-      const approved = await edgeClient.approveDeviceSource({
-        userSubject: resolveUserSubject(config, request),
-        sourceId: params.sourceId,
-        deviceId: body.deviceId,
-        productName: body.productName,
-        model: body.model,
-        authHeader: getAuthHeader(request),
-        requestID: getRequestID(request),
-        deadlineMs: app.telemetryDeadlineMs
-      });
-      return {
-        source: toSourceResponse(approved.source),
-        deviceId: approved.deviceId
-      };
-    } catch (error) {
-      return handleEdgeRouteError(config, reply, error);
+  app.post(
+    '/api/v1/edge/device-sources/:sourceId/approve',
+    { preHandler: authPreHandler },
+    async (request, reply) => {
+      try {
+        const params = approveSourceParamsSchema.parse(request.params ?? {});
+        const body = approveSourceBodySchema.parse(request.body ?? {});
+        const approved = await edgeClient.approveDeviceSource({
+          userSubject: resolveUserSubject(config, request),
+          sourceId: params.sourceId,
+          deviceId: body.deviceId,
+          productName: body.productName,
+          model: body.model,
+          authHeader: getAuthHeader(request),
+          requestID: getRequestID(request),
+          deadlineMs: app.telemetryDeadlineMs
+        });
+        return {
+          source: toSourceResponse(approved.source),
+          deviceId: approved.deviceId
+        };
+      } catch (error) {
+        return handleEdgeRouteError(config, reply, error);
+      }
     }
-  });
+  );
 
   app.post('/api/v1/edge/telemetry', async (request, reply) => {
     try {
@@ -217,12 +300,16 @@ function handleEdgeRouteError(
   error: unknown
 ) {
   if (error instanceof z.ZodError) {
-    return reply.code(400).send({ error: 'invalid_request', issues: error.issues });
+    return reply
+      .code(400)
+      .send({ error: 'invalid_request', issues: error.issues });
   }
   return handleGrpcRouteError(config, reply, error);
 }
 
-function toCollectorResponse(collector: EdgeCollector): Record<string, unknown> {
+function toCollectorResponse(
+  collector: EdgeCollector
+): Record<string, unknown> {
   return {
     id: collector.id,
     displayName: collector.displayName,
@@ -241,15 +328,14 @@ function toSourceResponse(source: EdgeDeviceSource): Record<string, unknown> {
     collectorId: source.collectorId,
     provider: source.provider,
     transport: source.transport,
-    providerDeviceId: source.providerDeviceId,
     displayName: source.displayName,
     model: source.model,
     status: source.status,
+    rawStatus: source.rawStatus,
     linkedDeviceId: source.linkedDeviceId,
     rssiDbm: source.rssiDbm,
     lastSeenAtUnixMs: source.lastSeenAtUnixMs,
     createdAtUnixMs: source.createdAtUnixMs,
-    updatedAtUnixMs: source.updatedAtUnixMs,
-    metadata: source.metadata ?? {}
+    updatedAtUnixMs: source.updatedAtUnixMs
   };
 }

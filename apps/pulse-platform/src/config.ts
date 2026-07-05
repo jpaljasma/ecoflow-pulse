@@ -121,11 +121,13 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
   };
 }
 
+function buildBooleanFlag(value: string): boolean {
+  return value === 'true' || value === '1';
+}
+
 function buildBffCacheConfig(parsed: z.infer<typeof envSchema>): AppConfig['bffCache'] {
   return {
-    enabled:
-      parsed.PULSE_PLATFORM_BFF_CACHE_ENABLED === 'true' ||
-      parsed.PULSE_PLATFORM_BFF_CACHE_ENABLED === '1',
+    enabled: buildBooleanFlag(parsed.PULSE_PLATFORM_BFF_CACHE_ENABLED),
     maxEntries: parsed.PULSE_PLATFORM_BFF_CACHE_MAX_ENTRIES,
     weatherForecastTtlMs: parsed.PULSE_PLATFORM_WEATHER_FORECAST_CACHE_TTL_MS
   };

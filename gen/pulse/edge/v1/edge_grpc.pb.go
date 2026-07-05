@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	EdgeIngestService_CreateCollector_FullMethodName      = "/pulse.edge.v1.EdgeIngestService/CreateCollector"
-	EdgeIngestService_ListCollectors_FullMethodName       = "/pulse.edge.v1.EdgeIngestService/ListCollectors"
-	EdgeIngestService_EnrollCollector_FullMethodName      = "/pulse.edge.v1.EdgeIngestService/EnrollCollector"
-	EdgeIngestService_Heartbeat_FullMethodName            = "/pulse.edge.v1.EdgeIngestService/Heartbeat"
-	EdgeIngestService_UploadDiscovery_FullMethodName      = "/pulse.edge.v1.EdgeIngestService/UploadDiscovery"
-	EdgeIngestService_ListDeviceSources_FullMethodName    = "/pulse.edge.v1.EdgeIngestService/ListDeviceSources"
-	EdgeIngestService_ApproveDeviceSource_FullMethodName  = "/pulse.edge.v1.EdgeIngestService/ApproveDeviceSource"
-	EdgeIngestService_UploadTelemetryBatch_FullMethodName = "/pulse.edge.v1.EdgeIngestService/UploadTelemetryBatch"
+	EdgeIngestService_CreateCollector_FullMethodName           = "/pulse.edge.v1.EdgeIngestService/CreateCollector"
+	EdgeIngestService_ListCollectors_FullMethodName            = "/pulse.edge.v1.EdgeIngestService/ListCollectors"
+	EdgeIngestService_RevokeCollectorSetupToken_FullMethodName = "/pulse.edge.v1.EdgeIngestService/RevokeCollectorSetupToken"
+	EdgeIngestService_EnrollCollector_FullMethodName           = "/pulse.edge.v1.EdgeIngestService/EnrollCollector"
+	EdgeIngestService_Heartbeat_FullMethodName                 = "/pulse.edge.v1.EdgeIngestService/Heartbeat"
+	EdgeIngestService_UploadDiscovery_FullMethodName           = "/pulse.edge.v1.EdgeIngestService/UploadDiscovery"
+	EdgeIngestService_ListDeviceSources_FullMethodName         = "/pulse.edge.v1.EdgeIngestService/ListDeviceSources"
+	EdgeIngestService_ApproveDeviceSource_FullMethodName       = "/pulse.edge.v1.EdgeIngestService/ApproveDeviceSource"
+	EdgeIngestService_UploadTelemetryBatch_FullMethodName      = "/pulse.edge.v1.EdgeIngestService/UploadTelemetryBatch"
 )
 
 // EdgeIngestServiceClient is the client API for EdgeIngestService service.
@@ -35,6 +36,7 @@ const (
 type EdgeIngestServiceClient interface {
 	CreateCollector(ctx context.Context, in *CreateCollectorRequest, opts ...grpc.CallOption) (*CreateCollectorResponse, error)
 	ListCollectors(ctx context.Context, in *ListCollectorsRequest, opts ...grpc.CallOption) (*ListCollectorsResponse, error)
+	RevokeCollectorSetupToken(ctx context.Context, in *RevokeCollectorSetupTokenRequest, opts ...grpc.CallOption) (*RevokeCollectorSetupTokenResponse, error)
 	EnrollCollector(ctx context.Context, in *EnrollCollectorRequest, opts ...grpc.CallOption) (*EnrollCollectorResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	UploadDiscovery(ctx context.Context, in *UploadDiscoveryRequest, opts ...grpc.CallOption) (*UploadDiscoveryResponse, error)
@@ -65,6 +67,16 @@ func (c *edgeIngestServiceClient) ListCollectors(ctx context.Context, in *ListCo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListCollectorsResponse)
 	err := c.cc.Invoke(ctx, EdgeIngestService_ListCollectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *edgeIngestServiceClient) RevokeCollectorSetupToken(ctx context.Context, in *RevokeCollectorSetupTokenRequest, opts ...grpc.CallOption) (*RevokeCollectorSetupTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeCollectorSetupTokenResponse)
+	err := c.cc.Invoke(ctx, EdgeIngestService_RevokeCollectorSetupToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +149,7 @@ func (c *edgeIngestServiceClient) UploadTelemetryBatch(ctx context.Context, in *
 type EdgeIngestServiceServer interface {
 	CreateCollector(context.Context, *CreateCollectorRequest) (*CreateCollectorResponse, error)
 	ListCollectors(context.Context, *ListCollectorsRequest) (*ListCollectorsResponse, error)
+	RevokeCollectorSetupToken(context.Context, *RevokeCollectorSetupTokenRequest) (*RevokeCollectorSetupTokenResponse, error)
 	EnrollCollector(context.Context, *EnrollCollectorRequest) (*EnrollCollectorResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	UploadDiscovery(context.Context, *UploadDiscoveryRequest) (*UploadDiscoveryResponse, error)
@@ -158,6 +171,9 @@ func (UnimplementedEdgeIngestServiceServer) CreateCollector(context.Context, *Cr
 }
 func (UnimplementedEdgeIngestServiceServer) ListCollectors(context.Context, *ListCollectorsRequest) (*ListCollectorsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCollectors not implemented")
+}
+func (UnimplementedEdgeIngestServiceServer) RevokeCollectorSetupToken(context.Context, *RevokeCollectorSetupTokenRequest) (*RevokeCollectorSetupTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeCollectorSetupToken not implemented")
 }
 func (UnimplementedEdgeIngestServiceServer) EnrollCollector(context.Context, *EnrollCollectorRequest) (*EnrollCollectorResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EnrollCollector not implemented")
@@ -230,6 +246,24 @@ func _EdgeIngestService_ListCollectors_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EdgeIngestServiceServer).ListCollectors(ctx, req.(*ListCollectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EdgeIngestService_RevokeCollectorSetupToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeCollectorSetupTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EdgeIngestServiceServer).RevokeCollectorSetupToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EdgeIngestService_RevokeCollectorSetupToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EdgeIngestServiceServer).RevokeCollectorSetupToken(ctx, req.(*RevokeCollectorSetupTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -356,6 +390,10 @@ var EdgeIngestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListCollectors",
 			Handler:    _EdgeIngestService_ListCollectors_Handler,
+		},
+		{
+			MethodName: "RevokeCollectorSetupToken",
+			Handler:    _EdgeIngestService_RevokeCollectorSetupToken_Handler,
 		},
 		{
 			MethodName: "EnrollCollector",

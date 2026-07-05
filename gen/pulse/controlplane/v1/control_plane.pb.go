@@ -2242,6 +2242,370 @@ func (x *ListAvailableProviderDevicesResponse) GetHasActiveCredentials() bool {
 	return false
 }
 
+type EcoFlowBLEAuthStatus struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Connected       bool                   `protobuf:"varint,1,opt,name=connected,proto3" json:"connected,omitempty"`
+	Status          string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	AccountMask     string                 `protobuf:"bytes,3,opt,name=account_mask,json=accountMask,proto3" json:"account_mask,omitempty"`
+	UpdatedAtUnixMs int64                  `protobuf:"varint,4,opt,name=updated_at_unix_ms,json=updatedAtUnixMs,proto3" json:"updated_at_unix_ms,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *EcoFlowBLEAuthStatus) Reset() {
+	*x = EcoFlowBLEAuthStatus{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EcoFlowBLEAuthStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EcoFlowBLEAuthStatus) ProtoMessage() {}
+
+func (x *EcoFlowBLEAuthStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EcoFlowBLEAuthStatus.ProtoReflect.Descriptor instead.
+func (*EcoFlowBLEAuthStatus) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *EcoFlowBLEAuthStatus) GetConnected() bool {
+	if x != nil {
+		return x.Connected
+	}
+	return false
+}
+
+func (x *EcoFlowBLEAuthStatus) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *EcoFlowBLEAuthStatus) GetAccountMask() string {
+	if x != nil {
+		return x.AccountMask
+	}
+	return ""
+}
+
+func (x *EcoFlowBLEAuthStatus) GetUpdatedAtUnixMs() int64 {
+	if x != nil {
+		return x.UpdatedAtUnixMs
+	}
+	return 0
+}
+
+type GetEcoFlowBLEAuthStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEcoFlowBLEAuthStatusRequest) Reset() {
+	*x = GetEcoFlowBLEAuthStatusRequest{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEcoFlowBLEAuthStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEcoFlowBLEAuthStatusRequest) ProtoMessage() {}
+
+func (x *GetEcoFlowBLEAuthStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEcoFlowBLEAuthStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetEcoFlowBLEAuthStatusRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *GetEcoFlowBLEAuthStatusRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+type GetEcoFlowBLEAuthStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *EcoFlowBLEAuthStatus  `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetEcoFlowBLEAuthStatusResponse) Reset() {
+	*x = GetEcoFlowBLEAuthStatusResponse{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetEcoFlowBLEAuthStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetEcoFlowBLEAuthStatusResponse) ProtoMessage() {}
+
+func (x *GetEcoFlowBLEAuthStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetEcoFlowBLEAuthStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetEcoFlowBLEAuthStatusResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GetEcoFlowBLEAuthStatusResponse) GetStatus() *EcoFlowBLEAuthStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type ConnectEcoFlowBLEAuthRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectEcoFlowBLEAuthRequest) Reset() {
+	*x = ConnectEcoFlowBLEAuthRequest{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectEcoFlowBLEAuthRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectEcoFlowBLEAuthRequest) ProtoMessage() {}
+
+func (x *ConnectEcoFlowBLEAuthRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectEcoFlowBLEAuthRequest.ProtoReflect.Descriptor instead.
+func (*ConnectEcoFlowBLEAuthRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *ConnectEcoFlowBLEAuthRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+func (x *ConnectEcoFlowBLEAuthRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ConnectEcoFlowBLEAuthRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type ConnectEcoFlowBLEAuthResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *EcoFlowBLEAuthStatus  `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectEcoFlowBLEAuthResponse) Reset() {
+	*x = ConnectEcoFlowBLEAuthResponse{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectEcoFlowBLEAuthResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectEcoFlowBLEAuthResponse) ProtoMessage() {}
+
+func (x *ConnectEcoFlowBLEAuthResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectEcoFlowBLEAuthResponse.ProtoReflect.Descriptor instead.
+func (*ConnectEcoFlowBLEAuthResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ConnectEcoFlowBLEAuthResponse) GetStatus() *EcoFlowBLEAuthStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type SetEcoFlowBLEAuthUserIDRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AccountLabel  string                 `protobuf:"bytes,3,opt,name=account_label,json=accountLabel,proto3" json:"account_label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetEcoFlowBLEAuthUserIDRequest) Reset() {
+	*x = SetEcoFlowBLEAuthUserIDRequest{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetEcoFlowBLEAuthUserIDRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetEcoFlowBLEAuthUserIDRequest) ProtoMessage() {}
+
+func (x *SetEcoFlowBLEAuthUserIDRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetEcoFlowBLEAuthUserIDRequest.ProtoReflect.Descriptor instead.
+func (*SetEcoFlowBLEAuthUserIDRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *SetEcoFlowBLEAuthUserIDRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+func (x *SetEcoFlowBLEAuthUserIDRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SetEcoFlowBLEAuthUserIDRequest) GetAccountLabel() string {
+	if x != nil {
+		return x.AccountLabel
+	}
+	return ""
+}
+
+type SetEcoFlowBLEAuthUserIDResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *EcoFlowBLEAuthStatus  `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetEcoFlowBLEAuthUserIDResponse) Reset() {
+	*x = SetEcoFlowBLEAuthUserIDResponse{}
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetEcoFlowBLEAuthUserIDResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetEcoFlowBLEAuthUserIDResponse) ProtoMessage() {}
+
+func (x *SetEcoFlowBLEAuthUserIDResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetEcoFlowBLEAuthUserIDResponse.ProtoReflect.Descriptor instead.
+func (*SetEcoFlowBLEAuthUserIDResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *SetEcoFlowBLEAuthUserIDResponse) GetStatus() *EcoFlowBLEAuthStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
 type TestProviderDeviceMQTTRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	UserSubject      string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
@@ -2254,7 +2618,7 @@ type TestProviderDeviceMQTTRequest struct {
 
 func (x *TestProviderDeviceMQTTRequest) Reset() {
 	*x = TestProviderDeviceMQTTRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2266,7 +2630,7 @@ func (x *TestProviderDeviceMQTTRequest) String() string {
 func (*TestProviderDeviceMQTTRequest) ProtoMessage() {}
 
 func (x *TestProviderDeviceMQTTRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[33]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2279,7 +2643,7 @@ func (x *TestProviderDeviceMQTTRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestProviderDeviceMQTTRequest.ProtoReflect.Descriptor instead.
 func (*TestProviderDeviceMQTTRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{33}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *TestProviderDeviceMQTTRequest) GetUserSubject() string {
@@ -2324,7 +2688,7 @@ type TestProviderDeviceMQTTResponse struct {
 
 func (x *TestProviderDeviceMQTTResponse) Reset() {
 	*x = TestProviderDeviceMQTTResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2336,7 +2700,7 @@ func (x *TestProviderDeviceMQTTResponse) String() string {
 func (*TestProviderDeviceMQTTResponse) ProtoMessage() {}
 
 func (x *TestProviderDeviceMQTTResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[34]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2349,7 +2713,7 @@ func (x *TestProviderDeviceMQTTResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestProviderDeviceMQTTResponse.ProtoReflect.Descriptor instead.
 func (*TestProviderDeviceMQTTResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{34}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *TestProviderDeviceMQTTResponse) GetSuccess() bool {
@@ -2406,7 +2770,7 @@ type EnableProviderDeviceRequest struct {
 
 func (x *EnableProviderDeviceRequest) Reset() {
 	*x = EnableProviderDeviceRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[35]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2418,7 +2782,7 @@ func (x *EnableProviderDeviceRequest) String() string {
 func (*EnableProviderDeviceRequest) ProtoMessage() {}
 
 func (x *EnableProviderDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[35]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2431,7 +2795,7 @@ func (x *EnableProviderDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableProviderDeviceRequest.ProtoReflect.Descriptor instead.
 func (*EnableProviderDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{35}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *EnableProviderDeviceRequest) GetUserSubject() string {
@@ -2472,7 +2836,7 @@ type EnableProviderDeviceResponse struct {
 
 func (x *EnableProviderDeviceResponse) Reset() {
 	*x = EnableProviderDeviceResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[36]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2484,7 +2848,7 @@ func (x *EnableProviderDeviceResponse) String() string {
 func (*EnableProviderDeviceResponse) ProtoMessage() {}
 
 func (x *EnableProviderDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[36]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2497,7 +2861,7 @@ func (x *EnableProviderDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableProviderDeviceResponse.ProtoReflect.Descriptor instead.
 func (*EnableProviderDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{36}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *EnableProviderDeviceResponse) GetProviderDevice() *ProviderDevice {
@@ -2528,7 +2892,7 @@ type ImportProviderDeviceRequest struct {
 
 func (x *ImportProviderDeviceRequest) Reset() {
 	*x = ImportProviderDeviceRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[37]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2540,7 +2904,7 @@ func (x *ImportProviderDeviceRequest) String() string {
 func (*ImportProviderDeviceRequest) ProtoMessage() {}
 
 func (x *ImportProviderDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[37]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2553,7 +2917,7 @@ func (x *ImportProviderDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportProviderDeviceRequest.ProtoReflect.Descriptor instead.
 func (*ImportProviderDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{37}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ImportProviderDeviceRequest) GetUserSubject() string {
@@ -2608,7 +2972,7 @@ type ImportProviderDeviceResponse struct {
 
 func (x *ImportProviderDeviceResponse) Reset() {
 	*x = ImportProviderDeviceResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[38]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2620,7 +2984,7 @@ func (x *ImportProviderDeviceResponse) String() string {
 func (*ImportProviderDeviceResponse) ProtoMessage() {}
 
 func (x *ImportProviderDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[38]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2633,7 +2997,7 @@ func (x *ImportProviderDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImportProviderDeviceResponse.ProtoReflect.Descriptor instead.
 func (*ImportProviderDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{38}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ImportProviderDeviceResponse) GetProviderDevice() *ProviderDevice {
@@ -2664,7 +3028,7 @@ type AdminLogFilterOption struct {
 
 func (x *AdminLogFilterOption) Reset() {
 	*x = AdminLogFilterOption{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[39]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2676,7 +3040,7 @@ func (x *AdminLogFilterOption) String() string {
 func (*AdminLogFilterOption) ProtoMessage() {}
 
 func (x *AdminLogFilterOption) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[39]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2689,7 +3053,7 @@ func (x *AdminLogFilterOption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminLogFilterOption.ProtoReflect.Descriptor instead.
 func (*AdminLogFilterOption) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{39}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *AdminLogFilterOption) GetKind() string {
@@ -2748,7 +3112,7 @@ type SearchAdminLogFiltersRequest struct {
 
 func (x *SearchAdminLogFiltersRequest) Reset() {
 	*x = SearchAdminLogFiltersRequest{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[40]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2760,7 +3124,7 @@ func (x *SearchAdminLogFiltersRequest) String() string {
 func (*SearchAdminLogFiltersRequest) ProtoMessage() {}
 
 func (x *SearchAdminLogFiltersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[40]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2773,7 +3137,7 @@ func (x *SearchAdminLogFiltersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchAdminLogFiltersRequest.ProtoReflect.Descriptor instead.
 func (*SearchAdminLogFiltersRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{40}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *SearchAdminLogFiltersRequest) GetUserSubject() string {
@@ -2827,7 +3191,7 @@ type SearchAdminLogFiltersResponse struct {
 
 func (x *SearchAdminLogFiltersResponse) Reset() {
 	*x = SearchAdminLogFiltersResponse{}
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[41]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2839,7 +3203,7 @@ func (x *SearchAdminLogFiltersResponse) String() string {
 func (*SearchAdminLogFiltersResponse) ProtoMessage() {}
 
 func (x *SearchAdminLogFiltersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[41]
+	mi := &file_pulse_controlplane_v1_control_plane_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2852,7 +3216,7 @@ func (x *SearchAdminLogFiltersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchAdminLogFiltersResponse.ProtoReflect.Descriptor instead.
 func (*SearchAdminLogFiltersResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{41}
+	return file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *SearchAdminLogFiltersResponse) GetOptions() []*AdminLogFilterOption {
@@ -3052,7 +3416,28 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\"\xa6\x01\n" +
 	"$ListAvailableProviderDevicesResponse\x12H\n" +
 	"\adevices\x18\x01 \x03(\v2..pulse.controlplane.v1.AvailableProviderDeviceR\adevices\x124\n" +
-	"\x16has_active_credentials\x18\x02 \x01(\bR\x14hasActiveCredentials\"\xb1\x01\n" +
+	"\x16has_active_credentials\x18\x02 \x01(\bR\x14hasActiveCredentials\"\x9c\x01\n" +
+	"\x14EcoFlowBLEAuthStatus\x12\x1c\n" +
+	"\tconnected\x18\x01 \x01(\bR\tconnected\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12!\n" +
+	"\faccount_mask\x18\x03 \x01(\tR\vaccountMask\x12+\n" +
+	"\x12updated_at_unix_ms\x18\x04 \x01(\x03R\x0fupdatedAtUnixMs\"C\n" +
+	"\x1eGetEcoFlowBLEAuthStatusRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\"f\n" +
+	"\x1fGetEcoFlowBLEAuthStatusResponse\x12C\n" +
+	"\x06status\x18\x01 \x01(\v2+.pulse.controlplane.v1.EcoFlowBLEAuthStatusR\x06status\"s\n" +
+	"\x1cConnectEcoFlowBLEAuthRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\"d\n" +
+	"\x1dConnectEcoFlowBLEAuthResponse\x12C\n" +
+	"\x06status\x18\x01 \x01(\v2+.pulse.controlplane.v1.EcoFlowBLEAuthStatusR\x06status\"\x81\x01\n" +
+	"\x1eSetEcoFlowBLEAuthUserIDRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12#\n" +
+	"\raccount_label\x18\x03 \x01(\tR\faccountLabel\"f\n" +
+	"\x1fSetEcoFlowBLEAuthUserIDResponse\x12C\n" +
+	"\x06status\x18\x01 \x01(\v2+.pulse.controlplane.v1.EcoFlowBLEAuthStatusR\x06status\"\xb1\x01\n" +
 	"\x1dTestProviderDeviceMQTTRequest\x12!\n" +
 	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12#\n" +
@@ -3102,7 +3487,7 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\n" +
 	"device_ids\x18\x06 \x03(\tR\tdeviceIds\"f\n" +
 	"\x1dSearchAdminLogFiltersResponse\x12E\n" +
-	"\aoptions\x18\x01 \x03(\v2+.pulse.controlplane.v1.AdminLogFilterOptionR\aoptions2\x8d\x11\n" +
+	"\aoptions\x18\x01 \x03(\v2+.pulse.controlplane.v1.AdminLogFilterOptionR\aoptions2\xa8\x14\n" +
 	"\x13ControlPlaneService\x12m\n" +
 	"\x0eGetCurrentUser\x12,.pulse.controlplane.v1.GetCurrentUserRequest\x1a-.pulse.controlplane.v1.GetCurrentUserResponse\x12v\n" +
 	"\x11UpdateCurrentUser\x12/.pulse.controlplane.v1.UpdateCurrentUserRequest\x1a0.pulse.controlplane.v1.UpdateCurrentUserResponse\x12\x91\x01\n" +
@@ -3117,7 +3502,10 @@ const file_pulse_controlplane_v1_control_plane_proto_rawDesc = "" +
 	"\x0fListUserDevices\x12-.pulse.controlplane.v1.ListUserDevicesRequest\x1a..pulse.controlplane.v1.ListUserDevicesResponse\x12d\n" +
 	"\vListDevices\x12).pulse.controlplane.v1.ListDevicesRequest\x1a*.pulse.controlplane.v1.ListDevicesResponse\x12p\n" +
 	"\x0fDiscoverDevices\x12-.pulse.controlplane.v1.DiscoverDevicesRequest\x1a..pulse.controlplane.v1.DiscoverDevicesResponse\x12\x97\x01\n" +
-	"\x1cListAvailableProviderDevices\x12:.pulse.controlplane.v1.ListAvailableProviderDevicesRequest\x1a;.pulse.controlplane.v1.ListAvailableProviderDevicesResponse\x12\x85\x01\n" +
+	"\x1cListAvailableProviderDevices\x12:.pulse.controlplane.v1.ListAvailableProviderDevicesRequest\x1a;.pulse.controlplane.v1.ListAvailableProviderDevicesResponse\x12\x88\x01\n" +
+	"\x17GetEcoFlowBLEAuthStatus\x125.pulse.controlplane.v1.GetEcoFlowBLEAuthStatusRequest\x1a6.pulse.controlplane.v1.GetEcoFlowBLEAuthStatusResponse\x12\x82\x01\n" +
+	"\x15ConnectEcoFlowBLEAuth\x123.pulse.controlplane.v1.ConnectEcoFlowBLEAuthRequest\x1a4.pulse.controlplane.v1.ConnectEcoFlowBLEAuthResponse\x12\x88\x01\n" +
+	"\x17SetEcoFlowBLEAuthUserID\x125.pulse.controlplane.v1.SetEcoFlowBLEAuthUserIDRequest\x1a6.pulse.controlplane.v1.SetEcoFlowBLEAuthUserIDResponse\x12\x85\x01\n" +
 	"\x16TestProviderDeviceMQTT\x124.pulse.controlplane.v1.TestProviderDeviceMQTTRequest\x1a5.pulse.controlplane.v1.TestProviderDeviceMQTTResponse\x12\x7f\n" +
 	"\x14EnableProviderDevice\x122.pulse.controlplane.v1.EnableProviderDeviceRequest\x1a3.pulse.controlplane.v1.EnableProviderDeviceResponse\x12\x7f\n" +
 	"\x14ImportProviderDevice\x122.pulse.controlplane.v1.ImportProviderDeviceRequest\x1a3.pulse.controlplane.v1.ImportProviderDeviceResponse\x12\x82\x01\n" +
@@ -3135,7 +3523,7 @@ func file_pulse_controlplane_v1_control_plane_proto_rawDescGZIP() []byte {
 	return file_pulse_controlplane_v1_control_plane_proto_rawDescData
 }
 
-var file_pulse_controlplane_v1_control_plane_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_pulse_controlplane_v1_control_plane_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
 var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*ProviderCredential)(nil),                   // 0: pulse.controlplane.v1.ProviderCredential
 	(*CreateProviderCredentialRequest)(nil),      // 1: pulse.controlplane.v1.CreateProviderCredentialRequest
@@ -3170,27 +3558,34 @@ var file_pulse_controlplane_v1_control_plane_proto_goTypes = []any{
 	(*AvailableProviderDevice)(nil),              // 30: pulse.controlplane.v1.AvailableProviderDevice
 	(*ListAvailableProviderDevicesRequest)(nil),  // 31: pulse.controlplane.v1.ListAvailableProviderDevicesRequest
 	(*ListAvailableProviderDevicesResponse)(nil), // 32: pulse.controlplane.v1.ListAvailableProviderDevicesResponse
-	(*TestProviderDeviceMQTTRequest)(nil),        // 33: pulse.controlplane.v1.TestProviderDeviceMQTTRequest
-	(*TestProviderDeviceMQTTResponse)(nil),       // 34: pulse.controlplane.v1.TestProviderDeviceMQTTResponse
-	(*EnableProviderDeviceRequest)(nil),          // 35: pulse.controlplane.v1.EnableProviderDeviceRequest
-	(*EnableProviderDeviceResponse)(nil),         // 36: pulse.controlplane.v1.EnableProviderDeviceResponse
-	(*ImportProviderDeviceRequest)(nil),          // 37: pulse.controlplane.v1.ImportProviderDeviceRequest
-	(*ImportProviderDeviceResponse)(nil),         // 38: pulse.controlplane.v1.ImportProviderDeviceResponse
-	(*AdminLogFilterOption)(nil),                 // 39: pulse.controlplane.v1.AdminLogFilterOption
-	(*SearchAdminLogFiltersRequest)(nil),         // 40: pulse.controlplane.v1.SearchAdminLogFiltersRequest
-	(*SearchAdminLogFiltersResponse)(nil),        // 41: pulse.controlplane.v1.SearchAdminLogFiltersResponse
-	(*structpb.Struct)(nil),                      // 42: google.protobuf.Struct
+	(*EcoFlowBLEAuthStatus)(nil),                 // 33: pulse.controlplane.v1.EcoFlowBLEAuthStatus
+	(*GetEcoFlowBLEAuthStatusRequest)(nil),       // 34: pulse.controlplane.v1.GetEcoFlowBLEAuthStatusRequest
+	(*GetEcoFlowBLEAuthStatusResponse)(nil),      // 35: pulse.controlplane.v1.GetEcoFlowBLEAuthStatusResponse
+	(*ConnectEcoFlowBLEAuthRequest)(nil),         // 36: pulse.controlplane.v1.ConnectEcoFlowBLEAuthRequest
+	(*ConnectEcoFlowBLEAuthResponse)(nil),        // 37: pulse.controlplane.v1.ConnectEcoFlowBLEAuthResponse
+	(*SetEcoFlowBLEAuthUserIDRequest)(nil),       // 38: pulse.controlplane.v1.SetEcoFlowBLEAuthUserIDRequest
+	(*SetEcoFlowBLEAuthUserIDResponse)(nil),      // 39: pulse.controlplane.v1.SetEcoFlowBLEAuthUserIDResponse
+	(*TestProviderDeviceMQTTRequest)(nil),        // 40: pulse.controlplane.v1.TestProviderDeviceMQTTRequest
+	(*TestProviderDeviceMQTTResponse)(nil),       // 41: pulse.controlplane.v1.TestProviderDeviceMQTTResponse
+	(*EnableProviderDeviceRequest)(nil),          // 42: pulse.controlplane.v1.EnableProviderDeviceRequest
+	(*EnableProviderDeviceResponse)(nil),         // 43: pulse.controlplane.v1.EnableProviderDeviceResponse
+	(*ImportProviderDeviceRequest)(nil),          // 44: pulse.controlplane.v1.ImportProviderDeviceRequest
+	(*ImportProviderDeviceResponse)(nil),         // 45: pulse.controlplane.v1.ImportProviderDeviceResponse
+	(*AdminLogFilterOption)(nil),                 // 46: pulse.controlplane.v1.AdminLogFilterOption
+	(*SearchAdminLogFiltersRequest)(nil),         // 47: pulse.controlplane.v1.SearchAdminLogFiltersRequest
+	(*SearchAdminLogFiltersResponse)(nil),        // 48: pulse.controlplane.v1.SearchAdminLogFiltersResponse
+	(*structpb.Struct)(nil),                      // 49: google.protobuf.Struct
 }
 var file_pulse_controlplane_v1_control_plane_proto_depIdxs = []int32{
-	42, // 0: pulse.controlplane.v1.ProviderCredential.config:type_name -> google.protobuf.Struct
-	42, // 1: pulse.controlplane.v1.CreateProviderCredentialRequest.config:type_name -> google.protobuf.Struct
+	49, // 0: pulse.controlplane.v1.ProviderCredential.config:type_name -> google.protobuf.Struct
+	49, // 1: pulse.controlplane.v1.CreateProviderCredentialRequest.config:type_name -> google.protobuf.Struct
 	0,  // 2: pulse.controlplane.v1.CreateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 3: pulse.controlplane.v1.ListProviderCredentialsResponse.credentials:type_name -> pulse.controlplane.v1.ProviderCredential
 	0,  // 4: pulse.controlplane.v1.SetProviderCredentialActiveResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	42, // 5: pulse.controlplane.v1.UpdateProviderCredentialRequest.config:type_name -> google.protobuf.Struct
+	49, // 5: pulse.controlplane.v1.UpdateProviderCredentialRequest.config:type_name -> google.protobuf.Struct
 	0,  // 6: pulse.controlplane.v1.UpdateProviderCredentialResponse.credential:type_name -> pulse.controlplane.v1.ProviderCredential
-	42, // 7: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
-	42, // 8: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
+	49, // 7: pulse.controlplane.v1.ProviderDevice.capabilities:type_name -> google.protobuf.Struct
+	49, // 8: pulse.controlplane.v1.ProviderDevice.metadata:type_name -> google.protobuf.Struct
 	11, // 9: pulse.controlplane.v1.GetCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
 	12, // 10: pulse.controlplane.v1.GetCurrentUserResponse.authorization:type_name -> pulse.controlplane.v1.AuthorizationSummary
 	11, // 11: pulse.controlplane.v1.UpdateCurrentUserResponse.user:type_name -> pulse.controlplane.v1.CurrentUser
@@ -3201,53 +3596,62 @@ var file_pulse_controlplane_v1_control_plane_proto_depIdxs = []int32{
 	9,  // 16: pulse.controlplane.v1.ProviderDeviceGroup.devices:type_name -> pulse.controlplane.v1.ProviderDevice
 	25, // 17: pulse.controlplane.v1.ListDevicesResponse.groups:type_name -> pulse.controlplane.v1.ProviderDeviceGroup
 	9,  // 18: pulse.controlplane.v1.DiscoverDevicesResponse.devices:type_name -> pulse.controlplane.v1.ProviderDevice
-	42, // 19: pulse.controlplane.v1.AvailableProviderDevice.capabilities:type_name -> google.protobuf.Struct
-	42, // 20: pulse.controlplane.v1.AvailableProviderDevice.metadata:type_name -> google.protobuf.Struct
+	49, // 19: pulse.controlplane.v1.AvailableProviderDevice.capabilities:type_name -> google.protobuf.Struct
+	49, // 20: pulse.controlplane.v1.AvailableProviderDevice.metadata:type_name -> google.protobuf.Struct
 	30, // 21: pulse.controlplane.v1.ListAvailableProviderDevicesResponse.devices:type_name -> pulse.controlplane.v1.AvailableProviderDevice
-	9,  // 22: pulse.controlplane.v1.EnableProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
-	10, // 23: pulse.controlplane.v1.EnableProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
-	9,  // 24: pulse.controlplane.v1.ImportProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
-	10, // 25: pulse.controlplane.v1.ImportProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
-	39, // 26: pulse.controlplane.v1.SearchAdminLogFiltersResponse.options:type_name -> pulse.controlplane.v1.AdminLogFilterOption
-	13, // 27: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:input_type -> pulse.controlplane.v1.GetCurrentUserRequest
-	15, // 28: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:input_type -> pulse.controlplane.v1.UpdateCurrentUserRequest
-	17, // 29: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:input_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
-	1,  // 30: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
-	3,  // 31: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
-	5,  // 32: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
-	7,  // 33: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:input_type -> pulse.controlplane.v1.UpdateProviderCredentialRequest
-	19, // 34: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
-	21, // 35: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
-	23, // 36: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
-	26, // 37: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
-	28, // 38: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
-	31, // 39: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:input_type -> pulse.controlplane.v1.ListAvailableProviderDevicesRequest
-	33, // 40: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:input_type -> pulse.controlplane.v1.TestProviderDeviceMQTTRequest
-	35, // 41: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:input_type -> pulse.controlplane.v1.EnableProviderDeviceRequest
-	37, // 42: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:input_type -> pulse.controlplane.v1.ImportProviderDeviceRequest
-	40, // 43: pulse.controlplane.v1.ControlPlaneService.SearchAdminLogFilters:input_type -> pulse.controlplane.v1.SearchAdminLogFiltersRequest
-	14, // 44: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:output_type -> pulse.controlplane.v1.GetCurrentUserResponse
-	16, // 45: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:output_type -> pulse.controlplane.v1.UpdateCurrentUserResponse
-	18, // 46: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:output_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
-	2,  // 47: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
-	4,  // 48: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
-	6,  // 49: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
-	8,  // 50: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:output_type -> pulse.controlplane.v1.UpdateProviderCredentialResponse
-	20, // 51: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
-	22, // 52: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
-	24, // 53: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
-	27, // 54: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
-	29, // 55: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
-	32, // 56: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:output_type -> pulse.controlplane.v1.ListAvailableProviderDevicesResponse
-	34, // 57: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:output_type -> pulse.controlplane.v1.TestProviderDeviceMQTTResponse
-	36, // 58: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:output_type -> pulse.controlplane.v1.EnableProviderDeviceResponse
-	38, // 59: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:output_type -> pulse.controlplane.v1.ImportProviderDeviceResponse
-	41, // 60: pulse.controlplane.v1.ControlPlaneService.SearchAdminLogFilters:output_type -> pulse.controlplane.v1.SearchAdminLogFiltersResponse
-	44, // [44:61] is the sub-list for method output_type
-	27, // [27:44] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	33, // 22: pulse.controlplane.v1.GetEcoFlowBLEAuthStatusResponse.status:type_name -> pulse.controlplane.v1.EcoFlowBLEAuthStatus
+	33, // 23: pulse.controlplane.v1.ConnectEcoFlowBLEAuthResponse.status:type_name -> pulse.controlplane.v1.EcoFlowBLEAuthStatus
+	33, // 24: pulse.controlplane.v1.SetEcoFlowBLEAuthUserIDResponse.status:type_name -> pulse.controlplane.v1.EcoFlowBLEAuthStatus
+	9,  // 25: pulse.controlplane.v1.EnableProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
+	10, // 26: pulse.controlplane.v1.EnableProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
+	9,  // 27: pulse.controlplane.v1.ImportProviderDeviceResponse.provider_device:type_name -> pulse.controlplane.v1.ProviderDevice
+	10, // 28: pulse.controlplane.v1.ImportProviderDeviceResponse.user_device:type_name -> pulse.controlplane.v1.UserDevice
+	46, // 29: pulse.controlplane.v1.SearchAdminLogFiltersResponse.options:type_name -> pulse.controlplane.v1.AdminLogFilterOption
+	13, // 30: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:input_type -> pulse.controlplane.v1.GetCurrentUserRequest
+	15, // 31: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:input_type -> pulse.controlplane.v1.UpdateCurrentUserRequest
+	17, // 32: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:input_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityRequest
+	1,  // 33: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:input_type -> pulse.controlplane.v1.CreateProviderCredentialRequest
+	3,  // 34: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:input_type -> pulse.controlplane.v1.ListProviderCredentialsRequest
+	5,  // 35: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:input_type -> pulse.controlplane.v1.SetProviderCredentialActiveRequest
+	7,  // 36: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:input_type -> pulse.controlplane.v1.UpdateProviderCredentialRequest
+	19, // 37: pulse.controlplane.v1.ControlPlaneService.CreateDevice:input_type -> pulse.controlplane.v1.CreateDeviceRequest
+	21, // 38: pulse.controlplane.v1.ControlPlaneService.LinkDevice:input_type -> pulse.controlplane.v1.LinkDeviceRequest
+	23, // 39: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:input_type -> pulse.controlplane.v1.ListUserDevicesRequest
+	26, // 40: pulse.controlplane.v1.ControlPlaneService.ListDevices:input_type -> pulse.controlplane.v1.ListDevicesRequest
+	28, // 41: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:input_type -> pulse.controlplane.v1.DiscoverDevicesRequest
+	31, // 42: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:input_type -> pulse.controlplane.v1.ListAvailableProviderDevicesRequest
+	34, // 43: pulse.controlplane.v1.ControlPlaneService.GetEcoFlowBLEAuthStatus:input_type -> pulse.controlplane.v1.GetEcoFlowBLEAuthStatusRequest
+	36, // 44: pulse.controlplane.v1.ControlPlaneService.ConnectEcoFlowBLEAuth:input_type -> pulse.controlplane.v1.ConnectEcoFlowBLEAuthRequest
+	38, // 45: pulse.controlplane.v1.ControlPlaneService.SetEcoFlowBLEAuthUserID:input_type -> pulse.controlplane.v1.SetEcoFlowBLEAuthUserIDRequest
+	40, // 46: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:input_type -> pulse.controlplane.v1.TestProviderDeviceMQTTRequest
+	42, // 47: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:input_type -> pulse.controlplane.v1.EnableProviderDeviceRequest
+	44, // 48: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:input_type -> pulse.controlplane.v1.ImportProviderDeviceRequest
+	47, // 49: pulse.controlplane.v1.ControlPlaneService.SearchAdminLogFilters:input_type -> pulse.controlplane.v1.SearchAdminLogFiltersRequest
+	14, // 50: pulse.controlplane.v1.ControlPlaneService.GetCurrentUser:output_type -> pulse.controlplane.v1.GetCurrentUserResponse
+	16, // 51: pulse.controlplane.v1.ControlPlaneService.UpdateCurrentUser:output_type -> pulse.controlplane.v1.UpdateCurrentUserResponse
+	18, // 52: pulse.controlplane.v1.ControlPlaneService.RefreshCurrentUserIdentity:output_type -> pulse.controlplane.v1.RefreshCurrentUserIdentityResponse
+	2,  // 53: pulse.controlplane.v1.ControlPlaneService.CreateProviderCredential:output_type -> pulse.controlplane.v1.CreateProviderCredentialResponse
+	4,  // 54: pulse.controlplane.v1.ControlPlaneService.ListProviderCredentials:output_type -> pulse.controlplane.v1.ListProviderCredentialsResponse
+	6,  // 55: pulse.controlplane.v1.ControlPlaneService.SetProviderCredentialActive:output_type -> pulse.controlplane.v1.SetProviderCredentialActiveResponse
+	8,  // 56: pulse.controlplane.v1.ControlPlaneService.UpdateProviderCredential:output_type -> pulse.controlplane.v1.UpdateProviderCredentialResponse
+	20, // 57: pulse.controlplane.v1.ControlPlaneService.CreateDevice:output_type -> pulse.controlplane.v1.CreateDeviceResponse
+	22, // 58: pulse.controlplane.v1.ControlPlaneService.LinkDevice:output_type -> pulse.controlplane.v1.LinkDeviceResponse
+	24, // 59: pulse.controlplane.v1.ControlPlaneService.ListUserDevices:output_type -> pulse.controlplane.v1.ListUserDevicesResponse
+	27, // 60: pulse.controlplane.v1.ControlPlaneService.ListDevices:output_type -> pulse.controlplane.v1.ListDevicesResponse
+	29, // 61: pulse.controlplane.v1.ControlPlaneService.DiscoverDevices:output_type -> pulse.controlplane.v1.DiscoverDevicesResponse
+	32, // 62: pulse.controlplane.v1.ControlPlaneService.ListAvailableProviderDevices:output_type -> pulse.controlplane.v1.ListAvailableProviderDevicesResponse
+	35, // 63: pulse.controlplane.v1.ControlPlaneService.GetEcoFlowBLEAuthStatus:output_type -> pulse.controlplane.v1.GetEcoFlowBLEAuthStatusResponse
+	37, // 64: pulse.controlplane.v1.ControlPlaneService.ConnectEcoFlowBLEAuth:output_type -> pulse.controlplane.v1.ConnectEcoFlowBLEAuthResponse
+	39, // 65: pulse.controlplane.v1.ControlPlaneService.SetEcoFlowBLEAuthUserID:output_type -> pulse.controlplane.v1.SetEcoFlowBLEAuthUserIDResponse
+	41, // 66: pulse.controlplane.v1.ControlPlaneService.TestProviderDeviceMQTT:output_type -> pulse.controlplane.v1.TestProviderDeviceMQTTResponse
+	43, // 67: pulse.controlplane.v1.ControlPlaneService.EnableProviderDevice:output_type -> pulse.controlplane.v1.EnableProviderDeviceResponse
+	45, // 68: pulse.controlplane.v1.ControlPlaneService.ImportProviderDevice:output_type -> pulse.controlplane.v1.ImportProviderDeviceResponse
+	48, // 69: pulse.controlplane.v1.ControlPlaneService.SearchAdminLogFilters:output_type -> pulse.controlplane.v1.SearchAdminLogFiltersResponse
+	50, // [50:70] is the sub-list for method output_type
+	30, // [30:50] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_pulse_controlplane_v1_control_plane_proto_init() }
@@ -3261,7 +3665,7 @@ func file_pulse_controlplane_v1_control_plane_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_controlplane_v1_control_plane_proto_rawDesc), len(file_pulse_controlplane_v1_control_plane_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   42,
+			NumMessages:   49,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

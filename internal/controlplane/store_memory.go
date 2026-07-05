@@ -70,6 +70,10 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
+func (s *MemoryStore) ProviderCredentialSecretsEncrypted() bool {
+	return true
+}
+
 func (s *MemoryStore) EnsureUser(userSubject string) string {
 	subject := strings.TrimSpace(userSubject)
 	if subject == "" {
@@ -246,6 +250,20 @@ func (s *MemoryStore) GetProviderCredential(_ context.Context, userSubject strin
 		return ProviderCredential{}, ErrCredentialNotFound
 	}
 	return cloneProviderCredential(row), nil
+}
+
+func (s *MemoryStore) GetActiveProviderCredentialByUserID(_ context.Context, userID string, provider string) (ProviderCredential, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	userID = strings.TrimSpace(userID)
+	provider = NormalizeProvider(provider)
+	for _, row := range s.credentials {
+		if row.UserID == userID && row.Provider == provider && row.IsActive {
+			return cloneProviderCredential(row), nil
+		}
+	}
+	return ProviderCredential{}, ErrCredentialNotFound
 }
 
 func (s *MemoryStore) setExclusiveCredentialActiveLocked(userID, provider, credentialID string, now time.Time) {
@@ -932,7 +950,7 @@ func (s *MemoryStore) CreateEdgeCollector(_ context.Context, in CreateEdgeCollec
 		displayName = "Pulse Edge Collector"
 	}
 	row := EdgeCollector{
-		ID:             s.nextID("edgecol"),
+		ID:             s.nextUUID(),
 		UserID:         userID,
 		DisplayName:    displayName,
 		SetupTokenHash: setupTokenHash,
@@ -967,6 +985,27 @@ func (s *MemoryStore) ListEdgeCollectors(_ context.Context, in ListEdgeCollector
 	return out, nil
 }
 
+func (s *MemoryStore) RevokeEdgeCollectorSetupToken(_ context.Context, in RevokeEdgeCollectorSetupTokenInput) (EdgeCollector, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID, ok := s.usersBySubject[strings.TrimSpace(in.UserSubject)]
+	if !ok {
+		return EdgeCollector{}, ErrUserNotFound
+	}
+	collectorID := strings.TrimSpace(in.CollectorID)
+	row, ok := s.edgeCollectors[collectorID]
+	if !ok || row.UserID != userID {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	if !row.IsActive && strings.TrimSpace(row.SetupTokenHash) != "" {
+		row.SetupTokenHash = ""
+		row.UpdatedAt = normalizeWriteTime(s.now())
+		s.edgeCollectors[collectorID] = row
+	}
+	return cloneEdgeCollector(row), nil
+}
+
 func (s *MemoryStore) EnrollEdgeCollector(_ context.Context, in EnrollEdgeCollectorInput) (EdgeCollector, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -981,6 +1020,9 @@ func (s *MemoryStore) EnrollEdgeCollector(_ context.Context, in EnrollEdgeCollec
 		if row.SetupTokenHash != setupTokenHash {
 			continue
 		}
+		if row.IsActive || row.CreatedAt.Before(edgeCollectorSetupTokenCutoff(now)) {
+			break
+		}
 		row.SetupTokenHash = ""
 		row.CollectorSecretHash = collectorSecretHash
 		row.CollectorVersion = strings.TrimSpace(in.CollectorVersion)
@@ -990,6 +1032,23 @@ func (s *MemoryStore) EnrollEdgeCollector(_ context.Context, in EnrollEdgeCollec
 		row.UpdatedAt = now
 		s.edgeCollectors[id] = row
 		return cloneEdgeCollector(row), nil
+	}
+	return EdgeCollector{}, ErrEdgeCollectorNotFound
+}
+
+func (s *MemoryStore) GetEdgeCollectorBySetupTokenHash(_ context.Context, setupTokenHash string) (EdgeCollector, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	setupTokenHash = strings.TrimSpace(setupTokenHash)
+	if setupTokenHash == "" {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	now := normalizeWriteTime(s.now())
+	for _, row := range s.edgeCollectors {
+		if row.SetupTokenHash == setupTokenHash && !row.IsActive && !row.CreatedAt.Before(edgeCollectorSetupTokenCutoff(now)) {
+			return cloneEdgeCollector(row), nil
+		}
 	}
 	return EdgeCollector{}, ErrEdgeCollectorNotFound
 }
@@ -1061,7 +1120,7 @@ func (s *MemoryStore) UpsertEdgeDeviceSource(_ context.Context, in UpsertEdgeDev
 		observedAt = now
 	}
 	if existingID == "" {
-		existingID = s.nextID("edgesrc")
+		existingID = s.nextUUID()
 	}
 	row := s.edgeSources[existingID]
 	if row.ID == "" {
@@ -1071,7 +1130,7 @@ func (s *MemoryStore) UpsertEdgeDeviceSource(_ context.Context, in UpsertEdgeDev
 		row.Provider = provider
 		row.Transport = transport
 		row.ProviderDeviceID = providerDeviceID
-		row.Status = "pending"
+		row.Status = EdgeDeviceSourceStatusPending
 		row.CreatedAt = now
 	}
 	row.DisplayName = strings.TrimSpace(in.DisplayName)
@@ -1129,6 +1188,9 @@ func (s *MemoryStore) ApproveEdgeDeviceSource(_ context.Context, in ApproveEdgeD
 	if !ok || source.UserID != userID {
 		return ApprovedEdgeDeviceSource{}, ErrEdgeDeviceSourceNotFound
 	}
+	if err := validateEdgeDeviceSourceApproval(source); err != nil {
+		return ApprovedEdgeDeviceSource{}, err
+	}
 	now := normalizeWriteTime(s.now())
 	var dev memoryDevice
 	deviceID := strings.TrimSpace(in.DeviceID)
@@ -1141,6 +1203,9 @@ func (s *MemoryStore) ApproveEdgeDeviceSource(_ context.Context, in ApproveEdgeD
 		if role != "admin" {
 			return ApprovedEdgeDeviceSource{}, ErrPermissionDenied
 		}
+		if err := validateEdgeDeviceSourceTarget(source, existing.EcoflowSN); err != nil {
+			return ApprovedEdgeDeviceSource{}, err
+		}
 		dev = existing
 	} else {
 		productName := strings.TrimSpace(in.ProductName)
@@ -1151,15 +1216,30 @@ func (s *MemoryStore) ApproveEdgeDeviceSource(_ context.Context, in ApproveEdgeD
 		if model == "" {
 			model = source.Model
 		}
-		var created bool
-		dev, created = s.ensureDeviceLocked(source.ProviderDeviceID, productName, model, now)
-		if !created {
+		canonicalSN := strings.ToUpper(strings.TrimSpace(source.ProviderDeviceID))
+		if existingID, ok := s.deviceBySN[canonicalSN]; ok {
+			if s.userDevices[userID][existingID] != "admin" {
+				return ApprovedEdgeDeviceSource{}, ErrPermissionDenied
+			}
+			dev = s.devicesByID[existingID]
+			if productName != "" {
+				dev.ProductName = productName
+			}
+			if model != "" {
+				dev.Model = model
+			}
 			dev.UpdatedAt = now
 			s.devicesByID[dev.ID] = dev
+		} else {
+			var created bool
+			dev, created = s.ensureDeviceLocked(source.ProviderDeviceID, productName, model, now)
+			if !created {
+				return ApprovedEdgeDeviceSource{}, ErrPermissionDenied
+			}
 		}
 	}
 	s.ensureUserDeviceRoleLocked(userID, dev.ID, "admin")
-	source.Status = "linked"
+	source.Status = EdgeDeviceSourceStatusLinked
 	source.LinkedDeviceID = dev.ID
 	source.UpdatedAt = now
 	s.edgeSources[source.ID] = source
@@ -1190,7 +1270,7 @@ func (s *MemoryStore) GetLinkedEdgeDeviceSource(_ context.Context, in GetLinkedE
 			row.Provider == provider &&
 			row.Transport == transport &&
 			row.ProviderDeviceID == providerDeviceID &&
-			row.Status == "linked" &&
+			row.Status == EdgeDeviceSourceStatusLinked &&
 			strings.TrimSpace(row.LinkedDeviceID) != "" {
 			return cloneEdgeDeviceSource(row), nil
 		}
@@ -1225,7 +1305,7 @@ func (s *MemoryStore) ensureDeviceLocked(sn string, productName string, model st
 		return dev, false
 	}
 	dev := memoryDevice{
-		ID:          s.nextID("dev"),
+		ID:          s.nextUUID(),
 		EcoflowSN:   canonicalSN,
 		ProductName: strings.TrimSpace(productName),
 		Model:       strings.TrimSpace(model),
@@ -1247,6 +1327,11 @@ func (s *MemoryStore) ensureUserDeviceRoleLocked(userID string, deviceID string,
 func (s *MemoryStore) nextID(prefix string) string {
 	seq := atomic.AddUint64(&s.idCounter, 1)
 	return fmt.Sprintf("%s-%d", prefix, seq)
+}
+
+func (s *MemoryStore) nextUUID() string {
+	seq := atomic.AddUint64(&s.idCounter, 1)
+	return fmt.Sprintf("00000000-0000-4000-8000-%012x", seq)
 }
 
 func (s *MemoryStore) ensureUserLocked(subject string) CurrentUser {

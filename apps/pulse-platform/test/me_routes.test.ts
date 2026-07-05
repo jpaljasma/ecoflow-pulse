@@ -48,7 +48,10 @@ function makeDeviceClient(): DeviceClient {
   return {
     listDevices: vi.fn(async () => []),
     getDevice: vi.fn(async () => null),
-    listAvailableDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    listAvailableDevices: vi.fn(async () => ({
+      devices: [],
+      hasActiveCredentials: false
+    })),
     testAvailableDeviceMQTT: vi.fn(),
     enableAvailableDevice: vi.fn(async () => ({ deviceId: '' })),
     importAvailableDevice: vi.fn(async () => ({ deviceId: '' })),
@@ -112,7 +115,9 @@ function sampleProviderCredential(): ProviderCredential {
   };
 }
 
-function makeControlPlaneClient(overrides: Partial<ControlPlaneClient> = {}): ControlPlaneClient {
+function makeControlPlaneClient(
+  overrides: Partial<ControlPlaneClient> = {}
+): ControlPlaneClient {
   return {
     getCurrentUser: vi.fn(async () => sampleBootstrap()),
     updateCurrentUser: vi.fn(async () => sampleCurrentUser()),
@@ -121,9 +126,15 @@ function makeControlPlaneClient(overrides: Partial<ControlPlaneClient> = {}): Co
     createProviderCredential: vi.fn(async () => sampleProviderCredential()),
     updateProviderCredential: vi.fn(async () => sampleProviderCredential()),
     setProviderCredentialActive: vi.fn(async () => sampleProviderCredential()),
+    getEcoFlowBLEAuthStatus: vi.fn(),
+    connectEcoFlowBLEAuth: vi.fn(),
+    setEcoFlowBLEAuthUserID: vi.fn(),
     listUserDevices: vi.fn(async () => []),
     listDevices: vi.fn(async () => []),
-    listAvailableProviderDevices: vi.fn(async () => ({ devices: [], hasActiveCredentials: false })),
+    listAvailableProviderDevices: vi.fn(async () => ({
+      devices: [],
+      hasActiveCredentials: false
+    })),
     testProviderDeviceMQTT: vi.fn(),
     enableProviderDevice: vi.fn(),
     importProviderDevice: vi.fn(),
@@ -141,9 +152,15 @@ afterEach(() => {
 describe('pulse-platform current user routes', () => {
   it('returns the bootstrap payload from /api/v1/me', async () => {
     const controlPlaneClient = makeControlPlaneClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'GET',
@@ -182,15 +199,28 @@ describe('pulse-platform current user routes', () => {
 
   it('blocks user log filter lookups for non-admin users', async () => {
     const searchAdminLogFilters = vi.fn(async () => []);
-    const controlPlaneClient = makeControlPlaneClient({ searchAdminLogFilters });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      searchAdminLogFilters
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/admin/log-filter-options',
-      payload: { kind: 'user', query: 'owner', limit: 5, deviceIds: ['dev-1', 'dev-2'] }
+      payload: {
+        kind: 'user',
+        query: 'owner',
+        limit: 5,
+        deviceIds: ['dev-1', 'dev-2']
+      }
     });
 
     expect(response.statusCode).toBe(403);
@@ -210,10 +240,18 @@ describe('pulse-platform current user routes', () => {
         provider: 'pecron'
       }
     ]);
-    const controlPlaneClient = makeControlPlaneClient({ searchAdminLogFilters });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      searchAdminLogFilters
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -269,10 +307,19 @@ describe('pulse-platform current user routes', () => {
         deviceIds: ['dev-1', 'dev-2']
       }
     ]);
-    const controlPlaneClient = makeControlPlaneClient({ getCurrentUser, searchAdminLogFilters });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      getCurrentUser,
+      searchAdminLogFilters
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -280,7 +327,12 @@ describe('pulse-platform current user routes', () => {
       headers: {
         authorization: 'Bearer admin-token'
       },
-      payload: { kind: 'user', query: 'owner', limit: 5, deviceIds: ['dev-1', 'dev-2'] }
+      payload: {
+        kind: 'user',
+        query: 'owner',
+        limit: 5,
+        deviceIds: ['dev-1', 'dev-2']
+      }
     });
 
     expect(response.statusCode).toBe(200);
@@ -311,11 +363,21 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('lists integrations from /api/v1/integrations', async () => {
-    const listProviderCredentials = vi.fn(async () => [sampleProviderCredential()]);
-    const controlPlaneClient = makeControlPlaneClient({ listProviderCredentials });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const listProviderCredentials = vi.fn(async () => [
+      sampleProviderCredential()
+    ]);
+    const controlPlaneClient = makeControlPlaneClient({
+      listProviderCredentials
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'GET',
@@ -346,16 +408,26 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('updates provider credentials through /api/v1/integrations/:credentialId', async () => {
-    const updateProviderCredential = vi.fn<ControlPlaneClient['updateProviderCredential']>(async () => ({
+    const updateProviderCredential = vi.fn<
+      ControlPlaneClient['updateProviderCredential']
+    >(async () => ({
       ...sampleProviderCredential(),
       accessKeyMask: 'NEW1...9999',
       config: { region: 'eu' },
       updatedAtUnixMs: '1773431800000'
     }));
-    const controlPlaneClient = makeControlPlaneClient({ updateProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      updateProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'PATCH',
@@ -394,17 +466,27 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('preserves provider credential config when an update omits config', async () => {
-    const updateProviderCredential = vi.fn<ControlPlaneClient['updateProviderCredential']>(async () => ({
+    const updateProviderCredential = vi.fn<
+      ControlPlaneClient['updateProviderCredential']
+    >(async () => ({
       ...sampleProviderCredential(),
       provider: 'pecron',
       accessKeyMask: 'owne...test',
       config: { region: 'eu' },
       updatedAtUnixMs: '1773431800000'
     }));
-    const controlPlaneClient = makeControlPlaneClient({ updateProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      updateProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'PATCH',
@@ -419,7 +501,9 @@ describe('pulse-platform current user routes', () => {
     expect(response.statusCode).toBe(200);
     const updateInput = updateProviderCredential.mock.calls[0]?.[0];
     expect(updateInput).toBeDefined();
-    expect(Object.prototype.hasOwnProperty.call(updateInput, 'config')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(updateInput, 'config')).toBe(
+      false
+    );
     expect(response.json()).toEqual({
       integration: {
         id: '019d4a0d-0ff1-7d36-b8a1-b4dcb3c5e111',
@@ -436,17 +520,27 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('patches only provided Anker SOLIX config keys', async () => {
-    const updateProviderCredential = vi.fn<ControlPlaneClient['updateProviderCredential']>(async () => ({
+    const updateProviderCredential = vi.fn<
+      ControlPlaneClient['updateProviderCredential']
+    >(async () => ({
       ...sampleProviderCredential(),
       provider: 'anker_solix',
       accessKeyMask: 'owne...test',
       config: { server: 'eu', country: 'FI' },
       updatedAtUnixMs: '1773431800000'
     }));
-    const controlPlaneClient = makeControlPlaneClient({ updateProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      updateProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'PATCH',
@@ -477,10 +571,18 @@ describe('pulse-platform current user routes', () => {
       accessKeyMask: 'owne...test',
       config: { region: 'eu' }
     }));
-    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      createProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -527,10 +629,18 @@ describe('pulse-platform current user routes', () => {
       accessKeyMask: 'owne...test',
       config: { server: 'com', country: 'US' }
     }));
-    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      createProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -577,10 +687,18 @@ describe('pulse-platform current user routes', () => {
       accessKeyMask: 'owne...test',
       config: { server: 'com', country: 'US' }
     }));
-    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      createProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -606,11 +724,21 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('rejects invalid Anker SOLIX cloud config at the BFF boundary', async () => {
-    const createProviderCredential = vi.fn(async () => sampleProviderCredential());
-    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const createProviderCredential = vi.fn(async () =>
+      sampleProviderCredential()
+    );
+    const controlPlaneClient = makeControlPlaneClient({
+      createProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -640,10 +768,18 @@ describe('pulse-platform current user routes', () => {
         name: 'Error'
       } satisfies Partial<ServiceError>;
     });
-    const controlPlaneClient = makeControlPlaneClient({ createProviderCredential });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      createProviderCredential
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -670,16 +806,25 @@ describe('pulse-platform current user routes', () => {
     const setProviderCredentialActive = vi.fn(async () => {
       throw {
         code: grpcStatus.FAILED_PRECONDITION,
-        details: 'validate provider credential discovery: list ecoflow devices: ecoflow api business error code=8513 message=accessKey is invalid',
+        details:
+          'validate provider credential discovery: list ecoflow devices: ecoflow api business error code=8513 message=accessKey is invalid',
         message:
           'validate provider credential discovery: list ecoflow devices: ecoflow api business error code=8513 message=accessKey is invalid',
         name: 'Error'
       } satisfies Partial<ServiceError>;
     });
-    const controlPlaneClient = makeControlPlaneClient({ setProviderCredentialActive });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
+    const controlPlaneClient = makeControlPlaneClient({
+      setProviderCredentialActive
     });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'PATCH',
@@ -713,9 +858,15 @@ describe('pulse-platform current user routes', () => {
       hasWeatherLocation: false
     }));
     const controlPlaneClient = makeControlPlaneClient({ updateCurrentUser });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'PATCH',
@@ -759,9 +910,15 @@ describe('pulse-platform current user routes', () => {
   it('rejects invalid timezone values before calling gRPC', async () => {
     const updateCurrentUser = vi.fn(async () => sampleCurrentUser());
     const controlPlaneClient = makeControlPlaneClient({ updateCurrentUser });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'PATCH',
@@ -793,9 +950,15 @@ describe('pulse-platform current user routes', () => {
         throw error;
       })
     });
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     const response = await app.inject({
       method: 'GET',
@@ -815,9 +978,15 @@ describe('pulse-platform current user routes', () => {
 
   it('emits scrapeable metrics for current-user requests', async () => {
     const controlPlaneClient = makeControlPlaneClient();
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient
+      }
+    );
 
     await app.inject({
       method: 'GET',
@@ -839,9 +1008,15 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('emits scrapeable metrics for browser auth session recovery outcomes', async () => {
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient: makeControlPlaneClient()
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient: makeControlPlaneClient()
+      }
+    );
 
     const event = await app.inject({
       method: 'POST',
@@ -866,9 +1041,15 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('emits scrapeable metrics for client-observed REST request outcomes', async () => {
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient: makeControlPlaneClient()
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient: makeControlPlaneClient()
+      }
+    );
 
     const event = await app.inject({
       method: 'POST',
@@ -901,9 +1082,15 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('accepts client-observed REST metrics for the energy calendar route', async () => {
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient: makeControlPlaneClient()
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient: makeControlPlaneClient()
+      }
+    );
 
     const event = await app.inject({
       method: 'POST',
@@ -924,9 +1111,15 @@ describe('pulse-platform current user routes', () => {
   });
 
   it('accepts client-observed REST metrics for available-device routes', async () => {
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient: makeControlPlaneClient()
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient: makeControlPlaneClient()
+      }
+    );
 
     const event = await app.inject({
       method: 'POST',
@@ -954,10 +1147,57 @@ describe('pulse-platform current user routes', () => {
     await app.close();
   });
 
+  it('accepts client-observed REST metrics for BLE edge routes', async () => {
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient: makeControlPlaneClient()
+      }
+    );
+
+    const routes = [
+      '/api/v1/integrations/ecoflow-ble-auth',
+      '/api/v1/integrations/ecoflow-ble-auth/connect',
+      '/api/v1/integrations/ecoflow-ble-auth/manual',
+      '/api/v1/edge/collectors',
+      '/api/v1/edge/collectors/:collectorId/revoke-setup-token',
+      '/api/v1/edge/device-sources',
+      '/api/v1/edge/device-sources/:sourceId/approve'
+    ] as const;
+
+    for (const route of routes) {
+      const event = await app.inject({
+        method: 'POST',
+        url: '/api/v1/client-metrics/rest',
+        payload: {
+          route,
+          method: 'GET',
+          outcome: 'success',
+          statusClass: '2xx',
+          durationMs: 121,
+          errorKind: 'none'
+        }
+      });
+
+      expect(event.statusCode).toBe(202);
+    }
+
+    await app.close();
+  });
+
   it('emits scrapeable metrics for client-observed websocket outcomes', async () => {
-    const app = buildApp(baseConfig(), makeHistoryClient(), makeDeviceClient(), makeInferenceClient(), {
-      controlPlaneClient: makeControlPlaneClient()
-    });
+    const app = buildApp(
+      baseConfig(),
+      makeHistoryClient(),
+      makeDeviceClient(),
+      makeInferenceClient(),
+      {
+        controlPlaneClient: makeControlPlaneClient()
+      }
+    );
 
     const connectionEvent = await app.inject({
       method: 'POST',
@@ -1012,9 +1252,13 @@ describe('pulse-platform current user routes', () => {
     expect(metrics.body).toContain('outcome="connected"');
     expect(metrics.body).toContain('pulse_public_client_ws_disconnects_total');
     expect(metrics.body).toContain('reason="stalled"');
-    expect(metrics.body).toContain('pulse_public_client_ws_freshness_transitions_total');
+    expect(metrics.body).toContain(
+      'pulse_public_client_ws_freshness_transitions_total'
+    );
     expect(metrics.body).toContain('state="stale"');
-    expect(metrics.body).toContain('pulse_public_client_ws_stale_recovery_duration_seconds');
+    expect(metrics.body).toContain(
+      'pulse_public_client_ws_stale_recovery_duration_seconds'
+    );
 
     await app.close();
   });

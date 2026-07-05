@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	edgev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/edge/v1"
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/edgecollector"
@@ -15,9 +16,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	maxEdgeDiscoveryBatchRecords = 256
+	maxEdgeTelemetryBatchSamples = 512
+	maxEdgeTelemetryMetricFields = 128
+	maxEdgeTelemetryParams       = 256
+)
+
 type edgeControlStore interface {
 	CreateEdgeCollector(context.Context, controlplane.CreateEdgeCollectorInput) (controlplane.EdgeCollector, error)
 	ListEdgeCollectors(context.Context, controlplane.ListEdgeCollectorsInput) ([]controlplane.EdgeCollector, error)
+	RevokeEdgeCollectorSetupToken(context.Context, controlplane.RevokeEdgeCollectorSetupTokenInput) (controlplane.EdgeCollector, error)
+	GetEdgeCollectorBySetupTokenHash(context.Context, string) (controlplane.EdgeCollector, error)
 	EnrollEdgeCollector(context.Context, controlplane.EnrollEdgeCollectorInput) (controlplane.EdgeCollector, error)
 	AuthenticateEdgeCollector(context.Context, controlplane.AuthenticateEdgeCollectorInput) (controlplane.EdgeCollector, error)
 	UpdateEdgeCollectorHeartbeat(context.Context, controlplane.UpdateEdgeCollectorHeartbeatInput) (controlplane.EdgeCollector, error)
@@ -27,20 +37,67 @@ type edgeControlStore interface {
 	GetLinkedEdgeDeviceSource(context.Context, controlplane.GetLinkedEdgeDeviceSourceInput) (controlplane.EdgeDeviceSource, error)
 }
 
+type edgeCollectorEnvResolver interface {
+	CollectorEnv(ctx context.Context, collector controlplane.EdgeCollector) (map[string]string, error)
+}
+
+type edgeCollectorEnvResolverFunc func(context.Context, controlplane.EdgeCollector) (map[string]string, error)
+
+func (f edgeCollectorEnvResolverFunc) CollectorEnv(ctx context.Context, collector controlplane.EdgeCollector) (map[string]string, error) {
+	return f(ctx, collector)
+}
+
+type edgeCollectorEnvStore interface {
+	GetActiveProviderCredentialByUserID(context.Context, string, string) (controlplane.ProviderCredential, error)
+}
+
+func newEdgeCollectorEnvResolver(store edgeCollectorEnvStore) edgeCollectorEnvResolver {
+	return edgeCollectorEnvResolverFunc(func(ctx context.Context, collector controlplane.EdgeCollector) (map[string]string, error) {
+		credential, err := store.GetActiveProviderCredentialByUserID(ctx, collector.UserID, controlplane.ProviderEcoFlowBLE)
+		if err != nil {
+			if errors.Is(err, controlplane.ErrCredentialNotFound) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		userID := strings.TrimSpace(credential.SecretKey)
+		if userID == "" {
+			return nil, nil
+		}
+		return map[string]string{
+			edgecollector.EcoFlowBLEUserIDEnvKey: userID,
+		}, nil
+	})
+}
+
 type EdgeIngestService struct {
 	edgev1.UnimplementedEdgeIngestServiceServer
 
-	log        *slog.Logger
-	store      edgeControlStore
-	publisher  telemetrybus.EnvelopePublisher
-	subjectCfg telemetrybus.SubjectConfig
+	log         *slog.Logger
+	store       edgeControlStore
+	publisher   telemetrybus.EnvelopePublisher
+	subjectCfg  telemetrybus.SubjectConfig
+	envResolver edgeCollectorEnvResolver
 }
 
 type EdgeIngestServiceDeps struct {
-	Log        *slog.Logger
-	Store      edgeControlStore
-	Publisher  telemetrybus.EnvelopePublisher
-	SubjectCfg telemetrybus.SubjectConfig
+	Log         *slog.Logger
+	Store       edgeControlStore
+	Publisher   telemetrybus.EnvelopePublisher
+	SubjectCfg  telemetrybus.SubjectConfig
+	EnvResolver edgeCollectorEnvResolver
+}
+
+type linkedEdgeSourceLookup struct {
+	source controlplane.EdgeDeviceSource
+	found  bool
+}
+
+type linkedEdgeSourceCacheKey struct {
+	collectorID      string
+	provider         string
+	transport        string
+	providerDeviceID string
 }
 
 func NewEdgeIngestService(deps EdgeIngestServiceDeps) *EdgeIngestService {
@@ -49,10 +106,11 @@ func NewEdgeIngestService(deps EdgeIngestServiceDeps) *EdgeIngestService {
 		log = slog.Default()
 	}
 	return &EdgeIngestService{
-		log:        log,
-		store:      deps.Store,
-		publisher:  deps.Publisher,
-		subjectCfg: deps.SubjectCfg.Normalized(),
+		log:         log,
+		store:       deps.Store,
+		publisher:   deps.Publisher,
+		subjectCfg:  deps.SubjectCfg.Normalized(),
+		envResolver: deps.EnvResolver,
 	}
 }
 
@@ -101,6 +159,28 @@ func (s *EdgeIngestService) ListCollectors(ctx context.Context, req *edgev1.List
 	return &edgev1.ListCollectorsResponse{Collectors: out}, nil
 }
 
+func (s *EdgeIngestService) RevokeCollectorSetupToken(ctx context.Context, req *edgev1.RevokeCollectorSetupTokenRequest) (*edgev1.RevokeCollectorSetupTokenResponse, error) {
+	if s.store == nil {
+		return nil, status.Error(codes.FailedPrecondition, "edge store not configured")
+	}
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	collectorID, err := requireUUIDField(req.GetCollectorId(), "collector_id")
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.store.RevokeEdgeCollectorSetupToken(ctx, controlplane.RevokeEdgeCollectorSetupTokenInput{
+		UserSubject: userSubject,
+		CollectorID: collectorID,
+	})
+	if err != nil {
+		return nil, edgeStoreStatus("revoke edge collector setup token", err)
+	}
+	return &edgev1.RevokeCollectorSetupTokenResponse{Collector: edgeCollectorToProto(row)}, nil
+}
+
 func (s *EdgeIngestService) EnrollCollector(ctx context.Context, req *edgev1.EnrollCollectorRequest) (*edgev1.EnrollCollectorResponse, error) {
 	if s.store == nil {
 		return nil, status.Error(codes.FailedPrecondition, "edge store not configured")
@@ -113,8 +193,13 @@ func (s *EdgeIngestService) EnrollCollector(ctx context.Context, req *edgev1.Enr
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "generate edge collector secret: %v", err)
 	}
+	setupTokenHash := edgecollector.HashCollectorSecret(setupToken)
+	env, err := s.collectorEnvForSetupToken(ctx, setupTokenHash)
+	if err != nil {
+		return nil, err
+	}
 	row, err := s.store.EnrollEdgeCollector(ctx, controlplane.EnrollEdgeCollectorInput{
-		SetupTokenHash:      edgecollector.HashCollectorSecret(setupToken),
+		SetupTokenHash:      setupTokenHash,
 		CollectorSecretHash: edgecollector.HashCollectorSecret(collectorSecret),
 		CollectorVersion:    req.GetCollectorVersion(),
 		Hostname:            req.GetHostname(),
@@ -125,7 +210,42 @@ func (s *EdgeIngestService) EnrollCollector(ctx context.Context, req *edgev1.Enr
 	return &edgev1.EnrollCollectorResponse{
 		Collector:       edgeCollectorToProto(row),
 		CollectorSecret: collectorSecret,
+		CollectorEnv:    env,
 	}, nil
+}
+
+func (s *EdgeIngestService) collectorEnvForSetupToken(ctx context.Context, setupTokenHash string) (map[string]string, error) {
+	if s.envResolver == nil {
+		return nil, nil
+	}
+	collector, err := s.store.GetEdgeCollectorBySetupTokenHash(ctx, setupTokenHash)
+	if err != nil {
+		return nil, edgeStoreStatus("resolve edge collector setup", err)
+	}
+	return s.collectorEnv(ctx, collector)
+}
+
+func (s *EdgeIngestService) collectorEnv(ctx context.Context, collector controlplane.EdgeCollector) (map[string]string, error) {
+	if s.envResolver == nil {
+		return nil, nil
+	}
+	env, err := s.envResolver.CollectorEnv(ctx, collector)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resolve edge collector config: %v", err)
+	}
+	out := make(map[string]string, len(env))
+	for key, value := range env {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 func (s *EdgeIngestService) Heartbeat(ctx context.Context, req *edgev1.HeartbeatRequest) (*edgev1.HeartbeatResponse, error) {
@@ -148,6 +268,9 @@ func (s *EdgeIngestService) UploadDiscovery(ctx context.Context, req *edgev1.Upl
 	collector, err := s.authenticateCollector(ctx, req.GetCollectorSecret())
 	if err != nil {
 		return nil, err
+	}
+	if len(req.GetDiscoveries()) > maxEdgeDiscoveryBatchRecords {
+		return nil, status.Errorf(codes.InvalidArgument, "discovery batch exceeds max %d", maxEdgeDiscoveryBatchRecords)
 	}
 	var accepted uint32
 	for _, discovery := range req.GetDiscoveries() {
@@ -186,9 +309,13 @@ func (s *EdgeIngestService) ListDeviceSources(ctx context.Context, req *edgev1.L
 	if err != nil {
 		return nil, err
 	}
+	collectorID, err := optionalUUIDField(req.GetCollectorId(), "collector_id")
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.store.ListEdgeDeviceSources(ctx, controlplane.ListEdgeDeviceSourcesInput{
 		UserSubject: userSubject,
-		CollectorID: req.GetCollectorId(),
+		CollectorID: collectorID,
 		Status:      req.GetStatus(),
 	})
 	if err != nil {
@@ -209,10 +336,18 @@ func (s *EdgeIngestService) ApproveDeviceSource(ctx context.Context, req *edgev1
 	if err != nil {
 		return nil, err
 	}
+	sourceID, err := requireUUIDField(req.GetSourceId(), "source_id")
+	if err != nil {
+		return nil, err
+	}
+	deviceID, err := optionalUUIDField(req.GetDeviceId(), "device_id")
+	if err != nil {
+		return nil, err
+	}
 	approved, err := s.store.ApproveEdgeDeviceSource(ctx, controlplane.ApproveEdgeDeviceSourceInput{
 		UserSubject: userSubject,
-		SourceID:    req.GetSourceId(),
-		DeviceID:    req.GetDeviceId(),
+		SourceID:    sourceID,
+		DeviceID:    deviceID,
 		ProductName: req.GetProductName(),
 		Model:       req.GetModel(),
 	})
@@ -233,31 +368,44 @@ func (s *EdgeIngestService) UploadTelemetryBatch(ctx context.Context, req *edgev
 	if s.publisher == nil {
 		return nil, status.Error(codes.FailedPrecondition, "edge ingest publisher not configured")
 	}
+	if len(req.GetSamples()) > maxEdgeTelemetryBatchSamples {
+		return nil, status.Errorf(codes.InvalidArgument, "telemetry batch exceeds max %d", maxEdgeTelemetryBatchSamples)
+	}
 	var accepted, dropped uint32
+	var linkedSourceCache map[linkedEdgeSourceCacheKey]linkedEdgeSourceLookup
+	var seenMessageIDs map[string]struct{}
+	if len(req.GetSamples()) > 1 {
+		linkedSourceCache = make(map[linkedEdgeSourceCacheKey]linkedEdgeSourceLookup, len(req.GetSamples()))
+		seenMessageIDs = make(map[string]struct{}, len(req.GetSamples()))
+	}
 	for _, sample := range req.GetSamples() {
-		source, err := s.store.GetLinkedEdgeDeviceSource(ctx, controlplane.GetLinkedEdgeDeviceSourceInput{
-			CollectorID:      collector.ID,
-			Provider:         sample.GetProvider(),
-			Transport:        sample.GetTransport(),
-			ProviderDeviceID: sample.GetProviderDeviceId(),
-		})
+		if strings.TrimSpace(sample.GetProviderDeviceId()) == "" {
+			dropped++
+			continue
+		}
+		metrics := sample.GetMetrics()
+		if metrics == nil || len(metrics.GetFields()) == 0 || len(metrics.GetFields()) > maxEdgeTelemetryMetricFields {
+			dropped++
+			continue
+		}
+		source, found, err := s.linkedEdgeSourceForTelemetry(ctx, collector.ID, sample, linkedSourceCache)
 		if err != nil {
-			if errors.Is(err, controlplane.ErrEdgeDeviceSourceNotFound) {
-				dropped++
-				continue
-			}
 			return nil, edgeStoreStatus("resolve linked edge source", err)
+		}
+		if !found {
+			dropped++
+			continue
+		}
+		params := edgecollector.NormalizeEcoFlowBLEMetricStruct(metrics)
+		if len(params) == 0 || len(params) > maxEdgeTelemetryParams {
+			dropped++
+			continue
 		}
 		observedAt := time.UnixMilli(sample.GetObservedAtUnixMs()).UTC()
 		if sample.GetObservedAtUnixMs() <= 0 {
 			observedAt = time.Now().UTC()
 		}
-		params := edgecollector.NormalizeEcoFlowBLEMetrics(structToMap(sample.GetMetrics()))
-		if len(params) == 0 {
-			dropped++
-			continue
-		}
-		envelope, err := edgecollector.BuildTelemetryEnvelope(edgecollector.TelemetrySample{
+		envelope, err := edgecollector.BuildTelemetryEnvelopeWithOwnedParams(edgecollector.TelemetrySample{
 			CollectorID:      collector.ID,
 			DeviceID:         source.LinkedDeviceID,
 			Provider:         source.Provider,
@@ -265,10 +413,16 @@ func (s *EdgeIngestService) UploadTelemetryBatch(ctx context.Context, req *edgev
 			Transport:        source.Transport,
 			ObservedAt:       observedAt,
 			Params:           params,
-			ClientSampleID:   sample.GetClientSampleId(),
 		}, s.subjectCfg)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "build edge telemetry envelope: %v", err)
+		}
+		if seenMessageIDs != nil {
+			if _, ok := seenMessageIDs[envelope.GetMessageId()]; ok {
+				dropped++
+				continue
+			}
+			seenMessageIDs[envelope.GetMessageId()] = struct{}{}
 		}
 		if err := telemetrybus.PublishEnvelope(ctx, s.publisher, envelope); err != nil {
 			return nil, status.Errorf(codes.Unavailable, "publish edge telemetry: %v", err)
@@ -276,6 +430,57 @@ func (s *EdgeIngestService) UploadTelemetryBatch(ctx context.Context, req *edgev
 		accepted++
 	}
 	return &edgev1.UploadTelemetryBatchResponse{AcceptedCount: accepted, DroppedCount: dropped}, nil
+}
+
+func (s *EdgeIngestService) linkedEdgeSourceForTelemetry(
+	ctx context.Context,
+	collectorID string,
+	sample *edgev1.EdgeTelemetrySample,
+	cache map[linkedEdgeSourceCacheKey]linkedEdgeSourceLookup,
+) (controlplane.EdgeDeviceSource, bool, error) {
+	key := linkedEdgeSourceCacheKeyForTelemetry(collectorID, sample)
+	input := controlplane.GetLinkedEdgeDeviceSourceInput{
+		CollectorID:      key.collectorID,
+		Provider:         key.provider,
+		Transport:        key.transport,
+		ProviderDeviceID: key.providerDeviceID,
+	}
+	if cache == nil {
+		return s.lookupLinkedEdgeSource(ctx, input)
+	}
+	if cached, ok := cache[key]; ok {
+		return cached.source, cached.found, nil
+	}
+	source, found, err := s.lookupLinkedEdgeSource(ctx, input)
+	if err != nil {
+		return controlplane.EdgeDeviceSource{}, false, err
+	}
+	cache[key] = linkedEdgeSourceLookup{source: source, found: found}
+	return source, found, nil
+}
+
+func (s *EdgeIngestService) lookupLinkedEdgeSource(ctx context.Context, in controlplane.GetLinkedEdgeDeviceSourceInput) (controlplane.EdgeDeviceSource, bool, error) {
+	source, err := s.store.GetLinkedEdgeDeviceSource(ctx, in)
+	if errors.Is(err, controlplane.ErrEdgeDeviceSourceNotFound) {
+		return controlplane.EdgeDeviceSource{}, false, nil
+	}
+	if err != nil {
+		return controlplane.EdgeDeviceSource{}, false, err
+	}
+	return source, true, nil
+}
+
+func linkedEdgeSourceCacheKeyForTelemetry(collectorID string, sample *edgev1.EdgeTelemetrySample) linkedEdgeSourceCacheKey {
+	transport := strings.ToLower(strings.TrimSpace(sample.GetTransport()))
+	if transport == "" {
+		transport = "ble"
+	}
+	return linkedEdgeSourceCacheKey{
+		collectorID:      strings.TrimSpace(collectorID),
+		provider:         controlplane.NormalizeProvider(sample.GetProvider()),
+		transport:        transport,
+		providerDeviceID: strings.ToUpper(strings.TrimSpace(sample.GetProviderDeviceId())),
+	}
 }
 
 func (s *EdgeIngestService) authenticateCollector(ctx context.Context, collectorSecret string) (controlplane.EdgeCollector, error) {
@@ -297,6 +502,28 @@ func (s *EdgeIngestService) authenticateCollector(ctx context.Context, collector
 	return collector, nil
 }
 
+func requireUUIDField(value string, field string) (string, error) {
+	id := strings.TrimSpace(value)
+	if id == "" {
+		return "", status.Errorf(codes.InvalidArgument, "%s required", field)
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		return "", status.Errorf(codes.InvalidArgument, "%s must be a UUID", field)
+	}
+	return id, nil
+}
+
+func optionalUUIDField(value string, field string) (string, error) {
+	id := strings.TrimSpace(value)
+	if id == "" {
+		return "", nil
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		return "", status.Errorf(codes.InvalidArgument, "%s must be a UUID", field)
+	}
+	return id, nil
+}
+
 func edgeStoreStatus(operation string, err error) error {
 	switch {
 	case errors.Is(err, controlplane.ErrUserNotFound),
@@ -306,6 +533,9 @@ func edgeStoreStatus(operation string, err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, controlplane.ErrPermissionDenied):
 		return status.Error(codes.PermissionDenied, err.Error())
+	case errors.Is(err, controlplane.ErrEdgeDeviceSourceNotPending),
+		errors.Is(err, controlplane.ErrEdgeDeviceSourceTargetMismatch):
+		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
 		return controlPlaneStoreError(operation, err)
 	}

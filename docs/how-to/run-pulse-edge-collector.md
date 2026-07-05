@@ -92,24 +92,31 @@ non-appliance installs that do not expose the loopback gRPC service.
 
 ## Enroll
 
-Create a collector setup token through the Pulse edge collector API/UI, then
-exchange it on the Pi:
+In Pulse, open Devices, choose **Find available devices**, and connect EcoFlow
+BLE auth if the owner has devices that require authenticated BLE sessions. The
+normal path asks for the EcoFlow app email/password once, derives the EcoFlow
+BLE user ID on the Pulse backend, discards the password and temporary app token,
+and stores only encrypted derived auth material. The manual BLE user ID fallback
+is local setup/debug only and is blocked in the normal cloud-authenticated path.
+
+Create a collector setup token through the same Devices flow, then exchange it
+on the Pi:
 
 ```bash
-PULSE_EDGE_PROFILE=local pulse-edge-collector -enroll-token "$SETUP_TOKEN"
+tmp="$(mktemp)"
+PULSE_EDGE_PROFILE=local pulse-edge-collector -enroll-token "$SETUP_TOKEN" > "$tmp"
+printf 'PULSE_EDGE_PROFILE=local\n' >> "$tmp"
+sudo install -o root -g root -m 0640 "$tmp" /etc/pulse-edge/secret.env
+rm -f "$tmp"
 ```
 
-Store the printed secret in `/etc/pulse-edge/secret.env`:
+Enrollment always prints the collector secret and prints `ECOFLOW_BLE_USER_ID`
+only when BLE auth material is connected for the owner:
 
 ```bash
 PULSE_EDGE_COLLECTOR_SECRET=...
+ECOFLOW_BLE_USER_ID=...
 PULSE_EDGE_PROFILE=local
-```
-
-Protect the secret file:
-
-```bash
-sudo chmod 0640 /etc/pulse-edge/secret.env
 ```
 
 ## systemd
@@ -137,10 +144,13 @@ systemd start-limit window.
 When `PULSE_EDGE_OUTBOX_DIR` is set, discovery and telemetry uploads are written
 to a local JSON outbox and fsynced before send. Successful sends remove the
 outbox entry; failed sends stay on disk and replay after collector restart and
-after later successful heartbeats. Outbox files do not persist the collector
-secret; the current secret is added only when sending. Telemetry samples carry a
-stable `client_sample_id`, which the in-cluster edge ingest service records as
-the envelope `message_id` for retry dedupe downstream.
+after later successful heartbeats. The collector secures the outbox directory as
+private service storage; keep it root/service-owned and treat it as sensitive
+because it contains device identity and telemetry. Outbox files do not persist
+the collector secret; the current secret is added only when sending. Telemetry
+samples carry a stable `client_sample_id` for collector outbox identity, while
+the in-cluster edge ingest service derives its own stable envelope `message_id`
+from normalized sample content for downstream retry dedupe.
 
 If the BLE probe exits unexpectedly, the collector restarts it with capped
 exponential backoff. If BLE authentication fails, the collector exits with

@@ -133,10 +133,118 @@ export const ImportAvailableDevicePayloadSchema = z.object({
   ingestDesiredState: z.string().optional()
 });
 
+export const EdgeCollectorSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  isActive: z.boolean(),
+  lastHeartbeatAtUnixMs: z.string(),
+  createdAtUnixMs: z.string(),
+  updatedAtUnixMs: z.string(),
+  collectorVersion: z.string(),
+  hostname: z.string()
+});
+
+export const EdgeCollectorsResponseSchema = z.object({
+  collectors: z.array(EdgeCollectorSchema)
+});
+
+export const CreateEdgeCollectorPayloadSchema = z.object({
+  displayName: z.string().trim().min(1).max(128).optional()
+});
+
+export const CreateEdgeCollectorResponseSchema = z.object({
+  collector: EdgeCollectorSchema,
+  setupToken: z.string()
+});
+
+export const RevokeEdgeCollectorSetupTokenResponseSchema = z.object({
+  collector: EdgeCollectorSchema
+});
+
+export const EDGE_DEVICE_SOURCE_STATUS_PENDING = 'pending';
+export const EDGE_DEVICE_SOURCE_STATUS_LINKED = 'linked';
+export const EDGE_DEVICE_SOURCE_STATUS_IGNORED = 'ignored';
+export const EDGE_DEVICE_SOURCE_STATUS_UNKNOWN = 'unknown';
+export const EDGE_DEVICE_SOURCE_FILTER_STATUSES = [
+  EDGE_DEVICE_SOURCE_STATUS_PENDING,
+  EDGE_DEVICE_SOURCE_STATUS_LINKED,
+  EDGE_DEVICE_SOURCE_STATUS_IGNORED
+] as const;
+export const EDGE_DEVICE_SOURCE_STATUSES = [
+  ...EDGE_DEVICE_SOURCE_FILTER_STATUSES,
+  EDGE_DEVICE_SOURCE_STATUS_UNKNOWN
+] as const;
+
+export const EdgeDeviceSourceFilterStatusSchema = z.enum(
+  EDGE_DEVICE_SOURCE_FILTER_STATUSES
+);
+export const EdgeDeviceSourceStatusSchema = z.enum(EDGE_DEVICE_SOURCE_STATUSES);
+
+export const EdgeDeviceSourceSchema = z.object({
+  id: z.string(),
+  collectorId: z.string(),
+  provider: z.string(),
+  transport: z.string(),
+  displayName: z.string(),
+  model: z.string(),
+  status: EdgeDeviceSourceStatusSchema,
+  rawStatus: z.string().optional(),
+  linkedDeviceId: z.string(),
+  rssiDbm: z.number(),
+  lastSeenAtUnixMs: z.string(),
+  createdAtUnixMs: z.string(),
+  updatedAtUnixMs: z.string()
+});
+
+export const EdgeDeviceSourcesResponseSchema = z.object({
+  sources: z.array(EdgeDeviceSourceSchema)
+});
+
+export const ApproveEdgeDeviceSourcePayloadSchema = z.object({
+  sourceId: z.string().trim().min(1),
+  deviceId: z.string().trim().optional(),
+  productName: z.string().trim().max(128).optional(),
+  model: z.string().trim().max(128).optional()
+});
+
+export const ApproveEdgeDeviceSourceResponseSchema = z.object({
+  source: EdgeDeviceSourceSchema,
+  deviceId: z.string()
+});
+
 export type DeviceSummary = z.infer<typeof DeviceSchema>;
 export type DevicesResponse = z.infer<typeof DevicesResponseSchema>;
 export type AvailableDeviceSummary = z.infer<typeof AvailableDeviceSchema>;
-export type AvailableDevicesResponse = z.infer<typeof AvailableDevicesResponseSchema>;
+export type AvailableDevicesResponse = z.infer<
+  typeof AvailableDevicesResponseSchema
+>;
 export type DeviceMQTTTestResult = z.infer<typeof DeviceMQTTTestResultSchema>;
-export type EnableAvailableDeviceResponse = z.infer<typeof EnableAvailableDeviceResponseSchema>;
-export type ImportAvailableDevicePayload = z.infer<typeof ImportAvailableDevicePayloadSchema>;
+export type EnableAvailableDeviceResponse = z.infer<
+  typeof EnableAvailableDeviceResponseSchema
+>;
+export type ImportAvailableDevicePayload = z.infer<
+  typeof ImportAvailableDevicePayloadSchema
+>;
+export type EdgeCollector = z.infer<typeof EdgeCollectorSchema>;
+export type EdgeDeviceSourceFilterStatus = z.infer<
+  typeof EdgeDeviceSourceFilterStatusSchema
+>;
+export type EdgeDeviceSourceStatus = z.infer<
+  typeof EdgeDeviceSourceStatusSchema
+>;
+export type EdgeDeviceSource = z.infer<typeof EdgeDeviceSourceSchema>;
+export type CreateEdgeCollectorPayload = z.infer<
+  typeof CreateEdgeCollectorPayloadSchema
+>;
+export type CreateEdgeCollectorResponse = z.infer<
+  typeof CreateEdgeCollectorResponseSchema
+>;
+export type RevokeEdgeCollectorSetupTokenResponse = z.infer<
+  typeof RevokeEdgeCollectorSetupTokenResponseSchema
+>;
+export type ApproveEdgeDeviceSourcePayload = z.infer<
+  typeof ApproveEdgeDeviceSourcePayloadSchema
+>;
+export type ApproveEdgeDeviceSourceResponse = z.infer<
+  typeof ApproveEdgeDeviceSourceResponseSchema
+>;

@@ -10,6 +10,9 @@ const CanonicalClientRestRouteSchema = z.enum([
   '/api/v1/integrations',
   '/api/v1/integrations/:credentialId',
   '/api/v1/integrations/:credentialId/active',
+  '/api/v1/integrations/ecoflow-ble-auth',
+  '/api/v1/integrations/ecoflow-ble-auth/connect',
+  '/api/v1/integrations/ecoflow-ble-auth/manual',
   '/api/v1/energy/dashboard',
   '/api/v1/energy/calendar',
   '/api/v1/energy/pv-history',
@@ -24,6 +27,10 @@ const CanonicalClientRestRouteSchema = z.enum([
   '/api/v1/devices/:deviceId/history/compare',
   '/api/v1/devices/:deviceId/history/solar',
   '/api/v1/devices/:deviceId/insights',
+  '/api/v1/edge/collectors',
+  '/api/v1/edge/collectors/:collectorId/revoke-setup-token',
+  '/api/v1/edge/device-sources',
+  '/api/v1/edge/device-sources/:sourceId/approve',
   '/api/other'
 ]);
 

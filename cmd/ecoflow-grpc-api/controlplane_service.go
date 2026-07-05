@@ -14,10 +14,12 @@ import (
 	"github.com/jpaljasma/ecoflow-pulse/internal/controlplane"
 	"github.com/jpaljasma/ecoflow-pulse/internal/dbpool"
 	"github.com/jpaljasma/ecoflow-pulse/internal/grpcmw"
+	"github.com/jpaljasma/ecoflow-pulse/internal/logredact"
 	"github.com/jpaljasma/ecoflow-pulse/internal/provideradapter"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ankersolix"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflow"
 	"github.com/jpaljasma/ecoflow-pulse/pkg/ecoflowmqtt"
+	"github.com/jpaljasma/ecoflow-pulse/pkg/runtimecfg"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -48,6 +50,21 @@ type providerMQTTProber interface {
 	ProbeMQTT(ctx context.Context, credential controlplane.ProviderCredential, providerDeviceID string, timeout time.Duration) (provideradapter.MQTTProbeResult, error)
 }
 
+type ecoFlowAppLoginClient interface {
+	LoginApp(ctx context.Context, email string, password string) (ecoflow.AppLoginSession, error)
+}
+
+type providerCredentialEncryptionReporter interface {
+	ProviderCredentialSecretsEncrypted() bool
+}
+
+const (
+	ecoFlowBLEAuthConfigModeKey        = "auth_mode"
+	ecoFlowBLEAuthConfigAccountMaskKey = "account_mask"
+	ecoFlowBLEAuthModeLogin            = "login"
+	ecoFlowBLEAuthModeManual           = "manual"
+)
+
 type mqttResolverTLSConfigProvider interface {
 	MQTTTLSConfig() *tls.Config
 }
@@ -61,6 +78,9 @@ type ControlPlaneService struct {
 
 	newMQTTSubscriber mqttProbeSubscriberFactory
 	mqttProbeTimeout  time.Duration
+	ecoflowAppLogin   ecoFlowAppLoginClient
+
+	allowEcoFlowBLEManualAuth bool
 }
 
 func NewControlPlaneService(log *slog.Logger, store controlplane.Store, adapters *provideradapter.Registry) *ControlPlaneService {
@@ -75,6 +95,10 @@ func NewControlPlaneService(log *slog.Logger, store controlplane.Store, adapters
 			return ecoflowmqtt.NewSubscriber(cfg)
 		},
 		mqttProbeTimeout: defaultMQTTProbeTimeout,
+		ecoflowAppLogin: ecoflow.AppLoginClient{
+			UserAgent: "pulse-control-plane/1.0",
+		},
+		allowEcoFlowBLEManualAuth: allowEcoFlowBLEManualAuthFromEnv(),
 	}
 }
 
@@ -212,6 +236,9 @@ func (s *ControlPlaneService) CreateProviderCredential(ctx context.Context, req 
 	if !s.supportsProvider(provider) {
 		return nil, status.Error(codes.InvalidArgument, "unsupported provider")
 	}
+	if provider == controlplane.ProviderEcoFlowBLE {
+		return nil, dedicatedEcoFlowBLECredentialError()
+	}
 	config, err := normalizeProviderCredentialConfig(provider, structToMap(req.GetConfig()))
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -286,13 +313,16 @@ func (s *ControlPlaneService) SetProviderCredentialActive(ctx context.Context, r
 	if strings.TrimSpace(req.GetCredentialId()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "credential_id required")
 	}
+	existing, _, err := s.getProviderCredentialForUser(ctx, userSubject, "", req.GetCredentialId())
+	if err != nil {
+		return nil, err
+	}
+	if controlplane.NormalizeProvider(existing.Provider) == controlplane.ProviderEcoFlowBLE {
+		return nil, dedicatedEcoFlowBLECredentialError()
+	}
 	if req.GetIsActive() {
-		cred, _, err := s.getProviderCredentialForUser(ctx, userSubject, "", req.GetCredentialId())
-		if err != nil {
-			return nil, err
-		}
-		cred.IsActive = true
-		if err := s.validateProviderCredentialActivation(ctx, userSubject, cred); err != nil {
+		existing.IsActive = true
+		if err := s.validateProviderCredentialActivation(ctx, userSubject, existing); err != nil {
 			return nil, err
 		}
 	}
@@ -329,6 +359,9 @@ func (s *ControlPlaneService) UpdateProviderCredential(ctx context.Context, req 
 	existing, _, err := s.getProviderCredentialForUser(ctx, userSubject, "", req.GetCredentialId())
 	if err != nil {
 		return nil, err
+	}
+	if controlplane.NormalizeProvider(existing.Provider) == controlplane.ProviderEcoFlowBLE {
+		return nil, dedicatedEcoFlowBLECredentialError()
 	}
 	config := cloneMap(existing.Config)
 	if req.GetConfig() != nil {
@@ -676,6 +709,91 @@ func (s *ControlPlaneService) ListAvailableProviderDevices(ctx context.Context, 
 	}, nil
 }
 
+func (s *ControlPlaneService) GetEcoFlowBLEAuthStatus(ctx context.Context, req *controlplanev1.GetEcoFlowBLEAuthStatusRequest) (*controlplanev1.GetEcoFlowBLEAuthStatusResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	authStatus, err := s.ecoFlowBLEAuthStatus(ctx, userSubject)
+	if err != nil {
+		return nil, err
+	}
+	return &controlplanev1.GetEcoFlowBLEAuthStatusResponse{Status: authStatus}, nil
+}
+
+func (s *ControlPlaneService) ConnectEcoFlowBLEAuth(ctx context.Context, req *controlplanev1.ConnectEcoFlowBLEAuthRequest) (*controlplanev1.ConnectEcoFlowBLEAuthResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	email := strings.TrimSpace(req.GetEmail())
+	password := req.GetPassword()
+	if email == "" {
+		return nil, status.Error(codes.InvalidArgument, "email required")
+	}
+	if strings.TrimSpace(password) == "" {
+		return nil, status.Error(codes.InvalidArgument, "password required")
+	}
+	if err := s.requireEcoFlowBLEProviderCredentialEncryption(); err != nil {
+		return nil, err
+	}
+	if s.ecoflowAppLogin == nil {
+		return nil, status.Error(codes.FailedPrecondition, "ecoflow app login is not configured")
+	}
+	session, err := s.ecoflowAppLogin.LoginApp(ctx, email, password)
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn(
+				"ecoflow ble app login failed",
+				slog.String("account_ref", logredact.Email(email)),
+				slog.String("error_ref", logredact.Identifier(err.Error())),
+			)
+		}
+		return nil, status.Error(codes.FailedPrecondition, "ecoflow app login failed")
+	}
+	userID, err := normalizeEcoFlowBLEUserID(session.UserID)
+	if err != nil {
+		return nil, status.Error(codes.FailedPrecondition, "ecoflow app login response did not include a usable user id")
+	}
+	accountMask := controlplane.MaskAccessKey(email)
+	cred, err := s.upsertEcoFlowBLEAuthCredential(ctx, userSubject, email, userID, ecoFlowBLEAuthConfig(ecoFlowBLEAuthModeLogin, accountMask))
+	if err != nil {
+		return nil, err
+	}
+	return &controlplanev1.ConnectEcoFlowBLEAuthResponse{
+		Status: ecoFlowBLECredentialStatus(cred, "connected"),
+	}, nil
+}
+
+func (s *ControlPlaneService) SetEcoFlowBLEAuthUserID(ctx context.Context, req *controlplanev1.SetEcoFlowBLEAuthUserIDRequest) (*controlplanev1.SetEcoFlowBLEAuthUserIDResponse, error) {
+	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
+	if err != nil {
+		return nil, err
+	}
+	if !s.allowEcoFlowBLEManualAuth {
+		return nil, status.Error(codes.PermissionDenied, "manual ecoflow ble auth is only available in local setup mode")
+	}
+	userID, err := normalizeEcoFlowBLEUserID(req.GetUserId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if err := s.requireEcoFlowBLEProviderCredentialEncryption(); err != nil {
+		return nil, err
+	}
+	accountLabel := strings.TrimSpace(req.GetAccountLabel())
+	if accountLabel == "" {
+		accountLabel = "Manual EcoFlow BLE ID"
+	}
+	accountMask := controlplane.MaskAccessKey(accountLabel)
+	cred, err := s.upsertEcoFlowBLEAuthCredential(ctx, userSubject, syntheticEcoFlowBLEManualAccessKey(userSubject), userID, ecoFlowBLEAuthConfig(ecoFlowBLEAuthModeManual, accountMask))
+	if err != nil {
+		return nil, err
+	}
+	return &controlplanev1.SetEcoFlowBLEAuthUserIDResponse{
+		Status: ecoFlowBLECredentialStatus(cred, "connected"),
+	}, nil
+}
+
 func (s *ControlPlaneService) TestProviderDeviceMQTT(ctx context.Context, req *controlplanev1.TestProviderDeviceMQTTRequest) (*controlplanev1.TestProviderDeviceMQTTResponse, error) {
 	userSubject, err := resolveUserSubject(ctx, req.GetUserSubject())
 	if err != nil {
@@ -963,6 +1081,15 @@ func (s *ControlPlaneService) listAvailableProviderDevices(ctx context.Context, 
 	if len(activeCreds) == 0 {
 		return nil, false, nil
 	}
+	discoverableCreds := make([]controlplane.ProviderCredential, 0, len(activeCreds))
+	for i := range activeCreds {
+		if _, ok := s.adapters.Discoverer(activeCreds[i].Provider); ok {
+			discoverableCreds = append(discoverableCreds, activeCreds[i])
+		}
+	}
+	if len(discoverableCreds) == 0 {
+		return nil, true, nil
+	}
 	existing, err := s.store.ListProviderDevices(ctx, controlplane.ListProviderDevicesInput{
 		UserSubject: userSubject,
 		Provider:    provider,
@@ -976,19 +1103,16 @@ func (s *ControlPlaneService) listAvailableProviderDevices(ctx context.Context, 
 		existingKeys[availableProviderDeviceKey(existing[i].Provider, existing[i].ProviderDeviceID)] = struct{}{}
 	}
 	seen := make(map[string]struct{})
-	out := make([]controlplane.ProviderDevice, 0, len(activeCreds)*2)
-	for i := range activeCreds {
-		cred, err := s.store.GetProviderCredential(ctx, userSubject, activeCreds[i].ID)
+	out := make([]controlplane.ProviderDevice, 0, len(discoverableCreds)*2)
+	for i := range discoverableCreds {
+		cred, err := s.store.GetProviderCredential(ctx, userSubject, discoverableCreds[i].ID)
 		if err != nil {
 			if errors.Is(err, controlplane.ErrCredentialNotFound) {
 				continue
 			}
 			return nil, true, err
 		}
-		discoverer, ok := s.adapters.Discoverer(cred.Provider)
-		if !ok {
-			continue
-		}
+		discoverer, _ := s.adapters.Discoverer(cred.Provider)
 		discovered, err := discoverer.DiscoverDevices(ctx, cred)
 		if err != nil {
 			switch {
@@ -1024,6 +1148,184 @@ func (s *ControlPlaneService) listAvailableProviderDevices(ctx context.Context, 
 		return out[i].Provider < out[j].Provider
 	})
 	return out, true, nil
+}
+
+func (s *ControlPlaneService) ecoFlowBLEAuthStatus(ctx context.Context, userSubject string) (*controlplanev1.EcoFlowBLEAuthStatus, error) {
+	credentials, err := s.store.ListProviderCredentials(ctx, controlplane.ListProviderCredentialsInput{
+		UserSubject: userSubject,
+		Provider:    controlplane.ProviderEcoFlowBLE,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list ecoflow ble auth credentials: %v", err)
+	}
+	for i := range credentials {
+		if credentials[i].IsActive {
+			return ecoFlowBLECredentialStatus(credentials[i], "connected"), nil
+		}
+	}
+	return &controlplanev1.EcoFlowBLEAuthStatus{Connected: false, Status: "not_connected"}, nil
+}
+
+func (s *ControlPlaneService) upsertEcoFlowBLEAuthCredential(
+	ctx context.Context,
+	userSubject string,
+	accessKey string,
+	userID string,
+	config map[string]any,
+) (controlplane.ProviderCredential, error) {
+	if err := s.requireEcoFlowBLEProviderCredentialEncryption(); err != nil {
+		return controlplane.ProviderCredential{}, err
+	}
+	if _, err := s.store.GetOrProvisionCurrentUser(ctx, controlplane.GetOrProvisionCurrentUserInput{
+		UserSubject: userSubject,
+	}); err != nil {
+		return controlplane.ProviderCredential{}, status.Errorf(codes.Internal, "provision current user: %v", err)
+	}
+	config = normalizeEcoFlowBLEAuthConfig(config)
+	existing, err := s.store.ListProviderCredentials(ctx, controlplane.ListProviderCredentialsInput{
+		UserSubject: userSubject,
+		Provider:    controlplane.ProviderEcoFlowBLE,
+	})
+	if err != nil {
+		return controlplane.ProviderCredential{}, status.Errorf(codes.Internal, "list ecoflow ble auth credentials: %v", err)
+	}
+	for i := range existing {
+		if existing[i].IsActive {
+			return s.updateEcoFlowBLEAuthCredential(ctx, userSubject, existing[i].ID, accessKey, userID, config)
+		}
+	}
+	if len(existing) > 0 {
+		return s.updateEcoFlowBLEAuthCredential(ctx, userSubject, existing[0].ID, accessKey, userID, config)
+	}
+	created, err := s.store.CreateProviderCredential(ctx, controlplane.CreateProviderCredentialInput{
+		UserSubject: userSubject,
+		Provider:    controlplane.ProviderEcoFlowBLE,
+		AccessKey:   strings.TrimSpace(accessKey),
+		SecretKey:   userID,
+		Config:      config,
+		IsActive:    true,
+	})
+	if err != nil {
+		if errors.Is(err, controlplane.ErrCredentialAlreadyExists) {
+			return controlplane.ProviderCredential{}, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return controlplane.ProviderCredential{}, status.Errorf(codes.Internal, "create ecoflow ble auth credential: %v", err)
+	}
+	return created, nil
+}
+
+func (s *ControlPlaneService) updateEcoFlowBLEAuthCredential(
+	ctx context.Context,
+	userSubject string,
+	credentialID string,
+	accessKey string,
+	userID string,
+	config map[string]any,
+) (controlplane.ProviderCredential, error) {
+	updated, err := s.store.UpdateProviderCredential(ctx, controlplane.UpdateProviderCredentialInput{
+		UserSubject:  userSubject,
+		CredentialID: credentialID,
+		AccessKey:    strings.TrimSpace(accessKey),
+		SecretKey:    userID,
+		Config:       config,
+		IsActive:     true,
+	})
+	if err != nil {
+		if errors.Is(err, controlplane.ErrCredentialNotFound) {
+			return controlplane.ProviderCredential{}, status.Error(codes.NotFound, err.Error())
+		}
+		if errors.Is(err, controlplane.ErrCredentialAlreadyExists) {
+			return controlplane.ProviderCredential{}, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return controlplane.ProviderCredential{}, status.Errorf(codes.Internal, "update ecoflow ble auth credential: %v", err)
+	}
+	return updated, nil
+}
+
+func ecoFlowBLECredentialStatus(credential controlplane.ProviderCredential, statusText string) *controlplanev1.EcoFlowBLEAuthStatus {
+	statusText = strings.TrimSpace(statusText)
+	if statusText == "" {
+		statusText = "connected"
+	}
+	accountMask, _ := credential.Config[ecoFlowBLEAuthConfigAccountMaskKey].(string)
+	accountMask = strings.TrimSpace(accountMask)
+	if accountMask == "" {
+		accountMask = credential.AccessKeyMask
+	}
+	return &controlplanev1.EcoFlowBLEAuthStatus{
+		Connected:       credential.IsActive,
+		Status:          statusText,
+		AccountMask:     accountMask,
+		UpdatedAtUnixMs: credential.UpdatedAt.UnixMilli(),
+	}
+}
+
+func normalizeEcoFlowBLEAuthConfig(config map[string]any) map[string]any {
+	out := map[string]any{}
+	mode, _ := config[ecoFlowBLEAuthConfigModeKey].(string)
+	mode = strings.TrimSpace(mode)
+	if mode != ecoFlowBLEAuthModeManual {
+		mode = ecoFlowBLEAuthModeLogin
+	}
+	out[ecoFlowBLEAuthConfigModeKey] = mode
+	accountMask, _ := config[ecoFlowBLEAuthConfigAccountMaskKey].(string)
+	if accountMask = strings.TrimSpace(accountMask); accountMask != "" {
+		out[ecoFlowBLEAuthConfigAccountMaskKey] = accountMask
+	}
+	return out
+}
+
+func ecoFlowBLEAuthConfig(mode string, accountMask string) map[string]any {
+	return normalizeEcoFlowBLEAuthConfig(map[string]any{
+		ecoFlowBLEAuthConfigModeKey:        mode,
+		ecoFlowBLEAuthConfigAccountMaskKey: accountMask,
+	})
+}
+
+func syntheticEcoFlowBLEManualAccessKey(userSubject string) string {
+	return fmt.Sprintf("ecoflow_ble_manual:%x", controlplane.HashAccessKey(userSubject))
+}
+
+func (s *ControlPlaneService) requireEcoFlowBLEProviderCredentialEncryption() error {
+	encrypted, ok := s.store.(providerCredentialEncryptionReporter)
+	if !ok || !encrypted.ProviderCredentialSecretsEncrypted() {
+		return status.Error(codes.FailedPrecondition, "provider credential encryption is required for ecoflow ble auth")
+	}
+	return nil
+}
+
+func allowEcoFlowBLEManualAuthFromEnv() bool {
+	if runtimecfg.Bool("ECOFLOW_BLE_MANUAL_AUTH_ENABLED", false) {
+		return true
+	}
+	return strings.EqualFold(runtimecfg.EnvOrDefault("GRPC_AUTH_MODE", "noop"), "noop")
+}
+
+func dedicatedEcoFlowBLECredentialError() error {
+	return status.Error(codes.InvalidArgument, "ecoflow ble credentials must be managed through dedicated auth endpoints")
+}
+
+func normalizeEcoFlowBLEUserID(value string) (string, error) {
+	userID := strings.TrimSpace(value)
+	if userID == "" {
+		return "", fmt.Errorf("user_id required")
+	}
+	if len(userID) > 256 {
+		return "", fmt.Errorf("user_id too long")
+	}
+	for _, r := range userID {
+		if !isEcoFlowBLEUserIDRune(r) {
+			return "", fmt.Errorf("user_id contains unsupported characters")
+		}
+	}
+	return userID, nil
+}
+
+func isEcoFlowBLEUserIDRune(r rune) bool {
+	return (r >= 'a' && r <= 'z') ||
+		(r >= 'A' && r <= 'Z') ||
+		(r >= '0' && r <= '9') ||
+		r == '-' || r == '_' || r == '.' || r == ':' || r == '@'
 }
 
 func (s *ControlPlaneService) getProviderCredentialForUser(ctx context.Context, userSubject, requestedProvider, credentialID string) (controlplane.ProviderCredential, string, error) {

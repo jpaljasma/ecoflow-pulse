@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ConnectEcoFlowBLEAuthPayloadSchema,
   CreateIntegrationPayloadSchema,
+  EcoFlowBLEAuthStatusResponseSchema,
   IntegrationSchema,
+  SetEcoFlowBLEAuthUserIDPayloadSchema,
   UpdateIntegrationPayloadSchema
 } from './schema';
 
@@ -96,5 +99,29 @@ describe('integration schemas', () => {
     expect(integration).not.toHaveProperty('accessKey');
     expect(integration).not.toHaveProperty('accessSecret');
     expect(integration.config).toEqual({ server: 'com', country: 'US' });
+  });
+
+  it('validates EcoFlow BLE auth status and write-only setup payloads', () => {
+    const status = EcoFlowBLEAuthStatusResponseSchema.parse({
+      status: {
+        connected: true,
+        status: 'connected',
+        accountMask: 'owne...test',
+        updatedAtUnixMs: '1772197190000'
+      }
+    });
+    const login = ConnectEcoFlowBLEAuthPayloadSchema.parse({
+      email: 'owner@example.test',
+      password: ' owner-password '
+    });
+    const manual = SetEcoFlowBLEAuthUserIDPayloadSchema.parse({
+      userId: 'manual-ble-user',
+      accountLabel: 'Manual EcoFlow BLE ID'
+    });
+
+    expect(status.status.accountMask).toBe('owne...test');
+    expect(login.email).toBe('owner@example.test');
+    expect(login.password).toBe(' owner-password ');
+    expect(manual.userId).toBe('manual-ble-user');
   });
 });

@@ -209,11 +209,17 @@ func main() {
 			log.Error("edge ingest store init failed", "error", "control-plane store does not implement edge collector state")
 			os.Exit(1)
 		}
+		edgeEnvStore, ok := controlPlaneStore.(edgeCollectorEnvStore)
+		if !ok {
+			log.Error("edge ingest store init failed", "error", "control-plane store does not implement edge collector env resolution")
+			os.Exit(1)
+		}
 		edgev1.RegisterEdgeIngestServiceServer(s, NewEdgeIngestService(EdgeIngestServiceDeps{
-			Log:        log,
-			Store:      edgeStore,
-			Publisher:  edgePublisher,
-			SubjectCfg: edgeSubjectCfg,
+			Log:         log,
+			Store:       edgeStore,
+			Publisher:   edgePublisher,
+			SubjectCfg:  edgeSubjectCfg,
+			EnvResolver: newEdgeCollectorEnvResolver(edgeEnvStore),
 		}))
 		weatherv1.RegisterWeatherServiceServer(s, NewWeatherServiceWithDeps(WeatherServiceDeps{
 			Log:     log,

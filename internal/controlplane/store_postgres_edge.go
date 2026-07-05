@@ -68,10 +68,34 @@ ORDER BY ec.created_at DESC, ec.id DESC;
 	return out, nil
 }
 
-func (s *PostgresStore) EnrollEdgeCollector(ctx context.Context, in EnrollEdgeCollectorInput) (EdgeCollector, error) {
+func (s *PostgresStore) RevokeEdgeCollectorSetupToken(ctx context.Context, in RevokeEdgeCollectorSetupTokenInput) (EdgeCollector, error) {
 	now := normalizeWriteTime(s.now())
 	query := `
-UPDATE edge_collectors
+UPDATE edge_collectors ec
+SET setup_token_hash = CASE WHEN ec.is_active THEN ec.setup_token_hash ELSE '' END,
+    updated_at = CASE WHEN ec.is_active OR ec.setup_token_hash = '' THEN ec.updated_at ELSE $3 END
+FROM users u
+WHERE ec.id = $1::uuid
+  AND ec.user_id = u.id
+  AND u.keycloak_subject = $2
+RETURNING ec.id::text, ec.user_id::text, ec.display_name, ec.setup_token_hash, COALESCE(ec.collector_secret_hash, ''),
+	ec.is_active, COALESCE(ec.collector_version, ''), COALESCE(ec.hostname, ''), ec.last_heartbeat_at, ec.created_at, ec.updated_at;
+`
+	row, err := scanEdgeCollector(s.db.QueryRowContext(ctx, query, strings.TrimSpace(in.CollectorID), strings.TrimSpace(in.UserSubject), now))
+	if errors.Is(err, sql.ErrNoRows) {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	if err != nil {
+		return EdgeCollector{}, fmt.Errorf("revoke edge collector setup token: %w", err)
+	}
+	return row, nil
+}
+
+func (s *PostgresStore) EnrollEdgeCollector(ctx context.Context, in EnrollEdgeCollectorInput) (EdgeCollector, error) {
+	now := normalizeWriteTime(s.now())
+	setupTokenCutoff := edgeCollectorSetupTokenCutoff(now)
+	query := `
+	UPDATE edge_collectors
 SET setup_token_hash = '',
     collector_secret_hash = $2,
     collector_version = $3,
@@ -79,10 +103,11 @@ SET setup_token_hash = '',
     is_active = true,
     last_heartbeat_at = $5,
     updated_at = $5
-WHERE setup_token_hash = $1
-  AND is_active = false
-RETURNING id::text, user_id::text, display_name, setup_token_hash, COALESCE(collector_secret_hash, ''),
-	is_active, COALESCE(collector_version, ''), COALESCE(hostname, ''), last_heartbeat_at, created_at, updated_at;
+	WHERE setup_token_hash = $1
+	  AND is_active = false
+	  AND created_at >= $6
+	RETURNING id::text, user_id::text, display_name, setup_token_hash, COALESCE(collector_secret_hash, ''),
+		is_active, COALESCE(collector_version, ''), COALESCE(hostname, ''), last_heartbeat_at, created_at, updated_at;
 `
 	row, err := scanEdgeCollector(s.db.QueryRowContext(
 		ctx,
@@ -92,12 +117,34 @@ RETURNING id::text, user_id::text, display_name, setup_token_hash, COALESCE(coll
 		strings.TrimSpace(in.CollectorVersion),
 		strings.TrimSpace(in.Hostname),
 		now,
+		setupTokenCutoff,
 	))
 	if errors.Is(err, sql.ErrNoRows) {
 		return EdgeCollector{}, ErrEdgeCollectorNotFound
 	}
 	if err != nil {
 		return EdgeCollector{}, fmt.Errorf("enroll edge collector: %w", err)
+	}
+	return row, nil
+}
+
+func (s *PostgresStore) GetEdgeCollectorBySetupTokenHash(ctx context.Context, setupTokenHash string) (EdgeCollector, error) {
+	now := normalizeWriteTime(s.now())
+	setupTokenCutoff := edgeCollectorSetupTokenCutoff(now)
+	query := `
+	SELECT id::text, user_id::text, display_name, setup_token_hash, COALESCE(collector_secret_hash, ''),
+		is_active, COALESCE(collector_version, ''), COALESCE(hostname, ''), last_heartbeat_at, created_at, updated_at
+	FROM edge_collectors
+	WHERE setup_token_hash = $1
+	  AND is_active = false
+	  AND created_at >= $2;
+	`
+	row, err := scanEdgeCollector(s.db.QueryRowContext(ctx, query, strings.TrimSpace(setupTokenHash), setupTokenCutoff))
+	if errors.Is(err, sql.ErrNoRows) {
+		return EdgeCollector{}, ErrEdgeCollectorNotFound
+	}
+	if err != nil {
+		return EdgeCollector{}, fmt.Errorf("get edge collector by setup token: %w", err)
 	}
 	return row, nil
 }
@@ -177,7 +224,7 @@ INSERT INTO edge_device_sources (
 	created_at,
 	updated_at
 )
-VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $12)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
 ON CONFLICT (collector_id, provider, transport, provider_device_id)
 DO UPDATE SET
 	display_name = EXCLUDED.display_name,
@@ -204,6 +251,7 @@ RETURNING id::text, collector_id::text, user_id::text, provider, transport, prov
 		strings.TrimSpace(in.AddressHash),
 		in.RSSIDBm,
 		metadataJSON,
+		EdgeDeviceSourceStatusPending,
 		observedAt,
 		now,
 	))
@@ -275,6 +323,9 @@ FOR UPDATE;
 	if err != nil {
 		return ApprovedEdgeDeviceSource{}, fmt.Errorf("load edge source for approve: %w", err)
 	}
+	if err := validateEdgeDeviceSourceApproval(source); err != nil {
+		return ApprovedEdgeDeviceSource{}, err
+	}
 
 	device, err := s.approveEdgeDeviceTx(ctx, tx, userID, source, in, now)
 	if err != nil {
@@ -282,7 +333,7 @@ FOR UPDATE;
 	}
 	updateQuery := `
 UPDATE edge_device_sources
-SET status = 'linked',
+SET status = $4,
     linked_device_id = $2::uuid,
     updated_at = $3
 WHERE id = $1::uuid
@@ -290,7 +341,7 @@ RETURNING id::text, collector_id::text, user_id::text, provider, transport, prov
 	COALESCE(display_name, ''), COALESCE(model, ''), COALESCE(address_hash, ''), rssi_dbm,
 	metadata, status, COALESCE(linked_device_id::text, ''), last_seen_at, created_at, updated_at;
 `
-	source, err = scanEdgeDeviceSource(tx.QueryRowContext(ctx, updateQuery, source.ID, device.DeviceID, now))
+	source, err = scanEdgeDeviceSource(tx.QueryRowContext(ctx, updateQuery, source.ID, device.DeviceID, now, EdgeDeviceSourceStatusLinked))
 	if err != nil {
 		return ApprovedEdgeDeviceSource{}, fmt.Errorf("update edge source approval: %w", err)
 	}
@@ -310,7 +361,7 @@ WHERE collector_id = $1::uuid
   AND provider = $2
   AND transport = $3
   AND provider_device_id = $4
-  AND status = 'linked'
+  AND status = $5
   AND linked_device_id IS NOT NULL;
 `
 	row, err := scanEdgeDeviceSource(s.db.QueryRowContext(
@@ -320,6 +371,7 @@ WHERE collector_id = $1::uuid
 		NormalizeProvider(in.Provider),
 		normalizeEdgeTransport(in.Transport),
 		strings.ToUpper(strings.TrimSpace(in.ProviderDeviceID)),
+		EdgeDeviceSourceStatusLinked,
 	))
 	if errors.Is(err, sql.ErrNoRows) {
 		return EdgeDeviceSource{}, ErrEdgeDeviceSourceNotFound
@@ -372,6 +424,9 @@ WHERE d.id = $1::uuid
 		if err != nil {
 			return UserDevice{}, fmt.Errorf("load approved edge target device: %w", err)
 		}
+		if err := validateEdgeDeviceSourceTarget(source, row.EcoflowSN); err != nil {
+			return UserDevice{}, err
+		}
 		return row, nil
 	}
 
@@ -387,21 +442,42 @@ WHERE d.id = $1::uuid
 INSERT INTO devices (ecoflow_sn, product_name, model, metadata, created_at, updated_at)
 VALUES ($1, $2, $3, '{}'::jsonb, $4, $4)
 ON CONFLICT (ecoflow_sn)
-DO UPDATE SET
-	product_name = COALESCE(NULLIF(EXCLUDED.product_name, ''), devices.product_name),
-	model = COALESCE(NULLIF(EXCLUDED.model, ''), devices.model),
-	updated_at = EXCLUDED.updated_at
+DO NOTHING
 RETURNING id::text, ecoflow_sn, COALESCE(product_name, ''), COALESCE(model, ''), created_at, updated_at;
 `
 	var dev memoryDevice
-	if err := tx.QueryRowContext(ctx, deviceQuery, source.ProviderDeviceID, productName, model, now).Scan(
+	err := tx.QueryRowContext(ctx, deviceQuery, source.ProviderDeviceID, productName, model, now).Scan(
 		&dev.ID,
 		&dev.EcoflowSN,
 		&dev.ProductName,
 		&dev.Model,
 		&dev.CreatedAt,
 		&dev.UpdatedAt,
-	); err != nil {
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		updateOwnedQuery := `
+UPDATE devices d
+SET
+	product_name = COALESCE(NULLIF($2, ''), d.product_name),
+	model = COALESCE(NULLIF($3, ''), d.model),
+	updated_at = $4
+FROM user_devices ud
+WHERE d.ecoflow_sn = $1
+  AND ud.device_id = d.id
+  AND ud.user_id = $5::uuid
+  AND ud.role = 'admin'
+RETURNING d.id::text, d.ecoflow_sn, COALESCE(d.product_name, ''), COALESCE(d.model, ''), 'admin', d.created_at, d.updated_at;
+`
+		row, err := scanUserDevice(tx.QueryRowContext(ctx, updateOwnedQuery, source.ProviderDeviceID, productName, model, now, userID))
+		if errors.Is(err, sql.ErrNoRows) {
+			return UserDevice{}, ErrPermissionDenied
+		}
+		if err != nil {
+			return UserDevice{}, fmt.Errorf("load existing edge approved device: %w", err)
+		}
+		return row, nil
+	}
+	if err != nil {
 		return UserDevice{}, fmt.Errorf("upsert edge approved device: %w", err)
 	}
 	linkQuery := `

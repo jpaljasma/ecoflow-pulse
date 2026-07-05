@@ -52,6 +52,15 @@ message ListCollectorsResponse {
   repeated EdgeCollector collectors = 1;
 }
 
+message RevokeCollectorSetupTokenRequest {
+  string user_subject = 1;
+  string collector_id = 2;
+}
+
+message RevokeCollectorSetupTokenResponse {
+  EdgeCollector collector = 1;
+}
+
 message EnrollCollectorRequest {
   string setup_token = 1;
   string collector_version = 2;
@@ -61,6 +70,7 @@ message EnrollCollectorRequest {
 message EnrollCollectorResponse {
   EdgeCollector collector = 1;
   string collector_secret = 2;
+  map<string, string> collector_env = 3;
 }
 
 message HeartbeatRequest {
@@ -139,6 +149,7 @@ message UploadTelemetryBatchResponse {
 service EdgeIngestService {
   rpc CreateCollector(CreateCollectorRequest) returns (CreateCollectorResponse);
   rpc ListCollectors(ListCollectorsRequest) returns (ListCollectorsResponse);
+  rpc RevokeCollectorSetupToken(RevokeCollectorSetupTokenRequest) returns (RevokeCollectorSetupTokenResponse);
   rpc EnrollCollector(EnrollCollectorRequest) returns (EnrollCollectorResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc UploadDiscovery(UploadDiscoveryRequest) returns (UploadDiscoveryResponse);

@@ -295,6 +295,9 @@ func TestRunDiscoveryAutoProbesSupportedDevicesConcurrentlyAndWritesRawEvents(t 
 	if err := os.WriteFile(rawPath, []byte("stale raw data\n"), 0o600); err != nil {
 		t.Fatalf("seed raw output file: %v", err)
 	}
+	if err := os.Chmod(rawPath, 0o644); err != nil {
+		t.Fatalf("loosen raw output file: %v", err)
+	}
 	prober := newConcurrentStreamingProber()
 	var stdout lockedBuffer
 	var stderr bytes.Buffer
@@ -363,8 +366,61 @@ func TestRunDiscoveryAutoProbesSupportedDevicesConcurrentlyAndWritesRawEvents(t 
 	if strings.Contains(rawText, "stale raw data") {
 		t.Fatalf("raw output was not overwritten:\n%s", rawText)
 	}
+	info, err := os.Stat(rawPath)
+	if err != nil {
+		t.Fatalf("stat raw output: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("raw output mode=%#o want 0600", got)
+	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestProbeRawEventLoggerCreatesPrivateParent(t *testing.T) {
+	t.Parallel()
+
+	rawPath := filepath.Join(t.TempDir(), "nested", "raw.jsonl")
+	logger, err := newProbeRawEventLogger(rawPath)
+	if err != nil {
+		t.Fatalf("newProbeRawEventLogger failed: %v", err)
+	}
+	if err := logger.Close(); err != nil {
+		t.Fatalf("close raw logger: %v", err)
+	}
+	info, err := os.Stat(filepath.Dir(rawPath))
+	if err != nil {
+		t.Fatalf("stat raw output parent: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o700 {
+		t.Fatalf("raw output parent mode=%#o want 0700", got)
+	}
+}
+
+func TestProbeRawEventLoggerRejectsSymlinkOutput(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.jsonl")
+	if err := os.WriteFile(target, []byte("keep\n"), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	link := filepath.Join(dir, "raw.jsonl")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	logger, err := newProbeRawEventLogger(link)
+	if err == nil {
+		_ = logger.Close()
+		t.Fatal("expected symlink raw output to be rejected")
+	}
+	body, readErr := os.ReadFile(target)
+	if readErr != nil {
+		t.Fatalf("read target: %v", readErr)
+	}
+	if string(body) != "keep\n" {
+		t.Fatalf("target was modified: %q", body)
 	}
 }
 
@@ -739,6 +795,9 @@ func TestAdvertisementProbeMetricsIncludesEcoFlowScanRecord(t *testing.T) {
 	}))
 	if got["manufacturer_proto_version"] != "2" {
 		t.Fatalf("manufacturer proto version = %q", got["manufacturer_proto_version"])
+	}
+	if got["manufacturer_serial"] != "PR1WDEMO00000000" {
+		t.Fatalf("manufacturer serial = %q", got["manufacturer_serial"])
 	}
 	if got["manufacturer_encrypt_type"] != "7" {
 		t.Fatalf("manufacturer encrypt type = %q", got["manufacturer_encrypt_type"])

@@ -504,12 +504,30 @@ Restart=always
 RestartSec=5s
 ```
 
+### Collector Enrollment And Runtime Expectations
+
+Enroll the appliance collector through the authenticated Devices flow before
+enabling the long-running service. If nearby EcoFlow devices require
+authenticated BLE sessions, connect the owner's EcoFlow BLE auth first, then
+exchange the generated collector setup token on the Pi. Store the resulting
+collector environment outside Git with root-controlled permissions.
+
+At runtime, the collector treats the loopback gRPC heartbeat as its readiness
+gate: it waits through K3s/API cold start before opening BLE sessions, sends
+heartbeat, discovery, and telemetry over direct gRPC, and keeps retryable
+uploads in the host outbox until the API ACKs them. Missing enrollment or
+failed BLE auth is a configuration problem for the operator to fix, not a
+condition that should be hidden by repeated service restarts.
+
 BLE retries are file-backed on the host. The collector writes discovery and
 telemetry uploads to `PULSE_EDGE_OUTBOX_DIR`, fsyncs before send, replays
 pending entries after restart or a later successful heartbeat, and removes each
-entry after ACK. Outbox files omit the collector secret; the current secret is
-injected at send time. Telemetry samples include a stable `client_sample_id`
-that the edge ingest service maps to envelope `message_id` for downstream
+entry after ACK. The outbox directory is private service storage and should be
+treated as sensitive because it contains device identity and telemetry. Outbox
+files omit the collector secret; the current secret is injected at send time.
+Telemetry samples carry a stable `client_sample_id` for collector outbox
+identity, while the in-cluster edge ingest service derives its own stable
+envelope `message_id` from normalized sample content for downstream retry
 dedupe.
 
 Phase 2 direct-transport implementation starts with the transport boundary:

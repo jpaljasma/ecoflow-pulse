@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AvailableDeviceSchema, DeviceMQTTTestResultSchema, DeviceSchema } from '@/features/devices/schema';
+import {
+  AvailableDeviceSchema,
+  DeviceMQTTTestResultSchema,
+  DeviceSchema,
+  EdgeDeviceSourceSchema,
+  RevokeEdgeCollectorSetupTokenResponseSchema
+} from '@/features/devices/schema';
 
 describe('device api schema', () => {
   it('preserves extended system-signal and diagnostics detail fields', () => {
@@ -75,5 +81,63 @@ describe('device api schema', () => {
     });
 
     expect(result.deviceId).toBe('22222222-2222-7222-8222-222222222222');
+  });
+
+  it('parses safe edge BLE source identity for owner approval', () => {
+    const source = EdgeDeviceSourceSchema.parse({
+      id: 'edgesrc-1',
+      collectorId: 'edgecol-1',
+      provider: 'ecoflow',
+      transport: 'ble',
+      displayName: 'Demo edge device',
+      model: 'EcoFlow RIVER 3 Plus',
+      status: 'pending',
+      linkedDeviceId: '',
+      rssiDbm: -59,
+      lastSeenAtUnixMs: '1772197190000',
+      createdAtUnixMs: '1772190000000',
+      updatedAtUnixMs: '1772197190000'
+    });
+
+    expect(source.transport).toBe('ble');
+    expect('providerDeviceId' in source).toBe(false);
+  });
+
+  it('preserves unknown edge BLE source status values explicitly', () => {
+    const source = EdgeDeviceSourceSchema.parse({
+      id: 'edgesrc-1',
+      collectorId: 'edgecol-1',
+      provider: 'ecoflow',
+      transport: 'ble',
+      displayName: 'Demo edge device',
+      model: 'EcoFlow RIVER 3 Plus',
+      status: 'unknown',
+      rawStatus: 'quarantined',
+      linkedDeviceId: '',
+      rssiDbm: -59,
+      lastSeenAtUnixMs: '1772197190000',
+      createdAtUnixMs: '1772190000000',
+      updatedAtUnixMs: '1772197190000'
+    });
+
+    expect(source.status).toBe('unknown');
+    expect(source.rawStatus).toBe('quarantined');
+  });
+
+  it('parses revoked edge setup-token responses without setup-token material', () => {
+    const response = RevokeEdgeCollectorSetupTokenResponseSchema.parse({
+      collector: {
+        id: 'edgecol-1',
+        displayName: 'Pi 5',
+        isActive: false,
+        lastHeartbeatAtUnixMs: '0',
+        createdAtUnixMs: '1772190000000',
+        updatedAtUnixMs: '1772197190000',
+        collectorVersion: '',
+        hostname: ''
+      }
+    });
+
+    expect(response.collector.id).toBe('edgecol-1');
   });
 });

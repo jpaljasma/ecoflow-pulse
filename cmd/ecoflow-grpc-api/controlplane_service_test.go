@@ -53,6 +53,24 @@ func (p *staticProviderMQTTProber) ProbeMQTT(context.Context, controlplane.Provi
 	return p.result, nil
 }
 
+type fakeEcoFlowAppLogin struct {
+	session  ecoflow.AppLoginSession
+	err      error
+	email    string
+	password string
+	calls    int
+}
+
+func (f *fakeEcoFlowAppLogin) LoginApp(_ context.Context, email string, password string) (ecoflow.AppLoginSession, error) {
+	f.calls++
+	f.email = email
+	f.password = password
+	if f.err != nil {
+		return ecoflow.AppLoginSession{}, f.err
+	}
+	return f.session, nil
+}
+
 type staticProbeSubscriber struct {
 	connectErr   error
 	subscribeErr error
@@ -93,6 +111,14 @@ type transientProviderDevicesStore struct {
 
 func (s *transientProviderDevicesStore) ListProviderDevices(context.Context, controlplane.ListProviderDevicesInput) ([]controlplane.ProviderDevice, error) {
 	return nil, fmt.Errorf("query provider devices: failed to receive message: unexpected EOF")
+}
+
+type unencryptedProviderCredentialStore struct {
+	*controlplane.MemoryStore
+}
+
+func (s *unencryptedProviderCredentialStore) ProviderCredentialSecretsEncrypted() bool {
+	return false
 }
 
 func newControlPlaneServiceForTest() (*ControlPlaneService, *controlplane.MemoryStore) {
@@ -352,6 +378,313 @@ func TestCreateAndListProviderCredentials(t *testing.T) {
 	}
 	if got := len(listResp.GetCredentials()); got != 1 {
 		t.Fatalf("expected 1 credential, got %d", got)
+	}
+}
+
+func TestConnectEcoFlowBLEAuthStoresDerivedUserIDWithoutExposingIt(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	login := &fakeEcoFlowAppLogin{
+		session: ecoflow.AppLoginSession{
+			UserID: "ble-user-123",
+			Name:   "Owner",
+			Token:  "temporary-token",
+		},
+	}
+	svc.ecoflowAppLogin = login
+
+	resp, err := svc.ConnectEcoFlowBLEAuth(context.Background(), &controlplanev1.ConnectEcoFlowBLEAuthRequest{
+		UserSubject: "dev-user",
+		Email:       " owner@example.test ",
+		Password:    " owner-password ",
+	})
+	if err != nil {
+		t.Fatalf("ConnectEcoFlowBLEAuth failed: %v", err)
+	}
+	if !resp.GetStatus().GetConnected() || resp.GetStatus().GetStatus() != "connected" {
+		t.Fatalf("unexpected status: %#v", resp.GetStatus())
+	}
+	if login.calls != 1 || login.email != "owner@example.test" || login.password != " owner-password " {
+		t.Fatalf("login call=%d email=%q password=%q", login.calls, login.email, login.password)
+	}
+
+	owner, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{UserSubject: "dev-user"})
+	if err != nil {
+		t.Fatalf("GetOrProvisionCurrentUser failed: %v", err)
+	}
+	stored, err := store.GetActiveProviderCredentialByUserID(context.Background(), owner.ID, controlplane.ProviderEcoFlowBLE)
+	if err != nil {
+		t.Fatalf("GetActiveProviderCredentialByUserID failed: %v", err)
+	}
+	if stored.SecretKey != "ble-user-123" {
+		t.Fatalf("stored secret=%q", stored.SecretKey)
+	}
+	if stored.AccessKey != "owner@example.test" {
+		t.Fatalf("stored access key=%q", stored.AccessKey)
+	}
+
+	listResp, err := svc.ListProviderCredentials(context.Background(), &controlplanev1.ListProviderCredentialsRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlowBLE,
+	})
+	if err != nil {
+		t.Fatalf("ListProviderCredentials failed: %v", err)
+	}
+	if got := len(listResp.GetCredentials()); got != 1 {
+		t.Fatalf("credentials=%d want 1", got)
+	}
+	publicCredential := listResp.GetCredentials()[0]
+	if text := fmt.Sprint(publicCredential); strings.Contains(text, "ble-user-123") || strings.Contains(text, "temporary-token") {
+		t.Fatalf("public credential leaked private EcoFlow material: %s", text)
+	}
+	if got := publicCredential.GetConfig().AsMap()[ecoFlowBLEAuthConfigModeKey]; got != ecoFlowBLEAuthModeLogin {
+		t.Fatalf("%s=%v want %s", ecoFlowBLEAuthConfigModeKey, got, ecoFlowBLEAuthModeLogin)
+	}
+	if _, ok := publicCredential.GetConfig().AsMap()["account_name"]; ok {
+		t.Fatalf("account_name should not be exposed in credential config: %#v", publicCredential.GetConfig().AsMap())
+	}
+}
+
+func TestConnectEcoFlowBLEAuthRotatesExistingCredential(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	login := &fakeEcoFlowAppLogin{session: ecoflow.AppLoginSession{UserID: "ble-user-old"}}
+	svc.ecoflowAppLogin = login
+
+	if _, err := svc.ConnectEcoFlowBLEAuth(context.Background(), &controlplanev1.ConnectEcoFlowBLEAuthRequest{
+		UserSubject: "dev-user",
+		Email:       "old@example.test",
+		Password:    "old-password",
+	}); err != nil {
+		t.Fatalf("initial ConnectEcoFlowBLEAuth failed: %v", err)
+	}
+
+	login.session = ecoflow.AppLoginSession{UserID: "ble-user-new"}
+	resp, err := svc.ConnectEcoFlowBLEAuth(context.Background(), &controlplanev1.ConnectEcoFlowBLEAuthRequest{
+		UserSubject: "dev-user",
+		Email:       "new@example.test",
+		Password:    "new-password",
+	})
+	if err != nil {
+		t.Fatalf("second ConnectEcoFlowBLEAuth failed: %v", err)
+	}
+	if !resp.GetStatus().GetConnected() {
+		t.Fatalf("expected connected status after rotation")
+	}
+
+	credentials, err := store.ListProviderCredentials(context.Background(), controlplane.ListProviderCredentialsInput{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlowBLE,
+	})
+	if err != nil {
+		t.Fatalf("ListProviderCredentials failed: %v", err)
+	}
+	if got := len(credentials); got != 1 {
+		t.Fatalf("credential count=%d want 1", got)
+	}
+	owner, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{UserSubject: "dev-user"})
+	if err != nil {
+		t.Fatalf("GetOrProvisionCurrentUser failed: %v", err)
+	}
+	stored, err := store.GetActiveProviderCredentialByUserID(context.Background(), owner.ID, controlplane.ProviderEcoFlowBLE)
+	if err != nil {
+		t.Fatalf("GetActiveProviderCredentialByUserID failed: %v", err)
+	}
+	if stored.SecretKey != "ble-user-new" {
+		t.Fatalf("stored secret=%q want rotated BLE user id", stored.SecretKey)
+	}
+	if stored.AccessKey != "new@example.test" {
+		t.Fatalf("stored access key=%q want rotated account email", stored.AccessKey)
+	}
+	if got := stored.Config[ecoFlowBLEAuthConfigModeKey]; got != ecoFlowBLEAuthModeLogin {
+		t.Fatalf("%s=%v want %s", ecoFlowBLEAuthConfigModeKey, got, ecoFlowBLEAuthModeLogin)
+	}
+}
+
+func TestGenericProviderCredentialAPIsRejectEcoFlowBLEAuth(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	_, err := svc.CreateProviderCredential(context.Background(), &controlplanev1.CreateProviderCredentialRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlowBLE,
+		AccessKey:   "owner@example.test",
+		SecretKey:   "ble-user-123",
+		IsActive:    false,
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("CreateProviderCredential code=%v want InvalidArgument", status.Code(err))
+	}
+
+	svc.ecoflowAppLogin = &fakeEcoFlowAppLogin{session: ecoflow.AppLoginSession{UserID: "ble-user-123"}}
+	resp, err := svc.ConnectEcoFlowBLEAuth(context.Background(), &controlplanev1.ConnectEcoFlowBLEAuthRequest{
+		UserSubject: "dev-user",
+		Email:       "owner@example.test",
+		Password:    "owner-password",
+	})
+	if err != nil {
+		t.Fatalf("ConnectEcoFlowBLEAuth failed: %v", err)
+	}
+	listResp, err := svc.ListProviderCredentials(context.Background(), &controlplanev1.ListProviderCredentialsRequest{
+		UserSubject: "dev-user",
+		Provider:    controlplane.ProviderEcoFlowBLE,
+	})
+	if err != nil {
+		t.Fatalf("ListProviderCredentials failed: %v", err)
+	}
+	if len(listResp.GetCredentials()) != 1 || !resp.GetStatus().GetConnected() {
+		t.Fatalf("expected one connected BLE credential")
+	}
+	credentialID := listResp.GetCredentials()[0].GetId()
+
+	_, err = svc.UpdateProviderCredential(context.Background(), &controlplanev1.UpdateProviderCredentialRequest{
+		UserSubject:  "dev-user",
+		CredentialId: credentialID,
+		AccessKey:    "owner@example.test",
+		SecretKey:    "replacement",
+		IsActive:     true,
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("UpdateProviderCredential code=%v want InvalidArgument", status.Code(err))
+	}
+
+	_, err = svc.SetProviderCredentialActive(context.Background(), &controlplanev1.SetProviderCredentialActiveRequest{
+		UserSubject:  "dev-user",
+		CredentialId: credentialID,
+		IsActive:     false,
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("SetProviderCredentialActive code=%v want InvalidArgument", status.Code(err))
+	}
+}
+
+func TestSetEcoFlowBLEAuthUserIDStoresManualFallback(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	resp, err := svc.SetEcoFlowBLEAuthUserID(context.Background(), &controlplanev1.SetEcoFlowBLEAuthUserIDRequest{
+		UserSubject:  "dev-user",
+		UserId:       "manual-ble-user",
+		AccountLabel: "Cabin EcoFlow account",
+	})
+	if err != nil {
+		t.Fatalf("SetEcoFlowBLEAuthUserID failed: %v", err)
+	}
+	if !resp.GetStatus().GetConnected() {
+		t.Fatalf("expected connected status")
+	}
+
+	owner, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{UserSubject: "dev-user"})
+	if err != nil {
+		t.Fatalf("GetOrProvisionCurrentUser failed: %v", err)
+	}
+	stored, err := store.GetActiveProviderCredentialByUserID(context.Background(), owner.ID, controlplane.ProviderEcoFlowBLE)
+	if err != nil {
+		t.Fatalf("GetActiveProviderCredentialByUserID failed: %v", err)
+	}
+	if stored.SecretKey != "manual-ble-user" {
+		t.Fatalf("stored secret=%q", stored.SecretKey)
+	}
+	if got := stored.Config[ecoFlowBLEAuthConfigModeKey]; got != ecoFlowBLEAuthModeManual {
+		t.Fatalf("%s=%v want %s", ecoFlowBLEAuthConfigModeKey, got, ecoFlowBLEAuthModeManual)
+	}
+	if strings.Contains(stored.AccessKey, "Manual EcoFlow BLE ID") || strings.Contains(stored.AccessKey, "Cabin EcoFlow account") {
+		t.Fatalf("manual access key should be synthetic, got %q", stored.AccessKey)
+	}
+}
+
+func TestSetEcoFlowBLEAuthUserIDRequiresLocalManualMode(t *testing.T) {
+	t.Setenv("GRPC_AUTH_MODE", "keycloak")
+	t.Setenv("ECOFLOW_BLE_MANUAL_AUTH_ENABLED", "")
+
+	svc, _ := newControlPlaneServiceForTest()
+	_, err := svc.SetEcoFlowBLEAuthUserID(context.Background(), &controlplanev1.SetEcoFlowBLEAuthUserIDRequest{
+		UserSubject: "dev-user",
+		UserId:      "manual-ble-user",
+	})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("SetEcoFlowBLEAuthUserID code=%v want PermissionDenied", status.Code(err))
+	}
+}
+
+func TestSetEcoFlowBLEAuthUserIDAllowsExplicitManualOverride(t *testing.T) {
+	t.Setenv("GRPC_AUTH_MODE", "keycloak")
+	t.Setenv("ECOFLOW_BLE_MANUAL_AUTH_ENABLED", "true")
+
+	svc, _ := newControlPlaneServiceForTest()
+	resp, err := svc.SetEcoFlowBLEAuthUserID(context.Background(), &controlplanev1.SetEcoFlowBLEAuthUserIDRequest{
+		UserSubject: "dev-user",
+		UserId:      "manual-ble-user",
+	})
+	if err != nil {
+		t.Fatalf("SetEcoFlowBLEAuthUserID failed: %v", err)
+	}
+	if !resp.GetStatus().GetConnected() {
+		t.Fatalf("expected connected status")
+	}
+}
+
+func TestSetEcoFlowBLEAuthUserIDSupportsMultipleManualUsers(t *testing.T) {
+	t.Parallel()
+
+	svc, store := newControlPlaneServiceForTest()
+	for _, userSubject := range []string{"owner-a", "owner-b"} {
+		if _, err := svc.SetEcoFlowBLEAuthUserID(context.Background(), &controlplanev1.SetEcoFlowBLEAuthUserIDRequest{
+			UserSubject:  userSubject,
+			UserId:       "manual-ble-user-" + userSubject,
+			AccountLabel: "Manual EcoFlow BLE ID",
+		}); err != nil {
+			t.Fatalf("SetEcoFlowBLEAuthUserID(%s) failed: %v", userSubject, err)
+		}
+		owner, err := store.GetOrProvisionCurrentUser(context.Background(), controlplane.GetOrProvisionCurrentUserInput{UserSubject: userSubject})
+		if err != nil {
+			t.Fatalf("GetOrProvisionCurrentUser(%s) failed: %v", userSubject, err)
+		}
+		stored, err := store.GetActiveProviderCredentialByUserID(context.Background(), owner.ID, controlplane.ProviderEcoFlowBLE)
+		if err != nil {
+			t.Fatalf("GetActiveProviderCredentialByUserID(%s) failed: %v", userSubject, err)
+		}
+		if stored.SecretKey != "manual-ble-user-"+userSubject {
+			t.Fatalf("stored secret for %s = %q", userSubject, stored.SecretKey)
+		}
+	}
+}
+
+func TestEcoFlowBLEAuthRequiresEncryptedProviderCredentialStore(t *testing.T) {
+	t.Parallel()
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := &unencryptedProviderCredentialStore{MemoryStore: controlplane.NewMemoryStore()}
+	store.EnsureUser("dev-user")
+	svc := NewControlPlaneService(log, store, provideradapter.NewRegistry())
+	login := &fakeEcoFlowAppLogin{session: ecoflow.AppLoginSession{UserID: "ble-user-123"}}
+	svc.ecoflowAppLogin = login
+
+	_, err := svc.ConnectEcoFlowBLEAuth(context.Background(), &controlplanev1.ConnectEcoFlowBLEAuthRequest{
+		UserSubject: "dev-user",
+		Email:       "owner@example.test",
+		Password:    "owner-password",
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("ConnectEcoFlowBLEAuth code=%v want FailedPrecondition", status.Code(err))
+	}
+	if login.calls != 0 {
+		t.Fatalf("login calls=%d want 0", login.calls)
+	}
+}
+
+func TestEcoFlowBLEUserIDRejectsEnvFileMetacharacters(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := newControlPlaneServiceForTest()
+	_, err := svc.SetEcoFlowBLEAuthUserID(context.Background(), &controlplanev1.SetEcoFlowBLEAuthUserIDRequest{
+		UserSubject: "dev-user",
+		UserId:      "ble-user-123;rm",
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("SetEcoFlowBLEAuthUserID code=%v want InvalidArgument", status.Code(err))
 	}
 }
 

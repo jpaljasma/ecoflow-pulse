@@ -50,6 +50,13 @@ export type AvailableProviderDevicesResponse = {
   hasActiveCredentials: boolean;
 };
 
+export type EcoFlowBLEAuthStatus = {
+  connected: boolean;
+  status: string;
+  accountMask: string;
+  updatedAtUnixMs: string;
+};
+
 export type ProviderDeviceMQTTTestResult = {
   success: boolean;
   status: string;
@@ -122,6 +129,31 @@ export type ListDevicesInput = {
 export type ListAvailableProviderDevicesInput = {
   userSubject: string;
   provider?: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type GetEcoFlowBLEAuthStatusInput = {
+  userSubject: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type ConnectEcoFlowBLEAuthInput = {
+  userSubject: string;
+  email: string;
+  password: string;
+  authHeader?: string;
+  requestID?: string;
+  deadlineMs: number;
+};
+
+export type SetEcoFlowBLEAuthUserIDInput = {
+  userSubject: string;
+  userId: string;
+  accountLabel?: string;
   authHeader?: string;
   requestID?: string;
   deadlineMs: number;
@@ -268,6 +300,9 @@ export interface ControlPlaneClient {
   listUserDevices(input: ListUserDevicesInput): Promise<UserDevice[]>;
   listDevices(input: ListDevicesInput): Promise<ProviderDeviceGroup[]>;
   listAvailableProviderDevices(input: ListAvailableProviderDevicesInput): Promise<AvailableProviderDevicesResponse>;
+  getEcoFlowBLEAuthStatus(input: GetEcoFlowBLEAuthStatusInput): Promise<EcoFlowBLEAuthStatus>;
+  connectEcoFlowBLEAuth(input: ConnectEcoFlowBLEAuthInput): Promise<EcoFlowBLEAuthStatus>;
+  setEcoFlowBLEAuthUserID(input: SetEcoFlowBLEAuthUserIDInput): Promise<EcoFlowBLEAuthStatus>;
   testProviderDeviceMQTT(input: TestProviderDeviceMQTTInput): Promise<ProviderDeviceMQTTTestResult>;
   enableProviderDevice(input: EnableProviderDeviceInput): Promise<{
     providerDevice: ProviderDevice;
@@ -299,6 +334,9 @@ type GrpcControlPlaneClient = {
   ListUserDevices: GrpcUnaryMethod;
   ListDevices: GrpcUnaryMethod;
   ListAvailableProviderDevices: GrpcUnaryMethod;
+  GetEcoFlowBLEAuthStatus: GrpcUnaryMethod;
+  ConnectEcoFlowBLEAuth: GrpcUnaryMethod;
+  SetEcoFlowBLEAuthUserID: GrpcUnaryMethod;
   TestProviderDeviceMQTT: GrpcUnaryMethod;
   EnableProviderDevice: GrpcUnaryMethod;
   ImportProviderDevice: GrpcUnaryMethod;
@@ -344,6 +382,10 @@ type RawAvailableProviderDevice = Partial<Record<keyof AvailableProviderDevice, 
 type RawListAvailableProviderDevicesResponse = {
   devices?: unknown;
   hasActiveCredentials?: unknown;
+};
+type RawEcoFlowBLEAuthStatus = Partial<Record<keyof EcoFlowBLEAuthStatus, unknown>>;
+type RawEcoFlowBLEAuthStatusResponse = {
+  status?: unknown;
 };
 type RawTestProviderDeviceMQTTResponse = Partial<Record<keyof ProviderDeviceMQTTTestResult, unknown>>;
 type RawEnableProviderDeviceResponse = {
@@ -540,6 +582,40 @@ export function createControlPlaneClient(address: string): ControlPlaneClient {
         hasActiveCredentials: Boolean(response.hasActiveCredentials)
       };
     },
+    async getEcoFlowBLEAuthStatus(input) {
+      const response = await unaryCall<RawEcoFlowBLEAuthStatusResponse>(
+        client.GetEcoFlowBLEAuthStatus.bind(client),
+        {
+          userSubject: input.userSubject
+        },
+        input
+      );
+      return normalizeEcoFlowBLEAuthStatus((response.status ?? {}) as RawEcoFlowBLEAuthStatus);
+    },
+    async connectEcoFlowBLEAuth(input) {
+      const response = await unaryCall<RawEcoFlowBLEAuthStatusResponse>(
+        client.ConnectEcoFlowBLEAuth.bind(client),
+        {
+          userSubject: input.userSubject,
+          email: input.email,
+          password: input.password
+        },
+        input
+      );
+      return normalizeEcoFlowBLEAuthStatus((response.status ?? {}) as RawEcoFlowBLEAuthStatus);
+    },
+    async setEcoFlowBLEAuthUserID(input) {
+      const response = await unaryCall<RawEcoFlowBLEAuthStatusResponse>(
+        client.SetEcoFlowBLEAuthUserID.bind(client),
+        {
+          userSubject: input.userSubject,
+          userId: input.userId,
+          accountLabel: input.accountLabel ?? ''
+        },
+        input
+      );
+      return normalizeEcoFlowBLEAuthStatus((response.status ?? {}) as RawEcoFlowBLEAuthStatus);
+    },
     async testProviderDeviceMQTT(input) {
       const response = await unaryCall<RawTestProviderDeviceMQTTResponse>(
         client.TestProviderDeviceMQTT.bind(client),
@@ -698,6 +774,15 @@ function normalizeAvailableProviderDevice(device: RawAvailableProviderDevice): A
     model: normalizeString(device.model),
     capabilities: normalizeRecord(device.capabilities),
     metadata: normalizeRecord(device.metadata)
+  };
+}
+
+function normalizeEcoFlowBLEAuthStatus(status: RawEcoFlowBLEAuthStatus): EcoFlowBLEAuthStatus {
+  return {
+    connected: Boolean(status.connected),
+    status: normalizeString(status.status),
+    accountMask: normalizeString(status.accountMask),
+    updatedAtUnixMs: normalizeString(status.updatedAtUnixMs)
   };
 }
 

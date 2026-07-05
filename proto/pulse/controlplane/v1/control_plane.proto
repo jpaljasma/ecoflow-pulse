@@ -234,6 +234,41 @@ message ListAvailableProviderDevicesResponse {
   bool has_active_credentials = 2;
 }
 
+message EcoFlowBLEAuthStatus {
+  bool connected = 1;
+  string status = 2;
+  string account_mask = 3;
+  int64 updated_at_unix_ms = 4;
+}
+
+message GetEcoFlowBLEAuthStatusRequest {
+  string user_subject = 1;
+}
+
+message GetEcoFlowBLEAuthStatusResponse {
+  EcoFlowBLEAuthStatus status = 1;
+}
+
+message ConnectEcoFlowBLEAuthRequest {
+  string user_subject = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message ConnectEcoFlowBLEAuthResponse {
+  EcoFlowBLEAuthStatus status = 1;
+}
+
+message SetEcoFlowBLEAuthUserIDRequest {
+  string user_subject = 1;
+  string user_id = 2;
+  string account_label = 3;
+}
+
+message SetEcoFlowBLEAuthUserIDResponse {
+  EcoFlowBLEAuthStatus status = 1;
+}
+
 message TestProviderDeviceMQTTRequest {
   string user_subject = 1;
   string provider = 2;
@@ -312,6 +347,9 @@ service ControlPlaneService {
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
   rpc DiscoverDevices(DiscoverDevicesRequest) returns (DiscoverDevicesResponse);
   rpc ListAvailableProviderDevices(ListAvailableProviderDevicesRequest) returns (ListAvailableProviderDevicesResponse);
+  rpc GetEcoFlowBLEAuthStatus(GetEcoFlowBLEAuthStatusRequest) returns (GetEcoFlowBLEAuthStatusResponse);
+  rpc ConnectEcoFlowBLEAuth(ConnectEcoFlowBLEAuthRequest) returns (ConnectEcoFlowBLEAuthResponse);
+  rpc SetEcoFlowBLEAuthUserID(SetEcoFlowBLEAuthUserIDRequest) returns (SetEcoFlowBLEAuthUserIDResponse);
   rpc TestProviderDeviceMQTT(TestProviderDeviceMQTTRequest) returns (TestProviderDeviceMQTTResponse);
   rpc EnableProviderDevice(EnableProviderDeviceRequest) returns (EnableProviderDeviceResponse);
   rpc ImportProviderDevice(ImportProviderDeviceRequest) returns (ImportProviderDeviceResponse);

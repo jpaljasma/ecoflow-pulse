@@ -462,6 +462,102 @@ func (x *ListCollectorsResponse) GetCollectors() []*EdgeCollector {
 	return nil
 }
 
+type RevokeCollectorSetupTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserSubject   string                 `protobuf:"bytes,1,opt,name=user_subject,json=userSubject,proto3" json:"user_subject,omitempty"`
+	CollectorId   string                 `protobuf:"bytes,2,opt,name=collector_id,json=collectorId,proto3" json:"collector_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeCollectorSetupTokenRequest) Reset() {
+	*x = RevokeCollectorSetupTokenRequest{}
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeCollectorSetupTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeCollectorSetupTokenRequest) ProtoMessage() {}
+
+func (x *RevokeCollectorSetupTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeCollectorSetupTokenRequest.ProtoReflect.Descriptor instead.
+func (*RevokeCollectorSetupTokenRequest) Descriptor() ([]byte, []int) {
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RevokeCollectorSetupTokenRequest) GetUserSubject() string {
+	if x != nil {
+		return x.UserSubject
+	}
+	return ""
+}
+
+func (x *RevokeCollectorSetupTokenRequest) GetCollectorId() string {
+	if x != nil {
+		return x.CollectorId
+	}
+	return ""
+}
+
+type RevokeCollectorSetupTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Collector     *EdgeCollector         `protobuf:"bytes,1,opt,name=collector,proto3" json:"collector,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeCollectorSetupTokenResponse) Reset() {
+	*x = RevokeCollectorSetupTokenResponse{}
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeCollectorSetupTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeCollectorSetupTokenResponse) ProtoMessage() {}
+
+func (x *RevokeCollectorSetupTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeCollectorSetupTokenResponse.ProtoReflect.Descriptor instead.
+func (*RevokeCollectorSetupTokenResponse) Descriptor() ([]byte, []int) {
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RevokeCollectorSetupTokenResponse) GetCollector() *EdgeCollector {
+	if x != nil {
+		return x.Collector
+	}
+	return nil
+}
+
 type EnrollCollectorRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	SetupToken       string                 `protobuf:"bytes,1,opt,name=setup_token,json=setupToken,proto3" json:"setup_token,omitempty"`
@@ -473,7 +569,7 @@ type EnrollCollectorRequest struct {
 
 func (x *EnrollCollectorRequest) Reset() {
 	*x = EnrollCollectorRequest{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[6]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +581,7 @@ func (x *EnrollCollectorRequest) String() string {
 func (*EnrollCollectorRequest) ProtoMessage() {}
 
 func (x *EnrollCollectorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[6]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,7 +594,7 @@ func (x *EnrollCollectorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrollCollectorRequest.ProtoReflect.Descriptor instead.
 func (*EnrollCollectorRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{6}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *EnrollCollectorRequest) GetSetupToken() string {
@@ -526,13 +622,14 @@ type EnrollCollectorResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Collector       *EdgeCollector         `protobuf:"bytes,1,opt,name=collector,proto3" json:"collector,omitempty"`
 	CollectorSecret string                 `protobuf:"bytes,2,opt,name=collector_secret,json=collectorSecret,proto3" json:"collector_secret,omitempty"`
+	CollectorEnv    map[string]string      `protobuf:"bytes,3,rep,name=collector_env,json=collectorEnv,proto3" json:"collector_env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *EnrollCollectorResponse) Reset() {
 	*x = EnrollCollectorResponse{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[7]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -544,7 +641,7 @@ func (x *EnrollCollectorResponse) String() string {
 func (*EnrollCollectorResponse) ProtoMessage() {}
 
 func (x *EnrollCollectorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[7]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -557,7 +654,7 @@ func (x *EnrollCollectorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrollCollectorResponse.ProtoReflect.Descriptor instead.
 func (*EnrollCollectorResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{7}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EnrollCollectorResponse) GetCollector() *EdgeCollector {
@@ -574,6 +671,13 @@ func (x *EnrollCollectorResponse) GetCollectorSecret() string {
 	return ""
 }
 
+func (x *EnrollCollectorResponse) GetCollectorEnv() map[string]string {
+	if x != nil {
+		return x.CollectorEnv
+	}
+	return nil
+}
+
 type HeartbeatRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	CollectorSecret  string                 `protobuf:"bytes,1,opt,name=collector_secret,json=collectorSecret,proto3" json:"collector_secret,omitempty"`
@@ -585,7 +689,7 @@ type HeartbeatRequest struct {
 
 func (x *HeartbeatRequest) Reset() {
 	*x = HeartbeatRequest{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[8]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +701,7 @@ func (x *HeartbeatRequest) String() string {
 func (*HeartbeatRequest) ProtoMessage() {}
 
 func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[8]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +714,7 @@ func (x *HeartbeatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatRequest.ProtoReflect.Descriptor instead.
 func (*HeartbeatRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{8}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *HeartbeatRequest) GetCollectorSecret() string {
@@ -643,7 +747,7 @@ type HeartbeatResponse struct {
 
 func (x *HeartbeatResponse) Reset() {
 	*x = HeartbeatResponse{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[9]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -655,7 +759,7 @@ func (x *HeartbeatResponse) String() string {
 func (*HeartbeatResponse) ProtoMessage() {}
 
 func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[9]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -668,7 +772,7 @@ func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatResponse.ProtoReflect.Descriptor instead.
 func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{9}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HeartbeatResponse) GetCollector() *EdgeCollector {
@@ -695,7 +799,7 @@ type EdgeDiscovery struct {
 
 func (x *EdgeDiscovery) Reset() {
 	*x = EdgeDiscovery{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[10]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -707,7 +811,7 @@ func (x *EdgeDiscovery) String() string {
 func (*EdgeDiscovery) ProtoMessage() {}
 
 func (x *EdgeDiscovery) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[10]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -720,7 +824,7 @@ func (x *EdgeDiscovery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeDiscovery.ProtoReflect.Descriptor instead.
 func (*EdgeDiscovery) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{10}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *EdgeDiscovery) GetProvider() string {
@@ -796,7 +900,7 @@ type UploadDiscoveryRequest struct {
 
 func (x *UploadDiscoveryRequest) Reset() {
 	*x = UploadDiscoveryRequest{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[11]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -808,7 +912,7 @@ func (x *UploadDiscoveryRequest) String() string {
 func (*UploadDiscoveryRequest) ProtoMessage() {}
 
 func (x *UploadDiscoveryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[11]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -821,7 +925,7 @@ func (x *UploadDiscoveryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadDiscoveryRequest.ProtoReflect.Descriptor instead.
 func (*UploadDiscoveryRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{11}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *UploadDiscoveryRequest) GetCollectorSecret() string {
@@ -847,7 +951,7 @@ type UploadDiscoveryResponse struct {
 
 func (x *UploadDiscoveryResponse) Reset() {
 	*x = UploadDiscoveryResponse{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[12]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -859,7 +963,7 @@ func (x *UploadDiscoveryResponse) String() string {
 func (*UploadDiscoveryResponse) ProtoMessage() {}
 
 func (x *UploadDiscoveryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[12]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -872,7 +976,7 @@ func (x *UploadDiscoveryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadDiscoveryResponse.ProtoReflect.Descriptor instead.
 func (*UploadDiscoveryResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{12}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UploadDiscoveryResponse) GetAcceptedCount() uint32 {
@@ -893,7 +997,7 @@ type ListDeviceSourcesRequest struct {
 
 func (x *ListDeviceSourcesRequest) Reset() {
 	*x = ListDeviceSourcesRequest{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[13]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -905,7 +1009,7 @@ func (x *ListDeviceSourcesRequest) String() string {
 func (*ListDeviceSourcesRequest) ProtoMessage() {}
 
 func (x *ListDeviceSourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[13]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -918,7 +1022,7 @@ func (x *ListDeviceSourcesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDeviceSourcesRequest.ProtoReflect.Descriptor instead.
 func (*ListDeviceSourcesRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{13}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListDeviceSourcesRequest) GetUserSubject() string {
@@ -951,7 +1055,7 @@ type ListDeviceSourcesResponse struct {
 
 func (x *ListDeviceSourcesResponse) Reset() {
 	*x = ListDeviceSourcesResponse{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[14]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -963,7 +1067,7 @@ func (x *ListDeviceSourcesResponse) String() string {
 func (*ListDeviceSourcesResponse) ProtoMessage() {}
 
 func (x *ListDeviceSourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[14]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -976,7 +1080,7 @@ func (x *ListDeviceSourcesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDeviceSourcesResponse.ProtoReflect.Descriptor instead.
 func (*ListDeviceSourcesResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{14}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListDeviceSourcesResponse) GetSources() []*EdgeDeviceSource {
@@ -999,7 +1103,7 @@ type ApproveDeviceSourceRequest struct {
 
 func (x *ApproveDeviceSourceRequest) Reset() {
 	*x = ApproveDeviceSourceRequest{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[15]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1011,7 +1115,7 @@ func (x *ApproveDeviceSourceRequest) String() string {
 func (*ApproveDeviceSourceRequest) ProtoMessage() {}
 
 func (x *ApproveDeviceSourceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[15]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +1128,7 @@ func (x *ApproveDeviceSourceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveDeviceSourceRequest.ProtoReflect.Descriptor instead.
 func (*ApproveDeviceSourceRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{15}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ApproveDeviceSourceRequest) GetUserSubject() string {
@@ -1072,7 +1176,7 @@ type ApproveDeviceSourceResponse struct {
 
 func (x *ApproveDeviceSourceResponse) Reset() {
 	*x = ApproveDeviceSourceResponse{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[16]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1084,7 +1188,7 @@ func (x *ApproveDeviceSourceResponse) String() string {
 func (*ApproveDeviceSourceResponse) ProtoMessage() {}
 
 func (x *ApproveDeviceSourceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[16]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1097,7 +1201,7 @@ func (x *ApproveDeviceSourceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveDeviceSourceResponse.ProtoReflect.Descriptor instead.
 func (*ApproveDeviceSourceResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{16}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ApproveDeviceSourceResponse) GetSource() *EdgeDeviceSource {
@@ -1128,7 +1232,7 @@ type EdgeTelemetrySample struct {
 
 func (x *EdgeTelemetrySample) Reset() {
 	*x = EdgeTelemetrySample{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[17]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1140,7 +1244,7 @@ func (x *EdgeTelemetrySample) String() string {
 func (*EdgeTelemetrySample) ProtoMessage() {}
 
 func (x *EdgeTelemetrySample) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[17]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1153,7 +1257,7 @@ func (x *EdgeTelemetrySample) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeTelemetrySample.ProtoReflect.Descriptor instead.
 func (*EdgeTelemetrySample) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{17}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *EdgeTelemetrySample) GetProvider() string {
@@ -1208,7 +1312,7 @@ type UploadTelemetryBatchRequest struct {
 
 func (x *UploadTelemetryBatchRequest) Reset() {
 	*x = UploadTelemetryBatchRequest{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[18]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1220,7 +1324,7 @@ func (x *UploadTelemetryBatchRequest) String() string {
 func (*UploadTelemetryBatchRequest) ProtoMessage() {}
 
 func (x *UploadTelemetryBatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[18]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1233,7 +1337,7 @@ func (x *UploadTelemetryBatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadTelemetryBatchRequest.ProtoReflect.Descriptor instead.
 func (*UploadTelemetryBatchRequest) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{18}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UploadTelemetryBatchRequest) GetCollectorSecret() string {
@@ -1260,7 +1364,7 @@ type UploadTelemetryBatchResponse struct {
 
 func (x *UploadTelemetryBatchResponse) Reset() {
 	*x = UploadTelemetryBatchResponse{}
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[19]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1272,7 +1376,7 @@ func (x *UploadTelemetryBatchResponse) String() string {
 func (*UploadTelemetryBatchResponse) ProtoMessage() {}
 
 func (x *UploadTelemetryBatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pulse_edge_v1_edge_proto_msgTypes[19]
+	mi := &file_pulse_edge_v1_edge_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1285,7 +1389,7 @@ func (x *UploadTelemetryBatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadTelemetryBatchResponse.ProtoReflect.Descriptor instead.
 func (*UploadTelemetryBatchResponse) Descriptor() ([]byte, []int) {
-	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{19}
+	return file_pulse_edge_v1_edge_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *UploadTelemetryBatchResponse) GetAcceptedCount() uint32 {
@@ -1344,15 +1448,24 @@ const file_pulse_edge_v1_edge_proto_rawDesc = "" +
 	"\x16ListCollectorsResponse\x12<\n" +
 	"\n" +
 	"collectors\x18\x01 \x03(\v2\x1c.pulse.edge.v1.EdgeCollectorR\n" +
-	"collectors\"\x82\x01\n" +
+	"collectors\"h\n" +
+	" RevokeCollectorSetupTokenRequest\x12!\n" +
+	"\fuser_subject\x18\x01 \x01(\tR\vuserSubject\x12!\n" +
+	"\fcollector_id\x18\x02 \x01(\tR\vcollectorId\"_\n" +
+	"!RevokeCollectorSetupTokenResponse\x12:\n" +
+	"\tcollector\x18\x01 \x01(\v2\x1c.pulse.edge.v1.EdgeCollectorR\tcollector\"\x82\x01\n" +
 	"\x16EnrollCollectorRequest\x12\x1f\n" +
 	"\vsetup_token\x18\x01 \x01(\tR\n" +
 	"setupToken\x12+\n" +
 	"\x11collector_version\x18\x02 \x01(\tR\x10collectorVersion\x12\x1a\n" +
-	"\bhostname\x18\x03 \x01(\tR\bhostname\"\x80\x01\n" +
+	"\bhostname\x18\x03 \x01(\tR\bhostname\"\xa0\x02\n" +
 	"\x17EnrollCollectorResponse\x12:\n" +
 	"\tcollector\x18\x01 \x01(\v2\x1c.pulse.edge.v1.EdgeCollectorR\tcollector\x12)\n" +
-	"\x10collector_secret\x18\x02 \x01(\tR\x0fcollectorSecret\"\x86\x01\n" +
+	"\x10collector_secret\x18\x02 \x01(\tR\x0fcollectorSecret\x12]\n" +
+	"\rcollector_env\x18\x03 \x03(\v28.pulse.edge.v1.EnrollCollectorResponse.CollectorEnvEntryR\fcollectorEnv\x1a?\n" +
+	"\x11CollectorEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x01\n" +
 	"\x10HeartbeatRequest\x12)\n" +
 	"\x10collector_secret\x18\x01 \x01(\tR\x0fcollectorSecret\x12+\n" +
 	"\x11collector_version\x18\x02 \x01(\tR\x10collectorVersion\x12\x1a\n" +
@@ -1401,10 +1514,11 @@ const file_pulse_edge_v1_edge_proto_rawDesc = "" +
 	"\asamples\x18\x02 \x03(\v2\".pulse.edge.v1.EdgeTelemetrySampleR\asamples\"j\n" +
 	"\x1cUploadTelemetryBatchResponse\x12%\n" +
 	"\x0eaccepted_count\x18\x01 \x01(\rR\racceptedCount\x12#\n" +
-	"\rdropped_count\x18\x02 \x01(\rR\fdroppedCount2\xaf\x06\n" +
+	"\rdropped_count\x18\x02 \x01(\rR\fdroppedCount2\xaf\a\n" +
 	"\x11EdgeIngestService\x12`\n" +
 	"\x0fCreateCollector\x12%.pulse.edge.v1.CreateCollectorRequest\x1a&.pulse.edge.v1.CreateCollectorResponse\x12]\n" +
-	"\x0eListCollectors\x12$.pulse.edge.v1.ListCollectorsRequest\x1a%.pulse.edge.v1.ListCollectorsResponse\x12`\n" +
+	"\x0eListCollectors\x12$.pulse.edge.v1.ListCollectorsRequest\x1a%.pulse.edge.v1.ListCollectorsResponse\x12~\n" +
+	"\x19RevokeCollectorSetupToken\x12/.pulse.edge.v1.RevokeCollectorSetupTokenRequest\x1a0.pulse.edge.v1.RevokeCollectorSetupTokenResponse\x12`\n" +
 	"\x0fEnrollCollector\x12%.pulse.edge.v1.EnrollCollectorRequest\x1a&.pulse.edge.v1.EnrollCollectorResponse\x12N\n" +
 	"\tHeartbeat\x12\x1f.pulse.edge.v1.HeartbeatRequest\x1a .pulse.edge.v1.HeartbeatResponse\x12`\n" +
 	"\x0fUploadDiscovery\x12%.pulse.edge.v1.UploadDiscoveryRequest\x1a&.pulse.edge.v1.UploadDiscoveryResponse\x12f\n" +
@@ -1424,63 +1538,70 @@ func file_pulse_edge_v1_edge_proto_rawDescGZIP() []byte {
 	return file_pulse_edge_v1_edge_proto_rawDescData
 }
 
-var file_pulse_edge_v1_edge_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_pulse_edge_v1_edge_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_pulse_edge_v1_edge_proto_goTypes = []any{
-	(*EdgeCollector)(nil),                // 0: pulse.edge.v1.EdgeCollector
-	(*EdgeDeviceSource)(nil),             // 1: pulse.edge.v1.EdgeDeviceSource
-	(*CreateCollectorRequest)(nil),       // 2: pulse.edge.v1.CreateCollectorRequest
-	(*CreateCollectorResponse)(nil),      // 3: pulse.edge.v1.CreateCollectorResponse
-	(*ListCollectorsRequest)(nil),        // 4: pulse.edge.v1.ListCollectorsRequest
-	(*ListCollectorsResponse)(nil),       // 5: pulse.edge.v1.ListCollectorsResponse
-	(*EnrollCollectorRequest)(nil),       // 6: pulse.edge.v1.EnrollCollectorRequest
-	(*EnrollCollectorResponse)(nil),      // 7: pulse.edge.v1.EnrollCollectorResponse
-	(*HeartbeatRequest)(nil),             // 8: pulse.edge.v1.HeartbeatRequest
-	(*HeartbeatResponse)(nil),            // 9: pulse.edge.v1.HeartbeatResponse
-	(*EdgeDiscovery)(nil),                // 10: pulse.edge.v1.EdgeDiscovery
-	(*UploadDiscoveryRequest)(nil),       // 11: pulse.edge.v1.UploadDiscoveryRequest
-	(*UploadDiscoveryResponse)(nil),      // 12: pulse.edge.v1.UploadDiscoveryResponse
-	(*ListDeviceSourcesRequest)(nil),     // 13: pulse.edge.v1.ListDeviceSourcesRequest
-	(*ListDeviceSourcesResponse)(nil),    // 14: pulse.edge.v1.ListDeviceSourcesResponse
-	(*ApproveDeviceSourceRequest)(nil),   // 15: pulse.edge.v1.ApproveDeviceSourceRequest
-	(*ApproveDeviceSourceResponse)(nil),  // 16: pulse.edge.v1.ApproveDeviceSourceResponse
-	(*EdgeTelemetrySample)(nil),          // 17: pulse.edge.v1.EdgeTelemetrySample
-	(*UploadTelemetryBatchRequest)(nil),  // 18: pulse.edge.v1.UploadTelemetryBatchRequest
-	(*UploadTelemetryBatchResponse)(nil), // 19: pulse.edge.v1.UploadTelemetryBatchResponse
-	(*structpb.Struct)(nil),              // 20: google.protobuf.Struct
+	(*EdgeCollector)(nil),                     // 0: pulse.edge.v1.EdgeCollector
+	(*EdgeDeviceSource)(nil),                  // 1: pulse.edge.v1.EdgeDeviceSource
+	(*CreateCollectorRequest)(nil),            // 2: pulse.edge.v1.CreateCollectorRequest
+	(*CreateCollectorResponse)(nil),           // 3: pulse.edge.v1.CreateCollectorResponse
+	(*ListCollectorsRequest)(nil),             // 4: pulse.edge.v1.ListCollectorsRequest
+	(*ListCollectorsResponse)(nil),            // 5: pulse.edge.v1.ListCollectorsResponse
+	(*RevokeCollectorSetupTokenRequest)(nil),  // 6: pulse.edge.v1.RevokeCollectorSetupTokenRequest
+	(*RevokeCollectorSetupTokenResponse)(nil), // 7: pulse.edge.v1.RevokeCollectorSetupTokenResponse
+	(*EnrollCollectorRequest)(nil),            // 8: pulse.edge.v1.EnrollCollectorRequest
+	(*EnrollCollectorResponse)(nil),           // 9: pulse.edge.v1.EnrollCollectorResponse
+	(*HeartbeatRequest)(nil),                  // 10: pulse.edge.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),                 // 11: pulse.edge.v1.HeartbeatResponse
+	(*EdgeDiscovery)(nil),                     // 12: pulse.edge.v1.EdgeDiscovery
+	(*UploadDiscoveryRequest)(nil),            // 13: pulse.edge.v1.UploadDiscoveryRequest
+	(*UploadDiscoveryResponse)(nil),           // 14: pulse.edge.v1.UploadDiscoveryResponse
+	(*ListDeviceSourcesRequest)(nil),          // 15: pulse.edge.v1.ListDeviceSourcesRequest
+	(*ListDeviceSourcesResponse)(nil),         // 16: pulse.edge.v1.ListDeviceSourcesResponse
+	(*ApproveDeviceSourceRequest)(nil),        // 17: pulse.edge.v1.ApproveDeviceSourceRequest
+	(*ApproveDeviceSourceResponse)(nil),       // 18: pulse.edge.v1.ApproveDeviceSourceResponse
+	(*EdgeTelemetrySample)(nil),               // 19: pulse.edge.v1.EdgeTelemetrySample
+	(*UploadTelemetryBatchRequest)(nil),       // 20: pulse.edge.v1.UploadTelemetryBatchRequest
+	(*UploadTelemetryBatchResponse)(nil),      // 21: pulse.edge.v1.UploadTelemetryBatchResponse
+	nil,                                       // 22: pulse.edge.v1.EnrollCollectorResponse.CollectorEnvEntry
+	(*structpb.Struct)(nil),                   // 23: google.protobuf.Struct
 }
 var file_pulse_edge_v1_edge_proto_depIdxs = []int32{
-	20, // 0: pulse.edge.v1.EdgeDeviceSource.metadata:type_name -> google.protobuf.Struct
+	23, // 0: pulse.edge.v1.EdgeDeviceSource.metadata:type_name -> google.protobuf.Struct
 	0,  // 1: pulse.edge.v1.CreateCollectorResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
 	0,  // 2: pulse.edge.v1.ListCollectorsResponse.collectors:type_name -> pulse.edge.v1.EdgeCollector
-	0,  // 3: pulse.edge.v1.EnrollCollectorResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
-	0,  // 4: pulse.edge.v1.HeartbeatResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
-	20, // 5: pulse.edge.v1.EdgeDiscovery.metadata:type_name -> google.protobuf.Struct
-	10, // 6: pulse.edge.v1.UploadDiscoveryRequest.discoveries:type_name -> pulse.edge.v1.EdgeDiscovery
-	1,  // 7: pulse.edge.v1.ListDeviceSourcesResponse.sources:type_name -> pulse.edge.v1.EdgeDeviceSource
-	1,  // 8: pulse.edge.v1.ApproveDeviceSourceResponse.source:type_name -> pulse.edge.v1.EdgeDeviceSource
-	20, // 9: pulse.edge.v1.EdgeTelemetrySample.metrics:type_name -> google.protobuf.Struct
-	17, // 10: pulse.edge.v1.UploadTelemetryBatchRequest.samples:type_name -> pulse.edge.v1.EdgeTelemetrySample
-	2,  // 11: pulse.edge.v1.EdgeIngestService.CreateCollector:input_type -> pulse.edge.v1.CreateCollectorRequest
-	4,  // 12: pulse.edge.v1.EdgeIngestService.ListCollectors:input_type -> pulse.edge.v1.ListCollectorsRequest
-	6,  // 13: pulse.edge.v1.EdgeIngestService.EnrollCollector:input_type -> pulse.edge.v1.EnrollCollectorRequest
-	8,  // 14: pulse.edge.v1.EdgeIngestService.Heartbeat:input_type -> pulse.edge.v1.HeartbeatRequest
-	11, // 15: pulse.edge.v1.EdgeIngestService.UploadDiscovery:input_type -> pulse.edge.v1.UploadDiscoveryRequest
-	13, // 16: pulse.edge.v1.EdgeIngestService.ListDeviceSources:input_type -> pulse.edge.v1.ListDeviceSourcesRequest
-	15, // 17: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:input_type -> pulse.edge.v1.ApproveDeviceSourceRequest
-	18, // 18: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:input_type -> pulse.edge.v1.UploadTelemetryBatchRequest
-	3,  // 19: pulse.edge.v1.EdgeIngestService.CreateCollector:output_type -> pulse.edge.v1.CreateCollectorResponse
-	5,  // 20: pulse.edge.v1.EdgeIngestService.ListCollectors:output_type -> pulse.edge.v1.ListCollectorsResponse
-	7,  // 21: pulse.edge.v1.EdgeIngestService.EnrollCollector:output_type -> pulse.edge.v1.EnrollCollectorResponse
-	9,  // 22: pulse.edge.v1.EdgeIngestService.Heartbeat:output_type -> pulse.edge.v1.HeartbeatResponse
-	12, // 23: pulse.edge.v1.EdgeIngestService.UploadDiscovery:output_type -> pulse.edge.v1.UploadDiscoveryResponse
-	14, // 24: pulse.edge.v1.EdgeIngestService.ListDeviceSources:output_type -> pulse.edge.v1.ListDeviceSourcesResponse
-	16, // 25: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:output_type -> pulse.edge.v1.ApproveDeviceSourceResponse
-	19, // 26: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:output_type -> pulse.edge.v1.UploadTelemetryBatchResponse
-	19, // [19:27] is the sub-list for method output_type
-	11, // [11:19] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	0,  // 3: pulse.edge.v1.RevokeCollectorSetupTokenResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
+	0,  // 4: pulse.edge.v1.EnrollCollectorResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
+	22, // 5: pulse.edge.v1.EnrollCollectorResponse.collector_env:type_name -> pulse.edge.v1.EnrollCollectorResponse.CollectorEnvEntry
+	0,  // 6: pulse.edge.v1.HeartbeatResponse.collector:type_name -> pulse.edge.v1.EdgeCollector
+	23, // 7: pulse.edge.v1.EdgeDiscovery.metadata:type_name -> google.protobuf.Struct
+	12, // 8: pulse.edge.v1.UploadDiscoveryRequest.discoveries:type_name -> pulse.edge.v1.EdgeDiscovery
+	1,  // 9: pulse.edge.v1.ListDeviceSourcesResponse.sources:type_name -> pulse.edge.v1.EdgeDeviceSource
+	1,  // 10: pulse.edge.v1.ApproveDeviceSourceResponse.source:type_name -> pulse.edge.v1.EdgeDeviceSource
+	23, // 11: pulse.edge.v1.EdgeTelemetrySample.metrics:type_name -> google.protobuf.Struct
+	19, // 12: pulse.edge.v1.UploadTelemetryBatchRequest.samples:type_name -> pulse.edge.v1.EdgeTelemetrySample
+	2,  // 13: pulse.edge.v1.EdgeIngestService.CreateCollector:input_type -> pulse.edge.v1.CreateCollectorRequest
+	4,  // 14: pulse.edge.v1.EdgeIngestService.ListCollectors:input_type -> pulse.edge.v1.ListCollectorsRequest
+	6,  // 15: pulse.edge.v1.EdgeIngestService.RevokeCollectorSetupToken:input_type -> pulse.edge.v1.RevokeCollectorSetupTokenRequest
+	8,  // 16: pulse.edge.v1.EdgeIngestService.EnrollCollector:input_type -> pulse.edge.v1.EnrollCollectorRequest
+	10, // 17: pulse.edge.v1.EdgeIngestService.Heartbeat:input_type -> pulse.edge.v1.HeartbeatRequest
+	13, // 18: pulse.edge.v1.EdgeIngestService.UploadDiscovery:input_type -> pulse.edge.v1.UploadDiscoveryRequest
+	15, // 19: pulse.edge.v1.EdgeIngestService.ListDeviceSources:input_type -> pulse.edge.v1.ListDeviceSourcesRequest
+	17, // 20: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:input_type -> pulse.edge.v1.ApproveDeviceSourceRequest
+	20, // 21: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:input_type -> pulse.edge.v1.UploadTelemetryBatchRequest
+	3,  // 22: pulse.edge.v1.EdgeIngestService.CreateCollector:output_type -> pulse.edge.v1.CreateCollectorResponse
+	5,  // 23: pulse.edge.v1.EdgeIngestService.ListCollectors:output_type -> pulse.edge.v1.ListCollectorsResponse
+	7,  // 24: pulse.edge.v1.EdgeIngestService.RevokeCollectorSetupToken:output_type -> pulse.edge.v1.RevokeCollectorSetupTokenResponse
+	9,  // 25: pulse.edge.v1.EdgeIngestService.EnrollCollector:output_type -> pulse.edge.v1.EnrollCollectorResponse
+	11, // 26: pulse.edge.v1.EdgeIngestService.Heartbeat:output_type -> pulse.edge.v1.HeartbeatResponse
+	14, // 27: pulse.edge.v1.EdgeIngestService.UploadDiscovery:output_type -> pulse.edge.v1.UploadDiscoveryResponse
+	16, // 28: pulse.edge.v1.EdgeIngestService.ListDeviceSources:output_type -> pulse.edge.v1.ListDeviceSourcesResponse
+	18, // 29: pulse.edge.v1.EdgeIngestService.ApproveDeviceSource:output_type -> pulse.edge.v1.ApproveDeviceSourceResponse
+	21, // 30: pulse.edge.v1.EdgeIngestService.UploadTelemetryBatch:output_type -> pulse.edge.v1.UploadTelemetryBatchResponse
+	22, // [22:31] is the sub-list for method output_type
+	13, // [13:22] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_pulse_edge_v1_edge_proto_init() }
@@ -1494,7 +1615,7 @@ func file_pulse_edge_v1_edge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pulse_edge_v1_edge_proto_rawDesc), len(file_pulse_edge_v1_edge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

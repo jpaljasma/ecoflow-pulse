@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math"
 	"net"
 	"net/http"
@@ -21,12 +22,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	edgev1 "github.com/jpaljasma/ecoflow-pulse/gen/pulse/edge/v1"
+	"github.com/jpaljasma/ecoflow-pulse/internal/edgecollector"
+	"github.com/jpaljasma/ecoflow-pulse/internal/edgefiles"
+	pulselog "github.com/jpaljasma/ecoflow-pulse/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -47,16 +53,26 @@ const (
 	defaultStartupRetry   = 5 * time.Second
 	defaultOutboxMaxAge   = 168 * time.Hour
 	defaultOutboxMaxBytes = 2 * 1024 * 1024 * 1024
+	outboxPruneInterval   = time.Minute
 	defaultPi5GOMAXPROCS  = 4
 	defaultPi5Memory      = 512 * 1024 * 1024
 	defaultPi5GCPercent   = 100
 )
+
+var errCorruptOutboxEntry = errors.New("corrupt outbox entry")
 
 type edgeTransport string
 
 const (
 	edgeTransportREST edgeTransport = "rest"
 	edgeTransportGRPC edgeTransport = "grpc"
+)
+
+const (
+	edgeOutboxKindDiscovery = "discovery"
+	edgeOutboxKindTelemetry = "telemetry"
+	edgeProviderEcoFlow     = "ecoflow"
+	edgeTransportBLE        = "ble"
 )
 
 type config struct {
@@ -108,6 +124,11 @@ type edgeClient struct {
 	outbox            *edgeOutbox
 }
 
+type edgeEnrollment struct {
+	CollectorSecret string
+	CollectorEnv    map[string]string
+}
+
 type runtimeDefaults struct {
 	GOMAXPROCS  int
 	MemoryLimit int64
@@ -128,10 +149,15 @@ type edgeOutboxConfig struct {
 }
 
 type edgeOutbox struct {
-	dir      string
-	maxAge   time.Duration
-	maxBytes int64
-	now      func() time.Time
+	flushMu     sync.Mutex
+	mu          sync.Mutex
+	dir         string
+	maxAge      time.Duration
+	maxBytes    int64
+	now         func() time.Time
+	usedBytes   int64
+	usageLoaded bool
+	nextPruneAt time.Time
 }
 
 type edgeOutboxEntry struct {
@@ -176,7 +202,19 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 2
 	}
 
-	log := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logCfg := pulselog.DefaultServiceConfig("pulse-edge-collector")
+	logCfg.Out = stderr
+	logCfg.Level = pulselog.ParseLevel(os.Getenv("LOG_LEVEL"), slog.LevelInfo)
+	log, asyncLogHandler, err := pulselog.BuildServiceLogger(logCfg)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "init logger: %v\n", err)
+		return 1
+	}
+	defer func() {
+		if asyncLogHandler != nil {
+			asyncLogHandler.Close()
+		}
+	}()
 	appliedRuntime := applyRuntimeDefaults(os.Getenv)
 	log.Info("pulse edge runtime configured",
 		slog.Int("gomaxprocs", runtime.GOMAXPROCS(0)),
@@ -225,12 +263,12 @@ func runMain(args []string, stdout io.Writer, stderr io.Writer) int {
 		client.grpcClient = edgev1.NewEdgeIngestServiceClient(grpcConn)
 	}
 	if strings.TrimSpace(*enrollToken) != "" {
-		secret, err := client.enroll(context.Background(), *enrollToken, collectorVersion(), hostname())
+		enrollment, err := client.enroll(context.Background(), *enrollToken, collectorVersion(), hostname())
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "enroll collector: %v\n", err)
 			return 1
 		}
-		_, _ = fmt.Fprintf(stdout, "PULSE_EDGE_COLLECTOR_SECRET=%s\n", secret)
+		writeEnrollmentEnv(stdout, enrollment)
 		return 0
 	}
 	if client.secret == "" {
@@ -299,6 +337,9 @@ func edgeTransportConfigFromEnv(getenv func(string) string) (edgeTransportConfig
 		return cfg, nil
 	case edgeTransportGRPC:
 		cfg := edgeTransportConfig{transport: edgeTransportGRPC, grpcAddr: grpcAddr}
+		if !isLoopbackAddr(cfg.grpcAddr) {
+			return edgeTransportConfig{}, fmt.Errorf("PULSE_EDGE_GRPC_ADDR must be loopback when using insecure gRPC transport: %s", cfg.grpcAddr)
+		}
 		if err := edgeStartupWaitConfigFromEnv(getenv, &cfg); err != nil {
 			return edgeTransportConfig{}, err
 		}
@@ -306,6 +347,18 @@ func edgeTransportConfigFromEnv(getenv func(string) string) (edgeTransportConfig
 	default:
 		return edgeTransportConfig{}, fmt.Errorf("unsupported PULSE_EDGE_TRANSPORT %q", transportValue)
 	}
+}
+
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(addr))
+	if err != nil {
+		host = strings.TrimSpace(addr)
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func edgeStartupWaitConfigFromEnv(getenv func(string) string, cfg *edgeTransportConfig) error {
@@ -449,8 +502,9 @@ func newEdgeOutbox(cfg edgeOutboxConfig) (*edgeOutbox, error) {
 	if cfg.MaxBytes <= 0 {
 		cfg.MaxBytes = defaultOutboxMaxBytes
 	}
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return nil, fmt.Errorf("create edge outbox dir: %w", err)
+	dir, err := edgefiles.PreparePrivateDirectory(dir)
+	if err != nil {
+		return nil, fmt.Errorf("prepare edge outbox dir: %w", err)
 	}
 	return &edgeOutbox{
 		dir:      dir,
@@ -464,37 +518,55 @@ func (o *edgeOutbox) enqueueAndFlush(ctx context.Context, entry edgeOutboxEntry,
 	if o == nil {
 		return errors.New("edge outbox is not configured")
 	}
-	if err := o.enqueue(entry); err != nil {
+	o.mu.Lock()
+	queued, err := o.enqueueLocked(entry)
+	o.mu.Unlock()
+	if err != nil {
 		return err
 	}
-	_ = o.flush(ctx, send)
+	if err := o.flushPath(ctx, o.pathForID(queued.ID), send); err != nil {
+		return fmt.Errorf("flush queued edge outbox entry: %w", err)
+	}
 	return nil
 }
 
-func (o *edgeOutbox) enqueue(entry edgeOutboxEntry) error {
+func (o *edgeOutbox) enqueue(entry edgeOutboxEntry) (edgeOutboxEntry, error) {
+	if o == nil {
+		return edgeOutboxEntry{}, errors.New("edge outbox is not configured")
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.enqueueLocked(entry)
+}
+
+func (o *edgeOutbox) enqueueLocked(entry edgeOutboxEntry) (edgeOutboxEntry, error) {
 	if strings.TrimSpace(entry.ID) == "" {
-		return errors.New("outbox entry id is required")
+		return edgeOutboxEntry{}, errors.New("outbox entry id is required")
 	}
 	if strings.TrimSpace(entry.Kind) == "" {
-		return errors.New("outbox entry kind is required")
+		return edgeOutboxEntry{}, errors.New("outbox entry kind is required")
 	}
 	if entry.CreatedAtUnixMS <= 0 {
 		entry.CreatedAtUnixMS = o.now().UTC().UnixMilli()
 	}
-	if err := o.pruneExpired(); err != nil {
-		return err
+	if err := o.maybePruneExpiredLocked(); err != nil {
+		return edgeOutboxEntry{}, err
 	}
-	body, err := json.MarshalIndent(entry, "", "  ")
+	body, err := json.Marshal(entry)
 	if err != nil {
-		return fmt.Errorf("marshal outbox entry: %w", err)
-	}
-	if err := o.ensureCapacity(int64(len(body))); err != nil {
-		return err
+		return edgeOutboxEntry{}, fmt.Errorf("marshal outbox entry: %w", err)
 	}
 	path := o.pathForID(entry.ID)
+	replacingBytes, err := fileSize(path)
+	if err != nil {
+		return edgeOutboxEntry{}, err
+	}
+	if err := o.ensureCapacityLocked(int64(len(body)), replacingBytes); err != nil {
+		return edgeOutboxEntry{}, err
+	}
 	tmp, err := os.CreateTemp(o.dir, ".tmp-"+sanitizeOutboxID(entry.ID)+"-")
 	if err != nil {
-		return fmt.Errorf("create outbox temp file: %w", err)
+		return edgeOutboxEntry{}, fmt.Errorf("create outbox temp file: %w", err)
 	}
 	tmpPath := tmp.Name()
 	cleanup := true
@@ -505,56 +577,143 @@ func (o *edgeOutbox) enqueue(entry edgeOutboxEntry) error {
 	}()
 	if _, err := tmp.Write(body); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("write outbox temp file: %w", err)
+		return edgeOutboxEntry{}, fmt.Errorf("write outbox temp file: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("fsync outbox temp file: %w", err)
+		return edgeOutboxEntry{}, fmt.Errorf("fsync outbox temp file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close outbox temp file: %w", err)
+		return edgeOutboxEntry{}, fmt.Errorf("close outbox temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("commit outbox entry: %w", err)
+		return edgeOutboxEntry{}, fmt.Errorf("commit outbox entry: %w", err)
 	}
 	cleanup = false
-	return fsyncDir(o.dir)
+	if err := fsyncDir(o.dir); err != nil {
+		return edgeOutboxEntry{}, err
+	}
+	if o.usageLoaded {
+		o.usedBytes += int64(len(body)) - replacingBytes
+		if o.usedBytes < 0 {
+			o.usedBytes = 0
+		}
+	}
+	return entry, nil
 }
 
 func (o *edgeOutbox) flush(ctx context.Context, send func(context.Context, edgeOutboxEntry) error) error {
 	if o == nil {
 		return nil
 	}
-	if err := o.pruneExpired(); err != nil {
+	o.flushMu.Lock()
+	defer o.flushMu.Unlock()
+
+	o.mu.Lock()
+	if err := o.pruneExpiredLocked(); err != nil {
+		o.mu.Unlock()
 		return err
 	}
-	paths := o.pendingPaths()
+	paths, err := o.pendingPathsLocked()
+	o.mu.Unlock()
+	if err != nil {
+		return err
+	}
+
+	var corruptErr error
 	for _, path := range paths {
-		body, err := os.ReadFile(path)
+		err := o.flushPathLocked(ctx, path, send)
+		if errors.Is(err, errCorruptOutboxEntry) {
+			corruptErr = errors.Join(corruptErr, err)
+			continue
+		}
 		if err != nil {
-			return fmt.Errorf("read outbox entry: %w", err)
-		}
-		var entry edgeOutboxEntry
-		if err := json.Unmarshal(body, &entry); err != nil {
-			return fmt.Errorf("decode outbox entry %s: %w", filepath.Base(path), err)
-		}
-		if err := send(ctx, entry); err != nil {
-			return err
-		}
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("remove sent outbox entry: %w", err)
-		}
-		if err := fsyncDir(o.dir); err != nil {
 			return err
 		}
 	}
-	return nil
+	return corruptErr
 }
 
-func (o *edgeOutbox) pendingPaths() []string {
+func (o *edgeOutbox) flushPath(ctx context.Context, path string, send func(context.Context, edgeOutboxEntry) error) error {
+	o.flushMu.Lock()
+	defer o.flushMu.Unlock()
+	return o.flushPathLocked(ctx, path, send)
+}
+
+func (o *edgeOutbox) flushPathLocked(ctx context.Context, path string, send func(context.Context, edgeOutboxEntry) error) error {
+	o.mu.Lock()
+	entry, body, err := readOutboxEntryBody(path)
+	if errors.Is(err, errCorruptOutboxEntry) {
+		quarantineErr := o.quarantineCorruptEntryLocked(path)
+		o.mu.Unlock()
+		if quarantineErr != nil {
+			return errors.Join(err, quarantineErr)
+		}
+		return err
+	}
+	o.mu.Unlock()
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := send(ctx, entry); err != nil {
+		return err
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.removeEntryIfBodyMatchesLocked(path, body)
+}
+
+func readOutboxEntry(path string) (edgeOutboxEntry, error) {
+	entry, _, err := readOutboxEntryBody(path)
+	return entry, err
+}
+
+func readOutboxEntryBody(path string) (edgeOutboxEntry, []byte, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return edgeOutboxEntry{}, nil, fmt.Errorf("read outbox entry: %w", err)
+	}
+	var entry edgeOutboxEntry
+	if err := json.Unmarshal(body, &entry); err != nil {
+		return edgeOutboxEntry{}, nil, fmt.Errorf("%w %s: %v", errCorruptOutboxEntry, filepath.Base(path), err)
+	}
+	return entry, body, nil
+}
+
+func (o *edgeOutbox) quarantineCorruptEntryLocked(path string) error {
+	size, err := fileSize(path)
+	if err != nil {
+		return err
+	}
+	candidate := path + ".corrupt"
+	if _, err := os.Stat(candidate); err == nil {
+		candidate = fmt.Sprintf("%s.corrupt.%d", path, o.now().UTC().UnixNano())
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat corrupt outbox quarantine target: %w", err)
+	}
+	if err := os.Rename(path, candidate); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("quarantine corrupt outbox entry: %w", err)
+	}
+	o.accountRemovedBytesLocked(size)
+	return fsyncDir(o.dir)
+}
+
+func (o *edgeOutbox) pendingPaths() ([]string, error) {
+	if o == nil {
+		return nil, nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.pendingPathsLocked()
+}
+
+func (o *edgeOutbox) pendingPathsLocked() ([]string, error) {
 	entries, err := os.ReadDir(o.dir)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("read edge outbox dir: %w", err)
 	}
 	paths := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -563,49 +722,146 @@ func (o *edgeOutbox) pendingPaths() []string {
 		}
 		paths = append(paths, filepath.Join(o.dir, entry.Name()))
 	}
-	sortStrings(paths)
-	return paths
+	sort.Strings(paths)
+	return paths, nil
 }
 
-func (o *edgeOutbox) pruneExpired() error {
+func (o *edgeOutbox) pruneExpiredLocked() error {
+	err := o.refreshUsageLocked(true)
+	o.nextPruneAt = o.now().UTC().Add(outboxPruneInterval)
+	return err
+}
+
+func (o *edgeOutbox) maybePruneExpiredLocked() error {
 	if o.maxAge <= 0 {
 		return nil
 	}
-	cutoff := o.now().UTC().Add(-o.maxAge).UnixMilli()
-	for _, path := range o.pendingPaths() {
-		body, err := os.ReadFile(path)
+	now := o.now().UTC()
+	if o.usageLoaded && !o.nextPruneAt.IsZero() && now.Before(o.nextPruneAt) {
+		return nil
+	}
+	if err := o.refreshUsageLocked(true); err != nil {
+		return err
+	}
+	o.nextPruneAt = now.Add(outboxPruneInterval)
+	return nil
+}
+
+func (o *edgeOutbox) ensureCapacityLocked(newEntryBytes int64, replacingBytes int64) error {
+	if o.maxBytes <= 0 {
+		return nil
+	}
+	if !o.usageLoaded {
+		if err := o.refreshUsageLocked(true); err != nil {
+			return err
+		}
+	}
+	if o.usedBytes+newEntryBytes-replacingBytes > o.maxBytes {
+		if err := o.refreshUsageLocked(true); err != nil {
+			return err
+		}
+		o.nextPruneAt = o.now().UTC().Add(outboxPruneInterval)
+	}
+	if o.usedBytes+newEntryBytes-replacingBytes > o.maxBytes {
+		return fmt.Errorf("edge outbox size %d plus new entry %d exceeds max %d", o.usedBytes, newEntryBytes, o.maxBytes)
+	}
+	return nil
+}
+
+func (o *edgeOutbox) refreshUsageLocked(prune bool) error {
+	var used int64
+	cutoff := int64(0)
+	if prune && o.maxAge > 0 {
+		cutoff = o.now().UTC().Add(-o.maxAge).UnixMilli()
+	}
+	removed := false
+	paths, err := o.pendingPathsLocked()
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		size, err := fileSize(path)
 		if err != nil {
-			return fmt.Errorf("read outbox entry for prune: %w", err)
+			return err
 		}
-		var entry edgeOutboxEntry
-		if err := json.Unmarshal(body, &entry); err != nil {
-			return fmt.Errorf("decode outbox entry for prune: %w", err)
-		}
-		if entry.CreatedAtUnixMS > 0 && entry.CreatedAtUnixMS < cutoff {
-			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("remove expired outbox entry: %w", err)
+		if cutoff > 0 {
+			entry, err := readOutboxEntry(path)
+			if errors.Is(err, errCorruptOutboxEntry) {
+				if quarantineErr := o.quarantineCorruptEntryLocked(path); quarantineErr != nil {
+					return errors.Join(err, quarantineErr)
+				}
+				removed = true
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if entry.CreatedAtUnixMS > 0 && entry.CreatedAtUnixMS < cutoff {
+				if err := o.removeEntryLocked(path); err != nil {
+					return err
+				}
+				removed = true
+				continue
 			}
 		}
+		used += size
+	}
+	o.usedBytes = used
+	o.usageLoaded = true
+	if removed {
+		return fsyncDir(o.dir)
+	}
+	return nil
+}
+
+func (o *edgeOutbox) removeEntryLocked(path string) error {
+	size, err := fileSize(path)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove outbox entry: %w", err)
+	}
+	o.accountRemovedBytesLocked(size)
+	return nil
+}
+
+func (o *edgeOutbox) removeEntryIfBodyMatchesLocked(path string, sentBody []byte) error {
+	currentBody, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read outbox entry before remove: %w", err)
+	}
+	if !bytes.Equal(currentBody, sentBody) {
+		return nil
+	}
+	if err := o.removeEntryLocked(path); err != nil {
+		return err
 	}
 	return fsyncDir(o.dir)
 }
 
-func (o *edgeOutbox) ensureCapacity(newEntryBytes int64) error {
-	if o.maxBytes <= 0 {
-		return nil
+func (o *edgeOutbox) accountRemovedBytesLocked(size int64) {
+	if !o.usageLoaded || size <= 0 {
+		return
 	}
-	var used int64
-	for _, path := range o.pendingPaths() {
-		info, err := os.Stat(path)
-		if err != nil {
-			return fmt.Errorf("stat outbox entry: %w", err)
-		}
-		used += info.Size()
+	o.usedBytes -= size
+	if o.usedBytes < 0 {
+		o.usedBytes = 0
 	}
-	if used+newEntryBytes > o.maxBytes {
-		return fmt.Errorf("edge outbox size %d plus new entry %d exceeds max %d", used, newEntryBytes, o.maxBytes)
+}
+
+func fileSize(path string) (int64, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
 	}
-	return nil
+	if err != nil {
+		return 0, fmt.Errorf("stat outbox entry: %w", err)
+	}
+	return info.Size(), nil
 }
 
 func (o *edgeOutbox) pathForID(id string) string {
@@ -637,14 +893,6 @@ func fsyncDir(dir string) error {
 		return fmt.Errorf("fsync outbox dir: %w", err)
 	}
 	return nil
-}
-
-func sortStrings(values []string) {
-	for i := 1; i < len(values); i++ {
-		for j := i; j > 0 && values[j] < values[j-1]; j-- {
-			values[j], values[j-1] = values[j-1], values[j]
-		}
-	}
 }
 
 func exitCodeForCollectorError(err error) int {
@@ -693,8 +941,8 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	if rawPath == "" {
 		rawPath = defaultRawOutputPath
 	}
-	if err := os.MkdirAll(filepath.Dir(rawPath), 0o755); err != nil {
-		return fmt.Errorf("create raw output dir: %w", err)
+	if err := prepareRawOutputPath(rawPath); err != nil {
+		return err
 	}
 	log.Info("pulse edge collector started", "profile", cfg.Profile, "target", cfg.targetBaseURL(), "raw_output", rawPath)
 	err := runBLEProbeLoop(ctx, log, func(runCtx context.Context) error {
@@ -702,6 +950,11 @@ func runCollector(ctx context.Context, log *slog.Logger, cfg config, client edge
 	}, exponentialBackoff(bleRestartBackoffMin, bleRestartBackoffMax))
 	cancel()
 	<-heartbeatDone
+	return err
+}
+
+func prepareRawOutputPath(rawPath string) error {
+	_, err := edgefiles.PreparePrivateOutputPath(rawPath)
 	return err
 }
 
@@ -790,11 +1043,11 @@ func runBLEProbeOnce(ctx context.Context, log *slog.Logger, cfg bleConfig, rawPa
 				return err
 			}
 			if err := client.uploadDiscovery(runCtx, record); err != nil {
-				log.Warn("edge discovery upload failed; dropping refresh", slog.String("error", err.Error()))
+				log.Warn("edge discovery upload failed", slog.String("error", err.Error()))
 			}
 			if metrics := record.metricMap(); len(metrics) > 0 {
 				if err := client.uploadTelemetry(runCtx, record, metrics); err != nil {
-					log.Warn("edge telemetry upload failed; dropping refresh", slog.String("error", err.Error()))
+					log.Warn("edge telemetry upload failed", slog.String("error", err.Error()))
 				}
 			}
 			return nil
@@ -923,10 +1176,12 @@ func stopBLEDiscover(cmd *exec.Cmd, waitCh <-chan error) error {
 	if cmd.Process != nil {
 		_ = cmd.Process.Signal(syscall.SIGTERM)
 	}
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
 	select {
 	case err := <-waitCh:
 		return err
-	case <-time.After(5 * time.Second):
+	case <-timer.C:
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
@@ -969,10 +1224,18 @@ func readNewRawProbeEvents(path string, offset *int64, handle func(rawProbeRecor
 	if _, err := file.Seek(*offset, io.SeekStart); err != nil {
 		return fmt.Errorf("seek raw probe output: %w", err)
 	}
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), rawScannerMaxBytes)
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
+	reader := bufio.NewReaderSize(file, 64*1024)
+	nextOffset := *offset
+	for {
+		rawLine, complete, err := readRawProbeLine(reader)
+		if err != nil {
+			return fmt.Errorf("scan raw probe output: %w", err)
+		}
+		if !complete {
+			break
+		}
+		nextOffset += int64(len(rawLine))
+		line := bytes.TrimSpace(rawLine)
 		if len(line) == 0 {
 			continue
 		}
@@ -986,20 +1249,41 @@ func readNewRawProbeEvents(path string, offset *int64, handle func(rawProbeRecor
 			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("scan raw probe output: %w", err)
-	}
-	pos, err := file.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return fmt.Errorf("track raw probe offset: %w", err)
-	}
-	*offset = pos
+	*offset = nextOffset
 	return nil
 }
 
+func readRawProbeLine(reader *bufio.Reader) ([]byte, bool, error) {
+	var line []byte
+	for {
+		chunk, err := reader.ReadSlice('\n')
+		if len(chunk) > 0 {
+			nextLen := len(line) + len(chunk)
+			if nextLen > rawScannerMaxBytes {
+				return nil, false, fmt.Errorf("line exceeds %d bytes", rawScannerMaxBytes)
+			}
+			line = append(line, chunk...)
+		}
+		switch {
+		case err == nil:
+			return line, true, nil
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue
+		case errors.Is(err, io.EOF):
+			return nil, false, nil
+		default:
+			return nil, false, err
+		}
+	}
+}
+
 func resetRawProbeOutput(path string) error {
-	if err := os.WriteFile(path, nil, 0o644); err != nil {
+	file, err := edgefiles.OpenPrivateOutputFile(path)
+	if err != nil {
 		return fmt.Errorf("reset raw probe output: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close raw probe output: %w", err)
 	}
 	return nil
 }
@@ -1044,30 +1328,54 @@ func (c config) targetBaseURL() string {
 	return strings.TrimRight(strings.TrimSpace(c.Targets["local"].BaseURL), "/")
 }
 
-func (c edgeClient) enroll(ctx context.Context, setupToken string, version string, hostname string) (string, error) {
+func (c edgeClient) enroll(ctx context.Context, setupToken string, version string, hostname string) (edgeEnrollment, error) {
 	if c.transport == edgeTransportGRPC {
 		if c.grpcClient == nil {
-			return "", errors.New("edge gRPC client is not configured")
+			return edgeEnrollment{}, errors.New("edge gRPC client is not configured")
 		}
-		resp, err := c.grpcClient.EnrollCollector(ctx, &edgev1.EnrollCollectorRequest{
+		callCtx, cancel := edgeCallContext(ctx)
+		defer cancel()
+		resp, err := c.grpcClient.EnrollCollector(callCtx, &edgev1.EnrollCollectorRequest{
 			SetupToken:       setupToken,
 			CollectorVersion: version,
 			Hostname:         hostname,
 		})
 		if err != nil {
-			return "", err
+			return edgeEnrollment{}, err
 		}
-		return resp.GetCollectorSecret(), nil
+		return edgeEnrollment{
+			CollectorSecret: resp.GetCollectorSecret(),
+			CollectorEnv:    resp.GetCollectorEnv(),
+		}, nil
 	}
 	var response struct {
-		CollectorSecret string `json:"collectorSecret"`
+		CollectorSecret string            `json:"collectorSecret"`
+		CollectorEnv    map[string]string `json:"collectorEnv"`
 	}
 	err := c.postJSON(ctx, "/api/v1/edge/enroll", map[string]any{
 		"setupToken":       setupToken,
 		"collectorVersion": version,
 		"hostname":         hostname,
 	}, &response)
-	return response.CollectorSecret, err
+	return edgeEnrollment{
+		CollectorSecret: response.CollectorSecret,
+		CollectorEnv:    response.CollectorEnv,
+	}, err
+}
+
+func writeEnrollmentEnv(w io.Writer, enrollment edgeEnrollment) {
+	_, _ = fmt.Fprintf(w, "PULSE_EDGE_COLLECTOR_SECRET=%s\n", sanitizeCollectorEnvValue(enrollment.CollectorSecret))
+	if value := sanitizeCollectorEnvValue(enrollment.CollectorEnv[edgecollector.EcoFlowBLEUserIDEnvKey]); value != "" {
+		_, _ = fmt.Fprintf(w, "%s=%s\n", edgecollector.EcoFlowBLEUserIDEnvKey, value)
+	}
+}
+
+func sanitizeCollectorEnvValue(value string) string {
+	value = strings.TrimSpace(value)
+	if strings.ContainsAny(value, "\r\n") {
+		return ""
+	}
+	return value
 }
 
 func (c edgeClient) heartbeat(ctx context.Context, version string, hostname string) error {
@@ -1075,7 +1383,9 @@ func (c edgeClient) heartbeat(ctx context.Context, version string, hostname stri
 		if c.grpcClient == nil {
 			return errors.New("edge gRPC client is not configured")
 		}
-		_, err := c.grpcClient.Heartbeat(ctx, &edgev1.HeartbeatRequest{
+		callCtx, cancel := edgeCallContext(ctx)
+		defer cancel()
+		_, err := c.grpcClient.Heartbeat(callCtx, &edgev1.HeartbeatRequest{
 			CollectorSecret:  c.secret,
 			CollectorVersion: version,
 			Hostname:         hostname,
@@ -1107,8 +1417,8 @@ func (c edgeClient) uploadTelemetry(ctx context.Context, record rawProbeRecord, 
 
 func discoveryOutboxEntry(record rawProbeRecord) edgeOutboxEntry {
 	discovery := &edgeOutboxDiscovery{
-		Provider:         "ecoflow",
-		Transport:        "ble",
+		Provider:         edgeProviderEcoFlow,
+		Transport:        edgeTransportBLE,
 		ProviderDeviceID: record.providerDeviceID(),
 		DisplayName:      record.Device.LocalName,
 		Model:            record.Device.Info.Model,
@@ -1122,36 +1432,46 @@ func discoveryOutboxEntry(record rawProbeRecord) edgeOutboxEntry {
 	}
 	return edgeOutboxEntry{
 		ID:              stableDiscoveryID(discovery),
-		Kind:            "discovery",
+		Kind:            edgeOutboxKindDiscovery,
 		CreatedAtUnixMS: time.Now().UTC().UnixMilli(),
 		Discovery:       discovery,
 	}
 }
 
 func telemetryOutboxEntry(record rawProbeRecord, metrics map[string]any) edgeOutboxEntry {
+	providerDeviceID := record.providerDeviceID()
+	observedAtUnixMS := record.observedAtUnixMS()
 	telemetry := &edgeOutboxTelemetry{
-		Provider:         "ecoflow",
-		Transport:        "ble",
-		ProviderDeviceID: record.providerDeviceID(),
-		ObservedAtUnixMS: record.observedAtUnixMS(),
-		Metrics:          cloneAnyMap(metrics),
-		ClientSampleID:   stableTelemetrySampleID(record, metrics),
+		Provider:         edgeProviderEcoFlow,
+		Transport:        edgeTransportBLE,
+		ProviderDeviceID: providerDeviceID,
+		ObservedAtUnixMS: observedAtUnixMS,
+		Metrics:          maps.Clone(metrics),
+		ClientSampleID:   stableTelemetrySampleID(providerDeviceID, observedAtUnixMS, metrics),
 	}
 	return edgeOutboxEntry{
 		ID:              telemetry.ClientSampleID,
-		Kind:            "telemetry",
+		Kind:            edgeOutboxKindTelemetry,
 		CreatedAtUnixMS: time.Now().UTC().UnixMilli(),
 		Telemetry:       telemetry,
 	}
 }
 
-func stableTelemetrySampleID(record rawProbeRecord, metrics map[string]any) string {
-	payload, _ := json.Marshal(map[string]any{
-		"provider":            "ecoflow",
-		"transport":           "ble",
-		"provider_device_id":  record.providerDeviceID(),
-		"observed_at_unix_ms": record.observedAtUnixMS(),
-		"metrics":             metrics,
+type telemetrySampleFingerprint struct {
+	Metrics          map[string]any `json:"metrics"`
+	ObservedAtUnixMS int64          `json:"observed_at_unix_ms"`
+	Provider         string         `json:"provider"`
+	ProviderDeviceID string         `json:"provider_device_id"`
+	Transport        string         `json:"transport"`
+}
+
+func stableTelemetrySampleID(providerDeviceID string, observedAtUnixMS int64, metrics map[string]any) string {
+	payload, _ := json.Marshal(telemetrySampleFingerprint{
+		Metrics:          metrics,
+		ObservedAtUnixMS: observedAtUnixMS,
+		Provider:         edgeProviderEcoFlow,
+		ProviderDeviceID: providerDeviceID,
+		Transport:        edgeTransportBLE,
 	})
 	sum := sha256.Sum256(payload)
 	return "edge-telemetry-" + hex.EncodeToString(sum[:])
@@ -1163,25 +1483,14 @@ func stableDiscoveryID(discovery *edgeOutboxDiscovery) string {
 	return "edge-discovery-" + hex.EncodeToString(sum[:])
 }
 
-func cloneAnyMap(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-	return out
-}
-
 func (c edgeClient) sendOutboxEntry(ctx context.Context, entry edgeOutboxEntry) error {
 	switch entry.Kind {
-	case "discovery":
+	case edgeOutboxKindDiscovery:
 		if entry.Discovery == nil {
 			return errors.New("outbox discovery payload is missing")
 		}
 		return c.sendDiscovery(ctx, *entry.Discovery)
-	case "telemetry":
+	case edgeOutboxKindTelemetry:
 		if entry.Telemetry == nil {
 			return errors.New("outbox telemetry payload is missing")
 		}
@@ -1200,7 +1509,9 @@ func (c edgeClient) sendDiscovery(ctx context.Context, discovery edgeOutboxDisco
 		if err != nil {
 			return err
 		}
-		_, err = c.grpcClient.UploadDiscovery(ctx, &edgev1.UploadDiscoveryRequest{
+		callCtx, cancel := edgeCallContext(ctx)
+		defer cancel()
+		_, err = c.grpcClient.UploadDiscovery(callCtx, &edgev1.UploadDiscoveryRequest{
 			CollectorSecret: c.secret,
 			Discoveries: []*edgev1.EdgeDiscovery{{
 				Provider:         discovery.Provider,
@@ -1241,7 +1552,9 @@ func (c edgeClient) sendTelemetry(ctx context.Context, telemetry edgeOutboxTelem
 		if err != nil {
 			return err
 		}
-		_, err = c.grpcClient.UploadTelemetryBatch(ctx, &edgev1.UploadTelemetryBatchRequest{
+		callCtx, cancel := edgeCallContext(ctx)
+		defer cancel()
+		_, err = c.grpcClient.UploadTelemetryBatch(callCtx, &edgev1.UploadTelemetryBatchRequest{
 			CollectorSecret: c.secret,
 			Samples: []*edgev1.EdgeTelemetrySample{{
 				Provider:         telemetry.Provider,
@@ -1265,6 +1578,10 @@ func (c edgeClient) sendTelemetry(ctx context.Context, telemetry edgeOutboxTelem
 			"metrics":          telemetry.Metrics,
 		}},
 	}, nil)
+}
+
+func edgeCallContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, defaultHTTPTimeout)
 }
 
 func (c edgeClient) postJSON(ctx context.Context, endpoint string, payload any, response any) error {
@@ -1338,10 +1655,24 @@ func isRetryablePostError(err error) bool {
 }
 
 func (r rawProbeRecord) providerDeviceID() string {
-	if strings.TrimSpace(r.Device.LocalName) != "" {
-		return strings.ToUpper(strings.TrimSpace(r.Device.LocalName))
+	serial := strings.TrimSpace(r.metricValue("manufacturer_serial"))
+	if serial != "" {
+		return strings.ToUpper(serial)
+	}
+	localName := strings.TrimSpace(r.Device.LocalName)
+	if localName != "" {
+		return strings.ToUpper(localName)
 	}
 	return strings.ToUpper(strings.TrimSpace(r.Device.Info.Prefix))
+}
+
+func (r rawProbeRecord) metricValue(name string) string {
+	for _, metric := range r.Event.Metrics {
+		if strings.TrimSpace(metric.Name) == name {
+			return strings.TrimSpace(metric.Value)
+		}
+	}
+	return ""
 }
 
 func (r rawProbeRecord) observedAtUnixMS() int64 {
@@ -1353,15 +1684,18 @@ func (r rawProbeRecord) observedAtUnixMS() int64 {
 }
 
 func (r rawProbeRecord) metricMap() map[string]any {
-	out := make(map[string]any, len(r.Event.Metrics))
+	var out map[string]any
 	for _, metric := range r.Event.Metrics {
 		name := strings.TrimSpace(metric.Name)
-		if name == "" || name == "auth_result" {
+		if name == "" || name == "auth_result" || name == "manufacturer_serial" {
 			continue
 		}
 		value := strings.TrimSpace(metric.Value)
 		if value == "" {
 			continue
+		}
+		if out == nil {
+			out = make(map[string]any, len(r.Event.Metrics))
 		}
 		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
 			if !math.IsInf(parsed, 0) && !math.IsNaN(parsed) {
